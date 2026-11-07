@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	Description is not ready!!!
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	Die sowjetische Zwischenpatrone mit Stahlkern und niedriger Impulsionstärke ausgestattet ist. Das Kleinkalibergeschoss mit der hohen Anfangsgeschwindigkeit gewährleistet hoche Ebenheit der Schussbahn.
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	Ein Gurt mit 100 Patronen 5,56x45 für das FN Minimi. Belegt zwei Munitionstaschen.
+st_ammo_556x45_belt_name	5,56x45 Gurt
 st_ammo_556x45_description	NATO-Mittelpatrone für Gewehre, aus der amerikanischen .223 Remington entwickelt und 1980 von der NATO standardisiert. Ein leichtes, schnelles Geschoss mit gestreckter Flugbahn und geringem Rückstoß.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Um 1990 von FN Herstal für die P90 und später die Pistole Five-seveN entwickelte Patrone. Ein leichtes, schnelles Geschoss, das Schutzwesten durchschlagen soll.
@@ -211,8 +213,12 @@ st_ammo_762x39_description	Die 7.62-mm Patrone des Musters von Jahr 1943, wird a
 st_ammo_762x39_m_description	Description is not ready!!!
 st_ammo_762x39_m_name	7.62x39 PRD
 st_ammo_762x39_name	7.62x39 
+st_ammo_762x51_20_description	Gewehrpatronen 7,62x51 in Packungen zu 20 Patronen für das H&K G3SG/1.
+st_ammo_762x51_20_name	7,62x51, 20-Schuss-Magazin
 st_ammo_762x51_M59_description	Der modifizierte der Armeegewehrpatrone des Kalibers 7.62 . Kugel ist mit dem Stahlkern ausgestattet.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	NATO-Gewehrpatrone im 100-Schuss-Gurt für Maschinengewehre.
+st_ammo_762x51_belt_name	7,62x51, Gurt
 st_ammo_762x51_description	Die populäre Armeepatrone mit Stahl geschlossenen Hülle, vorbestimmt für die Nutzung in Scharfschützen und alltags Waffen.
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Gefunden im Lagerhaus ist diese Patrone eine der ältesten Gewehrpatronen der Gegenwart. Das Alter und die Bedingungen der Aufbewahrung haben diese Patrone weniger wirksam gemacht
@@ -303,6 +309,8 @@ st_base_trap_description	Das gewöhnliche Jagdfangeisen mit der mächtigen Feder
 st_base_trap_name	Falle
 st_benelli_description	Italienische Selbstladeflinte, Kaliber 12. Ende der 1990er Jahre von Benelli mit Gasdrucklader entwickelt und vom US Marine Corps als M1014 eingeführt. Geladen wird ein Röhrenmagazin unter dem Lauf. Nur Einzelfeuer.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Italienische Reihenfeuerpistole, Munition: 9x19. Einzelfeuer oder Dreierfeuerstöße; klappbarer Vordergriff.
+st_beretta93r_name	Beretta 93R
 st_best	Beste
 st_best_explorer	FORSCHER
 st_best_explorer_artefacts	Artefakten:
@@ -841,6 +849,8 @@ st_clan_window_label	Klan Registrierung
 st_clear	Clear
 st_close	Schließen
 st_collect_statistics_option	Die Gebühr der Statistik zu erlauben
+st_colt_m1911_description	Amerikanische Pistole, Munition: .45 ACP. Sieben Jahrzehnte lang die Dienstpistole der US-Armee.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Es ist das Maximum des Lobes für den Tag verwendet.
 st_compliment_count_per_user_owerflow	Sie können ein Mensch nur einmal auf den Tag loben!
 st_compliment_player	Loben
@@ -865,6 +875,8 @@ st_crouch_action	Hocken (halt.)
 st_crouch_toggle_action	Hocken
 st_ct_max_members_count_error	Fehler beim Hinzufügen. In der Klan Mannschaft befindet sich schon die Maximale Anzahl der Spieler.
 st_current_value	\nAktueller Wert
+st_cz_75_description	Tschechische Selbstladepistole, Munition: 9x19. Eine der meistkopierten Pistolen des Kalten Krieges.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Komm jeden Tag, und bekomm <highlight> x2 </highlight> der Erfahrung und der Reputation für <highlight> erste drei </highlight> die Siege.
 st_daily_bonus_hint	Begrüßungs Fenster zeigen
 st_daily_bonus_label	Willkommen zurück
@@ -1171,10 +1183,14 @@ st_first_weapon_action	Waffe 1
 st_fix	Reparieren
 st_fn_fnc_description	Belgisches Sturmgewehr, Munition: 5,56x45. In den 1970er Jahren von FN Herstal entwickelt und von der belgischen Armee eingeführt; Lizenzversionen dienen in Schweden und Indonesien. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgisches leichtes Maschinengewehr, Munition: 5,56x45. Das Gruppen-MG von FN Herstal aus den 1970er Jahren, in den USA als M249 im Dienst. 100-Schuss-Kasten. Einzel- und Dauerfeuer.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgische Verteidigungswaffe (PDW), Munition: 5,7x28. Um 1990 von FN Herstal zusammen mit einer eigenen Patrone entwickelt; eine Bullpup-Waffe mit einem 50-Schuss-Magazin, das oben längs auf der Waffe liegt. Bei Spezialkräften und der Polizei vieler Länder im Einsatz. Einzel- und Dauerfeuer.
 st_fn_p90_name	FN P90
 st_fort_17_description	Die ukrainische Selbstladende Pistole mit dem Kaliber 9N...18. Die Serienfertigung ist in 2004 gestartet worden. Wurde von den Truppen des Innenministeriums und einigen Sondereinheiten verwendet.
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrainisches leichtes Maschinengewehr, Munition: 7,62x51. Ein in Lizenz in Winnyzja gebautes Negev mit 100-Schuss-Kasten.
+st_fort_401_name	Fort-401
 st_fov_option	Sichtfeld
 st_freedom_026_boots_desc	Schwere gepanzerte Stiefel in den Farben der Freiheit, zu schwerer Rüstung getragen.
 st_freedom_026_boots_name	Freiheit-Stiefel
@@ -1197,6 +1213,8 @@ st_fullscreen_option	Voll Bild Modus
 st_general_volume_option	Allgemein
 st_generic_money_name	Rubeln
 st_geometry_quality_option	Geometrie Qualität
+st_glock_17_description	Österreichische Pistole mit Polymerrahmen, Munition: 9x19. Diese ist auf Dauerfeuer umgebaut.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	Database wird in Browser geöffnet.
 st_go_to_online_store_message	Online-Shop wird im Fenster des Browsers geöffnet. Fortsetzen?
 st_go_to_video_tutorial_message	Video guide will be opened in the browser window. Continue?
@@ -1248,6 +1266,7 @@ st_inv_additional_ammo_bags	Patronen Beutel
 st_inv_ano_armor	Isolierung
 st_inv_armor	Rüstung
 st_inv_arp	Panzerschutzkraft
+st_inv_artefact_recharge	Aufladezeit der Artefakte
 st_inv_artefact_slots	Container für Artefakten
 st_inv_buckshot	Schrotkugeln
 st_inv_clip_size	Patronen in der Packung
@@ -1324,6 +1343,8 @@ st_izh27_description	Description is not ready!!!
 st_izh27_name	MP-27M "Lankaster"
 st_izh27_premium_2_description	Russische Bockdoppelflinte, Kaliber 12. Vom Ischewsker Mechanischen Werk unter dem Namen Baikal gebaut, eine der verbreitetsten Jagd- und Sportdoppelflinten. Zwei Läufe mit je einer Patrone. Feuert einen Lauf oder beide zugleich. Premium-Version mit einer besonderen Tarnlackierung.
 st_izh27_premium_2_name	MP-27 "Donnerschlag"
+st_jackhammer_description	Amerikanische automatische Schrotflinte, Munition: 12/70. Ein Bullpup mit 10-Schuss-Trommel, nur Dauerfeuer.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Springen
 st_kedr_description	Sowjetische Maschinenpistole, Munition: 9x18 PM. Von Jewgeni Dragunow Anfang der 1970er Jahre entwickelt, in Serie gefertigt erst seit den 1990er Jahren, für das russische Innenministerium und die Polizei. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1370,8 @@ st_knw_synergy_desc	Stärke der Artefakten vergrößert sich proportional zu ihr
 st_knw_synergy_name	Synergie
 st_kriss_vector_description	Amerikanische Maschinenpistole, Munition: .45 ACP. In den 2000er Jahren von KRISS vorgestellt; ihr Rückstoßsystem lenkt den Verschluss nach unten ab und hält so die Mündung ruhig. Diese Waffe trägt ein Rotpunktvisier Walther Competition II. Mit einem 30-Schuss-Magazin ausgestattet. Einzel-, Feuerstoß- und Dauerfeuer.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Britisches Bullpup-Sturmgewehr, Munition: 5,56x45. Das Standardgewehr der britischen Armee.
+st_l85a2_name	L85A2
 st_label_invites	Einladung
 st_label_leave_queue_btn	Reihe verlassen
 st_label_quenue	Stelle in der Reihe:
@@ -1460,11 +1483,11 @@ st_microphone_sensitivity_option	Die Sensibilität des Mikrofons.
 st_military_medkit_description	Heilt Arme und Beine vollständig. Stellt 60% von Körper und Kopf und 50% von Schmerz wieder her.
 st_military_medkit_name	Armee-Kit
 st_minimap	Minikarte
-st_minimap_bottom	untere linke Winkel
+st_minimap_bottom	Minikarte unten links
 st_minimap_off	Versteckte Minikarte
 st_minimap_position	Position der Minikarte
 st_minimap_rotable_option	Minikarte fixieren
-st_minimap_top	Der obere linke Winkel.
+st_minimap_top	Minikarte oben links
 st_missile_weapon_action	Granate
 st_missions	Aufgaben
 st_mm_button_back	Zurück
@@ -1511,6 +1534,10 @@ st_movement_speed_when_aiming_description	Die  Bewegungs Geschwindigkeit im Sich
 st_movement_speed_when_aiming_name	Kampfhaltung
 st_mp153_description	Das Russischer halbautomatische Gewehr mit dem reibungslose Stamm nutzt Munition 12N...70. Dank dem nicht hohen Preis und der guten Zuverlässigkeit, hat den breiten Vertrieb wie die Jagd- und sportlichen Waffen bekommen. Es ist mit dem Rohrgeschäft auf 4 Patronen ausgestattet.
 st_mp153_name	MP-153 "Baikal"
+st_mp443_description	Russische Armeepistole, Munition: 9x19. 2003 als Ersatz für die Makarow eingeführt.
+st_mp443_name	MP-443 Gratsch
+st_mp5a1_description	Deutsche Maschinenpistole, Munition: 9x19. Der Klassiker von Polizei und Spezialeinheiten, mit Rollenverschluss.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Polnischer modularer Karabiner, Munition: 5,56x45. In den 2010er Jahren von der Militärtechnischen Akademie in Warschau und der Fabryka Broni in Radom entwickelt; von der polnischen Armee als Grot eingeführt. Diese Waffe trägt ein holografisches Visier EOTech 552. Mit einem 30-Schuss-Magazin ausgestattet. Einzel-, Feuerstoß- und Dauerfeuer.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Verwackeln des Zielfernrohrs
@@ -1596,6 +1623,8 @@ st_options_video	Graphik:
 st_options_voice	Stimme:
 st_options_volume	Lautstärke:
 st_other	Andere
+st_ots14_description	Russisches Bullpup-Sturmgewehr, Munition: 9x39. In den 1990er Jahren vom ZKIB SOO auf Basis der AKS-74U für Spezialeinheiten gebaut. 20-Schuss-Magazin. Einzel- und Dauerfeuer.
+st_ots14_name	OZ-14 "Grosa"
 st_oust_commander	Kommandanten wechseln
 st_overweight_penalty_description	Einfluss des Gewichts auf die Bewegungs Geschwindigkeit
 st_overweight_penalty_name	Packer
@@ -1749,7 +1778,7 @@ st_ranking	Rating
 st_ranking_diff	Unterschied
 st_rattle_activation_hint	Der Klapper ist aktiviert! Ihre Schritte sind für den Gegner unhörbar!
 st_rattle_pickup_hint	Das Artefakt Klapper. Verringert die Laute der Schritte auf 50 %.
-st_rdgm_descr	Description is not ready!!!
+st_rdgm_descr	Rauchhandgranate. Legt einen dichten Sichtschutz, der Bewegungen verbirgt.
 st_rdgm_name	Rauchgranate RDG-M
 st_reach_level	<green>Stufe </green> erreicht
 st_ready	Bereit
@@ -1757,6 +1786,8 @@ st_refill_ammo_btn	Umbenennen
 st_refill_ammo_label	Ausrüstung
 st_regen_booster_description	Alte armee- Ration wurde Erfolgreich von den Armeen der GUS-Staaten in der Vorkrisenperiode verwendet. Erhöht den Metabolismus, dabei ziemlich lecker.
 st_regen_booster_name	Ration
+st_regen_delay_name	Regenerationsverzögerung
+st_regen_limit_name	Regenerationsgrenze
 st_registration_str	Konto registrieren
 st_regular_fix	Reparatur
 st_regular_money	Silber
@@ -1937,11 +1968,13 @@ st_rpd_description	Description is not ready!!!
 st_rpd_name	RPD
 st_rpk_description	RPD
 st_rpk_name	RPK-74M
-st_saiga_12_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version K hat einen kurzen Lauf und einen Klappschaft. Mit einem 5-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
+st_saiga_12_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version K hat einen kurzen Lauf und einen Klappschaft. Mit einem Kastenmagazin ausgestattet. Nur Einzelfeuer.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version S hat einen Klappschaft. Mit einem 5-Schuss-Kastenmagazin ausgestattet. Nur Einzelfeuer.
+st_saiga_12_premium_description	Russische Selbstladeflinte, Kaliber 12. In den 1990er Jahren von Ischmasch auf dem Kalaschnikow-System für Jagd und Sicherheitsdienste gebaut; die Version S hat einen Klappschaft. Mit einem Kastenmagazin ausgestattet. Nur Einzelfeuer.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Passwort Speichern
+st_scar_h_description	Belgisches Kampfgewehr, Munition: 7,62x51. Die schwere SCAR von FN Herstal, in den 2000er Jahren von US-Spezialkräften eingeführt. 20-Schuss-Magazin. Einzel- und Dauerfeuer.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Selbst gemachter Artefakten Container, eignet sich für Rücksäcke. Sehr nützlich wenn man Artefakten jagen geht.
 st_scav_back_1_name	Rücksack mit Container
 st_scav_boots_1_desc	Die einfachen Schuhe, die auf dem Müllhaufen gefunden oder von der Leiche abgezogen worden sind. Schützen die Beine vor den Wunden und den Beschädigungen, hilft mehrmals bei den komplizierten Übergängen .
@@ -2150,7 +2183,28 @@ st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikh
 st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	Eine 23-mm-Schrotpatrone für die KS-23M. Bringt hohen Schaden gegen nicht gepanzerte Ziele.
+st_srp_ammo069_23mm_r_name	23x75R, Schrotkugel
+st_srp_ammo_buckshot	Schrot
+st_srp_ammo_scar_ap_desc	Panzerbrechende Patronen 7,62x51 für das FN SCAR-H. Jede Munitionstasche fasst 20 Patronen.
+st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 Schuss
+st_srp_ammo_slug	Flintenkugel
+st_srp_ammo_stats	Munitionswerte
 st_srp_attachments	Anbauteile
+st_srp_ban_reason_account_trading	Verkauf oder versuchter Verkauf eines Kontos.
+st_srp_ban_reason_administration	Entscheidung der Administration.
+st_srp_ban_reason_advertising	Werbung.
+st_srp_ban_reason_bad_language	Obszöne Sprache.
+st_srp_ban_reason_cheating	Cheats oder andere verbotene Software.
+st_srp_ban_reason_false_information	Verbreitung falscher Informationen.
+st_srp_ban_reason_farm_pressure	Belästigen oder Teamkills von Spielern, die nicht farmen.
+st_srp_ban_reason_flood	Spam oder Flooding.
+st_srp_ban_reason_insults	Beleidigungen oder Provokation.
+st_srp_ban_reason_nickname	Unzulässiger Name.
+st_srp_ban_reason_politics	Politische Diskussionen.
+st_srp_ban_reason_racism	Rassismus oder Nazismus.
+st_srp_ban_reason_teamkilling	Töten von Teamkameraden.
+st_srp_ban_reason_threats	Drohungen im echten Leben.
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier
 st_srp_crosshair_static	Statisches Visier
@@ -2341,6 +2395,8 @@ st_srp_equipment046_edge_back_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_back_6_name	Stalkers Rucksack
 st_srp_equipment046_edge_back_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_back_7_name	Talisman
+st_srp_equipment046_edge_boots_6_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_edge_boots_6_name	Stalkers Schnürstiefel
 st_srp_equipment046_edge_boots_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_boots_7_name	Zaubererstiefel
 st_srp_equipment046_edge_gloves_5_desc	Beschreibung noch nicht verfügbar.
@@ -2355,6 +2411,8 @@ st_srp_equipment046_edge_legs_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_legs_7_name	Veles-Hose
 st_srp_equipment046_edge_mask_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_mask_6_name	NVD
+st_srp_equipment046_edge_mask_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_edge_mask_7_name	Veles-Maske
 st_srp_equipment046_edge_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_torso_7_name	Velesweste
 st_srp_equipment046_renesanse_boots_3_desc	Beschreibung noch nicht verfügbar.
@@ -2365,6 +2423,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_gloves_3_name	OZK-UV-Handschuhe
 st_srp_equipment046_renesanse_gloves_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_gloves_5_name	Handschuhe des Spions
+st_srp_equipment046_renesanse_gloves_6_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_renesanse_gloves_6_name	Handschuhe "Sturm"
 st_srp_equipment046_renesanse_gloves_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_gloves_7_name	Scharfschützenhandschuhe
 st_srp_equipment046_renesanse_helmet_7_desc	Beschreibung noch nicht verfügbar.
@@ -2381,12 +2441,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_torso_7_name	Scharfschützenweste
 st_srp_equipment046_scavenger_boots_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_scavenger_boots_5_name	Saboteur-Stiefel
+st_srp_equipment046_scavenger_boots_6_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_scavenger_boots_6_name	Verstärkte gefütterte Stiefel
 st_srp_equipment046_scavenger_boots_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_scavenger_boots_7_name	Pfadfinderstiefel
+st_srp_equipment069_league_shadow_mask_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_league_shadow_mask_name	Delta Maske
 st_srp_equipment069_leagues_back_2_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_leagues_back_2_name	Sanitätertasche
 st_srp_equipment069_leagues_back_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_leagues_back_5_name	Soldatenrucksack
+st_srp_equipment069_snow_20_boots_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_boots_7_name	Schnee-20 Stiefel
+st_srp_equipment069_snow_20_gloves_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_gloves_7_name	Schnee-20 Handschuhe
+st_srp_equipment069_snow_20_helmet_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_helmet_7_name	Schnee-20 Helm
+st_srp_equipment069_snow_20_legs_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_legs_7_name	Schnee-20 Hose
+st_srp_equipment069_snow_20_torso_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_torso_7_name	Schnee-20 Panzerweste
 st_srp_exchange_balance	Guthaben
 st_srp_exchange_button	Tauschen
 st_srp_exchange_gold	Gold
@@ -2399,6 +2473,8 @@ st_srp_hide_hit_markers_option	Trefferanzeige ausblenden
 st_srp_hide_quests_option	Aufgaben ausblenden
 st_srp_hide_scores_option	Spielerpunkte ausblenden
 st_srp_hud_add_friend	Freunden hinzufügen
+st_srp_hud_blackout_intro	Blackout: Bringe Batterien zum Gerät deines Teams. HUD und Trefferanzeigen sind für mehr Immersion ausgeblendet. Halte Tab für Munition, Gesundheit und Chat sowie die Ausrüstungswahl nach dem Tod.
+st_srp_hud_blackout_start	Blackout\nBringe Batterien zum Gerät deines Teams.\nHUD und Trefferanzeigen sind ausgeblendet. Halte Tab, um Munition und Gesundheit zu sehen.
 st_srp_hud_friend_not_sent	Freundschaftsanfrage nicht gesendet
 st_srp_hud_friend_sent	Freundschaftsanfrage gesendet
 st_srp_hud_mute_hide	Chat ausblenden
@@ -2407,7 +2483,26 @@ st_srp_hud_mute_not_sent	Nicht gesendet
 st_srp_hud_muted	Chat stummgeschaltet
 st_srp_hud_unmute	Chat freigeben
 st_srp_hud_unmuted	Chat freigegeben
+st_srp_inv_ammo_range	Reichweite
+st_srp_inv_bullet_speed	Geschossgeschwindigkeit
+st_srp_inv_defuse_time	Entschärfzeit
+st_srp_inv_fuse_time	Zündzeit
+st_srp_inv_material_pierce	Durchschlägt
+st_srp_inv_pellets	Schrotkugeln
+st_srp_inv_pocket_units	Taschenplätze
+st_srp_inv_stamina_damage	Ausdauerschaden
+st_srp_inv_throw_speed	Wurfgeschwindigkeit
 st_srp_inventory_search	Suche
+st_srp_inventory_search_examples	+Tasche, +Zelle, +Patronen, +10
+st_srp_inventory_search_tip_bonus	Gegenstände mit Patronen- und Taschen-Bonus
+st_srp_inventory_search_tip_bonus_example	+Patronen +Tasche
+st_srp_inventory_search_tip_faction	verkauft von der Arme oder dem Schwarzen Markt
+st_srp_inventory_search_tip_faction_example	+Arme +Schwarzer
+st_srp_inventory_search_tip_kind	Helme oder Stiefel
+st_srp_inventory_search_tip_kind_example	+helmet +boots
+st_srp_inventory_search_tip_level	Gegenstände der Stufe 10 oder 11
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_item_props_mps	m/s
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
 st_srp_loadout_block_ammo	Zu wenig Munition für eine Waffe
@@ -2430,12 +2525,15 @@ st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Zimmer
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Konto wird beim ersten Login erstellt
+st_srp_login_ban_ends	Endet um %1$s (in %2$s).
+st_srp_login_ban_forever	Die Sperre ist dauerhaft.
 st_srp_map_chemical_plant	Chemiebetrieb
 st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)
 st_srp_map_cologne	Köln
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamaew kurgan
 st_srp_map_mamayev_kurgan_v021	Mamaew kurgan (v0.21)
+st_srp_map_names_option	Namen auf Karte
 st_srp_map_rudnya	Rudnya
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Schule
@@ -2466,14 +2564,57 @@ st_srp_matches_starting	Start
 st_srp_matches_title	Matches
 st_srp_matches_versus	gegen
 st_srp_matches_waiting	Warten
+st_srp_medical_301_description	Wird zu Schmerzschutz und Wirkungsdauer von Schmerzmitteln addiert:
+st_srp_medical_301_name	Starkes Schmerzmittel
+st_srp_medical_302_description	Verkürzung der Aktivierungszeit von Erste-Hilfe-Sets und Verbänden:
+st_srp_medical_302_name	Schnelles Verbinden
+st_srp_medical_303_description	Solange ein Schmerzmittel wirkt, Verringerung der Energiekosten beim Sprinten:
+st_srp_medical_303_name	Taube Beine
+st_srp_medical_311_description	Die Gesundheitsregeneration beginnt so viele Sekunden früher:
+st_srp_medical_311_name	Stoffwechsel
+st_srp_medical_312_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände:
+st_srp_medical_312_name	Medizinische Ausbildung
+st_srp_medical_313_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände in der Hocke:
+st_srp_medical_313_name	In Deckung
+st_srp_medical_321_description	Bonus auf die Bewegungsgeschwindigkeit bei weniger als 30 Gesundheit:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Jede Tasche mit Medizin fasst einen weiteren Gegenstand.
+st_srp_medical_322_name	Zusätzliche Medizin
+st_srp_medical_323_description	Solange ein Schmerzmittel wirkt, Verringerung der Verlangsamung durch feindliche Treffer:
+st_srp_medical_323_name	Standhaft
+st_srp_medical_331_description	Ersetzt den Platz für die Sekundärwaffe durch eine zusätzliche Vorratstasche.
+st_srp_medical_331_name	Vorratstasche
+st_srp_medical_332_description	Bonus auf die maximale Gesundheit von Armen und Beinen:
+st_srp_medical_332_name	Starke Knochen
+st_srp_medical_333_description	Solange ein Schmerzmittel wirkt, sind Umgebungsgeräusche leiser und feindliche Geräusche (außer Schüssen) lauter um:
+st_srp_medical_333_name	Konzentration
+st_srp_medical_342_description	Verringerung des durch Verbündete erlittenen Schadens:
+st_srp_medical_342_name	Waffenbrüder
+st_srp_medical_seconds	 s
+st_srp_medicine_ambient_sounds	Umgebungsgeräusche
+st_srp_medicine_crouched_healing	Heilung in der Hocke
+st_srp_medicine_enemy_sounds	Feindgeräusche
+st_srp_medicine_hit_slow	Trefferverlangsamung
+st_srp_medicine_sprint_stamina	Sprint-Energie
+st_srp_melee_knockback	Kolbenschlag-Wucht
 st_srp_mode_blackout	Schutzeinrichtung: Blackout
 st_srp_mode_chargers	Schutzeinrichtung: Ladestationen
 st_srp_mode_protective_device	Schutzeinrichtung
 st_srp_mode_research	Forschung
 st_srp_mode_scarcity	Schutzeinrichtung: Knappheit
 st_srp_mode_team_deathmatch	Kommandokampf
+st_srp_mouse_lock_option	Vertikale Empfindlichkeit koppeln
+st_srp_mouse_vertical_option	Vertikale Empfindlichkeit
 st_srp_optics	Optik
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Ziegel, Stahl
+st_srp_pierce_car	Auto
+st_srp_pierce_concrete	Beton
+st_srp_pierce_glass	Glas
+st_srp_pierce_plywood	Sperrholz
+st_srp_pierce_stone	Stein
+st_srp_pierce_tinplate	Blech
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	Im Trupp
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
@@ -2496,6 +2637,9 @@ st_srp_pvb_searching	Brich zuerst die Suche ab
 st_srp_pvb_team_size	%1$s vs. %2$s
 st_srp_pvb_title	Spieler vs. Bots
 st_srp_pvb_unknown_choice	Diese Karte oder Teamgröße ist gerade nicht verfügbar
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Renderer
 st_srp_replay_asking	Asking the match server for the replay of this match…
 st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
 st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
@@ -2526,6 +2670,7 @@ st_srp_rooms_all	Alle
 st_srp_rooms_all_rooms	Alle Räume
 st_srp_rooms_any	Alle
 st_srp_rooms_back	Zurück
+st_srp_rooms_bots	Mit Bots
 st_srp_rooms_code_10	Der Besitzer hat dich entfernt.
 st_srp_rooms_code_11	Verlasse zuerst dein Clanteam.
 st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.
@@ -2627,11 +2772,42 @@ st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s
 st_srp_static_minimap_option	Statische Minikarte
+st_srp_unit_days	%1$s T.
+st_srp_unit_hours	%1$s Std.
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_minutes	%1$s Min.
+st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Dedizierte GPU bevorzugen
+st_srp_vulkan_dedicated_gpu_hint	Wählt auf Laptops die stärkere Grafikkarte.\n+ Bessere Leistung auf Laptops\n- Braucht mehr Akku
+st_srp_vulkan_frame_limit	Bildratenlimit
+st_srp_vulkan_frame_limit_hint	Begrenzt, wie viele Bilder pro Sekunde das Spiel zeichnet.
+st_srp_vulkan_low_latency	Eingabeverzögerung senken
+st_srp_vulkan_low_latency_hint	Das Spiel reagiert schneller auf die Maus.\n+ Zielen reagiert schneller\n- Kann auf manchen PCs weniger flüssig wirken
+st_srp_vulkan_off	Aus
+st_srp_vulkan_options	Vulkan-Optionen
+st_srp_vulkan_overlay	Leistungsanzeige
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+Graph
+st_srp_vulkan_overlay_full	Vollständig
+st_srp_vulkan_overlay_hint	Zeigt die Geschwindigkeit des Spiels am Bildschirm.
+st_srp_vulkan_tear_free	Kein Tearing ohne VSync
+st_srp_vulkan_tear_free_hint	Hält das Bild ganz, wenn die vertikale Synchronisierung aus ist.\n+ Keine Risse beim schnellen Drehen\n- Etwas mehr Eingabeverzögerung als nur VSync aus
+st_srp_weapon069_akmsu_desc	Verkürzte AKMS mit Klappschaft, Munition: 7,62x39. Einzel- und Dauerfeuer.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	Französisches Bullpup-Sturmgewehr, Munition: 5,56x45. Einzelfeuer, Dreischussfeuerstöße und Dauerfeuer.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Deutsches Präzisionsgewehr, Munition: 7,62x51. Einzelfeuer und Dreischussfeuerstöße.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Russischer Vorderschaftrepetierer, Munition: 23x75R. Röhrenmagazin für 4 Patronen.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	Deutsche Maschinenpistole, Munition: 7,62x25. Einzel- und Dauerfeuer.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Schpagin-Maschinenpistole mit Trommelmagazin für 71 Patronen, Munition: 7,62x25. Einzel- und Dauerfeuer.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 „Trommel“
 st_srp_weapon_aim_zoom	Basis-Zielzoom
 st_srp_weapon_chamber	Repetierzeit
 st_srp_weapon_draw_time	Ziehzeit
@@ -2646,6 +2822,8 @@ st_srp_weapon_minimum_damage	Minimalschaden
 st_srp_weapon_minimum_damage_from	Minimalschaden ab
 st_srp_weapon_recoil_heading	Rückstoß, Streuung, Wackeln
 st_srp_weapon_reload	Nachladen
+st_srp_weapon_reload_empty	Nachladen (leer)
+st_srp_weapon_reload_tactical	Taktisches Nachladen
 st_srp_weapon_shift_hint	Shift: Details · Alt: im Match
 st_srp_weapon_spread_growth	Zunahme der Streuung
 st_srp_weapon_spread_max	Maximale Zusatzstreuung
@@ -2663,12 +2841,12 @@ st_srp_weather_day	Tag
 st_srp_weather_evening	Abend
 st_srp_weather_night	Nacht
 st_srp_weather_rain	Regen
-st_srp_weight_base	Grundlimit: %1$s
+st_srp_weight_base	Grundlimit
 st_srp_weight_no_sprint_heavyweight	Kein Sprint: Fertigkeit „Schwergewichtler“.
 st_srp_weight_no_sprint_limit	Sprint nicht möglich: Traglast erreicht.
 st_srp_weight_penalty	%1$s% Gewichtsmalus
-st_srp_weight_speed	Bewegungsgeschwindigkeit: %1$s
-st_srp_weight_sprint_stamina	Energiekosten beim Sprinten: %1$s
+st_srp_weight_speed	Bewegungsgeschwindigkeit
+st_srp_weight_sprint_stamina	Energiekosten beim Sprinten
 st_srp_weight_title	Gewichtseffekte
 st_stamina_boost_name	Zweiter Atem
 st_stamina_boost_time_description	Wiederherstellung der Energie beim Mord des Gegners:
@@ -2750,6 +2928,8 @@ st_sv_98_description	Description is not ready!!!
 st_sv_98_name	SV-98
 st_svd_description	Das SWD (Scharfschätzengewehr von Dragunow) unter die Patrone 7.62N...54. Es war langen Jahre ein Hauptscharfschützengewehr der Armee der UdSSR. Ist mit dem Käfig für 5 Patronen ausgestattet.
 st_svd_name	SVD
+st_svu_a_description	Russisches Bullpup-Scharfschützengewehr, Munition: 7,62x54R. Ein verkürztes SWD für den Nahkampf, Selbstlader.
+st_svu_a_name	SWU
 st_swear_clan_string	Zeile enthält zensierte Sprache
 st_swearing_claim	Unflätige Lexik
 st_team_already_has_commander	Bei der Klan Mannschaft gibt es schon einen Kommandeur.
@@ -2825,6 +3005,8 @@ st_vepr_description	Description is not ready!!!
 st_vepr_name	Wildschwein
 st_vepr_premium_description	Russischer Karabiner der Wepr-Familie, Munition: 5,45x39. Vom Werk Molot in Wjatskije Poljany auf dem verstärkten Gehäuse des RPK-74-Maschinengewehrs gebaut. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
 st_vepr_premium_name	Vepr "Der Wanderer"
+st_vhs_2_description	Kroatisches Bullpup-Sturmgewehr, Munition: 5,56x45. Von HS Produkt gebaut, seit den 2010er Jahren bei der kroatischen Armee. 30-Schuss-Magazin. Einzel- und Dauerfeuer.
+st_vhs_2_name	VHS-2
 st_victory	Sieg
 st_victory_screen_no_dropped_item	Sie haben auf dem Schlachtfeld nichts gefunden.
 st_vityaz_bundle_descr	<white> Enthält folgende Verbesserungen:\n- verbessert PP-19-01 "Vityaz"\n- 2000 9x19 Parabellum Patrone\nAmmo </white>

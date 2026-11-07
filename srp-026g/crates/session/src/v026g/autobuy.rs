@@ -469,7 +469,7 @@ mod tests {
         account.autobuy = true;
         account.generic_money = 1_000;
         let rounds = dict("ammo_5.45x39_7n6m");
-        // 45 used: two clips of 30 at 30 silver (`prices::AMMO_PRICES`).
+        // 45 used: two clips of 30 at 30 silver (its `base_cost`).
         let settled = settle(&mut account, &[(rounds, 45)], &[], 0);
         assert_eq!(settled.bought, [(rounds, 60)]);
         assert_eq!(settled.spent.autobuy_ammo, [(60, rounds)]);

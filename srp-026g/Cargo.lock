@@ -90,6 +90,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "ban-reason"
+version = "0.1.0"
+
+[[package]]
 name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -459,6 +463,7 @@ dependencies = [
  "bytemuck",
  "env_logger",
  "log",
+ "mapdata",
  "openssl",
  "session",
  "survarium",
@@ -477,6 +482,7 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 name = "login-server"
 version = "0.1.0"
 dependencies = [
+ "ban-reason",
  "env_logger",
  "log",
  "openssl",
@@ -513,6 +519,7 @@ dependencies = [
  "serde",
  "serde_json",
  "session",
+ "srp-validate",
  "survarium",
  "udp-transport",
  "vostok",
@@ -825,6 +832,7 @@ dependencies = [
 name = "srp"
 version = "0.1.0"
 dependencies = [
+ "ban-reason",
  "ctrlc",
  "lobby-server",
  "log",
@@ -835,6 +843,16 @@ dependencies = [
  "survarium",
  "vostok",
  "web-server",
+]
+
+[[package]]
+name = "srp-validate"
+version = "0.1.0"
+dependencies = [
+ "artefact-carry",
+ "survarium",
+ "weapon-pickup",
+ "world-frame",
 ]
 
 [[package]]
@@ -861,6 +879,7 @@ dependencies = [
  "resources-db 0.1.0",
  "serde",
  "serde_json",
+ "srp-validate",
  "udp-transport",
  "weapon-kit",
  "weapon-pickup",

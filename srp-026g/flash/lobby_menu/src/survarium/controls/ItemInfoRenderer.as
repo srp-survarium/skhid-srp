@@ -11,8 +11,8 @@ package survarium.controls
    import survarium.Util;
    import survarium.constants.Colors;
    import survarium.item.ItemFactory;
-   import survarium.item.WeaponDetails;
-   import survarium.item.WeaponDetailsView;
+   import survarium.item.ItemDetailsView;
+   import survarium.item.WeaponMovement;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.MatchEffects;
    import survarium.core.Icon;
@@ -76,8 +76,9 @@ package survarium.controls
       
       protected var _displayOrange:Boolean = false;
 
-      private var _weaponDetails:WeaponDetails;
-      private var _detailsText:WeaponDetailsView;
+      // The card's detail rows (ItemDetailsView.read): a weapon's or a round's; null for others.
+      private var _details:Object;
+      private var _detailsText:ItemDetailsView;
       private var _detailsMode:String = "none";
       
       public function ItemInfoRenderer()
@@ -104,32 +105,33 @@ package survarium.controls
          if(mode == _detailsMode) return;
          itemCompare.refreshComparison();
          updateDetailsText();
+         if(_data is ItemData) fillModifiers();
          layoutDetails();
          dispatchEvent(new Event(Event.RESIZE));
       }
 
       // What the card shows: its rows (none, compact or expanded with Shift), neutral colours
-      // (Ctrl), a weapon's stats in a match (Alt, docs/notes/alt-weapon-stats.md).
+      // (Ctrl), a weapon's or a medicine's stats in a match (Alt, docs/notes/alt-weapon-stats.md).
       private function detailsMode() : String
       {
          if(_data == null) return "none";
-         var rows:String = _weaponDetails == null ? "none" : MainScene.isShift ? "expanded" : "compact";
-         return rows + (MainScene.isCtrl ? "-neutral" : "") + (MainScene.isAlt && _data.isWeapon ? "-match" : "");
+         var rows:String = _details == null ? "none" : MainScene.isShift ? "expanded" : "compact";
+         return rows + (MainScene.isCtrl ? "-neutral" : "") + (MainScene.isAlt && MatchEffects.covers(_data) ? "-match" : "");
       }
 
       private function updateDetailsText() : void
       {
          _detailsMode = detailsMode();
-         if(_detailsText == null && _weaponDetails != null)
+         if(_detailsText == null && _details != null)
          {
-            _detailsText = new WeaponDetailsView();
+            _detailsText = new ItemDetailsView();
             addChild(_detailsText);
          }
          if(_detailsText != null)
          {
-            _detailsText.visible = _weaponDetails != null;
+            _detailsText.visible = _details != null;
             var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(_data);
-            _detailsText.show(effects == null ? _weaponDetails : WeaponDetails.read(_data,effects),MainScene.isShift,itemCompare,effects);
+            _detailsText.show(effects == null ? _details : ItemDetailsView.read(_data,effects),MainScene.isShift,itemCompare,effects);
          }
       }
 
@@ -189,6 +191,8 @@ package survarium.controls
       {
          var allModifiers:Array = this._data.modifiers != null ? this._data.modifiers : [];
          var icons:IconContainer = IconContainer.getInstance("modifiers");
+         // Held Alt: a bonus line a match changes (a weapon's movement under Bear Arms) as a match has it.
+         var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(_data);
          var i:uint = 0;
          var modifier:Object;
          var modifierIcon:Icon;
@@ -199,7 +203,7 @@ package survarium.controls
             modifierIcon = icons.getIcon(modifier.icon);
             entry = {
                icon:modifierIcon,
-               label:modifier.textValue
+               label:effects == null ? modifier.textValue : WeaponMovement.inMatch(_data,modifier,effects)
             };
             if(modifier.state == ModificationState.DEFECT)
             {
@@ -305,11 +309,10 @@ package survarium.controls
       public function set data(value:Object) : void
       {
          var nameColor:uint = 0;
-         var criticalModifiers:Array = null;
          var iconFrame:uint = 0;
          this._data = value;
          var item:ItemData = this._data as ItemData;
-         _weaponDetails = WeaponDetails.read(item);
+         _details = ItemDetailsView.read(item);
          updateDetailsText();
          if(!item)
          {
@@ -366,7 +369,8 @@ package survarium.controls
             trace("isWeapon::",item.ammoText);
             this.itemAmmoName.text = item.ammoText;
          }
-         else if(item.isStack && item.descriptor < ItemPlace.INVENTORY && item.category != ItemCategory.PREMIUM_MONEY)
+         // A kit stack's line under its name, when it has one (the kit's ammo list's rounds do not).
+         else if(item.isStack && item.descriptor < ItemPlace.INVENTORY && item.category != ItemCategory.PREMIUM_MONEY && Boolean(item.tipText))
          {
             this.itemAmmoName.text = item.tipText;
             this.itemAmmoName.visible = true;
@@ -399,7 +403,8 @@ package survarium.controls
             trace("b",item.category);
             this.textFieldItemLevel.visible = true;
          }
-         else if(item.superCategory == SuperCategory.AMMO)
+         // By its category: the kit's ammo list's rounds have no superCategory.
+         else if(ItemFactory.getCategory(item.category) == SuperCategory.AMMO)
          {
             this.textFieldItemLevel.visible = true;
          }
@@ -411,18 +416,7 @@ package survarium.controls
          this.layoutHeader(this.naturalHeaderHeight());
          this.itemCompare.setPrimaryWeapon(item);
          trace("updateIIR::2",this._data.name,this._data.modifiers);
-         var regularModifiers:Array = [];
-         var defaultModifiers:Array = [];
-         criticalModifiers = [];
-         this.sortModifiers(regularModifiers,defaultModifiers,criticalModifiers);
-         InventoryList.logModifiers(criticalModifiers);
-         trace("modifiersList",this.modifiersList,this.defaultModifiersList,this.criticalModifiersList);
-         this.modifiersList.dataProvider = new DataProvider(regularModifiers);
-         this.modifiersList.validateNow();
-         this.defaultModifiersList.dataProvider = new DataProvider(defaultModifiers);
-         this.defaultModifiersList.validateNow();
-         this.criticalModifiersList.dataProvider = new DataProvider(criticalModifiers);
-         this.criticalModifiersList.validateNow();
+         this.fillModifiers();
          this.layoutDetails();
          trace("ItemHint::",item.name,item.descriptor);
          if(item.descriptor == ItemPlace.SHOP)
@@ -438,6 +432,23 @@ package survarium.controls
             this.textFieldStatus.text = LocalizationData.getName("item_hint_label");
          }
 
+      }
+
+      // The card's bonus, built-in and critical lines, as the card's mode shows them (sortModifiers).
+      private function fillModifiers() : void
+      {
+         var regularModifiers:Array = [];
+         var defaultModifiers:Array = [];
+         var criticalModifiers:Array = [];
+         this.sortModifiers(regularModifiers,defaultModifiers,criticalModifiers);
+         InventoryList.logModifiers(criticalModifiers);
+         trace("modifiersList",this.modifiersList,this.defaultModifiersList,this.criticalModifiersList);
+         this.modifiersList.dataProvider = new DataProvider(regularModifiers);
+         this.modifiersList.validateNow();
+         this.defaultModifiersList.dataProvider = new DataProvider(defaultModifiers);
+         this.defaultModifiersList.validateNow();
+         this.criticalModifiersList.dataProvider = new DataProvider(criticalModifiers);
+         this.criticalModifiersList.validateNow();
       }
 
       private function naturalHeaderHeight() : Number
@@ -490,7 +501,8 @@ package survarium.controls
          this.propsBottomLine.y = Math.max(this.itemCompare.y + this.itemCompare.height + (this.itemCompare.height > 5 ? 5 : -15),this.propsTopLine.y);
          if(_detailsText != null && _detailsText.visible)
          {
-            _detailsText.y = this.propsBottomLine.y + 2;
+            // Without bars above them (a round's card) the rows start clear of the title band.
+            _detailsText.y = this.propsBottomLine.y + (this.itemCompare.height > 5 ? 2 : 8);
             this.propsBottomLine.y = _detailsText.y + _detailsText.height + 6;
          }
          this.bottomBackContainer.y = this.propsBottomLine.y;

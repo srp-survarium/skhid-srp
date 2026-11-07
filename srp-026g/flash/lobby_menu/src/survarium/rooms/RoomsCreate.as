@@ -39,6 +39,9 @@ package survarium.rooms
         internal var _makePin:TextField;
         // What was typed in it, kept across redraws (a tile clicked, a mode).
         internal var _makePinText:String = "";
+        // With bots (the owner's of 2026-11-05): only the maps and modes the
+        // server's bots play are offered, the others greyed.
+        private var _bots:Boolean = false;
         private var _createButton:Object;
 
         public function RoomsCreate(win:RoomsWindow)
@@ -188,7 +191,16 @@ package survarium.rooms
             // Only private rooms can be made by hand; public rooms grow
             // with Play's demand. A private room is started by its owner.
             look.text(look._content, win.say("st_srp_rooms_private_room"), TRACK_X, y + 4, FORM_W - TRACK_X, 14, RoomsLook.GOLD);
-            y += 48;
+            // With bots, always there (the owner's of 2026-11-05).
+            y += 34;
+            var botsToggle:Sprite = toggleRow(y, _bots, win.say("st_srp_rooms_bots"));
+            botsToggle.addEventListener(MouseEvent.CLICK, onBotsToggle, false, 0, true);
+            look.route(botsToggle, function(control:DisplayObject, e:MouseEvent):void
+            {
+                flipBots();
+            });
+            look._content.addChild(botsToggle);
+            y += 38;
             // The modes the server's pool offers, in MODE_ORDER: the three kinds
             // of protective device apart (plain, chargers, blackout, scarcity), team
             // deathmatch and Research; a mode out takes all its entries out of
@@ -199,24 +211,23 @@ package survarium.rooms
             for (var mi:int = 0; mi < offered.length; mi++)
             {
                 var mode:int = offered[mi];
-                var toggle:Sprite = new Sprite();
-                toggle.x = 14;
-                toggle.y = y - 14;
-                var area:Shape = new Shape();
-                area.graphics.beginFill(0x000000, 0.01);
-                area.graphics.drawRect(0, 10, FORM_W - 28, 22);
-                area.graphics.endFill();
-                toggle.addChild(area);
-                toggle.addChild(look.box(_modesOff[String(mode)] != true));
-                look.text(toggle, win.modeName(mode), 26, 12, FORM_W - 40, 16, RoomsLook.LIGHT);
-                toggle.buttonMode = true;
-                toggle.mouseChildren = false;
+                // With bots, a mode they do not play is greyed.
+                var usable:Boolean = !_bots || modeHasBots(mode);
+                var toggle:Sprite = toggleRow(y, usable && _modesOff[String(mode)] != true, win.modeName(mode));
                 toggle.name = String(mode);
-                toggle.addEventListener(MouseEvent.CLICK, onModeToggle, false, 0, true);
-                look.route(toggle, function(control:DisplayObject, e:MouseEvent):void
+                if (usable)
                 {
-                    flipMode(control.name);
-                });
+                    toggle.addEventListener(MouseEvent.CLICK, onModeToggle, false, 0, true);
+                    look.route(toggle, function(control:DisplayObject, e:MouseEvent):void
+                    {
+                        flipMode(control.name);
+                    });
+                }
+                else
+                {
+                    toggle.alpha = 0.35;
+                    toggle.buttonMode = false;
+                }
                 look._content.addChild(toggle);
                 y += 24;
             }
@@ -265,10 +276,15 @@ package survarium.rooms
             look._content.addChild(frame);
             var tiles:Array = poolTiles();
             var on:int = 0;
+            var usable:int = 0;
             for (var t:int = 0; t < tiles.length; t++)
-                if (tiles[t].on)
-                    on++;
-            look.text(look._content, win.say("st_srp_rooms_pool").toUpperCase() + ": " + on + " / " + tiles.length,
+                if (tileUsable(tiles[t]))
+                {
+                    usable++;
+                    if (tiles[t].on)
+                        on++;
+                }
+            look.text(look._content, win.say("st_srp_rooms_pool").toUpperCase() + ": " + on + " / " + usable,
                 x0 + 16, 58, 260, 16, RoomsLook.LIGHT);
             look.text(look._content, win.say("st_srp_rooms_pool_hint"), x0 + 230, 60, w - 430, 14, RoomsLook.GREY);
             look.button(look._content, win.say("st_srp_rooms_all"), x0 + w - 190, 54, 84, onAll, true);
@@ -301,9 +317,14 @@ package survarium.rooms
             {
                 var map:Object = rows[r];
                 var any:Boolean = false;
+                var rowUsable:Boolean = false;
                 for (var c:int = 0; c < map.tiles.length; c++)
-                    if (map.tiles[c].on)
-                        any = true;
+                    if (tileUsable(map.tiles[c]))
+                    {
+                        rowUsable = true;
+                        if (map.tiles[c].on)
+                            any = true;
+                    }
                 var check:Sprite = new Sprite();
                 check.x = 0;
                 check.y = y - 12;
@@ -316,39 +337,110 @@ package survarium.rooms
                 check.addChild(line_hit);
                 check.addChild(look.box(any));
                 look.text(check, win.levelName(map.level), 24, 13, areaW - 40, 16, RoomsLook.LIGHT);
-                check.buttonMode = true;
                 check.mouseChildren = false;
                 check.name = String(map.level);
-                check.addEventListener(MouseEvent.CLICK, onMapRow, false, 0, true);
+                // With bots, a map whose tiles they play none of is greyed.
+                if (rowUsable)
+                {
+                    check.buttonMode = true;
+                    check.addEventListener(MouseEvent.CLICK, onMapRow, false, 0, true);
+                }
+                else
+                    check.alpha = 0.35;
                 area.addChild(check);
                 for (var k:int = 0; k < map.tiles.length; k++)
                 {
                     var one:Object = map.tiles[k];
+                    var oneUsable:Boolean = tileUsable(one);
+                    var lit:Boolean = one.on && oneUsable;
                     var chip:Sprite = new Sprite();
                     chip.x = 2 + k * (cw + 10);
                     chip.y = y + 28;
                     var pic:Bitmap = look.mapRender(one.level, one.weather, cw, ch);
-                    pic.alpha = one.on ? 1 : 0.35;
+                    pic.alpha = lit ? 1 : 0.35;
                     chip.addChild(pic);
                     var edge:Shape = new Shape();
                     edge.graphics.beginFill(0x000000, 0.66);
                     edge.graphics.drawRect(0, ch - 22, cw, 22);
                     edge.graphics.endFill();
-                    edge.graphics.lineStyle(2, one.on ? RoomsLook.GOLD : 0x26323C);
+                    edge.graphics.lineStyle(2, lit ? RoomsLook.GOLD : 0x26323C);
                     edge.graphics.drawRect(0, 0, cw, ch);
                     chip.addChild(edge);
                     look.text(chip, win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("st_srp_rooms_experimental").toUpperCase() : ""),
-                        0, ch - 22 + 3, cw, 12, 0xFFFFFF, "center");
-                    chip.buttonMode = true;
+                        0, ch - 22 + 3, cw, 12, oneUsable ? 0xFFFFFF : 0x6A747C, "center");
                     chip.mouseChildren = false;
                     chip.name = one.key;
-                    chip.addEventListener(MouseEvent.CLICK, onTile, false, 0, true);
+                    if (oneUsable)
+                    {
+                        chip.buttonMode = true;
+                        chip.addEventListener(MouseEvent.CLICK, onTile, false, 0, true);
+                    }
                     area.addChild(chip);
                 }
                 look.line(area, 0, y + rowH - 6, areaW - 4);
                 y += rowH;
             }
             look.scrollDone(y);
+        }
+
+        // A checkbox line of the form at `y`: its box and its text, the whole
+        // line taking the click.
+        private function toggleRow(y:Number, on:Boolean, label:String):Sprite
+        {
+            var toggle:Sprite = new Sprite();
+            toggle.x = 14;
+            toggle.y = y - 14;
+            var area:Shape = new Shape();
+            area.graphics.beginFill(0x000000, 0.01);
+            area.graphics.drawRect(0, 10, FORM_W - 28, 22);
+            area.graphics.endFill();
+            toggle.addChild(area);
+            toggle.addChild(look.box(on));
+            look.text(toggle, label, 26, 12, FORM_W - 40, 16, RoomsLook.LIGHT);
+            toggle.buttonMode = true;
+            toggle.mouseChildren = false;
+            return toggle;
+        }
+
+        private function onBotsToggle(e:Event):void
+        {
+            flipBots();
+        }
+
+        // Turned on, it takes out every map and mode the bots play none of
+        // (the owner's of 2026-11-05: "all maps regimes are unclicked"); they
+        // stay out when it is turned off again.
+        private function flipBots():void
+        {
+            RoomsLook.clickSound();
+            _bots = !_bots;
+            if (_bots)
+            {
+                var tiles:Array = poolTiles();
+                for (var t:int = 0; t < tiles.length; t++)
+                    if (!tiles[t].bots)
+                        _off[tiles[t].key] = true;
+                var modes:Array = poolModes();
+                for (var m:int = 0; m < modes.length; m++)
+                    if (!modeHasBots(modes[m]))
+                        _modesOff[String(modes[m])] = true;
+            }
+            win.render();
+        }
+
+        // Whether the server's bots play an entry of the pool in `mode`.
+        private function modeHasBots(mode:int):Boolean
+        {
+            for (var i:int = 0; i < win._pool.length; i++)
+                if (win._pool[i].bots && int(win._pool[i].mode) == mode)
+                    return true;
+            return false;
+        }
+
+        // Whether a tile may be chosen: any, or with bots one they play.
+        private function tileUsable(tile:Object):Boolean
+        {
+            return !_bots || tile.bots;
         }
 
         private function onModeToggle(e:Event):void
@@ -371,10 +463,10 @@ package survarium.rooms
             var any:Boolean = false;
             var i:int;
             for (i = 0; i < tiles.length; i++)
-                if (String(tiles[i].level) == level && tiles[i].on)
+                if (String(tiles[i].level) == level && tiles[i].on && tileUsable(tiles[i]))
                     any = true;
             for (i = 0; i < tiles.length; i++)
-                if (String(tiles[i].level) == level)
+                if (String(tiles[i].level) == level && tileUsable(tiles[i]))
                     _off[tiles[i].key] = any;
             win.render();
         }
@@ -406,11 +498,13 @@ package survarium.rooms
                 if (tile == null)
                 {
                     tile = {"key": key, "level": e.level, "weather": e.weather, "extra": e.extra,
-                        "entries": [], "on": _off[key] != true};
+                        "entries": [], "on": _off[key] != true, "bots": false};
                     at[key] = tile;
                     tiles.push(tile);
                 }
                 tile.entries.push(e);
+                if (e.bots)
+                    tile.bots = true;
             }
             return tiles;
         }
@@ -434,18 +528,22 @@ package survarium.rooms
         }
 
         // Whether a pool entry is in the room made: its tile and its mode
-        // in, and a bit a create can name it by.
+        // in, the bots play it when the room has them, and a bit a create
+        // can name it by.
         private function chosen(p:Object):Boolean
         {
-            return _off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && p.index < RoomsWire.POOL_BITS;
+            return _off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && (!_bots || p.bots)
+                && p.index < RoomsWire.POOL_BITS;
         }
 
         private function onAll(e:Event):void
         {
             var on:Boolean = e.currentTarget.data == true;
             var tiles:Array = poolTiles();
+            // With bots, the greyed tiles stay as they are.
             for (var i:int = 0; i < tiles.length; i++)
-                _off[tiles[i].key] = !on;
+                if (tileUsable(tiles[i]))
+                    _off[tiles[i].key] = !on;
             win.render();
         }
 
@@ -481,7 +579,7 @@ package survarium.rooms
             }
             var any:Boolean = picked.length > 0;
             win._steps = RoomsWire.poolSteps(picked, win._pool.length);
-            win._steps.push(RoomsWire.CREATE + RoomsWire.CREATE_PIN);
+            win._steps.push(_bots ? RoomsWire.CREATE_BOTS : RoomsWire.CREATE + RoomsWire.CREATE_PIN);
             win._steps.unshift(RoomsWire.PIN + int(typedPin));
             if (!any)
             {
@@ -489,7 +587,9 @@ package survarium.rooms
                 win.render();
                 return;
             }
-            _making = kept();
+            // The server keeps no settings of a room with bots (its pool is
+            // the bots' maps only): the window's start stays as it was.
+            _making = _bots ? null : kept();
             win._fastUntil = getTimer() + 5000;
             win.next();
         }

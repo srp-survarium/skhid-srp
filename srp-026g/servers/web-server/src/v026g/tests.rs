@@ -215,6 +215,8 @@ fn the_exchange_is_in_the_game_now() {
 fn the_admin_changes_money_and_the_account() {
     let world = world();
     let id = world.player("tester", "secret");
+    // The stock account has no money (#1108): silver to take.
+    world.accounts.get(id).unwrap().locked().generic_money = 2_000;
     let (silver, gold) = world.balances(id);
     let refused = world.web.route(
         &post(
@@ -1083,6 +1085,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
+        "/wiki/skills",
     ] {
         for lang in [Lang::En, Lang::Uk] {
             let mut request = get(path);
@@ -1108,6 +1111,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
+        "/wiki/skills",
     ] {
         assert!(
             index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
@@ -1218,8 +1222,8 @@ fn every_file_the_maps_name_is_served() {
 }
 
 #[test]
-fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
-    // A live release rebuilds both pages from the patches it offers and its
+fn the_site_pages_are_built_from_the_offered_patches() {
+    // A live release rebuilds the pages from the patches it offers and its
     // record commits them with release/patches.tsv (release/build-site); this
     // fails a PR that changes one without the other.
     let rows = |text: &str| -> Vec<(String, String)> {
@@ -1244,6 +1248,11 @@ fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
     assert_eq!(
         calculator, offered,
         "the calculator is built from other patches than release/patches.tsv: rebuild it with build_site.py (srp-026g/scripts/damage-calc/README.md)"
+    );
+    let skills = rows(include_str!("../../skills/built-from.tsv"));
+    assert_eq!(
+        skills, offered,
+        "the skills are built from other patches than release/patches.tsv: rebuild them with release/build-site (srp-026g/scripts/skills-tab/build.py)"
     );
 }
 
@@ -1415,6 +1424,7 @@ fn money_of_an_online_account_reaches_its_game() {
 fn moderation_needs_the_token_the_address_and_a_known_account() {
     let world = world();
     let id = world.player("tester", "secret");
+    world.accounts.get(id).unwrap().locked().generic_money = 2_000;
     let before = world.balances(id);
     let asked = [("user", "tester"), ("silver", "-5"), ("money_reason", "x")];
     let plan = hidden(&world.admin(&asked), "money_plan");
@@ -1617,6 +1627,7 @@ fn items_are_listed_previewed_and_taken_off_every_kit() {
 fn a_moderation_the_database_refused_says_so() {
     let (world, repository) = kept_world();
     let id = world.player("pain", "secret");
+    world.accounts.get(id).unwrap().locked().generic_money = 2_000;
     world.accounts.flush();
     repository.fail_saves(true);
     let asked = [
@@ -1800,6 +1811,7 @@ fn a_moderation_waits_for_a_busy_saver_once_only() {
     let (world, repository) = kept_world();
     let id = world.player("pain", "secret");
     let other = world.player("bystander", "secret");
+    world.accounts.get(id).unwrap().locked().generic_money = 2_000;
     world.accounts.flush();
     let asked = [
         ("user", "pain"),

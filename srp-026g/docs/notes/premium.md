@@ -31,7 +31,7 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 
 **Premium items one by one** [srp]: a 0x95 record cannot be a single item, so every premium item with a price that no bundle holds (vouchers, premium camouflages and decals, the AK-74N) is in the price list 0x8A under seller 0 at its gold `base_cost`; `47 00` for one takes gold. The lobby's shop list takes any category from 0x8A and its buy dialog pays gold for a premium item (`MessageAsk`: `_money_type = isPremium`). PROVEN for the window.
 
-**Not sold: the Russian and Belarusian flags and coats of arms, the flag of the USSR and the red star** (the owner's decision, 2026-10-18; `prices.rs` `NOT_SOLD`):
+**Not sold: the Russian and Belarusian flags and coats of arms, the flag of the USSR and the red star** (the owner's decision, 2026-10-18; `scripts/content-edit/shop.tsv` `not_sold`):
 - `decals_4_1` (dict 266) Flag of USSR, `decals_4_2` (267) Flag of Russia, `decals_4_4` (269) Flag of Belarus, `decals_5_1` (282) Red star, `decals_5_2` (283) Coat of arms of Russia, `decals_5_4` (285) Coat of arms of Belarus: premium decals, 300 gold each until then.
 - In no price record (0x8A), silver or gold; a `47 00` for one is refused (`st_cannot_buy_item`).
 - The Russian and Belarusian ones: found by name in all six localizations of stock 0.26g with patches 12..=20 and checked against their icons; nothing else names Russia or Belarus. The two Soviet ones: the owner's word. The coat of arms of Lithuania (`decals_5_7`, the Vytis) stays on sale, the owner's word too.
@@ -64,6 +64,30 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 
 - **The auto-repair box is gone from the Character panel** (the owner's, 2026-10-23: wear is gone, so it did nothing). Its code is out of the movie; the original movie's graphics still place it, so `LocalPlayerProfile.init` hides it and moves Autobuy into its place (the row's start, no gap). The movie now sends 0 or 1 only; an account whose auto-repair was on is still pushed 3, which ticks Autobuy as before, and its next Autobuy change clears the server's `auto_repair`. The server keeps the bit (with `SRP_ITEM_WEAR=on` it still repairs).
 - **Autobuy is on by default** (the owner's, 2026-10-23): a new account starts with it ticked (`Account::with_loadout`). The server keeps only the box's state, not whether the player ever touched it, so the accounts of before were all turned on once, at the first start of an srp with the rule (`GameAccounts::turn_autobuy_on_once`, the `g26_meta` mark `autobuy_turned_on`, written after the accounts; a mark, not a schema step, so an older srp still opens the database after a rollback) [choice: an account that had turned it off gets it on again once; the box shows it, and a box turned off from then on stays off]. Unticking it sends `49 01 00` and is saved as ever.
+
+### Autobuy toggles and the native Flash boundary (2026-11-02)
+
+The owner reproduced off → on → immediately off in the revision-43 candidate.
+Its lobby packet log at 18:39:20–23 UTC has four `49 01 00` requests, each
+acknowledged with `83 49 01 00`: the server received off even on the intended on
+click. The packaged movie already contained the empty-refill-list fix, which
+keeps `fill_auto_buy_items` from overwriting the setting.
+
+The native `autobuy_changed` callback at 0x288CD0 reads `params+8` for the GFx
+argument array, then the raw byte at `args[0]+8`. It does not inspect the value's
+type or convert its numeric value. A Boolean's union byte is 0/1; the IEEE-754
+double representation of numeric 1 starts with 0. The callback passes that byte
+to the `49 01` request writer at 0x273000. PROVEN in the executable and by
+`client-patches/check_autobuy_value_026g.py`, which executes the callback with
+repeated Boolean off/on values and numeric 0/1 (the latter both send off).
+
+`LocalPlayerProfile.onAutoBuy` now passes `checkbox_autobuy.selected` directly
+as a Boolean, without the numeric ternary. Only the autobuy bit remains in this
+UI; the removed auto-repair control does not need a numeric bitmask here.
+The on-wire format and server behaviour are unchanged. The candidate source
+and packet evidence point to the numeric Flash boundary as the cause; verify
+in the rebuilt native game that off/on sends alternating `49 01 00`/`49 01 01`,
+and that it survives a kit change, match return and sign-in.
 
 What a match used: `session::v026g::autobuy` (the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo). Autobuy buys back in whole clips while the silver lasts; auto-repair repairs what the match wore by the lobby's silver repair. The three lists that end `89` carry what was spent.
 

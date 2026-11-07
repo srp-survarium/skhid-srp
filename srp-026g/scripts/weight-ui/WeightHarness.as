@@ -133,25 +133,25 @@ package {
    require(Math.abs(x.total-.97)<1e-9,"97% = 1 - 10% + 3% + 4% + 5% - 5%: "+x.total);
    require(x.value=="97%" && x.valueStyle=="weight_warning" && x.title.indexOf("97%")>=0 && x.titleValue=="97%" && x.titleStyle=="red","value and heading: "+x.value+" "+x.title);
    var rows:Array=x.rows();
-   // One row each thing, by its own name, biggest speed-up first; green faster, red slower.
+   // One row each thing, by its own name: the weapon, the items as the kit lists them, the skill, the weight; green faster, red slower.
    require(rows.length==5,"the weight, the skill, two items and the weapon: "+rows.length);
-   for each(var want:Array in [[0,"Tornado energy drink <green>+5%</green>"],[1,"Freedom suit <green>+4%</green>"],[2,"Rapid"+" <green>+3%</green>"],[3,"AK-74M <red>-5%</red>"],[4,"Weight <red>-10%</red>"]])
-    require(rows[want[0]].label==want[1],"row "+want[0]+": "+rows[want[0]].label+" (want "+want[1]+")");
+   for each(var want:Array in [[0,"AK-74M <red>-5%</red>"],[1,"Freedom suit <green>+4%</green>"],[2,"Tornado energy drink <green>+5%</green>"],[3,"Rapid"+" <green>+3%</green>"],[4,"Weight <red>-10%</red>"]])
+    require(said(rows[want[0]])==want[1],"row "+want[0]+": "+said(rows[want[0]])+" (want "+want[1]+")");
    // Each item's row has its group's icon, the shop filter's; the skill and the weight the modifier icon.
    var Filters:Object=domain.getDefinition("survarium.controls.FiltersWindow");
-   for each(var gr:Array in [[1,3],[3,8]])require(rows[gr[0]].group==Filters.filterIcon(gr[1]) && rows[gr[0]].group>=0,"row "+gr[0]+" group icon "+rows[gr[0]].group);
-   require(rows[0].group==undefined && rows[0].icon==11,"a pocket's booster: the effect's own icon");
+   for each(var gr:Array in [[1,3],[0,8]])require(rows[gr[0]].group==Filters.filterIcon(gr[1]) && rows[gr[0]].group>=0,"row "+gr[0]+" group icon "+rows[gr[0]].group);
+   require(rows[2].group==undefined && rows[2].icon==11,"a pocket's booster: the effect's own icon");
    // A weapon: its kill feed icon when the hud has one, else its class's filter icon.
    var withKill:Array=Effects.parse(0,0,0,0,0).withItems(kit([],["AK-74M",-.05,8,31])).speedExplanation.rows();
    require(withKill[0].kill==31 && withKill[0].group==undefined,"the AK-74M's kill feed icon 31");
    var noKill:Array=Effects.parse(0,0,0,0,0).withItems(kit([],["Odd gun",-.05,8,17])).speedExplanation.rows();
    require(noKill[0].kill==undefined && noKill[0].group==Filters.filterIcon(8),"no kill feed icon (17): the class's filter icon");
-   require(rows[2].group==undefined && rows[4].group==undefined && rows[2].icon==11,"the skill and the weight keep the modifier icon");
+   require(rows[3].group==undefined && rows[4].group==undefined && rows[3].icon==11,"the skill and the weight keep the modifier icon");
    // Every equipment and weapon category the tooltips show has a shop filter icon.
    for each(var cat:int in [1,2,3,4,5,6,7,8,13,14,15,16,17])require(Filters.filterIcon(cat)>=0,"a filter icon for category "+cat);
    require(Effects.parse(0,0,0,0,0).withItems(kit([["Novice cap",0]],null)).speedExplanation.rows().length==0,"nothing at 0");
    require(Effects.parse(0,0,0,0,0).withItems(kit([],null)).speedExplanation.titleStyle=="white" && Effects.parse(0,0,0,.03,0).withItems(kit([],null)).speedExplanation.titleStyle=="green","heading total: white at 100%, green above");
-   require(e.rows().length==2 && e.rows()[0].label.indexOf("-10%")>=0 && e.rows()[0].label.indexOf("Freedom")<0 && e.titleValue==null,"the weight's tooltip stays the weight's");
+   require(e.rows().length==2 && said(e.rows()[0]).indexOf("-10%")>=0 && said(e.rows()[0]).indexOf("Freedom")<0 && e.titleValue==null,"the weight's tooltip stays the weight's");
    var bear:Object=Effects.parse(0,0,0,0,1).withItems(kit([],["AK-74M",-.05,8])).speedExplanation;
    require(Math.abs(bear.total-1)<1e-9 && bear.rows().length==0,"Bear Arms leaves a weapon's penalty out");
    require(Math.abs(Effects.parse(0,0,0,0,1).withItems(kit([],["Vepr",.03])).speedExplanation.total-1.03)<1e-9,"Bear Arms keeps a weapon's bonus");
@@ -203,7 +203,7 @@ package {
    var st:Array=rows.slice(at+1);
    require(st.length==3,"the item, the skill and the weight: "+st.length);
    for each(var want:Array in [[0,"Freedom suit <green>-8%</green>"],[1,"Marathoner <green>-2%</green>"],[2,"Weight <red>+75%</red>"]])
-    require(st[want[0]].label==want[1],"stamina row "+want[0]+": "+st[want[0]].label);
+    require(said(st[want[0]])==want[1],"stamina row "+want[0]+": "+said(st[want[0]]));
    require(st[0].group>=0 && st[1].icon==16,"the item's group icon, the skill's energy icon");
    require(Effects.parse(0,0,0,0,0,30,0,0,0,0).withItems(kit([],null,[],[])).speedExplanation.rows()[0].headingStyle=="white","no change: white");
    require(Effects.parse(-.1,.75,0,.03,0).speedExplanation.rows().length==1 || true,"an older exe: no stamina section");
@@ -215,11 +215,11 @@ package {
    var rows:Array=e.rows();
    require(rows.length==8,"weight rows, the Weight heading, base, two items, the skill, Packrat: "+rows.length);
    require(rows[2].heading==Loc.getName("equipment_weight") && rows[2].heading.indexOf("#")<0,"the second section, headed Weight: "+rows[2].heading);
-   require(rows[3].label.indexOf("30 kg")>=0 && rows[3].icon==12,"the base limit: "+rows[3].label);
-   var all:String="";for each(var r:Object in rows)all+=(r.label||r.heading)+"\n";
+   require(said(rows[3]).indexOf("30 kg")>=0 && rows[3].icon==12,"the base limit: "+said(rows[3]));
+   var all:String="";for each(var r:Object in rows)all+=(r.heading||said(r))+"\n";
    for each(var want:String in ["Duty suit <green>+5 kg</green>","Anomalous Force Protein <green>+5 kg</green>","Athlete"+" <green>+4 kg</green>","Packrat"+" <green>-15% weight penalty</green>"])
     require(all.indexOf(want)>=0,"row "+want+" in "+all);
-   require(rows[6].label.indexOf("+4 kg")>=0 && rows[7].icon==12 && rows[7].label.indexOf("Packrat")==0,"biggest first, Packrat last with the weight icon: "+rows[6].label);
+   require(said(rows[6]).indexOf("+4 kg")>=0 && rows[7].icon==12 && rows[7].label.indexOf("Packrat")==0,"biggest first, Packrat last with the weight icon: "+said(rows[6]));
    require(Effects.parse(0,0,0,0,0,30,0,0).withItems(kit([],null,[])).rows().length==4,"only the heading and the base when nothing raises it");
    require(Effects.parse(-.1,.75,0).rows().length==2,"an older exe: the weight rows only");
   }
@@ -262,9 +262,21 @@ package {
    require(overlay.numChildren==1,"exactly one tooltip");
    var r:Object=overlay.getChildAt(0);require(r is Tip,"existing game renderer");return r;
   }
+  // A row entry's text: its label, then its value (drawn right-aligned).
+  private function said(r:Object):String {return r.label+(r.value!=undefined?" "+r.value:"");}
+  // A drawn row's value: the value column's row at its height, null for none.
+  private function valueOf(card:Object,row:Object):TextField {
+   // The column: the card's one child holding text fields only, a value on its row's line.
+   for(var i:int=0;i<card.numChildren;i++){
+    var column:Object=card.getChildAt(i);
+    if(column.hasOwnProperty("textFieldLabel") || !(column is Sprite) || column.numChildren==0 || !(column.getChildAt(0) is TextField))continue;
+    for(var j:int=0;j<column.numChildren;j++)if(column.getChildAt(j).y==row.y+row.textFieldLabel.y)return column.getChildAt(j) as TextField;
+   }
+   return null;
+  }
   private function rowText(r:Object):String {
    var result:String="";
-   for(var i:int=3;i<r.numChildren;i++)if(r.getChildAt(i).hasOwnProperty("textFieldLabel"))result+=r.getChildAt(i).textFieldLabel.text+"\n";
+   for(var i:int=3;i<r.numChildren;i++)if(r.getChildAt(i).hasOwnProperty("textFieldLabel")){var v:TextField=valueOf(r,r.getChildAt(i));result+=r.getChildAt(i).textFieldLabel.text+(v!=null?" "+v.text:"")+"\n";}
    return result;
   }
   private function tick(e:Event):void {
@@ -293,14 +305,14 @@ package {
      require(widgets[1].textFieldValue.getTextFormat(0,1).color==0xF18A78,"coral styling");
      require(widgets[1].textFieldValue.numLines==1,"weight value stays on one line");
      require(widgets[2].textFieldValue.getTextFormat(0,1).color==0xCF4242,"red at carry limit");
-     require(target(1).tipData.effects.rows()[0].label.indexOf("-10%")>=0 && target(1).tipData.effects.rows()[1].label.indexOf("+75%")>=0,"exact penalties");
+     require(said(target(1).tipData.effects.rows()[0]).indexOf("-10%")>=0 && said(target(1).tipData.effects.rows()[1]).indexOf("+75%")>=0,"exact penalties");
      require(target(3).tipData.effects.rows().length==2 && target(3).tipData.effects.rows()[1].icon==11,"Heavyweight has no hypothetical sprint cost");
      var detached:Object=new Tip();detached.data=target(1).tipData;
      require(detached.alpha==0,"native card stays hidden before its timeline initializes");
      show(1);
     }
     if(frame==65) {
-     var r:Object=rendered();require(r.alpha==1,"initialized native card is visible");require(r.numChildren==5,"native frame, divider and two stat rows");
+     var r:Object=rendered();require(r.alpha==1,"initialized native card is visible");require(r.numChildren==6,"native frame, divider, two stat rows and their value column");
      var heading:Object=r.getChildAt(2);
      require(heading.y+heading.textField.y>=4,"heading fits inside the native frame");
      require(rowText(r).indexOf("Movement speed")>=0,"speed line");
@@ -328,24 +340,24 @@ package {
       Loc.setData(texts(language));indicators[2].refresh();
       var title:String=target(2).tipData.effects.title;
       require(title==HarnessText.DATA[language].st_srp_weight_title,"translated title: "+language);
-      for each(var entry:Object in target(2).tipData.effects.rows())require(entry.label.indexOf("undefined")<0 && entry.label.indexOf("#st_")<0 && entry.label.indexOf("%1$s")<0,"localized explanation: "+language+" "+entry.label);
-      require(target(2).tipData.effects.rows()[0].label.indexOf("-20")>=0,"value in the translated line: "+language);
+      for each(var entry:Object in target(2).tipData.effects.rows())require(said(entry).indexOf("undefined")<0 && said(entry).indexOf("#st_")<0 && said(entry).indexOf("%1$s")<0,"localized explanation: "+language+" "+said(entry));
+      require(said(target(2).tipData.effects.rows()[0]).indexOf("-20")>=0,"value in the translated line: "+language);
       indicators[0].refresh();
       var sl:TextField=speedWidget(0).textFieldLabel,sv:TextField=speedWidget(0).textFieldValue;
       require(sl.text==HarnessText.DATA[language].st_srp_speed_label && sv.text.indexOf("107")>=0 && sl.x+2+sl.textWidth+6<=sv.x+sv.width-2-sv.textWidth,"speed item: "+language+" "+sl.text+" "+sv.text);
       checkProfileRow(language);
       require(speedTip(0).tipData.effects.title.indexOf("107%")>=0,"speed heading: "+language);
-      for each(var lim:Object in Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,[["Duty suit",5,3]])).rows()){var shown:String=lim.label||lim.heading;require(shown.indexOf("undefined")<0 && shown.indexOf("#")<0 && shown.indexOf("%1$s")<0,"localized limit row: "+language+" "+shown);}
-      for each(var part:Object in speedTip(0).tipData.effects.rows()){var said:String=part.label||part.heading;require(said.indexOf("undefined")<0 && said.indexOf("#")<0 && said.indexOf("%1$s")<0,"localized speed: "+language+" "+said);}
+      for each(var lim:Object in Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,[["Duty suit",5,3]])).rows()){var shown:String=lim.heading||said(lim);require(shown.indexOf("undefined")<0 && shown.indexOf("#")<0 && shown.indexOf("%1$s")<0,"localized limit row: "+language+" "+shown);}
+      for each(var part:Object in speedTip(0).tipData.effects.rows()){var told:String=part.heading||said(part);require(told.indexOf("undefined")<0 && told.indexOf("#")<0 && told.indexOf("%1$s")<0,"localized speed: "+language+" "+told);}
      }
      Loc.setData(texts("english"));indicators[2].refresh();indicators[0].refresh();speedTip(0).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER));
     }
     if(frame==155) {
      // The speed's own native card: its total in the heading, then weight, bonuses, skills, equipment.
-     var card:Object=rendered();require(card.alpha==1 && card.numChildren==10,"native card: the speed's four rows, the stamina divider and its two rows: "+card.numChildren);
-     var sdiv:Object=card.getChildAt(9);var shi:int=sdiv.textField.text.indexOf("90%");
+     var card:Object=rendered();require(card.alpha==1 && card.numChildren==11,"native card: the speed's four rows, the value column, the stamina divider and its two rows: "+card.numChildren);
+     var sdiv:Object=card.getChildAt(10);var shi:int=sdiv.textField.text.indexOf("90%");
      require(sdiv.textField.text.indexOf("Sprint stamina use")==0 && shi>=0 && sdiv.textField.getTextFormat(shi,shi+1).color==0x87A816,"the stamina section's heading, its total green (less use): "+sdiv.textField.text);
-     require(card.getChildAt(6).y<sdiv.y && sdiv.y<card.getChildAt(7).y,"the speed rows above it, the stamina rows below");
+     require(card.getChildAt(6).y<sdiv.y && sdiv.y<card.getChildAt(7).y,"the speed rows above it (the last, 6), the stamina rows below");
      var head:TextField=card.getChildAt(2).textField;var h:int=head.text.indexOf("107%");
      require(h>=0 && head.getTextFormat(h,h+1).color==0x87A816,"heading total in the rows' green: "+head.text+" "+head.getTextFormat(h,h+1).color.toString(16));
      var text:String=rowText(card);
@@ -353,7 +365,7 @@ package {
      // The drawn icons: the shop filter's sprite at its category's frame in the item rows.
      var FW:Object=domain.getDefinition("survarium.controls.FiltersWindow");
      // The weapon row: the hud's kill feed image, fitted by width in the glyph box.
-     var kc:Object=card.getChildAt(6).iconContainer;var kh:Object=kc.getChildAt(kc.numChildren-1);var kb:Rectangle=kh.getBounds(kc);
+     var kc:Object=card.getChildAt(3).iconContainer;var kh:Object=kc.getChildAt(kc.numChildren-1);var kb:Rectangle=kh.getBounds(kc);
      require(kh.name=="kill31" && kh.getChildAt(0) is Bitmap && kh.getChildAt(0).bitmapData!=null,"the AK-74M row shows its kill feed icon: "+kh.name);
      // Bigger: a box three glyph boxes wide at their height; the column widened for every row.
      var others:Rectangle=null;var vest:Object=card.getChildAt(4).iconContainer;others=glyphOf(vest.getChildAt(vest.numChildren-1).getChildAt(0),vest);
@@ -361,7 +373,7 @@ package {
      var src:BitmapData=kh.getChildAt(0).bitmapData;var before:Number=Math.min(26/src.width,21/src.height)*src.height;
      require(Math.abs(kb.height-Math.min(1.5*before,21))<0.6 && kb.width<=39.5 && kb.height<=others.height+0.5 && Math.abs(kb.y+kb.height/2-19.5)<1,"the weapon icon 1.5x, no taller than the others: "+kb+" vs "+others+" before "+before);
      var cardRows:Array=[];for(var cr:int=3;cr<card.numChildren;cr++)if(card.getChildAt(cr).hasOwnProperty("textFieldLabel"))cardRows.push(card.getChildAt(cr));
-     for each(var crr:Object in cardRows)require(crr.textFieldLabel.x==cardRows[0].textFieldLabel.x && crr.textFieldLabel.x>=card.getChildAt(6).iconContainer.x+(7+39)*crr.iconContainer.scaleX-1,"one text column after the wide icon column");
+     for each(var crr:Object in cardRows)require(crr.textFieldLabel.x==cardRows[0].textFieldLabel.x && crr.textFieldLabel.x>=card.getChildAt(3).iconContainer.x+(7+39)*crr.iconContainer.scaleX-1,"one text column after the wide icon column");
      var vestCard:Rectangle=glyphOf(vest.getChildAt(vest.numChildren-1).getChildAt(0),card),gunCard:Rectangle=kh.getChildAt(0).getBounds(card as DisplayObject);
      require(Math.abs((vestCard.x+vestCard.width/2)-(gunCard.x+gunCard.width/2))<1.5,"the other icons centred in the wide column: "+vestCard+" vs "+gunCard);
      // Tinted to the modifier icons' colour: the average opaque pixel of the atlas's icon 11.
@@ -377,14 +389,14 @@ package {
      // One icon column and one text x for every row, one pitch.
      var rowsDrawn:Array=[];for(var rr:int=3;rr<card.numChildren;rr++)if(card.getChildAt(rr).hasOwnProperty("textFieldLabel"))rowsDrawn.push(card.getChildAt(rr));
      rowsDrawn.sortOn("y",Array.NUMERIC);
-     for each(var rd:Object in rowsDrawn)require(rd.x==rowsDrawn[0].x && (rd.iconContainer.x==rowsDrawn[0].iconContainer.x || rd==card.getChildAt(6) || rowsDrawn[0]==card.getChildAt(6)) && rd.iconContainer.scaleX==rowsDrawn[0].iconContainer.scaleX && rd.textFieldLabel.x==rowsDrawn[0].textFieldLabel.x,"one icon column and one text x");
+     for each(var rd:Object in rowsDrawn)require(rd.x==rowsDrawn[0].x && (rd.iconContainer.x==rowsDrawn[0].iconContainer.x || rd==card.getChildAt(3) || rowsDrawn[0]==card.getChildAt(3)) && rd.iconContainer.scaleX==rowsDrawn[0].iconContainer.scaleX && rd.textFieldLabel.x==rowsDrawn[0].textFieldLabel.x,"one icon column and one text x");
      require(rowsDrawn[1].y-rowsDrawn[0].y==rowsDrawn[2].y-rowsDrawn[1].y && rowsDrawn[5].y-rowsDrawn[4].y==rowsDrawn[1].y-rowsDrawn[0].y,"one row pitch in both sections");
      // The colours as drawn: a bonus green, no effect white (the style sheet's).
-     var bonus:TextField=card.getChildAt(4).textFieldLabel;var bi:int=bonus.text.indexOf("+4%");
+     var bonus:TextField=valueOf(card,card.getChildAt(4));var bi:int=bonus.text.indexOf("+4%");
      require(bi>=0 && bonus.getTextFormat(bi,bi+1).color==0x87A816,"a part that speeds up is green, the card rows' green: "+bonus.getTextFormat(bi,bi+1).color.toString(16));
-     var slow:TextField=card.getChildAt(6).textFieldLabel;var si:int=slow.text.indexOf("-5%");
+     var slow:TextField=valueOf(card,card.getChildAt(3));var si:int=slow.text.indexOf("-5%");
      require(si>=0 && slow.getTextFormat(si,si+1).color==0x960F0E,"a part that slows down is red, the card rows' red: "+slow.text);
-     for(var m:int=3;m<9;m++){var line:Object=card.getChildAt(m);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits");}
+     for(var m:int=3;m<9;m++){var line:Object=card.getChildAt(m),lv:TextField=valueOf(card,line);require(line.x+line.textFieldLabel.x+line.textFieldLabel.textWidth+4<=lv.x && lv.x+lv.textWidth+4<=card.width && line.y+line.textFieldLabel.textHeight+4<=card.height,"speed row fits, its label left of its value");}
      require(card.x>=0 && card.y>=0 && card.x+card.width<=960 && card.y+card.height<=720,"speed card inside screen");
      speedTip(0).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
      indicators[1].update(25,30,Effects.parse(-.1,.75,0,.03,0,30,4,-.15).withItems(kit([],null,[["Duty suit",5,3],["Anomalous Force Protein",5,null]])));
@@ -401,7 +413,7 @@ package {
     }
     if(frame==200) {
      // The weight's card in two sections: its effects under the title, then "Weight": what changes the limit.
-     var wc:Object=rendered();require(wc.alpha==1 && wc.numChildren==11,"frame, body, title, the Weight divider and seven rows: "+wc.numChildren);
+     var wc:Object=rendered();require(wc.alpha==1 && wc.numChildren==12,"frame, body, title, the value column, the Weight divider and seven rows: "+wc.numChildren);
      var wtitle:Object=wc.getChildAt(2),divider:Object=null,wrows:Array=[];
      var RowClass:Class=domain.getDefinition("SrvModifierLabeledRenderer") as Class;
      for(var c2:int=3;c2<wc.numChildren;c2++){var ch:Object=wc.getChildAt(c2);if(ch is RowClass)wrows.push(ch);else if(getQualifiedClassName(ch)==getQualifiedClassName(wtitle))divider=ch;}
@@ -409,7 +421,7 @@ package {
      require(divider.textField.text==Loc.getName("equipment_weight"),"the divider says Weight: "+divider.textField.text);
      wrows.sortOn("y",Array.NUMERIC);
      require(wrows[1].y<divider.y && divider.y+divider.textField.y+divider.textField.height<=wrows[2].y+4,"the weight rows above it, the limit rows below");
-     require(wrows[2].textFieldLabel.text.indexOf("30")>=0,"the base limit first under it: "+wrows[2].textFieldLabel.text);
+     require(valueOf(wc,wrows[2]).text.indexOf("30")>=0,"the base limit first under it: "+valueOf(wc,wrows[2]).text);
      require(Math.abs(divider.x-wtitle.x)<1 && wc.x+wc.width<=960 && wc.y+wc.height<=720,"centred as the title, inside the screen");
      for each(var r2:Object in wrows)require(r2.x+r2.textFieldLabel.x+r2.textFieldLabel.textWidth+4<=wc.width && (r2.textFieldLabel.numLines==1 || r2.textFieldLabel.getLineText(1).replace(/\s+/g,"")==""),"weight row fits on one line: "+r2.textFieldLabel.text);
      require(wc.width<320,"compact: as wide as its widest row: "+wc.width);

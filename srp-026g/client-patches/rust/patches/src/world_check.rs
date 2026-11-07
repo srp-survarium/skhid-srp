@@ -1,108 +1,147 @@
-//! Patch 87: a game parses every world it is sent (0xE8) before its own
-//! reader takes it (`docs/notes/world_frame_check.md`). The parse is the
-//! match server's own, `world_frame::Frame::parse_state`: the frame walks
-//! from the front to exactly its end, no mask bit is past the game's 20
-//! slots, and no section nor player state is over the game's buffer for
-//! it. A world that does not parse would kill the game in its reader; it is
-//! not loaded, the game leaves the match as the leave button does and says
-//! why in `srp_patches.log`.
-//!
-//! The game checks against all 20 slots ([`Places::ALL`]): the roster of a
-//! late join's growing match is not the game's to know. The server checks
-//! against the roster.
+//! Patch 87: shared semantic validation before either native world load.
+//! The existing framing parser and weapon-pickup preparation keep one owner.
+//! Every refusal is logged (`log::refusal`: at most a line a second,
+//! counting the ones between).
 #![forbid(unsafe_code)]
 
-use world_frame::{Frame, Part, Places, Refusal};
+use srp_validate::{world, Part, Refusal, MAX_PLAYERS};
 
-use crate::vostok::log::{line, Piece};
-use crate::vostok::{Context, Flow, WorldCheckOnRawExit, WorldCheckOnUnpackedExit, WorldLoad};
+use crate::vostok::breadcrumbs::{self, Crumb, Reading};
+use crate::vostok::log::{refusal as log_refusal, Piece};
+use crate::vostok::{Context, Flow, Thread, WorldCheckOnRawExit, WorldCheckOnUnpackedExit, WorldLoad};
 
-/// What becomes of a world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Verdict {
-    Load,
-    Refused,
+pub struct Match {
+    pub game_mode: u8,
+    pub batteries: usize,
+    pub respawn_points: usize,
 }
 
-/// `world_load.unpacked`: before the load of an unpacked world (0x27C0D9).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Rule {
+    Mode { game_mode: u8, batteries: usize },
+    Respawn { points: usize },
+    Other,
+}
+
+impl Match {
+    pub(crate) fn of(rules: impl IntoIterator<Item = Rule>) -> Option<Self> {
+        let (mut mode, mut respawn) = (None, None);
+        for rule in rules {
+            match rule {
+                Rule::Mode { game_mode, batteries } => {
+                    if mode.replace((game_mode, batteries)).is_some() { return None; }
+                }
+                Rule::Respawn { points } => {
+                    if respawn.replace(points).is_some() { return None; }
+                }
+                Rule::Other => {}
+            }
+        }
+        let (game_mode, batteries) = mode?;
+        Some(Self { game_mode, batteries, respawn_points: respawn? })
+    }
+
+    fn context(self, time: u32) -> world::Context<'static> {
+        world::Context {
+            time, places: MAX_PLAYERS, game_mode: self.game_mode,
+            batteries: self.batteries, respawn_points: Some(self.respawn_points),
+            // The native per-item bounds remain at their readers (patch 115).
+            // Do not guess profile, swapped inventory or authored map objects.
+            profiles: None, artefacts: None, objects: None, inventory: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Failure { NoTime, NoMatch, Invalid(Refusal) }
+
+fn parse(state: &[u8], game: Option<Match>) -> Result<world::Frame<'_>, Failure> {
+    let (time, body) = state.split_first_chunk::<4>().ok_or(Failure::NoTime)?;
+    let context = game.ok_or(Failure::NoMatch)?.context(u32::from_le_bytes(*time));
+    let frame = world::frame(body, context.places).map_err(Failure::Invalid)?;
+    world::validate_frame(&frame, &context).map_err(Failure::Invalid)?;
+    Ok(frame)
+}
+
+pub fn verdict(state: &[u8], game: Option<Match>) -> Result<(), Failure> {
+    parse(state, game).map(|_| ())
+}
+
 pub fn on_unpacked(ctx: &mut Context<'_>) -> Flow<WorldCheckOnUnpackedExit> {
-    match check(WorldLoad::at_unpacked(ctx)) {
-        Verdict::Load => Flow::Continue,
-        Verdict::Refused => Flow::Exit(WorldCheckOnUnpackedExit::Refused),
-    }
+    if check(ctx.thread(), WorldLoad::at_unpacked(ctx)) { Flow::Continue }
+    else { Flow::Exit(WorldCheckOnUnpackedExit::Refused) }
 }
-
-/// `world_load.raw`: before the load of a raw world (0x27C111).
 pub fn on_raw(ctx: &mut Context<'_>) -> Flow<WorldCheckOnRawExit> {
-    match check(WorldLoad::at_raw(ctx)) {
-        Verdict::Load => Flow::Continue,
-        Verdict::Refused => Flow::Exit(WorldCheckOnRawExit::Refused),
-    }
+    if check(ctx.thread(), WorldLoad::at_raw(ctx)) { Flow::Continue }
+    else { Flow::Exit(WorldCheckOnRawExit::Refused) }
 }
 
-/// A world the site could not read (no client, a reader outside its bytes:
-/// never seen) goes on to the game's load as before. A world that parses is
+/// A world the site could not read is refused before the native load. A world that parses is
 /// loaded, patch 85's guns its records name made first
 /// (`weapon_pickup::before_world_load`: outside any tick, before the load).
-fn check(load: Option<WorldLoad<'_>>) -> Verdict {
+fn check(thread: &Thread, load: Option<WorldLoad<'_>>) -> bool {
     let Some(load) = load else {
-        return Verdict::Load;
+        log_refusal(thread, &[Piece::Text("world_check: a world at a load with no readable state; not loaded")]);
+        return false;
     };
-    match Frame::parse_state(load.state(), Places::ALL) {
+    let parsed = parse(load.state(), load.match_context());
+    let state = load.state();
+    breadcrumbs::record(load.thread(), Crumb::World {
+        time: state.get(..4).map_or(0, |t| u32::from_le_bytes([t[0], t[1], t[2], t[3]])),
+        bytes: state.len() as u32,
+        packed: load.packed(),
+        local: load.network_client().local_profile(),
+        loaded: parsed.is_ok(),
+    });
+    breadcrumbs::reading(load.thread(), Reading::World);
+    match parsed {
         Ok(frame) => {
-            crate::weapon_pickup::before_world_load(&load, &frame);
-            Verdict::Load
+            crate::weapon_pickup::before_world_load(&load, frame.native());
+            true
         }
-        Err(refusal) => {
-            log(refusal, load.state().len());
-            load.leave();
-            Verdict::Refused
+        Err(error) => {
+            let len = load.state().len();
+            load.discard();
+            log(thread, error, len);
+            false
         }
     }
 }
 
-/// The world's time, then its body: whether a game can load it.
-pub fn verdict(state: &[u8]) -> Result<(), Refusal> {
-    Frame::parse_state(state, Places::ALL).map(|_| ())
-}
-
-/// `srp: world_check: a world refused, <part> at <offset>: <reason> (<n> bytes)`.
-fn log(refusal: Refusal, len: usize) {
-    let slot = match refusal.part() {
-        Part::Player(slot) => Piece::Dec(u32::from(slot.index())),
-        _ => Piece::Text(""),
+fn log(thread: &Thread, error: Failure, len: usize) {
+    let (part, offset, slot) = match error {
+        Failure::NoTime => ("missing time", 0, None),
+        Failure::NoMatch => ("unknown match rules", 0, None),
+        Failure::Invalid(refusal) => (
+            refusal.part.name().trim_end_matches('\0'), refusal.offset,
+            if let Part::Player(place) = refusal.part { Some(place) } else { None }),
     };
-    line(&[
-        Piece::Text("world_check: a world refused, "),
-        Piece::Text(refusal.part().name()),
-        Piece::Text(if matches!(refusal.part(), Part::Player(_)) { " " } else { "" }),
-        slot,
-        Piece::Text(" at "),
-        Piece::Hex(refusal.at() as u32),
-        Piece::Text(": "),
-        Piece::Text(refusal.reason()),
-        Piece::Text(" ("),
-        Piece::Dec(len as u32),
-        Piece::Text(" bytes); the match left"),
-    ]);
+    log_refusal(thread, &[Piece::Text("world_check: a world refused, "), Piece::Text(part),
+           Piece::Text(if slot.is_some() { " " } else { "" }),
+           slot.map_or(Piece::Text(""), |slot| Piece::Dec(u32::from(slot))),
+           Piece::Text(" at "), Piece::Hex(offset as u32),
+           Piece::Text(" ("), Piece::Dec(len as u32), Piece::Text(" bytes); not loaded, a new one requested")]);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn a_world_is_its_time_then_its_body() {
-        // No players, six empty sections.
-        let body = [0u8; 16];
-        let mut state = 4500u32.to_le_bytes().to_vec();
-        state.extend(body);
-        assert_eq!(verdict(&state), Ok(()));
-        // The body alone: its mask read as the time, then too short.
-        assert!(verdict(&body).is_err());
-        assert_eq!(verdict(&[1, 2, 3]), Err(Refusal::NoTime));
-        // A mask bit past the game's 20 slots.
-        state[4..8].copy_from_slice(&(1u32 << 20).to_le_bytes());
-        assert!(matches!(verdict(&state), Err(Refusal::SlotPastPlaces { bit: 20, .. })));
+    fn a_match_has_exactly_one_mode_and_respawn_rule() {
+        let mode = Rule::Mode { game_mode: 4, batteries: 0 };
+        let respawn = Rule::Respawn { points: 3 };
+        assert_eq!(Match::of([mode, Rule::Other, respawn]), Some(Match {
+            game_mode: 4, batteries: 0, respawn_points: 3,
+        }));
+        for rules in [vec![], vec![mode], vec![respawn], vec![mode,mode,respawn],
+                      vec![mode,respawn,respawn]] { assert_eq!(Match::of(rules), None); }
+    }
+    #[test]
+    fn missing_time_match_and_incomplete_sections_are_refused() {
+        let game = Some(Match { game_mode: 4, batteries: 0, respawn_points: 3 });
+        assert_eq!(verdict(&[1,2,3], game), Err(Failure::NoTime));
+        assert_eq!(verdict(&[0;20], None), Err(Failure::NoMatch));
+        assert!(matches!(verdict(&[0;20], game), Err(Failure::Invalid(_))));
     }
 }

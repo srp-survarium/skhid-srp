@@ -105,8 +105,20 @@ RUN = {
 # trip. Not run here = the bytes it owns are in a section no decoder of this repository locates (bullets,
 # objects, the statistics' batteries), or it owns no bytes.
 OWN_CHECKS = {
+    (0x33DD65, 6): "medical.duration_restore: derives painkiller duration from config and kit ranks, "
+                   "does not read/write serialized bytes; check_medical_skills_026g.py executes start, tick "
+                   "and restore with identical config duration for ranks 0..5 and two client memory layouts",
+
+    (0x27C116, 5): "world_load.loaded: application receipt, exercised by check_packet_recovery_026g.py",
+    (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
+    (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
+    (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x27C0FF, 6): "world_load.raw: the same preparation as world_load.unpacked (world_check.rs `check`), for a "
                    "world sent raw; check_world_check_026g.py",
+    (0x27C059, 5): "WORLD_UNPACK (patch 98): the 0xE8 handler's stack buffer for a packed world, 0x8000 -> 0xF000 "
+                   "bytes, a capacity, no bytes of the world; check_world_sections_026g.py (a packed 0xA014-byte "
+                   "world through the whole handler loads whole)",
+    (0x27C07C, 5): "WORLD_UNPACK (patch 98): the decompress and mutable_buffer capacity, as 0x27C059",
     (0x2D1050, 10): "first_load input and kit (late_join_026g.asm): the place's input and kit choice into the core's "
                     "lists at a first load, no bytes of the world; check_late_join_026g.py",
     (0x2F5ACF, 6): "shared_statistics::serialize: twenty records, a constant, as its deserialize; selftest_026g.py",
@@ -492,7 +504,13 @@ def main():
     parser.add_argument("worlds", nargs="*", default=[WORLDS], help="dumps, or folders of them")
     parser.add_argument("--exe", dest="built", help="a built exe to run instead of this tree's build")
     parser.add_argument("--show", type=int, default=10, help="failures shown per game (default 10)")
+    parser.add_argument("--contexts", help="srp-validate drift_dump TSV for a corpus other than the historical TDM fixtures")
     args = parser.parse_args()
+    contexts = {}
+    if args.contexts:
+        for row in open(args.contexts):
+            file,now,mode,batteries,points,_ = row.rstrip().split('\t')
+            contexts[os.path.basename(file)] = tuple(map(int,(mode,batteries,points)))
     started = time.time()
     original = open(args.exe, "rb").read()
     if args.built:
@@ -519,6 +537,8 @@ def main():
         failures = []
         for name, now, body in loaded:
             game = resync if what == "resync" else games[what]()
+            if args.contexts:
+                game.validation_context = contexts[name]
             failures += round_trip(game, name, now, body)
         for _, _, _, line in failures[:args.show]:
             print(f"  FAIL  {what}: {line}")

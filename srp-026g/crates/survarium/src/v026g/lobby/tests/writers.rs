@@ -1154,6 +1154,56 @@ fn rank() -> ClanRank {
 }
 
 #[test]
+fn a_clan_member_name_is_clamped_to_its_32_byte_client_buffer() {
+    // `read_clan_info` (0x271FD0) reads each member name into a 32-byte record
+    // field (stride 0x22, name at +0..+0x20), so an account name of 32..=63 --
+    // which `NAME` (63) permits -- would overflow every OTHER member's client
+    // when they read the clan info. `CLAN_MEMBER_NAME` (31) is the boundary.
+    let member = |name: &str| ClanMember {
+        account_id: 1,
+        name: name.into(),
+        rank: 0,
+        level: 7,
+        online: true,
+    };
+    let info = |name: &str| {
+        clan_info(&ClanInfo::Registered {
+            clan_id: 5,
+            name: "Wolves".into(),
+            tag: "WLF".into(),
+            ranks: Vec::new(),
+            members: vec![member(name)],
+            unknown: 0,
+            flag: false,
+            level: 1,
+            progress: [0, 0, 0, 0],
+        })
+        .unwrap()
+    };
+    // A 40-char name is written as a u8 length 31 (0x1F) + 31 bytes, never 40.
+    let wire = bytes(&info(&"A".repeat(40)));
+    assert!(
+        wire.windows(32).any(|w| w[0] == 31 && w[1..].iter().all(|&b| b == b'A')),
+        "clan member name not clamped to 31: {wire:02X?}"
+    );
+    assert!(
+        !wire.windows(2).any(|w| w[0] == 40 && w[1] == b'A'),
+        "clan member name written at its full 40 bytes"
+    );
+    // A 31-char name is at the boundary and passes through whole; 32 is cut to
+    // 31, so the client (and `client_model`) read a 31-byte name either way.
+    assert!(bytes(&info(&"B".repeat(31))).windows(32).any(|w| w[0] == 31));
+    assert!(bytes(&info(&"C".repeat(32))).windows(32).any(|w| w[0] == 31));
+    // The client model reads the member name back under the same 31-byte bound.
+    let Ok(Decoded::ClanInfo(ClanInfo::Registered { members, .. })) =
+        Client::signed_in().receive(&info(&"D".repeat(40)))
+    else {
+        panic!("clan info did not read back as Registered");
+    };
+    assert_eq!(members[0].name.len(), 31);
+}
+
+#[test]
 fn clan_info_types() {
     assert_bytes(&clan_info(&ClanInfo::None).unwrap(), "9A 00 00000000");
     let registered = ClanInfo::Registered {

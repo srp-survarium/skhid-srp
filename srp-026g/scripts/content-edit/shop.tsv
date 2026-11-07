@@ -1,0 +1,94 @@
+# The shop's rules beyond the item data (crates/survarium/src/v026g/prices.rs): the price is the item's
+# base_cost (items.tsv); gear is sold by the faction its config names at the rank of its item level
+# (Renaissance and Edge: 5 under it), gear of no faction by everyone at no rank; a badge (a decal of type
+# unl_decl) is sold as gear. A row says otherwise:
+#   <item>/<faction>   that faction (scav, bm, ren, edge) sells it at this rank; ammo needs no rank, its
+#                      ranks are those of 0.26 (docs/notes/progression_sources.md)
+#   <item>/not_sold    no shop sells it, for silver or gold: why
+# srp reads it from its game data at start and refuses an item, faction or rank the data has not.
+key	value
+a9_91/edge	8
+vsk_94/edge	9
+scav_torso_2/scav	2
+scav_legs_2/scav	2
+scav_gloves_2/scav	2
+scav_boots_2/scav	2
+scav_resp_1/scav	2
+fort_17/ren	2
+aps/edge	2
+bm_back_1/bm	4
+ammo_12mm_buck/scav	1
+ammo_12mm_buck/bm	1
+ammo_12mm_slug/scav	3
+ammo_12mm_slug/bm	3
+ammo_9x18_makarov/scav	2
+ammo_9x19p_para/bm	2
+ammo_7.62x51/scav	3
+ammo_7.62x51_ap/scav	5
+ammo_.30-30/bm	3
+ammo_.357m/bm	3
+ammo_5.45x39_7n6m/bm	5
+ammo_7.62x39/ren	1
+ammo_7.62x39/edge	1
+ammo_9x18_pbm/ren	2
+ammo_9x18_pbm/edge	2
+ammo_9x21/ren	3
+ammo_45acp/edge	3
+ammo_7.62x39_7n23/ren	4
+ammo_7.62x39_7n23/edge	4
+ammo_7.62x39_m/ren	4
+ammo_7.62x54_7n1/ren	7
+ammo_7.62x54_7n1/edge	4
+ammo_9x19p_7n31/edge	4
+ammo_5.45x39_7n10/ren	5
+ammo_5.45x39_7n10/edge	5
+ammo_pab9/ren	8
+ammo_pab9/edge	8
+ammo_sp5/ren	9
+ammo_sp5/edge	9
+ammo_sp6/ren	9
+ammo_sp6/edge	9
+ammo_5.45x39_7n22/ren	9
+ammo_6.5x39/ren	10
+ammo_12.7x55/edge	10
+ammo_12.7x54_pt/edge	10
+ammo_12.7x54_vps/edge	10
+ammo_5.56x45/scav	5
+ammo_5.56x45/bm	5
+ammo_4.6x30/bm	5
+ammo_5.7x28/bm	5
+ammo_7.62x54_7n13/ren	10
+ammo_12mm_buck2/ren	7
+ammo_12mm_buck2/edge	7
+ammo_5.56x45_belt/ren	9
+ammo_7.62x51_scar_ap/ren	10
+ammo_7.62x51_20/bm	5
+ammo_7.62x51_belt/edge	9
+ammo_23mm_r/ren	2
+bandages/scav	1
+medkit/scav	3
+antitoxin/scav	3
+base_trap/bm	1
+painkiller/bm	3
+rgd-5/scav	3
+rgd-5/bm	3
+rdg-m/ren	1
+rdg-m/edge	1
+decals_4_1/not_sold	the flag of the USSR
+decals_4_2/not_sold	the flag of Russia
+decals_4_4/not_sold	the flag of Belarus
+decals_5_1/not_sold	the red star (Soviet)
+decals_5_2/not_sold	the coat of arms of Russia
+decals_5_4/not_sold	the coat of arms of Belarus
+vss/not_sold	a weapon of no faction, not on sale
+sr3m/not_sold	a weapon of no faction, not on sale
+socom16/not_sold	a weapon of no faction, not on sale
+neostead_2/not_sold	a weapon of no faction, not on sale
+decals_2_1/scav	1
+decals_2_2/scav	5
+decals_2_3/bm	1
+decals_2_4/bm	5
+decals_2_5/ren	1
+decals_2_6/ren	10
+decals_2_7/edge	1
+decals_2_8/edge	10

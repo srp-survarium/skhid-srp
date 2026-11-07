@@ -12,6 +12,7 @@ pub mod loadouts;
 pub mod localization;
 pub mod maps;
 pub mod modifications;
+pub mod new_account;
 pub mod prices;
 pub mod quests;
 pub mod scarcity;

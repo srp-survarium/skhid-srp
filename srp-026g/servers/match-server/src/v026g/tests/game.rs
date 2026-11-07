@@ -10,10 +10,11 @@ use survarium::v026g::match_msgs::client_model::Skip;
 use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::snapshot::{Sections, event};
+use survarium::v026g::match_msgs::upload;
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, WireTime, id};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Direction, Table};
-use world_frame::{Frame, PLAYER_STATE_CAP, Places, Section};
+use world_frame::{Frame, MAX_BODY, PLAYER_STATE_CAP, Places};
 
 use super::client::{Client, HORIZON_MS, INITIAL_MS};
 use super::{Bench, MAP_BATTERIES, MAP_TDM, session_of};
@@ -75,7 +76,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
         let options = client.model.options.as_ref().unwrap();
         assert_eq!(options.players.len(), 1);
         assert_eq!(options.players[0].name, "player0");
-        assert_eq!(options.map_id, MAP_BATTERIES);
+        assert_eq!(options.map.map().id, MAP_BATTERIES);
         assert_eq!(options.match_id, static_id(bench.match_id));
         assert_eq!(options.match_level, 3);
     }
@@ -122,7 +123,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
     assert_eq!(result.match_id, bench.match_id);
     assert_eq!(result.end, MatchEnd::TimeLimit);
     assert_eq!(result.map_id, MAP_BATTERIES);
-    assert_eq!(result.game_mode, 2);
+    assert_eq!(result.mode, survarium::v026g::maps::GameMode::Batteries);
     assert_eq!(result.winner, Some(DRAW));
     assert_eq!(result.team_points, [0, 0]);
     // Its own word: there was nobody else.
@@ -371,6 +372,44 @@ fn an_input_with_a_rotation_no_client_makes_goes_to_nobody() {
             .iter()
             .all(PlayerInput::rotation_is_sane)
     );
+    bench.assert_no_faults();
+}
+
+/// The client checks the relayed input too. A sender must never be able
+/// to relay bytes that make all the recipients take their refusal path.
+#[test]
+fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    let good = bench.clients[0].input(50, 0x21);
+    bench.run(100);
+    let bad = PlayerInput {
+        time: WireTime::tick(bench.clients[0].clock() + 50),
+        rotation: [0; 4],
+        actions: 1 << 30,
+    };
+    assert!(srp_validate::messages::input(bad.rotation, bad.actions).is_err());
+    bench.clients[0].send_input(bad);
+    bench.clients[0].send_input(bad);
+    bench.run(100);
+    assert_eq!(discards(&bench.clients[0]), [bad.time]);
+    assert_eq!(bench.game().inputs_refused(0), 1);
+    for other in [1, 2] {
+        assert_eq!(bench.clients[other].relays_of(0), [good]);
+        assert!(discards(&bench.clients[other]).is_empty());
+    }
+    // Native bit 31 and the shipped carry/pickup marker in bit 29 stay
+    // accepted. All players continue after the bad input is discarded.
+    for actions in [1 << 31, 1 << 29, 0x20] {
+        let input = bench.clients[0].input(50, actions);
+        bench.run(100);
+        for other in [1, 2] {
+            assert_eq!(bench.clients[other].relays_of(0).last(), Some(&input));
+        }
+    }
+    assert_eq!(bench.stages(), "LLL");
+    assert!(bench.clients.iter().all(|client| !client.closed));
     bench.assert_no_faults();
 }
 
@@ -763,6 +802,101 @@ fn a_client_out_of_step_is_resynced_as_the_next_generation() {
     bench.assert_no_faults();
 }
 
+/// Live, 2026-11-04: a game out of step for more than a second was back in
+/// step by the time its disagreement was judged (its world taken just
+/// ahead of the resync was the majority's byte for byte), and was resynced
+/// all the same. Its newer reports that agree with most games skip the
+/// resync, as 0.69 skips a resync whose hash matches.
+#[test]
+fn a_game_back_in_step_before_its_disagreement_is_judged_is_not_resynced() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    let from = bench.clients[2].clock();
+    bench.clients[2].sim.salt_from = Some((from, 7));
+    // Its ticks wrong for 1.7 s (past `divergence_confirm_ms`; a game
+    // reports the tick 500 ms back), then right again, all before its
+    // first wrong tick is settled (2.5 s).
+    bench.run(2_200);
+    bench.clients[2].sim.salt_from = None;
+    bench.run_long(25_000);
+    assert_eq!(bench.game().resyncs(2), 0);
+    assert_eq!(bench.clients[2].model.syncs, 1);
+    settle(&mut bench);
+    bench.assert_no_faults();
+}
+
+/// The worlds of a split are asked for at its first tick, not seconds
+/// later at the resync: the wrong game's and a majority game's, and the
+/// wrong one is saved as "split".
+#[test]
+fn a_games_world_is_asked_for_at_its_first_report_against_the_majority() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    let right_asked = bench.clients[0].upload_requests + bench.clients[1].upload_requests;
+    let from = bench.clients[2].clock();
+    bench.clients[2].sim.salt_from = Some((from, 7));
+    // Its first wrong report comes a horizon (500 ms) and a way later.
+    assert!(bench.until(1_500, |bench| bench.game().split_world(2).0.is_some()));
+    assert_eq!(bench.game().resyncs(2), 0);
+    assert!(bench.until(1_000, |bench| !bench.game().split_world(2).1));
+    assert!(bench.clients[0].upload_requests + bench.clients[1].upload_requests > right_asked);
+    // Once a player, however long it is wrong; it is resynced as before.
+    assert!(bench.until(10_000, |bench| bench.game().resyncs(2) == 1));
+    assert_eq!(bench.game().split_world(0), (None, false));
+    assert_eq!(bench.game().split_world(1), (None, false));
+}
+
+/// A split's request that its game never answered (a full packet pool
+/// skips it) says nothing of the game's next upload: asked later as a
+/// source for another game's resync, its world is a vote, not "split".
+#[test]
+fn an_unanswered_split_request_does_not_take_the_next_upload() {
+    let dir = std::env::temp_dir().join(format!("srp-split-stale-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let settings = Settings {
+        snapshot_dir: Some(dir.clone()),
+        ..Settings::default()
+    };
+    let mut bench = Bench::new(3, MAP_BATTERIES, settings);
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    bench.clients[1].no_uploads = true;
+    let from = bench.clients[1].clock();
+    bench.clients[1].sim.salt_from = Some((from, 7));
+    assert!(bench.until(1_500, |bench| bench.game().split_world(1).0.is_some()));
+    // Wrong for a moment only, and its request skipped.
+    bench.clients[1].sim.salt_from = None;
+    bench.run(2_000);
+    bench.clients[1].no_uploads = false;
+    let asked = bench.clients[1].upload_requests;
+    // Player 0 goes wrong: its resync's source is player 1
+    // (the best link; the lowest place of equal ones).
+    let from = bench.clients[0].clock();
+    bench.clients[0].sim.salt_from = Some((from, 9));
+    assert!(bench.until(15_000, |bench| bench.game().resyncs(0) == 1));
+    assert!(bench.until(5_000, |bench| bench.clients[1].upload_requests > asked));
+    bench.run(2_000);
+    let saved: Vec<String> = std::fs::read_dir(&dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        !saved.iter().any(|name| name.contains("_p1_split_")),
+        "{saved:?}"
+    );
+    assert!(!bench.game().split_world(1).1);
+}
+
 /// A game wrong from its first reports after the world it was resynced
 /// with is resynced again at once, not after the 15 s between resyncs; a
 /// third such world in a row waits them out (no world helps that game).
@@ -1109,6 +1243,52 @@ fn a_world_goes_out_only_once_its_time_was_answered() {
     bench.run(3_000);
     assert_eq!(bench.clients[0].model.syncs, 1);
     bench.assert_no_faults();
+}
+
+#[test]
+fn an_initial_world_with_a_player_in_it_is_not_used() {
+    // A world of a match in play, with its player 0 in it.
+    let mut played = Bench::new(2, MAP_BATTERIES, Settings::default());
+    for client in &mut played.clients {
+        client.sim.player_states[0] = Some(PlayerState {
+            current_index: 0,
+            target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
+            items: vec![1_000_000],
+            alive: true,
+            has_to_die: false,
+            look_pitch: 0.0,
+            rotation_y: 0.0,
+            actions_mask: 0,
+            effects: 0,
+        });
+    }
+    played.join_all();
+    settle(&mut played);
+    let time = played.clock() / 50 * 50 - 500;
+    let sim = played.clients[0].sim.clone();
+    assert_ne!(sim.world(time)[..4], [0; 4]);
+    // Uploaded as an initial world, every other game would load its
+    // player's block, animation stream and all, with nobody vouching.
+    let start = |settings: Settings| {
+        let mut bench = Bench::new(2, MAP_BATTERIES, settings);
+        bench.clients[0].sim = sim.clone();
+        bench.clients[0].initial_ms = time;
+        bench.clients[0].connect();
+        assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
+        bench.clients[0].ready();
+        bench.run(1_000);
+        bench
+    };
+    let bench = start(Settings::default());
+    assert_eq!(bench.stages(), "w-");
+    assert!(!bench.game().has_clock());
+    // That is the only thing wrong with it.
+    let unchecked = start(Settings {
+        check_initial_world: false,
+        ..Settings::default()
+    });
+    assert!(unchecked.game().has_clock());
 }
 
 #[test]
@@ -1758,7 +1938,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     // Team 0 brings the tenth battery home; player 0 has 5 kills.
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.kills_from = Some((at, 5));
     }
     // The next world asked for shows it, both clients vouch for it, and
@@ -1769,7 +1949,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
     assert_eq!(result.winner, Some(0));
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     assert_eq!(result.trusted_by, 2);
     let ended_after = result.duration_ms - at;
     assert!((3_000..9_500).contains(&ended_after), "{ended_after}");
@@ -1802,7 +1982,7 @@ fn a_players_battery_events_are_paid_at_most_the_maps_battery_count_per_kind() {
         (at, 1, event::PUT_VICTORY_ITEM_IN_CONTAINER, 4),
     ];
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.events_from.clone_from(&events);
     }
     assert!(bench.until(12_000, |bench| {
@@ -1852,7 +2032,10 @@ fn a_match_nobody_comes_to_is_given_up() {
     bench.run_long(3_000);
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::NoShow);
-    assert_eq!(result.game_mode, 4);
+    assert_eq!(
+        result.mode,
+        survarium::v026g::maps::GameMode::TeamDeathmatch
+    );
     assert_eq!(result.winner, None);
     assert_eq!(result.trusted_by, 0);
     assert_eq!(result.players.len(), 2);
@@ -1950,7 +2133,10 @@ fn a_team_deathmatch_ends_when_a_team_has_no_tickets_and_nobody_alive() {
     }));
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.game_mode, 4);
+    assert_eq!(
+        result.mode,
+        survarium::v026g::maps::GameMode::TeamDeathmatch
+    );
     assert_eq!(result.winner, Some(0));
     assert_eq!(result.team_points, [37, 0]);
     bench.assert_no_faults();
@@ -2059,8 +2245,6 @@ fn unloadable_worlds(world: &[u8]) -> Vec<Vec<u8>> {
     let real = Sections::walk(world).expect("a world that walks");
     let block = players::block_bytes(&[0xAB; 33], None);
     let big_state = players::block_bytes(&[0xAB; PLAYER_STATE_CAP + 1], None);
-    let over = Section::ALL.map(|section| vec![0; section.cap() + 1]);
-    let [bullets, statistics, objects, physics, rules, effects] = &over;
     let worlds = [
         // A place past the roster of two.
         Sections {
@@ -2079,12 +2263,6 @@ fn unloadable_worlds(world: &[u8]) -> Vec<Vec<u8>> {
             players: &big_state,
             ..real
         },
-        Sections { bullets, ..real },
-        Sections { statistics, ..real },
-        Sections { objects, ..real },
-        Sections { physics, ..real },
-        Sections { rules, ..real },
-        Sections { effects, ..real },
     ];
     let mut bodies = vec![vec![0xEE; 777]];
     bodies.extend(worlds.iter().map(|world| world.to_body().unwrap()));
@@ -2102,16 +2280,28 @@ fn a_world_no_game_could_load_goes_to_nobody() {
     bench.clients[0].connect();
     assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
     let world = bench.clients[0].sim.world(INITIAL_MS);
-    // At its caps a world goes, as a real one does.
+    // A world of the game's whole buffer goes, its bullets past the
+    // original's inline 0x2400 bytes (patch 98 grows them).
     let real = Sections::walk(&world).unwrap();
-    let full = vec![0; Section::Bullets.cap()];
+    let full = vec![0; MAX_BODY - real.to_body().unwrap().len() + real.bullets.len()];
     let at_cap = Sections {
         bullets: &full,
         ..real
     }
     .to_body()
     .unwrap();
+    assert_eq!(at_cap.len(), MAX_BODY);
     assert!(Frame::parse(&at_cap, Places::of(2)).is_ok());
+    // One byte more no game could hash, and no game can upload.
+    let over = vec![0; full.len() + 1];
+    let over = Sections {
+        bullets: &over,
+        ..real
+    }
+    .to_body()
+    .unwrap();
+    assert!(Frame::parse(&over, Places::of(2)).is_err());
+    assert_eq!(upload::split(INITIAL_MS, &over), None);
     let bodies = unloadable_worlds(&world);
     for (count, body) in bodies.iter().enumerate() {
         assert!(Frame::parse(body, Places::of(2)).is_err(), "world {count}");
@@ -2129,6 +2319,132 @@ fn a_world_no_game_could_load_goes_to_nobody() {
     bench.join(1);
     assert!(bench.until(5_000, |bench| bench.stages() == "LL"));
     assert_eq!(bench.game().uploads_refused(1), 0);
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_framed_world_with_unsafe_effects_is_refused_and_a_valid_retry_starts_the_match() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.clients[0].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
+    let bad = with_unsafe_effects(&bench.clients[0].sim.world(INITIAL_MS + 50));
+    assert!(Frame::parse(&bad, Places::of(20)).is_ok());
+    bench.clients[0].upload(INITIAL_MS + 50, &bad);
+    bench.run(100);
+    assert_eq!(bench.game().uploads_refused(0), 1);
+    assert!(!bench.game().has_clock());
+    // A fresh upload transaction, still a valid initial world.
+    bench.clients[0].ready();
+    assert!(bench.until(5_000, |bench| bench.stages().starts_with('L')));
+    bench.join(1);
+    assert_eq!(bench.game().uploads_refused(1), 0);
+    bench.assert_no_faults();
+}
+
+/// `world` with an effects section no game loads, which the games' own
+/// check refuses too (`world::effects`).
+fn with_unsafe_effects(world: &[u8]) -> Vec<u8> {
+    let real = Sections::walk(world).unwrap();
+    let mut effects = real.effects.to_vec();
+    effects[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+    Sections {
+        effects: &effects,
+        ..real
+    }
+    .to_body()
+    .unwrap()
+}
+
+/// TEMPORARY (the fall-back, packet-validation.md "When the check, not the
+/// game, is wrong"): a check wrong for one kind. Every game's world has game
+/// objects the server's check does not expect, a rule the games' own check
+/// has no twin of (it is given no objects).
+#[test]
+fn a_kind_of_refusal_two_players_share_falls_back_to_the_games_check() {
+    super::capture_errors();
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    for client in &mut bench.clients {
+        client.sim.stray_objects_from = Some((0, 7));
+    }
+    let lines = |what: &str| {
+        super::errors_logged()
+            .into_iter()
+            .filter(|line| line.contains(what))
+            .collect::<Vec<_>>()
+    };
+    bench.clients[0].connect();
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| {
+        bench.clients[..2]
+            .iter()
+            .all(|client| client.model.options.is_some())
+    }));
+    let world = |bench: &Bench, place: usize, time: u32| bench.clients[place].sim.world(time);
+    // One player's uploads, however many: refused, never in doubt.
+    for n in 1..=4 {
+        let time = INITIAL_MS + 50 * n;
+        let body = world(&bench, 0, time);
+        bench.clients[0].upload(time, &body);
+        bench.run(100);
+    }
+    assert_eq!(bench.game().uploads_refused(0), 4);
+    assert!(!bench.game().has_clock());
+    assert_eq!(super::errors_logged(), Vec::<String>::new());
+    // A second player's: in doubt. This one the games' check refuses too
+    // (its effects): still refused.
+    let time = INITIAL_MS + 50 * 10;
+    let body = with_unsafe_effects(&world(&bench, 1, time));
+    bench.clients[1].upload(time, &body);
+    bench.run(100);
+    assert_eq!(bench.game().uploads_refused(1), 1);
+    assert_eq!(bench.game().uploads_fallen_back(), 0);
+    let doubt = lines("WORLD CHECK IN DOUBT:");
+    assert_eq!(doubt.len(), 1, "{doubt:?}");
+    assert!(
+        doubt[0]
+            .contains("WORLD CHECK IN DOUBT: 5 uploads from 2 players refused as game objects at "),
+        "{doubt:?}"
+    );
+    // A refusal of another kind is not in doubt: refused.
+    let mut clean = bench.clients[1].sim.clone();
+    clean.stray_objects_from = None;
+    let time = INITIAL_MS + 50 * 11;
+    let body = with_unsafe_effects(&clean.world(time));
+    bench.clients[1].upload(time, &body);
+    bench.run(100);
+    assert_eq!(bench.game().uploads_refused(1), 2);
+    assert!(!bench.game().has_clock());
+    assert!(lines("WORLD CHECK FALLBACK:").is_empty());
+    // Player 0's initial world, refused as before, now passes the games'
+    // check: relayed, it starts the match.
+    bench.clients[0].ready();
+    assert!(bench.until(1_000, |bench| bench.game().has_clock()));
+    assert_eq!(bench.game().uploads_refused(0), 4);
+    assert_eq!(bench.game().uploads_fallen_back(), 1);
+    let fallback = lines("WORLD CHECK FALLBACK:");
+    assert_eq!(fallback.len(), 1, "{fallback:?}");
+    let expected = format!(
+        "WORLD CHECK FALLBACK: player 0's upload at {INITIAL_MS} ms, refused as game objects at "
+    );
+    assert!(fallback[0].contains(&expected), "{fallback:?}");
+    assert!(
+        fallback[0].ends_with(
+            ", passes the game's own check and is relayed (temporary, see packet-validation.md)"
+        ),
+        "{fallback:?}"
+    );
+    // The match runs on such worlds: the uploads asked for are relayed, and
+    // a player who comes later gets one (every world of the match is one
+    // the server's check refuses).
+    bench.clients[1].ready();
+    assert!(bench.until(30_000, |bench| bench.stages().starts_with("LL")));
+    bench.run_long(15_000);
+    assert!(bench.game().uploads_fallen_back() > 1);
+    assert_eq!(bench.game().uploads_refused(0), 4);
+    assert_eq!(bench.game().uploads_refused(1), 2);
+    bench.join(2);
+    assert_eq!(bench.game().uploads_refused(2), 0);
+    assert_eq!(lines("WORLD CHECK IN DOUBT:").len(), 1);
     bench.assert_no_faults();
 }
 
@@ -2373,14 +2689,14 @@ fn what_each_player_has_left_comes_with_the_result() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(12_000, |bench| {
         bench.clients.iter().all(|client| client.closed)
     }));
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     let supplies = result.players[0]
         .supplies
         .as_ref()
@@ -3400,7 +3716,7 @@ fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.kills_from = Some((at, 23));
     }
     assert!(bench.until(12_000, |bench| {

@@ -99,7 +99,7 @@
 //!   made ([`Account::add_item`]) and once to those owned before
 //!   ([`give_golden_silver`]); from then on it rerolls, crafts and counts
 //!   for the rank as any modification.
-//! - **Premium armour** ([`golden::PREMIUM_ARMOUR`], the owner's rule of
+//! - **Premium armour** ([`golden::armour_bonuses`], the owner's rule of
 //!   2026-10-22): the same, with its two premium bonuses (+5 % experience,
 //!   +5 % reputation with its faction) as its own first modifications,
 //!   given once to those owned before ([`give_premium_armour_bonuses`]);
@@ -1108,8 +1108,8 @@ pub fn give_golden_silver(account: &mut Account) -> GoldenGrant {
 }
 
 /// The premium armour pieces of the account (`survarium::v026g::golden::
-/// PREMIUM_ARMOUR`) get each premium bonus they lack as their own
-/// modification, first and in the table's order; a bonus is lacking when
+/// armour_bonuses`) get each premium bonus they lack as their own
+/// modification, first and in their order; a bonus is lacking when
 /// the piece holds no modification of its type. Once in the database's
 /// life, for the pieces owned before the rule (their bonuses were defaults
 /// of the item's config, which the premium-armour patch takes off). A

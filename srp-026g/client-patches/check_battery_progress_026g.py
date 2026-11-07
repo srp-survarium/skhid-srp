@@ -74,6 +74,29 @@ class Run(hide.Run):
         self.emu.hook_add(UC_HOOK_CODE, self.notify, begin=NOTIFY, end=NOTIFY)
         for at in WRITERS:
             self.emu.hook_add(UC_HOOK_CODE, self.write, begin=at, end=at)
+        self.counted = []
+        self.emu.hook_add(UC_HOOK_CODE, self.count, begin=0x2E55B0, end=0x2E55B0)
+
+    def count(self, emu, *_):
+        """The statistics callback endpoint; the event-26 decision is native."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.counted.append(tuple(self.read(sp + offset) for offset in (4, 8, 12, 16)))
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+        emu.reg_write(UC_X86_REG_ESP, sp + 20)
+
+    def stolen_home(self, index, place, kit):
+        """Native on_event's enemy-owner / last-taker test and event-26 call."""
+        event = DATA + 0x4300
+        self.word(event + 8, place)
+        self.word(event + 12, kit)
+        sp = hide.STACK + 0x9000
+        self.word(sp + 0xC, PLACE_SIZE * place)
+        self.counted = []
+        _, after = self.run(0x334C53, (0x334C8C,), sp,
+                            {**hide.GAME, UC_X86_REG_EBX: record(index),
+                             UC_X86_REG_ESI: MANAGER, UC_X86_REG_EBP: event})
+        assert self.stopped == 0x334C8C and after == sp
+        return list(self.counted)
 
     def notify(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -184,9 +207,11 @@ class Run(hide.Run):
                 at += 4 + 4 * bin(mask).count('1')
             at += 8 + 2
             zero, one, count = stream[at:at + 3]
-            pairs = tuple((stream[at + 3 + 2 * i], stream[at + 4 + 2 * i]) for i in range(count))
+            extra = 1 if count & 0x80 else 0
+            count &= 0x7F
+            pairs = tuple((stream[at + 3 + extra + 2 * i], stream[at + 4 + extra + 2 * i]) for i in range(count))
             lives.append((zero, one, pairs))
-            at += 3 + 2 * count
+            at += 3 + extra + 2 * count
         assert at == len(stream), (at, len(stream))
         return lives
 
@@ -204,10 +229,48 @@ def owner(index, team, before=0):
     return {record(index) + 0xF8: (before, team)} if before != team else {}
 
 
+def check_last_taker(original, patched):
+    # Run the original native codec as the negative control. Other patches
+    # stay installed; only the battery save/load hooks are restored.
+    native = bytearray(patched)
+    for at, length in ((0x334F66, 10), (0x3350D0, 6)):
+        offset = base.file_offset(at)
+        native[offset:offset + length] = original[offset:offset + length]
+    for data, fixed in ((native, False), (patched, True)):
+        source, joiner = Run(data), Run(data)
+        for r in (source, joiner):
+            r.setup(batteries=1, place=1, kit=2, places=2)
+            r.word(record(0) + 0xF8, 0)  # Enemy container's battery.
+        source.emu.mem_write(record(0) + 0xFD, b'\x01')
+        stream = source.serialize()
+        assert source.stolen_home(0, 1, 2) == [(1, 2, 26, 1)]
+        for previous in (0xFF, 0, 19):
+            joiner.emu.mem_write(record(0) + 0xFD, bytes([previous]))
+            assert joiner.deserialize(stream) == len(stream)
+            expected = [(1, 2, 26, 1)] if fixed else []
+            assert joiner.stolen_home(0, 1, 2) == expected
+            assert joiner.serialize() == stream
+        if fixed:
+            # An earlier no-taker state must erase the later taker too:
+            # rewind / next match initialization cannot keep stale credit.
+            source.emu.mem_write(record(0) + 0xFD, b'\xFF')
+            empty = source.serialize()
+            assert joiner.deserialize(empty) == len(empty)
+            assert joiner.read(record(0) + 0xFD, 1) == b'\xFF'
+            assert joiner.stolen_home(0, 1, 2) == []
+            assert joiner.deserialize(stream) == len(stream)
+            assert joiner.stolen_home(0, 1, 2) == [(1, 2, 26, 1)]
+            joiner.team(1, 0)
+            assert joiner.stolen_home(0, 1, 2) == []  # Own team: no steal.
+        print('ok last taker: ' + ('native event 26 converges after join/load/rewind, including nobody'
+                                   if fixed else 'original codec loses event 26 after the same world is loaded'))
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
                             open(base.late_join_bin(), 'rb').read())
+    check_last_taker(original, patched)
     r = Run(patched)
 
     # A team-1 carrier (place 3, kit 1: cell 10) at x: 0 m to team 0's
@@ -294,7 +357,7 @@ def main():
     r.setup(batteries=2, places=2, place=1, kit=0)
     for i, (distance, nearest, owner_team, finder) in enumerate([(2.0, (1.0, 3.0), 1, 0), (0.5, (0.5, 0.25), 3, 0xFF)]):
         r.emu.mem_write(record(i) + 4 * 3, struct.pack('<f', distance))   # carried_distances[1][0]
-        r.emu.mem_write(record(i) + 0xF0, struct.pack('<ffI', *nearest, owner_team) + bytes([finder, 0xEE, 0, 0]))
+        r.emu.mem_write(record(i) + 0xF0, struct.pack('<ffI', *nearest, owner_team) + bytes([finder, [19, 0xFF][i], 0, 0]))
     r.word(PLAYER + 0x128, BATTERIES[1])
     r.tick(60), r.tick(81)
     saved = {i: r.read(record(i), 0x100) for i in range(2)}
@@ -302,7 +365,7 @@ def main():
     one = lambda distance, nearest, owner_team, finder, life: (
         struct.pack('<If', 2, distance) + struct.pack('<II', 0, 0) + struct.pack('<ff', *nearest)
         + bytes([owner_team, finder, *life]))
-    expected = one(2.0, (1.0, 3.0), 1, 0, (0, 0, 0)) + one(0.5, (0.5, 0.25), 3, 0xFF, (7, 2, 1, 3, 3))
+    expected = one(2.0, (1.0, 3.0), 1, 0, (0, 0, 0x80, 19)) + one(0.5, (0.5, 0.25), 3, 0xFF, (7, 2, 0x81, 0xFF, 3, 3))
     assert stream == expected, (stream.hex(), expected.hex())
     print('ok serialize: each record\'s life follows its first_finder (progress, count, cell and steps)')
     for i in range(2):
@@ -311,12 +374,17 @@ def main():
     assert r.deserialize(stream) == len(stream)
     for i in range(2):
         loaded = r.read(record(i), 0x100)
-        assert loaded[:0xFD] == saved[i][:0xFD] and loaded[0xFE:] == saved[i][0xFE:], (i, loaded.hex())
+        assert loaded == saved[i], (i, loaded.hex())
     assert r.serialize() == stream
     print('ok deserialize: every record back, its life too, the reader at the stream\'s end')
-    assert r.deserialize(stream[:-5]) == len(stream) - 5
+    assert r.deserialize(stream[:-6]) == len(stream) - 6
     assert r.lives()[1] == NEW and r.read(record(1) + 0xFC, 1) == b'\xFF'
     print('ok a stream without the life: the record\'s own fields read, a new life')
+    legacy = one(2.0, (1.0, 3.0), 1, 0, (0, 0, 0)) + one(0.5, (0.5, 0.25), 3, 0xFF, (7, 2, 1, 3, 3))
+    assert r.deserialize(legacy) == len(legacy)
+    assert [r.read(record(i) + 0xFD, 1) for i in range(2)] == [b'\xFF', b'\xFF']
+    assert r.life(1) == (7, 2, ((3, 3),))
+    print('ok legacy progress loads without stale takers; new snapshots carry the native last-taker byte')
 
 
 if __name__ == '__main__':

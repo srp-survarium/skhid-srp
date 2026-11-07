@@ -20,21 +20,24 @@
 //! - the player name decision (`player_names.visibility`): Tab shows names
 //!   for teammates in Blackout, after the native visibility checks;
 //! - the input builder's end (`input_builder.end`): while Tab is held the
-//!   input has no act; moves stop after 200 ms (the look stays). An act held through
-//!   Tab stays out until its key is let go.
+//!   input has no act but Use (a search held through Tab goes on); moves stop
+//!   after 200 ms (the look stays). An act held through Tab stays out until its
+//!   key is let go.
 //!
 //! Nothing a match computes: the interface and the local input only (the
 //! input is filtered before it is sent, so every game plays what was sent).
 
 #![forbid(unsafe_code)]
 
+use crate::vostok::breadcrumbs::{self, Crumb};
 use crate::vostok::clock;
 use crate::vostok::{
     ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, MatchVariant, Movie, NameVisibility, NoExit,
     OptionsRead, TabTest, Thread,
 };
 
-/// Tab held stops these: the moves and the acts.
+/// Tab held stops these: the moves and the acts. Use is none of them: a
+/// search or a refill held through Tab goes on (the owner, 2026-11-05).
 pub const MOVES: ActionMask = ActionMask::FORWARD
     .union(ActionMask::BACK)
     .union(ActionMask::LEFT)
@@ -46,7 +49,6 @@ pub const ACTS: ActionMask = ActionMask::JUMP
     .union(ActionMask::AIM)
     .union(ActionMask::QUICK_USE)
     .union(ActionMask::HOLD_BREATH)
-    .union(ActionMask::USE)
     .union(ActionMask::DROP)
     .union(ActionMask::GRENADE)
     .union(ActionMask::MELEE);
@@ -115,11 +117,12 @@ pub fn forced(thread: &Thread) -> bool {
     BLACKOUT.get(thread)
 }
 
-fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
+fn options_read(thread: &Thread, read: Option<OptionsRead>, replay: bool) -> Flow<NoExit> {
     let mut on = false;
     if let Some(mut read) = read {
         on = read.variant() == MatchVariant::Blackout;
         read.set_blackout_mark(on);
+        breadcrumbs::record(thread, Crumb::Match { replay, context: read.context(on) });
     }
     BLACKOUT.set(thread, on);
     TAB.set(thread, TabState::Up);
@@ -133,12 +136,12 @@ fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
 
 /// process_static_match_info after its deserialize (0x27B92D).
 pub fn on_static_info(ctx: &mut Context) -> Flow<NoExit> {
-    options_read(ctx.thread(), OptionsRead::at_static_info(ctx))
+    options_read(ctx.thread(), OptionsRead::at_static_info(ctx), false)
 }
 
 /// A replay's chunk 1 after its deserialize (0x1F0971).
 pub fn on_replay_options(ctx: &mut Context) -> Flow<NoExit> {
-    options_read(ctx.thread(), OptionsRead::at_replay(ctx))
+    options_read(ctx.thread(), OptionsRead::at_replay(ctx), true)
 }
 
 /// `movie` told `root.force_interface_hidden(forced)` when it is another
@@ -230,6 +233,16 @@ mod tests {
         // fire let go, then pressed again: it fires.
         let (_, held) = filtered(true, TabState::Up, held, ActionMask::FORWARD);
         assert_eq!(filtered(true, TabState::Up, held, ActionMask::FIRE).0, ActionMask::FIRE);
+    }
+    #[test]
+    fn a_use_held_through_tab_goes_on() {
+        let searching = ActionMask::USE.union(ActionMask::FIRE);
+        for tab in [TabState::Grace { pressed_at: 0 }, TabState::Blocking] {
+            let (sent, held) = filtered(true, tab, ActionMask::NONE, searching);
+            assert_eq!((sent, held), (ActionMask::USE, ActionMask::FIRE));
+            // Tab up, Use still held: never held out, the search goes on.
+            assert_eq!(filtered(true, TabState::Up, held, searching), (ActionMask::USE, ActionMask::FIRE));
+        }
     }
     #[test]
     fn a_quick_tab_keeps_movement_and_repeats_do_not_extend_the_grace() {

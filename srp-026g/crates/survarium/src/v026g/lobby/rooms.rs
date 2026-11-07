@@ -45,6 +45,11 @@ pub const ROOM_FRIENDS: u32 = ROOMS_FIRST + 40;
 /// Nothing is done for anyone else, an open room, or a room playing its
 /// match. Answered with the state.
 pub const ROOM_START: u32 = ROOMS_FIRST + 41;
+/// Make a private room with bots (the owner's of 2026-11-05): as a
+/// create of a private room ([`create_start`] with a PIN), its pool only the
+/// maps the server's bots play ([`PoolEntry::bots`]), its matches filled with
+/// them. Answered with the state.
+pub const ROOM_CREATE_BOTS: u32 = ROOMS_FIRST + 42;
 /// `ROOM_MOVE_BASE + place + 20 × check` ([`move_start`]): the owner of a
 /// private room moves the member at that place of the state's list (itself
 /// too) to the other team (the owner's of 2026-10-26: "a button to move the
@@ -353,6 +358,8 @@ pub enum RoomRequest {
         bits: u32,
     },
     Create(RoomSpec),
+    /// [`ROOM_CREATE_BOTS`].
+    CreateWithBots,
 }
 
 /// The code of a create: `((((size − least size) × 16 + max level) × 10 + wait index)
@@ -424,6 +431,7 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         ROOM_CHAT => R::Chat,
         ROOM_FRIENDS => R::Friends,
         ROOM_START => R::Start,
+        ROOM_CREATE_BOTS => R::CreateWithBots,
         _ if (ROOM_VOTE_BASE..ROOM_VOTE_BASE + CARDS as u32).contains(&start) => R::Vote {
             card: (start - ROOM_VOTE_BASE) as u8,
         },
@@ -591,9 +599,20 @@ pub struct RoomRow {
     pub secs: u32,
     /// The map being played, or the one ahead in the vote; 0: none.
     pub map_id: u8,
-    pub pin: bool,
+    pub door: ListDoor,
     /// The owner's name: the room's.
     pub name: String,
+}
+
+/// Who a room in [`room_list`] lets in: the `pin` field of its row.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ListDoor {
+    Open = 0,
+    /// Its PIN.
+    Pin = 1,
+    /// Its PIN, a room with bots (since 2026-11-05: the list says "BOT").
+    PinWithBots = 2,
 }
 
 /// A friend of the asker who is a member of a room, in [`friend_rooms`]:
@@ -716,6 +735,9 @@ pub struct RoomView {
     /// side (0, 1), in the order of [`Self::members`]; none for an open
     /// room (its sides are drawn at the start).
     pub teams: Option<Vec<u8>>,
+    /// A private room made with bots: its matches are filled with the
+    /// server's bots.
+    pub bots: bool,
 }
 
 /// Why a member waiting in its room cannot go into the room's match being
@@ -788,6 +810,8 @@ pub struct PoolEntry {
     /// One of the server's experimental maps (`SRP_ROOMS_EXTRA_MAPS`): not
     /// in a room's pool unless its creator adds it.
     pub extra: bool,
+    /// The server's bots play it: a room with bots may hold it.
+    pub bots: bool,
 }
 
 fn row(name: String) -> Ranked {
@@ -832,7 +856,7 @@ fn rows_at(start: u32, names: Vec<String>) -> Result<ServerMessage, WireError> {
 /// - row 0, the header, always there, `place = ROOMS_LIST`: `S1;L;<total>;
 ///   <my key>`, `my key` the asker's room's (0: none);
 /// - row `i` from 1, `place = ROOMS_LIST + i`, a room: `<key>;<level>;<max level>;
-///   <size>;<players>;<phase>;<secs>;<map_id>;<pin>;<name>`.
+///   <size>;<players>;<phase>;<secs>;<map_id>;<pin>;<name>` (`pin`: [`ListDoor`]).
 ///
 /// At most `count − 1` rooms and [`LIST_ROWS`]; `total` counts them all.
 pub fn room_list(
@@ -854,7 +878,7 @@ pub fn room_list(
             room.phase as u8,
             room.secs,
             room.map_id,
-            u8::from(room.pin),
+            room.door as u8,
             row_name(&room.name)
         )
     }));
@@ -875,8 +899,9 @@ pub fn room_list(
 ///   <in match>;<fit>;<away>;<name>` (`fit`: [`Fit`]; `away` 1: its game is
 ///   gone for now), in a private room a row `A;<sides>`, a digit a member
 ///   in the list's order, its team as the owner arranged it (0, 1;
-///   [`RoomView::teams`]), a row `S;<marks>` when two members of one squad are
-///   in it, a character a member in the list's order, its squad's mark
+///   [`RoomView::teams`]), a row `B` in a room made with bots
+///   ([`RoomView::bots`]), a row `S;<marks>` when two members of one squad
+///   are in it, a character a member in the list's order, its squad's mark
 ///   ([`Member::squad`]: `0` none, `1`..`9`, `a`), a row
 ///   `W;<key>;<max level>;<players>;<size>;<name>` when
 ///   a room of a lower max level would take the asker now ([`RoomSwitch`]),
@@ -943,6 +968,9 @@ pub fn room_state(
             .map(|&side| if side == 0 { '0' } else { '1' })
             .collect();
         names.push(format!("A;{sides}"));
+    }
+    if room.bots {
+        names.push("B".to_owned());
     }
     if room.members.iter().any(|member| member.squad.is_some()) {
         let marks: String = room
@@ -1022,8 +1050,9 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
 
 /// `91` as the answer to `3B 00 <ROOM_POOL_BASE + page> <count>`, `place =
 /// that start + i`: `S1;M;<total>;<page>`, then a row an entry of that
-/// page, `<index>;<map_id>;<level>;<weather>;<mode>;<extra>`. An entry's
-/// index is the bit a pool names it by ([`bits_start`]).
+/// page, `<index>;<map_id>;<level>;<weather>;<mode>;<extra>;<bots>` (`bots` 1:
+/// [`PoolEntry::bots`]). An entry's index is the bit a pool names it by
+/// ([`bits_start`]).
 pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireError> {
     let first = usize::from(page) * POOL_PAGE_ROWS;
     let mut names = vec![format!("{ROOMS_VERSION};M;{};{page}", entries.len())];
@@ -1035,12 +1064,13 @@ pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireE
             .take(POOL_PAGE_ROWS)
             .map(|(index, entry)| {
                 format!(
-                    "{index};{};{};{};{};{}",
+                    "{index};{};{};{};{};{};{}",
                     entry.map_id,
                     entry.level,
                     entry.weather,
                     entry.mode,
-                    u8::from(entry.extra)
+                    u8::from(entry.extra),
+                    u8::from(entry.bots)
                 )
             }),
     );
@@ -1246,7 +1276,13 @@ mod tests {
         assert_eq!(room_request(ROOM_FRIENDS - 1, 1), None);
         assert_eq!(ROOM_FRIENDS + 1, ROOM_START);
         assert_eq!(room_request(ROOM_START, 1), Some(RoomRequest::Start));
-        assert_eq!(room_request(ROOM_START + 1, 1), None);
+        // A private room with bots, next.
+        assert_eq!(ROOM_START + 1, ROOM_CREATE_BOTS);
+        assert_eq!(
+            room_request(ROOM_CREATE_BOTS, 1),
+            Some(RoomRequest::CreateWithBots)
+        );
+        assert_eq!(room_request(ROOM_CREATE_BOTS + 1, 1), None);
         // The moves: after the PINs, before the joins.
         const {
             assert!(ROOM_PIN_BASE + (PIN_MAX as u32) < ROOM_MOVE_BASE);

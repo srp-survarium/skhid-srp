@@ -11,6 +11,7 @@
 //! kernel32 writes it, through the exe's imports (`raw`); a test never
 //! calls it.
 
+use super::{GameCell, Thread};
 use crate::raw;
 
 /// A part of a line.
@@ -68,9 +69,14 @@ impl Line {
 
 /// The line `srp: <pieces>` and a line break, as text.
 fn text(pieces: &[Piece]) -> Line {
+    text_of(&[pieces])
+}
+
+/// The line `srp: ` and each part's pieces, and a line break, as text.
+fn text_of(parts: &[&[Piece]]) -> Line {
     let mut line = Line { bytes: [0; MAX], len: 0 };
     line.piece(Piece::Text("srp: "));
-    pieces.iter().for_each(|&p| line.piece(p));
+    parts.iter().flat_map(|part| part.iter()).for_each(|&p| line.piece(p));
     line.len = line.len.min(MAX - 2);
     line.push(b'\r');
     line.push(b'\n');
@@ -81,6 +87,51 @@ fn text(pieces: &[Piece]) -> Line {
 pub fn line(pieces: &[Piece]) {
     let line = text(pieces);
     write(&line.bytes[..line.len]);
+}
+
+/// The refusals' lines: at most one a second, each counting the refusals
+/// since the one before it that got none, so a flood cannot fill the disk
+/// and no refusal goes unseen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Refusals {
+    Quiet,
+    /// A line at `at` (GetTickCount's ms); `unlogged` refusals after it.
+    Logged { at: u32, unlogged: u32 },
+}
+
+impl Refusals {
+    const EVERY_MS: u32 = 1000;
+
+    /// A refusal at `now`: the next state, and `Some(n)` when it is logged,
+    /// `n` being the refusals since the last line that were not.
+    fn refuse(self, now: u32) -> (Self, Option<u32>) {
+        match self {
+            Self::Logged { at, unlogged } if now.wrapping_sub(at) < Self::EVERY_MS => {
+                (Self::Logged { at, unlogged: unlogged.saturating_add(1) }, None)
+            }
+            Self::Logged { unlogged, .. } => (Self::Logged { at: now, unlogged: 0 }, Some(unlogged)),
+            Self::Quiet => (Self::Logged { at: now, unlogged: 0 }, Some(0)),
+        }
+    }
+}
+
+static REFUSALS: GameCell<Refusals> = GameCell::new(Refusals::Quiet);
+
+/// A refusal's line to `srp_patches.log`, under [`Refusals`]' limit.
+pub fn refusal(thread: &Thread, pieces: &[Piece]) {
+    // SAFETY: GetTickCount takes no arguments and has no engine lifecycle.
+    let now = unsafe { raw::engine_tick_count() };
+    let (next, logged) = REFUSALS.get(thread).refuse(now);
+    REFUSALS.set(thread, next);
+    if let Some(unlogged) = logged {
+        let more: &[Piece] = if unlogged == 0 {
+            &[]
+        } else {
+            &[Piece::Text("; "), Piece::Dec(unlogged), Piece::Text(" more refused since the last line")]
+        };
+        let line = text_of(&[pieces, more]);
+        write(&line.bytes[..line.len]);
+    }
 }
 
 fn write(bytes: &[u8]) {
@@ -124,5 +175,17 @@ mod tests {
         assert_eq!(long.len, MAX);
         assert_eq!(&long.bytes[MAX - 2..], b"\r\n");
         assert_eq!(&text(&[Piece::Dec(0)]).bytes[5..6], b"0");
+    }
+
+    #[test]
+    fn a_refusal_line_a_second_counts_the_ones_between() {
+        let (mut state, logged) = Refusals::Quiet.refuse(u32::MAX - 100);
+        assert_eq!(logged, Some(0));
+        for ms in [0, 200, 800] {
+            let (next, logged) = state.refuse(ms);
+            assert_eq!(logged, None);
+            state = next;
+        }
+        assert_eq!(state.refuse(900).1, Some(3));
     }
 }

@@ -11,7 +11,9 @@
 
 use super::context::Context;
 use super::hook::Thread;
+use super::breadcrumbs::Match;
 use super::parse::Reader;
+use super::world::read;
 use crate::raw;
 
 /// srp's block's magic.
@@ -102,6 +104,20 @@ impl<'t> OptionsRead<'t> {
     /// The match's variant, from srp's block ([`variant_in`]).
     pub fn variant(&self) -> MatchVariant {
         variant_in(self.rest())
+    }
+
+    /// What names the match, for the crash report's breadcrumbs.
+    pub fn context(&self, blackout: bool) -> Match {
+        // SAFETY: the options are alive for the hook; plain values of theirs.
+        unsafe {
+            Match {
+                id: read(self.options.seed()),
+                map: read(self.options.map()),
+                places: read(self.options.places()),
+                level: read(self.options.level()),
+                blackout,
+            }
+        }
     }
 
     /// Patch 65's mark in the options: "SRBO" for a Blackout match, else

@@ -434,8 +434,8 @@ fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
     match localization::text(game_language(lang), map.mode_name_key) {
         Some(name) => name.to_owned(),
         None => lang.tr(
-            &format!("mode {}", map.mode),
-            &format!("режим {}", map.mode),
+            &format!("mode {}", map.mode.lobby_number()),
+            &format!("режим {}", map.mode.lobby_number()),
         ),
     }
 }
@@ -938,17 +938,20 @@ mod tests {
         // texts): its project's folder, and its mode by number.
         let twelve = maps::MapMode {
             level: 12,
-            mode: 9,
+            mode: maps::GameMode::Research,
             project: "level_12/day_4",
             map_name_key: "st_level_12_name",
-            mode_name_key: "st_mode_09_name",
+            mode_name_key: "st_mode_99_name",
             ..*rudnya_tdm
         };
         assert_eq!(map_name(Lang::En, &twelve), "level_12");
         assert_eq!(map_name(Lang::Uk, &twelve), "level_12");
-        assert_eq!(mode_name(Lang::Uk, &twelve), "режим 9");
-        // Every playable map and mode has a name of the game's.
-        for map in maps::playable() {
+        assert_eq!(mode_name(Lang::Uk, &twelve), "режим 5");
+        // Every playable map and mode has a name of the game's (Blackout's is
+        // srp's own, `client-patches/localization`, which the test data's
+        // stock localizations lack).
+        let blackout = maps::GameMode::Blackout;
+        for map in maps::playable().filter(|map| map.mode != blackout) {
             for lang in [Lang::En, Lang::Uk] {
                 let game = |key| localization::text(game_language(lang), key).map(str::to_owned);
                 assert_eq!(Some(map_name(lang, map)), game(map.map_name_key));

@@ -29,6 +29,7 @@ mod extras;
 mod items;
 mod level_stats;
 mod map_plays;
+mod mode_intro;
 mod presets;
 mod results;
 mod room_settings;
@@ -143,6 +144,8 @@ const MIGRATIONS: &[&str] = &[
     // 12: an account's kills and deaths by the matches' equipment level
     // (`level_stats`).
     level_stats::MIGRATION,
+    // 13: per-mode onboarding allowances.
+    mode_intro::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -615,6 +618,7 @@ impl GameRepository for SqliteGameRepository {
                         extras: Default::default(),
                         map_plays: Vec::new(),
                         room_settings: None,
+                        mode_introductions: Default::default(),
                         drop_cards: Vec::new(),
                         presets: [None; super::presets::PRESETS],
                         active_preset: super::presets::FIRST_PRESET,
@@ -632,6 +636,7 @@ impl GameRepository for SqliteGameRepository {
             account.balance = balance::load(&transaction, account_id)?;
             account.level_stats = level_stats::load(&transaction, account_id)?;
             account.room_settings = room_settings::load(&transaction, account_id)?;
+            account.mode_introductions = mode_intro::load(&transaction, account_id)?;
             account.drop_cards = drop_cards::load(&transaction, account_id)?;
             account.presets = presets::load(&transaction, account_id)?;
             account.active_preset = presets::load_active(&transaction, account_id)?;
@@ -880,6 +885,7 @@ fn write_account(
     balance::save(transaction, account_id, account.balance)?;
     level_stats::save(transaction, account_id, &account.level_stats)?;
     room_settings::save(transaction, account_id, account.room_settings.as_ref())?;
+    mode_intro::save(transaction, account_id, &account.mode_introductions)?;
     drop_cards::save(transaction, account_id, &account.drop_cards)?;
     presets::save(transaction, account_id, &account.presets)?;
     presets::save_active(transaction, account_id, account.active_preset)?;
@@ -1249,7 +1255,7 @@ mod tests {
     #[test]
     fn an_account_loaded_from_the_file_is_not_given_the_starter_kit_again() {
         use crate::v026g::GameAccounts;
-        use crate::v026g::tutorial::{SIGNUP_ROUNDS, SIGNUP_SILVER};
+        let grant = crate::v026g::tutorial::new_account();
 
         let temp = TempDb::new("starter-once");
         let open = || {
@@ -1262,12 +1268,12 @@ mod tests {
         // It spends silver and rounds, and its respirator is gone.
         let played = {
             let mut account = account.locked();
-            assert_eq!(account.generic_money, SIGNUP_SILVER);
+            assert_eq!(account.generic_money, grant.silver);
             account.generic_money = 1_234;
             let stack = account
                 .inventory
                 .iter_mut()
-                .find(|item| item.condition_or_stack == SIGNUP_ROUNDS)
+                .find(|item| item.condition_or_stack == grant.rounds)
                 .unwrap();
             stack.condition_or_stack = 7;
             let respirator = account.kits[0].slots[1].unwrap().item_id;

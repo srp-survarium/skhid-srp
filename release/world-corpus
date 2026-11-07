@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# usage: release/world-corpus [--newest <n>] [--batch <n>] [--pause <s>] [--out <folder>]
+#
+# Copies the live host's newest kept match recordings (srp's SRP_RECORD_DIR:
+# recordings/ in srp26's volume) into the world corpus, the recordings
+# tools/check's world-check and world-drift read (srp-026g/docs/notes/
+# packet-validation.md, "The world corpus"):
+#   1. lists the host's newest <n> recordings (default 100) that are not
+#      empty and were not written in the last 5 minutes (a match still being
+#      recorded is left for a later run); those the folder has already are
+#      not copied again;
+#   2. copies them in batches of --batch (default 10), one tar stream each,
+#      read on the host under nice -n 19 ionice -c 3, --pause seconds
+#      (default 30) between batches: the host has one vCPU and the matches
+#      run on it; each file lands under .part and is renamed once whole.
+#
+#   --out <folder>   default private/world-corpus/live of the main checkout
+#
+# Reads only: nothing on the host is written or deleted (the release copies
+# its newest 3 the same way, release.sh step 2). The recordings carry players'
+# names and accounts: they stay in private/, never committed.
+. "$(dirname "$0")/lib.sh"
+
+newest=100 batch=10 pause=30 out=''
+number() { [[ $2 =~ ^[1-9][0-9]{0,4}$ ]] || die "$1 takes a number above 0"; }
+while (($#)); do
+    case $1 in
+    -h | --help) usage ;;
+    --newest) (($# >= 2)) || usage 1; number "$1" "$2"; newest=$2; shift 2 ;;
+    --batch) (($# >= 2)) || usage 1; number "$1" "$2"; batch=$2; shift 2 ;;
+    --pause) (($# >= 2)) || usage 1; [[ $2 =~ ^[0-9]{1,4}$ ]] || die "--pause takes seconds"; pause=$2; shift 2 ;;
+    --out) (($# >= 2)) || usage 1; out=$2; shift 2 ;;
+    *) die "unknown argument $1 (--help)" ;;
+    esac
+done
+need_cmds ssh tar
+if [[ -z $out ]]; then
+    out=$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")/private/world-corpus/live
+fi
+mkdir -p "$out"
+use_target live
+inspect_target || die "srp26 on the live host: its container or volume not found"
+rec_dir=$RUN_VOLUME_DIR/recordings
+NAME='^rec026g_[0-9-]+_[0-9a-f]{8}\.srprec$'
+
+list=$(on_target "cd $(q "$rec_dir") && nice -n 19 ionice -c 3 find . -maxdepth 1 -name 'rec026g_*.srprec' -size +0 -mmin +5 -printf '%T@ %f\n' | sort -rn | head -n $newest | cut -d' ' -f2") ||
+    die "the recordings on the live host ($rec_dir) could not be listed"
+mapfile -t listed < <(grep . <<<"$list" || true)
+todo=()
+for name in "${listed[@]}"; do
+    [[ $name =~ $NAME ]] || continue
+    [[ -s $out/$name ]] || todo+=("$name")
+done
+say "the live host's newest ${#listed[@]} recording(s): $((${#listed[@]} - ${#todo[@]})) in $out already, ${#todo[@]} to copy"
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+copied=0 missed=0
+for ((at = 0; at < ${#todo[@]}; at += batch)); do
+    if ((at > 0)); then sleep "$pause"; fi
+    part=("${todo[@]:at:batch}")
+    rm -rf "${work:?}/batch" && mkdir "$work/batch"
+    # A file the host's cap deleted since the listing is missing from the
+    # stream (tar says so); the others come.
+    on_target "cd $(q "$rec_dir") && nice -n 19 ionice -c 3 tar -cf - -- ${part[*]}" | tar -xf - -C "$work/batch" ||
+        say "batch $((at / batch + 1)): the copy was not whole (tar's message above); the files that came are kept"
+    for name in "${part[@]}"; do
+        if [[ -s $work/batch/$name ]]; then
+            mv "$work/batch/$name" "$out/.$name.part" && mv "$out/.$name.part" "$out/$name"
+            copied=$((copied + 1))
+        else
+            missed=$((missed + 1))
+        fi
+    done
+    say "batch $((at / batch + 1)): $copied copied so far"
+done
+say "copied $copied recording(s) into $out ($missed not); it holds $(find "$out" -maxdepth 1 -name '*.srprec' | wc -l), $(du -sm "$out" | cut -f1) MB"

@@ -5,9 +5,10 @@ use crate::v026g::{
     parse_snapshot_dir,
 };
 
-use super::{MAP_BATTERIES, MAP_TDM, session_of, setup};
+use super::{MAP_BATTERIES, session_of, setup};
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::match_msgs::static_info::{MatchItem, parse_options};
+use survarium::v026g::maps::{self, GameMode, MatchMap};
+use survarium::v026g::match_msgs::static_info::parse_options;
 
 #[test]
 fn a_made_match_seats_its_players_until_it_is_over() {
@@ -102,8 +103,8 @@ fn what_the_clients_could_not_hold_is_refused_when_the_match_is_made() {
         registry.create(setup(21, MAP_BATTERIES)),
         Err(CreateError::Roster(21))
     );
-    // maps_dict id 11 is a test map the client cannot load.
-    assert_eq!(registry.create(setup(2, 11)), Err(CreateError::Map(11)));
+    // maps_dict id 11 is a test map the client cannot load: no match names it.
+    assert_eq!(MatchMap::of(11), None);
     let mut twice = setup(2, MAP_BATTERIES);
     twice.players[1].session_id = twice.players[0].session_id;
     assert_eq!(
@@ -124,59 +125,27 @@ fn what_the_clients_could_not_hold_is_refused_when_the_match_is_made() {
 }
 
 #[test]
-fn the_variant_is_the_setups_on_battery_maps_only() {
-    use survarium::v026g::maps::Variant::{Blackout, Plain, Scarcity};
+fn blackout_is_the_static_info_entry_on_its_battery_map() {
     // maps_dict 61: Rudnya's batteries (mode 2); 62: its chargers (mode 3).
     let registry = MatchRegistry::new("127.0.0.1", 1236);
-    for (map_id, asked, expected) in [
-        (MAP_BATTERIES, Blackout, Blackout),
-        (62, Blackout, Blackout),
-        (MAP_TDM, Blackout, Plain),
-        (MAP_BATTERIES, Plain, Plain),
-        (MAP_BATTERIES, Scarcity, Scarcity),
-        (MAP_TDM, Scarcity, Plain),
+    // Rudnya's Blackout map: its battery map's twin (`blackout-mode-1.json`).
+    let twin = maps::find(1, maps::weather::DAY, GameMode::Blackout).unwrap();
+    let blackout = MatchMap::of(twin.id).unwrap();
+    assert_eq!(blackout.mode(), GameMode::Blackout);
+    for (played, expected) in [
+        (blackout, true),
+        (MatchMap::of(MAP_BATTERIES).unwrap(), false),
+        (MatchMap::of(62).unwrap(), false),
     ] {
-        let mut made = setup(2, map_id);
-        made.variant = asked;
-        let ticket = registry.create(made).unwrap();
-        let formed = registry.formed(ticket.match_id).unwrap();
-        assert_eq!(formed.variant, expected, "map {map_id}");
-        let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
-        assert_eq!(options.variant, expected, "map {map_id}");
-        registry.end(ticket.match_id);
-    }
-}
-
-/// Scarcity (`docs/notes/scarcity.md`): the kits the clients get, and the
-/// server reads the snapshots against, are cut to Scarcity's ammo; a plain
-/// match's are as the lobby gave them.
-#[test]
-fn a_scarcity_match_gives_the_kits_cut_to_its_ammo() {
-    use survarium::v026g::maps::Variant;
-    use survarium::v026g::scarcity;
-    let registry = MatchRegistry::new("127.0.0.1", 1236);
-    for variant in [Variant::Plain, Variant::Scarcity] {
         let mut made = setup(2, MAP_BATTERIES);
-        made.variant = variant;
-        // The TT-33 in slot 7 and 50 of its ammo in slot 8: Scarcity gives 16.
-        let profile = &mut made.players[0].profile;
-        profile.items.push(MatchItem {
-            instance_id: 2,
-            dict_id: Dictionary::shared().item_named("ammo_7.62x25").unwrap().dict_id,
-            condition_or_stack: 200,
-            ..MatchItem::default()
-        });
-        profile.kits[0].slots[8] = Some((1, 50));
-        let given = profile.clone();
-        let mut cut = given.clone();
-        scarcity::ration(&mut cut, Dictionary::shared());
-        assert_eq!(cut.kits[0].slots[8], Some((1, 16)));
+        made.map = played;
         let ticket = registry.create(made).unwrap();
         let formed = registry.formed(ticket.match_id).unwrap();
+        assert_eq!(formed.played, played);
         let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
-        let want = if variant == Variant::Scarcity { &cut } else { &given };
-        assert_eq!(formed.profiles[0].kits, want.kits, "{variant:?}");
-        assert_eq!(options.players[0].kits, want.kits, "{variant:?}");
+        assert_eq!(options.map, played);
+        let entry = formed.info.options().ends_with(b"SRPX\x02\x01\x01");
+        assert_eq!(entry, expected, "{played:?}");
         registry.end(ticket.match_id);
     }
 }

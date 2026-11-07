@@ -71,12 +71,6 @@ package survarium.player
 
       private var _weightC:Number = 0;
       
-      // autobuy_changed's state: whether the autobuy (ammo) box is ticked
-      // (bit 1 was the auto-repair box, gone).
-      private static const AUTOBUY_NONE:uint = 0;
-      
-      private static const AUTOBUY_AMMO:uint = 1;
-      
       private var _weightM:Number = 0;
       
       // The exe's weight effects, before the kit's items are added to the speed.
@@ -406,11 +400,11 @@ package survarium.player
          return new MatchEffects(_kitModifiers,kit);
       }
 
-      // The selected kit's effects while Alt is held over a weapon's card; null otherwise (the
-      // card shows the weapon's own stats).
+      // The selected kit's effects while Alt is held over a weapon's, a medicine's, a grenade's or a trap's card; null otherwise (the
+      // card shows the item's own stats).
       public static function heldMatchEffects(item:Object) : MatchEffects
       {
-         return MainScene.isAlt && me != null && item != null && item.isWeapon ? me.matchEffects() : null;
+         return MainScene.isAlt && me != null && MatchEffects.covers(item) ? me.matchEffects() : null;
       }
 
       public function enableSecondWeapon(value:Boolean) : void
@@ -540,13 +534,17 @@ package survarium.player
                // A pocket's booster has the effect's own icon (the shop's consumables
                // filter icon is a thin stroke that suits none of them); armour its group's.
                var group:Object = armour ? item.category : null;
-               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group});
-               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group});
-               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group});
+               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group,slot:item.slotId});
+               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group,slot:item.slotId});
+               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group,slot:item.slotId});
             }
             else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0)
                kit.weapon = {name:item.name,value:propOf(item,105),category:item.category,killIcon:killIconOf(item)};
          }
+         // Armour head to boots, then the pockets: the tooltips list them so.
+         kit.speed.sortOn("slot",Array.NUMERIC);
+         kit.limit.sortOn("slot",Array.NUMERIC);
+         kit.stamina.sortOn("slot",Array.NUMERIC);
          return effects.withItems(kit);
       }
       
@@ -719,7 +717,11 @@ package survarium.player
       
       private function onAutoBuy(e:Event) : void
       {
-         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected ? AUTOBUY_AMMO : AUTOBUY_NONE);
+         // 0x288CD0 reads the first byte of the GFx value's union, without
+         // converting a Number to an integer. Send the Boolean itself:
+         // true has byte 1; the double representation of 1 has byte 0.
+         // The auto-repair control is gone, so only the autobuy bit is sent.
+         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected);
       }
       
       private function onAmmoButtonSwitch(e:Event) : void

@@ -269,6 +269,82 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(ce.items_of(data, 'objects[0]/containers'), ['b', 'c'])
             self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
 
+    def test_cli_puts_each_rounds_pierce_line_for_each_of_its_weapons(self):
+        """Material penetration (pierce-line-1): on each round the dictionary pairs with a weapon, for
+        each such weapon by dictionary id, the hardest tier its bullet gets through (P > A, as
+        try_pierce) and the damage kept there (k = 1 - (1 - clamp((P - A) / A, 0, 1))^2); P = A does
+        not get through; the weapons themselves get no line."""
+        def card(params, data=None):
+            out = {'parameters': params, 'ui_desc': {'props_list': [{'prop_id': 15, 'prop_value': '1'}]}}
+            if data:
+                out['data'] = data
+            return config(out)
+        W = 'gameplay/items/weapons/'
+        live = {
+            'game_materials/game.materials': config({'materials': [
+                {'name': 'glass', 'physic': {'armor': 0}}, {'name': 'brick', 'physic': {'armor': 0.2}},
+                {'name': 'concrete', 'physic': {'armor': 0.23}}, {'name': 'stone', 'physic': {'armor': 0.7}}]}),
+            'gameplay/db_static_dictionaries': config({
+                'items_dict': [{'dict_id': i, 'cfg_name': W + n} for i, n in
+                               enumerate(['wpn_rifle.options', 'wpn_pistol.options', 'wpn_lonely.options',
+                                          'ammo/ap.options', 'ammo/fmj.options', 'ammo/spare.options',
+                                          'wpn_even.options', 'ammo/even.options', 'wpn_vssk.options',
+                                          'ammo/vps.options', 'ammo/pt.options'], 1)],
+                'items_compatibility': {'a': {'first_item': 1, 'second_item': 4},
+                                        'b': {'first_item': 5, 'second_item': 1},
+                                        'c': {'first_item': 2, 'second_item': 5},
+                                        'd': {'first_item': 7, 'second_item': 8},
+                                        'e': {'first_item': 9, 'second_item': 10},
+                                        'f': {'first_item': 11, 'second_item': 9}}}),
+            # P = 0.25 x 1.2 = 0.3 through concrete (0.23), keeping 52 %; x 1.1 = 0.275, 35 %.
+            W + 'wpn_rifle.options': card({'bullet_pierce': 0.25}),
+            # P = 0.1 x 1.1: through glass only, all of its damage.
+            W + 'wpn_pistol.options': card({'bullet_pierce': 0.1}),
+            W + 'wpn_lonely.options': card({'bullet_pierce': 0.5}),
+            # P = 0.2 x 1.0 = brick's 0.2: stopped there (try_pierce stops at P <= A).
+            W + 'wpn_even.options': card({'bullet_pierce': 0.2}),
+            # The VSSK (0.7): VPS (x 1.2 = 0.84) gets through stone keeping 36 %; PT (x 1.0) meets
+            # stone's 0.7 and stops there: concrete, all of it.
+            W + 'wpn_vssk.options': card({'bullet_pierce': 0.7}),
+            W + 'ammo/vps.options': card({}, {'k_arp': 1.2}),
+            W + 'ammo/pt.options': card({}, {'k_arp': 1.0}),
+            W + 'ammo/ap.options': card({}, {'k_arp': 1.2}),
+            W + 'ammo/fmj.options': card({}, {'k_arp': 1.1}),
+            W + 'ammo/spare.options': card({}, {'k_arp': 1.0}),
+            W + 'ammo/even.options': card({}, {'k_arp': 1.0}),
+        }
+        tiers = [['glass', 'st_glass'], ['brick', 'st_brick'], ['concrete', 'st_concrete'], ['stone', 'st_stone']]
+        edits = {'add_entry': [{'files': W + 'ammo/*.options', 'list': 'ui_desc/props_list', 'after': {'prop_id': 15},
+                                'like': {'prop_id': 15}, 'values': {'prop_id': 174},
+                                'pierce_line': {'tiers': tiers}}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for path, data in live.items():
+                (root / 'live' / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / 'live' / path).write_bytes(bytes(data))
+            (root / 'edits.json').write_text(json.dumps(edits))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            got = {p: ce.prop_text(bytearray((root / 'out' / W / p).read_bytes()), 174)
+                   for p in ('ammo/ap.options', 'ammo/fmj.options', 'ammo/even.options', 'ammo/vps.options',
+                             'ammo/pt.options')}
+            # <weapon dict id>:<tier rank>:<text>:<percent>
+            self.assertEqual(got, {'ammo/ap.options': '1:2:st_concrete:52',
+                                   'ammo/fmj.options': '1:2:st_concrete:35 2:0:st_glass:100',
+                                   'ammo/even.options': '7:0:st_glass:100',
+                                   'ammo/vps.options': '9:3:st_stone:36', 'ammo/pt.options': '9:2:st_concrete:100'})
+            # No weapon grows; a round no weapon fires gets no line.
+            for p in ('wpn_rifle.options', 'wpn_pistol.options', 'wpn_lonely.options', 'wpn_even.options',
+                      'ammo/spare.options'):
+                self.assertFalse((root / 'out' / W / p).exists(), p)
+        # Tiers whose armour does not rise are refused (a material retuned out of order).
+        files = {p: bytearray(b) for p, b in live.items()}
+        with self.assertRaises(ValueError):
+            ce.pierce_lines(files.__getitem__, set(files), {'tiers': [tiers[0], tiers[2], tiers[1]]})
+
 
 
 def weapon(damage, card_damage, rpm=600, chamber=None):
@@ -486,16 +562,23 @@ class OtherTables(unittest.TestCase):
         self.assertEqual(ce.stats_label(category, 'gone'), 'gone')
 
     def test_an_ammo_card_counts_every_pellet(self):
-        ammo = config({'data': {'k_damage': 0.2, 'buck_shot': 10, 'k_arp': 0.2},
+        ammo = config({'data': {'k_damage': 0.2, 'buck_shot': 10, 'k_arp': 0.2, 'muzzle_speed': 250.0,
+                                'k_max_damage_distance': 1.1},
                        'parameters': {'clip_size': 15, 'clip_weight': 0.45}})
-        self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15', 15: '0.5'})
+        self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15', 15: '0.5', 163: '250', 164: '110',
+                                              165: '10'})
 
-    def test_a_grenade_card_counts_every_body_and_a_trap_card_its_foot(self):
-        grenade = config({'data': {'splash_max_damage': 1.3, 'splash_radius': 10, 'splash_affected_bodies': [6, 0, 1]},
+    def test_a_throwable_card_shows_the_damage_on_one_body(self):
+        grenade = config({'data': {'splash_max_damage': 1.3, 'splash_radius': 10, 'splash_affected_bodies': [6, 0, 1],
+                                   'splash_pierce': 0.15, 'stopping_power': 0.1, 'stamina_damage': 10,
+                                   'ttl_ms': 4000, 'throw_power': 17},
                           'parameters': {'weight': 0.35}})
-        trap = config({'data': {'damage_parameters': [{'amount': 0.6}, {'amount': 0.6}]}, 'parameters': {'weight': 0.8}})
-        self.assertEqual(ce.throwable_card(grenade), {1: '390', 23: '10', 15: '0.4'})
-        self.assertEqual(ce.throwable_card(trap), {1: '60', 15: '0.8'})
+        trap = config({'data': {'damage_parameters': [{'amount': 0.6, 'armor_piercing': 1},
+                                                      {'amount': 0.6, 'armor_piercing': 1}], 'defuse_time': 5},
+                       'parameters': {'weight': 0.8}})
+        self.assertEqual(ce.throwable_card(grenade), {1: '130', 3: '15', 132: '10', 167: '10', 23: '10', 168: '4',
+                                                      169: '17', 15: '0.4'})
+        self.assertEqual(ce.throwable_card(trap), {1: '60', 3: '100', 170: '5', 15: '0.8'})
 
     def test_only_an_add_column_adds_a_key_the_config_lacks(self):
         category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim'},
@@ -588,6 +671,21 @@ class OtherTables(unittest.TestCase):
         self.assertEqual(ce.armour_card(torso)[6], '55')
 
 
+    def test_an_add_bonus_column_makes_the_built_in_list_a_config_lacks(self):
+        category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim', 'reload'},
+                    'columns': {'aim': ce.default_modification(207), 'reload': ce.default_modification(204),
+                                'chamber': ce.default_modification(205)}}
+        files = {'a/gun.options': config({'parameters': {'weight': 7}})}
+        columns, rows = read_table(category, 'name\taim\treload\tchamber\ngun\t2074\t2044\t\n')
+        written, _, _ = ce.stats_write(category, columns, rows, files, 't')
+        gun = files['a/gun.options']
+        self.assertEqual(ce.items_of(gun, 'default_modifications'), [2074, 2044])
+        self.assertEqual(written['a/gun.options'][:2], ['/default_modifications', '/default_modifications[0]'])
+        files = {'a/gun.options': config({'parameters': {'weight': 7}})}
+        columns, rows = read_table(category, 'name\taim\treload\tchamber\ngun\t\t\t2054\n')
+        with self.assertRaisesRegex(ValueError, 'does not read back'):
+            ce.stats_write(category, columns, rows, files, 't')
+
     def test_a_row_that_takes_a_bonus_out_and_puts_two_in_reads_back(self):
         columns = list(ce.STATS['armor']['columns'])
         cells = {'weight': '3', 'stamina_regen': '1103', 'experience': '1240'}
@@ -625,6 +723,44 @@ class OtherTables(unittest.TestCase):
                     self.assertIn(int(cells[column]), strongest[kind], '%s %s' % (piece, column))
                     checked += 1
         self.assertGreater(checked, 50)
+
+    def test_a_medicine_card_uses_course_totals_independent_of_duration(self):
+        medkit = config({'data': {'activity_time_sec': 3, 'activation_delay_sec': 2,
+                                  'influences': [{'body_part': p, 'amount': a} for p, a in
+                                                 (('left_hand', 0.25), ('right_leg', 0.25), ('body', 0.6),
+                                                  ('head', 0.24), ('pain', 0.4))]},
+                         'parameters': {'weight': 0.2}})
+        self.assertEqual([ce.cell_text(medkit, o) for _, o in
+                          ce.resolve(medkit, ce.STATS['medicines']['columns']['limbs'])], ['0.25', '0.25'])
+        expected = {18: '3.0', 19: '2.0', 15: '0.2', 135: '50', 136: '60', 137: '40'}
+        self.assertEqual(ce.medicine_card(medkit), expected)
+        ce.set_number(medkit, 'data/activity_time_sec', 3, 6)
+        self.assertEqual(ce.medicine_card(medkit), {**expected, 18: '6.0'})
+
+    def test_an_items_row_gives_a_copy_its_plain_item_and_starting_ids(self):
+        dictionary = config({'items_dict': [{'dict_id': 1, 'name': 'jacket', 'base_cost': 900, 'is_premium': 0},
+                                            {'dict_id': 2, 'name': 'jacket_premium', 'base_cost': 500, 'is_premium': 1}]})
+        text = 'items\tname\tbase_cost\tgold\tlike\tstart\n1\tjacket\t900\t0\t\t\n2\tjacket_premium\t500\t1\tjacket\t1240 1250\n'
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live/gameplay').mkdir(parents=True)
+            (root / 'live' / ce.DICTIONARY).write_bytes(bytes(dictionary))
+            (root / 'items.tsv').write_text(text)
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()), str(root / 'items.tsv'),
+                                     str(root / 'live'), str(root / 'out')], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            out = bytearray((root / 'out' / ce.DICTIONARY).read_bytes())
+        self.assertEqual((value(out, 'items_dict[1]/srp_like'), ce.items_of(out, 'items_dict[1]/srp_start')),
+                         ('jacket', [1240, 1250]))
+        self.assertEqual(ce.resolve(out, 'items_dict[0]/srp_like'), [])
+        category = ce.STATS['items']
+        columns, rows = read_table(category, text)
+        files = {ce.DICTIONARY: out}
+        self.assertEqual(ce.stats_problems(category, columns, rows, ce.stats_targets(category, files), files, 't'), [])
+        rows['2']['start'] = '1240'
+        with self.assertRaisesRegex(ValueError, 'srp_start: written only into an entry without it'):
+            ce.stats_write(category, columns, rows, files, 't')
 
 
 if __name__ == '__main__':

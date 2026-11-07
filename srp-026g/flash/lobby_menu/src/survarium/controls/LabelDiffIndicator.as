@@ -50,7 +50,7 @@ package survarium.controls
       // the label too little room for one line (fitWideValue).
       private var _valueLine:int = 0;
 
-      // The lines a detail row takes (WeaponDetailsView): its label's, and the value's own line
+      // The lines a detail row takes (ItemDetailsView): its label's, and the value's own line
       // under it.
       public function get detailLines() : int
       {
@@ -252,7 +252,7 @@ package survarium.controls
             else
             {
                // A long (translated) label wraps before the value's text
-               // instead of running under it; WeaponDetailsView gives the
+               // instead of running under it; ItemDetailsView gives the
                // row its lines.
                var align:String = textFieldValue.getTextFormat().align;
                if(align == TextFormatAlign.RIGHT) fitWideValue();

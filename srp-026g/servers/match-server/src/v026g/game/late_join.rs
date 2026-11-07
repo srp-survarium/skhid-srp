@@ -207,6 +207,7 @@ impl Game {
             self.admissions.push(Some(Admission::new(now)));
         }
         let before = self.players();
+        super::log_unread_kits(&formed, before);
         self.formed = formed;
         let note = serde_json::json!({ "note": "places", "places": self.places_note(before) });
         self.record_note(note, now);
@@ -1060,14 +1061,14 @@ impl Game {
         let source = self.sources(index).into_iter().find(|source| {
             self.peers[*source].as_ref().is_some_and(|peer| {
                 peer.ask_at.is_none()
-                    && peer
-                        .asked
-                        .is_none_or(|at| now.saturating_duration_since(at) >= RESYNC_REQUEST_GAP)
+                    && peer.asked.is_none_or(|asked| {
+                        now.saturating_duration_since(asked.at) >= RESYNC_REQUEST_GAP
+                    })
             })
         });
         for asked in std::iter::once(index).chain(source) {
             if let Some(peer) = self.peers[asked].as_mut() {
-                peer.ask_at = Some(clock);
+                peer.ask_at = Some((clock, Wanted::Vote));
             }
         }
         self.send_requests(now);

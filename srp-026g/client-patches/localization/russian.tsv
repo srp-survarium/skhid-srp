@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ammo_545x39_7n22_name	5.45x39 7Н22
 st_ammo_545x39_7n6m_description	Советский малоимпульсный промежуточный патрон, оснащенный пулей со стальным сердечником. Малокалиберная пуля с высокой начальной скоростью обеспечивает высокую настильность траектории.
 st_ammo_545x39_7n6m_name	5.45x39 7Н6М
+st_ammo_556x45_belt_description	Лента на 100 патронов 5.56х45 для FN Minimi. Занимает два подсумка.
+st_ammo_556x45_belt_name	5.56x45 лента
 st_ammo_556x45_description	Промежуточный винтовочный патрон НАТО, созданный на основе американского .223 Remington и стандартизированный НАТО в 1980 году. Легкая быстрая пуля с настильной траекторией и небольшой отдачей.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Патрон, разработанный компанией FN Herstal около 1990 года для P90, а позже и для пистолета Five-seveN. Легкая быстрая пуля, созданная для пробития бронежилетов.
@@ -211,8 +213,12 @@ st_ammo_762x39_description	7.62-мм патрон образца 1943 года, 
 st_ammo_762x39_m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ammo_762x39_m_name	7.62х39 РПД
 st_ammo_762x39_name	7.62х39
+st_ammo_762x51_20_description	Винтовочные патроны 7.62x51 в пачках по 20 патронов для H&K G3SG/1.
+st_ammo_762x51_20_name	7.62x51, магазин на 20
 st_ammo_762x51_M59_description	Бронебойная модификация армейского винтовочного патрона калибра 7.62. Пуля оснащена стальным сердечником.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	Винтовочный патрон НАТО в ленте на 100 патронов для пулемётов.
+st_ammo_762x51_belt_name	7.62x51, лента
 st_ammo_762x51_description	Популярный армейский патрон с цельнооболочечной стальной пулей, предназначенный для использования в снайперском и гражданском оружии.
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Найденый на складе, этот патрон является одним из старейших винтовочных патронов современности. Возраст и условия хранения сделали этот патрон менее эффективным
@@ -303,6 +309,8 @@ st_base_trap_description	Обычный охотничий капкан с мо�
 st_base_trap_name	Ловушка
 st_benelli_description	Итальянское самозарядное ружье 12 калибра. Разработано компанией Benelli в конце 90-х годов с газоотводной автоматикой и принято на вооружение Корпуса морской пехоты США под названием M1014. Заряжается в трубчатый магазин под стволом. Только одиночный огонь.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Итальянский автоматический пистолет, патрон: 9x19. Одиночные выстрелы или очереди по три; откидная рукоятка.
+st_beretta93r_name	Beretta 93R
 st_best	Лучший
 st_best_explorer	ИССЛЕДОВАТЕЛЬ
 st_best_explorer_artefacts	Артефактов:
@@ -841,6 +849,8 @@ st_clan_window_label	Регистрация клана
 st_clear	Очистить
 st_close	Закрыть
 st_collect_statistics_option	Разрешить сбор статистики
+st_colt_m1911_description	Американский пистолет, патрон: .45 ACP. Табельное оружие армии США на протяжении семи десятилетий.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	Использовано максимальное количество похвал за день.
 st_compliment_count_per_user_owerflow	Вы не можете дважды похвалить одного человека за день!
 st_compliment_player	Похвалить
@@ -865,6 +875,8 @@ st_crouch_action	Присесть (удерж.)
 st_crouch_toggle_action	Присесть
 st_ct_max_members_count_error	Ошибка добавления. В клановой команде уже находится максимальное количество игроков.
 st_current_value	\nТекущее значение:
+st_cz_75_description	Чешский самозарядный пистолет, патрон: 9x19. Один из самых копируемых пистолетов холодной войны.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Заходи каждый день, и получай <highlight>x2</highlight> опыта и репутации за <highlight>первые три</highlight> победы.
 st_daily_bonus_hint	Показать окно приветствия
 st_daily_bonus_label	Добро пожаловать обратно
@@ -1171,10 +1183,14 @@ st_first_weapon_action	Оружие 1
 st_fix	Починить
 st_fn_fnc_description	Бельгийская штурмовая винтовка под боеприпас 5.56х45. Разработана FN Herstal в 70-х годах для бельгийской армии; лицензионные версии служат в Швеции и Индонезии. Магазин на 30 патронов. Огонь: одиночный и автоматический.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Бельгийский ручной пулемет под боеприпас 5.56х45. Создан FN Herstal в 1970-х, в армии США известен как M249. Короб на 100 патронов. Огонь: одиночный и автоматический.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Бельгийское оружие самообороны под боеприпас 5.7х28. Создано FN Herstal около 1990 года вместе с собственным патроном; «буллпап» с магазином на 50 патронов вдоль верха оружия. Служит в спецназе и полиции многих стран. Огонь: одиночный и автоматический.
 st_fn_p90_name	FN P90
 st_fort_17_description	Украинский самозарядный пистолет под калибр 9х18. В серийное производство запущен в 2004 году. Использовался внутренними войсками и некоторыми спецподразделениями. Оснащен магазином на 12 патронов.
 st_fort_17_name	Форт 17
+st_fort_401_description	Украинский ручной пулемёт, патрон: 7,62x51. Лицензионный Negev из Винницы, питание из короба на 100 патронов.
+st_fort_401_name	Форт-401
 st_fov_option	Поле зрения
 st_freedom_026_boots_desc	Тяжёлые бронированные ботинки в цветах "Свободы", их носят с тяжёлой бронёй.
 st_freedom_026_boots_name	Ботинки "Свободы"
@@ -1197,6 +1213,8 @@ st_fullscreen_option	Полноэкранный режим
 st_general_volume_option	Общий
 st_generic_money_name	Рубли
 st_geometry_quality_option	Качество геометрии
+st_glock_17_description	Австрийский пистолет с полимерной рамкой, патрон: 9x19. Этот переделан для автоматического огня.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	База знаний будет открыта в окне браузера
 st_go_to_online_store_message	Онлайн магазин будет открыт в окне браузера. Продолжить?
 st_go_to_video_tutorial_message	Видеообучение будет открыто в окне браузера. Продолжить?
@@ -1248,6 +1266,7 @@ st_inv_additional_ammo_bags	Подсумки для патронов
 st_inv_ano_armor	Изоляция
 st_inv_armor	Броня
 st_inv_arp	Бронебойность
+st_inv_artefact_recharge	Время перезарядки артефактов
 st_inv_artefact_slots	Контейнер артефактов
 st_inv_buckshot	Дробь
 st_inv_clip_size	Патронов в пачке
@@ -1324,6 +1343,8 @@ st_izh27_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_izh27_name	МР-27М "Ланкастер"
 st_izh27_premium_2_description	Российское ружье 12 калибра с вертикальными стволами. Выпускается в Ижевске под маркой «Байкал»; одна из самых распространенных охотничьих и спортивных двустволок. Стреляет из одного ствола или из обоих сразу. Премиум-версия в особом камуфляже.
 st_izh27_premium_2_name	МР-27М "Громобой"
+st_jackhammer_description	Американский автоматический дробовик, патрон: 12/70. Буллпап с барабаном на 10 патронов, стреляет только очередями.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Прыжок
 st_kedr_description	Советский пистолет-пулемет под боеприпас 9х18 ПМ. Разработан Евгением Драгуновым в начале 70-х годов, серийно выпускается лишь с 90-х для МВД России и полиции. Оснащен магазином на 30 патронов. Поддерживает одиночный и автоматический режим стрельбы.
 st_kedr_name	ПП-91 "Кедр"
@@ -1349,6 +1370,8 @@ st_knw_synergy_desc	Сила артефактов растет пропорци�
 st_knw_synergy_name	Синергия
 st_kriss_vector_description	Американский пистолет-пулемет под боеприпас .45 ACP. Представлен KRISS в 2000-х; затвор при отдаче уходит вниз, что уменьшает подброс ствола. Коллиматор Walther Competition II. Магазин на 30 патронов. Огонь: одиночный, с отсечкой очереди и автоматический.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	Британская штурмовая винтовка схемы буллпап, патрон: 5,56x45. Штатная винтовка британской армии.
+st_l85a2_name	L85A2
 st_label_invites	Приглашения
 st_label_leave_queue_btn	Покинуть очередь
 st_label_quenue	Место в очереди:
@@ -1460,11 +1483,11 @@ st_microphone_sensitivity_option	Чувствительность микрофо
 st_military_medkit_description	Полностью лечит руки и ноги. Восстанавливает 60% здоровья тела и головы и 50% боли.
 st_military_medkit_name	Армейская аптечка
 st_minimap	Миникарта
-st_minimap_bottom	Нижний левый угол
+st_minimap_bottom	Миникарта внизу
 st_minimap_off	Скрытая миникарта
 st_minimap_position	Позиция миникарты
 st_minimap_rotable_option	Фиксировать миникарту
-st_minimap_top	Верхний левый угол
+st_minimap_top	Миникарта вверху
 st_missile_weapon_action	Граната
 st_missions	Задания
 st_mm_button_back	Назад
@@ -1511,6 +1534,10 @@ st_movement_speed_when_aiming_description	Скорость передвижен�
 st_movement_speed_when_aiming_name	Боевая стойка
 st_mp153_description	Российское гладкоствольное полуавтоматическое ружье под боеприпас 12х70. Благодаря невысокой цене и хорошей надежности, получило широкое распространение как охотничье и спортивное оружие. Оснащено трубчатым магазином на 4 патрона.
 st_mp153_name	МР-153 "Байкал"
+st_mp443_description	Российский армейский пистолет, патрон: 9x19. Принят на вооружение в 2003 году на смену ПМ.
+st_mp443_name	МР-443 «Грач»
+st_mp5a1_description	Немецкий пистолет-пулемёт, патрон: 9x19. Классика полиции и спецподразделений с роликовым затвором.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Польский модульный карабин под боеприпас 5.56х45. Создан в 2010-х Военно-технической академией и заводом Fabryka Broni; на вооружении польской армии как Grot. Прицел EOTech 552. Магазин на 30 патронов. Огонь: одиночный, с отсечкой очереди и автоматический.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Раскачивание прицела
@@ -1596,6 +1623,8 @@ st_options_video	Графика
 st_options_voice	Голос:
 st_options_volume	Громкость:
 st_other	Другое
+st_ots14_description	Российский автомат схемы буллпап под боеприпас 9х39. Создан в ЦКИБ СОО в 1990-х на основе АКС-74У для спецподразделений. Магазин на 20 патронов. Огонь: одиночный и автоматический.
+st_ots14_name	ОЦ-14 "Гроза"
 st_oust_commander	Сменить командира
 st_overweight_penalty_description	Влияние веса на скорость передвижения:
 st_overweight_penalty_name	Упаковщик
@@ -1749,7 +1778,7 @@ st_ranking	Рейтинг
 st_ranking_diff	Разница
 st_rattle_activation_hint	Погремушка активирована! Ваши шаги абсолютно не слышны для противника!
 st_rattle_pickup_hint	Артефакт Погремушка. Уменьшает звуки шагов на 50%.
-st_rdgm_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rdgm_descr	Ручная дымовая граната. Ставит плотную завесу, скрывающую передвижение.
 st_rdgm_name	Дымовая граната РДГ-М
 st_reach_level	достиг <green>Уровня</green>
 st_ready	Готов
@@ -1757,6 +1786,8 @@ st_refill_ammo_btn	Применить
 st_refill_ammo_label	Боезапас
 st_regen_booster_description	Старый армейский сухпаек. Успешно применялся армиями стран СНГ в докризисный период. Повышает метаболизм, при этом довольно вкусный.
 st_regen_booster_name	Сухпаёк
+st_regen_delay_name	Задержка регенерации
+st_regen_limit_name	Предел регенерации
 st_registration_str	Создать учетную запись
 st_regular_fix	Ремонт
 st_regular_money	Серебро
@@ -1937,11 +1968,13 @@ st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО
 st_rpd_name	РПД
 st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО
 st_rpk_name	РПК-74М
-st_saiga_12_description	Российское самозарядное ружье 12 калибра. Создано на «Ижмаше» на основе системы Калашникова в 90-х годах для охоты и служб охраны; версия К имеет короткий ствол и складной приклад. Оснащено коробчатым магазином на 5 патронов. Только одиночный огонь.
+st_saiga_12_description	Российское самозарядное ружье 12 калибра. Создано на «Ижмаше» на основе системы Калашникова в 90-х годах для охоты и служб охраны; версия К имеет короткий ствол и складной приклад. Оснащено коробчатым магазином. Только одиночный огонь.
 st_saiga_12_name	Сайга-12К
-st_saiga_12_premium_description	Российское самозарядное ружье 12 калибра. Создано на «Ижмаше» на основе системы Калашникова в 90-х годах для охоты и служб охраны; версия С имеет складной приклад. Оснащено коробчатым магазином на 5 патронов. Только одиночный огонь.
+st_saiga_12_premium_description	Российское самозарядное ружье 12 калибра. Создано на «Ижмаше» на основе системы Калашникова в 90-х годах для охоты и служб охраны; версия С имеет складной приклад. Оснащено коробчатым магазином. Только одиночный огонь.
 st_saiga_12_premium_name	Сайга-12С
 st_save_password_str	Сохранить пароль
+st_scar_h_description	Бельгийская автоматическая винтовка под боеприпас 7.62х51. Тяжелый вариант SCAR от FN Herstal, принят спецназом США в 2000-х. Магазин на 20 патронов. Огонь: одиночный и автоматический.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	Самодельный контейнер для хранения артефактов, оборудован под рюкзак. Полезная вещь, когда отправляешься на охоту за артефактами.
 st_scav_back_1_name	Рюкзак с контейнером
 st_scav_boots_1_desc	Простые ботинки, найденные на свалке или снятые с трупа. Защищают ноги от ран и повреждений, не раз выручат во время сложных переходов.
@@ -2150,7 +2183,28 @@ st_sr3m_bundle_descr	<white>Содержит следующие предметы
 st_sr3m_bundle_name	Набор СР-3М "Вихрь"
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО
 st_sr3m_name	СР-3М "Вихрь"
+st_srp_ammo069_23mm_r_desc	Патрон калибра 23 мм, снаряженный дробью, для КС-23М. Наносит высокий урон по небронированным целям.
+st_srp_ammo069_23mm_r_name	23x75R, дробь
+st_srp_ammo_buckshot	Картечь
+st_srp_ammo_scar_ap_desc	Бронебойные патроны 7.62x51 для FN SCAR-H. Каждый подсумок вмещает 20 патронов.
+st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 патронов
+st_srp_ammo_slug	Пуля
+st_srp_ammo_stats	Характеристики патронов
 st_srp_attachments	Обвес
+st_srp_ban_reason_account_trading	Продажа или попытка продажи учётной записи.
+st_srp_ban_reason_administration	Решение администрации.
+st_srp_ban_reason_advertising	Реклама.
+st_srp_ban_reason_bad_language	Нецензурная лексика.
+st_srp_ban_reason_cheating	Читы или другое запрещённое ПО.
+st_srp_ban_reason_false_information	Распространение ложной информации.
+st_srp_ban_reason_farm_pressure	Травля или убийство союзников, которые не фармят.
+st_srp_ban_reason_flood	Спам или флуд.
+st_srp_ban_reason_insults	Оскорбления или провокации.
+st_srp_ban_reason_nickname	Недопустимое имя.
+st_srp_ban_reason_politics	Обсуждение политики.
+st_srp_ban_reason_racism	Расизм или нацизм.
+st_srp_ban_reason_teamkilling	Убийство союзников.
+st_srp_ban_reason_threats	Угрозы в реальной жизни.
 st_srp_crosshair_dynamic	Динамический прицел
 st_srp_crosshair_hidden	Скрытый прицел
 st_srp_crosshair_static	Статический прицел
@@ -2341,6 +2395,8 @@ st_srp_equipment046_edge_back_6_desc	Описание пока недоступ�
 st_srp_equipment046_edge_back_6_name	Рюкзак сталкера
 st_srp_equipment046_edge_back_7_desc	Описание пока недоступно.
 st_srp_equipment046_edge_back_7_name	Оберег
+st_srp_equipment046_edge_boots_6_desc	Описание пока недоступно.
+st_srp_equipment046_edge_boots_6_name	Шнурованные сапоги сталкера
 st_srp_equipment046_edge_boots_7_desc	Описание пока недоступно.
 st_srp_equipment046_edge_boots_7_name	Ботинки волхва
 st_srp_equipment046_edge_gloves_5_desc	Описание пока недоступно.
@@ -2355,6 +2411,8 @@ st_srp_equipment046_edge_legs_7_desc	Описание пока недоступ�
 st_srp_equipment046_edge_legs_7_name	Штаны "Велес"
 st_srp_equipment046_edge_mask_6_desc	Описание пока недоступно.
 st_srp_equipment046_edge_mask_6_name	ПНВ
+st_srp_equipment046_edge_mask_7_desc	Описание пока недоступно.
+st_srp_equipment046_edge_mask_7_name	Противогаз "Велес"
 st_srp_equipment046_edge_torso_7_desc	Описание пока недоступно.
 st_srp_equipment046_edge_torso_7_name	Бронежилет "Велес"
 st_srp_equipment046_renesanse_boots_3_desc	Описание пока недоступно.
@@ -2365,6 +2423,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Описание пока недос
 st_srp_equipment046_renesanse_gloves_3_name	Перчатки ОЗК-УВ
 st_srp_equipment046_renesanse_gloves_5_desc	Описание пока недоступно.
 st_srp_equipment046_renesanse_gloves_5_name	Перчатки разведчика
+st_srp_equipment046_renesanse_gloves_6_desc	Описание пока недоступно.
+st_srp_equipment046_renesanse_gloves_6_name	Перчатки "Штурм"
 st_srp_equipment046_renesanse_gloves_7_desc	Описание пока недоступно.
 st_srp_equipment046_renesanse_gloves_7_name	Перчатки снайпера
 st_srp_equipment046_renesanse_helmet_7_desc	Описание пока недоступно.
@@ -2381,12 +2441,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Описание пока недос�
 st_srp_equipment046_renesanse_torso_7_name	Бронежилет снайпера
 st_srp_equipment046_scavenger_boots_5_desc	Описание пока недоступно.
 st_srp_equipment046_scavenger_boots_5_name	Ботинки диверсанта
+st_srp_equipment046_scavenger_boots_6_desc	Описание пока недоступно.
+st_srp_equipment046_scavenger_boots_6_name	Укрепленные ботинки
 st_srp_equipment046_scavenger_boots_7_desc	Описание пока недоступно.
 st_srp_equipment046_scavenger_boots_7_name	Ботинки следопыта
+st_srp_equipment069_league_shadow_mask_desc	Описание пока недоступно.
+st_srp_equipment069_league_shadow_mask_name	Маска "Дельта"
 st_srp_equipment069_leagues_back_2_desc	Описание пока недоступно.
 st_srp_equipment069_leagues_back_2_name	Сумка лекаря
 st_srp_equipment069_leagues_back_5_desc	Описание пока недоступно.
 st_srp_equipment069_leagues_back_5_name	Рюкзак солдата
+st_srp_equipment069_snow_20_boots_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_boots_7_name	Ботинки "Снег-20"
+st_srp_equipment069_snow_20_gloves_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_gloves_7_name	Перчатки "Снег-20"
+st_srp_equipment069_snow_20_helmet_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_helmet_7_name	Шлем "Снег-20"
+st_srp_equipment069_snow_20_legs_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
+st_srp_equipment069_snow_20_torso_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Снег-20"
 st_srp_exchange_balance	Баланс
 st_srp_exchange_button	Обменять
 st_srp_exchange_gold	Золото
@@ -2399,6 +2473,8 @@ st_srp_hide_hit_markers_option	Скрыть хитмаркеры
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
 st_srp_hud_add_friend	Добавить в друзья
+st_srp_hud_blackout_intro	Блэкаут: несите батареи к устройству своей команды. Интерфейс и маркеры попаданий скрыты для погружения. Удерживайте Tab: боезапас, здоровье, чат; после смерти — выбор комплекта.
+st_srp_hud_blackout_start	Блэкаут\nНесите батареи к устройству своей команды.\nИнтерфейс и маркеры попаданий скрыты. Удерживайте Tab, чтобы увидеть боезапас и здоровье.
 st_srp_hud_friend_not_sent	Заявка в друзья не отправлена
 st_srp_hud_friend_sent	Заявка в друзья отправлена
 st_srp_hud_mute_hide	Скрыть чат
@@ -2407,7 +2483,26 @@ st_srp_hud_mute_not_sent	Не отправлено
 st_srp_hud_muted	Чат заглушён
 st_srp_hud_unmute	Включить чат
 st_srp_hud_unmuted	Чат включён
+st_srp_inv_ammo_range	Дальность
+st_srp_inv_bullet_speed	Скорость пули
+st_srp_inv_defuse_time	Время обезвреживания
+st_srp_inv_fuse_time	Время запала
+st_srp_inv_material_pierce	Пробивает
+st_srp_inv_pellets	Дробин
+st_srp_inv_pocket_units	Место в кармане
+st_srp_inv_stamina_damage	Урон выносливости
+st_srp_inv_throw_speed	Скорость броска
 st_srp_inventory_search	Поиск
+st_srp_inventory_search_examples	+карман, +слот, +патрон, +10
+st_srp_inventory_search_tip_bonus	предметы с бонусом и к патронам, и к карманам
+st_srp_inventory_search_tip_bonus_example	+патрон +карман
+st_srp_inventory_search_tip_faction	товары Армии или Чёрного Рынка
+st_srp_inventory_search_tip_faction_example	+армия +чёрный
+st_srp_inventory_search_tip_kind	шлемы или ботинки
+st_srp_inventory_search_tip_kind_example	+шлем +ботинки
+st_srp_inventory_search_tip_level	предметы 10 или 11 уровня
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_item_props_mps	м/с
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
 st_srp_loadout_block_ammo	Мало патронов к оружию
@@ -2430,12 +2525,15 @@ st_srp_lobby_hangar	Ангар
 st_srp_lobby_room	Комната
 st_srp_lobby_title	Лобби
 st_srp_login_account_hint	Аккаунт создаётся при первом входе
+st_srp_login_ban_ends	Закончится в %1$s (через %2$s).
+st_srp_login_ban_forever	Бан бессрочный.
 st_srp_map_chemical_plant	Химзавод
 st_srp_map_chemical_plant_v011	Химзавод (v0.11)
 st_srp_map_cologne	Кельн
 st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
+st_srp_map_names_option	Имена на карте
 st_srp_map_rudnya	Рудня
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
@@ -2466,14 +2564,57 @@ st_srp_matches_starting	старт
 st_srp_matches_title	Матчи
 st_srp_matches_versus	на
 st_srp_matches_waiting	ожидание
+st_srp_medical_301_description	Прибавляется к защите от боли и длительности действия обезболивающего:
+st_srp_medical_301_name	Сильное обезболивающее
+st_srp_medical_302_description	Сокращение времени применения аптечек и бинтов:
+st_srp_medical_302_name	Быстрая перевязка
+st_srp_medical_303_description	Пока действует обезболивающее, снижение затрат энергии на спринт:
+st_srp_medical_303_name	Онемевшие ноги
+st_srp_medical_311_description	Регенерация здоровья начинается на столько секунд раньше:
+st_srp_medical_311_name	Метаболизм
+st_srp_medical_312_description	Бонус к здоровью, восстанавливаемому аптечками и бинтами:
+st_srp_medical_312_name	Медицинская подготовка
+st_srp_medical_313_description	Бонус к здоровью, восстанавливаемому аптечками и бинтами в приседе:
+st_srp_medical_313_name	В укрытие
+st_srp_medical_321_description	Бонус к скорости передвижения при здоровье ниже 30:
+st_srp_medical_321_name	Адреналин
+st_srp_medical_322_description	Каждый карман с медикаментами вмещает ещё один предмет.
+st_srp_medical_322_name	Дополнительные медикаменты
+st_srp_medical_323_description	Пока действует обезболивающее, снижение останавливающей силы вражеских попаданий:
+st_srp_medical_323_name	Непоколебимый
+st_srp_medical_331_description	Заменяет ячейку дополнительного оружия дополнительным карманом для припасов.
+st_srp_medical_331_name	Карман для припасов
+st_srp_medical_332_description	Бонус к максимальному здоровью рук и ног:
+st_srp_medical_332_name	Крепкие кости
+st_srp_medical_333_description	Пока действует обезболивающее, звуки окружения тише, а звуки противников (кроме выстрелов) громче на:
+st_srp_medical_333_name	Концентрация
+st_srp_medical_342_description	Снижение урона, получаемого от союзников:
+st_srp_medical_342_name	Братья по оружию
+st_srp_medical_seconds	 s
+st_srp_medicine_ambient_sounds	Звуки окружения
+st_srp_medicine_crouched_healing	Лечение в приседе
+st_srp_medicine_enemy_sounds	Звуки противников
+st_srp_medicine_hit_slow	Замедление от пуль
+st_srp_medicine_sprint_stamina	Энергия на спринт
+st_srp_melee_knockback	Отбрасывание прикладом
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_research	Исследование
 st_srp_mode_scarcity	Защитное устройство: дефицит
 st_srp_mode_team_deathmatch	Командный бой
+st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
+st_srp_mouse_vertical_option	Вертикальная чувствительность
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
+st_srp_pierce_brick	Кирпич, сталь
+st_srp_pierce_car	Автомобиль
+st_srp_pierce_concrete	Бетон
+st_srp_pierce_glass	Стекло
+st_srp_pierce_plywood	Фанера
+st_srp_pierce_stone	Камень
+st_srp_pierce_tinplate	Жесть
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	В отряде
 st_srp_pvb_at_limit	Уже идёт максимум матчей с ботами одновременно, попробуйте через минуту
 st_srp_pvb_at_limit_count	Уже идёт максимум матчей с ботами одновременно (%1$s/%2$s), попробуйте через минуту
@@ -2496,6 +2637,9 @@ st_srp_pvb_searching	Сначала отмените поиск
 st_srp_pvb_team_size	%1$s на %2$s
 st_srp_pvb_title	Игрок против ботов
 st_srp_pvb_unknown_choice	Эта карта или размер команд сейчас недоступны
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Рендер
 st_srp_replay_asking	Запрашиваем у сервера матча повтор этого матча…
 st_srp_replay_being_made	Повтор создаётся из записи матча. Так бывает, когда этот матч смотрят впервые, и это занимает немного времени.\nЭто окно можно закрыть: сервер продолжит его создавать.\n\n%1$s
 st_srp_replay_busy	Сервер сейчас занят другими повторами. Попробуйте ещё раз через минуту.
@@ -2526,6 +2670,7 @@ st_srp_rooms_all	Все
 st_srp_rooms_all_rooms	Все комнаты
 st_srp_rooms_any	Любой
 st_srp_rooms_back	Назад
+st_srp_rooms_bots	С ботами
 st_srp_rooms_code_10	Владелец убрал вас из комнаты.
 st_srp_rooms_code_11	Сначала выйдите из клановой команды.
 st_srp_rooms_code_12	Ваше снаряжение выше макс. уровня.
@@ -2627,11 +2772,42 @@ st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s
 st_srp_static_minimap_option	Статическая миникарта
+st_srp_unit_days	%1$s д
+st_srp_unit_hours	%1$s ч
 st_srp_unit_kg	%1$s кг
 st_srp_unit_meters	%1$sм
+st_srp_unit_minutes	%1$s мин
+st_srp_unit_mps	%1$s м/с
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Приоритет дискретной GPU
+st_srp_vulkan_dedicated_gpu_hint	Выбирает более мощную видеокарту на ноутбуках.\n+ Выше производительность на ноутбуках\n- Тратит больше батареи
+st_srp_vulkan_frame_limit	Ограничение FPS
+st_srp_vulkan_frame_limit_hint	Ограничивает, сколько кадров в секунду рисует игра.
+st_srp_vulkan_low_latency	Снизить задержку ввода
+st_srp_vulkan_low_latency_hint	Игра быстрее отзывается на мышь.\n+ Прицел реагирует быстрее\n- На некоторых ПК может идти менее плавно
+st_srp_vulkan_off	Выкл.
+st_srp_vulkan_options	Настройки Vulkan
+st_srp_vulkan_overlay	Оверлей
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+график
+st_srp_vulkan_overlay_full	Полный
+st_srp_vulkan_overlay_hint	Показывает скорость игры на экране.
+st_srp_vulkan_tear_free	Без разрывов без V-Sync
+st_srp_vulkan_tear_free_hint	Картинка не рвётся при выключенной вертикальной синхронизации.\n+ Нет рваных полос при быстром повороте\n- Задержка чуть больше, чем просто без VSync
+st_srp_weapon069_akmsu_desc	Укороченный АКМС со складным прикладом под патрон 7.62×39. Поддерживает одиночный и автоматический режим стрельбы.
+st_srp_weapon069_akmsu_name	АКМСУ
+st_srp_weapon069_famas_desc	Французская штурмовая винтовка схемы булл-пап под боеприпас 5.56х45. Поддерживает одиночный режим, очередь по три выстрела и автоматический режим стрельбы.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	Немецкая марксманская винтовка под патрон 7.62×51. Поддерживает одиночный режим и очередь по три выстрела.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Российский помповый карабин под патрон 23×75R. Оснащен трубчатым магазином на 4 патрона.
+st_srp_weapon069_ks_23m_name	КС-23М
+st_srp_weapon069_mauser_m712_desc	Немецкий автоматический пистолет под патрон 7.62×25. Поддерживает одиночный и автоматический режим стрельбы.
+st_srp_weapon069_mauser_m712_name	Маузер M.712
+st_srp_weapon069_ppsh_drum_desc	Пистолет-пулемет Шпагина с дисковым магазином на 71 патрон, патрон 7.62×25. Поддерживает одиночный и автоматический режим стрельбы.
+st_srp_weapon069_ppsh_drum_name	ППШ-41 «Диск»
 st_srp_weapon_aim_zoom	Базовое увеличение
 st_srp_weapon_chamber	Досылка патрона
 st_srp_weapon_draw_time	Время доставания
@@ -2646,6 +2822,8 @@ st_srp_weapon_minimum_damage	Минимальный урон
 st_srp_weapon_minimum_damage_from	Минимальный урон от
 st_srp_weapon_recoil_heading	Отдача, разброс, раскачка
 st_srp_weapon_reload	Перезарядка
+st_srp_weapon_reload_empty	Перезарядка (пустой)
+st_srp_weapon_reload_tactical	Тактическая перезарядка
 st_srp_weapon_shift_hint	Shift: детали · Alt: в бою
 st_srp_weapon_spread_growth	Скорость роста разброса
 st_srp_weapon_spread_max	Предел роста разброса
@@ -2663,12 +2841,12 @@ st_srp_weather_day	день
 st_srp_weather_evening	вечер
 st_srp_weather_night	ночь
 st_srp_weather_rain	дождь
-st_srp_weight_base	Базовый предел: %1$s
+st_srp_weight_base	Базовый предел
 st_srp_weight_no_sprint_heavyweight	Спринт недоступен: навык «Тяжеловес».
 st_srp_weight_no_sprint_limit	Спринт недоступен: перегруз.
 st_srp_weight_penalty	%1$s% штраф за вес
-st_srp_weight_speed	Скорость передвижения: %1$s
-st_srp_weight_sprint_stamina	Затраты энергии на спринт: %1$s
+st_srp_weight_speed	Скорость передвижения
+st_srp_weight_sprint_stamina	Затраты энергии на спринт
 st_srp_weight_title	Влияние веса
 st_stamina_boost_name	Второе дыхание
 st_stamina_boost_time_description	Восстановление энергии при убийстве противника:
@@ -2750,6 +2928,8 @@ st_sv_98_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sv_98_name	СВ-98
 st_svd_description	Самозарядная снайперская Винтовка Драгунова под патрон 7.62х54. Долгие годы была основной снайперской винтовкой армии СССР. Оснащена магазином на 5 патронов.
 st_svd_name	СВД
+st_svu_a_description	Российская снайперская винтовка схемы буллпап, патрон: 7,62x54R. Укороченная СВД для ближнего боя, самозарядная.
+st_svu_a_name	СВУ
 st_swear_clan_string	Строка содержит нецензурную лексику
 st_swearing_claim	Нецензурная лексика
 st_team_already_has_commander	У клановой команды уже есть командир.
@@ -2825,6 +3005,8 @@ st_vepr_description	ОПИСАНИЕ НЕ ГОТОВО
 st_vepr_name	Вепр
 st_vepr_premium_description	Российский карабин семейства «Вепрь» под боеприпас 5.45х39. Выпускается заводом «Молот» на усиленной коробке пулемета РПК-74. Магазин на 30 патронов. Огонь: одиночный и автоматический. Премиум-версия в особом камуфляже.
 st_vepr_premium_name	Вепр "Скиталец"
+st_vhs_2_description	Хорватский автомат схемы буллпап под боеприпас 5.56х45. Производства HS Produkt, на вооружении Хорватии с 2010-х. Магазин на 30 патронов. Огонь: одиночный и автоматический.
+st_vhs_2_name	VHS-2
 st_victory	Победа
 st_victory_screen_no_dropped_item	Вы ничего не нашли на поле боя.
 st_vityaz_bundle_descr	<white>Содержит следующие предметы:\n— Улучшенный ПП-19-01 "Витязь".\n— 2000 патронов 9х19 Парабеллум.</white>

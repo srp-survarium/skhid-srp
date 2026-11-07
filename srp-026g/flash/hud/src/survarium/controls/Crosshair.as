@@ -24,6 +24,12 @@ package survarium.controls
       
       // The Settings' "Hide hit markers" (exe patch 83): the hits on enemies are not shown.
       protected var _hitMarkersHidden:Boolean = false;
+
+      // Independent inputs: the game's weapon/aim state and the saved HUD choice.
+      // This class alone combines them into the aiming lines' visibility.
+      private var _crosshairRequested:Boolean = true;
+
+      private var _crosshairHidden:Boolean = false;
       
       public var crosshair_mc:MovieClip;
       
@@ -63,6 +69,23 @@ package survarium.controls
          var cdisp:Number = Math.min(disp,this._maxDisp);
          var frame:int = Math.ceil(this._framesCount * (cdisp / this._maxDisp));
          this.crosshair_mc.gotoAndStop(frame);
+      }
+
+      public function setCrosshairVisible(shown:Boolean) : void
+      {
+         this._crosshairRequested = shown;
+         this.updateCrosshairVisibility();
+      }
+
+      public function set crosshairHidden(hidden:Boolean) : void
+      {
+         this._crosshairHidden = hidden;
+         this.updateCrosshairVisibility();
+      }
+
+      private function updateCrosshairVisibility() : void
+      {
+         this.crosshair_mc.visible = this._crosshairRequested && !this._crosshairHidden;
       }
       
       // Hidden, the marker shown is cleared first (a kill's too).

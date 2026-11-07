@@ -312,10 +312,13 @@ impl Carry {
         }
     }
 
+    /// The world's bytes of it (client patch 78 appends them to a player
+    /// state), its version first: `srp_validate` reads them with these two.
     pub const SNAPSHOT_SIZE: usize = 32;
+    pub const SNAPSHOT_VERSION: u8 = 2;
     pub fn snapshot(self) -> [u8; Self::SNAPSHOT_SIZE] {
         let mut out = [0; Self::SNAPSHOT_SIZE];
-        out[0] = 2;
+        out[0] = Self::SNAPSHOT_VERSION;
         out[1..5].copy_from_slice(&self.generation.to_le_bytes());
         out[5..9].copy_from_slice(&self.last_raw.to_le_bytes());
         out[9..13].copy_from_slice(&self.last_passed.to_le_bytes());
@@ -344,7 +347,7 @@ impl Carry {
     }
 
     pub fn restore(bytes: [u8; Self::SNAPSHOT_SIZE]) -> Option<Self> {
-        if bytes[0] != 2 { return None; }
+        if bytes[0] != Self::SNAPSHOT_VERSION { return None; }
         let word = |at| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
         let generation = word(1);
         let start = Time(word(20));

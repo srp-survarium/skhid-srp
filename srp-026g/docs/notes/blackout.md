@@ -16,8 +16,8 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   writes "Protective device: chargers"): a tick of the rooms' create window, a card of the vote, a
   row of the room and match lists. Listed with the protective device's kinds: plain, chargers,
   blackout, then team deathmatch and Research (the owner, 2026-10-26).
-- **Always offered:** the rooms' pool
-  holds each plain battery map of the match pool once more as Blackout.
+- **Always offered:** each plain battery map has a Blackout map of its own (below), in the
+  match pool and the rooms' pool as every playable map.
 - **Rules:** the plain battery mode (mode 2, "Protective device": batteries from the spawners,
   no chargers), on its maps; the battery rules unchanged. Not the chargers' mode (3).
 - **Part of the standard pool** (the owner, 2026-10-25): in the create window's defaults, in every
@@ -50,7 +50,18 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   frame: ammo, health, score, crosshair, minimap, kill feed, chat (but while typed in and on Tab), Tab list, the match clock (but on Tab), the
   kits and the death screen with its respawn timer.
 - **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
-  rest when play starts.
+  rest when play starts. A localized Blackout explanation appears above the native countdown.
+- **Introduction:** immediately show a localized **System:** chat explanation once in each
+  account's first three Blackout matches, temporarily revealing chat for 20 seconds without
+  opening the input. It explains batteries, the hidden HUD and hitmarkers, and Tab's controls.
+  The allowance persists across logins; retries and reconnects do not spend it again in the
+  same match. See [mode introductions](mode_introductions.md) for copy, protocol and checks.
+- **The use prompt and its progress, always** (the owner, 2026-11-02: "picking up artifact and
+  refilling ammo should have ui in blackout"): the prompt at what the player can use (an artefact
+  container, an ammo stash) and the bar filling while it is used (the search, the refill), as in a
+  plain match. It is the one prompt of every use, so the battery's take and put, a dropped gun's
+  pick-up and a teammate's held artefact show theirs too; the rest stays hidden (the quick-use
+  slots the artefact goes to and the ammo count but on Tab).
 - **Tab held:** the chat's history, the ammo (in the weapon and carried), the quick-use slots with their counts, the
   body's state (the doll: the body parts, bleeding, radiation, toxins; the owner, 2026-10-26), all
   teammates' names over their markers and the time left until the match ends (the hud's own match timer, in its normal place at the top of the
@@ -67,13 +78,17 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   shown) and the time left; hidden again when Tab is let go.
   Keys 1 to 3 pick a kit with or without Tab. A death or a respawn while Tab is held switches
   between the kits and the alive player's view immediately.
-- **Keys while Tab is held** go on as with Tab up (a plain match's Tab list takes every key while it
-  is up; Blackout has no list): the kits' 1 to 3, the replay's keys; acts are filtered, and
-  movement is filtered after the 200 ms grace.
+- **Keys while Tab is held** go on as with Tab up (a plain match's Tab list keeps the game world's
+  own keys, the kits' and the chat's, while it is up, and the player's go on; Blackout has no
+  list): the kits' 1 to 3, the replay's keys; acts are filtered, and movement is filtered after
+  the 200 ms grace.
 - **Tab held stops the player after 200 ms:** a quick tap keeps walking and sprinting;
   holding longer stops them. Actions, including jumping, are blocked immediately (a crouch stays, it does not
-  move); no fire, aim, reload, held breath, grenade, melee, use, drop or quick use. The mouse
-  look, the weapon keys, the fire mode, spot and the suicide key stay.
+  move); no fire, aim, reload, held breath, grenade, melee, drop or quick use. The mouse
+  look, the weapon keys, the fire mode, spot, the suicide key and Use stay.
+- **Use is never stopped by Tab** (the owner, 2026-11-05: "Tab shouldn't affect the collection at
+  all"): an artefact search or an ammo refill held through Tab keeps filling and ends as without
+  Tab; Use pressed with Tab held uses as it would without it.
 - **On Tab's release:** the moves come back at once; an act whose key was held through Tab acts
   again only after it is let go and pressed again (nothing fires on the release).
 - **In step for everyone:** the local input is filtered before it is sent, as if those keys were
@@ -93,20 +108,31 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   Blackout match are twice a plain match's; the counts shown (kills, help) and the player's
   statistics, quests and rating are as played; the team's points and the win are the match's.
 - **The end:** the lobby and its results screen as always.
-- **Replays and late joiners** see the match as it was (no interface but the teammates' markers).
+- **Replays and late joiners** see the match as it was (no interface but the teammates' markers and the use prompt).
 - **Not a simulation change:** what is drawn only; no `simulation_changes.tsv` row.
 
 ## How
 
-- **Lobby (srp):** Blackout's maps are named by ids of the lobby's own (`maps::variant_pairs`:
-  ids `maps_dict` does not use, from 255 down, Blackout's before Scarcity's), mode 6 in the rooms'
-  pool, cards and rows. A room's match on such a card is made on the battery map with
-  `MatchSetup::variant` Blackout (`maps::Variant`, `scarcity.md`).
-- **Rewards (srp):** the match server's result carries `blackout`; the rewards' score and each
-  line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
+- **Its own maps (content):** a mode of its own maps, as every mode is: each playable battery
+  config once more under `gameplay/game_modes/blackout/`, with `mode/srp_variant` "blackout"
+  and the name `st_srp_mode_blackout`, and a `maps_dict` row each (ids 219 to 248; the edit list
+  `scripts/content-edit/blackout-mode-1.json`). The client loads one as the battery map it
+  copies (the same rules and project).
+- **One mode a map (srp):** `maps::GameMode` is read from the config once
+  (`GameMode::of_config`: the rules of `mode.mode` or a variant of srp's, `maps::VARIANTS`; an
+  unknown variant, or one on other rules, stops the server). The lobby, the match server, the
+  results and replays know a Blackout match by its map's id alone (`maps::MatchMap`). In the
+  lobby its maps are mode 6 (`GameMode::lobby_number`) of the rooms' pool, cards and rows, and of
+  `SRP_MATCH_MODES`; with that unset they are in the match pool as every playable map.
+- **A new variant** of a mode's rules: a row of `maps::VARIANTS` (and its `GameMode`), and its
+  configs by an edit list. New rules (a `mode.mode` of their own) still need the exe's support,
+  as Research's did (patch 53).
+- **Rewards (srp):** the match server's result carries `GameMode::Blackout`; the rewards' score
+  and each line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
   computes otherwise (the hud's score is hidden).
-- **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
-  maps only; a late joiner's static info keeps it.
+- **Static info:** tag 2 (one byte, 1) of srp's block after the squads, written for a Blackout
+  map's options and only for them (`static_info::MatchOptions` carries the `MatchMap`; read back,
+  the entry and the map's mode must agree); a late joiner's static info keeps it.
 - **Exe, patch 65:** the Rust module `patches::blackout` (`client-patches/rust/patches/src/
   blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), six
   `lohook`s at sites of its own (`sites_026g.tsv`), no other patch touched:
@@ -134,7 +160,9 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   `ForcedView`'s (`survarium/controls/ForcedView.as`: the parts by the forced state, Tab held and the
   chat typed in, `focus_chat`; the chat kept while typed in or on Tab, its history held on for Tab):
   the countdown
-  (`pregameInfo`) in a layer over it (`KeptLayer`: the layer takes no mouse, its parts do, so the
+  (`pregameInfo`) and the use prompt with its progress (`contextInfo`, `root.set_context`: the game's
+  only prompt, 0x23A560 the hint of what is in reach, 0x23A430 `st_using_progress_message` with the
+  use's progress, both from 0x246F50 each frame) in a layer over it (`KeptLayer`: the layer takes no mouse, its parts do, so the
   kits are clicked there; the first build made the whole layer mouse-blind, the owner's
   2026-10-26 "I cannot switch between profiles"), placed as the root (and still placed by the hud's own
   layout there, `Layout.manage`: centred as in any match, at every resolution and interface
@@ -152,7 +180,8 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   `HUDIconLayer.canShow` with the game's `set_enemy_icon_ids`); forced, `hide_interface` (F11, a
   match's reset) does nothing.
 - **Checks in Ruffle:** `scripts/blackout-kits/check.sh <hud.swf> <player_icons.swf>`: the hud's kit
-  panel and body doll in its `KeptLayer` (a kit key, a real click), the player icons movie told each
+  panel and body doll in its `KeptLayer` (a kit key, a real click), the use prompt kept there with its
+  progress and given back when unforced, the player icons movie told each
   state: the teammate's marker shown, forced or not, the enemy's never, the object's not while
   forced (and F11 doing nothing while forced).
 - **The lobby movie:** `GameMode.BLACKOUT`, its names; the create window ticks the modes the pool
@@ -167,3 +196,6 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   have it ticked, as the defaults do; no schema step is needed.
 - A game without patch 65 would show the interface: refuse it by revision before a
   release (`SRP_MIN_PATCH_REVISION`).
+- Ships with its content patch: a game without `blackout-mode-1.json`'s maps_dict rows cannot
+  load maps 219 to 248 ("Wrong map config"), and a server on game data without them offers no
+  Blackout. Both are the same release.

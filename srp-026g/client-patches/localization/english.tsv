@@ -197,6 +197,8 @@ st_ammo_545x39_7n22_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ammo_545x39_7n22_name	5.45x39 7N22
 st_ammo_545x39_7n6m_description	A Soviet low-impulse interim bullet equipped with steel core. The lightweight bullet has a high initial velocity which ensures a flat trajectory. 
 st_ammo_545x39_7n6m_name	5.45x39 7N6M
+st_ammo_556x45_belt_description	A belt of 100 5.56x45 rounds for the FN Minimi. Takes two ammo bags.
+st_ammo_556x45_belt_name	5.56x45 belt
 st_ammo_556x45_description	NATO intermediate rifle cartridge, developed from the American .223 Remington and standardised by NATO in 1980. A light, fast bullet with a flat trajectory and low recoil.
 st_ammo_556x45_name	5.56x45
 st_ammo_57x28_description	Cartridge developed by FN Herstal around 1990 for the P90 and later the Five-seveN pistol. A light, fast bullet designed to penetrate body armour.
@@ -211,8 +213,12 @@ st_ammo_762x39_description	7.62x39 cartridge designed in 1943, considered one of
 st_ammo_762x39_m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ammo_762x39_m_name	7.62х39 RPD
 st_ammo_762x39_name	7.62x39
+st_ammo_762x51_20_description	7.62x51 rifle cartridges in 20-round packs, for the H&K G3SG/1.
+st_ammo_762x51_20_name	7.62x51, 20-round magazine
 st_ammo_762x51_M59_description	An armor-piercing modification of the military 7.62x51 M61 rifle cartridge. The bullet is equipped with a jacketed steel core.
 st_ammo_762x51_M59_name	7.62x51 M59
+st_ammo_762x51_belt_description	NATO rifle cartridge in a belt of 100 for machine guns.
+st_ammo_762x51_belt_name	7.62x51, belt
 st_ammo_762x51_description	A popular army cartridge with the full metal jacket bullet. Designed for use in sniper and civil weapons. 
 st_ammo_762x51_name	7.62x51
 st_ammo_762x54R_old_description	Found in warehouses, this ammo is one of the oldest rifle bullets of our time. Its age and storage conditions made it less effective.
@@ -303,6 +309,8 @@ st_base_trap_description	A common hunter's trap with a strong spring. When activ
 st_base_trap_name	Trap
 st_benelli_description	Italian self-loading shotgun, 12 gauge. Developed by Benelli in the late 1990s with a gas-operated action and adopted by the US Marine Corps as the M1014. Loaded from a tube magazine under the barrel. Single shots only.
 st_benelli_name	Benelli M4 Super 90
+st_beretta93r_description	Italian machine pistol, ammo: 9x19. Single shots or three-round bursts; folding foregrip.
+st_beretta93r_name	Beretta 93R
 st_best	Best
 st_best_explorer	EXPLORER
 st_best_explorer_artefacts	Artifacts:
@@ -841,6 +849,8 @@ st_clan_window_label	Clan registration
 st_clear	Clear
 st_close	Close
 st_collect_statistics_option	Enable statistics collection
+st_colt_m1911_description	American pistol, ammo: .45 ACP. The US Army's service pistol for seven decades.
+st_colt_m1911_name	Colt M1911
 st_compliment_count_per_day_owerflow	You've used the maximum number of praises for one day.
 st_compliment_count_per_user_owerflow	You can't compliment a user twice a day!
 st_compliment_player	Praise
@@ -865,6 +875,8 @@ st_crouch_action	Crouch (hold)
 st_crouch_toggle_action	Crouch
 st_ct_max_members_count_error	Error adding new players. The clan team already has the maximum number of players.
 st_current_value	\nCurrent value:
+st_cz_75_description	Czech self-loading pistol, ammo: 9x19. One of the most copied pistols of the Cold War.
+st_cz_75_name	CZ 75
 st_daily_bonus_description	Play everyday and get <highlight>x2</highlight> experience and reputation for the <highlight>first three</highlight> victories.
 st_daily_bonus_hint	Show the welcoming screen
 st_daily_bonus_label	Welcome back
@@ -1171,10 +1183,14 @@ st_first_weapon_action	Weapon 1
 st_fix	Fix
 st_fn_fnc_description	Belgian assault rifle, ammo: 5.56x45. Developed by FN Herstal in the 1970s and adopted by the Belgian army; licence versions serve in Sweden and Indonesia. Equipped with a 30-round magazine. Supports single and automatic fire.
 st_fn_fnc_name	FN FNC
+st_fn_minimi_description	Belgian light machine gun, ammo: 5.56x45. FN Herstal's squad automatic weapon of the 1970s, in US service as the M249. Box of 100 rounds. Single and automatic fire.
+st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgian personal defence weapon, ammo: 5.7x28. Developed by FN Herstal around 1990 together with its own cartridge; a bullpup with a 50-round magazine lying along the top of the weapon. Used by special forces and police in many countries. Supports single and automatic fire.
 st_fn_p90_name	FN P90
 st_fort_17_description	A Ukrainian self-loading pistol, ammo: 9х18. Manufacturing started in 2004. It was used by internal army and some special forces units. Ammo supply: 12 rounds. 
 st_fort_17_name	Fort 17
+st_fort_401_description	Ukrainian light machine gun, ammo: 7.62x51. A Negev made under licence in Vinnytsia, fed from a 100-round box.
+st_fort_401_name	Fort-401
 st_fov_option	FOV
 st_freedom_026_boots_desc	Heavy armoured boots in Freedom colours, worn with heavy armour.
 st_freedom_026_boots_name	Freedom boots
@@ -1197,6 +1213,8 @@ st_fullscreen_option	Full screen mode
 st_general_volume_option	Master
 st_generic_money_name	Rubles
 st_geometry_quality_option	Geometry quality
+st_glock_17_description	Austrian polymer-framed pistol, ammo: 9x19. This one is converted to fully automatic fire.
+st_glock_17_name	Glock 17
 st_go_to_knowledge_base_message	The knowledge base will open in new browser window.
 st_go_to_online_store_message	Online store will open in a browser window. Continue?
 st_go_to_video_tutorial_message	Video guide will be opened in the browser window. Continue?
@@ -1248,6 +1266,7 @@ st_inv_additional_ammo_bags	Ammo bags
 st_inv_ano_armor	Isolation
 st_inv_armor	Armor
 st_inv_arp	Armor penetration
+st_inv_artefact_recharge	Artifact recharge time
 st_inv_artefact_slots	Artifact container
 st_inv_buckshot	Buckshot
 st_inv_clip_size	Bullets in pack
@@ -1324,6 +1343,8 @@ st_izh27_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_izh27_name	MP-27M Lancaster
 st_izh27_premium_2_description	Russian over-and-under shotgun, 12 gauge. Made by the Izhevsk Mechanical Plant under the Baikal name, one of the most widespread hunting and sporting double-barrel guns. Two barrels, one shot each. Fires one barrel at a time or both at once. Premium version in a special camouflage finish.
 st_izh27_premium_2_name	MP-27M "Thunderbolt"
+st_jackhammer_description	American automatic shotgun, ammo: 12/70. A bullpup with a 10-round rotary cylinder; fully automatic only.
+st_jackhammer_name	Pancor Jackhammer
 st_jump_action	Jump
 st_kedr_description	Soviet submachine gun, ammo: 9x18 PM. Designed by Yevgeny Dragunov in the early 1970s; series production started only in the 1990s, for the Russian Interior Ministry and the police. Equipped with a 30-round magazine. Supports single and automatic fire.
 st_kedr_name	PP-91 "Kedr"
@@ -1349,6 +1370,8 @@ st_knw_synergy_desc	The power of artifacts grows in proportion to their amount.
 st_knw_synergy_name	Synergy
 st_kriss_vector_description	American submachine gun, ammo: .45 ACP. Introduced by KRISS in the 2000s; its recoil system moves the bolt downwards, which keeps the muzzle from climbing. This one carries a Walther Competition II collimator sight. Equipped with a 30-round magazine. Supports single, burst and automatic fire.
 st_kriss_vector_name	KRISS Vector
+st_l85a2_description	British bullpup assault rifle, ammo: 5.56x45. The standard rifle of the British Army.
+st_l85a2_name	L85A2
 st_label_invites	Invites
 st_label_leave_queue_btn	Leave the queue
 st_label_quenue	Awaiting players:
@@ -1460,11 +1483,11 @@ st_microphone_sensitivity_option	Microphone sensitivity
 st_military_medkit_description	Fully heals arms and legs. Restores 60% of body and head and 50% of pain.
 st_military_medkit_name	Military Medkit
 st_minimap	Minimap
-st_minimap_bottom	Lower left corner
+st_minimap_bottom	Minimap lower left
 st_minimap_off	Hidden minimap
 st_minimap_position	Minimap position
 st_minimap_rotable_option	Fix minimap
-st_minimap_top	Upper left corner
+st_minimap_top	Minimap upper left
 st_missile_weapon_action	Grenade
 st_missions	Missions
 st_mm_button_back	Back
@@ -1511,6 +1534,10 @@ st_movement_speed_when_aiming_description	The speed of movement while aiming:
 st_movement_speed_when_aiming_name	Battle stance
 st_mp153_description	Russian smooth-bore semi-automatic shotgun, ammo: 12x70. Owing to low price and good reliability, the weapon got widely accepted as a hunting and sports rifle. Equipped with underbarrel tube magazine of 4 rounds.
 st_mp153_name	MP-153 Baikal
+st_mp443_description	Russian army pistol, ammo: 9x19. Adopted in 2003 to replace the Makarov.
+st_mp443_name	MP-443 Grach
+st_mp5a1_description	German submachine gun, ammo: 9x19. The classic of police and special forces, with a roller-delayed bolt.
+st_mp5a1_name	H&K MP5
 st_msbs_carbine_description	Polish modular carbine, ammo: 5.56x45. Developed in the 2010s by the Military University of Technology in Warsaw and the Fabryka Broni in Radom; adopted by the Polish army as the Grot. This one carries an EOTech 552 holographic sight. Equipped with a 30-round magazine. Supports single, burst and automatic fire.
 st_msbs_carbine_name	MSBS Radon
 st_multiplicative_breath_vibration_modifier	Sight sway
@@ -1596,6 +1623,8 @@ st_options_video	Graphics
 st_options_voice	Voice:
 st_options_volume	Volume:
 st_other	Other
+st_ots14_description	Russian bullpup assault rifle, ammo: 9x39. Built by TsKIB SOO in the 1990s on the AKS-74U for special units. Magazine of 20 rounds. Single and automatic fire.
+st_ots14_name	OTs-14 "Groza"
 st_oust_commander	Change commander
 st_overweight_penalty_description	The influence of weight on movement speed:
 st_overweight_penalty_name	Packrat
@@ -1749,7 +1778,7 @@ st_ranking	Ranking
 st_ranking_diff	Difference
 st_rattle_activation_hint	Rattle is activated! Your footsteps cannot be heard by your enemy.
 st_rattle_pickup_hint	Rattle artifact. Hushes the sound of steps by 50%.
-st_rdgm_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rdgm_descr	Hand smoke grenade. Lays a thick screen that hides movement.
 st_rdgm_name	Smoke grenade RDG-M
 st_reach_level	reached <green>Level</green>
 st_ready	Ready
@@ -1757,6 +1786,8 @@ st_refill_ammo_btn	Apply
 st_refill_ammo_label	Ammo
 st_regen_booster_description	Old army rations. Successfully used by the armies of the CIS countries in the pre-crisis period. Increases metabolism while still being quite tasty.
 st_regen_booster_name	Rations
+st_regen_delay_name	Regeneration delay
+st_regen_limit_name	Regeneration limit
 st_registration_str	Create account
 st_regular_fix	Repair
 st_regular_money	Silver
@@ -1937,11 +1968,13 @@ st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rpd_name	RPD
 st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rpk_name	RPK-74M
-st_saiga_12_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the K version has a short barrel and a folding stock. Equipped with a 5-round box magazine. Single shots only.
+st_saiga_12_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the K version has a short barrel and a folding stock. Equipped with a box magazine. Single shots only.
 st_saiga_12_name	Saiga-12K
-st_saiga_12_premium_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the S version has a folding stock. Equipped with a 5-round box magazine. Single shots only.
+st_saiga_12_premium_description	Russian self-loading shotgun, 12 gauge. Built by Izhmash on the Kalashnikov system in the 1990s for hunting and security services; the S version has a folding stock. Equipped with a box magazine. Single shots only.
 st_saiga_12_premium_name	Saiga-12S
 st_save_password_str	Save password
+st_scar_h_description	Belgian battle rifle, ammo: 7.62x51. The heavy SCAR of FN Herstal, adopted by US special forces in the 2000s. Magazine of 20 rounds. Single and automatic fire.
+st_scar_h_name	FN SCAR-H
 st_scav_back_1_desc	A hand-made container for artifact storage, designed as backpack. A useful item when going out to hunt artifacts.
 st_scav_back_1_name	Backpack with container
 st_scav_boots_1_desc	Crude boots found at trash dump or removed from a dead body. Protect the legs from injuries and damage, frequently save the day at challenging trips.
@@ -2150,7 +2183,28 @@ st_sr3m_bundle_descr	<white>Contains the following items:\n- Improved CF-3M "Vik
 st_sr3m_bundle_name	SR-3M "Vikhr" bundle
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_ammo069_23mm_r_desc	A 23 mm round stuffed with smallshot, for the KS-23M. Provides high damage against non-armoured targets.
+st_srp_ammo069_23mm_r_name	23x75R, smallshot
+st_srp_ammo_buckshot	Buckshot
+st_srp_ammo_scar_ap_desc	Armour-piercing 7.62x51 cartridges for the FN SCAR-H. Each ammunition bag holds 20 rounds.
+st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20-round pack
+st_srp_ammo_slug	Slug
+st_srp_ammo_stats	Ammo stats
 st_srp_attachments	Attachments
+st_srp_ban_reason_account_trading	Selling or trying to sell an account.
+st_srp_ban_reason_administration	Decision of the administration.
+st_srp_ban_reason_advertising	Advertising.
+st_srp_ban_reason_bad_language	Obscene language.
+st_srp_ban_reason_cheating	Cheats or other prohibited software.
+st_srp_ban_reason_false_information	Spreading false information.
+st_srp_ban_reason_farm_pressure	Harassing or team-killing players who don't farm.
+st_srp_ban_reason_flood	Spam or flooding.
+st_srp_ban_reason_insults	Insults or provocation.
+st_srp_ban_reason_nickname	An unacceptable name.
+st_srp_ban_reason_politics	Political discussion.
+st_srp_ban_reason_racism	Racism or Nazism.
+st_srp_ban_reason_teamkilling	Killing teammates.
+st_srp_ban_reason_threats	Real-life threats.
 st_srp_crosshair_dynamic	Dynamic crosshair
 st_srp_crosshair_hidden	Hidden crosshair
 st_srp_crosshair_static	Static crosshair
@@ -2341,6 +2395,8 @@ st_srp_equipment046_edge_back_6_desc	Description not available yet.
 st_srp_equipment046_edge_back_6_name	Stalker's backpack
 st_srp_equipment046_edge_back_7_desc	Description not available yet.
 st_srp_equipment046_edge_back_7_name	Token
+st_srp_equipment046_edge_boots_6_desc	Description not available yet.
+st_srp_equipment046_edge_boots_6_name	Stalker's laced boots
 st_srp_equipment046_edge_boots_7_desc	Description not available yet.
 st_srp_equipment046_edge_boots_7_name	Sorcerer Boots
 st_srp_equipment046_edge_gloves_5_desc	Description not available yet.
@@ -2355,6 +2411,8 @@ st_srp_equipment046_edge_legs_7_desc	Description not available yet.
 st_srp_equipment046_edge_legs_7_name	Veles Pants
 st_srp_equipment046_edge_mask_6_desc	Description not available yet.
 st_srp_equipment046_edge_mask_6_name	NVD
+st_srp_equipment046_edge_mask_7_desc	Description not available yet.
+st_srp_equipment046_edge_mask_7_name	Veles Mask
 st_srp_equipment046_edge_torso_7_desc	Description not available yet.
 st_srp_equipment046_edge_torso_7_name	Veles Vest
 st_srp_equipment046_renesanse_boots_3_desc	Description not available yet.
@@ -2365,6 +2423,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Description not available yet.
 st_srp_equipment046_renesanse_gloves_3_name	OZK-UV Gloves
 st_srp_equipment046_renesanse_gloves_5_desc	Description not available yet.
 st_srp_equipment046_renesanse_gloves_5_name	Scout's gloves
+st_srp_equipment046_renesanse_gloves_6_desc	Description not available yet.
+st_srp_equipment046_renesanse_gloves_6_name	"Shturm" gloves
 st_srp_equipment046_renesanse_gloves_7_desc	Description not available yet.
 st_srp_equipment046_renesanse_gloves_7_name	Sniper gloves
 st_srp_equipment046_renesanse_helmet_7_desc	Description not available yet.
@@ -2381,12 +2441,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Description not available yet.
 st_srp_equipment046_renesanse_torso_7_name	Sniper Vest
 st_srp_equipment046_scavenger_boots_5_desc	Description not available yet.
 st_srp_equipment046_scavenger_boots_5_name	Saboteur boots
+st_srp_equipment046_scavenger_boots_6_desc	Description not available yet.
+st_srp_equipment046_scavenger_boots_6_name	Reinforced padded boots
 st_srp_equipment046_scavenger_boots_7_desc	Description not available yet.
 st_srp_equipment046_scavenger_boots_7_name	Pathfinder boots
+st_srp_equipment069_league_shadow_mask_desc	Description not available yet.
+st_srp_equipment069_league_shadow_mask_name	Delta mask
 st_srp_equipment069_leagues_back_2_desc	Description not available yet.
 st_srp_equipment069_leagues_back_2_name	Medic's bag
 st_srp_equipment069_leagues_back_5_desc	Description not available yet.
 st_srp_equipment069_leagues_back_5_name	Soldier's backpack
+st_srp_equipment069_snow_20_boots_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_boots_7_name	Snow-20 Boots
+st_srp_equipment069_snow_20_gloves_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_gloves_7_name	Snow-20 Gloves
+st_srp_equipment069_snow_20_helmet_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_helmet_7_name	Snow-20 Helmet
+st_srp_equipment069_snow_20_legs_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_legs_7_name	Snow-20 Pants
+st_srp_equipment069_snow_20_torso_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_torso_7_name	Snow-20 Vest
 st_srp_exchange_balance	Balance
 st_srp_exchange_button	Exchange
 st_srp_exchange_gold	Gold
@@ -2399,6 +2473,8 @@ st_srp_hide_hit_markers_option	Hide hit markers
 st_srp_hide_quests_option	Hide quests
 st_srp_hide_scores_option	Hide player scores
 st_srp_hud_add_friend	Add to friends
+st_srp_hud_blackout_intro	Blackout: bring batteries to your team’s device. HUD and hitmarkers are hidden for immersion. Hold Tab for ammo, health, chat and kit selection when dead.
+st_srp_hud_blackout_start	Blackout\nBring batteries to your team’s device.\nHUD and hit markers are hidden. Hold Tab to check ammo and health.
 st_srp_hud_friend_not_sent	Friend request not sent
 st_srp_hud_friend_sent	Friend request sent
 st_srp_hud_mute_hide	Hide chat
@@ -2407,7 +2483,26 @@ st_srp_hud_mute_not_sent	Not sent
 st_srp_hud_muted	Chat muted
 st_srp_hud_unmute	Unmute chat
 st_srp_hud_unmuted	Chat unmuted
+st_srp_inv_ammo_range	Range
+st_srp_inv_bullet_speed	Bullet speed
+st_srp_inv_defuse_time	Defuse time
+st_srp_inv_fuse_time	Fuse time
+st_srp_inv_material_pierce	Pierces
+st_srp_inv_pellets	Pellets
+st_srp_inv_pocket_units	Pocket slots
+st_srp_inv_stamina_damage	Stamina damage
+st_srp_inv_throw_speed	Throw speed
 st_srp_inventory_search	Search
+st_srp_inventory_search_examples	+pocket, +slot, +ammo, +10
+st_srp_inventory_search_tip_bonus	items with both the ammo and pocket bonus
+st_srp_inventory_search_tip_bonus_example	+ammo +pocket
+st_srp_inventory_search_tip_faction	items sold by the Army or the Black Market
+st_srp_inventory_search_tip_faction_example	+army +black
+st_srp_inventory_search_tip_kind	helmets or boots
+st_srp_inventory_search_tip_kind_example	+helmet +boots
+st_srp_inventory_search_tip_level	items of level 10 or 11
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_item_props_mps	m/s
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
 st_srp_loadout_block_ammo	Too little ammo for a weapon
@@ -2430,12 +2525,15 @@ st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Room
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Account created on first sign-in
+st_srp_login_ban_ends	Ends at %1$s (in %2$s).
+st_srp_login_ban_forever	The ban is permanent.
 st_srp_map_chemical_plant	Chemical Plant
 st_srp_map_chemical_plant_v011	Chemical Plant (v0.11)
 st_srp_map_cologne	Cologne
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamayev Kurgan
 st_srp_map_mamayev_kurgan_v021	Mamayev Kurgan (v0.21)
+st_srp_map_names_option	Names on map
 st_srp_map_rudnya	Rudnya
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	School
@@ -2466,14 +2564,57 @@ st_srp_matches_starting	starting
 st_srp_matches_title	Matches
 st_srp_matches_versus	v
 st_srp_matches_waiting	waiting
+st_srp_medical_301_description	Adds to the painkiller's pain protection and duration:
+st_srp_medical_301_name	Potent Painkiller
+st_srp_medical_302_description	Reduction in activation time of first-aid kits and bandages:
+st_srp_medical_302_name	Fast Bandaging
+st_srp_medical_303_description	While a painkiller is active, reduction in sprint stamina use:
+st_srp_medical_303_name	Numb Legs
+st_srp_medical_311_description	Health regeneration starts this many seconds sooner:
+st_srp_medical_311_name	Metabolism
+st_srp_medical_312_description	Bonus to health restored by first-aid kits and bandages:
+st_srp_medical_312_name	Medical Training
+st_srp_medical_313_description	Bonus to health restored by first-aid kits and bandages while crouched:
+st_srp_medical_313_name	Take Cover
+st_srp_medical_321_description	Bonus to movement speed while health is below 30:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Each pocket containing medicine holds one extra item.
+st_srp_medical_322_name	Additional Medicine
+st_srp_medical_323_description	While a painkiller is active, reduction in the stopping power of enemy hits:
+st_srp_medical_323_name	Unflinching
+st_srp_medical_331_description	Replaces the secondary weapon slot with an additional supply pocket.
+st_srp_medical_331_name	Supply Pocket
+st_srp_medical_332_description	Bonus to maximum health of arms and legs:
+st_srp_medical_332_name	Strong Bones
+st_srp_medical_333_description	While a painkiller is active, environment sounds are quieter and enemy sounds (except shots) louder by:
+st_srp_medical_333_name	Concentration
+st_srp_medical_342_description	Reduction in damage received from allies:
+st_srp_medical_342_name	Brothers in Arms
+st_srp_medical_seconds	 s
+st_srp_medicine_ambient_sounds	Ambient sounds
+st_srp_medicine_crouched_healing	Healing crouched
+st_srp_medicine_enemy_sounds	Enemy sounds
+st_srp_medicine_hit_slow	Slow from bullets
+st_srp_medicine_sprint_stamina	Sprint stamina
+st_srp_melee_knockback	Melee knockback
 st_srp_mode_blackout	Protective device: blackout
 st_srp_mode_chargers	Protective device: chargers
 st_srp_mode_protective_device	Protective device
 st_srp_mode_research	Research
 st_srp_mode_scarcity	Protective device: scarcity
 st_srp_mode_team_deathmatch	Team Deathmatch
+st_srp_mouse_lock_option	Lock vertical sensitivity
+st_srp_mouse_vertical_option	Vertical sensitivity
 st_srp_optics	Optics
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Brick, steel
+st_srp_pierce_car	Car
+st_srp_pierce_concrete	Concrete
+st_srp_pierce_glass	Glass
+st_srp_pierce_plywood	Plywood
+st_srp_pierce_stone	Stone
+st_srp_pierce_tinplate	Tinplate
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	In squad
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
@@ -2496,6 +2637,9 @@ st_srp_pvb_searching	Leave the search first
 st_srp_pvb_team_size	%1$s vs %2$s
 st_srp_pvb_title	Player vs Bots
 st_srp_pvb_unknown_choice	This map or team size is not available now
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Renderer
 st_srp_replay_asking	Asking the match server for the replay of this match…
 st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
 st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
@@ -2526,6 +2670,7 @@ st_srp_rooms_all	All
 st_srp_rooms_all_rooms	All rooms
 st_srp_rooms_any	Any
 st_srp_rooms_back	Back
+st_srp_rooms_bots	With bots
 st_srp_rooms_code_10	The owner removed you from that room.
 st_srp_rooms_code_11	Leave your clan team first.
 st_srp_rooms_code_12	Your equipment is above the max level.
@@ -2627,11 +2772,42 @@ st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s
 st_srp_static_minimap_option	Static minimap
+st_srp_unit_days	%1$s d
+st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_minutes	%1$s min
+st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Prefer the dedicated GPU
+st_srp_vulkan_dedicated_gpu_hint	Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery
+st_srp_vulkan_frame_limit	Frame rate limit
+st_srp_vulkan_frame_limit_hint	Caps how many frames per second the game draws.
+st_srp_vulkan_low_latency	Reduce input lag
+st_srp_vulkan_low_latency_hint	Makes the game react sooner to your mouse.\n+ Aim reacts faster\n- May feel less smooth on some PCs
+st_srp_vulkan_off	Off
+st_srp_vulkan_options	Vulkan options
+st_srp_vulkan_overlay	Performance overlay
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+graph
+st_srp_vulkan_overlay_full	Full
+st_srp_vulkan_overlay_hint	Shows the game's speed on screen.
+st_srp_vulkan_tear_free	Tear-free with vsync off
+st_srp_vulkan_tear_free_hint	Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off
+st_srp_weapon069_akmsu_desc	Shortened AKMS with a folding stock, ammo: 7.62x39. Supports single shot and automatic fire modes.
+st_srp_weapon069_akmsu_name	AKMSU
+st_srp_weapon069_famas_desc	French bullpup assault rifle, ammo: 5.56x45. Supports single shot, three-round burst and automatic fire modes.
+st_srp_weapon069_famas_name	FAMAS
+st_srp_weapon069_g3sg1_desc	German marksman rifle, ammo: 7.62x51. Supports single shot and three-round burst fire modes.
+st_srp_weapon069_g3sg1_name	H&K G3SG/1
+st_srp_weapon069_ks_23m_desc	Russian pump-action carbine, ammo: 23x75R. Equipped with a 4-round tube magazine.
+st_srp_weapon069_ks_23m_name	KS-23M
+st_srp_weapon069_mauser_m712_desc	German machine pistol, ammo: 7.62x25. Supports single shot and automatic fire modes.
+st_srp_weapon069_mauser_m712_name	Mauser M.712
+st_srp_weapon069_ppsh_drum_desc	Shpagin submachine gun with a 71-round drum magazine, ammo: 7.62x25. Supports single shot and automatic fire modes.
+st_srp_weapon069_ppsh_drum_name	PPSH-41 "Drum"
 st_srp_weapon_aim_zoom	Base aim zoom
 st_srp_weapon_chamber	Chambering time
 st_srp_weapon_draw_time	Draw time
@@ -2646,6 +2822,8 @@ st_srp_weapon_minimum_damage	Minimum damage
 st_srp_weapon_minimum_damage_from	Minimum damage from
 st_srp_weapon_recoil_heading	Recoil, spread and sway
 st_srp_weapon_reload	Reload
+st_srp_weapon_reload_empty	Reload (empty)
+st_srp_weapon_reload_tactical	Tactical reload
 st_srp_weapon_shift_hint	Shift: details · Alt: in a match
 st_srp_weapon_spread_growth	Spread growth rate
 st_srp_weapon_spread_max	Maximum extra spread
@@ -2663,12 +2841,12 @@ st_srp_weather_day	day
 st_srp_weather_evening	evening
 st_srp_weather_night	night
 st_srp_weather_rain	rain
-st_srp_weight_base	Base limit: %1$s
+st_srp_weight_base	Base limit
 st_srp_weight_no_sprint_heavyweight	Cannot sprint: Heavyweight skill.
 st_srp_weight_no_sprint_limit	Cannot sprint: carry limit reached.
 st_srp_weight_penalty	%1$s% weight penalty
-st_srp_weight_speed	Movement speed: %1$s
-st_srp_weight_sprint_stamina	Sprint stamina use: %1$s
+st_srp_weight_speed	Movement speed
+st_srp_weight_sprint_stamina	Sprint stamina use
 st_srp_weight_title	Weight effects
 st_stamina_boost_name	Second wind
 st_stamina_boost_time_description	Energy recovered by killing the enemy:
@@ -2750,6 +2928,8 @@ st_sv_98_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sv_98_name	SV-98
 st_svd_description	Dragunov self-loading sniper rifle, ammo: 7.62х54. For years it was the main sniper rifle of the USSR army. Ammo clip supply: 5 rounds of shots. 
 st_svd_name	SVD
+st_svu_a_description	Russian bullpup marksman rifle, ammo: 7.62x54R. A shortened SVD for close quarters, self-loading.
+st_svu_a_name	SVU
 st_swear_clan_string	The line contains profanity
 st_swearing_claim	Obscene language
 st_team_already_has_commander	The clan team already has a leader.
@@ -2825,6 +3005,8 @@ st_vepr_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_vepr_name	Vepr
 st_vepr_premium_description	Russian carbine of the Vepr family, ammo: 5.45x39. Made by the Molot plant in Vyatskiye Polyany on the reinforced receiver of the RPK-74 machine gun. Equipped with a 30-round magazine. Supports single and automatic fire. Premium version in a special camouflage finish.
 st_vepr_premium_name	Vepr Wanderer
+st_vhs_2_description	Croatian bullpup assault rifle, ammo: 5.56x45. Made by HS Produkt, in Croatian service since the 2010s. Magazine of 30 rounds. Single and automatic fire.
+st_vhs_2_name	VHS-2
 st_victory	Victory
 st_victory_screen_no_dropped_item	You haven't found anything on the battlefield.
 st_vityaz_bundle_descr	<white>Contains the following items:\n- Improved PP-19-01 "Vityaz".\n- 2000 rounds of 9x19 Parabellum ammo.</white>

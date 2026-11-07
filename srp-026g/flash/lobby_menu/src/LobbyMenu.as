@@ -17,6 +17,7 @@ package
    import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
    import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.text.Font;
    import flash.text.StyleSheet;
    import flash.text.TextField;
@@ -59,6 +60,7 @@ package
    import survarium.chat.LobbyChat;
    import survarium.clan.ClanWindow;
    import survarium.clan.TournamentWindow;
+   import survarium.constants.BuyOrigin;
    import survarium.constants.ChatChannel;
    import survarium.constants.ClanState;
    import survarium.constants.ClanTeamRole;
@@ -141,6 +143,7 @@ package
    import survarium.messages.MessageNoClose;
    import survarium.messages.MessagePostPremium;
    import survarium.messages.MessageQuestInfo;
+   import survarium.messages.MessageRerollItem;
    import survarium.paperdoll.PaperDollBase;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.WeightEffects;
@@ -1024,6 +1027,7 @@ package
          victory_screen = new SrvVictoryScreenReskin();
          this.victory_screen.registerHintRenderer(new InventoryItemHint());
          this.victory_screen.addEventListener("try_buy_maps",this.onBuyMaps);
+         this.victory_screen.addEventListener("try_buy_map_to_use",this.onBuyMapToUse);
          this.victory_screen.addEventListener(Events.SHOW_PLAYER_INFO,this.onVSPlayerInfo);
          friendsMenu = new SrvFriendsMenuReskin();
          clanWindow = new SrvClanWindow();
@@ -1079,6 +1083,12 @@ package
          this.player_profile.profileItems.addEventListener(Events.OPEN_MODIFIERS,this.openModifierWindow);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showPdItemHint);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
+         // The kit's ammo list: a round's card, the inventory's.
+         this.player_profile.addEventListener(AmmoShareElement.SHOW_CARD,this.showAmmoItemHint);
+         this.player_profile.addEventListener(AmmoShareElement.HIDE_CARD,this.hideItemHint);
+         // The modification window's item (a message): its card, the inventory's.
+         this._top_container.addEventListener(MessageRerollItem.SHOW_CARD,this.showRerollItemHint);
+         this._top_container.addEventListener(MessageRerollItem.HIDE_CARD,this.hideItemHint);
          this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.updateHintItem);
          shop_list = new SrvGangShop();
          this.shop_list.name = "inventory_list";
@@ -1232,6 +1242,7 @@ package
          stage.addEventListener(MouseEvent.MOUSE_WHEEL,this.onMouseFnx);
          stage.addEventListener(MouseEvent.MOUSE_UP,this.onMouseStageClick);
          stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onMouseStageClick);
+         stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onPressHidePopups,true);
          this.bottom_panel.btnShowLogList.enabled = false;
          this.inventory_list.item_control = this.item_control;
          AmmoShareLite.setItemCard(this.item_control);
@@ -1355,14 +1366,53 @@ package
          // the card is this slot's now: no list row's card or comparison left over
          this.hideItemHint(null);
          _hintSlot = e.itemRenderer as IPaperDollSlot;
+         this.showKitCard(e.itemData,this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3,this.player_profile.y + e.itemRenderer.y - 5);
+      }
+
+      // A round of the kit's ammo list: its card beside the list's row, as a kit slot's.
+      private function showAmmoItemHint(e:Event) : void
+      {
+         var element:AmmoShareElement = e.target as AmmoShareElement;
+         if(element == null || element.cardItem == null)
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var at:Point = this._cards.globalToLocal(element.localToGlobal(new Point(element.width + 3,-5)));
+         this.showKitCard(element.cardItem,at.x,at.y);
+      }
+
+      // The modification window's item: its card beside the window at its top, left of it as the
+      // craft window's, right of it when the left has no room.
+      private function showRerollItemHint(e:Event) : void
+      {
+         var reroll:MessageRerollItem = e.target as MessageRerollItem;
+         if(reroll == null || reroll.cardItem == null)
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var bounds:Rectangle = reroll.background.getBounds(this._cards);
+         this.showKitCard(reroll.cardItem,bounds.left,bounds.top);
+         this.itemHintRenderer.x = bounds.left - this.itemHintRenderer.width - 3;
+         if(this.itemHintRenderer.x < 0)
+         {
+            this.itemHintRenderer.x = bounds.right + 3;
+         }
+      }
+
+      // The item card (the inventory's) of a kit's item at (x, y) of the cards' layer, uncompared,
+      // kept on the stage and faded in.
+      private function showKitCard(item:Object, x:Number, y:Number) : void
+      {
          this.itemHintRenderer.displayOrange(true);
          this.itemHintRenderer.displaylabel(false);
          this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
          this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
-         this.itemHintRenderer.x = this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3;
-         this.itemHintRenderer.y = this.player_profile.y + e.itemRenderer.y - 5;
+         this.itemHintRenderer.x = x;
+         this.itemHintRenderer.y = y;
          this._cards.addChild(this.itemHintRenderer);
-         this.itemHintRenderer.data = e.itemData;
+         this.itemHintRenderer.data = item;
          this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
          var maxPox:int = this.itemHintRenderer.y + this.itemHintRenderer.height;
          if(maxPox > MainScene.stageHeight - 2)
@@ -1623,7 +1673,7 @@ package
          ExternalInterface.call("show_match_result",e.match_id);
          var reportData:Object = e;
          this.show_victory_screen();
-         this.victory_screen.setData(reportData,true);
+         this.victory_screen.setData(reportData);
          if((reportData) && (reportData.statistics_money))
          {
             trace("showFullReaport::",reportData.statistics_money.autobuy_money,reportData.statistics_money.autorepair_money);
@@ -1765,11 +1815,23 @@ package
       
       private function onBuyMaps(e:Event) : void
       {
+         this.buyMap(null);
+      }
+
+      // The results screen's card slot clicked with no card: the buy
+      // dialog, and on its yes the screen uses the card once it comes.
+      private function onBuyMapToUse(e:Event) : void
+      {
+         this.buyMap(this.victory_screen.cardBought);
+      }
+
+      private function buyMap(onComplete:Function) : void
+      {
          var pp:IPlayerProfile = this.player_profile;
          var dict:uint = PlayerInfo.getVoucherDictId(VoucherType.DROP_CARD);
          var id:uint = PlayerInfo.getVoucherId(VoucherType.DROP_CARD);
-         trace("onBuyMaps::",pp.profileId,id,dict);
-         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),Faction.ANY);
+         trace("buyMap::",pp.profileId,id,dict,onComplete != null);
+         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),BuyOrigin.SHOP,Faction.ANY,onComplete);
       }
       
       public function show_choose_faction_message() : void
@@ -3000,6 +3062,23 @@ package
          }
       }
       
+      // The notifications that come up by themselves (notificationListTemp) go at a press
+      // anywhere but on them, once a match's results are closed: while the results are up they
+      // wait under them, the results first (the owner's of 2026-11-07).
+      private function onPressHidePopups(e:MouseEvent) : void
+      {
+         if(this.victory_screen != null && this.victory_screen.stage != null)
+         {
+            return;
+         }
+         var target:DisplayObject = e.target as DisplayObject;
+         if(target != null && this.notificationListTemp.contains(target))
+         {
+            return;
+         }
+         this.notificationListTemp.hideAll();
+      }
+      
       protected function getItemTopParent(value:DisplayObject) : DisplayObject
       {
          var target:DisplayObject = value;
@@ -3341,9 +3420,9 @@ package
          this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
       }
       
-      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null, ownItemMenu:Boolean = false) : Boolean
+      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, origin:BuyOrigin, seller:int = -1, onComplete:Function = null) : Boolean
       {
-         trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " seller:" + seller);
+         trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " origin:" + origin + " seller:" + seller);
          var _obj:Object = new Object();
          var _descr:Object = this._itemDescriptor.getItemDescription(dict_uid);
          if(sourceSlot == ItemPlace.BUNDLE)
@@ -3381,7 +3460,8 @@ package
          {
             _obj.clip_size = _descr.clip_size;
          }
-         _obj.quick_slot_item_size = (_descr.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         _obj.quick_slot_item_size = QuickSlotSize.of(_descr);
+         _obj.pocket_units = PlayerInfo.pocketUnits(_descr.category,_obj.quick_slot_item_size);
          _obj.currentCount = this.inventory_list.getItemCount(dict_uid);
          var category:int = ItemFactory.getCategory(_descr.category);
          if(sourceSlot == ItemPlace.BUNDLE)
@@ -3443,12 +3523,11 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction). An item owned already,
-         // not a stack, is asked first (the shop, the card's Buy, a drop, the craft and attachment
-         // windows), but for Buy from the right-click menu of an item the player owns (ownItemMenu:
-         // ItemCard.buyFromOwnMenu), a wish for another. A bundle's id is no item's
-         // (docs/notes/items.md §6).
-         if(!ownItemMenu && !_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
+         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction), told where it was
+         // started. Only a buy started in the shop asks first about an item owned already, not a
+         // stack; one from the player's own items or the craft and attachment windows is a wish for
+         // another. A bundle's id is no item's (docs/notes/items.md §6).
+         if(origin == BuyOrigin.SHOP && !_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;
@@ -3492,7 +3571,7 @@ package
                   // move_items), the pocket as many of them as it takes; the rest stays in the
                   // inventory (docs/notes/items.md §8).
                   new_data.count = uint(relocate_object.condition_or_stack) + count;
-                  new_data.value = int(Math.min(new_data.count,value.quick_slot_item_size == QuickSlotSize.WHOLE ? 1 : PlayerInfo.pocketSize));
+                  new_data.value = int(Math.min(new_data.count,PlayerInfo.pocketUnits(new_data.category,value.quick_slot_item_size)));
                }
                else
                {
@@ -3654,7 +3733,7 @@ package
       
       public function set_quick_slot_size(value:uint) : void
       {
-         PlayerInfo.pocketSize = value;
+         PlayerInfo.pocketSize = Math.min(PlayerInfo.MAX_POCKET_UNITS,value);
          this.player_profile.updatePocketSize(value);
       }
       
@@ -3662,7 +3741,8 @@ package
       {
          trace("fill_auto_buy_items::",value);
          this.player_profile.fillAutoBuyItems(value);
-         this.player_profile.checkbox_autobuy.selected = value.length != 0;
+         // The account setting comes from set_autobuy. An empty refill
+         // list must not untick it after the player enables autobuy again.
       }
       
       public function set_account_name(value:String) : void
@@ -4817,7 +4897,9 @@ package
       public function fill_skills(value:Array) : void
       {
          trace("root.fill_skills");
+         PlayerInfo.medicalSkills(value);
          this.charWindow.fillSkills(value);
+         this.player_profile.updatePocketSize(PlayerInfo.pocketSize);
       }
       
       public function set_achievements(value:Array) : void
@@ -6329,7 +6411,9 @@ package
       
       // The rooms window while open: over the side panels (the lobby adds
       // them again over it, and their hidden areas then take its clicks);
-      // the chat stays over it (the owner's of 2026-10-19).
+      // the chat stays over it (the owner's of 2026-10-19), and so do the
+      // notifications that come up by themselves (notificationListTemp: a
+      // match's report after the results, the owner's of 2026-11-07).
       public function layerRoomsWindow(window:DisplayObject) : void
       {
          survarium.rooms.RoomLayers.belowResults(window,this.victory_screen,this._back_back);
@@ -6344,9 +6428,14 @@ package
                setChildIndex(panel,getChildIndex(window));
             }
          }
-         if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))
+         var above:Array = [this.chat,this.notificationListTemp];
+         for(i = 0; i < above.length; i++)
          {
-            setChildIndex(this.chat,getChildIndex(window));
+            var over:DisplayObject = above[i] as DisplayObject;
+            if(over != null && over.parent == this && getChildIndex(over) < getChildIndex(window))
+            {
+               setChildIndex(over,getChildIndex(window));
+            }
          }
       }
       

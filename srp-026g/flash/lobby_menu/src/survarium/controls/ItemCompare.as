@@ -10,6 +10,7 @@ package survarium.controls
    import survarium.data.PropertiesDescriptor;
    import survarium.item.ItemFactory;
    import survarium.item.ModificationRolls;
+   import survarium.item.AmmoDetails;
    import survarium.item.WeaponDetails;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.MatchEffects;
@@ -239,16 +240,18 @@ package survarium.controls
          var prim_cat:int = ItemFactory.getCategory(this._primary.category);
          var medical:Boolean = this._primary.category == ItemCategory.MEDKITS;
          var weaponDetails:Boolean = WeaponDetails.read(this._primary) != null;
+         // A round's stats are all detail rows (AmmoDetails): no bars.
+         var ammoDetails:Boolean = AmmoDetails.read(this._primary) != null;
          var index:int = 0;
          var _diff:MovieClip = null;
          var propDescription:Object = null;
          var indicators:uint = this._indicator.length;
          var modifier_value:Number = 0;
-         // Held Alt over a weapon: the stats as a match has them, with the kit and the skills.
+         // Held Alt over a weapon, a medicine, a grenade or a trap: the stats as a match has them, with the kit and the skills.
          var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(this._primary);
-         // The weapon's own base value of the property last read (initPropValues).
+         // The item's own base value of the property last read (initPropValues).
          var base_value:Number = 0;
-         function initPropValues(baseProperty:Object, modifierList:Object):void
+         function initPropValues(baseProperty:Object, owner:Object):void
          {
             modifier_value = 0;
             var total:Number = 0;
@@ -257,6 +260,7 @@ package survarium.controls
             var modifierProp:Object;
             var propValue:Number;
             var modifierDescription:Object;
+            var modifierList:Object = owner.modifiers;
             if(modifierList)
             {
                for each(modifierEntry in modifierList)
@@ -278,8 +282,12 @@ package survarium.controls
                }
             }
             // The exe sends a line's prop_value as the config's text ("175", ui_desc/props_list):
-            // a number before any sum, where "175" + 0 would be "1750".
+            // a number before any sum, where "175" + 0 would be "1750". A weapon's damage and armour
+            // piercing with its best round (WeaponDetails.bestRoundFactor), whole as the card shows
+            // them (Util.getNumberString cuts a fraction's float tail: 34 x 1.2 read 40.79).
             var base:Number = ModificationRolls.value(baseProperty);
+            var roundFactor:Number = WeaponDetails.bestRoundFactor(owner,propDescription.prop_id);
+            if(roundFactor != 1) base = Math.round(base * roundFactor);
             base_value = base;
             if(modifierType == ModifierType.ADD)
             {
@@ -294,7 +302,7 @@ package survarium.controls
             {
                modifier_value = base * modifier_value;
             }
-            _value = effects == null ? total : effects.stat(propDescription.prop_id,total);
+            _value = effects == null ? total : effects.stat(owner,propDescription.prop_id,total);
          }
          function initIndicatorValues(diffClip:MovieClip, propertyInfo:Object, compareValue:Number, currentValue:Number):void
          {
@@ -322,7 +330,7 @@ package survarium.controls
          }
          for each(var s:Object in this._primary.properties)
          {
-            if(weaponDetails && s.prop_id == 24) continue;
+            if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
             var _valueObject:Object = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)
@@ -335,7 +343,7 @@ package survarium.controls
                trace("primaryProps::",propDescription.prop_name,"value::",_valueObject.prop_value);
                if(propDescription.comparable)
                {
-                  initPropValues(_valueObject,this._primary.modifiers);
+                  initPropValues(_valueObject,this._primary);
                   initIndicatorValues(this._indicator[index],propDescription,_value,_value);
                   // While Alt is held, a value its modifications, the kit or the skills change
                   // reads "base -> in a match", the current green when better, red when worse.
@@ -348,6 +356,20 @@ package survarium.controls
                      break;
                   }
                }
+            }
+         }
+         // Held Alt over a medicine: below its own lines, what the medical skills do while it is
+         // active or as it heals (MatchEffects.medicineSkillLines), "100 -> in a match" in %.
+         if(effects != null && medical)
+         {
+            for each(var line:Object in effects.medicineSkillLines(this._primary))
+            {
+               if(index == indicators) break;
+               modifier_value = 0;
+               initIndicatorValues(this._indicator[index],{prop_id:-1,prop_name:line.name,postfix:"%",min_value:0,max_value:200,
+                  direction:line.higherIsBetter ? PropertyDirection.HIGHER_IS_BETTER : PropertyDirection.LOWER_IS_BETTER},line.after,line.after);
+               _diff.indicator.setChange(MatchEffects.change(line.before,line.after,2) + "%",MatchEffects.verdict(line.before,line.after,line.higherIsBetter));
+               index++;
             }
          }
          while(index < indicators)
@@ -376,7 +398,7 @@ package survarium.controls
          }
          for each(s in this._secondary.properties)
          {
-            if(weaponDetails && s.prop_id == 24) continue;
+            if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
             _valueObject = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)
@@ -385,7 +407,7 @@ package survarium.controls
             }
             else if(propDescription.comparable)
             {
-               initPropValues(_valueObject,this._secondary.modifiers);
+               initPropValues(_valueObject,this._secondary);
                index = 0;
                while(index < indicators)
                {

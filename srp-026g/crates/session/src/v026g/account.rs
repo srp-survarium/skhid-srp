@@ -16,15 +16,12 @@ use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
 use survarium::v026g::lobby::{FULL_CONDITION, KIT_PREMIUM, KIT_READY, limits};
 use survarium::v026g::quests::FACTIONS;
+use survarium::v026g::skills::{self, SkillsTree};
 
 /// The kits an account has: the client's array holds three.
 pub const KITS: usize = limits::KITS;
 /// Slots of a kit.
 pub const KIT_SLOTS: usize = limits::KIT_SLOTS;
-/// A new 0.26g account's silver and gold (the owner's choice, 2026-10-12:
-/// 2,000 silver and no gold; no source of the time gives the numbers).
-pub const STARTING_MONEY: u32 = 2_000;
-pub const STARTING_PREMIUM_MONEY: u32 = 0;
 /// The highest level (PROVEN: the game's knowledge base, "the highest
 /// possible level of a character is the hundredth", and the wiki's reward
 /// table of February 2015, which ends at 100).
@@ -191,6 +188,8 @@ pub struct Account {
     /// The settings of the last room it made by hand, its create window's
     /// start ([`super::room_settings`]); none before its first.
     pub room_settings: Option<super::room_settings::RoomSettings>,
+    /// Account-wide, persistent allowances for the first three introductions to each mode.
+    pub mode_introductions: super::mode_intro::Allowances,
     /// The matches whose results screen it used a drop card on, sorted,
     /// of those whose reports are kept: one card a match
     /// ([`super::rewards::Results::use_drop_card`]). Kept with the account,
@@ -229,6 +228,29 @@ pub fn doubled_pockets(
     doubled
 }
 
+/// [`loadouts::narrowed`] put into a kit's or a preset's `slots`: `held`
+/// is each slot's dict id and units (`None` for an empty one, or one whose
+/// item is not known, which stays as it is), `modifications` its worn
+/// items', `units` a slot's units.
+fn narrow_into<S>(
+    slots: &mut [Option<S>; KIT_SLOTS],
+    held: &[Option<(u16, u32)>; KIT_SLOTS],
+    modifications: &[(u32, bool)],
+    (before, after): (&[f32; skills::MODIFIERS], &[f32; skills::MODIFIERS]),
+    units: fn(&mut S) -> &mut u32,
+) {
+    let kept = loadouts::narrowed(held, modifications, before, after);
+    for ((slot, held), kept) in slots.iter_mut().zip(held).zip(kept) {
+        if held.is_none() {
+            continue;
+        }
+        match (slot.as_mut(), kept) {
+            (Some(slot), Some((_, kept))) => *units(slot) = kept,
+            _ => *slot = None,
+        }
+    }
+}
+
 /// The level reached with `total` experience, where it starts and where
 /// the next one does. 0.21d's table (the wiki's: 500 for the first level,
 /// 250 more for each next), counted from level 0 as the wiki did: a 0.26g
@@ -245,17 +267,26 @@ pub fn level_at(total: u32) -> (u8, u32, u32) {
     (level, start, next)
 }
 
+/// The experience where `level` starts ([`level_at`]'s table).
+pub fn level_start(level: u8) -> u32 {
+    (0..level.min(MAX_LEVEL)).fold(0, |start, below| {
+        start.saturating_add(v021d::results::experience_for_level(below + 2))
+    })
+}
+
 /// A name cut to what the client's 64-byte buffers take.
 pub fn cap_name(name: &str) -> String {
     survarium::v026g::lobby::cut(name, limits::NAME).to_owned()
 }
 
 impl Account {
-    /// A new account: three kits, the first wearing the game's starter
-    /// loadout ([`loadouts::starter`]: the TT-33 and a clip for it), and
-    /// the rest of what every new player owned in the inventory
-    /// ([`loadouts::starter_stash`]: the Mosin carbine, a clip for it and
-    /// the PPSh-41).
+    /// The stock account, the tests' (and [`super::GameAccounts::get_or_create`]'s):
+    /// three kits, the first wearing the game's free pistol
+    /// ([`loadouts::starter`]: the TT-33 and a clip for it), the Mosin
+    /// carbine, a clip for it and the PPSh-41 owned
+    /// ([`loadouts::starter_stash`]), no money. A player's account is made
+    /// from nothing and what the game data's table gives
+    /// ([`super::GameAccounts::sign_up`], `tutorial::NewAccount`).
     pub fn new(name: &str) -> Self {
         let mut account = Self::with_loadout(name, loadouts::starter());
         let dictionary = Dictionary::shared();
@@ -272,8 +303,8 @@ impl Account {
         let mut account = Self {
             name: cap_name(name),
             clan_tag: String::new(),
-            generic_money: STARTING_MONEY,
-            premium_money: STARTING_PREMIUM_MONEY,
+            generic_money: 0,
+            premium_money: 0,
             premium_until: 0,
             exp_total: 0,
             skills: Vec::new(),
@@ -301,6 +332,7 @@ impl Account {
             },
             map_plays: Vec::new(),
             room_settings: None,
+            mode_introductions: Default::default(),
             drop_cards: Vec::new(),
             presets: [None; super::presets::PRESETS],
             active_preset: super::presets::FIRST_PRESET,
@@ -314,7 +346,10 @@ impl Account {
                 continue;
             }
             let (value, count) = if entry.is_stack {
-                (worn.count, worn.count)
+                (
+                    worn.count,
+                    loadouts::equipped_units(worn.slot, worn.dict_id, worn.count),
+                )
             } else {
                 (FULL_CONDITION, 1)
             };
@@ -622,7 +657,7 @@ impl Account {
                 .iter()
                 .flatten()
                 .any(|slot| stripped.contains(&slot.item_id));
-            for slot in &mut kit.slots {
+            for (index, slot) in kit.slots.iter_mut().enumerate() {
                 let Some(held) = slot.as_mut() else {
                     continue;
                 };
@@ -631,13 +666,20 @@ impl Account {
                     changed = true;
                     continue;
                 };
-                if dictionary.is_stack(owned.dict_id) && held.count > owned.condition_or_stack {
-                    if owned.condition_or_stack == 0 {
-                        *slot = None;
-                    } else {
-                        held.count = owned.condition_or_stack;
+                if dictionary.is_stack(owned.dict_id) {
+                    let count = loadouts::equipped_units(
+                        index as u8,
+                        owned.dict_id,
+                        held.count.min(owned.condition_or_stack),
+                    );
+                    if count != held.count {
+                        if count == 0 {
+                            *slot = None;
+                        } else {
+                            held.count = count;
+                        }
+                        changed = true;
                     }
-                    changed = true;
                 }
             }
             if changed {
@@ -648,11 +690,74 @@ impl Account {
         any
     }
 
-    /// Every kit gives other modifiers (the skills changed): new revisions.
-    pub fn bump_kits(&mut self) {
-        for kit in &mut self.kits {
+    /// The saved skills after a change of `tree` ([`SkillsTree::settle`]):
+    /// ranks past a skill's levels, a skill the tree dropped, the second of
+    /// an exclusive pair and rows no longer reached are taken back, so their
+    /// points are the account's to spend again. `true` if anything changed.
+    pub fn settle_skills(&mut self, tree: &SkillsTree) -> bool {
+        let settled = tree.settle(self.level(), &self.skills);
+        if settled == self.skills {
+            return false;
+        }
+        self.change_skills(settled, tree);
+        true
+    }
+
+    /// The account's skills become `skills` (of `tree`). The kits carry the
+    /// skills' modifiers, so each gets a new revision, and what the slots
+    /// opened by a skill held before no longer allow is taken off every kit
+    /// and preset ([`loadouts::narrowed`]): the pocket Deep
+    /// Pockets or Supply Pocket opened, Additional Medicine's extra
+    /// medicine, a second weapon beside Deep Pockets or Supply Pocket, a
+    /// second double-handed one without Terminator. A slot names units of
+    /// the inventory's stack, so nothing leaves the inventory.
+    pub fn change_skills(&mut self, skills: Vec<(u16, u8)>, tree: &SkillsTree) {
+        let modifiers = (&tree.modifiers(&self.skills), &tree.modifiers(&skills));
+        self.skills = skills;
+        for index in 0..self.kits.len() {
+            let held = self.kits[index].slots.map(|slot| {
+                let held = slot?;
+                Some((self.item(held.item_id)?.dict_id, held.count))
+            });
+            let worn = self.worn_modifications(
+                self.kits[index]
+                    .slots
+                    .iter()
+                    .flatten()
+                    .map(|held| held.item_id),
+            );
+            let kit = &mut self.kits[index];
+            narrow_into(&mut kit.slots, &held, &worn, modifiers, |held| {
+                &mut held.count
+            });
             kit.revision = kit.revision.wrapping_add(1);
         }
+        let mut presets = self.presets;
+        for kit in presets
+            .iter_mut()
+            .flatten()
+            .flat_map(|preset| &mut preset.kits)
+        {
+            let held = kit.map(|slot| slot.map(|saved| (saved.dict_id, saved.count)));
+            let worn = self.worn_modifications(kit.iter().flatten().map(|saved| saved.item_id));
+            narrow_into(kit, &held, &worn, modifiers, |saved| &mut saved.count);
+        }
+        self.presets = presets;
+    }
+
+    /// The modifications of the owned items of `item_ids`: their defaults
+    /// and their own, defects too (an item's pockets count them all).
+    fn worn_modifications(&self, item_ids: impl IntoIterator<Item = u32>) -> Vec<(u32, bool)> {
+        item_ids
+            .into_iter()
+            .filter_map(|item_id| self.item(item_id))
+            .flat_map(|item| {
+                let own = item.modifications.iter().copied();
+                loadouts::default_modifications(item.dict_id)
+                    .into_iter()
+                    .chain(own)
+            })
+            .collect()
     }
 
     /// Make a loaded account consistent, so that what the lobby sends from
@@ -660,9 +765,10 @@ impl Account {
     /// most three kits with distinct non-zero ids, an active kit that
     /// exists, no duplicate item id, item lists within the client's
     /// limits, no slot holding an item that is gone or does not fit, none
-    /// worn in a slot another worn item covers ([`Self::uncover_kits`]), and
-    /// no item type in two pockets ([`Self::merge_pockets`]). `true` if
-    /// anything changed.
+    /// worn in a slot another worn item covers ([`Self::uncover_kits`]),
+    /// no item type in two pockets ([`Self::merge_pockets`]), and skills
+    /// the tree still allows ([`Self::settle_skills`], before the kits, which
+    /// the skills shape). `true` if anything changed.
     ///
     /// It never deletes an item for a definition the game's data lacks:
     /// that is data made without a patch, and the load refuses it before
@@ -670,6 +776,7 @@ impl Account {
     pub fn repair(&mut self) -> bool {
         let dictionary = Dictionary::shared();
         let before = self.clone();
+        self.settle_skills(SkillsTree::shared());
 
         let mut seen = Vec::new();
         self.inventory.retain(|item| {
@@ -796,11 +903,8 @@ mod tests {
         assert!(dictionary.compatible(ppsh, ammo));
         assert!(account.kits[1].slots.iter().all(Option::is_none));
         assert_eq!(account.next_item_id, 6);
-        assert_eq!(
-            (account.generic_money, account.premium_money),
-            (STARTING_MONEY, STARTING_PREMIUM_MONEY)
-        );
-        assert_eq!((account.generic_money, account.premium_money), (2_000, 0));
+        // No money: what a player starts with is the grant's (`tutorial`).
+        assert_eq!((account.generic_money, account.premium_money), (0, 0));
         assert_eq!((account.rating, account.rating_before), (100, 100));
         assert_eq!(account.reputations, [(1, 0), (2, 0), (3, 0), (4, 0)]);
         // No faction chosen: the client asks.
@@ -834,6 +938,11 @@ mod tests {
         // next, a hundred times.
         assert_eq!(level_at(1_287_499).0, 99);
         assert_eq!(level_at(1_287_500).0, 100);
+        for level in [0, 1, 2, 15, 16, 99, 100] {
+            assert_eq!(level_at(level_start(level)).1, level_start(level));
+            assert_eq!(level_at(level_start(level)).0, level);
+        }
+        assert_eq!((level_start(15), level_start(16)), (33_750, 38_000));
         let mut account = Account::new("Alice");
         assert_eq!(account.add_experience(1300), [1, 2]);
         assert_eq!(account.level_progress(), (2, 1250, 2250));
@@ -1034,7 +1143,7 @@ mod tests {
         assert_eq!(account.inventory, before.inventory);
         assert_eq!(units(&account), units(&before));
         assert_eq!(account.generic_money, before.generic_money);
-        // Valid now: nothing more to merge, and the repair keeps it.
+        // All six pockets are supported after duplicate types are merged.
         assert_eq!(account.merge_pockets(), 0);
         assert!(!account.repair());
     }
@@ -1048,7 +1157,7 @@ mod tests {
         let few = account.add_item(grenade, 1);
         let many = account.add_item(grenade, 4);
         in_pocket(&mut account, 2, 16, few, 1);
-        in_pocket(&mut account, 2, 13, many, 3);
+        in_pocket(&mut account, 2, 13, many, 2);
         let inventory = account.inventory.clone();
         assert_eq!(account.doubled_pockets(&account.kits[2]), [16]);
         assert!(account.repair());
@@ -1056,7 +1165,7 @@ mod tests {
             account.kits[2].slots[13],
             Some(KitSlot {
                 item_id: many,
-                count: 3
+                count: 2
             })
         );
         assert_eq!(account.kits[2].slots[16], None);
@@ -1064,7 +1173,7 @@ mod tests {
 
         // The other way round: the kept stack owns less than the most held.
         in_pocket(&mut account, 2, 13, few, 1);
-        in_pocket(&mut account, 2, 16, many, 3);
+        in_pocket(&mut account, 2, 16, many, 2);
         assert!(account.repair());
         assert_eq!(
             account.kits[2].slots[13],
@@ -1078,6 +1187,26 @@ mod tests {
         units(&account);
     }
 
+    /// An RGD-5 takes two units of a pocket, so a pocket holds two of them
+    /// at most (the largest pocket, five units): a kit saved with more
+    /// keeps two, the rest stays in the storage.
+    #[test]
+    fn a_pocket_holds_two_rgd_5s_at_most() {
+        let grenade = Dictionary::shared().item_named("rgd-5").unwrap().dict_id;
+        let smoke = Dictionary::shared().item_named("rdg-m").unwrap().dict_id;
+        let mut account = Account::new("Alice");
+        let grenades = account.add_item(grenade, 30);
+        let smokes = account.add_item(smoke, 30);
+        in_pocket(&mut account, 0, 13, grenades, 5);
+        in_pocket(&mut account, 0, 14, smokes, 5);
+        let inventory = account.inventory.clone();
+        assert!(account.repair());
+        let count = |slot: usize| account.kits[0].slots[slot].unwrap().count;
+        assert_eq!((count(13), count(14)), (2, 5));
+        assert_eq!(account.inventory, inventory);
+        assert!(!account.repair());
+    }
+
     /// Ammo is no pocket item: one ammo in several ammo slots is the ammo
     /// window's own way.
     #[test]
@@ -1089,5 +1218,164 @@ mod tests {
         assert!(account.doubled_pockets(&account.kits[0]).is_empty());
         assert_eq!(account.merge_pockets(), 0);
         assert!(!account.repair());
+    }
+
+    /// The medical branch of the changed tree (medical-skills.md).
+    fn medical_tree() -> SkillsTree {
+        use survarium::v026g::skills::Skill;
+        type Row = (u16, u8, u32, u8, u8, &'static [u16]);
+        #[rustfmt::skip]
+        let rows: [Row; 13] = [
+            (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 10, 2, 3, &[]),
+            (311, 5, 3, 1, 2, &[]), (312, 3, 3, 4, 2, &[]), (313, 2, 3, 3, 2, &[]),
+            (321, 3, 10, 4, 3, &[]), (322, 1, 20, 3, 5, &[331]), (323, 4, 15, 3, 4, &[333]),
+            (331, 1, 20, 2, 5, &[322]), (332, 5, 15, 2, 4, &[]), (333, 4, 15, 4, 4, &[323]),
+            (342, 2, 10, 1, 3, &[]),
+        ];
+        let skills = rows
+            .iter()
+            .map(
+                |&(id, levels_amount, branch_points, column, row, antiskills)| Skill {
+                    id,
+                    levels_amount,
+                    branch_points,
+                    antiskills: antiskills.to_vec(),
+                    column,
+                    row,
+                    levels: vec![Vec::new(); levels_amount.into()],
+                    unknown_modifiers: Vec::new(),
+                },
+            )
+            .collect();
+        SkillsTree { skills }
+    }
+
+    /// Saved medical skills of the old tree (five-rank Fast Bandaging and
+    /// Brothers in Arms, Medic, both tier-5 unlocks): the points taken back
+    /// are the account's to spend again, and its kits are sent again.
+    #[test]
+    fn a_changed_tree_refunds_saved_skills() {
+        let tree = medical_tree();
+        let mut account = Account::new("Alice");
+        account.add_experience(50_000_000);
+        let level = u32::from(account.level());
+        assert!(level >= 40, "{level}");
+        let spent = |account: &Account| {
+            account
+                .skills
+                .iter()
+                .map(|&(_, n)| u32::from(n))
+                .sum::<u32>()
+        };
+        account.skills = vec![
+            (301, 5),
+            (302, 5),
+            (311, 5),
+            (312, 5),
+            (321, 5),
+            (322, 1),
+            (331, 1),
+            (332, 5),
+            (341, 1),
+            (342, 5),
+        ];
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert_eq!(spent(&account), 38);
+        assert!(account.settle_skills(&tree));
+        assert_eq!(
+            account.skills,
+            [
+                (301, 3),
+                (302, 2),
+                (311, 5),
+                (312, 3),
+                (321, 3),
+                (331, 1),
+                (332, 5),
+                (342, 2)
+            ]
+        );
+        assert_eq!(spent(&account), 24);
+        assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
+        assert!(
+            account
+                .kits
+                .iter()
+                .zip(&revisions)
+                .all(|(kit, &before)| kit.revision != before)
+        );
+        // Settled once, the set stays as it is.
+        assert!(!account.settle_skills(&tree));
+    }
+
+    /// Unflinching and Concentration exclude each other: a set holding both
+    /// (none was ever saved; the pair is new) gives Unflinching's four
+    /// points back, keeps Concentration, and sends the kits again.
+    #[test]
+    fn unflinching_beside_concentration_is_refunded() {
+        let tree = medical_tree();
+        let mut account = Account::new("Alice");
+        account.add_experience(50_000_000);
+        account.skills = vec![
+            (301, 3),
+            (302, 2),
+            (311, 5),
+            (312, 3),
+            (313, 2),
+            (303, 2),
+            (321, 3),
+            (342, 2),
+            (323, 4),
+            (333, 4),
+        ];
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(account.settle_skills(&tree));
+        assert!(!account.skills.iter().any(|&(id, _)| id == 323));
+        assert!(account.skills.contains(&(333, 4)));
+        assert_eq!(account.skills.iter().map(|&(_, n)| u32::from(n)).sum::<u32>(), 26);
+        assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
+        assert!(
+            account
+                .kits
+                .iter()
+                .zip(&revisions)
+                .all(|(kit, &before)| kit.revision != before)
+        );
+        assert!(!account.settle_skills(&tree));
+    }
+
+    /// A full build saved before Numb Legs moved from row 1 to row 3 (and
+    /// Unflinching went from two ranks to four): the ids are the same and
+    /// rows 1 and 2 hold Numb Legs' ten points, so nothing is taken back and
+    /// the kits are not sent again.
+    #[test]
+    fn numb_legs_saved_in_row_one_stays_after_the_move() {
+        let tree = medical_tree();
+        let mut account = Account::new("Alice");
+        account.add_experience(50_000_000);
+        account.skills = vec![
+            (303, 2),
+            (301, 3),
+            (302, 2),
+            (311, 5),
+            (313, 2),
+            (312, 3),
+            (321, 3),
+            (342, 2),
+            (323, 2),
+            (332, 5),
+            (331, 1),
+        ];
+        let saved = account.skills.clone();
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(!account.settle_skills(&tree));
+        assert_eq!(account.skills, saved);
+        assert!(
+            account
+                .kits
+                .iter()
+                .zip(&revisions)
+                .all(|(kit, &before)| kit.revision == before)
+        );
     }
 }

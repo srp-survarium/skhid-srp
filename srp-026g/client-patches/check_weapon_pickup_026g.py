@@ -85,6 +85,7 @@ class Run(hide.Run):
         emu.mem_map(HEAP, 0x400000, UC_PROT_ALL)
         emu.mem_map(STUBS, 0x1000, UC_PROT_ALL)
         emu.mem_map(CLIENT, 0x200000, UC_PROT_ALL)
+        self.word(CLIENT, 0x9FFB14)                # the live client: options/player lookups are virtual
         emu.mem_map(OPTIONS_HOLDER, 0x60000, UC_PROT_ALL)
         emu.mem_map(MATCH, 0x20000, UC_PROT_ALL)
         emu.mem_map(BIG_STACK, 0x100000, UC_PROT_ALL)
@@ -400,6 +401,9 @@ def main():
     bullet_record(patched, original)
     holster(patched)
     keep_and_reuse(patched)
+    one_gun_a_copy(patched)
+    a_match_has_its_own_copies(patched)
+    its_own_drop(patched)
     second_pickup(patched)
     two_slots(patched)
     ordinary_kit(patched)
@@ -422,6 +426,32 @@ def main():
     one_tick(patched)
     one_current_copy(patched)
     drawn_alone(patched)
+    a_destroyed_places_record_does_not_reach_the_next_match(patched)
+
+
+def a_destroyed_places_record_does_not_reach_the_next_match(patched):
+    """Rev42 live matches: a drop's tag and recipe survived player destruction.
+    A reused core address made a new match inherit them, unlike a fresh client.
+    Respawn must keep the drop; destruction must end the place's ownership.
+    """
+    r = Pick(patched)
+    r.setup()
+    neighbour = record(("open", 0, (3, 0, 0), True))
+    r.load(r.picker, neighbour)
+    r.remove(PLAYER, DIED + 8_000)
+    assert r.save(PLAYER) == record(("open", 1, A_GUN, True)), "respawn keeps the drop"
+    r.destroy()
+    assert r.save(r.picker) == neighbour, "another place's record belongs to that place"
+    # The next match allocates its core and this player at the same addresses.
+    # No record is loaded for a place before its entry into the world.
+    r.player()
+    assert r.save(PLAYER) == record(), "a new match inherited the destroyed place's drop"
+    # A late joiner can own a loaded drop without ever seeing its death.
+    # Its record must end too, independently of this client's cooked copies.
+    r.destroy_player(r.picker)
+    assert r.save(r.picker) == record(), "the loaded drop outlived its player"
+    print("ok a respawn keeps its drop; player destruction ends its record, including its drop and body: "
+          "the next match can reuse the world and player addresses without inheriting it")
 
 
 # ---- stage 2a: the record, the pickup, the restore, the crate --------------------------------------
@@ -1047,17 +1077,62 @@ GET_ACTIVE_PLAYER = 0x27A9C0
 
 
 def world_with(states):
-    """A world as the 0xE8 handler loads it: its time, the mask, each place's state (not animated),
-    six empty sections."""
-    out = bytearray(struct.pack("<II", DIED + 2_000, sum(1 << place for place in states)))
+    """Current TDM snapshot around the pickup records this harness exercises."""
+    from check_world_check_026g import sections, player
+    now = DIED + 2_000
+    out = bytearray(struct.pack("<II", now, sum(1 << place for place in states)))
     for place in sorted(states):
-        out += struct.pack("<H", len(states[place])) + states[place] + b"\0"
-    return bytes(out + bytes(2 * 6))
+        value = states[place]
+        # Most pickup cases supply just the kit bytes and their record.
+        if len(value) == 31:
+            value += player()[31:]
+        out += struct.pack("<H", len(value)) + value + b"\0"
+    for section in sections(now):
+        out += struct.pack('<H',len(section)) + section
+    return bytes(out)
+
+
+def world_sections(world):
+    from check_world_roundtrip_026g import walk, animation_len
+    body = world[4:]
+    states = walk(body)
+    at = 4
+    for _,start,end in states:
+        at = end+1
+        if body[end]: at += animation_len(body[at:])
+    sections = []
+    for _ in range(6):
+        size, = struct.unpack_from('<H',body,at)
+        sections.append(body[at+2:at+2+size]); at+=2+size
+    return sections
+
+
+def install_validation_context(r, world):
+    # Historical round-trip fixtures and synthetic pickup worlds are TDM.
+    # Other corpora supply (mode,batteries,respawn) from host drift_dump.
+    context = getattr(r, 'validation_context', None)
+    if context is None:
+        rules = world_sections(world)[4]
+        waits, = struct.unpack_from('<I',rules,13)
+        point_bytes = len(rules)-(13+8+4*waits.bit_count()+12+5*20+2)
+        assert point_bytes >= 0 and point_bytes % 2 == 0, 'supply the snapshot match context'
+        context = (4,0,point_bytes//2)
+    mode,batteries,points = context
+    table,rule,respawn = r.blk(8),r.blk(0x200),r.blk(0x200)
+    r.word(CLIENT+0x1F1C40,MATCH)
+    r.word(CORE+0x18824,table);r.word(CORE+0x18828,table+8)
+    r.word(table,rule);r.word(table+4,respawn)
+    r.word(rule,{2:0xA06AB4,3:0xA06C04,4:0xA06CBC,5:0xA06A54}[mode])
+    r.word(rule+0x10c,5 if mode==5 else 0)
+    slots=r.blk(max(4,batteries*4))
+    r.word(rule+0x110,slots);r.word(rule+0x114,slots+batteries*4)
+    r.word(respawn,0xA06D1C);r.word(respawn+0x194,points)
 
 
 def load_world(r, world):
     """process_dynamic_match_info at world_load.unpacked (patch 87's site, patch 85's preparation composed):
     the world in the frame's buffer {allocator, begin, capacity, size} at EBP-24h, EDI the client."""
+    install_validation_context(r, world)
     frame, at = r.blk(0x100) + 0x80, r.blk(len(world))
     r.emu.mem_write(at, world)
     for off, value in ((-0x24, 0), (-0x20, at), (-0x1C, 0x8000), (-0x18, len(world))):
@@ -1559,7 +1634,7 @@ def no_branch_into(original):
     stock = test.Image(original)
     for va, size in NEW_SPANS.items():
         spelled = [va + i for i in range(1, size) if original.find(struct.pack("<I", va + i)) != -1]
-        hits = [x for x in test.aimed_inside(original, va, size, 0x82)
+        hits = [x for x in test.aimed_into(original, va, va + size)
                 if x not in spelled and test.starts_instruction(stock, x)]
         assert not hits, (hex(va), [hex(h) for h in hits])
 
@@ -1989,6 +2064,126 @@ def keep_and_reuse(patched):
     r.destroy_player(r.picker)
     assert r.read(kept_cooked + 0xD0) == 1
     print("ok no free of a copy ever held until its holder's destruction (15 min on, still kept)")
+
+
+def one_gun_a_copy(patched):
+    """Every client installs the recipe's gun (the live 0x5bfde2e7, rev47: place 19's picked gun had a chamber on
+    most clients and none on the rest and on every late joiner, the same record; whoever read the other's state
+    misread place 19's inventory and asserted "affects_count buffer overflow"). A rollback into the holster
+    takes back the copy its pickup took, not an older idle copy of the recipe (at 855000 ms an older kept copy
+    was taken and the clients split at the switch); a copy whose restore was refused (the picker's own gun
+    still parked in it) is never handed out again, and its gun left in the picker's slot is never parked in
+    another copy."""
+    # An older copy of the recipe, idle (let go), and the drop's current copy the pickup takes.
+    r = Pick(patched)
+    r.setup()
+    r.pick()
+    old = r.new_gun
+    cooked, new, _ = r.new_life(PLACE, SPAWNED + 20_000, DIED + 2_000)   # the old copy in hands: a new cook
+    r.remove(r.picker)                                                  # the old copy let go, idle
+    r.word(r.picker + 0x128, r.own_gun)
+    r.word(r.picker + 0x12C, r.own_gun)
+    r.pick(now=DIED + 2_500, switch=False)
+    assert r.read(r.registry + 4 * PENDING_ID) == new, "the pickup takes the drop's copy"
+    r.tick(ready=False)
+    window = r.save(r.picker)
+    r.tick(now=DIED + 3_400)
+    assert r.read(r.picker + 0x128) == new and r.slot(r.inventory, 10) == new + 0x10
+    r.load(r.picker, window)                                            # a rollback into the holster
+    assert r.read(r.registry + 4 * PENDING_ID) == new, ("the rollback re-registers the pickup's own copy, not the "
+                                                        "older idle one", hex(r.read(r.registry + 4 * PENDING_ID)))
+    assert r.read(r.registry + 4 * PENDING_ID) != old
+    print("ok a rollback into the holster re-registers the copy its pickup took, not an older idle copy of the recipe")
+
+    # A refused restore: the own gun stays parked in the copy, the copy's gun in the picker's slot.
+    r = Pick(patched)
+    r.setup()
+    r.pick()
+    kept, own = r.new_gun, r.own_gun
+    r.word(r.inventory + 0x10C + 4 * 8, r.stack(1))                      # its borrowed stack changed: refused
+    r.remove(r.picker)
+    assert any("FAILED to restore" in l for l in r.log), r.log
+    assert r.slot(r.cooked, 10) == own + 0x10 and r.slot(r.inventory, 10) == kept + 0x10
+    r.remove(PLAYER, DIED + 8_000)
+    r.word(PLAYER + 0x328, SPAWNED + 20_000)
+    r.word(PLAYER + 0x324, DIED + 30_000)
+    r.queries, r.log = [], []
+    r.death()
+    assert len(r.queries) == 1, "the copy holding the own gun is not re-used for the donor's next drop: a new cook"
+    assert not any("re-using a kept copy" in l for l in r.log), r.log
+    (q,) = r.queries
+    fresh, fresh_gun, _ = r.cooked_gun()
+    r.complete(q, fresh)
+    r.word(r.picker + 0x128, kept)
+    r.word(r.picker + 0x12C, kept)
+    r.word(r.registry + 4 * PICK_ID, 0)                                 # past the registry: the slot's own check
+    r.pick(now=DIED + 31_000)
+    assert r.slot(r.inventory, 10) == kept + 0x10 and r.slot(fresh, 10) == fresh_gun + 0x10, \
+        "a copy's gun in the picker's slot is never parked in another copy"
+    assert any("not the player's own" in l for l in r.log), r.log
+    print("ok a copy whose restore was refused is never handed out again (the donor's next drop is a new cook), and "
+          "its gun left in the picker's slot is never parked in another copy (the pickup refused)")
+
+
+def a_match_has_its_own_copies(patched):
+    """A copy belongs to the match it was cooked in: its recipe (a place, a kit, a slot) names another player in
+    the next match. Rev47's 0x5bfde2e7: a copy of an earlier match's place 5 kit 2 primary, kept past that match's
+    end, was re-used for this match's place 5 drops on the clients that had played both (a VSSK-like gun with a
+    chamber instead of this place 5's ASh-12): every reader that cooked the recipe misread the picker's state. The
+    next match's first frame frees the copies of the match before; its death of the same place, kit and slot cooks
+    anew."""
+    r = Pick(patched)
+    r.setup()
+    r.pick()
+    kept, kept_cooked = r.new_gun, r.cooked
+    r.remove(r.picker)                                    # let go: idle, kept (ever in hands), re-usable
+    r.restored()
+    references = r.read(kept_cooked + 0xD0)
+    r.word(OPTIONS_HOLDER + 0xC + 0x577B0, SEED ^ 0x5BFDE2E7)   # the next match (the same addresses)
+    r.remove(PLAYER, DIED + 8_000)
+    r.word(PLAYER + 0x328, SPAWNED + 20_000)
+    r.word(PLAYER + 0x324, DIED + 30_000)
+    r.queries, r.log = [], []
+    r.death()
+    assert any("a new match" in l for l in r.log), r.log
+    assert r.read(kept_cooked + 0xD0) == references - 1, "the match before's copy freed"
+    assert len(r.queries) == 1 and not any("re-using a kept copy" in l for l in r.log), r.log
+    print("ok a copy is its match's: the next match frees the copies of the match before (one kept past its end, "
+          "ever in hands); the same place, kit and slot's death there cooks anew")
+
+
+def its_own_drop(patched):
+    """A player takes its own drop back (the owner, 2026-11-05): place 5 dies holding its kit 1 gun, respawns into
+    kit 0 (another player object of the place) and picks the old body's gun up. The same place's record has the
+    drop taken and the pick of its own recipe; its own kit 0 gun is parked in the copy and comes back at its next
+    removal; a game that loads the record (a resync, a late join) installs the same copy."""
+    r = Pick(patched)
+    r.setup()
+    r.remove(PLAYER, DIED + 8_000)                     # the body leaves: the drop stays, alone
+    me = r.add_picker(PLACE, GUN_ID + 2)               # place 5's kit 0 player, its own gun in slot 10
+    r.emu.mem_write(me.p + 0x115, bytes([0]))
+    taken = DIED + 20_000
+    r.queries = []
+    r.pick(target=PLACE, now=taken, picker=me.p)
+    pick_id = reserved(PLACE, 10)
+    assert r.queries == [] and r.slot(me.inventory, 10) == r.new_gun + 0x10, r.log
+    assert r.slot(r.cooked, 10) == me.own_gun + 0x10, "its own gun parked in the copy"
+    assert r.read(r.registry + 4 * pick_id) == r.new_gun and r.read(r.new_gun + 0xC, 1)[0] == pick_id
+    assert r.read(r.new_gun + 0x5E5, 1)[0] == CAPACITY, "alone: a full magazine"
+    r.in_hands(me.p)
+    saved = r.save(me.p)
+    assert saved[:20] == record(("taken", 1, A_GUN, True), slot10=(taken, PLACE, KIT, 1))[:20], saved.hex()
+    assert saved[28] == record(("taken", 1, A_GUN, True))[28]
+    # A resync of that record: the same copy, nothing cooked, the same record written.
+    r.load(me.p, saved)
+    assert r.queries == [] and r.slot(me.inventory, 10) == r.new_gun + 0x10 and r.save(me.p) == saved
+    # Its next removal: its own gun back, the copy let go.
+    r.word(me.p + 0x128, r.new_gun)
+    r.remove(me.p, taken + 30_000)
+    assert r.slot(me.inventory, 10) == me.own_gun + 0x10 and r.slot(r.cooked, 10) == r.new_gun + 0x10
+    print("ok a player takes its own drop back after a respawn into another kit: its own gun parked and back at its "
+          "next removal; the place's record has the drop taken and the pick of its own recipe; a resync installs the "
+          "same copy and writes the same record")
 
 
 def bullet_record(patched, original):

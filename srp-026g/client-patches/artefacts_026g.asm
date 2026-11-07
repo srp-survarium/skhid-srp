@@ -29,6 +29,7 @@
 BITS 32
 global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
 global artefacts_stagger, artefacts_onyx, artefacts_popup
+extern medical_skills_on_stopping  ; patch 94's generated entry (rust_patches.md, `entry`)
 section .text
 
 %define CONFIG_CHILD 0xF6B10       ; eax = a config value, edi = a key: eax = its child
@@ -44,7 +45,6 @@ section .text
 %define FIND_POOL 0x2E58B0         ; eax = the damage model's pools, ecx = &name: eax = the pool or 0
 %define INCREASE_HEALTH 0x32A420   ; esi = a pool; (time, amount), `ret 8`
 %define ACTION_BACK 0x31330A       ; artefact_base::action after its state test: `jne 0x313344`
-%define EFFECT 0x313350            ; artefact_base's activation effect (the artefact, the time), `ret 8`
 %define ONYX_ENABLE 0x3128C0       ; Onyx's enable_active (vtable +80h): its active time +F14h, ms
 %define ONYX_TIME_LEFT 0xF14       ; an Onyx's active time left, ms (its tick 0x3127E0 counts it down)
 %define ONYX_EXTRA_MS 1000         ; each Onyx fired with others: 1 s more for all of them
@@ -212,7 +212,9 @@ unlink_active:
 ; ways there, the hits' loop or none): esi = the player, xmm0 and the local
 ; [esp+14h] = the sum of the recent hits' stopping power (the min after it
 ; reads the local), xmm1 0. The sum becomes M42(sum): times max(0, 1 + list
-; 42), so an active Spring's -1 takes the slow away.
+; 42), so an active Spring's -1 takes the slow away; then the medical
+; skills' Unflinching (patch 94's entry medical_skills_on_stopping, cdecl:
+; the player, the sum in and out; it keeps every register) times its own.
 stagger:
     push esi
     sub esp, 8
@@ -225,6 +227,13 @@ stagger:
     mov esi, STOPPING
     call GETTER
     pop esi
+    sub esp, 4
+    movss [esp], xmm0              ; the sum, Spring's factor applied
+    push esi                       ; the player
+    call medical_skills_on_stopping
+    add esp, 4
+    movss xmm0, [esp]              ; the sum, Unflinching's factor applied
+    add esp, 4
     movss [esp+0x14], xmm0
     xorps xmm1, xmm1
     movss xmm2, [esi+0x31C]
@@ -368,8 +377,8 @@ ready:
     ret
 
 ; ecx = an artefact, edi = the time, ebx = the time on top (ms): if it is
-; ready, activated as action does (0x31331C..0x313339): its enable_active
-; (vtable +80h), its effect, the time (+2A0h), state 4; then ebx more on its
+; ready, activated through the original action body (including its Medic hook):
+; its enable_active, effect, time (+2A0h), state 4; then ebx more on its
 ; active time (+F14h, an Onyx's; ebx is 0 for any other kind). Keeps ebx,
 ; esi, edi and ebp.
 activate:
@@ -377,14 +386,11 @@ activate:
     jnc .no
     push esi
     mov esi, ecx
-    mov eax, [esi]
     push edi
-    call [eax+0x80]
-    push edi
-    push esi
-    call EFFECT
-    mov [esi+0x2A0], edi
-    mov dword [esi+0x280], 4
+    push 1
+    ; Skip only the fire_kind entry detour, not hooks inside native action.
+    ; The bridge recreates its prologue and the original ret 8 cleans args.
+    call fire_kind.original
     test ebx, ebx
     jz .own
     add [esi+ONYX_TIME_LEFT], ebx

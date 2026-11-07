@@ -14,6 +14,8 @@ mod game;
 mod late_join;
 mod late_join_edge_cases;
 mod resync_gate;
+mod packet_safety;
+mod packet_input;
 mod sockets;
 mod start;
 mod units;
@@ -66,7 +68,7 @@ fn profile(name: &str, team: u8) -> MatchProfile {
 
 pub fn setup(players: usize, map_id: u8) -> MatchSetup {
     MatchSetup {
-        map_id,
+        map: survarium::v026g::maps::MatchMap::of(map_id).expect("a playable map"),
         match_level: 3,
         players: (0..players)
             .map(|place| MatchPlayer {
@@ -81,7 +83,6 @@ pub fn setup(players: usize, map_id: u8) -> MatchSetup {
         vs_bots: false,
         private: false,
         room_minimum: None,
-        variant: survarium::v026g::maps::Variant::Plain,
     }
 }
 
@@ -186,7 +187,7 @@ impl Bench {
         growing: bool,
     ) -> Self {
         log_to_stderr();
-        let (players, map_id) = (setup.players.len(), setup.map_id);
+        let (players, map_id) = (setup.players.len(), setup.map.map().id);
         let start = Instant::now();
         let registry = Arc::new(MatchRegistry::new("127.0.0.1", 1236));
         for place in bots {
@@ -553,17 +554,33 @@ pub fn one_at_a_time() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// The server's log on stderr, when `SRP_TEST_LOG` is set: for finding out
-/// why a test fails.
-struct StderrLog;
+/// The server's log: on stderr when `SRP_TEST_LOG` is set (for finding out
+/// why a test fails), and its error lines kept for a thread that asked
+/// ([`capture_errors`]).
+struct TestLog;
 
-impl log::Log for StderrLog {
+static TO_STDERR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+thread_local! {
+    static ERRORS: std::cell::RefCell<Option<Vec<String>>> = const { std::cell::RefCell::new(None) };
+}
+
+impl log::Log for TestLog {
     fn enabled(&self, _: &log::Metadata) -> bool {
         true
     }
 
     fn log(&self, record: &log::Record) {
-        eprintln!("[{}] {}", record.level(), record.args());
+        if TO_STDERR.load(std::sync::atomic::Ordering::Relaxed) {
+            eprintln!("[{}] {}", record.level(), record.args());
+        }
+        if record.level() == log::Level::Error {
+            ERRORS.with_borrow_mut(|errors| {
+                if let Some(errors) = errors {
+                    errors.push(record.args().to_string());
+                }
+            });
+        }
     }
 
     fn flush(&self) {}
@@ -572,8 +589,26 @@ impl log::Log for StderrLog {
 pub fn log_to_stderr() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
-        if std::env::var_os("SRP_TEST_LOG").is_some() && log::set_logger(&StderrLog).is_ok() {
-            log::set_max_level(log::LevelFilter::Debug);
+        let stderr = std::env::var_os("SRP_TEST_LOG").is_some();
+        TO_STDERR.store(stderr, std::sync::atomic::Ordering::Relaxed);
+        if log::set_logger(&TestLog).is_ok() {
+            log::set_max_level(if stderr {
+                log::LevelFilter::Debug
+            } else {
+                log::LevelFilter::Error
+            });
         }
     });
+}
+
+/// From now on this thread's server keeps its error lines for
+/// [`errors_logged`].
+pub fn capture_errors() {
+    log_to_stderr();
+    ERRORS.with_borrow_mut(|errors| *errors = Some(Vec::new()));
+}
+
+/// The error lines this thread's server logged since [`capture_errors`].
+pub fn errors_logged() -> Vec<String> {
+    ERRORS.with_borrow(|errors| errors.clone().unwrap_or_default())
 }
