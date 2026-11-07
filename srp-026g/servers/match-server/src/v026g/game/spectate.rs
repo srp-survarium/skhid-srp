@@ -993,6 +993,16 @@ impl Spectator {
         matches!(self.stage, Watch::Leaving { until, .. } if now >= until)
     }
 
+    /// An 0xE6 (its game answers 0xDB, which nothing here waits for while
+    /// it is live): traffic, so that its game's silence check never ends
+    /// the link while nothing else is sent (a paused replay).
+    pub(super) fn ping(&mut self) {
+        if matches!(self.stage, Watch::Live { .. }) {
+            let ping = ServerMessage::Ping { a: 0, b: 0 };
+            let _ = self.transport.send(ping.id(), &ping.payload());
+        }
+    }
+
     pub(super) fn is_leaving(&self) -> bool {
         matches!(self.stage, Watch::Leaving { .. })
     }

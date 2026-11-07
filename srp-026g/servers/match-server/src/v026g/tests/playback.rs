@@ -308,6 +308,9 @@ fn the_games_pause_and_play_and_a_resent_control_is_taken_once() {
     bench.run_long(5_000);
     assert_eq!(position(&bench), paused);
     assert_eq!(relays_taken(&bench.clients[at]), taken);
+    // Pinged each second meanwhile: never 5 s of silence.
+    let pings = bench.clients[at].got(|m| matches!(m, ServerMessage::Ping { .. }).then_some(()));
+    assert!((4..=6).contains(&pings.len()), "{}", pings.len());
     let worlds = bench.clients[at].snapshots().len();
     control(&mut bench, at, 2, Control::Play);
     assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));

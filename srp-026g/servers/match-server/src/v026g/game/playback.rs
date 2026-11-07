@@ -45,6 +45,9 @@ use crate::v026g::{record, replay, sur_convert};
 const RELAY_LEAD_MS: u32 = HORIZON_MS;
 /// How often the dev control file is read (`SRP_DEV_REPLAY_CONTROL`).
 const CONTROL_EVERY: Duration = Duration::from_millis(250);
+/// A paused game is pinged this often: nothing else goes to it, and a game
+/// ends a match link silent for 5 s.
+const PAUSED_PING_EVERY: Duration = Duration::from_secs(1);
 
 /// A recording made into what a game is shown.
 pub(crate) struct Recording {
@@ -373,9 +376,8 @@ enum Clock {
         since: Instant,
         at: u32,
     },
-    Paused {
-        at: u32,
-    },
+    /// Stopped at `at`; its game pinged next at `ping`.
+    Paused { at: u32, ping: Instant },
 }
 
 /// What became of a playback.
@@ -431,7 +433,7 @@ impl Playback {
     /// The playback clock.
     fn position(&self, now: Instant) -> u32 {
         match self.clock {
-            Clock::Loading { at } | Clock::Paused { at } => at,
+            Clock::Loading { at } | Clock::Paused { at, .. } => at,
             Clock::Playing { since, at } => {
                 at + self.speed.of(now.saturating_duration_since(since))
             }
@@ -509,13 +511,16 @@ impl Playback {
         match control {
             Control::Pause => {
                 if let Clock::Playing { .. } | Clock::Loading { .. } = self.clock {
-                    self.clock = Clock::Paused { at };
+                    self.clock = Clock::Paused {
+                        at,
+                        ping: now + PAUSED_PING_EVERY,
+                    };
                 }
             }
             // Its game's clock ran on while paused: it starts again from
             // where the playback stopped.
             Control::Play => {
-                if let Clock::Paused { at } = self.clock {
+                if let Clock::Paused { at, .. } = self.clock {
                     self.clock = Clock::Playing { since: now, at };
                     self.seek(at, now);
                 }
@@ -537,7 +542,7 @@ impl Playback {
         self.clock = match self.clock {
             Clock::Loading { .. } => Clock::Loading { at },
             Clock::Playing { .. } => Clock::Playing { since: now, at },
-            Clock::Paused { .. } => Clock::Paused { at },
+            Clock::Paused { ping, .. } => Clock::Paused { at, ping },
         };
         (self.inputs, self.events) = self.recording.due(at);
         self.spectator.wait_again();
@@ -555,10 +560,18 @@ impl Playback {
             return (Vec::new(), Some(Ended::Left));
         }
         let before = self.spectator.stage();
-        if let Clock::Loading { at } = self.clock
-            && self.spectator.has_loaded()
-        {
-            self.clock = Clock::Playing { since: now, at };
+        match self.clock {
+            Clock::Loading { at } if self.spectator.has_loaded() => {
+                self.clock = Clock::Playing { since: now, at };
+            }
+            Clock::Paused { at, ping } if now >= ping => {
+                self.spectator.ping();
+                self.clock = Clock::Paused {
+                    at,
+                    ping: now + PAUSED_PING_EVERY,
+                };
+            }
+            _ => {}
         }
         let at = self.position(now);
         let mut ended = None;
