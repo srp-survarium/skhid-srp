@@ -198,6 +198,7 @@ impl Estimate {
             scale: PitchScale::Radian,
             fall: Fall::Ground,
             step: None,
+            grid_extra: GridExtra::default(),
         }
     }
 }
