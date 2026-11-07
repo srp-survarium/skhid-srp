@@ -46,17 +46,24 @@ list_data() { # <out>
     "$bin" build --db "$SKHID_STOCK_DB" "${args[@]}" --out "$1" >/dev/null
 }
 
+# The server game data of this tree, its path printed: release/build-content's quick build of the
+# next patch (cached by its inputs), or the list's when the manifest ships nothing new.
+tree_data() {
+    say "the server game data of this tree (release/build-content, a quick build) ..." >&2
+    "$here/build_content.sh" >"$work/build-content.log" 2>&1 ||
+        { tail -n 20 "$work/build-content.log" >&2; die "build-content failed ($work/build-content.log)"; }
+    if [[ -f $work/content/$DATA_NAME ]]; then
+        printf '%s\n' "$work/content/$DATA_NAME"
+    else
+        say "the manifest ships no new patch: the list's server game data" >&2
+        list_data "$work/$DATA_NAME"
+        printf '%s\n' "$work/$DATA_NAME"
+    fi
+}
+
 check() {
     local data folders bin status=0
-    say "the server game data of this tree (release/build-content, a quick build) ..."
-    "$here/build_content.sh" >"$work/build-content.log" 2>&1 ||
-        { tail -n 20 "$work/build-content.log"; die "build-content failed ($work/build-content.log)"; }
-    data=$work/content/$DATA_NAME
-    if [[ ! -f $data ]]; then
-        say "the manifest ships no new patch: the list's server game data"
-        data=$work/$DATA_NAME
-        list_data "$data"
-    fi
+    data=$(tree_data)
     mapfile -t folders < <(recording_folders "$corpus/live" "$corpus/local")
     ((${#folders[@]})) || die "$corpus: no recording in live/ or local/"
     bin=$(world_check_bin)
@@ -70,22 +77,23 @@ check() {
 drift() {
     local one_in=${WORLD_DRIFT_ONE_IN:-50} jobs=${WORLD_DRIFT_JOBS:-$(($(nproc) - 4))}
     local exe=${SKHID_ORIGINAL_EXE:-$main/private/function-map/inputs/026g/survarium.exe}
-    local data bin folders status worlds=$work/worlds
+    local data bin folders worlds=$work/worlds
     [[ $one_in =~ ^[1-9][0-9]*$ ]] || die "WORLD_DRIFT_ONE_IN: $one_in is not a number above 0"
     ((jobs >= 1)) || jobs=1
     [[ -f $exe ]] || die "$exe: the original 0.26g survarium.exe is needed (SKHID_ORIGINAL_EXE)"
-    # The data only reads the recordings' rosters here: the uploads they hold are the same with any.
-    data=$work/$DATA_NAME
-    list_data "$data"
+    # The data only reads the recordings' rosters here (the uploads they hold are the same with any
+    # data this code starts with).
+    data=$(tree_data)
     bin=$(world_check_bin)
     mkdir -p "$worlds/live" "$worlds/local"
     sample() { # <into> <one in> <folder>...: the uploads, whatever the check says of them
         local into=$1 n=$2
         shift 2
         (($#)) || return 0
-        status=0
-        "$bin" --data "$data" --worlds "$into" --one-in "$n" "$@" >>"$work/sample.log" || status=$?
-        ((status <= 1)) || die "srp-world-check could not read the corpus ($work/sample.log)"
+        "$bin" --data "$data" --worlds "$into" --one-in "$n" "$@" >"$work/sample.log" 2>&1 || true
+        # Its last lines say how many it checked: else it read nothing (the data, an argument).
+        grep -q ' worlds checked: ' "$work/sample.log" ||
+            { tail -n 5 "$work/sample.log"; die "srp-world-check did not read the corpus ($work/sample.log)"; }
     }
     mapfile -t folders < <(recording_folders "$corpus/live")
     sample "$worlds/live" "$one_in" "${folders[@]}"
