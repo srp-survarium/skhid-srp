@@ -19,10 +19,14 @@
 //! brain reckons his own body like a bot's, so with the build's `kin` defaults a bot switch put to an A/B moved the human as well
 //! (#1450's default `client_step = client` made him reckon by the client's walk tick, and two harm runs met two different
 //! humans). The file is the kin of the build it was written in, with `client_step = grid`.
+//!
+//! [A318] And his grid (`camper_human_grid.json`, a whole `grid` section, with its key test): the bench builds his own world by
+//! it when an arm's grid builds otherwise (`Bots::bench_human_tactics`), and his route rules read it, so a grid switch in an A/B
+//! moves the bots' routes, not his. The file is the grid of the build it was written in.
 
 use super::*;
 use crate::v026g::bots::kin::Kinematics;
-use crate::v026g::bots::tuning::AimTuning;
+use crate::v026g::bots::tuning::{AimTuning, GridTuning};
 
 /// The camper's `aim` section, as written.
 const HUMAN_AIM: &str = include_str!("camper_human_aim.json");
@@ -40,10 +44,18 @@ pub(crate) fn human_kin() -> Kinematics {
     serde_json::from_str(HUMAN_KIN).expect("camper_human_kin.json is a whole kin section")
 }
 
-/// The tuning the stand-in camper plays by: the build's defaults, with [`human_aim`] as his aim and [`human_kin`] as his
-/// movement model.
+/// The camper's `grid` section, as written.
+const HUMAN_GRID: &str = include_str!("camper_human_grid.json");
+
+/// The grid of the stand-in camper: [`HUMAN_GRID`].
+pub(crate) fn human_grid() -> GridTuning {
+    serde_json::from_str(HUMAN_GRID).expect("camper_human_grid.json is a whole grid section")
+}
+
+/// The tuning the stand-in camper plays by: the build's defaults, with [`human_aim`] as his aim, [`human_kin`] as his
+/// movement model and [`human_grid`] as his grid.
 pub(crate) fn human_tuning() -> Tuning {
-    Tuning { aim: human_aim(), kin: human_kin(), ..Tuning::default() }
+    Tuning { aim: human_aim(), kin: human_kin(), grid: human_grid(), ..Tuning::default() }
 }
 
 #[cfg(test)]
@@ -115,6 +127,39 @@ mod tests {
     }
 
     #[test]
+    fn the_camper_file_names_every_key_of_the_grid() {
+        let mut default = Vec::new();
+        key_paths(&serde_json::to_value(GridTuning::default()).expect("JSON"), "", &mut default);
+        let mut pinned = Vec::new();
+        key_paths(&serde_json::from_str(HUMAN_GRID).expect("JSON"), "", &mut pinned);
+        default.sort();
+        pinned.sort();
+        let mut off = Vec::new();
+        null_paths(&serde_json::from_str(HUMAN_GRID).expect("JSON"), "", &mut off);
+        let under_off = |key: &String| off.iter().any(|o| key.starts_with(&format!("{o}/")));
+        let missing: Vec<_> = default.iter().filter(|key| !pinned.contains(key) && !under_off(key)).collect();
+        let extra: Vec<_> = pinned
+            .iter()
+            .filter(|key| !default.contains(key) && !(off.contains(key) && default.iter().any(|d| d.starts_with(&format!("{key}/")))))
+            .collect();
+        assert!(
+            missing.is_empty() && extra.is_empty(),
+            "tests/camper_human_grid.json: write the camper's value for {missing:?}, drop {extra:?}"
+        );
+    }
+
+    /// An arm that flips a grid switch moves neither the camper's grid nor how his world is built.
+    #[test]
+    fn an_arm_grid_switch_leaves_the_campers_grid_alone() {
+        let mut arm = Tuning::default();
+        arm.grid.wall_clear_pull = !arm.grid.wall_clear_pull;
+        let human = human_tuning();
+        assert_eq!(human.grid, human_grid());
+        assert_ne!(arm.grid, human.grid, "the arm's flip is a grid change");
+        assert_eq!(human.grid_body(), Tuning { grid: human_grid(), ..Tuning::default() }.grid_body());
+    }
+
+    #[test]
     fn the_camper_reckons_by_the_grid_whatever_the_default() {
         assert_eq!(human_kin().client_step, crate::v026g::bots::kin::ClientStep::Grid);
     }
@@ -132,6 +177,14 @@ mod tests {
         std::fs::write(path, serde_json::to_string_pretty(&AimTuning::default()).expect("JSON") + "\n").expect("written");
     }
 
+    /// `GRID_DUMP=<file> cargo test dump_the_default_grid -- --ignored`: the grid file's text for the defaults of this build.
+    #[test]
+    #[ignore]
+    fn dump_the_default_grid() {
+        let path = std::env::var("GRID_DUMP").expect("GRID_DUMP=<file>");
+        std::fs::write(path, serde_json::to_string_pretty(&GridTuning::default()).expect("JSON") + "\n").expect("written");
+    }
+
     /// `KIN_DUMP=<file> cargo test dump_the_default_kin -- --ignored`: the kin file's text for the defaults of this build.
     #[test]
     #[ignore]
@@ -140,3 +193,4 @@ mod tests {
         std::fs::write(path, serde_json::to_string_pretty(&Kinematics::default()).expect("JSON") + "\n").expect("written");
     }
 }
+
