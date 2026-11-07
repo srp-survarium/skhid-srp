@@ -324,7 +324,22 @@ fn threat_tick(
         let flank_mates: Vec<threat::Mate> = mates.iter().copied().filter(|m| breach::role_in(&threat.breaches, m.place).is_none()).collect();
         let breach_roles = threat.breaches.iter().filter(|b| !b.objective).map(|b| b.places().count()).sum();
         let size = view.team(team).count();
-        let job_team = threat::JobTeam { mates: &flank_mates, size, objective_areas: &areas, breach_roles };
+        // [A320 F8] The route starts of the known camp spot (of the other side) at a held spot, for its flanker role.
+        let side = bots.iter().flatten().find(|b| b.team == team).and_then(|b| b.side);
+        let starts_at = |at: Vec3| -> Vec<Vec3> {
+            let grid = &tactics.world.grid;
+            side.and_then(|side| super::camp_flank::camp_spot_at(&tactics.camp_spots, at, side))
+                .map(|k| tactics.camp_spots[k].routes.iter().filter_map(|r| r.floors.first().map(|&n| grid.position(n))).collect())
+                .unwrap_or_default()
+        };
+        let spare = tuning.threat.camp_flank.is_some_and(|c| c.spare_flanker);
+        let job_team = threat::JobTeam {
+            mates: &flank_mates,
+            size,
+            objective_areas: &areas,
+            breach_roles,
+            flank_from: spare.then_some(&starts_at as &dyn Fn(Vec3) -> Vec<Vec3>),
+        };
         let spots = &threat.spots;
         // [threat.concede] A job on an area conceded ends: the fight side's (`Concede::refuse_fights`).
         let ends_conceded = tuning.threat.concede.is_some_and(|c| c.refuse_fights.is_some());

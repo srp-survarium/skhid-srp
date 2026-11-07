@@ -789,6 +789,11 @@ pub struct CampFlank {
     /// kills +26.7 %, most outside the walks, his deaths fewer; the old flank, 12-30 m from him, replaced by walks that
     /// mostly ended early). Off: the camp route whenever there is one, and such a walk ends.
     pub keep_old_flank: bool,
+    /// `threat.camp_flank.spare_flanker` [F8]: a job on a held spot at a known camp spot gives its flanker role to a spare,
+    /// not the front: the free mate nearest one of that spot's route starts, the mate nearest him left out (the job's pick
+    /// was the nearest free mate, the gun already on him, whom the walk then took off the front: with every walking variant
+    /// his kills rose 20-27 % while covered deaths stayed flat). Off: the nearest free mate, as before.
+    pub spare_flanker: bool,
 }
 
 /// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its

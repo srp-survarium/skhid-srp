@@ -2031,6 +2031,9 @@ pub struct JobTeam<'a> {
     pub objective_areas: &'a [Vec3],
     /// [threat.breach] The team's bots holding a Breach's roles off the objective (`breach.rs`): the cap counts them too.
     pub breach_roles: usize,
+    /// [A320 F8 `threat.camp_flank.spare_flanker`] The route starts of the known camp spot at a held spot's place (none: not
+    /// one): its flanker role goes to the mate nearest one of them, the one nearest the spot left out.
+    pub flank_from: Option<&'a dyn Fn(Vec3) -> Vec<Vec3>>,
 }
 
 /// Why a role went ([`JobEvent::Passed`]).
@@ -2288,7 +2291,7 @@ pub fn jobs_tick(
     }
     // The cap's bots off the objective, less those the team's Breaches hold.
     let share = team.size.div_ceil(JOB_SHARE).saturating_sub(team.breach_roles);
-    let staff = StaffRules { mates, lanes, share, now };
+    let staff = StaffRules { mates, lanes, share, now, flank_from: team.flank_from };
     if opening == Opening::ThenDropped {
         open_then_drop(jobs, rested, held, team, &staff, &mut events);
         return events;
@@ -2401,6 +2404,7 @@ struct StaffRules<'a> {
     lanes: &'a [HeldLine],
     share: usize,
     now: u32,
+    flank_from: Option<&'a dyn Fn(Vec3) -> Vec<Vec3>>,
 }
 
 impl StaffRules<'_> {
@@ -2421,14 +2425,24 @@ impl StaffRules<'_> {
             }
             let busy = |place: Place| jobs.iter().any(|j| j.role_of(place).is_some());
             let passed = &jobs[i].passed;
-            let pick = self
+            let free: Vec<&Mate> = self
                 .mates
                 .iter()
                 .filter(|m| m.free && !busy(m.place) && !passed.contains(&m.place))
                 .filter(|m| m.feet.distance_xz(line.at) <= JOB_NEAR_M)
                 .filter(|m| !self.lanes.iter().any(|l| l.covers(m.feet)))
-                .min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at)))
-                .map(|m| m.place);
+                .collect();
+            let nearest = free.iter().min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at))).map(|m| m.place);
+            // [A320 F8] A camp spot's flanker: a spare nearest one of its route starts, not the gun already on him.
+            let starts = match (role, self.flank_from) {
+                (Role::Flanker, Some(from)) => from(line.at),
+                _ => Vec::new(),
+            };
+            let to_start = |m: &Mate| starts.iter().map(|&s| m.feet.distance_xz(s)).fold(f32::INFINITY, f32::min);
+            let spare = (!starts.is_empty())
+                .then(|| free.iter().filter(|m| Some(m.place) != nearest).min_by(|a, b| to_start(a).total_cmp(&to_start(b))).map(|m| m.place))
+                .flatten();
+            let pick = spare.or(nearest);
             if let Some(place) = pick {
                 if let Some(slot) = jobs[i].holder_mut(role) {
                     *slot = Some(Holder { place, since: self.now });
@@ -3075,7 +3089,7 @@ mod tests {
         let held = [a, b, c];
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
-        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas, breach_roles: 0 };
+        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas, breach_roles: 0, flank_from: None };
         // A 12-player team: 4 bots in jobs; shooter 7 has one job, shooter 9 the other.
         jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(12, &[]), &unheld, 1_000);
         let mut shooters: Vec<Place> = jobs.iter().map(|j| j.shooter).collect();
@@ -3131,6 +3145,30 @@ mod tests {
         assert_eq!(ids(one_of_each_pair(vec![a, moved], &[], 5.0)), [1, 2]);
     }
 
+    /// [A320 F8 `threat.camp_flank.spare_flanker`] With the camp spot's route starts given, the flanker role goes to the
+    /// mate nearest a start, the one nearest the spot (the gun on him) left out; without them, the nearest mate, as before.
+    #[test]
+    fn a_spare_flanker_is_the_mate_nearest_a_route_start_not_the_front() {
+        let lane = |at: Vec3| [bearing(at, at + Vec3::new(30.0, 0.0, 0.0)), bearing(at, at + Vec3::new(30.0, 0.0, 1.0))];
+        let held = [HeldLine { shooter: 9, ..line(3, at(0.0), &lane(at(0.0))) }];
+        // Out of his lanes (along +x): 10 nearest him, 11 by the route start, 12 farther still.
+        let mates = [
+            Mate { place: 10, feet: Vec3::new(-15.0, 0.0, 0.0), free: true, playing: None },
+            Mate { place: 11, feet: Vec3::new(-30.0, 0.0, 30.0), free: true, playing: None },
+            Mate { place: 12, feet: Vec3::new(-40.0, 0.0, -30.0), free: true, playing: None },
+        ];
+        let start = Vec3::new(-32.0, 0.0, 32.0);
+        let starts = |_: Vec3| vec![start];
+        let role_of = |flank_from: Option<&dyn Fn(Vec3) -> Vec<Vec3>>| {
+            let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0, flank_from };
+            let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+            jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team, &unheld, 1_000);
+            (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place))
+        };
+        assert_eq!(role_of(None), (Some(10), Some(11)), "off: the nearest mate flanks");
+        assert_eq!(role_of(Some(&starts)), (Some(11), Some(10)), "a spare by the route start flanks; the front pins");
+    }
+
     #[test]
     fn a_spot_no_bot_can_take_keeps_no_slot_from_one_that_can() {
         // Lanes along +x; the team's bots stand at x = -20, out of them, near the spots at the origin.
@@ -3138,7 +3176,7 @@ mod tests {
         let spot = |id, at: Vec3, shooter| HeldLine { shooter, ..line(id, at, &lane(at)) };
         let far = Vec3::new(0.0, 0.0, 500.0);
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
-        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0 };
+        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0, flank_from: None };
         let ids = |jobs: &[Job]| jobs.iter().map(|j| j.spot).collect::<Vec<_>>();
         // A far spot first in the list: both slots still go to the spots the bots can reach.
         let held = [spot(2, far, 8), spot(3, at(0.0), 9), spot(4, Vec3::new(0.0, 0.0, 30.0), 10)];
@@ -3168,7 +3206,7 @@ mod tests {
         let one = line(9, from, &[bearing(from, Vec3::new(-10.0, 0.0, 0.0))]);
         let mate = |place, x: f32, z: f32| Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing: None };
         let mates = [mate(1, -12.0, 0.0), mate(2, -10.0, 30.0), mate(3, -10.0, -30.0)];
-        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[], breach_roles: 0 };
+        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[], breach_roles: 0, flank_from: None };
         let (holds, lanes) = ([hold.clone()], [hold, one]);
         assert!(lanes[1].covers(mates[0].feet), "the test's bot stands in the one-kill line");
         assert!(!lanes.iter().any(|l| l.covers(mates[1].feet) || l.covers(mates[2].feet)), "the others in none");
@@ -3195,7 +3233,7 @@ mod tests {
         ];
         let holders = |jobs: &[Job]| (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place));
         let tick = |jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[HeldLine], mates: &[Mate], now| {
-            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[], breach_roles: 0 }, &unheld, now)
+            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[], breach_roles: 0, flank_from: None }, &unheld, now)
         };
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
         let events = tick(&mut jobs, &mut rested, &held, &mates, 1_000);
