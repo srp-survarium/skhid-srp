@@ -1,0 +1,48 @@
+{
+  "walk": [
+    3.5,
+    2.5,
+    3.0
+  ],
+  "aim": [
+    3.0,
+    2.0,
+    2.5
+  ],
+  "crouch": [
+    2.5,
+    2.0,
+    2.0
+  ],
+  "crouch_aim": [
+    2.0,
+    1.5,
+    1.5
+  ],
+  "sprint": 5.0,
+  "blend_ticks": 6,
+  "mixer": "layers",
+  "fix_blend": "replayed",
+  "wall_slide": "round",
+  "jump_snap": "by_keys",
+  "edge": "client",
+  "drop_fall": "client",
+  "step_input": "previous",
+  "client_step": "grid",
+  "fix_fall": "world",
+  "open_edge_cost": 0.0,
+  "walk_off_landing": "by_speed",
+  "margin_edge": "body",
+  "fix_floor": "under_in_jump",
+  "pitch_scale": "client",
+  "slope_speed": "ramps_grade",
+  "speed_terms": "legs",
+  "speed_cap": "client",
+  "level_read": "settled",
+  "level_source": "computed",
+  "carrier_sprint": "refused",
+  "leg_damage": "client",
+  "ramp_min_deg": 35.0,
+  "walk_bridges": true,
+  "jump_arc": false
+}

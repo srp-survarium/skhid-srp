@@ -14,8 +14,14 @@
 //! without it hits 15 % and kills 4.7 % (A193, `snip73`, 32 cells an arm, tier 9-10, `AUTO-GUN-HIT-GAP.md`). At tier 13-15 his
 //! marksman rifle hits 28 % against the humans' 19.5 % (a known gap: the far aim is not tuned per class). A change of his play is
 //! a change of this file, measured against the humans' numbers, not a side effect of the bots' defaults.
+//!
+//! [A318] His movement model is pinned the same way (`camper_human_kin.json`, a whole `kin` section, with its own key test): his
+//! brain reckons his own body like a bot's, so with the build's `kin` defaults a bot switch put to an A/B moved the human as well
+//! (#1450's default `client_step = client` made him reckon by the client's walk tick, and two harm runs met two different
+//! humans). The file is the kin of the build it was written in, with `client_step = grid`.
 
 use super::*;
+use crate::v026g::bots::kin::Kinematics;
 use crate::v026g::bots::tuning::AimTuning;
 
 /// The camper's `aim` section, as written.
@@ -26,9 +32,18 @@ pub(crate) fn human_aim() -> AimTuning {
     serde_json::from_str(HUMAN_AIM).expect("camper_human_aim.json is a whole aim section")
 }
 
-/// The tuning the stand-in camper plays by: the build's defaults, with [`human_aim`] as his aim.
+/// The camper's `kin` section, as written.
+const HUMAN_KIN: &str = include_str!("camper_human_kin.json");
+
+/// The movement model of the stand-in camper: [`HUMAN_KIN`].
+pub(crate) fn human_kin() -> Kinematics {
+    serde_json::from_str(HUMAN_KIN).expect("camper_human_kin.json is a whole kin section")
+}
+
+/// The tuning the stand-in camper plays by: the build's defaults, with [`human_aim`] as his aim and [`human_kin`] as his
+/// movement model.
 pub(crate) fn human_tuning() -> Tuning {
-    Tuning { aim: human_aim(), ..Tuning::default() }
+    Tuning { aim: human_aim(), kin: human_kin(), ..Tuning::default() }
 }
 
 #[cfg(test)]
@@ -84,6 +99,27 @@ mod tests {
     }
 
     #[test]
+    fn the_camper_file_names_every_key_of_the_kin() {
+        let mut default = Vec::new();
+        key_paths(&serde_json::to_value(Kinematics::default()).expect("JSON"), "", &mut default);
+        let mut pinned = Vec::new();
+        key_paths(&serde_json::from_str(HUMAN_KIN).expect("JSON"), "", &mut pinned);
+        default.sort();
+        pinned.sort();
+        let missing: Vec<_> = default.iter().filter(|key| !pinned.contains(key)).collect();
+        let extra: Vec<_> = pinned.iter().filter(|key| !default.contains(key)).collect();
+        assert!(
+            missing.is_empty() && extra.is_empty(),
+            "tests/camper_human_kin.json: write the camper's value for {missing:?}, drop {extra:?}"
+        );
+    }
+
+    #[test]
+    fn the_camper_reckons_by_the_grid_whatever_the_default() {
+        assert_eq!(human_kin().client_step, crate::v026g::bots::kin::ClientStep::Grid);
+    }
+
+    #[test]
     fn the_camper_plays_by_a_tuning_that_validates() {
         human_tuning().validate().expect("the camper's tuning is a valid one");
     }
@@ -94,5 +130,13 @@ mod tests {
     fn dump_the_default_aim() {
         let path = std::env::var("AIM_DUMP").expect("AIM_DUMP=<file>");
         std::fs::write(path, serde_json::to_string_pretty(&AimTuning::default()).expect("JSON") + "\n").expect("written");
+    }
+
+    /// `KIN_DUMP=<file> cargo test dump_the_default_kin -- --ignored`: the kin file's text for the defaults of this build.
+    #[test]
+    #[ignore]
+    fn dump_the_default_kin() {
+        let path = std::env::var("KIN_DUMP").expect("KIN_DUMP=<file>");
+        std::fs::write(path, serde_json::to_string_pretty(&Kinematics::default()).expect("JSON") + "\n").expect("written");
     }
 }

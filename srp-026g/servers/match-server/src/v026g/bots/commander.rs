@@ -287,7 +287,21 @@ fn threat_tick(
                 Some(threat::Mate { place: b.place, feet: p.feet, free: !objective.is_actor(p) && !b.reflex.dry(), playing })
             })
             .collect();
-        let mut holds = threat::holds(&held, tuning.threat.job_kills);
+        let mut holds = match tuning.threat.cue_merge_m {
+            Some(m) => threat::holds_merged(&held, tuning.threat.job_kills, m),
+            None => threat::holds(&held, tuning.threat.job_kills),
+        };
+        // [A342c] A spot cued for the first time: each of the team's bots looks once at its route ahead.
+        if tuning.threat.replan_on_cue {
+            let new = holds.iter().any(|l| !threat.cued_seen.contains(&l.id));
+            threat.cued_seen.retain(|id| held.iter().any(|l| l.id == *id));
+            threat.cued_seen.extend(holds.iter().map(|l| l.id).filter(|id| !threat.cued_seen.contains(id)).collect::<Vec<_>>());
+            if new {
+                for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+                    bot.features.threat.cue_due = true;
+                }
+            }
+        }
         // [threat.concede] No job on a conceded area, nor a new one like the last failed try on a tried one (a Flank: the
         // same kind, so only its time differs; design-p1c §3). The fight side's (`Concede::refuse_fights`).
         if let Some(concede) = tuning.threat.concede.filter(|c| c.refuse_fights.is_some()) {
@@ -324,7 +338,22 @@ fn threat_tick(
         let flank_mates: Vec<threat::Mate> = mates.iter().copied().filter(|m| breach::role_in(&threat.breaches, m.place).is_none()).collect();
         let breach_roles = threat.breaches.iter().filter(|b| !b.objective).map(|b| b.places().count()).sum();
         let size = view.team(team).count();
-        let job_team = threat::JobTeam { mates: &flank_mates, size, objective_areas: &areas, breach_roles };
+        // [A320 F8] The route starts of the known camp spot (of the other side) at a held spot, for its flanker role.
+        let side = bots.iter().flatten().find(|b| b.team == team).and_then(|b| b.side);
+        let starts_at = |at: Vec3| -> Vec<Vec3> {
+            let grid = &tactics.world.grid;
+            side.and_then(|side| super::camp_flank::camp_spot_at(&tactics.camp_spots, at, side))
+                .map(|k| tactics.camp_spots[k].routes.iter().filter_map(|r| r.floors.first().map(|&n| grid.position(n))).collect())
+                .unwrap_or_default()
+        };
+        let spare = tuning.threat.camp_flank.is_some_and(|c| c.spare_flanker);
+        let job_team = threat::JobTeam {
+            mates: &flank_mates,
+            size,
+            objective_areas: &areas,
+            breach_roles,
+            flank_from: spare.then_some(&starts_at as &dyn Fn(Vec3) -> Vec<Vec3>),
+        };
         let spots = &threat.spots;
         // [threat.concede] A job on an area conceded ends: the fight side's (`Concede::refuse_fights`).
         let ends_conceded = tuning.threat.concede.is_some_and(|c| c.refuse_fights.is_some());
@@ -639,10 +668,11 @@ impl Bots {
         state.next_commander = now + tuning.think.commander_ms;
         state.knowledge.forget_old(now);
         state.knowledge.settle_looks(team, view);
-        state.refresh_traps(&tactics.world.grid, tuning.traps.ring_m);
-        let field = state.features.traps.field.clone();
+        state.refresh_traps(&tactics.world.grid, tuning.traps.ring_m, tuning.traps.keep_off);
+        let (field, narrow) = (state.features.traps.field.clone(), state.features.traps.narrow.clone());
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
             bot.features.traps.field = field.clone();
+            bot.features.traps.narrow = narrow.clone();
         }
         // What a bot of the team proved no way to lately, the whole team
         // leaves for longer, from the proof on.
@@ -978,6 +1008,7 @@ impl Bots {
                     crossing: walks_crossing(bot),
                     held_choke: bot.held_choke,
                     route_left_m: bot.running.as_ref().and_then(|r| r.route_left_m(tactics, me.feet)),
+                    route_total_m: bot.running.as_ref().and_then(|r| r.route_total_m(tactics)),
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -1028,6 +1059,9 @@ impl Bots {
                 shaky.push(bot.place);
             } else if tuning.commit.hold_to_arrival
                 && bot.running.as_ref().is_some_and(plays::Running::travelling)
+                // [A320 F1] With `camp_flank.inertia` a flank route's walk keeps its play by its score and bonus instead.
+                && !(tuning.threat.camp_flank.is_some_and(|c| c.inertia.is_some())
+                    && bot.running.as_ref().is_some_and(plays::Running::camp_flank_walk))
             {
                 // A hold still walking to its spot (no way lately: not).
                 committed.push(bot.place);
@@ -1167,6 +1201,7 @@ impl Bots {
                     crossing: walks_crossing(bot),
                     held_choke: bot.held_choke,
                     route_left_m: None,
+                    route_total_m: None,
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,

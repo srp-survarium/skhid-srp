@@ -930,6 +930,8 @@ pub struct SpotRules {
     pub recast: bool,
     /// How a sensed sniper's spot is kept.
     pub sniper: SniperLife,
+    /// [A320 F7 `threat.spot_follows_m`] A kill spot whose shooter is sensed afresh farther than this from it moves to him.
+    pub follows_m: Option<f32>,
 }
 
 impl SpotRules {
@@ -941,6 +943,7 @@ impl SpotRules {
                 Some(m) => SniperLife::Remembered { memory_ms: (m.memory_s.max(0.0) * 1000.0) as u32 },
                 None => SniperLife::WhileSensed,
             },
+            follows_m: tuning.spot_follows_m,
         }
     }
 
@@ -1589,14 +1592,32 @@ impl ThreatSpots {
     /// The team sensed `shooter` at `at` at `time`. A sensed sniper's spot is [`Self::sniper_sensed`]'s, which moves it
     /// with the sense.
     pub fn shooter_sensed(&mut self, shooter: Place, at: Vec3, time: u32, rules: SpotRules) {
+        let mut moved = Vec::new();
         for s in self.spots.iter_mut().filter(|s| s.shooter == shooter) {
-            let near = s.at.distance_xz(at) <= rules.on_m();
-            if let SpotSource::Kills { seen, .. } = &mut s.source
-                && near
+            let d = s.at.distance_xz(at);
+            let near = d <= rules.on_m();
+            let follows = rules.follows_m.is_some_and(|m| d > m);
+            if let SpotSource::Kills { seen, kills } = &mut s.source
+                && (near || follows)
                 && seen.is_none_or(|t| time > t)
             {
                 *seen = Some(time);
+                // [A320 F7] He is sensed away from where he killed: the spot (and its kills' place) moves to him.
+                if follows {
+                    s.at = at;
+                    for k in kills.iter_mut() {
+                        k.from = at;
+                    }
+                    s.cast.again(rules.recast);
+                    moved.push(s.id);
+                }
             }
+        }
+        if !moved.is_empty() {
+            self.version = self.version.wrapping_add(1);
+        }
+        for id in moved {
+            self.event(time, id, shooter, at, SpotNote::Recast { why: "its shooter moved" });
         }
     }
 
@@ -2010,6 +2031,9 @@ pub struct JobTeam<'a> {
     pub objective_areas: &'a [Vec3],
     /// [threat.breach] The team's bots holding a Breach's roles off the objective (`breach.rs`): the cap counts them too.
     pub breach_roles: usize,
+    /// [A320 F8 `threat.camp_flank.spare_flanker`] The route starts of the known camp spot at a held spot's place (none: not
+    /// one): its flanker role goes to the mate nearest one of them, the one nearest the spot left out.
+    pub flank_from: Option<&'a dyn Fn(Vec3) -> Vec<Vec3>>,
 }
 
 /// Why a role went ([`JobEvent::Passed`]).
@@ -2162,6 +2186,15 @@ pub fn holds(held: &[HeldLine], min_kills: u32) -> Vec<HeldLine> {
     held.iter().filter(|l| l.kills >= min_kills as usize).cloned().collect()
 }
 
+/// [A342d `threat.cue_merge_m`] [`holds`] with a spot's kills counted over every held spot of its shooter within `merge_m`
+/// of it: his small moves (fx-review A342 §5: 5 of 47 after-cue kills had no cue, his kills split into spots 4 m apart).
+pub fn holds_merged(held: &[HeldLine], min_kills: u32, merge_m: f32) -> Vec<HeldLine> {
+    let kills = |l: &HeldLine| -> usize {
+        held.iter().filter(|o| o.shooter == l.shooter && o.at.distance_xz(l.at) <= merge_m).map(|o| o.kills).sum()
+    };
+    held.iter().filter(|l| kills(l) >= min_kills as usize).cloned().collect()
+}
+
 /// design-p1c §6 (`threat.pair_target`, `fx-threat-obj-two-campers-note.md`): the holds a job may open on when two campers
 /// cover one lane. Of two holds of two shooters that cover common ground ([`HeldLine::shares_ground`]), only the one that
 /// ranks first keeps its offer: more kills, then sensed latest, then the lower id (live humans take the one who had killed
@@ -2267,7 +2300,7 @@ pub fn jobs_tick(
     }
     // The cap's bots off the objective, less those the team's Breaches hold.
     let share = team.size.div_ceil(JOB_SHARE).saturating_sub(team.breach_roles);
-    let staff = StaffRules { mates, lanes, share, now };
+    let staff = StaffRules { mates, lanes, share, now, flank_from: team.flank_from };
     if opening == Opening::ThenDropped {
         open_then_drop(jobs, rested, held, team, &staff, &mut events);
         return events;
@@ -2380,6 +2413,7 @@ struct StaffRules<'a> {
     lanes: &'a [HeldLine],
     share: usize,
     now: u32,
+    flank_from: Option<&'a dyn Fn(Vec3) -> Vec<Vec3>>,
 }
 
 impl StaffRules<'_> {
@@ -2400,14 +2434,24 @@ impl StaffRules<'_> {
             }
             let busy = |place: Place| jobs.iter().any(|j| j.role_of(place).is_some());
             let passed = &jobs[i].passed;
-            let pick = self
+            let free: Vec<&Mate> = self
                 .mates
                 .iter()
                 .filter(|m| m.free && !busy(m.place) && !passed.contains(&m.place))
                 .filter(|m| m.feet.distance_xz(line.at) <= JOB_NEAR_M)
                 .filter(|m| !self.lanes.iter().any(|l| l.covers(m.feet)))
-                .min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at)))
-                .map(|m| m.place);
+                .collect();
+            let nearest = free.iter().min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at))).map(|m| m.place);
+            // [A320 F8] A camp spot's flanker: a spare nearest one of its route starts, not the gun already on him.
+            let starts = match (role, self.flank_from) {
+                (Role::Flanker, Some(from)) => from(line.at),
+                _ => Vec::new(),
+            };
+            let to_start = |m: &Mate| starts.iter().map(|&s| m.feet.distance_xz(s)).fold(f32::INFINITY, f32::min);
+            let spare = (!starts.is_empty())
+                .then(|| free.iter().filter(|m| Some(m.place) != nearest).min_by(|a, b| to_start(a).total_cmp(&to_start(b))).map(|m| m.place))
+                .flatten();
+            let pick = spare.or(nearest);
             if let Some(place) = pick {
                 if let Some(slot) = jobs[i].holder_mut(role) {
                     *slot = Some(Holder { place, since: self.now });
@@ -2556,6 +2600,8 @@ pub struct TeamThreat {
     pub breach_due: Vec<super::breach::Due>,
     /// [threat.breach] The enemies the team killed of the last [`DEATH_KEPT_MS`] and its killers (the kill feed's).
     pub kills: Vec<super::breach::Kill>,
+    /// [A342c `threat.replan_on_cue`] The cued spots its bots were told to look at their routes for.
+    pub cued_seen: Vec<u32>,
 }
 
 /// A death of the team: who, by whom if the kill feed told, when.
@@ -2577,6 +2623,8 @@ pub const DEATH_KEPT_MS: u32 = 5_000;
 pub struct BotThreat {
     pub planned_with: Option<std::sync::Arc<Covered>>,
     pub clear_with: Option<std::sync::Arc<Covered>>,
+    /// [A342c `threat.replan_on_cue`] A new cue: its route ahead is looked at once.
+    pub cue_due: bool,
     /// The bench's replan waiting for its judgment ([`judged`]).
     #[cfg(test)]
     pub asked: Option<Asked>,
@@ -2589,6 +2637,7 @@ impl super::features::Feature for BotThreat {
     fn new_life(&mut self, _life: &super::features::Life) {
         self.planned_with = None;
         self.clear_with = None;
+        self.cue_due = false;
         #[cfg(test)]
         {
             self.asked = None;
@@ -2616,7 +2665,7 @@ mod tests {
     }
 
     /// The rules as they were before the area and the recast.
-    const OLD: SpotRules = SpotRules { model: SpotModel::Point, recast: false, sniper: SniperLife::WhileSensed };
+    const OLD: SpotRules = SpotRules { model: SpotModel::Point, recast: false, sniper: SniperLife::WhileSensed, follows_m: None };
 
     fn at(x: f32) -> Vec3 {
         Vec3::new(x, 0.0, 0.0)
@@ -2652,6 +2701,34 @@ mod tests {
         // Sensed 20 m off the spot: not on it.
         spots.shooter_sensed(7, at(20.0), 40_000, OLD);
         assert_eq!(spots.held(41_000).count(), 0);
+    }
+
+    /// [A320 F7 `threat.spot_follows_m`] A kill spot whose shooter is sensed afresh farther than the switch's metres from it
+    /// moves to him (held, sensed there); an older sense does not move it back; off, it stays where he killed from.
+    #[test]
+    fn with_spot_follows_a_kill_spot_moves_to_its_shooter_sensed_away_from_it() {
+        let follows = SpotRules { follows_m: Some(30.0), ..NEW };
+        let mut spots = ThreatSpots::default();
+        spots.died(at(30.0), 7, at(0.0), 0, 500, follows);
+        spots.died(at(30.0), 7, at(0.0), 500, 1_000, follows);
+        let id = spots.spots[0].id;
+        // 20 m off: within the switch's metres, the spot stays.
+        spots.shooter_sensed(7, at(20.0), 2_000, follows);
+        assert_eq!(spots.spots[0].at, at(0.0));
+        // 45 m off: it moves to him, still held.
+        spots.shooter_sensed(7, at(45.0), 3_000, follows);
+        assert_eq!((spots.spots[0].id, spots.spots[0].at), (id, at(45.0)));
+        assert_eq!(spots.held(3_500).count(), 1);
+        assert_eq!(spots.spots[0].sensed(), Some(3_000));
+        // An older sense (another bot's, sensed before) does not move it back.
+        spots.shooter_sensed(7, at(0.0), 2_500, follows);
+        assert_eq!(spots.spots[0].at, at(45.0));
+        // Off: the spot stays where he killed from.
+        let mut off = ThreatSpots::default();
+        off.died(at(30.0), 7, at(0.0), 0, 500, NEW);
+        off.died(at(30.0), 7, at(0.0), 500, 1_000, NEW);
+        off.shooter_sensed(7, at(45.0), 3_000, NEW);
+        assert_eq!(off.spots[0].at, at(0.0));
     }
 
     #[test]
@@ -2810,7 +2887,7 @@ mod tests {
     }
 
     /// The rules on by default: the area, the recentre, the recast.
-    const NEW: SpotRules = SpotRules { model: SpotModel::Area { m: AREA_M }, recast: true, sniper: SniperLife::WhileSensed };
+    const NEW: SpotRules = SpotRules { model: SpotModel::Area { m: AREA_M }, recast: true, sniper: SniperLife::WhileSensed, follows_m: None };
 
     #[test]
     fn a_spot_is_the_shooters_area_and_its_centre_follows_his_kills() {
@@ -2922,6 +2999,7 @@ mod tests {
             model: SpotModel::Area { m: AREA_M },
             recast: true,
             sniper: SniperLife::Remembered { memory_ms: 120_000 },
+            follows_m: None,
         };
         let eyes = Line { blind: vec![] };
         let mut spots = ThreatSpots::default();
@@ -3025,7 +3103,7 @@ mod tests {
         let held = [a, b, c];
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
-        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas, breach_roles: 0 };
+        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas, breach_roles: 0, flank_from: None };
         // A 12-player team: 4 bots in jobs; shooter 7 has one job, shooter 9 the other.
         jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(12, &[]), &unheld, 1_000);
         let mut shooters: Vec<Place> = jobs.iter().map(|j| j.shooter).collect();
@@ -3081,6 +3159,43 @@ mod tests {
         assert_eq!(ids(one_of_each_pair(vec![a, moved], &[], 5.0)), [1, 2]);
     }
 
+    /// [A342d `threat.cue_merge_m`] A cue counts the kills of the shooter's held spots near each other.
+    #[test]
+    fn a_cue_counts_the_kills_of_his_spots_near_each_other_with_cue_merge() {
+        // One kill each at two spots 4 m apart (his small move), one more of another shooter: no 2-kill cue, as before; with
+        // cue_merge_m 10 both of his spots are cued, the other shooter's not.
+        let one = |id, at: Vec3, shooter| HeldLine { shooter, kills: 1, ..line(id, at, &[0.0]) };
+        let held = [one(1, at(0.0), 7), one(2, at(4.0), 7), one(3, at(40.0), 8)];
+        assert!(holds(&held, 2).is_empty());
+        let ids: Vec<u32> = holds_merged(&held, 2, 10.0).iter().map(|l| l.id).collect();
+        assert_eq!(ids, [1, 2]);
+        assert!(holds_merged(&held, 2, 3.0).is_empty(), "farther apart than the merge: no cue");
+    }
+
+    /// [A320 F8 `threat.camp_flank.spare_flanker`] With the camp spot's route starts given, the flanker role goes to the
+    /// mate nearest a start, the one nearest the spot (the gun on him) left out; without them, the nearest mate, as before.
+    #[test]
+    fn a_spare_flanker_is_the_mate_nearest_a_route_start_not_the_front() {
+        let lane = |at: Vec3| [bearing(at, at + Vec3::new(30.0, 0.0, 0.0)), bearing(at, at + Vec3::new(30.0, 0.0, 1.0))];
+        let held = [HeldLine { shooter: 9, ..line(3, at(0.0), &lane(at(0.0))) }];
+        // Out of his lanes (along +x): 10 nearest him, 11 by the route start, 12 farther still.
+        let mates = [
+            Mate { place: 10, feet: Vec3::new(-15.0, 0.0, 0.0), free: true, playing: None },
+            Mate { place: 11, feet: Vec3::new(-30.0, 0.0, 30.0), free: true, playing: None },
+            Mate { place: 12, feet: Vec3::new(-40.0, 0.0, -30.0), free: true, playing: None },
+        ];
+        let start = Vec3::new(-32.0, 0.0, 32.0);
+        let starts = |_: Vec3| vec![start];
+        let role_of = |flank_from: Option<&dyn Fn(Vec3) -> Vec<Vec3>>| {
+            let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0, flank_from };
+            let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+            jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team, &unheld, 1_000);
+            (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place))
+        };
+        assert_eq!(role_of(None), (Some(10), Some(11)), "off: the nearest mate flanks");
+        assert_eq!(role_of(Some(&starts)), (Some(11), Some(10)), "a spare by the route start flanks; the front pins");
+    }
+
     #[test]
     fn a_spot_no_bot_can_take_keeps_no_slot_from_one_that_can() {
         // Lanes along +x; the team's bots stand at x = -20, out of them, near the spots at the origin.
@@ -3088,7 +3203,7 @@ mod tests {
         let spot = |id, at: Vec3, shooter| HeldLine { shooter, ..line(id, at, &lane(at)) };
         let far = Vec3::new(0.0, 0.0, 500.0);
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
-        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0 };
+        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0, flank_from: None };
         let ids = |jobs: &[Job]| jobs.iter().map(|j| j.spot).collect::<Vec<_>>();
         // A far spot first in the list: both slots still go to the spots the bots can reach.
         let held = [spot(2, far, 8), spot(3, at(0.0), 9), spot(4, Vec3::new(0.0, 0.0, 30.0), 10)];
@@ -3118,7 +3233,7 @@ mod tests {
         let one = line(9, from, &[bearing(from, Vec3::new(-10.0, 0.0, 0.0))]);
         let mate = |place, x: f32, z: f32| Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing: None };
         let mates = [mate(1, -12.0, 0.0), mate(2, -10.0, 30.0), mate(3, -10.0, -30.0)];
-        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[], breach_roles: 0 };
+        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[], breach_roles: 0, flank_from: None };
         let (holds, lanes) = ([hold.clone()], [hold, one]);
         assert!(lanes[1].covers(mates[0].feet), "the test's bot stands in the one-kill line");
         assert!(!lanes.iter().any(|l| l.covers(mates[1].feet) || l.covers(mates[2].feet)), "the others in none");
@@ -3145,7 +3260,7 @@ mod tests {
         ];
         let holders = |jobs: &[Job]| (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place));
         let tick = |jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[HeldLine], mates: &[Mate], now| {
-            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[], breach_roles: 0 }, &unheld, now)
+            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[], breach_roles: 0, flank_from: None }, &unheld, now)
         };
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
         let events = tick(&mut jobs, &mut rested, &held, &mates, 1_000);
