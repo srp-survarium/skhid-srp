@@ -746,6 +746,13 @@ impl Tracker {
         }
     }
 
+    /// [A331] `place`'s kit in use's computed speed factors ([`BodyTrack::set_speed_candidates`]).
+    pub fn set_speed_candidates(&mut self, place: Place, candidates: Vec<f32>) {
+        if let Some(state) = self.places.get_mut(place) {
+            state.body.set_speed_candidates(candidates);
+        }
+    }
+
     /// [A313] The legs' term of the speed factor `place`'s body moves by ([`BodyTrack::set_legs`]).
     pub fn set_legs(&mut self, place: Place, factor: Option<f32>) {
         if let Some(state) = self.places.get_mut(place) {
@@ -1294,12 +1301,17 @@ impl Tracker {
     pub fn fixed(
         &mut self,
         place: Place,
-        fix: Fix,
+        mut fix: Fix,
         health: Option<f32>,
         kin: &Kinematics,
         world: Option<&World>,
     ) -> bool {
         let walls = self.arc_walls(kin, world);
+        // [A331] A battery carrier does not sprint (the owner; `can_sprint` 0x2DBF40, LIKELY): the believed carrier's world keys
+        // move its body at a run, and its level is read against the run.
+        if kin.carrier_sprint == super::kin::CarrierSprint::Refused && self.carries.iter().any(|carry| carry.carrier == Some(place)) {
+            fix.keys &= !key::SPRINT;
+        }
         let Some(state) = self.places.get_mut(place) else {
             return false;
         };

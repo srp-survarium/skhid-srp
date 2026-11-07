@@ -34,7 +34,7 @@ use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, LevelRead, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -364,6 +364,9 @@ pub struct BodyTrack {
     /// The level its profile gives (`bot_skills::profile_movement_level`:
     /// skills, the weight carried), taken until a world shows this life's.
     prior_level: Option<f32>,
+    /// [A331] The kit in use's computed speed factor for each weapon it could have in hands, the primary's first
+    /// ([`Self::set_speed_candidates`], [`LevelSource::Computed`]); empty: not known.
+    candidates: Vec<f32>,
     /// [A313] The legs' term of the speed factor (`Kinematics::speed_terms`); none is 1. Kept out of the level: a world's level is
     /// read without it and the body moves by both.
     legs: Option<f32>,
@@ -440,6 +443,37 @@ impl BodyTrack {
     /// own (see `prior_level`).
     pub fn set_prior_level(&mut self, level: Option<f32>) {
         self.prior_level = level.filter(|level| level.is_finite() && *level > 0.0);
+    }
+
+    /// [A331] The kit in use's computed speed factors (`survarium::v026g::bot_skills::profile_movement_candidates`: for each weapon
+    /// it could have in hands, the primary's first): the primary's is the level until a world's reading picks one
+    /// ([`LevelSource::Computed`]). A new kit drops the reading taken on the old one.
+    pub fn set_speed_candidates(&mut self, candidates: Vec<f32>) {
+        let candidates: Vec<f32> = candidates.into_iter().filter(|level| level.is_finite() && *level > 0.0).collect();
+        if candidates != self.candidates {
+            self.prior_level = candidates.first().copied().or(self.prior_level);
+            if !self.candidates.is_empty() {
+                self.level = None;
+            }
+            self.candidates = candidates;
+        }
+    }
+
+    /// [A331] A world's speed level (`raw`, the speed over the keys' desired one, the legs' term out) as the body takes it: by
+    /// [`Kinematics::level_source`] and the kit's computed values.
+    fn read_level(&self, kin: &Kinematics, keys: u32, speed: f32) -> Option<f32> {
+        match (kin.level_source, self.candidates.as_slice()) {
+            (LevelSource::Computed, candidates) if !candidates.is_empty() => {
+                let raw = kin.level_raw(keys, speed)?;
+                let (lo, hi) = candidates.iter().fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), &c| (lo.min(c), hi.max(c)));
+                if raw < lo - LEVEL_REACH || raw > hi + LEVEL_REACH {
+                    return None;
+                }
+                let nearest = candidates.iter().copied().min_by(|a, b| (a - raw).abs().total_cmp(&(b - raw).abs()))?;
+                Some(if (nearest - raw).abs() <= LEVEL_SNAP { nearest } else { raw })
+            }
+            _ => kin.level_of(keys, speed),
+        }
     }
 
     /// [A313] The legs' term of the speed factor the body moves by from now (`Kinematics::speed_terms`): 1 or none for none.
@@ -613,8 +647,13 @@ impl BodyTrack {
                 (last.len() == n && last.iter().all(|&k| k == last[0])).then(|| last[0])
             }
         };
-        if let Some(level) = read_keys.zip(fix.speed).and_then(|(keys, speed)| kin.level_of(keys, speed / self.legs.unwrap_or(1.0))) {
+        if let Some(level) = read_keys.zip(fix.speed).and_then(|(keys, speed)| self.read_level(kin, keys, speed / self.legs.unwrap_or(1.0))) {
             self.level = Some(level);
+            // [A331] A reading that picked one of the kit's values: the place's prior for its next lives (the weapon it keeps in
+            // hands), instead of the primary's.
+            if self.candidates.contains(&level) {
+                self.prior_level = Some(level);
+            }
         }
         let level = self.level();
         let reckoned = (!new_life)
@@ -2021,6 +2060,36 @@ pub(super) mod tests {
         assert!((track.level() - 0.9).abs() < 1e-5);
         track.set_legs(None);
         assert!((track.level() - 0.9).abs() < 1e-5);
+    }
+
+    /// [A331] [`LevelSource::Computed`]: a settled world's reading takes the nearest of the kit's values when within
+    /// [`LEVEL_SNAP`], stands when farther (a battery's -0.05), and is dropped beyond [`LEVEL_REACH`]; before any, the primary's.
+    #[test]
+    fn a_reading_picks_the_kits_computed_level() {
+        let kin = Kinematics::default();
+        let walked = |track: &mut BodyTrack, at: u32, speed: f32| {
+            for k in 1..=7u32 {
+                track.decided(at + k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+            }
+            track.fixed(Fix { keys: key::FORWARD, speed: Some(speed), ..fix(at + 400, Vec3::ZERO, 0.0) }, &kin, None);
+            track.level()
+        };
+        let mut track = BodyTrack::default();
+        track.set_speed_candidates(vec![0.83, 0.78]);
+        assert!((track.level() - 0.83).abs() < 1e-6, "the primary's before any reading");
+        track.fixed(fix(0, Vec3::ZERO, 0.0), &kin, None);
+        assert!((walked(&mut track, 0, 3.5 * 0.79) - 0.78).abs() < 1e-6, "snapped to the other weapon's");
+        assert!((walked(&mut track, 1_000, 3.5 * 0.73) - 0.73).abs() < 1e-5, "a battery's -0.05 stands");
+        assert!((walked(&mut track, 2_000, 3.5 * 0.5) - 0.73).abs() < 1e-5, "beyond the reach: dropped");
+        // A heavy kit's 0.8 that the old band dropped.
+        let mut old = BodyTrack::default();
+        let measured = Kinematics { level_source: LevelSource::Measured, ..Kinematics::default() };
+        old.fixed(fix(0, Vec3::ZERO, 0.0), &measured, None);
+        for k in 1..=7u32 {
+            old.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &measured, None);
+        }
+        old.fixed(Fix { keys: key::FORWARD, speed: Some(3.5 * 0.8), ..fix(400, Vec3::ZERO, 0.0) }, &measured, None);
+        assert!((old.level() - 1.0).abs() < 1e-6, "the old band drops 0.8");
     }
 
     /// [A318] [`LevelRead::Settled`]: a world in the fade after a key change (its speed between the two keys') leaves the level as it
