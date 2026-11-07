@@ -107,6 +107,22 @@ pub(crate) const LIFT_HOLD_MS: u32 = 300;
 /// The speed a body comes to the face at for the lift, m/s: a sprint is 5 m/s; the walk cap is 3.5.
 pub(crate) const LIFT_MIN_SPEED_MS: f32 = 3.5;
 
+/// [T3] Whether the stand-in flies a jump as the client does (`SRP_BENCH_STAND_IN_JUMP`, `client` unless `old`): the clip of the
+/// keys' direction from the stock clips (`jump_arc::Clip`, 24 frames, PROVEN data), the body moved each tick by the tick's root
+/// delta turned by its yaw now (the root re-based on the body every tick on all axes, fx-review A325g: no catch-up), and the fall
+/// after the clip from the root's last descent (`end_jump` 0x7F050 keeps the downward speed; fx-gear-2's read). `old`: the
+/// forward clip's 13 samples along the press's way, chased from the press, and a fall from rest.
+pub(crate) fn stand_in_client_jump() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_JUMP").map_or(true, |v| v != "old"))
+}
+
+/// [T3] The client's clip for a press ([`stand_in_client_jump`]): `jump_arc::Clip::of` by the keys and the body's speed (a body that
+/// may not sprint takes the short jump), none with the old flight.
+pub(crate) fn client_clip(keys: u32, speed: f32, may_sprint: bool) -> Option<crate::v026g::bots::jump_arc::Clip> {
+    stand_in_client_jump().then(|| crate::v026g::bots::jump_arc::Clip::of(keys, if may_sprint { speed } else { 0.0 }))
+}
+
 /// Whether the stand-in lifts (`SRP_BENCH_STAND_IN_LIFT`, on unless `off`).
 pub(crate) fn stand_in_lift() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
@@ -703,6 +719,8 @@ pub(crate) struct Flight {
     /// The speed across kept while it falls, m/s: a walk off an edge's ([`stand_in_walk_off`]); none for a jump (its fall after the
     /// clip is straight down).
     pub(crate) carry: [f32; 2],
+    /// [T3] The client's clip ([`stand_in_client_jump`]): the tick's root delta moves the body; none: the old flight ([`Self::root`]).
+    pub(crate) arc: Option<crate::v026g::bots::jump_arc::Clip>,
 }
 
 impl Flight {
@@ -910,14 +928,25 @@ pub(crate) fn fly(
             }
         }
     }
-    let (ahead, rise, airborne, over) = f.root(ms);
-    let mut target = (f.from.x + f.dir[0] * ahead, f.from.z + f.dir[1] * ahead);
+    // [T3] The client's flight: this tick's root delta from where the body is (no target kept), the vertical with it.
+    let step = f.arc.map(|arc| client_step(&f, arc, ms, body.yaw));
+    let (airborne, over, mut target) = match step {
+        Some(c) => (c.airborne, c.over, (body.feet.x + c.ahead[0], body.feet.z + c.ahead[1])),
+        None => {
+            let (ahead, _, airborne, over) = f.root(ms);
+            (airborne, over, (f.from.x + f.dir[0] * ahead, f.from.z + f.dir[1] * ahead))
+        }
+    };
     // Off the floor, the keys held now steer it ([`air_control`]).
     if airborne && stand_in_air_control() {
         let steer = air_control(body.keys, body.yaw, f.sprint());
         AIR_STEERS[usize::from(steer == [0.0, 0.0])].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         f.air = [f.air[0] + steer[0] * TICK_S, f.air[1] + steer[1] * TICK_S];
-        target = (target.0 + f.air[0], target.1 + f.air[1]);
+        target = match step {
+            // Re-based: this tick's steer alone.
+            Some(_) => (target.0 + steer[0] * TICK_S, target.1 + steer[1] * TICK_S),
+            None => (target.0 + f.air[0], target.1 + f.air[1]),
+        };
     }
     if !airborne {
         // On the floor before the jump event: toward the root at the walk
@@ -957,7 +986,10 @@ pub(crate) fn fly(
         return None;
     }
     let base = *f.base.get_or_insert(body.feet.y);
-    let y = base + rise;
+    let y = match step {
+        Some(c) => body.feet.y + c.rise,
+        None => base + f.root(ms).1,
+    };
     let was = body.feet.y;
     let (mut x, mut z) = air_move(walls, grid.body().radius, body.feet, target, y);
     // The capsule rule in the air too (A199): the root's step of the first airborne tick is 0.75 m, which the three rays above can pass
@@ -972,17 +1004,51 @@ pub(crate) fn fly(
         (x, z) = held.to;
     }
     body.feet = Vec3::new(x, y, z);
-    if (f.descending(ms) || over)
+    let descending = step.map_or_else(|| f.descending(ms), |c| c.rise < 0.0);
+    if (descending || over)
         && let Some((n, feet)) = air_floor(grid, body.feet, was.max(y) + 0.05)
         && feet.y >= y - 1e-4
     {
         return landed(body, &f, n, feet, None);
     }
     if over {
-        f.fall = Some(0.0);
+        // [T3] The client's fall starts at the root's last descent; the old one from rest.
+        f.fall = Some(f.arc.map_or(0.0, |arc| arc.end_descent()));
     }
     body.flight = Some(f);
     None
+}
+
+/// [T3] One tick of the client's flight ([`stand_in_client_jump`]): the root's delta over the tick, from the clip's frame `ms - 50`
+/// to `ms` after the press (the sprint jump's prepare first: its travel along the press's way), turned by the body's yaw now.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ClientStep {
+    /// The flat move, map frame, m.
+    pub(crate) ahead: [f32; 2],
+    /// The rise over the tick, m (down negative).
+    pub(crate) rise: f32,
+    /// The clip's `jump` event has passed (frame 6): in the air.
+    pub(crate) airborne: bool,
+    /// The clip's end (frame 24): `end_jump`.
+    pub(crate) over: bool,
+}
+
+pub(crate) fn client_step(f: &Flight, arc: crate::v026g::bots::jump_arc::Clip, ms: f32, yaw: f32) -> ClientStep {
+    use crate::v026g::bots::jump_arc::{END_FRAME, FPS, TAKEOFF_FRAME};
+    let (pm, pd) = f.prepare;
+    let prev = (ms - TICK_S * 1_000.0).max(0.0);
+    let frame = |m: f32| ((m - pm).max(0.0) / 1_000.0 * FPS * arc.time_scale()).min(END_FRAME);
+    let prep = |m: f32| if pm > 0.0 { pd * m.min(pm) / pm } else { 0.0 };
+    let (f0, f1) = (frame(prev), frame(ms));
+    let (a, b) = (arc.root(f0), arc.root(f1));
+    let d = to_world([b[1] - a[1], -(b[2] - a[2])], yaw);
+    let p = prep(ms) - prep(prev);
+    ClientStep {
+        ahead: [d[0] + f.dir[0] * p, d[1] + f.dir[1] * p],
+        rise: b[0] - a[0],
+        airborne: f1 >= TAKEOFF_FRAME,
+        over: f1 >= END_FRAME,
+    }
 }
 
 /// A press's draw in [0, 1) (the sprint jump's prepare phase): a hash, so
@@ -1061,6 +1127,7 @@ pub(crate) fn honest_jump_in(
         fall: None,
         air: [0.0; 2],
         carry: [0.0; 2],
+        arc: client_clip(keys, speed, true),
     });
     let mut top = 0.0f32;
     for k in 1..=80 {
@@ -1096,13 +1163,23 @@ pub(crate) fn an_honest_jump_follows_the_games_clips() {
     let run = key::FORWARD | key::SPRINT | key::JUMP;
     let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 5.0);
     let ahead = to.x - from.x;
-    assert!((4.3..=4.42 + 1.64 + 0.15).contains(&ahead), "{to:?}");
+    // [T3] The client's: before the take-off the walk cap (3.5 m/s, `max_speed` 0x2DC010; skipped only under the jump flag, A328)
+    // holds the body behind the sprint clip's 5 m/s root, and with the root re-based every tick (A325g) it does not catch up: about
+    // 0.4 m short of the clip's 4.42 m. The old flight chased it back.
+    let least = if stand_in_client_jump() { 3.9 } else { 4.3 };
+    assert!((least..=4.42 + 1.64 + 0.15).contains(&ahead), "{to:?}");
     assert!((top - 1.28).abs() < 0.03, "{top}");
     let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 3.0);
     assert!((to.x - from.x - 2.67).abs() < 0.15 && (top - 1.0).abs() < 0.03, "{to:?} {top}");
-    // Back and to the side: that way.
+    // Back and to the side: that way, as far as that way's own clip carries ([T3] the stock `on_site_left` root; the old flight
+    // took the forward clip's 2.67 m).
     let (to, _) = honest_jump(&grid, &walls, body, key::LEFT | key::JUMP, 0.0);
-    assert!((to.z - from.z - 2.67).abs() < 0.15 || (from.z - to.z - 2.67).abs() < 0.15, "{to:?}");
+    let side = if stand_in_client_jump() {
+        crate::v026g::bots::jump_arc::Clip::of(key::LEFT, 0.0).root(crate::v026g::bots::jump_arc::END_FRAME)[2].abs()
+    } else {
+        2.67
+    };
+    assert!(((to.z - from.z).abs() - side).abs() < 0.15 && to.distance_xz(from) < side + 0.15, "{to:?} {side}");
 }
 
 /// The air control ([`air_control`], the client's `get_air_control_vector`): 1.0 m/s along the keys, the diagonals normalised,
@@ -1358,6 +1435,7 @@ fn a_walk_off_falls_on_at_its_walk_speed() {
             fall: Some(0.0),
             air: [0.0; 2],
             carry,
+            arc: None,
         });
         (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS)).map(|landing| landing.to)
     };
