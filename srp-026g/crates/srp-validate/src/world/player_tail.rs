@@ -47,17 +47,12 @@
 
 use super::inventory::{self, Ammo, Body, Gun, Item, Measure, Owner, SLOTS, Slot, items_and_rest};
 use super::AMMO_SLOTS;
+use super::effects::{Effect, EffectFault};
 use super::{Block, Context, PLAYER_FIELDS_AT};
 use weapon_pickup::WeaponSlot;
 use crate::reader::{Reader, Short};
 use crate::{Part, Reason, Refusal, finite};
 
-/// One player-effect record: the effects section's template form
-/// (world_validation.md section 8: offsets 12..79 of the one-effect
-/// template, 67 bytes). Only the leading flag is checked here; the effects
-/// section's own template bounds the rest, and E is 0 in every observed
-/// world.
-const EFFECT_RECORD: usize = 67;
 /// The inventory's slots, which bound `slots_begin + A`
 /// (`inventory::deserialize` loop count 0x17, 0x2FE7A9).
 const INVENTORY_SLOTS: usize = 23;
@@ -167,10 +162,9 @@ fn walk(state: &[u8], items: usize, place: Option<u8>, context: &Context) -> Res
         head_len,
     );
 
-    // The E player effects: each the template's 67-byte effect record. E is
-    // 0 in every world seen; a record is length-walked and its leading
-    // root-emitter flag checked (the effects section's template bounds its
-    // own records).
+    // The E player effects, each an effect in the one form a game writes
+    // (`effects::Effect`, as the effects section's). E is 0 in every world
+    // seen.
     if e_count > MAX_RECORDS {
         return Err((
             head_len,
@@ -181,11 +175,10 @@ fn walk(state: &[u8], items: usize, place: Option<u8>, context: &Context) -> Res
         ));
     }
     for _ in 0..e_count {
-        let start = reader.at();
-        let record = reader.take(EFFECT_RECORD).map_err(short)?;
-        if record.first() != Some(&0) {
-            return Err((start, Reason::TailEffect { at: start }));
-        }
+        Effect::read(&mut reader).map_err(|fault| match fault {
+            EffectFault::Short(cut) => short(cut),
+            fault => (fault.at(), Reason::TailEffect(fault)),
+        })?;
     }
 
     // The hit effects: a u32 count, then that many records.

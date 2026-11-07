@@ -61,3 +61,25 @@ pub mod timelimit {
 pub const fn finite(bits: u32) -> bool {
     bits & 0x7F80_0000 != 0x7F80_0000
 }
+
+/// An f32 that is a number (not infinite, not NaN), kept as its bits so
+/// that the game's build has no float code until a caller asks for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Finite(u32);
+
+impl Finite {
+    pub const ZERO: Finite = Finite(0);
+
+    /// The float of `bits`, if it is a number.
+    pub const fn of_bits(bits: u32) -> Option<Finite> {
+        if finite(bits) { Some(Finite(bits)) } else { None }
+    }
+
+    pub const fn bits(self) -> u32 {
+        self.0
+    }
+
+    pub fn get(self) -> f32 {
+        f32::from_bits(self.0)
+    }
+}

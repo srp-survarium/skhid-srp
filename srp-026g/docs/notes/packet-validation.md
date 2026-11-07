@@ -68,10 +68,14 @@ player item fields, fixed 69-byte bullet records, and the optional `LMP1` lamp
 history suffix. A bullet's ammo ordinal is not bounded by the original profile:
 pickup swaps can change the gun while a bullet remains in flight, and the shipped
 native loader already clamps the ordinal.
-The effects template takes any finite float at offsets 36, 40 and 48: the
-effect's five values (read at 0x2DDEAF..0x2DDEF0, stored at 0x2DDFE4..0x2DE017)
-are two u32 at 32 and 44, still held to 0, and three floats, none an index;
-live games save 0.05 in them (2 of the 25,456 uploads of the second live sample).
+The effects section is read as `world::Effects`, its effect as
+`world::Effect` (the record a player's state holds too): borrowed views
+whose reader takes the one form a game writes (root emitter indexed, the
+effect's own time calculator, every float a `Finite`), with an accessor for
+each field (`effects.rs` has the field map). The section's rules are then
+plain comparisons of fields: its three free floats take any number (live
+games save 0.05 in them, 2 of the 25,456 uploads of the second live sample),
+its two u32 at +0x1C and +0x34 are held to 0.
 Since patch 98 the six sections grow past the history item's inline buffers;
 only the body's 0xF000 bytes (`world_frame::MAX_BODY`) and a player state's
 0x1000 bound them. The packed 0xE8 decodes into 0xF000 bytes as well.
@@ -91,6 +95,26 @@ pass the host check.
 Validation: validator tests and affected-crate Clippy pass, including native
 server-encoded player state and lamp count/length boundaries. Native integration
 and real-match acceptance remain separate gates.
+
+## Typed views of the world (from 2026-11-07)
+
+The checks move from reading bytes at offsets to parsing each record once
+into a zero-copy view: a type that borrows its bytes from the world (no copy,
+no allocation, so the game's arena builds it as it does the rest), made only
+by its reader, which checks its shape once, with an accessor for every field
+(named by what it is, or by the native object's offset when the meaning is
+not known yet). A check is then a rule over named fields. Naming every field
+makes each layout claim explicit: a reader that takes a record's one form
+states what that form is, where a byte comparison only said what was seen.
+
+Each step keeps every verdict: the server's verdicts on all 50,205 live
+uploads and 16 flipped copies of each (853,485 checks) are diffed against
+main's before it lands, and the game's are held to the host's by the drift
+gate. Done: the effects section and the player effects (`world/effects.rs`;
+a player effect is now held to the whole form, not only its first byte, and
+none is in any world seen). Next: the game objects, the player states, the
+bullets, statistics and rules, then a typed `World` that only the parse
+makes, for the server to cache and relay.
 
 ## Server upload enforcement
 

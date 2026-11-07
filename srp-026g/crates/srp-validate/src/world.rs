@@ -4,7 +4,7 @@ mod effects;
 mod frame;
 mod objects;
 pub use bullets::bullets;
-pub use effects::effects;
+pub use effects::{Effect, EffectFault, Effects, effects};
 pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};
 mod inventory;
 pub use inventory::{Ammo, Body, Chamber, Gun, GunState, Inventory, Item, Measure};

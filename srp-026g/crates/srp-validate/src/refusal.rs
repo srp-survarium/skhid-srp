@@ -4,6 +4,8 @@ use core::fmt;
 
 use world_frame::{AnimFault, MAX_BODY, PLAYER_STATE_CAP};
 
+use crate::world::EffectFault;
+
 /// The part of a world a fault is in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
@@ -294,23 +296,21 @@ pub enum Reason {
         count: u32,
         len: usize,
     },
-    /// A byte the template fixes: its offset in the section, what it is.
-    EffectsByte {
+    /// The effect is not in the one form a game writes
+    /// (`world::Effect::read`).
+    EffectsEffect(EffectFault),
+    /// A field every world has one value of has another: its offset in the
+    /// section, its name.
+    EffectsField {
         at: usize,
-        what: &'static str,
-        found: u8,
-        wanted: u8,
-    },
-    /// A float the template takes any finite value of is none.
-    EffectsNotNumber {
-        at: usize,
-        what: &'static str,
-    },
-    /// The emitter's id (offset 58: the opening u32, 75: it less 1).
-    EffectsEmitterId {
-        at: usize,
+        field: &'static str,
         found: u32,
         wanted: u32,
+    },
+    /// Bytes every world has are other ones.
+    EffectsBytes {
+        at: usize,
+        what: &'static str,
     },
 
     // The player state's tail (after the head).
@@ -324,10 +324,9 @@ pub enum Reason {
         what: &'static str,
         count: u32,
     },
-    /// A player-effect record is not the template's (a raw root emitter).
-    TailEffect {
-        at: usize,
-    },
+    /// A player effect is not in the one form a game writes
+    /// (`world::Effect::read`).
+    TailEffect(EffectFault),
     /// A hit-effect record is not the template's (a bad bool or a raw root
     /// emitter).
     TailHitEffect {
@@ -717,22 +716,19 @@ impl fmt::Display for Reason {
             Reason::EffectsCount { count, len } => {
                 write!(f, "{count} effects in {len} bytes")
             }
-            Reason::EffectsByte {
+            Reason::EffectsEffect(fault) => write!(f, "{fault}"),
+            Reason::EffectsField {
                 at,
-                what,
+                field,
                 found,
                 wanted,
             } => write!(
                 f,
-                "byte {at} ({what}) is {found:#04x}, the template's {wanted:#04x}"
+                "{field} at {at} is {found:#x}, every world's {wanted:#x}"
             ),
-            Reason::EffectsNotNumber { at, what } => {
-                write!(f, "the float at {at} ({what}) is no number")
+            Reason::EffectsBytes { at, what } => {
+                write!(f, "{what} at {at} is not every world's")
             }
-            Reason::EffectsEmitterId { at, found, wanted } => write!(
-                f,
-                "the emitter id at {at} is {found:#x}, the opening u32 makes it {wanted:#x}"
-            ),
             Reason::TailUnread { at } => {
                 write!(
                     f,
@@ -740,12 +736,7 @@ impl fmt::Display for Reason {
                 )
             }
             Reason::TailCount { what, count } => write!(f, "{count} {what}, too many to fit"),
-            Reason::TailEffect { at } => {
-                write!(
-                    f,
-                    "a player effect at {at} is not the template's (a raw root emitter)"
-                )
-            }
+            Reason::TailEffect(fault) => write!(f, "a player effect: {fault}"),
             Reason::TailHitEffect { at } => {
                 write!(f, "a hit effect at {at} is not the template's")
             }
