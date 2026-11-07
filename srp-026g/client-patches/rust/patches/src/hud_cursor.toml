@@ -10,10 +10,16 @@ patch = 113
 site = "hud.initialize_match"
 handler = "on_match_start"
 
-# show_cursor's show: no movie while the main menu is shown.
+# show_cursor's show: the movie put in the scene, or kept off.
 [[hook]]
 site = "hud.cursor_movie"
 handler = "on_cursor_shown"
+
+# show_cursor's hide: the movie taken out of the scene, or only the flag
+# written when it is not there.
+[[hook]]
+site = "hud.cursor_movie_hide"
+handler = "on_cursor_hidden"
 
 # The main menu about to be shown: the hud's cursor movie off.
 [[hook]]

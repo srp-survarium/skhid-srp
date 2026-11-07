@@ -5735,3 +5735,9 @@ va	name	location	role	basis
 0x001ed170	survarium::game::switch_to_game_world	EAX	the game	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	AL	the flag: 1 shown, 0 hidden	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	EDX	the lobby menu	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	stack+4	the buffer_vector (begin +0, end +4)	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	stack+8	pointer to first	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	stack+12	pointer to last	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> *,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EAX	first	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> *,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	ESI	last	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> *,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EDI	pointer to the value	observed
