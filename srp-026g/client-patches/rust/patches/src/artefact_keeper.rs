@@ -27,11 +27,11 @@
 //!   its passive on again (setup_from_profile's on_taken); a respawn in another kit leaves it in
 //!   the first kit's container (each kit its own object). It goes dormant only when a take with
 //!   every container held replaces it (take_artefact 0x2FC897); it stays given then.
-//! - A rollback over a spawn into a kit that was not current: the world loaded holds only the
-//!   current kit's player and inventory, so the spawned kit's slots are its first run's, a gift
-//!   after that spawn included, while the world has that artefact dormant again. The spawn's
-//!   setup_from_profile empties such a container before its on_taken (`on_respawn_containers`);
-//!   the gift is due again at the same tick, as in a game that did not roll back.
+//! - A world's load (a rollback, a join, a resync, a replay's seek) carries every artefact with its
+//!   inventory and slot, but only each place's current kit's inventory, in its saved container
+//!   range. Every kit's slots are made the world's at the load's end (`on_world_loaded`): a gift
+//!   the world has dormant again leaves the slot the game's own run put it in, and is due again
+//!   at its tick, as in a game that did not load the world.
 //! - Every input is simulated state: the static info's kits, the time state, the statistics, the
 //!   pool's states and counts, and the inventory, read at the player's simulation tick in every
 //!   game, re-simulation and replay.
@@ -136,15 +136,36 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// A spawn's setup_from_profile, before it switches each held artefact's passive on: a container
-/// whose artefact the world has in no inventory of this kit is emptied. Only a game that loaded a
-/// world in which the spawned kit was not current (a rollback over the spawn) has one: the kit's
-/// slots are its first run's, a gift there after the spawn included, while the world loaded has
-/// that artefact dormant in the pool. Emptied, the same tick's gift goes into it again, as in a
-/// game that did not roll back; left, its on_taken faulted (the live crash of rev51).
-pub fn on_respawn_containers(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    crate::vostok::keeper::empty_stale_containers(ctx, |id| {
-        line(&[Text("keeper: a spawn's container held artefact id "), Dec(id.into()), Text(" of no inventory of its kit (a rollback over a gift): emptied")]);
+/// What a world's load changed in one slot of a kit (`on_world_loaded`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mend {
+    /// The slot held a registered artefact the world has elsewhere or nowhere: emptied.
+    Emptied,
+    /// The world has the artefact in this slot, which was empty: put in.
+    Restored,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Mended {
+    pub place: u8,
+    pub kit: u8,
+    pub slot: u8,
+    pub id: u8,
+    pub how: Mend,
+}
+
+/// The end of every world's load: every kit's slots hold the registered artefacts the world says
+/// they hold (`vostok::keeper::reconcile`). Without it a game that loaded a world kept, in the slots
+/// the world does not carry (another kit's, a container range the world saved empty), what its own
+/// run put there after it: a gift the world has dormant again, whose on_taken at the next spawn
+/// faulted (the live crashes of rev51 and rev52).
+pub fn on_world_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    crate::vostok::keeper::reconcile(ctx, |m| {
+        line(&[
+            Text("keeper: a world's load "), Text(match m.how { Mend::Emptied => "empties", Mend::Restored => "restores" }),
+            Text(" place "), Dec(m.place.into()), Text(" kit "), Dec(m.kit.into()), Text(" slot "), Dec(m.slot.into()),
+            Text(": artefact id "), Dec(m.id.into()),
+        ]);
     });
     Flow::Continue
 }

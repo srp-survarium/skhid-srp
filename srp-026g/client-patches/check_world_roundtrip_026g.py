@@ -110,6 +110,11 @@ OWN_CHECKS = {
                    "and restore with identical config duration for ranks 0..5 and two client memory layouts",
 
     (0x27C116, 5): "world_load.loaded: application receipt, exercised by check_packet_recovery_026g.py",
+    (0x2D2D5D, 7): "keeper.world_loaded (patch 109): after the load, every kit's slots made to hold the registered "
+                   "artefacts the world has in them; reads and writes no serialized bytes (a save writes the "
+                   "current kit's slots, which the load just wrote and this keeps, and the artefacts' own "
+                   "records, which it never writes); check_artefact_keeper_026g.py runs it after the game's own "
+                   "inventory::deserialize",
     (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
     (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",

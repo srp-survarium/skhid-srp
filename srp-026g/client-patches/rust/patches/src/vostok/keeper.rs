@@ -14,7 +14,7 @@
 //!   a container holds.
 use super::world::read;
 use super::{Context, GameCell, Thread, artefact_skills, statistics};
-use crate::artefact_keeper::{Containers, History, Registered, Standing};
+use crate::artefact_keeper::{Containers, History, Mend, Mended, Registered, Standing};
 use crate::artefact_skills::Skills;
 use crate::raw;
 use artefact_carry::ArtefactId;
@@ -180,11 +180,75 @@ impl<'t> Recipient<'t> {
     }
 }
 
-/// A spawn's setup_from_profile before its on_taken loop (`keeper.respawn_containers`): the
-/// spawned kit's containers whose artefact the world has in no inventory of this kit are emptied
-/// (`inventory::empty_stale_containers`); `emptied` is told each one's id.
-pub fn empty_stale_containers(ctx: &Context<'_>, emptied: impl FnMut(u8)) {
-    // SAFETY: the site's EDI, the inventory setup_from_profile sets up (base_player's +10Ch).
-    let Some(inventory) = (unsafe { raw::site::keeper_respawn_containers::inventory(ctx) }) else { return };
-    super::inventory::empty_stale_containers(inventory, ctx.thread(), emptied);
+/// The end of a world's load (`keeper.world_loaded`, game_world_core::deserialize 0x2D2D5D):
+/// every kit of every place made to hold the registered artefacts the world says it holds.
+///
+/// A world carries every registered artefact with its inventory and slot (inventory_item's load
+/// 0x2FFF8D: the place and kit of its holder, 0xFF none; +254h the slot), but a place's inventory
+/// only for its current kit, and only that kit's saved container range (inventory::deserialize
+/// 0x2FE5E7: a count of 0, a kit never set up when the world was saved, writes no slot at all).
+/// Every other slot keeps what the game's own run put there after the world was saved: a gift (or
+/// any take) the world has dormant again, or nothing where the world has an artefact. So, for
+/// each kit's 23 slots: a registered artefact the world has elsewhere (another inventory, another
+/// slot, none) leaves it (`Mend::Emptied`), and an artefact the world has in it at an empty slot
+/// comes in (`Mend::Restored`). The world alone decides, so every game that loads it holds the
+/// same, the same as the game that did not load it (its slots and its artefacts' words agree:
+/// set_item, remove_item and the eviction write both). `mended` is told each change.
+pub fn reconcile(ctx: &Context<'_>, mut mended: impl FnMut(Mended)) {
+    use super::inventory::{KitSlots, SLOTS};
+    // SAFETY: the site's EBP, the core world just loaded.
+    let Some(world) = (unsafe { raw::site::keeper_world_loaded::world(ctx) }) else { return };
+    let thread = ctx.thread();
+    // The registered artefacts by address, for the slots' items (no item is read as an artefact
+    // before it is found here).
+    let mut known = [(0u32, 0u8); 255];
+    let mut count = 0;
+    for (id, item) in registered(world) {
+        if let Some(entry) = known.get_mut(count) {
+            *entry = (item.address(), id.get());
+            count += 1;
+        }
+    }
+    let known = &mut known[..count];
+    known.sort_unstable();
+    let registered_id = |address: u32| known.binary_search_by_key(&address, |k| k.0).ok().map(|at| known[at].1);
+    // SAFETY: the live core world's places vector; each place's three kit players, kept when its
+    // player leaves.
+    let Some((first, end)) = (unsafe { world.places().zip(world.places_end()) }) else { return };
+    let places = end.index_from(first).unwrap_or(0).min(usize::from(u8::MAX));
+    for place in 0..places {
+        // SAFETY: below the vector's end.
+        let entry = unsafe { first.at(place) };
+        for kit in 0..3u8 {
+            // SAFETY: as above.
+            let player = unsafe {
+                match kit {
+                    0 => entry.kit0(),
+                    1 => entry.kit1(),
+                    _ => entry.kit2(),
+                }
+            };
+            let Some(mut slots) = player.and_then(|player| KitSlots::of_player(player, thread)) else { continue };
+            let at = |slot, id, how| Mended { place: place as u8, kit, slot, id, how };
+            for slot in 0..SLOTS {
+                let Some(item) = slots.item(slot) else { continue };
+                let Some(id) = registered_id(item.address()) else { continue };
+                // SAFETY: a registered artefact's inventory_item fields.
+                let (owner, index) = unsafe { (item.inventory(), read(item.inventory_slot())) };
+                if owner != Some(slots.inventory()) || index != u32::from(slot) {
+                    slots.empty(slot);
+                    mended(at(slot, id, Mend::Emptied));
+                }
+            }
+            for (id, item) in registered(world) {
+                // SAFETY: as above.
+                let (owner, index) = unsafe { (item.item().inventory(), read(item.item().inventory_slot())) };
+                let Ok(slot) = u8::try_from(index) else { continue };
+                if owner == Some(slots.inventory()) && slot < SLOTS && slots.item(slot).is_none() {
+                    slots.fill(slot, item);
+                    mended(at(slot, id.get(), Mend::Restored));
+                }
+            }
+        }
+    }
 }

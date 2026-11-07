@@ -221,37 +221,67 @@ impl<'t> Inventory<'t> {
     }
 }
 
-/// A spawn's setup_from_profile, before it switches each held artefact's passive on (its last
-/// loop, on_taken: the passive link reads the artefact's inventory's holder): every container of
-/// the kit's inventory `this` whose artefact names another inventory or none (its +250h) is
-/// emptied and its slot's reference released; `emptied` is told each such artefact's id.
-///
-/// The artefact's word is the world's: a world (a rollback's, a resync's) loads every registered
-/// artefact, its inventory with it (inventory_item's load 0x2FFF8D, by the place and kit it
-/// carries; 0xFF none), but only the current kit's player and inventory
-/// (game_world_core_client::serialize 0x3218E0). A kit that was not current in the world loaded
-/// keeps the slots its first run left, so a gift (or any take) into it after a spawn the
-/// rollback goes back over leaves a slot naming an artefact the world has dormant in its pool, in
-/// no inventory: its on_taken faulted at [0+174h] (Larkspur's 0x3121AD, the live crash of rev51).
-/// In a game that did not load such a world every container's artefact names its inventory
-/// (set_item and the eviction write both), so nothing changes there.
-pub(in crate::vostok) fn empty_stale_containers(this: raw::Inventory, thread: &Thread, mut emptied: impl FnMut(u8)) {
-    let Some(containers) = Containers::of(this) else { return };
-    for index in (0..containers.count).filter_map(ContainerIndex::parse) {
-        let Some(entry) = containers.entry(index) else { continue };
-        // SAFETY: an entry of this live inventory's container array; a held slot's item is a
-        // live artefact (its inventory_item and artefact_base fields).
+/// The 23 slots of an inventory (+10Ch), by their native index (the item's +254h).
+pub(in crate::vostok) const SLOTS: u8 = 23;
+
+/// One kit's inventory at a world's load, its slots compared with the world's artefacts
+/// (`keeper::reconcile`). Its writes are the native ones' (set_item 0x2FC620, remove_item
+/// 0x2FC680): the slot's pointer, its reference, the weight to be recalculated (+184h). No
+/// passive is linked or unlinked: what a held artefact's passive is, the kit's next spawn decides
+/// (setup_from_profile's on_taken), as in a game that did not load the world.
+pub(in crate::vostok) struct KitSlots<'t> {
+    this: raw::Inventory,
+    _thread: &'t Thread,
+}
+
+impl<'t> KitSlots<'t> {
+    pub(in crate::vostok) fn of_player(player: raw::Player, thread: &'t Thread) -> Option<Self> {
+        // SAFETY: a live player of the world's places; its inventory pointer (+10Ch).
+        let this = unsafe { player.inventory()? };
+        Some(Self { this, _thread: thread })
+    }
+
+    pub(in crate::vostok) fn inventory(&self) -> raw::Inventory {
+        self.this
+    }
+
+    fn entry(&self, slot: u8) -> Option<raw::InventorySlot> {
+        // SAFETY: one of this live inventory's 23 slots (+10Ch + 4 x slot).
+        (slot < SLOTS).then(|| unsafe { self.this.slots().at(usize::from(slot)) })
+    }
+
+    /// The item in `slot`, if any.
+    pub(in crate::vostok) fn item(&self, slot: u8) -> Option<raw::Item> {
+        // SAFETY: as in `entry`.
+        unsafe { self.entry(slot)?.item() }
+    }
+
+    /// Empties `slot`, releasing its reference (as remove_item does, without its owner write:
+    /// the item's inventory is the world's, another's or none).
+    pub(in crate::vostok) fn empty(&mut self, slot: u8) {
+        let Some(entry) = self.entry(slot) else { return };
+        // SAFETY: the slot's live item and the reference the slot holds on it.
         unsafe {
-            let Some(item) = entry.item() else { continue };
-            if item.inventory() == Some(this) {
-                continue;
-            }
-            let id = read(item.artefact().id());
+            let Some(item) = entry.item() else { return };
             entry.set_item(None);
-            this.weight_dirty().write_volatile(1);
-            // The slot's reference, released as set_item and the eviction release theirs.
-            drop(RetainedItem::adopt(item.artefact(), thread));
-            emptied(id);
+            self.this.weight_dirty().write_volatile(1);
+            drop(RetainedItem::adopt(item.artefact(), self._thread));
+        }
+    }
+
+    /// Puts `item` into the empty `slot`, with the slot's reference (as set_item does, without its
+    /// owner write: the world has it in this inventory at this slot already).
+    pub(in crate::vostok) fn fill(&mut self, slot: u8, item: raw::Artefact) {
+        let Some(entry) = self.entry(slot) else { return };
+        // SAFETY: an empty slot of this live inventory; a live registered artefact, retained
+        // once more for the slot.
+        unsafe {
+            if entry.item().is_some() {
+                return;
+            }
+            AtomicU32::from_ptr(item.item().references()).fetch_add(1, Ordering::AcqRel);
+            entry.set_item(Some(item.item()));
+            self.this.weight_dirty().write_volatile(1);
         }
     }
 }

@@ -14,9 +14,9 @@ site = "battery.carrier_tick"
 handler = "on_tick"
 order = 4
 
-# a spawn's setup_from_profile, before the on_taken of each held slot: a container whose
-# artefact is in no inventory of this kit any more (a rollback over a gift into a kit that was not
-# current) is emptied, as the world says
+# the end of every world's load: every kit's artefact slots made the world's (a world holds the
+# artefacts' inventory and slot, but only the current kit's inventory, and that only in its saved
+# container range)
 [[hook]]
-site = "keeper.respawn_containers"
-handler = "on_respawn_containers"
+site = "keeper.world_loaded"
+handler = "on_world_loaded"

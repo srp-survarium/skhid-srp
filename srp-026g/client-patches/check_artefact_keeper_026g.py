@@ -24,9 +24,14 @@ artefact_base::tick (state 5, kept in its container), the respawn's on_taken (st
 then a take with every container held that replaces it (take_artefact's own eviction: dormant
 again, in no inventory) and a container freed after; a late joiner (bit 13) nothing before its
 first death, then the same; nothing without the Keeper bit, a draw of no kind, or a place past
-the pool; a new load (the vector empty again) forgets the last map's pool; a rollback over a
-respawn into another kit with the gift after it (the replayed spawn's setup_from_profile empties
-the container the world has the gift out of, then the gift again). Says nothing of the
+the pool; a new load (the vector empty again) forgets the last map's pool. World loads (the
+game's own inventory::deserialize for the current kits, the load's end 0x2D2D5D with patch 109's
+hook; `Worlds`): after each, every kit's slots hold exactly the registered artefacts the world has
+in them, and a replayed spawn's on_taken (setup_from_profile's last loop) meets none in no
+inventory: the countdown's world (the kit's count 0) after the start's gift, a world from before a
+respawn into another kit (a late joiner's and another place's gifts after it, a kept artefact), a
+world without the place, several loads in a row, an artefact the world has in a kit whose object
+lost it. Says nothing of the
 cook, the save (check_artefact_carry_026g.py saves and loads the activation time) or a real
 match.
 """
@@ -317,70 +322,7 @@ def check(data):
 
 CONTAINERS_READ, CONTAINERS_READ_END = 0x2FE5DE, 0x2FE77B   # inventory::deserialize's containers
 SETUP_LAST, SETUP_LAST_END = 0x2FD19A, 0x2FD1C3   # setup_from_profile's last loop: each held slot's vfn +38h
-
-
-def rollback(data):
-    """A rollback over a late joiner's respawn into another kit, the gift after it (the live crash
-    of rev51, match 0x69f885a): the world loaded has only the kit then current (kit 0, dead), so kit
-    1's object keeps its first run's slots, the gift in its first container, while the world has
-    that artefact dormant again (state 0, in no inventory, its mark u32::MAX: artefact_base's and
-    inventory_item's load). The replayed spawn's setup_from_profile (its own last loop, patch 109's
-    hook before it) empties that container and leaves the other, whose artefact the world has in
-    this inventory: only that one gets on_taken (the stale one's passive link read [0+174h] and
-    faulted); the next tick gives the gift again, as the run that did not roll back did."""
-    g = Keeper(data)
-    hidden, pool = g.anomaly(['Larkspur'] * 4, containers=0)
-    g.register(hidden)
-    gift = pool[3]
-    taken = []
-    g.emu.hook_add(UC_HOOK_CODE, lambda emu, address, size, _: taken.append(g.ecx()), begin=ON_TAKEN, end=ON_TAKEN)
-    g.started()
-    ranks = KEEPER + draw(1) + LATE
-    p0, _, _ = g.player(3, ranks)                    # its first life's kit
-    g.emu.mem_write(p0 + 0x33C, b'\x00')
-    g.statistics(3, 2, 0)                            # its death counted
-    p1, inv1, slots1 = g.player(3, ranks, kit=1)     # the respawn into kit 1 (current now)
-    kept = g.artefact('Onyx')                        # found in an earlier life in kit 1, kept there
-    g.word(slots1 + 4, kept)
-    g.word(kept + 0x250, inv1)
-    g.word(kept + 0x280, 5)
-    g.tick(p1)
-    assert g.read(slots1) == gift and g.state(gift) == 3 and g.read(gift + 0x250) == inv1
-    references = g.read(gift + 0xD0)
-    # The rollback's world: kit 0 current, the gift dormant in the pool; kit 1's slots its first run's.
-    g.emu.mem_write(g.places + 3 * 0x30 + 0xC, b'\x00')
-    g.word(gift + 0x280, 0)
-    g.word(gift + 0x250, 0)
-    g.word(gift + 0x2A0, NEVER)
-    # The replayed spawn into kit 1: setup_from_profile's last loop.
-    g.emu.mem_write(g.places + 3 * 0x30 + 0xC, b'\x01')
-    g.emu.mem_write(inv1 + 0x184, b'\x00')
-    from unicorn.x86_const import UC_X86_REG_EDI
-    g.emu.reg_write(UC_X86_REG_ESP, 0x21007000)
-    g.emu.reg_write(UC_X86_REG_EDI, inv1)
-    taken.clear()
-    g.emu.emu_start(SETUP_LAST, SETUP_LAST_END, count=200_000)
-    assert taken == [kept], [hex(t) for t in taken]
-    assert (g.read(slots1), g.read(slots1 + 4)) == (0, kept)
-    assert g.state(gift) == 0 and g.state(kept) == 3
-    assert g.read(gift + 0xD0) == references - 1, 'the slot\'s reference released'
-    assert g.read(inv1 + 0x184) & 0xFF == 1, 'its weight to be recalculated'
-    assert any('a spawn\'s container held artefact id 3 of no inventory' in line for line in g.lines), g.lines
-    # The next tick: the gift again, into the container it went into the first time.
-    g.tick(p1)
-    assert g.read(slots1) == gift and g.state(gift) == 3 and g.read(gift + 0x250) == inv1
-    assert g.read(gift + 0x2A0) == 0 and g.read(gift + 0xD0) == references
-    # A spawn with nothing stale changes nothing: every container's artefact names its inventory.
-    taken.clear()
-    g.emu.reg_write(UC_X86_REG_ESP, 0x21007000)
-    g.emu.reg_write(UC_X86_REG_EDI, inv1)
-    g.emu.emu_start(SETUP_LAST, SETUP_LAST_END, count=200_000)
-    assert sorted(taken) == sorted([gift, kept]) and (g.read(slots1), g.read(slots1 + 4)) == (gift, kept)
-    assert sum('no inventory' in line for line in g.lines) == 1, g.lines
-    print('Keeper: a rollback over a respawn into another kit, the gift after it: the replayed spawn empties '
-          'the container whose artefact the world has in no inventory (no on_taken for it, its reference '
-          'released) and keeps the other; the next tick gives it again; a spawn with nothing stale changes '
-          'nothing: PASS')
+LOADED, LOADED_END = 0x2D2D5D, 0x2D2D64           # game_world_core::deserialize's end (patch 109's hook), up to its pops
 
 
 def late_join(data):
@@ -425,13 +367,290 @@ def late_join(data):
           'own copy of the gift: PASS')
 
 
+class Worlds(Keeper):
+    """A game that keeps worlds and loads them as 0.26g does: what a world carries is every
+    registered artefact's own record (inventory_item's load 0x2FFF8D: the holder's inventory, or
+    none, and its slot; artefact_base's load: its state and its mark, the activation time) and,
+    for each place in it, its current kit and that kit's container range and containers (read by
+    the game's own inventory::deserialize, 0x2FE5DE..0x2FE77B: a saved count of 0 writes no
+    slot). The other kits' objects, and every slot outside the range read, keep what the game's
+    own run left in them. The load ends at game_world_core::deserialize's end (0x2D2D5D)."""
+
+    def __init__(self, data):
+        super().__init__(data)
+        self.taken = []
+        self.emu.hook_add(UC_HOOK_CODE, lambda emu, address, size, _: self.taken.append(self.ecx()),
+                          begin=ON_TAKEN, end=ON_TAKEN)
+        self.kits = []                                  # (place, kit, player, inventory)
+
+    def kit(self, place, ranks, kit=0, containers=2, set_up=True):
+        player, inventory, slots = self.player(place, ranks, containers, kit)
+        self.word(inventory + 0x108, self.world)        # its core world (inventory::deserialize's ids)
+        if not set_up:                                  # the constructor's (0x2FC515): no range yet
+            self.word(inventory + 0x168, 0)
+            self.emu.mem_write(inventory + 0x16C, b'\x00')
+        self.kits.append((place, kit, player, inventory))
+        return player, inventory, slots
+
+    def set_up(self, inventory, containers=2):
+        """The range setup_from_profile gives a kit at its end (0x2FD29F): containers 16.."""
+        self.word(inventory + 0x168, inventory + 0x10C + 4 * 16)
+        self.emu.mem_write(inventory + 0x16C, bytes([containers]))
+
+    def current(self, place, kit):
+        self.emu.mem_write(self.places + place * 0x30 + 0xC, bytes([kit]))
+
+    def save(self):
+        artefacts = {a: (self.read(a + 0x250), self.read(a + 0x254), self.read(a + 0x280), self.read(a + 0x2A0))
+                     for a in self.ids()}
+        places = {}
+        active = self.read(self.world + 0x18FD8)
+        for place in {p for p, _, _, _ in self.kits}:
+            if not active & 1 << place:
+                continue
+            kit = self.read(self.places + place * 0x30 + 0xC) & 0xFF
+            inventory = self.read(self.read(self.places + place * 0x30 + 4 * kit) + 0x10C)
+            count = self.read(inventory + 0x16C) & 0xFF
+            first = (self.read(inventory + 0x168) - inventory - 0x10C) // 4 if count else 0
+            ids = []
+            for n in range(count):
+                item = self.read(self.read(inventory + 0x168) + 4 * n)
+                ids.append(0xFF if item == 0 else self.read(item + 0x27E) & 0xFF)
+            places[place] = (kit, inventory, count, first, ids)
+        return artefacts, places, active
+
+    def load(self, world):
+        from unicorn.x86_const import UC_X86_REG_EDI, UC_X86_REG_EBP
+        artefacts, places, active = world
+        self.word(self.world + 0x18FD8, active)
+        for a, (owner, slot, state, mark) in artefacts.items():
+            self.word(a + 0x250, owner)
+            if owner:
+                self.word(a + 0x254, slot)
+            self.word(a + 0x280, state)
+            self.word(a + 0x2A0, mark)
+        for place, (kit, inventory, count, first, ids) in places.items():
+            self.current(place, kit)
+            stream = self.block(4 + len(ids))
+            self.emu.mem_write(stream, bytes([count] + ([first] + ids if count else [])))
+            reader = self.block(12)
+            self.word(reader + 4, stream)
+            frame = 0x21006000
+            self.emu.reg_write(UC_X86_REG_ESP, frame)
+            self.emu.reg_write(UC_X86_REG_ESI, reader)
+            self.emu.reg_write(UC_X86_REG_EDI, inventory)
+            self.word(frame + 0x24, 0)
+            self.emu.emu_start(CONTAINERS_READ, CONTAINERS_READ_END, count=100_000)
+        self.emu.reg_write(UC_X86_REG_ESP, 0x21007000)
+        self.emu.reg_write(UC_X86_REG_EBP, self.world)
+        self.emu.emu_start(LOADED, LOADED_END, count=2_000_000)
+
+    def spawn(self, place, kit, inventory):
+        """The spawn into `kit`: it becomes current, setup_from_profile's last loop (each held
+        slot's vfn +38h: an artefact's on_taken) and its range."""
+        from unicorn.x86_const import UC_X86_REG_EDI
+        self.current(place, kit)
+        self.taken.clear()
+        self.emu.reg_write(UC_X86_REG_ESP, 0x21007000)
+        self.emu.reg_write(UC_X86_REG_EDI, inventory)
+        self.emu.emu_start(SETUP_LAST, SETUP_LAST_END, count=200_000)
+        self.set_up(inventory)
+        return list(self.taken)
+
+    def agree(self):
+        """Every kit's slots hold exactly the registered artefacts the world has in them."""
+        registered = set(self.ids())
+        for place, kit, _, inventory in self.kits:
+            for slot in range(23):
+                item = self.read(inventory + 0x10C + 4 * slot)
+                if item in registered:
+                    assert (self.read(item + 0x250), self.read(item + 0x254)) == (inventory, slot), \
+                        f'place {place} kit {kit} slot {slot} holds artefact {self.read(item + 0x27E) & 0xFF} the world has elsewhere'
+        for a in registered:
+            owner = self.read(a + 0x250)
+            for place, kit, _, inventory in self.kits:
+                if owner == inventory:
+                    assert self.read(inventory + 0x10C + 4 * self.read(a + 0x254)) == a, \
+                        f'place {place} kit {kit} lacks artefact {self.read(a + 0x27E) & 0xFF} the world has in it'
+
+    def mends(self):
+        return [line for line in self.lines if "world's load" in line]
+
+
+def pools(g):
+    hidden, pool = g.anomaly(['Larkspur'] * 4 + ['Spring'] * 4, containers=0)
+    g.register(hidden)
+    return pool[:4], pool[4:]
+
+
+def start(data):
+    """The match's start, no late join (the live crash of rev52, match 0x2e769931): the world kept
+    in the countdown has the kit never set up (its count 0: inventory::deserialize writes no slot);
+    the first spawn sets it up, the gift goes into slot 16. A load of that world leaves the slot:
+    the replayed spawn's on_taken got the gift in no inventory."""
+    g = Worlds(data)
+    larkspur, _ = pools(g)
+    player, inventory, slots = g.kit(0, KEEPER + draw(1), set_up=False)
+    g.started(False)
+    countdown = g.save()
+    g.spawn(0, 0, inventory)
+    g.started()
+    g.tick(player)
+    assert g.read(slots) == larkspur[0] and g.read(larkspur[0] + 0x250) == inventory
+    held = g.read(larkspur[0] + 0xD0)
+    g.started(False)
+    g.load(countdown)
+    g.agree()
+    assert g.read(slots) == 0 and g.read(larkspur[0] + 0xD0) == held - 1, (held, g.read(larkspur[0] + 0xD0))
+    assert g.mends() == ["srp: keeper: a world's load empties place 0 kit 0 slot 16: artefact id 0"], g.lines
+    assert g.spawn(0, 0, inventory) == []
+    g.started()
+    g.tick(player)
+    assert g.read(slots) == larkspur[0] and g.state(larkspur[0]) == 3
+    g.agree()
+    print("Keeper: a world from the countdown (the kit's count 0) loaded after the start's gift: its slot "
+          "emptied, no on_taken of it at the replayed spawn, the gift again: PASS")
+
+
+def other_kit(data):
+    """A respawn into another kit with the gift after it (rev51's crash, match 0x69f885a), the
+    late joiner's and another place's alike, and a kit's artefact kept from an earlier life: the
+    world from before the respawn has the gift dormant and kit 1 not current; one load mends both
+    places, keeps the kept one."""
+    g = Worlds(data)
+    larkspur, spring = pools(g)
+    g.started()
+    late = KEEPER + draw(1) + LATE
+    a0, _, _ = g.kit(3, late)
+    a1, inv_a1, slots_a1 = g.kit(3, late, kit=1)
+    b0, _, _ = g.kit(1, KEEPER + draw(1))
+    b1, inv_b1, slots_b1 = g.kit(1, KEEPER + draw(1), kit=1)
+    for player, place in ((a0, 3), (b0, 1)):
+        g.emu.mem_write(player + 0x33C, b'\x00')
+        g.statistics(place, 2, 0)
+        g.current(place, 0)
+    kept = g.artefact('Onyx')
+    g.word(slots_a1 + 4, kept)
+    g.word(kept + 0x250, inv_a1)
+    g.word(kept + 0x254, 17)
+    g.word(kept + 0x280, 5)
+    before = g.save()
+    g.word(kept + 0x280, 3)
+    for place, kit, inventory, player in ((3, 1, inv_a1, a1), (1, 1, inv_b1, b1)):
+        g.spawn(place, kit, inventory)
+        g.tick(player)
+    assert (g.read(slots_a1), g.read(slots_b1)) == (larkspur[3], larkspur[1])
+    g.load(before)
+    g.agree()
+    assert (g.read(slots_a1), g.read(slots_a1 + 4), g.read(slots_b1)) == (0, kept, 0)
+    assert sorted(g.mends()) == sorted(["srp: keeper: a world's load empties place 3 kit 1 slot 16: artefact id 3",
+                                        "srp: keeper: a world's load empties place 1 kit 1 slot 16: artefact id 1"]), g.lines
+    assert g.spawn(3, 1, inv_a1) == [kept] and g.spawn(1, 1, inv_b1) == []
+    g.tick(a1)
+    g.tick(b1)
+    assert (g.read(slots_a1), g.read(slots_b1)) == (larkspur[3], larkspur[1])
+    g.agree()
+    print("Keeper: a world from before a respawn into another kit (a late joiner's and another place's "
+          "gift after it): both stale containers emptied in one load, the kept artefact kept, the gifts "
+          "again: PASS")
+
+
+def departed(data):
+    """A world saved while a place was not in it (its bit clear: before its join, after it left):
+    none of its kits loaded, the world has its gift dormant. Its kit's slot is emptied all the same."""
+    g = Worlds(data)
+    larkspur, _ = pools(g)
+    g.started()
+    player, inventory, slots = g.kit(2, KEEPER + draw(1))
+    g.word(g.world + 0x18FD8, 0)
+    absent = g.save()
+    g.word(g.world + 0x18FD8, 1 << 2)
+    g.tick(player)
+    assert g.read(slots) == larkspur[2]
+    g.load(absent)
+    g.agree()
+    assert g.read(slots) == 0
+    print("Keeper: a world without the place (before its join): its kit's stale gift emptied: PASS")
+
+
+def in_a_row(data):
+    """Several loads in a row over the same start (the countdown's world, the kit's count 0) and its
+    gift, then one from after it, then the same world again: each load leaves every kit as the
+    world has it, and nothing more."""
+    g = Worlds(data)
+    larkspur, _ = pools(g)
+    player, inventory, slots = g.kit(0, KEEPER + draw(1), set_up=False)
+    before = g.save()
+    for _ in range(3):
+        g.spawn(0, 0, inventory)
+        g.started()
+        g.tick(player)
+        assert g.read(slots) == larkspur[0]
+        g.started(False)
+        g.load(before)
+        g.agree()
+        assert g.read(slots) == 0 and g.state(larkspur[0]) == 0 and g.read(larkspur[0] + 0x2A0) == NEVER
+    assert g.spawn(0, 0, inventory) == []
+    g.started()
+    g.tick(player)
+    after, given = g.save(), g.read(larkspur[0] + 0xD0)
+    g.load(before)
+    assert g.read(larkspur[0] + 0xD0) == given - 1, 'the slot\'s reference released'
+    g.load(after)
+    g.agree()
+    assert g.read(slots) == larkspur[0] and g.read(larkspur[0] + 0xD0) == given
+    lines = len(g.mends())
+    g.load(after)
+    assert len(g.mends()) == lines and g.read(larkspur[0] + 0xD0) == given, 'an agreeing world mends nothing'
+    print("Keeper: three loads in a row over the gift, then the world after it, then that world again: "
+          "each as the world has it, an agreeing one untouched: PASS")
+
+
+def restored(data):
+    """The other way: the world has an artefact in a kit that is not current (kept from an earlier
+    life), the kit's object has it no more (its own run took it out after the world was saved).
+    The load puts it back, with the slot's reference."""
+    g = Worlds(data)
+    _, spring = pools(g)
+    g.started()
+    p0, _, _ = g.kit(4, 0)
+    p1, inv1, slots1 = g.kit(4, 0, kit=1)
+    g.current(4, 0)
+    kept = spring[0]
+    g.word(slots1 + 4, kept)
+    g.word(kept + 0xD0, 11)
+    g.word(kept + 0x250, inv1)
+    g.word(kept + 0x254, 17)
+    g.word(kept + 0x280, 5)
+    g.word(kept + 0x2A0, 0)
+    world = g.save()
+    g.word(slots1 + 4, 0)                               # its own run: out of the slot
+    g.word(kept + 0xD0, 10)
+    g.word(kept + 0x250, 0)
+    g.word(kept + 0x280, 6)
+    g.load(world)
+    g.agree()
+    assert g.read(slots1 + 4) == kept and g.read(kept + 0xD0) == 11
+    assert g.mends() == ["srp: keeper: a world's load restores place 4 kit 1 slot 17: artefact id 4"], g.lines
+    assert g.spawn(4, 1, inv1) == [kept]
+    print("Keeper: the world has an artefact in a kit whose object lost it: the load puts it back: PASS")
+
+
+def loads(data):
+    start(data)
+    other_kit(data)
+    departed(data)
+    in_a_row(data)
+    restored(data)
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
                             open(base.late_join_bin(), 'rb').read())
     check(patched)
     late_join(patched)
-    rollback(patched)
+    loads(patched)
 
 
 if __name__ == '__main__':
