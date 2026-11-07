@@ -322,8 +322,19 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   Artifact Sight (modifier 40 bit 12, `Skills::sight`; before it, Knowledge of Artifacts' modifier
   39 gated them, which is now the active duration alone); a game with no local player (a
   spectator's, a replay) shows them all. Read at each tick and in the
-  calculator, so a respawn in another kit switches them on or off. Forest Protection's glow and
-  the stock activation glow are everyone's as before.
+  calculator, so a respawn in another kit switches them on or off. The local player is its place's
+  current kit's object (each kit of a place is a player object of its own, and the network
+  client's local player can stay an earlier kit's: the owner's test 2026-11-07, Artifact Sight
+  gone after a kit switch). Forest Protection's glow and the stock activation glow are everyone's
+  as before.
+- Another player's effects after its respawn (the owner's test 2026-11-07: B's legs lit on B's
+  game, not on A's, after B's respawns with a kit change): a place has one third-person
+  presenter, and a game plays a player's effects on the player object that presenter was last
+  given. player::initialize gives it only to an object that never had one, so a respawn in a kit
+  the place used before another kit's first spawn left it on that other kit's object, out of the
+  world: the other games showed none of that player's effects (the quarters, Forest Protection's
+  glow, the stock activation glow). The stock game's bug; patch 111 gives the presenter back at
+  the tick of the place's current kit's player (and presents its effects again), in every game.
 - The count, per kind: the player's own carried copies giving their passive (`Kind::gives`:
   Spring and Lifebone in 3 and 4, Onyx in 3 only) plus the passives Resonance shares with it
   (`shared`, the sharing's own code and cap), at most 4 (own copies past 4 count as 4). A dead

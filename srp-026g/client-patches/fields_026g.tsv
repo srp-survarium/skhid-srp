@@ -880,7 +880,13 @@ survarium::keeper_register_frame	world	0x8	ptr<survarium::core_world>	its second
 survarium::artefact	default_count	0x27C	u16	the count the anomaly's spawn gives it (artefact_base::on_spawned 0x3134C0: 0xFFFF is 1); set by the constructor from its config (0x3130C4)
 survarium::artefact	cooldown_left	0x28C	u32	ms of its cooldown left (tick 0x313213 counts it down outside state 4; action 0x313313 needs 0); the spawn sets 0 (0x313518)
 survarium::player	damage_zones	0x2E4	u8	the damage zones it is inside: damage_zone_core's enter adds one (inc 0x319967), its leave takes one (dec 0x31980B); a hit with an owner reads it (0x332833) before incoming_weapon_damage_in_anomaly (modifier 41) multiplies the damage
+survarium::player	presenters	0xF478	ptr<survarium::player_presenters>	where the places' third-person presenters are held (player::initialize 0x1F256D: +22CCh + place x 220h)
+survarium::player_presenters	third_person	0x22CC	obj<survarium::effect_presenter_holder>	each place's third-person presenter's holder, 220h apart (player::initialize 0x1F2579; the camera's detach gives it back, 0x242D06)
+survarium::effect_presenter_holder	size	0x220	size	the places' holders step 220h (player::initialize 0x1F2573)
+survarium::effect_presenter_holder	presenter	0x0	ptr<survarium::third_person_game_effects_presenter>	the presenter it holds (a place's holder: its third-person presenter, made by 0x297570)
+survarium::third_person_game_effects_presenter	player	0x10	ptr<survarium::player>	the player its particles play on (its particle presenter +8h's +8h; set_player 0x297750 writes it and the sound presenter's +0C0h)
 survarium::game_effect_player	first	0x2C	ptr<survarium::medical_effect_node>	the first of the effects it plays (add 0x2DE090 links a new one after +30h's, remove 0x2DE350 walks them from here)
+survarium::game_effect_player	presenter	0x38	ptr<survarium::effect_presenter_holder>	where the effects it plays are presented: the holder set_effect_presenter 0x1F3740 last gave (its owner player's +390h; the owner's own default +3A8h before any)
 survarium::medical_effect_node	next	0x4C	ptr<survarium::medical_effect_node>	the next effect of its player (0 the last; add 0x2DE32E, remove 0x2DE364)
 survarium::medical_effect_node	calculator	0x30	ptr<survarium::game_effect_listener>	the time calculator it was added with (add's last argument, the node's constructor 0x2DD7C3)
 survarium::game_effect	resource	0x10	ptr<survarium::medical_effect_resource>	the game effect resource that emitted it (game_effect_resource::emit 0x329072)

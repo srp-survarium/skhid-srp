@@ -32,7 +32,16 @@ modifier getter, game_effect_resource::emit (its emitter stubbed). It checks:
   (shared copies leaving, the carrier dying, an own copy going) and the
   player's death end the quarters above it through the calculator;
 - the effect cook gives each effect 20 instances (and still
-  artefact_lifebone 20, any other effect its own count).
+  artefact_lifebone 20, any other effect its own count);
+- a place's third-person presenter (made by its constructor 0x297570) on its
+  current kit: player::initialize (0x1F2540, its own code up to its call of
+  set_effect_presenter) gives it only to an object whose effects were never
+  given anywhere, so a respawn in a kit the place had before leaves it on
+  the other kit's object; the tick of the place's current kit's player gives
+  it back through the game's set_effect_presenter 0x1F3740 (its effects
+  presented again, game_effect_player 0x2DE560 run natively), once; the
+  place's other kit's object, a player whose effects go to the first-person
+  presenter and one whose effects were never given are left as they are.
 
 Says nothing about how the glow looks; the renders and the owner's test do.
 """
@@ -323,6 +332,24 @@ def check_quarters(data):
     lit({"spring": 2, "onyx": 1}, carrier)
     g.word(client + 4, PLAYER)
     g.emu.mem_write(PLAYER + 0x115, bytes([0]))
+    # A kit change: each kit of a place is a player object of its own (its kit byte fixed), the
+    # place's current kit (+0Ch) names the one in play, and the network client's local player may
+    # stay the first kit's object. Kit 0 (the local player's object) without Artifact Sight, the
+    # place's current kit 1 with it: the game shows the quarters (the current kit decides).
+    entry = g.places
+    second = g.player(0, 0, (0.0, 0.0, 0.0), profile=g.read(PLAYER + 0x6B8))
+    g.word(entry, PLAYER)
+    g.word(entry + 4, second)
+    g.emu.mem_write(second + 0x115, bytes([1]))
+    g.word(second + 0xF474, world)
+    g.word(modifier(PLAYER, 0, 40), bits(0.0))
+    g.word(modifier(PLAYER, 1, 40), bits(4096.0))
+    g.emu.mem_write(entry + 0xC, bytes([1]))
+    lit({"spring": 2, "onyx": 1}, carrier)
+    g.emu.mem_write(entry + 0xC, bytes([0]))                 # back to kit 0, no Sight: none
+    lit({}, carrier)
+    g.word(modifier(PLAYER, 0, 40), bits(4096.0))
+    g.word(modifier(PLAYER, 1, 40), bits(0.0))
     g.word(slot_of(carrier, carried), 0)
     g.emu.mem_write(carrier + 0x33C, b"\0")
     # Death: nothing lit, every quarter ended.
@@ -333,8 +360,86 @@ def check_quarters(data):
           "Onyx, an enemy's and the cap of 4) light that many of its quarters from the first; the count "
           "dropping and death end them through the player's calculator; a player without a world core lights none; "
           "a game shows them (every player's, its own too) only when its local player's current kit has Artifact "
-          "Sight (modifier 40 bit 12; Knowledge of Artifacts alone shows none), a kit change flipping it, and all of "
+          "Sight (modifier 40 bit 12; Knowledge of Artifacts alone shows none) in its place's current kit object (a kit "
+          "change keeps or ends them), a kit flip, and all of "
           "them without a local player: PASS")
+
+
+TP_PRESENTER = 0x297570       # third_person_game_effects_presenter's constructor: eax = this, edx = the world
+INITIALIZE, INITIALIZE_GIVES, INITIALIZE_ON = 0x1F2540, 0x1F2580, 0x1F2585   # player::initialize: its call of
+                              # set_effect_presenter, the code after it
+
+
+def check_presenter(data):
+    """A place's third-person presenter follows the place's current kit."""
+    g = Glow(data)
+    world = g.block(0x6000)
+    presenters = g.block(0x22CC + 20 * 0x220)
+    holder = presenters + 0x22CC + 0 * 0x220                  # place 0's holder
+    presenter = g.block(0x300)
+    g.call(TP_PRESENTER, edx=world, eax=presenter)
+    g.word(holder, presenter)
+    first_person = g.block(0x10)                              # another holder (the camera's player's)
+    g.word(first_person, presenter)
+    second = g.player(0, 0, (0.0, 0.0, 0.0), profile=g.profile(PLAYER))
+    g.emu.mem_write(second + 0x115, bytes([1]))
+    for at in (PLAYER, second):
+        g.word(at + 0xF478, presenters)
+        g.word(at + 0x394, DEFAULT_CLOCK_VT)
+        g.word(at + 0x358 + 0x2C, 0)                          # nothing playing
+        g.word(at + 0x358 + 0x38, holder)                     # its effects given to its place's presenter
+        g.word(at + 0x3A0, holder)
+    entry = g.places
+    g.word(entry, PLAYER)
+    g.word(entry + 4, second)
+
+    def initialize_gives(at):
+        """Whether player::initialize, run on `at`, gives it its place's presenter."""
+        gave = []
+
+        def on_give(emu, address, size, _):
+            gave.append(True)
+            emu.reg_write(UC_X86_REG_EIP, INITIALIZE_ON)
+        hook = g.emu.hook_add(UC_HOOK_CODE, on_give, begin=INITIALIZE_GIVES, end=INITIALIZE_GIVES)
+        g.emu.reg_write(UC_X86_REG_ESP, 0x21007000)
+        g.emu.reg_write(UC_X86_REG_ECX, at)
+        g.emu.emu_start(INITIALIZE, INITIALIZE_ON, count=10_000)
+        g.emu.hook_del(hook)
+        return bool(gave)
+
+    # The stock rule: an object whose effects already went to the presenter is not given it again.
+    fresh = g.block(0x500)
+    g.word(fresh + 0x390, fresh + 0x3A8)
+    g.word(fresh + 0xF478, presenters)
+    assert initialize_gives(fresh) and not initialize_gives(PLAYER)
+    # Kit 1 spawned last (the presenter plays on its object); the place respawns in kit 0.
+    g.word(presenter + 0x10, second)
+    g.emu.mem_write(entry + 0xC, bytes([0]))
+    g.tick(second)                                            # not the current kit's: left
+    assert g.read(presenter + 0x10) == second
+    g.tick(PLAYER)
+    assert g.read(presenter + 0x10) == PLAYER and g.read(presenter + 0xC0) == PLAYER, \
+        "the current kit's tick takes its place's presenter back"
+    assert g.read(PLAYER + 0x3A0) == holder and g.read(PLAYER + 0x390) == holder
+    g.word(presenter + 0x10, PLAYER)
+    g.tick(PLAYER)
+    assert g.read(presenter + 0x10) == PLAYER
+    # Back in kit 1: its tick takes it.
+    g.emu.mem_write(entry + 0xC, bytes([1]))
+    g.tick(second)
+    assert g.read(presenter + 0x10) == second
+    # The camera's player (its effects to the first-person presenter) and one never given: left.
+    g.word(second + 0x358 + 0x38, first_person)
+    g.word(presenter + 0x10, PLAYER)
+    g.tick(second)
+    assert g.read(presenter + 0x10) == PLAYER
+    g.word(second + 0x358 + 0x38, second + 0x3A8)
+    g.tick(second)
+    assert g.read(presenter + 0x10) == PLAYER
+    print("Presenter: player::initialize gives a place's third-person presenter only to an object whose effects "
+          "were never given; the tick of the place's current kit's object takes it back from another kit's (once, "
+          "its effects presented again natively); another kit's object, the camera's player and one never given "
+          "left: PASS")
 
 
 def main():
@@ -343,6 +448,7 @@ def main():
                             open(base.late_join_bin(), "rb").read())
     check(patched)
     check_quarters(patched)
+    check_presenter(patched)
 
 
 if __name__ == "__main__":

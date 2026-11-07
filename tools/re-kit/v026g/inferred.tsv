@@ -3128,6 +3128,7 @@ va	status	ref_021d	name
 0x002de7f0	inferred-medium		survarium::game_effect_player::stop
 0x002de090	inferred-medium		survarium::game_effect_player::play
 0x002de350	inferred-medium		survarium::game_effect_player::remove
+0x002de560	inferred-medium		survarium::game_effect_player::represent
 0x0026dac0	inferred-medium		survarium::base_game_statistics_handler::on_artefact_taken
 0x002f55f0	inferred-medium		survarium::shared_statistics::on_artefact_taken
 0x0026d9c0	inferred-high		survarium::base_game_statistics_handler::finish_match

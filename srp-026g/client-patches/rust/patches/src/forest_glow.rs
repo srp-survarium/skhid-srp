@@ -32,7 +32,7 @@ use core::ffi::CStr;
 
 use crate::artefact_skills::{Copies, Kind, Skills};
 use crate::vostok::effect::{self, KeptEffect};
-use crate::vostok::log::{self, Piece::Text};
+use crate::vostok::log::{self, Piece::{Dec, Text}};
 use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag};
 use crate::vostok::world::Player;
 use crate::vostok::{Context, Flow, GameCell, NoExit};
@@ -103,7 +103,7 @@ impl Quarters {
 
     /// For the game `player` is in: its local player, read now.
     fn seen_in(player: &Player<'_>) -> Quarters {
-        Quarters::of(player.local_player().map(|viewer| viewer.artefact_skills()))
+        Quarters::of(player.viewer_artefact_skills())
     }
 }
 
@@ -166,6 +166,9 @@ enum Action<E> {
     Show(E),
     /// Say once that the effect did not load.
     Report,
+    /// Say once that the effects arrived (the line's time against the ask's: how long the glows
+    /// were missing at the first match).
+    Arrived,
 }
 
 impl<E: Copy> Load<E> {
@@ -174,7 +177,7 @@ impl<E: Copy> Load<E> {
             (Load::Unasked, Event::Frame) => (Load::Asked, Action::Ask),
             (Load::Ready(effect), Event::Frame) => (self, Action::Show(effect)),
             (Load::Asked | Load::Missing, Event::Frame) => (self, Action::Nothing),
-            (Load::Asked, Event::Arrived(Some(effect))) => (Load::Ready(effect), Action::Nothing),
+            (Load::Asked, Event::Arrived(Some(effect))) => (Load::Ready(effect), Action::Arrived),
             (Load::Asked, Event::Arrived(None)) => (Load::Missing, Action::Report),
             // one query: nothing else arrives
             (Load::Unasked | Load::Ready(_) | Load::Missing, Event::Arrived(_)) => (self, Action::Nothing),
@@ -203,11 +206,17 @@ fn shows(effect: LegEffect, player: &Player<'_>) -> bool {
 /// plays; the effects asked for at the first tick.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(player) = Player::at_tick(ctx) else { return Flow::Continue };
+    if player.take_its_presenter() {
+        log::line(&[Text("forest_glow: place "), Dec(player.place().into()), Text("'s presenter back on its current kit")]);
+    }
     let thread = ctx.thread();
     let (load, action) = LOAD.get(thread).step(Event::Frame);
     LOAD.set(thread, load);
     match action {
-        Action::Ask => resources::query_effects(thread, &NAMES, crate::vostok::forest_glow_on_loaded_entry()),
+        Action::Ask => {
+            log::line(&[Text("forest_glow: the glows' 13 game effects asked for (none plays until they arrive)")]);
+            resources::query_effects(thread, &NAMES, crate::vostok::forest_glow_on_loaded_entry());
+        }
         Action::Show(kept) => {
             let legs = Legs { forest: glow(&player), quarters: Quarters::seen_in(&player), copies: player.passive_copies() };
             for (effect, kept) in EFFECTS.into_iter().zip(kept) {
@@ -216,7 +225,7 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 }
             }
         }
-        Action::Nothing | Action::Report => {}
+        Action::Nothing | Action::Report | Action::Arrived => {}
     }
     Flow::Continue
 }
@@ -231,8 +240,12 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     };
     let (load, action) = LOAD.get(thread).step(Event::Arrived(arrived));
     LOAD.set(thread, load);
-    if action == Action::Report {
-        log::line(&[Text("forest_glow: a game effect of the legs' glows did not load; no leg glow this session")]);
+    match action {
+        Action::Report => {
+            log::line(&[Text("forest_glow: a game effect of the glows did not load; no glow this session")]);
+        }
+        Action::Arrived => log::line(&[Text("forest_glow: the glows' 13 game effects arrived")]),
+        _ => {}
     }
 }
 
@@ -315,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn quarters_show_to_knowledge_of_artifacts_or_without_a_local_player() {
+    fn quarters_show_to_artifact_sight_or_without_a_local_player() {
         assert_eq!(Quarters::of(None), Quarters::Shown);
         assert_eq!(Quarters::of(Skills::parse(4096.0)), Quarters::Shown);
         assert_eq!(Quarters::of(Skills::parse(4096.0 + 508.0)), Quarters::Shown);
@@ -329,7 +342,7 @@ mod tests {
         assert_eq!((load, action), (Load::Asked, Action::Ask));
         assert_eq!(load.step(Event::Frame), (Load::Asked, Action::Nothing));
         let (load, action) = load.step(Event::Arrived(Some(7)));
-        assert_eq!((load, action), (Load::Ready(7), Action::Nothing));
+        assert_eq!((load, action), (Load::Ready(7), Action::Arrived));
         assert_eq!(load.step(Event::Frame), (Load::Ready(7), Action::Show(7)));
         assert_eq!(load.step(Event::Arrived(Some(8))), (Load::Ready(7), Action::Nothing));
     }

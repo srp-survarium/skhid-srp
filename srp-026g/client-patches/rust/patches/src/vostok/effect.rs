@@ -251,10 +251,67 @@ impl<'t> Player<'t> {
         super::world::GameWorld::of(world, self.thread).network_client()?.local_player()
     }
 
-    /// Its current kit's packed artefact skills (modifier 40, patch 109's parser): none taken
-    /// when the payload is not valid.
-    pub fn artefact_skills(&self) -> crate::artefact_skills::Skills {
-        super::artefact_skills::skills(self.this)
+    /// What this game's own player has of the artefact tree, for what the game shows it (the leg
+    /// quarters): the packed skills (modifier 40, patch 109's parser) of its place's current kit's
+    /// player in this player's world (core_active_player: the place's +0Ch kit, its object). Each
+    /// kit of a place is a player object of its own, its kit byte (+115h) fixed at its making
+    /// (0x2D6A20), and the network client's local player (+4) is one of them, not necessarily the
+    /// current kit's after a kit change: the game itself takes only its place (0x243940). The
+    /// local player's own object when the place has no current player; none without a local
+    /// player (a spectator's game, a replay).
+    pub fn viewer_artefact_skills(&self) -> Option<crate::artefact_skills::Skills> {
+        let local = self.local_player()?;
+        // SAFETY: the live player's world core (0 when it has none).
+        let core = unsafe { self.this.world_core() };
+        Some(match super::medical::Player::in_core(self.thread, core, local.place()) {
+            Some(current) => super::artefact_skills::skills(current.get().get()),
+            None => super::artefact_skills::skills(local.this),
+        })
+    }
+
+    /// Gives its place's third-person presenter back to it when it plays on another of the
+    /// place's kits (the owner's test 2026-11-07: after a respawn the other games saw no glow on
+    /// the player). Each kit of a place is a player object of its own, and the place has one
+    /// third-person presenter (player_presenters +22CCh + place x 220h), which plays a player's
+    /// effects on the player it was last given (set_player 0x297750, from set_effect_presenter).
+    /// player::initialize, at every spawn, gives it only to an object whose effects were never
+    /// given anywhere (0x1F255E: its effect player's presenter its own default): a spawn in a kit
+    /// the place already had, after another kit's first spawn, leaves the presenter on that other
+    /// kit's object, out of the world, and the other games show none of its effects (the stock
+    /// glows as the quarters). So at the tick of its place's current kit's player whose effects go
+    /// to its place's holder (not to the first-person presenter of the camera's player) while the
+    /// presenter plays on another object: given again as initialize gives it, and the effects it
+    /// plays presented again (game_effect_player::represent 0x2DE560, which set_effect_presenter
+    /// runs only on a change of holder). Presentation only, read from the world at each tick; true
+    /// when it was given.
+    pub fn take_its_presenter(&self) -> bool {
+        // SAFETY: the live player's fields; its presenters' holders are the game's (a place's is
+        // read only once its own effect player names it, so it is one).
+        let holder = unsafe {
+            let Some(presenters) = self.this.presenters() else { return false };
+            let holder = presenters.third_person().at(usize::from(self.place()));
+            if self.this.effects().presenter() != Some(holder) {
+                return false;
+            }
+            let Some(presenter) = holder.presenter() else { return false };
+            if presenter.player() == Some(self.this) {
+                return false;
+            }
+            holder
+        };
+        // SAFETY: the live player's world core (0 when it has none).
+        let core = unsafe { self.this.world_core() };
+        let current = super::medical::Player::in_core(self.thread, core, self.place());
+        if current.map(|current| current.get().get()) != Some(self.this) {
+            return false;
+        }
+        // SAFETY: the native pair initialize and a change of holder run, on the simulation thread,
+        // for a live player and its place's holder.
+        unsafe {
+            raw::engine_set_effect_presenter(Some(self.this), Some(holder));
+            raw::engine_effect_player_represent(Some(self.this.effects()));
+        }
+        true
     }
 
     /// Whether it plays an effect of `kept`.

@@ -899,6 +899,7 @@ va	name	source	ret_cleanup	result
 0x001f28e0	survarium::player::on_player_death	manual	4	none; remove_alive(this, 1), then the inventory, +33Eh := 1, +33Dh := 0
 0x001f3480	survarium::player::update_camera	manual	4	
 0x001f37a0	survarium::player::set_head_visibility	manual	4	
+0x001f3740	survarium::player::set_effect_presenter	manual	0	void; the old holder's presenter cleared (vfn +4), the new one's set_player (vfn +20h) to ESI, and on a change the effect player's presenter (+390h) and its effects presented again (0x2DE560)
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	manual	20	
 0x001f6d50	survarium::game_world::register_cooks	manual	0	
@@ -2160,6 +2161,7 @@ va	name	source	ret_cleanup	result
 0x002f8970	survarium::static_collision::remove	manual	4	void; vtable+4: its body (+4Ch) out of the physics world, freed, +4Ch 0
 0x002de7f0	survarium::game_effect_player::stop	manual	0	EAX the first effect it stopped or 0; every effect of the list (+24h, each +4Ch the next) stopped, +28h 0
 0x002de090	survarium::game_effect_player::play	manual	20	void; plays the effect (0x2DE100 with EDI and the five arguments)
+0x002de560	survarium::game_effect_player::represent	manual	4	void; its presenter (+38h) cleared (vfn +4), then each effect it plays (+2Ch on) presented again at its time
 0x002de350	survarium::game_effect_player::remove	manual	0	void; the node playing the effect (walked from +2Ch, each +4Ch the next) set to state 2 (+44h), its stop sent (0x2DE3A0), the list swept (0x2DE750); damage_zone_core 0x31A255 stops its inside effect so
 0x00285fa0	survarium::render_visual::insert	manual	4	none
 0x00285fe0	survarium::render_visual::remove	manual	4	none
