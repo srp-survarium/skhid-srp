@@ -57,9 +57,20 @@ fn main() -> ExitCode {
     // The players' dictionary of the recording's revision (`SRP_GAME_DATA`), as `srp-recording-to-sur` loads it: without it
     // `Dictionary::shared()` is the test archive's, and the 0xE4 of a match whose kits hold items newer than it (every live match
     // since the ported weapons) does not parse, so the rosters, and `rec_levels.csv`, come out empty.
-    if let Err(error) = survarium::v026g::game_data::init() {
+    // `SRP_REC_TABLE_OLD_DATA=1`: a recording made on older data (the client tests' revision 34) is read with that data although
+    // the server would refuse to serve it (its `golden` and `tables` checks run after `init` has set the data): only a file that
+    // does not open stops the tool then; the refusal is printed.
+    let old_data = std::env::var_os("SRP_REC_TABLE_OLD_DATA").is_some_and(|v| v == "1");
+    if old_data && let Err(error) = survarium::v026g::game_data::from_env() {
         eprintln!("{error}");
         return ExitCode::from(2);
+    }
+    if let Err(error) = survarium::v026g::game_data::init() {
+        if !old_data {
+            eprintln!("{error}");
+            return ExitCode::from(2);
+        }
+        eprintln!("old data kept (SRP_REC_TABLE_OLD_DATA=1), the server would refuse it: {error}");
     }
     match run(Path::new(input), Path::new(out)) {
         Ok(()) => ExitCode::SUCCESS,
