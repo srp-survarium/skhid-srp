@@ -151,7 +151,7 @@ fitn_walther_comp2_mp_153	C	pass	1.4	2.8	1.0	-
 fitn_walther_comp2_neostead	C	pass	2.0	3.4	1.0	-
 fitn_walther_comp2_pp2000	C	pass	1.8	3.4	1.0	-
 fitn_walther_comp2_rem_870	C	live	2.2	20.0	0.0	lp002sg@+0.005,-0.008,-0.083
-fitn_walther_comp2_rpd	C	pass	0.0	7.4	1.0	-
+fitn_walther_comp2_rpd	C	live	0.0	7.4	0.1	rpd_s@+0.030,-0.013,-0.826
 fitn_walther_comp2_socom16	C	pass	1.6	3.0	1.0	-
 fitn_walther_comp2_spas_12	C	pass	1.4	2.6	1.0	-
 fitn_walther_comp2_sr2m	C	pass	1.2	3.6	1.0	-
