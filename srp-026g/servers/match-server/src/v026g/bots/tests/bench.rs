@@ -855,7 +855,11 @@ pub(crate) fn real_bot_cost() {
                 pull_walk: human.grid.pull_walk,
             };
             let human_build = (human.grid_body(), human.off_mesh_links(), human_extras);
-            (human_build != (bench_tuning().grid_body(), links, extras)).then(|| {
+            // OFF by default (`SRP_BENCH_HUMAN_OWN_WORLD=on`): his drive on his own tactics meets the team's state built on the
+            // arm's world (threat regions' ids: `Regions::middle` out of bounds in `threat::free_regions`, fx-bench's final check
+            // arm B, 332900bb), so his own world waits for a drive that keeps every world-built id on one world (TASKS A346).
+            let own = bench_settings().var("SRP_BENCH_HUMAN_OWN_WORLD").as_deref() == Ok("on");
+            (own && human_build != (bench_tuning().grid_body(), links, extras)).then(|| {
                 eprintln!("{project}: the stand-in camper's world is his own (his pinned grid builds otherwise than this arm's)");
                 Arc::new(World::build_with_extras(map.clone(), mapdata::CELL, human_build.0, human_build.1, human_build.2))
             })
