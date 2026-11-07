@@ -857,6 +857,16 @@ impl JumpCounts {
             }
             for k0 in missed {
                 missed_pre.add(run, "missed", place, k0);
+                // [A318] Each missed jump's spot, for comparing arms (fx-zones' missed-jump split).
+                let r = &run.recs[place][k0];
+                eprintln!(
+                    "owner-test missed jump: place {place} t {} feet {:.2} {:.2} {:.2} yaw {:.2}",
+                    run.time_of(k0),
+                    r.feet.x,
+                    r.feet.y,
+                    r.feet.z,
+                    r.yaw
+                );
             }
         }
 

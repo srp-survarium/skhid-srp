@@ -524,6 +524,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/heal/amounts",
     "/heal/drug_stops",
     "/kin/carrier_sprint",
+    "/kin/client_step",
     "/kin/drop_fall",
     "/kin/fix_fall",
     "/kin/fix_floor",
