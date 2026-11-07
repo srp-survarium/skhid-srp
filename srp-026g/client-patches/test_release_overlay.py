@@ -105,6 +105,7 @@ class ReleaseTests(unittest.TestCase):
             'game/binaries/x86/7zr.exe',
             *(f'game/binaries/x86/dxvk/{name}' for name in ('d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll')),
             'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid-without-updater.bat', 'Skhid.sh',
+            'Skhid.command',
             'VPN.txt', 'Skhid-network-setup.cmd', 'Skhid-defender-setup.cmd', 'Skhid-collect-logs.cmd',
         } | {f'game/binaries/x86/launcher_skhid/index-{blank}{code}.html'
              for blank in ('', 'blank-') for code in ('en', 'ru', 'ua', 'de', 'pl')}
@@ -185,7 +186,7 @@ class ReleaseTests(unittest.TestCase):
             for name, path in paths.items():
                 self.assertEqual(z.read(name), path.read_bytes(), name)
                 info = z.getinfo(name)
-                expected = 0o755 if name.endswith('.sh') else 0o644
+                expected = 0o755 if name.endswith(('.sh', '.command')) else 0o644
                 self.assertEqual(stat.S_IMODE(info.external_attr >> 16), expected)
                 self.assertEqual(info.compress_type, zipfile.ZIP_DEFLATED)
         script = paths['game/binaries/x86/play_skhid.sh']

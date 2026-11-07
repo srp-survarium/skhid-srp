@@ -7,8 +7,10 @@ in Terminal with:
 
 START
 
-Unpack the Skhid archive into an empty folder with about 10 GB free. In
-Terminal, in that folder, run:
+Unpack the Skhid archive into an empty folder with about 10 GB free, then
+double-click Skhid.command. The first time, macOS may refuse to open it
+("could not verify"): open System Settings > Privacy & Security, choose
+Open Anyway, and double-click it again. Or, in Terminal in that folder:
 
     bash Skhid.sh launcher
 
@@ -19,13 +21,23 @@ bash play_skhid_mac.sh from game/binaries/x86.
 
 The first launch downloads Wine (built by Sikarugir from CrossOver's
 sources) and DXMT, which runs the game's Direct3D 11 on Metal: about
-260 MB into ~/Library/Application Support/Skhid. Later launches reuse it.
-It also creates a Wine prefix in game/binaries/x86/wineprefix.
-Settings: ~/Library/Application Support/Skhid/user.cfg (the first launch
-starts the game in fullscreen at the main display's resolution).
+260 MB into ~/Library/Application Support/Skhid. It also creates a Wine
+prefix in game/binaries/x86/wineprefix and installs the font Calibri
+(a 27 MB download) that the game's text needs. Later launches reuse them.
 
-Optional: some UI text (item levels) needs the font Calibri. With Homebrew,
-brew install winetricks cabextract; the next launch installs the font.
+DISPLAY AND KEYS
+
+The first launch starts the game in fullscreen at the resolution of the
+main display (the one with the menu bar). Change it in the game's Settings.
+Settings: ~/Library/Application Support/Skhid/user.cfg.
+In fullscreen the game takes the whole display: no menu bar or Dock (if
+the menu bar still shows over it, click the game once); use Cmd+Tab to
+switch away. On a MacBook with a notch, the top centre of the
+picture is under the notch.
+Sharper picture on a Retina display, at four times the pixels to draw:
+start with SKHID_RETINA=1, for example SKHID_RETINA=1 bash Skhid.sh launcher,
+then choose the larger resolution in the game's Settings.
+Option works as Alt in the game.
 
 IF IT FAILS
 

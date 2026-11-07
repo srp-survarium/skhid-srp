@@ -4,6 +4,8 @@
 # The first start downloads Wine and DXMT (Direct3D 11 on Metal), pinned
 # below, into ~/Library/Application Support/Skhid; later starts reuse them.
 # SKHID_CRASH_DUMP=full: a crash writes the game's whole memory beside it.
+# SKHID_RETINA=1: the game sees the display's pixels, not its points (sharper,
+# four times the pixels to draw); 0 or unset: points, scaled by macOS.
 # Bash 3.2 (macOS's own): no mapfile, flock or GNU options here.
 set -euo pipefail
 
@@ -20,6 +22,10 @@ ENGINE_SHA256=67e29fb3d74f363af39c69ba11f9b13a79812c5db07cf4748672658e4a200a0e
 TEMPLATE=Template-1.0.27
 TEMPLATE_URL=https://github.com/Sikarugir-App/Template/releases/download/v1.0/$TEMPLATE.tar.xz
 TEMPLATE_SHA256=dd0778f7b553d63df9b0f4e2cda3f3c6c005aabb75588c84d604afe80cdedbb9
+# Microsoft's PowerPoint Viewer 2007, which carries the font Calibri (the
+# game's UI asks for it). Winetricks' archive.org copy breaks off at 10 MB.
+VIEWER_URL=https://downloads.sourceforge.net/project/mscorefonts2/cabs/PowerPointViewer.exe
+VIEWER_SHA256=c4e753548d3092ffd7dd3849105e0a26d9b5a1afe46e6e667fe7c6887893701f
 
 SUPPORT="$HOME/Library/Application Support/Skhid"
 RUNTIME="$SUPPORT/runtime/$ENGINE-$TEMPLATE"
@@ -44,8 +50,10 @@ install_runtime() (
     mkdir "$temporary/runtime"
     tar -xJf "$temporary/engine.tar.xz" -C "$temporary/runtime" wswine.bundle
     dxmt="$TEMPLATE.app/Contents/SharedSupport/renderer/dxmt/wine"
-    tar -xJf "$temporary/template.tar.xz" -C "$temporary" "$TEMPLATE.app/Contents/Frameworks" "$dxmt"
+    tar -xJf "$temporary/template.tar.xz" -C "$temporary" "$TEMPLATE.app/Contents/Frameworks" "$dxmt" \
+        "$TEMPLATE.app/Contents/Configure.app/Contents/Resources/cabextract"
     mv "$temporary/$TEMPLATE.app/Contents/Frameworks" "$temporary/runtime/Frameworks"
+    mv "$temporary/$TEMPLATE.app/Contents/Configure.app/Contents/Resources/cabextract" "$temporary/runtime/"
     # DXMT replaces Wine's own Direct3D 11 (WINEDLLPATH cannot take over a builtin).
     for arch in i386-windows x86_64-windows; do
         for name in d3d10core.dll d3d11.dll dxgi.dll winemetal.dll; do
@@ -88,11 +96,26 @@ Close the game and launcher, rename wineprefix to an unused backup name, and run
         || die "Wine could not run a 32-bit Windows program. See $log"
 }
 
-# The main display in points, the size Wine's macOS driver reports.
+# Wine's macOS driver: a window covering a display captures it (no menu bar
+# or Dock over the game, frames straight to the display), Option is Alt (the
+# game's held Alt), and Retina only when asked for. Written when they differ.
+configure_mac_driver() {
+    local retina=n setting
+    [[ ${SKHID_RETINA-} == 1 ]] && retina=y
+    for setting in CaptureDisplaysForFullscreen=y LeftOptionIsAlt=y RightOptionIsAlt=y RetinaMode=$retina; do
+        grep -qsF "\"${setting%%=*}\"=\"${setting#*=}\"" "$WINEPREFIX/user.reg" && continue
+        "$WINE" reg add 'HKCU\Software\Wine\Mac Driver' /v "${setting%%=*}" /d "${setting#*=}" /f >>"$log" 2>&1 \
+            || die "Could not change Wine's macOS settings. See $log"
+    done
+}
+
+# The main display (the one with the menu bar, where Wine puts its primary
+# monitor) in points, or in pixels with Retina: the sizes Wine reports.
 detect_resolution() {
-    local resolution
-    resolution=$(system_profiler SPDisplaysDataType -json 2>/dev/null | awk -F'"' '
-        /"_spdisplays_resolution"/ { size = $4 }
+    local resolution key=_spdisplays_resolution
+    [[ ${SKHID_RETINA-} == 1 ]] && key=_spdisplays_pixels
+    resolution=$(system_profiler SPDisplaysDataType -json 2>/dev/null | awk -F'"' -v key="$key" '
+        $2 == key { size = $4 }
         /"spdisplays_main" : "spdisplays_yes"/ { print size; exit }' | sed -E 's/^([0-9]+) x ([0-9]+).*/\1x\2/')
     [[ $resolution =~ ^[1-9][0-9]*x[1-9][0-9]*$ ]] && echo "$resolution" || echo 1440x900
 }
@@ -112,16 +135,36 @@ prepare_settings() {
     ln -sfn "$config" "$documents/Survarium/user.cfg"
 }
 
+# The game's UI asks Windows for Calibri for some text (item levels); without
+# it Wine draws boxes. Playable without, so a failure warns and the game starts.
 install_calibri() {
-    # Optional, as on Linux: without it some UI text (item levels) shows as boxes.
     [[ -f "$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf" ]] && return
-    if command -v winetricks >/dev/null && command -v cabextract >/dev/null; then
-        echo 'Installing the font Calibri (60 MB download, first launch only)...'
-        WINE="$WINE" WINESERVER="$WINESERVER" winetricks -q calibri >>"$log" 2>&1 || true
-    fi
-    [[ -f "$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf" ]] \
-        || echo 'Note: the font Calibri is not installed; some UI text may show as boxes (see MACOS.txt).' >&2
+    echo 'Installing the font Calibri (27 MB download, first launch only)...'
+    calibri_from_viewer || echo "Warning: the font Calibri could not be installed (see $log)." \
+        'Some UI text, such as the item levels on item cards, may show as boxes. The next start tries again.' >&2
 }
+
+calibri_from_viewer() (
+    local temporary name lower fonts="$WINEPREFIX/drive_c/windows/Fonts"
+    temporary=$(mktemp -d "$SUPPORT/.calibri.XXXXXX")
+    trap 'rm -rf -- "$temporary"' EXIT
+    fetch "$VIEWER_URL" "$VIEWER_SHA256" "$temporary/viewer.exe"
+    # Called in an || list, where set -e does not apply: each step exits itself.
+    "$RUNTIME/cabextract" -q -d "$temporary" -F ppviewer.cab "$temporary/viewer.exe" 2>>"$log" || exit 1
+    "$RUNTIME/cabextract" -q -d "$temporary" -F 'CALIBRI*.TTF' "$temporary/ppviewer.cab" 2>>"$log" || exit 1
+    printf 'REGEDIT4\r\n\r\n[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts]\r\n' \
+        > "$temporary/calibri.reg"
+    for name in CALIBRI:Calibri CALIBRIB:'Calibri Bold' CALIBRII:'Calibri Italic' CALIBRIZ:'Calibri Bold Italic'; do
+        lower=$(echo "${name%%:*}" | tr '[:upper:]' '[:lower:]').ttf
+        cp "$temporary/${name%%:*}.TTF" "$fonts/$lower.part" || exit 1
+        printf '"%s (TrueType)"="%s"\r\n' "${name#*:}" "$lower" >> "$temporary/calibri.reg"
+    done
+    "$WINE" regedit /S "Z:${temporary//\//\\}\\calibri.reg" >>"$log" 2>&1 || exit 1
+    # calibri.ttf last: it is what says the font is in place.
+    for lower in calibrib calibrii calibriz calibri; do
+        mv "$fonts/$lower.ttf.part" "$fonts/$lower.ttf" || exit 1
+    done
+)
 
 # The game must opt in to DEP (NX_COMPAT): without it Wine maps its memory
 # executable and Metal crawls, minutes before the first frame (DXMT #161).
@@ -172,6 +215,7 @@ main() {
     install_runtime
     configure_wine
     prepare_prefix
+    configure_mac_driver
     prepare_settings
     install_calibri
     if [[ $mode == launcher ]]; then
