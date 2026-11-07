@@ -5,6 +5,9 @@
 //! SRP_GAME_DATA=<server game data db> srp-rec-table <file.srprec> <out dir>
 //! ```
 //!
+//! A block is read in the layout of the client patch revision that wrote it (`players::state_at_revision`): each revision the
+//! recording's `revision` notes name, oldest first, then today's; `rec_head.txt` counts the blocks read at each.
+//!
 //! Writes, read the way the replay converter reads them (`sur_convert::tables_of_file`):
 //!
 //! - `rec_inputs.csv`: `match,time,place,actions,rot_a,rot_b`: every input relayed (0xEB/0xEC/0xED/0xEE) or accepted, at its
@@ -70,6 +73,8 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let notes = record::read_notes(input)?;
     let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
     let mut head = String::new();
+    // Each place's client patch revision, from its `revision` note (`game.rs`), for the layout its blocks are read in.
+    let mut revisions: BTreeMap<u8, u16> = BTreeMap::new();
     for (k, note) in notes.iter().filter(|r| r.kind == NOTE).enumerate() {
         let Ok(value) = serde_json::from_slice::<serde_json::Value>(&note.bytes) else {
             *kinds.entry("unparsed".into()).or_default() += 1;
@@ -89,6 +94,12 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|o| o.get("note").or_else(|| o.get("kind")).or_else(|| o.get("event")))
             .and_then(|v| v.as_str())
             .map_or_else(|| value.as_object().map_or("?".into(), |o| o.keys().cloned().collect::<Vec<_>>().join("+")), str::to_owned);
+        if kind == "revision"
+            && let (Some(place), Some(revision)) = (value["place"].as_u64(), value["revision"].as_u64())
+            && let (Ok(place), Ok(revision)) = (u8::try_from(place), u16::try_from(revision))
+        {
+            revisions.insert(place, revision);
+        }
         *kinds.entry(kind).or_default() += 1;
     }
     let tables = sur_convert::tables_of_file(input, &notes)?;
@@ -136,14 +147,30 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let mut motions = std::io::BufWriter::new(std::fs::File::create(out.join("rec_motion.csv"))?);
     writeln!(motions, "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0")?;
     let (mut read, mut unread) = (0usize, 0usize);
+    // The layouts a block is read in (`players::state_at_revision`, A305 F7, fx-review's bb5503dc): a world's layout is its
+    // uploader's, not its block's place's (a client-test recording's one human uploads every bot's block), and the tables do not
+    // say who uploaded, so each revision the `revision` notes name, oldest first, then as it is (today's); the first that reads is
+    // taken (a wrong layout does not read: `PlayerState::read` refuses its pickup record).
+    let layouts: Vec<Option<u16>> =
+        revisions.values().copied().collect::<std::collections::BTreeSet<_>>().into_iter().map(Some).chain(std::iter::once(None)).collect();
+    let mut read_at: BTreeMap<Option<u16>, usize> = BTreeMap::new();
     for (&time, bodies) in &tables.worlds {
         let same = u8::from(bodies.windows(2).all(|w| w[0] == w[1]));
         for (k, body) in bodies.iter().enumerate() {
-            for block in players::walk(body).map(|(blocks, _)| blocks).unwrap_or_default() {
-                let Some((_, motion)) = Motion::find(block.state, time) else {
+            for raw in players::walk(body).map(|(blocks, _)| blocks).unwrap_or_default() {
+                let found = layouts.iter().find_map(|&revision| {
+                    let state = match revision {
+                        Some(revision) => players::state_at_revision(raw.state, revision)?,
+                        None => std::borrow::Cow::Borrowed(raw.state),
+                    };
+                    Motion::find(&state, time).map(|(_, motion)| (revision, state, motion))
+                });
+                let Some((revision, state, motion)) = found else {
                     unread += 1;
                     continue;
                 };
+                *read_at.entry(revision).or_default() += 1;
+                let block = players::PlayerBlock { place: raw.place, state: &state, animation: raw.animation };
                 read += 1;
                 let (c, f) = motion.body.as_ref().map_or(([f32::NAN; 3], [f32::NAN; 3]), |b| (b.position, b.feet()));
                 let speed = motion.damage.as_ref().map_or(f32::NAN, |d| d.linear_horizontal_speed);
@@ -202,7 +229,7 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     motions.flush()?;
     let r = &tables.report;
     let text = format!(
-        "{head}\nnote kinds: {kinds:?}\nclock offset ms: {}\ndatagrams in {} out {} unparsed {} {:?}\nworlds complete {} world times {}\ninputs {} copies {} conflicts {} flagged {} dropped_future {}\nplayer blocks read {read} unread {unread}\n",
+        "{head}\nnote kinds: {kinds:?}\nclock offset ms: {}\ndatagrams in {} out {} unparsed {} {:?}\nworlds complete {} world times {}\ninputs {} copies {} conflicts {} flagged {} dropped_future {}\nplayer blocks read {read} unread {unread}\nrevisions by place {revisions:?}; blocks read at (None = as they are) {read_at:?}\n",
         r.clock_offset_ms,
         r.datagrams_in,
         r.datagrams_out,
