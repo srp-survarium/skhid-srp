@@ -2404,7 +2404,7 @@ pub(super) mod tests {
         for (fix_fall, want) in [(FixFall::World, Fall::Falling { speed: 3.0 }), (FixFall::Rest, Fall::Ground)] {
             let kin = Kinematics { fix_fall, ..Kinematics::default() };
             let mut track = BodyTrack::default();
-            track.fixed(world, &kin, Some(&grid));
+            track.fixed(world.clone(), &kin, Some(&grid));
             assert_eq!(track.estimate().unwrap().fall, want, "{fix_fall:?}");
         }
         // Going up or still: no fall.
