@@ -403,6 +403,17 @@ what bounds it:
   `world::objects` refuse a state past its states), and -- because the client
   world check has no profile/object context -- the native guards (patch 113) at
   the read sites.
+- the damage model `body_part_parameters::deserialize` 0x32AFE0: a u8
+  `affects_count`, then that many (byte, u32) affects into the fixed `m_affects[8]`.
+  The native "affects_count buffer overflow" assert at `> 8` does NOT guard a
+  release build (no debugger, assert continues -> the loop overflows the array),
+  so the bound is the validator's: `inventory` refuses affects > 8 (type >= 9),
+  hits > 64, recent hits that do not fit (0x2E5480 reader). The inventory's
+  carried-item and active/target-object ids index 255-entry tables with a null
+  check (a u8 is always an entry or guarded none, safe by construction); the
+  artefact ids index a 128-entry table with NO null check, so `artefact_index`
+  bounds them (< `context.artefacts`), and `slots_begin + A <= 23` bounds the
+  write base.
 - player-controlled strings (chat, name, clan tag, URL, daily message): the
   engine's `packet_reader::r_string` (0.10b `packet_reader_inline.h`) reads a u8
   length `L`, does a buffer-clamped copy, then `string[L] = 0` -- the NUL write
@@ -416,8 +427,46 @@ what bounds it:
 MAX_AFFECTS 8; `match_options::player_profiles[20]` == MAX_PLAYERS 20; `inventory
 m_slots[max_slots_count]` == SLOTS 23; `artefact_lifebone_core` four protectors.
 
-Evidence this pass: host `world-frame` (14) and `srp-validate` (46) tests, the
+Evidence this pass: host `world-frame` (14) and `srp-validate` (46) tests; the
 i686 patch crate `cargo test --target i686-unknown-linux-gnu` (173, the client
-twin: patch 87 -> `world-frame`/`srp-validate`), and the animation corpus. No
-unbounded player-to-player read was found without a matching server bound or
-native guard; the animation stream was the one that lacked one and now has it.
+twin: patch 87 -> `world-frame`/`srp-validate`); the animation corpus (177,672
+blocks, 0 refused); and the client/host drift gate `check_world_check_026g.py
+--drift` run end to end under Unicorn on 1,101 kept worlds (501 old version-4 +
+600 current) with their sixteen mutations each -- 19,818 checks, 0 differ, so
+the i686 arena build (with `animation_validate`) and the host agree on every
+world and mutation. No unbounded player-to-player read was found without a
+matching server bound or native guard; the animation stream was the one that
+lacked one and now has it.
+
+### Full reader sweep
+
+Decompiled 235 functions (the cited reader addresses and their closure);
+classified each: 65 advance a packet cursor (readers), 170 do not (serializers
+-- the `..::serialize` writers that only call the debug-check/write helpers --
+plus math, vtable thunks and Scaleform glue, which never consume received
+bytes). The 65 readers' loop bounds fall into:
+
+- linked-list / bitmask traversals (`while (x != 0)`, clearing set bits):
+  0x2714D0, 0x2F84C0, 0x319470, 0x316D50, 0x330A20 -- not a packet count;
+- fixed constants (`< 8`, `< 0x58`, `< 0x18`, `< 3`): e.g. 0x3358E6, 0x31B390;
+- object/config counts (`< *(byte*)(this + k)` where `k` is a field set at
+  construction from the item/weapon/character config -- body parts, weapon
+  curve points, FSM states): e.g. 0x2F5C22, 0x33DCA0, 0x33E7F0, 0x2E3490. The
+  packet supplies the values; the count is the entity's own and the validator
+  reads the matching bytes against the same config;
+- packet counts the validator caps: the 0xE4 options `< players_count`
+  (0x27B880, `messages::options`), kd-stats `< roster` (0x323952, `rules`),
+  the ammo id / FSM state / affect & hit counts above.
+
+The covering invariant: the validator reads every player state and section to
+its EXACT END against the match config (proven on 50,205 live uploads and
+3,919/3,920 local worlds), so it consumes the same bytes as the native reader,
+and it caps every packet count to the native fixed-array size (affects 8, hits
+64, slots 23, ammo 8, artefacts 128, players 20, FSM state < the list). A count
+it does not cap is one the native code takes from its own config, not the
+packet. The client string readers are the one exception to "read to exact end":
+`read_squad_info` 0x274720 reads a member name as `len = r<u8>; memcpy(dst+0x10,
+src, len); dst[0x10+len] = 0` into a 0x50-byte member record -- unbounded like
+0.10b's `r_string` -- so the server bounds it: `social::squad_info` refuses
+more than `SQUAD_MEMBERS` (3) members and clamps each name to NAME (63) with
+`Writer::str`, matching the 3 x 0x50 record array and the ~64-byte name field.
