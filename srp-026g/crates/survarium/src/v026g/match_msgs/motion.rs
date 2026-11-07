@@ -395,7 +395,7 @@ pub fn state_bytes(head: &PlayerState, inventory: &[u8], tail: &Tail) -> Vec<u8>
     out.extend(last_hit.unwrap_or(0).to_le_bytes()); // last hit
     out.extend(now.to_le_bytes()); // last tick
     out.extend([0; 8]); // invulnerability
-    for part in 0..20 {
+    for part in 0..20usize {
         out.extend(if part == 0 { tail.health } else { 1.0f32 }.to_le_bytes());
         out.extend(0u32.to_le_bytes());
         out.push(1); // one {u8, u32}
