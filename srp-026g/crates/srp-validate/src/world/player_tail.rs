@@ -1580,10 +1580,11 @@ mod tests {
     }
 
     #[test]
-    fn the_speed_and_the_last_position_may_be_nan() {
+    fn the_speed_and_the_last_position_are_numbers() {
         // Place 12's state in rec026g_20261106-211841_03439962 from
-        // 540 200 ms: a 0 ms step makes the speed 0/0 (0x2D9535), and the
-        // controller's last position is NaN too.
+        // 540 200 ms (a revision-50 game): its position NaN, the speed and
+        // the controller's last position NaN too. Exe patch 117 keeps the
+        // position finite, so none of these is a state a game writes.
         let items = [item(0, Body::None)];
         let mut state = valid_state();
         state.extend(header_item(0, 0, 0));
@@ -1591,13 +1592,18 @@ mod tests {
         let health = speed + 4 + 1 + 16;
         let last_pos = health + BODY_PARTS * 14 + 1 + 4;
         state.extend(rest());
-        for bits in [0xFFC0_0000u32, f32::INFINITY.to_bits()] {
+        assert_eq!(with_inventory(&state, &items), Ok(()));
+        for bits in [(-f32::NAN).to_bits(), f32::NAN.to_bits(), f32::INFINITY.to_bits()] {
             for at in [speed, last_pos, last_pos + 4, last_pos + 8] {
-                state[at..at + 4].copy_from_slice(&bits.to_le_bytes());
+                let mut bad = state.clone();
+                bad[at..at + 4].copy_from_slice(&bits.to_le_bytes());
+                assert!(
+                    matches!(reason(&bad, &items), Reason::TailNotNumber { .. }),
+                    "{bits:#x} at {at}"
+                );
             }
-            assert_eq!(with_inventory(&state, &items), Ok(()));
         }
-        // The damage model's floats stay numbers.
+        // The damage model's floats too.
         state[health..health + 4].copy_from_slice(&f32::NAN.to_bits().to_le_bytes());
         assert!(matches!(
             reason(&state, &items),

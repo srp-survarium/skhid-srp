@@ -292,13 +292,16 @@ fn indexed_floats(last: u32) -> Vec<u8> {
 }
 
 #[test]
-fn animation_validate_bounds_a_floats_index_by_the_unique_count() {
+fn animation_validate_bounds_a_floats_index_below_the_unique_count() {
     assert_eq!(animation_validate(&indexed_floats(0)), Ok(()));
-    // The unique count: the index `save_floats` (0x397040) writes for a NaN,
-    // which its `find` never matches (a real stream of
-    // rec026g_20261106-211841_03439962 has three).
-    assert_eq!(animation_validate(&indexed_floats(2)), Ok(()));
-    // Past it: no encoder writes this.
+    assert_eq!(animation_validate(&indexed_floats(1)), Ok(()));
+    // The unique count: the index `save_floats` (0x397040) wrote for a NaN,
+    // which its `find` never matches (rec026g_20261106-211841_03439962, a
+    // revision-50 game); a game with exe patch 117 has no NaN to save.
+    assert_eq!(
+        animation_validate(&indexed_floats(2)),
+        Err(AnimFault::FloatsIndex)
+    );
     assert_eq!(
         animation_validate(&indexed_floats(3)),
         Err(AnimFault::FloatsIndex)
@@ -306,10 +309,10 @@ fn animation_validate_bounds_a_floats_index_by_the_unique_count() {
 }
 
 #[test]
-fn animation_validate_takes_a_nan_entry_no_index_names() {
-    // The game's own stream for a NaN value: the entry is kept, no index
-    // names it, the value's index is the count (place 12 of
-    // rec026g_20261106-211841_03439962). A named NaN entry reaches a bone.
+fn animation_validate_refuses_a_nan_entry_named_or_not() {
+    // A revision-50 game's stream for a NaN value: the entry kept, no index
+    // naming it, the value's index the count (place 12 of
+    // rec026g_20261106-211841_03439962); and a crafted one naming it.
     let stream = |named: bool| {
         let mut w = BitW::new();
         tree_header(&mut w, 11, 0, 0);
@@ -323,11 +326,12 @@ fn animation_validate_takes_a_nan_entry_no_index_names() {
         w.put(if named { 1 } else { 2 }, 2);
         w.bytes().to_vec()
     };
-    assert_eq!(animation_validate(&stream(false)), Ok(()));
-    assert_eq!(
-        animation_validate(&stream(true)),
-        Err(AnimFault::FloatNotNumber)
-    );
+    for named in [false, true] {
+        assert_eq!(
+            animation_validate(&stream(named)),
+            Err(AnimFault::FloatNotNumber)
+        );
+    }
 }
 
 #[test]
