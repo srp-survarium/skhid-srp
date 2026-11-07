@@ -51,6 +51,7 @@ pub mod premium;
 pub mod presets;
 pub mod pvb;
 pub mod quests;
+pub mod replay_watch;
 pub mod replays;
 pub mod rewards;
 pub mod room_settings;

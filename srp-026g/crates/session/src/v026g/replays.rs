@@ -37,6 +37,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use password_hash::rand_core::{OsRng, RngCore};
 
+use super::replay_watch::{WatchSettings, Watches};
 use crate::LockExt;
 
 /// The `player` of a `3D` that is a replay ask, not a row of a results
@@ -200,6 +201,9 @@ pub enum Status {
     Failed,
     /// Replays are switched off on this server.
     Off,
+    /// A replay session ([`super::replay_watch`]): its game was sent to
+    /// watch the match in the running client.
+    Watching,
 }
 
 impl Status {
@@ -217,6 +221,7 @@ impl Status {
             Self::Busy => "busy",
             Self::Failed => "failed",
             Self::Off => "off",
+            Self::Watching => "watching",
         }
     }
 }
@@ -487,23 +492,30 @@ impl Sidecar {
     /// is not played (the owner, 2026-10-17: its games' revision is not
     /// guessed).
     pub fn refusal(&self, revision: u8, oldest: u8) -> Option<Refusal> {
-        let known = || {
-            self.revisions
-                .iter()
-                .flatten()
-                .copied()
-                .filter(|&known| known != 0)
-        };
-        let (Some(from), Some(to)) = (known().min(), known().max()) else {
-            return Some(Refusal::Unknown);
-        };
-        if from < oldest {
-            Some(Refusal::Older { from, to, oldest })
-        } else if to > revision {
-            Some(Refusal::Newer { from, to })
-        } else {
-            None
-        }
+        refusal_of(&self.revisions, revision, oldest)
+    }
+}
+
+/// [`Sidecar::refusal`] of a recording made by games of `revisions` (by
+/// place), for a game of `revision`: also a replay session's
+/// ([`super::replay_watch`]).
+pub fn refusal_of(revisions: &[Option<u8>], revision: u8, oldest: u8) -> Option<Refusal> {
+    let known = || {
+        revisions
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|&known| known != 0)
+    };
+    let (Some(from), Some(to)) = (known().min(), known().max()) else {
+        return Some(Refusal::Unknown);
+    };
+    if from < oldest {
+        Some(Refusal::Older { from, to, oldest })
+    } else if to > revision {
+        Some(Refusal::Newer { from, to })
+    } else {
+        None
     }
 }
 
@@ -766,6 +778,8 @@ pub struct Replays {
     oldest: u8,
     inner: Mutex<Inner>,
     work: Condvar,
+    /// The replay sessions ([`super::replay_watch`]).
+    watches: Watches,
 }
 
 /// The first six hex digits of a token: all a log line ever shows of one.
@@ -842,7 +856,25 @@ impl Replays {
             oldest: oldest_replayable_here(0),
             inner: Mutex::new(Inner::default()),
             work: Condvar::new(),
+            watches: Watches::new(None),
         }
+    }
+
+    /// Replay sessions on, with these settings (they need the recordings,
+    /// not the `.sur` files: `SRP_RECORD_DIR`).
+    pub fn with_watch(mut self, settings: WatchSettings) -> Self {
+        self.watches = Watches::new(Some(settings));
+        self
+    }
+
+    /// The replay sessions.
+    pub fn watches(&self) -> &Watches {
+        &self.watches
+    }
+
+    /// The oldest patch revision whose recordings are given.
+    pub fn oldest(&self) -> u8 {
+        self.oldest
     }
 
     /// The oldest patch revision whose recordings are given: the server's
@@ -1553,6 +1585,7 @@ mod tests {
             (Status::Busy, "busy"),
             (Status::Failed, "failed"),
             (Status::Off, "off"),
+            (Status::Watching, "watching"),
         ];
         for (status, word) in all {
             assert_eq!(status.word(), word);
