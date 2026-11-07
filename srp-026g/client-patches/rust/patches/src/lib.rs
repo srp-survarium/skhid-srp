@@ -84,8 +84,10 @@ pub mod mouse_pitch;
 pub mod bake_cache;
 pub mod key_remap;
 pub mod deserialize_guards;
+pub mod effect_presenters;
 
 pub mod message_check;
 pub mod packet_recovery;
 pub mod hud_cursor;
 pub mod ban_time;
+pub mod controller_position;

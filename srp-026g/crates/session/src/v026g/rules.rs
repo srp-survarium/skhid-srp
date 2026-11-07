@@ -2449,6 +2449,8 @@ mod tests {
         let record = prices::price_list()
             .iter()
             .filter(|record| !dictionary.is_stack(record.dict_id))
+            // Of what wears: a badge, dearer, has no wear.
+            .filter(|record| wear_per_match(record.dict_id) > 0.0)
             .max_by_key(|record| record.cost)
             .unwrap();
         let mut account = rich(1_000_000);

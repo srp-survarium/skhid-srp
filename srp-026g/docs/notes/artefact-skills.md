@@ -109,7 +109,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   the third person; the own first-person view optional. Every game knows the kit's modifier
   41 and the zone count, so it is derived where it is drawn: no new network data, no
   simulation change, no `next` row.
-- Built (exe patch 111 `forest_glow`, client_patch.md 3.71; pack artefact-glow@5):
+- Built (exe patch 111 `forest_glow`, client_patch.md 3.72; pack artefact-glow@5):
   - the effect `forest_protection` (gameplay/effects/effect_forest_protection): the Onyx glow's
     particle effect, `view` 2 (the others' third-person view and the player's own first-person
     legs), playing fx/artifacts/human_forest_protection: the stock Onyx glow (its emitters, sizes,

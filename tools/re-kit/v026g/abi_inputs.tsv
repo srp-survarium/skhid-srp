@@ -5699,3 +5699,14 @@ va	name	location	role	basis
 0x002e9c70	survarium::generic_anomaly_core_cook::translate_query	entry ESP+4	the query (its +108h the anomaly's config): cooks the artefacts pool (query_for_artefacts 0x2E9D40, each artefacts entry {dict_id, count} count times) only when artefacts_enabled is set; else the anomaly is made with none	observed
 0x00369030	vostok::particle::particle_action_animated_source::init	ECX, particle at EBP+0Ch	this: +E0h body-part mask (19 bits), +F7h UseRandomPermutation, +FCh the shuffled part indices, +148h their count, +14Ch the next; +18h the Scale curve. The particle: +98h its part (word), +9Ch a random point of the part's shape (0x72250), +A8h Scale at its age (per axis); its position = the part's transform x (point * Scale), kept as the part moves (0x369430 re-evaluates Scale)	observed
 0x00318100	survarium::timelimit_rule_core::logic_tick	EDX at 0x31816B	the core world ([rule+128h]), whose state +18FE4h the switch to in process sets to ECX = 3 (after the rule's +148h = 3 and +12Ch = EAX, 0x318159..0x318164)	observed
+0x0007b7f0	vostok::physics::round_up	ESI	the float rounded in place	observed
+0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	EAX	the controller (+20h the walk, +2C710h the supporting normal)	observed
+0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	entry ESP+4	the float3 written (returned in EAX)	observed
+0x002a9e70	survarium::sound_game_effect_presenter::clear	ECX	the sound presenter	observed
+0x002a9ef0	survarium::sound_game_effect_presenter::on_event	entry ESP+4	the sound presenter (EBX): +4h the world, +0Ch its player, +10h its random seed (minstd x 48271, 0x2AB6E0), +14h 1.0f, +18h..+20h its entries {begin, end, capacity}, 14h each ({+0 a loose pointer to the effect: [+0]-4 the effect, +4 its count; +4 the effect's +10h; +8 its +2Ch; +0Ch the volume; +10h the sound, its count +28h}), sixteen inline from +24h	observed
+0x002a9ef0	survarium::sound_game_effect_presenter::on_event	entry ESP+8	the sound_game_effect (vtable 0xA0D4CC; its accept, vtable +3Ch 0x2AE450, calls the presenter's +28h with it)	observed
+0x002a9ef0	survarium::sound_game_effect_presenter::on_event	entry ESP+0Ch	the event: +4h its kind (0 activate, 1 stop, other an update at the time +14h)	observed
+0x002de350	survarium::game_effect_player::stop	EAX	the game_effect_player (a player's +358h; +38h its presenter's holder)	observed
+0x002de350	survarium::game_effect_player::stop	ECX	the effect (a playing item's +0)	observed
+0x0031a210	survarium::damage_zone_core::stop_effect	ECX	the damage zone core	observed
+0x0031a210	survarium::damage_zone_core::stop_effect	EDX	the player that left	observed

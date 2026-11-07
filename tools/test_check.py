@@ -16,6 +16,7 @@ b\tb/**\techo b >> "$COUNTS/b"
 fails\tf/**\techo f >> "$COUNTS/f"; echo broken; exit 3
 b\tshared/**\t-
 mutates\tm/**\techo more >> m/x
+outside\t{main}/private/*/** {main}/private/one\techo o >> "$COUNTS/o"
 '''
 
 
@@ -26,7 +27,7 @@ class CheckRunner(unittest.TestCase):
         self.repo, self.counts, self.cache = base / 'repo', base / 'counts', base / 'cache'
         self.counts.mkdir()
         for path, text in {'tools/checks.tsv': MANIFEST, 'a/x': '1', 'b/x': '1', 'f/x': '1',
-                           'shared/x': '1', 'notes/n': '1', 'm/x': '1'}.items():
+                           'shared/x': '1', 'notes/n': '1', 'm/x': '1', '.gitignore': 'private/\n'}.items():
             (self.repo / path).parent.mkdir(parents=True, exist_ok=True)
             (self.repo / path).write_text(text)
         self.git('init', '-q', '-b', 'main')
@@ -57,7 +58,8 @@ class CheckRunner(unittest.TestCase):
     def test_nothing_changed_runs_nothing(self):
         status, lines = self.check()
         self.assertEqual(status, 0)
-        self.assertEqual(lines, ['not affected a', 'not affected b', 'not affected fails', 'not affected mutates'])
+        self.assertEqual(lines, ['not affected a', 'not affected b', 'not affected fails', 'not affected mutates',
+                                 'not affected outside'])
 
     def test_selects_by_diff_and_caches_passes(self):
         self.write('a/x', '2')
@@ -146,6 +148,19 @@ class CheckRunner(unittest.TestCase):
         self.assertTrue(any('not recorded' in line for line in lines), lines)
         status, lines = self.check('mutates')
         self.assertTrue(any(line.startswith('ran pass mutates') for line in lines), lines)
+
+    def test_outside_files_and_globs_are_in_the_key(self):
+        self.write('private/corpus/deep/x', '1')
+        self.check('outside')
+        status, lines = self.check('outside')
+        self.assertTrue(any(line.startswith('cached pass outside') for line in lines), lines)
+        for path, text in [('private/corpus/deep/x', '2'), ('private/corpus/new', 'n'), ('private/one', '1')]:
+            self.write(path, text)
+            self.check('outside')
+        self.write('private/top', 'not under a folder the glob names')
+        status, lines = self.check('outside')
+        self.assertTrue(any(line.startswith('cached pass outside') for line in lines), lines)
+        self.assertEqual(self.runs('o'), 4)
 
     def test_list(self):
         self.write('b/x', '2')

@@ -1027,6 +1027,7 @@ package
          victory_screen = new SrvVictoryScreenReskin();
          this.victory_screen.registerHintRenderer(new InventoryItemHint());
          this.victory_screen.addEventListener("try_buy_maps",this.onBuyMaps);
+         this.victory_screen.addEventListener("try_buy_map_to_use",this.onBuyMapToUse);
          this.victory_screen.addEventListener(Events.SHOW_PLAYER_INFO,this.onVSPlayerInfo);
          friendsMenu = new SrvFriendsMenuReskin();
          clanWindow = new SrvClanWindow();
@@ -1241,6 +1242,7 @@ package
          stage.addEventListener(MouseEvent.MOUSE_WHEEL,this.onMouseFnx);
          stage.addEventListener(MouseEvent.MOUSE_UP,this.onMouseStageClick);
          stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onMouseStageClick);
+         stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onPressHidePopups,true);
          this.bottom_panel.btnShowLogList.enabled = false;
          this.inventory_list.item_control = this.item_control;
          AmmoShareLite.setItemCard(this.item_control);
@@ -1671,7 +1673,7 @@ package
          ExternalInterface.call("show_match_result",e.match_id);
          var reportData:Object = e;
          this.show_victory_screen();
-         this.victory_screen.setData(reportData,true);
+         this.victory_screen.setData(reportData);
          if((reportData) && (reportData.statistics_money))
          {
             trace("showFullReaport::",reportData.statistics_money.autobuy_money,reportData.statistics_money.autorepair_money);
@@ -1813,11 +1815,23 @@ package
       
       private function onBuyMaps(e:Event) : void
       {
+         this.buyMap(null);
+      }
+
+      // The results screen's card slot clicked with no card: the buy
+      // dialog, and on its yes the screen uses the card once it comes.
+      private function onBuyMapToUse(e:Event) : void
+      {
+         this.buyMap(this.victory_screen.cardBought);
+      }
+
+      private function buyMap(onComplete:Function) : void
+      {
          var pp:IPlayerProfile = this.player_profile;
          var dict:uint = PlayerInfo.getVoucherDictId(VoucherType.DROP_CARD);
          var id:uint = PlayerInfo.getVoucherId(VoucherType.DROP_CARD);
-         trace("onBuyMaps::",pp.profileId,id,dict);
-         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),BuyOrigin.SHOP,Faction.ANY);
+         trace("buyMap::",pp.profileId,id,dict,onComplete != null);
+         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),BuyOrigin.SHOP,Faction.ANY,onComplete);
       }
       
       public function show_choose_faction_message() : void
@@ -3046,6 +3060,23 @@ package
          {
             stage.focus = null;
          }
+      }
+      
+      // The notifications that come up by themselves (notificationListTemp) go at a press
+      // anywhere but on them, once a match's results are closed: while the results are up they
+      // wait under them, the results first (the owner's of 2026-11-07).
+      private function onPressHidePopups(e:MouseEvent) : void
+      {
+         if(this.victory_screen != null && this.victory_screen.stage != null)
+         {
+            return;
+         }
+         var target:DisplayObject = e.target as DisplayObject;
+         if(target != null && this.notificationListTemp.contains(target))
+         {
+            return;
+         }
+         this.notificationListTemp.hideAll();
       }
       
       protected function getItemTopParent(value:DisplayObject) : DisplayObject
@@ -6380,7 +6411,9 @@ package
       
       // The rooms window while open: over the side panels (the lobby adds
       // them again over it, and their hidden areas then take its clicks);
-      // the chat stays over it (the owner's of 2026-10-19).
+      // the chat stays over it (the owner's of 2026-10-19), and so do the
+      // notifications that come up by themselves (notificationListTemp: a
+      // match's report after the results, the owner's of 2026-11-07).
       public function layerRoomsWindow(window:DisplayObject) : void
       {
          survarium.rooms.RoomLayers.belowResults(window,this.victory_screen,this._back_back);
@@ -6395,9 +6428,14 @@ package
                setChildIndex(panel,getChildIndex(window));
             }
          }
-         if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))
+         var above:Array = [this.chat,this.notificationListTemp];
+         for(i = 0; i < above.length; i++)
          {
-            setChildIndex(this.chat,getChildIndex(window));
+            var over:DisplayObject = above[i] as DisplayObject;
+            if(over != null && over.parent == this && getChildIndex(over) < getChildIndex(window))
+            {
+               setChildIndex(over,getChildIndex(window));
+            }
          }
       }
       

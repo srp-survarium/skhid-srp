@@ -563,6 +563,11 @@ Patches:
   keeps what srp's login server sends after a ban's code
   (crates/ban-reason), and set_status (0x21F217) writes the ban's text anew
   from it. Nothing a match computes;
+- a character controller's step never leaves its position non-finite
+  (patch 117, the Rust patch controller_position; docs/notes/client_patch.md
+  section 3.71): at player_step's epilogue (0x7C7D7) a position (+0B0h) with
+  an infinity or a NaN goes back to m_last_pos (+50h), where the step began;
+  every other step bit for bit as before. A simulation change;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The

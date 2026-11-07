@@ -53,13 +53,10 @@
 //!   bullet is the shooter's; PROVEN in every world kept). Whether the
 //!   place has a player a game can read the bullet with is the rule
 //!   [`bullets`] holds it to, over the parsed bullet and the match.
-//! - `m_start_position` (+28h, the loader 0x32BC19) is a [`MaybeNan`]: the
-//!   game writes NaN there for a shooter whose bones went NaN
-//!   (rec026g_20261106-211841_03439962, place 12). It is only computed with
-//!   and compared: the ray test of a NaN segment meets nothing, and
-//!   `update_bullet_position` (0x32EECB..0x32EF0C) takes a NaN or infinite
-//!   position as outside the level and removes the bullet at its first
-//!   step. The other floats are numbers.
+//! - Every float is a number, `m_start_position` (+28h, the loader
+//!   0x32BC19) too: a revision-50 game wrote NaN there for a shooter whose
+//!   position went NaN (rec026g_20261106-211841_03439962, place 12), which
+//!   exe patch 117 keeps from happening (`snapshot_rules.md` 7.2.1).
 //! - The slot: the reader takes `[[player+10Ch]+10Ch + slot*4]` with no
 //!   bound (0x32BDA1); a bullet is a weapon's, in the kit's slot 7 or 10.
 //! - Open: the trajectory changes (a dword counted by `change_trajectory`
@@ -81,7 +78,7 @@
 //! PROVEN in the patch's C reference).
 use super::{Body, Context, Frame, Section, WEAPON_SLOTS};
 use crate::reader::{Reader, Short};
-use crate::{Finite, KITS, MaybeNan, Part, Place, Reason, Refusal};
+use crate::{Finite, KITS, Part, Place, Reason, Refusal};
 
 /// The header's length.
 const HEADER: usize = 16;
@@ -93,7 +90,7 @@ const RECORD: usize = 69;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Bullet {
     id: u32,
-    start_position: [MaybeNan; 3],
+    start_position: [Finite; 3],
     start_velocity: [Finite; 3],
     max_damage_speed: Finite,
     min_damage_speed: Finite,
@@ -221,7 +218,7 @@ impl Bullet {
         };
         Ok(Self {
             id,
-            start_position: start_position.map(MaybeNan::of_bits),
+            start_position: float3(start_position, 4)?,
             start_velocity: float3(start_velocity, 16)?,
             max_damage_speed: number(max_speed, 28)?,
             min_damage_speed: number(min_speed, 32)?,
@@ -250,8 +247,8 @@ impl Bullet {
         self.id
     }
 
-    /// `m_start_position`: any f32 (the module's domains).
-    pub fn start_position(&self) -> [MaybeNan; 3] {
+    /// `m_start_position`.
+    pub fn start_position(&self) -> [Finite; 3] {
         self.start_position
     }
 
@@ -666,15 +663,13 @@ mod tests {
             bad[offset] = value;
             assert!(verdict(&bad, 1).is_err(), "{offset}");
         }
-        // The start position may be NaN (a NaN shooter's); the velocity may
-        // not.
-        let mut origin = valid;
+        // Neither the start position (a revision-50 NaN shooter's, x87's
+        // indefinite) nor the velocity may be a non-number.
         for at in [4, 8, 12] {
-            origin[at..at + 4].copy_from_slice(&0xFFC0_0000u32.to_le_bytes());
+            let mut origin = valid;
+            origin[at..at + 4].copy_from_slice(&(-f32::NAN).to_bits().to_le_bytes());
+            assert!(verdict(&origin, 1).is_err(), "{at}");
         }
-        assert_eq!(verdict(&origin, 1), Ok(()));
-        let read = Bullet::read(origin.as_slice().try_into().unwrap()).unwrap();
-        assert!(read.start_position().iter().all(|x| x.finite().is_none()));
         valid[16..20].copy_from_slice(&f32::NAN.to_bits().to_le_bytes());
         assert!(verdict(&valid, 1).is_err());
         assert!(verdict(&[], u32::MAX).is_err());

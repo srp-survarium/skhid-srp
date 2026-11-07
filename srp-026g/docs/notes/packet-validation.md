@@ -486,11 +486,14 @@ cores, the effects floats) that every local test had missed. Four guards:
   dropped silently). The kit layout (`MatchProfile::inventory`, `held`) names
   every `ItemClass`, so a new class fails to compile until it is placed.
 - **In a match: loud when many games are refused alike.** A kind of refusal
-  (its part and reason) from two places, or three uploads, is more likely the
-  check or the data than the games: one error line `WORLD CHECK IN DOUBT`
-  with the count and the first refusal (section, offset, the match it was
-  checked as), once a kind; the match's end line counts the uploads refused and
-  lists the kinds in doubt (`world_validation::Refusals`). A kit the check
+  (its part and reason) from two different players of the match is more
+  likely the check or the data than the games: every honest game writes the
+  same world, so a wrong check refuses every uploader's, while a cheater is
+  one place and cannot put a kind in doubt alone, however often it uploads.
+  One error line `WORLD CHECK IN DOUBT` with the count and the first refusal
+  (section, offset, the match it was checked as), once a kind; the match's
+  end line counts the uploads refused, those the fall-back relayed (below),
+  and lists the kinds in doubt (`world_validation::Refusals`). A kit the check
   cannot lay out (an item the game makes an untraced object of) leaves that
   match's states read to their inventories only: said once at error level when
   the place comes, not per upload. That stays: the kit is the lobby's, the
@@ -503,8 +506,102 @@ cores, the effects floats) that every local test had missed. Four guards:
   block included, must pass the clients' check
   (`current_protocol.rs::the_options_of_every_map_are_accepted`).
 
-Refused uploads still go to nobody (fail closed); whether a match whose uploads
-are in doubt should relay them anyway is the owner's decision.
+### The fall-back to the games' own check (TEMPORARY)
+
+The owner's decision of 2026-11-07 (option B). A refused upload goes to
+nobody, unless its kind is in doubt in its match:
+
+- **What it does.** A kind stands `Refusing { place }` (one player's uploads),
+  `InDoubt { places }` (two players' or more, the fall-back armed, none relayed
+  yet) or `FallingBack { places, relayed }` (`world_validation::Standing`, one
+  transition, `Standing::refused`). While a kind is in doubt, an upload the
+  server's check refuses **for that kind** is checked again with the context
+  the game's own check (patch 87, `world_check.rs::Match::context`) uses: the
+  match's places, mode, batteries and respawn points, and no profiles,
+  artefacts, objects or inventory, as `srp-validate/examples/drift_dump.rs`
+  builds it (`world_validation::game_check`). If it passes, it is accepted and
+  relayed like any other upload (votes, the recent world, joins, resyncs); if
+  not, it is refused as before. Every other refusal (a kind of one player's,
+  or one the games' check refuses too) is refused as before. The upload that
+  puts a kind in doubt is itself checked again.
+- **How it is logged.** Each relay writes, at error level, at most one line a
+  second for each player (the refusal logs' limit, counting the lines held
+  back):
+  `Match <id>: WORLD CHECK FALLBACK: player <p>'s upload at <t> ms, refused as
+  <part> at <offset>: <reason>, passes the game's own check and is relayed
+  (temporary, see packet-validation.md)[; <n> more relayed by the fall-back
+  since the last line]`. The upload is kept as a `fallback` dump (within the
+  match's doubtful-dump limit), which `srp-world-check` then checks with the
+  rest. The match's end line has `..., <n> of them relayed by the fall-back`,
+  and each kind in doubt `(<players> players, <n> relayed)`.
+- **Why it is safe.** Every game that receives a world runs this same check
+  before it loads it (patch 87) and refuses one that fails it, so a relayed
+  world is one no receiving game refuses: the fall-back lets nothing in that a
+  game would not take from a world the server relayed anyway. It needs two
+  different players' uploads refused alike, so one forged or broken game
+  cannot turn it on.
+- **What it gives up.** For that kind in that match only: the server's
+  context-only checks, the rules the games cannot make without the match's
+  roster: the profiles (usable kits, item counts), the game objects against
+  the places' grenades and traps and the map's objects, and the kits' items
+  to a state's exact end. A forged world that breaks only those, in a match
+  where the kind is in doubt, reaches the other games.
+- **When it goes.** It is temporary: once live releases show no `WORLD CHECK
+  FALLBACK` line (the check is right for every world the games write), it is
+  removed, the doubt detector kept. Removing it is deleting the `TEMPORARY`
+  code: `Standing::FallingBack`, `Answer::Relay` and its arm in
+  `game.rs::uploaded`, `game_check`, the peer's `fallback_log`, and making
+  `InDoubt` refuse.
+
+## The world corpus
+
+Every change of what the game writes into a world, or of how the server or the
+game reads one, is checked against real worlds by `tools/check`. The worlds
+are `private/world-corpus/` of the main checkout (private: the recordings carry
+players' names and accounts; never committed):
+
+- `live/`: live match recordings (`rec026g_*.srprec`), copied by
+  `release/world-corpus [--newest <n>]` (default 100): the host's newest
+  recordings it does not have, finished ones only, in tar batches of 10 read
+  under `nice -n 19 ionice -c 3` with 30 s between them (the host has one vCPU
+  and runs the matches), through `release/lib.sh`'s way to the host. Reads only.
+- `local/<config>/`: the local test matches. `srp-026g/scripts/local-clients/
+  run.py`'s server records every match there from one player on
+  (`SRP_RECORD_DIR`, `SRP_RECORD_MIN_PLAYERS=1`), so a feature's own test games
+  are checked too; on by default (its README).
+- `dumps/<config>/`: the kept world dumps of the local runs
+  (`private/local-clients-*/runtime/snapshots`, copied once on 2026-11-07,
+  14,748 worlds). They have no recording, so only `world-drift` reads them.
+
+Two rows of `tools/checks.tsv` read it (`tools/checks/worlds.sh`); the corpus is
+in their key (`{main}/private/world-corpus/**`), not in the diff: a refresh
+alone does not select them, `tools/check world-check world-drift` runs them.
+
+- `world-check`: this tree's server game data (`release/build-content`'s quick
+  build of the next patch; the offered-patch list's when the manifest ships
+  nothing new), then `srp-world-check` of every recording in `live/` and
+  `local/*/`. One world refused or not checked fails it. Inputs: srp-validate,
+  world-frame, the shared format crates, the survarium modules the context comes
+  from, resources-db, the check and the recording reader, the content sources,
+  the Rust patches and the corpus.
+- `world-drift`: the game's own check against the host's
+  (`check_world_check_026g.py --drift` on srp-validate's `drift_dump`) over a
+  sample: one upload in 50 of each live recording (`WORLD_DRIFT_ONE_IN`),
+  written out by `srp-world-check --worlds <dir> --one-in <n>`, every upload of
+  the local recordings and every dump, in parallel chunks
+  (`WORLD_DRIFT_JOBS`, default the cores less 4). Needs the original exe. Inputs:
+  the arena's sources and lock, the exe build, the host check and the corpus.
+
+On 2026-11-07 (main 1287a0f61 with this tooling; the machine shared with
+another drift run) the corpus held 481 revision-50 live recordings (2.4 GB)
+and 14,748 local dumps. `world-check` passed 241,785 worlds in 278 s, with
+build-content cached (858 s with an uncached build). `world-drift` passed
+19,832 worlds (5,084 sampled live uploads and the dumps, 18 loads each with
+the mutated copies) in 20 chunks in 1,214 s.
+
+A release that changes the world format refuses the older recordings: move them
+out of `live/` and refresh, with recordings of the new revision's games, before
+the next change is checked.
 
 ## Performance evidence and limits
 

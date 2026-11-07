@@ -133,6 +133,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
 | `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper gets a dormant artefact of the match's kind from the map's hidden pool at the match's start, into its first empty container, once a match: register_artefacts 0x31B8E0, the player's tick 0x2DAAD3); their checks run the game's code for each (needs Unicorn) |
 | `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
+| `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -739,10 +740,7 @@ patched in bytecode; the steps that did (`rooms_026g.py` to
 `player_gear_026g.py` and their Java patchers, on revision 23's movie) are in
 git history only.
 
-The build says whether the movie is `RESULT_SHA256`, the one last checked in
-the game (a note, not a gate): since 2026-10-21 `8b099212…`, the tree of
-6064476c (the owner checked it in the game). Tests:
-`python -m unittest test_build_lobby`. Not in a release yet.
+Tests: `python -m unittest test_build_lobby`. Not in a release yet.
 
 ## What each patch does
 
@@ -4560,6 +4558,32 @@ These guards also cover item bodies whose format cannot be walked statically.
 checks invalid/empty tables at all four stack alignments (84 cases). The i686
 patch crate's i686 tests and Clippy pass. No release revision is reserved.
 
+## A presenter ignores an effect it does not hold (patch 117, unreleased)
+
+The 2026-11-06 crash (rev50, `abort` from the allocator under
+sound_game_effect_presenter::on_event 0x2A9EF0). `base_player::remove(1)`
+(a respawn, a departure, a snapshot's kit change) clears the player's
+presenter (0x2DA81C, vtable +4) while its game_effect_player plays on; a
+damage zone stops its effect on the player when its sensor sees the player
+gone, the tick after (damage_zone_core 0x31A210 -> game_effect_player::stop
+0x2DE350). The sound and particle presenters' `on_event` search their
+entries for the effect and erase the one found; a search that finds none
+leaves its index at -1 and the erase starts one entry before the list: the
+sound presenter's own fields are released as an entry (the word at its
+capacity pointer's +28h counted down, its random seed at +10h freed as an
+effect reference: the crash), the particle presenter's likewise; the sound
+presenter's update reads entry 0. The patch (`effect_presenters`, three
+lohooks after the searches) returns from `on_event` when the search found
+nothing, with a line in `srp_patches.log`; the native code runs unchanged
+when the entry is there.
+
+`check_effect_presenters_026g.py <stock exe>` runs both presenters (made by
+the third-person presenter's constructor) on a stop and an update of an
+effect they hold and of one they do not, in the original and the build, at
+the four stack alignments (64 cases): the original frees the seed, faults or
+erases before the list; the build returns and changes nothing; a held
+effect's stop and update are the original's byte for byte. Not played.
+
 ## Match-message checks (patch 114, unreleased)
 
 Before dispatching a server message, the client checks fixed lengths, player
@@ -4733,3 +4757,22 @@ a count (never 0, 0 until given) that stays through a death and back in the pool
 world's save, so nothing is kept outside the world. Only a Keeper's tick reads the match. The
 pool's anomaly ticks and saves it, so nothing is added to a world by the patch. Checked with
 `check_artefact_keeper_026g.py` and the patch's `gift` tests; not run in a game.
+
+## A character controller's position stays finite (patch 118, unreleased)
+
+In live match `rec026g_20261106-211841_03439962` (revision 50) a server bot's body went NaN in
+one step, around 539 850 ms, after it stood up under a ceiling and walked. It stayed NaN for the
+rest of the match in the one game that simulated it, falling ever faster. Its speed, its
+`m_last_pos`, its bullets' origins and its animation stream followed (`../docs/notes/snapshot_rules.md`
+7.2.1). A 0 ms step is not the cause: the game never steps 0 ms (`tick_events` 0x2D22DE).
+
+**The patch** (the Rust patch `controller_position`, one lohook, `sites_026g.tsv`):
+`controller.step_end` (0x7C7D7, bullet_character_controller::player_step's epilogue, which every
+path joins). When the controller's position (+0B0h, the ghost object's transform) has an infinity or
+a NaN in any float, it is put back to `m_last_pos` (+50h), where the step began, bit for bit. Any
+other step is the game's. Nothing reads the position between the step's end and the epilogue, and
+the ghost's AABB is next updated from it after the step, so no NaN reaches the broadphase.
+
+A simulation change (`simulation_changes.tsv`'s `next` row). Checked with
+`check_controller_position_026g.py` (finite steps byte for byte the original's; NaN and infinities
+restored; the original fails) and the patch crate's tests. Not run in a game.

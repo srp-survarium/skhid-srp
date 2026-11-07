@@ -833,6 +833,7 @@ dependencies = [
 name = "srp"
 version = "0.1.0"
 dependencies = [
+ "ban-reason",
  "ctrlc",
  "lobby-server",
  "log",

@@ -200,8 +200,28 @@ def read_manifest(root, main):
 def blob_id(path):
     """git's object id of a working-tree file (a symlink: its target), so a file put back as it was
     has the id it had."""
-    data = os.readlink(path).encode() if path.is_symlink() else path.read_bytes()
-    return hashlib.sha1(b'blob %d\0' % len(data) + data).hexdigest()
+    if path.is_symlink():
+        data = os.readlink(path).encode()
+        return hashlib.sha1(b'blob %d\0' % len(data) + data).hexdigest()
+    with open(path, 'rb') as stream:
+        digest = hashlib.sha1(b'blob %d\0' % os.fstat(stream.fileno()).st_size)
+        while chunk := stream.read(1 << 20):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def outside_files(word):
+    """An outside input's files: itself, or with a glob (`*`, `?`) every file under its folder
+    before the first glob that the whole path matches."""
+    if not any(c in str(word) for c in '*?'):
+        return [word]
+    parts = word.parts
+    top = Path(*parts[:next(i for i, part in enumerate(parts) if '*' in part or '?' in part)])
+    pattern = glob_regex(word.as_posix())
+    found = []
+    for folder, _, names in os.walk(top):
+        found += [Path(folder, name) for name in names if pattern.match(Path(folder, name).as_posix())]
+    return sorted(found)
 
 
 class Tree:
@@ -238,8 +258,9 @@ def check_key(check, tree):
     digest.update(json.dumps(['skhid-check 1', check.name, check.inputs.words, check.command]).encode())
     for path in sorted(p for p in tree.ids if check.inputs.matches(p)):
         digest.update(f'\0{path}\0{tree.ids[path]}'.encode())
-    for path in check.inputs.outside:
-        digest.update(f'\0{path}\0{blob_id(path) if path.is_file() else "missing"}'.encode())
+    for word in check.inputs.outside:
+        for path in outside_files(word):
+            digest.update(f'\0{path}\0{blob_id(path) if path.is_file() else "missing"}'.encode())
     return digest.hexdigest()
 
 

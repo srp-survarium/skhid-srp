@@ -30,7 +30,7 @@
 //! (`lobby.md` §2.5; the same client function 0x1F1070).
 
 use super::super::dictionary::{Dictionary, PROFILE_SLOTS};
-use super::super::loadouts::Loadout;
+use super::super::loadouts::{Loadout, POCKET_SLOTS};
 use super::super::skills::{MODIFIERS, write_modifier_block};
 use super::super::item_params::{self, ItemClass};
 use super::super::{lzma2, maps};
@@ -223,7 +223,7 @@ pub struct MatchKit {
     /// Empty: the client shows its own default name.
     pub name: String,
     /// By slot: `(index into the profile's items, count)`. A count of 0
-    /// is skipped by the client.
+    /// is skipped by the client. Its pockets are packed ([`MatchKit::new`]).
     pub slots: [Option<(u16, u16)>; PROFILE_SLOTS],
     /// The 68 modifiers the kit's skills give
     /// (`skills::SkillsTree::modifiers`); zeros are not written.
@@ -231,6 +231,62 @@ pub struct MatchKit {
 }
 
 impl MatchKit {
+    /// A kit of `slots` as the match can hold it: its pockets
+    /// ([`POCKET_SLOTS`]) packed, the held ones moved to the first pockets
+    /// in their order, so that no empty pocket comes before a held one.
+    ///
+    /// The game puts a kit's artefact slots at its first empty quick slot
+    /// (`inventory::setup_from_profile` 0x2FD1C3..0x2FD2A5: the first of
+    /// 13..18 with no object, then `artefact_slots` of them), over any
+    /// pocket after it. A player state saves those slots' ids from whatever
+    /// object they hold (0x2FE460: an item's byte +27Eh) and then the items;
+    /// reading it puts the artefact of each id, or none, into those slots
+    /// (0x2FE624..0x2FE6C6) before the items are read, so the pocket's item
+    /// is not read and every field after it is read out of place. A world
+    /// with such a player, or the game's own history of one (a rollback),
+    /// ends the game. PROVEN: match 0x55809714 (2026-11-07), place 8's kit
+    /// 2 with pocket 13 empty and a smoke grenade in 14
+    /// (`docs/notes/static_info.md`, "A kit's pockets must be packed").
+    pub fn new(
+        state: u8,
+        id: u32,
+        name: String,
+        mut slots: [Option<(u16, u16)>; PROFILE_SLOTS],
+        modifiers: [f32; MODIFIERS],
+    ) -> Self {
+        let mut held = POCKET_SLOTS
+            .map(|pocket| slots.get_mut(usize::from(pocket)).and_then(Option::take))
+            .into_iter()
+            .flatten();
+        for pocket in POCKET_SLOTS {
+            if let Some(slot) = slots.get_mut(usize::from(pocket)) {
+                *slot = held.next();
+            }
+        }
+        Self {
+            state,
+            id,
+            name,
+            slots,
+            modifiers,
+        }
+    }
+
+    /// The first empty pocket a held one comes after: a kit no match can
+    /// hold ([`MatchKit::new`]).
+    fn pocket_gap(&self) -> Option<u8> {
+        let held = |pocket: u8| {
+            self.slots
+                .get(usize::from(pocket))
+                .is_some_and(Option::is_some)
+        };
+        let empty = POCKET_SLOTS.into_iter().find(|&pocket| !held(pocket))?;
+        POCKET_SLOTS
+            .into_iter()
+            .any(|pocket| pocket > empty && held(pocket))
+            .then_some(empty)
+    }
+
     /// A usable kit with nothing in it.
     pub fn empty(id: u32, name: &str) -> Self {
         Self {
@@ -298,10 +354,9 @@ impl MatchProfile {
         let mut items = Vec::new();
         let mut kits = Vec::new();
         for (index, loadout) in loadouts.iter().take(MAX_KITS).enumerate() {
-            let mut kit = MatchKit::empty(index as u32 + 1, "");
-            kit.modifiers = modifiers;
+            let mut slots = [None; PROFILE_SLOTS];
             for item in &loadout.items {
-                let Some(slot) = kit.slots.get_mut(usize::from(item.slot)) else {
+                let Some(slot) = slots.get_mut(usize::from(item.slot)) else {
                     continue;
                 };
                 let is_stack = dictionary.is_stack(item.dict_id);
@@ -314,7 +369,13 @@ impl MatchProfile {
                     ..MatchItem::default()
                 });
             }
-            kits.push(kit);
+            kits.push(MatchKit::new(
+                KIT_USABLE,
+                index as u32 + 1,
+                String::new(),
+                slots,
+                modifiers,
+            ));
         }
         Self {
             team,
@@ -508,6 +569,9 @@ pub enum StaticInfoError {
         slot: usize,
         index: u16,
     },
+    /// Writing: a kit's pocket `slot` is empty and a later one is held,
+    /// which the game's artefact slots would take ([`MatchKit::new`]).
+    PocketGap { player: usize, kit: usize, slot: u8 },
     /// An item the client's dictionary lacks.
     DictId { player: usize, dict_id: u16 },
     /// More than 8 modifications or 3 upgrades on an item.
@@ -546,6 +610,10 @@ impl std::fmt::Display for StaticInfoError {
                 slot,
                 index,
             } => write!(f, "player {player}: slot {slot} names item {index}"),
+            Self::PocketGap { player, kit, slot } => write!(
+                f,
+                "player {player}: kit {kit}'s pocket {slot} is empty before a held one"
+            ),
             Self::DictId { player, dict_id } => {
                 write!(f, "player {player}: no dictionary item {dict_id}")
             }
@@ -684,6 +752,26 @@ fn write_item(item: &MatchItem, dictionary: &Dictionary, out: &mut Vec<u8>) {
     }
 }
 
+/// What a match is sent must also have its kits' pockets packed: a kit
+/// built as a literal is refused here, not played. Profiles read back
+/// (recordings) are not held to it.
+fn check_sent(
+    player: usize,
+    profile: &MatchProfile,
+    dictionary: &Dictionary,
+) -> Result<(), StaticInfoError> {
+    check_profile(player, profile, dictionary)?;
+    match profile
+        .kits
+        .iter()
+        .enumerate()
+        .find_map(|(kit, held)| Some((kit, held.pocket_gap()?)))
+    {
+        Some((kit, slot)) => Err(StaticInfoError::PocketGap { player, kit, slot }),
+        None => Ok(()),
+    }
+}
+
 fn write_profile(profile: &MatchProfile, dictionary: &Dictionary, out: &mut Vec<u8>) {
     out.push(profile.team);
     write_str(&profile.name, out);
@@ -720,7 +808,7 @@ pub(super) fn profile_bytes(
     profile: &MatchProfile,
     dictionary: &Dictionary,
 ) -> Result<Vec<u8>, StaticInfoError> {
-    check_profile(player, profile, dictionary)?;
+    check_sent(player, profile, dictionary)?;
     let mut bytes = Vec::new();
     write_profile(profile, dictionary, &mut bytes);
     Ok(bytes)
@@ -752,7 +840,7 @@ pub fn options_bytes(
     }
     let mut out = Vec::new();
     for (player, profile) in options.players.iter().enumerate() {
-        check_profile(player, profile, dictionary)?;
+        check_sent(player, profile, dictionary)?;
         write_profile(profile, dictionary, &mut out);
     }
     for _ in roster..MAX_PLAYERS {
@@ -1594,6 +1682,16 @@ mod tests {
                 dict_id: pistol()
             }
         );
+        // A kit built as a literal with pocket 13 empty and 14 held: the
+        // game's artefact slots would take 14 (match 0x55809714).
+        assert_eq!(
+            refused(&|o| o.players[0].kits[0].slots[14] = Some((0, 1))),
+            E::PocketGap {
+                player: 0,
+                kit: 0,
+                slot: 13
+            }
+        );
         // The limits themselves are fine.
         let mut most = options(vec![alice(); 20]);
         most.players[0].name = "n".repeat(63);
@@ -1676,6 +1774,40 @@ mod tests {
         let info = StaticInfo::new(&options(vec![player; 20]), dictionary()).unwrap();
         assert!(info.options().len() < OPTIONS_BUFFER);
         assert!(info.payload(19).unwrap().len() < MAX_MESSAGE);
+    }
+
+    #[test]
+    fn a_kit_goes_to_the_match_with_its_pockets_packed_in_their_order() {
+        // Match 0x55809714's kit: pocket 13 empty, a smoke grenade in 14;
+        // here also a medkit in 16 and a gun and its ammo.
+        let mut slots = [None; PROFILE_SLOTS];
+        slots[7] = Some((0, 1));
+        slots[8] = Some((1, 100));
+        slots[14] = Some((2, 1));
+        slots[16] = Some((3, 2));
+        let kit = MatchKit::new(KIT_USABLE, 3, String::new(), slots, [0.0; MODIFIERS]);
+        let mut packed = [None; PROFILE_SLOTS];
+        packed[7] = Some((0, 1));
+        packed[8] = Some((1, 100));
+        packed[13] = Some((2, 1));
+        packed[14] = Some((3, 2));
+        assert_eq!(kit.slots, packed);
+        assert_eq!(kit.pocket_gap(), None);
+        // A packed kit, every pocket held or none, stays as it is.
+        let mut full = [None; PROFILE_SLOTS];
+        for (index, pocket) in POCKET_SLOTS.into_iter().enumerate() {
+            full[usize::from(pocket)] = Some((index as u16, 1));
+        }
+        for slots in [packed, full, [None; PROFILE_SLOTS]] {
+            let kit = MatchKit::new(KIT_USABLE, 1, String::new(), slots, [0.0; MODIFIERS]);
+            assert_eq!(kit.slots, slots);
+        }
+        // The literal is what the writer refuses.
+        let literal = MatchKit {
+            slots,
+            ..MatchKit::empty(3, "")
+        };
+        assert_eq!(literal.pocket_gap(), Some(13));
     }
 
     #[test]

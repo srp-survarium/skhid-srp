@@ -356,8 +356,8 @@ The broader `selftest_026g.py` passed arena, engine ABI, hook/call-shape and
 cert-only structural checks before stopping at its Windows-only certificate
 check: Linux Python has no `ctypes.WinDLL`. It did not complete its remaining
 variants; this is not reported as a full self-test pass. The new lobby source
-movie is `eb2ba8b7c606f5978095225a8784585d015d8d5df5edfc110a45c8501aeea0d9`,
-not `RESULT_SHA256`; its latest-main changes still need an owner gameplay check
+movie is `eb2ba8b7c606f5978095225a8784585d015d8d5df5edfc110a45c8501aeea0d9`;
+its latest-main changes still need an owner gameplay check
 before publishing. No release has been made.
 
 

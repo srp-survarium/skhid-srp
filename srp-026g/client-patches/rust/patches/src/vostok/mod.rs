@@ -34,6 +34,7 @@ pub mod carry_ground;
 pub mod carry_flower;
 mod cell;
 pub mod clock;
+pub mod controller;
 pub mod crc32;
 mod context;
 pub mod draw;
@@ -136,6 +137,7 @@ pub mod keeper;
 pub mod effect;
 pub mod animation_id;
 pub mod deserialize;
+pub mod effect_presenter;
 
 pub mod match_message;
 pub mod packet_recovery;
