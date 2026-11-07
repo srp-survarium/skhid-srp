@@ -851,7 +851,7 @@ pub extern "C" fn hook_consumable_activity_on_update(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- controller_position (patch 117) ----
+// ---- controller_position (patch 118) ----
 
 /// The entry `controller_position_on_step_end` (0x7c7d7, bullet_character_controller::player_step (0x7BDA0) epilogue, which every path joins (pop edi / pop esi / pop ebx / mov esp,ebp; the skip at 0x7C1B5 too), after round_up: EDI the controller, its position +0B0h where this step left it, m_last_pos +50h where it began (0x7BE84)) calls this with the saved machine.
 #[unsafe(no_mangle)]
