@@ -768,6 +768,11 @@ pub struct CampFlank {
     /// its flank in the alarm band, so a Trade or another alarm play does not take it there (B3f8: 5 of 18 walks were
     /// taken by a Trade); healing and retreat still do. None: its band as any job's.
     pub alarm_near_fire_m: Option<f32>,
+    /// `threat.camp_flank.follow_m`: a route walker (or a flanker peeking at its firing floor) whose team senses the camper
+    /// (`Track::own`, its own senses and callouts, within 3 s) farther than this from the walked spot follows him: the
+    /// routes of the known camp spot at that place, else the walk ends (B3f6-B3f9: at 5 of 9 arrivals with him alive he
+    /// was 26-111 m away). None: the walk goes to the spot of its cue.
+    pub follow_m: Option<f32>,
 }
 
 /// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its
