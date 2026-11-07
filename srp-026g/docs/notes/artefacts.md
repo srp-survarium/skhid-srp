@@ -15,6 +15,10 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
 ## Every artefact
 
 - Passive from pickup to death, as before; each copy's passive adds up with the others'.
+  A death keeps the artefacts in that kit's containers (passive off while dead); a respawn in
+  that kit switches their passives on again, a respawn in another kit leaves them in the first
+  kit's containers until a spawn in it again (each kit its own object). A take with every
+  container held replaces the first container's (it is gone, dormant).
 - A press of an artefact's key fires every artefact of that kind in the slots that is ready
   (its passive, its cooldown 0): one key, all of a kind, their actives added up.
 - At most 4 copies of a kind count (the owner, 2026-11-07; artefact-skills.md "At most 4 copies

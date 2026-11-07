@@ -3392,3 +3392,9 @@ va	status	ref_021d	name
 0x00219520	inferred-medium		vostok::type_id<survarium::level_cook_data>
 0x002194c0	inferred-medium		vostok::variant<32>::set<survarium::level_cook_data>
 0x0026d8d0	inferred-medium		survarium::base_game_statistics_handler::start_match
+0x000fe5e0	inferred-medium		vostok::setup_floating_point_control
+0x00246380	inferred-medium		survarium::inventory_item::cast_artefact
+0x002fca50	inferred-high		survarium::inventory::on_holder_death
+0x002ffc40	inferred-high		survarium::inventory_item::degrade_per_death
+0x002ffc80	inferred-medium		survarium::inventory_item::degrade_per_use
+0x002da790	inferred-medium		survarium::base_player::unload

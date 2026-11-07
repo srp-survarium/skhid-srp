@@ -9,10 +9,11 @@
 //!   registration of a load sees it empty and forgets the last map's pool. Every game, a late
 //!   joiner's too, registers the same map the same way: the same ids.
 //! - What the pool's artefacts are is native: the anomaly ticks them, its save writes them in
-//!   every world, the inventory's save names the one a container holds.
+//!   every world (their activation time too, the gift's mark), the inventory's save names the one
+//!   a container holds.
 use super::world::read;
 use super::{Context, GameCell, Thread, artefact_skills, statistics};
-use crate::artefact_keeper::{Registered, Room, Standing, Whereabouts};
+use crate::artefact_keeper::{History, Registered, Room, Standing};
 use crate::artefact_skills::Skills;
 use crate::raw;
 use artefact_carry::ArtefactId;
@@ -55,6 +56,28 @@ fn kind(item: raw::Artefact) -> Option<Kind> {
         raw::image::SPRING_VTABLE => Some(Kind::Spring),
         _ => None,
     }
+}
+
+/// The mark a gift leaves (artefact +2A0h, its activation time): the constructor's u32::MAX
+/// (0x313059) until a give writes [`GIVEN`]; an activation (only ever after a give) writes its
+/// time. No other code writes it, it is read only in state 4 (which an activation enters having
+/// written it), and every world saves and loads it in every state (0x313735, 0x3137F7).
+const NEVER: u32 = u32::MAX;
+const GIVEN: u32 = 0;
+
+/// A registered artefact's history, by its mark.
+pub(super) fn history(item: raw::Artefact) -> History {
+    // SAFETY: a registered artefact's activation time, a u32 of artefact_base.
+    match unsafe { read(item.active_since()) } {
+        NEVER => History::Unused,
+        _ => History::Given,
+    }
+}
+
+/// Marks a pool artefact given (inventory::take_dormant, just before its take).
+pub(super) fn mark_given(item: raw::Artefact) {
+    // SAFETY: as in `history`; read only in state 4, which the take does not enter.
+    unsafe { item.active_since().write_volatile(GIVEN) };
 }
 
 /// generic_anomaly_core::register_artefacts' entry: a load's first registration forgets the
@@ -143,16 +166,7 @@ impl<'t> Recipient<'t> {
         registered(self.world).filter_map(move |(id, item)| {
             let pool = pool?;
             (pool.first..pool.first.saturating_add(pool.count)).contains(&id.get()).then_some(())?;
-            // SAFETY: a registered artefact: state 0 and no inventory is a dormant one; its count
-            // is 0 until a take gives it one (inventory::take_dormant).
-            let whereabouts = unsafe {
-                match (read(item.state()) == 0 && item.item().inventory().is_none(), read(item.item().count())) {
-                    (false, _) => Whereabouts::InPlay,
-                    (true, 0) => Whereabouts::Unused,
-                    (true, _) => Whereabouts::Returned,
-                }
-            };
-            Some(Registered { id, kind: kind(item)?, whereabouts })
+            Some(Registered { id, kind: kind(item)?, history: history(item) })
         })
     }
 

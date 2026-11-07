@@ -5714,3 +5714,7 @@ va	name	location	role	basis
 0x002de350	survarium::game_effect_player::stop	ECX	the effect (a playing item's +0)	observed
 0x0031a210	survarium::damage_zone_core::stop_effect	ECX	the damage zone core	observed
 0x0031a210	survarium::damage_zone_core::stop_effect	EDX	the player that left	observed
+0x002fca50	survarium::inventory::on_holder_death	EAX	inventory receiver	observed
+0x002ffc40	survarium::inventory_item::degrade_per_death	ECX	item receiver	observed
+0x002ffc80	survarium::inventory_item::degrade_per_use	ECX	item receiver	observed
+0x00246380	survarium::inventory_item::cast_artefact	ECX	item receiver	observed
