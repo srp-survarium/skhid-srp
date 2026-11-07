@@ -156,6 +156,35 @@ pub(crate) fn stand_in_mixer() -> crate::v026g::bots::kin::Mixer {
 thread_local! {
     static OLD_MIXER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static OLD_WALLS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static OLD_STEP_INPUT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// [A318] The stand-in's step order: the bench tuning's ([`crate::v026g::bots::kin::StepInput`], `SRP_BENCH_TUNING`, so an
+/// identity run's OFF arm is the old game on both sides), or the old same-tick one under [`OldStepInput`].
+pub(crate) fn stand_in_step_input() -> crate::v026g::bots::kin::StepInput {
+    static TUNED: std::sync::OnceLock<crate::v026g::bots::kin::StepInput> = std::sync::OnceLock::new();
+    if OLD_STEP_INPUT.get() {
+        crate::v026g::bots::kin::StepInput::Same
+    } else {
+        *TUNED.get_or_init(|| super::bench::bench_tuning().kin.step_input)
+    }
+}
+
+/// The stand-in's old step order ([`crate::v026g::bots::kin::StepInput::Same`]: a tick moves with its own input) for this thread
+/// while it lives (tests whose pinned numbers predate it).
+pub(crate) struct OldStepInput(());
+
+impl OldStepInput {
+    pub(crate) fn scope() -> Self {
+        OLD_STEP_INPUT.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldStepInput {
+    fn drop(&mut self) {
+        OLD_STEP_INPUT.set(false);
+    }
 }
 
 /// The stand-in's slide before the round one ([`crate::v026g::bots::kin::WallSlide::Diagonal`]) for this thread while it lives
