@@ -150,7 +150,7 @@ use standin_jump::*;
 
 /// A body at `x` on the line z = 0, alive or not, in a world at `time`.
 fn standing(time: u32, x: f32, alive: bool) -> Fix {
-    Fix {
+    Fix { fall: None,
         time,
         alive,
         inserted: 100,
