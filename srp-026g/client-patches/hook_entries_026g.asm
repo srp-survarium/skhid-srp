@@ -5242,7 +5242,7 @@ mouse_pitch_on_death_pitch_go:
 
 ; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
 global music_on_frame
-extern hook_music_on_frame
+extern hook_music_on_frame_chain
 music_on_frame:
     lea esp, [esp - 4]
     pushfd
@@ -5260,7 +5260,7 @@ music_on_frame:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_music_on_frame
+    call hook_music_on_frame_chain
     mov edx, music_on_frame_replay
     cmp eax, 0
     je music_on_frame_go

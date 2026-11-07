@@ -9,3 +9,9 @@ order = 1
 [[hook]]
 site = "match_recovery.close"
 handler = "on_close"
+
+# every frame (after patch 88's music, order 1): a receipt that waited for room
+[[hook]]
+site = "game.tick"
+handler = "on_frame"
+order = 2

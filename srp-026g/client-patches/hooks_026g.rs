@@ -2783,6 +2783,21 @@ pub extern "C" fn hook_music_on_frame(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- packet_recovery (patch 97) ----
+
+/// The entry `packet_recovery_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_packet_recovery_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_frame` calls this, from the game's jump at 0x1ec8ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::packet_recovery::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- music (patch 88) ----
 
 /// The entry `music_on_lobby` (0x21d31d, lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match) calls this with the saved machine.
@@ -3651,6 +3666,15 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_unload(frame);
     if flow != 0 { return flow; }
     let flow = hook_lobby_scene_on_game_closing(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_music_on_frame(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_packet_recovery_on_frame(frame);
     if flow != 0 { return flow; }
     0
 }
