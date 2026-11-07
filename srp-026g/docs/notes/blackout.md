@@ -104,9 +104,11 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   alive, dead or holding Tab change nothing of it. After leaving, the next match is set again by
   its own static info and reset (shown and free unless it is Blackout too).
 - **Points count twice** (the owner, 2026-10-25: "everything should give twice as much match
-  points"): the results screen's score and every line's silver, experience and reputation of a
+  points"): the results screen's score and every line's experience and reputation of a
   Blackout match are twice a plain match's; the counts shown (kills, help) and the player's
   statistics, quests and rating are as played; the team's points and the win are the match's.
+  Its silver is by the minute, as every mode's (the owner's of 2026-11-05, `results.md` §14):
+  until then it was twice too.
 - **The end:** the lobby and its results screen as always.
 - **Replays and late joiners** see the match as it was (no interface but the teammates' markers and the use prompt).
 - **Not a simulation change:** what is drawn only; no `simulation_changes.tsv` row.
