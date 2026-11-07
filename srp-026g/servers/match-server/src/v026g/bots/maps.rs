@@ -587,6 +587,9 @@ fn build(
                     Some(support_m) => grid.with_open_sides(&walker, support_m),
                     None => grid,
                 };
+                // [A318] The walker triangles as the client's controller meets them, for the reckoning's step ups
+                // (`kin::StepUp::Client`, `WalkGrid::client_step`): in neither the cached file nor the key.
+                let grid = grid.with_client_walker(&walker);
                 let grid = Arc::new(grid);
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)

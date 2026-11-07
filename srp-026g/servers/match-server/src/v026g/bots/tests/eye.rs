@@ -371,6 +371,7 @@ fn pre_eye_pin_tuning() -> Tuning {
         old.kin.carrier_sprint = kin::CarrierSprint::Allowed;
         old.kin.fix_fall = kin::FixFall::Rest;
         old.kin.step_input = kin::StepInput::Same;
+        old.kin.step_up = kin::StepUp::Grid;
         old.sense.ranges = tuning::HearingRanges::Flat;
         old.sense.shots = tuning::ShotRanges::Flat;
         old.sense.sprint_body_mps = None;

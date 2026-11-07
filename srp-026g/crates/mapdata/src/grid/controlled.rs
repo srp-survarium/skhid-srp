@@ -183,6 +183,16 @@ pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3,
     (best.max(Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length), at)
 }
 
+/// [A318] One tick of the client's walk for a standing body at `feet` asked to move `by` (flat): the feet it starts from
+/// ([`WalkStart`]) and where they end ([`WalkGrid::client_step`]).
+pub fn client_step(world: &Collision, s: &Settings, start: WalkStart, feet: Vec3, by: Vec3) -> (Vec3, Vec3) {
+    let from = start.place(world, feet);
+    let mut c = Controller::standing_at(from);
+    c.walk = Vec3::new(by.x, 0.0, by.z);
+    c.step(world, 0.05, s);
+    (from, c.feet())
+}
+
 /// Runs `job` over `items` on the machine's threads, in order.
 pub(super) fn parallel<T: Sync, R: Send + Default + Clone>(items: &[T], job: impl Fn(&T) -> R + Sync) -> Vec<R> {
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(16);

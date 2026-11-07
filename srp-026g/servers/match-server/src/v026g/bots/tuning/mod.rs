@@ -804,6 +804,7 @@ mod tests {
             "/kin/speed_cap",
             "/kin/speed_terms",
             "/kin/step_input",
+            "/kin/step_up",
             "/kin/walk_off_landing",
             "/sense/ranges",
             "/sense/shots",

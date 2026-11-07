@@ -301,6 +301,23 @@ impl Body {
         }
     }
 
+    /// [A318] Keeps the map's walker triangles as the client's controller meets them (this grid's [`Self::controller`] caster), for
+    /// [`Self::client_step`].
+    pub fn with_client_walker(mut self, triangles: &[Triangle]) -> Self {
+        let (caster, _) = self.controller();
+        self.walker = Some(std::sync::Arc::new(crate::controller::Collision::build(triangles).with_caster(caster)));
+        self
+    }
+
+    /// [A318] One tick of the client's walk (`player_step`, the port `controller::tick::Controller::step`: `step_up` 0x7C900, the
+    /// move sweep, `step_down` 0x7E1B0) for a standing body at `feet` asked to move `by` (flat, this tick's displacement): where its
+    /// feet end, from where the walk starts it ([`Self::walk_start`]). None without [`Self::with_client_walker`].
+    pub fn client_step(&self, feet: Vec3, by: Vec3) -> Option<(Vec3, Vec3)> {
+        let world = self.walker.as_deref()?;
+        let (_, s) = self.controller();
+        Some(crate::grid::controlled::client_step(world, &s, self.walk_start(), feet, by))
+    }
+
     /// Where the client-controller pass starts a body on a floor ([`Self::walk_start_clear`]).
     pub fn walk_start(&self) -> crate::grid::controlled::WalkStart {
         use crate::grid::controlled::WalkStart;
@@ -841,6 +858,9 @@ pub struct WalkGrid {
     /// [`Self::with_open_sides`] after the grid is built or read, from the map's triangles. In neither the file nor the digest. Empty
     /// without it.
     open: Vec<u16>,
+    /// [A318] The map's walker triangles as the client's controller meets them ([`Self::with_client_walker`],
+    /// [`Self::client_step`]): made after the grid is built or read. In neither the file nor the digest. None without it.
+    walker: Option<std::sync::Arc<crate::controller::Collision>>,
 }
 
 /// The solid spans while the grid is built ([`WalkGrid::wall_beside`]):
@@ -1104,6 +1124,7 @@ impl WalkGrid {
             ramp: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
+            walker: None,
         };
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
@@ -2480,6 +2501,7 @@ impl WalkGrid {
                     ramp: if input.ends() { Vec::new() } else { input.plain(|[v]: [u8; 1]| v)? },
                     clearance: Vec::new(),
                     open: Vec::new(),
+                    walker: None,
                 };
                 grid.check()?;
                 let mut grid = grid;
