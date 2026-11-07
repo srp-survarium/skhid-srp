@@ -35,9 +35,13 @@ model of it. The item keeps everything else: its stats, states, clips, sounds an
   higher, the Benelli M4, SPAS-12, TOZ-34, 9A-91 and Uzi), so the live hands, sights and points fit.
   The Uzi's 0.69d0 rear sight stands taller than ours: its aim is on 0.69d0's own sight line
   (`AIM_069`). The iron sights were compared in aim renders, live and remodel, for all 96.
-- A gun that carries an optic by default (its config's rifle scope: the HK416, MSBS, Kriss Vector,
-  P90 and the sniper rifles) has its iron sights folded, as 0.69d0 draws them under an optic
-  (`optic`: each sight 0.69d0's optics swap, at its `model_param1`).
+- Under an optic a gun is drawn as 0.69d0 draws it under one (0.69d0's `_scope` and `_collimator`
+  modules all do the same): each sight in a slot they swap at its `model_param1`, folded (the M4A1's
+  front sight becomes its gas block, the Vepr's leaf lies down), and no module in a slot they take (the
+  M4A1's, L85A2's and Fort-401's rear sights make way). A gun that carries an optic by default (its
+  config's rifle scope: the HK416, MSBS, Kriss Vector, P90 and the sniper rifles) is so itself
+  (`optic`); a gun with sights that change has a second model so, `<item>_optic` (`optic_model_path`:
+  the M4A1, L85A2, Fort-401, SCAR-H, SVU-A, Vepr, Vepr Premium and VHS-2), which its scope variants draw.
 - A 0.69d0 material or texture at a path the players have with other bytes gets a `_069` name; the same
   bytes (an earlier port's: the AKMSU's magazine) are not shipped again.
 - 0.69d0's models as they are (`donor-models-are-reference`): where 0.69d0's default gun differs from
@@ -45,8 +49,8 @@ model of it. The item keeps everything else: its stats, states, clips, sounds an
   default), the SR-3M without its vertical foregrip and with 0.69d0's magazine, the SOC Vepr's dark
   stock, the premiums' 0.69d0 camouflages.
 
-- Camouflage: pack remodel-069-camo, an `_aoac` mask for each of the remodels' diffuse textures but those an earlier port has masked (203)
-  (`remodel-069/camo.tsv`, `../weapons-069/camo_rows.py` from the bundle): 0.69d0's guns have no
+- Camouflage: pack remodel-069-camo, an `_aoac` mask for each of the remodels' diffuse textures but
+  those an earlier port has masked (203; `remodel-069/camo.tsv`, `../weapons-069/camo_rows.py` from the bundle): 0.69d0's guns have no
   premium twin to compare, so every large part is painted (as most of our premiums were repainted as a
   whole); `parts.tsv` leaves the cartridges and the MP7's glowing sight dots plain.
 
@@ -54,13 +58,15 @@ model of it. The item keeps everything else: its stats, states, clips, sounds an
   optic) draws a copy of the remodel instead, with the locators the copy set otherwise (100 copies,
   pack remodel-069-variants, `remodel-069/variants.py`, `variants.tsv`; edit list
   `remodel-069-variants-1.json`). One for a gun and its premium draws the first gun's remodel on both,
-  as it draws the first gun's copy today. A variant that keeps its gun's model draws the remodel.
+  as it draws the first gun's copy today. A variant that keeps its gun's model draws the remodel, or
+  the folded one where the gun has it (a modifier added). The variants of the M4A1 and Vepr were
+  compared in aim renders: the dots and reticles sit where they do today, and no sight stands in the
+  optic.
 
 ## Not yet
 
-- A scope variant's optic still sits on the live gun's mount, and the gun's iron sights stand under
-  it (folded only where the gun carries an optic by default): 0.69d0's mounts, rails and sight swaps
-  per variant (scope-fits' approach) on the remodels come next.
+- A scope variant's optic still sits where it does today, on the live optic's own mount, not on a
+  0.69d0 mount and rail.
 - The packs of the unmerged scope PRs (rifle-scopes, scope-fits) are made on the live models: once
   they are in, their variants are made again on the remodels.
 - The kit's muzzle devices (`weapon-attachments-1`) sit at the live `barrel_point`, as today; leaving

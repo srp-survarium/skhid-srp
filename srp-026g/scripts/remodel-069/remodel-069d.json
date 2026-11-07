@@ -254,7 +254,8 @@
    "bake": [
     "fort401_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/fort_401/fort_401"
+   "model_path": "weapons/remodel_069/fort_401/fort_401",
+   "optic_model_path": "weapons/remodel_069/fort_401/fort_401_optic"
   },
   "glock_17": {
    "rig": {
@@ -360,7 +361,8 @@
    "bake": [
     "enfieldl85a2_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/l85a2/l85a2"
+   "model_path": "weapons/remodel_069/l85a2/l85a2",
+   "optic_model_path": "weapons/remodel_069/l85a2/l85a2_optic"
   },
   "m4a1": {
    "rig": {
@@ -370,7 +372,8 @@
    "bake": [
     "m4a1_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/m4a1/m4a1"
+   "model_path": "weapons/remodel_069/m4a1/m4a1",
+   "optic_model_path": "weapons/remodel_069/m4a1/m4a1_optic"
   },
   "magnum": {
    "rig": {
@@ -592,7 +595,8 @@
    "bake": [
     "scarh_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/scar_h/scar_h"
+   "model_path": "weapons/remodel_069/scar_h/scar_h",
+   "optic_model_path": "weapons/remodel_069/scar_h/scar_h_optic"
   },
   "sks": {
    "rig": {
@@ -720,7 +724,8 @@
    },
    "separable": [],
    "bake": [],
-   "model_path": "weapons/remodel_069/svu_a/svu_a"
+   "model_path": "weapons/remodel_069/svu_a/svu_a",
+   "optic_model_path": "weapons/remodel_069/svu_a/svu_a_optic"
   },
   "toz_122": {
    "rig": {
@@ -841,7 +846,8 @@
    "bake": [
     "vepr_m24x15_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/vepr/vepr"
+   "model_path": "weapons/remodel_069/vepr/vepr",
+   "optic_model_path": "weapons/remodel_069/vepr/vepr_optic"
   },
   "vepr_12": {
    "rig": {
@@ -879,7 +885,8 @@
    "bake": [
     "vepr_m24x15_camo_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/vepr_premium/vepr_premium"
+   "model_path": "weapons/remodel_069/vepr_premium/vepr_premium",
+   "optic_model_path": "weapons/remodel_069/vepr_premium/vepr_premium_optic"
   },
   "vhs_2": {
    "rig": {
@@ -889,7 +896,8 @@
    "bake": [
     "vhs2_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/vhs_2/vhs_2"
+   "model_path": "weapons/remodel_069/vhs_2/vhs_2",
+   "optic_model_path": "weapons/remodel_069/vhs_2/vhs_2_optic"
   },
   "vityaz": {
    "rig": {

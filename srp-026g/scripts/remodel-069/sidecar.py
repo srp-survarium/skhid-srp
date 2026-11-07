@@ -14,7 +14,8 @@ renamed ones); the guns of pack weapons-069 are 0.69d0's already. For each 0.69d
   bone_map where a live bone is named otherwise (the VSS's spare magazine); offset where 0.69d0
   placed the model otherwise on the rig (fit.py measures it); aim_069 where its iron sights
   stand otherwise than ours; optic where the live gun carries an optic by default (its config's rifle
-  scope): its iron sights folded, as 0.69d0 folds them under an optic;
+  scope): its iron sights folded, as 0.69d0 folds them under an optic; else, if it has sights that
+  fold, optic_model_path: the same model folded, at model_path + '_optic', for its scope variants;
 - bake: the default muzzle device or bipod the gun shows today, as a surface of its own (a later
   attachment leaves it out by name); separable: every other attachment (default optics, the
   premium items' bundled optics, lasers and other brakes): the kit's and the scopes';
@@ -74,6 +75,23 @@ def main():
         return (any(k in mid or f'/{k}' in model for k in KINDS)
                 or bool(slots) and all(any(k in s for k in SLOT_KINDS) for s in slots))
 
+    # What 0.69d0's optics (its _scope and _collimator modules) do (attach_params.slots_to_change_param):
+    # the slots they fold (param 1, the iron sights) and those they take (their own slots: a sight there,
+    # the M4A1's rear one, makes way).
+    optics = {k.split('.')[1] for k in D if '.attach_params.slots_to_change_param[' in k
+              and k.split('.')[1].endswith(('_scope', '_collimator'))}
+    folding = {D[k[:-len('param')] + 'id'] for k, v in D.items()
+               if k.split('.')[1] in optics and '.attach_params.slots_to_change_param[' in k
+               and k.endswith('].param') and v == '1'}
+    taken = {s for m in optics for s in listed(D, f'weapon_modules.{m}.slots_to_attach_to', 'slot')}
+
+    def folds(mid):
+        """Whether an optic changes the module: folds it (a model_param1 of its own) or takes its slot."""
+        model = D.get(f'weapon_modules.{mid}.model')
+        slots = listed(D, f'weapon_modules.{mid}.slots_to_attach_to', 'slot')
+        return (D.get(f'weapon_modules.{mid}.model_param1', model) != model and any(s in folding for s in slots)
+                or any(s in taken for s in slots))
+
     items = cfgs.config(live / 'gameplay/db_static_dictionaries')['items_dict']
     guns, rows = {}, []
     for r in sorted(items, key=lambda r: r['name']):
@@ -106,6 +124,8 @@ def main():
             guns[w]['aim_069'] = True
         if cfg.get('addons', {}).get('rifle_scope_dict_id') is not None:
             guns[w]['optic'] = True
+        elif any(folds(m) for m in modules if m not in guns[w]['separable']):
+            guns[w]['optic_model_path'] = model_path + '_optic'
     spec = {'format_version': 1, 'guns': guns, 'renames': {'clips': {}, 'sounds': {}}, 'clip_events': {}}
     (out / 'remodel-069d.json').write_text(json.dumps(spec, indent=1) + '\n')
     (out / 'items.tsv').write_text(

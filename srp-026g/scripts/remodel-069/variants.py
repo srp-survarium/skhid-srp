@@ -14,6 +14,9 @@ and scope point (remodel-069d.json: live contract locators), so the copy's optic
 were. The copy goes to weapons/remodel_069/<0.69d0 item>/<the copy's name>; the edit list points the
 variant there. A variant that keeps its gun's model follows the remodel by itself; one for a gun and its
 premium draws the first gun's remodel on both, as it draws the first gun's copy today.
+A gun whose iron sights 0.69d0 folds under an optic has a folded remodel (remodel-069d.json's
+optic_model_path): its variants' copies are made from that, and a variant that keeps its gun's model
+gets a modifier that sets it (one gun only).
 """
 import hashlib
 import json
@@ -51,9 +54,11 @@ def main():
     rows = [line.split('\t') for line in (HERE / 'items.tsv').read_text().splitlines()
             if line and not line.startswith('#')]
     remodel = {item: (live_model, w, model) for item, _, live_model, w, model in rows}
+    folded = {w: g['optic_model_path'] for w, g in json.loads((HERE / 'remodel-069d.json').read_text())['guns'].items()
+              if 'optic_model_path' in g}
     items = cfgs.config(live / 'gameplay/db_static_dictionaries')['items_dict']
     name_of = {r['dict_id']: r['name'] for r in items}
-    made, edits, report = {}, [], []
+    made, edits, appends, report = {}, [], [], []
     for r in sorted(items, key=lambda r: r['name']):
         if r['item_category'] != 22:
             continue
@@ -64,9 +69,18 @@ def main():
         copies = [m['value'] for mod in cfg.get('modifications', []) for m in mod.get('modifiers', [])
                   if m.get('path', [None, None])[1:2] == ['model']]
         # A variant for a gun and its premium sets one copy for both (of the first gun's model, as today).
-        if not copies or not all(g in remodel for g in guns):
+        if not all(g in remodel for g in guns):
             continue
         live_model, w, model = remodel[guns[0]]
+        model = folded.get(w, model)
+        if not copies:
+            if len(guns) == 1 and w in folded:
+                # Keyed by type: such a variant's one modifier sets its scope (type 3); a set value is type 0.
+                at = next(i for i, m in enumerate(cfg['modifications']) if m['id'] == cfg['parameters']['modification'])
+                appends.append({'file': r['cfg_name'], 'list': f'modifications[{at}]/modifiers',
+                                'expected_count': len(cfg['modifications'][at]['modifiers']), 'unique_key': 'type',
+                                'value': {'path': ['object', 'model'], 'value': model, 'type': 0}})
+            continue
         copy = copies[0]
         if copy == live_model:
             continue
@@ -106,11 +120,13 @@ def main():
         '# made by variants.py: each live variant weapon model copy, its remodelled copy, the locators it sets\n'
         '# copy\tremodelled\tlocators\n' + '\n'.join(report) + '\n')
     edit = {'_about': 'The live scope variants that set their weapon\'s model to a copy of it (an eye on the optic) '
-                      'draw the remodel\'s copy instead (pack remodel-069-variants, remodel-069/variants.py; '
-                      'docs/notes/remodel-069.md). After remodel-069-1.json.',
-            'replace_string': edits}
+                      'draw the remodel\'s copy instead; on a gun whose iron sights fold under an optic, its folded '
+                      'remodel (pack remodel-069-variants, remodel-069/variants.py; docs/notes/remodel-069.md). '
+                      'After remodel-069-1.json.',
+            'replace_string': edits, 'append_entry': appends}
     (HERE.parent / 'content-edit/remodel-069-variants-1.json').write_text(json.dumps(edit, indent=1) + '\n')
-    print(f'remodel-069-variants@{version}: {len(made)} copies, {len(edits)} variants; pack.json sha256 '
+    print(f'remodel-069-variants@{version}: {len(made)} copies, {len(edits)} variants, {len(appends)} set the folded '
+          f'remodel; pack.json sha256 '
           f'{hashlib.sha256((out / "pack.json").read_bytes()).hexdigest()}')
 
 

@@ -1,5 +1,5 @@
 {
- "_about": "The live scope variants that set their weapon's model to a copy of it (an eye on the optic) draw the remodel's copy instead (pack remodel-069-variants, remodel-069/variants.py; docs/notes/remodel-069.md). After remodel-069-1.json.",
+ "_about": "The live scope variants that set their weapon's model to a copy of it (an eye on the optic) draw the remodel's copy instead; on a gun whose iron sights fold under an optic, its folded remodel (pack remodel-069-variants, remodel-069/variants.py; docs/notes/remodel-069.md). After remodel-069-1.json.",
  "replace_string": [
   {
    "files": "gameplay/items/scopes/fit_a9_91_cobra_ekp_8.options",
@@ -500,6 +500,64 @@
    "files": "gameplay/items/scopes/fitn_pso_1_soc_vepr.options",
    "from": "weapons/soc_vepr/soc_vepr_n_pso_1",
    "to": "weapons/remodel_069/soc_vepr/soc_vepr_n_pso_1"
+  }
+ ],
+ "append_entry": [
+  {
+   "file": "gameplay/items/scopes/fit_vepr_acog_ta31.options",
+   "list": "modifications[0]/modifiers",
+   "expected_count": 1,
+   "unique_key": "type",
+   "value": {
+    "path": [
+     "object",
+     "model"
+    ],
+    "value": "weapons/remodel_069/vepr/vepr_optic",
+    "type": 0
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/fit_vepr_pso_1.options",
+   "list": "modifications[0]/modifiers",
+   "expected_count": 1,
+   "unique_key": "type",
+   "value": {
+    "path": [
+     "object",
+     "model"
+    ],
+    "value": "weapons/remodel_069/vepr/vepr_optic",
+    "type": 0
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_acog_ta31_vepr_premium.options",
+   "list": "modifications[0]/modifiers",
+   "expected_count": 1,
+   "unique_key": "type",
+   "value": {
+    "path": [
+     "object",
+     "model"
+    ],
+    "value": "weapons/remodel_069/vepr_premium/vepr_premium_optic",
+    "type": 0
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_pso_1_vepr_premium.options",
+   "list": "modifications[0]/modifiers",
+   "expected_count": 1,
+   "unique_key": "type",
+   "value": {
+    "path": [
+     "object",
+     "model"
+    ],
+    "value": "weapons/remodel_069/vepr_premium/vepr_premium_optic",
+    "type": 0
+   }
   }
  ]
 }
