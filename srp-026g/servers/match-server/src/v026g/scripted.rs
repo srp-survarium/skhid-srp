@@ -613,6 +613,8 @@ pub struct Client {
     /// (the client's +0x1F1C50): 0 after every 0xE5, so the first pass
     /// after one fires, and with 100 ms that pass sets its phase.
     pub hash_last_sent: u32,
+    /// A replay viewer's notes taken (0xF6 `52 ..`, `replay_control`).
+    pub replay_notes: Vec<Vec<u8>>,
     last_hashed: u32,
     next_keep_alive_ms: u64,
 }
@@ -666,6 +668,7 @@ impl Client {
             lose: None,
             hash_interval_ms: 50,
             hash_last_sent: 0,
+            replay_notes: Vec::new(),
             last_hashed: 0,
             next_keep_alive_ms: 0,
         }
@@ -1118,6 +1121,10 @@ impl Client {
                 }
                 Err(error) => self.faults.push(format!("prepare: {error:?}")),
             }
+            return;
+        }
+        if id == id::UPLOAD_REQUEST && replay_control::ServerNote::is_ours(payload) {
+            self.replay_notes.push(payload.to_vec());
             return;
         }
         let taken = match self.model.receive(id, payload, Dictionary::shared()) {

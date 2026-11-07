@@ -16,6 +16,9 @@ mapdata = { path = "../../crates/mapdata" }
 openssl = { workspace = true }
 serde_json = { workspace = true }
 
+# The replay viewer's notes and requests (`v026g::game::playback`), one
+# encoding with the game's arena.
+replay-control = { workspace = true }
 session = { workspace = true }
 survarium = { workspace = true }
 udp-transport = { workspace = true }

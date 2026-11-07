@@ -22,15 +22,21 @@
 //! the world) from the key frame at or before the time, put as far past it
 //! as the game's input lists reach ([`Recording::reach`]). The end of the
 //! recording lets the game go (0xEA naming no place), as the end of a live
-//! match does. The controls come from the game ([`Control::decode`]).
+//! match does. The controls come from the game (`replay_control::Request`), and the
+//! game is told the playback (`replay_control::Playback`).
 
 use std::path::Path;
+
+use replay_control::{EventsNote, MatchMs, Op, Playback as Note, Request, Speed};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
 use session::v026g::replay_watch::WatchRequest;
 use session::v026g::replays::{DEFAULT_MAX_RECORDING_MB, Refusal, Replays, Status};
+use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::static_info::{self, NO_LOCAL_PLACE, StaticInfo};
-use survarium::v026g::match_msgs::{PlayerInput, WireTime, mask_bytes};
+use survarium::v026g::match_msgs::{
+    ClientMessage, PlayerInput, WireTime, mask_bytes, parse_client,
+};
 use udp_transport::table::{Direction, Table};
 use udp_transport::wire;
 
@@ -48,6 +54,11 @@ const CONTROL_EVERY: Duration = Duration::from_millis(250);
 /// A paused game is pinged this often: nothing else goes to it, and a game
 /// ends a match link silent for 5 s.
 const PAUSED_PING_EVERY: Duration = Duration::from_secs(1);
+/// A game whose reported world is this far from where the playback has it
+/// ([`DRIFT_REPORTS`] in a row) is started again from a world: the
+/// fallback for a game that did not freeze or scale its clock as told.
+const DRIFT_MS: i64 = 2_000;
+const DRIFT_REPORTS: u8 = 3;
 
 /// A recording made into what a game is shown.
 pub(crate) struct Recording {
@@ -246,122 +257,29 @@ impl Recording {
     }
 }
 
-/// How fast a recording plays.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Speed {
-    Half,
-    Normal,
-    Double,
-    Quadruple,
+/// Match ms in `elapsed` of the wall clock at `speed`.
+fn played(speed: Speed, elapsed: Duration) -> u32 {
+    (elapsed.as_millis() * u128::from(speed.percent()) / 100) as u32
 }
 
-impl Speed {
-    /// Match ms in `elapsed` of the wall clock.
-    fn of(self, elapsed: Duration) -> u32 {
-        let ms = elapsed.as_millis() as u32;
-        match self {
-            Self::Half => ms / 2,
-            Self::Normal => ms,
-            Self::Double => ms * 2,
-            Self::Quadruple => ms * 4,
+/// A line of the dev control file (`SRP_DEV_REPLAY_CONTROL`): `pause`,
+/// `play`, `speed 0.25|0.5|1|2|4|8`, `seek <seconds>`.
+pub(crate) fn dev_control(line: &str) -> Option<Op> {
+    let mut words = line.split_whitespace();
+    let op = match (words.next()?, words.next()) {
+        ("pause", None) => Op::Pause(true),
+        ("play", None) => Op::Pause(false),
+        ("speed", Some(factor)) => {
+            let factor: f64 = factor.parse().ok()?;
+            Op::Speed(Speed::of_percent((factor * 100.0).round() as u16)?)
         }
-    }
-
-    /// From a control's percent: 50, 100, 200 or 400.
-    fn of_percent(percent: u32) -> Option<Self> {
-        Some(match percent {
-            50 => Self::Half,
-            100 => Self::Normal,
-            200 => Self::Double,
-            400 => Self::Quadruple,
-            _ => return None,
-        })
-    }
-
-    #[cfg(test)]
-    fn percent(self) -> u32 {
-        match self {
-            Self::Half => 50,
-            Self::Normal => 100,
-            Self::Double => 200,
-            Self::Quadruple => 400,
+        ("seek", Some(seconds)) => {
+            let seconds: f64 = seconds.parse().ok().filter(|s: &f64| *s >= 0.0)?;
+            Op::Seek(MatchMs((seconds * 1000.0) as u32))
         }
-    }
-}
-
-/// The first bytes of a control's 0xE0 payload ([`Control::decode`]): no
-/// upload chunk (more than 8 bytes) nor install ack (`ff ff ...`, 20 bytes)
-/// starts so.
-const CONTROL_MAGIC: [u8; 2] = [0xFF, b'R'];
-
-/// A playback control of the watcher's game.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Control {
-    /// op 1
-    Pause,
-    /// op 2
-    Play,
-    /// op 3, the percent: 50, 100, 200, 400
-    Speed(Speed),
-    /// op 4, match time in ms
-    Seek(u32),
-}
-
-impl Control {
-    /// A replay session's game's 0xE0 (alone in its datagram, as an upload
-    /// chunk is) with `ff 52 <u8 seq> <u8 op> <u32 arg LE>`: its sequence
-    /// number and the control. The game numbers its controls (wrapping);
-    /// one with the number of the last taken is a resend, not taken again.
-    pub(crate) fn decode(payload: &[u8]) -> Option<(u8, Self)> {
-        let [m0, m1, seq, op, a0, a1, a2, a3] = *payload else {
-            return None;
-        };
-        if [m0, m1] != CONTROL_MAGIC {
-            return None;
-        }
-        let arg = u32::from_le_bytes([a0, a1, a2, a3]);
-        let control = match op {
-            1 => Self::Pause,
-            2 => Self::Play,
-            3 => Self::Speed(Speed::of_percent(arg)?),
-            4 => Self::Seek(arg),
-            _ => return None,
-        };
-        Some((seq, control))
-    }
-
-    /// The 0xE0 payload of this control as its game sends it.
-    #[cfg(test)]
-    pub(crate) fn encode(self, seq: u8) -> [u8; 8] {
-        let (op, arg) = match self {
-            Self::Pause => (1, 0),
-            Self::Play => (2, 0),
-            Self::Speed(speed) => (3, speed.percent()),
-            Self::Seek(ms) => (4, ms),
-        };
-        let [a0, a1, a2, a3] = u32::to_le_bytes(arg);
-        [CONTROL_MAGIC[0], CONTROL_MAGIC[1], seq, op, a0, a1, a2, a3]
-    }
-
-    /// A line of the dev control file (`SRP_DEV_REPLAY_CONTROL`): `pause`,
-    /// `play`, `speed 0.5|1|2|4`, `seek <seconds>`.
-    pub(crate) fn parse(line: &str) -> Option<Self> {
-        let mut words = line.split_whitespace();
-        let control = match (words.next()?, words.next()) {
-            ("pause", None) => Self::Pause,
-            ("play", None) => Self::Play,
-            ("speed", Some("0.5")) => Self::Speed(Speed::Half),
-            ("speed", Some("1")) => Self::Speed(Speed::Normal),
-            ("speed", Some("2")) => Self::Speed(Speed::Double),
-            ("speed", Some("4")) => Self::Speed(Speed::Quadruple),
-            ("seek", Some(seconds)) => {
-                let seconds: f64 = seconds.parse().ok().filter(|s: &f64| *s >= 0.0)?;
-                Self::Seek((seconds * 1000.0) as u32)
-            }
-            _ => return None,
-        };
-        words.next().is_none().then_some(control)
-    }
+        _ => return None,
+    };
+    words.next().is_none().then_some(op)
 }
 
 /// The playback clock: match time, by the wall clock.
@@ -396,8 +314,15 @@ struct Playback {
     spectator: Spectator,
     clock: Clock,
     speed: Speed,
-    /// The sequence number of the last control taken from its game.
-    last_control: Option<u8>,
+    /// The `seq` of the last request taken from its game.
+    last_request: Option<u8>,
+    /// The playback note its game was last sent since it came live (or
+    /// started again): `None`, the note and the events are due.
+    told: Option<Note>,
+    /// The last note's revision (the game takes only a newer one).
+    revision: u8,
+    /// Its reports in a row far from the playback ([`DRIFT_MS`]).
+    drift: u8,
     /// How many of the recording's inputs and roster changes have gone to
     /// it as they came due (those since its world go with the world).
     inputs: usize,
@@ -422,7 +347,10 @@ impl Playback {
             spectator,
             clock: Clock::Loading { at: start },
             speed: Speed::Normal,
-            last_control: None,
+            last_request: None,
+            told: None,
+            revision: 0,
+            drift: 0,
             inputs,
             events,
             created: now,
@@ -435,7 +363,7 @@ impl Playback {
         match self.clock {
             Clock::Loading { at } | Clock::Paused { at, .. } => at,
             Clock::Playing { since, at } => {
-                at + self.speed.of(now.saturating_duration_since(since))
+                at + played(self.speed, now.saturating_duration_since(since))
             }
         }
     }
@@ -471,13 +399,19 @@ impl Playback {
                 return Some(Ended::Left);
             };
             if id == survarium::v026g::match_msgs::id::LEAVE
-                && let Some((seq, control)) = Control::decode(&payload)
+                && let Some(request) = Request::parse(&payload)
             {
-                if self.last_control != Some(seq) && !self.spectator.is_leaving() {
-                    self.last_control = Some(seq);
-                    self.control(control, now);
+                let newer = self
+                    .last_request
+                    .is_none_or(|last| replay_control::newer(request.seq, last));
+                if newer && !self.spectator.is_leaving() {
+                    self.last_request = Some(request.seq);
+                    self.control(request.op, now);
                 }
                 continue;
+            }
+            if let Ok(ClientMessage::Hash { tick, .. }) = parse_client(id, &payload) {
+                self.judge_drift(tick, now);
             }
             let before = self.spectator.stage();
             let watched = self.watched(&recording, self.position(now));
@@ -501,15 +435,15 @@ impl Playback {
         None
     }
 
-    fn control(&mut self, control: Control, now: Instant) {
+    fn control(&mut self, op: Op, now: Instant) {
         let at = self.position(now);
         log::info!(
-            "Replay {:#x} of match {:#x}: {control:?} at {at} ms",
+            "Replay {:#x} of match {:#x}: {op:?} at {at} ms",
             self.spectator.session_id(),
             self.recording.match_id
         );
-        match control {
-            Control::Pause => {
+        match op {
+            Op::Pause(true) => {
                 if let Clock::Playing { .. } | Clock::Loading { .. } = self.clock {
                     self.clock = Clock::Paused {
                         at,
@@ -517,21 +451,49 @@ impl Playback {
                     };
                 }
             }
-            // Its game's clock ran on while paused: it starts again from
-            // where the playback stopped.
-            Control::Play => {
+            // Its game's clock stood still too (the viewer's patch pauses
+            // it): the relays go on from where they stopped. One whose
+            // clock ran on is caught by its reports ([`DRIFT_MS`]).
+            Op::Pause(false) => {
                 if let Clock::Paused { at, .. } = self.clock {
                     self.clock = Clock::Playing { since: now, at };
-                    self.seek(at, now);
                 }
             }
-            Control::Speed(speed) => {
+            Op::Speed(speed) => {
                 if let Clock::Playing { .. } = self.clock {
                     self.clock = Clock::Playing { since: now, at };
                 }
                 self.speed = speed;
             }
-            Control::Seek(time) => self.seek(time, now),
+            Op::Seek(time) => self.seek(time.0, now),
+        }
+    }
+
+    /// A hash report of its game (its event-horizon world, [`EVENT_HORIZON_MS`]
+    /// behind its clock) against the playback: [`DRIFT_REPORTS`] in a row
+    /// [`DRIFT_MS`] off and it starts again from where the playback is.
+    fn judge_drift(&mut self, tick: u8, now: Instant) {
+        if !self.spectator.is_live() {
+            self.drift = 0;
+            return;
+        }
+        let at = self.position(now);
+        let Some(reported) = tick_time(tick, at) else {
+            return;
+        };
+        let off = i64::from(reported) + i64::from(EVENT_HORIZON_MS) - i64::from(at);
+        if off.abs() < DRIFT_MS {
+            self.drift = 0;
+            return;
+        }
+        self.drift += 1;
+        if self.drift >= DRIFT_REPORTS {
+            log::info!(
+                "Replay {:#x}: its game is {off} ms off the playback at {at} ms; started again",
+                self.spectator.session_id()
+            );
+            self.drift = 0;
+            self.seek(at, now);
         }
     }
 
@@ -546,6 +508,42 @@ impl Playback {
         };
         (self.inputs, self.events) = self.recording.due(at);
         self.spectator.wait_again();
+        self.told = None;
+    }
+
+    /// The playback note (and, once live anew, the events) when its game
+    /// is live and was not told this playback yet: after its first world,
+    /// each change and each start again.
+    fn tell(&mut self) {
+        if !self.spectator.is_live() {
+            self.told = None;
+            return;
+        }
+        let paused = matches!(self.clock, Clock::Paused { .. });
+        let fresh = self.told.is_none();
+        if self
+            .told
+            .is_some_and(|told| told.paused == paused && told.speed == self.speed)
+        {
+            return;
+        }
+        self.revision = self.revision.wrapping_add(1);
+        let note = Note {
+            revision: self.revision,
+            paused,
+            speed: self.speed,
+            start: MatchMs(self.recording.worlds[0].time),
+            end: MatchMs(self.recording.end),
+        };
+        self.spectator.note(&note.encode());
+        if fresh {
+            // No events kept yet (track D's per-match list): an empty one.
+            let mut events = [0; 6];
+            if let Some(len) = EventsNote::encode(0, 0, &[], &mut events) {
+                self.spectator.note(&events[..len]);
+            }
+        }
+        self.told = Some(note);
     }
 
     /// Its turn: what came due goes, it is started from a world when it
@@ -609,6 +607,7 @@ impl Playback {
         if after != before {
             log::debug!("Replay {session_id:#x}: {before} -> {after} at {at} ms");
         }
+        self.tell();
         let datagrams = self.spectator.poll(now);
         for (_, datagram) in &datagrams {
             log::trace!(
@@ -975,10 +974,10 @@ impl ReplayWatch {
         };
         let _ = std::fs::remove_file(&dev.path);
         for line in text.lines().filter(|line| !line.trim().is_empty()) {
-            match Control::parse(line) {
-                Some(control) => {
+            match dev_control(line) {
+                Some(op) => {
                     for playback in self.playbacks.values_mut() {
-                        playback.control(control, now);
+                        playback.control(op, now);
                     }
                 }
                 None => log::warn!("SRP_DEV_REPLAY_CONTROL: no such control: {line:?}"),

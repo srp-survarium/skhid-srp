@@ -1003,6 +1003,19 @@ impl Spectator {
         }
     }
 
+    /// It plays from a world it took.
+    pub(super) fn is_live(&self) -> bool {
+        matches!(self.stage, Watch::Live { .. })
+    }
+
+    /// A replay viewer's note (`replay_control::ServerNote`), in an 0xF6:
+    /// only while live, never to a game let go.
+    pub(super) fn note(&mut self, payload: &[u8]) {
+        if self.is_live() {
+            let _ = self.transport.send(id::UPLOAD_REQUEST, payload);
+        }
+    }
+
     pub(super) fn is_leaving(&self) -> bool {
         matches!(self.stage, Watch::Leaving { .. })
     }

@@ -2,8 +2,7 @@
 
 **Version scope:** 0.26g, on top of Queue and spectate (#1285, `queue-spectate.md`). Written
 2026-11-07. **Status: server side built and tested with scripted clients; the lobby movie (the
-request, the `watching` answer) and the exe (the controls, following the asked place) are not
-built yet.** Path A of `research/replay-plan.md`: the server streams a match's recording as a
+request, the `watching` answer) is not built yet, the exe's viewer is track B's patch 130.** Path A of `research/replay-plan.md`: the server streams a match's recording as a
 spectated match, so a replay plays in the running game (lobby -> replay -> lobby, no second
 process, no `.sur` download).
 
@@ -52,28 +51,42 @@ start (the first view after that place entered); the exe follows it (track B): t
 place it asked for. Following later (F5/F6, F2, a player list click) is the exe's own too: no
 control message.
 
-## Controls: the game's 0xE0
+## Controls and notes (`crates/replay-control`)
 
-A replay session's game sends a control as 0xE0 alone in its datagram (as a patched game sends
-an upload chunk), 8 bytes:
+One encoding for the server and the exe's arena (track B's patch 130), the crate
+`replay-control`; both ways the payload starts `52`, times are the match clock (ms, the 0xE5
+clock):
 
-| bytes | |
-|---|---|
-| 0..2 | `FF 52` (`ff 'R'`): no upload chunk (more than 8 bytes) or install ack (`ff ff`, 20 bytes) starts so |
-| 2 | sequence number, the game's own, wrapping; one equal to the last taken is a resend, ignored |
-| 3 | op: 1 pause, 2 play, 3 speed, 4 seek |
-| 4..8 | u32 LE argument: speed in percent (50, 100, 200, 400; others ignored), seek in match ms; 0 otherwise |
+- **Game -> server**, a request: 0xE0 alone in its datagram (as an upload chunk; resent every 500
+  ms until acked), 8 bytes `52 seq op 00 value:u32le`. Taken only when `seq` is newer (wrapping
+  u8) than the last taken: a resend or a late one is not.
+  - op 1 pause: value 1 paused, 0 playing;
+  - op 2 speed: percent, 25, 50, 100, 200, 400, 800;
+  - op 3 seek: the match time.
+- **Server -> game**, notes in an 0xF6 (an 0xF6 `00` stays the upload request, never sent to a
+  spectator):
+  - the playback, `52 01 revision paused speed:u16 start:u32 end:u32` (start and end: the
+    recording's first key frame and last record), sent once the game is live (after its first
+    world), after each change and after each start again (a seek, a drift); the game takes one
+    only when its revision is newer;
+  - the events, `52 02 first:u16 total:u16` and up to 64 of `time:u32 kind:u8 actor:u8
+    victim:u8` (kind 1 kill, 2 objective; 0xFF no place), once live. Empty for now; track D's
+    per-match list fills it.
 
-- `pause` stops the clock (nothing more is sent).
-- `speed` scales the clock (and so the relays).
+What the server does:
+- `pause` stops the clock (nothing more is sent but a 0xE6 ping each second, so the game's 5 s
+  silence check never ends the link); the viewer's patch freezes the game's clock.
+- `play` goes on from where it stopped, with no new world.
+- `speed` scales the clock, so the relays and 0xE5 times; the patch sets the game's time scale.
 - `seek t` starts the game again from the key frame K at or before t, its clock put at the
   furthest point <= t it can be: no more than 5 s past K (a tick byte reaches 6.35 s back) and no
   player with more than 26 inputs in between (`INPUT_RING_SAFE`; the game keeps 27). The inputs
   since K go with the world: the game plays K..clock at once on load.
-- `play` after a pause is a seek to where it stopped (the game's clock ran on meanwhile).
+- **Drift, the fallback**: three hash reports in a row whose world is 2 s or more off the
+  playback (a game that did not freeze or scale its clock as told) start the game again from
+  where the playback is.
 
-The exe still has to freeze and scale its own clock for pause and speed (below): the server's
-side only stops or scales what it sends.
+Following a player (F5/F6, F2, a player list click) is the exe's own: no request.
 
 ## What a session never does
 
@@ -94,7 +107,7 @@ watching.
 | `SRP_REPLAY_WATCH_MAX` | sessions at once (default 4: the host has 1 vCPU and 512 MB; each costs about one player's traffic and its recording in memory, a few MB to a few tens) |
 | `SRP_REPLAY_MAX_RECORDING_MB` | as for History (default 24) |
 | `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]` | dev aid: each game that signs in asks for that replay 10 s later, as the movie would |
-| `SRP_DEV_REPLAY_CONTROL=<file>` | dev aid: lines `pause`, `play`, `speed 0.5|1|2|4`, `seek <seconds>` to every playback, read every 250 ms and removed |
+| `SRP_DEV_REPLAY_CONTROL=<file>` | dev aid: lines `pause`, `play`, `speed 0.25|0.5|1|2|4|8`, `seek <seconds>` to every playback, read every 250 ms and removed |
 
 ## How to try it with a real game
 
@@ -111,22 +124,14 @@ SRP_DEV_REPLAY_WATCH=<match id hex> SRP_DEV_REPLAY_CONTROL=/tmp/srp-local/replay
 Sign in; 10 s later the game loads the replay. `echo "seek 60" > /tmp/srp-local/replay.control`
 seeks. Esc or the recording's end returns to the lobby.
 
-## Not known until a game runs it (predictions)
+## Not known until a game runs it
 
-1. **Pause.** The game's clock is not ours: 0xE5 sets it (`game::set_time_in_ms` 0x1EE4A0) and it
-   runs on; `move` 0x2D2E40 plays 50 ms ticks up to it (`client_patch.md` "What depends on the
-   factor"). So while paused the world goes on with no new inputs, each player on its last input
-   (LIKELY: its actions mask held, so a runner keeps running), and the camera follows that drift.
-   Hence `play` = resync. A real freeze needs an exe patch: `game::pause` 0x1ED5C0
-   (inferred-high) on the control, or the timer's speed (below) at 0.
-2. **Speed.** Not with a stock game. Its clock runs at 1x; only 0xE7 steers it, at
-   1 +- `time_floating_factor` (0.3 from revision 8, at most 0.5; `client_patch.md` `set_offset`
-   0x1EE9E0), so 0.7x..1.3x, never 0.5x/2x/4x. At 2x the relays run ahead of the game's clock by
-   1 s a second: past 2.5 s a relayed input is moved back (PROVEN, `match.md` section 5), so the
-   world goes wrong after about 2.5 s. What would work: an exe patch setting the game timer's speed
-   (`floating_timer` +0x20, `client_patch.md` 0x147110) along with the control it sends.
-3. **Seek** going back in time and minutes forward: LIKELY fine (a spectator out of step and a
+1. Pause and speed with the viewer's patch: the game's clock frozen by `game::pause` and scaled by
+   its time scale (track B); a game without it drifts and is started again (above), and at 2x or
+   more its relays run past its clock (a relayed input more than 2.5 s ahead is moved back,
+   PROVEN, `match.md` section 5).
+2. **Seek** going back in time and minutes forward: LIKELY fine (a spectator out of step and a
    resynced player take the same path); 0 mismatches seen in the spike. UNKNOWN: the HUD's kill
    feed, scores and timers across a backward jump.
-4. Bit 31 of an input's actions is cleared by the converter (`sur_convert.rs` `INPUT_FLAG`);
+3. Bit 31 of an input's actions is cleared by the converter (`sur_convert.rs` `INPUT_FLAG`);
    whether that changes a world online is not known.

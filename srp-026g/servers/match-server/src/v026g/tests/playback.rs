@@ -24,9 +24,10 @@ use survarium::v026g::match_msgs::static_info::{MatchOptions, SCORE_WEIGHTS, Sta
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, TICK_MS, WireTime, id};
 
 use super::*;
-use crate::v026g::game::{Control, ReplayRecording, Speed};
+use crate::v026g::game::{ReplayRecording, dev_control};
 use crate::v026g::record::{self, Desk, RecordSettings};
 use crate::v026g::sur;
+use replay_control::{MatchMs, Op, Request, ServerNote, Speed};
 
 const RECORDING: &str = "tests/data/replay_level_01_tdm_2p.sur";
 /// Its places enter at 400 and 1 300 ms: the first key frame after.
@@ -209,9 +210,21 @@ fn position(bench: &Bench) -> u32 {
 }
 
 /// The game's control, numbered `seq`, as it sends it (0xE0).
-fn control(bench: &mut Bench, at: usize, seq: u8, control: Control) {
-    bench.clients[at].send(id::LEAVE, &control.encode(seq), true);
+fn control(bench: &mut Bench, at: usize, seq: u8, op: Op) {
+    bench.clients[at].send(id::LEAVE, &Request { seq, op }.encode(), true);
     bench.run(100);
+}
+
+/// The playback notes its game took: (revision, paused, speed).
+fn notes(client: &Client) -> Vec<(u8, bool, Speed)> {
+    client
+        .replay_notes
+        .iter()
+        .filter_map(|payload| match ServerNote::parse(payload)? {
+            ServerNote::Playback(note) => Some((note.revision, note.paused, note.speed)),
+            ServerNote::Events(_) => None,
+        })
+        .collect()
 }
 
 fn relays_taken(client: &Client) -> usize {
@@ -293,15 +306,16 @@ fn a_watcher_gets_the_world_then_the_relays_in_recorded_order() {
     bench.assert_no_faults();
 }
 
-/// The game's controls: pause holds the flow, play starts it again where it
-/// stopped; a control sent again (the same number) is taken once.
+/// The game's controls: pause holds the flow (the viewer's game stops its
+/// clock too), play goes on from where it stopped with no new world; a
+/// request sent again or late (not newer) is not taken.
 #[test]
-fn the_games_pause_and_play_and_a_resent_control_is_taken_once() {
+fn the_games_pause_and_play_and_a_resent_request_is_taken_once() {
     let (mut bench, replays) = bench();
     session_of_the_recording(&mut bench, &replays, 0);
     let at = watching(&mut bench, WATCHER);
     bench.run_long(10_000);
-    control(&mut bench, at, 1, Control::Pause);
+    control(&mut bench, at, 1, Op::Pause(true));
     let paused = position(&bench);
     bench.run(500);
     let taken = relays_taken(&bench.clients[at]);
@@ -312,16 +326,88 @@ fn the_games_pause_and_play_and_a_resent_control_is_taken_once() {
     let pings = bench.clients[at].got(|m| matches!(m, ServerMessage::Ping { .. }).then_some(()));
     assert!((4..=6).contains(&pings.len()), "{}", pings.len());
     let worlds = bench.clients[at].snapshots().len();
-    control(&mut bench, at, 2, Control::Play);
-    assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
-    // From the key frame before the pause (at 24.6 s).
-    assert_eq!(*bench.clients[at].snapshots().last().unwrap(), (1, 24_500));
+    control(&mut bench, at, 2, Op::Pause(false));
     bench.run_long(3_000);
     assert!(relays_taken(&bench.clients[at]) > taken);
-    // The play again (a resend): no new start.
-    let worlds = bench.clients[at].snapshots().len();
-    control(&mut bench, at, 2, Control::Seek(94_550));
+    assert_eq!(bench.clients[at].snapshots().len(), worlds);
+    let played = position(&bench) - paused;
+    assert!((2_900..=3_200).contains(&played), "{played}");
+    // Request 2 again (a resend) and 1 (late): not taken.
+    for seq in [2, 1] {
+        control(&mut bench, at, seq, Op::Seek(MatchMs(94_550)));
+    }
     bench.run_long(2_000);
+    assert_eq!(bench.clients[at].snapshots().len(), worlds);
+    bench.assert_no_faults();
+}
+
+/// Its game is told the playback once live, after each change and after
+/// each start again, each note newer than the last; the events (none kept
+/// yet) once live.
+#[test]
+fn the_game_is_told_the_playback_after_its_world_each_change_and_each_seek() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run(200);
+    assert_eq!(notes(&bench.clients[at]), [(1, false, Speed::Normal)]);
+    let first = ServerNote::parse(&bench.clients[at].replay_notes[0]);
+    let Some(ServerNote::Playback(note)) = first else {
+        panic!("{first:?}");
+    };
+    // The recording's range on the match clock.
+    assert_eq!((note.start, note.end), (MatchMs(50), MatchMs(114_600)));
+    let events = ServerNote::parse(&bench.clients[at].replay_notes[1]);
+    assert!(
+        matches!(&events, Some(ServerNote::Events(note)) if note.events().count() == 0),
+        "{events:?}"
+    );
+    control(&mut bench, at, 1, Op::Pause(true));
+    control(&mut bench, at, 2, Op::Speed(Speed::Octuple));
+    let worlds = bench.clients[at].snapshots().len();
+    control(&mut bench, at, 3, Op::Seek(MatchMs(60_000)));
+    assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
+    bench.run(200);
+    assert_eq!(
+        notes(&bench.clients[at]),
+        [
+            (1, false, Speed::Normal),
+            (2, true, Speed::Normal),
+            (3, true, Speed::Octuple),
+            (4, true, Speed::Octuple),
+        ]
+    );
+    bench.assert_no_faults();
+}
+
+/// A game whose clock did not stop or scale as told reports worlds far from
+/// the playback: started again from where the playback is.
+#[test]
+fn a_game_off_the_playback_is_started_again() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(5_000);
+    let worlds = bench.clients[at].snapshots().len();
+    let off = position(&bench) + 4_000;
+    bench.clients[at].report(off, 1);
+    bench.clients[at].report(off + 50, 1);
+    bench.run(100);
+    assert_eq!(
+        bench.clients[at].snapshots().len(),
+        worlds,
+        "two are not enough"
+    );
+    bench.clients[at].report(off + 100, 1);
+    assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
+    // Its own reports, near the playback, are fine.
+    let worlds = bench.clients[at].snapshots().len();
+    bench.run_long(2_000);
+    for step in 0..5 {
+        let near = position(&bench) - 500 + step * 50;
+        bench.clients[at].report(near, 1);
+    }
+    bench.run_long(1_000);
     assert_eq!(bench.clients[at].snapshots().len(), worlds);
     bench.assert_no_faults();
 }
@@ -334,10 +420,10 @@ fn the_games_speed_scales_the_playback_clock_and_the_relays_keep_up() {
     bench.run_long(3_000);
     for (seq, speed, factor) in [
         (1, Speed::Double, 2.0),
-        (2, Speed::Quadruple, 4.0),
-        (3, Speed::Half, 0.5),
+        (2, Speed::Octuple, 8.0),
+        (3, Speed::Quarter, 0.25),
     ] {
-        control(&mut bench, at, seq, Control::Speed(speed));
+        control(&mut bench, at, seq, Op::Speed(speed));
         let from = position(&bench);
         bench.run_long(4_000);
         let went = f64::from(position(&bench) - from);
@@ -380,7 +466,11 @@ fn the_games_seek_starts_it_again_from_the_key_frame_at_or_before_the_time() {
     .enumerate()
     {
         let worlds = bench.clients[at].snapshots().len();
-        bench.clients[at].send(id::LEAVE, &Control::Seek(target).encode(seq as u8), true);
+        let request = Request {
+            seq: seq as u8 + 1,
+            op: Op::Seek(MatchMs(target)),
+        };
+        bench.clients[at].send(id::LEAVE, &request.encode(), true);
         assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
         let resumed = position(&bench);
         assert!(
@@ -439,39 +529,15 @@ fn the_end_of_the_recording_ends_the_session() {
 }
 
 #[test]
-fn controls_read_as_written_and_as_sent() {
-    assert_eq!(Control::parse("pause"), Some(Control::Pause));
-    assert_eq!(Control::parse(" play "), Some(Control::Play));
-    assert_eq!(
-        Control::parse("speed 0.5"),
-        Some(Control::Speed(Speed::Half))
-    );
-    assert_eq!(Control::parse("seek 65.5"), Some(Control::Seek(65_500)));
+fn dev_controls_read_as_written() {
+    assert_eq!(dev_control("pause"), Some(Op::Pause(true)));
+    assert_eq!(dev_control(" play "), Some(Op::Pause(false)));
+    assert_eq!(dev_control("speed 0.25"), Some(Op::Speed(Speed::Quarter)));
+    assert_eq!(dev_control("speed 8"), Some(Op::Speed(Speed::Octuple)));
+    assert_eq!(dev_control("seek 65.5"), Some(Op::Seek(MatchMs(65_500))));
     for wrong in ["speed 3", "seek", "seek -1", "pause now", "stop"] {
-        assert_eq!(Control::parse(wrong), None, "{wrong}");
+        assert_eq!(dev_control(wrong), None, "{wrong}");
     }
-    // The wire: ff 'R' <seq> <op> <u32 arg>.
-    assert_eq!(
-        Control::Seek(65_500).encode(7),
-        [0xFF, b'R', 7, 4, 0xDC, 0xFF, 0, 0]
-    );
-    assert_eq!(
-        Control::Speed(Speed::Double).encode(1),
-        [0xFF, b'R', 1, 3, 200, 0, 0, 0]
-    );
-    for control in [
-        Control::Pause,
-        Control::Play,
-        Control::Speed(Speed::Quadruple),
-        Control::Seek(1),
-    ] {
-        assert_eq!(Control::decode(&control.encode(9)), Some((9, control)));
-    }
-    // No other speed, op, length or magic.
-    assert_eq!(Control::decode(&[0xFF, b'R', 1, 3, 150, 0, 0, 0]), None);
-    assert_eq!(Control::decode(&[0xFF, b'R', 1, 9, 0, 0, 0, 0]), None);
-    assert_eq!(Control::decode(&[0xFF, b'R', 1, 1, 0, 0, 0]), None);
-    assert_eq!(Control::decode(&[0xFF, 0xFF, 1, 1, 0, 0, 0, 0]), None);
 }
 
 /// A live match of the two players of a bench recorded into `dir`, its
