@@ -171,6 +171,12 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // [A325] Each block's animation state's two tables (`players::animation_tables`), for the hit selector's per-part values.
     let mut anims = std::io::BufWriter::new(std::fs::File::create(out.join("rec_anim.csv"))?);
     writeln!(anims, "match,time,upload,place,times,floats")?;
+    let dump: Option<(u8, u32, u32)> = std::env::var("SRP_REC_TABLE_DUMP").ok().and_then(|v| {
+        let mut parts = v.split(',').map(str::trim);
+        Some((parts.next()?.parse().ok()?, parts.next()?.parse().ok()?, parts.next()?.parse().ok()?))
+    });
+    let mut dumps = std::io::BufWriter::new(std::fs::File::create(out.join("rec_dump.csv"))?);
+    writeln!(dumps, "time,place,state")?;
     let (mut read, mut unread) = (0usize, 0usize);
     // The layouts a block is read in (`players::state_at_revision`, A305 F7, fx-review's bb5503dc): a world's layout is its
     // uploader's, not its block's place's (a client-test recording's one human uploads every bot's block), and the tables do not
@@ -197,6 +203,15 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 *read_at.entry(revision).or_default() += 1;
                 let block = players::PlayerBlock { place: raw.place, state: &state, animation: raw.animation };
                 read += 1;
+                // `SRP_REC_TABLE_DUMP=<place>,<from>,<to>` (a probe): that place's state bytes, as read, in hex.
+                if let Some((p, from, to)) = dump
+                    && k == 0
+                    && raw.place == p
+                    && (from..=to).contains(&time)
+                {
+                    let hex: String = state.iter().map(|b| format!("{b:02x}")).collect();
+                    writeln!(dumps, "{time},{},{hex}", raw.place)?;
+                }
                 if let Some(tables) = raw.animation.and_then(players::animation_tables) {
                     let join = |v: Vec<String>| v.join(";");
                     writeln!(
@@ -281,6 +296,7 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     worlds.flush()?;
     motions.flush()?;
     anims.flush()?;
+    dumps.flush()?;
     let r = &tables.report;
     let text = format!(
         "{head}\nnote kinds: {kinds:?}\nclock offset ms: {}\ndatagrams in {} out {} unparsed {} {:?}\nworlds complete {} world times {}\ninputs {} copies {} conflicts {} flagged {} dropped_future {}\nplayer blocks read {read} unread {unread}\nrevisions by place {revisions:?}; blocks read at (None = as they are) {read_at:?}\n",
