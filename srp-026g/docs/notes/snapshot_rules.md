@@ -481,8 +481,13 @@ The NaNs come from a player whose state the game itself made NaN: place 12's
 state in the same worlds also has NaN in `m_linear_horizontal_speed`
 (+334h, read at 0x2DB844), in the character controller's `m_last_pos` (+50h,
 0x7FB31..0x7FB65), and in two bullets he fired, their segment origin (+28h).
-The step works out the speed as the move's length divided by the step's
-milliseconds (0x2D9507..0x2D9545), so a 0 ms step gives 0/0. The game only
+Correction (2026-11-07): the NaN is not a 0 ms step, which never reaches the
+speed (`tick_events` skips a 0 ms tick, 0x2D22DE). It starts in the character
+controller's position (+0B0h): the body went NaN in one step around 539 850 ms,
+just after the player (a server bot) stood up from a crouch and walked, and the
+speed (a positive NaN, 0x7FC00000, so not an x87 0/0) and the rest follow from
+it. The exact instruction is not pinned; the lead is the unguarded normalisation
+in `get_corrected_walk_vector` (0x7B97C..0x7B983). Board ticket T117. The game only
 computes with these three values and compares them. A NaN speed goes through
 comparisons, the curve 0x25F30 and the animation selector, none of which uses it
 as a count or index, and the player's next step writes it again. `m_last_pos`
