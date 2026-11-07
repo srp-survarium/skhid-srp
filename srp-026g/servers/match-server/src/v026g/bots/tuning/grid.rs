@@ -196,6 +196,11 @@ pub struct GridTuning {
     /// +0.05 (client-test level_05 +0.06, live level_06 +0.07: a given-back walk up 0.55 m in one cell, live level_07 +0.07).
     /// A grid is the map's.
     pub give_back_in_cell: bool,
+    /// [A332] Whether `client_controller` makes a Jump up to a standing jump's top a Walk where the client's walk tick walks the
+    /// body up it (`mapdata::Body::walked_climbs`): the grid's rise is centre to centre, the body climbs by the step (0.80,
+    /// `cc_step_height`, step_up 0x7C900) from the highest ground under it (fx-gear-2's CLIMB MISSED rows: the client walks
+    /// up a 0.89 m centre-to-centre Jump on level_01 day_4). OFF until its nav gate. A grid is the map's.
+    pub walked_climbs: bool,
 }
 
 impl Default for GridTuning {
@@ -229,6 +234,7 @@ impl Default for GridTuning {
             crack_bridges: true,
             start_witness: true,
             give_back_in_cell: false,
+            walked_climbs: false,
         }
     }
 }
@@ -270,6 +276,7 @@ impl GridTuning {
             crack_bridges: self.crack_bridges,
             start_witness: self.start_witness,
             give_back_in_cell: self.give_back_in_cell,
+            walked_climbs: self.walked_climbs,
             ..body
         }
     }
