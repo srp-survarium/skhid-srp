@@ -275,6 +275,18 @@ pub struct Supplies {
     pub inventory_read: bool,
     /// By profile item, in the static info's order.
     pub items: Vec<ItemLeft>,
+    /// [A334] The kit slot whose weapon is in hands: `inventory::serialize`'s `m_active_slot` (inventory+0x170), 2 bytes before the
+    /// first slot item's record (fx-review A334b from the exe's write order; PROVEN on live worlds, A334c: 7 in 7,575 blocks, 10 in
+    /// 646, swaps 46). Set at the
+    /// selection (0x2FCB18), so in a swap it already names the new slot. `None` unless the inventory was read and the byte names a
+    /// slot of the kit in use that holds a weapon.
+    pub hands_slot: Option<u8>,
+    /// [A334] The client's own carried weight `w` (`m_carried_weight`), kg, read before the artefact slots when nothing is carried
+    /// (PROVEN, fx-review A334c: equal to `bot_skills`' kit weight, median 0.000, 94-95 % within 1.5 kg). `None` otherwise.
+    pub carried_weight: Option<f32>,
+    /// [A334] Whether the player carries an item (a battery): no layout without a carried object fits before the first record while
+    /// a weapon slot is in hands (fx-review A334c: 0 of 420 such blocks sprint). `None` when that cannot be told.
+    pub carrying: Option<bool>,
 }
 
 impl Supplies {
@@ -302,6 +314,8 @@ impl Supplies {
             })
             .collect();
         let mut inventory_read = false;
+        // [A334] The first slot item's record: the inventory's own fields just before it.
+        let mut first: Option<usize> = None;
         let kit = profile.kits.get(usize::from(head.current_index));
         if let Some(kit) = kit {
             let state = block.state;
@@ -336,6 +350,7 @@ impl Supplies {
                     continue;
                 };
                 inventory_read = true;
+                first.get_or_insert(start);
                 at = start + value + 3;
                 item.slot = Some(slot as u8);
                 if item.stack {
@@ -373,11 +388,44 @@ impl Supplies {
                 }
             }
         }
+        let state = block.state;
+        let byte = |back: usize| first.and_then(|at| at.checked_sub(back)).and_then(|at| state.get(at).copied());
+        let hands_slot = byte(2).filter(|&slot| {
+            kit.and_then(|kit| kit.slots.get(usize::from(slot)).copied().flatten())
+                .and_then(|(index, _)| profile.items.get(usize::from(index)))
+                .is_some_and(|item| item_params(item.dict_id).is_some_and(|params| params.kind.starts_with("wpn")))
+        });
+        // [A334c] Back from the first record: grenade slot (-1), active slot (-2), then the artefact slots (k, each a byte and a
+        // begin byte when k > 0), k, the carried object's id (0xFF none), the weight's recalculation flag (0 or 0xFF) and `w`. A
+        // layout fits for one k in 0..=8 with nothing carried; none fitting with a weapon slot in hands is a carrier; none fitting
+        // otherwise is a first record read wrong (fx-review A334c on 8,438 live blocks: the fitting ones sprint 37 %, the carriers
+        // 0 of 420).
+        let weight_at = |back: usize| {
+            first
+                .and_then(|at| at.checked_sub(back))
+                .and_then(|at| state.get(at..at + 4))
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .filter(|w| w.is_finite() && (0.0..200.0).contains(w))
+        };
+        let fitted = (0u8..=8).find_map(|k| {
+            let n = 2 + if k > 0 { usize::from(k) + 1 } else { 0 };
+            (byte(n + 1) == Some(k) && byte(n + 2) == Some(0xFF) && matches!(byte(n + 3), Some(0 | 0xFF)))
+                .then(|| weight_at(n + 7))
+                .flatten()
+        });
+        let (carrying, carried_weight) = match (fitted, byte(2)) {
+            (Some(w), _) => (Some(false), Some(w)),
+            (None, Some(7 | 10)) => (Some(true), None),
+            (None, _) => (None, None),
+        };
         Some(Self {
             alive: head.alive,
             kit: head.current_index,
             inventory_read,
             items,
+            hands_slot,
+            carried_weight,
+            carrying,
         })
     }
 
@@ -693,6 +741,49 @@ mod tests {
         let mut wrong = state.clone();
         wrong[2] = 0;
         assert_eq!(PlayerState::read(&wrong, 3), None);
+    }
+
+    /// [A334] The inventory's own fields before the first slot item's record: the active slot 2 bytes before it, the carried
+    /// object's id 4 before (0xFF none), the artefacts 3 before, and the carried weight 9 before when neither is held.
+    #[test]
+    fn the_hands_slot_the_carrier_and_the_carried_weight_are_read() {
+        let dictionary = Dictionary::shared();
+        let mut inventory = inventory();
+        inventory[40 - 2] = 7;
+        inventory[40 - 4] = 0xFF;
+        inventory[40 - 3] = 0;
+        inventory[40 - 5] = 0; // the recalculation flag
+        inventory[40 - 9..40 - 5].copy_from_slice(&23.5f32.to_le_bytes());
+        let state = state_bytes(&head(true), &inventory);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!(supplies.hands_slot, Some(7), "the weapon in slot 7");
+        assert_eq!(supplies.carrying, Some(false));
+        assert_eq!(supplies.carried_weight, Some(23.5));
+        // One artefact slot (k 1: its byte, its begin byte): the carried id and the weight sit two bytes further back.
+        let mut art = inventory.clone();
+        art[40 - 3] = 0xFF; // the artefact
+        art[40 - 4] = 15; // its begin
+        art[40 - 5] = 1; // k
+        art[40 - 6] = 0xFF; // nothing carried
+        art[40 - 7] = 0; // the recalculation flag
+        art[40 - 11..40 - 7].copy_from_slice(&31.25f32.to_le_bytes());
+        let state = state_bytes(&head(true), &art);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!((supplies.hands_slot, supplies.carrying, supplies.carried_weight), (Some(7), Some(false), Some(31.25)));
+        // A carried item: no layout fits; with a weapon in hands, carrying.
+        inventory[40 - 4] = 3;
+        let state = state_bytes(&head(true), &inventory);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!((supplies.hands_slot, supplies.carrying, supplies.carried_weight), (Some(7), Some(true), None));
+        // Neither fitting nor a weapon slot in hands: not told.
+        inventory[40 - 2] = 8;
+        let state = state_bytes(&head(true), &inventory);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!((supplies.hands_slot, supplies.carrying, supplies.carried_weight), (None, None, None));
     }
 
     #[test]

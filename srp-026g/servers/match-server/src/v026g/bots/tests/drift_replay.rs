@@ -33,6 +33,9 @@ struct WorldRow {
     time: u32,
     place: usize,
     fix: Fix,
+    /// [A334] The block's kit in use, weapon in hands and the speed factors the server hands for them (`srp-rec-table`'s
+    /// `kit,hands,speeds` columns); `None` where the table has none.
+    supplies: Option<(u8, Option<u8>, Vec<f32>)>,
 }
 
 fn read_csv(path: &str) -> Vec<HashMap<String, String>> {
@@ -194,18 +197,31 @@ fn drift_on_a_real_match() {
                     keys: hex(r.get("keys")?),
                     speed: num("speed"),
                 },
+                supplies: r.get("kit").and_then(|kit| kit.parse::<u8>().ok()).and_then(|kit| {
+                    let speeds: Vec<f32> = r.get("speeds")?.split(';').filter_map(|v| v.parse().ok()).collect();
+                    (!speeds.is_empty()).then(|| (kit, r.get("hands").and_then(|h| h.parse().ok()), speeds))
+                }),
             })
         })
         .collect();
     rows.sort_by_key(|w| (w.time, w.place));
     let mut tracks: HashMap<usize, BodyTrack> = HashMap::new();
+    // [A334] Each place's (kit, hands slot) whose speed factors the reckoning was last handed (`driven.rs`'s `speed_kits`).
+    let mut hands_sent: HashMap<usize, (u8, Option<u8>)> = HashMap::new();
     // `SRP_A304_LEVELS=<rec_levels.csv>` [A332]: each reckoned place's profile level, the primary in hands
     // ([`BodyTrack::set_prior_level`], as the server's `game/driven.rs` sets it), until a world shows the life's own. Without it the
     // prior is 1.
     if let Some(path) = var("SRP_A304_LEVELS") {
         let levels = kit_levels(&path);
         for (&place, levels) in levels.iter().filter(|(place, _)| !humans.contains(place)) {
-            tracks.entry(place).or_default().set_prior_level(levels.first().copied());
+            let track = tracks.entry(place).or_default();
+            track.set_prior_level(levels.first().copied());
+            // [A331] The computed level picks among the kit's values ([`super::super::kin::LevelSource::Computed`]).
+            if kin.level_source == super::super::kin::LevelSource::Computed {
+                track.set_speed_candidates(levels.clone());
+                // Sent for kit 0 with the hands unknown, as the server starts.
+                hands_sent.insert(place, (0, None));
+            }
         }
         eprintln!("A332 levels: {} places from {path}", levels.len());
     }
@@ -309,6 +325,13 @@ fn drift_on_a_real_match() {
                     last = (t, feet);
                 }
             }
+        }
+        // [A334] A new kit in use or weapon in hands: the speed factors the server hands for them (`driven.rs::observe_stock`).
+        if let (Some(sent), Some((kit, hands, speeds))) = (hands_sent.get_mut(&w.place), &w.supplies)
+            && *sent != (*kit, *hands)
+        {
+            *sent = (*kit, *hands);
+            track.set_speed_candidates(speeds.clone());
         }
         let feet = w.fix.feet;
         let speed = w.fix.speed;

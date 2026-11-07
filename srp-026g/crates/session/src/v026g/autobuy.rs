@@ -324,6 +324,9 @@ mod tests {
                     slot: None,
                 })
                 .collect(),
+            hands_slot: None,
+            carried_weight: None,
+            carrying: None,
         }
     }
 
