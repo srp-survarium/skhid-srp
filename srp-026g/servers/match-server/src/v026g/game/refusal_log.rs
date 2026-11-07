@@ -34,6 +34,16 @@ pub(super) fn since(unlogged: u32) -> String {
     if unlogged == 0 { String::new() } else { format!("; {unlogged} more refused since the last line") }
 }
 
+/// TEMPORARY (the world check's fall-back): `""`, or `"; n more relayed by
+/// the fall-back since the last line"`.
+pub(super) fn relayed_since(unlogged: u32) -> String {
+    if unlogged == 0 {
+        String::new()
+    } else {
+        format!("; {unlogged} more relayed by the fall-back since the last line")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
