@@ -83,6 +83,11 @@ impl<'t> WorldLoad<'t> {
         NetworkClient::of(self.client, self.thread)
     }
 
+    /// Match parameters read from the live core's owned rule list.
+    pub fn match_context(&self) -> Option<crate::world_check::Match> {
+        super::world_context::from_client(self.client)
+    }
+
     /// The hook's thread.
     pub fn thread(&self) -> &'t Thread {
         self.thread

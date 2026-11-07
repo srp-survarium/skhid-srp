@@ -16,6 +16,8 @@
 //! ```text
 //! E = 0, 20 bytes:  H | time | 00 00 00 00 | 00 00 80 3F 00 00 00 00
 //! E = 1, 87 bytes:  as TEMPLATE_ONE; free: H (0), time (4), t (18), s (28);
+//!                   any finite float at 36, 40 and 48 (the effect's
+//!                   +0x20, +0x24, +0x38: 0.05 in live worlds);
 //!                   off 58 is H again, off 75 is H - 1
 //! ```
 //!
@@ -28,10 +30,11 @@
 use super::Section;
 use crate::{Part, Reason, Refusal};
 
-/// A part of the template: bytes it must have, or the u32 H (offset 0)
-/// less `less`.
+/// A part of the template: bytes it must have, any finite float, or the
+/// u32 H (offset 0) less `less`.
 enum Field {
     Bytes(&'static [u8], &'static str),
+    Float(&'static str),
     Opening { less: u32 },
 }
 
@@ -45,7 +48,7 @@ const TEMPLATE_NONE: [(usize, Field); 2] = [
 ];
 
 /// One effect: 87 bytes.
-const TEMPLATE_ONE: [(usize, Field); 15] = [
+const TEMPLATE_ONE: [(usize, Field); 19] = [
     (8, Field::Bytes(&[1, 0, 0, 0], "the effect count")),
     (12, Field::Bytes(&[0], "the root emitter's pointer flag")),
     (13, Field::Bytes(&[0, 0, 0, 0], "the root emitter's index")),
@@ -55,7 +58,13 @@ const TEMPLATE_ONE: [(usize, Field); 15] = [
         24,
         Field::Bytes(&[0xCD, 0xCC, 0xCC, 0x3D], "the effect's 0.1"),
     ),
-    (32, Field::Bytes(&[0; 20], "the effect's other five values")),
+    // The effect's five values (0x2DDEAF..0x2DDEF0, stored at
+    // 0x2DDFE4..0x2DE017): two u32 and three floats, none an index.
+    (32, Field::Bytes(&[0; 4], "the effect's +0x1C")),
+    (36, Field::Float("the effect's +0x20")),
+    (40, Field::Float("the effect's +0x24")),
+    (44, Field::Bytes(&[0; 4], "the effect's +0x34")),
+    (48, Field::Float("the effect's +0x38")),
     (52, Field::Bytes(&[0], "the effect's bool")),
     (53, Field::Bytes(&[0], "the time calculator's pointer flag")),
     (54, Field::Bytes(&[0, 0, 0, 0], "the time calculator")),
@@ -129,6 +138,12 @@ pub fn effects(section: &Section) -> Result<(), Refusal> {
                     ));
                 }
             }
+            Field::Float(what) => {
+                let bits = u32_at(bytes, *at).unwrap_or(0);
+                if !crate::finite(bits) {
+                    return Err(refuse(*at, Reason::EffectsNotNumber { at: *at, what }));
+                }
+            }
             Field::Opening { less } => {
                 let wanted = opening.wrapping_sub(less);
                 let found = u32_at(bytes, *at).unwrap_or(0);
@@ -146,4 +161,40 @@ pub fn effects(section: &Section) -> Result<(), Refusal> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A live world's one effect (2026-11-06, at 40 600 ms), its three
+    /// floats 0.05.
+    const LIVE: [u8; ONE_LEN] = [
+        0x5e, 0x93, 0xe5, 0xef, 0x98, 0x9e, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0x98, 0x9e, 0, 0,
+        0, 1, 0xcd, 0xcc, 0xcc, 0x3d, 0x79, 0x09, 0x3f, 0x12, 0, 0, 0, 0, 0xcd, 0xcc, 0x4c, 0x3d,
+        0xcd, 0xcc, 0x4c, 0x3d, 0, 0, 0, 0, 0xcd, 0xcc, 0x4c, 0x3d, 0, 0, 0, 0, 0, 0, 0x5e, 0x93,
+        0xe5, 0xef, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0xcd, 0xcc, 0xcc, 0x3d, 0x5d, 0x93, 0xe5, 0xef, 0,
+        0, 0x80, 0x3f, 0, 0, 0, 0,
+    ];
+
+    fn reason(bytes: &[u8]) -> Option<Reason> {
+        effects(&Section { at: 0, bytes }).err().map(|refusal| refusal.reason)
+    }
+
+    #[test]
+    fn an_effects_floats_take_any_number_and_its_u32s_are_held() {
+        assert_eq!(reason(&LIVE), None);
+        let mut nan = LIVE;
+        nan[40..44].copy_from_slice(&f32::NAN.to_le_bytes());
+        assert!(matches!(
+            reason(&nan),
+            Some(Reason::EffectsNotNumber { at: 40, .. })
+        ));
+        let mut set = LIVE;
+        set[44] = 1;
+        assert!(matches!(
+            reason(&set),
+            Some(Reason::EffectsByte { at: 44, .. })
+        ));
+    }
 }

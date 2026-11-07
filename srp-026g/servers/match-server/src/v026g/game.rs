@@ -4077,7 +4077,21 @@ impl Game {
     /// one that can't be read (nothing in it can count either). The points
     /// are not looked at: what they hold before the rules' first event was
     /// not traced.
+    ///
+    /// Nor a player: each enters with 0xE9 after the clock starts on this
+    /// world, so it has no player block (its active mask is 0 in every kept
+    /// initial world and in the first uploads of 118 live matches,
+    /// 2026-11-06). It is the one world every other game loads with nobody
+    /// vouching for it, and a block's animation stream is the part of a
+    /// world the semantic check does not read.
     fn not_initial(&self, snapshot: &Snapshot) -> Option<String> {
+        if snapshot
+            .body
+            .first_chunk::<4>()
+            .is_some_and(|mask| u32::from_le_bytes(*mask) != 0)
+        {
+            return Some("players in it".to_owned());
+        }
         let decoded = snapshot::decode(
             snapshot.time,
             &snapshot.body,
