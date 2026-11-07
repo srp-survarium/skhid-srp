@@ -2194,8 +2194,6 @@ st_srp_artefact_501_description	Vreme sakupljanja artefakta:
 st_srp_artefact_501_name	Brze ruke
 st_srp_artefact_502_description	Izolacija od anomalija:
 st_srp_artefact_502_name	Otpornost
-st_srp_artefact_511_description	Šteta od metaka i šrapnela unutar anomalije:
-st_srp_artefact_511_name	Zaštita Šume
 st_srp_artefact_512_description	Trajanje aktivnog efekta artefakata:
 st_srp_artefact_512_name	Poznavanje artefakata
 st_srp_artefact_513_description	Pasivni artefakti vide se kao sjaj na nogama igrača, uključujući tvoje.
@@ -2204,13 +2202,15 @@ st_srp_artefact_521_description	Meč počinje sa nasumičnim artefaktom u kontej
 st_srp_artefact_521_name	Čuvar artefakata
 st_srp_artefact_522_description	Jedan džep postaje kontejner za artefakt.
 st_srp_artefact_522_name	Kontejner za artefakt
+st_srp_artefact_523_description	Šteta od metaka i šrapnela unutar anomalije:
+st_srp_artefact_523_name	Zaštita Šume
 st_srp_artefact_531_description	Svaki Feder ubrzava i punjenje: +5% pasivno, +15% dok je aktivan.
 st_srp_artefact_531_name	Feder II
 st_srp_artefact_532_description	Nema štete od pada dok je Oniks aktivan.
 st_srp_artefact_532_name	Oniks II
 st_srp_artefact_533_description	Aktiviranje Živokosti vraća svu izdržljivost.
 st_srp_artefact_533_name	Živokost II
-st_srp_artefact_541_description	Pasivni efekti tvojih artefakata deluju i na žive saigrače u krugu od 8 m, do 4 iste vrste zajedno sa njihovim.
+st_srp_artefact_541_description	Pasivni efekti tvojih artefakata deluju i na žive saigrače u krugu od 8 m.
 st_srp_artefact_541_name	Rezonanca
 st_srp_artefact_542_description	Aktivirani artefakti deluju i na žive saigrače u krugu od 5 m. "Oni sijaju, ti blistaš"
 st_srp_artefact_542_name	Kaskada

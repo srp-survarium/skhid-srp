@@ -19,12 +19,12 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 | Tier | Needs | Id | Skill | Ranks | Per rank | Mechanism |
 |---|---:|---:|---|---:|---|---|
 | 1 | 0 | 501 | Quick Hands | 4 | collection time -6% | data: modifier 7 |
-| 1 | 0 | 502 | Resistance | 4 | isolation +6 | exe hook |
-| 2 | 5 | 511 | Forest Protection | 4 | bullet and fragment damage -5% in an anomaly | data: modifier 41 |
+| 1 | 0 | 502 | Resistance | 5 | isolation +5 | exe hook |
 | 2 | 5 | 512 | Knowledge of Artifacts | 5 | active duration +5% | data: modifier 39 |
 | 2 | 5 | 513 | Artifact Sight | 1 | passive artefacts seen as leg glows, own too | exe (patch 111's gate) |
-| 3 | 10 | 521 | Keeper of the Artifacts | 1 | starts with a random artefact | server + exe |
+| 3 | 10 | 521 | Keeper of the Artifacts | 1 | starts with a random artefact; or Forest Protection | server + exe |
 | 3 | 10 | 522 | Artifact Container | 1 | a pocket becomes an artefact container | data: modifiers 14, 15 |
+| 3 | 10 | 523 | Forest Protection | 4 | bullet and fragment damage -5% in an anomaly; or Keeper | data: modifier 41 |
 | 4 | 15 | 531 | Spring II | 1 | Spring: reload +5% passive, +15% active | exe (patch 54's Spring) |
 | 4 | 15 | 532 | Onyx II | 1 | no fall damage while Onyx is active | exe (patch 54's Onyx) |
 | 4 | 15 | 533 | Larkspur II | 1 | activation restores all energy | exe |
@@ -33,22 +33,25 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 - Layout, four columns (1..4) (the owner, 2026-11-06: Artifact Container beside Keeper, Resonance
   and Cascade an either/or pair in row V, as every tree's last row; 2026-11-07: Artifact Sight in
-  row II):
+  row II, Forest Protection moved to row III (511 became 523), beside Keeper as an either/or
+  pair):
 
 ```text
 | - Q R - |    Quick Hands, Resistance
-| - F K S |    Forest Protection, Knowledge of Artifacts, Artifact Sight
-| - P A - |    Keeper of the Artifacts, Artifact Container
+| - - K S |    Knowledge of Artifacts, Artifact Sight
+| F P A - |    Forest Protection or Keeper of the Artifacts (antiskills of each other), Artifact Container
 | S O L - |    Spring II, Onyx II, Larkspur II
 | - N X - |    Resonance or Cascade (antiskills of each other)
 ```
 
-- Points: row I holds 8, rows I-II 18, rows I-III 20, rows I-IV 23; a full build 24 (one of the
-  row-V pair; 25 ranks in all).
-- Thresholds 0/5/10/15/20, the stock rows (the owner, 2026-11-07): every row opens with points
-  of the rows above to spare (row I holds 8 for 5, rows I-IV hold 23 for 20).
-- Quick Hands and Resistance (the owner, 2026-11-07): 4 ranks of -6% search time and +6
-  isolation (max -24%, +24).
+- Points (26 ranks in all; one of each pair): row I holds 9, rows I-II 15. With Keeper: rows
+  I-III 17, rows I-IV 20, a full build 21. With Forest Protection: rows I-III 20, rows I-IV 23,
+  a full build 24.
+- Thresholds 0/5/10/15/20, the stock rows (the owner, 2026-11-07): every row opens on both paths
+  (row I holds 9 for 5; rows I-IV hold 20 for 20 with Keeper, so row V needs every point below
+  it, and 23 with Forest Protection).
+- Quick Hands (the owner, 2026-11-07): 4 ranks of -6% search time (max -24%). Resistance: 5 ranks
+  of +5 isolation (max +25; the owner, 2026-11-07, back from 4 of +6).
 - Quick Hands (501) was "Concentration", 0.69's own name for this skill
   (`st_artefact_search_time_name`, in 0.27..0.69 alike); the survival tree's 333 has that name, and
   no other retail string names an artefact search skill, so the owner's "Quick Hands" (2026-11-06).
@@ -82,19 +85,22 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 ## Resistance (502)
 
-- Owner's rule: +6 isolation a rank, flat points (4 ranks, +24; 2026-11-07, was 5 of +5).
+- Owner's rule: +5 isolation a rank, flat points (5 ranks, +25; 2026-11-07, back from 4 of +6).
 - Isolation points are armour against the four anomalous hit types (toxic, radiation, fire,
   shock; table 0x92075C), the card's "Isolation" x100. A hit's damage is
   D x (1 - clamp(A - P, 0, 1)) (0x32A07E), A the part's summed armour for its type.
-- Flat (the table's words): A + 0.06 a rank for those four types on every body part, at
+- Flat (the table's words): A + 0.05 a rank for those four types on every body part, at
   0x32A083 (`artefact.isolation`), before the piercing's subtraction and the clamp.
 - Modifier 8 `anomaly_damage` is not this: it multiplies an anomalous hit's damage by
   max(0, 1 + M8) before armour (0x332890), a percentage (retail's 0.31+ Resistance).
 - The owner (2026-11-05): flat points, the hook above, max +25. The skill card says it as an
   isolation bonus ("Isolation against anomalies: +5 points" a rank).
 
-## Forest Protection (511)
+## Forest Protection (523)
 
+- Row III, one or the other with Keeper of the Artifacts (the owner, 2026-11-07: each the other's
+  `antiskills`, as Resonance and Cascade; srp refuses both, the lobby locks the other in red).
+  It was 511 in row II; nothing in the exe names the id (patch 111 reads modifier 41).
 - Modifier 41 `incoming_weapon_damage_in_anomaly` -0.05 a rank (4 ranks, -20%) (0x332810, before armour): a hit
   with an owner (hit+20h) on a player whose damage-zone count (player+2E4h, damage_zone_core's
   enter 0x319967 / leave 0x31980B) is above 0 is x max(0, 1 + sum).

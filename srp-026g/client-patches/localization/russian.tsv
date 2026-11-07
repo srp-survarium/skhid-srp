@@ -2194,8 +2194,6 @@ st_srp_artefact_501_description	Время сбора артефакта:
 st_srp_artefact_501_name	Быстрые руки
 st_srp_artefact_502_description	Изоляция от аномалий:
 st_srp_artefact_502_name	Стойкость
-st_srp_artefact_511_description	Урон от пуль и осколков внутри аномалии:
-st_srp_artefact_511_name	Защита Леса
 st_srp_artefact_512_description	Длительность активного эффекта артефактов:
 st_srp_artefact_512_name	Знание артефактов
 st_srp_artefact_513_description	Пассивные артефакты видны как свечение на ногах игроков, включая ваши.
@@ -2204,13 +2202,15 @@ st_srp_artefact_521_description	Матч начинается со случай�
 st_srp_artefact_521_name	Хранитель артефактов
 st_srp_artefact_522_description	Один карман становится контейнером для артефакта.
 st_srp_artefact_522_name	Контейнер для артефакта
+st_srp_artefact_523_description	Урон от пуль и осколков внутри аномалии:
+st_srp_artefact_523_name	Защита Леса
 st_srp_artefact_531_description	Каждая Пружина также ускоряет перезарядку: +5% пассивно, +15% при активации.
 st_srp_artefact_531_name	Пружина II
 st_srp_artefact_532_description	Нет урона от падения, пока Оникс активен.
 st_srp_artefact_532_name	Оникс II
 st_srp_artefact_533_description	Активация Живокоста полностью восстанавливает выносливость.
 st_srp_artefact_533_name	Живокост II
-st_srp_artefact_541_description	Пассивные эффекты ваших артефактов действуют и на живых союзников в радиусе 8 м, до 4 одного вида вместе с их собственными.
+st_srp_artefact_541_description	Пассивные эффекты ваших артефактов действуют и на живых союзников в радиусе 8 м.
 st_srp_artefact_541_name	Резонанс
 st_srp_artefact_542_description	Активированные артефакты действуют и на живых союзников в радиусе 5 м. "Они сияют, а ты блистаешь"
 st_srp_artefact_542_name	Каскад

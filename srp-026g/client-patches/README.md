@@ -4714,8 +4714,8 @@ with `cargo test` and clippy (patches, ban-reason, login-server). Not run in a g
 
 The artefact tree (`../docs/notes/artefact-skills.md`). Its skills the exe computes are packed in
 kit modifier 40 (`artefact_power`, read by nothing of 0.26g), parsed once (`artefact_skills::Skills`).
-Resistance (502, 4 ranks): a hit of type 4..7 (toxic, radiation, fire, shock) on a part takes
-its summed armour + 0.06 a rank (+6 isolation points) at `artefact.isolation` (0x32A083, after
+Resistance (502, 5 ranks): a hit of type 4..7 (toxic, radiation, fire, shock) on a part takes
+its summed armour + 0.05 a rank (+5 isolation points) at `artefact.isolation` (0x32A083, after
 `movss xmm0,[eax+8]`), before the piercing's subtraction and the clamp. Other types unchanged.
 Onyx II: `artefact.landing` (0x2D8220, the landing's start: all it does is the fall damage) exits at its
 `ret 4` (0x2D84AE) for a player with the skill and an Onyx of its containers in state 4. Larkspur II:
