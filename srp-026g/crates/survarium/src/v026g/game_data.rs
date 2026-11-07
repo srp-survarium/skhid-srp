@@ -83,8 +83,8 @@ pub struct GameData {
     /// ([`LOCALIZATIONS`]), by its path in the archive.
     files: BTreeMap<String, Vec<u8>>,
     /// The projects the archive has (`projects/<project>/client_project`),
-    /// each its `client_project` cut to its `server_objects`
-    /// ([`resources_db::server::server_objects_of`]).
+    /// each its `client_project` cut to its `server_objects` and the client
+    /// objects a world saves ([`resources_db::server::objects_of`]).
     projects: BTreeMap<String, Vec<u8>>,
 }
 
@@ -175,7 +175,7 @@ impl GameData {
     /// This data with `files` over it, as a patch lays its files: a file
     /// of `gameplay/` or a localization by its path, a project as
     /// `projects/<project>/client_project` (what the data keeps of one:
-    /// [`resources_db::server::server_objects_of`]). Tests make up data so.
+    /// [`resources_db::server::objects_of`]). Tests make up data so.
     #[cfg(any(test, feature = "fixtures"))]
     pub fn laid_over(&self, origin: &str, files: Vec<(String, Vec<u8>)>) -> Self {
         let mut data = Self {

@@ -3557,10 +3557,10 @@ va	name	location	role	basis
 0x0038cc90	vostok::ai::fsm::serialize	ESI	FSM receiver	inferred
 0x0038cc90	vostok::ai::fsm::serialize	EDI	writer	inferred
 0x0038cc90	vostok::ai::fsm::serialize	stack+4	forwarded context	inferred
-0x0038ccf0	vostok::ai::fsm::deserialize	ESI	FSM receiver	inferred
-0x0038ccf0	vostok::ai::fsm::deserialize	EDI	reader	inferred
-0x0038ccf0	vostok::ai::fsm::deserialize	stack+4	first forwarded context	inferred
-0x0038ccf0	vostok::ai::fsm::deserialize	stack+8	second forwarded context	inferred
+0x0038ccf0	vostok::ai::fsm::deserialize	ESI	FSM receiver	verified
+0x0038ccf0	vostok::ai::fsm::deserialize	EDI	reader	verified
+0x0038ccf0	vostok::ai::fsm::deserialize	stack+4	first forwarded context	verified
+0x0038ccf0	vostok::ai::fsm::deserialize	stack+8	second forwarded context	verified
 0x00391960	vostok::animation::animation_player::set_object_transform	EAX	the animation player (player+750h)	observed
 0x00391960	vostok::animation::animation_player::set_object_transform	EDX	the transform (player+40Ch)	observed
 0x00391960	vostok::animation::animation_player::set_object_transform	entry ESP+4	the animated object (the player)	observed
@@ -4474,7 +4474,7 @@ va	name	location	role	basis
 0x0084b1c0		entry ESP+8		auto
 0x00102d10	vostok::resources::register_cook	EDI	the cook: its class at +8	observed
 0x00313900	survarium::game_match_rule_base::game_match_rule_base	EAX	this	observed
-0x00313900	survarium::game_match_rule_base::game_match_rule_base	entry ESP+4	game_match_rule_type (0 respawn, 1 gather, 2 timelimit, 3 kd, 4 tdm)	observed
+0x00313900	survarium::game_match_rule_base::game_match_rule_base	entry ESP+4	game_match_rule_type (0 respawn, 1 gather, 2 timelimit, 3 kd, 4 tdm; patch 53 passes 5 Research), stored at this+10Ch	observed
 0x002f4250	survarium::tdm_rule_core_cook::create_resource	ECX	the cook	observed
 0x002f4250	survarium::tdm_rule_core_cook::create_resource	entry ESP+4	query: +0 the match options, +0Ch the mode config's root	observed
 0x00316090	survarium::tdm_rule_core::on_event	entry ESP+4	the event type (0 match started, 1 a kill)	observed
@@ -5623,3 +5623,9 @@ va	name	location	role	basis
 0x0033fa80	survarium::body_part_parameters::route_damage	entry ESP+8	the damage after the zone's armour and listeners (hit_by_type's frame value, not hit_info +34h)	observed
 0x001f3c70	survarium::player::generate_hit_event	entry ESP+14h	the pain the victim lost in the hit: the hit marker adds it over pain's maximum to the inflicted_damage_collector (+8), at most 1	observed
 0x00332940	survarium::damage_model::second_chance	EDI	the damage model +3B8h: +0 the model, +4 the armed flag (only ever cleared in 0.26g), a hit past modifier 54 of the maximum and the health leaves modifier 55	observed
+0x0027bff0	survarium::network_client::process_dynamic_match_info	EDI at 0x27C116	network_client after both world deserialization call sites return; +1F1C68 is the envelope generation stored at 0x27C040, not proof of a completed load	observed
+0x0027a070	survarium::match_client::match_client	EDI	receiver; sets vtable 0xA08864 at 0x27A08F after constructing options at +0Ch via 0x3183A0; constructs embedded network client at +578B0h via 0x378A40 at 0x27A147, before returning	observed
+0x003183a0	survarium::match_options::match_options	ESI	options receiver; 20 profiles of 45FCh bytes, then mov dword [esi+577B0h],FFFFFFFFh at 0x3183D2; holder+577BCh match seed is initialized before the handshake, although its real match value is unknown until options decode	observed
+0x003a8980	anim_decode_read_bits	EAX	entry: number of bits to read (0..32)	observed
+0x003a8980	anim_decode_read_bits	EDI	the bit-stream state: +0x203c current byte ptr, +0x2048 bit position 0..7	observed
+0x00317d40	vostok::popcount	ECX	entry: the word whose set bits are counted	observed

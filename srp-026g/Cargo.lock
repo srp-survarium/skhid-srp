@@ -844,6 +844,7 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "survarium",
+ "weapon-pickup",
  "world-frame",
 ]
 
@@ -871,6 +872,7 @@ dependencies = [
  "resources-db 0.1.0",
  "serde",
  "serde_json",
+ "srp-validate",
  "udp-transport",
  "weapon-kit",
  "weapon-pickup",
