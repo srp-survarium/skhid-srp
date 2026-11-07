@@ -156,6 +156,30 @@ pub(crate) fn stand_in_mixer() -> crate::v026g::bots::kin::Mixer {
 thread_local! {
     static OLD_MIXER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static OLD_WALLS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static OLD_STEP_INPUT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// [A318] The stand-in's step order: the kin's ([`crate::v026g::bots::kin::StepInput`]), or the old same-tick one under
+/// [`OldStepInput`].
+pub(crate) fn stand_in_step_input(kin: crate::v026g::bots::kin::StepInput) -> crate::v026g::bots::kin::StepInput {
+    if OLD_STEP_INPUT.get() { crate::v026g::bots::kin::StepInput::Same } else { kin }
+}
+
+/// The stand-in's old step order ([`crate::v026g::bots::kin::StepInput::Same`]: a tick moves with its own input) for this thread
+/// while it lives (tests whose pinned numbers predate it).
+pub(crate) struct OldStepInput(());
+
+impl OldStepInput {
+    pub(crate) fn scope() -> Self {
+        OLD_STEP_INPUT.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldStepInput {
+    fn drop(&mut self) {
+        OLD_STEP_INPUT.set(false);
+    }
 }
 
 /// The stand-in's slide before the round one ([`crate::v026g::bots::kin::WallSlide::Diagonal`]) for this thread while it lives
