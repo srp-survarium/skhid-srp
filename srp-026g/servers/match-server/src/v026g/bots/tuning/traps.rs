@@ -52,9 +52,10 @@ pub struct TrapTuning {
     /// soft ring; where that leaves no way (a corridor), the search falls back to `FIELD_M`. At the defaults the habit caught its own
     /// side as often as the enemy (A318 check, every bench's OFF arm: 123 own vs 106 enemy catches): 72 % were mates, most 10 s or
     /// more after the press, walking a route past a known trap with only 0.75 m against a 0.6 m trigger and the body's drift. A bot
-    /// already within `hard_m` of a trap (its placer) may still take the floors farther from it than its feet. [A324] On by
-    /// default at the size the client and the measured walk give (`KeepOff::hard_m`): of 23 own-team catches on the farming-camper
-    /// probe (seed 5) 9 were routes passing a known trap 0.62-0.83 m off.
+    /// already within `hard_m` of a trap (its placer) may still take the floors farther from it than its feet. [A324] **On by
+    /// default**, kept right (`KEPT_RIGHT`), at the size the client's trigger reach and the measured walk give (`KeepOff::hard_m`):
+    /// the old 0.75 m lets a route pass inside the reach where a body touches the trap; of 23 own-team catches on the
+    /// farming-camper probe (seed 5) 9 were routes passing a known trap 0.62-0.83 m off.
     pub keep_off: Option<KeepOff>,
     /// [A324] How a world's trap confirms a bot's promise (`trap_know::TrapList::sync`). Reach by default, kept right
     /// (`KEPT_RIGHT`): on the farming-camper probe 3 of 8 promises dropped unconfirmed had a real trap placed at the very release
