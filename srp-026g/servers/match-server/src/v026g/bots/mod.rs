@@ -56,6 +56,7 @@ pub mod grenade_threat;
 pub mod group;
 pub mod guns;
 pub mod hazards;
+pub mod jump_arc;
 #[cfg(feature = "jump-test")]
 pub mod jump_test;
 pub mod kin;
@@ -1111,6 +1112,12 @@ impl Bots {
         self.tracker.set_prior_levels(levels);
     }
 
+    /// [A331] `place`'s kit in use's computed speed factors, for each weapon it could have in hands, the primary's first
+    /// (`survarium::v026g::bot_skills::profile_movement_candidates`; `BodyTrack::set_speed_candidates`).
+    pub fn set_speed_candidates(&mut self, place: Place, candidates: Vec<f32>) {
+        self.tracker.set_speed_candidates(place, candidates);
+    }
+
     /// What every place's throw keys throw, for the live list
     /// ([`live_grenades`]).
     pub fn set_throws(&mut self, throws: Vec<live_grenades::Throws>) {
@@ -1453,7 +1460,7 @@ impl Bots {
         let rows = self.jump_test.as_mut().map(jump_test::JumpTest::take_fresh).unwrap_or_default();
         let mut notes = Vec::new();
         for row in rows {
-            let fix = Fix {
+            let fix = Fix { fall: None,
                 time: row.time,
                 alive: row.alive,
                 inserted: row.inserted,

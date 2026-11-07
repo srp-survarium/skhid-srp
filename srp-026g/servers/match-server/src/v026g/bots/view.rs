@@ -28,11 +28,12 @@
 //!   walked off with unaware.)
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
-use mapdata::{Vec3, World};
+use mapdata::{RayTree, Vec3, World};
 
 use super::arc::{self, Flight, Grenade, Mesh};
-use super::body::{BodyTrack, Fix};
+use super::body::{self, BodyTrack, Fix};
 use super::kin::Kinematics;
 use super::objective::ObjectiveMap;
 use super::live_grenades::{
@@ -547,6 +548,9 @@ pub struct Tracker {
     shot_reach: Vec<Option<f32>>,
     deaths: VecDeque<Death>,
     world_time: u32,
+    /// [A318] The map's walker-mesh walls for the jump arc ([`body::walker_walls`]), built the first time `kin.jump_arc` needs
+    /// them: one per match.
+    walker: Option<Arc<RayTree>>,
     /// What the sprint-sound rule and the use ray did, by team (a carrier guess reads them through `&self`).
     activity: std::cell::Cell<[SenseActivity; 2]>,
     /// The bench only: by place, a bot seen as a human is, its body known
@@ -623,7 +627,14 @@ impl Tracker {
             jitter_walks: Default::default(),
             #[cfg(test)]
             seen_reach: Vec::new(),
+            walker: None,
         }
+    }
+
+    /// [A318] The jump arc's walls for `world` while `kin.jump_arc` is on (none while off: nothing is built).
+    fn arc_walls(&mut self, kin: &Kinematics, world: Option<&World>) -> Option<Arc<RayTree>> {
+        let world = world.filter(|_| kin.jump_arc)?;
+        Some(self.walker.get_or_insert_with(|| body::walker_walls(world)).clone())
     }
 
     /// The map's containers: by id, (team, place).
@@ -735,10 +746,24 @@ impl Tracker {
         }
     }
 
+    /// [A331] `place`'s kit in use's computed speed factors ([`BodyTrack::set_speed_candidates`]).
+    pub fn set_speed_candidates(&mut self, place: Place, candidates: Vec<f32>) {
+        if let Some(state) = self.places.get_mut(place) {
+            state.body.set_speed_candidates(candidates);
+        }
+    }
+
     /// [A313] The legs' term of the speed factor `place`'s body moves by ([`BodyTrack::set_legs`]).
     pub fn set_legs(&mut self, place: Place, factor: Option<f32>) {
         if let Some(state) = self.places.get_mut(place) {
             state.body.set_legs(factor);
+        }
+    }
+
+    /// [A318] Whether a jump `place`'s body presses next would go ([`BodyTrack::set_may_jump`]).
+    pub fn set_may_jump(&mut self, place: Place, may: bool) {
+        if let Some(state) = self.places.get_mut(place) {
+            state.body.set_may_jump(may);
         }
     }
 
@@ -908,6 +933,7 @@ impl Tracker {
         kin: &Kinematics,
         world: Option<&World>,
     ) {
+        let walls = self.arc_walls(kin, world);
         let Some(state) = self.places.get_mut(place) else {
             return;
         };
@@ -917,6 +943,7 @@ impl Tracker {
         state.last_input = Some(time);
         let pressed = keys & !state.keys;
         state.keys = keys;
+        state.body.set_walls(walls);
         state
             .body
             .decided(time, keys, turn, kick, kin, world.map(|world| &*world.grid));
@@ -1274,11 +1301,17 @@ impl Tracker {
     pub fn fixed(
         &mut self,
         place: Place,
-        fix: Fix,
+        mut fix: Fix,
         health: Option<f32>,
         kin: &Kinematics,
         world: Option<&World>,
     ) -> bool {
+        let walls = self.arc_walls(kin, world);
+        // [A331] A battery carrier does not sprint (the owner; `can_sprint` 0x2DBF40, LIKELY): the believed carrier's world keys
+        // move its body at a run, and its level is read against the run.
+        if kin.carrier_sprint == super::kin::CarrierSprint::Refused && self.carries.iter().any(|carry| carry.carrier == Some(place)) {
+            fix.keys &= !key::SPRINT;
+        }
         let Some(state) = self.places.get_mut(place) else {
             return false;
         };
@@ -1292,6 +1325,7 @@ impl Tracker {
         if let Some(health) = health {
             state.health = health;
         }
+        state.body.set_walls(walls);
         state.body.fixed(fix, kin, world.map(|world| &*world.grid))
     }
 
@@ -1706,7 +1740,7 @@ mod tests {
     use super::*;
 
     fn fix(time: u32, feet: Vec3) -> Fix {
-        Fix {
+        Fix { fall: None,
             time,
             alive: true,
             inserted: 10,
@@ -1899,7 +1933,7 @@ mod tests {
         for place in 0..3 {
             tracker.entered(place, true);
         }
-        let dead = |time: u32| Fix {
+        let dead = |time: u32| Fix { fall: None,
             alive: false,
             feet: None,
             ..fix(time, Vec3::ZERO)
@@ -1947,7 +1981,7 @@ mod tests {
         assert!(new.is_empty());
         // A life a world showed, then its death: its own spot.
         let there = Vec3::new(30.0, 0.0, 2.0);
-        let respawned = Fix {
+        let respawned = Fix { fall: None,
             inserted: 3_500,
             ..fix(4_000, there)
         };
@@ -2024,7 +2058,7 @@ mod tests {
         }
 
         fn stand(&mut self, place: Place, time: u32, feet: Vec3, yaw: f32, pitch: f32) {
-            let fix = Fix {
+            let fix = Fix { fall: None,
                 yaw,
                 pitch,
                 ..fix(time, feet)

@@ -25,7 +25,7 @@ fn blind_walk_after_a_mid_air_world() {
     let kin = Kinematics::default();
     let mut track = BodyTrack::default();
     let feet = Vec3::new(-50.24, 4.17, 31.32);
-    let fix = Fix { time: 28_650, alive: true, inserted: 1, feet: Some(feet), yaw: -1.37, pitch: 0.0, keys: 513, speed: Some(5.08) };
+    let fix = Fix { fall: None, time: 28_650, alive: true, inserted: 1, feet: Some(feet), yaw: -1.37, pitch: 0.0, keys: 513, speed: Some(5.08) };
     track.fixed(fix, &kin, Some(&world.grid));
     let goal = Vec3::new(-38.38, 1.96, 33.67);
     let at = track.estimate().copied().unwrap();
@@ -46,6 +46,7 @@ fn walk_with_no_worlds_after_3s(blind_stop_ms: Option<u32>, until: u32) -> (Vec3
     let goal = Vec3::new(50.0, 0.0, 35.0);
     let mut tuning = Tuning::default();
     tuning.unstick.blind_stop_ms = blind_stop_ms;
+    tuning.kin.step_input = crate::v026g::bots::kin::StepInput::Same;
     let teams = [0u8, 1];
     let mut bots = Bots::new(0xB11D, survarium::v026g::maps::RuleMode::TeamDeathmatch, 0, &teams, &[true, false], &[None, None], Arc::new(tuning), Trace::none(0));
     bots.map_ready(world.clone());
@@ -103,6 +104,9 @@ fn walk_with_no_worlds_after_3s(blind_stop_ms: Option<u32>, until: u32) -> (Vec3
 /// With no world for 4 s the walk stands (tuned), until a world comes; untuned it walks on to the goal on its reckoning.
 #[test]
 fn a_bot_with_no_world_for_the_tuned_time_stands_still() {
+    // [A318] Pinned to the old step order (bots and stand-in): with the client's (`kin::StepInput::Previous` both sides) a bot's own
+    // keys act a tick later and the motor does not plan for it yet; the motor follow-up (fx-zones, after #1435) lifts this.
+    let _step = super::standin_jump::OldStepInput::scope();
     let (_, far) = walk_with_no_worlds_after_3s(None, 25_000);
     assert!(far < 3.0, "untuned, the walk goes on to the goal: {far} m off");
     let (at, left) = walk_with_no_worlds_after_3s(Some(4_000), 25_000);

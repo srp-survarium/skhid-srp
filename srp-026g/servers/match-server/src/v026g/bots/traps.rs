@@ -46,7 +46,7 @@ use super::route_end::RouteEnd;
 use super::route_filter::RouteFilter;
 use super::think::Due;
 use super::trap_know::TrapField;
-use super::tuning::{Stayer, TrapLanes, TrapTuning};
+use super::tuning::{PressClear, Stayer, TrapLanes, TrapRelease, TrapTuning};
 use super::view::PlaceView;
 use super::{Bot, TeamState};
 
@@ -157,10 +157,15 @@ pub enum Why {
     NoFloor,
     /// No look of the pose reaches the floor (the spot is too far below, or the ray too short).
     NoLook,
+    /// [A324] The head ray meets ground too steep for the client to place on (`TrapRelease::Client`).
+    Slope,
+    /// [A324] ... or a known trap's sensor (`TrapRelease::Client`).
+    OnTrap,
 }
 
 impl Why {
-    pub const ALL: [Self; 6] = [Self::Yaw, Self::Pitch, Self::TooNear, Self::OnRoute, Self::NoFloor, Self::NoLook];
+    pub const ALL: [Self; 8] =
+        [Self::Yaw, Self::Pitch, Self::TooNear, Self::OnRoute, Self::NoFloor, Self::NoLook, Self::Slope, Self::OnTrap];
 
     pub const fn index(self) -> usize {
         match self {
@@ -170,6 +175,8 @@ impl Why {
             Self::OnRoute => 3,
             Self::NoFloor => 4,
             Self::NoLook => 5,
+            Self::Slope => 6,
+            Self::OnTrap => 7,
         }
     }
 
@@ -181,6 +188,8 @@ impl Why {
             Self::OnRoute => "on route",
             Self::NoFloor => "no floor",
             Self::NoLook => "no look",
+            Self::Slope => "slope",
+            Self::OnTrap => "on a trap",
         }
     }
 }
@@ -458,7 +467,7 @@ pub struct LookOutcomes {
     pub placed: u32,
     pub called_away: u32,
     /// Gave up, by the last [`Why`] ([`Why::index`]).
-    pub gave_up: [u32; 6],
+    pub gave_up: [u32; Why::ALL.len()],
     /// Gave up with nothing to name (the look ran out before a tick of it was judged).
     pub gave_up_unjudged: u32,
 }
@@ -690,6 +699,233 @@ pub fn homes_of(map: &mapdata::project::MapData, side: Option<i32>) -> Option<(V
         (n > 0.0).then(|| Vec3::new(points.iter().map(|p| p.x).sum::<f32>() / n, 0.0, points.iter().map(|p| p.z).sum::<f32>() / n))
     };
     Some((centre(true)?, centre(false)?))
+}
+
+/// [A318, fx-gear-2; A324] The way back to a held `spot` from `home` (a floor of his side's spawns): the way searched between them
+/// (open floors, as anyone walks it), and on it one point every `step_m` from `near_m` to `far_m` before the spot, nearest first.
+/// None when either end has no floor or no way joins them.
+pub fn approach_points(tactics: &super::tactics::Tactics, home: Vec3, spot: Vec3, j: &super::tuning::CamperJob, now: u32) -> Vec<Vec3> {
+    let grid = &tactics.world.grid;
+    let (Some(from), Some(to)) = (super::path::goal_floor(grid, home), super::path::goal_floor(grid, spot)) else {
+        return Vec::new();
+    };
+    let Some(route) = tactics.route_nodes(from, to, now, None, false, &RouteFilter::open()) else {
+        return Vec::new();
+    };
+    let length = route.length();
+    let mut points = Vec::new();
+    let mut back = j.near_m;
+    while back <= j.far_m && back < length {
+        points.push(route.point_at(length - back));
+        back += j.step_m;
+    }
+    points
+}
+
+/// [A324] The eye of a camper on his spot, for the "out of his sight" test (a standing eye: `view::eye_height`).
+const CAMPER_EYE_M: f32 = 1.6;
+/// [A324] ... and the part of a placer it would see: a crouched body's chest.
+const PLACER_CHEST_M: f32 = 0.9;
+
+/// [A324] The team's camper trap jobs at a commander tick (`TrapTuning::camper_job`): `held` the team's held spots, `job_spots`
+/// the spots its K2 jobs run on, `died` the jobs its shooter's death ended this tick (spot, shooter). A point is added for his way
+/// back on each job's spot (the first point of the way from his side's nearest spawn, `near_m`..`far_m` before the spot, that the
+/// spot's eye does not see), and for his death point when he dies there; the nearest free bot with a trap within `max_walk_m` is
+/// sent to each (`plays::trap_spot`); a point is dropped when its bot put a trap down, when the job is over (his way back) or its
+/// time is (his death point). A bot not done in `give_up_s` is let go.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn camper_tick(
+    bots: &[Option<Bot>],
+    knowledge: &mut super::know::TeamKnowledge,
+    view: &super::view::MatchView,
+    tactics: &super::tactics::Tactics,
+    t: &TrapTuning,
+    team: u8,
+    held: &[super::threat::HeldLine],
+    job_spots: &[u32],
+    died: &[(u32, super::view::Place)],
+    now: u32,
+    notes: &mut Vec<super::Note>,
+) {
+    use super::know::{CamperTrap, CamperTrapKind, CamperTrapState};
+    let Some(j) = t.camper_job else {
+        knowledge.camper_traps.clear();
+        knowledge.camper_no_way.clear();
+        return;
+    };
+    let side = bots.iter().flatten().find(|b| b.team == team).and_then(|b| b.side);
+    let mut said = Vec::new();
+    // His death on a spot: its point.
+    for &(spot, shooter) in died {
+        let Some(at) = view.deaths.iter().rev().find(|d| d.place == shooter).map(|d| d.at) else {
+            continue;
+        };
+        knowledge.camper_traps.retain(|c| c.spot != spot);
+        knowledge.camper_traps.push(CamperTrap { spot, shooter, at, kind: CamperTrapKind::Death { died: now }, state: CamperTrapState::Open });
+        #[cfg(test)]
+        camper::count(team, camper::NOTED_DEATH);
+        said.push(format!("team {team}: camper {shooter} died on spot {spot}: his death point ({:.1}, {:.1}, {:.1}) wants a trap", at.x, at.y, at.z));
+    }
+    // What is over: his way back with no job on the spot, his death point after its time, a point a standing trap of the team is on.
+    let standing: Vec<Vec3> = knowledge.traps.standing().map(|k| k.at).collect();
+    let death_ms = (j.death_keep_s * 1000.0) as u32;
+    knowledge.camper_traps.retain(|c| {
+        let live = match c.kind {
+            CamperTrapKind::Approach => job_spots.contains(&c.spot),
+            CamperTrapKind::Death { died } => now.saturating_sub(died) <= death_ms,
+        };
+        live && !standing.iter().any(|s| s.distance_xz(c.at) <= j.within_m)
+    });
+    knowledge.camper_no_way.retain(|spot| job_spots.contains(spot));
+    // His way back on each job's spot, found once a job.
+    let homes: Vec<Vec3> = tactics.world.map.spawns.iter().filter(|s| Some(s.team) != side).map(|s| s.position).collect();
+    for line in held.iter().filter(|l| job_spots.contains(&l.id)) {
+        if knowledge.camper_traps.iter().any(|c| c.spot == line.id) || knowledge.camper_no_way.contains(&line.id) {
+            continue;
+        }
+        let home = homes.iter().copied().min_by(|a, b| a.distance_xz(line.at).total_cmp(&b.distance_xz(line.at)));
+        let eye = line.at + Vec3::new(0.0, CAMPER_EYE_M, 0.0);
+        let point = home.map(|home| approach_points(tactics, home, line.at, &j, now)).unwrap_or_default().into_iter().find(|p| {
+            !tactics.in_spawn_area(*p, side) && !super::rays::visible(&tactics.world.sight, eye, *p + Vec3::new(0.0, PLACER_CHEST_M, 0.0))
+        });
+        match point {
+            Some(at) => {
+                knowledge.camper_traps.push(CamperTrap { spot: line.id, shooter: line.shooter, at, kind: CamperTrapKind::Approach, state: CamperTrapState::Open });
+                #[cfg(test)]
+                camper::count(team, camper::NOTED_APPROACH);
+                said.push(format!("team {team}: spot {} held by {}: his way back at ({:.1}, {:.1}, {:.1}) wants a trap", line.id, line.shooter, at.x, at.y, at.z));
+            }
+            None => {
+                knowledge.camper_no_way.push(line.id);
+                #[cfg(test)]
+                camper::count(team, camper::NO_WAY);
+            }
+        }
+    }
+    // The bots: who is done, who gave up, who goes.
+    let give_up_ms = (j.give_up_s * 1000.0) as u32;
+    let bot_of = |p: super::view::Place| bots.iter().flatten().find(|b| b.place == p);
+    let mut done = Vec::new();
+    for (i, c) in knowledge.camper_traps.iter_mut().enumerate() {
+        if let CamperTrapState::Sent { placer, since, placed_before } = c.state {
+            let alive = view.place(placer).is_some_and(|b| b.alive && b.carrying.is_none());
+            if bot_of(placer).is_some_and(|b| b.features.traps.habit.placed_this_life() > placed_before) {
+                #[cfg(test)]
+                camper::count(team, camper::PLACED);
+                done.push(i);
+            } else if !alive || now.saturating_sub(since) > give_up_ms {
+                #[cfg(test)]
+                {
+                    camper::count(team, camper::GAVE_UP);
+                    let playing = bot_of(placer).and_then(|b| b.assignment.as_ref()).is_some_and(|a| a.kind == PlayKind::TrapSpot);
+                    let near = view.place(placer).is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0);
+                    camper::count(team, if !playing { camper::GAVE_UP_NOT_PLAYING } else if near { camper::GAVE_UP_AT } else { camper::GAVE_UP_FAR });
+                }
+                c.state = CamperTrapState::Open;
+            }
+        }
+    }
+    for i in done.into_iter().rev() {
+        knowledge.camper_traps.remove(i);
+    }
+    let mut taken: Vec<super::view::Place> = knowledge
+        .camper_traps
+        .iter()
+        .filter_map(|c| match c.state {
+            CamperTrapState::Sent { placer, .. } => Some(placer),
+            CamperTrapState::Open => None,
+        })
+        .collect();
+    for c in knowledge.camper_traps.iter_mut().filter(|c| c.state == CamperTrapState::Open) {
+        let pick = bots
+            .iter()
+            .flatten()
+            .filter(|b| b.team == team && !taken.contains(&b.place))
+            .filter(|b| b.features.traps.habit.may_plan(t).is_ok())
+            .filter(|b| b.assignment.as_ref().is_none_or(|a| !urgent(a.kind) && !matches!(a.kind, PlayKind::Flank | PlayKind::Crossfire | PlayKind::Breach)))
+            .filter_map(|b| {
+                let body = view.place(b.place).filter(|p| p.alive && p.carrying.is_none())?;
+                let d = body.feet.distance_xz(c.at);
+                (d <= j.max_walk_m).then_some((b, d))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1));
+        let Some((b, d)) = pick else {
+            #[cfg(test)]
+            camper::count(team, camper::NO_PLACER);
+            continue;
+        };
+        c.state = CamperTrapState::Sent { placer: b.place, since: now, placed_before: b.features.traps.habit.placed_this_life() };
+        taken.push(b.place);
+        #[cfg(test)]
+        camper::count(team, camper::SENT);
+        said.push(format!("team {team}: bot {} sent to trap spot {}'s {:?} point, {d:.1} m off", b.place, c.spot, c.kind));
+    }
+    for text in said {
+        notes.push(super::Note { place: usize::MAX, time: now, text });
+    }
+}
+
+/// [A324] The camper trap point `place` is sent to, if any (`TrapTuning::camper_job`).
+pub fn camper_point(knowledge: &super::know::TeamKnowledge, place: super::view::Place) -> Option<&super::know::CamperTrap> {
+    knowledge.camper_traps.iter().find(|c| matches!(c.state, super::know::CamperTrapState::Sent { placer, .. } if placer == place))
+}
+
+/// [A324] The bench's counts of the camper trap jobs, by team: points noted (his way back, his death point), spots with no way
+/// back out of his sight, ticks with an open point and no free bot, bots sent, let go, and traps put down by a sent bot.
+#[cfg(test)]
+pub mod camper {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const NOTED_APPROACH: usize = 0;
+    pub const NOTED_DEATH: usize = 1;
+    pub const NO_WAY: usize = 2;
+    pub const NO_PLACER: usize = 3;
+    pub const SENT: usize = 4;
+    pub const GAVE_UP: usize = 5;
+    pub const PLACED: usize = 6;
+    /// Let go: its play was not `TrapSpot` then; it was farther from the point than it places from; it was at the point.
+    pub const GAVE_UP_NOT_PLAYING: usize = 7;
+    pub const GAVE_UP_FAR: usize = 8;
+    pub const GAVE_UP_AT: usize = 9;
+    /// Thinks of a sent bot: on its way; at the point refused by the gate; no look; no spot by the point; waited for it; a trap
+    /// planned by the point; one planned elsewhere; a `TrapSpot` play whose job is over (nothing planned).
+    pub const THINK_WALKING: usize = 10;
+    pub const THINK_GATE: usize = 11;
+    pub const THINK_NO_LOOK: usize = 12;
+    pub const THINK_NO_SPOT: usize = 13;
+    pub const THINK_WAITED: usize = 14;
+    pub const THINK_PLANNED: usize = 15;
+    pub const THINK_PLANNED_ELSE: usize = 16;
+    pub const THINK_JOB_OVER: usize = 17;
+    pub const NAMES: [&str; 18] = [
+        "noted_approach", "noted_death", "no_way", "no_placer_ticks", "sent", "gave_up", "placed", "gave_up_not_playing", "gave_up_far",
+        "gave_up_at", "think_walking", "think_gate", "think_no_look", "think_no_spot", "think_waited", "think_planned",
+        "think_planned_else", "think_job_over",
+    ];
+    static TEAM: [[AtomicU64; 18]; 2] = [const { [const { AtomicU64::new(0) }; 18] }; 2];
+
+    pub fn count(team: u8, kind: usize) {
+        TEAM[usize::from(team & 1)][kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The gate's refusals of a sent bot at its point, in `gates::of` order from Play on.
+    pub const GATE_NAMES: [&str; 8] = ["play", "carrying", "health", "enemy", "hit", "reloading", "team_cap", "other"];
+    static GATE: [[AtomicU64; 8]; 2] = [const { [const { AtomicU64::new(0) }; 8] }; 2];
+
+    pub fn gate(team: u8, k: usize) {
+        GATE[usize::from(team & 1)][k.min(7)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn line() -> String {
+        (0..2)
+            .map(|team| {
+                let mut parts: Vec<String> = NAMES.iter().enumerate().map(|(k, n)| format!("{n} {}", TEAM[team][k].load(Ordering::Relaxed))).collect();
+                parts.extend(GATE_NAMES.iter().enumerate().map(|(k, n)| format!("gate_{n} {}", GATE[team][k].load(Ordering::Relaxed))));
+                format!("team {team}: {}", parts.join(", "))
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
 }
 
 /// [A309] How far forward `at` lies on the way from `own` to `enemy`: `d_own / (d_own + d_enemy)` on the ground (0 at home, 1 at
@@ -1035,6 +1271,28 @@ pub fn landing(eye: Vec3, yaw: f32, pitch: f32, floor_y: f32) -> Option<Vec3> {
     Some(Vec3::new(eye.x + d[0] * run, floor_y, eye.z + d[1] * run))
 }
 
+/// [A324] The client's ground for a trap: flat at least this (normal.y, cos 30 deg; `bear_traps.md`, PROVEN).
+pub const PLACE_FLAT_Y: f32 = 0.866;
+/// [A324] A trap is not placed on an armed trap's sensor: within [`TRIGGER_M`] on the ground and this high (PROVEN).
+pub const SENSOR_TOP_M: f32 = 0.22;
+
+/// [A324] Where a trap let go of from `eye` with the view `yaw`, `pitch` lies by the client's rule (`TrapRelease::Client`):
+/// the head ray meets `mesh` within [`PLACE_RAY_M`], on ground flat to [`PLACE_FLAT_Y`], not on the sensor of a trap at
+/// `traps`; else why the client places nothing.
+pub fn client_landing(mesh: &mapdata::RayTree, eye: Vec3, yaw: f32, pitch: f32, traps: &[Vec3]) -> Result<Vec3, Why> {
+    let d = dir(yaw);
+    let ray = Vec3::new(d[0] * pitch.cos(), pitch.sin(), d[1] * pitch.cos());
+    let hit = mesh.ray_hit(eye, ray, PLACE_RAY_M).ok_or(Why::NoFloor)?;
+    if hit.normal.y < PLACE_FLAT_Y {
+        return Err(Why::Slope);
+    }
+    let at = eye + ray * hit.t;
+    if traps.iter().any(|trap| trap.distance_xz(at) <= TRIGGER_M && (at.y - trap.y).abs() <= SENSOR_TOP_M) {
+        return Err(Why::OnTrap);
+    }
+    Ok(at)
+}
+
 /// The eye a body at `feet` has with the view at `view_pitch` (up positive), crouched or standing, the crouched one at
 /// the height of holding still (`view::eye_height`): the lower, so a trap lands at least as far as counted on.
 fn eye_for(feet: Vec3, crouched: bool, view_pitch: f32) -> Vec3 {
@@ -1084,7 +1342,7 @@ pub fn press_look(crouched: bool, run_m: f32, drop_m: f32) -> Option<PressLook> 
 }
 
 /// The distance the look aims the landing at: `reach_m` or the landing the tuning asks, with the margin.
-fn wanted_m(t: &TrapTuning, min_m: f32) -> f32 {
+pub(crate) fn wanted_m(t: &TrapTuning, min_m: f32) -> f32 {
     t.reach_m.max(min_m + LANDING_MARGIN_M)
 }
 
@@ -1277,6 +1535,22 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         return;
     }
     bot.features.traps.tally.think();
+    // [A324] A bot the team sent to a camper's point (`camper_job`): no trap elsewhere on its way; at the point, the job's gate (an
+    // enemy seen, not one known near: the camper himself is known there) and no chance roll.
+    let job = t.camper_job.and_then(|j| camper_point(&state.knowledge, bot.place).map(|c| (c.at, j)));
+    if let Some((at, j)) = job
+        && me.feet.distance_xz(at) > j.within_m + t.reach_m + 1.0
+    {
+        #[cfg(test)]
+        camper::count(me.team, camper::THINK_WALKING);
+        return;
+    }
+    // A job's play whose job is over (placed, let go, its time out): no trap on the rest of its way.
+    if job.is_none() && bot.assignment.as_ref().is_some_and(|a| a.kind == PlayKind::TrapSpot) {
+        #[cfg(test)]
+        camper::count(me.team, camper::THINK_JOB_OVER);
+        return;
+    }
     #[cfg(test)]
     let waiting = bot.features.traps.pass_wait.is_some();
     let facts = Facts {
@@ -1284,7 +1558,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         play: bot.assignment.as_ref().map(|a| a.kind),
         carrying: me.carrying.is_some(),
         health: me.health,
-        enemy: enemy_near(bot, due),
+        enemy: if job.is_some() { !bot.memory.all_seen(due.now, due.view.clock).is_empty() } else { enemy_near(bot, due) },
         last_hit: bot.hurt.last_hit_ms,
         reloading: bot
             .reflex
@@ -1305,10 +1579,14 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             if waiting {
                 onpass::count(me.team, onpass::LOST_GATE);
             }
+            if job.is_some() {
+                camper::count(me.team, camper::THINK_GATE);
+                camper::gate(me.team, gates::of(refusal) - gates::of(Refusal::Play(PlayKind::Collect)));
+            }
         }
         return;
     }
-    if bot.rng.unit() >= t.chance {
+    if job.is_none() && bot.rng.unit() >= t.chance {
         bot.features.traps.tally.chance();
         #[cfg(test)]
         {
@@ -1355,7 +1633,12 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             None => {
                 bot.features.traps.tally.no_look();
                 #[cfg(test)]
-                gates::count(gates::NO_LOOK);
+                {
+                    gates::count(gates::NO_LOOK);
+                    if job.is_some() {
+                        camper::count(me.team, camper::THINK_NO_LOOK);
+                    }
+                }
                 return;
             }
         },
@@ -1413,6 +1696,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         }
         None => Vec::new(),
     };
+    let job_spots: Vec<Vec3> = job.map(|(at, _)| at).into_iter().collect();
     let wish = match t.at_cleared.filter(|_| !cleared_spots.is_empty()) {
         Some(c) => Some(Wish {
             spots: &cleared_spots,
@@ -1425,7 +1709,12 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             friend_m: d.friend_m,
         }),
     };
-    let on_cleared = !cleared_spots.is_empty();
+    // [A324] The job's point goes before every other.
+    let wish = match job {
+        Some((_, j)) => Some(Wish { spots: &job_spots, within_m: j.within_m, friend_m: j.friend_m }),
+        None => wish,
+    };
+    let on_cleared = !cleared_spots.is_empty() && job.is_none();
     let search = Search {
         t,
         reach_m,
@@ -1469,6 +1758,10 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
                 defeated::count_team(me.team, defeated::WAITED);
             }
             bot.features.traps.tally.waited_wish();
+            #[cfg(test)]
+            if job.is_some() {
+                camper::count(me.team, camper::THINK_WAITED);
+            }
             return;
         }
     }
@@ -1508,7 +1801,19 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     }
     #[cfg(test)]
     gates::count(if chosen.is_some() { gates::PLANNED } else { gates::NO_SPOT });
-    if let Some(chosen) = chosen {
+    #[cfg(test)]
+    if job.is_some() {
+        camper::count(
+            me.team,
+            match chosen {
+                Some(c) if c.wished => camper::THINK_PLANNED,
+                Some(_) => camper::THINK_PLANNED_ELSE,
+                None => camper::THINK_NO_SPOT,
+            },
+        );
+    }
+    // [A324] A sent bot puts its trap only by its point.
+    if let Some(chosen) = chosen.filter(|c| job.is_none() || c.wished) {
         #[cfg(test)]
         if chosen.wished && on_cleared {
             cleared::placed(me.team, bot.place, due.now);
@@ -2053,6 +2358,7 @@ pub(super) fn drive(
     calm: bool,
     crouch: bool,
     t: &TrapTuning,
+    mesh: Option<&mapdata::RayTree>,
 ) -> Option<TrapDrive> {
     let state = bot.features.traps.habit.state();
     // [A292 S4a] From its press to the think that puts the trap in its field (and re-plans round it), the legs stay.
@@ -2071,7 +2377,7 @@ pub(super) fn drive(
         State::Down { crouched, .. } => crouched,
         _ => crouch,
     };
-    let aim = aim_of(bot, me, crouched, t);
+    let aim = aim_of(bot, me, crouched, t, mesh);
     let out = bot.features.traps.habit.tick(
         Tick {
             now,
@@ -2116,7 +2422,11 @@ pub(super) fn drive(
         } else {
             me.eye()
         };
-        let landed = landing(eye, me.yaw, me.pitch, planned.y);
+        // [A324] By the client's rule: no promise where the client puts nothing, and the promise on the trap itself.
+        let landed = match (t.release, mesh) {
+            (TrapRelease::Client, Some(mesh)) => client_landing(mesh, eye, me.yaw, me.pitch, bot.features.traps.field.discs()).ok(),
+            _ => landing(eye, me.yaw, me.pitch, planned.y),
+        };
         bot.features.traps.placed = landed.map(|at| (at, now));
         bot.features.traps.pressed_at = landed.map(|_| now);
         // [A309] The placer keeps off its fresh trap for a while (`traps.fresh_ring`).
@@ -2129,14 +2439,16 @@ pub(super) fn drive(
             // [A309] The bench's press line: where, what chose it, which way the placer walked.
             let (source, way, to_home, share) = bot.features.traps.planned_by.unwrap_or(("unknown", "unknown", 0.0, -1.0));
             eprintln!(
-                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m forward {share:.2} play {:?} speed {:.1}",
+                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m forward {share:.2} play {:?} speed {:.1} path1s {:.2}",
                 bot.place,
                 bot.team,
                 at.x,
                 at.z,
                 now,
                 bot.assignment.as_ref().map(|a| a.kind),
-                me.speed()
+                me.speed(),
+                // [A324] How near the landing lies to the body's own path over the next second (`traps.press_clear`).
+                swept_m(me.feet, me.velocity, 1.0, at)
             );
         }
         // [A292] The press: its note and count.
@@ -2200,7 +2512,7 @@ fn held_after_press(bot: &Bot, now: u32, t: &TrapTuning) -> bool {
 /// What the habit waits for this tick: the steepness of the look and whether a press would land right, from the
 /// pose the bot has (it may have changed since the plan: the walk, a crouch). Worked out only while looking and
 /// pressing; with `press_landing_m` off always the steepest look and no condition.
-fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
+fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning, mesh: Option<&mapdata::RayTree>) -> Aim {
     let Some(min_m) = t.press_landing_m else {
         return Aim::Steepest;
     };
@@ -2216,8 +2528,17 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
             let lead = Vec3::new(me.velocity[0] * RELEASE_LEAD_S, 0.0, me.velocity[1] * RELEASE_LEAD_S);
             let feet = me.feet + lead;
             let view = (me.pitch - PRESS_SLACK).max(-STEEPEST.0);
-            let landed = landing(eye_for(feet, crouched, view), me.yaw, view, spot.y);
-            let press = press_of(t, landed, feet, staying, || route_ahead(bot, me, t).0);
+            let eye = eye_for(feet, crouched, view);
+            // [A324] Where the client puts it, or why it puts nothing there (`traps.release`).
+            let landed = match (t.release, mesh) {
+                (TrapRelease::Client, Some(mesh)) => client_landing(mesh, eye, me.yaw, view, bot.features.traps.field.discs()),
+                _ => landing(eye, me.yaw, view, spot.y).ok_or(Why::NoFloor),
+            };
+            let press = match landed {
+                Ok(at) => press_of(t, Some(at), feet, staying, || route_ahead(bot, me, t).0),
+                Err(why) => Press::Wait(why),
+            };
+            let landed = landed.ok();
             // [A292 S4a] Not where the body itself runs on to over the next moment.
             let press = match (press, t.after_press, landed) {
                 (Press::Ready, Some(a), Some(at)) if swept_m(me.feet, me.velocity, a.sweep_s, at) < a.clear_m => Press::Wait(Why::OnRoute),
@@ -2226,6 +2547,17 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
             // [A309] Nor while the body is slow: a slow placer stays by its trap (`traps.press_moving`).
             let press = match (press, t.press_moving) {
                 (Press::Ready, Some(p)) if me.speed() < p.min_speed_ms => Press::Wait(Why::OnRoute),
+                (press, _) => press,
+            };
+            // [A324] Nor on its own way: the client's trap is armed at once and takes its placer's foot (`traps.press_clear`).
+            let press = match (press, landed) {
+                (Press::Ready, Some(at))
+                    if !clears_own_path(t.press_clear, me.feet, me.velocity, at, || {
+                        if staying { Vec::new() } else { route_ahead(bot, me, t).0 }
+                    }) =>
+                {
+                    Press::Wait(Why::OnRoute)
+                }
                 (press, _) => press,
             };
             Aim::Look {
@@ -2243,6 +2575,26 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
         }
         _ => Aim::NoLook,
     }
+}
+
+/// [A324] Whether a trap at `at` lies clear of the body's own way at the press (`TrapTuning::press_clear`): the straight line of
+/// its velocity over `sweep_s`, and the route it walks (`route`: its points ahead, a metre apart, from its progress; empty for a
+/// bot that stays) for as far as it gets in that time, by `clear_m`. A walker turning with its route took its own trap 0.9 s after
+/// a press 1.21 m clear of its straight line (the A324 by-side check). Always with the switch off.
+fn clears_own_path(clear: Option<PressClear>, feet: Vec3, velocity: [f32; 2], at: Vec3, route: impl FnOnce() -> Vec<Vec3>) -> bool {
+    let Some(c) = clear else {
+        return true;
+    };
+    if swept_m(feet, velocity, c.sweep_s, at) < c.clear_m {
+        return false;
+    }
+    let reach_m = velocity[0].hypot(velocity[1]) * c.sweep_s;
+    if reach_m <= 0.0 {
+        return true;
+    }
+    // The feet, then the route's points within the reach (and the one past it): the stretch the legs take next.
+    let way: Vec<Vec3> = std::iter::once(feet).chain(route().into_iter().take(reach_m.ceil() as usize + 2)).collect();
+    off_route_m(&way, at) >= c.clear_m
 }
 
 /// [A292 S4a] How near `at` comes to the body's own path over the next `sweep_s` (its feet moved by its velocity), metres on
@@ -2528,7 +2880,7 @@ pub mod tally {
         pressed_air: u32,
         called_away: u32,
         /// Looks given up, by the last [`Why`] ([`Why::index`]), and with nothing to name.
-        gave_up: [u32; 6],
+        gave_up: [u32; Why::ALL.len()],
         gave_up_unjudged: u32,
     }
 
@@ -3541,6 +3893,35 @@ mod tests {
         assert!(tuning.check().is_ok());
     }
 
+    /// A324: the client's trap is armed at once and takes its placer's foot within 0.6 m, so the press waits while the landing
+    /// lies on the body's own way over the next second (`press_clear`), as the walker caught 0.3 s after its press in the F2 run
+    /// (2.3 m/s, its landing about 1.1 m ahead); a landing aside or behind, or a standing body, presses.
+    #[test]
+    fn the_press_waits_while_the_landing_lies_on_the_bodys_own_way() {
+        let clear = t().press_clear;
+        assert!(clear.is_some(), "on by default");
+        let feet = Vec3::new(0.0, 0.0, 0.0);
+        let walking = [2.3, 0.0];
+        let none = Vec::new;
+        assert!(!clears_own_path(clear, feet, walking, Vec3::new(1.1, 0.0, 0.1), none), "straight ahead");
+        assert!(!clears_own_path(clear, feet, walking, Vec3::new(0.8, 0.0, 0.8), none), "45 deg ahead: 0.8 m off the way");
+        assert!(clears_own_path(clear, feet, walking, Vec3::new(0.3, 0.0, 1.1), none), "aside");
+        assert!(clears_own_path(clear, feet, walking, Vec3::new(-1.1, 0.0, 0.2), none), "behind");
+        assert!(clears_own_path(clear, feet, [0.0, 0.0], Vec3::new(1.1, 0.0, 0.0), none), "standing");
+        assert!(clears_own_path(None, feet, walking, Vec3::new(1.1, 0.0, 0.1), none), "off: the old press");
+        // A route that turns: 1 m on along +x, then towards +z, where the trap lies aside of the straight line.
+        let turning = || vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 2.0)];
+        let aside = Vec3::new(0.3, 0.0, 1.2);
+        assert!(clears_own_path(clear, feet, walking, aside, none), "clear of the straight line");
+        assert!(!clears_own_path(clear, feet, walking, aside, turning), "on the route's turn");
+        let far_on = || vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(2.0, 0.0, 0.0), Vec3::new(3.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0), Vec3::new(6.0, 0.0, 1.2)];
+        assert!(clears_own_path(clear, feet, walking, Vec3::new(6.0, 0.0, 1.2), far_on), "past the second's reach");
+        let mut tuning = t();
+        assert!(tuning.check().is_ok());
+        tuning.press_clear = Some(PressClear { clear_m: 0.5, sweep_s: 1.0 });
+        assert!(tuning.check().is_err(), "inside the client's trigger");
+    }
+
     /// A292 S4a: the swept path is the body's own, from its feet along its velocity for `sweep_s`.
     #[test]
     fn the_swept_path_is_the_feet_along_the_velocity() {
@@ -3551,5 +3932,56 @@ mod tests {
         assert!((swept_m(feet, [3.0, 0.0], 1.0, Vec3::new(-1.0, 0.0, 0.0)) - 1.0).abs() < 1e-4);
         // Standing: the feet alone.
         assert!((swept_m(feet, [0.0, 0.0], 1.0, Vec3::new(0.0, 0.0, 1.2)) - 1.2).abs() < 1e-4);
+    }
+
+    /// [A324] The client's rule for where a released trap lies: on flat ground the head ray's hit; on a slope steeper than
+    /// 30 deg, on a known trap's sensor, or with no ground within 2.0 m, nothing (and why).
+    #[test]
+    fn a_trap_lies_where_the_client_puts_it_or_nowhere() {
+        let quad = |y0: f32, y1: f32| {
+            let (a, b, c, d) =
+                (Vec3::new(-10.0, y0, -10.0), Vec3::new(10.0, y1, -10.0), Vec3::new(10.0, y1, 10.0), Vec3::new(-10.0, y0, 10.0));
+            [[a, b, c], [a, c, d]]
+        };
+        let flat = mapdata::RayTree::from_corners(quad(0.0, 0.0));
+        let eye = Vec3::new(0.0, 1.6, 0.0);
+        // 1.0 rad down from 1.6 m: the ray meets the floor 1.90 m out along it (0.9 rad would need 2.04 m, past the reach).
+        let pitch = -1.0;
+        let at = client_landing(&flat, eye, 0.0, pitch, &[]).expect("flat ground within reach");
+        assert!(at.y.abs() < 1e-3, "{at:?}");
+        let run = 1.6 / pitch.tan().abs();
+        let d = dir(0.0);
+        assert!(at.distance_xz(Vec3::new(d[0] * run, 0.0, d[1] * run)) < 1e-3, "{at:?}");
+        // The old plane guess lands at the same point on flat ground.
+        let plane = landing(eye, 0.0, pitch, 0.0).unwrap();
+        assert!(plane.distance_xz(at) < 1e-3);
+        // A slope of 45 deg (rise 20 m over 20 m): refused; one of 20 deg: placed.
+        assert_eq!(client_landing(&mapdata::RayTree::from_corners(quad(-10.0, 10.0)), eye, 0.0, -1.2, &[]), Err(Why::Slope));
+        let gentle = 20.0 * 20f32.to_radians().tan();
+        assert!(client_landing(&mapdata::RayTree::from_corners(quad(-gentle / 2.0, gentle / 2.0)), eye, 0.0, -1.2, &[]).is_ok());
+        // On an armed trap's sensor: refused; 0.7 m off it: placed.
+        assert_eq!(client_landing(&flat, eye, 0.0, pitch, &[at + Vec3::new(0.3, 0.0, 0.0)]), Err(Why::OnTrap));
+        assert!(client_landing(&flat, eye, 0.0, pitch, &[at + Vec3::new(0.0, 0.0, 0.7)]).is_ok());
+        // A look too flat for the 2.0 m ray to reach the floor: nothing.
+        assert_eq!(client_landing(&flat, eye, 0.0, -0.3, &[]), Err(Why::NoFloor));
+        assert_eq!(landing(eye, 0.0, -0.3, 0.0), None);
+    }
+
+    /// [A324, from fx-gear-2's A318] The way back to a spot: on an open field the way from home is about straight, so the points
+    /// lie 6, 9, ... 18 m before the spot, on the side of home; a way shorter than `near_m` gives none.
+    #[test]
+    fn the_way_back_to_a_spot_is_the_stretch_before_it() {
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let j = crate::v026g::bots::tuning::CamperJob::default();
+        let (home, spot) = (Vec3::new(10.0, 0.0, 10.0), Vec3::new(50.0, 0.0, 10.0));
+        let points = approach_points(&s.tactics, home, spot, &j, 1_000);
+        assert_eq!(points.len(), 5, "{points:?}");
+        for (k, at) in points.iter().enumerate() {
+            let d = at.distance_xz(spot);
+            let want = j.near_m + j.step_m * k as f32;
+            assert!((d - want).abs() < 1.5, "point {k} {at:?}: {d} m from the spot, want about {want}");
+            assert!(at.x < spot.x, "on home's side: {at:?}");
+        }
+        assert!(approach_points(&s.tactics, Vec3::new(46.0, 0.0, 10.0), spot, &j, 1_000).is_empty());
     }
 }

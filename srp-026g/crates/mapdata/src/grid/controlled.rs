@@ -59,14 +59,32 @@ pub struct ControlledStats {
     pub checks_kept: usize,
 }
 
+/// Where a walk starts a standing body on a floor ([`Body::walk_start_clear`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WalkStart {
+    /// [`out_of_walls`]: out of the faces above the step, by at most [`OUT_OF_WALLS_M`].
+    AboveStep,
+    /// [`out_of_faces`]: out of every steep face the standing capsule overlaps, by at most the capsule's radius.
+    Clear,
+}
+
+impl WalkStart {
+    fn place(self, world: &Collision, feet: Vec3) -> Vec3 {
+        match self {
+            WalkStart::AboveStep => out_of_walls(world, feet),
+            WalkStart::Clear => out_of_faces(world, feet),
+        }
+    }
+}
+
 /// [`walk_share`] on each of [`STARTS`]: the best share, and whether every line ended at `to`.
-fn walk_lines(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
+fn walk_lines(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> (f32, bool) {
     let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
     let l = flat.length();
     let side = if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO };
     let (mut best, mut all) = (0.0f32, true);
     for off in STARTS {
-        let (share, at) = walk_share(world, from + side * off, to + side * off);
+        let (share, at) = walk_share(world, s, start, from + side * off, to + side * off);
         best = best.max(share);
         all &= at;
     }
@@ -100,9 +118,39 @@ pub(super) fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
 /// How far [`out_of_walls`] moves a floor's feet at most, m (the 0.42 m hold less the grid's 0.3175 m, and a little).
 pub const OUT_OF_WALLS_M: f32 = 0.15;
 
+/// The client's standing capsule: 1.8 m tall, radius 0.38 (`Controller::standing_at`, startup.cfg's stand size 0.76 x 1.8).
+const STAND_HEIGHT_M: f32 = 1.8;
+const STAND_RADIUS_M: f32 = 0.38;
+
+/// A floor's feet moved flat out of every steep face (|normal y| < 0.5) the client's standing capsule overlaps there, from the
+/// feet up, by at most the capsule's radius: where a standing body can be. The client's world pushes a body out of whatever it
+/// overlaps (`bullet_physics_world::recover_from_penetrations` 0x763D0), so it never stands inside a ledge lower than the step,
+/// which [`out_of_walls`] does not look at (its cylinder starts at the step). [A329]
+pub(super) fn out_of_faces(world: &Collision, feet: Vec3) -> Vec3 {
+    let mut at = feet;
+    let mut moved = 0.0f32;
+    for _ in 0..6 {
+        // A hair over the feet, so the floor's own edge is not a face the capsule overlaps.
+        let cap = Capsule::standing(at + Vec3::new(0.0, 0.02, 0.0), STAND_HEIGHT_M, STAND_RADIUS_M);
+        let Some((gap, _, dir)) = world.nearest_to(Shape::Capsule(cap), 0.0, |f| f.normal.y.abs() < 0.5) else { break };
+        let flat = Vec3::new(dir.x, 0.0, dir.z);
+        let l = flat.length();
+        if gap >= 0.0 || l < 1e-4 {
+            break;
+        }
+        let push = (-gap + 0.002).min(STAND_RADIUS_M - moved);
+        if push <= 0.0 {
+            break;
+        }
+        at = at + flat * (push / l);
+        moved += push;
+    }
+    at
+}
+
 /// How far the controller takes a standing body from `from` toward `to` (feet), as a share of the flat way, and whether it
 /// ended at `to`.
-pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
+pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> (f32, bool) {
     let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
     let length = flat.length();
     if length < 1e-4 {
@@ -111,8 +159,7 @@ pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
     let dir = flat * (1.0 / length);
     let step = WALK_MPS * 0.05;
     let ticks = (length / step).ceil() as usize + 2;
-    let mut c = Controller::standing_at(out_of_walls(world, from));
-    let s = Settings::LIVE;
+    let mut c = Controller::standing_at(start.place(world, from));
     let mut best = 0.0f32;
     for _ in 0..ticks {
         let feet = c.feet();
@@ -125,7 +172,7 @@ pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
         // Toward the target, at most what is left.
         let go = left.length().min(step);
         c.walk = if left.length() > 1e-6 { left * (go / left.length()) } else { Vec3::ZERO };
-        if c.step(world, 0.05, &s).ceiling {
+        if c.step(world, 0.05, s).ceiling {
             // A low ceiling: the client slides under it or crouches (neither ported): not a stall the pass knows.
             return (1.0, false);
         }
@@ -159,9 +206,12 @@ impl WalkGrid {
     /// The bridges are made here; the walk links that fail their check are returned (a floor, a direction and the share the body
     /// got), for the build to take away with `cut_keeping_reach`.
     pub(super) fn controlled_links(&self, wide: &mut Wide, triangles: &[Triangle]) -> (ControlledStats, Vec<(u32, usize, f32)>) {
-        let world = Collision::build(triangles);
-        let mut stats = ControlledStats::default();
         let body = self.body;
+        let (caster, s) = body.controller();
+        let start = body.walk_start();
+        let world = Collision::build(triangles).with_caster(caster);
+        let s = &s;
+        let mut stats = ControlledStats::default();
         let cells_apart = |a: usize, b: usize| {
             let (ia, ka) = self.cell_xz(self.cell_of[a] as usize);
             let (ib, kb) = self.cell_xz(self.cell_of[b] as usize);
@@ -183,33 +233,46 @@ impl WalkGrid {
         stats.bridges_tried = bridges.len();
         let walked = parallel(&bridges, |&i| {
             let l: &OffLink = &wide.off[i];
-            walk_lines(&world, self.position(l.from), self.position(l.to)).1
+            walk_lines(&world, s, start, self.position(l.from), self.position(l.to)).1
         });
         let old: Vec<usize> = bridges.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&i, _)| i).collect();
         // Bridges with no link yet: two cells on, a floor within a step, the cell between with no floor near that height (a
         // crack no face covers, a cell holding only a riser), walked by the controller: a walked off-mesh link.
         wide.off.sort_by_key(|l| (l.from, l.to));
         let mut new: Vec<(u32, u32)> = Vec::new();
+        // The new bridges over a crack the grid crossed by a drop ([`Body::crack_bridges`]): kept whatever their run's width (the
+        // drop they stand beside was as narrow a way).
+        let mut over_drop: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
         for a in 0..self.height.len() {
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             let ha = self.height[a];
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
-                if wide.links[a][d] != NONE {
+                let (Some(c2), Some(c3)) = (self.cell_index(i + di, k + dk), self.cell_index(i + 2 * di, k + 2 * dk)) else { continue };
+                // A side with a link is tried only when it is a drop into the cell between ([A329] a crack: the drop is the way the
+                // grid had across it, and the client walks over it; `drop_check` takes such a drop away when the body never
+                // drops there).
+                let into_crack = body.crack_bridges
+                    && wide.links[a][d] != NONE
+                    && wide.kinds[a][d] == LinkKind::Drop
+                    && self.cell_of[wide.links[a][d] as usize] as usize == c2;
+                if wide.links[a][d] != NONE && !into_crack {
                     continue;
                 }
-                let (Some(c2), Some(c3)) = (self.cell_index(i + di, k + dk), self.cell_index(i + 2 * di, k + 2 * dk)) else { continue };
                 if (self.start[c2]..self.start[c2 + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
                     continue;
                 }
                 for b in self.start[c3]..self.start[c3 + 1] {
                     if (self.height[b as usize] - ha).abs() <= body.step && wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
                         new.push((a as u32, b));
+                        if into_crack {
+                            over_drop.insert((a as u32, b));
+                        }
                     }
                 }
             }
         }
         stats.bridges_tried += new.len();
-        let walked = parallel(&new, |&(a, b)| walk_lines(&world, self.position(a), self.position(b)).1);
+        let walked = parallel(&new, |&(a, b)| walk_lines(&world, s, start, self.position(a), self.position(b)).1);
         let new: Vec<(u32, u32)> = new.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&p, _)| p).collect();
         // Only the bridges in a run at least [`BRIDGE_MIN_RUN`] wide are walked: a narrower one is crossed only by a body
         // inside its columns, which a bot steering at a point ahead of it does not keep to.
@@ -224,7 +287,7 @@ impl WalkGrid {
             }
         }
         for &(a, b) in &new {
-            if self.bridge_run(&all, a, b) >= BRIDGE_MIN_RUN {
+            if over_drop.contains(&(a, b)) || self.bridge_run(&all, a, b) >= BRIDGE_MIN_RUN {
                 wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff });
                 stats.bridges_walked += 1;
                 stats.bridges_added += 1;
@@ -256,7 +319,7 @@ impl WalkGrid {
         stats.checks = checks.len();
         let shares = parallel(&checks, |&(a, d)| {
             let b = wide.links[a][d];
-            walk_lines(&world, self.position(a as NodeId), self.position(b)).0
+            walk_lines(&world, s, start, self.position(a as NodeId), self.position(b)).0
         });
         let failing = checks
             .iter()
@@ -305,6 +368,26 @@ mod tests {
         quad(tris, Vec3::new(x0, y, z0), Vec3::new(x0, y, z1), Vec3::new(x1, y, z1), Vec3::new(x1, y, z0));
     }
 
+    /// [A329] A floor beside a 0.785 m ledge (the level_04 day_4 case): its centre 0.12 m from the ledge's face, the walk up
+    /// to the top's floor centre. The old start leaves the body inside the ledge and the controller pops it on top (as the exe
+    /// does from there); the clear start puts it where a standing body can be, and the walk stays below, as the exe's walk
+    /// from the client's own spot does (Unicorn: blocked; it climbs a vertical face walking up to 0.75 m, not 0.76).
+    #[test]
+    fn a_floor_beside_a_ledge_higher_than_a_walk_climbs_starts_where_a_body_stands() {
+        let mut tris = Vec::new();
+        floor(&mut tris, 0.0, -5.0, 5.0, 2.0, 0.0);
+        floor(&mut tris, 0.0, 2.0, 5.0, 8.0, 0.785);
+        quad(&mut tris, Vec3::new(0.0, 0.0, 2.0), Vec3::new(0.0, 0.785, 2.0), Vec3::new(5.0, 0.785, 2.0), Vec3::new(5.0, 0.0, 2.0));
+        let world = Collision::build(&tris);
+        let s = Settings::LIVE;
+        let (from, to) = (Vec3::new(2.5, 0.0, 1.88), Vec3::new(2.5, 0.785, 2.12));
+        let (_, old) = walk_share(&world, &s, WalkStart::AboveStep, from, to);
+        let (share, clear) = walk_share(&world, &s, WalkStart::Clear, from, to);
+        assert!(old, "the old start climbs it from inside the ledge");
+        assert!(!clear && share < CHECK_SHARE, "from where a body stands it does not climb: share {share}");
+        assert!(out_of_faces(&world, from).z < 2.0 - STAND_RADIUS_M + 0.01, "pushed out to the capsule's radius");
+    }
+
     /// A floor at 0 and a top 0.6 m up past one 0.25 m cell (x 5.0-5.25), 6 m wide. With `strip`, that cell holds a 0.3 m
     /// step (walked up in two) except over `strip` metres of the width, where it holds only the riser (none: the riser all the
     /// way): the walk-off bridges the pass makes up it, and the ones it walks but leaves pressed as too narrow a run.
@@ -333,6 +416,38 @@ mod tests {
             })
             .count();
         (walked, stats.controlled.bridges_narrow)
+    }
+
+    /// [A329] The level_06 day_2 dip at (18.4, 102.9): a high floor at 0 meets a one-cell dip 0.81 m down only at its corner
+    /// (the dip's sides toward it lead down to ground 3 m below, so erosion keeps the dip), and a floor 0.25 m down lies past
+    /// the dip on the diagonal. The grid crosses by a drop into the dip, which the client never takes. With `crack_bridges` the
+    /// controller walks the body over the dip and the walked bridge is made (a run of one: it stands beside the drop); without,
+    /// none.
+    fn crack_bridges(on: bool) -> usize {
+        let mut tris = Vec::new();
+        let (lo, far, deep) = (-0.81, -0.25, -3.0);
+        // The high floor (x < 5, z > 3.25), the dip (one cell), the far floor (x > 5, z < 3.25 but the dip), ground below.
+        floor(&mut tris, 0.0, 3.25, 5.0, 6.0, 0.0);
+        floor(&mut tris, 5.0, 3.0, 5.25, 3.25, lo);
+        floor(&mut tris, 5.25, 0.0, 10.0, 3.25, far);
+        floor(&mut tris, 5.0, 0.0, 5.25, 3.0, far);
+        floor(&mut tris, 0.0, 0.0, 5.0, 3.25, deep);
+        floor(&mut tris, 5.0, 3.25, 10.0, 6.0, deep);
+        let body = Body { client_controller: true, crack_bridges: on, ..Body::client() };
+        let (grid, _) = WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &[], &[], OffMeshLinks::Gaps);
+        grid.off_links()
+            .iter()
+            .filter(|l| {
+                let (a, b) = (grid.position(l.from), grid.position(l.to));
+                l.press == Takeoff::WalkOff && a.y > -0.3 && b.y > -0.3 && (a.y - b.y).abs() > 0.2
+            })
+            .count()
+    }
+
+    #[test]
+    fn a_crack_the_grid_crossed_by_a_drop_gets_the_walked_bridge() {
+        assert_eq!(crack_bridges(false), 0, "without the switch the dip has no bridge");
+        assert!(crack_bridges(true) >= 1, "with it: {} bridges", crack_bridges(true));
     }
 
     /// [A313] A riser bare its whole width is bridged; bare over a 0.5 m strip only (two columns of the grid, the rest

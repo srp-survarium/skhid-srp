@@ -361,6 +361,16 @@ fn pre_eye_pin_tuning() -> Tuning {
         // A318: the client's blend (KEPT_RIGHT, all-off keeps it); the pin has the old one.
         old.kin.mixer = kin::Mixer::Frozen;
         old.kin.fix_blend = kin::FixBlend::Measured;
+        // A318: the slide before the round one; the pin has it.
+        old.kin.wall_slide = kin::WallSlide::Diagonal;
+        // A318: the step cap and the settled level read (KEPT_RIGHT / default ON); the pin has neither.
+        old.kin.speed_cap = kin::SpeedCap::Off;
+        old.kin.level_read = kin::LevelRead::Any;
+        // A331: the level computed from the kit (default ON); the pin has the measured one.
+        old.kin.level_source = kin::LevelSource::Measured;
+        old.kin.carrier_sprint = kin::CarrierSprint::Allowed;
+        old.kin.fix_fall = kin::FixFall::Rest;
+        old.kin.step_input = kin::StepInput::Same;
         old.sense.ranges = tuning::HearingRanges::Flat;
         old.sense.shots = tuning::ShotRanges::Flat;
         old.sense.sprint_body_mps = None;
@@ -409,6 +419,10 @@ pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
     let _reload = super::standin_weapon::OldEmptyReload::scope();
     // And of the stand-in's blend before A318.
     let _mixer = super::standin_jump::OldMixer::scope();
+    // And of its slide before the round one (A318).
+    let _walls = super::standin_jump::OldWalls::scope();
+    // And of its step order before A318's (a tick moved with its own input).
+    let _step = super::standin_jump::OldStepInput::scope();
     let base = [
         (3, (365, 69, [16, 14], 2, 0, [1, 1]), 48.04),
         (7, (505, 82, [14, 13], 2, 0, [1, 2]), 49.71),

@@ -64,6 +64,12 @@ pub struct Kinematics {
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
     pub edge: Edge,
+    /// [A318] How the reckoned body comes down a drop ([`DropFall`]).
+    pub drop_fall: DropFall,
+    /// [A318] Which input's keys and yaw move the reckoned body on a step ([`StepInput`]).
+    pub step_input: StepInput,
+    /// [A318] The speed a world's falling body starts its reckoned fall at ([`FixFall`]).
+    pub fix_fall: FixFall,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
     /// table of open sides), times the walk's own: the route keeps a body's width in from an edge the capsule walks off where the
     /// floor allows (`RouteFilter::weighing_open_sides`). 2 makes a cell's walk there cost 0.75 m, as a deep fall's edge does
@@ -84,6 +90,14 @@ pub struct Kinematics {
     pub slope_speed: SlopeSpeed,
     /// [A313] Which of the client's speed factor terms the reckoned body moves by ([`SpeedTerms`]).
     pub speed_terms: SpeedTerms,
+    /// [A318] Whether the reckoned body's step is capped at the client's `max_speed` ([`SpeedCap`]).
+    pub speed_cap: SpeedCap,
+    /// [A318] Which worlds the body's speed level is read from ([`LevelRead`]).
+    pub level_read: LevelRead,
+    /// [A331] Whether the body's speed level is the one computed from its kit ([`LevelSource`]).
+    pub level_source: LevelSource,
+    /// [A331] Whether a battery carrier sprints ([`CarrierSprint`]).
+    pub carrier_sprint: CarrierSprint,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -96,12 +110,108 @@ pub struct Kinematics {
     /// cell over walk links and stalled at the face of each one up (the pass's 324-pair bench: missed jumps 11 -> 29, at bridges
     /// up 0.45-0.75 m). ON with `grid.client_controller` (A313 bench4: no guard FAIL); OFF: as it was.
     pub walk_bridges: bool,
+    /// [A318] Whether a jump pressed is reckoned as the client's ([`crate::v026g::bots::jump_arc`]): the jump clip's root rise and
+    /// travel, the 1 m/s air control, the grid's floors for the capsule's walls and landings, the end at the clip's end. OFF: the
+    /// snap onto a leap link the step crosses within [`crate::v026g::bots::body::JUMP_AIR_MS`] (`body::jumped_to`). Why: the
+    /// drift lab's jump-key worlds (f1d92378, 605 = 0.451 points of the 4.03 %) are 59 % a floor apart after the jump (the model
+    /// up a ledge the client missed, or the reverse) and the rest a distance in the air (the model walked on at the keys' speed).
+    pub jump_arc: bool,
 }
 
 /// [A313] The terms of the client's movement speed factor `F = max(0, 1 + S4)` the reckoned body moves by
 /// (`mapdata::controller::speed`, read from the 0.26g exe: skill 208, the weapon, the weight, each leg's wound, a hit's
 /// stagger, a carried battery, the spring artefact). The body's level (`Kinematics::level_of`) holds what a world shows of the
 /// rest; the terms here are the ones that change within a life faster than the level follows.
+/// [A318] The cap on the reckoned body's flat step. The client's `set_physics_controller_walk_vector` 0x2D9060 caps the step it
+/// hands the controller at `max_speed` 0x2DC010 (PROVEN, `mapdata::controller::speed::cap`): the sprint's 5.0 x F while the sprint
+/// state is on (its `initialize` 0x336A10 sets the controller's +0x204, `finalize` 0x336A50 clears it, at once), else the walk's
+/// 3.5 x F. The animation's blend toward the new keys goes on under it, so a released sprint moves at the walk cap on its own tick
+/// while the blend still carries the sprint's speed (the client's recorded speeds: 3.62 m/s at the release tick, fx-smoke A325).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeedCap {
+    /// The blend's speed as it is (as it was).
+    Off,
+    /// Capped at the client's `max_speed` (`max(desired x F, minimal)`, the floor included) by the sprint state's keys
+    /// ([`Kinematics::sprint_state`]) and the level; not in a jump (the cap is skipped while `+0x2C70C` is set, 0x2D915E, which
+    /// `end_jump` 0x7F050 clears: LIKELY the jump's flag).
+    #[default]
+    Client,
+}
+
+impl SpeedCap {
+    /// `local` (body frame) capped for a body moving by `keys` at `level`.
+    pub fn capped(self, local: Local, keys: u32, level: f32) -> Local {
+        use mapdata::controller::speed::{Gait, Heading, Stance, cap};
+        if self == Self::Off {
+            return local;
+        }
+        let gait = if Kinematics::sprint_state(keys) {
+            Gait::Sprint
+        } else {
+            Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false }
+        };
+        let cap = cap(gait, level);
+        let len = local[0].hypot(local[1]);
+        if len > cap { [local[0] * cap / len, local[1] * cap / len] } else { local }
+    }
+}
+
+/// [A331] Where the reckoned body's speed level comes from. The client's factor is `F = max(0, 1 + S4)` (`apply_modifier`
+/// 0x2D5AE0, enum 4; `max_speed` 0x2DC010), S4 summing the skills, the items' and modifications' `movement_speed_modifier`, the
+/// carried weight's term (0x329B20, up to -0.2) and the weapon in hands (+-0.05); `survarium::v026g::bot_skills` computes it from a
+/// match profile's kit (`profile_movement_candidates`), and fx-review's A332 check found it equal to the humans' measured level to
+/// about 0.01 on 16 live matches.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LevelSource {
+    /// A settled world's speed level within 0.85..1.15 ([`Kinematics::level_of`]), else the profile's prior (as it was).
+    Measured,
+    /// The kit in use's computed F for each weapon it could have in hands ([`LEVEL_SNAP`]): a settled world's reading picks the
+    /// nearest when within [`LEVEL_SNAP`] (the server has no reader of the weapon in hands), else stands (a battery's -0.05,
+    /// stagger, Adrenalin: terms the kit does not give); before any reading, the primary's. A reading is taken within
+    /// [`LEVEL_REACH`] of the kit's values instead of 0.85..1.15. A body with no profile: [`Self::Measured`].
+    #[default]
+    Computed,
+}
+
+/// [A331] Whether a battery carrier sprints. The owner: "battery cariers cant sprint"; `can_sprint` 0x2DBF40 and the jump
+/// predicate 0x2FC230 refuse while the hands' item byte +0x388 != 0 (fx-review A332; that the take sets it for the battery was not
+/// found: LIKELY by the exe). A carrier then walks at the run's 3.5 x F x 0.95 where a sprinter went 5.0 x F.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CarrierSprint {
+    /// As it was: a carrying bot may ask for a sprint, and a believed carrier's world keys sprint its reckoned body.
+    Allowed,
+    /// A carrying bot never asks for a sprint, and a believed carrier's world keys lose SPRINT (its body is run, its level read
+    /// against the run).
+    #[default]
+    Refused,
+}
+
+/// [A331] How near a world's speed level must be to one of the kit's computed values to be taken as that value: the A332 check's
+/// spread (93 of 103 player-kits within 0.02) with room for the loaded rounds spent.
+pub const LEVEL_SNAP: f32 = 0.03;
+
+/// [A331] How far outside the kit's computed values a world's speed level is still taken: the terms the kit does not give, a
+/// battery's -0.05 (`victory_item_core::set_user` 0x300B00) and Adrenalin's +0.05 a rank (patch 94), with room.
+pub const LEVEL_REACH: f32 = 0.1;
+
+/// [A318] Which worlds the reckoned body's speed level ([`Kinematics::level_of`]) is read from. The client's ground speed is the
+/// keys' desired speed times its movement factor once the animation's cross-fade toward them has settled (0.3 s, linear: fx-grid's
+/// read of 0x3B0CD0 / 0x395360, PROVEN); in the fade it is between two keys' speeds. A world's speed is its body's move of the tick
+/// before it (the world holds the body after that tick, `player_step` 0x7BDA0), so by that tick's keys.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LevelRead {
+    /// Any world, by its own keys (as it was): a world in a fade gives a level off by the fade (a start's 0.85 passes).
+    Any,
+    /// A world whose last [`Kinematics::blend_ticks`] decided ticks before it held the same keys, read by those keys: the fade has
+    /// settled and the speed is the keys' times the factor.
+    #[default]
+    Settled,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpeedTerms {
@@ -274,9 +384,12 @@ impl Default for Kinematics {
             blend_ticks: 6,
             mixer: Mixer::Layers,
             fix_blend: FixBlend::Replayed,
-            wall_slide: WallSlide::Diagonal,
+            wall_slide: WallSlide::Round,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
+            drop_fall: DropFall::Client,
+            step_input: StepInput::Previous,
+            fix_fall: FixFall::World,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
             margin_edge: MarginEdge::Body,
@@ -285,7 +398,12 @@ impl Default for Kinematics {
             slope_speed: SlopeSpeed::RampsGrade,
             ramp_min_deg: 35.0,
             walk_bridges: true,
+            jump_arc: false,
             speed_terms: SpeedTerms::Legs,
+            speed_cap: SpeedCap::Client,
+            level_read: LevelRead::Settled,
+            level_source: LevelSource::Computed,
+            carrier_sprint: CarrierSprint::Refused,
         }
     }
 }
@@ -350,8 +468,68 @@ pub enum WallSlide {
     Axes,
     /// Those, then the step along each 45 degree diagonal at its projection (cos 45 of it): a wall the grid's cells draw as a 45
     /// degree staircase, which holds both axes.
-    #[default]
     Diagonal,
+    /// [A318] Those, and the step turned by 22.5 and 67.5 degrees either way at its projection: the capsule's slide along a
+    /// corner or a thin post, whose contact normal is at any angle (level_01's post at (60.7, 33.2) and level_08's pillar corner
+    /// at (68.55, 25.51) held the reckoning where the client slid round them). The default: the drift lab (15 client-test
+    /// recordings) drifts 3.31 % of the worlds against 3.54 % with [`Self::Diagonal`], every map and recording better.
+    #[default]
+    Round,
+}
+
+/// [A318] Which input's keys and yaw move the reckoned body over a step (`advance`). The client's tick T advances the clips
+/// chosen up to input T-50, rotated by the yaw before input T, and only then calls `apply_new_input` 0x2D86E0 for input T (player
+/// vtable +0x44; `apply_rotation` 0x2D8AD0 with the old yaw; a new clip has weight 0 on its own tick), PROVEN (fx-review A336). A
+/// world W carries input W's keys (`actions_mask` +0x330: 6,408 of 6,408 client-test worlds, 1,203 of 1,204 live) and its feet
+/// after tick W-50's step (`m_last_pos`, LIKELY). So the step into the feet at N moves with input N-100's keys and its yaw after
+/// N-100's turn: one input behind what the reckoning had (on turning walk ticks its step matched the client-walk reference's
+/// NEXT tick in 2,360 of 2,487).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StepInput {
+    /// The step from the tick of input N moves with input N's keys and its yaw after N's turn (as it was): one tick early.
+    Same,
+    /// The step from the tick of input N moves with input N-1's keys and its yaw after N-1's turn: each input acts one tick
+    /// later (the client's). After a world W the first step takes input W-50's keys and the world's yaw less input W's turn
+    /// (the world already holds input W's rotation). A stall's further steps (no input decided between) move with the newest
+    /// input, as the client holds it.
+    #[default]
+    Previous,
+}
+
+/// [A318] How the reckoned body (`BodyTrack`, not the lip guard's stop forecast) comes down when its floor drops more than a step
+/// under it (a drop link's landing, a walk-off under the edge, a world in the air over its floor).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DropFall {
+    /// On the floor below at once (as it was).
+    Snap,
+    /// As the client's capsule: its height falls from where it left under gravity (`step_down` 0x7E1B0, PROVEN: with no ground
+    /// within the step under it, the velocity takes `g * min(dt, tick)` down each step and moves it by the speed it had, g = 9.8,
+    /// `fall_params.gravity`) until it is on the floor below. Its floor and its way across are as with [`Self::Snap`].
+    Gravity,
+    /// [A318] [`Self::Gravity`] with the client's slow start (`step_down` 0x7E1B0, PROVEN by fx-gear-2's read and probe; port
+    /// `mapdata::controller::tick`, `player_step` reads the speed at the tick's start, then `step_down`): while the speed down at
+    /// the tick's start is under `on_ground_max_vertical_speed` (2.0 m/s, `startup.cfg`) the body goes down by
+    /// `additional_down_speed` (0.05 m a tick, `startup.cfg`), else by the speed at the tick's start (`(v + a dt).y * tick`, `a`
+    /// the slope's slide: none in the air); the speed takes `g * tick` after the move either way. From rest: five ticks of 0.05 m,
+    /// then 2.45 m/s, 2.94 m/s, ...
+    #[default]
+    Client,
+}
+
+/// [A318] The speed a world's body that is going down starts its reckoned fall at. The world carries the controller's own velocity
+/// (`fall_and_slide_velocity`, in the map's frame); the reckoning restarted a falling body at rest at every world fix, so a body
+/// caught 1.5 m into a drop fell its first ticks slow again (fx-gear-2's L06 slope cluster: 61 of 94 tail misses start 0.1 m+ in
+/// the air).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FixFall {
+    /// The reckoning's own speed, else rest, and only a body more than a step over its floor (as it was).
+    Rest,
+    /// The world's own vertical speed, a body going down a little over its floor too.
+    #[default]
+    World,
 }
 
 /// [A318] The blend a world's fix starts the reckoning with.
@@ -464,6 +642,16 @@ impl Kinematics {
             && keys & (key::BACK | key::FIRE | key::CROUCH | key::AIM) == 0
     }
 
+    /// [A318] Whether the keys hold the client's sprint state: [`Self::sprints`]. The start predicates (`sprint_predicate` 0x2FBC90,
+    /// `is_trying_to_sprint` 0x2FC1F0) test SPRINT and FORWARD with none of `0x122` (BACK, FIRE, CROUCH); AIM ends the state through
+    /// its own exits (PROVEN, static, fx-review A328 on the movement FSM built in 0x2FAB70): 0x2FBD50 (to stand_run) and 0x2FBCE0 (to
+    /// stand_on_site) leave when `sprint_predicate` fails or AIM (keys +0x330 bit 0x80, 0x2FBD65 / 0x2FBCF5) is held with the hands'
+    /// item byte +0x389 != 2 (which items are 2 is not read). The live game agrees: humans holding SPRINT + FORWARD + AIM move at a
+    /// median 3.69 m/s (89 worlds), 5.59 without AIM. The state ends on the release tick (fx-smoke: the client's flag, 2,524 worlds).
+    pub fn sprint_state(keys: u32) -> bool {
+        Self::sprints(keys)
+    }
+
     /// The velocity the keys ask for, in the body's frame, for a body at
     /// `level` × the desired speeds.
     pub fn target_local(&self, keys: u32, level: f32) -> Local {
@@ -500,13 +688,14 @@ impl Kinematics {
     /// The body's speed level from a world: its speed over the desired one
     /// of its keys, if it moved steadily under keys that have one.
     pub fn level_of(&self, keys: u32, speed: f32) -> Option<f32> {
+        self.level_raw(keys, speed).filter(|level| (0.85..=1.15).contains(level))
+    }
+
+    /// [A331] A world's speed over the desired one of its keys, with no band: none for keys with no desired speed.
+    pub fn level_raw(&self, keys: u32, speed: f32) -> Option<f32> {
         let [a, l] = self.target_local(keys, 1.0);
         let nominal = a.hypot(l);
-        if nominal < 0.5 {
-            return None;
-        }
-        let level = speed / nominal;
-        (0.85..=1.15).contains(&level).then_some(level)
+        (nominal >= 0.5).then(|| speed / nominal)
     }
 }
 

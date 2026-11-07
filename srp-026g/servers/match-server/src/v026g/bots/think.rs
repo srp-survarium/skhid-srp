@@ -140,6 +140,10 @@ impl Bots {
                 .body(bot.place)
                 .and_then(|body| body.estimate().copied());
             let me = view.place(bot.place).filter(|p| p.alive);
+            // [A318] Whether a jump this tick would go, before the drive spends the bar: the client's gate (`kin.jump_arc`).
+            let may_jump = bot.stamina.may_jump()
+                && me.is_some_and(|me| me.carrying.is_none())
+                && bot.hurt.may_jump(time);
             // TEST ONLY: the jump test's keys while it stands, runs and records.
             #[cfg(feature = "jump-test")]
             let scripted = self
@@ -206,6 +210,7 @@ impl Bots {
                 }
                 bot.bench_mirror.push_back((time, bot.reflex.seen()));
             }
+            self.tracker.set_may_jump(bot.place, may_jump);
             self.tracker.input(
                 bot.place,
                 time,

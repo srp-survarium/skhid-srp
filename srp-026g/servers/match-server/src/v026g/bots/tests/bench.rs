@@ -1270,6 +1270,16 @@ pub(crate) fn real_bot_cost() {
                 let levels = standin_level::levels(&roster.upgrades, bots.bench_human);
                 game.set_speed_levels(&levels);
                 bots.set_speed_levels(&levels);
+                // [A331] The kit's computed speed factors, as the server hands them (`game/driven.rs`); the stand-in human has its own.
+                let computed = bots.tunings.match_wide().kin.level_source == super::kin::LevelSource::Computed;
+                for (place, profile) in roster.profiles.iter().enumerate() {
+                    if computed
+                        && Some(place) != bots.bench_human
+                        && let Some(candidates) = survarium::v026g::bot_skills::profile_movement_candidates(profile, 0)
+                    {
+                        bots.set_speed_candidates(place, candidates);
+                    }
+                }
             }
             // The stand-in camper plays by his own tuning (`human_tuning`: the build's defaults with the human aim of
             // `camper_human_aim.json`) whatever his team's tuning is, so that the two runs of a head-to-head bench face the same
@@ -2141,6 +2151,7 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  trap tally: {}", bots.trap_report());
                 eprintln!("  trap pass: {}", crate::v026g::bots::traps::onpass::line());
                 eprintln!("  trap defeated: {}", crate::v026g::bots::traps::defeated::line());
+                eprintln!("  trap camper job: {}", crate::v026g::bots::traps::camper::line());
                 eprintln!("  trap passes: {}", crate::v026g::bots::traps::passes::line());
                 let looks = bots.trap_look_outcomes();
                 eprintln!("  trap looks, team 0: {}", looks[0].line());

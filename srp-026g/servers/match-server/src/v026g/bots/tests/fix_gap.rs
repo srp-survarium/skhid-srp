@@ -17,11 +17,11 @@ fn notes_of(fix_gap_ms: Option<u32>, times: &[u32], beside_m: Option<f32>) -> Ve
     bots.entered(0, true, 0);
     bots.entered(1, true, 0);
     let at = Vec3::new(14.0, 0.0, 12.0);
-    let fix = |time: u32| Fix { time, alive: true, inserted: 7, feet: Some(at), yaw: 0.0, pitch: 0.0, keys: key::FORWARD, speed: Some(0.0) };
+    let fix = |time: u32| Fix { fall: None, time, alive: true, inserted: 7, feet: Some(at), yaw: 0.0, pitch: 0.0, keys: key::FORWARD, speed: Some(0.0) };
     // The first world starts the life; then the bot has a route.
     bots.fixed(0, fix(500), Some(1.0));
     if let Some(d) = beside_m {
-        let other = Fix { time: 500, alive: true, inserted: 8, feet: Some(at + Vec3::new(d, 0.0, 0.0)), yaw: 0.0, pitch: 0.0, keys: 0, speed: Some(0.0) };
+        let other = Fix { fall: None, time: 500, alive: true, inserted: 8, feet: Some(at + Vec3::new(d, 0.0, 0.0)), yaw: 0.0, pitch: 0.0, keys: 0, speed: Some(0.0) };
         bots.fixed(1, other, Some(1.0));
     }
     let tactics = Tactics::new(world.clone(), Tuning::default().hazard.margin_m.get());

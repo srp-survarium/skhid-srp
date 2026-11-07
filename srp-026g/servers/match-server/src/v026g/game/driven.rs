@@ -25,7 +25,7 @@
 //!   play (`bots/mod.rs`). They get every player's inputs as relayed
 //!   ([`Game::observe_input`]), and the bodies, statistics and batteries of
 //!   the worlds the match trusts ([`Game::observe_driven`]); while they
-//!   play the clients are asked for a world every [`PLAYING_REFRESH`], and
+//!   play the clients are asked for a world every `timing.pvb_world` (2 s; `SRP_PVB_WORLD_MS`), and
 //!   every [`WAITING_REFRESH`] while one waits to see its body (just
 //!   entered, or dead). Until the map's walk grid is built (0.3 to 0.8 s,
 //!   on a thread of its own) they stand; if the map has no file they run
@@ -64,10 +64,9 @@ use crate::v026g::bots::view::{BatteryState, Clock, WorldFacts};
 use crate::v026g::bots::{Bots, Note};
 use crate::v026g::drive::{self, Drive};
 
-/// While the bots play, a world this often (the clients' upload: two of
-/// them, 30 to 60 KB each [LIKELY, the worlds saved]).
-const PLAYING_REFRESH: Duration = Duration::from_secs(2);
-/// While a bot waits to see its body, sooner.
+/// While the bots play, a world as often as the settings' `timing.pvb_world` (`SRP_PVB_WORLD_MS`, 2 s unless set;
+/// the clients' upload: two of them, 30 to 60 KB each [LIKELY, the worlds saved]). While a bot waits to see its
+/// body, at least this often.
 const WAITING_REFRESH: Duration = Duration::from_secs(1);
 
 /// The bots of a match and their map.
@@ -75,6 +74,9 @@ pub(super) struct Walkers {
     pub(super) bots: Bots,
     /// The worlds name the kit each place is in (`AvoidTuning::kit_in_use`).
     kit_in_use: bool,
+    /// [A331] The kit and the hands slot each place's speed candidates were last sent for (`bot_skills::profile_kit_speeds`), by
+    /// place; none: not sent (no profile, or the measured level).
+    speed_kits: Vec<Option<(u8, Option<u8>)>>,
     maps: Arc<Maps>,
     project: &'static str,
     /// Held once built, so the store may drop it while the match runs.
@@ -189,6 +191,17 @@ impl Walkers {
             .iter()
             .map(|profile| survarium::v026g::bot_skills::profile_movement_level(profile, 0))
             .collect();
+        // [A331] The first kit's computed speed factor for each weapon in hands, until a world names the kit in use.
+        let speed_candidates: Vec<Option<Vec<f32>>> = formed
+            .profiles
+            .iter()
+            .map(|profile| survarium::v026g::bot_skills::profile_movement_candidates(profile, 0))
+            .collect();
+        // Only for the computed level ([`crate::v026g::bots::kin::LevelSource::Computed`]); else the measured one, as it was.
+        let computed_levels = tuning.kin.level_source == crate::v026g::bots::kin::LevelSource::Computed;
+        let speed_candidates: Vec<Option<Vec<f32>>> =
+            speed_candidates.into_iter().map(|c| c.filter(|_| computed_levels)).collect();
+        let speed_kits = speed_candidates.iter().map(|c| c.as_ref().map(|_| (0u8, None))).collect();
         Some(Self {
             bots: Bots::new_with(
                 id,
@@ -212,6 +225,7 @@ impl Walkers {
             waiting: None,
             events_seen: 0,
             kit_in_use: all_kits,
+            speed_kits,
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
@@ -222,6 +236,11 @@ impl Walkers {
                 walkers.bots.set_zone_armour(place, armour);
             }
             walkers.bots.set_speed_levels(&speed_levels);
+            for (place, candidates) in speed_candidates.into_iter().enumerate() {
+                if let Some(candidates) = candidates {
+                    walkers.bots.set_speed_candidates(place, candidates);
+                }
+            }
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
             let var = std::env::var_os("SRP_BOT_ROUTES");
@@ -561,10 +580,11 @@ impl Game {
         let Some(walkers) = self.walkers.as_ref().filter(|walkers| !walkers.absent) else {
             return every;
         };
+        let playing = self.settings.timing.pvb_world;
         if walkers.bots.need_world() {
-            every.min(WAITING_REFRESH)
+            every.min(WAITING_REFRESH).min(playing)
         } else if walkers.bots.any() {
-            every.min(PLAYING_REFRESH)
+            every.min(playing)
         } else {
             every
         }
@@ -610,6 +630,8 @@ impl Game {
                 continue;
             };
             let fix = Fix {
+                // [A318] The controller's own vertical speed, down.
+                fall: motion.body.as_ref().map(|body| -body.fall_and_slide_velocity[1]),
                 time: snapshot.time,
                 alive: motion.alive,
                 inserted: motion.inserted_time_ms,
@@ -688,6 +710,20 @@ impl Game {
             // The kit a place is in, for its throw keys' pockets: a human's too.
             if let (Some(supplies), true) = (supplies, walkers.kit_in_use) {
                 walkers.bots.kit_in_use(place, usize::from(supplies.kit));
+            }
+            // [A331] A new kit in use, or [A334] a new weapon in hands (`Supplies::hands_slot`): its speed factors. With the
+            // hands known, the one value of that weapon in hands; else every weapon's, for a reading to pick.
+            if let (Some(supplies), Some(profile)) = (supplies, self.formed.profiles.get(place))
+                && let Some(Some(sent)) = walkers.speed_kits.get(place).copied()
+                && sent != (supplies.kit, supplies.hands_slot)
+                && let Some(speeds) = survarium::v026g::bot_skills::profile_kit_speeds(profile, usize::from(supplies.kit))
+            {
+                walkers.speed_kits[place] = Some((supplies.kit, supplies.hands_slot));
+                let candidates = match supplies.hands_slot {
+                    Some(slot) => vec![speeds.in_hands(Some(slot))],
+                    None => speeds.candidates(),
+                };
+                walkers.bots.set_speed_candidates(place, candidates);
             }
             let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
             if let (true, Some(supplies), Some(profile)) =

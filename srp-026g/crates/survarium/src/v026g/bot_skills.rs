@@ -323,6 +323,81 @@ pub fn profile_movement_level_in(profile: &MatchProfile, kit: usize, weapon: boo
     Some(movement_level(weight, capacity, &kit.modifiers, movement))
 }
 
+/// [A331] The speed factor F of a match profile's `kit` (0 on) for each weapon its slots could have in hands, and with none: the
+/// client's `max(0, 1 + S4)` (`apply_modifier` 0x2D5AE0, enum 4; [`movement_level`]) with the kit's items, skills and
+/// modifications, the carried weight, and the held weapon's own
+/// `parameters/movement_speed_modifier` (a node added in `weapon_core::initialize` 0x2E2C9C, removed in `deactivate` 0x2E2E9F; the
+/// weight is the kit's items alone, as the client's own `w` on live worlds).
+/// fx-review's A332 check: with the kit in use and the weapon in hands it gives the humans' measured level to about 0.01 (16 live
+/// matches). The first is the weapon in slot 7 (the primary), if any; then the kit's other weapons; the last, none. `None`
+/// without that kit.
+pub fn profile_movement_candidates(profile: &MatchProfile, kit: usize) -> Option<Vec<f32>> {
+    profile_kit_speeds(profile, kit).map(|speeds| speeds.candidates())
+}
+
+/// [A334] A kit's speed factor F with each of its weapons in hands, by the weapon's kit slot, and with none
+/// ([`profile_kit_speeds`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct KitSpeeds {
+    /// Each weapon's kit slot and F with it in hands, by ascending slot.
+    pub held: Vec<(u8, f32)>,
+    /// F with empty hands.
+    pub none: f32,
+}
+
+impl KitSpeeds {
+    /// F with the weapon of kit slot `slot` in hands; with none, or a slot that holds no weapon, empty hands.
+    pub fn in_hands(&self, slot: Option<u8>) -> f32 {
+        slot.and_then(|slot| self.held.iter().find(|&&(s, _)| s == slot)).map_or(self.none, |&(_, level)| level)
+    }
+
+    /// Every value, the primary (slot 7) in hands first, then the other weapons, then empty hands
+    /// ([`profile_movement_candidates`]).
+    pub fn candidates(&self) -> Vec<f32> {
+        let mut held = self.held.clone();
+        held.sort_by_key(|&(slot, _)| usize::from(slot) != WEAPON_SLOT);
+        held.into_iter().map(|(_, level)| level).chain(std::iter::once(self.none)).collect()
+    }
+}
+
+/// [A334] [`KitSpeeds`] of a match profile's `kit`: as [`profile_movement_candidates`], by slot. `None` without that kit.
+pub fn profile_kit_speeds(profile: &MatchProfile, kit: usize) -> Option<KitSpeeds> {
+    let entry = profile.kits.get(kit)?;
+    // The kit's items alone: the client's own `w` read from live worlds equals it (fx-review A334c: median 0.000, 94-95 % within
+    // 1.5 kg), with no loaded-round term.
+    let (mut weight, mut capacity_added, mut movement) = (0.0, 0.0, 0.0);
+    let mut weapons: Vec<(u8, f32)> = Vec::new();
+    for (slot, &(index, count)) in entry
+        .slots
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, entry)| entry.as_ref().map(|entry| (slot, entry)))
+    {
+        let Some(item) = profile.items.get(usize::from(index)) else {
+            continue;
+        };
+        let modified = item_added(item.dict_id, &item.modifications, "movement_speed_modifier");
+        if let Some(weapon) = super::weapons::weapon(item.dict_id) {
+            // A weapon's speed term, its modifications' included, counts only while it is the hands item (fx-review A334: the node
+            // of weapon+0x61C, the item's parameters with its modifications, added on draw 0x2E2C9C, removed on holster 0x2E2E9F).
+            weapons.push((slot as u8, weapon.movement_speed_modifier + modified));
+        } else {
+            movement += modified;
+        }
+        weight += item_weight(item.dict_id, u32::from(count), &item.modifications);
+        capacity_added += item_added(item.dict_id, &item.modifications, "max_carried_weight_modifier");
+    }
+    let capacity = item_params::player().max_carried_weight + entry.modifiers[MAX_CARRIED_WEIGHT] + capacity_added;
+    // Skill 112 (modifier 62, `move_speed_weapon_penalty`) > 0: a weapon's term at or under 0 is not added (fx-review A334: the
+    // same skip in 0x2E2C9C, 0x2E37E4 and 0x2E2E9F).
+    let skips_penalty = entry.modifiers[modifier_index("move_speed_weapon_penalty").expect("a modifier of the 68")] > 0.0;
+    let level = |held: f32| {
+        let held = if skips_penalty && held <= 0.0 { 0.0 } else { held };
+        movement_level(weight, capacity, &entry.modifiers, movement + held)
+    };
+    Some(KitSpeeds { held: weapons.iter().map(|&(slot, held)| (slot, level(held))).collect(), none: level(0.0) })
+}
+
 /// The modifiers of a bot wearing `kits`: its tier's skills.
 pub fn bot_modifiers(kits: &[&Loadout]) -> [f32; MODIFIERS] {
     BotSkillTier::for_kits(kits).modifiers()
@@ -388,6 +463,29 @@ mod tests {
         assert!((on - off - weapon.movement_speed_modifier).abs() < 1e-5, "{off} {on}");
         // Off by the switch: the plain level.
         assert_eq!(profile_movement_level(&profile, 0), Some(off));
+    }
+
+    /// [A331] The kit's candidates: the primary in hands first, the plain level last, the weight the kit's items alone (A334c).
+    #[test]
+    fn the_candidates_have_the_primary_first_and_the_plain_level_last() {
+        let _kit = KitSwitches::OFF.scope();
+        use crate::v026g::loadouts::RusherKits;
+        use crate::v026g::match_msgs::static_info::MatchProfile;
+        let equipment = BotEquipment::of(BotTier::Low, RusherKits::default());
+        let kits = bot_kits(equipment, BotRole::Flanker);
+        let weapon = crate::v026g::weapons::weapon(kits[0].slot(7).unwrap().dict_id).unwrap();
+        let profile = MatchProfile::from_loadouts("Bot-1", 0, &[kits[0]], [0.0; MODIFIERS], Dictionary::shared(), 1);
+        let speeds = profile_kit_speeds(&profile, 0).unwrap();
+        let candidates = speeds.candidates();
+        assert_eq!(candidates, profile_movement_candidates(&profile, 0).unwrap());
+        assert!(candidates.len() >= 2, "{candidates:?}");
+        let plain = *candidates.last().unwrap();
+        assert!((candidates[0] - plain - weapon.movement_speed_modifier).abs() < 1e-5, "the primary's own modifier: {candidates:?}");
+        assert!((speeds.in_hands(Some(7)) - candidates[0]).abs() < 1e-6 && speeds.in_hands(None) == plain);
+        // The plain level is the kit's level with no weapon in hands (the kit's weapons carry no modifications here).
+        let without = profile_movement_level_in(&profile, 0, false).unwrap();
+        assert!((plain - without).abs() < 1e-5, "{plain} {without}");
+        assert_eq!(profile_movement_candidates(&profile, 1), None);
     }
 
     /// Every tier and role, with each rusher kit the data can make, the

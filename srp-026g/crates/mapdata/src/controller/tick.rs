@@ -7,9 +7,9 @@
 //! the step's share of the tick. Float operations keep the exe's order where the notes give it; the x87 square roots are
 //! taken in f32 (the precision control word of the game is not read yet). The air branch (jumps) is not ported here.
 //!
-//! What is LIKELY rather than read: the via-ray wall normal (0x89B80, taken as the face's own normal made horizontal), the
-//! down sweep's ray re-look of a steep by-slope face (0x84810, the face's normal kept), and the stand-up and slide sweeps
-//! (0x86BF0, 0x88CB0, read in outline: capsule sweeps).
+//! The via-ray wall normal (0x89B80) is read and ported ([`WallNormal::Rays`]); [`Settings::LIVE`] still takes the first
+//! stand-in ([`WallNormal::FaceMadeHorizontal`]) until the nav gate. What is LIKELY rather than read: the stand-up and slide
+//! sweeps (0x86BF0, 0x88CB0, read in outline: capsule sweeps). The exe's own Bullet cast is [`super::Caster::Bullet`].
 // The exe's comparisons are ported as written: `!(a > b)` and `a > b` differ on NaN, as `comiss` branches do.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 use super::{Capsule, Collision, Contact, Shape};
@@ -46,6 +46,20 @@ pub struct Settings {
     pub max_vertical_speed_to_can_jump: f32,
     pub low_ceiling_slide: bool,
     pub low_ceiling_slide_bouncing_factor: f32,
+    /// How the move sweep's callback finds a wall's normal when the move meets it nearly head-on (`cc_wall_normal_via_ray`).
+    pub wall_normal: WallNormal,
+}
+
+/// The move sweep's wall normal for a nearly head-on hit (over `wall_full_slide_dot`), callback 0x895F0.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WallNormal {
+    /// The face's own normal, made horizontal, toward the body: the port's first stand-in (LIKELY, A313).
+    #[default]
+    FaceMadeHorizontal,
+    /// The exe's 0x89B80 with `ray_pick` 0x898C0 (dis/notes-raynormal.md, read instruction by instruction; A325 P1: walk
+    /// wall-slide divergences from the exe over 5 mm 11 -> 5 of 235 sampled ticks): rays along the move beside the hit point
+    /// (`cc_wall_normal_via_ray_offset` 0.03 m), the less head-on horizontal normal of the faces they meet.
+    Rays,
 }
 
 impl Settings {
@@ -75,6 +89,7 @@ impl Settings {
         max_vertical_speed_to_can_jump: 4.0,
         low_ceiling_slide: true,
         low_ceiling_slide_bouncing_factor: 0.40,
+        wall_normal: WallNormal::FaceMadeHorizontal,
     };
 }
 
@@ -144,6 +159,50 @@ fn normalized_safe(v: Vec3, fallback: Vec3) -> Vec3 {
     }
     let inv = 1.0 / l2.sqrt();
     Vec3::new(v.x * inv, inv * v.y, inv * v.z)
+}
+
+/// `cc_wall_normal_via_ray_offset` (0xA7AAF8, live 0.03).
+const WALL_RAY_OFFSET: f32 = 0.03;
+
+/// 0x89B80 for a map face (the root shape no sphere, capsule or multisphere): `n2` the horizontal unit wall normal, `dir` the
+/// move's unit direction, `from` the sweep's start, `hp` the hit point. Not head-on: one ray shifted 0.03 toward where the move
+/// meets the hit point's height; head-on: two rays shifted 0.03 either way along the wall, the second against the first's
+/// result. Each ray starts 0.5 `dir` before its point and is `dir` long.
+fn wall_normal_via_ray(world: &Collision, n2: Vec3, dir: Vec3, from: Vec3, hp: Vec3) -> Vec3 {
+    let off = WALL_RAY_OFFSET;
+    let c = (dir.z * -n2.z + dir.y * -n2.y) + dir.x * -n2.x;
+    let start = |u: Vec3, sign: f32| {
+        Vec3::new((hp.x + u.x * off * sign) - dir.x * 0.5, (hp.y + u.y * off * sign) - dir.y * 0.5, (hp.z + u.z * off * sign) - dir.z * 0.5)
+    };
+    let end = |s: Vec3| Vec3::new(dir.x + s.x, dir.y + s.y, dir.z + s.z);
+    if !(0.001 > (c - 1.0).abs()) {
+        let (dx, dy, dz) = (hp.x - from.x, hp.y - from.y, hp.z - from.z);
+        let k = (UP.z * dz + UP.y * dy) + UP.x * dx;
+        let p = Vec3::new(UP.x * k + from.x, from.y + UP.y * k, from.z + UP.z * k);
+        let e = Vec3::new(hp.x - p.x, hp.y - p.y, hp.z - p.z);
+        let l = ((e.z * e.z + e.y * e.y) + e.x * e.x).sqrt();
+        let si = 1.0 / c;
+        let v = Vec3::new(((l * dir.x) * si + p.x) - hp.x, ((dir.y * l) * si + p.y) - hp.y, ((dir.z * l) * si + p.z) - hp.z);
+        let s = start(normalized_safe(v, Vec3::ZERO), 1.0);
+        ray_pick(world, s, end(s), n2, dir)
+    } else {
+        let w = Vec3::new(n2.z * UP.y - n2.y * UP.z, UP.z * n2.x - UP.x * n2.z, UP.x * n2.y - UP.y * n2.x);
+        let u = normalized_safe(w, Vec3::ZERO);
+        let s1 = start(u, 1.0);
+        let r1 = ray_pick(world, s1, end(s1), n2, dir);
+        let s2 = start(u, -1.0);
+        ray_pick(world, s2, end(s2), r1, dir)
+    }
+}
+
+/// `ray_pick` 0x898C0: the ray's face normal made horizontal when it is less head-on than `prev`; a miss keeps `prev`.
+fn ray_pick(world: &Collision, a: Vec3, b: Vec3, prev: Vec3, dir: Vec3) -> Vec3 {
+    let Some((_, rn)) = world.ray(a, b) else { return prev };
+    let k = (UP.z * rn.z + UP.y * rn.y) + UP.x * rn.x;
+    let m = normalized_safe(Vec3::new(rn.x - UP.x * k, rn.y - UP.y * k, rn.z - UP.z * k), -dir);
+    let before = (dir.z * prev.z + dir.y * prev.y) + prev.x * dir.x;
+    let now = (dir.y * m.y + dir.z * m.z) + dir.x * m.x;
+    if now > before { m } else { prev }
 }
 
 /// 0x84E20: `n` tilted about the horizontal to just walkable (`cos_max + 0.001`); a normal along up as it is.
@@ -553,10 +612,14 @@ impl Controller {
             let mut n2 = normalized_safe(h, -dir);
             let cc = (dir.z * -n2.z + dir.y * -n2.y) + dir.x * -n2.x;
             if cc > s.wall_full_slide_dot {
-                // LIKELY (0x89B80 unread): the face's own normal, made horizontal, toward the body.
-                let fnrm = if face.normal.dot(c.normal) < 0.0 { -face.normal } else { face.normal };
-                let kf = fnrm.y;
-                n2 = normalized_safe(Vec3::new(fnrm.x, fnrm.y - kf, fnrm.z), n2);
+                n2 = match s.wall_normal {
+                    WallNormal::FaceMadeHorizontal => {
+                        let fnrm = if face.normal.dot(c.normal) < 0.0 { -face.normal } else { face.normal };
+                        let kf = fnrm.y;
+                        normalized_safe(Vec3::new(fnrm.x, fnrm.y - kf, fnrm.z), n2)
+                    }
+                    WallNormal::Rays => wall_normal_via_ray(world, n2, dir, from, c.point),
+                };
             }
             Some((c.t, n2, c.point))
         };

@@ -78,7 +78,8 @@ fn narrow_doors_open_the_doorways_the_client_walks_through() {
             let walker = map.walker_triangles();
             let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
             let build = |narrow_doors: bool| {
-                let tuning = GridTuning { narrow_doors, ..GridTuning::default() };
+                // narrow_doors alone: grid.wall_give_back (ON) gives some of these doorways' floors back too.
+                let tuning = GridTuning { narrow_doors, wall_give_back: false, ..GridTuning::default() };
                 WalkGrid::build_kept_with_links(
                     &walker,
                     map.play_area(mapdata::AREA_MARGIN),

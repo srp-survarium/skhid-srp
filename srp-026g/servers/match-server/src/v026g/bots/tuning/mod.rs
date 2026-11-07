@@ -204,15 +204,18 @@ pub use team::WatchKnown;
 pub use team::WatchNear;
 pub use teams::TeamTunings;
 pub use traps::AfterPress;
+pub use traps::CamperJob;
 pub use traps::DefeatedTuning;
 pub use traps::Forward;
 pub use traps::FreshRing;
 pub use traps::PassTuning;
+pub use traps::PressClear;
 pub use traps::PressMoving;
 pub use traps::ReactTuning;
 pub use traps::SensedNear;
 pub use traps::Stayer;
 pub use traps::TrapLanes;
+pub use traps::TrapRelease;
 pub use traps::TrapTuning;
 pub use unstick::DropShut;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;
@@ -775,23 +778,34 @@ mod tests {
             "/feel/floor_height_clear",
             "/feel/past_drop",
             "/grid/client_numbers",
+            "/grid/crack_bridges",
             "/grid/drop_check",
             "/grid/drop_room",
+            "/grid/exe_collision",
             "/grid/gap_no_vaults",
             "/grid/narrow_doors",
             "/grid/pocket_exits_walled",
             "/grid/run_ups_after_erosion",
             "/grid/slip_landings",
+            "/grid/start_witness",
             "/grid/steep_walk_base",
+            "/grid/walk_start_clear",
+            "/grid/wall_give_back",
             "/hazard/leave_islands",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
             "/heal/amounts",
             "/heal/drug_stops",
+            "/kin/carrier_sprint",
+            "/kin/drop_fall",
+            "/kin/fix_fall",
             "/kin/fix_floor",
             "/kin/jump_snap",
+            "/kin/level_source",
             "/kin/pitch_scale",
+            "/kin/speed_cap",
             "/kin/speed_terms",
+            "/kin/step_input",
             "/kin/walk_off_landing",
             "/sense/ranges",
             "/sense/shots",
@@ -802,6 +816,8 @@ mod tests {
             "/take/pitch",
             "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
+            "/traps/press_clear",
+            "/traps/release",
             "/traps/sensed_near",
             "/unstick/drop_shut_from_top",
             "/unstick/drop_shut_last_resort",

@@ -126,15 +126,19 @@ pub(crate) fn stand_in_bridges() -> body::Bridges {
     }
 }
 
-/// [A318] Along what the stand-in body's step the grid stops goes on (`SRP_BENCH_STAND_IN_WALLS`, `diagonal` unless `axes`): the
-/// client's capsule slides along a wall the grid draws as a 45 degree staircase too ([`crate::v026g::bots::kin::WallSlide`]).
+/// [A318] Along what the stand-in body's step the grid stops goes on (`SRP_BENCH_STAND_IN_WALLS`, `round` unless `axes` or
+/// `diagonal`): the client's capsule slides along walls, corners and thin posts too ([`crate::v026g::bots::kin::WallSlide`]).
 pub(crate) fn stand_in_walls() -> crate::v026g::bots::kin::WallSlide {
-    static AXES: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    if *AXES.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALLS").is_ok_and(|v| v == "axes")) {
-        crate::v026g::bots::kin::WallSlide::Axes
-    } else {
-        crate::v026g::bots::kin::WallSlide::Diagonal
+    use crate::v026g::bots::kin::WallSlide;
+    static WALLS: std::sync::OnceLock<WallSlide> = std::sync::OnceLock::new();
+    if OLD_WALLS.get() {
+        return WallSlide::Diagonal;
     }
+    *WALLS.get_or_init(|| match bench_settings().var("SRP_BENCH_STAND_IN_WALLS").as_deref() {
+        Ok("axes") => WallSlide::Axes,
+        Ok("diagonal") => WallSlide::Diagonal,
+        _ => WallSlide::Round,
+    })
 }
 
 /// [A318] How the stand-in body's blend goes on when its keys change again before it is over (`SRP_BENCH_STAND_IN_MIXER`,
@@ -151,6 +155,53 @@ pub(crate) fn stand_in_mixer() -> crate::v026g::bots::kin::Mixer {
 
 thread_local! {
     static OLD_MIXER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static OLD_WALLS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static OLD_STEP_INPUT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// [A318] The stand-in's step order: the bench tuning's ([`crate::v026g::bots::kin::StepInput`], `SRP_BENCH_TUNING`, so an
+/// identity run's OFF arm is the old game on both sides), or the old same-tick one under [`OldStepInput`].
+pub(crate) fn stand_in_step_input() -> crate::v026g::bots::kin::StepInput {
+    static TUNED: std::sync::OnceLock<crate::v026g::bots::kin::StepInput> = std::sync::OnceLock::new();
+    if OLD_STEP_INPUT.get() {
+        crate::v026g::bots::kin::StepInput::Same
+    } else {
+        *TUNED.get_or_init(|| super::bench::bench_tuning().kin.step_input)
+    }
+}
+
+/// The stand-in's old step order ([`crate::v026g::bots::kin::StepInput::Same`]: a tick moves with its own input) for this thread
+/// while it lives (tests whose pinned numbers predate it).
+pub(crate) struct OldStepInput(());
+
+impl OldStepInput {
+    pub(crate) fn scope() -> Self {
+        OLD_STEP_INPUT.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldStepInput {
+    fn drop(&mut self) {
+        OLD_STEP_INPUT.set(false);
+    }
+}
+
+/// The stand-in's slide before the round one ([`crate::v026g::bots::kin::WallSlide::Diagonal`]) for this thread while it lives
+/// (tests whose pinned numbers predate it).
+pub(crate) struct OldWalls(());
+
+impl OldWalls {
+    pub(crate) fn scope() -> Self {
+        OLD_WALLS.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldWalls {
+    fn drop(&mut self) {
+        OLD_WALLS.set(false);
+    }
 }
 
 /// The stand-in's old blend ([`crate::v026g::bots::kin::Mixer::Frozen`]) for this thread while it lives (tests whose pinned
@@ -199,6 +250,15 @@ thread_local! {
 /// A test puts [`stand_in_fall`] on or off for its own thread (`None`: as the run says): the pinned soaks predate it.
 pub(crate) fn force_fall(on: Option<bool>) {
     FALL_FORCED.with(|f| f.set(on));
+}
+
+/// [A318] Whether a stand-in body falling (after a jump's clip, a walk off an edge) falls as the client's capsule does
+/// (`SRP_BENCH_STAND_IN_SLOW_FALL`, on unless `off`; [`super::body::client_fall_tick`]: `step_down` 0x7E1B0's slow start,
+/// 0.05 m a tick while the speed at the tick's start is under 2.0 m/s, then the speed at the tick's start, `g` 9.8 after the move,
+/// PROVEN). Off: as before (the speed after the tick's `g` from the first tick; benches before A318's fall start).
+pub(crate) fn stand_in_slow_fall() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_SLOW_FALL").map_or(true, |v| v != "off"))
 }
 
 /// Whether a stand-in body that walks off an edge falls from it keeping the walk's speed across (`SRP_BENCH_STAND_IN_WALKOFF`, on
@@ -507,7 +567,10 @@ pub(crate) fn a_stand_in_jump_gets_up_a_ledge_with_no_link_within_its_height() {
 }
 
 /// Whether the stand-in moves bodies as the client does (the default): no
-/// step up over the client's 0.6 m, and a jump that follows the keys held
+/// step up over the client's ([`super::standin::client_step`]: the grid body's
+/// `step`, 0.80 m on the clients' body, `startup.cfg` `cc_step_height 0.80` in the
+/// game's `resources.db`; the exe's own default, `s_step_height` 0.6, is replaced
+/// by that cvar), and a jump that follows the keys held
 /// at its press along the game's jump clip ([`Flight`]).
 /// `SRP_BENCH_STAND_IN=old` brings back the old stand-in (any step the
 /// grid walks, a jump that lifts the body up any floor in reach,
@@ -589,8 +652,10 @@ pub(crate) fn the_grids_gap_links_fly_this_short_clip() {
 }
 
 /// Before the sprint clip, the prepare phase finishes the run's step: 0 to
-/// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (PROVEN; the
-/// phase is drawn uniform, LIKELY).
+/// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (EXE + clip data, PROVEN: `jump_logic_state_prepare::initialize`
+/// 0x342540 waits for the run clip's next `anim_intervals` mark, `on_interval_end` 0x342A50 starts the jump; the rate
+/// `get_prepare_time_factor` 0x3375A0 makes the wait 0-0.15 s; the sprint clips' root runs 5.455 m/s of clip time over the
+/// 0.30 s step, 0-1.636 m; sprint-jump RE `FINDINGS.md` §3.2, `re-sprint-prepare.md`. The phase is drawn uniform, LIKELY).
 pub(crate) const SPRINT_PREPARE_MS: f32 = 150.0;
 
 pub(crate) const SPRINT_PREPARE_M: f32 = 1.64;
@@ -601,8 +666,9 @@ pub(crate) const SPRINT_PREPARE_M: f32 = 1.64;
 /// leaves the floor), PROVEN (FINDINGS §1.2, §3.2).
 pub(crate) const WALK_CAP: f32 = 3.5;
 
-/// A body falling after its clip, m/s².
-pub(crate) const GRAVITY: f32 = 9.81;
+/// A body falling after its clip, m/s²: the client's `fall_params.gravity` (PROVEN, `docs/notes/fall_damage.md`: `step_down` 0x7E1B0
+/// adds 0.49 m/s a 0.05 s tick), the reckoning's own (`body.rs` `GRAVITY`). Was 9.81 with no source.
+pub(crate) const GRAVITY: f32 = 9.8;
 
 /// The heights over the feet at which a face holds a body in the air
 /// (rays on the walker mesh), m: its feet (a little over, so a floor's
@@ -755,7 +821,8 @@ pub(crate) struct Landing {
 }
 
 /// The client's fall damage at a landing speed `v` m/s with `fatal_damage` 1.0 (the resources.db patch): none up to `harmless_height` 5 m
-/// (9.9 m/s), `(v - 9.9) / (14 - 9.9)` up to `fatal_height` 10 m (14 m/s), 1.0 beyond (PROVEN, `docs/notes/fall_damage.md`).
+/// (9.9 m/s), `(v - 9.9) / (14 - 9.9)` up to `fatal_height` 10 m (14 m/s), 1.0 beyond (EXE + DATA, PROVEN, `docs/notes/fall_damage.md`:
+/// the law 0x2d8220, its loader 0x2d6600 reading `gameplay/players/default.player` `fall_params`).
 pub(crate) fn fall_damage(v: f32) -> f32 {
     ((v - HARMLESS_V) / (FATAL_V - HARMLESS_V)).clamp(0.0, 1.0)
 }
@@ -804,8 +871,14 @@ pub(crate) fn fly(
         })
     };
     if let Some(v) = f.fall {
-        let v = v + GRAVITY * TICK_S;
-        let y = body.feet.y - v * TICK_S;
+        // [A318] The client's fall ([`stand_in_slow_fall`]): the slow start, then the speed at the tick's start; else as before.
+        let (v, down) = if stand_in_slow_fall() {
+            super::body::client_fall_tick(v)
+        } else {
+            let v = v + GRAVITY * TICK_S;
+            (v, v * TICK_S)
+        };
+        let y = body.feet.y - down;
         // A walk off an edge goes on across at its speed, held by the walls as a jump is ([`air_move`]).
         let (x, z) = if f.carry == [0.0, 0.0] {
             (body.feet.x, body.feet.z)
@@ -869,6 +942,9 @@ pub(crate) fn fly(
                     }
                 }
             }
+            // The walk before the take-off keeps its own (older) slide: moving it onto the stand-in's walk raised jumps failed 62 -> 87 on
+            // the bench (2026-11-06, 16 pairs); that change is judged in T3 against the recordings (where the client took off and landed),
+            // not by bench counts.
             let (n, feet, _) = if wall.as_ref().is_some_and(|w| w.hold) && stand_in_edge() {
                 super::body::slide_supported(grid, node, body.feet, target, super::standin::client_step(grid), super::body::SUPPORT_M)
             } else {
@@ -1113,7 +1189,7 @@ pub(crate) fn the_fall_damage_follows_the_clients_rule_by_landing_speed() {
     assert_eq!(fall_damage(30.0), 1.0);
 }
 
-/// The honest walk steps up to the client's 0.6 m, and not up the grid's
+/// The honest walk steps up to the grid body's step (0.6 m on this test's default body, the exe's `s_step_height`), and not up the grid's
 /// "forced" stair links of up to 0.75 m (`walk` faces) that the old
 /// walk took.
 #[test]

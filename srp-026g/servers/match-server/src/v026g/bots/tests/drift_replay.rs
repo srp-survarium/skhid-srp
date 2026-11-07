@@ -10,13 +10,20 @@
 //! `SRP_A304_WORLDS`, `SRP_A304_INPUTS`: the tables; `SRP_A304_MAP`: the project (`level_08/day_2`); `SRP_MAPDATA_DIR`: the map
 //! data; `SRP_BENCH_TUNING`: the tuning patch (the server's file); `SRP_A304_HUMANS`: the human places (default `0`);
 //! `SRP_A304_OUT`: the CSV written, one row a world of a bot life after its first. Ignored; it prints a summary.
+//! `SRP_A304_TICKS` (with `SRP_A304_ROWS` and `SRP_A304_REC`) [A325]: the reckoning tick by tick over chosen intervals, for the
+//! first-divergence classifier against the reference body (the client's movement code on the same keys). The world is the live one:
+//! built through the server's map store (which drops the map's meshes, as live); `SRP_A304_BUILT=<dir>` [A325] adds the store's built
+//! files, so a run with the same grid rules reads the grid back instead of building it. `SRP_A304_WORLD=meshes` (or `SRP_A304_SLOPE`,
+//! which needs the walker triangles) builds the old test world that keeps the meshes instead: not the live world.
+//! `SRP_A304_LEVELS=<rec_levels.csv>` [A332]: each place's speed level from its match profile (`srp-rec-table`'s table), the body's
+//! prior until a world shows the life's own, as the server sets it; without it the prior is 1.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
 
-use super::super::body::{BodyTrack, Fix};
+use super::super::body::{self, BodyTrack, Fix};
 use super::bench::bench_tuning;
 
 /// A world reaches the bots this long after its tick, ms (the bench's own delay; the live one is 200-400).
@@ -26,6 +33,9 @@ struct WorldRow {
     time: u32,
     place: usize,
     fix: Fix,
+    /// [A334] The block's kit in use, weapon in hands and the speed factors the server hands for them (`srp-rec-table`'s
+    /// `kit,hands,speeds` columns); `None` where the table has none.
+    supplies: Option<(u8, Option<u8>, Vec<f32>)>,
 }
 
 fn read_csv(path: &str) -> Vec<HashMap<String, String>> {
@@ -35,6 +45,40 @@ fn read_csv(path: &str) -> Vec<HashMap<String, String>> {
     lines
         .map(|line| head.iter().cloned().zip(line.split(',').map(str::to_owned)).collect())
         .collect()
+}
+
+/// [A332] Each place's speed factors from its match profile (`srp-rec-table`'s `rec_levels.csv`, fx-review's A332 writer): the
+/// first kit's (the server's `game/driven.rs` takes kit 0 until a world names the kit in use) level with no weapon term
+/// (`bot_skills::profile_movement_level_in(.., false)`) plus each weapon slot's own `movement_speed_modifier` (the weapon in hands'
+/// term, `weapon_core::initialize` 0x2E2C9C), the primary (slot 7) first, then the kit's other weapons, then none. The place's
+/// latest roster counts. The loaded rounds are not in the table's weight.
+fn kit_levels(path: &str) -> HashMap<usize, Vec<f32>> {
+    let mut latest: HashMap<usize, (u32, Vec<f32>)> = HashMap::new();
+    for r in read_csv(path) {
+        let num = |k: &str| r.get(k).and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite());
+        let (Some(roster), Some(place), Some(level)) =
+            (r.get("roster").and_then(|v| v.parse::<u32>().ok()), r.get("place").and_then(|v| v.parse::<usize>().ok()), num("level_none"))
+        else {
+            continue;
+        };
+        if r.get("kit").map(String::as_str) != Some("0") || latest.get(&place).is_some_and(|(seen, _)| *seen > roster) {
+            continue;
+        }
+        let mut weapons: Vec<(bool, f32)> = r
+            .get("weapons")
+            .map_or("", String::as_str)
+            .split(';')
+            .filter_map(|w| {
+                let (slot, modifier) = w.split_once(':')?;
+                Some((slot == "7", modifier.parse::<f32>().ok()?))
+            })
+            .collect();
+        weapons.sort_by_key(|&(primary, _)| !primary);
+        let mut levels: Vec<f32> = weapons.iter().map(|&(_, modifier)| (level + modifier).max(0.0)).collect();
+        levels.push(level);
+        latest.insert(place, (roster, levels));
+    }
+    latest.into_iter().map(|(place, (_, levels))| (place, levels)).collect()
 }
 
 fn hex(s: &str) -> u32 {
@@ -54,16 +98,47 @@ fn drift_on_a_real_match() {
     let humans: Vec<usize> = var("SRP_A304_HUMANS").unwrap_or_else(|| "0".into()).split(',').filter_map(|p| p.parse().ok()).collect();
     let tuning = bench_tuning();
     let kin = tuning.kin.clone();
-    let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
-    let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-    let world = Arc::new(World::build_with(
-        map,
-        mapdata::CELL,
-        tuning.grid_body(),
-        tuning.off_mesh_links(),
-        tuning.needs_wall_clearance(),
-        tuning.needs_open_sides(),
-    ));
+    let loading = std::time::Instant::now();
+    // `SRP_A304_BUILT=<dir>` [A325, the fast case bench]: the world through the server's own map store and its built files (grid,
+    // sight tree, tactics keyed by the map file and the grid rules, `maps::read_or_build`): a run whose grid rules are the last
+    // run's reads the grid back in seconds; only a grid-rule change builds it again (and writes it for the next run).
+    // The world is the LIVE one by default: the map store builds it as the server does (and drops the map's meshes after the grid and
+    // the sight tree, as live: a rule that read the walker triangles would find none here either), with or without built files. Only
+    // `SRP_A304_WORLD=meshes` (and `SRP_A304_SLOPE`, which needs the walker triangles) builds the old test world that keeps them.
+    let meshes = var("SRP_A304_WORLD").as_deref() == Some("meshes") || var("SRP_A304_SLOPE").is_some();
+    let world = match (meshes, var("SRP_A304_BUILT")) {
+        (false, built) => {
+            let maps = super::super::maps::Maps::configured_for(
+                Some(std::path::PathBuf::from(&dir)),
+                1,
+                1,
+                built.map(std::path::PathBuf::from),
+                tuning.grid.clone(),
+                tuning.needs_wall_clearance(),
+                tuning.needs_open_sides(),
+            );
+            loop {
+                match maps.get(&project) {
+                    super::super::maps::MapState::Ready(base) => break base.world.clone(),
+                    super::super::maps::MapState::Absent(why) => panic!("{project}: {why}"),
+                    _ => std::thread::sleep(std::time::Duration::from_millis(20)),
+                }
+            }
+        }
+        (true, _) => {
+            let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
+            let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+            Arc::new(World::build_with(
+                map,
+                mapdata::CELL,
+                tuning.grid_body(),
+                tuning.off_mesh_links(),
+                tuning.needs_wall_clearance(),
+                tuning.needs_open_sides(),
+            ))
+        }
+    };
+    eprintln!("A325 world of {project} in {:.1} s", loading.elapsed().as_secs_f32());
     // `SRP_A304_RAMP_AT=x,z;x,z`: the ramp marks (`grid.ramp_faces`) of the floors within 2 m of each point, then nothing else.
     if let Some(points) = var("SRP_A304_RAMP_AT") {
         let g = &*world.grid;
@@ -88,6 +163,8 @@ fn drift_on_a_real_match() {
     }
     // `SRP_A304_FREE=1`: the reckoning with no walk grid (free space), to weigh what the grid adds.
     let grid: Option<&mapdata::WalkGrid> = var("SRP_A304_FREE").is_none().then_some(&*world.grid);
+    // [A318] The jump arc's walls, as a match's view keeps them (`Tracker::arc_walls`): the walker mesh, while the switch is on.
+    let arc_walls = (grid.is_some() && kin.jump_arc).then(|| body::walker_walls(&world));
     // The inputs, by time; the worlds, by the time they reach the bots.
     let mut ticks: Vec<(u32, usize, u32, (f32, f32))> = read_csv(&inputs)
         .iter()
@@ -98,6 +175,22 @@ fn drift_on_a_real_match() {
         })
         .collect();
     ticks.sort_by_key(|t| (t.0, t.1));
+    // [A318] Each world's vertical speed (`Fix::fall`, the controller's `fall_and_slide_velocity` y): a `fall_y` column of the
+    // worlds, else `rec_motion.csv` beside them (the client tests' tables), by (time, place). Without either, none (as before).
+    let motion_falls: HashMap<(u32, usize), f32> = {
+        let path = std::path::Path::new(&worlds).with_file_name("rec_motion.csv");
+        if path.exists() {
+            read_csv(path.to_str().unwrap_or_default())
+                .iter()
+                .filter_map(|r| {
+                    let fall: f32 = r.get("fall_y")?.parse().ok().filter(|v: &f32| v.is_finite())?;
+                    Some(((r.get("time")?.parse().ok()?, r.get("place")?.parse().ok()?), fall))
+                })
+                .collect()
+        } else {
+            HashMap::new()
+        }
+    };
     let mut rows: Vec<WorldRow> = read_csv(&worlds)
         .iter()
         .filter_map(|r| {
@@ -111,6 +204,9 @@ fn drift_on_a_real_match() {
                 time: r.get("time")?.parse().ok()?,
                 place,
                 fix: Fix {
+                    fall: num("fall_y")
+                        .or_else(|| Some(*motion_falls.get(&(r.get("time")?.parse().ok()?, place))?))
+                        .map(|vy| -vy),
                     time: r.get("time")?.parse().ok()?,
                     alive,
                     inserted: r.get("inserted")?.parse().ok()?,
@@ -120,11 +216,34 @@ fn drift_on_a_real_match() {
                     keys: hex(r.get("keys")?),
                     speed: num("speed"),
                 },
+                supplies: r.get("kit").and_then(|kit| kit.parse::<u8>().ok()).and_then(|kit| {
+                    let speeds: Vec<f32> = r.get("speeds")?.split(';').filter_map(|v| v.parse().ok()).collect();
+                    (!speeds.is_empty()).then(|| (kit, r.get("hands").and_then(|h| h.parse().ok()), speeds))
+                }),
             })
         })
         .collect();
     rows.sort_by_key(|w| (w.time, w.place));
     let mut tracks: HashMap<usize, BodyTrack> = HashMap::new();
+    // [A334] Each place's (kit, hands slot) whose speed factors the reckoning was last handed (`driven.rs`'s `speed_kits`).
+    let mut hands_sent: HashMap<usize, (u8, Option<u8>)> = HashMap::new();
+    // `SRP_A304_LEVELS=<rec_levels.csv>` [A332]: each reckoned place's profile level, the primary in hands
+    // ([`BodyTrack::set_prior_level`], as the server's `game/driven.rs` sets it), until a world shows the life's own. Without it the
+    // prior is 1.
+    if let Some(path) = var("SRP_A304_LEVELS") {
+        let levels = kit_levels(&path);
+        for (&place, levels) in levels.iter().filter(|(place, _)| !humans.contains(place)) {
+            let track = tracks.entry(place).or_default();
+            track.set_prior_level(levels.first().copied());
+            // [A331] The computed level picks among the kit's values ([`super::super::kin::LevelSource::Computed`]).
+            if kin.level_source == super::super::kin::LevelSource::Computed {
+                track.set_speed_candidates(levels.clone());
+                // Sent for kit 0 with the hands unknown, as the server starts.
+                hands_sent.insert(place, (0, None));
+            }
+        }
+        eprintln!("A332 levels: {} places from {path}", levels.len());
+    }
     let mut out = String::from("place,time,gap,flat,height,meant,moved,ticks,walk,held,rx,ry,rz,wx,wy,wz\n");
     let (mut k, mut n, mut over) = (0usize, 0u32, 0u32);
     let mut held_kinds: HashMap<(&str, &str), u32> = HashMap::new();
@@ -139,19 +258,109 @@ fn drift_on_a_real_match() {
     // `SRP_A304_HOLD=1` [A318]: each 'faster' world the grid held the reckoning in (the client walked 1 m+ more than the keys meant):
     // the floor it was held on against the floor under the client's feet, and the grid's links between them.
     let hold_probe = var("SRP_A304_HOLD").is_some();
+    let mut arc_rays: Vec<u64> = Vec::new();
+    // [A318] The time of each tick's reckoning (`decided`), with a jump under way and without: the arc's cost per jumping tick.
+    let (mut jump_us, mut other_us): (Vec<f64>, Vec<f64>) = (Vec::new(), Vec::new());
+    let trace: Option<(usize, u32, u32)> = var("SRP_A318_TRACE").and_then(|v| {
+        let mut it = v.split(',').map(|s| s.trim().parse::<u32>().ok());
+        Some((it.next()?? as usize, it.next()??, it.next()??))
+    });
     let mut hold_kinds: HashMap<&str, u32> = HashMap::new();
+    // `SRP_A304_TICKS=<csv>` [A325, the first-divergence classifier]: the reckoning tick by tick over each interval of the windows of
+    // `SRP_A304_ROWS` (lines `rec,place,t0,t1[,note]`, the rows of this recording `SRP_A304_REC`; every interval without it): the state
+    // after each decided tick, joined with the reference body's (the client's movement code on the same keys) by (place, world_t, tick).
+    let windows: Option<Vec<(usize, u32, u32)>> = var("SRP_A304_ROWS").map(|path| {
+        let rec = var("SRP_A304_REC").unwrap_or_default();
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{path}: {e}"))
+            .lines()
+            .filter_map(|line| {
+                let f: Vec<&str> = line.split(',').map(str::trim).collect();
+                (f.len() >= 4 && f[0] == rec).then_some(())?;
+                Some((f[1].parse().ok()?, f[2].parse().ok()?, f[3].parse().ok()?))
+            })
+            .collect()
+    });
+    let ticks_out = var("SRP_A304_TICKS");
+    // Columns: rec (`SRP_A304_REC`), the feet and the velocity over the tick, the grid node within 0.5 m (-1 none), its floor height
+    // (empty for none) and whether the grid held the step. The intended velocity is the reference's (`ivx,ivz`: the same kin both sides).
+    let tick_rec = var("SRP_A304_REC").unwrap_or_default();
+    let mut tick_rows = String::from("rec,place,world_t,tick,t,x,y,z,vx,vy,vz,node,floor_y,held\n");
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
             let (time, place, keys, turn) = ticks[k];
-            tracks.entry(place).or_default().decided(time, keys, turn, 0.0, &kin, grid);
+            let track = tracks.entry(place).or_default();
+            track.set_walls(arc_walls.clone());
+            let rays_before = super::super::jump_arc::RAYS.load(std::sync::atomic::Ordering::Relaxed);
+            let started = std::time::Instant::now();
+            track.decided(time, keys, turn, 0.0, &kin, grid);
+            let us = started.elapsed().as_secs_f64() * 1e6;
+            // [A318] The jump arc's rays and time on this tick, while a jump is under way (its cost per jumping tick).
+            if track.estimate().is_some_and(|e| e.arc.is_some()) {
+                arc_rays.push(super::super::jump_arc::RAYS.load(std::sync::atomic::Ordering::Relaxed) - rays_before);
+                jump_us.push(us);
+            } else {
+                other_us.push(us);
+            }
+            // `SRP_A318_TRACE=place,from,to` [A318]: that place's reckoned body after each of its ticks in the window.
+            if let Some((p, from, to)) = trace
+                && place == p
+                && (from..=to).contains(&time)
+                && let Some(e) = track.estimate()
+            {
+                eprintln!(
+                    "A318 trace {time} keys {keys:#x} feet ({:.2},{:.2},{:.2}) v ({:.2},{:.2}) node {:?} arc {:?}",
+                    e.feet.x, e.feet.y, e.feet.z, e.velocity[0], e.velocity[1], e.node, e.arc
+                );
+            }
             k += 1;
         }
         let track = tracks.entry(w.place).or_default();
         let before = track.fix().filter(|f| f.alive && f.inserted == w.fix.inserted).and_then(|f| f.feet);
         let reckoned = track.reckoned_at(w.time);
+        // [A325] The interval's ticks, before this world puts the track right.
+        if let (Some(_), Some(start), Some(was)) = (&ticks_out, before, track.fix().map(|f| f.time)) {
+            let wanted = windows.as_ref().is_none_or(|ws| ws.iter().any(|&(p, t0, t1)| p == w.place && (t0..=t1).contains(&w.time)));
+            if wanted {
+                let mut last = (was, start);
+                for (i, (t, feet, held)) in track.trail_between(was, w.time).into_iter().enumerate() {
+                    let dt = (t.saturating_sub(last.0)).max(1) as f32 / 1000.0;
+                    let v = (feet - last.1) * (1.0 / dt);
+                    let located = world.grid.locate(feet, 0.5);
+                    let node = located.map_or(-1, i64::from);
+                    let floor_y = located.map_or(String::new(), |n| format!("{:.3}", world.grid.position(n).y));
+                    tick_rows.push_str(&format!(
+                        "{tick_rec},{},{was},{},{t},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{node},{floor_y},{}\n",
+                        w.place,
+                        i + 1,
+                        feet.x,
+                        feet.y,
+                        feet.z,
+                        v.x,
+                        v.y,
+                        v.z,
+                        u8::from(held)
+                    ));
+                    last = (t, feet);
+                }
+            }
+        }
+        // [A334] A new kit in use or weapon in hands: the speed factors the server hands for them (`driven.rs::observe_stock`).
+        if let (Some(sent), Some((kit, hands, speeds))) = (hands_sent.get_mut(&w.place), &w.supplies)
+            && *sent != (*kit, *hands)
+        {
+            *sent = (*kit, *hands);
+            track.set_speed_candidates(speeds.clone());
+        }
         let feet = w.fix.feet;
         let speed = w.fix.speed;
         let new_life = track.fixed(w.fix, &kin, grid);
+        if let Some((p, from, to)) = trace
+            && w.place == p
+            && (from..=to).contains(&w.time)
+        {
+            eprintln!("A318 trace {} WORLD feet {feet:?} reckoned {reckoned:?} arc after fix {:?}", w.time, track.estimate().map(|e| e.arc));
+        }
         let (Some(feet), Some(reckoned), Some(from), false) = (feet, reckoned, before, new_life) else {
             continue;
         };
@@ -250,6 +459,28 @@ fn drift_on_a_real_match() {
     if let Some(path) = var("SRP_A304_OUT") {
         std::fs::write(&path, out).unwrap_or_else(|e| panic!("{path}: {e}"));
     }
+    if !arc_rays.is_empty() {
+        arc_rays.sort_unstable();
+        let mean = arc_rays.iter().sum::<u64>() as f64 / arc_rays.len() as f64;
+        let p99 = arc_rays[(arc_rays.len() * 99 / 100).min(arc_rays.len() - 1)];
+        eprintln!(
+            "A318 rays {project}: {} jumping ticks, rays a tick mean {mean:.1} p99 {p99} max {}",
+            arc_rays.len(),
+            arc_rays[arc_rays.len() - 1]
+        );
+    }
+    let stats = |v: &mut Vec<f64>| {
+        v.sort_by(f64::total_cmp);
+        let mean = v.iter().sum::<f64>() / v.len().max(1) as f64;
+        (v.len(), mean, v.get((v.len() * 99 / 100).min(v.len().saturating_sub(1))).copied().unwrap_or(0.0))
+    };
+    let ((nj, mj, pj), (no, mo, po)) = (stats(&mut jump_us), stats(&mut other_us));
+    eprintln!(
+        "A318 cost {project}: {nj} jumping ticks, decided us mean {mj:.1} p99 {pj:.1}; {no} other ticks mean {mo:.1} p99 {po:.1}"
+    );
+    if let Some(path) = &ticks_out {
+        std::fs::write(path, tick_rows).unwrap_or_else(|e| panic!("{path}: {e}"));
+    }
     eprintln!(
         "A304 replay {project}: {n} worlds of bots compared, {over} drifting (1 m+), {:.1} %",
         100.0 * over as f64 / n.max(1) as f64
@@ -293,4 +524,24 @@ fn way_within(grid: &mapdata::WalkGrid, from: NodeId, to: NodeId, steps: usize, 
         front = next;
     }
     false
+}
+
+/// [A332] [`kit_levels`]: kit 0 of the place's latest roster, the primary in hands first, the kit's other weapons, then none.
+#[test]
+fn kit_levels_take_kit_zero_of_the_latest_roster() {
+    let path = std::env::temp_dir().join(format!("a332-levels-{}.csv", std::process::id()));
+    std::fs::write(
+        &path,
+        "match,roster,place,team,kit,level_none,weight,weapons\n\
+         m,1,0,0,0,0.9000,30.000,7:0.000\n\
+         m,2,0,0,0,0.9500,30.000,3:-0.020;7:0.010\n\
+         m,2,0,0,1,0.8000,40.000,7:0.000\n\
+         m,1,1,1,0,0.9700,20.000,\n",
+    )
+    .unwrap();
+    let levels = kit_levels(path.to_str().unwrap());
+    std::fs::remove_file(&path).ok();
+    let near = |a: &[f32], b: &[f32]| a.len() == b.len() && a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-5);
+    assert!(near(&levels[&0], &[0.96, 0.93, 0.95]), "{:?}", levels[&0]);
+    assert!(near(&levels[&1], &[0.97]), "{:?}", levels[&1]);
 }

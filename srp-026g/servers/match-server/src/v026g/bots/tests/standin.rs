@@ -111,6 +111,17 @@ pub(crate) fn client_step(grid: &mapdata::WalkGrid) -> f32 {
     grid.body().step
 }
 
+/// The stand-in's walk on the lattice, one rule for every walking tick (the walk, and the walk before a jump's take-off): with
+/// [`stand_in_edge`] the supported slide with the stand-in's bridge rule and wall slide ([`stand_in_bridges`], [`stand_in_walls`]),
+/// else the old capped slide; the rise is [`client_step`].
+pub(crate) fn walk_slide(grid: &mapdata::WalkGrid, node: NodeId, from: Vec3, to: Vec3) -> (NodeId, Vec3, bool) {
+    if stand_in_edge() {
+        body::slide_supported_with(grid, node, from, to, client_step(grid), body::SUPPORT_M, stand_in_bridges(), stand_in_walls())
+    } else {
+        slide_capped(grid, node, from, to, client_step(grid))
+    }
+}
+
 pub(crate) fn spawn_on_free_points() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     !OLD_DRAW.get() && *ON.get_or_init(|| bench_settings().var("SRP_BENCH_SPAWN_POINTS").map_or(true, |v| v != "random"))
@@ -334,6 +345,9 @@ pub(crate) struct Body {
     pub(crate) scale: PitchScale,
     pub(crate) blend: Blend,
     pub(crate) keys: u32,
+    /// [A318] With `kin.step_input = previous` (the client's order, fx-review A336): the keys and yaw (after its turn) of the input
+    /// before `keys`, which move the body on this tick; none on its first tick of a life (then `keys` and `yaw`).
+    pub(crate) held: Option<(u32, f32)>,
     pub(crate) health: f32,
     /// Its other pools ([`standin_damage::Pools`]): `health` is the body's.
     pub(crate) pools: standin_damage::Pools,
@@ -468,6 +482,9 @@ pub(crate) const STAND_IN_LEG_SHARE: u32 = 4;
 
 pub(crate) const STAND_IN_LEG_HIT: f32 = 0.25;
 
+/// How long a broken leg lasts: game data, `gameplay/hit_params/human_hit_params.options` `affect_duration_sec/leg_damage`
+/// = 8 (s; the affect `leg_damage` 4 of `hit_affects_type_enum`). The live worlds agree (141 broken-leg stretches, most 8.0-8.1 s,
+/// sprint-jump RE `FINDINGS.md` §1.8): a check, not the source.
 pub(crate) const STAND_IN_LEG_BROKEN_MS: u32 = 8_000;
 
 /// After a hit the stand-in walks at this share of its speed for
@@ -866,6 +883,7 @@ impl Game {
             scale: pitch_scale(),
             blend: Blend::default(),
             keys: 0,
+            held: None,
             health: 1.0,
             pools: standin_damage::Pools::default(),
             stock: standin_weapon::Stock::new(standin_weapon::Fill::guess(bench_tier(), gun)),
@@ -1072,6 +1090,7 @@ impl Game {
         };
         body.pitch = 0.0;
         body.blend = Blend::default();
+        body.held = None;
         body.health = 1.0;
         body.pools = standin_damage::Pools::default();
         body.legs = [0.5; 2];
@@ -1291,15 +1310,22 @@ impl Game {
             // A body with the low flag set, or over its capacity, walks at
             // its walk speed with the sprint keys held; the bar is spent on
             // the keys all the same.
+            // [A318] The client moves a tick with the input before the one it takes on that tick (`kin.step_input`).
+            let step_input = super::standin_jump::stand_in_step_input();
+            let (moving, moving_yaw) = match (step_input, body.held) {
+                (super::super::kin::StepInput::Previous, Some(held)) => held,
+                _ => (body.keys, body.yaw),
+            };
+            body.held = (step_input == super::super::kin::StepInput::Previous).then_some((body.keys, body.yaw));
             let keys = if body.carrying.is_some() || caught || !body.stamina.may_sprint() {
-                body.keys & !key::SPRINT
+                moving & !key::SPRINT
             } else {
-                body.keys
+                moving
             };
             let local = body
                 .blend
                 .tick_mixed(self.kin.target_local(keys, level), self.kin.blend_ticks, super::standin_jump::stand_in_mixer());
-            let v = to_world(local, body.yaw);
+            let v = to_world(local, moving_yaw);
             let to = Vec3::new(
                 body.feet.x + v[0] * TICK_S,
                 body.feet.y,
@@ -1365,7 +1391,7 @@ impl Game {
                     // The rise a walk climbs is the client's step ([`client_step`]), not the grid's: with `capsule_steps` the grid walks
                     // 0.96 m ledges the client's body is held at (A286).
                     let (mut node, mut feet, _) = if stand_in_edge() {
-                        let slid = body::slide_supported_with(grid, node, body.feet, target, client_step(grid), body::SUPPORT_M, stand_in_bridges(), stand_in_walls());
+                        let slid = walk_slide(grid, node, body.feet, target);
                         // Past a ledge's edge with no drop link ahead: on, or down, as the client's capsule (`stand_in_fall`).
                         let walls = self.walls.as_deref().filter(|_| stand_in_fall());
                         match walls.and_then(|walls| past_edge(grid, walls, slid.0, slid.1, target)) {
@@ -2759,7 +2785,7 @@ impl Game {
         let fixes = self
             .bodies
             .iter()
-            .map(|body| Fix {
+            .map(|body| Fix { fall: None,
                 time: self.tick,
                 alive: body.alive,
                 inserted: body.spawned,
