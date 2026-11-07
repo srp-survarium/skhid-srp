@@ -119,8 +119,7 @@ static REFUSALS: GameCell<Refusals> = GameCell::new(Refusals::Quiet);
 
 /// A refusal's line to `srp_patches.log`, under [`Refusals`]' limit.
 pub fn refusal(thread: &Thread, pieces: &[Piece]) {
-    // SAFETY: GetTickCount takes no arguments and has no engine lifecycle.
-    let now = unsafe { raw::engine_tick_count() };
+    let now = super::files::tick_count();
     let (next, logged) = REFUSALS.get(thread).refuse(now);
     REFUSALS.set(thread, next);
     if let Some(unlogged) = logged {
