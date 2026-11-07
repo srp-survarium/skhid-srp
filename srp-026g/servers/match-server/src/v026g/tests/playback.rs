@@ -1,0 +1,666 @@
+//! Replay sessions (`game/playback.rs`): a player's game shown a match's
+//! recording as a spectator, started by the lobby's desk
+//! (`session::v026g::replay_watch`).
+//!
+//! Most tests play a real recording: a two-place Team Deathmatch on level_01
+//! of 2026-11-07, 114.6 s, made into a `.sur` by `srp-recording-to-sur`
+//! (with an empty mode config), put in a session as if read for it. Its key
+//! frames: 50, 14 500, 24 500, 39 550, 49 550, 59 550, 69 550, 81 500,
+//! 94 550, 104 600 and 114 600 ms. Its worlds, inputs and roster changes are
+//! played as they are; its 0xE4 is the tests' (its profiles hold items of
+//! the live game data, which the tests' dictionary does not have). The
+//! others read a recording this server makes of a live match, from the
+//! recordings' folder, as the real flow does.
+
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicU32;
+
+use session::v026g::replay_watch::{Access, Stage, WatchRequest, WatchSettings};
+use session::v026g::replays::{Refusal, Replays, Status};
+use survarium::v026g::maps::MatchMap;
+use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
+use survarium::v026g::match_msgs::static_info::{MatchOptions, SCORE_WEIGHTS, StaticInfo};
+use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, TICK_MS, WireTime, id};
+
+use super::*;
+use crate::v026g::game::{Control, ReplayRecording, Speed};
+use crate::v026g::record::{self, Desk, RecordSettings};
+use crate::v026g::sur;
+
+const RECORDING: &str = "tests/data/replay_level_01_tdm_2p.sur";
+/// Its places enter at 400 and 1 300 ms: the first key frame after.
+const FIRST_VIEW: u32 = 14_500;
+const WATCHER_ACCOUNT: u32 = 900;
+const WATCHER: u32 = session_for(WATCHER_ACCOUNT);
+const MODERATOR: u32 = 901;
+/// Files of the tests: each its own name.
+static FILES: AtomicU32 = AtomicU32::new(0);
+
+fn temp(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "srp-playback-{name}-{}-{}",
+        std::process::id(),
+        FILES.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// The recording with the tests' 0xE4 (two places of level_01's Team
+/// Deathmatch).
+fn playable() -> ReplayRecording {
+    let options = MatchOptions {
+        players: vec![profile("a", 0), profile("b", 1)],
+        map: MatchMap::of(MAP_TDM).unwrap(),
+        match_id: 0x1234,
+        match_level: 3,
+        score_weights: SCORE_WEIGHTS,
+    };
+    let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
+    let options = info.payload(0).unwrap()[1..].to_vec();
+    let file = std::fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(RECORDING)).unwrap();
+    let mut out = Vec::new();
+    for (id, bytes) in sur::chunks(&file).unwrap() {
+        let bytes = if id == sur::chunk::OPTIONS {
+            &options
+        } else {
+            bytes
+        };
+        out.extend(id.to_le_bytes());
+        out.extend((bytes.len() as u32).to_le_bytes());
+        out.extend(bytes);
+    }
+    ReplayRecording::from_sur(&out, 0x1234).unwrap()
+}
+
+/// The recording's inputs of `player`, in order: time and input.
+fn recorded(player: u8) -> Vec<(u32, PlayerInput)> {
+    let file = std::fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(RECORDING)).unwrap();
+    let contents = sur::read(&file).unwrap();
+    contents
+        .records
+        .iter()
+        .flat_map(|record| {
+            let time = record.event.time;
+            record
+                .event
+                .inputs
+                .iter()
+                .filter(move |(p, _)| *p == player)
+                .map(move |(_, value)| {
+                    let input = PlayerInput {
+                        time: if time % TICK_MS == 0 {
+                            WireTime::tick(time)
+                        } else {
+                            WireTime::precise(time)
+                        },
+                        rotation: value.rotation,
+                        actions: value.actions,
+                    };
+                    (time, input)
+                })
+        })
+        .collect()
+}
+
+/// As `Client::relays_of` reads them: each distinct input once, the first.
+fn distinct(inputs: impl IntoIterator<Item = PlayerInput>) -> Vec<PlayerInput> {
+    let mut out = Vec::new();
+    for input in inputs {
+        if !out.contains(&input) {
+            out.push(input);
+        }
+    }
+    out
+}
+
+/// The process's replays, with sessions on: the match's players and
+/// [`MODERATOR`], or anyone.
+fn replays(access: Access) -> Arc<Replays> {
+    Arc::new(Replays::new(None, 2).with_watch(WatchSettings {
+        access,
+        moderators: HashSet::from([MODERATOR]),
+        max_sessions: 4,
+    }))
+}
+
+/// Recording into `dir`, with `replays`' sessions.
+fn settings(dir: &Path, replays: &Arc<Replays>) -> Settings {
+    Settings {
+        record: Some(RecordSettings {
+            dir: dir.to_path_buf(),
+            min_players: 2,
+            max_bytes: 1 << 24,
+            replays: Some(Desk(Arc::clone(replays))),
+        }),
+        ..Settings::default()
+    }
+}
+
+/// The game revision of the sessions, and of the recordings' games: today's.
+fn revision() -> u8 {
+    session::v026g::replays::oldest_replayable_here(0)
+}
+
+/// The session of an account's game.
+const fn session_for(account_id: u32) -> u32 {
+    0x5_0000 + account_id
+}
+
+fn request(account_id: u32, match_id: u32, at_ms: u32, place: Option<u8>) -> WatchRequest {
+    WatchRequest {
+        account_id,
+        session_id: session_for(account_id),
+        match_id,
+        at_ms,
+        place,
+        revision: revision(),
+    }
+}
+
+/// A bench with sessions on and nobody in its own match, and its replays.
+fn bench() -> (Bench, Arc<Replays>) {
+    let replays = replays(Access::Match);
+    let bench = Bench::growing(2, MAP_BATTERIES, settings(&temp("bench"), &replays));
+    (bench, replays)
+}
+
+/// A session of the tests' recording from `at_ms`, read and sent, as the
+/// lobby leaves it.
+fn session_of_the_recording(bench: &mut Bench, replays: &Replays, at_ms: u32) -> WatchRequest {
+    let request = request(WATCHER_ACCOUNT, 0x1234, at_ms, None);
+    let now = bench.now();
+    assert_eq!(replays.watches().start(request, now), Status::Preparing);
+    assert_eq!(replays.watches().next_job(now), Some(request));
+    let watch = bench.server.replay_watch.as_mut().unwrap();
+    watch.prepare_for_test(request, playable(), now);
+    replays.watches().sent(WATCHER_ACCOUNT, now);
+    request
+}
+
+/// The watcher's game connects and loads, with its first world: its
+/// client's index.
+fn watching(bench: &mut Bench, session: u32) -> usize {
+    let at = bench.clients.len();
+    bench.clients.push(Client::idle_growing(session));
+    bench
+        .addrs
+        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+    bench.clients[at].connect();
+    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
+    assert_eq!(bench.clients[at].model.local_index, None);
+    bench.clients[at].ready();
+    assert!(
+        bench.until(5_000, |b| b.clients[at].model.is_synced()),
+        "{:?}",
+        bench.clients[at].faults
+    );
+    at
+}
+
+fn position(bench: &Bench) -> u32 {
+    bench
+        .server
+        .replay_watch
+        .as_ref()
+        .and_then(|watch| watch.position(WATCHER, bench.now()))
+        .expect("a playback")
+}
+
+/// The game's control, numbered `seq`, as it sends it (0xE0).
+fn control(bench: &mut Bench, at: usize, seq: u8, control: Control) {
+    bench.clients[at].send(id::LEAVE, &control.encode(seq), true);
+    bench.run(100);
+}
+
+fn relays_taken(client: &Client) -> usize {
+    client
+        .got(|message| matches!(message, ServerMessage::InputRelay { .. }).then_some(()))
+        .len()
+}
+
+/// The first view has a player in it: the first key frame after the first
+/// entry (the asked place's, when one is asked), or a later time asked for,
+/// from the key frame at or before it.
+#[test]
+fn a_session_starts_at_the_first_world_with_a_player_or_later_when_asked() {
+    let recording = playable();
+    assert_eq!(recording.start(0, None), FIRST_VIEW);
+    // A place asked for that entered: after its entry; one that never
+    // entered: anyone's.
+    assert_eq!(recording.start(0, Some(0)), FIRST_VIEW);
+    assert_eq!(recording.start(0, Some(7)), FIRST_VIEW);
+    // Before the first view: the first view. Later: as a seek puts it (to
+    // 65 s, a player's inputs since the key frame stop it short).
+    assert_eq!(recording.start(5_000, None), FIRST_VIEW);
+    assert_eq!(recording.start(65_000, None), 61_699);
+    // A place that enters later: after its entry, asked for.
+    let mut later = playable();
+    later.move_entry(0, 20_000);
+    assert_eq!(later.start(0, None), FIRST_VIEW);
+    assert_eq!(later.start(0, Some(1)), FIRST_VIEW);
+    assert_eq!(later.start(0, Some(0)), 24_500);
+    assert_eq!(later.start(40_000, Some(0)), 40_000);
+
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    assert_eq!(bench.clients[at].snapshots(), [(0, FIRST_VIEW)]);
+    // Both places are in its first world.
+    assert!(bench.clients[at].entered().is_empty());
+    assert_eq!(
+        replays.watches().stage(WATCHER_ACCOUNT),
+        Some(Stage::Playing {
+            start_ms: FIRST_VIEW
+        })
+    );
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_watcher_gets_the_world_then_the_relays_in_recorded_order() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    // Player 0's first input is at 51.85 s.
+    bench.run_long(45_000);
+    let now = position(&bench);
+    assert!((59_000..=61_000).contains(&now), "{now}");
+    let spectator = &bench.clients[at];
+    let first = |pick: fn(&ServerMessage) -> bool| spectator.taken.iter().position(pick);
+    assert!(
+        first(|m| matches!(m, ServerMessage::Snapshot { .. }))
+            < first(|m| matches!(m, ServerMessage::InputRelay { .. }))
+    );
+    for player in 0..2 {
+        let all = recorded(player);
+        let due = distinct(
+            all.iter()
+                .filter(|(t, _)| (FIRST_VIEW + 1..=now).contains(t))
+                .map(|(_, i)| *i),
+        );
+        let got = spectator.relays_of(player);
+        assert!(!due.is_empty());
+        assert!(
+            due.iter().all(|input| got.contains(input)),
+            "player {player}"
+        );
+    }
+    assert!(spectator.entered().is_empty());
+    // Its world was never started again.
+    assert_eq!(spectator.snapshots().len(), 1);
+    bench.assert_no_faults();
+}
+
+/// The game's controls: pause holds the flow, play starts it again where it
+/// stopped; a control sent again (the same number) is taken once.
+#[test]
+fn the_games_pause_and_play_and_a_resent_control_is_taken_once() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(10_000);
+    control(&mut bench, at, 1, Control::Pause);
+    let paused = position(&bench);
+    bench.run(500);
+    let taken = relays_taken(&bench.clients[at]);
+    bench.run_long(5_000);
+    assert_eq!(position(&bench), paused);
+    assert_eq!(relays_taken(&bench.clients[at]), taken);
+    let worlds = bench.clients[at].snapshots().len();
+    control(&mut bench, at, 2, Control::Play);
+    assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
+    // From the key frame before the pause (at 24.6 s).
+    assert_eq!(*bench.clients[at].snapshots().last().unwrap(), (1, 24_500));
+    bench.run_long(3_000);
+    assert!(relays_taken(&bench.clients[at]) > taken);
+    // The play again (a resend): no new start.
+    let worlds = bench.clients[at].snapshots().len();
+    control(&mut bench, at, 2, Control::Seek(94_550));
+    bench.run_long(2_000);
+    assert_eq!(bench.clients[at].snapshots().len(), worlds);
+    bench.assert_no_faults();
+}
+
+#[test]
+fn the_games_speed_scales_the_playback_clock_and_the_relays_keep_up() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(3_000);
+    for (seq, speed, factor) in [
+        (1, Speed::Double, 2.0),
+        (2, Speed::Quadruple, 4.0),
+        (3, Speed::Half, 0.5),
+    ] {
+        control(&mut bench, at, seq, Control::Speed(speed));
+        let from = position(&bench);
+        bench.run_long(4_000);
+        let went = f64::from(position(&bench) - from);
+        assert!(
+            (went / 4_000.0 - factor).abs() < 0.05,
+            "{speed:?}: {went} ms"
+        );
+    }
+    let now = position(&bench);
+    for player in 0..2 {
+        let due = distinct(
+            recorded(player)
+                .into_iter()
+                .filter(|(t, _)| (FIRST_VIEW + 1..=now).contains(t))
+                .map(|(_, input)| input),
+        );
+        let got = bench.clients[at].relays_of(player);
+        assert!(
+            due.iter().all(|input| got.contains(input)),
+            "player {player}"
+        );
+    }
+    bench.assert_no_faults();
+}
+
+#[test]
+fn the_games_seek_starts_it_again_from_the_key_frame_at_or_before_the_time() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(3_000);
+    // To 65 s a player's inputs since the key frame stop it short; to 20 s
+    // the 5 s a tick byte reaches back.
+    for (seq, (target, key_frame, resumed_at)) in [
+        (65_000, 59_550, 61_699),
+        (20_000, 14_500, 19_500),
+        (94_550, 94_550, 94_550),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let worlds = bench.clients[at].snapshots().len();
+        bench.clients[at].send(id::LEAVE, &Control::Seek(target).encode(seq as u8), true);
+        assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
+        let resumed = position(&bench);
+        assert!(
+            (resumed_at..resumed_at + 200).contains(&resumed),
+            "{resumed}"
+        );
+        let (_, time) = *bench.clients[at].snapshots().last().unwrap();
+        assert_eq!(time, key_frame);
+        bench.run_long(3_000);
+        let now = position(&bench);
+        for player in 0..2 {
+            let got = bench.clients[at].relays_of(player);
+            let missing: Vec<_> = recorded(player)
+                .into_iter()
+                .filter(|(t, input)| (key_frame + 1..=now).contains(t) && !got.contains(input))
+                .collect();
+            assert!(missing.is_empty(), "player {player}: {missing:?}");
+        }
+    }
+    bench.assert_no_faults();
+}
+
+/// The end lets the game go (0xEA naming no place), then silence; the
+/// session is over once the game is forgotten: its player is free again.
+#[test]
+fn the_end_of_the_recording_ends_the_session() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 112_000);
+    let at = watching(&mut bench, WATCHER);
+    assert!(
+        bench.until(5_000, |b| b.clients[at].told_to_leave),
+        "{}",
+        position(&bench)
+    );
+    assert!(replays.watches().holds(WATCHER_ACCOUNT));
+    bench.run(300);
+    let heard = bench.clients[at].datagrams_received;
+    bench.run_long(6_000);
+    assert_eq!(bench.clients[at].datagrams_received, heard);
+    bench.run_long(1_000);
+    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
+    assert!(
+        bench
+            .server
+            .replay_watch
+            .as_ref()
+            .unwrap()
+            .position(WATCHER, bench.now())
+            .is_none()
+    );
+    // Nothing of the matches: no match, seat or result.
+    assert!(bench.server.games.is_empty());
+    assert!(bench.registry.seat(WATCHER).is_none());
+    assert!(bench.results.try_recv().is_err());
+    bench.assert_no_faults();
+}
+
+#[test]
+fn controls_read_as_written_and_as_sent() {
+    assert_eq!(Control::parse("pause"), Some(Control::Pause));
+    assert_eq!(Control::parse(" play "), Some(Control::Play));
+    assert_eq!(
+        Control::parse("speed 0.5"),
+        Some(Control::Speed(Speed::Half))
+    );
+    assert_eq!(Control::parse("seek 65.5"), Some(Control::Seek(65_500)));
+    for wrong in ["speed 3", "seek", "seek -1", "pause now", "stop"] {
+        assert_eq!(Control::parse(wrong), None, "{wrong}");
+    }
+    // The wire: ff 'R' <seq> <op> <u32 arg>.
+    assert_eq!(
+        Control::Seek(65_500).encode(7),
+        [0xFF, b'R', 7, 4, 0xDC, 0xFF, 0, 0]
+    );
+    assert_eq!(
+        Control::Speed(Speed::Double).encode(1),
+        [0xFF, b'R', 1, 3, 200, 0, 0, 0]
+    );
+    for control in [
+        Control::Pause,
+        Control::Play,
+        Control::Speed(Speed::Quadruple),
+        Control::Seek(1),
+    ] {
+        assert_eq!(Control::decode(&control.encode(9)), Some((9, control)));
+    }
+    // No other speed, op, length or magic.
+    assert_eq!(Control::decode(&[0xFF, b'R', 1, 3, 150, 0, 0, 0]), None);
+    assert_eq!(Control::decode(&[0xFF, b'R', 1, 9, 0, 0, 0, 0]), None);
+    assert_eq!(Control::decode(&[0xFF, b'R', 1, 1, 0, 0, 0]), None);
+    assert_eq!(Control::decode(&[0xFF, 0xFF, 1, 1, 0, 0, 0, 0]), None);
+}
+
+/// A live match of the two players of a bench recorded into `dir`, its
+/// games of today's revision: its match id, once its file is closed.
+fn recorded_live(dir: &Path) -> (u32, PathBuf) {
+    let settings = Settings {
+        record: Some(RecordSettings {
+            dir: dir.to_path_buf(),
+            min_players: 2,
+            max_bytes: 1 << 24,
+            replays: None,
+        }),
+        ..Settings::default()
+    };
+    let mut live = Bench::growing(2, MAP_TDM, settings);
+    for place in 0..2 {
+        live.server.revisions.insert(session_of(place), revision());
+    }
+    live.join_all();
+    live.run_long(12_000);
+    let match_id = live.match_id;
+    drop(live);
+    let closed = |path: &Path| {
+        path.extension().is_some_and(|ext| ext == "srprec")
+            && record::read(path).is_ok_and(|records| {
+                records.last().is_some_and(|last| {
+                    last.kind == record::NOTE && last.bytes.starts_with(b"{\"dropped\"")
+                })
+            })
+    };
+    for _ in 0..200 {
+        let path = std::fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.path())
+            .find(|path| closed(path));
+        if let Some(path) = path {
+            return (match_id, path);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the live match's recording");
+}
+
+/// The bench runs until the desk's session of `account` is no longer
+/// waiting for its recording (read on its own thread): its stage.
+fn read_for(bench: &mut Bench, replays: &Replays, account: u32) -> Stage {
+    for _ in 0..1_000 {
+        bench.run(50);
+        match replays.watches().stage(account) {
+            Some(Stage::Queued | Stage::Loading) => {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            Some(stage) => return stage,
+            None => panic!("no session"),
+        }
+    }
+    panic!("never read");
+}
+
+/// The real flow: the recording read from the recordings' folder, judged
+/// for each asker, shared by the sessions of its match. A player of the
+/// match and a moderator watch it; anyone else, or a game of another
+/// epoch, is refused with the lobby's words; `all` lets anyone. What the
+/// game gets before it loads is what the recorded game got, byte for byte,
+/// but its 0xE4 makes no place its own.
+#[test]
+fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
+    let dir = temp("live");
+    let (match_id, path) = recorded_live(&dir);
+    let replays = replays(Access::Match);
+    let mut bench = Bench::growing(2, MAP_TDM, settings(&dir, &replays));
+    let watches = replays.watches();
+    let ask = |bench: &mut Bench, account: u32, revision: u8| {
+        let request = WatchRequest {
+            revision,
+            ..request(account, match_id, 0, None)
+        };
+        assert_eq!(watches.start(request, bench.now()), Status::Preparing);
+        read_for(bench, &replays, account)
+    };
+    // Not a player.
+    assert_eq!(
+        ask(&mut bench, 555, revision()),
+        Stage::Refused {
+            status: Status::NotYours,
+            refusal: None
+        }
+    );
+    // A player, with a game older than the recording's.
+    assert!(matches!(
+        ask(&mut bench, 100, revision() - 1),
+        Stage::Refused {
+            status: Status::Incompatible,
+            refusal: Some(Refusal::Newer { .. })
+        }
+    ));
+    watches.answer(100);
+    // A player, then a moderator (the recording shared: read once).
+    assert!(matches!(
+        ask(&mut bench, 100, revision()),
+        Stage::Ready { .. }
+    ));
+    assert!(matches!(
+        ask(&mut bench, MODERATOR, revision()),
+        Stage::Ready { .. }
+    ));
+    // Anyone, with `all`.
+    let open = self::replays(Access::All);
+    let mut anyone = Bench::growing(2, MAP_TDM, settings(&dir, &open));
+    let request = request(555, match_id, 0, None);
+    open.watches().start(request, anyone.now());
+    assert!(matches!(
+        read_for(&mut anyone, &open, 555),
+        Stage::Ready { .. }
+    ));
+    drop(anyone);
+
+    // Player 100's game is sent and connects.
+    watches.sent(100, bench.now());
+    let at = watching(&mut bench, session_for(100));
+    let recorded = recorded_start(&path, 0);
+    assert_eq!(
+        recorded.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        [id::PORTS, id::STATIC_INFO]
+    );
+    let before_world = bench.clients[at]
+        .taken
+        .iter()
+        .take_while(|message| !matches!(message, ServerMessage::SetTime { .. }))
+        .map(|message| (message.id(), message.payload()))
+        .collect::<Vec<_>>();
+    let mut expected = recorded;
+    expected[1].1[0] = NO_LOCAL_PLACE;
+    assert_eq!(before_world, expected);
+    assert!(!bench.clients[at].snapshots().is_empty());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+/// A match with no recording is `gone`.
+#[test]
+fn a_match_without_a_recording_is_gone() {
+    let (mut bench, replays) = bench();
+    let request = request(WATCHER_ACCOUNT, 0xDEAD, 0, None);
+    replays.watches().start(request, bench.now());
+    assert_eq!(
+        read_for(&mut bench, &replays, WATCHER_ACCOUNT),
+        Stage::Refused {
+            status: Status::Gone,
+            refusal: None
+        }
+    );
+}
+
+/// The messages (not the transport's own) the server sent a game before its
+/// 0xDA, in a recording: each id and its whole payload (a split message's
+/// parts put together).
+fn recorded_start(path: &Path, place: u8) -> Vec<(u8, Vec<u8>)> {
+    use udp_transport::table::{Direction, Table};
+    let mut sent: Vec<(u8, Vec<u8>)> = Vec::new();
+    // A split message: its parts so far, and how many it has.
+    let mut parts: Vec<u8> = Vec::new();
+    let mut count = 0;
+    for r in record::read(path).unwrap() {
+        if r.place != place || !matches!(r.kind, record::IN | record::OUT) {
+            continue;
+        }
+        let direction = if r.kind == record::IN {
+            Direction::ToServer
+        } else {
+            Direction::ToClient
+        };
+        let datagram = udp_transport::wire::parse(Table::Match, direction, &r.bytes, 3).unwrap();
+        for message in datagram.messages.iter().filter(|m| !m.low_level) {
+            if r.kind == record::IN {
+                if message.id == survarium::v026g::match_msgs::id::READY {
+                    return sent;
+                }
+                continue;
+            }
+            parts.extend(message.payload);
+            let whole = match message.part {
+                None => true,
+                Some(part) => {
+                    count = part.count.unwrap_or(count);
+                    part.index + 1 == count
+                }
+            };
+            if whole {
+                sent.push((message.id, std::mem::take(&mut parts)));
+            }
+        }
+    }
+    panic!("place {place} never sent 0xDA");
+}

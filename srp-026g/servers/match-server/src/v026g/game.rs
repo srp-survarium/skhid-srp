@@ -133,9 +133,13 @@ use super::{LateInputs, Settings};
 mod driven;
 mod late_join;
 mod live;
+mod playback;
 mod spectate;
 mod start;
 use late_join::{Admission, LoadingProfile};
+pub(crate) use playback::ReplayWatch;
+#[cfg(test)]
+pub(crate) use playback::{Control, Recording as ReplayRecording, Speed};
 pub(crate) use spectate::SpectatorAt;
 
 /// A tick is final this long after it: the server's event horizon.

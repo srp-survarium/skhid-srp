@@ -7,8 +7,8 @@ use survarium::v026g::match_msgs::ServerMessage;
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
 
-const SPECTATOR: u32 = 0x5_0001;
-const SPECTATOR_ACCOUNT: u32 = 900;
+pub(super) const SPECTATOR: u32 = 0x5_0001;
+pub(super) const SPECTATOR_ACCOUNT: u32 = 900;
 
 fn running() -> Bench {
     let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
@@ -20,7 +20,7 @@ fn running() -> Bench {
 
 /// The lobby's side of a watch: a match of its own seats (players not of
 /// the bench) and the session watching the bench's match.
-fn watch(bench: &Bench, session: u32) {
+pub(super) fn watch(bench: &Bench, session: u32) {
     let seated = |id: u32| Player {
         session_id: 0x7_0000 + 2 * (session & 0xff) + id,
         account_id: 700 + 2 * (session & 0xff) + id,

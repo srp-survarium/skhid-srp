@@ -16,7 +16,7 @@ use survarium::v026g::match_msgs::{ClientMessage, id, parse_client};
 use udp_transport::{Config, Event, PacketLog, Table, Transport};
 
 use super::Settings;
-use super::game::{Game, SpectatorAt};
+use super::game::{Game, ReplayWatch, SpectatorAt};
 use super::record::{Desk, Recorder};
 use super::registry::{MatchEnd, MatchRegistry, MatchResult, PlayerResult, ResultsSink};
 
@@ -193,6 +193,9 @@ pub(crate) struct Server {
     /// Each spectator's match (Queue and spectate): no roster place
     /// (`game::spectate`).
     spectator_routes: HashMap<SocketAddr, u32>,
+    /// The replay sessions (`game::playback`): with recordings and the
+    /// process's replays only.
+    pub(crate) replay_watch: Option<ReplayWatch>,
     /// Addresses already logged as sending without being placed.
     strays_logged: HashSet<SocketAddr>,
     /// The addresses that send without being placed or connecting, while
@@ -235,12 +238,24 @@ impl Server {
                 }
             }
         });
+        let replay_watch = settings.record.as_ref().and_then(|record| {
+            let replays = &record.replays.as_ref()?.0;
+            replays.watches().settings()?;
+            Some(ReplayWatch::new(
+                Arc::clone(replays),
+                record.dir.clone(),
+                port,
+                &settings,
+                now,
+            ))
+        });
         Self {
             port,
             registry,
             store,
             results,
             settings,
+            replay_watch,
             packet_log: None,
             recorder,
             games: HashMap::new(),
@@ -257,6 +272,12 @@ impl Server {
     }
 
     pub fn receive(&mut self, addr: SocketAddr, datagram: &[u8], now: Instant) {
+        if let Some(watch) = self.replay_watch.as_mut()
+            && watch.owns(addr)
+        {
+            watch.receive(addr, datagram, now);
+            return;
+        }
         if let Some(&match_id) = self.spectator_routes.get(&addr) {
             let registry = &self.registry;
             if let Some(game) = self.games.get_mut(&match_id) {
@@ -379,8 +400,13 @@ impl Server {
     /// changed after the first datagram (a NAT), and nothing it sends gets
     /// through.
     fn log_stray(&mut self, addr: SocketAddr, len: usize) {
-        let placed = self.routes.keys().find(|other| other.ip() == addr.ip());
-        let Some(placed) = placed.copied() else {
+        let placed = self
+            .routes
+            .keys()
+            .copied()
+            .chain(self.replay_watch.iter().flat_map(ReplayWatch::addrs))
+            .find(|other| other.ip() == addr.ip());
+        let Some(placed) = placed else {
             return;
         };
         if self.strays_logged.len() >= STRAYS_KEPT {
@@ -400,6 +426,19 @@ impl Server {
             return;
         };
         let Some(seat) = self.registry.seat(session_id) else {
+            // A replay session's game (the lobby sent it to watch one): only
+            // a game that plays as a spectator (patch 103).
+            if let Some(watch) = self.replay_watch.as_mut()
+                && survarium::v026g::match_msgs::late_join::has_connect_capability(debug)
+            {
+                match watch.connect(addr, session_id, transport, now) {
+                    Ok(()) => {
+                        self.store.seen_in_match(session_id);
+                        return;
+                    }
+                    Err(back) => transport = *back,
+                }
+            }
             if let Some(watcher) = self.store.matchmaking().watched(session_id) {
                 self.connect_spectator(addr, session_id, watcher.ticket, debug, transport, now);
                 return;
@@ -563,6 +602,9 @@ impl Server {
             self.registry.free_seats(result.match_id);
             self.results.match_ended(result);
         }
+        if let Some(watch) = self.replay_watch.as_mut() {
+            datagrams.extend(watch.poll(now));
+        }
         // A spectator gone from its game has no route.
         let games = &self.games;
         self.spectator_routes.retain(|addr, id| {
@@ -614,6 +656,9 @@ impl Server {
             for session_id in game.sessions().into_iter().chain(game.spectator_sessions()) {
                 self.store.seen_in_match(session_id);
             }
+        }
+        for session_id in self.replay_watch.iter().flat_map(ReplayWatch::sessions) {
+            self.store.seen_in_match(session_id);
         }
         for (match_id, formed_at) in self.registry.matches() {
             if !self.games.contains_key(&match_id)

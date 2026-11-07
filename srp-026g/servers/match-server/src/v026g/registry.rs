@@ -370,6 +370,16 @@ impl MatchRegistry {
         self.port
     }
 
+    /// Where a replay session's game connects (`game::playback`): this
+    /// match server, under the recorded match's id (it makes no match).
+    pub fn replay_ticket(&self, match_id: u32) -> MatchTicket {
+        MatchTicket {
+            match_id,
+            host: self.host.clone(),
+            port: self.port,
+        }
+    }
+
     fn inner(&self) -> MutexGuard<'_, Inner> {
         // A panic elsewhere must not stop every match.
         self.inner

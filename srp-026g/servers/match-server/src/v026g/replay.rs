@@ -47,6 +47,7 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::{Instant, SystemTime};
 
+use session::v026g::replay_watch::{Access, WatchSettings};
 use session::v026g::replays::{self, Failure, ReplaySettings, Replays, Sidecar, file_stem};
 
 use super::record::{self, NOTE};
@@ -67,7 +68,8 @@ pub fn replays_from_env() -> Replays {
 /// The replays of these settings (`None`: off), with the recordings'
 /// minimum of players of the environment (`SRP_RECORD_MIN_PLAYERS`).
 pub fn replays_of(settings: Option<ReplaySettings>) -> Replays {
-    let min_players = record::RecordSettings::from_env().map_or(6, |record| record.min_players);
+    let record = record::RecordSettings::from_env();
+    let min_players = record.as_ref().map_or(6, |record| record.min_players);
     if let Some(settings) = &settings {
         log::info!(
             "Replays: made in {} from the recordings of {}, with the modes of {}; recordings \
@@ -106,7 +108,26 @@ pub fn replays_of(settings: Option<ReplaySettings>) -> Replays {
              last change of what a match computes); older ones are refused, said to the player"
         );
     }
-    Replays::new(settings, min_players).with_oldest_revision(oldest)
+    let replays = Replays::new(settings, min_players).with_oldest_revision(oldest);
+    // Replay sessions play the recordings themselves: they need those
+    // alone, not the `.sur` files' settings.
+    if record.is_none() {
+        log::info!("Replay sessions are off (SRP_RECORD_DIR)");
+        return replays;
+    }
+    let watch = WatchSettings::from_env();
+    log::info!(
+        "Replay sessions: {} at once; watched by {}",
+        watch.max_sessions,
+        match watch.access {
+            Access::Match => format!(
+                "a match's players and {} moderators",
+                watch.moderators.len()
+            ),
+            Access::All => "anyone".to_owned(),
+        }
+    );
+    replays.with_watch(watch)
 }
 
 /// Starts the conversion thread, after deleting what is left of a stopped
@@ -155,7 +176,7 @@ pub fn start(replays: Arc<Replays>) -> Option<io::Result<JoinHandle<()>>> {
 /// The calling thread at the lowest priority, nice 19 (Linux; nothing
 /// elsewhere): a conversion takes only the CPU the matches leave. Said in
 /// the log if it cannot be set.
-fn lowest_priority() {
+pub(crate) fn lowest_priority() {
     #[cfg(target_os = "linux")]
     {
         // SAFETY: the `gettid` system call and `setpriority` take and return
@@ -356,7 +377,13 @@ pub fn cap(settings: &ReplaySettings, keep: Option<u32>) {
 
 /// The kept recording of a match in the recordings' folder.
 fn recording(settings: &ReplaySettings, match_id: u32) -> Option<PathBuf> {
-    fs::read_dir(&settings.record_dir)
+    recording_in(&settings.record_dir, match_id)
+}
+
+/// The kept recording of a match in `record_dir`: a regular file named
+/// `rec026g_<UTC start>_<id:08x>.srprec`.
+pub(crate) fn recording_in(record_dir: &Path, match_id: u32) -> Option<PathBuf> {
+    fs::read_dir(record_dir)
         .ok()?
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
