@@ -5639,6 +5639,13 @@ va	name	location	role	basis
 0x001f8120	survarium::game_world::local_player_profiles	EDX	the game world (+9Ch the game, whose network client's local player +114h is the place; +4D4Ch the match, its places at +18650h)	observed
 0x001f8120	survarium::game_world::local_player_profiles	entry ESP+4	the kit in use, a byte written	observed
 0x001f8120	survarium::game_world::local_player_profiles	entry ESP+8	the next kit, a byte written: show_profiles_selector selects it on the hud's tabs (0x2383F3)	observed
+0x00305210	survarium::booby_trap_core::switch_to_state	ECX	the booby trap (its core at +0x74: m_trap_state +0x198)	observed
+0x00305210	survarium::booby_trap_core::switch_to_state	stack+4	the new booby_trap_state, an index into a jump table of 4 (0x3052C8) with no bound	observed
+0x003134c0	survarium::artefact_base::start_spawn_in_container	EAX	the artefact: m_state +0x280 = 1, m_container_id +0x284, m_time_left_to_spawn +0x288	observed
+0x003134c0	survarium::artefact_base::start_spawn_in_container	stack+4	the artefact_container_core (its id byte +0x64)	observed
+0x002ddad0	survarium::game_effect_player::serialize	EAX	the game_effect_player: +0 m_current_time_in_ms, +2Ch the first node (each +4Ch the next)	observed
+0x002ddad0	survarium::game_effect_player::serialize	entry ESP+4	the world writer (mode-1 nodes)	observed
+0x002ddad0	survarium::game_effect_player::serialize	entry ESP+8	the client writer or 0 (mode-2 nodes)	observed
 0x0026d660	survarium::base_local_network_client::get_player	ECX	the network client (its core [+578BCh] - 1F8h)	observed
 0x0026d660	survarium::base_local_network_client::get_player	entry ESP+4	out pointer	observed
 0x0026d660	survarium::base_local_network_client::get_player	entry ESP+8	the place (byte), not bounded	observed

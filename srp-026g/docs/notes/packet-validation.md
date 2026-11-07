@@ -68,6 +68,15 @@ player item fields, fixed 69-byte bullet records, and the optional `LMP1` lamp
 history suffix. A bullet's ammo ordinal is not bounded by the original profile:
 pickup swaps can change the gun while a bullet remains in flight, and the shipped
 native loader already clamps the ordinal.
+The effects section is read as `world::Effects`, its effect as
+`world::Effect` (the record a player's state holds too): borrowed views
+whose reader takes the one form a game writes (root emitter indexed, the
+effect's own time calculator, every float a `Finite`), with an accessor for
+each field (`effects.rs` has the field map). The section's rules are then
+plain comparisons of fields: its three free floats take any number (live
+games save 0.05 in them, 2 of the 25,456 uploads of the second live sample),
+its two interval ids (`current_interval_id`, `previous_time.interval_id`)
+are held to 0.
 A bullet's owner need not have a block in the world: a shooter who left with
 bullets in flight (2 uploads of rec026g_20261106-205639_4900abd9, place 12). The
 loader (`bullet::bullet` 0x32BBC0) takes the owner's player object of its current
@@ -80,10 +89,6 @@ a bullet is allowed when its owner is under the places and, with the server's
 roster kits, a roster place every usable kit of which has a gun in the slot
 (which kit is current for him differs between games). The game's own check,
 without the kits, bounds the place alone.
-The effects template takes any finite float at offsets 36, 40 and 48: the
-effect's five values (read at 0x2DDEAF..0x2DDEF0, stored at 0x2DDFE4..0x2DE017)
-are two u32 at 32 and 44, still held to 0, and three floats, none an index;
-live games save 0.05 in them (2 of the 25,456 uploads of the second live sample).
 Since patch 98 the six sections grow past the history item's inline buffers;
 only the body's 0xF000 bytes (`world_frame::MAX_BODY`) and a player state's
 0x1000 bound them. The packed 0xE8 decodes into 0xF000 bytes as well.
@@ -103,6 +108,78 @@ pass the host check.
 Validation: validator tests and affected-crate Clippy pass, including native
 server-encoded player state and lamp count/length boundaries. Native integration
 and real-match acceptance remain separate gates.
+
+## Typed views of the world (from 2026-11-07)
+
+The checks move from reading bytes at offsets to parsing each record once
+into a zero-copy view: a type that borrows its bytes from the world (no copy,
+no allocation, so the game's arena builds it as it does the rest), made only
+by its reader, which checks its shape once, with an accessor for every field
+(named by what it is, or by the native object's offset when the meaning is
+not known yet). A check is then a rule over named fields. Naming every field
+makes each layout claim explicit: a reader that takes a record's one form
+states what that form is, where a byte comparison only said what was seen.
+
+Each step keeps every verdict: the server's verdicts on all 50,205 live
+uploads and 16 flipped copies of each (853,485 checks) are diffed against
+main's before it lands, and the game's are held to the host's by the drift
+gate. Done: the effects section and the player effects (`world/effects.rs`;
+a player effect is now held to the whole form, not only its first byte, and
+none is in any world seen). Next: the game objects, the player states, the
+bullets, statistics and rules, then a typed `World` that only the parse
+makes, for the server to cache and relay.
+
+The player states (`world/player_tail.rs`, `inventory.rs`, `weapon.rs`): a
+state is read into `PlayerState` (the head, the player and hit effects, the
+active objects, the stamina, the inventory header with a carried battery),
+then, with the match's kits, `ItemsAndRest` (each item and its body: medkit,
+oxygen tank, `WeaponState` with its state machine's state and its
+`Portable`; the damage model and its body parts, the usable data, the
+controller, the recent hits, patch 78's carry snapshot). Every field is
+named as the 0.26g writer's assert labels it, and a field the writer only
+ever saves certain values of is read into that type: the active and grenade
+slots (a slot or 23 for none), the artefact slots (from a quick slot 13..18
+to its end), at most 3 hit effects, the jump types (0..12, a selector's
+jump 1..12 with its sub-state of the same kind and, on the spot or in a
+sprint, its on-site weight 1.0), a sprint animation 0, 2, 4 or 6, a
+battery state's animation 0, 2 or 0xFF, a weapon seed in 1..2^31-2, an
+active medkit or oxygen tank that has an owner. Every live upload and local
+world still passes; of the flipped copies, 2,570 more are refused (207,392
+of 853,485), none fewer. The domains the writer can widen (counts the
+config sets, float ranges, the recoil seed, the spotted mask) are left open
+and say so where they are read.
+The views hold their records as bytes and the few facts the parse decided
+(each slot's item, the shape it read in, the counts) and hand the records
+out by reading them again, as the statistics do: a check holds one record
+at a time, and no large value lives on the item walk's recursion. Holding
+them parsed had put `PlayerState::read` at 0x1D40 bytes of the game's
+stack, under `world_check::check`'s 0x51AC, and a flipped world overflowed
+the loader's 32 KiB; the player path is now some 0x5B0 bytes past it.
+The check's time counts too: `check_world_roundtrip_026g.py` runs the 0xE8
+handler's preparation in at most 500,000 instructions, and the typed parse
+had taken a recorded world to 560,218 (main: 212,595). Three costs were
+not the checks': the animation bit reader took one bit a step, which the
+floats table's number checks made the bulk of the work (now a byte's run
+a step); the statistics rule read every place's record again for its
+`last_hit_enemy_id` (now kept by the parse); a guessed player walk decoded
+the head's kits and pickup record once for each item count it tried (now
+once). The same world takes 324,975, the largest 349,906.
+The bullets, statistics and rules (`world/bullets.rs`, `statistics.rs`,
+`rules.rs`) are read as `world::Bullets` (each `Bullet`), `Statistics`
+(`PlayerStatistics`, `BatteryStatus`, `Tail`) and `Rules` (`Timelimit`,
+`Respawn`, `ModeRule`: `Gather`, `Tdm`, `Research`; `KillsDeaths`), and the
+effect's fields have the game's names (the writers pass each field's
+expression to the buffer writer as text: `.\bullet.cpp`,
+`.\game_effect_player.cpp`, `.\player_shared_statistics.cpp`, ...). From
+this step the parse also holds each field to its domain, once, into its
+type: a byte that selects a state to its enum (a rule's phase, a team, an
+effect's activation, playback and serialization mode), a bool to 0x00 or
+0xFF (the bool writer's), an index to its table, a count to its bound,
+and a none sentinel to an `Option`; the accessors only return those. So the
+gate is: every real world still passes (all 50,205 live uploads, all 3,920
+local worlds as before), and of the flipped copies this step refuses every
+one main refuses and 1,826 more (206,648 of 853,485). The domains and the
+ones left open are in each module's doc.
 
 ## Server upload enforcement
 
@@ -140,11 +217,36 @@ map's battery containers are the gather rule's (the rules section).
   item's `data.type`, `ItemClass`). The first roster is bound from the start
   and each late joiner when a game installs it, so an upload is checked as a
   game that installed any number of the late joiners, in join order.
-- **Refused:** a section that does not read to its exact end; a grenade or trap
-  float that is not a number; flags an object has not; more than 20 users, a
-  user past the roster or using two objects; an anomaly state past its states;
-  zone bits past a group's zones; a container's artefact past the map's; an
-  artefact owner that is no kit with a player; an artefact state over 5.
+- **Read as typed views** (`world::GameObjects`, from 2026-11-07): each object
+  is parsed once by its reader into a view named for the game class that saves
+  it (`GrenadeCore`, `BoobyTrapCore`, `DamageZoneCore`, `ResupplyZoneCore`,
+  `GenericAnomalyCore` with its `AnomalyState`, `ZoneGroup`s,
+  `ArtefactContainerCore`s and `ArtefactBase`s), each field named by the
+  string its `serialize` hands the writer (`m_trap_state`, `m_hitting`,
+  `current_state_index`, `events_mask`, ...; the field map is in
+  `objects.rs`). A byte with a closed set of values becomes its enum, bool or
+  bounded index there, once; the accessors return those types. An anomaly's
+  groups, containers and artefacts are handed out lazily, read again by the
+  reader that checked them, so nothing is collected.
+- **Refused by the readers** (the field's values, named in the refusal): a
+  section that does not read to its exact end; a float that is not a number;
+  a grenade's `current_state` with a bit past its three; a trap state past
+  the four (removed, armed, fired, disarmed); a bool that is not 0x00 or 0xFF
+  (`m_hitting`, `m_need_to_spawn_artefacts`, the writer 0x80FA0); more than 20
+  users; a place past the table of 20, a kit past the three; an anomaly state
+  past its states; zone bits past a group's zones; `events_mask` bits past
+  its two; an artefact state over 5. **Refused by the match's rules** over the
+  views: a user past the roster or using two objects; a container's artefact
+  past the map's; an artefact owner that is no kit with a player. Left open:
+  the u32 times, ids and seeds, an artefact's amount (0 or 1 live), its slot
+  (13 to 18 live) and its container id (0 to 26 live): the writer copies them
+  from live objects, and no bound is shown.
+- **The domains' gate** (2026-11-07): every live upload still passes (all
+  50,205), and so do the 3,919 local worlds `corpus2` passes on main (its one
+  refusal, a place with no profile, is the player check's). Of the 16 flipped
+  copies of each live upload (802,280), the readers refuse 107 more than
+  main and accept none main refuses: 58 at `m_hitting`, 32 at `m_trap_state`,
+  17 at `m_need_to_spawn_artefacts`.
 
 Evidence: all **3,920** worlds of the 2026-11-05 local tests read to the exact
 end of the section with their match's own profiles (each match's 0xE4 from the
@@ -434,6 +536,16 @@ what bounds it:
   `cut(v, buffer-1)` (NAME 63, CLAN_TAG 15, TEXT 255, WIDE 245), and the match
   0xE4 profile/kit names go through `messages::options::text`, which refuses
   `len >= buffer` (NAME 64 -> <= 63, CLAN 15 -> <= 14).
+  - EXCEPTION FOUND AND FIXED: a clan member's display name in
+    `read_clan_info` 0x271FD0 goes into a 32-byte record field (stride 0x22,
+    name at +0..+0x20, confirmed at 0x272178 `lea esi,[ebx+ecx*2+0x1ec838]` /
+    `[esi+0x20]`), the same 32-byte buffer the rank name uses (`RANK_NAME` 31).
+    But `social::write_members` and the two inline clan-member loops wrote the
+    name at NAME (63), so a clan member whose account name is 32..=63 (NAME
+    allows it) overflowed every other member's 32-byte field when they read
+    clan info -- a one-player-crashes-another bug. Fixed by a new
+    `limits::CLAN_MEMBER_NAME = 31` used by the three writers and the matching
+    `client_model` reads; clan tests and clippy pass.
 
 0.10b hard caps match the validator: `body_part::affects` fixed_vector<_,8> ==
 MAX_AFFECTS 8; `match_options::player_profiles[20]` == MAX_PLAYERS 20; `inventory
@@ -446,9 +558,13 @@ blocks, 0 refused); and the client/host drift gate `check_world_check_026g.py
 --drift` run end to end under Unicorn on 1,101 kept worlds (501 old version-4 +
 600 current) with their sixteen mutations each -- 19,818 checks, 0 differ, so
 the i686 arena build (with `animation_validate`) and the host agree on every
-world and mutation. No unbounded player-to-player read was found without a
-matching server bound or native guard; the animation stream was the one that
-lacked one and now has it.
+world and mutation. After the animation-float and player-effect checks landed
+the arena was relinked (`link_026g.py --write`) and the drift re-run on the 600
+current worlds -- 10,800 checks, 0 differ -- so the deployed i686 arena carries
+and agrees on the new checks too. The animation stream and the E player-effect
+records were the two world reads lacking a bound; both now have one. A third,
+in the lobby, was the clan-member display name (NAME 63 written into a 32-byte
+client field); fixed with `CLAN_MEMBER_NAME` 31 (above).
 
 ### Full reader sweep
 
@@ -468,13 +584,37 @@ bytes). The 65 readers' loop bounds fall into:
   reads the matching bytes against the same config;
 - packet counts the validator caps: the 0xE4 options `< players_count`
   (0x27B880, `messages::options`), kd-stats `< roster` (0x323952, `rules`),
-  the ammo id / FSM state / affect & hit counts above.
+  the ammo id / FSM state / affect & hit counts above;
+- a byte that indexes a global object table, read then used only after a null
+  check -- the 255-entry tables are safe for any u8, the 128-entry artefact
+  table is bounded by the validator: 0x301660 (battery portable object,
+  `[+0x130][id]`), 0x31C5B0 and the inventory 0x2FE550 (artefact `[+0x18940]
+  [id]` < `context.artefacts`), 0x2E3490 (weapon ammo id < list);
+- fixed-size records memcpy'd with a constant length (no packet length):
+  0x344D70, 0x3053C0, 0x301660 (`memcpy 0x40`), and pointer values used only
+  after a null/alignment check (0x338430, 0x344870).
+
+Each in-scope reader above was read in the decompilation and its bound line
+confirmed; the account-only lobby readers (status, inventory, prices, skills,
+shop, quests, reputations, drops) are server->self and carry no other player's
+data, so they are outside the one-client-crashes-another scope.
 
 The covering invariant: the validator reads every player state and section to
 its EXACT END against the match config (proven on 50,205 live uploads and
 3,919/3,920 local worlds), so it consumes the same bytes as the native reader,
 and it caps every packet count to the native fixed-array size (affects 8, hits
-64, slots 23, ammo 8, artefacts 128, players 20, FSM state < the list). A count
+64, slots 23, ammo 8, artefacts 128, players 20, FSM state < the list). The
+affects cap is load-bearing and shown at the site: `body_part_parameters::
+deserialize` 0x32AFE0, read in full, reads a byte `affects_count` and its
+"affects_count buffer overflow" assert FALLS THROUGH in release (`DAT_02260BB7`
+off, `swi(3)` only under a debugger), so `> 8` overflows the fixed `m_affects
+[8]` in the following loop -- the validator's `affects <= 8` refuses that world
+first. The player head `base_player::deserialize` 0x2DB490, read in full, reads fixed
+angle/position/state fields then the byte-indexed weapon table and the place-
+indexed tables (`[+0x115]*0x704`, place < 20) and calls the sub-readers above;
+no unbounded packet count or index. The inventory reader 0x2FE550, also read in full, indexes the weapon
+table `[+0x18B4C]` and the artefact table `[+0x18940]` by a byte, null-checked
+and validator-bounded (artefact id < `context.artefacts` 128). A count
 it does not cap is one the native code takes from its own config, not the
 packet. The client string readers are the one exception to "read to exact end":
 `read_squad_info` 0x274720 reads a member name as `len = r<u8>; memcpy(dst+0x10,
@@ -482,3 +622,252 @@ src, len); dst[0x10+len] = 0` into a 0x50-byte member record -- unbounded like
 0.10b's `r_string` -- so the server bounds it: `social::squad_info` refuses
 more than `SQUAD_MEMBERS` (3) members and clamps each name to NAME (63) with
 `Writer::str`, matching the 3 x 0x50 record array and the ~64-byte name field.
+
+### State corruption, not only indices
+
+A crafted value can corrupt a receiving client without being an out-of-bounds
+index. The validator handles these classes, verified against the readers:
+
+- **non-finite floats** (NaN/infinity into a transform or physics): `finite`
+  (`(bits & 0x7F80_0000) != 0x7F80_0000`) gates every world float -- the player
+  head's pitch/rotation, the inventory item condition, the weapon
+  recoil/dispersion/aim, the battery motion, the stamina and char-controller
+  vectors (`player_tail`/`inventory`), the bullet numbers (`bullets`) and the
+  effect template floats (`effects`). The one reader that skipped it was
+  `animation_validate`; it now finitizes the floats-table values too
+  (`snapshot_rules.md` 7.2.1 #6), so a non-number cannot reach the bone
+  transforms the ragdoll and bounding box read.
+- **raw pointers / handles, and the table indices behind them**: the effect
+  record's two pointer flags (root emitter, time calculator) are forced to 0
+  so a serialized pointer is refused, and the index u32 that each flag gates is
+  forced to 0 so the native reader (0x2E5C30) cannot read an unbounded global
+  table (0xAA2E48 / 0xAA2E74) with a refcount write. Read in full this pass,
+  `game_effect_player::deserialize` 0x2DDDF0 shows it exactly: it loops
+  `local_c = game_state_E + base_E` records and, per record, when the flag byte
+  (at +0x24) is clear with a non-zero index (+0x25) does
+  `local_40 = [PTR_DAT_00aa2e74 + index*4]` (the unbounded read), and when the
+  flag is set does `(**(code**)(*local_40 + 8))()` (the raw-pointer vtable
+  call). `effects::record_is_safe` forces both pairs to 0; `player_tail` caps
+  the count at MAX_RECORDS. The effects SECTION always
+  bounded this (its template), but the E PLAYER-EFFECT records did not --
+  `player_tail` only checked the leading flag and length-walked 67 bytes, so a
+  crafted state with E >= 1 (E is 0 in every world seen) reached the unbounded
+  read. FIXED: the record's crash-critical fields are modelled once in
+  `effects::record_is_safe` (both flag/index pairs zero, the three floats
+  finite) and `player_tail` reuses it. The fix changes no verdict on 600 kept
+  worlds (E is 0, so it refuses no real world).
+- **bytes used as booleans**: every one must be 0x00 or 0xFF (`reader::bool`,
+  `TailBool`), not merely non-zero.
+- **type / ownership confusion**: ids are checked against the kit, dictionary
+  or slot they must belong to; a bullet owner must be an active block, a
+  carried battery's user must be this player and its container one of the two,
+  an artefact owner a kit with a player.
+
+### Client string readers (the chat/name path)
+
+Every 0.26g client reader of a player-controlled string uses the unbounded
+`len = r<u8>; memcpy(buf, src, len); buf[len] = 0` pattern into a FIXED buffer
+(decompiled, read in full), and each has a server clamp fitting that buffer:
+
+```
+chat text 0x26B6F0: name[64], clan[16], body[256]  <- chat_text str(NAME 63/
+                                                       CLAN_TAG 15/TEXT 255)
+squad     0x274720: name ~64 in a 0x50 rec, 3 recs  <- squad_info at_most(3) +
+                                                       str(NAME 63)
+clan info 0x271FD0: clan name[64] tag[80] rank name[32] MEMBER name[32]
+                                                    <- clan_info str(NAME 63)/
+                                                       str(79)/ RANK_NAME 31/
+                                                       write_ranks/write_members
+                                                       CLAN_MEMBER_NAME 31 [FIX]
+                                                       + wide(245)
+elo list  0x271EB0: name[64] per row, count->vector  <- elo_rows str(NAME 63)
+kit (0xE4) 0x1F112A: name[64]                       <- options::text(64) refuses
+                                                       len>=64
+```
+
+The client reader is unbounded, so the server clamp is load-bearing. The lobby
+readers otherwise carry only ints (free display values) and sized/`at_most`
+counts -- no raw pointer, bool or float surface.
+
+The lobby dispatcher `lobby_client::on_message_received` 0x274A00 is one large
+function with every id's case inlined (its jump table at 0x275138 maps ids
+0x80..0xA1 to internal labels, not separate functions, so the decompiler's
+flow limit rejects the whole body); ChatText 0xA2..0xA4 branch out of it before
+the table to `messaging_client` 0x26ABE0 -> text 0x26B6F0. Disassembling the
+table and the body, each case calls a named `lobby_client::read_*` reader.
+Most of them are the player's OWN account state the server sends it -- status,
+inventory, prices, skills, service prices, reputations, elo, quests, match
+stats, account services, shop, drops -- which no other player can inject, so
+they are outside the one-client-crashes-another scope. The cases that do carry
+another player's data are the ones audited: a squad member's profile
+(`player_profile::deserialize_static` 0x1F1070 -> name into +8 [64], clan into
++0x48 [+0x48..+0x56], both the `len`+memcpy+NUL pattern, clamped by the server
+to NAME 63 / ACCOUNT_CLAN_TAG 14, kits from the validated account), the clan
+roster (0x271FD0), the elo list (0x271EB0) and chat (0x26B6F0) -- all with a
+server clamp fitting the client buffer.
+
+All eighteen `read_*` readers the dispatcher calls were decompiled and read.
+The account-only ones read ints and field/own counts, or memcpy into a sized
+allocation: `read_player_reputations` 0x271740 (`memcpy` of `count * 8` into an
+alloc of that size), `read_enumerate_inventory_info` 0x270400, `read_player_skills`
+0x270570, `read_price_items` 0x271540, `read_shop_items` 0x271650,
+`read_account_services` 0x2714D0, `read_match_stats` 0x2718C0 (a growable
+buffer), `read_player_match_stats` 0x271A30, `read_player_elo_rating` 0x271D90,
+`read_online_stats` 0x271860, `read_drop` 0x271AE0, `read_service_prices`
+0x271480, `read_status_info` 0x270100 (fixed `memcpy 0x28`), `process_own_account`
+0x270260. One, `read_quest_list` 0x271DF0, reads an unbounded u32 quest count
+and grows a buffer to `count * 0x14` -- an unbounded read, but it is the
+viewing player's OWN quest list (server->self, from the DB), which no other
+player can send, so it is outside this scope; our server sends a real,
+bounded list. The line the whole audit rests on: a reader of the player's own
+or public data may trust our server; only a reader of ANOTHER player's data
+must be bounded, and every one of those is.
+
+All three reader groups -- world sections, player-state deep readers, and the
+match-message + lobby readers -- were read in full. THREE unbounded or
+corruptible player-to-player values were found without a server bound or native
+guard, and all are now fixed: the animation stream (counts, indices, recursion,
+tree length, table under-run, and float finiteness), the E player-effect
+records' embedded table indices + flags + floats (`effects::record_is_safe`),
+and the clan member display name (NAME 63 into the 32-byte client record,
+`CLAN_MEMBER_NAME` 31). Everything else was already bounded; the state-
+corruption classes above (non-finite floats, raw pointers, bools, type and
+ownership confusion) are covered as well as the index bounds.
+
+### Enumerated another-player closure
+
+"Investigate all places" is demonstrable because the SOURCES of another
+player's data are a fixed, enumerable set, and the closure is whatever each
+dispatches to. There are exactly three entry points, each enumerated above:
+
+1. The world snapshot body `0xE8` (`game_state_history_item::deserialize`
+   0x324D80): a fixed six-section mask (bullets, statistics, rules, objects,
+   effects, and the per-player state blocks) plus the apply dispatch 0x2D2770.
+   Every section reader and every player-state sub-reader is listed and bounded
+   above; `Frame::parse` reads each to its exact end against the match config.
+   Read in full: 0x324D80 walks the active-player u32 mask (bit indices 0..31
+   into the 32-player 0x9054-stride array -- a popcount, not a packet count)
+   and reads each section as a u16 length into a GROWABLE (doubling) buffer, so
+   the length cannot overflow; 0x33FD80 grows-then-memcpys the per-player state
+   the same way, 0x33FEE0 routes the animation to `animation_validate`. The
+   0xE4 options native `match_options::deserialize` 0x1F0E70 loops a FIXED 20
+   profiles (0x15DEC / 0x117F = MAX_PLAYERS, not a packet count), each the
+   clamped `player_profile::deserialize_static` 0x1F1070, then fixed fields.
+   Gaps found here: the animation stream and the E records -- FIXED.
+2. The match messages `0xE3..0xF6` (`srp_validate::messages::check`): lengths,
+   place indices, input rotation/actions, envelopes, lzma2 output caps, and the
+   0xE4 static options (kits/items/slots/mods/upgrades/name<=63/clan<=14). No
+   gap. The native readers, read in full: the dispatcher
+   `on_match_packet_received` 0x27A300 is a `switch(id)` gated by the handshake
+   phase `[+0x1F1C64]` (0->1->2), each case a per-id handler; its 128 KB stack
+   buffer is the decompression target for 0xE4/0xE8, which `lzma2_bound`
+   (`OPTIONS_CAP` 0x578A0 / `SNAPSHOT_STATE_CAP`) caps before the decoder runs.
+   The input path reads fixed node fields (0x318400) and applies the rotation
+   by ADDING its two IEEE halves to the player angle (0x2D86E0 -> 0x2D8AD0, and
+   the merged node 0x2C6640) -- bounded by `rotation_is_sane` (each half finite
+   and < 1024) and the `UNUSED_ACTIONS` bit, so no NaN/Inf or stray action
+   reaches the angle. `enter_match` 0x2D1470 guards the place byte `< 0x14`
+   before indexing the 20-place table (stride 0x45FC) and runs the resync/too-
+   old time checks; `items_dictionary::item_by_id` 0x1F0090 is a lookup that
+   returns NULL (not an array index) on an unknown id, null-checked by callers.
+3. The lobby dispatcher 0x274A00: ids 0x80..0xA1 (jump table) + 0xA2..0xA4
+   (chat). All 18 `read_*` cases enumerated above; only chat 0x26B6F0, squad
+   0x274720, squad-member profile 0x1F1070, clan 0x271FD0 and elo 0x271EB0
+   carry another player's data, the rest are server->self account state. Gap
+   found here: the clan member name -- FIXED.
+
+Nothing else can deliver another player's bytes to a client: a reader not
+reachable from one of these three sources reads the player's own or the
+server's data, which it may trust (the scope line above). So the closure is
+closed, and every member of it is bounded or fixed. The one thing not shown as
+a single decompiled function is the dispatcher 0x274A00 itself -- its 70-byte
+body computes a jump into inlined cases, which defeats the decompiler (the
+process dies even at a 4M-instruction cap); it is read instead by disassembling
+the whole 0x274A00..0x275138 range, every case shown.
+
+### Deep-state readers read in full
+
+The deep weapon/battery/stamina/artefact readers, read in full in the
+decompilation (not grep lines):
+
+- `weapon_core::deserialize` 0x2E3490: the ammo id `[+0x5ac][bVar2]` and the
+  next-ammo id are bounded by `inventory`'s ammo-list check, the fire-mode
+  byte `[+0x5EC]` is an `!= 6` enum, the recoil/dispersion/aim floats are
+  finitized, and the weapon FSM goes through 0x38CCF0 (native guard +
+  `inventory` state bound). No unbounded value.
+- `player_stamina::deserialize` 0x329400: five free u32 times, a bool, and two
+  floats (validator-finitized); the record slots `[+0x54]`/`[+0x64]` are
+  pre-set fields, not read from the packet. No index from the packet.
+- the artefact cores 0x3119E0 / 0x3124B0 / 0x312AF0: read their own bytes (a
+  u32, or Onyx a u32 and a finite f32) only when the state the base reader set
+  is 4 (active), which `objects` bounds to <= 5. No index.
+- the double-weapon sub-state 0x33E7F0: its `while (.. < [+0x290])` loop reads
+  nothing from the packet -- it initializes `[+0x290]` pre-sized sub-records
+  (a construction count, not a packet count).
+- the animation-channel state 0x334FB0: the outer count is an engine vector
+  size; the inner loop reads a bitmask then one value per set bit into a
+  config-sized 0x40-dword record, the bit count `[+0x577B5]` a global config.
+- the battery `victory_item_core::deserialize` 0x301660: the container byte
+  indexes `[+0x130]` and is bounded by `player_tail::battery` (< the two
+  containers) with a null check; a fixed `memcpy 0x40`; state/floats/ownership
+  via `battery`.
+
+More, read in full: the damage-model entry 0x2E5480 is a bool, four u32 and a
+LINKED-LIST walk of the character's config body parts (`while (p) p = *p;`
+calling `body_part_parameters::deserialize` 0x32AFE0 each) -- the count is the
+list length (config), not a packet count; the hit-effects reader's format
+(serializer 0x3402C0) is `H` records bounded by `player_tail`'s
+`H <= MAX_RECORDS`; the portable object 0x2988A0 delegates to the selector
+reader 0x2FF970 (states bounded). Note 0x2FAB70, flagged by the advance-cursor
+heuristic, is not a reader at all: it is the player-logic state-machine
+constructor (allocations + vftables, no packet cursor), so some of the 65
+"readers" are constructors the heuristic over-counts.
+
+The section readers and their serializers (which show the wire format and its
+counts) were read in full too: the rule cores (tdm 0x316340, respawn 0x316F10,
+timelimit 0x317F30/0x317FD0, gather 0x313CA0, match-time 0x3149B0), statistics
+(shared 0x2F5AC0 -> player 0x335750, victory-item event 0x334DC0), the
+victory-item containers (0x31B8E0/0x31CE40), the weapon sub-states
+(0x32FD60/0x32FF70/0x337510/0x338430/0x33DCA0), battery motion 0x344870,
+grenade 0x33A570, the artefact base state 0x313760. Every loop bound in them is
+either a fixed constant (7, 3, the 23 selector states in 0x2FC7D0,
+0x58/0x18 event tables in 0x335750) or a config/vector size (the player count
+`[+0x31E0]`, respawn points, the victory-item vectors, the `[+0x577B5]` channel
+count) -- never a u32 count read from the packet. Byte fields are stored as
+enums (compared, not used as array indices) or index >=256-entry null-checked
+tables; state bytes dispatch through the FSM vtables guarded by patch 113.
+
+The per-player snapshot apply dispatch 0x2D2770 is bounded by construction:
+every index is a bit position of the active-slots u32 mask `[+0x18FD8]` (0..31)
+into the 32-entry slot table (`* 0x30`) and the 32-player state array
+(`* 0x9054`); it reads state bytes from the already-parsed, already-validated
+per-player buffers (not the packet cursor) and dispatches them through the
+patch-113-guarded FSM, running downstream of `Frame::parse` with its effects
+tail going through 0x2DDDF0 (the fixed E-record path). Note 0x336E60, 0x303820
+and 0x31AD50, like 0x2FAB70, are list-registration/constructor/empty functions,
+not deserializers -- the advance-cursor heuristic over-counts them among the 65.
+
+The validator also cites four sub-addresses that are NOT reader entry points
+(so a decompiler keyed on function starts skips them): 0x2F5B08..0x2F5BCB is a
+range inside `shared_statistics::serialize` 0x2F5AC0 (its `m_team_points[0]`
+call site and its closing `w<u32>` + `ret`); 0x313D84 is the carrier-exists
+branch (`((int*)*i)[2] == 0`) inside `gather_victory_items_rule_core::serialize`
+0x313CA0; 0x2D2BB0 is inside the apply dispatch 0x2D2770 (objects.rs calls it
+"the walk 0x2D2BB0.."). Each containing function is read in full above.
+
+So the goal's actual scope -- readers of another player's data -- is read at
+the site in full and bounded; the only two that were not are the animation
+stream and the E player-effect records, both now fixed.
+
+The lobby dispatcher 0x274A00 cannot be decompiled as one function: its own
+body is 70 bytes (the `cmp al,2; ja` head and the `jmp [ecx*4 + 0x275138]`),
+and the case blocks are reached only through that computed jump, so the
+decompiler's flow follows into them and the process dies even with the
+instruction cap raised (a tool limit, not a coverage gap). Read instead by
+disassembling the whole 0x274A00..0x275138 range: the head, then each case,
+which reads a few fixed fields and calls one named `read_*` reader (all read
+above). It has exactly one inline string read -- 0x274F44, `len = r<u8>;
+memcpy([esp+0x84], src, len); buf[len] = 0` -- the server's "operation denied /
+important message" text, a server->self system message clamped by `TEXT` /
+`STATUS_TEXT`, not another player's data. No case has an inline unbounded
+player-to-player read.

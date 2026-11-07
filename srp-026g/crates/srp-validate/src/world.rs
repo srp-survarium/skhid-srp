@@ -3,20 +3,49 @@ mod bullets;
 mod effects;
 mod frame;
 mod objects;
-pub use bullets::bullets;
-pub use effects::effects;
+pub use bullets::{Bullet, BulletFault, Bullets, Lamps, WeaponSlot, bullets};
+pub use effects::{
+    ActivationStatus, Effect, EffectFault, Effects, PlaybackType, SerializationMode, effects,
+};
+pub use objects::{
+    ActiveCore, AnomalyArtefacts, AnomalyState, ArtefactBase, ArtefactBases, ArtefactContainerCore,
+    ArtefactContainerCores, ArtefactId, ArtefactState, BoobyTrapCore, DamageZoneCore,
+    DamageZoneCores, GameObject, GameObjectIter, GameObjects, GenericAnomalyCore, GrenadeCore, Kit,
+    Motion, ObjectFault, Owner, PlacedTrap, ResupplyZoneCore, Thrown, TrapState,
+    UsableObject, User, ZoneGroup, ZoneGroups, ZoneMask,
+};
 pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};
 mod inventory;
-pub use inventory::{Ammo, Body, Chamber, Gun, GunState, Inventory, Item, Measure};
+pub use inventory::{
+    Affect, AffectKind, AfterItems, Ammo, Body, BodyPart, Chamber, Controller, DamageModel, Gun,
+    GunState, Inventory, Item, ItemBody, ItemOwner, ItemState, ItemsAndRest, Left, List,
+    Measure, Medkit, MedkitUse, OxygenTank, PartHit, RecentHit, SlotId, Usable,
+};
 mod player_tail;
-pub use player_tail::player_tail;
+pub use player_tail::{
+    ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, CarriedBattery, Head, HitEffect,
+    HitEmitter, MAX_HIT_EFFECTS, MAX_PLAYER_EFFECTS,
+    InventoryHeader, PlayerState, Stamina, player_head, player_tail,
+};
+mod weapon;
+pub use weapon::{
+    AmmoSwitch, AnimationWait, Breath, BreathState, Fire, HIT_BODY_PARTS, HitBodyPart, InHand, Jump,
+    JumpStep, JumpType, JumpWait, Portable, Recoil, ReloadStep, SelectorState, Shot,
+    SprintAnimation, StateData, ThrowStep,
+    Transition, WeaponState,
+};
 mod rules;
 mod statistics;
-use crate::reader::Reader;
-use crate::{KITS, Part, Reason, Refusal, finite, mode};
+use crate::{KITS, Part, Reason, Refusal, mode};
 pub use frame::{Block, Frame, PLAYER_STATE_CAP, Section, frame};
-pub use rules::rules;
-pub use statistics::statistics;
+pub use rules::{
+    Battery, Container, ContainerId, FreeBattery, Gather, KillsDeaths, ModeRule, Phase, PlaceList,
+    Research, ResearchUnit, Respawn, Rules, Tdm, Timed, Timelimit, rules,
+};
+pub use statistics::{
+    BatteryStatus, ByPlace, EVENTS, Events, LastTaker, OwnerTeam, PlayerStatistics, Statistics, Tail,
+    Winner, statistics,
+};
 
 /// Native weapon and ammo slot ordering.
 pub const PLAYER_FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;
@@ -107,94 +136,6 @@ impl Profile {
         usize::from(kit) < KITS
             && self.usable_kits.checked_shr(u32::from(kit)).unwrap_or(0) & 1 != 0
     }
-}
-
-/// The head of a player's state (snapshot_rules.md section 7.3), as world
-/// apply 0x2D2770 uses it:
-/// - `current_index` picks the place's player object with no bound
-///   (`[entry + kit * 4]`, then a call through its vtable +0x3C): it must
-///   be a kit of the place that has an object, one the match was sent as
-///   usable; the object table has three entries;
-/// - `target_index` is the next kit, used at the next spawn with the same
-///   lookup: the same bound;
-/// - the three bools are 0x00 or 0xFF (what the bool writer 0x80FA0
-///   writes);
-/// - the look pitch and the rotation are numbers.
-///
-/// The head: `current, target, M x u32, alive, has_to_die,
-/// m_need_to_select_animations, pitch f32, rotation f32`, 29 + 4M bytes in
-/// all (`PlayerState` in the server).
-pub fn player_head(block: &Block, context: &Context) -> Result<(), Refusal> {
-    let at = block.at;
-    let refuse = |offset: usize, reason| Refusal::new(Part::Player(block.place), offset, reason);
-    let pickup = block
-        .state
-        .get(2..PLAYER_FIELDS_AT)
-        .and_then(|bytes| bytes.try_into().ok())
-        .and_then(weapon_pickup::Record::decode);
-    if pickup.is_none() {
-        return Err(refuse(at.saturating_add(2), Reason::PickupRecord));
-    }
-    let Some(profiles) = context.profiles else {
-        // No profiles (a tool reading kept worlds): the kit bytes against
-        // the table's size only.
-        return match block.state.get(..2) {
-            Some(&[current, target]) if usize::from(current.max(target)) < KITS => Ok(()),
-            Some(_) => Err(refuse(at, Reason::KitByteOver)),
-            None => Err(refuse(at, Reason::StateUnder2)),
-        };
-    };
-    let Some(profile) = profiles.get(usize::from(block.place)) else {
-        return Err(refuse(at, Reason::NoProfile));
-    };
-    let no_head = refuse(
-        at,
-        Reason::NoHead {
-            items: profile.items,
-            len: block.state.len(),
-        },
-    );
-    // The bytes before the bools: the two kit bytes, the items.
-    let fixed = profile
-        .items
-        .checked_mul(4)
-        .and_then(|items| items.checked_add(PLAYER_FIELDS_AT))
-        .ok_or(no_head)?;
-    let head = fixed
-        .checked_add(27)
-        .and_then(|len| block.state.get(..len))
-        .ok_or(no_head)?;
-    let mut reader = Reader::new(head, at);
-    let read = (|| {
-        let kits = reader.array::<2>()?;
-        reader.skip(fixed.saturating_sub(2))?;
-        let bools = [reader.bool()?, reader.bool()?];
-        let select = reader.u8()?;
-        let look = [reader.f32_bits()?, reader.f32_bits()?];
-        Ok::<_, crate::reader::Short>((kits, bools, select, look))
-    })();
-    let Ok(([current, target], [Some(_), Some(_)], select, look)) = read else {
-        return Err(no_head);
-    };
-    if !profile.usable(current) {
-        return Err(refuse(at, Reason::CurrentKit(current)));
-    }
-    if !profile.usable(target) {
-        return Err(refuse(at.saturating_add(1), Reason::NextKit(target)));
-    }
-    if !matches!(select, 0x00 | 0xFF) {
-        return Err(refuse(
-            at.saturating_add(fixed).saturating_add(2),
-            Reason::SelectAnimations,
-        ));
-    }
-    if !look.into_iter().all(finite) {
-        return Err(refuse(
-            at.saturating_add(fixed).saturating_add(3),
-            Reason::LookNotNumber,
-        ));
-    }
-    Ok(())
 }
 
 /// The battery records the statistics and the gather rule hold: the

@@ -445,12 +445,20 @@ impl Bits<'_> {
         if bits > 32 || end > self.bytes.len().checked_mul(8)? {
             return None;
         }
+        // A byte's run of bits at a time, most significant first: at most
+        // five steps for 32 bits (one bit a step made the floats table's
+        // checks the bulk of a world check's instructions).
         let mut value = 0u64;
         while self.at < end {
             let byte = *self.bytes.get(self.at / 8)?;
-            let bit = byte.checked_shr(7 ^ (self.at % 8) as u32)? & 1;
-            value = value.checked_shl(1)? | u64::from(bit);
-            self.at = self.at.checked_add(1)?;
+            let left = 8usize.checked_sub(self.at % 8)?;
+            let take = left.min(end.checked_sub(self.at)?);
+            let below = u32::try_from(left.checked_sub(take)?).ok()?;
+            let width = u32::try_from(take).ok()?;
+            let mask = u8::MAX.checked_shr(8u32.checked_sub(width)?)?;
+            let run = byte.checked_shr(below)? & mask;
+            value = value.checked_shl(width)? | u64::from(run);
+            self.at = self.at.checked_add(take)?;
         }
         Some(value as u32)
     }
@@ -526,6 +534,12 @@ pub enum AnimFault {
     TreeLength,
     /// The tree pops more times or floats than the two tables hold.
     TableUnderrun,
+    /// A float that reaches a bone is infinity or NaN: a plain one, or an
+    /// indexed table's entry an index names. The native decoder feeds the
+    /// floats to bone transforms that a ragdoll and a bounding box then read.
+    /// (An entry no index names never reaches one: the game itself leaves
+    /// its NaNs there, `table_count`.)
+    FloatNotNumber,
 }
 
 /// A native client decodes far more of the animation state than the length
@@ -660,6 +674,17 @@ fn channel_pick(b: &mut Bits<'_>, channels: u32) -> Result<(), AnimFault> {
     Ok(())
 }
 
+/// One 32-bit float of the floats table: refuse infinity and NaN with the
+/// same bit test as `srp-validate`'s `finite` (the exponent not all ones), so
+/// a crafted stream cannot put a non-number into a bone transform.
+fn finite_float(b: &mut Bits<'_>) -> Result<(), AnimFault> {
+    if b.read(32).ok_or(AnimFault::Short)? & 0x7F80_0000 != 0x7F80_0000 {
+        Ok(())
+    } else {
+        Err(AnimFault::FloatNotNumber)
+    }
+}
+
 /// One table: `decode_times_in_ms_impl` 0x3A9580 when `times`, else
 /// `decode_floats_impl` 0x3A9720. Read it as the length walk does but bound
 /// each index to the indexes the game's encoder writes, and return how many
@@ -704,15 +729,32 @@ fn table_count(b: &mut Bits<'_>, times: bool) -> Result<u64, AnimFault> {
         let indexed = b.read(1).ok_or(Short)? != 0;
         let count = b.read(10).ok_or(Short)?;
         if indexed {
+            // The table's entries reach a bone only through an index, so
+            // the entries an index names are numbers. An entry none names
+            // may be NaN: the game's own, a NaN `unique` kept and `find`
+            // never named (its index is the count; snapshot_rules.md
+            // 7.2.1). Each named entry is read again where it lies.
             let unique = b.read(width(count)).ok_or(Short)?;
-            b.skip((unique as usize).checked_mul(32).ok_or(Short)?).ok_or(Short)?;
+            let entries = b.at;
+            b.skip((unique as usize).checked_mul(32).ok_or(Short)?)
+                .ok_or(Short)?;
             for _ in 0..count {
-                if b.read(width(unique)).ok_or(Short)? > unique {
+                let index = b.read(width(unique)).ok_or(Short)?;
+                if index > unique {
                     return Err(AnimFault::FloatsIndex);
+                }
+                if index < unique {
+                    let at = (index as usize)
+                        .checked_mul(32)
+                        .and_then(|bits| bits.checked_add(entries))
+                        .ok_or(Short)?;
+                    finite_float(&mut Bits { bytes: b.bytes, at })?;
                 }
             }
         } else {
-            b.skip((count as usize).checked_mul(32).ok_or(Short)?).ok_or(Short)?;
+            for _ in 0..count {
+                finite_float(b)?;
+            }
         }
         Ok(u64::from(count))
     }

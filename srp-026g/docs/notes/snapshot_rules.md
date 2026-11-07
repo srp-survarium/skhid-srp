@@ -299,7 +299,10 @@ Mode 4 has no such records. The class is `victory_item_event_manager` (its strin
 - Settled 2026-10-12: the rule order (§2.1), P (§2.3), the battery and container states (§2.4), the tail's writers and first values (§3.3), events 24 and 26 (§3.1), the player block's envelope and head (§7).
 - A carried battery's own state (inside its carrier's player block), and victory item event types 2 and 3.
 - Whether the position is where §2.4 puts it in `m_transform`.
-- The bullet manager, game objects, physics and effects blobs (not needed for results).
+- The game objects and physics blobs (not needed for results). The bullet
+  manager's and the effects' fields are named since 2026-11-07, from the names
+  their writers pass as text (`crates/srp-validate/src/world/bullets.rs`,
+  `effects.rs`).
 - Of a player's state: the effects after the head, a weapon after its magazine, the damage model's records (§7).
 
 ## 6. Code (added 2026-10-12)
@@ -438,13 +441,20 @@ U<=1023 -- are self-bounded and are not in this list.)
 5  table under-run: a tree that pops more than N_times times or N_floats floats
    reads before the vector start -> OOB read. Bound: times popped <= N_times,
    floats popped <= N_floats.
+6  a floats-table value that is infinity or NaN: the native decoder feeds the
+   floats to bone transforms a ragdoll/bounding box then read (state corruption,
+   not an index). Bound: every float that reaches a bone is finite (the
+   `finite` bit test, exponent not all ones): each plain one, and each entry
+   of an indexed table that an index names. An entry no index names never
+   reaches a bone, and the game itself leaves NaNs there (the correction
+   below, 2026-11-07).
 ```
 
 `animation_len` (crate `world-frame`) covers the length only. `animation_validate`
-beside it seals 1-5: it decodes the tree as above (the base tracks in two
-passes over the nodes, not one), requires it to end exactly at `T` and the pops
-to stay within the table counts, and `Frame::parse` refuses the block
-otherwise (`Refusal::Animation`). Proven on the kept worlds: all 177,672
+beside it seals 1-6: it decodes the tree as above (the base tracks in two
+passes over the nodes, not one), requires it to end exactly at `T`, the pops
+to stay within the table counts, and every floats-table value to be finite,
+and `Frame::parse` refuses the block otherwise (`Refusal::Animation`). Proven on the kept worlds: all 177,672
 animated blocks of the 20,668 worlds in `private/live-worlds-*` pass, none near
 the expression-node cap (which is above the 32768 a `T` <= 65535 tree can
 hold, so a valid stream is never refused for it).
@@ -483,7 +493,7 @@ update_bullet_position's bounds test (`comiss`/`jb`, 0x32EECB..0x32EF0C), so the
 bullet is removed at its first step. In the recording each one is in one world
 only. Its ray tests are Bullet's ray-AABB tests, and those are false for NaN
 (read from the library's source, not traced in the exe). `srp-validate` now
-reads these fields as any f32. Every other float stays held to a number.
+reads these fields as `MaybeNan` (any f32). Every other float stays a `Finite`.
 
 ### 7.3 The state's head — `game_world_core_client::serialize` 0x3218E0, `base_player::serialize` 0x2DAF60 (reader 0x2DB490)
 
