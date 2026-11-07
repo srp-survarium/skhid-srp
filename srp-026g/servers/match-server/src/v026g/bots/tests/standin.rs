@@ -348,6 +348,10 @@ pub(crate) struct Body {
     /// [A318] With `kin.step_input = previous` (the client's order, fx-review A336): the keys and yaw (after its turn) of the input
     /// before `keys`, which move the body on this tick; none on its first tick of a life (then `keys` and `yaw`).
     pub(crate) held: Option<(u32, f32)>,
+    /// [A318] Under the client's order (`kin.step_input = previous`): a jump pressed at a tick, with the press's keys, facing,
+    /// speed (m/s) and sprint gate. The press tick still walks with the input before; the flight starts at the next tick's input
+    /// from the feet that walk left, its clip timed from the press (a new clip has weight 0 on its own tick, fx-review A336).
+    pub(crate) jump_due: Option<(u32, u32, f32, f32, bool)>,
     pub(crate) health: f32,
     /// Its other pools ([`standin_damage::Pools`]): `health` is the body's.
     pub(crate) pools: standin_damage::Pools,
@@ -881,6 +885,7 @@ impl Game {
             blend: Blend::default(),
             keys: 0,
             held: None,
+            jump_due: None,
             health: 1.0,
             pools: standin_damage::Pools::default(),
             stock: standin_weapon::Stock::new(standin_weapon::Fill::guess(bench_tier(), gun)),
@@ -1087,6 +1092,7 @@ impl Game {
         body.pitch = 0.0;
         body.blend = Blend::default();
         body.held = None;
+        body.jump_due = None;
         body.health = 1.0;
         body.pools = standin_damage::Pools::default();
         body.legs = [0.5; 2];
@@ -1211,7 +1217,11 @@ impl Game {
                 // The honest stand-in's jump: the keys and the facing at
                 // the press pick its clip and way; in the air only the
                 // air control steers (`SRP_BENCH_STAND_IN_AIR`).
-                if jump && body.alive && body.node.is_some() && body.flight.is_none() {
+                let late = super::standin_jump::stand_in_step_input() == super::super::kin::StepInput::Previous;
+                if late && jump && body.alive && body.node.is_some() && body.flight.is_none() {
+                    let staggered = body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS;
+                    body.jump_due = Some((tick, keys, body.yaw, body.step_m / TICK_S, body.carrying.is_none() && !staggered));
+                } else if jump && body.alive && body.node.is_some() && body.flight.is_none() {
                     let staggered =
                         body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS;
                     let may_sprint = body.carrying.is_none() && !staggered;
@@ -1235,6 +1245,17 @@ impl Game {
                     });
                 }
             }
+        }
+        // [A318] The jumps pressed a tick ago under the client's order take off now, from where the press tick's walk left them.
+        for (place, body) in self.bodies.iter_mut().enumerate() {
+            let Some((at, keys, yaw, speed, may_sprint)) = body.jump_due.take() else { continue };
+            if at + TICK_MS != tick || !body.alive || body.node.is_none() || body.flight.is_some() {
+                continue;
+            }
+            let (clip, dir) = jump_of(keys, yaw, speed, may_sprint);
+            let u = press_draw(at, place);
+            let prepare = if std::ptr::eq(clip, &SPRINT_CLIP) { (SPRINT_PREPARE_MS * u, SPRINT_PREPARE_M * u) } else { (0.0, 0.0) };
+            body.flight = Some(Flight { at, from: body.feet, dir, clip, prepare, base: None, fall: None, air: [0.0; 2], carry: [0.0; 2] });
         }
         // A death, a ticket, the battery dropped, and the respawn of the mode: as the game's, no one's kill.
         for place in suicides {
