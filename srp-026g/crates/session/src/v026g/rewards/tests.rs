@@ -3768,7 +3768,7 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
             ended_at: NOW,
             duration_ms: 700_000,
             map_id: 1,
-            game_mode: mode::BATTERIES,
+            game_mode: GameMode::Batteries,
             match_level: 0,
             winner: history::Winner::FirstTeam,
             team_points: [3, 1],
@@ -3957,7 +3957,7 @@ fn a_research_match_keeps_captures_not_batteries() {
     let store = accounts(&players);
     let results = Results::new();
     let mut result = result(players);
-    result.game_mode = mode::RESEARCH;
+    result.mode = GameMode::Research;
     results.settle(&result, &store, &terms(), &mut Rng::new(1));
     let counters = history_of(&results)[0].players[0].line.counters;
     assert_eq!((counters.capture_hundredths, counters.batteries), (150, 0));

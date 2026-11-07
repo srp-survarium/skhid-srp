@@ -14,6 +14,7 @@ use session::v026g::persist::history::{
 };
 use session::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
 use session::{Ban, SessionStore};
+use survarium::v026g::maps::GameMode;
 
 use super::*;
 use crate::{LiveMatch, LobbyLink, MatchCounter};
@@ -115,7 +116,7 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
             ended_at,
             duration_ms: 844_500,
             map_id: 3,
-            game_mode: 2,
+            game_mode: GameMode::Batteries,
             match_level: 12,
             winner: Winner::FirstTeam,
             team_points: [5, 3],

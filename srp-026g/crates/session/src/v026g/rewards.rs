@@ -1653,7 +1653,7 @@ impl<'a> Shared<'a> {
         accounts: &GameAccounts,
     ) -> Option<MatchRecord> {
         let result = self.result;
-        let research = result.game_mode == mode::RESEARCH;
+        let research = result.mode == GameMode::Research;
         let mut players: Vec<history::PlayerRecord> = Vec::new();
         for (((player, &bot), report), kits) in
             result.players.iter().zip(bots).zip(reports).zip(kits)
@@ -1744,7 +1744,7 @@ impl<'a> Shared<'a> {
                 ended_at: self.terms.now,
                 duration_ms: result.duration_ms,
                 map_id: result.map_id,
-                game_mode: result.game_mode,
+                game_mode: result.mode,
                 match_level: result.match_level,
                 winner: history::Winner::of(self.winner, DRAW),
                 team_points: result.team_points,

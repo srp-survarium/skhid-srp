@@ -10,6 +10,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, Transaction, params};
+use survarium::v026g::maps::GameMode;
 
 use crate::LockExt;
 use crate::persist::PersistError;
@@ -29,6 +30,7 @@ pub(super) const MIGRATION: &str = "
         duration_ms   INTEGER NOT NULL,
         -- maps_dict's id.
         map_id        INTEGER NOT NULL,
+        -- Its lobby number (`GameMode::lobby_number`): 6 is Blackout.
         game_mode     INTEGER NOT NULL,
         match_level   INTEGER NOT NULL,
         kind          TEXT NOT NULL CHECK (kind IN ('public', 'private', 'vs_bots')),
@@ -407,7 +409,7 @@ pub struct MatchInfo {
     pub duration_ms: u32,
     /// maps_dict's id.
     pub map_id: u8,
-    pub game_mode: u8,
+    pub game_mode: GameMode,
     pub match_level: u16,
     pub winner: Winner,
     pub team_points: [u16; 2],
@@ -602,7 +604,7 @@ pub(super) fn record(
             info.ended_at.min(i64::MAX as u64) as i64,
             info.duration_ms,
             info.map_id,
-            info.game_mode,
+            info.game_mode.lobby_number(),
             info.match_level,
             record.kind.as_str(),
             info.winner.as_str(),
@@ -945,13 +947,15 @@ fn named_at(row: &Row, at: usize) -> rusqlite::Result<Named> {
 
 fn summary_at(row: &Row, at: usize) -> rusqlite::Result<MatchSummary> {
     let winner: String = row.get(at + 6)?;
+    let mode: u8 = row.get(at + 4)?;
     Ok(MatchSummary {
         id: u64_at(row, at)?,
         info: MatchInfo {
             ended_at: u64_at(row, at + 1)?,
             duration_ms: row.get(at + 2)?,
             map_id: row.get(at + 3)?,
-            game_mode: row.get(at + 4)?,
+            game_mode: GameMode::of_lobby_number(mode)
+                .ok_or_else(|| bad("game mode", &mode.to_string()))?,
             match_level: row.get(at + 5)?,
             winner: Winner::parse(&winner).ok_or_else(|| bad("winner", &winner))?,
             team_points: [row.get(at + 7)?, row.get(at + 8)?],
@@ -1534,7 +1538,7 @@ mod tests {
                 ended_at,
                 duration_ms: 845_000,
                 map_id: 3,
-                game_mode: 2,
+                game_mode: GameMode::Batteries,
                 match_level: 12,
                 winner: Winner::FirstTeam,
                 team_points: [5, 3],
