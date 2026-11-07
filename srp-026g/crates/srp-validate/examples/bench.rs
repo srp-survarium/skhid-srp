@@ -597,7 +597,7 @@ fn bench_worlds(worlds: &[(String, Vec<u8>)], kept: usize, options: &Options) {
             })
             .0;
             parts[2] = time(part_budget, || {
-                world::bullets(black_box(&frame)).is_ok()
+                world::bullets(black_box(&frame), &ctx).is_ok()
             })
             .0;
             parts[3] = time(part_budget, || {

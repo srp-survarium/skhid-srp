@@ -4,6 +4,9 @@ use core::fmt;
 
 use world_frame::{AnimFault, MAX_BODY, PLAYER_STATE_CAP};
 
+use crate::world::EffectFault;
+use crate::world::ObjectFault;
+
 /// The part of a world a fault is in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
@@ -132,6 +135,9 @@ pub enum Reason {
         len: usize,
         bullets: u32,
     },
+    /// The owner's place has no player object a game could read the bullet
+    /// with: past the places, or (the owner has no block) not of the roster
+    /// or with no usable kit.
     BulletOwner {
         bullet: usize,
         owner: u8,
@@ -145,7 +151,8 @@ pub enum Reason {
         bullet: usize,
         slot: u8,
     },
-    /// The owner's current kit has nothing in the slot.
+    /// A kit of the owner that may be current (he has no block: any usable
+    /// one) has no gun in the slot.
     BulletNoWeapon {
         bullet: usize,
         slot: u8,
@@ -158,6 +165,23 @@ pub enum Reason {
     },
     BulletNotNumber {
         bullet: usize,
+    },
+    /// More ricochets than a bullet makes (`world::Bullet::MAX_RICOCHETS`).
+    BulletRicochets {
+        bullet: usize,
+        count: u8,
+    },
+    /// A statistics field out of its domain (`world::Statistics::read`):
+    /// the record (a place's, a battery's, the tail), its number, the
+    /// field.
+    StatisticsField {
+        record: &'static str,
+        index: usize,
+        field: &'static str,
+    },
+    /// A rules field out of its domain (`world::Rules::read`).
+    RulesField {
+        field: &'static str,
     },
 
     // The statistics.
@@ -225,11 +249,6 @@ pub enum Reason {
         len: usize,
         objects: usize,
     },
-    /// A usable object has more users than its buffer of 20.
-    ObjectsUsers {
-        object: usize,
-        count: u8,
-    },
     /// A usable object names a user past the roster.
     ObjectsUserPast {
         object: usize,
@@ -247,36 +266,17 @@ pub enum Reason {
         artefact: u8,
         artefacts: usize,
     },
-    /// An anomaly names a state past its own.
-    ObjectsStatePast {
-        object: usize,
-        state: u8,
-        states: usize,
-    },
-    /// A zone group's bits name a zone past its own.
-    ObjectsZoneBits {
-        object: usize,
-        bits: u8,
-    },
     /// An artefact's owner is no kit with a player.
     ObjectsOwner {
         object: usize,
         place: u8,
         kit: u8,
     },
-    /// An artefact's state is none the game has.
-    ObjectsArtefactState {
+    /// An object's field holds what the game never writes there
+    /// (`world::GameObjects::read`).
+    ObjectsField {
         object: usize,
-        state: u8,
-    },
-    /// A flags byte has a bit the object has not.
-    ObjectsFlags {
-        object: usize,
-        flags: u8,
-    },
-    /// A float of an object is not a number.
-    ObjectsNotNumber {
-        object: usize,
+        fault: ObjectFault,
     },
 
     // The physics.
@@ -294,23 +294,21 @@ pub enum Reason {
         count: u32,
         len: usize,
     },
-    /// A byte the template fixes: its offset in the section, what it is.
-    EffectsByte {
+    /// The effect is not in the one form a game writes
+    /// (`world::Effect::read`).
+    EffectsEffect(EffectFault),
+    /// A field every world has one value of has another: its offset in the
+    /// section, its name.
+    EffectsField {
         at: usize,
-        what: &'static str,
-        found: u8,
-        wanted: u8,
-    },
-    /// A float the template takes any finite value of is none.
-    EffectsNotNumber {
-        at: usize,
-        what: &'static str,
-    },
-    /// The emitter's id (offset 58: the opening u32, 75: it less 1).
-    EffectsEmitterId {
-        at: usize,
+        field: &'static str,
         found: u32,
         wanted: u32,
+    },
+    /// Bytes every world has are other ones.
+    EffectsBytes {
+        at: usize,
+        what: &'static str,
     },
 
     // The player state's tail (after the head).
@@ -324,10 +322,9 @@ pub enum Reason {
         what: &'static str,
         count: u32,
     },
-    /// A player-effect record is not the template's (a raw root emitter).
-    TailEffect {
-        at: usize,
-    },
+    /// A player effect is not in the one form a game writes
+    /// (`world::Effect::read`).
+    TailEffect(EffectFault),
     /// A hit-effect record is not the template's (a bad bool or a raw root
     /// emitter).
     TailHitEffect {
@@ -395,6 +392,13 @@ pub enum Reason {
     TailWeaponAmmo {
         ammo: u8,
         count: u8,
+    },
+    /// A field of a player's state holds a value its writer never
+    /// produces (`world::PlayerState` and the views it hands out).
+    TailField {
+        at: usize,
+        field: &'static str,
+        value: u32,
     },
 
     // A match message.
@@ -560,6 +564,7 @@ impl fmt::Display for Reason {
                 AnimFault::Recursion => "an animation expression tree is too deep",
                 AnimFault::TreeLength => "an animation tree does not end at its length",
                 AnimFault::TableUnderrun => "an animation pops more values than its tables hold",
+                AnimFault::FloatNotNumber => "an animation float is infinity or NaN",
             }),
             Reason::LookNotNumber => f.write_str("a look pitch or rotation that is no number"),
             Reason::StatisticsEmpty => f.write_str("empty (no statistics object)"),
@@ -630,9 +635,6 @@ impl fmt::Display for Reason {
                 f,
                 "{len} bytes do not read as the objects to the end (stopped in object {objects})"
             ),
-            Reason::ObjectsUsers { object, count } => {
-                write!(f, "object {object} has {count} users, over 20")
-            }
             Reason::ObjectsUserPast {
                 object,
                 user,
@@ -652,30 +654,11 @@ impl fmt::Display for Reason {
                 f,
                 "object {object} names artefact {artefact}, past the map's {artefacts}"
             ),
-            Reason::ObjectsStatePast {
-                object,
-                state,
-                states,
-            } => write!(
-                f,
-                "object {object} names state {state}, past the anomaly's {states}"
-            ),
-            Reason::ObjectsZoneBits { object, bits } => {
-                write!(f, "object {object} turns on zones past its own ({bits:#04x})")
-            }
             Reason::ObjectsOwner { object, place, kit } => write!(
                 f,
                 "object {object} names owner {place} kit {kit}, which has no player"
             ),
-            Reason::ObjectsArtefactState { object, state } => {
-                write!(f, "object {object} has artefact state {state}")
-            }
-            Reason::ObjectsFlags { object, flags } => {
-                write!(f, "object {object} has flags {flags:#04x}")
-            }
-            Reason::ObjectsNotNumber { object } => {
-                write!(f, "object {object} has a float that is not a number")
-            }
+            Reason::ObjectsField { object, fault } => write!(f, "object {object}: {fault}"),
             Reason::PhysicsBytes { len } => write!(f, "{len} bytes where a game writes none"),
             Reason::BulletsUnread { len, bullets } => write!(
                 f,
@@ -683,7 +666,7 @@ impl fmt::Display for Reason {
             ),
             Reason::BulletOwner { bullet, owner } => write!(
                 f,
-                "bullet {bullet}'s owner {owner} has no player block in the world"
+                "bullet {bullet}'s owner {owner} is no place of the match with a player"
             ),
             Reason::BulletSecond {
                 bullet,
@@ -711,28 +694,34 @@ impl fmt::Display for Reason {
             Reason::BulletNotNumber { bullet } => {
                 write!(f, "bullet {bullet} has a float that is no number")
             }
+            Reason::BulletRicochets { bullet, count } => {
+                write!(f, "bullet {bullet} has {count} ricochets, over 2")
+            }
+            Reason::StatisticsField {
+                record,
+                index,
+                field,
+            } => write!(f, "{record} {index}'s {field} is none of its values"),
+            Reason::RulesField { field } => write!(f, "{field} is none of its values"),
             Reason::EffectsLength { len } => {
                 write!(f, "{len} bytes, not the 20 of no effect or the 87 of one")
             }
             Reason::EffectsCount { count, len } => {
                 write!(f, "{count} effects in {len} bytes")
             }
-            Reason::EffectsByte {
+            Reason::EffectsEffect(fault) => write!(f, "{fault}"),
+            Reason::EffectsField {
                 at,
-                what,
+                field,
                 found,
                 wanted,
             } => write!(
                 f,
-                "byte {at} ({what}) is {found:#04x}, the template's {wanted:#04x}"
+                "{field} at {at} is {found:#x}, every world's {wanted:#x}"
             ),
-            Reason::EffectsNotNumber { at, what } => {
-                write!(f, "the float at {at} ({what}) is no number")
+            Reason::EffectsBytes { at, what } => {
+                write!(f, "{what} at {at} is not every world's")
             }
-            Reason::EffectsEmitterId { at, found, wanted } => write!(
-                f,
-                "the emitter id at {at} is {found:#x}, the opening u32 makes it {wanted:#x}"
-            ),
             Reason::TailUnread { at } => {
                 write!(
                     f,
@@ -740,12 +729,7 @@ impl fmt::Display for Reason {
                 )
             }
             Reason::TailCount { what, count } => write!(f, "{count} {what}, too many to fit"),
-            Reason::TailEffect { at } => {
-                write!(
-                    f,
-                    "a player effect at {at} is not the template's (a raw root emitter)"
-                )
-            }
+            Reason::TailEffect(fault) => write!(f, "a player effect: {fault}"),
             Reason::TailHitEffect { at } => {
                 write!(f, "a hit effect at {at} is not the template's")
             }
@@ -787,6 +771,9 @@ impl fmt::Display for Reason {
                     f,
                     "a weapon's current ammo id {ammo}, past its {count} ammo"
                 )
+            }
+            Reason::TailField { at, field, value } => {
+                write!(f, "{field} at {at} is {value:#x}, no value its writer saves")
             }
             Reason::UnknownMessage => f.write_str("no message a client takes"),
             Reason::NeverSent => f.write_str("a message srp never sends"),

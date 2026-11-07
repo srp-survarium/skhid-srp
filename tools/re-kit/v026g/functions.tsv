@@ -2182,3 +2182,19 @@ va	status	ref_021d	name
 0x002616e0	observed	0x00196cdf	survarium::options_item_float::apply
 0x002d1070	reviewed	0x001dcbe6	survarium::game_world_core::is_there_event_horizon_item
 0x0085adf0	observed		survarium::`dynamic initializer for 'uro_fov''
+0x002fbbb0	observed		survarium::weapon_user_animations_selector::serialize
+0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
+0x003402c0	observed		survarium::hit_player_game_effect_presenter::serialize
+0x00331ff0	observed		survarium::recoil_calculator::serialize
+0x0032b720	reviewed	0x00200d54	stlp_std::for_each<stlp_std::pair<enum survarium::hit_affects_type_enum,unsigned int> const *,survarium::serialize_affect_functor>
+0x00300d30	reviewed	0x001e76d9	survarium::victory_item_core::taken_from_container
+0x00337280	reviewed	0x00206cd3	survarium::player_logic_stand_jump_state::initialize_weight_for_on_site_animation
+0x003422f0	reviewed	0x0020cf4f	survarium::short_jump_landing_state::serialize
+0x002ab6e0	reviewed	0x001afe7d	boost::random::detail::new_uniform_01<float>::operator()<boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647> >
+0x002ddad0	observed		survarium::game_effect_player::serialize
+0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
+0x00334310	observed		survarium::composite_game_effect::serialize
+0x0026d660	reviewed	0x0019bf64	survarium::base_local_network_client::get_player
+0x00397040	reviewed	0x0024df70	vostok::animation::mixing::n_ary_tree_serializer::save_floats
+0x00397810	reviewed		stlp_std::unique<float *>
+0x00397880	reviewed		stlp_std::find<float *,float>
