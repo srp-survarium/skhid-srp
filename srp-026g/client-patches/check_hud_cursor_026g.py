@@ -7,20 +7,22 @@ and the main menu covers the hud's cursor (README "The hud's kits and cursor").
 The original and the patched exe run on a made-up game (its game world inside
 it at +18h, the hud at the world's +1FCh, the main menu at +57F4h), the
 scene's movie calls (base_game_scene::show_movie 0x23DC00, hide_movie
-0x23DC70) stubbed to record what they were given:
-1. show_cursor (0x23A930) whole: with the menu closed both show the hud's
-   cursor movie; with it shown only the original does; both keep the flag;
-2. game_options::activate's start (0x200F50, to the end of the span its hook
-   replays): over a running match with the hud's cursor shown the patched exe
-   hides the cursor movie; not with the cursor hidden, nor when the game world
-   is not active (the lobby);
-3. game_options::deactivate's start (0x201040, to its je): a shown menu over
-   a running match with the cursor shown puts the movie back; nothing when the
-   menu is not shown, the world not active (a match's end), the cursor hidden
-   or its movie not loaded; the flags of its cmp as the original's;
-4. initialize_match's start (0x234880): the patched exe hides the cursor
-   (the movie, +2DCh 0) and the kits (+2DFh 0) the last match left;
-5. every span returns where the original's does, the registers as its.
+0x23DC70) stubbed by a model of the scene's list: a show adds the movie, a
+hide takes one copy out, and a hide of a movie the list has not fails, as the
+render thread's erase of find's end does (engine::world::hide_movie 0x118FE0:
+find 0x3C5510 gives the list's end, erase 0x15EE30 walks past it; the live
+crash of 2026-11-07). Each case is a sequence of the game's steps on a new
+game: show_cursor (0x23A930) whole, game_options::activate's start (0x200F50,
+to the end of its hook's span) with the menu then shown, deactivate's start
+(0x201040, to its je) with the menu then closed, initialize_match's start
+(0x234880), a match's end (the world's +D4h cleared). Checked:
+1. no case hides a movie the scene has not (the original none either);
+2. the movie is in the scene where the case says: off under the menu over a
+   match, back after Resume, never twice; the hud's cursor flag the
+   original's at every show_cursor;
+3. initialize_match hides the cursor (+2DCh 0) and the kits (+2DFh 0);
+4. every span returns where the original's does, the registers as its
+   (show_cursor: the ones it keeps), deactivate's je flags as its cmp's.
 """
 import struct
 import sys
@@ -50,10 +52,20 @@ SIZE_STUB, POSITION_STUB, RETURN = STUBS, STUBS + 0x10, STUBS + 0x20
 STACK = 0x21000000
 REGS = {UC_X86_REG_EBX: 0x0B0B0B0B, UC_X86_REG_EBP: 0x0019FF00, UC_X86_REG_ECX: 0x0C0C0C0C,
         UC_X86_REG_EDX: 0x0D0D0D0D, UC_X86_REG_EDI: 0x0E0E0E0E}
+ALL = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
+       UC_X86_REG_EBP, UC_X86_REG_ESP)
+KEPT = (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP)
 ZF = 1 << 6
 
 
+class Crash(Exception):
+    """A hide of a movie the scene's list has not: the render thread's crash."""
+
+
 class Run:
+    """One game, new: the menu closed, the world active, the cursor hidden, the kits shown (the last match's),
+    the movie loaded and not in the scene."""
+
     def __init__(self, data):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
         for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
@@ -73,10 +85,14 @@ class Run:
         self.word(SCREEN_VTABLE + 0x1C, SIZE_STUB)
         self.word(HUD + 0x18, WORLD)
         self.word(OPTIONS + 0x34, GAME)
+        self.word(CURSOR_MOVIE, HOLDER)
+        self.byte(WORLD + 0xD4, 1)
+        self.byte(HUD + 0x2DF, 1)
         emu.hook_add(UC_HOOK_CODE, self.movie, begin=SHOW_MOVIE, end=SHOW_MOVIE)
         emu.hook_add(UC_HOOK_CODE, self.movie, begin=HIDE_MOVIE, end=HIDE_MOVIE)
         emu.hook_add(UC_HOOK_CODE, self.done, begin=RETURN, end=RETURN)
-        self.calls = []
+        self.scene = []
+        self.fault = None
 
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
@@ -87,52 +103,125 @@ class Run:
     def read_byte(self, at):
         return self.emu.mem_read(at, 1)[0]
 
+    def read_word(self, at):
+        return struct.unpack("<I", self.emu.mem_read(at, 4))[0]
+
     def movie(self, emu, address, size, _):
-        """show_movie (EAX the scene, ESI the movie) or hide_movie (EAX the movie, EDX the scene): recorded,
-        then its `ret`."""
+        """show_movie (EAX the scene, ESI the movie) or hide_movie (EAX the movie, EDX the scene) on the
+        scene's list, then its `ret`. hide_movie of an unloaded movie returns at once (0x23DC74); show_movie
+        reads the holder (0x23DC26)."""
         eax, esi, edx = (emu.reg_read(r) for r in (UC_X86_REG_EAX, UC_X86_REG_ESI, UC_X86_REG_EDX))
-        self.calls.append(("show", eax, esi) if address == SHOW_MOVIE else ("hide", eax, edx))
+        if address == SHOW_MOVIE:
+            assert (eax, esi) == (WORLD, CURSOR_MOVIE), (hex(eax), hex(esi))
+            holder = self.read_word(esi)
+            assert holder, "show_movie of an unloaded movie"
+            self.scene.append(holder)
+        else:
+            assert (eax, edx) == (CURSOR_MOVIE, WORLD), (hex(eax), hex(edx))
+            holder = self.read_word(eax)
+            if holder and holder not in self.scene:
+                self.fault = "hide_movie of a movie not in the scene (erase of find's end, 0x15EE30)"
+                emu.emu_stop()
+                return
+            if holder:
+                self.scene.remove(holder)
         sp = emu.reg_read(UC_X86_REG_ESP)
-        emu.reg_write(UC_X86_REG_EIP, struct.unpack("<I", emu.mem_read(sp, 4))[0])
+        emu.reg_write(UC_X86_REG_EIP, self.read_word(sp))
         emu.reg_write(UC_X86_REG_ESP, sp + 4)
 
     def done(self, emu, address, size, _):
         emu.emu_stop()
 
-    def state(self, *, menu, active, cursor, kits=0, holder=True):
-        self.byte(OPTIONS + 0x44, int(menu))
-        self.byte(WORLD + 0xD4, int(active))
-        self.byte(HUD + 0x2DC, int(cursor))
-        self.byte(HUD + 0x2DF, kits)
-        self.word(CURSOR_MOVIE, HOLDER if holder else 0)
-
     def start(self, at, stack, regs, until, flags=0x202):
-        """Run from `at` to `until` with `stack` above ESP: the movie calls and the registers there."""
+        """Run from `at` to `until` with `stack` above ESP: the registers and the flags there."""
         sp = STACK + 0x8000
         self.emu.mem_write(sp, struct.pack(f"<{len(stack)}I", *stack))
         for reg, value in {**REGS, **regs}.items():
             self.emu.reg_write(reg, value)
         self.emu.reg_write(UC_X86_REG_ESP, sp)
         self.emu.reg_write(UC_X86_REG_EFLAGS, flags)
-        self.calls = []
         self.emu.emu_start(at, until, count=2000000)
+        if self.fault:
+            raise Crash(self.fault)
         assert self.emu.reg_read(UC_X86_REG_EIP) == until, hex(self.emu.reg_read(UC_X86_REG_EIP))
-        regs = {r: self.emu.reg_read(r) for r in (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX,
-                                                  UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP)}
-        return self.calls, regs, self.emu.reg_read(UC_X86_REG_EFLAGS)
+        return {r: self.emu.reg_read(r) for r in ALL}, self.emu.reg_read(UC_X86_REG_EFLAGS)
 
-    def show_cursor(self, shown):
-        calls, regs, _ = self.start(SHOW_CURSOR, [RETURN, shown], {UC_X86_REG_EDI: HUD}, RETURN)
+    # The game's steps; each returns what the original's must equal.
+
+    def cursor(self, shown):
+        regs, _ = self.start(SHOW_CURSOR, [RETURN, int(shown)], {UC_X86_REG_EDI: HUD}, RETURN)
         assert regs[UC_X86_REG_ESP] == STACK + 0x8000 + 8, "ret 4"
-        return calls
+        assert self.read_byte(HUD + 0x2DC) == int(shown), "the flag"
+        return {r: regs[r] for r in KEPT}
+
+    def menu(self, shown):
+        if shown:
+            regs, _ = self.start(ACTIVATE, [RETURN, 0x5C5C5C5C],
+                                 {UC_X86_REG_EAX: OPTIONS, UC_X86_REG_ESI: 0x05050505}, ACTIVATE_AFTER)
+            out = regs
+        else:
+            regs, flags = self.start(DEACTIVATE, [RETURN], {UC_X86_REG_ESI: OPTIONS, UC_X86_REG_EAX: 0xA0A0A0A0},
+                                     DEACTIVATE_JE, flags=0x202 | ZF)
+            assert flags & ZF == (0 if self.read_byte(OPTIONS + 0x44) else ZF), "the cmp's flags for the je"
+            out = regs, flags & ZF
+        self.byte(OPTIONS + 0x44, int(shown))
+        return out
+
+    def end(self):
+        self.byte(WORLD + 0xD4, 0)
+
+    def match_start(self):
+        regs, _ = self.start(INITIALIZE, [RETURN, HUD, 0x0F0F0F0F], {UC_X86_REG_ESI: 0x05050505},
+                             INITIALIZE_AFTER)
+        self.byte(WORLD + 0xD4, 1)
+        return regs
+
+    def unload(self):
+        self.word(CURSOR_MOVIE, 0)
 
 
-SHOWN = [("show", WORLD, CURSOR_MOVIE)]
-HIDDEN = [("hide", CURSOR_MOVIE, WORLD)]
+# A case: its name, then its steps: a step of Run's and its argument, or ("scene", n), the movie's copies in
+# the patched exe's scene there.
+CASES = [
+    ("Esc then Resume with the hud's cursor shown",
+     [("cursor", 1), ("scene", 1), ("menu", 1), ("scene", 0), ("menu", 0), ("scene", 1), ("cursor", 0),
+      ("scene", 0)]),
+    ("the cursor shown under the menu (a death), then Resume",
+     [("menu", 1), ("cursor", 1), ("scene", 0), ("menu", 0), ("scene", 1), ("cursor", 0), ("scene", 0)]),
+    ("the menu over the lobby: nothing taken off",
+     [("end",), ("cursor", 1), ("menu", 1), ("scene", 1), ("menu", 0), ("scene", 1), ("cursor", 0)]),
+    ("the menu shown with the cursor hidden, then closed: nothing put up",
+     [("menu", 1), ("scene", 0), ("menu", 0), ("scene", 0), ("cursor", 1), ("scene", 1)]),
+    ("the movie unloaded under the menu: nothing put back",
+     [("cursor", 1), ("menu", 1), ("unload",), ("menu", 0), ("scene", 0), ("cursor", 0)]),
+    ("a new match with the last match's kits and cursor shown",
+     [("cursor", 1), ("match_start",), ("scene", 0), ("cursor", 1), ("scene", 1)]),
+    ("Esc then Leave with the hud's cursor shown, then the next match's initialize_match",
+     [("cursor", 1), ("menu", 1), ("scene", 0), ("end",), ("menu", 0), ("scene", 0), ("match_start",),
+      ("scene", 0), ("cursor", 1), ("scene", 1)]),
+    ("a match's end with the menu open and the cursor shown under it, then the next match",
+     [("menu", 1), ("cursor", 1), ("end",), ("menu", 0), ("match_start",), ("scene", 0), ("cursor", 1),
+      ("scene", 1)]),
+    ("a respawn under the menu: show_cursor(0) after the menu took the movie off",
+     [("cursor", 1), ("menu", 1), ("cursor", 0), ("scene", 0), ("menu", 0), ("scene", 0), ("cursor", 1),
+      ("scene", 1)]),
+    ("the Kept exit, then a hide under the menu",
+     [("menu", 1), ("cursor", 1), ("cursor", 0), ("menu", 0), ("scene", 0), ("cursor", 1), ("scene", 1)]),
+]
 
 
-def same_registers(old, new, label):
-    assert old[1] == new[1], f"{label}: {old[1]} != {new[1]}"
+def play(original, built, steps):
+    old, new = Run(original), Run(built)
+    for step in steps:
+        name, *args = step
+        if name == "scene":
+            assert len(new.scene) == args[0], (step, new.scene)
+            continue
+        o, n = getattr(old, name)(*args), getattr(new, name)(*args)
+        assert o == n, (step, o, n)
+        assert len(new.scene) <= 1, (step, new.scene)
+        if name == "match_start":
+            assert (new.read_byte(HUD + 0x2DC), new.read_byte(HUD + 0x2DF)) == (0, 0), "the cursor and the kits"
 
 
 def main():
@@ -141,66 +230,17 @@ def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
-    old, new = Run(original), Run(bytes(built))
-
-    for run in (old, new):
-        run.state(menu=False, active=True, cursor=False)
-        assert run.show_cursor(1) == SHOWN
-        assert run.read_byte(HUD + 0x2DC) == 1
-    old.state(menu=True, active=True, cursor=False)
-    new.state(menu=True, active=True, cursor=False)
-    assert old.show_cursor(1) == SHOWN
-    assert new.show_cursor(1) == []
-    assert old.read_byte(HUD + 0x2DC) == 1 and new.read_byte(HUD + 0x2DC) == 1
-    for run in (old, new):
-        assert run.show_cursor(0) == HIDDEN and run.read_byte(HUD + 0x2DC) == 0
-    print("ok show_cursor: the movie shown with the menu closed by both, kept off under the menu by the "
-          "patched exe; the flag and the hide as the original's")
-
-    def activate(run, **state):
-        run.state(menu=False, **state)
-        return run.start(ACTIVATE, [RETURN, 0x5C5C5C5C], {UC_X86_REG_EAX: OPTIONS, UC_X86_REG_ESI: 0x05050505},
-                         ACTIVATE_AFTER)
-
-    for state, expected in (({"active": True, "cursor": True}, HIDDEN),
-                            ({"active": True, "cursor": False}, []),
-                            ({"active": False, "cursor": True}, [])):
-        o, n = activate(old, **state), activate(new, **state)
-        assert o[0] == [] and n[0] == expected, (state, n[0])
-        same_registers(o, n, f"activate {state}")
-    print("ok the menu shown: the cursor movie off over a running match with the cursor shown; nothing with "
-          "it hidden or over the lobby")
-
-    def deactivate(run, **state):
-        run.state(**state)
-        return run.start(DEACTIVATE, [RETURN], {UC_X86_REG_ESI: OPTIONS, UC_X86_REG_EAX: 0xA0A0A0A0},
-                         DEACTIVATE_JE, flags=0x202 | ZF)
-
-    for state, expected in (({"menu": True, "active": True, "cursor": True}, SHOWN),
-                            ({"menu": False, "active": True, "cursor": True}, []),
-                            ({"menu": True, "active": False, "cursor": True}, []),
-                            ({"menu": True, "active": True, "cursor": False}, []),
-                            ({"menu": True, "active": True, "cursor": True, "holder": False}, [])):
-        o, n = deactivate(old, **state), deactivate(new, **state)
-        assert o[0] == [] and n[0] == expected, (state, n[0])
-        same_registers(o, n, f"deactivate {state}")
-        assert o[2] & ZF == n[2] & ZF == (0 if state["menu"] else ZF), "the cmp's flags for the je"
-    print("ok the menu closed: the cursor movie back over a running match with the cursor shown and loaded; "
-          "nothing else; the je's flags as the original's")
-
-    def initialize(run, **state):
-        run.state(menu=False, active=True, **state)
-        return run.start(INITIALIZE, [RETURN, HUD, 0x0F0F0F0F], {UC_X86_REG_ESI: 0x05050505}, INITIALIZE_AFTER)
-
-    for state, expected in (({"cursor": True, "kits": 1}, HIDDEN), ({"cursor": False, "kits": 0}, [])):
-        o = initialize(old, **state)
-        assert o[0] == [] and old.read_byte(HUD + 0x2DC) == int(state["cursor"])
-        assert old.read_byte(HUD + 0x2DF) == state["kits"]
-        n = initialize(new, **state)
-        assert n[0] == expected, (state, n[0])
-        assert new.read_byte(HUD + 0x2DC) == 0 and new.read_byte(HUD + 0x2DF) == 0
-        same_registers(o, n, f"initialize {state}")
-    print("ok a new match: the last match's kits and cursor put away by the patched exe, kept by the original")
+    built = bytes(built)
+    failed = 0
+    for name, steps in CASES:
+        try:
+            play(original, built, steps)
+            print(f"ok {name}")
+        except (Crash, AssertionError) as error:
+            print(f"FAIL {name}: {error!r}")
+            failed += 1
+    if failed:
+        sys.exit(f"{failed} of {len(CASES)} cases failed")
     print("ok every span ended where the original's does, the registers as its")
 
 

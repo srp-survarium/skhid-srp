@@ -2211,3 +2211,5 @@ va	status	ref_021d	name
 0x002717e0	verified	0x0019e562	survarium::lobby_client::discard_playing_order
 0x001ed170	observed		survarium::game::switch_to_game_world
 0x002203a0	observed		survarium::lobby_menu::show_loading_screen
+0x0015ee30	reviewed	0x000f5567	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase
+0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> *,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
