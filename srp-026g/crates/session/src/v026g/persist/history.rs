@@ -2,12 +2,13 @@
 //! every finished match ([`MatchRecord`], made by
 //! [`crate::v026g::rewards::Results::settle`]) and its players, with the
 //! public matches' totals by player and by clan added up as each is
-//! written. [`MatchHistory`] reads them for the site, on a connection of its
-//! own: only public matches are ever read back.
+//! written. [`MatchHistory`] reads them for the site, on read-only
+//! connections of its own: only public matches are ever read back.
 
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, MutexGuard, TryLockError};
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, Transaction, params};
 use survarium::v026g::maps::GameMode;
@@ -1014,29 +1015,54 @@ fn level_of(experience: u32) -> u8 {
     level_at(experience).0
 }
 
-/// The history as the site reads it: public matches only, on a read-only
-/// connection of its own, so a request never waits for the accounts'
-/// writer (the file is in WAL mode). Every query is an indexed lookup of
+/// The history as the site reads it: public matches only, on
+/// [`MatchHistory::READERS`] read-only connections of its own. The file is
+/// in WAL mode ([`super::SqliteGameRepository::open`]), so a read never
+/// waits for the writer nor the writer for a read, and a slow request
+/// holds one reader, not the others. Every query is an indexed lookup of
 /// at most [`MatchHistory::MAX_ROWS`] rows.
 pub struct MatchHistory {
-    connection: Mutex<Connection>,
+    readers: Vec<Mutex<Connection>>,
+    /// The reader a request waits for when all are busy, in turn.
+    next: AtomicUsize,
 }
 
 impl MatchHistory {
     /// The most rows a list gives.
     pub const MAX_ROWS: usize = 50;
+    /// How many requests read at once: the host has one CPU, the rest wait.
+    pub const READERS: usize = 4;
 
     /// Opens the file at `path`, which [`super::SqliteGameRepository`]
-    /// made and brought to this schema.
+    /// made, put in WAL mode and brought to this schema.
     pub(super) fn open(path: &Path) -> Result<Self, PersistError> {
-        let connection = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )?;
-        connection.execute_batch("PRAGMA busy_timeout = 2000;")?;
+        let readers = (0..Self::READERS)
+            .map(|_| {
+                let connection = Connection::open_with_flags(
+                    path,
+                    OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+                )?;
+                connection.execute_batch("PRAGMA busy_timeout = 2000;")?;
+                Ok(Mutex::new(connection))
+            })
+            .collect::<Result<_, PersistError>>()?;
         Ok(Self {
-            connection: Mutex::new(connection),
+            readers,
+            next: AtomicUsize::new(0),
         })
+    }
+
+    /// A free reader, else the next one in turn once it is free.
+    fn reader(&self) -> MutexGuard<'_, Connection> {
+        for reader in &self.readers {
+            match reader.try_lock() {
+                Ok(connection) => return connection,
+                Err(TryLockError::Poisoned(poisoned)) => return poisoned.into_inner(),
+                Err(TryLockError::WouldBlock) => {}
+            }
+        }
+        let turn = self.next.fetch_add(1, Ordering::Relaxed) % self.readers.len();
+        self.readers[turn].locked()
     }
 
     /// The account with this in-game name (Latin letters in any case), of
@@ -1044,8 +1070,7 @@ impl MatchHistory {
     /// no other account is ever found.
     pub fn account_by_name(&self, name: &str) -> Result<Option<u32>, PersistError> {
         Ok(self
-            .connection
-            .locked()
+            .reader()
             .query_row(
                 "SELECT a.account_id FROM g26_accounts a
                  JOIN g26_player_totals t ON t.account_id = a.account_id
@@ -1061,8 +1086,7 @@ impl MatchHistory {
     /// match (its name is most often still the login).
     pub fn player(&self, account_id: u32) -> Result<Option<PlayerCard>, PersistError> {
         Ok(self
-            .connection
-            .locked()
+            .reader()
             .query_row(
                 &format!(
                     "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
@@ -1093,7 +1117,7 @@ impl MatchHistory {
         before: Option<u64>,
         limit: usize,
     ) -> Result<Vec<PlayerMatch>, PersistError> {
-        let connection = self.connection.locked();
+        let connection = self.reader();
         let mut statement = connection.prepare_cached(&format!(
             "SELECT {SUMMARY}, {LINE}
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
@@ -1124,7 +1148,7 @@ impl MatchHistory {
     /// The account's most used weapons and armour of its public matches,
     /// at most `limit` of each.
     pub fn favourites(&self, account_id: u32, limit: usize) -> Result<Favourites, PersistError> {
-        let connection = self.connection.locked();
+        let connection = self.reader();
         let mut statement = connection.prepare_cached(FAVOURITES)?;
         let mut of = |gear: Gear| -> rusqlite::Result<Vec<ItemTotals>> {
             statement
@@ -1150,7 +1174,7 @@ impl MatchHistory {
         account_id: u32,
         since: u64,
     ) -> Result<Vec<(String, Totals)>, PersistError> {
-        let connection = self.connection.locked();
+        let connection = self.reader();
         let mut statement = connection.prepare_cached(
             "SELECT date(m.ended_at, 'unixepoch') AS day, COUNT(*),
                  SUM(CASE WHEN (m.winner = 'team0' AND p.team = 0)
@@ -1179,7 +1203,7 @@ impl MatchHistory {
         limit: usize,
         clan: Option<u32>,
     ) -> Result<Vec<MatchSummary>, PersistError> {
-        let connection = self.connection.locked();
+        let connection = self.reader();
         let rows: Vec<MatchSummary> = match clan {
             None => {
                 let mut statement = connection.prepare_cached(&format!(
@@ -1213,7 +1237,7 @@ impl MatchHistory {
         &self,
         id: u64,
     ) -> Result<Option<(MatchSummary, Vec<MatchPlayer>)>, PersistError> {
-        let connection = self.connection.locked();
+        let connection = self.reader();
         let summary = connection
             .query_row(
                 &format!(
@@ -1256,7 +1280,7 @@ impl MatchHistory {
         limit: usize,
         keep: &dyn Fn(u32) -> bool,
     ) -> Result<Vec<TopPlayer>, PersistError> {
-        let connection = self.connection.locked();
+        let connection = self.reader();
         let mut statement = connection.prepare_cached(&top_query(by))?;
         // Room for the ones `keep` leaves out.
         let mut rows = statement.query([bounded(limit) + MatchHistory::MAX_ROWS as i64])?;
@@ -1287,7 +1311,7 @@ impl MatchHistory {
         limit: usize,
         keep: &dyn Fn(u32) -> bool,
     ) -> Result<Vec<BestLine>, PersistError> {
-        let connection = self.connection.locked();
+        let connection = self.reader();
         let mut statement = connection.prepare_cached(&best_query())?;
         // Room for the ones `keep` leaves out.
         let mut rows = statement.query(params![
@@ -1313,7 +1337,7 @@ impl MatchHistory {
 
     /// The top `limit` registered clans by `by`.
     pub fn clans(&self, by: TotalsKey, limit: usize) -> Result<Vec<ClanLine>, PersistError> {
-        let connection = self.connection.locked();
+        let connection = self.reader();
         let mut statement = connection.prepare_cached(&format!(
             "SELECT c.clan_id, c.name, c.tag, c.experience,
                  (SELECT COUNT(*) FROM g26_clan_members cm
@@ -1330,7 +1354,7 @@ impl MatchHistory {
 
     /// A registered clan's card.
     pub fn clan(&self, key: ClanKey) -> Result<Option<ClanCard>, PersistError> {
-        let connection = self.connection.locked();
+        let connection = self.reader();
         let (filter, value) = match key {
             ClanKey::Id(id) => ("c.clan_id = ?1", rusqlite::types::Value::from(id)),
             ClanKey::Tag(tag) => ("c.tag = ?1 COLLATE NOCASE", tag.to_owned().into()),
@@ -1639,6 +1663,30 @@ mod tests {
             2
         );
         assert_eq!(history.favourites(10, 10).unwrap().weapons.len(), 2);
+    }
+
+    #[test]
+    fn a_read_in_progress_blocks_neither_the_writer_nor_other_reads() {
+        let dir = TempDir::new("readers");
+        let (mut repository, history) = repository(&dir);
+        repository
+            .record_match(&record(MatchKind::Public, 100))
+            .unwrap();
+        let count = |connection: &Connection| -> i64 {
+            connection
+                .query_row("SELECT COUNT(*) FROM g26_matches", [], |row| row.get(0))
+                .unwrap()
+        };
+        let slow = history.reader();
+        slow.execute_batch("BEGIN").unwrap();
+        assert_eq!(count(&slow), 1);
+        repository
+            .record_match(&record(MatchKind::Public, 200))
+            .unwrap();
+        assert_eq!(history.player(10).unwrap().unwrap().totals.matches, 2);
+        // The slow one still reads what it began with.
+        assert_eq!(count(&slow), 1);
+        slow.execute_batch("COMMIT").unwrap();
     }
 
     #[test]
