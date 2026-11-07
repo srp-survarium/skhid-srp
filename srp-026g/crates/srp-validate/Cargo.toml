@@ -9,6 +9,7 @@ workspace = true
 
 [dependencies]
 world-frame = { workspace = true }
+weapon-pickup = { path = "../weapon-pickup" }
 
 [dev-dependencies]
 survarium = { workspace = true }

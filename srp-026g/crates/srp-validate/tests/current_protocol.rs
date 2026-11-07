@@ -90,3 +90,53 @@ fn shipped_command_marker_is_allowed_but_unused_bit_and_nan_are_not() {
         assert!(messages::check(id, &payload).is_err());
     }
 }
+
+#[test]
+fn current_emitted_messages_and_late_join_headers_are_accepted() {
+    use survarium::v026g::match_msgs::{PlayerInput, ServerMessage as M, WireTime, late_join};
+    let tick = WireTime::tick(5000);
+    let precise = WireTime::precise(5049);
+    let mut messages = vec![
+        M::Ports { min: 1236, max: 1236 },
+        M::SetTime { generation: 7, echo: 21, match_time: 5000 },
+        M::Ping { a: 8, b: 9 }, M::ClockOffset(-50),
+        M::PlayerEntered { tick: 3, player: 19 },
+        M::PlayerLeft { tick: 4, player: 19 },
+        M::ProfileInputRelay { tick: 3, player: 19, value: 2 },
+        M::MoveProfileInput { from_tick: 3, to_tick: 4 },
+        M::DiscardProfileInput { tick: 3 }, M::UploadRequest,
+    ];
+    for time in [tick, precise] {
+        messages.extend([
+            M::InputRelay { player: 19, input: PlayerInput {
+                time, rotation: [0; 4], actions: 1 << 29,
+            }},
+            M::MoveInput { from: tick, to: time },
+            M::DiscardInput { time },
+        ]);
+    }
+    for packed in [false, true] {
+        messages.push(M::Snapshot { generation: 7, time: 5000, body: vec![0; 4000], packed });
+    }
+    for message in messages {
+        let payload = message.payload();
+        assert_eq!(messages::check(message.id(), &payload), Ok(()), "{message:?}");
+        if messages::fixed_length(message.id()).is_some() {
+            for len in 0..payload.len() {
+                assert!(messages::check(message.id(), &payload[..len]).is_err());
+            }
+            let mut over = payload.clone(); over.push(0);
+            assert!(messages::check(message.id(), &over).is_err());
+        }
+    }
+    let prepare = late_join::Prepare {
+        proposal: late_join::Proposal { match_id: 42, serial: 1, place: 19 },
+        profile: options(false).players.remove(0),
+    }.encode(Dictionary::shared()).unwrap();
+    assert_eq!(messages::check(messages::id::STATIC_INFO, &prepare), Ok(()));
+    for len in 0..14 {
+        assert!(messages::check(messages::id::STATIC_INFO, &prepare[..len]).is_err());
+    }
+    let mut bad = prepare; bad[8..12].fill(0);
+    assert!(messages::check(messages::id::STATIC_INFO, &bad).is_err());
+}

@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use world_frame::{MAX_BODY, PLAYER_STATE_CAP};
+use world_frame::{AnimFault, MAX_BODY, PLAYER_STATE_CAP};
 
 /// The part of a world a fault is in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -105,6 +105,8 @@ pub enum Reason {
     /// No profiles known: a state of under 2 bytes.
     StateUnder2,
     NoProfile,
+    PickupRecord,
+    LampHistory,
     /// The head does not read for a profile of `items` items: the state
     /// (of `len` bytes) is shorter, or a bool is no bool.
     NoHead {
@@ -117,6 +119,9 @@ pub enum Reason {
     NextKit(u8),
     /// `m_need_to_select_animations` is no bool.
     SelectAnimations,
+    /// The block's animation state is malformed in a way a native client
+    /// reads a count or index out of bounds on (`snapshot_rules.md` 7.2.1).
+    Animation(AnimFault),
     /// The look pitch or the rotation is no number.
     LookNotNumber,
 
@@ -214,41 +219,64 @@ pub enum Reason {
     },
 
     // The game objects.
-    /// The map's `objects` game objects do not read to the section's exact
-    /// end.
+    /// The section does not read as its objects to the exact end
+    /// (`objects`: the object it stopped in).
     ObjectsUnread {
         len: usize,
         objects: usize,
     },
-    /// A usable object or container names a user past the roster.
+    /// A usable object has more users than its buffer of 20.
+    ObjectsUsers {
+        object: usize,
+        count: u8,
+    },
+    /// A usable object names a user past the roster.
     ObjectsUserPast {
         object: usize,
         user: u8,
         places: usize,
     },
-    /// An artefact container names an artefact past the game's.
+    /// A user uses two objects (a player has one link node).
+    ObjectsUserTwice {
+        object: usize,
+        user: u8,
+    },
+    /// An artefact container names an artefact past the map's.
     ObjectsArtefactPast {
         object: usize,
         artefact: u8,
         artefacts: usize,
-    },
-    /// A victory container holds more batteries than the map has.
-    ObjectsBatteriesPast {
-        object: usize,
-        count: u32,
-        batteries: usize,
-    },
-    /// A victory container names a battery past the map's.
-    ObjectsBatteryPast {
-        object: usize,
-        battery: u8,
-        batteries: usize,
     },
     /// An anomaly names a state past its own.
     ObjectsStatePast {
         object: usize,
         state: u8,
         states: usize,
+    },
+    /// A zone group's bits name a zone past its own.
+    ObjectsZoneBits {
+        object: usize,
+        bits: u8,
+    },
+    /// An artefact's owner is no kit with a player.
+    ObjectsOwner {
+        object: usize,
+        place: u8,
+        kit: u8,
+    },
+    /// An artefact's state is none the game has.
+    ObjectsArtefactState {
+        object: usize,
+        state: u8,
+    },
+    /// A flags byte has a bit the object has not.
+    ObjectsFlags {
+        object: usize,
+        flags: u8,
+    },
+    /// A float of an object is not a number.
+    ObjectsNotNumber {
+        object: usize,
     },
 
     // The physics.
@@ -272,6 +300,11 @@ pub enum Reason {
         what: &'static str,
         found: u8,
         wanted: u8,
+    },
+    /// A float the template takes any finite value of is none.
+    EffectsNotNumber {
+        at: usize,
+        what: &'static str,
     },
     /// The emitter's id (offset 58: the opening u32, 75: it less 1).
     EffectsEmitterId {
@@ -331,6 +364,34 @@ pub enum Reason {
     },
     /// A weapon's `m_current_ammo_id` is past its ammo list of `count`
     /// (0x2E350A).
+    /// A carried battery's user or container byte is no game's.
+    TailBattery {
+        at: usize,
+    },
+    /// An item saves another slot than its own.
+    TailItemSlot {
+        slot: u8,
+        wanted: u8,
+    },
+    /// A weapon's state machine names a state past its states.
+    TailGunState {
+        state: u8,
+        states: usize,
+    },
+    /// A throw names a grenade slot past the inventory's.
+    TailGrenadeSlot {
+        slot: u8,
+    },
+    /// A body part's affect is of no type the game has.
+    TailAffect {
+        kind: u8,
+    },
+    /// A bool that is not 0x00 or 0xFF.
+    TailBool {
+        at: usize,
+    },
+    /// The carry snapshot is of another version.
+    TailCarry,
     TailWeaponAmmo {
         ammo: u8,
         count: u8,
@@ -465,6 +526,8 @@ pub enum Reason {
 impl fmt::Display for Reason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
+            Reason::PickupRecord => f.write_str("invalid current weapon-pickup record"),
+            Reason::LampHistory => f.write_str("invalid lamp history suffix"),
             Reason::NoWalk => f.write_str("the mask and player blocks do not walk from the front"),
             Reason::NoSections => {
                 f.write_str("no six sections ending at the body's end after the player blocks")
@@ -489,6 +552,15 @@ impl fmt::Display for Reason {
             Reason::SelectAnimations => {
                 f.write_str("m_need_to_select_animations is not 0x00 or 0xFF")
             }
+            Reason::Animation(fault) => f.write_str(match fault {
+                AnimFault::Short => "an animation state ends mid-stream",
+                AnimFault::TimesIndex => "an animation times index is out of range",
+                AnimFault::FloatsIndex => "an animation floats index is out of range",
+                AnimFault::ChannelIndex => "an animation channel pick is out of range",
+                AnimFault::Recursion => "an animation expression tree is too deep",
+                AnimFault::TreeLength => "an animation tree does not end at its length",
+                AnimFault::TableUnderrun => "an animation pops more values than its tables hold",
+            }),
             Reason::LookNotNumber => f.write_str("a look pitch or rotation that is no number"),
             Reason::StatisticsEmpty => f.write_str("empty (no statistics object)"),
             Reason::StatisticsUnread {
@@ -556,8 +628,11 @@ impl fmt::Display for Reason {
             ),
             Reason::ObjectsUnread { len, objects } => write!(
                 f,
-                "{len} bytes do not read as the map's {objects} game objects to the end"
+                "{len} bytes do not read as the objects to the end (stopped in object {objects})"
             ),
+            Reason::ObjectsUsers { object, count } => {
+                write!(f, "object {object} has {count} users, over 20")
+            }
             Reason::ObjectsUserPast {
                 object,
                 user,
@@ -566,29 +641,16 @@ impl fmt::Display for Reason {
                 f,
                 "object {object} names user {user}, past the {places} places"
             ),
+            Reason::ObjectsUserTwice { object, user } => {
+                write!(f, "object {object} names user {user}, who uses another")
+            }
             Reason::ObjectsArtefactPast {
                 object,
                 artefact,
                 artefacts,
             } => write!(
                 f,
-                "object {object} names artefact {artefact}, past the {artefacts} the game has"
-            ),
-            Reason::ObjectsBatteriesPast {
-                object,
-                count,
-                batteries,
-            } => write!(
-                f,
-                "object {object} holds {count} batteries, the map has {batteries}"
-            ),
-            Reason::ObjectsBatteryPast {
-                object,
-                battery,
-                batteries,
-            } => write!(
-                f,
-                "object {object} holds battery {battery}, past the map's {batteries}"
+                "object {object} names artefact {artefact}, past the map's {artefacts}"
             ),
             Reason::ObjectsStatePast {
                 object,
@@ -598,6 +660,22 @@ impl fmt::Display for Reason {
                 f,
                 "object {object} names state {state}, past the anomaly's {states}"
             ),
+            Reason::ObjectsZoneBits { object, bits } => {
+                write!(f, "object {object} turns on zones past its own ({bits:#04x})")
+            }
+            Reason::ObjectsOwner { object, place, kit } => write!(
+                f,
+                "object {object} names owner {place} kit {kit}, which has no player"
+            ),
+            Reason::ObjectsArtefactState { object, state } => {
+                write!(f, "object {object} has artefact state {state}")
+            }
+            Reason::ObjectsFlags { object, flags } => {
+                write!(f, "object {object} has flags {flags:#04x}")
+            }
+            Reason::ObjectsNotNumber { object } => {
+                write!(f, "object {object} has a float that is not a number")
+            }
             Reason::PhysicsBytes { len } => write!(f, "{len} bytes where a game writes none"),
             Reason::BulletsUnread { len, bullets } => write!(
                 f,
@@ -648,6 +726,9 @@ impl fmt::Display for Reason {
                 f,
                 "byte {at} ({what}) is {found:#04x}, the template's {wanted:#04x}"
             ),
+            Reason::EffectsNotNumber { at, what } => {
+                write!(f, "the float at {at} ({what}) is no number")
+            }
             Reason::EffectsEmitterId { at, found, wanted } => write!(
                 f,
                 "the emitter id at {at} is {found:#x}, the opening u32 makes it {wanted:#x}"
@@ -690,6 +771,17 @@ impl fmt::Display for Reason {
                 f,
                 "an inventory item owned by place {player_id} kit {profile_id}, no player object in the match"
             ),
+            Reason::TailBattery { at } => write!(f, "a carried battery's byte at {at} is no game's"),
+            Reason::TailItemSlot { slot, wanted } => {
+                write!(f, "the item of slot {wanted} saves slot {slot}")
+            }
+            Reason::TailGunState { state, states } => {
+                write!(f, "a state machine in state {state}, past its {states}")
+            }
+            Reason::TailGrenadeSlot { slot } => write!(f, "a throw of the grenade in slot {slot}"),
+            Reason::TailAffect { kind } => write!(f, "a body part affect of type {kind}"),
+            Reason::TailBool { at } => write!(f, "a bool at {at} that is not 0x00 or 0xFF"),
+            Reason::TailCarry => f.write_str("a carry snapshot of another version"),
             Reason::TailWeaponAmmo { ammo, count } => {
                 write!(
                     f,

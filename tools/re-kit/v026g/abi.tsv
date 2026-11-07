@@ -2357,3 +2357,7 @@ va	name	source	ret_cleanup	result
 0x002e1cf0	survarium::weapon::damage	manual	0	XMM0 low32: weapon +51Ch bullet_damage x ammo +08h k_damage; for the weapon's own melee data (EAX = weapon+53Ch) apply_modifier 0x2D5AE0 index 3Bh of ammo +08h instead (bullet::bullet 0x32BB38: the bullet's damage +70h)
 0x00323a10	survarium::game_material::load_from_config	manual	8	none; fills a material from its game_materials/game.materials entry (fields in abi_inputs)
 0x0032d960	survarium::bullet::try_pierce	manual	16	AL: 1 pierced, its damage +70h, piercing +74h and speed times k = 1 - (1 - t)^2, t = clamp((P - A) / A, 0, 1) (1 when A = 0), P the bullet +74h, A the material's armor ([bullet+4Ch]+4Ch); its direction turned by up to ammo +34h x material +5Ch radians at random; 0 when k <= 0 (check_collision 0x32D88A then tries try_reflect 0x32DE40). No thickness or angle term. Through a player (receiver vtable +8 non-zero) k = min_damage 0x2E1C80 / damage
+0x0027a070	survarium::match_client::match_client	manual	12	EAX: receiver pointer explicitly returned; receiver EDI
+0x003183a0	survarium::match_options::match_options	manual	0	EAX: receiver pointer explicitly returned; receiver ESI
+0x003a8980	anim_decode_read_bits	manual	0	EAX = the bits read, MSB first, zero-extended
+0x00317d40	vostok::popcount	manual	0	EAX = set-bit count of the input

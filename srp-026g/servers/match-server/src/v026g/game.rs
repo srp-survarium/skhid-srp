@@ -113,7 +113,6 @@ use survarium::v026g::match_msgs::{
     WireTime, clock as game_clock, parse_client, tick_byte, tick_time,
 };
 use udp_transport::{Event, SendError, Transport};
-use world_frame::{Frame, Places};
 
 // One bound for a world: what the client hashes and uploads (patch 98), what
 // the server reassembles and the transport takes, what a game may be sent.
@@ -368,8 +367,6 @@ const CORRECTION_SETTLE: Duration = Duration::from_secs(1);
 const MAX_SANE_LAG_MS: i64 = 5_000;
 /// Inputs first seen this late probably lost their first copy.
 const LATE_INPUT_MS: u32 = 200;
-/// A player's refused inputs are logged one by one up to this many.
-const REFUSED_LOGGED: u32 = 8;
 const LATE_SHARE_WEIGHT: f32 = 0.01;
 /// With no majority, the side with the better links must outweigh the next
 /// by this much to be taken as right.
@@ -677,11 +674,27 @@ struct Answer {
     serial: Option<u64>,
 }
 
+mod input_safety;
+mod refusal_log;
+mod world_receipts;
+use input_safety::InputViolations;
+use refusal_log::RefusalLog;
+use world_receipts::{Received, WorldReceipts};
+
 struct Peer {
     addr: SocketAddr,
     session_id: u32,
     transport: Transport,
     stage: Stage,
+    input_violations: InputViolations,
+    /// Its refused inputs' log lines.
+    inputs_log: RefusalLog,
+    /// Its refused and ignored uploads' log lines.
+    uploads_log: RefusalLog,
+    /// The log lines of the worlds and handshakes it refused, and of its
+    /// receipts that matched no offer.
+    receipts_log: RefusalLog,
+    world_receipts: WorldReceipts,
     /// The sync generation of the last 0xE5/0xE8 sent to it: 0xFF once it
     /// is ready, as the client's own.
     generation: Generation,
@@ -831,11 +844,14 @@ struct Peer {
     /// their tick all the same (`LateInputs::Relay`).
     inputs_relayed_late: u32,
     inputs_moved: u32,
-    /// Inputs with a rotation no client makes: not relayed.
+    /// Inputs no client makes (`srp_validate::messages::input`, a pickup of
+    /// no place): not relayed.
     inputs_refused: u32,
-    /// Uploads no game could load (`world_frame::Frame::parse`): sent to
+    /// Uploads refused by shared frame/semantic validation: sent to
     /// nobody.
     uploads_refused: u32,
+    /// Worlds and handshakes its game refused (its Rejected receipts).
+    loads_refused: u32,
     resyncs: u32,
     /// Resyncs since its reports last agreed with the right ones.
     restores_unagreed: u32,
@@ -1345,6 +1361,11 @@ impl Game {
             session_id,
             transport,
             stage: Stage::Connecting,
+            input_violations: InputViolations::default(),
+            inputs_log: RefusalLog::default(),
+            uploads_log: RefusalLog::default(),
+            receipts_log: RefusalLog::default(),
+            world_receipts: WorldReceipts::default(),
             generation: Generation::AT_READY,
             set_times: VecDeque::new(),
             time_confirmed: false,
@@ -1413,6 +1434,7 @@ impl Game {
             inputs_moved: 0,
             inputs_refused: 0,
             uploads_refused: 0,
+            loads_refused: 0,
             resyncs: 0,
             restores_unagreed: 0,
             latest_input_ms: 0,
@@ -1447,6 +1469,60 @@ impl Game {
         self.empty_since = None;
     }
 
+    /// Negotiated in D8 before any snapshot can be offered.
+    pub(super) fn enable_world_receipts(&mut self, index: usize, now: Instant) {
+        if let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) {
+            peer.world_receipts.enable(now);
+        }
+    }
+
+    /// A load receipt (an E0 carrier, `srp_validate::recovery`): whatever it
+    /// does, a refusal by the client and a receipt the server ignores are
+    /// logged (`refusal_log`).
+    fn accept_world_receipt(&mut self, index: usize, message: u8, payload: &[u8], now: Instant) -> bool {
+        use srp_validate::recovery::Outcome;
+        if message != survarium::v026g::match_msgs::id::LEAVE { return false; }
+        let Some(receipt) = srp_validate::recovery::Receipt::parse(payload) else { return false; };
+        let id = self.id;
+        let this_match = receipt.match_id == super::registry::static_id(id);
+        let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) else { return true; };
+        let received = match receipt.outcome {
+            // Before options deserialize the client does not know the match
+            // seed. A request can only resend this connection's own
+            // handshake, and only while it is loading. It never resets a live
+            // client or another peer.
+            Outcome::OptionsRejected if matches!(peer.stage, Stage::Connecting | Stage::Loading) => {
+                peer.world_receipts.reject_options(now)
+            }
+            Outcome::Loaded | Outcome::Rejected if this_match && peer.stage != Stage::Gone => {
+                peer.world_receipts.receive(receipt.generation, receipt.outcome, now)
+            }
+            _ => Received::Ignored,
+        };
+        let what = match (received, receipt.outcome) {
+            (Received::Loaded, _) => return true,
+            (Received::Rejected, Outcome::OptionsRejected) => {
+                "refused the match's handshake (E3/E4); its own is sent again".to_string()
+            }
+            (Received::Rejected, _) => format!(
+                "refused the world of generation {} (its srp_patches.log says why); a newer one goes to it alone",
+                receipt.generation
+            ),
+            (Received::Ignored, outcome) => format!(
+                "sent a {outcome:?} receipt for generation {} (match {:#x}, stage {:?}) that matches no \
+                 offer; ignored",
+                receipt.generation, receipt.match_id, peer.stage
+            ),
+        };
+        if received == Received::Rejected {
+            peer.loads_refused += 1;
+        }
+        if let Some(unlogged) = peer.receipts_log.refuse(now) {
+            log::warn!("Match {id:#x}: player {index} {what}{}", refusal_log::since(unlogged));
+        }
+        true
+    }
+
     /// A datagram from the client at roster place `index`.
     pub fn receive(&mut self, index: usize, datagram: &[u8], now: Instant) {
         if self.peers.get(index).is_some_and(Option::is_some) {
@@ -1475,7 +1551,7 @@ impl Game {
     }
 
     fn message(&mut self, index: usize, id: u8, payload: &[u8], now: Instant) {
-        if self.accept_prepared(index, id, payload) {
+        if self.accept_world_receipt(index, id, payload, now) || self.accept_prepared(index, id, payload) {
             return;
         }
         let message = match parse_client(id, payload) {
@@ -3169,6 +3245,7 @@ impl Game {
         if entering {
             peer.synced_at = Some(now);
         }
+        peer.world_receipts.offer(peer.generation.0);
         peer.stage = Stage::Syncing {
             serial,
             time: snapshot.time,
@@ -3528,25 +3605,39 @@ impl Game {
         }
         // Client patch 85: a pickup naming no place of the match. The
         // client never sends one (`weapon_pickup::sane`, its twin).
-        let pickup_sane = weapon_pickup::sane(input.actions, places);
-        if !input.rotation_is_sane() || !pickup_sane {
+        // Use exactly the recipient's input check before any relay. In
+        // particular, unused action bit 30 must not enter another player's
+        // simulation or reach its native input reader.
+        let refused = match srp_validate::messages::input(input.rotation, input.actions) {
+            Err(reason) => Some(reason.to_string()),
+            Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup of no place of the match".into()),
+            Ok(()) => None,
+        };
+        if let Some(why) = refused {
             // Relayed, it would be in every client's world for good
             // (`PlayerInput::rotation_is_sane`). Its owner drops it as it
             // drops a late one; a copy of it is known by its time and goes
             // nowhere.
             peer.inputs_refused += 1;
+            let remove = peer.input_violations.record(now);
             answer_owner(
                 peer,
                 Answer::input(ServerMessage::DiscardInput { time: input.time }, time, None),
                 now,
             );
-            if peer.inputs_refused <= REFUSED_LOGGED {
+            if let Some(unlogged) = peer.inputs_log.refuse(now) {
                 log::warn!(
-                    "Match {id:#x}: player {index}'s input at {time} ms has a rotation or a pickup no \
-                     client makes (bytes {:02x?}, actions {:#x}); not relayed, its owner told to drop it",
+                    "Match {id:#x}: player {index}'s input at {time} ms refused: {why} (rotation {:02x?}, \
+                     actions {:#x}); not relayed, its owner told to drop it{}",
                     input.rotation,
-                    input.actions
+                    input.actions,
+                    refusal_log::since(unlogged)
                 );
+            }
+            if remove {
+                log::warn!("Match {id:#x}: player {index} repeatedly sent invalid inputs; removed at the source");
+                peer.transport.kick(now);
+                self.leave(index, now);
             }
             return;
         }
@@ -3825,7 +3916,7 @@ impl Game {
         let clock = self.clock(now);
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
-        let places = Places::of(self.snapshot_players());
+        let places = self.snapshot_players();
         let id = self.id;
         let snapshot = Snapshot {
             time: upload.item_time,
@@ -3843,30 +3934,32 @@ impl Game {
                 && snapshot.time <= clock + UPLOAD_MAX_AHEAD_MS
                 && snapshot.time + UPLOAD_MAX_AGE_MS >= clock;
             if !peer.is_asked(now) || !in_window {
-                log::debug!(
-                    "Match {id:#x}: player {index} uploaded a snapshot at {} ms unasked or out of \
-                     time (clock {clock} ms); ignored",
-                    snapshot.time
-                );
+                if let Some(unlogged) = peer.uploads_log.refuse(now) {
+                    log::info!(
+                        "Match {id:#x}: player {index} uploaded a snapshot at {} ms unasked or out of \
+                         time (clock {clock} ms); ignored{}",
+                        snapshot.time,
+                        refusal_log::since(unlogged)
+                    );
+                }
                 return;
             }
         }
-        // A world no game could load goes to nobody: a game reads a world
-        // with no check of its own (world_frame_check.md), so its frame must
-        // walk from the front to its end, its mask name no place past the
-        // roster, and no section or player state be over the game's buffer
-        // for it. The game runs the same parse before it loads a world
-        // (exe patch 87). No world a game made was refused so (10 730 kept
-        // worlds). Its client stays asked: a world of its that loads may
-        // still come.
-        if let Err(refusal) = Frame::parse(&snapshot.body, places) {
+        // Enforce the shared semantic checks before this upload can become
+        // an initial world, candidate, recent snapshot or diagnostic world.
+        // A refusal retains the outstanding request, records the body and
+        // reports its section/offset. No valid replacement request is lost.
+        if let Err(refusal) =
+            super::world_validation::check(&snapshot.body, snapshot.time, places, &self.formed)
+        {
             peer.uploads_refused += 1;
-            if peer.uploads_refused <= REFUSED_LOGGED {
+            if let Some(unlogged) = peer.uploads_log.refuse(now) {
                 log::warn!(
                     "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) is no world a game \
-                     could load, {refusal}; sent to nobody",
+                     could load, {refusal}; sent to nobody{}",
                     snapshot.time,
-                    snapshot.body.len()
+                    snapshot.body.len(),
+                    refusal_log::since(unlogged)
                 );
             }
             self.dump(&snapshot, index, "unloadable");
@@ -3984,7 +4077,21 @@ impl Game {
     /// one that can't be read (nothing in it can count either). The points
     /// are not looked at: what they hold before the rules' first event was
     /// not traced.
+    ///
+    /// Nor a player: each enters with 0xE9 after the clock starts on this
+    /// world, so it has no player block (its active mask is 0 in every kept
+    /// initial world and in the first uploads of 118 live matches,
+    /// 2026-11-06). It is the one world every other game loads with nobody
+    /// vouching for it, and a block's animation stream is the part of a
+    /// world the semantic check does not read.
     fn not_initial(&self, snapshot: &Snapshot) -> Option<String> {
+        if snapshot
+            .body
+            .first_chunk::<4>()
+            .is_some_and(|mask| u32::from_le_bytes(*mask) != 0)
+        {
+            return Some("players in it".to_owned());
+        }
         let decoded = snapshot::decode(
             snapshot.time,
             &snapshot.body,
@@ -5223,6 +5330,25 @@ impl Game {
         self.poll_driven(now);
 
         for index in 0..self.peers.len() {
+            let retry_options = self.peers[index].as_mut().is_some_and(|peer| peer.world_receipts.take_options_retry(now));
+            if retry_options {
+                let message = self.peers[index].as_ref().and_then(|peer| match peer.stage {
+                    Stage::Connecting => Some(ServerMessage::Ports { min: self.port, max: self.port }),
+                    Stage::Loading => self.formed.info.message(index as u8),
+                    _ => None,
+                });
+                if let Some(message) = message
+                    && let Some(peer) = self.peers[index].as_mut()
+                { send(peer, &message); }
+            }
+            let retry = self.peers[index].as_mut().and_then(|peer| {
+                if let Stage::Syncing { entering, .. } = peer.stage
+                    && peer.world_receipts.take_retry(peer.generation.0, now)
+                { Some(entering) } else { None }
+            });
+            if let Some(entering) = retry {
+                self.redo_sync(index, entering, "recipient rejected the world; retry without removing it", now);
+            }
             self.check_in_flight(index, now);
             let join_ready = self.join_ready(index);
             let stands_in = self.stands_in(index);
@@ -5383,8 +5509,13 @@ impl Game {
                     let Some(peer) = self.peers[index].as_mut() else {
                         continue;
                     };
-                    let delivered = peer.transport.is_delivered(serial);
-                    if peer.transport.is_lost(serial) {
+                    let delivered = peer.transport.is_delivered(serial) && peer.world_receipts.loaded(peer.generation.0);
+                    if peer.world_receipts.requires_receipt()
+                        && !peer.world_receipts.loaded(peer.generation.0)
+                        && peer.sync_sent_at.is_some_and(|at| now.saturating_duration_since(at) >= Duration::from_secs(2))
+                    {
+                        self.redo_sync(index, entering, "no world load receipt; retry without removing the recipient", now);
+                    } else if peer.transport.is_lost(serial) {
                         // Not acked in its 1.75 s: dropped by the transport.
                         self.redo_sync(index, entering, "the snapshot did not arrive", now);
                     } else if delivered
@@ -6286,8 +6417,8 @@ fn given_clock(set_times: &VecDeque<SetTimeSent>, now: Instant) -> Option<u32> {
 fn input_summary(peer: &Peer) -> String {
     format!(
         "{} inputs, {} first seen over {LATE_INPUT_MS} ms late on the way, {} too late to relay \
-         and discarded, {} moved, {} refused for their rotation, {} uploads no game could \
-         load, the latest {} ms, resynced {} times, started once more after its first world {} \
+         and discarded, {} moved, {} refused (rotation, actions or pickup), {} uploads no game could \
+         load, {} worlds or handshakes its game refused, the latest {} ms, resynced {} times, started once more after its first world {} \
          times, round trip {} ms, {} messages to it sent again, our seq skipped ahead {} times, \
          {} of {} relays and roster changes never acked, {} relayed late at their tick",
         peer.inputs_received,
@@ -6296,6 +6427,7 @@ fn input_summary(peer: &Peer) -> String {
         peer.inputs_moved,
         peer.inputs_refused,
         peer.uploads_refused,
+        peer.loads_refused,
         peer.latest_input_ms,
         peer.resyncs,
         peer.reloads,
@@ -6490,6 +6622,11 @@ impl Game {
         self.peers[index]
             .as_ref()
             .map_or(0, |peer| peer.uploads_refused)
+    }
+
+    /// How many worlds and handshakes its game refused (Rejected receipts).
+    pub fn loads_refused(&self, index: usize) -> u32 {
+        self.peers[index].as_ref().map_or(0, |peer| peer.loads_refused)
     }
 
     pub fn rule_state(&self) -> u8 {
