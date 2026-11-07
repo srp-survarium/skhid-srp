@@ -639,10 +639,11 @@ impl Bots {
         state.next_commander = now + tuning.think.commander_ms;
         state.knowledge.forget_old(now);
         state.knowledge.settle_looks(team, view);
-        state.refresh_traps(&tactics.world.grid, tuning.traps.ring_m);
-        let field = state.features.traps.field.clone();
+        state.refresh_traps(&tactics.world.grid, tuning.traps.ring_m, tuning.traps.keep_off);
+        let (field, narrow) = (state.features.traps.field.clone(), state.features.traps.narrow.clone());
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
             bot.features.traps.field = field.clone();
+            bot.features.traps.narrow = narrow.clone();
         }
         // What a bot of the team proved no way to lately, the whole team
         // leaves for longer, from the proof on.

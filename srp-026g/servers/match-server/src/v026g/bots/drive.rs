@@ -1081,8 +1081,10 @@ fn drive_tick_inner(
                     .drop_shut_last_resort
                     .then(|| stuck::without_drops(&landings))
                     .flatten();
-                let hard_of = |landings| {
-                    let mut hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
+                // [traps.keep_off] The landings again for the search with only the narrow trap discs (below).
+                let narrow_landings = tuning.traps.keep_off.map(|_| landings.clone());
+                let hard_with = |landings, trap_filter: fn(&Bot, Vec<stuck::Shut>, Option<NodeId>) -> RouteFilter| {
+                    let mut hard = trap_filter(bot, landings, grid.locate(me.feet, 1.5));
                     // A body that cannot sprint takes no jump link above its standing jump.
                     if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
                         hard = hard.with_max_jump_rise(rise);
@@ -1093,7 +1095,9 @@ fn drive_tick_inner(
                     }
                     hard
                 };
+                let hard_of = |landings| hard_with(landings, traps::filter);
                 let mut hard = hard_of(landings);
+                let narrow = narrow_landings.map(|landings| hard_with(landings, traps::filter_narrow));
                 let unshut = unshut_landings.map(hard_of);
                 let filter = traps::soften(
                     bot,
@@ -1214,6 +1218,34 @@ fn drive_tick_inner(
                 // again (a shut is a preference, as the stuck spots are), and no way without them either is proof for the
                 // plays. Off: it stands until the shut ends, the search no proof (Chemical Plant's walkway beams, 45 s).
                 let mut unshut_proof = false;
+                // [traps.keep_off] No way with the team's traps shut to `hard_m`: the way through their wider ring is the only
+                // one, so it is searched again with only the narrow discs (FIELD_M) shut, as the default does.
+                #[cfg(test)]
+                if narrow.is_some() && ends.is_some() && !escaping && !there {
+                    traps::keep_off_counts::count(traps::keep_off_counts::SEARCHES);
+                }
+                if route.is_none()
+                    && left.is_none()
+                    && !escaping
+                    && !there
+                    && let (Some(narrow), Some((from, to))) = (narrow.as_ref(), ends)
+                {
+                    let found = tactics.start_route(from, to, time, side, objective, narrow, floors);
+                    #[cfg(test)]
+                    traps::keep_off_counts::count(match found {
+                        Ok(Some(_)) => traps::keep_off_counts::NARROW_FOUND,
+                        Ok(None) => traps::keep_off_counts::NARROW_NONE,
+                        Err(_) => traps::keep_off_counts::NARROW_LEFT,
+                    });
+                    match found {
+                        Ok(Some(way)) => route = Some(way),
+                        Ok(None) => {}
+                        Err(planning) => {
+                            hard = narrow.clone();
+                            left = Some((false, planning));
+                        }
+                    }
+                }
                 if route.is_none()
                     && left.is_none()
                     && !escaping

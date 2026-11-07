@@ -1393,12 +1393,19 @@ pub fn press_of(
 
 impl TeamState {
     /// The team's field again if its list changed; whether it did.
-    pub(super) fn refresh_traps(&mut self, grid: &WalkGrid, ring_m: f32) -> bool {
+    /// [keep_off] With `keep_off` the field shuts its floors within `hard_m` and a narrow one within [`FIELD_M`] is kept for the
+    /// searches' fallback; without it the two are the same field.
+    pub(super) fn refresh_traps(&mut self, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) -> bool {
         let version = self.knowledge.traps.version();
         if version == self.features.traps.field_version {
             return false;
         }
-        self.features.traps.field = Arc::new(TrapField::of_ringed(&self.knowledge.traps, grid, ring_m));
+        let narrow = Arc::new(TrapField::of_ringed(&self.knowledge.traps, grid, ring_m));
+        self.features.traps.field = match keep_off {
+            Some(k) => Arc::new(TrapField::of_ringed_within(&self.knowledge.traps, grid, ring_m, k.hard_m)),
+            None => narrow.clone(),
+        };
+        self.features.traps.narrow = narrow;
         self.features.traps.field_version = version;
         true
     }
@@ -1438,7 +1445,7 @@ fn near_a_disc(field: &TrapField, feet: Vec3) -> bool {
 /// Whether the route of the bot runs over a disc of `field` within
 /// [`KEEP_OFF_M`] ahead of `feet`.
 pub(super) fn route_hits(bot: &Bot, field: &TrapField, feet: Vec3) -> bool {
-    route_within(bot, field, feet, FIELD_M - 0.05)
+    route_within(bot, field, feet, field.reach().max(FIELD_M) - 0.05)
 }
 
 /// Whether the route of the bot runs within `reach` metres of a disc of `field` within [`KEEP_OFF_M`] ahead of
@@ -1475,13 +1482,54 @@ pub(super) fn soften(bot: &Bot, filter: RouteFilter, start: Option<NodeId>) -> R
 /// floors of the team's traps shut, but for the floor the body stands on
 /// (`start`: a trap let go of a metre off must not shut the way out).
 pub(super) fn filter(bot: &Bot, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
+    filter_of(bot, &bot.features.traps.field, landings, start)
+}
+
+/// [keep_off] [`filter`] with the team's traps shut only within `FIELD_M`: a search's fallback when the wider field leaves it no way.
+pub(super) fn filter_narrow(bot: &Bot, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
+    filter_of(bot, &bot.features.traps.narrow, landings, start)
+}
+
+/// [`filter`] with the team's traps of `field`.
+fn filter_of(bot: &Bot, field: &Arc<TrapField>, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
     let filter = RouteFilter::shutting_landings(landings);
     let fresh = bot.features.traps.fresh_shut.clone();
-    if bot.features.traps.field.is_empty() && fresh.is_empty() {
+    if field.is_empty() && fresh.is_empty() {
         return filter;
     }
-    let field = bot.features.traps.field.clone();
-    filter.with_floors(move |node| Some(node) == start || (field.open(node) && fresh.binary_search(&node).is_err()))
+    let field = field.clone();
+    let inside = bot.features.traps.keep_off_open.clone();
+    filter.with_floors(move |node| {
+        Some(node) == start
+            || ((field.open(node) || inside.binary_search(&node).is_ok()) && fresh.binary_search(&node).is_err())
+    })
+}
+
+/// [keep_off] At a think, the floors of the wider field the bot may still take: for each trap within `hard_m` of its feet, the shut
+/// floors farther from that trap than the feet (+0.1 m), so a placer by its own trap walks out of the disc and nobody inside it is cut
+/// off; none without `keep_off`.
+fn keep_off_open(bot: &mut Bot, due: &Due, t: &TrapTuning) {
+    let Some(k) = t.keep_off else {
+        if !bot.features.traps.keep_off_open.is_empty() {
+            bot.features.traps.keep_off_open = Default::default();
+        }
+        return;
+    };
+    let feet = due.me.feet;
+    let grid = &due.tactics.world.grid;
+    let mut open: Vec<NodeId> = Vec::new();
+    for at in bot.features.traps.field.discs().iter().filter(|d| d.distance_xz(feet) < k.hard_m) {
+        let mine = feet.distance_xz(*at);
+        let area = [at.x - k.hard_m, at.z - k.hard_m, at.x + k.hard_m, at.z + k.hard_m];
+        open.extend(grid.floors_in(area).filter(|&node| {
+            let p = grid.position(node);
+            let d = p.distance_xz(*at);
+            d <= k.hard_m && d >= FIELD_M && d > mine + 0.1 && (p.y - at.y).abs() < 1.0
+        }));
+    }
+    open.sort_unstable();
+    open.dedup();
+    bot.features.traps.keep_off_open = Arc::new(open);
 }
 
 /// [A309] At a think, the floors the placer of a fresh trap may not take (`TrapTuning::fresh_ring`): within `ring_m` of the trap and
@@ -1523,10 +1571,12 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     // the field built again, the bot keeping off it from this think on.
     if let Some((at, released)) = bot.features.traps.placed.take() {
         state.knowledge.traps.promise(bot.place, at, released);
-        state.refresh_traps(&due.tactics.world.grid, t.ring_m);
+        state.refresh_traps(&due.tactics.world.grid, t.ring_m, t.keep_off);
         bot.features.traps.field = state.features.traps.field.clone();
+        bot.features.traps.narrow = state.features.traps.narrow.clone();
     }
     fresh_shut(bot, due, t.ring_m);
+    keep_off_open(bot, due, t);
     keep_off(bot, due);
     #[cfg(test)]
     passes::observe(bot, due, state);
@@ -2638,6 +2688,12 @@ pub struct BotState {
     pub placed: Option<(mapdata::Vec3, u32)>,
     pub react: super::trap_react::React,
     pub field: std::sync::Arc<super::trap_know::TrapField>,
+    /// [keep_off] The team's traps shut only within `FIELD_M`: the searches' fallback ([`filter_narrow`]); the same as `field`
+    /// without `TrapTuning::keep_off`.
+    pub narrow: std::sync::Arc<super::trap_know::TrapField>,
+    /// [keep_off] The floors of the wider field it may still take: within the disc of a trap it stands inside, farther from the
+    /// trap than its feet were at its last think (sorted): so it walks out, never round.
+    pub keep_off_open: std::sync::Arc<Vec<NodeId>>,
     /// The version of the team's traps its route was last looked at against the ring for (`keep_off`).
     pub ringed: u64,
     /// The richer cell ahead the habit is waiting to pass, and since when (`TrapTuning::on_the_pass`).
@@ -2673,6 +2729,7 @@ impl super::features::Feature for BotState {
         self.pressed_at = None;
         self.fresh = None;
         self.fresh_shut = Default::default();
+        self.keep_off_open = Default::default();
         #[cfg(test)]
         {
             self.near = None;
@@ -3983,5 +4040,28 @@ mod tests {
             assert!(at.x < spot.x, "on home's side: {at:?}");
         }
         assert!(approach_points(&s.tactics, Vec3::new(46.0, 0.0, 10.0), spot, &j, 1_000).is_empty());
+    }
+}
+
+/// [keep_off] Bench counts (`tests::tallies::route`): the route searches made with `traps.keep_off` on, and the ones with no way
+/// at `hard_m` searched again with only the narrow discs: a way found, none, past the poll's floors. The fallback rate is
+/// (found + none + left) / searches.
+#[cfg(test)]
+pub mod keep_off_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const SEARCHES: usize = 0;
+    pub const NARROW_FOUND: usize = 1;
+    pub const NARROW_NONE: usize = 2;
+    pub const NARROW_LEFT: usize = 3;
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub fn count(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }

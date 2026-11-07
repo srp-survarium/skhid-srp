@@ -209,9 +209,11 @@ pub use traps::CamperJob;
 pub use traps::DefeatedTuning;
 pub use traps::Forward;
 pub use traps::FreshRing;
+pub use traps::KeepOff;
 pub use traps::PassTuning;
 pub use traps::PressClear;
 pub use traps::PressMoving;
+pub use traps::PromiseMatch;
 pub use traps::ReactTuning;
 pub use traps::SensedNear;
 pub use traps::Stayer;
@@ -545,7 +547,9 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/take/pitch",
     "/think/goal_off_floor_no_way",
     "/think/stamina_rates",
+    "/traps/keep_off",
     "/traps/press_clear",
+    "/traps/promise_match",
     "/traps/release",
     "/traps/sensed_near",
     "/unstick/drop_shut_from_top",
