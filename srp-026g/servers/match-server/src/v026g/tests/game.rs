@@ -1130,6 +1130,49 @@ fn a_first_world_gets_through_a_line_that_carries_a_little_at_a_time() {
 }
 
 #[test]
+fn a_first_world_that_takes_three_seconds_is_waited_for_with_load_receipts_as_without() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // A line thinner still: one full datagram in 40 ms. The first world
+    // takes some 3 s to get through, within its 4 s on the way
+    // (`Timing::entry_state`). A game that sends load receipts (0x82) is
+    // not given up on before that, which would start it again every 2 s
+    // and never let it in.
+    for mode in [WorldReceiptMode::Legacy, WorldReceiptMode::Accept] {
+        let settings = Settings {
+            compress_state: false,
+            ..Settings::default()
+        };
+        let mut bench = Bench::growing(2, MAP_BATTERIES, settings);
+        for client in &mut bench.clients {
+            client.sim.ballast = 13_000;
+        }
+        bench.join(0);
+        settle(&mut bench);
+
+        bench.clients[1].world_receipts = mode;
+        bench.clients[1].slow_acks = true;
+        bench.clients[1].connect();
+        assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+        let line = thin_line(&mut bench, 1);
+        bench.clients[1].ready();
+        let started = bench.ms;
+        while bench.stages() != "LL" && bench.ms < started + 8_000 {
+            for _ in 0..7 {
+                bench.step(5);
+            }
+            thin_step(&mut bench, &line);
+        }
+        let took = bench.ms - started;
+        assert_eq!(bench.stages(), "LL", "{mode:?}: after {took} ms");
+        assert!(took > 2_500, "{mode:?}: in after {took} ms, the line is not thin enough");
+        assert_eq!(bench.game().generation(1), Some(0), "{mode:?}");
+        assert_eq!(bench.clients[1].snapshots().len(), 1, "{mode:?}");
+        assert!(bench.until(50, |bench| bench.clients[1].entered() == [1]));
+        bench.assert_no_faults();
+    }
+}
+
+#[test]
 fn a_game_waiting_for_its_first_world_gets_the_others_inputs_many_in_a_datagram() {
     let mut bench = Bench::new(4, MAP_BATTERIES, Settings::default());
     for place in 0..3 {
