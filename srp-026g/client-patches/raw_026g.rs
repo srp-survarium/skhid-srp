@@ -253,6 +253,8 @@ unsafe extern "stdcall" {
     pub fn engine_detach_voice(propagator: Option<NewSoundPropagator>);
     /// 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
     pub fn engine_finish_query(query: Option<QueryResultForCook>, result: u32, assert_on_fail: u32, error: u32);
+    /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+    pub fn engine_discard_playing_order(client: Option<LobbyClient>, left: u32);
 }
 
 #[allow(dead_code)]
@@ -565,6 +567,15 @@ impl GameWorld {
     pub unsafe fn ui(self) -> GameWorldUi {
         GameWorldUi(unsafe { self.0.byte_add(0x1fc) })
     }
+
+    /// +0x4e20 (u8): 1 while a level loads: game_world::load sets it (0x1F8CB4), set_game_project clears it after switch_to_game_world (0x1F862F), and on_project_loaded's abort (0x1F8B14)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn loading(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4e20).cast::<u8>().as_ptr() }
+    }
 }
 
 /// A survarium::game (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -774,6 +785,33 @@ impl NetworkClient {
     #[inline(always)]
     pub unsafe fn world_generation(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x1f1c68).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x14 (ptr<survarium::game>): the game (on_finish_match's world is [this+14h]+18h, close_current_match 0x27A941; switch_to_level_loading's lobby menu [+14h]+5390h, 0x27BE95)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game(self) -> Option<Game> {
+        unsafe { self.0.byte_add(0x14).cast::<Option<Game>>().read_volatile() }
+    }
+
+    /// +0x14 (ptr<survarium::game>): the game (on_finish_match's world is [this+14h]+18h, close_current_match 0x27A941; switch_to_level_loading's lobby menu [+14h]+5390h, 0x27BE95)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game(self, value: Option<Game>) {
+        unsafe { self.0.byte_add(0x14).cast::<Option<Game>>().write_volatile(value) }
+    }
+
+    /// +0x1f1c60 (u32): the time rule's state the client keeps: 0 until the first tick played after the first world (written by the time rule at 0x267AFB), 1 waiting, 2 the countdown, 3 in play; 0 again at a close (0x27A7CF, 0x27B12C); close_current_match does nothing while it is 0 (0x27A7A4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn play_state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1f1c60).cast::<u32>().as_ptr() }
     }
 }
 
@@ -8019,6 +8057,15 @@ impl LobbyClient {
     #[inline(always)]
     pub unsafe fn messaging(self) -> MessagingClient {
         MessagingClient(unsafe { self.0.byte_add(0x1e56c4) })
+    }
+
+    /// +0x1e5790 (u32): what the lobby says the client is: the 0x85's first byte (read_status_info 0x270112: 0 the lobby, 1 the queue, 2 in a match), 2 at the 0x82 connect (0x274A95), 4 from the constructor (0x26F182); on_project_loaded aborts the load at 0 (0x1F8AF3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn status(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1e5790).cast::<u32>().as_ptr() }
     }
 }
 
@@ -16883,6 +16930,63 @@ impl GameEffectListener {
     }
 }
 
+/// A survarium::close_match_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CloseMatchFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CloseMatchFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): close_current_match's argument by EBP (mov ebx,[ebp+8] at 0x27A7F3): the reason, jump table 0x27A958
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reason(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::match_ready_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchReadyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MatchReadyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x18 (ptr<survarium::network_client>): on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn client(self) -> Option<NetworkClient> {
+        unsafe { self.0.byte_add(0x18).cast::<Option<NetworkClient>>().read_volatile() }
+    }
+
+    /// +0x18 (ptr<survarium::network_client>): on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_client(self, value: Option<NetworkClient>) {
+        unsafe { self.0.byte_add(0x18).cast::<Option<NetworkClient>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -20528,6 +20632,90 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn controller(machine: &impl Machine) -> Option<BulletCharacterController> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletCharacterController)
+        }
+    }
+
+    /// unplayed.connect (0x21c07c): network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120)
+    pub mod unplayed_connect {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(NetworkClient)
+        }
+    }
+
+    /// unplayed.sign_off (0x27b110): network_client::disconnect's start (0x27B110, vtable 0x9FFB14 +14h; push ebp / mov ebp,esp / and esp,-8): the main menu's logoff (0x1FF736) before switch_to_login; ECX the network client (patch 120)
+    pub mod unplayed_sign_off {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(NetworkClient)
+        }
+    }
+
+    /// unplayed.close_guard (0x27a7a4): close_current_match's guard (cmp [edi+1F1C60h],ebx with EBX 0; the je 0x27A94C after it returns for every reason while the time rule's state is 0); played is the code past the guard (0x27A7B0: the statistics option, the state cleared, the reason's jump table); EDI the network client, [EBP+8] the reason (patch 120)
+    pub mod unplayed_close_guard {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
+        }
+
+        /// EBP: a survarium::close_match_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CloseMatchFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CloseMatchFrame)
+        }
+    }
+
+    /// unplayed.load_end (0x1f8af3): game_world::on_project_loaded's abort test (cmp [eax+1E5790h],0: the lobby client's status, 0 the lobby; the jne after it goes on to the load's callback, on_match_ready, at 0x1F8B24, else 0x1F8AFC unloads the world and returns without it); EAX the lobby client (patch 120)
+    pub mod unplayed_load_end {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::lobby_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn lobby(machine: &impl Machine) -> Option<LobbyClient> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(LobbyClient)
+        }
+    }
+
+    /// unplayed.ready_end (0x27aebf): network_client::on_match_ready's epilogue after its 0xDA (pop edi / pop esi / pop ebx / mov esp,ebp, then pop ebp / ret 4): the level loaded, the match core set, the game world shown; [ESP+18h] the network client (stored at 0x27AA39) (patch 120)
+    pub mod unplayed_ready_end {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::match_ready_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MatchReadyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(MatchReadyFrame)
         }
     }
 }

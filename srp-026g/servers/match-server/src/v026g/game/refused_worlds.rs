@@ -180,9 +180,10 @@ impl Game {
     /// The one way a game is taken out of its match: said with its reason;
     /// a late joiner that has not entered fails its admission (the lobby
     /// hears it, `take_rejected_joins`); its link is kicked (0xFD), and the
-    /// others see it leave. With the kick-to-lobby exe patch its game goes
-    /// back to the lobby as from a lost connection; its seat is kept, as for
-    /// one (Play sends it back), but a failed joiner's.
+    /// others see it leave. With exe patches 119 (a game that played) and
+    /// 120 (one that never played: loading, or loaded before its first
+    /// world) its game goes back to the lobby as from a lost connection; its
+    /// seat is kept, as for one (Play sends it back), but a failed joiner's.
     pub(super) fn remove(&mut self, index: usize, why: Removal, now: Instant) {
         let Some(peer) = self.peers[index].as_mut() else {
             return;
