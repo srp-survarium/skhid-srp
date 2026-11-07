@@ -37,6 +37,7 @@ impl Match {
     /// (20 in a match that lets players in late): `Err` with the line the
     /// server logs of a refusal.
     pub fn check(&self, body: &[u8], time: u32, places: usize) -> Result<(), String> {
-        super::world_validation::check(body, time, places, &self.0).map_err(|r| r.to_string())
+        let roster = super::world_validation::Roster::of(&self.0);
+        super::world_validation::check(body, time, places, roster).map_err(|r| r.to_string())
     }
 }
