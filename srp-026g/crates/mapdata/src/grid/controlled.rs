@@ -182,9 +182,16 @@ pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3,
         // Toward the target, at most what is left.
         let go = left.length().min(step);
         c.walk = if left.length() > 1e-6 { left * (go / left.length()) } else { Vec3::ZERO };
+        let before = c;
         if c.step(world, 0.05, s).ceiling {
             // A low ceiling: the client slides under it or crouches (neither ported): not a stall the pass knows.
             return (1.0, false);
+        }
+        // A step is a function of the controller alone (the world and the settings are fixed), and the next walk of the
+        // feet alone: a step that changed nothing is a body held where it is for every tick left, so they change no
+        // answer (CPU: a stall at a wall or a riser would walk out all the leg's ticks).
+        if c == before {
+            break;
         }
     }
     let feet = c.feet();
