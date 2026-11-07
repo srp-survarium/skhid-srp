@@ -34,7 +34,7 @@ use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -55,6 +55,9 @@ pub struct Fix {
     pub keys: u32,
     /// `m_linear_horizontal_speed`, if it was read.
     pub speed: Option<f32>,
+    /// [A318] The body's speed down, m/s (the world's `fall_and_slide_velocity` y, negated: the controller's own velocity), if it
+    /// was read.
+    pub fall: Option<f32>,
 }
 
 /// The body as the bot reckons it at a tick.
@@ -764,17 +767,22 @@ impl BodyTrack {
             fall: Fall::Ground,
         };
         // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
-        // ([`DropFall::Gravity`], [`DropFall::Client`]): at the speed the reckoning had it fall at, else from rest (a world has no
-        // vertical speed). A body in the client's jump (`kin.jump_arc`: the arc runs past the old 800 ms air window, a sprint clip
-        // 955 ms) is the arc's.
-        if let (true, Some(grid), Some(node), 0, None) = (kin.drop_fall != DropFall::Snap, grid, node, air_until, estimate.arc)
-            && feet.y - grid.position(node).y > grid.body().step
-        {
-            let speed = match self.estimate.map(|e| e.fall) {
-                Some(Fall::Falling { speed }) => speed,
-                _ => 0.0,
-            };
-            estimate.fall = Fall::Falling { speed };
+        // ([`DropFall::Gravity`], [`DropFall::Client`]). A body in the client's jump (`kin.jump_arc`: the arc runs past the old
+        // 800 ms air window, a sprint clip 955 ms) is the arc's. [`FixFall::World`]: a body the world has going down (its own
+        // vertical speed) over its floor falls at that speed, a step or less over it too; else at the speed the reckoning had it
+        // fall at, else from rest.
+        let world_fall = fix.fall.filter(|_| kin.fix_fall == FixFall::World);
+        if let (true, Some(grid), Some(node), 0, None) = (kin.drop_fall != DropFall::Snap, grid, node, air_until, estimate.arc) {
+            let above = feet.y - grid.position(node).y;
+            let falls = above > grid.body().step || world_fall.is_some_and(|down| down > 0.0 && above > FIX_FALL_ABOVE_M);
+            if falls {
+                let speed = match (world_fall, self.estimate.map(|e| e.fall)) {
+                    (Some(down), _) => down.max(0.0),
+                    (None, Some(Fall::Falling { speed })) => speed,
+                    (None, _) => 0.0,
+                };
+                estimate.fall = Fall::Falling { speed };
+            }
         }
         self.trail.clear();
         // The ticks after the world's, again from where the world has it.
@@ -1023,6 +1031,10 @@ fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -
         Fall::Falling { speed: after }
     }
 }
+
+/// [A318] How far over its floor a world's body going down must be to be taken as falling ([`FixFall::World`]): a floor's height is
+/// its cell centre's, a few centimetres off the feet on a walkable slope's cell (LIKELY, as `FIX_ABOVE_M`).
+const FIX_FALL_ABOVE_M: f32 = 0.05;
 
 /// [A318] The live client's controller settings (`startup.cfg`): [`DropFall::Client`]'s slow start.
 pub(super) const CLIENT: mapdata::controller::tick::Settings = mapdata::controller::tick::Settings::LIVE;
@@ -2381,6 +2393,25 @@ pub(super) mod tests {
         assert!((on[21] - 3.5).abs() < 1e-3, "the walk cap at once: {on:?}");
         assert!(off[21] > 4.5, "the blend alone carries the sprint: {off:?}");
         assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));
+    }
+
+    /// [A318] [`FixFall::World`]: a world that has the body 0.5 m over its floor (under the step) going down at 3 m/s starts the
+    /// reckoned fall at that speed; with [`FixFall::Rest`] it stands on its floor as before.
+    #[test]
+    fn a_world_falling_body_keeps_its_speed_down() {
+        let grid = walled();
+        let world = Fix { fall: Some(3.0), ..fix(0, Vec3::new(10.0, 0.5, 10.0), 0.0) };
+        for (fix_fall, want) in [(FixFall::World, Fall::Falling { speed: 3.0 }), (FixFall::Rest, Fall::Ground)] {
+            let kin = Kinematics { fix_fall, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(world, &kin, Some(&grid));
+            assert_eq!(track.estimate().unwrap().fall, want, "{fix_fall:?}");
+        }
+        // Going up or still: no fall.
+        let kin = Kinematics::default();
+        let mut track = BodyTrack::default();
+        track.fixed(Fix { fall: Some(-1.0), ..world }, &kin, Some(&grid));
+        assert_eq!(track.estimate().unwrap().fall, Fall::Ground);
     }
 
     /// [A318] [`DropFall::Gravity`]: the reckoned body walking off a 2 m ledge comes down as the client's capsule falls (from rest,

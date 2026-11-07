@@ -175,6 +175,22 @@ fn drift_on_a_real_match() {
         })
         .collect();
     ticks.sort_by_key(|t| (t.0, t.1));
+    // [A318] Each world's vertical speed (`Fix::fall`, the controller's `fall_and_slide_velocity` y): a `fall_y` column of the
+    // worlds, else `rec_motion.csv` beside them (the client tests' tables), by (time, place). Without either, none (as before).
+    let motion_falls: HashMap<(u32, usize), f32> = {
+        let path = std::path::Path::new(&worlds).with_file_name("rec_motion.csv");
+        if path.exists() {
+            read_csv(path.to_str().unwrap_or_default())
+                .iter()
+                .filter_map(|r| {
+                    let fall: f32 = r.get("fall_y")?.parse().ok().filter(|v: &f32| v.is_finite())?;
+                    Some(((r.get("time")?.parse().ok()?, r.get("place")?.parse().ok()?), fall))
+                })
+                .collect()
+        } else {
+            HashMap::new()
+        }
+    };
     let mut rows: Vec<WorldRow> = read_csv(&worlds)
         .iter()
         .filter_map(|r| {
@@ -187,7 +203,10 @@ fn drift_on_a_real_match() {
             Some(WorldRow {
                 time: r.get("time")?.parse().ok()?,
                 place,
-                fix: Fix { fall: None,
+                fix: Fix {
+                    fall: num("fall_y")
+                        .or_else(|| Some(*motion_falls.get(&(r.get("time")?.parse().ok()?, place))?))
+                        .map(|vy| -vy),
                     time: r.get("time")?.parse().ok()?,
                     alive,
                     inserted: r.get("inserted")?.parse().ok()?,
