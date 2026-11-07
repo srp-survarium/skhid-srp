@@ -274,6 +274,7 @@ fn a_growing_roster_prepares_and_catches_up_over_real_udp() {
 /// kits of a joiner taken once the match is in process also carry bit 13 (late: its gift after
 /// its first death); one taken in the countdown chooses its kit as everyone does, so not.
 #[test]
+#[ignore = "Keeper gives nothing for now (keeper::give writes no draw), the owner 2026-11-07"]
 fn every_profile_and_a_joiner_carry_the_matchs_keeper_draw_the_late_one_bit_13() {
     fn keeper_bits(bench: &Bench) -> Vec<u32> {
         let formed = bench.registry.formed(bench.match_id).unwrap();

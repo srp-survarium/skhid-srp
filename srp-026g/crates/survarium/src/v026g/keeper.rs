@@ -36,11 +36,14 @@ pub fn with_draw(artefact_power: f32, kind: Kind) -> f32 {
     (skills | u32::from(kind.draw()) << SHIFT) as f32
 }
 
-/// Every kit of `profile` given the match's `kind`.
-pub fn give(profile: &mut MatchProfile, kind: Kind) {
+/// Every kit of `profile` given the match's `kind`: for now no kind (draw 0, bits 9..11 clear),
+/// so exe patch 109 gives no Keeper gift (the owner, 2026-11-07): a rollback over the spawn a
+/// gift went into crashes every game of the match (rev51 and rev52, artefact-skills.md). The
+/// other artefact skills are untouched.
+pub fn give(profile: &mut MatchProfile, _kind: Kind) {
     let at = modifier_index("artefact_power").expect("artefact_power is a modifier");
     for kit in &mut profile.kits {
-        kit.modifiers[at] = with_draw(kit.modifiers[at], kind);
+        kit.modifiers[at] = (kit.modifiers[at] as u32 & !MASK) as f32;
     }
 }
 
