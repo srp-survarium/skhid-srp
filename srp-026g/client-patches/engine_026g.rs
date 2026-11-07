@@ -225,6 +225,10 @@ unsafe extern "C" {
     pub fn engine_match_packet_send(client: *mut c_void, packet: *mut c_void);
     /// 0x7ac10 vostok::network_core::buffer_writer::w: buffer_writer ESP+4, source_bytes ESP+8, byte_count EDI; pops 8
     pub fn engine_append_packet_bytes(buffer_writer: *mut c_void, source_bytes: *const u8, byte_count: u32);
+    /// 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0
+    pub fn engine_show_scene_movie(scene: *mut c_void, movie: *mut c_void);
+    /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
+    pub fn engine_hide_scene_movie(movie: *mut c_void, scene: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -363,4 +367,6 @@ unsafe extern "C" {
     pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_tick_count(void)
     pub static engine_tick_count: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x87029c (an import, stdcall): unsigned int engine_set_environment_variable_a(const char *name, const char *value)
+    pub static engine_set_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *const u8) -> u32;
 }

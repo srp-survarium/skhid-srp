@@ -172,6 +172,9 @@ global engine_match_packet_begin
 global engine_match_packet_send
 global engine_append_packet_bytes
 global engine_tick_count
+global engine_set_environment_variable_a
+global engine_show_scene_movie
+global engine_hide_scene_movie
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -233,6 +236,7 @@ engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
 engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (an import, stdcall)
 engine_tick_count equ 0x8701b8   ; the IAT slot 0x8701b8 (an import, stdcall)
+engine_set_environment_variable_a equ 0x87029c   ; the IAT slot 0x87029c (an import, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -2055,6 +2059,38 @@ engine_append_packet_bytes:
     push dword [esp + 24]   ; buffer_writer -> 4
     mov edi, [esp + 36]   ; byte_count
     call 0x7ac10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_scene_movie:
+    ; 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; scene
+    mov esi, [esp + 24]   ; movie
+    call 0x23dc00
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_hide_scene_movie:
+    ; 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; movie
+    mov edx, [esp + 24]   ; scene
+    call 0x23dc70
     pop edi
     pop esi
     pop ebx

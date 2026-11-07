@@ -671,6 +671,21 @@ class OtherTables(unittest.TestCase):
         self.assertEqual(ce.armour_card(torso)[6], '55')
 
 
+    def test_an_add_bonus_column_makes_the_built_in_list_a_config_lacks(self):
+        category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim', 'reload'},
+                    'columns': {'aim': ce.default_modification(207), 'reload': ce.default_modification(204),
+                                'chamber': ce.default_modification(205)}}
+        files = {'a/gun.options': config({'parameters': {'weight': 7}})}
+        columns, rows = read_table(category, 'name\taim\treload\tchamber\ngun\t2074\t2044\t\n')
+        written, _, _ = ce.stats_write(category, columns, rows, files, 't')
+        gun = files['a/gun.options']
+        self.assertEqual(ce.items_of(gun, 'default_modifications'), [2074, 2044])
+        self.assertEqual(written['a/gun.options'][:2], ['/default_modifications', '/default_modifications[0]'])
+        files = {'a/gun.options': config({'parameters': {'weight': 7}})}
+        columns, rows = read_table(category, 'name\taim\treload\tchamber\ngun\t\t\t2054\n')
+        with self.assertRaisesRegex(ValueError, 'does not read back'):
+            ce.stats_write(category, columns, rows, files, 't')
+
     def test_a_row_that_takes_a_bonus_out_and_puts_two_in_reads_back(self):
         columns = list(ce.STATS['armor']['columns'])
         cells = {'weight': '3', 'stamina_regen': '1103', 'experience': '1240'}

@@ -32,9 +32,14 @@ Ask, in this order:
 1. **Does it include new content?** Content is whatever `release/content.tsv`
    (the manifest: base patches, Flash movies, content packs, edit lists; its
    header says how) makes that players do not have yet. Find out, and make
-   the patch, with **`release/build-content <revision>`** (the release's
+   the patch, with **`release/build-content <revision> --full`** (the release's
    revision, below; from a fresh worktree of `origin/main`, never `git
-   stash`). It builds every movie of `srp-026g/flash` from source (the lobby
+   stash`). **A release always builds with `--full`**: only it checks that
+   players' files with the new patch over them are exactly what the manifest
+   makes, and only it makes the item tables the release's record commits.
+   Without `--full` it is a quick build for local tests: the same patch and
+   server data, those two left out, `QUICK-BUILD` in its folder, and
+   `release.sh --resources` and `upload-patch` refuse it. It builds every movie of `srp-026g/flash` from source (the lobby
    by `build_lobby_026g.py`; seconds each; `private/actionscript/tools.json`),
    composes the packs (`vostok-port`, `$SKHID_PACKS_DIR`), applies the edit
    lists in order from the base, compares each file with the stock db and
@@ -279,8 +284,8 @@ release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
 
 After the preflight it **prepares and stages everything before the go**,
 which players don't see (a patch no list offers yet, the release folder,
-the image built with its compilers at the lowest priority, so the running
-matches keep the host's one core); then it waits for the owner's go; at
+the server's image, built on this machine and loaded on the host, which
+compiles nothing: its one core keeps the running matches); then it waits for the owner's go; at
 the go it plans the maintenance at once, to start **30 seconds after the
 last running match ends**, so Play locks and no new match starts, and at
 its end (or as soon as no match has run for 30 s), swaps it all in at once (the downtime is the
@@ -352,20 +357,45 @@ The order, as it runs:
    --test`, play a match on the test environment (one against bots is
    kept), copy its recording from the test volume's `recordings/`, and
    give `--worlds <folder>`. Then
-   `build-zip` (of the commit checked in step 1); the checks of `deploy`
+   `build-zip` (of the commit checked in step 1); then the **exe patches'
+   self-test** of that commit (`srp-026g/client-patches/selftest_026g.py`,
+   its Linux part, on `$SKHID_GAME`'s `survarium.exe`, in the commit's dev
+   shell with nixpkgs' Python unicorn, about 15 min, ~0.4 GB; log
+   `selftest.log` in the run's work folder): a failed check stops the
+   release here, before anything is staged (the patch's fix is a PR, then a
+   new run). It is the release's check of the exe's general rules (no byte
+   changed undeclared, no relocation or branch into a rewritten byte, every
+   hooked function's ABI, every branch target known): nobody runs it by hand
+   before a release, and it is not a check of each PR. The checks of `deploy`
    on both files; then the **release folder** on the target (below) with
    both files staged in it (sha256 checked there, `chmod 644`) and
-   `changed.txt`. With server code: the running image tagged
-   `srp-026g:before-rev<rev>-<stamp>` by its ID, main's source (with the
-   rebuilt pages) unpacked in the folder's `src/` and
-   `docker compose build srp26` run on it, every thread of its compilers
-   reniced to 19 (the running container is not touched). The local builds run at nice
-   10. A failure here stops before the go: the staged files removed, the
+   `changed.txt`. With server code: the image built **here** from main's
+   source (with the rebuilt pages) by rootless podman from nixpkgs
+   (`build_image` in `lib.sh`, about 2 min; it needs this machine's
+   `/etc/subuid` range), uploaded as `image.tar.zst` (~40 MB) with the
+   source's `src.tar`, sha256 checked there; the running image tagged
+   `srp-026g:before-rev<rev>-<stamp>` by its ID, then `docker load` makes
+   the new one `srp-026g:latest` (the running container is not touched).
+   The local builds run at nice 10. A failure here stops before the go: the staged files removed, the
    image tag put back, nothing planned, and the new patch's row taken out
    of the list again (no server offered it). The file goes from the
    patches server too when this run uploaded it, so the revision can be
    made again with other bytes; one there before the run stays, and a run
    with the same `--resources` takes it as it is.
+
+   **The first release with server code after #1395 proves the image path**
+   (owner, 2026-11-06: merged untested on a server, "we will test during
+   release"). Until one has, no server has ever loaded an image built here.
+   In that release, before the go, check and tell the owner: step 2 printed
+   `Loaded image: srp-026g:latest`; on the live host
+   `docker image inspect -f '{{.Id}} {{.Created}}' srp-026g:latest` is a new
+   ID, created minutes ago, and `srp-026g:before-rev<rev>-<stamp>` names
+   the running one; after the swap, srp26 runs the new ID (the release's own
+   checks) and logs its game data line. Write the outcome into the release
+   record. If the build here or the load fails, the release stops before the
+   go with nothing players feel: report it to the owner; building on the host
+   instead (`docker compose build srp26` over the folder's `src.tar`, unpacked) only on the
+   owner's word.
 3. **The go.** Once staged it stops and waits: y at its prompt (n stops),
    or `touch` the go file it prints
    (`~/.cache/skhid-release/go-<release folder>`); `--yes` does not give
@@ -562,8 +592,9 @@ preflight: look at its `release.log`, finish or roll it back, then write
 ### What to watch
 
 - The preflight: every line `ok`.
-- Before the go: the builds and the staging (`2. ...`), then `3. waiting
-  for the go`.
+- Before the go: the builds, the self-test (`the exe patches' self-test:
+  all checks passed`) and the staging (`2. ...`), then `3. waiting for the
+  go`.
 - After the go: the plan's line at once, with its minutes and where they
   come from (`/api/stats`, the launcher page, or a whole match), and the
   launcher countdown (none with `--no-maintenance` or `--now`); then `5.
@@ -627,7 +658,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 
 | Script | Does | Writes |
 |---|---|---|
-| `release/build-content <rev> [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: unchanged movies, packs, edit lists and checks are taken from it, the same files; delete it any time; `--no-cache` runs every step); with `--site`, `--tree`'s site pages |
+| `release/build-content <rev> --full [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: unchanged movies, packs, edit lists and checks are taken from it, the same files; delete it any time; `--no-cache` runs every step; without `--full`, a quick build for local tests: no check of players' files with the patch, no item tables, `QUICK-BUILD` in the folder, which `release.sh`/`upload-patch` refuse: a release always passes `--full`); with `--site`, `--tree`'s site pages |
 | `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |

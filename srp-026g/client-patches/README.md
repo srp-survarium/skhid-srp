@@ -129,13 +129,14 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
+| `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/music.rs`, `src/music.toml`, `src/vostok/sound.rs`, `src/vostok/resources.rs`, `check_music_026g.py` | Patch 88: the music (`../docs/notes/music.md`): the menus' and the maps' themes in a sound scene of its own, kept active and faded by the sound thread; its query callback the framework's first `callback` hook (handed to query_resources at run time, no site rewritten). The check runs its seven lohooks and the callback through the game's own boost invoker, bind, config lookups and add_scene_to_active (needs Unicorn) |
-| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `src/vostok/renderer.rs`, `check_hud_options_026g.py`, `../scripts/dxvk-loader/` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`), and the Graphics tab's Renderer (`srp_dxvk`): at the process's start (`memory.allocate_arenas`) user.cfg read, the Vulkan look and DXVK loaded from `dxvk\` by full path (the game's delayed dxgi, d3d11 and d3d9 bound to them by their module slots), a failed DXVK start turned off at the login screen (`../docs/notes/dxvk-option.md`; the loader's proof under Wine `../scripts/dxvk-loader/run.sh`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
+| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `src/vostok/renderer.rs`, `check_hud_options_026g.py`, `../scripts/dxvk-loader/` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`), the Gameplay tab's field of view (`uro_fov`, patch 22's variable: `root.srp_slider_option`), and the Graphics tab's Renderer (`srp_dxvk`): at the process's start (`memory.allocate_arenas`) user.cfg read, the Vulkan look and DXVK loaded from `dxvk\` by full path (the game's delayed dxgi, d3d11 and d3d9 bound to them by their module slots), and with it `DXVK_CONFIG` set from the Vulkan options (`srp_dxvk_frame_limit`, `_low_latency`, `_tear_free`, `_dedicated_gpu`, `_overlay`), a failed DXVK start turned off at the login screen (`../docs/notes/dxvk-option.md`; the loader's proof under Wine `../scripts/dxvk-loader/run.sh`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `world_sections_026g.asm`, `check_world_sections_026g.py` | Patch 98: hash()'s world buffer and the upload's are 0xF000 bytes (two immediates), and the history item's six world sections grow on the heap (one jump at the end of its constructor, the arena's block `world_sections.code`); its check runs the constructor, the sections' writers, hash, deserialize and destroy of the game's own code on made-up items, the original beside (needs Unicorn) |
 | `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no state over the game's buffer, no body over 0xF000 bytes); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
@@ -168,8 +169,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
-| `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
-| `selftest_026g.py` | Builds every variant and checks it (sections, disassembly of every hook, checksum, signature, and what the late join adds to the build without it); needs the original exe, nasm (2.16) and, for the arena, gcc (`-m32`) and GNU ld |
+| `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). |
+| `selftest_026g.py` | Builds every variant and checks the general rules on each from what the build records and the patches declare (no byte changed undeclared, no relocation or branch into a rewritten byte, every hooked function's ABI, every branch target known, the PE, the .bin files current), and each patch's own code where it guards its ABI; needs the original exe, nasm (2.16), gcc (`-m32`), GNU ld and Python unicorn. `release/release.sh` runs it before a release (step 2, its Linux part): not during development |
 | `run_battery_rule.ps1` | Runs the battery rule's handler (patch 9) out of any 0.26g exe on a made-up rule object, in the 32-bit Windows PowerShell: what an exe does with a put that is played again after a rollback. Starts nothing of the game |
 | `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
 | `launcher/` | The game's launcher made to work again, and to keep these files current: its patch tool, the one piece of new code, the self-test and its own README. Its updater is `../../client/updater` |
@@ -549,31 +550,21 @@ The bytecode builder that made it (`login_hint_026g.py`) is in git history only.
 
 ## Field-of-view slider
 
-srp's `SrpVideoTab` (`../flash/main_menu`, once `SrpFovSlider`) puts a "FOV:" slider under gamma in Settings →
-Graphics. The exe side is patch 22 (patch revision 11): the game's video
-option 7, a "FOV" slider labelled `st_fov_option` in all five languages, is
-bound to `uro_fov`, which the camera follows. `Settings.as` maps the option
-to `_slider_fov`, but the stock menu places no slider for it; the released
-`main_menu.swf` has one. `Settings.create_content` calls `SrpVideoTab` twice. The first call, before the options are bound,
-creates the slider on the Graphics frame, hidden, so the game binds option
-7 to it like its other controls (label, range, value, apply). The second
-call, before the final return, runs after the game has set the label, as
-the login hint's calls run after the stock code. It shows the slider, makes
-it opaque (Scaleform leaves a slider made by script at alpha 0), adds the
-colon gamma has ("FOV:"), places it under gamma and moves the preset-button
-panel down to make room. Under Scaleform `ENTER_FRAME` never reached the
-slider, so nothing runs per frame. As with the login hint, the archive entry
-keeps its size and CRC, so the signed file table is untouched.
+Settings → Gameplay, a group of the right column under the HUD group: its heading "FOV:" in the headings' look (`st_fov_option`, with the colon
+gamma has, as "Friends:" and "HUD:" are), the stock slider under it, 50 to 100 (`../flash/main_menu/src/SrpFieldOfView.as`; 2026-11-06, the owner: "we can move fov
+to game maybe?", for the Graphics tab's Vulkan options' button). Exe patch 83 keeps it: `uro_fov` in the
+Settings' call answers `root.srp_slider_option(name, label, degrees, least, most)` and sets whole degrees
+within uro_fov's range, user.cfg at once (`rust/patches/src/hud_options.rs`, `vostok::settings::FieldOfView`).
+The game's own video option 7 (a "FOV" slider) names "fov" again, no variable's, and the movie binds nothing to it:
+one owner of uro_fov in the menu (a video option bound to it would write, at every Apply of the Graphics tab,
+the value it read when the window opened). Until then the slider was the Graphics tab's, under gamma,
+the game's option 7 bound to it (patch 22 named uro_fov there).
 
-With an exe before revision 11 the slider shows and does nothing: its
-option 7 names a console variable that does not exist. Without this
-archive, revision 11 still has the setting (`uro_fov 80` in the console or
-`user.cfg`), just no slider. A change of it is an edit of `../flash/main_menu/src`
-(`tools/actionscript/flash_tree.py build`); the bytecode builder that made it
-(`fov_slider_026g.py`) is in git history only. Checked live in the lobby and in a match on a
-local server (with an earlier form of patch 22): the slider shows "FOV:"
-under gamma, changes the view and is saved to `user.cfg`. In the players'
-download from revision 12 the movie ships in `resources.db.patch_12`.
+The slider waits for patch 83's answer: with an exe without it, it does not show. A change of it is an edit
+of `../flash/main_menu/src` (`tools/actionscript/flash_tree.py build`). The Graphics tab's slider (from
+revision 11, `fov_slider_026g.py`'s, in git history only) was checked live in the lobby and in a match;
+the Gameplay one in Ruffle only (`../scripts/hud-options/check.sh`) and patch 83's side in Unicorn
+(`check_hud_options_026g.py`).
 
 ## Lobby exchange, silver and gold both ways
 
@@ -1505,8 +1496,9 @@ sights: 1.1× for 25 weapons, 1.2× for 12, none for 13); 1 when nothing is
 aimed.
 
 **The patch.** Only in the builds with the late join (revision 11):
-- option 7 names "uro_fov" for "fov" (0x262930, `mov eax,offset`); the
-  instruction's relocation stays active, an address for an address;
+- (until 2026-11-06: option 7 named "uro_fov" for "fov", 0x262930; it is the
+  original's dead option again, the Gameplay tab's slider of patch 83 sets
+  uro_fov, `../docs/notes/client_patch.md` "The setting's slider");
 - uro_fov's registration stores 50 as its least instead of 0 (0x85AE06; at
   0 the projection would divide by tan 0); the most stays 100; the
   relocation of the replaced store's address (0x85AE0D) is disabled;
@@ -4553,7 +4545,7 @@ The rules and the decoded clip: `../docs/notes/mouse-pitch.md`; the addresses: `
 3.70. Checked with `check_mouse_pitch_026g.py`, `check_death_camera_026g.py`, selftest checks 112
 and 46, `../scripts/hud-options/check.sh` and `cargo test`. Not run in a game.
 
-## Native deserialization bounds (patch 113, unreleased)
+## Native deserialization bounds (patch 115, unreleased)
 
 Extracted from PR #478 into generated hooks on the current Rust framework.
 A missing FSM state skips its virtual reader; an anomaly id outside its state
@@ -4627,3 +4619,38 @@ post-deserialize receipts, early handshake, full pool and teardown. The server
 suite covers first worlds, resyncs, lost reports, repeated refusal, forged/stale
 reports and subsequent successful play. This is not a transport flood defence
 or a replacement for a real-match release-candidate test.
+## The hud's kits and cursor (patch 113, unreleased)
+
+The owner's two reports (2026-11-06), both before a match's start, with the kits shown:
+
+- **The last match's kit on the tab.** A match where kit 2 was picked, then the next match: kit 2's
+  tab chosen, kit 1 played. The hud (`game_world_ui`, inside the game's one game world, game+18h+1FCh)
+  lives as long as the game, and its kits' state (+2DFh) and cursor (+2DCh) are written only by its
+  constructor, `show_profiles_selector` (0x2383B0) and `show_cursor` (0x23A930). Patch 31 keeps the
+  kits shown until play, so a match that ends with them shown (left before the start, dead at the
+  end) leaves +2DFh set. The next match's `show_profiles_selector(1)` then returned at once
+  (0x2383C7), and its `root.select_player_profile` with the place's next kit (0x238422, from
+  0x1F8120: the lowest loaded kit at a match's start, `../docs/notes/match.md` section 19) never ran;
+  the hud movie, the last match's too, kept that match's tab.
+- **Esc doubled the cursor.** Esc (`game::activate_main_menu`, 0x1EDBC0) shows the main menu
+  (`game_options`, game+57F4h, shown +44h) with a cursor movie of its own (+10h). The hud's cursor
+  movie (+0Ch, in the game world's scene) stayed drawn under it, still, where the mouse last was.
+
+**The patch** (the Rust patch `hud_cursor`, four lohooks, `sites_026g.tsv`):
+
+- `hud.initialize_match` (0x234880, once a match; the late join's rebuild enters at 0x234E71): the
+  cursor hidden (`show_cursor(0)`) and +2DFh 0, as the constructor leaves them. The hud movie's
+  `HUD.reset`, which initialize_match invokes at 0x234AE8, hides its kits too
+  (`show_profiles_selector(false)`, as its constructor). The match's first showing of the kits is
+  then a whole one, with the right tab.
+- `options.activate` (0x200F50): over a running match (the game world active, +D4h) with the hud's
+  cursor shown, its movie is taken off (base_game_scene::hide_movie 0x23DC70; the renderer takes
+  out every copy and does nothing with none).
+- `hud.cursor_movie` (0x23A992): while the menu is shown, `show_cursor(1)` (a death under the menu,
+  the kits again) writes its flag but does not show the movie.
+- `options.deactivate` (0x201040): a shown menu closing over a running match with the hud's cursor
+  shown puts the movie back (show_movie 0x23DC00). A match's end clears +D4h before it closes the
+  menu (0x1F952B, 0x1F956D), so nothing comes back then; the lobby's menu has no running match.
+
+The hud's flag is the game's throughout, so the mouse goes where it went. Nothing a match computes.
+Checked with `check_hud_cursor_026g.py`, `cargo test` and clippy. Not run in a game.

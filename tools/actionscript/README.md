@@ -127,6 +127,10 @@ rows made again; and Blackout (the list kept hidden): none on screen.
 
 `srp-026g/scripts/weapon-kit/check.sh <lobby_menu.swf> [work dir]` checks the lobby's weapon upgrade window with the weapon kit (two decal slots, the kit's records, a drop shown at once, every language's texts fitting) and prints `WEAPONKIT RESULT pass` or `WEAPONKIT RESULT fail: ...`.
 
+### Item search
+
+`srp-026g/scripts/item-search/check.sh <lobby_menu.swf> [work dir]` checks the item lists' search (`docs/notes/item-search.md`: the "+" words in the inventory and the shop, every language's hint on one line in the box and its and the tip's examples finding what they name, the tip on the empty box only) and prints `ITEMSEARCH RESULT pass` or `ITEMSEARCH RESULT fail: ...`.
+
 ## History
 
 Until 2026-10-21 the trees were proven to recompile revision 24 byte for byte

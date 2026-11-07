@@ -1,6 +1,6 @@
 # Native bounds used even where item bodies cannot be statically parsed.
 name = "deserialize_guards"
-patch = 113
+patch = 115
 
 [[hook]]
 site = "deserialize.fsm_selected"

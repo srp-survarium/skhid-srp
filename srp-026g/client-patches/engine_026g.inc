@@ -567,3 +567,13 @@ extern engine_append_packet_bytes
 ; the IAT slot 0x8701b8 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_tick_count
+; unsigned int engine_set_environment_variable_a(const char *name, const char *value)
+; the IAT slot 0x87029c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_set_environment_variable_a
+; void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie)
+; 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0
+extern engine_show_scene_movie
+; void engine_hide_scene_movie(struct movie_slot *movie, struct game_world *scene)
+; 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
+extern engine_hide_scene_movie

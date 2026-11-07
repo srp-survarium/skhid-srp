@@ -11,12 +11,16 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
 - **A new account starts with** (its first 0.26g sign-in, `GameAccounts::sign_up`, once,
   before its client hears of it: no window, no notice; `tutorial::signup_grant`) nothing but
   what `scripts/content-edit/new-account.tsv` says (`gameplay/srp/new_account.options`, read
-  by srp from its game data; its header says each key), and the steps' experience:
+  by srp from its game data; its header says each key):
+  - level 15 (the owner's of 2026-11-06; before, the steps' 250 experience): one point
+    short of level 16 (37 999), so its first match brings it to 16; the levels below it pay
+    nothing; its 15 points spent:
+    Quick Response 5 (101), Battle Stance 2 (102), Potent Painkiller 1 (301), Fast
+    Bandaging 2 (302), Metabolism 5 (311);
   - 15 000 silver and 150 gold (the owner's of 2026-10-24; before, 10 000 and 500);
   - a month of premium: 30 days (the shop's month, `PREMIUM_OFFERS` id 3) from the account's
     making at its first sign-in, added as all premium is (`premium::add_premium`); the lobby
     is told the hours left (720);
-  - the steps' 250 experience (the game's `unique_awards.options`);
   - exactly 1000 rounds of every ammo: each stack of the dictionary under
     `gameplay/items/weapons/ammo/`, the ported weapons' too (34 on the released data);
   - the Scavengers at reputation level 5, their highest (3000 points), as earned: all they
@@ -59,10 +63,11 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   the backpack; the whole kit on released data:
   `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test starter_kit --
   --ignored`.
-- **New player** (the first match's drop table): no more experience than an account starts
-  with.
-- **Accounts made before:** keep what they have and get no tutorial; steps they had not done
-  are not paid.
+- **Accounts made before:** raised once to where a new one starts (37 999 experience, level
+  15; the owner's of 2026-11-06) by the release that ships it, in the database with srp
+  stopped (`UPDATE g26_accounts SET exp_total = 37999 WHERE exp_total < 37999`): the levels
+  passed pay nothing, their points are theirs to spend. They get no tutorial; steps they had
+  not done are not paid.
 - **No switch:** `SRP_TUTORIAL` is gone.
 - **Release:** the server, and the content patch that carries `new_account.options` (srp
   refuses data without it); no exe change.

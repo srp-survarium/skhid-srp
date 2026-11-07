@@ -24,7 +24,7 @@
 use core::ffi::CStr;
 
 use crate::vostok::mouse::{DeathPitch, PitchStep, View};
-use crate::vostok::settings::{ConsoleBool, ConsoleFloat, OptionsCall, save_user_config};
+use crate::vostok::settings::{ConsoleBool, ConsoleFloat, OptionsCall, SliderSteps, save_user_config};
 use crate::vostok::{Context, Flow, MousePitchOnOptionsCallExit, NoExit, Thread};
 
 /// 16:9's height over width: the stock pitch step's h / w at every window
@@ -59,54 +59,37 @@ static LOCKED: ConsoleBool = ConsoleBool::with(true);
 static VERTICAL: ConsoleFloat = ConsoleFloat::new(1.0, LEAST, MOST);
 
 /// A sensitivity of the Settings' sliders in hundredths, as they snap it:
-/// 1 to 1000 (0.01 to 10).
+/// 1 to 1000 (0.01 to 10): the sliders' whole steps within that range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Hundredths(u16);
+pub struct Hundredths(SliderSteps);
+
+const LEAST_STEPS: SliderSteps = SliderSteps::new(1);
+const MOST_STEPS: SliderSteps = SliderSteps::new(1000);
 
 impl Hundredths {
     pub fn new(n: u32) -> Option<Hundredths> {
-        (1..=1000).contains(&n).then_some(Hundredths(n as u16))
+        (1..=1000).contains(&n).then(|| Hundredths(SliderSteps::new(n as u16)))
     }
 
     /// The Settings' text of one: decimal digits, nothing else.
     pub fn parse(text: &CStr) -> Option<Hundredths> {
-        let digits = text.to_bytes();
-        if digits.is_empty() || digits.len() > 4 || !digits.iter().all(u8::is_ascii_digit) {
-            return None;
-        }
-        Hundredths::new(digits.iter().fold(0, |n, d| n * 10 + u32::from(d - b'0')))
+        SliderSteps::parse(text).and_then(|steps| Hundredths::new(u32::from(steps.get())))
     }
 
     /// The nearest one to a sensitivity.
     pub fn nearest(sensitivity: Sensitivity) -> Hundredths {
-        let n = (f64::from(sensitivity.get()) * 100.0 + 0.5) as u32;
-        Hundredths(n.clamp(1, 1000) as u16)
+        Hundredths(SliderSteps::nearest(sensitivity.get(), 100.0, LEAST_STEPS, MOST_STEPS))
     }
 
     /// Its value as the stock sliders give theirs to the exe: the slider's
     /// position n x 0.01 (a double, CLIK's Slider.lockValue), as a float.
     pub fn sensitivity(self) -> Sensitivity {
-        Sensitivity((f64::from(self.0) * 0.01) as f32)
+        Sensitivity((f64::from(self.0.get()) * 0.01) as f32)
     }
 
     /// Its digits into `out`, with the zero.
     pub fn text(self, out: &mut [u8; 8]) -> &CStr {
-        let mut n = self.0;
-        let mut digits = [0u8; 4];
-        let mut len = 0;
-        loop {
-            digits[len] = b'0' + (n % 10) as u8;
-            len += 1;
-            n /= 10;
-            if n == 0 {
-                break;
-            }
-        }
-        for i in 0..len {
-            out[i] = digits[len - 1 - i];
-        }
-        out[len] = 0;
-        CStr::from_bytes_until_nul(&out[..=len]).unwrap_or(c"")
+        self.0.text(out)
     }
 }
 

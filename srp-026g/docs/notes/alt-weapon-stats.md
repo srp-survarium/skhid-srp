@@ -117,6 +117,22 @@ floats 43 and 45 (packed, `docs/notes/medical-skills.md`), parsed as the exe's `
 Left out: S34 (`drug_activity_time`, the duration's weight): no skill or item gives it. No skill
 gives S33 or S58 either; they are there as the exe applies them.
 
+The owner, 2026-11-06: "when I press alt on painkillers I should see improvements from medical
+skills". The skills that act while a painkiller is active, or while a medicine heals, change no
+line of the card, so held Alt each one with a rank adds a line under the card's own, a share of the
+game's own value, "100 -> current %", coloured as the others (ranks from float 45, parsed with
+float 43 as above):
+
+| line (`st_srp_medicine_*`) | on | in a match |
+|---|---|---|
+| Sprint stamina (`sprint_stamina`) | a pain protector | Numb Legs: the sprint's stamina x (1 - 0.2 x rank) while it is active (100 -> 60 % at rank 2) |
+| Slow from bullets (`hit_slow`) | a pain protector | Unflinching: the hits' stopping power x (1 - 0.1 x rank) while it is active (100 -> 60 % at rank 4) |
+| Ambient sounds, Enemy sounds (`ambient_sounds`, `enemy_sounds`) | a pain protector | Concentration: the environment x (1 - 0.1 x rank), the opponents' sounds (not their shots) x (1 + 0.1 x rank) while it is active (60 % and 140 % at rank 4) |
+| Healing crouched (`crouched_healing`) | a medicine that heals | Take Cover: each heal tick x (1 + 0.1 x rank) while crouched, after Medical Training (100 -> 120 % at rank 2) |
+
+The other medical skills (Metabolism, Adrenalin, Strong Bones, Brothers in Arms, the pockets)
+do nothing a medicine's card shows.
+
 ## Grenades and traps
 
 The owner, 2026-11-05: "let's add them, let's also make sure alt modifies things (I think throw
@@ -153,6 +169,7 @@ gives them). Pocket counts (S15, S17, `pocket_units` 166) are the paper doll's, 
   match computes: no `simulation_changes.tsv` row.
 - **Checked:** `scripts/weapon-details/WeaponDetailsHarness.as` (Ruffle; the medicines in
   `medicineChecks`: the seven live cards, no skill, each skill alone and all at their most ranks, refused ranks,
-  no floats, Alt pressed over an open card; the grenades and the trap in `throwableChecks`: the three
+  no floats, Alt pressed over an open card, the combo skills' lines on every live card at each rank
+  alone and both full sets, their colours and every language's line beside its value; the grenades and the trap in `throwableChecks`: the three
   live cards, Grenadier ranks 1 and 2, S11 and S12, a sum below -1, no floats, Alt pressed over an
   open grenade card), `check_weight_ui_026g.py` (Unicorn). Not run in a game.

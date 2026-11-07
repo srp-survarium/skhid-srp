@@ -34,3 +34,6 @@ vtable	slot	va	class	base	basis
 0x00a05150	0x4	0x002529d0	survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_fire_state>	survarium::double_barreled_weapon_core_fire_state	observed: RTTI TD 0xAD1920, COL offset 0 (0xA0517C the offset-18h vtable); initialize binds its weapon_sound_effect at +170h to on_sound_event 0x297C50 (0x252A33)
 0x00a08864	0x18	0x00279fe0	survarium::match_client	vostok::network::match_client	observed: concrete table slot and new_packet wrapper, used by late_join send_prepared and recovery receipts
 0x00a08864	0x1c	0x0027a2a0	survarium::match_client	vostok::network::match_client	observed: concrete table slot and enqueue wrapper, owns packet after send_prepared/recovery
+0x009fc53c	0x24	0x001f7660	survarium::game_world	survarium::bullet_manager_engine	observed: get_player, called through bullet_manager+90h by bullet::bullet 0x32BD4E/0x32BD83 (RTTI game_world, this at +0ECh)
+0x009ff344	0x4c	0x0026d660	survarium::replay_network_client	survarium::base_network_client	observed: get_player (base_local_network_client), called by game_world::get_player 0x1F7660
+0x009ffb14	0x4c	0x0027a980	survarium::network_client	survarium::base_network_client	observed: get_player, called by game_world::get_player 0x1F7660 (a bullet's owner, bullet::bullet 0x32BD4E)

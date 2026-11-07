@@ -166,7 +166,7 @@ pub fn check(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<()
             respawn_points: Some(map.respawn_points),
             profiles: Some(&profiles[..known]),
             // The artefacts table is the game's live one; the inventory's
-            // artefact ids are bounded by its own check (patch 113).
+            // artefact ids are bounded by its own check (patch 115).
             artefacts: None,
             objects: Some(&objects),
             inventory: inventory.as_ref(),
@@ -310,12 +310,10 @@ mod tests {
         let effects = |at| {
             refused(
                 Part::Effects,
-                0x67f0,
-                Reason::EffectsByte {
+                0x67e9,
+                Reason::EffectsBytes {
                     at,
                     what: "the closing part",
-                    found: 1,
-                    wanted: 0,
                 },
             )
         };
@@ -323,17 +321,20 @@ mod tests {
         let mut refusals = Refusals::default();
         assert_eq!(refusals.summary(), "no upload refused");
         // A forged or broken world of one game: counted, not in doubt.
-        assert!(refusals.count(3, &effects(19)).is_none());
+        assert!(refusals.count(3, &effects(12)).is_none());
         assert!(refusals.count(3, &pickup(3)).is_none());
         assert_eq!(refusals.summary(), "2 uploads refused from 1 players");
-        // The same kind (another byte of it) from another place: in doubt.
-        let doubt = refusals.count(5, &effects(20)).expect("in doubt");
+        // The same kind (at another offset of it) from another place: in doubt.
+        let doubt = refusals.count(5, &effects(13)).expect("in doubt");
         assert!(
             doubt.starts_with("WORLD CHECK IN DOUBT: 2 uploads from 2 players"),
             "{doubt}"
         );
-        assert!(doubt.contains("effects at 0x67f0: byte 19"), "{doubt}");
-        assert!(refusals.count(6, &effects(19)).is_none());
+        assert!(
+            doubt.contains("effects at 0x67e9: the closing part at 12 is not every world's"),
+            "{doubt}"
+        );
+        assert!(refusals.count(6, &effects(12)).is_none());
         // A player block of any place is one part: the third from place 3.
         assert!(refusals.count(3, &pickup(3)).is_none());
         assert!(refusals.count(3, &pickup(7)).is_some());

@@ -2006,6 +2006,9 @@ package
          this.show_game_info(false);
          this.show_crosshair(false);
          this.show_player_list(false);
+         // the kits too: the exe's patch 113 puts its own kits state away at the same start, so
+         // the match's first showing of them tells the movie its kit
+         this.show_profiles_selector(false);
          this.show_oxygen(false);
          this.show_stamina(false);
          this.combatLog.clear();

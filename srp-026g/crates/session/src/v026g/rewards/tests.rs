@@ -103,8 +103,7 @@ fn alice_and_bob() -> Vec<PlayerResult> {
     ]
 }
 
-/// Experience of an account that has played: more than a new account is
-/// given (`tutorial::experience`), short of a level.
+/// Experience of an account that has played: past level 0, short of level 1.
 const PLAYED: u32 = 251;
 
 /// The accounts of the players, none of them a new player.

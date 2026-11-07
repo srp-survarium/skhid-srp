@@ -5629,3 +5629,29 @@ va	name	location	role	basis
 0x003a8980	anim_decode_read_bits	EAX	entry: number of bits to read (0..32)	observed
 0x003a8980	anim_decode_read_bits	EDI	the bit-stream state: +0x203c current byte ptr, +0x2048 bit position 0..7	observed
 0x00317d40	vostok::popcount	ECX	entry: the word whose set bits are counted	observed
+0x002614e0	survarium::options_item_float::initialize	ECX	the float option item (vtable 0xA06728: the video options' option 7, "fov")	observed
+0x002616e0	survarium::options_item_float::apply	ECX	the float option item (vtable 0xA06728)	observed
+0x00200f50	survarium::game_options::activate	EAX	the main menu (game_options, game+57F4h: +0Ch the menu movie, +10h its cursor movie, +30h the scene, +34h the game, +44h shown)	observed
+0x00200f50	survarium::game_options::activate	entry ESP+4	the scene it is shown over (game+539Ch from activate_main_menu 0x1EDBCF), kept at +30h	observed
+0x00201040	survarium::game_options::deactivate	ESI	the main menu (game_options); callers: its Resume 0x1FF66E, its key 0x20165A, game_world::on_deactivate 0x1F956D (after +D4h is 0), lobby_menu::on_deactivate 0x21D50E	observed
+0x00234880	survarium::game_world_ui::initialize_match	entry ESP+4	the hud (kept in EBP from 0x234888); the match's first, from 0x1F855D once a match; patch 113's site hud.initialize_match	observed
+0x00234880	survarium::game_world_ui::initialize_match	entry ESP+8	the match's options (kept in ESI from 0x234890)	observed
+0x001f8120	survarium::game_world::local_player_profiles	EDX	the game world (+9Ch the game, whose network client's local player +114h is the place; +4D4Ch the match, its places at +18650h)	observed
+0x001f8120	survarium::game_world::local_player_profiles	entry ESP+4	the kit in use, a byte written	observed
+0x001f8120	survarium::game_world::local_player_profiles	entry ESP+8	the next kit, a byte written: show_profiles_selector selects it on the hud's tabs (0x2383F3)	observed
+0x00305210	survarium::booby_trap_core::switch_to_state	ECX	the booby trap (its core at +0x74: m_trap_state +0x198)	observed
+0x00305210	survarium::booby_trap_core::switch_to_state	stack+4	the new booby_trap_state, an index into a jump table of 4 (0x3052C8) with no bound	observed
+0x003134c0	survarium::artefact_base::start_spawn_in_container	EAX	the artefact: m_state +0x280 = 1, m_container_id +0x284, m_time_left_to_spawn +0x288	observed
+0x003134c0	survarium::artefact_base::start_spawn_in_container	stack+4	the artefact_container_core (its id byte +0x64)	observed
+0x002ddad0	survarium::game_effect_player::serialize	EAX	the game_effect_player: +0 m_current_time_in_ms, +2Ch the first node (each +4Ch the next)	observed
+0x002ddad0	survarium::game_effect_player::serialize	entry ESP+4	the world writer (mode-1 nodes)	observed
+0x002ddad0	survarium::game_effect_player::serialize	entry ESP+8	the client writer or 0 (mode-2 nodes)	observed
+0x0026d660	survarium::base_local_network_client::get_player	ECX	the network client (its core [+578BCh] - 1F8h)	observed
+0x0026d660	survarium::base_local_network_client::get_player	entry ESP+4	out pointer	observed
+0x0026d660	survarium::base_local_network_client::get_player	entry ESP+8	the place (byte), not bounded	observed
+0x00397040	vostok::animation::mixing::n_ary_tree_serializer::save_floats	entry ESP+4	the serializer (its floats +1014h..+1018h, its bit writer 0x396180 through EBX/EDI)	observed
+0x00397810	stlp_std::unique<float *>	EDX	first	observed
+0x00397810	stlp_std::unique<float *>	ESI	last	observed
+0x00397880	stlp_std::find<float *,float>	ECX	first	observed
+0x00397880	stlp_std::find<float *,float>	EDI	last	observed
+0x00397880	stlp_std::find<float *,float>	ESI	pointer to the value	observed

@@ -286,7 +286,6 @@ Reproduce the detailed 440-row torso/head audit (ten distances for 22 weapons):
 ```sh
 node srp-026g/scripts/weapon-balance/audit.js > /tmp/weapon-balance.tsv
 node srp-026g/scripts/weapon-balance/audit.test.js
-python3 srp-026g/scripts/weapon-balance/check_content.py "$SKHID_PACKS_DIR"
 ```
 
 For before/after, extract `weapon-stats.tsv` and `ammo.tsv` from `009b2dabe`, then pass
