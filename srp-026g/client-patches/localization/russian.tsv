@@ -2210,9 +2210,9 @@ st_srp_artefact_532_description	Нет урона от падения, пока 
 st_srp_artefact_532_name	Оникс II
 st_srp_artefact_533_description	Активация Живокоста полностью восстанавливает выносливость.
 st_srp_artefact_533_name	Живокост II
-st_srp_artefact_541_description	Пассивные эффекты ваших артефактов действуют и на живых союзников в радиусе 8 м.
+st_srp_artefact_541_description	Пассивные эффекты ваших артефактов действуют и на живых союзников в радиусе 9 м.
 st_srp_artefact_541_name	Резонанс
-st_srp_artefact_542_description	Активированные артефакты действуют и на живых союзников в радиусе 5 м. "Они сияют, а ты блистаешь"
+st_srp_artefact_542_description	Активированные артефакты действуют и на живых союзников в радиусе 6 м. "Они сияют, а ты блистаешь"
 st_srp_artefact_542_name	Каскад
 st_srp_artefact_points	 ед.
 st_srp_attachments	Обвес

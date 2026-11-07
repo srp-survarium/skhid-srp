@@ -53,6 +53,22 @@ fn kind_of(artefact: raw::Artefact) -> Option<Kind> {
     }
 }
 
+/// A copy at its activation (artefact_base::action's hook, after its enable_active): its kind and
+/// its active's milliseconds as that enable_active set them; none for a kind Cascade does not
+/// share (the Rattle).
+pub(super) fn activated(artefact: raw::Artefact) -> Option<(Kind, u32)> {
+    let kind = kind_of(artefact)?;
+    // SAFETY: the activating copy of that kind (its vtable checked), its own field.
+    let ms = unsafe {
+        match kind {
+            Kind::Spring => *artefact.spring().active_left(),
+            Kind::Lifebone => *artefact.lifebone().active_left(),
+            Kind::Onyx => *artefact.onyx().active_left(),
+        }
+    };
+    Some((kind, ms))
+}
+
 /// An artefact in a player's containers, of a kind the tree reads.
 #[derive(Clone, Copy)]
 struct Carried {
@@ -263,8 +279,8 @@ impl Shared {
     }
 }
 
-/// What `recipient` gets of `kind` from its teammates: their copies' passives (Resonance, 8 m)
-/// and actives (Cascade, 5 m). A carrier is another living player of its team in the roster
+/// What `recipient` gets of `kind` from its teammates: their copies' passives (Resonance, 9 m)
+/// and actives (Cascade, 6 m). A carrier is another living player of its team in the roster
 /// whose skill reaches it; the copies come in place order, each carrier's that count for it
 /// ([`own`]) in container order, as many of each phase as the recipient's room after its own
 /// copies of the kind that count (passives and actives alike: 4 less them). A dead recipient
