@@ -25,9 +25,19 @@ model of it. The item keeps everything else: its stats, states, clips, sounds an
   module (`<module>_<surface>`): the gun looks as it does today, and a later attachment leaves that
   surface out by name. Default optics and every extra 0.69d0's premium items bundle (optics, lasers,
   other brakes) are not baked: the scopes and the kit attach them.
-- Every 0.69d0 slot locator is in the model beside 0.26g's contract (`aim`, `barrel_point`,
-  `scope_point`, `handguard_point`, the hands): its rails, muzzle and grip points at 0.69d0's names, for
-  the attachments made later.
+- 0.26g's contract locators (`aim`, `scope_point`, `barrel_point`, `handguard_point`, the hands) are
+  the live model's: every scope item and variant, the muzzle flash and the kit's devices sit where they
+  sit today, the aim with its config's `aim_offset` too (0.69d0's aim is the eye for 0.69d0's pose and
+  has no `aim_offset`). Every 0.69d0 slot locator is in the model beside them: its rails, muzzle and
+  grip points at 0.69d0's names, for the attachments made later.
+- Most of 0.69d0's guns lie on the live model's mesh to the millimetre (`remodel-069/fit.py`); six it
+  placed otherwise on the same rig are shifted onto it (sidecar.py's `OFFSET`: the MP-153 2.2 cm
+  higher, the Benelli M4, SPAS-12, TOZ-34, 9A-91 and Uzi), so the live hands, sights and points fit.
+  The Uzi's 0.69d0 rear sight stands taller than ours: its aim is on 0.69d0's own sight line
+  (`AIM_069`). The iron sights were compared in aim renders, live and remodel, for all 96.
+- A gun that carries an optic by default (its config's rifle scope: the HK416, MSBS, Kriss Vector,
+  P90 and the sniper rifles) has its iron sights folded, as 0.69d0 draws them under an optic
+  (`optic`: each sight 0.69d0's optics swap, at its `model_param1`).
 - A 0.69d0 material or texture at a path the players have with other bytes gets a `_069` name; the same
   bytes (an earlier port's: the AKMSU's magazine) are not shipped again.
 - 0.69d0's models as they are (`donor-models-are-reference`): where 0.69d0's default gun differs from
@@ -35,15 +45,24 @@ model of it. The item keeps everything else: its stats, states, clips, sounds an
   default), the SR-3M without its vertical foregrip and with 0.69d0's magazine, the SOC Vepr's dark
   stock, the premiums' 0.69d0 camouflages.
 
-- Camouflage: pack remodel-069-camo, an `_aoac` mask for each of the remodels' 208 diffuse textures
+- Camouflage: pack remodel-069-camo, an `_aoac` mask for each of the remodels' diffuse textures but those an earlier port has masked (203)
   (`remodel-069/camo.tsv`, `../weapons-069/camo_rows.py` from the bundle): 0.69d0's guns have no
   premium twin to compare, so every large part is painted (as most of our premiums were repainted as a
   whole); `parts.tsv` leaves the cartridges and the MP7's glowing sight dots plain.
 
+- Scope variants: a live variant that sets its weapon's model to a copy of the gun's (its eye on the
+  optic) draws a copy of the remodel instead, with the locators the copy set otherwise (100 copies,
+  pack remodel-069-variants, `remodel-069/variants.py`, `variants.tsv`; edit list
+  `remodel-069-variants-1.json`). One for a gun and its premium draws the first gun's remodel on both,
+  as it draws the first gun's copy today. A variant that keeps its gun's model draws the remodel.
+
 ## Not yet
 
-- The scope variants: a variant that sets its own weapon model (a copy of the old model with its eye)
-  still draws the old gun, and one that does not places its optic at the old scope point. They are made
-  again for the remodels with scope-fits' approach (0.69d0's mounts, rails and sight swaps).
-- The kit's muzzle devices (`weapon-attachments-1`) at the remodels' `barrel_point`.
+- A scope variant's optic still sits on the live gun's mount, and the gun's iron sights stand under
+  it (folded only where the gun carries an optic by default): 0.69d0's mounts, rails and sight swaps
+  per variant (scope-fits' approach) on the remodels come next.
+- The packs of the unmerged scope PRs (rifle-scopes, scope-fits) are made on the live models: once
+  they are in, their variants are made again on the remodels.
+- The kit's muzzle devices (`weapon-attachments-1`) sit at the live `barrel_point`, as today; leaving
+  the baked default device out under a kit device (its surface is named for that) is not done.
 - The pack is 1.4 GB (0.69d0's textures, 2048 pixels for most guns).

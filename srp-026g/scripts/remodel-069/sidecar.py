@@ -11,7 +11,10 @@ Writes <out folder>/remodel-069d.json (resource-porter's remodel sidecar) and it
 gun item takes the 0.69d0 item of its name (0.69d0 has every one but the event MP7, ALIAS the
 renamed ones); the guns of pack weapons-069 are 0.69d0's already. For each 0.69d0 item:
 - rig: the live model's (its skeleton, bind pose and hand points: the live clips play on it);
-  bone_map where a live bone is named otherwise (the VSS's spare magazine);
+  bone_map where a live bone is named otherwise (the VSS's spare magazine); offset where 0.69d0
+  placed the model otherwise on the rig (fit.py measures it); aim_069 where its iron sights
+  stand otherwise than ours; optic where the live gun carries an optic by default (its config's rifle
+  scope): its iron sights folded, as 0.69d0 folds them under an optic;
 - bake: the default muzzle device or bipod the gun shows today, as a surface of its own (a later
   attachment leaves it out by name); separable: every other attachment (default optics, the
   premium items' bundled optics, lasers and other brakes): the kit's and the scopes';
@@ -28,6 +31,15 @@ KINDS = ('muzzlebrake', 'flashhider', 'silencer', 'suppressor', 'foregrip', 'sco
 SLOT_KINDS = ('muzzle', 'tactical', 'picatinny_grip', 'scope', 'collim', 'laser')
 BAKED_KINDS = ('muzzlebrake', 'flashhider', 'barrelnut', 'firearrestor', 'suppressor', 'silencer', 'bipod')
 BONE_MAP = {'vss': {'magazin3': 'magazin2'}, 'vss_premium': {'magazin3': 'magazin2'}}
+# Where 0.69d0 placed its model otherwise on the same rig: the shift (metres, mesh space) that lays it
+# on the live model (fit.py's; every other remodel lies on its live model to the millimetre).
+UZI = [0.0, -0.0176, -0.0184]
+OFFSET = {'a9_91': [0.0088, -0.0207, -0.0004], 'benelli_m4': [0.0, -0.0243, -0.0214],
+          'mp_153': [0.0, -0.0222, -0.0012], 'spas_12': [0.0, -0.0203, -0.0044], 'toz_34': [0.0, -0.0022, -0.0008],
+          'uzi': UZI, 'uzi_premium': UZI, 'uzi_premium_2': UZI}
+# Where 0.69d0's iron sights stand otherwise than ours on the same body (the Uzi's taller rear sight):
+# the aim on 0.69d0's own sight line (aim_069), as the renders compare them.
+AIM_069 = {'uzi', 'uzi_premium', 'uzi_premium_2'}
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'sight-alignment'))
 import model as cfgs  # noqa: E402
@@ -88,6 +100,12 @@ def main():
                    'bake': bake, 'model_path': model_path}
         if w in BONE_MAP:
             guns[w]['bone_map'] = BONE_MAP[w]
+        if w in OFFSET:
+            guns[w]['offset'] = OFFSET[w]
+        if w in AIM_069:
+            guns[w]['aim_069'] = True
+        if cfg.get('addons', {}).get('rifle_scope_dict_id') is not None:
+            guns[w]['optic'] = True
     spec = {'format_version': 1, 'guns': guns, 'renames': {'clips': {}, 'sounds': {}}, 'clip_events': {}}
     (out / 'remodel-069d.json').write_text(json.dumps(spec, indent=1) + '\n')
     (out / 'items.tsv').write_text(
