@@ -123,12 +123,14 @@ const _: () = assert!(
             == world_frame::MAX_BODY
 );
 
+use super::afk::{self, Watch};
 use super::battery_cap;
 use super::kill_cap;
 use super::record::{Recorder, Recording};
-use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
+use super::registry::{Formed, IdleRemoved, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
 
+mod afk_watch;
 mod driven;
 mod late_join;
 mod live;
@@ -1026,6 +1028,9 @@ pub(crate) struct Game {
     /// The players who left by their own word (0xE0) and were not asked
     /// about yet ([`Game::take_quits`]): session and account.
     quits: Vec<(u32, u32)>,
+    /// The players removed as idle (anti-AFK) and not told of yet
+    /// ([`Game::take_idle_removed`]): the chat says so.
+    idle_removed: Vec<IdleRemoved>,
     /// By place: its player left by its own word (0xE0); the place never
     /// comes back ([`start`]).
     given_up: Vec<bool>,
@@ -1034,6 +1039,9 @@ pub(crate) struct Game {
     stand_ins: Vec<start::StandIn>,
     /// `SRP_RECORD_DIR`: every datagram of the match ([`super::record`]).
     recording: Option<Recording>,
+    /// Anti-AFK: whether this match removes idle players, decided when it
+    /// is made, and each player's time without input ([`afk_watch`]).
+    afk: Watch,
 }
 
 impl Game {
@@ -1042,6 +1050,14 @@ impl Game {
         let players = formed.places.len();
         let rule = TimelimitRule::new(TimelimitParams::of(formed.played.map(), players as u8));
         let walkers = driven::Walkers::new(&formed, &settings);
+        // Once for the match: a private room's (a PIN) and one against bots
+        // remove nobody.
+        let kind = match (formed.private, formed.vs_bots) {
+            (true, _) => afk::MatchKind::PrivateRoom,
+            (false, true) => afk::MatchKind::VsBots,
+            (false, false) => afk::MatchKind::Public,
+        };
+        let afk = Watch::new(settings.anti_afk, kind);
         Self {
             id: formed.match_id,
             port,
@@ -1087,9 +1103,11 @@ impl Game {
             result: None,
             result_made: false,
             quits: Vec::new(),
+            idle_removed: Vec::new(),
             given_up: vec![false; players],
             stand_ins: Vec::new(),
             recording: None,
+            afk,
             drives: Self::new_drives(&formed),
             walkers,
             formed,
@@ -1344,6 +1362,7 @@ impl Game {
             }
         }
         self.reset_catchup(index, true);
+        self.afk.restart(index);
         log::info!(
             "Match {:#x}: player {index} (session {session_id:#x}) connected from {addr}",
             self.id
@@ -3642,6 +3661,8 @@ impl Game {
             return;
         }
         peer.inputs_received += 1;
+        // Anti-AFK: late or not, its player is at its keys.
+        self.afk.input(index, &input, now);
         // Made by its game for a tick of the present: it simulates.
         peer.simulating_at = Some(now);
         let late = clock.saturating_sub(time);
@@ -5618,10 +5639,9 @@ impl Game {
                     }
                 }
                 Stage::Gone => {
-                    // The end, again, if the first was never acked.
-                    if self.finished_at.is_some()
-                        && let Some((serial, message)) = peer.farewell.take()
-                    {
+                    // The end, again, if the first was never acked: the
+                    // match's, or a player's removed as idle (`afk_watch`).
+                    if let Some((serial, message)) = peer.farewell.take() {
                         if peer.transport.is_lost(serial) {
                             // With the tick of now: the client's
                             // `leave_match` refuses a tick too far back
@@ -5647,6 +5667,7 @@ impl Game {
         self.check_world_lost(now);
         self.check_bots_alone(now);
         self.check_pvb_stall(now);
+        self.check_idle(now);
 
         if self.clock_start.is_some()
             && self.finished_at.is_none()

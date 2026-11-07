@@ -130,6 +130,8 @@ services:
       - SRP_ENTRY_STATE_SECONDS
       - SRP_RELAY_PACK_MS
       - SRP_PACKET_LOG
+      # Anti-AFK (docs/notes/anti-afk.md): seconds without input, or `off`.
+      - SRP_ANTI_AFK
       # "Player vs Bots" (the lobby's `pvb.rs`; on here, `off` in .env to
       # switch it off; the code's own default is off). Each match against
       # bots may hold a bots' map of its own in memory (35-150 MB, up to
