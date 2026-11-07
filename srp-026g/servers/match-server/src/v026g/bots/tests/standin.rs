@@ -1232,6 +1232,7 @@ impl Game {
                         fall: None,
                         air: [0.0; 2],
                         carry: [0.0; 2],
+                        arc: client_clip(keys, body.step_m / TICK_S, may_sprint),
                     });
                 }
             }
@@ -1465,6 +1466,7 @@ impl Game {
                             fall: Some(0.0),
                             air: [0.0; 2],
                             carry,
+                            arc: None,
                         });
                         body.feet = Vec3::new(target.x, body.feet.y, target.z);
                         if let Some(stood) = standing.get_mut(place) {
