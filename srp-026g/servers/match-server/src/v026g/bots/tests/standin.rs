@@ -1307,7 +1307,7 @@ impl Game {
             // its walk speed with the sprint keys held; the bar is spent on
             // the keys all the same.
             // [A318] The client moves a tick with the input before the one it takes on that tick (`kin.step_input`).
-            let step_input = super::standin_jump::stand_in_step_input(self.kin.step_input);
+            let step_input = super::standin_jump::stand_in_step_input();
             let (moving, moving_yaw) = match (step_input, body.held) {
                 (super::super::kin::StepInput::Previous, Some(held)) => held,
                 _ => (body.keys, body.yaw),

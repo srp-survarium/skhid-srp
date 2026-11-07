@@ -159,10 +159,15 @@ thread_local! {
     static OLD_STEP_INPUT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// [A318] The stand-in's step order: the kin's ([`crate::v026g::bots::kin::StepInput`]), or the old same-tick one under
-/// [`OldStepInput`].
-pub(crate) fn stand_in_step_input(kin: crate::v026g::bots::kin::StepInput) -> crate::v026g::bots::kin::StepInput {
-    if OLD_STEP_INPUT.get() { crate::v026g::bots::kin::StepInput::Same } else { kin }
+/// [A318] The stand-in's step order: the bench tuning's ([`crate::v026g::bots::kin::StepInput`], `SRP_BENCH_TUNING`, so an
+/// identity run's OFF arm is the old game on both sides), or the old same-tick one under [`OldStepInput`].
+pub(crate) fn stand_in_step_input() -> crate::v026g::bots::kin::StepInput {
+    static TUNED: std::sync::OnceLock<crate::v026g::bots::kin::StepInput> = std::sync::OnceLock::new();
+    if OLD_STEP_INPUT.get() {
+        crate::v026g::bots::kin::StepInput::Same
+    } else {
+        *TUNED.get_or_init(|| super::bench::bench_tuning().kin.step_input)
+    }
 }
 
 /// The stand-in's old step order ([`crate::v026g::bots::kin::StepInput::Same`]: a tick moves with its own input) for this thread
