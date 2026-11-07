@@ -1404,7 +1404,7 @@ impl Client {
             .map(|_| {
                 Ok(ClanMember {
                     account_id: r.u32()?,
-                    name: r.str("member name", limits::NAME)?,
+                    name: r.str("member name", limits::CLAN_MEMBER_NAME)?,
                     rank: r.u8()?,
                     level: r.u8()?,
                     online: r.u8()? == 1,
@@ -1457,7 +1457,7 @@ impl Client {
                         .map(|_| {
                             Ok(ClanApplicant {
                                 account_id: r.u32()?,
-                                name: r.str("member name", limits::NAME)?,
+                                name: r.str("member name", limits::CLAN_MEMBER_NAME)?,
                                 rank: r.u8()?,
                                 status: r.u8()?,
                             })
@@ -1498,7 +1498,7 @@ impl Client {
                     .map(|_| {
                         Ok(ClanTeamMember {
                             account_id: r.u32()?,
-                            name: r.str("member name", limits::NAME)?,
+                            name: r.str("member name", limits::CLAN_MEMBER_NAME)?,
                             role: r.u8()?,
                             ready: r.bool()?,
                         })

@@ -523,6 +523,9 @@ pub enum AnimFault {
     TreeLength,
     /// The tree pops more times or floats than the two tables hold.
     TableUnderrun,
+    /// A floats-table value is infinity or NaN; the native decoder feeds the
+    /// floats to bone transforms that a ragdoll and a bounding box then read.
+    FloatNotNumber,
 }
 
 /// A native client decodes far more of the animation state than the length
@@ -657,6 +660,17 @@ fn channel_pick(b: &mut Bits<'_>, channels: u32) -> Result<(), AnimFault> {
     Ok(())
 }
 
+/// One 32-bit float of the floats table: refuse infinity and NaN with the
+/// same bit test as `srp-validate`'s `finite` (the exponent not all ones), so
+/// a crafted stream cannot put a non-number into a bone transform.
+fn finite_float(b: &mut Bits<'_>) -> Result<(), AnimFault> {
+    if b.read(32).ok_or(AnimFault::Short)? & 0x7F80_0000 != 0x7F80_0000 {
+        Ok(())
+    } else {
+        Err(AnimFault::FloatNotNumber)
+    }
+}
+
 /// One table: `decode_times_in_ms_impl` 0x3A9580 when `times`, else
 /// `decode_floats_impl` 0x3A9720. Read it as the length walk does but bound
 /// each index to the unique count, and return how many values it pushes (what
@@ -690,14 +704,18 @@ fn table_count(b: &mut Bits<'_>, times: bool) -> Result<u64, AnimFault> {
         let count = b.read(10).ok_or(Short)?;
         if indexed {
             let unique = b.read(width(count)).ok_or(Short)?;
-            b.skip((unique as usize).checked_mul(32).ok_or(Short)?).ok_or(Short)?;
+            for _ in 0..unique {
+                finite_float(b)?;
+            }
             for _ in 0..count {
                 if b.read(width(unique)).ok_or(Short)? >= unique {
                     return Err(AnimFault::FloatsIndex);
                 }
             }
         } else {
-            b.skip((count as usize).checked_mul(32).ok_or(Short)?).ok_or(Short)?;
+            for _ in 0..count {
+                finite_float(b)?;
+            }
         }
         Ok(u64::from(count))
     }

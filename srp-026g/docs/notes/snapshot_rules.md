@@ -440,13 +440,17 @@ U<=1023 -- are self-bounded and are not in this list.)
 5  table under-run: a tree that pops more than N_times times or N_floats floats
    reads before the vector start -> OOB read. Bound: times popped <= N_times,
    floats popped <= N_floats.
+6  a floats-table value that is infinity or NaN: the native decoder feeds the
+   floats to bone transforms a ragdoll/bounding box then read (state corruption,
+   not an index). Bound: every floats-table value is finite (the `finite` bit
+   test, exponent not all ones).
 ```
 
 `animation_len` (crate `world-frame`) covers the length only. `animation_validate`
-beside it seals 1-5: it decodes the tree as above (the base tracks in two
-passes over the nodes, not one), requires it to end exactly at `T` and the pops
-to stay within the table counts, and `Frame::parse` refuses the block
-otherwise (`Refusal::Animation`). Proven on the kept worlds: all 177,672
+beside it seals 1-6: it decodes the tree as above (the base tracks in two
+passes over the nodes, not one), requires it to end exactly at `T`, the pops
+to stay within the table counts, and every floats-table value to be finite,
+and `Frame::parse` refuses the block otherwise (`Refusal::Animation`). Proven on the kept worlds: all 177,672
 animated blocks of the 20,668 worlds in `private/live-worlds-*` pass, none near
 the expression-node cap (which is above the 32768 a `T` <= 65535 tree can
 hold, so a valid stream is never refused for it).

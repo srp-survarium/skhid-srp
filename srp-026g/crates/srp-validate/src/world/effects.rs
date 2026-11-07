@@ -124,7 +124,6 @@ pub enum SerializationMode {
 /// table), every field read into its type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Effect {
-    root_emitter: u32,
     activation_status: ActivationStatus,
     start_time_ms: u32,
     playback_type: PlaybackType,
@@ -152,6 +151,12 @@ pub enum EffectFault {
     RawRootEmitter {
         at: usize,
         flag: u8,
+    },
+    /// The root emitter's index is not 0: an entry of a table with no
+    /// bound (0xAA2E48), and every world has 0.
+    RootIndex {
+        at: usize,
+        index: u32,
     },
     /// The time calculator is not the effect's own (a raw address, or a
     /// table entry that reads more bytes).
@@ -183,6 +188,10 @@ impl core::fmt::Display for EffectFault {
                 f,
                 "an effect's root emitter at {at} is a raw address (flag {flag:#04x})"
             ),
+            EffectFault::RootIndex { at, index } => write!(
+                f,
+                "an effect's root emitter index at {at} is {index}, not 0 (a table with no bound)"
+            ),
             EffectFault::NotOwnCalculator { at, flag, index } => write!(
                 f,
                 "an effect's time calculator at {at} is not its own (flag {flag:#04x}, index {index})"
@@ -206,6 +215,7 @@ impl EffectFault {
         match self {
             EffectFault::Short(short) => short.at,
             EffectFault::RawRootEmitter { at, .. }
+            | EffectFault::RootIndex { at, .. }
             | EffectFault::NotOwnCalculator { at, .. }
             | EffectFault::NotNumber { at, .. }
             | EffectFault::Domain { at, .. } => at,
@@ -253,6 +263,13 @@ impl Effect {
         if flag != 0 {
             return Err(EffectFault::RawRootEmitter { at: field(0), flag });
         }
+        let index = word(Self::ROOT_INDEX);
+        if index != 0 {
+            return Err(EffectFault::RootIndex {
+                at: field(Self::ROOT_INDEX),
+                index,
+            });
+        }
         let (flag, index) = (byte(Self::CALCULATOR_FLAG), word(Self::CALCULATOR_FLAG + 1));
         if flag != 0 || index != 0 {
             return Err(EffectFault::NotOwnCalculator {
@@ -294,7 +311,6 @@ impl Effect {
             return Err(domain(Self::CHILD_PRESENT, "the root's child"));
         }
         Ok(Self {
-            root_emitter: word(Self::ROOT_INDEX),
             activation_status,
             start_time_ms: word(6),
             playback_type,
@@ -316,11 +332,6 @@ impl Effect {
             child_length: number(Self::CHILD_LENGTH, "the child's length()")?,
             child_seed: word(Self::CHILD_SEED),
         })
-    }
-
-    /// The root emitter's index (its table entry; the pointer flag is 0).
-    pub fn root_emitter(&self) -> u32 {
-        self.root_emitter
     }
 
     /// `node->activation_status`.
@@ -501,13 +512,7 @@ pub fn effects(section: &Section) -> Result<(), Refusal> {
             let of = |offset: usize| EFFECT_AT.saturating_add(offset);
             let opening = read.opening();
             let next = opening.wrapping_sub(1);
-            let fields: [(usize, &'static str, u32, u32); 13] = [
-                (
-                    Effect::ROOT_INDEX,
-                    "the root emitter's index",
-                    effect.root_emitter(),
-                    0,
-                ),
+            let fields: [(usize, &'static str, u32, u32); 12] = [
                 (
                     Effect::ACTIVATION_STATUS,
                     "activation_status (active)",
@@ -642,7 +647,6 @@ mod tests {
         assert_eq!((read.opening(), read.time()), (0xEFE5_935E, 40_600));
         assert_eq!(read.closing(), CLOSING);
         let effect = read.effect().unwrap();
-        assert_eq!(effect.root_emitter(), 0);
         assert_eq!(effect.activation_status(), ActivationStatus::Active);
         assert_eq!(effect.start_time_ms(), 40_600);
         assert_eq!(effect.playback_type(), PlaybackType::RemoveAtEnd);
