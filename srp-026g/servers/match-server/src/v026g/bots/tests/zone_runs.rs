@@ -354,6 +354,7 @@ fn a_bot_pushed_into_a_zone_stands_there_with_zone_lines_off() {
         // So is the client's blend (A318): the stand of A136 was timed with the old one.
         pushed.tuning.kin.mixer = crate::v026g::bots::kin::Mixer::Frozen;
         pushed.tuning.kin.fix_blend = crate::v026g::bots::kin::FixBlend::Measured;
+        pushed.tuning.kin.step_input = crate::v026g::bots::kin::StepInput::Same;
         drive(pushed)
     };
     // Off, the stand ends only when the unstick moves it (8.4 s here); on, it is out at once.

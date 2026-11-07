@@ -89,6 +89,7 @@ pub(crate) fn a_bot_standing_on_a_battery_steps_off_and_takes_it() {
     let world = soak_world();
     let mut tuning = Tuning::default();
     tuning.cheats.batteries = true;
+    tuning.kin.step_input = crate::v026g::bots::kin::StepInput::Same;
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x7A6E,
