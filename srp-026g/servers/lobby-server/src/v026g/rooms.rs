@@ -67,6 +67,8 @@
 //!   its movie asks the state, Play, Join match); one not told within
 //!   about 90 s loses the place. Live, 2026-10-20: a game that did not know
 //!   it was in a room was pulled into its matches.
+//! - A member given a replay's link is in none of its room's matches until
+//!   it acts in the lobby again, or for `replay::WATCH_HOLD` (`replay`).
 //! - A member that leaves the room's match by its own word (0xE0) leaves
 //!   the room (`room_left_matches`); joining it again while that match is
 //!   played, it goes into it late as a new place (the owner's of
@@ -430,6 +432,23 @@ impl Core<'_> {
                 | RoomRequest::Offer { .. }
         ) {
             self.room_shown(who.account_id);
+        }
+        // An action of its player, not one of the movie's own asks: back
+        // from a replay it may have watched (`replay`).
+        if !matches!(
+            request,
+            RoomRequest::List { .. }
+                | RoomRequest::State
+                | RoomRequest::Chat
+                | RoomRequest::Pool { .. }
+                | RoomRequest::Form
+                | RoomRequest::Bits { .. }
+                | RoomRequest::Pin { .. }
+                | RoomRequest::Members { .. }
+                | RoomRequest::Friends
+                | RoomRequest::Offer { .. }
+        ) {
+            self.replay_back(who.account_id);
         }
         match request {
             RoomRequest::List { count } => {
@@ -955,6 +974,7 @@ impl Core<'_> {
     /// has one.
     pub(super) fn room_play(&mut self, who: &Who, now: Instant) {
         self.room_shown(who.account_id);
+        self.replay_back(who.account_id);
         self.room_quick(who, now);
         self.send(who.addr, lobby::client_state(&ClientState::Lobby, None));
     }
@@ -1883,10 +1903,15 @@ impl Core<'_> {
     }
 
     /// The member's link if it is free in the lobby: its game told its
-    /// room, in no match, not on its way to one.
+    /// room, its player not off watching a replay, in no match, not on its
+    /// way to one.
     fn room_free(&self, account_id: u32) -> Option<SocketAddr> {
         // Its game started anew and does not know of the room yet.
         if self.room_unseen.contains_key(&account_id) {
+            return None;
+        }
+        // Given a replay's link: the replay may play in another game now.
+        if self.replay_watchers.contains_key(&account_id) {
             return None;
         }
         let addr = *self.by_account.get(&account_id)?;
@@ -1947,6 +1972,7 @@ impl Core<'_> {
         self.room_left_matches();
         self.room_failed_joins();
         self.room_unseen_gone(now);
+        self.replay_holds_over(now);
         // A queued pair whose squad broke, or that another commands now,
         // waits as two at its place, the commander first (nobody loses its
         // place; each is its own from then on).
