@@ -208,7 +208,12 @@ pub struct Body {
     /// the lowest of the clips' tops 1.282-1.350 m, PROVEN: `SPRINT_JUMP_RISE`), as the bots' own jump reach is
     /// (`motor`'s `out_of_reach`, `body`'s jump top). Off: up to [`POCKET_EXIT_HIGH_M`] (the highest clip): Chemical Plant day 2's
     /// pocket at (31.12, 6.14, 79.38) kept a 1.316 m sprint exit that the bots pressed 3 of 3 times and never went up (TOO_LOW;
-    /// A347 census, 48 matches). A build input (the shut pockets): in the key when set.
+    /// A347 census, 48 matches). With the walls ([`Erosion::Exact`]) the exits a body cannot take ([`WalkGrid::exit_takes`]: a
+    /// wall over the landing between take-off and landing, a sprint exit with no run-up) are no exits either: A270 had them only
+    /// shut a pocket with none left, and the escape still tried them first (the shortest across): the same pocket's 0.633 m exit
+    /// at (31.88, 6.14, 85.88) crosses a wall solid from 0.1 to 2.9 m over the take-off and was pressed 16 of 16 times by one
+    /// bot, every time back down (no link there: only the escape jumps it). A build input (the shut pockets, the walled exits
+    /// in the file): in the key when set.
     pub exits_in_reach: bool,
     /// [A293] Whether a gap link down is refused where its flight went over a face that had held the body (`gap::Over::Vaulted`):
     /// the flight lets a body held at a face rise with the clip and, once its feet are over it, take the clip's travel on past it
@@ -850,6 +855,10 @@ pub struct WalkGrid {
     /// ([`Body::ramp_faces`], [`RAMP_MIN_DEG`] or more), else 0: in the file (after the off-mesh links) and the digest. Empty
     /// without the switch.
     ramp: Vec<u8>,
+    /// [A347] The pockets' exits a body cannot take ([`Self::walled_exits_of`]), as (take-off, landing), sorted: left out of
+    /// [`Self::pocket_exits`] with [`Body::exits_in_reach`] where the build had the walls ([`Erosion::Exact`]). In the file (after
+    /// the ramp slopes) and the digest. Empty without the switch.
+    walled_exits: Vec<(NodeId, NodeId)>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -1125,6 +1134,7 @@ impl WalkGrid {
             ik: Vec::new(),
             lip: Vec::new(),
             ramp: Vec::new(),
+            walled_exits: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -1187,6 +1197,12 @@ impl WalkGrid {
         let fall = std::mem::take(&mut wide.fall);
         grid.pack(wide);
         grid.mark_no_exit(walls.as_ref().filter(|_| body.pocket_exits_walled));
+        // [A347] The exits a body cannot take, left out of the escape's tries.
+        if body.exits_in_reach
+            && let Some(walls) = walls.as_ref()
+        {
+            grid.walled_exits = grid.walled_exits_of(walls);
+        }
         grid.mark_near(&fall, NEAR_FALL);
         let lips: Vec<bool> = (0..grid.len() as NodeId).map(|a| grid.is_lip(a)).collect();
         grid.mark_near(&lips, NEAR_LIP);
@@ -2397,6 +2413,14 @@ impl WalkGrid {
             digest.u32(l.kind as u32);
             digest.u32(u32::from(l.press.centimetres()));
         }
+        // [A347] A grid with no walled exits digests as before there were any.
+        if !self.walled_exits.is_empty() {
+            digest.len(self.walled_exits.len());
+        }
+        for &(a, b) in &self.walled_exits {
+            digest.u32(a);
+            digest.u32(b);
+        }
         digest.finish()
     }
 
@@ -2428,7 +2452,7 @@ impl WalkGrid {
             })?;
             // Only a grid with off-mesh links has their table: one without
             // writes as before there were any (read back as none).
-            if self.off.is_empty() && self.ramp.is_empty() {
+            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() {
                 return Ok(());
             }
             out.plain(&self.off, |l| {
@@ -2439,11 +2463,21 @@ impl WalkGrid {
                 bytes[10..].copy_from_slice(&l.press.centimetres().to_le_bytes());
                 bytes
             })?;
-            // [A304] The ramp slopes, when the grid has them.
-            if self.ramp.is_empty() {
+            // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
+            if self.ramp.is_empty() && self.walled_exits.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.ramp, |&v| [v])
+            out.plain(&self.ramp, |&v| [v])?;
+            // [A347] The walled exits, when the grid has them.
+            if self.walled_exits.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.walled_exits, |&(a, b)| {
+                let mut bytes = [0u8; 8];
+                bytes[..4].copy_from_slice(&a.to_le_bytes());
+                bytes[4..].copy_from_slice(&b.to_le_bytes());
+                bytes
+            })
         })
     }
 
@@ -2507,6 +2541,14 @@ impl WalkGrid {
                     ik: Vec::new(),
                     lip: Vec::new(),
                     ramp: if input.ends() { Vec::new() } else { input.plain(|[v]: [u8; 1]| v)? },
+                    walled_exits: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 8]| {
+                            let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            (word(0), word(4))
+                        })?
+                    },
                     clearance: Vec::new(),
                     open: Vec::new(),
                     walker: None,
@@ -2538,6 +2580,9 @@ impl WalkGrid {
         let n = self.height.len();
         if !self.ramp.is_empty() && self.ramp.len() != n {
             return Err("ramp slopes of another length".into());
+        }
+        if self.walled_exits.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walled_exits.windows(2).any(|w| w[0] >= w[1]) {
+            return Err("bad walled exits".into());
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0
@@ -3043,8 +3088,6 @@ impl WalkGrid {
         let Some(pocket) = self.pocket_of(from) else {
             return Vec::new();
         };
-        // [A347] The highest exit: every sprint clip's top with `exits_in_reach`, else the highest clip's.
-        let high = if self.body.exits_in_reach { SPRINT_JUMP_LOW_M } else { POCKET_EXIT_HIGH_M };
         let mut seen = std::collections::HashSet::from([from]);
         let mut queue = std::collections::VecDeque::from([from]);
         let mut exits: Vec<PocketExit> = Vec::new();
@@ -3058,23 +3101,10 @@ impl WalkGrid {
             }
             let at = self.position(a);
             for b in self.floors_in([at.x - r, at.z - r, at.x + r, at.z + r]) {
-                let to = self.position(b);
-                let (rise, across) = (to.y - at.y, to.distance_xz(at));
-                if !self.returns(b)
-                    || !self.can_stand(b)
-                    || self.ceiling[a as usize] - to.y < self.body.stand_height
-                    || across > POCKET_EXIT_ACROSS_M
-                    || !(POCKET_EXIT_LOW_M..=high).contains(&rise)
-                {
+                let Some(exit) = self.exit_candidate(a, b).filter(|_| self.walled_exits.binary_search(&(a, b)).is_err()) else {
                     continue;
-                }
-                let exit = PocketExit {
-                    from: a,
-                    to: b,
-                    rise,
-                    across,
-                    jump: ExitJump::for_rise(rise, across, self.cell),
                 };
+                let across = exit.across;
                 match landing.get(&b) {
                     Some(&i) if (exits[i].jump, exits[i].across) <= (exit.jump, across) => {}
                     Some(&i) => exits[i] = exit,
@@ -3098,6 +3128,43 @@ impl WalkGrid {
             }
         }
         exits
+    }
+
+    /// The jump from the pocket floor `a` to `b` as a pocket exit ([`Self::pocket_exits`]), if it is one: `b` returns and has
+    /// room to stand under `a`'s ceiling, within [`POCKET_EXIT_ACROSS_M`] across and [`POCKET_EXIT_LOW_M`] up to the highest
+    /// exit higher. The highest is [`SPRINT_JUMP_LOW_M`] with [`Body::exits_in_reach`] (A347: every sprint clip's top), else
+    /// [`POCKET_EXIT_HIGH_M`] (the highest clip's).
+    fn exit_candidate(&self, a: NodeId, b: NodeId) -> Option<PocketExit> {
+        let high = if self.body.exits_in_reach { SPRINT_JUMP_LOW_M } else { POCKET_EXIT_HIGH_M };
+        let (at, to) = (self.position(a), self.position(b));
+        let (rise, across) = (to.y - at.y, to.distance_xz(at));
+        let exit = self.returns(b)
+            && self.can_stand(b)
+            && self.ceiling[a as usize] - to.y >= self.body.stand_height
+            && across <= POCKET_EXIT_ACROSS_M
+            && (POCKET_EXIT_LOW_M..=high).contains(&rise);
+        exit.then(|| PocketExit { from: a, to: b, rise, across, jump: ExitJump::for_rise(rise, across, self.cell) })
+    }
+
+    /// [A347] Every exit of every pocket that a body cannot take ([`Self::exit_candidate`]s that [`Self::exit_takes`] refuses: a
+    /// wall over the landing between take-off and landing, a sprint exit with no run-up), as (take-off, landing), sorted: the
+    /// ones [`Self::pocket_exits`] leaves out with [`Body::exits_in_reach`].
+    fn walled_exits_of(&self, walls: &exact::Walls) -> Vec<(NodeId, NodeId)> {
+        let r = POCKET_EXIT_ACROSS_M;
+        let mut walled = Vec::new();
+        for &(a, _) in &self.pockets {
+            let at = self.position(a);
+            for b in self.floors_in([at.x - r, at.z - r, at.x + r, at.z + r]) {
+                if let Some(exit) = self.exit_candidate(a, b)
+                    && !self.exit_takes(&exit, walls)
+                {
+                    walled.push((a, b));
+                }
+            }
+        }
+        walled.sort_unstable();
+        walled.dedup();
+        walled
     }
 
     /// Packs the links: each as its floor's index in the cell it lands in,
@@ -4893,6 +4960,26 @@ pub(crate) mod tests {
         assert!(on.in_shut_pocket(bottom), "on: none can be taken, the pocket is shut");
         let spawn = on.locate(Vec3::new(2.0, 0.0, 5.0), 0.3).unwrap();
         assert!(on.path(spawn, bottom).is_none(), "and no way is planned in");
+    }
+
+    /// [`Body::exits_in_reach`] (A347): the escape's exits are only those a body can take. A pit walled 3 m high at its rim
+    /// (Chemical Plant day 2's pocket at (31.88, 6.14, 85.88): its 0.33 m and 0.633 m exits cross a wall at x 32.36 solid from
+    /// 0.1 m to 2.9 m over the take-off; bot 8 pressed the 0.633 m one 16 of 16 times and came back down, A347 census and probe)
+    /// has exits through the wall without the switch and none with it; a plain pit keeps the same exits either way.
+    #[test]
+    fn a_pocket_exit_through_a_wall_is_no_exit_with_exits_in_reach() {
+        let pit = [8.0, 3.0, 12.0, 7.0];
+        let body = |exits_in_reach: bool| Body { exits_in_reach, erosion: Erosion::Exact, drop_flight_mps: 3.5, ..Body::default() };
+        let exits = |grid: &WalkGrid| {
+            let bottom = grid.locate(Vec3::new(10.0, -1.2, 5.0), 0.3).expect("the pit's floor");
+            grid.pocket_exits(bottom).iter().map(|e| (e.from, e.to)).collect::<Vec<_>>()
+        };
+        let (plain_off, plain_on) = (pit_in_yard(1.2, pit, 0.0, None, body(false)), pit_in_yard(1.2, pit, 0.0, None, body(true)));
+        assert!(!exits(&plain_off).is_empty(), "a plain pit has exits");
+        assert_eq!(exits(&plain_off), exits(&plain_on), "a plain pit keeps them with the switch");
+        let walled = |on: bool| pit_in_yard(1.2, pit, 3.0, Some(0.4), body(on));
+        assert!(!exits(&walled(false)).is_empty(), "off: the exits through the wall are tried");
+        assert_eq!(exits(&walled(true)), Vec::new(), "on: none through the wall");
     }
 
     /// [`Body::pocket_exits_walled`] (A270): a pit 1.5 m wide and 1.2 m deep has only sprint exits and no 1.5 m straight run inside
