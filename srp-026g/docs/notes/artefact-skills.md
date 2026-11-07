@@ -335,11 +335,21 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   passive to cap.
 - Which count (one definition, `vostok::artefact_skills::own` with `Room::counts_own`): the
   player's own copies of the kind in their passive or active (state 3 or 4), in container
-  order; the first 4 count. A copy past them gives no passive; its active is as before (my pick:
-  the owner named the passive; a fifth Spring's active nodes still add, a fifth Onyx fired
-  still adds its +1 s). An active Onyx is one of the 4 though it gives no passive then (as the
-  sharing's room counts it). The sharing's room is 4 less the own copies that count, and the leg
-  quarters count the own copies that count and give their passive, plus the shared.
+  order; the first 4 count. A copy past them gives nothing: no passive, and no active (the
+  owner, 2026-11-07: "cap actives at 4 too"). An active Onyx is one of the 4 though it gives no
+  passive then (as the sharing's room counts it). The sharing's room is 4 less the own copies
+  that count, and the leg quarters count the own copies that count and give their passive, plus
+  the shared.
+- Actives: a press fires the ready copies of its kind among the 4 that count, so at most 4, in
+  container order; a fifth is not fired and stays ready (state 3, no cooldown; my pick, the
+  simplest: it is the same count, and a fifth never fills in for a cooling one of the four, so
+  no fifth active ever adds: no Spring active nodes, no Lifebone heal, no Onyx +1 s). It counts
+  again only when one of the four leaves the containers (or their passive and active). Five
+  ready Onyx fire as four, 6 s each.
+- Cascade and Resonance: a recipient takes shared actives (and passives) up to 4 copies of a
+  kind, its own that count first: 4 less them, as before (three own and two active near: one
+  shared). A carrier shares only its own copies that count for it (its fifth gives nothing to
+  anyone).
 - Where (patch 109, read where the passive is applied, nothing kept):
   - Spring: `artefact.own_modifier` (apply_modifier 0x2D5B0C, before it sums the index's list)
     and `artefact.own_modifiers` (apply_modifiers' loop 0x2D5C46): for a list of a Spring's
@@ -351,6 +361,10 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   - Larkspur (Lifebone): `artefact.own_lifebone` (regeneration_modifier's start 0x312590, ECX
     the Lifebone its subscriber's invoker 0x312640 calls it on): one past the 4 returns at its
     `ret 8`, the part's tick as it was.
+  - The press: patch 54's `ready` (artefacts_026g.asm, for the pressed copy and each of its kind
+    in the slots) asks patch 109's entry `artefact.fire` (`vostok::artefact_skills::fire`), which
+    leaves out a copy past the 4 that count; Onyx's extra time counts only the copies fired.
+  - The carriers: `shared` offers each carrier's copies that count (`own`).
 - Changes what a match computes: a clause of the `next` row.
 
 ### Leg quarters (patch 111, pack artefact-glow@13)
@@ -466,7 +480,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   nodes), Resonance and Cascade (patch 109's aura, Medic's bit for Larkspur's active), Keeper of
   the Artifacts (patch 109 and the hidden pool).
 - At most 4 copies of a kind, own included (2026-11-07): implemented and checked with Unicorn
-  (`check_artefact_skills_026g.py`, `check_own_cap`); not played, not released.
+  (`check_artefact_skills_026g.py`, `check_own_cap`); actives too (2026-11-07, `check_active_cap`);
+  not played, not released.
 - Forest Protection's glow (2026-11-05): implemented and checked with Unicorn
   (`check_forest_glow_026g.py`); captured in a local game (private/renders/artefact-tree/);
   not played by the owner, not released.

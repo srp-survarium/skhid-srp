@@ -93,8 +93,8 @@ struct Own {
 
 /// `player`'s own copies of `kind` in their passive or active, in container order, each with
 /// whether it counts for it ([`Room::counts_own`]: the first 4; one past them gives nothing). The
-/// one count of own copies: the sharing's room, the leg quarters and the cap where each passive is
-/// applied.
+/// one count of own copies: the sharing's room and what each carrier shares, the leg quarters, the
+/// cap where each passive is applied and the press's.
 fn own(player: raw::Player, kind: Kind) -> impl Iterator<Item = Own> {
     carried(player)
         .filter(move |copy| copy.kind == kind && copy.state != State::Other)
@@ -102,8 +102,8 @@ fn own(player: raw::Player, kind: Kind) -> impl Iterator<Item = Own> {
         .map(|(nth, copy)| Own { copy, counts: Room::counts_own(nth) })
 }
 
-/// Whether `artefact` is one of its holder's own copies past the 4 of its kind that count: its
-/// passive then gives nothing. The holder is its inventory's (an Onyx's protector and a
+/// Whether `artefact` is one of its holder's own copies past the 4 of its kind that count: it
+/// then gives nothing, its passive nor its active. The holder is its inventory's (an Onyx's protector and a
 /// Lifebone's regeneration subscriber are in their holder's parts only while it carries them);
 /// an artefact in no inventory, or in no passive nor active, counts as the game has it.
 fn uncounted(artefact: raw::Artefact) -> bool {
@@ -133,6 +133,22 @@ pub fn onyx_uncounted(ctx: &Context<'_>) -> bool {
 pub fn lifebone_uncounted(ctx: &Context<'_>) -> bool {
     // SAFETY: the subscriber's invoker calls it on its live Lifebone.
     unsafe { raw::site::artefact_own_lifebone::lifebone(ctx) }.is_some_and(uncounted)
+}
+
+/// Patch 54's press (artefacts_026g.asm `ready`) for a copy it would fire: one past the 4 of its
+/// kind that count for its holder does not fire (its fires 0), so it stays ready and its active
+/// adds nothing (Spring's active nodes, Lifebone's heal, Onyx's second more for each fired).
+pub fn fire(ctx: &Context<'_>) {
+    use raw::site::artefact_fire as site;
+    // SAFETY: the press's frame: a live copy in its holder's containers, its fires.
+    unsafe {
+        let Some(frame) = site::frame(ctx) else {
+            return;
+        };
+        if frame.artefact().is_some_and(uncounted) {
+            *frame.fires() = 0;
+        }
+    }
 }
 
 /// Whether one of `player`'s artefact containers holds an active Onyx.
@@ -249,16 +265,17 @@ impl Shared {
 
 /// What `recipient` gets of `kind` from its teammates: their copies' passives (Resonance, 8 m)
 /// and actives (Cascade, 5 m). A carrier is another living player of its team in the roster
-/// whose skill reaches it; the copies come in place order, each carrier's in container order,
-/// as many of each phase as the recipient's room after its own carried copies of the kind. A
-/// dead recipient gets none.
+/// whose skill reaches it; the copies come in place order, each carrier's that count for it
+/// ([`own`]) in container order, as many of each phase as the recipient's room after its own
+/// copies of the kind that count (passives and actives alike: 4 less them). A dead recipient
+/// gets none.
 fn shared(roster: &Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Shared) {
     if !recipient.active() {
         let none = Shared::new(Room::NONE);
         return (none, none);
     }
-    let own = own(recipient.get(), kind).filter(|own| own.counts).count();
-    let (mut passives, mut actives) = (Shared::new(Room::after(own)), Shared::new(Room::after(own)));
+    let counted = own(recipient.get(), kind).filter(|own| own.counts).count();
+    let (mut passives, mut actives) = (Shared::new(Room::after(counted)), Shared::new(Room::after(counted)));
     for carrier in roster.iter() {
         if !carrier.active() || !carrier.ally(recipient) {
             continue;
@@ -270,7 +287,7 @@ fn shared(roster: &Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Sh
         if !passive && !active {
             continue;
         }
-        for copy in carried(carrier.get()).filter(|copy| copy.kind == kind) {
+        for copy in own(carrier.get(), kind).filter(|own| own.counts).map(|own| own.copy) {
             if passive && kind.gives(Phase::Passive, copy.state) {
                 passives.offer(copy.at);
             }

@@ -17,6 +17,10 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
 - Passive from pickup to death, as before; each copy's passive adds up with the others'.
 - A press of an artefact's key fires every artefact of that kind in the slots that is ready
   (its passive, its cooldown 0): one key, all of a kind, their actives added up.
+- At most 4 copies of a kind count (the owner, 2026-11-07; artefact-skills.md "At most 4 copies
+  of a kind"): a press fires only the ready ones among the first 4 of the kind in the containers
+  (in their passive or active, container order); a fifth (Artifact Container) is never fired and
+  stays ready, so its active adds nothing (and it gives no passive).
 - A copy on its cooldown or already active does nothing on that press; it is not fired later.
 - The key of a copy that is not ready still fires the ready ones of its kind.
 - Different kinds have their own keys and cooldowns: Onyx, Spring and Lifebone fire on their own.
@@ -53,7 +57,8 @@ active")
 - Active: -75 % damage and piercing (`active/damage_mul` and `armor_piercing_mul` 0.1 -> 0.25) for
   3 s, cooldown 60 s as before.
 - Its key fires every ready Onyx; n fired together are each active 3 s + (n - 1) s (1 Onyx 3 s, 2
-  Onyx 4 s, 3 Onyx 5 s) and end and cool down together. A cooling Onyx adds no time.
+  Onyx 4 s, 3 Onyx 5 s) and end and cool down together. A cooling Onyx adds no time, nor a fifth
+  (not fired: five ready Onyx are 6 s, as four).
 - Several active Onyx reduce a hit once (-75 %): only the first active Onyx of the slots takes its
   share; the others leave the hit as it is (before: x0.1 per active Onyx, all 3 s).
 - An Onyx in its passive (on its cooldown) beside an active one still gives its -5 %.

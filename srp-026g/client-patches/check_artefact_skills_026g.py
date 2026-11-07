@@ -20,7 +20,11 @@ team, life, roster, reach (8 m passives, 5 m actives), state and cap (4 of a kin
 rules, a lobby (no match) and a kit that is not the player's current one. The cap of 4 copies of
 a kind with own copies (check_own_cap): five own Springs through the getters, five own Onyx
 through the game's protect, five own Lifebones through its regeneration callback act as four;
-three own with Resonance's shared make four. A constructed player, not a played match.
+three own with Resonance's shared make four. The same cap for actives (check_active_cap): patch
+54's press (the real action 0x313300, each kind's own enable_active) of five ready Springs, Onyx
+or Lifebones fires four (getters and Onyx times exactly four's), the fifth ready; Cascade's
+recipient takes up to 4 with its own first; a carrier shares only its copies that count. A
+constructed player, not a played match.
 Usage: python check_artefact_skills_026g.py ORIGINAL_EXE
 """
 import struct
@@ -777,6 +781,136 @@ def check_own_cap(data):
     return outcomes
 
 
+def check_active_cap(data):
+    """At most 4 copies of a kind count when activated too (the owner, 2026-11-07): patch 54's
+    press (the real detoured action 0x313300, each copy's own enable_active) fires at most the 4
+    copies of the kind that count for the holder (the first 4 in their passive or active, in
+    container order); a fifth is not fired and stays ready; Cascade's recipient takes shared
+    actives up to 4 with its own counting first, and a carrier shares only its copies that count."""
+    outcomes = []
+    near = (3.0, 0.0, 0.0)
+
+    def stack(m, make, states):
+        """Copies in the player's containers made by `make(state)`, one class: the first's vtable."""
+        copies = [make(state) for state in states]
+        for copy in copies[1:]:
+            m.g.word(copy, m.g.read(copies[0]))
+        return copies
+
+    def press(m, copies, at, time=4000):
+        m.g.call(ACTION, (1, time), ecx=copies[at])
+        return [m.g.read(c + 0x280) for c in copies]
+
+    def springs_match(states):
+        m = Match(data)
+        return m, stack(m, lambda state: m.spring(PLAYER, state), states)
+
+    def onyx_match(states):
+        m = Match(data)
+        return m, stack(m, lambda state: onyx(m, PLAYER, state), states)
+
+    def lifebone_match(states):
+        m = Match(data)
+        m.g.word(DM, m.g.read(PLAYER + 0x2E0))
+        record = {'body': (0.1, 1.0, 0.0, 1.0, 1.0, 1.0)}
+
+        def make(state):
+            bone = lifebone(m, PLAYER, state, record)
+            m.g.word(bone + 0x48C, 3000)
+            return bone
+        return m, stack(m, make, states)
+
+    def sums(m):
+        return [m.getter(index) for index in SPRING_LISTS + [20, 2]] + [m.weighted([(4, 1.0), (20, 1.0)])]
+
+    # Spring: five ready, pressed by the first's key and by the fifth's: four fire, the getters
+    # give exactly four active Springs' nodes; the fifth stays ready (state 3, no cooldown, no
+    # activation time).
+    m4, four = springs_match([3] * 4)
+    assert press(m4, four, 0) == [4] * 4
+    want = sums(m4)
+    for index, value in zip(SPRING_LISTS + [20, 2], want):
+        close(value, max(0.0, 1 + spring_sum(index, 4, 4)))
+    for at in (0, 4):
+        m, five = springs_match([3] * 5)
+        assert press(m, five, at) == [4, 4, 4, 4, 3], ('Spring', at)
+        assert (m.g.read(five[4] + 0x28C), m.g.read(five[4] + 0x2A0)) == (0, 0), "the fifth stays ready"
+        assert sums(m) == want, ('five Springs fire as four', at, sums(m), want)
+        outcomes.append(('Spring', at, [round(v, 4) for v in want]))
+    # One of the four counting on its cooldown: three fire; the fifth does not fill in.
+    m, five = springs_match([3] * 5)
+    m.g.word(five[1] + 0x28C, 500)
+    assert press(m, five, 0) == [4, 3, 4, 4, 3], "a cooling one of the four: three fire, not the fifth"
+
+    # Onyx: four fired together are each active 3 s + 3 s; five fire as four (6 s, not 7 s), the
+    # fifth stays ready with its time untouched.
+    m4, four = onyx_match([3] * 4)
+    assert press(m4, four, 0) == [4] * 4
+    want = [m4.g.read(o + 0xF14) for o in four]
+    assert want == [6000] * 4, want
+    for at in (0, 4):
+        m, five = onyx_match([3] * 5)
+        before = m.g.read(five[4] + 0xF14)
+        assert press(m, five, at) == [4, 4, 4, 4, 3], ('Onyx', at)
+        have = [m.g.read(o + 0xF14) for o in five]
+        assert have[:4] == want and have[4] == before, ('five Onyx fire as four', at, have)
+        assert (m.g.read(five[4] + 0x28C), m.g.read(five[4] + 0x2A0)) == (0, 0), "the fifth stays ready"
+        outcomes.append(('Onyx', at, have))
+    m, five = onyx_match([3] * 5)
+    m.g.word(five[2] + 0x28C, 500)
+    assert press(m, five, 0) == [4, 4, 3, 4, 3], "a cooling Onyx of the four: three fire"
+    assert [m.g.read(o + 0xF14) for o in (five[0], five[1], five[3])] == [5000] * 3, "three: 5 s each"
+
+    # Lifebone: five ready, four fire (each its active: the timer, state 4); the fifth stays ready.
+    for at in (0, 4):
+        m, five = lifebone_match([3] * 5)
+        assert press(m, five, at) == [4, 4, 4, 4, 3], ('Lifebone', at)
+        assert (m.g.read(five[4] + 0x28C), m.g.read(five[4] + 0x2A0)) == (0, 0), "the fifth stays ready"
+        assert all(m.g.read(b + 0x2A0) == 4000 for b in five[:4])
+        outcomes.append(('Lifebone', at))
+
+    # Cascade: three own Springs active and a carrier's two active within 5 m: one shared active
+    # (four in all, own first); four own active: none shared.
+    for own, shared in [(3, 1), (4, 0), (2, 2)]:
+        m, mine = springs_match([3] * own)
+        assert press(m, mine, 0) == [4] * own
+        at = m.player(1, 0, near, CASCADE)
+        for state in (4, 4):
+            m.spring(at, state)
+        have = sums(m)
+        for index, value in zip(SPRING_LISTS + [20, 2], have):
+            close(value, max(0.0, 1 + spring_sum(index, own, own + shared)))
+        outcomes.append(('Cascade', own, shared))
+
+    # A carrier shares only its copies that count for it: five Springs, the fifth active (loaded
+    # so), share no active by Cascade; five Onyx, the first active, share three passives (the
+    # second to the fourth) by Resonance.
+    m = Match(data)
+    at = m.player(1, 0, near, CASCADE)
+    for state in (3, 3, 3, 3, 4):
+        m.spring(at, state)
+    for value in sums(m):
+        close(value, 1.0)
+    m = Match(data)
+    at = m.player(1, 0, near, RESONANCE)
+    stones = [onyx(m, at, state) for state in (4, 3, 3, 3, 3)]
+    for damage, piercing in [(100.0, 0.4), (4.0, 0.9)]:
+        have = protected(m, 7, 'body', damage, piercing)
+        want = (damage, piercing)
+        for _ in range(3):
+            want = native_protect(m, stones[1], 3, 7, *want)
+        close(have[0], want[0])
+        close(have[1], want[1])
+        outcomes.append(('carrier', damage, round(have[0], 4)))
+    print("At most 4 copies of a kind count when activated: a press of five ready Springs, Onyx or "
+          "Lifebones (the first's key or the fifth's) fires the first four, the getters and the Onyx "
+          "durations exactly four's (6 s), the fifth not fired and ready; a cooling one of the four leaves "
+          "three fired, the fifth not filling in; Cascade: three own active take one shared active, four "
+          "none, two two; a carrier shares only its copies that count (its fifth active Spring none, its "
+          "five Onyx with the first active three passives): PASS")
+    return outcomes
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
@@ -791,6 +925,7 @@ def main():
     check_resonance_onyx(patched)
     check_resonance_lifebone(patched)
     check_own_cap(patched)
+    check_active_cap(patched)
 
 
 if __name__ == '__main__':

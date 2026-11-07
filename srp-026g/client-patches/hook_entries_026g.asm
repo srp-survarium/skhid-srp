@@ -1307,6 +1307,38 @@ artefact_skills_on_shared_regeneration_replay:
     db 0x8b, 0x6c, 0x24, 0x24, 0x85, 0xc0
     jmp 0x32a545
 
+; artefact.fire patch 54's press (artefacts_026g.asm ready, from fire_kind at artefact_base::action 0x313300) for each copy in its passive with no cooldown it would fire: cdecl, the artefact and its fires (in/out, pushed 1, made 0 for a copy past the 4 of its kind that count for its holder); the caller keeps every register and pops the two: entry -> artefact_skills_on_fire
+global artefact_skills_on_fire
+extern hook_artefact_skills_on_fire
+artefact_skills_on_fire:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_fire
+    cmp eax, 0
+    je artefact_skills_on_fire_go
+    ud2
+artefact_skills_on_fire_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
+
 ; 0x2d5b0c apply_modifier before it sums its list's nodes (both ways from the sorted flag's test join here; mov eax,[edi+4] / xorps xmm2,xmm2, then the loop 0x2D5B20 adds each node's +0Ch into XMM1 as value + sum): EDI the kit's list of the index ESI; summed is the loop's end (pop edi / test eax,eax / je 0x2D5B33 addss xmm0,xmm1) with EAX 0, XMM1 the sum and XMM2 the 0 the rule compares with: lohook -> artefact_skills_on_own_modifier
 global artefact_skills_on_own_modifier
 extern hook_artefact_skills_on_own_modifier

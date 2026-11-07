@@ -44,7 +44,12 @@ order = 1
 
 # At most 4 copies of a kind count for a player, own copies included (the owner, 2026-11-07): its
 # own copies past 4 give no passive where the game applies it: a Spring's passive nodes in the two
-# getters' list sums, an Onyx's protect, a Lifebone's regeneration modifier.
+# getters' list sums, an Onyx's protect, a Lifebone's regeneration modifier; and no active: patch
+# 54's press fires none of them (they stay ready).
+[[hook]]
+site = "artefact.fire"
+handler = "on_fire"
+
 [[hook]]
 site = "artefact.own_modifier"
 handler = "on_own_modifier"

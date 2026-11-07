@@ -270,8 +270,9 @@ impl Room {
 
     /// Whether a player's `nth` own copy of a kind (from 0, in container order, of its copies in
     /// their passive or active) counts for it (the owner, 2026-11-07: at most 4 copies of one kind
-    /// count, own copies included): the first [`Room::MOST`]. One past them gives nothing where
-    /// its passive is applied (a fifth with Artifact Container).
+    /// count, own copies included, passives and actives): the first [`Room::MOST`]. One past them
+    /// (a fifth with Artifact Container) gives nothing: no passive where it is applied, and a press
+    /// does not fire it.
     pub fn counts_own(nth: usize) -> bool {
         nth < usize::from(Self::MOST)
     }
@@ -437,6 +438,13 @@ pub fn on_shared_protection(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// Resonance at a part's regeneration tick (0x32A53F, before patch 94's): the shared Lifebones.
 pub fn on_shared_regeneration(ctx: &mut Context<'_>) -> Flow<NoExit> {
     artefact_skills::shared_regeneration(ctx);
+    Flow::Continue
+}
+
+/// The own cap at patch 54's press (its `ready`, for each copy it would fire): a copy past the 4
+/// of its kind that count for its holder does not fire and stays ready.
+pub fn on_fire(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::fire(ctx);
     Flow::Continue
 }
 

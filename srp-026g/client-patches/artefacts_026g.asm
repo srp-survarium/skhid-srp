@@ -36,6 +36,7 @@ global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, a
 global artefacts_stagger, artefacts_onyx, artefacts_popup, artefacts_link_passive, artefacts_unlink_passive
 extern medical_skills_on_stopping  ; patch 94's generated entry (rust_patches.md, `entry`)
 extern artefact_skills_on_spring_reload  ; patch 109's (cdecl: the Spring)
+extern artefact_skills_on_fire  ; patch 109's (cdecl: the artefact, its fires in/out)
 section .text
 
 %define CONFIG_CHILD 0xF6B10       ; eax = a config value, edi = a key: eax = its child
@@ -344,7 +345,9 @@ lifebone_active:
 ; active still fires the ready ones of its kind. A key-up goes on as the
 ; original (it does nothing). Onyx (its enable_active 0x3128C0): each Onyx
 ; fired adds ONYX_EXTRA_MS to every fired one's active time (+F14h), so n
-; fired together are all active 3 s + (n - 1) s and end together.
+; fired together are all active 3 s + (n - 1) s and end together. Ready
+; (below) leaves out a copy past the 4 of its kind that count (patch 109): a
+; press fires at most 4, and a fifth adds no time.
 fire_kind:
     cmp byte [esp+4], 0
     je .original
@@ -423,12 +426,21 @@ kin:
     ret
 
 ; ecx = an artefact: CF = 1 when it is ready, in its passive (state 3) with
-; no cooldown (+28Ch). Keeps every register.
+; no cooldown (+28Ch), and one of the 4 copies of its kind that count for its
+; holder (patch 109's entry artefact_skills_on_fire makes its fires 0 for one
+; past them: at most 4 copies of a kind count, the owner 2026-11-07; it does
+; not fire and stays ready). Keeps every register.
 ready:
     cmp dword [ecx+0x280], 3
     jne .no
     cmp dword [ecx+0x28C], 0
     jne .no
+    push 1                         ; its fires
+    push ecx
+    call artefact_skills_on_fire
+    cmp dword [esp+4], 0
+    lea esp, [esp+8]               ; the flags kept
+    je .no
     stc
     ret
 .no:
