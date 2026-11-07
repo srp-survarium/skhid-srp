@@ -209,7 +209,10 @@ pub struct GridTuning {
     /// `mapdata::WalkGrid::pull_walk_fails`: the controller pass's walk test with the exe's collision rules), and a leg it does
     /// not walk is pulled back a floor at a time to one it walks (or to the path's next floor). With the client-tick stand-in
     /// 93 % of the routes stuck are on pulled legs over several cells (fx-zones' route-stuck table on 65c6990b: 290 of 314).
-    /// Not a build input: the grids and their key are the same either way. OFF until its harm gate.
+    /// Only a risky leg is walked (a floor under the wall hold or a step), shortened to 11.4 m first, with the walks of a poll
+    /// in a budget of walk ticks (`path::PULL_WALK_TICKS_A_POLL`): the worst poll is no worse than with it off. Not a build
+    /// input: the grids and their key are the same either way. ON: a choice (16-match harms are inside the bench's swing);
+    /// the final check's 48-pair arm with it off decides whether it stays.
     pub pull_walk: bool,
 }
 
@@ -251,7 +254,7 @@ impl Default for GridTuning {
             start_witness: true,
             give_back_in_cell: false,
             wall_clear_pull: false,
-            pull_walk: false,
+            pull_walk: true,
         }
     }
 }

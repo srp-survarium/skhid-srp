@@ -1068,6 +1068,13 @@ const PULL_WALK_LEVEL_M: f32 = 0.1;
 /// (`pathOptimizationRange`, "often agent radius x 30"; the stand radius 0.38 m x 30).
 const PULL_WALK_LEG_M: f32 = 0.38 * 30.0;
 
+/// [A334] The client walk ticks the pulled legs' walk tests may run in one bots' poll, all bots of the match together
+/// (`mapdata::grid::controlled::set_pull_walk_budget`, from [`super::Bots::poll_budgets`]): a leg past it is not walked
+/// this poll (as with the switch off) and a later pull walks it. A walk starts while any is left, so a poll runs one walk
+/// over at most (a leg of [`PULL_WALK_LEG_M`]: 68 ticks). Measured (8v8, 16 matches): the worst poll 126 ms against
+/// 140 ms with the switch off, bots +9.8 %; at 120 ticks +21 %; unbounded a single pull ran 346 walks (13 s).
+pub(crate) const PULL_WALK_TICKS_A_POLL: u32 = 40;
+
 /// The top of a jump link is measured to this depth at most, metres.
 const TOP_DEPTH_MAX_M: f32 = 3.5;
 

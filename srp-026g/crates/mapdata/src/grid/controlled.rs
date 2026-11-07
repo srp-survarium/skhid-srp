@@ -122,6 +122,64 @@ thread_local! {
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
+/// [A334] This thread's budget of walk ticks for [`WalkGrid::pull_walk_fails`]: set by the bots' poll each tick
+/// ([`set_pull_walk_budget`]), so the worst tick's walk work is bounded (a long route's pull back ran hundreds of walks of
+/// up to 68 ticks each in one poll: 13 s). Empty until first set: a walk outside a poll is not run.
+#[derive(Clone, Copy, Default)]
+struct PullWalkBudget {
+    /// Ticks still to spend this period.
+    left: u32,
+    /// Ticks charged this period.
+    spent: u32,
+    /// The most ticks one period charged since [`pull_walk_ticks_max_take`] last read it.
+    most: u32,
+}
+
+thread_local! {
+    static PULL_WALK_BUDGET: std::cell::Cell<PullWalkBudget> = const {
+        std::cell::Cell::new(PullWalkBudget { left: 0, spent: 0, most: 0 })
+    };
+}
+
+/// [A334] Starts a budget period of `ticks` walk ticks on this thread (the bots' poll calls it once a poll).
+pub fn set_pull_walk_budget(ticks: u32) {
+    PULL_WALK_BUDGET.with(|b| {
+        let old = b.get();
+        b.set(PullWalkBudget { left: ticks, spent: 0, most: old.most.max(old.spent) });
+    });
+}
+
+/// [A334] The walk ticks still left in this thread's period.
+pub fn pull_walk_budget_left() -> u32 {
+    PULL_WALK_BUDGET.with(|b| b.get().left)
+}
+
+/// [A334] The most walk ticks one period charged on this thread since the last call (the bench's per-tick line).
+pub fn pull_walk_ticks_max_take() -> u32 {
+    PULL_WALK_BUDGET.with(|b| {
+        let mut now = b.get();
+        let most = now.most.max(now.spent);
+        now.most = 0;
+        b.set(now);
+        most
+    })
+}
+
+/// [A334] Takes a walk of up to `ticks` from this thread's budget: a walk starts while any of it is left, so a period runs
+/// past it by one walk at most (the caller bounds a walk's length). False: the leg is not walked now.
+fn take_pull_walk(ticks: u32) -> bool {
+    PULL_WALK_BUDGET.with(|b| {
+        let mut now = b.get();
+        if now.left == 0 {
+            return false;
+        }
+        now.left = now.left.saturating_sub(ticks);
+        now.spent = now.spent.saturating_add(ticks);
+        b.set(now);
+        true
+    })
+}
+
 /// How many answers [`PULL_WALKS`] keeps before it starts over.
 const PULL_WALKS_MAX: usize = 1 << 20;
 
@@ -261,8 +319,15 @@ impl WalkGrid {
         if let Some(known) = PULL_WALKS.with(|c| c.borrow().get(&key).copied()) {
             return known;
         }
+        // The walk's ticks at most (as [`walk_share`] counts them), taken from this thread's budget up front: past the budget
+        // the leg is not walked now (it walks, as with the switch off) and nothing is kept, so a later pull walks it.
+        let (pa, pb) = (self.position(a), self.position(b));
+        let ticks = (Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z).length() / (WALK_MPS * 0.05)).ceil() as u32 + 2;
+        if !take_pull_walk(ticks) {
+            return false;
+        }
         let (_, s) = self.body.controller();
-        let fails = !walk_share(world, &s, self.body.walk_start(), self.position(a), self.position(b)).1;
+        let fails = !walk_share(world, &s, self.body.walk_start(), pa, pb).1;
         PULL_WALKS.with(|c| {
             let mut c = c.borrow_mut();
             if c.len() >= PULL_WALKS_MAX {

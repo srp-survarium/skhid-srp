@@ -608,6 +608,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let started = Instant::now();
     let work_start = super::bench_work::totals();
     super::bench_work::set(super::bench_work::Who::Shared);
+    bots.poll_budgets();
     let (mut made, mut notes) = (Vec::new(), Vec::new());
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
@@ -2433,6 +2434,10 @@ pub(crate) fn real_bot_cost() {
                     mean(taken[1]),
                 );
             }
+            eprintln!(
+                "{project} {per_team}v{per_team}: pull walk ticks a poll: max {}",
+                mapdata::grid::controlled::pull_walk_ticks_max_take()
+            );
             eprintln!(
                 "{project} {per_team}v{per_team}: world built in {built_s:.2} s, map_ready {ready_ms:.1} ms ({summary})\n  \
                  {limit_s} s of play: bots {:.1} ms a second = {:.2} % of a core; per bot {:.3} %\n  \
