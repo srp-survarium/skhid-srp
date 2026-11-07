@@ -40,7 +40,7 @@
 //!   it came in (Play or a join; the owner's of 2026-10-31).
 //! - **Play.** Public rooms start empty and grow with demand: the first
 //!   Play creates an 8 v 8 room in its equipment bracket (up to 10 or 15).
-//!   Full rooms queue newcomers; six ready Play waiters in the same bracket
+//!   Full rooms queue newcomers; four ready Play waiters in the same bracket
 //!   open another room. Explicit room queues stay chosen.
 //!   Only private rooms may be created by a client.
 //! - **Squads** (two at most; the owner's of 2026-10-31,
