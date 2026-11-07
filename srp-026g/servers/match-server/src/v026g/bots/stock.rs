@@ -611,6 +611,9 @@ mod tests {
             kit,
             inventory_read: alive,
             items,
+            hands_slot: None,
+            carried_weight: None,
+            carrying: None,
         }
     }
 

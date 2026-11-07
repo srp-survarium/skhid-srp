@@ -356,9 +356,39 @@ pub fn loaded_rounds_weight(profile: &MatchProfile, kit: usize) -> f32 {
 /// matches). The first is the weapon in slot 7 (the primary), if any; then the kit's other weapons; the last, none. `None`
 /// without that kit.
 pub fn profile_movement_candidates(profile: &MatchProfile, kit: usize) -> Option<Vec<f32>> {
+    profile_kit_speeds(profile, kit).map(|speeds| speeds.candidates())
+}
+
+/// [A334] A kit's speed factor F with each of its weapons in hands, by the weapon's kit slot, and with none
+/// ([`profile_kit_speeds`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct KitSpeeds {
+    /// Each weapon's kit slot and F with it in hands, by ascending slot.
+    pub held: Vec<(u8, f32)>,
+    /// F with empty hands.
+    pub none: f32,
+}
+
+impl KitSpeeds {
+    /// F with the weapon of kit slot `slot` in hands; with none, or a slot that holds no weapon, empty hands.
+    pub fn in_hands(&self, slot: Option<u8>) -> f32 {
+        slot.and_then(|slot| self.held.iter().find(|&&(s, _)| s == slot)).map_or(self.none, |&(_, level)| level)
+    }
+
+    /// Every value, the primary (slot 7) in hands first, then the other weapons, then empty hands
+    /// ([`profile_movement_candidates`]).
+    pub fn candidates(&self) -> Vec<f32> {
+        let mut held = self.held.clone();
+        held.sort_by_key(|&(slot, _)| usize::from(slot) != WEAPON_SLOT);
+        held.into_iter().map(|(_, level)| level).chain(std::iter::once(self.none)).collect()
+    }
+}
+
+/// [A334] [`KitSpeeds`] of a match profile's `kit`: as [`profile_movement_candidates`], by slot. `None` without that kit.
+pub fn profile_kit_speeds(profile: &MatchProfile, kit: usize) -> Option<KitSpeeds> {
     let entry = profile.kits.get(kit)?;
     let (mut weight, mut capacity_added, mut movement) = (loaded_rounds_weight(profile, kit), 0.0, 0.0);
-    let mut weapons: Vec<(bool, f32)> = Vec::new();
+    let mut weapons: Vec<(u8, f32)> = Vec::new();
     for (slot, &(index, count)) in entry
         .slots
         .iter()
@@ -372,7 +402,7 @@ pub fn profile_movement_candidates(profile: &MatchProfile, kit: usize) -> Option
         if let Some(weapon) = super::weapons::weapon(item.dict_id) {
             // A weapon's speed term, its modifications' included, counts only while it is the hands item (fx-review A334: the node
             // of weapon+0x61C, the item's parameters with its modifications, added on draw 0x2E2C9C, removed on holster 0x2E2E9F).
-            weapons.push((slot == WEAPON_SLOT, weapon.movement_speed_modifier + modified));
+            weapons.push((slot as u8, weapon.movement_speed_modifier + modified));
         } else {
             movement += modified;
         }
@@ -380,8 +410,6 @@ pub fn profile_movement_candidates(profile: &MatchProfile, kit: usize) -> Option
         capacity_added += item_added(item.dict_id, &item.modifications, "max_carried_weight_modifier");
     }
     let capacity = item_params::player().max_carried_weight + entry.modifiers[MAX_CARRIED_WEIGHT] + capacity_added;
-    // The primary first.
-    weapons.sort_by_key(|&(primary, _)| !primary);
     // Skill 112 (modifier 62, `move_speed_weapon_penalty`) > 0: a weapon's term at or under 0 is not added (fx-review A334: the
     // same skip in 0x2E2C9C, 0x2E37E4 and 0x2E2E9F).
     let skips_penalty = entry.modifiers[modifier_index("move_speed_weapon_penalty").expect("a modifier of the 68")] > 0.0;
@@ -389,9 +417,7 @@ pub fn profile_movement_candidates(profile: &MatchProfile, kit: usize) -> Option
         let held = if skips_penalty && held <= 0.0 { 0.0 } else { held };
         movement_level(weight, capacity, &entry.modifiers, movement + held)
     };
-    let mut levels: Vec<f32> = weapons.iter().map(|&(_, held)| level(held)).collect();
-    levels.push(level(0.0));
-    Some(levels)
+    Some(KitSpeeds { held: weapons.iter().map(|&(slot, held)| (slot, level(held))).collect(), none: level(0.0) })
 }
 
 /// The modifiers of a bot wearing `kits`: its tier's skills.

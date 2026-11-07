@@ -275,6 +275,17 @@ pub struct Supplies {
     pub inventory_read: bool,
     /// By profile item, in the static info's order.
     pub items: Vec<ItemLeft>,
+    /// [A334] The kit slot whose weapon is in hands: `inventory::serialize`'s `m_active_slot` (inventory+0x170), 2 bytes before the
+    /// first slot item's record (fx-review A334b, from the exe's write order; LIKELY, not read back on real worlds). Set at the
+    /// selection (0x2FCB18), so in a swap it already names the new slot. `None` unless the inventory was read and the byte names a
+    /// slot of the kit in use that holds a weapon.
+    pub hands_slot: Option<u8>,
+    /// [A334] The client's own carried weight `w` (`m_carried_weight`, loaded rounds included), kg: 9 bytes before the first slot
+    /// item's record when nothing is carried and no artefact is held (LIKELY, as `hands_slot`). `None` otherwise.
+    pub carried_weight: Option<f32>,
+    /// [A334] Whether the player carries an item (a battery): the carried object's id 4 bytes before the first slot item's record,
+    /// 0xFF for none (LIKELY, as `hands_slot`). `None` unless the inventory was read.
+    pub carrying: Option<bool>,
 }
 
 impl Supplies {
@@ -302,6 +313,8 @@ impl Supplies {
             })
             .collect();
         let mut inventory_read = false;
+        // [A334] The first slot item's record: the inventory's own fields just before it.
+        let mut first: Option<usize> = None;
         let kit = profile.kits.get(usize::from(head.current_index));
         if let Some(kit) = kit {
             let state = block.state;
@@ -336,6 +349,7 @@ impl Supplies {
                     continue;
                 };
                 inventory_read = true;
+                first.get_or_insert(start);
                 at = start + value + 3;
                 item.slot = Some(slot as u8);
                 if item.stack {
@@ -373,11 +387,30 @@ impl Supplies {
                 }
             }
         }
+        let state = block.state;
+        let byte = |back: usize| first.and_then(|at| at.checked_sub(back)).and_then(|at| state.get(at).copied());
+        let hands_slot = byte(2).filter(|&slot| {
+            kit.and_then(|kit| kit.slots.get(usize::from(slot)).copied().flatten())
+                .and_then(|(index, _)| profile.items.get(usize::from(index)))
+                .is_some_and(|item| item_params(item.dict_id).is_some_and(|params| params.kind.starts_with("wpn")))
+        });
+        let carrying = byte(4).map(|id| id != 0xFF);
+        let carried_weight = match (byte(4), byte(3)) {
+            (Some(0xFF), Some(0)) => first
+                .and_then(|at| at.checked_sub(9))
+                .and_then(|at| state.get(at..at + 4))
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .filter(|w| w.is_finite() && (0.0..200.0).contains(w)),
+            _ => None,
+        };
         Some(Self {
             alive: head.alive,
             kit: head.current_index,
             inventory_read,
             items,
+            hands_slot,
+            carried_weight,
+            carrying,
         })
     }
 
