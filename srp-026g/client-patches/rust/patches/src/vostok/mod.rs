@@ -34,6 +34,7 @@ pub mod carry_ground;
 pub mod carry_flower;
 mod cell;
 pub mod clock;
+pub mod controller;
 pub mod crc32;
 mod context;
 pub mod draw;

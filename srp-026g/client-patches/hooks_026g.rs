@@ -851,6 +851,21 @@ pub extern "C" fn hook_consumable_activity_on_update(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- controller_position (patch 117) ----
+
+/// The entry `controller_position_on_step_end` (0x7c7d7, bullet_character_controller::player_step (0x7BDA0) epilogue, which every path joins (pop edi / pop esi / pop ebx / mov esp,ebp; the skip at 0x7C1B5 too), after round_up: EDI the controller, its position +0B0h where this step left it, m_last_pos +50h where it began (0x7BE84)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_controller_position_on_step_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `controller_position_on_step_end` calls this, from the game's jump at 0x7c7d7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::controller_position::on_step_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- deserialize_guards (patch 115) ----
 
 /// The named exits of deserialize_guards::on_fsm (the order the shim's Flow code
