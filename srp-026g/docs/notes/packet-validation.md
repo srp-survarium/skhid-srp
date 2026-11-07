@@ -486,11 +486,14 @@ cores, the effects floats) that every local test had missed. Four guards:
   dropped silently). The kit layout (`MatchProfile::inventory`, `held`) names
   every `ItemClass`, so a new class fails to compile until it is placed.
 - **In a match: loud when many games are refused alike.** A kind of refusal
-  (its part and reason) from two places, or three uploads, is more likely the
-  check or the data than the games: one error line `WORLD CHECK IN DOUBT`
-  with the count and the first refusal (section, offset, the match it was
-  checked as), once a kind; the match's end line counts the uploads refused and
-  lists the kinds in doubt (`world_validation::Refusals`). A kit the check
+  (its part and reason) from two different players of the match is more
+  likely the check or the data than the games: every honest game writes the
+  same world, so a wrong check refuses every uploader's, while a cheater is
+  one place and cannot put a kind in doubt alone, however often it uploads.
+  One error line `WORLD CHECK IN DOUBT` with the count and the first refusal
+  (section, offset, the match it was checked as), once a kind; the match's
+  end line counts the uploads refused, those the fall-back relayed (below),
+  and lists the kinds in doubt (`world_validation::Refusals`). A kit the check
   cannot lay out (an item the game makes an untraced object of) leaves that
   match's states read to their inventories only: said once at error level when
   the place comes, not per upload. That stays: the kit is the lobby's, the
@@ -503,8 +506,52 @@ cores, the effects floats) that every local test had missed. Four guards:
   block included, must pass the clients' check
   (`current_protocol.rs::the_options_of_every_map_are_accepted`).
 
-Refused uploads still go to nobody (fail closed); whether a match whose uploads
-are in doubt should relay them anyway is the owner's decision.
+### The fall-back to the games' own check (TEMPORARY)
+
+The owner's decision of 2026-11-07 (option B). A refused upload goes to
+nobody, unless its kind is in doubt in its match:
+
+- **What it does.** A kind stands `Refusing { place }` (one player's uploads),
+  `InDoubt { places }` (two players' or more, the fall-back armed, none relayed
+  yet) or `FallingBack { places, relayed }` (`world_validation::Standing`, one
+  transition, `Standing::refused`). While a kind is in doubt, an upload the
+  server's check refuses **for that kind** is checked again with the context
+  the game's own check (patch 87, `world_check.rs::Match::context`) uses: the
+  match's places, mode, batteries and respawn points, and no profiles,
+  artefacts, objects or inventory, as `srp-validate/examples/drift_dump.rs`
+  builds it (`world_validation::game_check`). If it passes, it is accepted and
+  relayed like any other upload (votes, the recent world, joins, resyncs); if
+  not, it is refused as before. Every other refusal (a kind of one player's,
+  or one the games' check refuses too) is refused as before. The upload that
+  puts a kind in doubt is itself checked again.
+- **How it is logged.** Each relay writes, at error level, at most one line a
+  second for each player (the refusal logs' limit, counting the lines held
+  back):
+  `Match <id>: WORLD CHECK FALLBACK: player <p>'s upload at <t> ms, refused as
+  <part> at <offset>: <reason>, passes the game's own check and is relayed
+  (temporary, see packet-validation.md)[; <n> more relayed by the fall-back
+  since the last line]`. The upload is kept as a `fallback` dump (within the
+  match's doubtful-dump limit), which `srp-world-check` then checks with the
+  rest. The match's end line has `..., <n> of them relayed by the fall-back`,
+  and each kind in doubt `(<players> players, <n> relayed)`.
+- **Why it is safe.** Every game that receives a world runs this same check
+  before it loads it (patch 87) and refuses one that fails it, so a relayed
+  world is one no receiving game refuses: the fall-back lets nothing in that a
+  game would not take from a world the server relayed anyway. It needs two
+  different players' uploads refused alike, so one forged or broken game
+  cannot turn it on.
+- **What it gives up.** For that kind in that match only: the server's
+  context-only checks, the rules the games cannot make without the match's
+  roster: the profiles (usable kits, item counts), the game objects against
+  the places' grenades and traps and the map's objects, and the kits' items
+  to a state's exact end. A forged world that breaks only those, in a match
+  where the kind is in doubt, reaches the other games.
+- **When it goes.** It is temporary: once live releases show no `WORLD CHECK
+  FALLBACK` line (the check is right for every world the games write), it is
+  removed, the doubt detector kept. Removing it is deleting the `TEMPORARY`
+  code: `Standing::FallingBack`, `Answer::Relay` and its arm in
+  `game.rs::uploaded`, `game_check`, the peer's `fallback_log`, and making
+  `InDoubt` refuse.
 
 ## Performance evidence and limits
 

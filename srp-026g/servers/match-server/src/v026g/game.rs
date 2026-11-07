@@ -694,6 +694,9 @@ struct Peer {
     /// The log lines of the worlds and handshakes it refused, and of its
     /// receipts that matched no offer.
     receipts_log: RefusalLog,
+    /// TEMPORARY: the log lines of its uploads the fall-back relayed
+    /// (`uploaded`).
+    fallback_log: RefusalLog,
     world_receipts: WorldReceipts,
     /// The sync generation of the last 0xE5/0xE8 sent to it: 0xFF once it
     /// is ready, as the client's own.
@@ -1009,7 +1012,8 @@ pub(crate) struct Game {
     respawn_points_logged: bool,
     doubtful_dumps: u32,
     /// The uploads the world check refused, by kind: loud when a kind is
-    /// more likely the check's fault than the games' (`uploaded`, `finish`).
+    /// more likely the check's fault than the games', and then (TEMPORARY)
+    /// falling back to the games' own check (`uploaded`, `finish`).
     upload_refusals: super::world_validation::Refusals,
     /// Worlds of players out of step asked for (`ask_wrong_world`).
     wrong_worlds_asked: u32,
@@ -1370,6 +1374,7 @@ impl Game {
             inputs_log: RefusalLog::default(),
             uploads_log: RefusalLog::default(),
             receipts_log: RefusalLog::default(),
+            fallback_log: RefusalLog::default(),
             world_receipts: WorldReceipts::default(),
             generation: Generation::AT_READY,
             set_times: VecDeque::new(),
@@ -3961,22 +3966,57 @@ impl Game {
             // The kind of refusal many games share is a check that is wrong
             // (or server data other than theirs), not a cheat: said loudly,
             // once a kind, however the per-player warning below is limited.
-            if let Some(doubt) = self.upload_refusals.count(index, &refusal) {
+            let judged = self.upload_refusals.judge(index, &refusal, || {
+                super::world_validation::game_check(
+                    &snapshot.body,
+                    snapshot.time,
+                    places,
+                    roster.map,
+                )
+            });
+            if let Some(doubt) = judged.doubt {
                 log::error!("Match {id:#x}: {doubt}");
             }
-            peer.uploads_refused += 1;
-            if let Some(unlogged) = peer.uploads_log.refuse(now) {
-                log::warn!(
-                    "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) is no world a game \
-                     could load, {refusal}; sent to nobody{}",
-                    snapshot.time,
-                    snapshot.body.len(),
-                    refusal_log::since(unlogged)
-                );
+            match judged.answer {
+                super::world_validation::Answer::Refuse => {
+                    peer.uploads_refused += 1;
+                    if let Some(unlogged) = peer.uploads_log.refuse(now) {
+                        log::warn!(
+                            "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) is no \
+                             world a game could load, {refusal}; sent to nobody{}",
+                            snapshot.time,
+                            snapshot.body.len(),
+                            refusal_log::since(unlogged)
+                        );
+                    }
+                    self.dump(&snapshot, index, "unloadable");
+                    return;
+                }
+                // TEMPORARY (owner, 2026-11-07; packet-validation.md, "The
+                // fall-back to the games' own check"): its kind is in doubt
+                // and the world passes the check every receiving game runs
+                // on it anyway, so it is relayed like any other upload.
+                // Removing it means deleting the fall-back (this arm,
+                // `Answer::Relay`, `Standing::FallingBack`, `game_check`,
+                // `fallback_log`) and keeping the doubt detector.
+                super::world_validation::Answer::Relay => {
+                    if let Some(unlogged) = peer.fallback_log.refuse(now) {
+                        log::error!(
+                            "Match {id:#x}: WORLD CHECK FALLBACK: player {index}'s upload at {} \
+                             ms, refused as {}, passes the game's own check and is relayed \
+                             (temporary, see packet-validation.md){}",
+                            snapshot.time,
+                            refusal.refusal(),
+                            refusal_log::relayed_since(unlogged)
+                        );
+                    }
+                    self.dump(&snapshot, index, "fallback");
+                }
             }
-            self.dump(&snapshot, index, "unloadable");
-            return;
         }
+        let Some(peer) = self.peers[index].as_mut() else {
+            return;
+        };
         let asked = peer.asked.take();
         peer.unanswered_since = None;
         if !initial
@@ -6648,6 +6688,12 @@ impl Game {
         self.peers[index]
             .as_ref()
             .map_or(0, |peer| peer.uploads_refused)
+    }
+
+    /// TEMPORARY: how many uploads the check refused that the fall-back
+    /// relayed, of every player (`world_validation::Refusals::judge`).
+    pub fn uploads_fallen_back(&self) -> u32 {
+        self.upload_refusals.relayed()
     }
 
     /// How many worlds and handshakes its game refused (Rejected receipts).

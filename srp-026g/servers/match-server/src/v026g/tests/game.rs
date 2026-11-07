@@ -2327,16 +2327,7 @@ fn a_framed_world_with_unsafe_effects_is_refused_and_a_valid_retry_starts_the_ma
     let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
     bench.clients[0].connect();
     assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
-    let world = bench.clients[0].sim.world(INITIAL_MS + 50);
-    let real = Sections::walk(&world).unwrap();
-    let mut effects = real.effects.to_vec();
-    effects[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
-    let bad = Sections {
-        effects: &effects,
-        ..real
-    }
-    .to_body()
-    .unwrap();
+    let bad = with_unsafe_effects(&bench.clients[0].sim.world(INITIAL_MS + 50));
     assert!(Frame::parse(&bad, Places::of(20)).is_ok());
     bench.clients[0].upload(INITIAL_MS + 50, &bad);
     bench.run(100);
@@ -2347,6 +2338,113 @@ fn a_framed_world_with_unsafe_effects_is_refused_and_a_valid_retry_starts_the_ma
     assert!(bench.until(5_000, |bench| bench.stages().starts_with('L')));
     bench.join(1);
     assert_eq!(bench.game().uploads_refused(1), 0);
+    bench.assert_no_faults();
+}
+
+/// `world` with an effects section no game loads, which the games' own
+/// check refuses too (`world::effects`).
+fn with_unsafe_effects(world: &[u8]) -> Vec<u8> {
+    let real = Sections::walk(world).unwrap();
+    let mut effects = real.effects.to_vec();
+    effects[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+    Sections {
+        effects: &effects,
+        ..real
+    }
+    .to_body()
+    .unwrap()
+}
+
+/// TEMPORARY (the fall-back, packet-validation.md "When the check, not the
+/// game, is wrong"): a check wrong for one kind. Every game's world has game
+/// objects the server's check does not expect, a rule the games' own check
+/// has no twin of (it is given no objects).
+#[test]
+fn a_kind_of_refusal_two_players_share_falls_back_to_the_games_check() {
+    super::capture_errors();
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    for client in &mut bench.clients {
+        client.sim.stray_objects_from = Some((0, 7));
+    }
+    let lines = |what: &str| {
+        super::errors_logged()
+            .into_iter()
+            .filter(|line| line.contains(what))
+            .collect::<Vec<_>>()
+    };
+    bench.clients[0].connect();
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| {
+        bench.clients[..2]
+            .iter()
+            .all(|client| client.model.options.is_some())
+    }));
+    let world = |bench: &Bench, place: usize, time: u32| bench.clients[place].sim.world(time);
+    // One player's uploads, however many: refused, never in doubt.
+    for n in 1..=4 {
+        let time = INITIAL_MS + 50 * n;
+        let body = world(&bench, 0, time);
+        bench.clients[0].upload(time, &body);
+        bench.run(100);
+    }
+    assert_eq!(bench.game().uploads_refused(0), 4);
+    assert!(!bench.game().has_clock());
+    assert_eq!(super::errors_logged(), Vec::<String>::new());
+    // A second player's: in doubt. This one the games' check refuses too
+    // (its effects): still refused.
+    let time = INITIAL_MS + 50 * 10;
+    let body = with_unsafe_effects(&world(&bench, 1, time));
+    bench.clients[1].upload(time, &body);
+    bench.run(100);
+    assert_eq!(bench.game().uploads_refused(1), 1);
+    assert_eq!(bench.game().uploads_fallen_back(), 0);
+    let doubt = lines("WORLD CHECK IN DOUBT:");
+    assert_eq!(doubt.len(), 1, "{doubt:?}");
+    assert!(
+        doubt[0]
+            .contains("WORLD CHECK IN DOUBT: 5 uploads from 2 players refused as game objects at "),
+        "{doubt:?}"
+    );
+    // A refusal of another kind is not in doubt: refused.
+    let mut clean = bench.clients[1].sim.clone();
+    clean.stray_objects_from = None;
+    let time = INITIAL_MS + 50 * 11;
+    let body = with_unsafe_effects(&clean.world(time));
+    bench.clients[1].upload(time, &body);
+    bench.run(100);
+    assert_eq!(bench.game().uploads_refused(1), 2);
+    assert!(!bench.game().has_clock());
+    assert!(lines("WORLD CHECK FALLBACK:").is_empty());
+    // Player 0's initial world, refused as before, now passes the games'
+    // check: relayed, it starts the match.
+    bench.clients[0].ready();
+    assert!(bench.until(1_000, |bench| bench.game().has_clock()));
+    assert_eq!(bench.game().uploads_refused(0), 4);
+    assert_eq!(bench.game().uploads_fallen_back(), 1);
+    let fallback = lines("WORLD CHECK FALLBACK:");
+    assert_eq!(fallback.len(), 1, "{fallback:?}");
+    let expected = format!(
+        "WORLD CHECK FALLBACK: player 0's upload at {INITIAL_MS} ms, refused as game objects at "
+    );
+    assert!(fallback[0].contains(&expected), "{fallback:?}");
+    assert!(
+        fallback[0].ends_with(
+            ", passes the game's own check and is relayed (temporary, see packet-validation.md)"
+        ),
+        "{fallback:?}"
+    );
+    // The match runs on such worlds: the uploads asked for are relayed, and
+    // a player who comes later gets one (every world of the match is one
+    // the server's check refuses).
+    bench.clients[1].ready();
+    assert!(bench.until(30_000, |bench| bench.stages().starts_with("LL")));
+    bench.run_long(15_000);
+    assert!(bench.game().uploads_fallen_back() > 1);
+    assert_eq!(bench.game().uploads_refused(0), 4);
+    assert_eq!(bench.game().uploads_refused(1), 2);
+    bench.join(2);
+    assert_eq!(bench.game().uploads_refused(2), 0);
+    assert_eq!(lines("WORLD CHECK IN DOUBT:").len(), 1);
     bench.assert_no_faults();
 }
 
