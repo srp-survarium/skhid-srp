@@ -486,8 +486,10 @@ speed (`tick_events` skips a 0 ms tick, 0x2D22DE). It starts in the character
 controller's position (+0B0h): the body went NaN in one step around 539 850 ms,
 just after the player (a server bot) stood up from a crouch and walked, and the
 speed (a positive NaN, 0x7FC00000, so not an x87 0/0) and the rest follow from
-it. The exact instruction is not pinned; the lead is the unguarded normalisation
-in `get_corrected_walk_vector` (0x7B97C..0x7B983). Board ticket T117. The game only
+it. The exact instruction is not pinned (`get_corrected_walk_vector`'s unguarded
+normalisation, 0x7B97C..0x7B983, is not it: its NaN takes the `comiss`'s unordered
+branch, 0x7B9DD). Board ticket T117; patch 117 puts a non-finite position back to
+m_last_pos at the step's end (`client_patch.md` 3.71). The game only
 computes with these three values and compares them. A NaN speed goes through
 comparisons, the curve 0x25F30 and the animation selector, none of which uses it
 as a count or index, and the player's next step writes it again. `m_last_pos`

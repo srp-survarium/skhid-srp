@@ -5661,3 +5661,6 @@ va	name	location	role	basis
 0x00397880	stlp_std::find<float *,float>	ECX	first	observed
 0x00397880	stlp_std::find<float *,float>	EDI	last	observed
 0x00397880	stlp_std::find<float *,float>	ESI	pointer to the value	observed
+0x0007b7f0	vostok::physics::round_up	ESI	the float rounded in place	observed
+0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	EAX	the controller (+20h the walk, +2C710h the supporting normal)	observed
+0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	entry ESP+4	the float3 written (returned in EAX)	observed

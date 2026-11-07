@@ -1791,6 +1791,45 @@ consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
 
+; 0x7c7d7 bullet_character_controller::player_step (0x7BDA0) epilogue, which every path joins (pop edi / pop esi / pop ebx / mov esp,ebp; the skip at 0x7C1B5 too), after round_up: EDI the controller, its position +0B0h where this step left it, m_last_pos +50h where it began (0x7BE84): lohook -> controller_position_on_step_end
+global controller_position_on_step_end
+extern hook_controller_position_on_step_end
+controller_position_on_step_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_controller_position_on_step_end
+    mov edx, controller_position_on_step_end_replay
+    cmp eax, 0
+    je controller_position_on_step_end_go
+    mov edx, 0x7c7dc
+    cmp eax, 1
+    je controller_position_on_step_end_go
+    ud2
+controller_position_on_step_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+controller_position_on_step_end_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
+    jmp 0x7c7dc
+
 ; 0x38cd22 fsm::deserialize after resolving the wire state id; selected +10h may be null; done is ret 8: lohook -> deserialize_guards_on_fsm
 global deserialize_guards_on_fsm
 extern hook_deserialize_guards_on_fsm

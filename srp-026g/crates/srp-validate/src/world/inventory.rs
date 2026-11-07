@@ -1222,8 +1222,9 @@ impl<'a> AfterItems<'a> {
 
     /// `m_linear_horizontal_speed` (stored at 0x2DB844): any f32, the game
     /// writes NaN. The step makes it the move's length over the step's
-    /// milliseconds (0x2D9507..0x2D9545), so a step of 0 ms gives 0/0 or
-    /// x/0. Every reader compares, multiplies or interpolates it
+    /// milliseconds (0x2D9507..0x2D9545; never 0 ms, `tick_events` skips
+    /// those at 0x2D22DE), so a NaN position (the character controller's,
+    /// which patch 117 keeps finite) makes it NaN. Every reader compares, multiplies or interpolates it
     /// (0x2D95CF, the curve 0x25F30 from 0x31A4C8, the animation selector
     /// 0x33705A..0x337299), none takes it as a count or index, and the
     /// player's next step writes it again.

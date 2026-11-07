@@ -131,6 +131,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
 | `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
+| `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 117: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -4683,3 +4684,22 @@ answered in the plain step, one byte, and gets the game's text.
 
 `release/moderate ban` prints the reason the player will see. Nothing a match computes. Checked
 with `cargo test` and clippy (patches, ban-reason, login-server). Not run in a game.
+
+## A character controller's position stays finite (patch 117, unreleased)
+
+In live match `rec026g_20261106-211841_03439962` (revision 50) a server bot's body went NaN in
+one step, around 539 850 ms, after it stood up under a ceiling and walked. It stayed NaN for the
+rest of the match in the one game that simulated it, falling ever faster. Its speed, its
+`m_last_pos`, its bullets' origins and its animation stream followed (`../docs/notes/snapshot_rules.md`
+7.2.1). A 0 ms step is not the cause: the game never steps 0 ms (`tick_events` 0x2D22DE).
+
+**The patch** (the Rust patch `controller_position`, one lohook, `sites_026g.tsv`):
+`controller.step_end` (0x7C7D7, bullet_character_controller::player_step's epilogue, which every
+path joins). When the controller's position (+0B0h, the ghost object's transform) has an infinity or
+a NaN in any float, it is put back to `m_last_pos` (+50h), where the step began, bit for bit. Any
+other step is the game's. Nothing reads the position between the step's end and the epilogue, and
+the ghost's AABB is next updated from it after the step, so no NaN reaches the broadphase.
+
+A simulation change (`simulation_changes.tsv`'s `next` row). Checked with
+`check_controller_position_026g.py` (finite steps byte for byte the original's; NaN and infinities
+restored; the original fails) and the patch crate's tests. Not run in a game.

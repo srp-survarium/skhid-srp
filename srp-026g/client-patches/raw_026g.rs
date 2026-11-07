@@ -18896,4 +18896,19 @@ pub mod site {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(LoginStatusFrame)
         }
     }
+
+    /// controller.step_end (0x7c7d7): bullet_character_controller::player_step (0x7BDA0) epilogue, which every path joins (pop edi / pop esi / pop ebx / mov esp,ebp; the skip at 0x7C1B5 too), after round_up: EDI the controller, its position +0B0h where this step left it, m_last_pos +50h where it began (0x7BE84)
+    pub mod controller_step_end {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::physics::bullet_character_controller (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn controller(machine: &impl Machine) -> Option<BulletCharacterController> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletCharacterController)
+        }
+    }
 }
