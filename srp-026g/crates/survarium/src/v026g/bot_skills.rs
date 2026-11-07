@@ -368,12 +368,16 @@ pub fn profile_movement_candidates(profile: &MatchProfile, kit: usize) -> Option
         let Some(item) = profile.items.get(usize::from(index)) else {
             continue;
         };
+        let modified = item_added(item.dict_id, &item.modifications, "movement_speed_modifier");
         if let Some(weapon) = super::weapons::weapon(item.dict_id) {
-            weapons.push((slot == WEAPON_SLOT, weapon.movement_speed_modifier));
+            // A weapon's speed term, its modifications' included, counts only while it is the hands item (fx-review A334: the node
+            // of weapon+0x61C, the item's parameters with its modifications, added on draw 0x2E2C9C, removed on holster 0x2E2E9F).
+            weapons.push((slot == WEAPON_SLOT, weapon.movement_speed_modifier + modified));
+        } else {
+            movement += modified;
         }
         weight += item_weight(item.dict_id, u32::from(count), &item.modifications);
         capacity_added += item_added(item.dict_id, &item.modifications, "max_carried_weight_modifier");
-        movement += item_added(item.dict_id, &item.modifications, "movement_speed_modifier");
     }
     let capacity = item_params::player().max_carried_weight + entry.modifiers[MAX_CARRIED_WEIGHT] + capacity_added;
     // The primary first.
