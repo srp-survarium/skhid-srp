@@ -212,6 +212,23 @@ pub(super) fn parallel<T: Sync, R: Send + Default + Clone>(items: &[T], job: imp
 }
 
 impl WalkGrid {
+    /// [A318] Keeps the map's walker triangles as the client's controller meets them (its body's [`Body::controller`] caster), for
+    /// [`Self::client_step`].
+    pub fn with_client_walker(mut self, triangles: &[Triangle]) -> Self {
+        let (caster, _) = self.body.controller();
+        self.walker = Some(std::sync::Arc::new(crate::controller::Collision::build(triangles).with_caster(caster)));
+        self
+    }
+
+    /// [A318] One tick of the client's walk (`player_step`, the port `controller::tick::Controller::step`: `step_up` 0x7C900, the
+    /// move sweep, `step_down` 0x7E1B0) for a standing body at `feet` asked to move `by` (flat, this tick's displacement): where its
+    /// feet end, from where the walk starts it ([`Body::walk_start`]). None without [`Self::with_client_walker`].
+    pub fn client_step(&self, feet: Vec3, by: Vec3) -> Option<(Vec3, Vec3)> {
+        let world = self.walker.as_deref()?;
+        let (_, s) = self.body.controller();
+        Some(client_step(world, &s, self.body.walk_start(), feet, by))
+    }
+
     /// The controller pass ([`Body::client_controller`], module documentation).
     /// The bridges are made here; the walk links that fail their check are returned (a floor, a direction and the share the body
     /// got), for the build to take away with `cut_keeping_reach`.
