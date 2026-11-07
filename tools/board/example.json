@@ -1,0 +1,103 @@
+{
+  "updated": "2026-10-23 12:00 UTC",
+  "notices": [
+    { "date": "2026-10-22", "text": "Release 12 is live.", "level": "done" },
+    { "date": "2026-10-23", "text": "Nothing ships until the test round is done.", "level": "warn" },
+    { "date": "2026-10-23", "text": "Forum backlog being sorted.", "level": "info" }
+  ],
+  "items": [
+    {
+      "n": 1,
+      "id": "pick-a-scope",
+      "title": "Scope of the next release",
+      "state": "waiting",
+      "source": "dev",
+      "area": "release",
+      "next": "Your call: small fixes only, or everything on main?",
+      "updated": "2026-10-23"
+    },
+    {
+      "n": 2,
+      "id": "menu-camera",
+      "title": "Menu camera",
+      "state": "in-progress",
+      "source": "owner",
+      "area": "lobby",
+      "next": "Second review, then a look in the game.",
+      "detail": "Fixed field of view.\nThe item stays in the middle of the screen.",
+      "prs": [101],
+      "updated": "2026-10-23"
+    },
+    {
+      "n": 3,
+      "id": "helper-library",
+      "title": "Helper library",
+      "state": "review",
+      "area": "tooling",
+      "next": "Review running.",
+      "prs": [102],
+      "updated": "2026-10-22"
+    },
+    {
+      "n": 4,
+      "id": "test-round",
+      "title": "Test round in the game",
+      "state": "next",
+      "source": "owner",
+      "area": "match",
+      "next": "Blocks the next release.",
+      "updated": "2026-10-23"
+    },
+    {
+      "n": 5,
+      "id": "night-maps",
+      "title": "Night versions of the maps",
+      "state": "requested",
+      "source": "player",
+      "area": "maps",
+      "next": "Not planned yet.",
+      "requested_by": ["player_one", "player_two"],
+      "links": [{ "label": "Forum post", "url": "https://example.com/forum/1" }],
+      "updated": "2026-10-21"
+    },
+    {
+      "n": 6,
+      "id": "server-list",
+      "title": "Server list on the site",
+      "state": "requested",
+      "source": "owner",
+      "area": "site",
+      "next": "Not planned yet.",
+      "updated": "2026-10-20"
+    },
+    {
+      "n": 7,
+      "id": "quick-fix",
+      "title": "Quick fix",
+      "state": "done",
+      "area": "server",
+      "next": "Shipped in release 12.",
+      "prs": [99],
+      "updated": "2026-10-22"
+    },
+    {
+      "n": 8,
+      "id": "ancient-fix",
+      "title": "Ancient fix",
+      "state": "done",
+      "area": "server",
+      "next": "Shipped long ago.",
+      "updated": "2026-09-01"
+    },
+    {
+      "n": 9,
+      "id": "big-idea",
+      "title": "Big idea",
+      "state": "parked",
+      "area": "other",
+      "next": "Not in the next release.",
+      "prs": [90],
+      "updated": "2026-10-21"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+[package]
+name = "skhid-board"
+version = "0.1.0"
+edition = "2021"
+description = "Read-only status dashboard for the Skhid project, served from one JSON file"
+license = "MIT"
+publish = false
+
+# Standalone: not a member of the srp-026g workspace.
+[workspace]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny_http = "0.12"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
