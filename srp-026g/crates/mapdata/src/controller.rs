@@ -250,6 +250,11 @@ impl Collision {
         me
     }
 
+    /// The heap it holds, bytes (its faces and its tree).
+    pub fn bytes(&self) -> usize {
+        self.faces.capacity() * std::mem::size_of::<Face>() + self.nodes.capacity() * std::mem::size_of::<Node>()
+    }
+
     pub fn len(&self) -> usize {
         self.faces.len()
     }
