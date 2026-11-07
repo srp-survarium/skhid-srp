@@ -561,6 +561,23 @@ to NAME 63 / ACCOUNT_CLAN_TAG 14, kits from the validated account), the clan
 roster (0x271FD0), the elo list (0x271EB0) and chat (0x26B6F0) -- all with a
 server clamp fitting the client buffer.
 
+All eighteen `read_*` readers the dispatcher calls were decompiled and read.
+The account-only ones read ints and field/own counts, or memcpy into a sized
+allocation: `read_player_reputations` 0x271740 (`memcpy` of `count * 8` into an
+alloc of that size), `read_enumerate_inventory_info` 0x270400, `read_player_skills`
+0x270570, `read_price_items` 0x271540, `read_shop_items` 0x271650,
+`read_account_services` 0x2714D0, `read_match_stats` 0x2718C0 (a growable
+buffer), `read_player_match_stats` 0x271A30, `read_player_elo_rating` 0x271D90,
+`read_online_stats` 0x271860, `read_drop` 0x271AE0, `read_service_prices`
+0x271480, `read_status_info` 0x270100 (fixed `memcpy 0x28`), `process_own_account`
+0x270260. One, `read_quest_list` 0x271DF0, reads an unbounded u32 quest count
+and grows a buffer to `count * 0x14` -- an unbounded read, but it is the
+viewing player's OWN quest list (server->self, from the DB), which no other
+player can send, so it is outside this scope; our server sends a real,
+bounded list. The line the whole audit rests on: a reader of the player's own
+or public data may trust our server; only a reader of ANOTHER player's data
+must be bounded, and every one of those is.
+
 All three reader groups -- world sections, player-state deep readers, and the
 match-message + lobby readers -- were read in full. Two unbounded or
 corruptible player-to-player values were found without a server bound or native
