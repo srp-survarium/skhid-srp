@@ -46,9 +46,23 @@ impl Tuning {
         let default = serde_json::to_value(Tuning::all_off()).expect("a tuning is JSON");
         let mut report = SwitchReport::default();
         walk(&mut Vec::new(), Some(&value), Some(&default), &mut report);
+        // Kept-right options are set in the reference too, so the walk shows nothing of them: these are shown when set.
+        for pointer in SHOWN_WHEN_SET {
+            if let Some(set) = value.pointer(pointer).filter(|v| !v.is_null()) {
+                let path: Vec<String> = pointer.trim_start_matches('/').split('/').map(str::to_owned).collect();
+                let (section, name) = entry(&path);
+                report.on.push((section, format!("{name}={}", show(set))));
+            }
+        }
+        // Into its section's line (the walk's sections come in order; the sort is stable).
+        report.on.sort_by(|a, b| a.0.cmp(&b.0));
         report
     }
 }
+
+/// [A324] Options ON by default and kept right (`KEPT_RIGHT` in the all-off test: the all-off reference keeps them set), which the
+/// report shows with their value when set, so that a golden proves the default: `traps.press_clear`.
+const SHOWN_WHEN_SET: &[&str] = &["/traps/press_clear"];
 
 impl SwitchReport {
     /// The lines of the report: the ON lines, then OFF, values and changed numbers, one per section in each, each with its
@@ -257,6 +271,18 @@ mod tests {
         let base = Tuning::all_off().switch_report().lines();
         let moved: Vec<&String> = flipped.iter().filter(|l| !base.contains(l)).collect();
         assert!(moved.iter().all(|l| l.contains(" heal:") || l.ends_with(": none")), "{moved:?}");
+    }
+
+    /// A324: a kept-right option the all-off reference has set too shows with its value when set, and not when none.
+    #[test]
+    fn a_kept_right_option_shows_when_set() {
+        let on = Tuning::default().switch_report().lines();
+        assert!(on.iter().any(|l| l.starts_with("switches ON traps:") && l.contains("press_clear={")), "{on:?}");
+        let mut tuning = Tuning::default();
+        tuning.traps.press_clear = None;
+        let off = tuning.switch_report().lines();
+        assert!(off.iter().all(|l| !l.contains("press_clear=")), "{off:?}");
+        assert_eq!(on.iter().filter(|l| l.starts_with("switches ON traps:")).count(), 1, "one line a section");
     }
 
     /// The default tuning's report lines, as the logs carry them (against the tuning with the owner's options off): a
