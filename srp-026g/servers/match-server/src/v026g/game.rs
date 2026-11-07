@@ -3633,7 +3633,7 @@ impl Game {
             // 2026-11-02) until its resync's world is loaded: discarded,
             // never counted against it (`input_safety::SenderWorld`).
             let world = peer.sender_world();
-            let remove = peer.input_violations.record(now, world);
+            let remove = peer.input_violations.record(world);
             answer_owner(
                 peer,
                 Answer::input(ServerMessage::DiscardInput { time: input.time }, time, None),

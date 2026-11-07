@@ -1,6 +1,10 @@
 //! Distinct invalid inputs are evidence about only their identified sender.
-use std::time::{Duration, Instant};
-const STRIKE_WINDOW: Duration = Duration::from_secs(10);
+//!
+//! No timer decides: strikes are counted over a stretch in step, and the
+//! stretch ends at an event, the server finding the sender's world wrong.
+//! No client in step makes such an input (none in the 1.6M+ inputs of the
+//! 480 rev50 recordings), so a count that never expires removes no honest
+//! player.
 const STRIKE_LIMIT: u8 = 8;
 
 /// What the server knows of a sender's world as its invalid input comes.
@@ -29,28 +33,26 @@ impl super::Peer {
 
 #[derive(Clone, Copy, Default)]
 pub(super) enum InputViolations {
+    /// No invalid input since it was last known out of step (or ever).
     #[default]
     None,
-    Counting { since: Instant, count: u8 },
+    /// Invalid inputs in step since then, fewer than [`STRIKE_LIMIT`].
+    Counting(u8),
     Remove,
 }
 impl InputViolations {
     /// Called only for distinct input times after deduplication, from the
-    /// identified sender's link. Isolated corruption expires; retransmits
-    /// cannot accumulate strikes. World compatibility guesses are not evidence,
-    /// and neither are the inputs of a world known to be wrong: those clear
-    /// the strikes before them, which that world most likely made too.
-    pub(super) fn record(&mut self, now: Instant, world: SenderWorld) -> bool {
+    /// identified sender's link: retransmits cannot accumulate strikes.
+    /// World compatibility guesses are not evidence, and neither are the
+    /// inputs of a world known to be wrong: those clear the strikes before
+    /// them, which that world most likely made too.
+    pub(super) fn record(&mut self, world: SenderWorld) -> bool {
         *self = match (*self, world) {
             (Self::Remove, _) => Self::Remove,
             (_, SenderWorld::OutOfStep) => Self::None,
-            (Self::Counting { since, count }, SenderWorld::InStep)
-                if now.saturating_duration_since(since) < STRIKE_WINDOW =>
-            {
-                if count + 1 >= STRIKE_LIMIT { Self::Remove }
-                else { Self::Counting { since, count: count + 1 } }
-            }
-            (_, SenderWorld::InStep) => Self::Counting { since: now, count: 1 },
+            (Self::Counting(count), SenderWorld::InStep) if count + 1 >= STRIKE_LIMIT => Self::Remove,
+            (Self::Counting(count), SenderWorld::InStep) => Self::Counting(count + 1),
+            (Self::None, SenderWorld::InStep) => Self::Counting(1),
         };
         matches!(self, Self::Remove)
     }
@@ -70,22 +72,20 @@ impl super::Game {
 mod tests {
     use super::*;
     #[test]
-    fn isolated_input_corruption_expires_and_a_burst_removes_only_its_owner() {
-        let now = Instant::now(); let mut state = InputViolations::default();
-        for n in 0..20 { assert!(!state.record(now + STRIKE_WINDOW * n, SenderWorld::InStep)); }
-        for _ in 1..STRIKE_LIMIT-1 { assert!(!state.record(now + STRIKE_WINDOW * 20, SenderWorld::InStep)); }
-        assert!(!state.record(now + STRIKE_WINDOW * 20, SenderWorld::InStep));
-        assert!(state.record(now + STRIKE_WINDOW * 20, SenderWorld::InStep));
+    fn the_eighth_invalid_input_in_step_removes_its_owner() {
+        let mut state = InputViolations::default();
+        for _ in 1..STRIKE_LIMIT { assert!(!state.record(SenderWorld::InStep)); }
+        assert!(state.record(SenderWorld::InStep));
     }
 
     #[test]
     fn a_world_out_of_step_strikes_nothing_and_clears_the_strikes_before() {
-        let now = Instant::now(); let mut state = InputViolations::default();
-        for _ in 1..STRIKE_LIMIT { assert!(!state.record(now, SenderWorld::InStep)); }
-        for _ in 0..100 { assert!(!state.record(now, SenderWorld::OutOfStep)); }
-        for _ in 1..STRIKE_LIMIT { assert!(!state.record(now, SenderWorld::InStep)); }
-        assert!(state.record(now, SenderWorld::InStep));
+        let mut state = InputViolations::default();
+        for _ in 1..STRIKE_LIMIT { assert!(!state.record(SenderWorld::InStep)); }
+        for _ in 0..100 { assert!(!state.record(SenderWorld::OutOfStep)); }
+        for _ in 1..STRIKE_LIMIT { assert!(!state.record(SenderWorld::InStep)); }
+        assert!(state.record(SenderWorld::InStep));
         // Removed stays removed.
-        assert!(state.record(now, SenderWorld::OutOfStep));
+        assert!(state.record(SenderWorld::OutOfStep));
     }
 }
