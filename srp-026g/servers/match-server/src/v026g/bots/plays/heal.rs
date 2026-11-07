@@ -99,7 +99,7 @@ pub struct Item {
     pub also: &'static [(Pool, f32)],
 }
 
-pub const ITEMS: [Item; 3] = [
+pub const ITEMS: [Item; 4] = [
     Item {
         drug: Drug::Medkit,
         delay_s: 2.0,
@@ -133,6 +133,21 @@ pub const ITEMS: [Item; 3] = [
         active_s: 10.0,
         treats: &[(Pool::Infection, 0.5)],
         also: &[],
+    },
+    // The military medkit (A311, `loadouts::KitMedkit`): `scripts/content-edit/medicines.tsv` `military_medkit`: use_s 2,
+    // active_s 1, limbs 1, body 0.6, head 0.24, pain 0.5 (course totals, as the Medikit's; `make_pack.py` writes them to
+    // `data/influences[].amount`). The pain is restored, never pressed for, as the Medikit's.
+    Item {
+        drug: Drug::Military,
+        delay_s: 2.0,
+        active_s: 1.0,
+        treats: &[
+            (Pool::Body, 0.6),
+            (Pool::Head, 0.24),
+            (Pool::Hands, 1.0),
+            (Pool::Legs, 1.0),
+        ],
+        also: &[(Pool::Pain, 0.5)],
     },
 ];
 
@@ -222,7 +237,7 @@ fn graded_considerations() -> Vec<Consideration> {
 /// `medkits` number less those used this life) with it off.
 pub fn medkits_left(cx: &Ctx) -> u32 {
     if cx.tuning.heal.on {
-        u32::from(cx.bot.pantry.in_hand(Drug::Medkit))
+        u32::from(cx.bot.pantry.in_hand(Drug::Medkit)) + u32::from(cx.bot.pantry.in_hand(Drug::Military))
     } else {
         (cx.num(PlayKind::Heal, "medkits").max(0.0) as u32)
             .saturating_sub(u32::from(cx.bot.medkits_used))

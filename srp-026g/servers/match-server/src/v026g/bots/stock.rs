@@ -48,10 +48,12 @@ pub enum Drug {
     Medkit,
     Bandages,
     Antitoxin,
+    /// The military medkit (`loadouts::KitMedkit::Military`).
+    Military,
 }
 
 impl Drug {
-    pub const ALL: [Self; 3] = [Self::Medkit, Self::Bandages, Self::Antitoxin];
+    pub const ALL: [Self; 4] = [Self::Medkit, Self::Bandages, Self::Antitoxin, Self::Military];
 
     /// The dictionary's name of the item.
     pub fn name(self) -> &'static str {
@@ -59,6 +61,7 @@ impl Drug {
             Self::Medkit => "medkit",
             Self::Bandages => "bandages",
             Self::Antitoxin => "antitoxin",
+            Self::Military => survarium::v026g::loadouts::BOT_MILITARY_MEDKIT_NAME,
         }
     }
 
@@ -252,11 +255,11 @@ pub struct PantryCounts {
 }
 
 impl PantryCounts {
-    /// The counts as a log line: `spawns 12 (short 0), medkits 5, bandages 3, antitoxins 0, empty presses 0`.
+    /// The counts as a log line: `spawns 12 (short 0), medkits 5, bandages 3, antitoxins 0, military 0, empty presses 0`.
     pub fn line(&self) -> String {
-        let [medkits, bandages, antitoxins] = self.pressed;
+        let [medkits, bandages, antitoxins, military] = self.pressed;
         format!(
-            "spawns {} (short {}), medkits {medkits}, bandages {bandages}, antitoxins {antitoxins}, empty presses {}",
+            "spawns {} (short {}), medkits {medkits}, bandages {bandages}, antitoxins {antitoxins}, military {military}, empty presses {}",
             self.spawns, self.short_spawns, self.empty_presses
         )
     }
