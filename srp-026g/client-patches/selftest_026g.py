@@ -2150,7 +2150,7 @@ def lib_required_patches(data):
     is read on the release's Linux machine)."""
     if shutil.which("bash") is None or os.name == "nt":
         return None
-    path = os.path.join(SCRATCH, "required-patches.exe")
+    path = os.path.join(SCRATCH, f"required-patches.{os.getpid()}.exe")   # one per part (main's)
     with open(path, "wb") as out:
         out.write(data)
     lib = os.path.join(HERE, "..", "..", "release", "lib.sh")
@@ -3120,11 +3120,19 @@ def test_calls(original):
 PARTS = []
 
 
+def install_rows():
+    """The sites of patch_026g.py's install tables and of every Rust hook, as
+    they are now (a build adds to them)."""
+    rows = {row[0] for name, value in vars(P).items() if name.isupper() for row in P._install_rows(value)}
+    return rows | {va for va, _ in P.hooks_026g.install_sites()}
+
+
 def _run_part(index):
     """PARTS[index], in a process forked from main's after test_bins (so with
     its caches: the Rust sysroot, the arena's objects): what it printed (fd 1
     and 2, the tools' output too), its failures, the sites it saw installed
-    and written, and its traceback when it stopped."""
+    and written, the install rows its builds left (install_rows) and its
+    traceback when it stopped."""
     failures.clear()
     INSTALLED_SEEN.clear()
     WRITTEN_SEEN.clear()
@@ -3141,7 +3149,7 @@ def _run_part(index):
         sys.stdout.flush()
         out.seek(0)
         text = out.read().decode("utf-8", "replace")
-    return text, list(failures), set(INSTALLED_SEEN), set(WRITTEN_SEEN), stopped
+    return text, list(failures), set(INSTALLED_SEEN), set(WRITTEN_SEEN), install_rows(), stopped
 
 
 def main():
@@ -3172,11 +3180,13 @@ def main():
     sys.stderr.flush()
     workers = min(len(PARTS), len(os.sched_getaffinity(0)))
     with multiprocessing.get_context("fork").Pool(workers, maxtasksperchild=1) as pool:
-        for text, failed, installed, written, stopped in pool.imap(_run_part, range(len(PARTS))):
+        rows = install_rows()
+        for text, failed, installed, written, built, stopped in pool.imap(_run_part, range(len(PARTS))):
             sys.stdout.write(text)
             failures.extend(failed)
             INSTALLED_SEEN.update(installed)
             WRITTEN_SEEN.update(written)
+            rows |= built
             if stopped:
                 sys.stdout.write(stopped)
                 check(False, f"stopped: {stopped.strip().splitlines()[-1]} (the traceback above)")
@@ -3184,8 +3194,6 @@ def main():
     stale = sorted(set(P.INSTALLS) - INSTALLED_SEEN)
     check(not stale, f"every INSTALLS row is installed by some variant built here ({len(INSTALLED_SEEN)} sites)"
           + (": stale " + ", ".join(f"{va:#x}" for va in stale) if stale else ""))
-    rows = {row[0] for name, value in vars(P).items() if name.isupper() for row in P._install_rows(value)}
-    rows |= {va for va, _ in P.hooks_026g.install_sites()}
     unwritten = sorted(rows - WRITTEN_SEEN)
     check(not unwritten, f"every row of patch_026g.py's install tables and every Rust hook ({len(rows)}) is written "
           "by some build here" + (": not " + ", ".join(f"{va:#x}" for va in unwritten) if unwritten else ""))

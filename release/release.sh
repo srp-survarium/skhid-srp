@@ -4,7 +4,7 @@
 #                           [--minutes <n> | --no-maintenance] [--now]
 #                           [--match-wait <minutes>] [--label <word>]
 #                           [--ref <branch>] [--no-bot-data] [--worlds <folder>]
-#                           [--dry-run] [--yes --i-know]
+#                           [--no-selftest] [--dry-run] [--yes --i-know]
 #
 # A whole release of origin/main in one run, and its record. Its revision
 # is the live exe's + 1 (--test: the test exe's + 1; or --revision <n>),
@@ -92,7 +92,8 @@
 #      of that commit started in the background
 #      (srp-026g/client-patches/selftest_026g.py, its Linux part, on
 #      $SKHID_GAME's survarium.exe, about 5 min; release/test.sh:
-#      $SKHID_SELFTEST_BIN), while the rest of this step runs; checks the two
+#      $SKHID_SELFTEST_BIN; --no-selftest: none, said loudly), while the
+#      rest of this step runs; checks the two
 #      files as release/deploy does (live:
 #      and makes the item tables of the server data, srp-item-tables, so a
 #      tool failing on it stops here, before the go); makes the release
@@ -219,6 +220,10 @@
 #                       with worlds of its own games (a match on the test
 #                       environment after release.sh --test; one against
 #                       bots is kept), as the live games' are refused then
+#   --no-selftest       skips the exe patches' self-test (step 2): for a
+#                       quick fix release only (the default runs it); said
+#                       as a WARNING in the preflight, the plan, the summary,
+#                       and written in the tag and the record's commit
 #   --dry-run           runs the read-only checks of step 1, prints every
 #                       other command; plans no maintenance, writes nothing
 #   --yes --i-know      answer the y/N before the swap yes (both flags or
@@ -239,7 +244,7 @@ STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
 LAUNCHER_SHA=${SKHID_TEST_LAUNCHER_SHA256:-$(sed -n 's/^EXE_SHA256 = "\([0-9a-f]*\)"$/\1/p' "$ROOT/srp-026g/client-patches/launcher/patch_launcher_026g.py")}
 
 ref=main resources='' revision_arg='' test_server=0 server_code=auto minutes='' label='' yes=0 i_know=0
-no_maint=0 match_wait='' now=0 no_bot_data=0 worlds_arg=''
+no_maint=0 match_wait='' now=0 no_bot_data=0 worlds_arg='' no_selftest=0
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -251,6 +256,7 @@ while (($#)); do
     --no-maintenance) no_maint=1; shift ;;
     --now) now=1; shift ;;
     --no-bot-data) no_bot_data=1; shift ;;
+    --no-selftest) no_selftest=1; shift ;;
     --worlds) (($# >= 2)) || usage 1; worlds_arg=$2; shift 2 ;;
     --match-wait) (($# >= 2)) || usage 1; match_wait=$2; shift 2 ;;
     --label) (($# >= 2)) || usage 1; label=$2; shift 2 ;;
@@ -819,6 +825,10 @@ record_release() {
         say
         say "Built from this commit with patch revision $rev (release/build-zip --revision $rev);"
         say "patch_026g.py here says REVISION $main_rev, the release before."
+        if ((no_selftest)); then
+            say
+            say "Shipped WITHOUT the exe patches' self-test (release.sh --no-selftest)."
+        fi
     } >"$work/tag.msg"
     if ! git -C "$REPO" tag -a "$tag" "$main_commit" -F "$work/tag.msg" 2>"$work/tag.log"; then
         record_problem "the tag $tag: $(tr '\n' ' ' <"$work/tag.log")— by hand: git -C $(q "$REPO") tag -a $tag $main_commit -F $(q "$work/tag.msg") && git -C $(q "$REPO") push origin refs/tags/$tag"
@@ -866,6 +876,10 @@ record_release() {
             say "It changes what a match computes ($SIM_NEXT): $rev in place of"
             say "\`next\` in $SIMULATION_CHANGES; recordings of games before"
             say "revision $rev are no longer given (the player is told why)."
+        fi
+        if ((no_selftest)); then
+            say
+            say "Shipped WITHOUT the exe patches' self-test (release.sh --no-selftest)."
         fi
         say
         say "Shipped:"
@@ -1266,6 +1280,9 @@ fi
 # compared with the data volume's own, the ones it lacks or has otherwise to
 # be put in at the swap. And the built maps (F5): said, not done (below).
 bd_dir=${SKHID_BOT_DATA:-} bd_ok=0 bd_bytes=0 bd_line=''
+if ((no_selftest)); then
+    say "  WARNING  --no-selftest: the exe patches' self-test is NOT run (a quick fix release): the exe ships unchecked against its general rules; the tag and the record say so"
+fi
 if ((no_bot_data)); then
     say "  WARNING  --no-bot-data: the bots' data files (release/bot-data.tsv) are neither checked nor put in the volume: the bots run on what the volume holds now"
     bd_line="NOT TOUCHED (--no-bot-data): the bots run on what the volume holds now"
@@ -1545,6 +1562,11 @@ say_offered
 say "  server code: $(if ((build_code)); then say "its image built here and loaded on the host before the swap"; else say "not built"; fi)"
 say "  the bots' data (release/bot-data.tsv): ${bd_line:-not checked (the preflight stopped before it)}"
 if ((${#BD_TODO[@]})); then printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"; fi
+if ((no_selftest)); then
+    say "  the exe patches' self-test: NOT RUN (--no-selftest)"
+else
+    say "  the exe patches' self-test: in step 2, beside the rest; its result before the go"
+fi
 if [[ -n $built_note ]]; then say "  ${built_note#WARNING }"; fi
 if [[ -n $site_tree ]]; then
     say "  the Maps tab and the calculator: rebuilt from what /patches will offer (in the server's source; the record commits them)"
@@ -1605,7 +1627,11 @@ if ((DRY_RUN)); then
     say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
     say "[dry run]    and: ${build_zip[*]}"
     if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
-    say "[dry run]    then the exe patches' self-test (selftest_026g.py, its Linux part) of that commit on $SKHID_GAME's survarium.exe started in the background, beside the rest of step 2"
+    if ((no_selftest)); then
+        say "[dry run]    WARNING no exe patches' self-test (--no-selftest)"
+    else
+        say "[dry run]    then the exe patches' self-test (selftest_026g.py, its Linux part) of that commit on $SKHID_GAME's survarium.exe started in the background, beside the rest of step 2"
+    fi
     say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
@@ -1633,11 +1659,15 @@ else
     # Ctrl-C reaches only this script.
     original_exe=$SKHID_GAME/binaries/x86/survarium.exe
     [[ -f $original_exe ]] || original_exe=$SKHID_GAME/game/binaries/x86/survarium.exe
-    progress "2. the exe patches' self-test of $(git -C "$REPO" log -1 --format=%h "$main_commit") started, beside the rest (selftest_026g.py, about 5 min; log: $work/selftest.log)"
-    set -m
-    run_selftest "$work/zip/src" "$original_exe" "$work/selftest.log" "$work/selftest" </dev/null &
-    SELFTEST_PID=$!
-    set +m
+    if ((no_selftest)); then
+        say "WARNING the exe patches' self-test: NOT RUN (--no-selftest)"
+    else
+        progress "2. the exe patches' self-test of $(git -C "$REPO" log -1 --format=%h "$main_commit") started, beside the rest (selftest_026g.py, about 5 min; log: $work/selftest.log)"
+        set -m
+        run_selftest "$work/zip/src" "$original_exe" "$work/selftest.log" "$work/selftest" </dev/null &
+        SELFTEST_PID=$!
+        set +m
+    fi
     planned_offer=$OFFERED
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
@@ -1698,7 +1728,7 @@ fi
 # The self-test's result, before the go: a failed check stops the release
 # here, as any failure of step 2 (the staged files removed, the image tag put
 # back, the new patch's row out of the list again).
-if ((!DRY_RUN)); then
+if ((!DRY_RUN && !no_selftest)); then
     progress "2. waiting for the exe patches' self-test (log: $work/selftest.log)"
     selftest_ok=1
     wait "$SELFTEST_PID" || selftest_ok=0
@@ -1707,12 +1737,14 @@ if ((!DRY_RUN)); then
     rm -rf "$work/selftest"
     ((selftest_ok)) || die "the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
     say "the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
+elif [[ -d $work/zip/src ]]; then
+    git -C "$REPO" worktree remove --force "$work/zip/src"
 fi
 
 
 # 3. The go, then at once 4. the maintenance.
 if ((DRY_RUN)); then
-    say "[dry run]    then the self-test's result (a failed check stops here, before the go)"
+    ((no_selftest)) || say "[dry run]    then the self-test's result (a failed check stops here, before the go)"
     say "[dry run] 3. then wait for the go (y at the prompt, or touch $GO_DIR/go-$REL; --yes does not give it). Then at once: $after_go"
     if ((!no_maint)); then
         maintenance_minutes
@@ -1874,6 +1906,7 @@ released_at=$(date -u +%s)
 say
 if ((now)); then say "--now: the stop ended ${ENDED:-an unknown number of} match(es) without results"; fi
 say "released revision $rev to the $TARGET server. Its folder: $TARGET_DIR/$REL (the files before it, srp.db before it, the image IDs, the bots' data files it replaced (old-bot-data), changed.txt, release.log); the old image is $BEFORE_TAG ($RUN_IMAGE)"
+if ((no_selftest)); then say "WARNING: shipped WITHOUT the exe patches' self-test (--no-selftest): the tag and the record say so"; fi
 if [[ -n $built_note ]]; then say "${built_note#WARNING }"; fi
 if ((test_server)); then
     say "No record (--test): no commit, no tag."

@@ -278,8 +278,16 @@ release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
                    [--revision <n>] [--server-code auto|yes|no]
                    [--minutes <n> | --no-maintenance] [--now]
                    [--match-wait <minutes>] [--label <word>] [--ref <branch>]
-                   [--no-bot-data] [--worlds <folder>] [--dry-run] [--yes --i-know]
+                   [--no-bot-data] [--worlds <folder>] [--no-selftest]
+                   [--dry-run] [--yes --i-know]
 ```
+
+`--no-selftest` skips the exe patches' self-test (step 2), for a **quick fix
+release** only (an urgent fix that cannot wait for it); the default runs it.
+It is said as a WARNING in the preflight, the plan, the step-2 output and the
+summary, and written in the tag's message and the record's commit ("Shipped
+WITHOUT the exe patches' self-test"), so it stays visible which release went
+without it.
 
 After the preflight it **prepares and stages everything before the go**,
 which players don't see (a patch no list offers yet, the release folder,
@@ -364,7 +372,7 @@ The order, as it runs:
    `selftest.log` in the run's work folder), while the rest of this step
    runs; its result is waited for last, before the go: a failed check stops
    the release there like any failure of this step (the patch's fix is a
-   PR, then a new run). It is the release's check of the exe's general rules (no byte
+   PR, then a new run; `--no-selftest`: none, see above). It is the release's check of the exe's general rules (no byte
    changed undeclared, no relocation or branch into a rewritten byte, every
    hooked function's ABI, every branch target known): nobody runs it by hand
    before a release, and it is not a check of each PR. The checks of `deploy`

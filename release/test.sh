@@ -1385,6 +1385,8 @@ tag_text=$(git -C "$T/origin.git" cat-file tag 026g-rev12 2>/dev/null || true)
 check "release: ... its message: the UTC time, the ZIP's and the server data's sha256" bash -c \
     "grep -qE '^Revision 12, released 20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} UTC$' <<<\"\$1\" && grep -q 'sha256 $zip_sha$' <<<\"\$1\" && grep -q 'server-game-data.db: sha256 $data_sha$' <<<\"\$1\" && grep -q 'sha256 $exe_with (--server=127.0.0.1:1234), $exe_without without a server' <<<\"\$1\"" _ "$tag_text"
 check "release: ... its tagger is the owner (no one else)" grep -q '^tagger the owner <owner@example.org>' <<<"$tag_text"
+check "release: ... with the self-test: the plan says so, the tag does not say it went without" bash -c \
+    "grep -q \"the exe patches' self-test: in step 2, beside the rest\" <<<\"\$1\" && ! grep -q 'WITHOUT the exe patches' <<<\"\$2\"" _ "$out" "$tag_text"
 check "release: main is a merge commit: the released commit, then the record" \
     test "$(git -C "$T/origin.git" log -1 --format='%P' main)" = "$released $(git -C "$T/origin.git" rev-parse 'main^2')"
 check "release: ... the record PR's merge, as GitHub's" has "$(git -C "$T/origin.git" log -1 --format=%B main)" "^Merge pull request #[0-9]* from srp/release/record-rev12"
@@ -2112,6 +2114,9 @@ expect_refused "release after a rollback: ... and its record is on origin" "the 
 run quiet --dry-run --revision 15 --minutes 1 || fail "release.sh --revision 15 --dry-run: $out"
 check "release --revision 15 after the rollback: accepted (the dry run)" has "$out" "the release: revision 13 -> 15 to the live server"
 check "release --dry-run: prints the record it would make" has "$out" '^\[dry run\] 7. once it went out, the record: git tag -a 026g-rev15'
+run quiet --dry-run --revision 15 --minutes 1 --no-selftest || fail "release.sh --no-selftest --dry-run: $out"
+check "release --no-selftest --dry-run: says it, in the preflight, the plan and step 2" bash -c \
+    "grep -q \"WARNING  --no-selftest: the exe patches' self-test is NOT run\" <<<\"\$1\" && grep -q \"the exe patches' self-test: NOT RUN (--no-selftest)\" <<<\"\$1\" && grep -q \"\\[dry run\\]    WARNING no exe patches' self-test\" <<<\"\$1\" && ! grep -q 'self-test.s result' <<<\"\$1\"" _ "$out"
 check "release --dry-run: ... no change of what a match computes, and no exe patch changed: no note" bash -c \
     "! grep -q 'note     the exe.s patches changed' <<<\"\$1\"" _ "$out"
 # An exe patch changed since the last release's tag, and nothing marked:
@@ -2523,8 +2528,15 @@ check "release --now: ... the old ZIP back in place" cmp -s "$T/work/r17.zip" "$
 check "release --now: ... no record of 18" no_record 18
 # A match running: swapped anyway, and it says how many it ended.
 echo 1000 >"$T/state/busy"
-run yes --now --label now || fail "release.sh --now: $out"
+: >"$T/selftest.args"
+run yes --now --no-selftest --label now || fail "release.sh --now --no-selftest: $out"
 rm -f "$T/state/busy"
+check "release --no-selftest: runs no self-test" test ! -s "$T/selftest.args"
+check "release --no-selftest: ... says so in the preflight, the plan, step 2 and the summary" bash -c \
+    "grep -q \"WARNING  --no-selftest\" <<<\"\$1\" && grep -q \"the exe patches' self-test: NOT RUN (--no-selftest)\" <<<\"\$1\" && grep -q \"^WARNING the exe patches' self-test: NOT RUN\" <<<\"\$1\" && grep -q \"^WARNING: shipped WITHOUT the exe patches' self-test (--no-selftest)\" <<<\"\$1\"" _ "$out"
+check "release --no-selftest: ... the tag and the record's commit say it" bash -c \
+    "git -C $T/origin.git cat-file tag 026g-rev18 | grep -qx \"Shipped WITHOUT the exe patches' self-test (release.sh --no-selftest).\" && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -qx \"Shipped WITHOUT the exe patches' self-test (release.sh --no-selftest).\""
+check "release --no-selftest: ... no worktree of the ZIP left" bash -c "! git -C $T/repo worktree list | grep -q /zip/src"
 check "release --now: with a match running, swaps anyway" cmp -s "$T/work/r18.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release --now: ... says, right before the stop, the match it ends" in_order "$out" \
     '5. the swap' '--now: 1 match(es) running: the stop ends them now, WITHOUT RESULTS' 'the server is up on the new data'
