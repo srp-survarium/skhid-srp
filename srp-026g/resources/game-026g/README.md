@@ -5,9 +5,11 @@ The server's game data of 0.26g's `resources.db` with the test patches
 build` makes it (`crates/resources-db`, `server`): every file under
 `gameplay/` the game mounts, the English and Ukrainian localizations, each
 project's `client_project` cut to its `server_objects` (the respawn points and
-battery containers srp reads), and `srp/provenance`, what it was made of.
-6 496 917 bytes, sha256
-`edad431e89b76b3cf84ca0f6dbd6079db17cfd09ad60e27b87b9c87e458ebb30`. Tests and
+battery containers srp reads) and the client objects a world saves (its damage
+zones, resupply zones and anomalies, which srp reads a world's game objects
+with), and `srp/provenance`, what it was made of (data 4).
+7 975 323 bytes, sha256
+`599b24d0f941c1fe10925c57b6325d438ac81901c9c00a36f1ec09849d452254`. Tests and
 tools read it (`crates/survarium/src/v026g/game_data.rs`); `srp` itself reads
 `SRP_GAME_DATA`.
 

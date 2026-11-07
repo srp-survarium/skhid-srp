@@ -226,9 +226,10 @@ def state(world, time=4500):
     return struct.pack("<I", time) + world
 
 
-# T = 0, no times, one float, not indexed: 69 bits, 9 bytes (world-frame's
-# test of animation_len).
-ANIMATION = bytes([0, 0, 0, 0, 0x08, 0, 0, 0, 0])
+# The smallest tree a client decodes (world-frame's animation_validate): T = 11,
+# no node (its 11 header bits), no times, the first matrix's 12 floats, not
+# indexed: 432 bits, 54 bytes.
+ANIMATION = bytes.fromhex("000b0000000c") + bytes(48)
 def sections(time=4500):
     # Twenty current zero-event PlayerStatistics (40 bytes each), then tail.
     statistics = bytes(40*20) + struct.pack('<HHBBBI',0,0,0,0,2,0)
