@@ -1258,7 +1258,18 @@ impl Game {
             let (clip, dir) = jump_of(keys, yaw, speed, may_sprint);
             let u = press_draw(at, place);
             let prepare = if std::ptr::eq(clip, &SPRINT_CLIP) { (SPRINT_PREPARE_MS * u, SPRINT_PREPARE_M * u) } else { (0.0, 0.0) };
-            body.flight = Some(Flight { at, from: body.feet, dir, clip, prepare, base: None, fall: None, air: [0.0; 2], carry: [0.0; 2] });
+            body.flight = Some(Flight {
+                at,
+                from: body.feet,
+                dir,
+                clip,
+                prepare,
+                base: None,
+                fall: None,
+                air: [0.0; 2],
+                carry: [0.0; 2],
+                arc: client_clip(keys, speed, may_sprint),
+            });
         }
         // A death, a ticket, the battery dropped, and the respawn of the mode: as the game's, no one's kill.
         for place in suicides {
