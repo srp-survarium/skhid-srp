@@ -758,12 +758,26 @@ fn follow(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng, from: u
         }
         None => {
             #[cfg(test)]
-            eprintln!(
-                "A320 camp_flank follow: t {} place {} from spot {from}: he moved {:.0} m off, no known spot there",
-                cx.now,
-                cx.me.place,
-                cx.tactics.camp_spots.get(from).map_or(0.0, |c| c.at.distance_xz(his))
-            );
+            {
+                // Bench truth beside the team's sense: where he is, where the walked spot and the held spot are.
+                let truth = cx.view.place(shooter).filter(|p| p.alive).map(|p| p.feet);
+                let spot_at = cx.tactics.camp_spots.get(from).map(|c| c.at);
+                let held = match target {
+                    TargetRef::ThreatSpot(id) => cx.team.threat.line(id).map(|l| l.at),
+                    _ => None,
+                };
+                let xz = |p: Option<Vec3>| p.map_or("-".to_string(), |p| format!("({:.0},{:.0})", p.x, p.z));
+                eprintln!(
+                    "A320 camp_flank follow: t {} place {} from spot {from}: he moved {:.0} m off, no known spot there; sensed {} true {} spot {} held {}",
+                    cx.now,
+                    cx.me.place,
+                    spot_at.map_or(0.0, |a| a.distance_xz(his)),
+                    xz(Some(his)),
+                    xz(truth),
+                    xz(spot_at),
+                    xz(held)
+                );
+            }
             Step::Done("he moved from the spot")
         }
     }
