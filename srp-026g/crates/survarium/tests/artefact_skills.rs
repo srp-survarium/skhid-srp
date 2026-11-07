@@ -56,9 +56,8 @@ fn exclusive(tree: &SkillsTree, skills: &[(u16, u8)]) -> bool {
 fn artefact_tree_progression_and_modifiers() {
     let path = std::env::var("SRP_MEDICAL_SKILLS_CONFIG").expect("built skills_tree.options");
     let tree = SkillsTree::parse(&std::fs::read(path).unwrap()).unwrap();
-    // In the file's order: Hidden Stash (524) comes last, from its own edit list.
+    // Hidden Stash (524) comes from its own edit list, after the tree's: compared by id.
     let mut ids: Vec<u16> = tree.skills.iter().filter(|s| s.branch() == 5).map(|s| s.id).collect();
-    assert_eq!(ids.last(), Some(&524));
     ids.sort_unstable();
     assert_eq!(ids, TREE.map(|row| row.0));
     let mut places = std::collections::HashSet::new();

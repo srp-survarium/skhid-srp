@@ -676,18 +676,19 @@ one; the slot is one of the kit's six, so a kit with six slots has none. "My pic
 - Spec and build 2026-11-07, not played, not released. Checked: `check_hidden_stash_026g.py`
   (Unicorn: own containers first, the stash opened at 17 by an anomaly's take, the eviction when
   all are full, no bit or no slot past the run, no container at all with can_use, the death
-  emptying it with the containers kept, Keeper's gift into it and back to the pool for good);
-  the Keeper, score, carry and skills checks still pass; `cargo test` and clippy of `patches`,
-  `survarium`, `session`; `release/build-content` (a quick build: the edit list applied, one file
-  edited, no unexpected difference) and the survarium tree test on the skills_tree.options it
-  built (534 at row IV column 4, 15, bit 14, a full build 25); the lobby movie built and the
-  skills harness in Ruffle (pass: 534's layout, icon, one rank). Not run: a game.
-  Not checked: a hidden artefact held in the hand at death (patch 78's drop then finds nothing,
-  by the code; no Unicorn case), the HUD.
+  emptying it with the containers kept, Keeper's gift into it and back to the pool for good; with
+  patch 78's carry, a hand-over closing it at once and the HUD's loop clearing the position it
+  left once, and a stash artefact held in the hand at death going back dormant, not dropped);
+  the Keeper, score, carry, skills, kit-change and consumable-activity checks still pass; `cargo
+  test` and clippy of `patches`, `survarium`, `session`; `release/build-content` (a quick build:
+  the edit list applied, one file edited, no unexpected difference) and the survarium tree test
+  on the skills_tree.options it built (524 at row III column 4, 10, bit 14; Keeper path rows
+  I-IV 21 and a build 22, Forest Protection path 24 and 25, every row opening on both); the lobby
+  movie built and the skills harness in Ruffle (pass: 524's layout, icon, one rank). Not run: a
+  game (the HUD's look included).
 
 ### Open questions for the owner
 
 - Score: should an anomaly's artefact into the hidden slot give 15 (a free slot) instead of 5?
-- Handed over alive, the slot stays an empty position until death: fine, or should the hidden
-  artefact not be handed over at all?
-- Placement: row IV beside the second artefacts, or row III beside Keeper and the Container?
+- Answered 2026-11-07: the hand-over is allowed (made to close the slot at once); the placement
+  is row III beside Keeper and the Container (524).
