@@ -490,6 +490,10 @@ pub struct Statistics<'a> {
     batteries: [&'a [u8]; MAX_BATTERIES],
     battery_count: usize,
     tail: Tail,
+    /// By place, its record's `last_hit_enemy_id`: what the match's rule
+    /// needs of a record, kept by the parse so that the rule does not read
+    /// every record again.
+    last_hit_enemies: [Option<Place>; MAX_PLAYERS],
 }
 
 impl<'a> Statistics<'a> {
@@ -518,9 +522,17 @@ impl<'a> Statistics<'a> {
         let record =
             |reader: &Reader, from: usize| bytes.get(from..reader.at()).unwrap_or_default();
         let mut players: [&[u8]; MAX_PLAYERS] = [&[]; MAX_PLAYERS];
-        for (place, player) in players.iter_mut().take(places).enumerate() {
+        let mut last_hit_enemies = [None; MAX_PLAYERS];
+        for (place, (player, enemy)) in players
+            .iter_mut()
+            .zip(last_hit_enemies.iter_mut())
+            .take(places)
+            .enumerate()
+        {
             let from = reader.at();
-            PlayerStatistics::read(&mut reader, place).map_err(fault)?;
+            *enemy = PlayerStatistics::read(&mut reader, place)
+                .map_err(fault)?
+                .last_hit_enemy;
             *player = record(&reader, from);
         }
         let mut statuses: [&[u8]; MAX_BATTERIES] = [&[]; MAX_BATTERIES];
@@ -539,7 +551,13 @@ impl<'a> Statistics<'a> {
             batteries: statuses,
             battery_count: batteries,
             tail,
+            last_hit_enemies,
         })
+    }
+
+    /// By roster place, its record's `last_hit_enemy_id` (`None` for 0xFF).
+    pub fn last_hit_enemies(&self) -> impl Iterator<Item = Option<Place>> + '_ {
+        self.last_hit_enemies.iter().copied().take(self.places)
     }
 
     /// The places' records, by roster place.
@@ -571,8 +589,8 @@ impl<'a> Statistics<'a> {
 pub fn statistics(section: &Section, context: &Context) -> Result<(), Refusal> {
     let places = context.places;
     let read = Statistics::read(section, places, battery_records(context))?;
-    for (place, player) in read.players().enumerate() {
-        if let Some(enemy) = player.last_hit_enemy()
+    for (place, enemy) in read.last_hit_enemies().enumerate() {
+        if let Some(enemy) = enemy
             && enemy.index() >= places
         {
             return Err(Refusal::new(

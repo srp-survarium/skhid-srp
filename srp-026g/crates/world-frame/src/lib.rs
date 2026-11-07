@@ -445,12 +445,20 @@ impl Bits<'_> {
         if bits > 32 || end > self.bytes.len().checked_mul(8)? {
             return None;
         }
+        // A byte's run of bits at a time, most significant first: at most
+        // five steps for 32 bits (one bit a step made the floats table's
+        // checks the bulk of a world check's instructions).
         let mut value = 0u64;
         while self.at < end {
             let byte = *self.bytes.get(self.at / 8)?;
-            let bit = byte.checked_shr(7 ^ (self.at % 8) as u32)? & 1;
-            value = value.checked_shl(1)? | u64::from(bit);
-            self.at = self.at.checked_add(1)?;
+            let left = 8usize.checked_sub(self.at % 8)?;
+            let take = left.min(end.checked_sub(self.at)?);
+            let below = u32::try_from(left.checked_sub(take)?).ok()?;
+            let width = u32::try_from(take).ok()?;
+            let mask = u8::MAX.checked_shr(8u32.checked_sub(width)?)?;
+            let run = byte.checked_shr(below)? & mask;
+            value = value.checked_shl(width)? | u64::from(run);
+            self.at = self.at.checked_add(take)?;
         }
         Some(value as u32)
     }

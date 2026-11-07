@@ -421,3 +421,26 @@ fn a_refusal_says_part_offset_and_reason() {
         "end at 0x50: 3 bytes after the effects"
     );
 }
+
+#[test]
+fn bits_read_as_one_bit_at_a_time_would() {
+    // The reference: most significant first, one bit a step.
+    fn one_at_a_time(bytes: &[u8], at: usize, bits: usize) -> Option<u32> {
+        if bits > 32 || at + bits > bytes.len() * 8 {
+            return None;
+        }
+        Some((at..at + bits).fold(0u32, |value, bit| {
+            value.wrapping_shl(1) | u32::from(bytes[bit / 8] >> (7 - bit % 8) & 1)
+        }))
+    }
+    let bytes = [0xA5, 0x3C, 0xFF, 0x00, 0x96, 0x71, 0xE8, 0x0F, 0x5A];
+    for at in 0..=bytes.len() * 8 {
+        for bits in 0..=33 {
+            let mut reader = Bits { bytes: &bytes, at };
+            let read = reader.read(bits);
+            assert_eq!(read, one_at_a_time(&bytes, at, bits), "at {at}, {bits} bits");
+            let after = if read.is_some() { at + bits } else { at };
+            assert_eq!(reader.at, after, "at {at}, {bits} bits");
+        }
+    }
+}

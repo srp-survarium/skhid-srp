@@ -67,8 +67,8 @@
 use super::AMMO_SLOTS;
 use super::effects::{Effect, EffectFault};
 use super::inventory::{
-    self, Ammo, Body, Fault, Gun, Item, ItemsAndRest, Measure, Owner, SLOTS, Slot, SlotId,
-    flag, float, floats, short, state_id, u8, u32,
+    self, Ammo, Body, Fault, Gun, Item, ItemsAndRest, Measure, Owner, SLOTS, Slot, SlotId, flag,
+    float, floats, short, state_id, u8, u32,
 };
 use super::weapon::{Portable, optional_u8, optional_u32};
 use super::{Block, Context, PLAYER_FIELDS_AT, PLAYER_STATE_CAP};
@@ -100,6 +100,12 @@ const HEAD_AFTER_ITEMS: usize = 27;
 fn outside(at: usize, field: &'static str, value: u32) -> Fault {
     (at, Reason::TailField { at, field, value })
 }
+
+/// What every head starts with, whatever its item count: the current and
+/// target kits and the pickup record (decoded once for all the counts a
+/// guessed walk tries).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Front(Kit, Kit, weapon_pickup::Record);
 
 /// The head of a player's state, borrowed from the world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -199,7 +205,7 @@ impl<'a> Head<'a> {
 
     /// The two kit bytes and the pickup record, which every head starts
     /// with whatever its item count.
-    fn front(state: &[u8]) -> Result<(Kit, Kit, weapon_pickup::Record), Fault> {
+    fn front(state: &[u8]) -> Result<Front, Fault> {
         let (current, target) = match state.get(..2) {
             Some(&[current, target]) => (current, target),
             _ => return Err((0, Reason::StateUnder2)),
@@ -212,12 +218,17 @@ impl<'a> Head<'a> {
             .and_then(|bytes| bytes.try_into().ok())
             .and_then(weapon_pickup::Record::decode)
             .ok_or((2, Reason::PickupRecord))?;
-        Ok((current, target, pickup))
+        Ok(Front(current, target, pickup))
     }
 
     /// The head of `state` for a profile of `items` items, its offsets the
     /// state's; `Err` with [`Reason::NoHead`] when the state is shorter.
-    fn read(reader: &mut Reader<'a>, state: &'a [u8], items: usize) -> Result<Self, Fault> {
+    fn read(
+        reader: &mut Reader<'a>,
+        state: &'a [u8],
+        front: Front,
+        items: usize,
+    ) -> Result<Self, Fault> {
         let no_head = (
             0,
             Reason::NoHead {
@@ -225,7 +236,7 @@ impl<'a> Head<'a> {
                 len: state.len(),
             },
         );
-        let (current_kit, target_kit, pickup) = Self::front(state)?;
+        let Front(current_kit, target_kit, pickup) = front;
         let len = Self::len(items).ok_or(no_head)?;
         if state.len() < len {
             return Err(no_head);
@@ -761,9 +772,7 @@ impl<'a> InventoryHeader<'a> {
             let begin_at = reader.at();
             let begin = u8(reader)?;
             let bad_begin = (begin_at, Reason::TailSlotsBegin { begin, count });
-            if !QUICK_SLOTS.contains(&begin)
-                || begin.saturating_add(count) > QUICK_SLOTS.end
-            {
+            if !QUICK_SLOTS.contains(&begin) || begin.saturating_add(count) > QUICK_SLOTS.end {
                 return Err(bad_begin);
             }
             let begin = SlotId::new(begin).ok_or(bad_begin)?;
@@ -854,8 +863,18 @@ impl<'a> PlayerState<'a> {
     /// The state of a place whose profile has `items` items, read to its
     /// inventory header; `artefacts` bounds the artefact-slot ids.
     pub fn read(state: &'a [u8], items: usize, artefacts: Option<usize>) -> Result<Self, Fault> {
+        Self::read_with(state, Head::front(state)?, items, artefacts)
+    }
+
+    /// [`PlayerState::read`] with the head's front already read.
+    fn read_with(
+        state: &'a [u8],
+        front: Front,
+        items: usize,
+        artefacts: Option<usize>,
+    ) -> Result<Self, Fault> {
         let mut reader = Reader::new(state, 0);
-        let head = Head::read(&mut reader, state, items)?;
+        let head = Head::read(&mut reader, state, front, items)?;
         let head_len = reader.at();
         // The E player effects, each an effect in the one form a game writes
         // (`effects::Effect`, as the effects section's). E is 0 in every world
@@ -1051,7 +1070,9 @@ pub fn player_head(block: &Block, context: &Context) -> Result<(), Refusal> {
         return Err(refuse((0, Reason::NoProfile)));
     };
     let mut reader = Reader::new(block.state, 0);
-    let head = Head::read(&mut reader, block.state, profile.items).map_err(refuse)?;
+    let head = Head::front(block.state)
+        .and_then(|front| Head::read(&mut reader, block.state, front, profile.items))
+        .map_err(refuse)?;
     if !profile.usable(head.current_kit.get()) {
         return Err(refuse((0, Reason::CurrentKit(head.current_kit.get()))));
     }
@@ -1125,9 +1146,10 @@ fn max_items(state_len: usize) -> usize {
 /// so no inventory to walk: the walk stops at the inventory header. The
 /// fault reported is the furthest any M reached.
 fn guessed(state: &[u8], context: &Context) -> Result<(), Fault> {
+    let front = Head::front(state)?;
     let mut furthest: Option<Fault> = None;
     for items in 0..=max_items(state.len()) {
-        match PlayerState::read(state, items, context.artefacts) {
+        match PlayerState::read_with(state, front, items, context.artefacts) {
             Ok(_) => return Ok(()),
             Err(fault) => {
                 if furthest
@@ -1246,15 +1268,34 @@ mod tests {
         assert_eq!(head.pickup(), weapon_pickup::Record::EMPTY);
         assert_eq!(head.stored().collect::<Vec<_>>(), [0]);
         assert!(head.alive() && !head.has_to_die() && !head.need_to_select_animations());
-        assert_eq!((head.look_pitch(), head.rotation_y()), (Finite::ZERO, Finite::ZERO));
-        assert_eq!((head.actions_mask(), head.effects_time_ms(), head.effect_count()), (0, 0, 0));
+        assert_eq!(
+            (head.look_pitch(), head.rotation_y()),
+            (Finite::ZERO, Finite::ZERO)
+        );
+        assert_eq!(
+            (
+                head.actions_mask(),
+                head.effects_time_ms(),
+                head.effect_count()
+            ),
+            (0, 0, 0)
+        );
         assert!(read.effects().next().is_none() && read.hit_effects().next().is_none());
-        assert_eq!((read.current_active_object(), read.target_active_object()), (None, None));
+        assert_eq!(
+            (read.current_active_object(), read.target_active_object()),
+            (None, None)
+        );
         assert!(!read.stamina().is_low_stamina());
         let inventory = read.inventory();
         assert_eq!(inventory.carried_weight(), Finite::ZERO);
-        assert_eq!((inventory.carried(), inventory.artefact_slots()), (None, None));
-        assert_eq!((inventory.active_slot(), inventory.grenade_slot()), (SlotId::new(7), None));
+        assert_eq!(
+            (inventory.carried(), inventory.artefact_slots()),
+            (None, None)
+        );
+        assert_eq!(
+            (inventory.active_slot(), inventory.grenade_slot()),
+            (SlotId::new(7), None)
+        );
     }
 
     #[test]
@@ -1296,14 +1337,32 @@ mod tests {
         let state = battery(0, 1, 2);
         let read = PlayerState::read(&state, 1, None).unwrap();
         let carried = read.inventory().carried().unwrap();
-        assert_eq!((carried.id(), carried.spotted_mask(), carried.user().get()), (3, 1, 0));
+        assert_eq!(
+            (carried.id(), carried.spotted_mask(), carried.user().get()),
+            (3, 1, 0)
+        );
         assert_eq!(carried.container(), Some(1));
-        assert!(matches!(carried.state(), BatteryState::Drop { animation: Some(BatteryAnimation::FirstPerson), .. }));
+        assert!(matches!(
+            carried.state(),
+            BatteryState::Drop {
+                animation: Some(BatteryAnimation::FirstPerson),
+                ..
+            }
+        ));
         let reason = |state: &[u8]| with_profile(state).expect_err("refused").reason;
         // Another user, a container past the two, a state past the three.
-        assert!(matches!(reason(&battery(1, 0xFF, 1)), Reason::TailBattery { .. }));
-        assert!(matches!(reason(&battery(0, 2, 1)), Reason::TailBattery { .. }));
-        assert!(matches!(reason(&battery(0, 0xFF, 3)), Reason::TailGunState { state: 3, .. }));
+        assert!(matches!(
+            reason(&battery(1, 0xFF, 1)),
+            Reason::TailBattery { .. }
+        ));
+        assert!(matches!(
+            reason(&battery(0, 2, 1)),
+            Reason::TailBattery { .. }
+        ));
+        assert!(matches!(
+            reason(&battery(0, 0xFF, 3)),
+            Reason::TailGunState { state: 3, .. }
+        ));
     }
 
     #[test]
@@ -1540,7 +1599,10 @@ mod tests {
         }
         // The damage model's floats stay numbers.
         state[health..health + 4].copy_from_slice(&f32::NAN.to_bits().to_le_bytes());
-        assert!(matches!(reason(&state, &items), Reason::TailNotNumber { .. }));
+        assert!(matches!(
+            reason(&state, &items),
+            Reason::TailNotNumber { .. }
+        ));
     }
 
     #[test]
@@ -1566,13 +1628,19 @@ mod tests {
         let read = read.items_and_rest(0, &context).unwrap().unwrap();
         let mut items = read.items();
         let armour = items.next().unwrap();
-        assert_eq!(armour.left(), Left::Condition(Finite::of_bits(1f32.to_bits()).unwrap()));
+        assert_eq!(
+            armour.left(),
+            Left::Condition(Finite::of_bits(1f32.to_bits()).unwrap())
+        );
         assert_eq!(armour.owner().map(|own| own.slot().get()), Some(0));
         assert_eq!(armour.body(), ItemBody::None);
         let ItemBody::Weapon(stowed) = items.next().unwrap().body() else {
             panic!("a weapon");
         };
-        assert_eq!((stowed.ammo_in_magazine(), stowed.current_ammo_id()), (10, 1));
+        assert_eq!(
+            (stowed.ammo_in_magazine(), stowed.current_ammo_id()),
+            (10, 1)
+        );
         assert_eq!(stowed.in_hand(), None);
         let ItemBody::Weapon(held) = items.next().unwrap().body() else {
             panic!("a weapon");
@@ -1644,7 +1712,10 @@ mod tests {
         let mut nan = state(true);
         let at = valid_state().len() + 6 + 8;
         nan[at..at + 4].copy_from_slice(&f32::NAN.to_le_bytes());
-        assert!(matches!(reason(&nan, &medkit), Reason::TailNotNumber { .. }));
+        assert!(matches!(
+            reason(&nan, &medkit),
+            Reason::TailNotNumber { .. }
+        ));
     }
 
     #[test]
@@ -1659,10 +1730,16 @@ mod tests {
         let mut affect = state.clone();
         affect[part + 8] = 1;
         affect.splice(part + 9..part + 9, [9, 0, 0, 0, 0]);
-        assert!(matches!(reason(&affect, &[]), Reason::TailAffect { kind: 9 }));
+        assert!(matches!(
+            reason(&affect, &[]),
+            Reason::TailAffect { kind: 9 }
+        ));
         let mut hits = state.clone();
         hits[part + 9] = 65;
-        assert!(matches!(reason(&hits, &[]), Reason::TailCount { what: "hits", .. }));
+        assert!(matches!(
+            reason(&hits, &[]),
+            Reason::TailCount { what: "hits", .. }
+        ));
         let mut carry = state.clone();
         let carry_at = carry.len() - 32;
         carry[carry_at] = 1;
@@ -1722,8 +1799,14 @@ mod tests {
             with_profile(&state).map_err(|r| r.reason)
         };
         assert_eq!(artefacts(13, 6), Ok(()));
-        assert!(matches!(artefacts(12, 1), Err(Reason::TailSlotsBegin { .. })));
-        assert!(matches!(artefacts(18, 2), Err(Reason::TailSlotsBegin { .. })));
+        assert!(matches!(
+            artefacts(12, 1),
+            Err(Reason::TailSlotsBegin { .. })
+        ));
+        assert!(matches!(
+            artefacts(18, 2),
+            Err(Reason::TailSlotsBegin { .. })
+        ));
     }
 
     #[test]

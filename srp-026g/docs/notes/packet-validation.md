@@ -155,6 +155,15 @@ at a time, and no large value lives on the item walk's recursion. Holding
 them parsed had put `PlayerState::read` at 0x1D40 bytes of the game's
 stack, under `world_check::check`'s 0x51AC, and a flipped world overflowed
 the loader's 32 KiB; the player path is now some 0x5B0 bytes past it.
+The check's time counts too: `check_world_roundtrip_026g.py` runs the 0xE8
+handler's preparation in at most 500,000 instructions, and the typed parse
+had taken a recorded world to 560,218 (main: 212,595). Three costs were
+not the checks': the animation bit reader took one bit a step, which the
+floats table's number checks made the bulk of the work (now a byte's run
+a step); the statistics rule read every place's record again for its
+`last_hit_enemy_id` (now kept by the parse); a guessed player walk decoded
+the head's kits and pickup record once for each item count it tried (now
+once). The same world takes 324,975, the largest 349,906.
 The bullets, statistics and rules (`world/bullets.rs`, `statistics.rs`,
 `rules.rs`) are read as `world::Bullets` (each `Bullet`), `Statistics`
 (`PlayerStatistics`, `BatteryStatus`, `Tail`) and `Rules` (`Timelimit`,
