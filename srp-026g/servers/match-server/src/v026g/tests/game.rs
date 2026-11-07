@@ -1246,6 +1246,52 @@ fn a_world_goes_out_only_once_its_time_was_answered() {
 }
 
 #[test]
+fn an_initial_world_with_a_player_in_it_is_not_used() {
+    // A world of a match in play, with its player 0 in it.
+    let mut played = Bench::new(2, MAP_BATTERIES, Settings::default());
+    for client in &mut played.clients {
+        client.sim.player_states[0] = Some(PlayerState {
+            current_index: 0,
+            target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
+            items: vec![1_000_000],
+            alive: true,
+            has_to_die: false,
+            look_pitch: 0.0,
+            rotation_y: 0.0,
+            actions_mask: 0,
+            effects: 0,
+        });
+    }
+    played.join_all();
+    settle(&mut played);
+    let time = played.clock() / 50 * 50 - 500;
+    let sim = played.clients[0].sim.clone();
+    assert_ne!(sim.world(time)[..4], [0; 4]);
+    // Uploaded as an initial world, every other game would load its
+    // player's block, animation stream and all, with nobody vouching.
+    let start = |settings: Settings| {
+        let mut bench = Bench::new(2, MAP_BATTERIES, settings);
+        bench.clients[0].sim = sim.clone();
+        bench.clients[0].initial_ms = time;
+        bench.clients[0].connect();
+        assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
+        bench.clients[0].ready();
+        bench.run(1_000);
+        bench
+    };
+    let bench = start(Settings::default());
+    assert_eq!(bench.stages(), "w-");
+    assert!(!bench.game().has_clock());
+    // That is the only thing wrong with it.
+    let unchecked = start(Settings {
+        check_initial_world: false,
+        ..Settings::default()
+    });
+    assert!(unchecked.game().has_clock());
+}
+
+#[test]
 fn an_upload_nobody_asked_for_and_a_forged_initial_world_are_not_used() {
     let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
     // The first client's "initial" world already has kills in it.

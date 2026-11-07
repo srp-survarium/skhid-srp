@@ -1,6 +1,6 @@
 {
   "size": 7758,
-  "sha256": "4372714be10e507b1158dd5a3feecde9f2f70eb49000b9adf8e714ef95cd88fe",
+  "sha256": "a364b794dd5bb18536548f5e337bc0709949a9093f5e4477710e628493301570",
   "symbols": {
     "lj_complete": 2430,
     "lj_prepare": 1771,
@@ -13,6 +13,6 @@
   "built_with": {
     "cc": "cc (Debian 13.2.0-7) 13.2.0",
     "ld": "GNU ld (GNU Binutils for Debian) 2.41.90.20240115",
-    "nasm": "NASM version 2.16.01"
+    "nasm": "NASM version 2.16.03 compiled on Apr 17 2024"
   }
 }
