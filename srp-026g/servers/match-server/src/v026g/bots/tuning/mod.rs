@@ -208,6 +208,7 @@ pub use traps::DefeatedTuning;
 pub use traps::Forward;
 pub use traps::FreshRing;
 pub use traps::PassTuning;
+pub use traps::PressClear;
 pub use traps::PressMoving;
 pub use traps::ReactTuning;
 pub use traps::SensedNear;
@@ -813,6 +814,7 @@ mod tests {
             "/take/pitch",
             "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
+            "/traps/press_clear",
             "/traps/release",
             "/traps/sensed_near",
             "/unstick/drop_shut_from_top",
