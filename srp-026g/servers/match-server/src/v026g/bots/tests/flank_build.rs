@@ -466,3 +466,80 @@ fn write_flank_routes() {
     std::fs::write(&out, text).unwrap();
     println!("wrote {} spots to {}", spots_out.len(), std::path::Path::new(&out).display());
 }
+
+/// [A320 B3f8] Why the driver finds no way to some route floors (`NOWAYGOAL ... play=Flank`, all on level_05, the same
+/// few goals from many places): each written route's floors against the rules the driver's search keeps
+/// (`Tactics::allowed_from`: the hazard zones, the other side's spawn area for the flanker's side) and that the builder
+/// does not, and the goals the bench logs named. A probe, not a check.
+#[test]
+#[ignore = "a probe; needs SRP_MAPDATA_DIR, SRP_FLANK_ROUTES"]
+fn probe_flank_route_floors() {
+    use crate::v026g::bots::tactics::Tactics;
+    let s = bench_settings();
+    let (Some(dir), Some(table)) = (s.var_os("SRP_MAPDATA_DIR"), s.var_os("SRP_FLANK_ROUTES")) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR and SRP_FLANK_ROUTES are needed");
+        return;
+    };
+    let dir = std::path::PathBuf::from(dir);
+    let table = FlankTable::parse(&std::fs::read_to_string(&table).unwrap()).unwrap();
+    let tuning = bench_tuning();
+    // The goals the B3f/B3g logs named (level_05 mode 2).
+    let goals = [
+        Vec3::new(-62.6, 8.0, 12.7),
+        Vec3::new(-61.9, 7.3, 16.4),
+        Vec3::new(-71.4, 5.8, 17.9),
+        Vec3::new(-55.1, 8.8, 13.4),
+        Vec3::new(-72.4, 6.3, 8.7),
+        Vec3::new(-6.9, 4.2, -10.1),
+    ];
+    for (level, mode) in [("level_02", 2u8), ("level_05", 2), ("level_08", 2)] {
+        let file = dir.join(mapdata::format::file_name(&format!("{level}/day_{mode}")));
+        let Ok(map) = mapdata::MapData::read(&file) else {
+            println!("{level} mode {mode}: no map file");
+            continue;
+        };
+        let world = World::build_with(
+            map,
+            mapdata::CELL,
+            tuning.grid_body(),
+            tuning.off_mesh_links(),
+            tuning.needs_wall_clearance(),
+            tuning.needs_open_sides(),
+        );
+        let tactics = Tactics::new(std::sync::Arc::new(world), tuning.hazard.margin_m.get());
+        let grid = &tactics.world.grid;
+        let level_n: u8 = level[6..].parse().unwrap();
+        for row in table.for_map(level_n, RuleMode::of_config(mode).unwrap()) {
+            let (spot, _) = row.on_grid(grid);
+            // The flanker's map side: the camper's other one.
+            let side = Some(1 - spot.camper_side);
+            for (k, r) in spot.routes.iter().enumerate() {
+                let floors = &r.floors[..=r.fire];
+                let spawn = floors.iter().filter(|&&n| !tactics.spawn_ok(n, side, false)).count();
+                let zoned = floors.iter().filter(|&&n| tactics.hazards.marked_at(n)).count();
+                let unwalkable = floors.iter().filter(|&&n| !tactics.walkable(n)).count();
+                let first_bad = floors.iter().position(|&n| !tactics.spawn_ok(n, side, false) || tactics.hazards.marked_at(n));
+                println!(
+                    "{level} spot at ({:.1},{:.1},{:.1}) side {} route {k} {:?}: {} floors to fire; other side's spawn area {spawn}, zoned {zoned}, unwalkable {unwalkable}; first bad floor {:?}",
+                    spot.at.x, spot.at.y, spot.at.z, spot.camper_side, r.origin, floors.len(), first_bad
+                );
+            }
+        }
+        if level == "level_05" {
+            for g in goals {
+                match grid.locate(g, 1.0) {
+                    Some(n) => println!(
+                        "{level} goal ({:.1},{:.1},{:.1}): spawn_ok side 0 {} side 1 {}, zoned {}, walkable {}, past fixed zones {}",
+                        g.x, g.y, g.z,
+                        tactics.spawn_ok(n, Some(0), false),
+                        tactics.spawn_ok(n, Some(1), false),
+                        tactics.hazards.marked_at(n),
+                        tactics.walkable(n),
+                        tactics.past_fixed_zones(n)
+                    ),
+                    None => println!("{level} goal ({:.1},{:.1},{:.1}): no floor within 1 m", g.x, g.y, g.z),
+                }
+            }
+        }
+    }
+}
