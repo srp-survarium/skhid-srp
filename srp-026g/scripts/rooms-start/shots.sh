@@ -31,14 +31,16 @@ flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
     || { cat "$work/RoomsShots.mxmlc.log"; exit 1; }
 cp "$lobby" "$work/lobby_menu.swf"
 
-paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver nixpkgs#xorg.xwd nixpkgs#imagemagick \
+# Ruffle and the rest from the nixpkgs srp-026g/flake.lock pins, as ../ruffle_harness.sh takes them.
+np=github:NixOS/nixpkgs/$(sed -n '/"nixpkgs": {/,/"rev"/s/.*"rev": "\([0-9a-f]*\)".*/\1/p' "$here/../../flake.lock")
+paths=$(nix build "$np#ruffle" "$np#mesa" "$np#xorg.xorgserver" "$np#xorg.xwd" "$np#imagemagick" \
     --no-link --print-out-paths)
 ruffle=$(grep -- '-ruffle-' <<<"$paths")
 mesa=$(grep -- '-mesa-' <<<"$paths")
 xvfb=$(grep -- '-xorg-server-' <<<"$paths")/bin/Xvfb
 xwd=$(grep -- '-xwd-' <<<"$paths")/bin/xwd
 magick=$(grep -- '-imagemagick-' <<<"$paths" | head -1)/bin/magick
-lvp=$mesa/share/vulkan/icd.d/lvp_icd.x86_64.json
+lvp=$(echo "$mesa"/share/vulkan/icd.d/lvp_icd.*.json)
 
 # case: <name> <members> <owner> <teams> <phase> [<squads' marks> [<spectators> [<view>]]] ("-": none;
 # spectators "," between them; view "list": the rooms list, a full room playing chosen)
