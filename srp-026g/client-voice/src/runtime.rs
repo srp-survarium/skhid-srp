@@ -370,8 +370,11 @@ mod platform {
             if let Some(line) = drops.line(now, core.stats().undecodable) {
                 say(&line);
             }
+            // Until WELCOME every 250 ms: the relay knows the seat's IP only
+            // once the match connection that sv_start begins is made.
+            let every = if status.slot.load(SeqCst) < 0 { 250 } else { 2_000 };
             if CONTROL.hello.swap(false, SeqCst)
-                || last_hello.is_none_or(|last| now.wrapping_sub(last) >= 2_000)
+                || last_hello.is_none_or(|last| now.wrapping_sub(last) >= every)
             {
                 send(&socket, &wire::hello(session, hears, muted));
                 last_hello = Some(now);

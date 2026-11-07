@@ -289,9 +289,14 @@ fn a_datagram_from_another_ip_or_without_a_seat_is_dropped() {
     // A session with no seat.
     assert!(bench.send(7, &hello(7, true)).is_empty());
     assert!(bench.send(7, &start(7, 1)).is_empty());
-    // A seat whose connection's IP is not known yet.
+    // A seat whose connection's IP is not known yet (its game's first HELLO,
+    // before the 0xD8): nothing sent, nor counted or logged as a drop.
     bench.table.0.borrow_mut().get_mut(&3).unwrap().ip = None;
+    assert!(bench.send(3, &hello(3, true)).is_empty());
     assert!(bench.send(3, &start(3, 1)).is_empty());
+    assert_eq!(bench.relay.counts(MATCH).map(|c| c.dropped), Some(2));
+    let lines = bench.relay.drop_lines(bench.now);
+    assert!(lines.iter().all(|line| !line.contains("10.0.0.3")), "{lines:?}");
 }
 
 #[test]

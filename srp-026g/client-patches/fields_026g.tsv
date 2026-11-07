@@ -785,6 +785,5 @@ survarium::movie_slot	holder	0x0	ptr<vostok::ui::movie_holder>	a scene's movie: 
 survarium::initialize_match_frame	ui	0x4	ptr<survarium::game_world_ui>	initialize_match's first argument at its start (0x234880, by the site's ESP): the hud, called once a match from 0x1F855D (the late join's rebuild enters at 0x234E71)
 survarium::game	binder	0x5344	ptr<survarium::key_binder>	the key binder: chat_handler::on_keyboard_action asks it for the chat keys (0x208887: mov eax,[ecx+5344h], its handler+10h the game; key_binder::get_binded_action 0x207D50 with EDI 8)
 survarium::match_connect_frame	host	0x4	ptr<u8>	match_client::connect's first argument at its start (0x27A1B0, by the site's ESP): the match server's host, a C string
-survarium::match_connect_frame	port	0x8	u32	its second: the match server's UDP port (low 16 bits)
+survarium::match_connect_frame	port	0x8	u16	its second: the match server's UDP port, the dword's low 16 bits (the lobby's 0x82 handler stores only a word, 0x274A67, and pushes the whole dword, 0x274ACD: the high half is stack leftovers)
 survarium::match_connect_frame	session	0xC	u32	its third: the session the match server gave
-survarium::game_options	interface	0x4	obj<survarium::game_options_interface>	the options' Scaleform interface (game_options::scaleform_callback's ECX is game_options+4; its menu is game_options+0Ch)

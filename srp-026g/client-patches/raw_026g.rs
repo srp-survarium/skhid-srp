@@ -14888,15 +14888,6 @@ impl GameOptions {
     pub unsafe fn set_game(self, value: Option<Game>) {
         unsafe { self.0.byte_add(0x34).cast::<Option<Game>>().write_volatile(value) }
     }
-
-    /// +0x4 (obj<survarium::game_options_interface>): the options' Scaleform interface (game_options::scaleform_callback's ECX is game_options+4; its menu is game_options+0Ch)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn interface(self) -> GameOptionsInterface {
-        GameOptionsInterface(unsafe { self.0.byte_add(0x4) })
-    }
 }
 
 /// A survarium::movie_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -14997,13 +14988,13 @@ impl MatchConnectFrame {
         unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
     }
 
-    /// +0x8 (u32): its second: the match server's UDP port (low 16 bits)
+    /// +0x8 (u16): its second: the match server's UDP port, the dword's low 16 bits (the lobby's 0x82 handler stores only a word, 0x274A67, and pushes the whole dword, 0x274ACD: the high half is stack leftovers)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn port(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    pub unsafe fn port(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x8).cast::<u16>().as_ptr() }
     }
 
     /// +0xc (u32): its third: the session the match server gave

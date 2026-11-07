@@ -314,7 +314,9 @@ Where the build differs from or adds to the design above:
   every 10 s (its first drop at once). A frame the decoder still refuses is concealed. A receive
   error no longer ends the DLL's tick; `sv_start` reads the host within 256 bytes. The saved
   mutes (`srp_voice_mutes`) are read once a match: a record not 8 hex digits is left out and
-  logged.
+  logged. A datagram of a seat whose IP the match server does not know yet (the game starts
+  voice as it connects, before its 0xD8) is too early, not malformed: ignored, neither counted
+  nor logged; the DLL says HELLO every 250 ms until WELCOME (then every 2 s).
 
 ## Bandwidth
 

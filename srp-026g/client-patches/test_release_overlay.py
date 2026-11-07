@@ -77,6 +77,9 @@ class ReleaseTests(unittest.TestCase):
         dll[86:88] = (0x2000).to_bytes(2, 'little')
         dll[88:90] = (0x10b).to_bytes(2, 'little')
         self.dll.write_bytes(dll)
+        # skhid_voice.dll: the same header, with patch 66's export names.
+        self.voice = self.root / 'skhid_voice.dll'
+        self.voice.write_bytes(bytes(dll) + b''.join(name + b'\0' for name in overlay.VOICE_EXPORTS))
         # The launcher's fixtures: an "original" launcher in the game folder
         # and an updater with the manifest the builder insists on.
         (self.exe.parent / 'survarium_launcher.exe').write_bytes(b'original launcher fixture')
@@ -97,7 +100,7 @@ class ReleaseTests(unittest.TestCase):
                               DXVK_DLLS={name: hashlib.sha256(data).hexdigest() for name, data in self.dxvk_dlls.items()})
         self.without_launcher = {'README.txt', 'LINUX.txt',
             'game/binaries/x86/survarium_skhid.exe', 'game/binaries/x86/bugtrap.dll',
-            'game/binaries/x86/play_skhid.bat', 'game/binaries/x86/play_skhid.sh',
+            'game/binaries/x86/skhid_voice.dll', 'game/binaries/x86/play_skhid.bat', 'game/binaries/x86/play_skhid.sh',
             'game/resources/ssl/survarium_login_server.crt'}
         self.names = self.without_launcher | {
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
@@ -111,7 +114,7 @@ class ReleaseTests(unittest.TestCase):
     def build(self, output, *options):
         args = ['make_client_026g.py', str(self.game), str(output),
                 '--server=release.example:2234',
-                '--bugtrap=' + str(self.dll), '--updater=' + str(self.updater), '--dxvk=' + str(self.dxvk), *options]
+                '--bugtrap=' + str(self.dll), '--voice=' + str(self.voice), '--updater=' + str(self.updater), '--dxvk=' + str(self.dxvk), *options]
         # Binary patching has its own disassembly suite. Exercise every other
         # part of the real release builder, including source reads and ZIP I/O.
         launcher = mock.patch.object(
@@ -440,7 +443,7 @@ class ReleaseTests(unittest.TestCase):
                 # HAPP's example, the first one, by its full path.
                 self.assertIn('C:\\Games\\Survarium\\game\\binaries\\x86\\' + program, half)
             self.assertLess(half.index('HAPP'), half.index('v2rayN'))
-            for host_or_port in ('skhid.link', 'TCP 443', 'TCP 8090', 'TCP 1234', 'UDP 1235', 'UDP 1236',
+            for host_or_port in ('skhid.link', 'TCP 443', 'TCP 8090', 'TCP 1234', 'UDP 1235', 'UDP 1236', 'UDP 1237',
                                  'https://skhid.link/patches', 'Skhid-network-setup.cmd', 'LINUX.txt'):
                 self.assertIn(host_or_port, half)
         # Public names only: no address, no other host.

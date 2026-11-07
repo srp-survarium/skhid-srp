@@ -2187,6 +2187,7 @@ va	name	location	role	basis
 0x001f7620	survarium::game_world::on_after_tick	ECX	game-world receiver	inferred
 0x001f7660	survarium::game_world::get_player	ECX	game-world interface receiver, complete-world+0xec	inferred
 0x001f7660	survarium::game_world::get_player	stack+4	requested player ID	inferred
+0x001f77e0	survarium::game_world::tick	byte [ESP+0Fh] at 0x1F7C3C	the join after game_world_core::move (0x1F7C37; je targets 0x1F7C24, 0x1F7C2D): the simulation stepped, before the place loop; EBX the game world, [ESP+1Ch] not yet the match options (0x1F79C6 set it); no relocation in 0x1F7C3C..0x1F7C40	observed
 0x001f8190	survarium::game_world::switch_to_warmup_camera	EDX	game-world receiver	inferred
 0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver: input +4D58h; camera interface input+4 passed at 1F824B..1F8254	observed
 0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	mode-selector Boolean: true mode 0, false mode 2 at input+358h	observed

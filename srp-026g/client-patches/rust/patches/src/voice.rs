@@ -171,7 +171,7 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let Some(connect) = Connect::at(ctx) else { return Flow::Continue };
+    let connect = Connect::at(ctx);
     let dll = match VOICE.get(thread) {
         Voice::Missing => return Flow::Continue,
         Voice::Unloaded => match Dll::load(thread) {
@@ -190,6 +190,11 @@ pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
     };
     dll.talk(false);
+    let Some(connect) = connect else {
+        log::line(&[Text("voice: a match connect without a host, or on port 65535: voice chat is off for this match")]);
+        VOICE.set(thread, Voice::Idle(dll));
+        return Flow::Continue;
+    };
     let next = if dll.start(&connect) {
         Voice::Live(dll, Live { mutes: load_mutes(thread), told: None, talk: None, shown: None })
     } else {

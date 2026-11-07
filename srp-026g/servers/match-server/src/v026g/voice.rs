@@ -682,9 +682,16 @@ impl<S: Seats> Relay<S> {
             self.reject(source, None, Dropped::NoSeat);
             return out;
         };
-        if seat.ip != Some(source) {
-            self.reject(source, Some(seat.match_id), Dropped::WrongIp);
-            return out;
+        match seat.ip {
+            Some(ip) if ip == source => (),
+            // The game starts voice as it connects to the match, before its
+            // 0xD8 gives the seat its IP: too early, not malformed. Neither
+            // counted nor logged; the game says HELLO again until WELCOME.
+            None => return out,
+            Some(_) => {
+                self.reject(source, Some(seat.match_id), Dropped::WrongIp);
+                return out;
+            }
         }
         // A session may acquire a new place before housekeeping runs. An
         // utterance belongs to the seat where it began, never the old team

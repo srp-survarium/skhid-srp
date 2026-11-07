@@ -139,7 +139,8 @@ pub struct Connect<'c> {
 }
 
 impl<'c> Connect<'c> {
-    /// None without a host, or for a match port with no port after it.
+    /// None without a host, or for a match port with no port after it
+    /// (65535).
     pub fn at(ctx: &'c Context<'_>) -> Option<Connect<'c>> {
         // SAFETY: the context is this site's: match_client::connect's
         // arguments at its start, the host a C string its caller keeps for
@@ -148,7 +149,7 @@ impl<'c> Connect<'c> {
             let frame = raw::site::match_client_connect::frame(ctx)?;
             (c_string(frame.host(), 0x100)?, *frame.port(), *frame.session())
         };
-        let port = u16::try_from(port).ok()?.checked_add(1)?;
+        let port = port.checked_add(1)?;
         Some(Connect { host, port, session })
     }
 }

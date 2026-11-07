@@ -1,9 +1,8 @@
 # Patch 66: team voice chat (docs/notes/voice-chat.md). Only the decisions:
 # which sites, and the handlers; the logic is voice.rs. configs.start after
-# patches 79, 83, 81, 88 and 112 (orders 1 to 5), options.callback after
-# 79, 83 and 112 (1 to 3), game_world.after_move after patches 76, 87 and
-# the medical skills (0 to 2); the game world's keys before patch 86's (it
-# may take a key), the main menu after patch 113's cursor.
+# patches 79, 83, 81, 88 and 112 (orders 1 to 5), game_world.after_move
+# after patches 76, 87 and the medical skills (0 to 2); the game world's keys
+# before patch 86's (it may take a key), the hud's calls after patch 86's.
 name = "voice"
 patch = 66
 

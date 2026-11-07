@@ -529,8 +529,8 @@ Patches:
   options, mutes, radio distances and the hud's list of who talks;
   push-to-talk (ptt, 47h) and "mute the last speaker" (the action table's
   entry 37h renamed, kind 8, no default key) from the game world's keys
-  (tab_cursor.key); the Esc menu's voice panel (options.activate, its clicks
-  options.callback);
+  (tab_cursor.key); "Mute voice" in the Tab list's player menu
+  (hud.callback, after patch 86's);
 - the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
