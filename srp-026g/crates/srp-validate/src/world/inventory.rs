@@ -154,15 +154,6 @@ const MAX_AMMO: u8 = 8;
 /// (0x32B039, 0x32B5C9).
 const MAX_AFFECTS: usize = 8;
 const MAX_HITS: usize = 64;
-/// The most body parts a view holds: the character's `hit_params` has 20
-/// (a match whose `body_parts` is more is refused, never read).
-pub const MAX_BODY_PARTS: usize = 24;
-/// The most influences a medkit view holds (`data.influences`, a u8).
-pub const MAX_INFLUENCES: usize = 32;
-/// The most recent hits a view holds: as many as a state has room for
-/// (the writer has no cap, the reader resizes its vector to the count,
-/// 0x2DC120).
-pub const MAX_RECENT_HITS: usize = super::PLAYER_STATE_CAP / 8;
 /// Patch 78's carry snapshot and its version.
 const CARRY_SNAPSHOT: usize = 32;
 const CARRY_VERSION: u8 = 2;
@@ -200,14 +191,6 @@ impl<T: Copy, const N: usize> List<T, N> {
             }
             None => false,
         }
-    }
-
-    /// Drops the records from `len` on.
-    pub(super) fn truncate(&mut self, len: usize) {
-        for slot in self.items.iter_mut().skip(len) {
-            *slot = None;
-        }
-        self.len = self.len.min(len);
     }
 
     pub fn len(&self) -> usize {
@@ -346,26 +329,26 @@ impl ItemOwner {
 
 /// A medkit's state (`medkit::deserialize` 0x33DCA0, writer 0x33DBD0).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Medkit {
-    active: Option<MedkitUse>,
+pub struct Medkit<'a> {
+    active: Option<MedkitUse<'a>>,
 }
 
-impl Medkit {
+impl<'a> Medkit<'a> {
     /// Its use in progress, when `m_active`.
-    pub fn active(&self) -> Option<MedkitUse> {
+    pub fn active(&self) -> Option<MedkitUse<'a>> {
         self.active
     }
 }
 
 /// An active medkit's use.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MedkitUse {
+pub struct MedkitUse<'a> {
     activity_time_ms: u32,
     delay_ms: u32,
-    applied_influences: List<Finite, MAX_INFLUENCES>,
+    applied_influences: &'a [u8],
 }
 
-impl MedkitUse {
+impl<'a> MedkitUse<'a> {
     /// `m_activity_time_ms`.
     pub fn activity_time_ms(&self) -> u32 {
         self.activity_time_ms
@@ -376,9 +359,11 @@ impl MedkitUse {
         self.delay_ms
     }
 
-    /// `m_applied_influence[i]`, one per `data.influences` entry.
-    pub fn applied_influences(&self) -> &List<Finite, MAX_INFLUENCES> {
-        &self.applied_influences
+    /// `m_applied_influence[i]`, one per `data.influences` entry, each a
+    /// number (read again from the bytes the parse held to that).
+    pub fn applied_influences(&self) -> impl Iterator<Item = Finite> + 'a {
+        let mut reader = Reader::new(self.applied_influences, 0);
+        core::iter::from_fn(move || float(&mut reader).ok())
     }
 }
 
@@ -423,9 +408,9 @@ fn active(reader: &mut Reader, owned: bool) -> Result<bool, Fault> {
 
 /// What an item saves after its header, read.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ItemBody {
+pub enum ItemBody<'a> {
     None,
-    Medkit(Medkit),
+    Medkit(Medkit<'a>),
     OxygenTank(OxygenTank),
     Weapon(WeaponState),
 }
@@ -437,7 +422,7 @@ pub struct ItemState<'a> {
     bytes: &'a [u8],
     left: Left,
     owner: Option<ItemOwner>,
-    body: ItemBody,
+    body: ItemBody<'a>,
 }
 
 impl<'a> ItemState<'a> {
@@ -460,7 +445,7 @@ impl<'a> ItemState<'a> {
         self.owner
     }
 
-    pub fn body(&self) -> ItemBody {
+    pub fn body(&self) -> ItemBody<'a> {
         self.body
     }
 
@@ -503,34 +488,25 @@ impl<'a> ItemState<'a> {
     /// The body of `body` in the weapon shape `shape`, after a header with
     /// an owner or (`owned` false) without.
     fn read_body(
-        reader: &mut Reader,
+        reader: &mut Reader<'a>,
         body: Body<'_>,
         shape: Shape,
         owned: bool,
-    ) -> Result<ItemBody, Fault> {
+    ) -> Result<ItemBody<'a>, Fault> {
         Ok(match body {
             Body::None => ItemBody::None,
             Body::Medkit { influences } => {
                 let active = if active(reader, owned)? {
                     let activity_time_ms = u32(reader)?;
                     let delay_ms = u32(reader)?;
-                    let mut list = List::new();
+                    let from = *reader;
                     for _ in 0..influences {
-                        let at = reader.at();
-                        if !list.push(float(reader)?) {
-                            return Err((
-                                at,
-                                Reason::TailCount {
-                                    what: "medkit influences",
-                                    count: influences.into(),
-                                },
-                            ));
-                        }
+                        float(reader)?;
                     }
                     Some(MedkitUse {
                         activity_time_ms,
                         delay_ms,
-                        applied_influences: list,
+                        applied_influences: reader.since(&from),
                     })
                 } else {
                     None
@@ -542,6 +518,21 @@ impl<'a> ItemState<'a> {
                 amount_ms: u32(reader)?,
             }),
             Body::Weapon(gun) => ItemBody::Weapon(WeaponState::read(reader, gun, shape)?),
+        })
+    }
+
+    /// The item the walk chose, read again from its bytes (the parse read
+    /// it whole, so it reads).
+    fn of(chosen: &Chosen<'a, '_>) -> Option<Self> {
+        let mut reader = Reader::new(chosen.bytes, chosen.at);
+        let (left, owner) = Self::header(&mut reader, chosen.item.measure).ok()?;
+        let body = Self::read_body(&mut reader, chosen.item.body, chosen.shape, owner.is_some()).ok()?;
+        Some(Self {
+            at: chosen.at,
+            bytes: chosen.bytes,
+            left,
+            owner,
+            body,
         })
     }
 
@@ -594,20 +585,30 @@ pub(super) enum Shape {
     NoUser,
 }
 
-/// The items of a state, in slot order, as the walk read them.
-pub type Items<'a> = List<ItemState<'a>, { SLOTS as usize }>;
+/// What the walk decided of a slot's item: its bytes, the kit's object
+/// they are and the shape they read in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Chosen<'a, 'k> {
+    at: usize,
+    bytes: &'a [u8],
+    item: Item<'k>,
+    shape: Shape,
+}
 
 /// The items past the inventory header and the rest of the state, read to
-/// its exact end.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ItemsAndRest<'a> {
-    items: Items<'a>,
+/// its exact end, borrowed from the world: each slot's item as the walk
+/// found it (where it is, of which kit object, in which shape), handed out
+/// by reading it again, so that a check holds one item at a time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemsAndRest<'a, 'k> {
+    items: [Option<Chosen<'a, 'k>>; SLOTS as usize],
     rest: AfterItems<'a>,
 }
 
-impl<'a> ItemsAndRest<'a> {
-    pub fn items(&self) -> &Items<'a> {
-        &self.items
+impl<'a, 'k> ItemsAndRest<'a, 'k> {
+    /// The items, in slot order.
+    pub fn items(&self) -> impl Iterator<Item = ItemState<'a>> + '_ {
+        self.items.iter().flatten().filter_map(ItemState::of)
     }
 
     pub fn rest(&self) -> &AfterItems<'a> {
@@ -619,33 +620,24 @@ impl<'a> ItemsAndRest<'a> {
 /// exact end. `items` are the kit's slots in order, each with the object the
 /// walk expects there (the slots the header's artefacts took have none);
 /// `alive` the head's `m_is_alive`.
-pub(super) fn items_and_rest<'a>(
+pub(super) fn items_and_rest<'a, 'k>(
     reader: &Reader<'a>,
-    items: &[Option<Slot<'_>>],
+    items: &[Option<Slot<'k>>],
     alive: bool,
     inventory: &Inventory,
     owner: &Owner,
-) -> Result<ItemsAndRest<'a>, Fault> {
-    if inventory.body_parts > MAX_BODY_PARTS {
-        return Err((
-            reader.at(),
-            Reason::TailCount {
-                what: "body parts",
-                count: u32::try_from(inventory.body_parts).unwrap_or(u32::MAX),
-            },
-        ));
-    }
+) -> Result<ItemsAndRest<'a, 'k>, Fault> {
     let mut walk = Walk {
         alive,
         body_parts: inventory.body_parts,
         owner,
         furthest: None,
-        read: List::new(),
+        chosen: [None; SLOTS as usize],
         rest: None,
     };
     match (walk.walk(*reader, items), walk.rest) {
         (true, Some(rest)) => Ok(ItemsAndRest {
-            items: walk.read,
+            items: walk.chosen,
             rest,
         }),
         _ => Err(walk
@@ -654,23 +646,36 @@ pub(super) fn items_and_rest<'a>(
     }
 }
 
-/// The backtracking over the shapes the stream does not say.
-struct Walk<'w, 'a> {
+/// The backtracking over the shapes the stream does not say. Its frames,
+/// one for each item, hold no read record: a body is read out of line and
+/// only its end kept.
+struct Walk<'w, 'a, 'k> {
     alive: bool,
     body_parts: usize,
     owner: &'w Owner<'w>,
     /// The furthest fault of the shapes tried.
     furthest: Option<Fault>,
-    /// The items of the shapes being tried.
-    read: Items<'a>,
+    /// By slot, the item of the shapes being tried.
+    chosen: [Option<Chosen<'a, 'k>>; SLOTS as usize],
     /// The rest of the state, once a shape read to its end.
     rest: Option<AfterItems<'a>>,
 }
 
-impl<'a> Walk<'_, 'a> {
+/// Where a body of `body` in `shape` ends, or why it does not read: read
+/// and dropped out of line, so that no walk frame holds it.
+#[inline(never)]
+fn body_end<'a>(
+    mut reader: Reader<'a>,
+    body: Body<'_>,
+    shape: Shape,
+    owned: bool,
+) -> Result<Reader<'a>, Fault> {
+    ItemState::read_body(&mut reader, body, shape, owned).map(|_| reader)
+}
+
+impl<'a, 'k> Walk<'_, 'a, 'k> {
     /// The rest of the state after the last item, kept when it reads to the
-    /// end. Out of line, so that the walk's own frame, one for each item,
-    /// does not hold the rest.
+    /// end. Out of line, so that the walk's own frames do not hold it.
     #[inline(never)]
     fn finish(&mut self, reader: Reader<'a>) -> bool {
         match AfterItems::read(reader, self.alive, self.body_parts) {
@@ -691,10 +696,17 @@ impl<'a> Walk<'_, 'a> {
         }
     }
 
+    /// Sets what the walk holds of `slot`'s item.
+    fn choose(&mut self, slot: u8, chosen: Option<Chosen<'a, 'k>>) {
+        if let Some(entry) = self.chosen.get_mut(usize::from(slot)) {
+            *entry = chosen;
+        }
+    }
+
     /// Every shape the items can have (a weapon with a user or without, a
     /// picked gun's two ammo-list layouts): `true` when one reads the state
     /// to its exact end, the rest kept.
-    fn walk(&mut self, reader: Reader<'a>, items: &[Option<Slot<'_>>]) -> bool {
+    fn walk(&mut self, reader: Reader<'a>, items: &[Option<Slot<'k>>]) -> bool {
         let Some((&slot, rest)) = items.split_first() else {
             return self.finish(reader);
         };
@@ -702,6 +714,7 @@ impl<'a> Walk<'_, 'a> {
             None => return self.walk(reader, rest),
             Some(Slot::Held(item)) => item,
             Some(Slot::Maybe(item)) => {
+                self.choose(item.slot, None);
                 if self.walk(reader, rest) {
                     return true;
                 }
@@ -722,34 +735,28 @@ impl<'a> Walk<'_, 'a> {
             ],
             _ => [Some(Shape::NoUser), None, None],
         };
-        let depth = self.read.len();
         let at = reader.at();
         let mut after_header = reader;
         let header = ItemState::header(&mut after_header, item.measure).and_then(|(left, own)| {
-            ItemState::check(at, left, own, &item, self.owner).map(|()| (left, own))
+            ItemState::check(at, left, own, &item, self.owner).map(|()| own.is_some())
         });
-        let (left, owner) = match header {
-            Ok(header) => header,
+        let owned = match header {
+            Ok(owned) => owned,
             Err(fault) => {
                 self.keep(fault);
                 return false;
             }
         };
         for shape in shapes.into_iter().flatten() {
-            let mut tried = after_header;
-            match ItemState::read_body(&mut tried, item.body, shape, owner.is_some()) {
-                Ok(body) => {
-                    let len = tried.at().saturating_sub(at);
-                    let state = ItemState {
+            match body_end(after_header, item.body, shape, owned) {
+                Ok(tried) => {
+                    let chosen = Chosen {
                         at,
-                        bytes: reader.rest().get(..len).unwrap_or_default(),
-                        left,
-                        owner,
-                        body,
+                        bytes: tried.since(&reader),
+                        item,
+                        shape,
                     };
-                    self.read.truncate(depth);
-                    // One item per slot: the list has room.
-                    let _ = self.read.push(state);
+                    self.choose(item.slot, Some(chosen));
                     if self.walk(tried, rest) {
                         return true;
                     }
@@ -757,7 +764,6 @@ impl<'a> Walk<'_, 'a> {
                 Err(fault) => self.keep(fault),
             }
         }
-        self.read.truncate(depth);
         false
     }
 }
@@ -781,7 +787,6 @@ pub(super) const fn ammo_bound(ammo: Ammo) -> u8 {
         Ammo::Picked => MAX_AMMO,
     }
 }
-
 
 /// `hit_affects_type_enum` (0.21d PDB): what a body part's affect is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -850,20 +855,27 @@ impl PartHit {
     pub fn damage(&self) -> Finite {
         self.damage
     }
+
+    fn read(reader: &mut Reader) -> Result<Self, Fault> {
+        Ok(Self {
+            hit_id: u32(reader)?,
+            damage: float(reader)?,
+        })
+    }
 }
 
 /// A body part's state (`body_part_parameters::deserialize` 0x32AFE0,
-/// writer 0x32AE00).
+/// writer 0x32AE00), its hits borrowed from the world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BodyPart {
+pub struct BodyPart<'a> {
     health: Finite,
     last_hit_time_ms: u32,
     affects: List<Affect, MAX_AFFECTS>,
-    hits: List<PartHit, MAX_HITS>,
+    hits: &'a [u8],
     movement_speed_modifier: Finite,
 }
 
-impl BodyPart {
+impl<'a> BodyPart<'a> {
     /// `m_health`.
     pub fn health(&self) -> Finite {
         self.health
@@ -879,9 +891,11 @@ impl BodyPart {
         &self.affects
     }
 
-    /// The hits: at most 64 (the writer drops the oldest, 0x32A1A8).
-    pub fn hits(&self) -> &List<PartHit, MAX_HITS> {
-        &self.hits
+    /// The hits: at most 64 (the writer drops the oldest, 0x32A1A8), read
+    /// again from their bytes.
+    pub fn hits(&self) -> impl Iterator<Item = PartHit> + 'a {
+        let mut reader = Reader::new(self.hits, 0);
+        core::iter::from_fn(move || PartHit::read(&mut reader).ok())
     }
 
     /// `m_movement_speed_modifier.modifier_value()`.
@@ -889,20 +903,11 @@ impl BodyPart {
         self.movement_speed_modifier
     }
 
-    fn read(reader: &mut Reader) -> Result<Self, Fault> {
+    fn read(reader: &mut Reader<'a>) -> Result<Self, Fault> {
         let health = float(reader)?;
         let last_hit_time_ms = u32(reader)?;
         let at = reader.at();
         let count = u8(reader)?;
-        let too_many = |what, count: u8| {
-            (
-                at,
-                Reason::TailCount {
-                    what,
-                    count: count.into(),
-                },
-            )
-        };
         let mut affects = List::new();
         for _ in 0..count {
             let kind_at = reader.at();
@@ -913,7 +918,13 @@ impl BodyPart {
                 end_time_ms: u32(reader)?,
             };
             if !affects.push(affect) {
-                return Err(too_many("affects", count));
+                return Err((
+                    at,
+                    Reason::TailCount {
+                        what: "affects",
+                        count: count.into(),
+                    },
+                ));
             }
         }
         let at = reader.at();
@@ -927,20 +938,15 @@ impl BodyPart {
                 },
             ));
         }
-        let mut hits = List::new();
+        let from = *reader;
         for _ in 0..count {
-            let hit = PartHit {
-                hit_id: u32(reader)?,
-                damage: float(reader)?,
-            };
-            // The count is bounded by the list's room above.
-            let _ = hits.push(hit);
+            PartHit::read(reader)?;
         }
         Ok(Self {
             health,
             last_hit_time_ms,
             affects,
-            hits,
+            hits: reader.since(&from),
             movement_speed_modifier: float(reader)?,
         })
     }
@@ -948,18 +954,20 @@ impl BodyPart {
 
 /// The damage model (`damage_model::deserialize` 0x2E5480, writer
 /// 0x2E53B0): its damage protector's two fields, three of its own, then
-/// the body parts.
+/// the body parts, borrowed from the world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DamageModel {
+pub struct DamageModel<'a> {
     have_second_chance: bool,
     last_hit_time_ms: u32,
     last_tick_time_ms: Option<u32>,
     invulnerability_time_ms: Option<u32>,
     invulnerability_attenuation: u32,
-    body_parts: List<BodyPart, MAX_BODY_PARTS>,
+    body_parts: &'a [u8],
+    body_parts_at: usize,
+    body_part_count: usize,
 }
 
-impl DamageModel {
+impl<'a> DamageModel<'a> {
     /// The protector's `m_have_second_chance`.
     pub fn have_second_chance(&self) -> bool {
         self.have_second_chance
@@ -985,9 +993,19 @@ impl DamageModel {
         self.invulnerability_attenuation
     }
 
-    /// `m_body_parts`, in the list's order.
-    pub fn body_parts(&self) -> &List<BodyPart, MAX_BODY_PARTS> {
-        &self.body_parts
+    /// How many body parts it has (the character's `hit_params`).
+    pub fn body_part_count(&self) -> usize {
+        self.body_part_count
+    }
+
+    /// `m_body_parts`, in the list's order, each read again from its bytes.
+    pub fn body_parts(&self) -> impl Iterator<Item = BodyPart<'a>> + 'a {
+        let mut reader = Reader::new(self.body_parts, self.body_parts_at);
+        let mut left = self.body_part_count;
+        core::iter::from_fn(move || {
+            left = left.checked_sub(1)?;
+            BodyPart::read(&mut reader).ok()
+        })
     }
 }
 
@@ -1137,10 +1155,19 @@ impl RecentHit {
     pub fn stopping_speed(&self) -> Finite {
         self.stopping_speed
     }
+
+    fn read(reader: &mut Reader) -> Result<Self, Fault> {
+        Ok(Self {
+            timestamp_ms: u32(reader)?,
+            stopping_speed: float(reader)?,
+        })
+    }
 }
 
 /// Everything after the items, to the state's exact end
-/// (`base_player::serialize` 0x2DAF60 after `inventory::serialize`).
+/// (`base_player::serialize` 0x2DAF60 after `inventory::serialize`),
+/// borrowed from the world: its body parts and its recent hits are handed
+/// out by reading them again.
 ///
 /// ```text
 /// u8    m_jump_type (jump_type_enum, 0..=12)    [`JumpType`]
@@ -1165,14 +1192,14 @@ impl RecentHit {
 pub struct AfterItems<'a> {
     jump_type: JumpType,
     linear_horizontal_speed: Finite,
-    damage_model: DamageModel,
+    damage_model: DamageModel<'a>,
     usable: Option<Usable>,
     inserted_time_ms: Option<u32>,
     controller: Option<Controller>,
     spotted_time_left_ms: u32,
     time_left_to_try_spot_ms: u32,
     stagger_speed_modifier: Finite,
-    recent_hits: List<RecentHit, MAX_RECENT_HITS>,
+    recent_hits: &'a [u8],
     respawn_disabled: bool,
     carry: &'a [u8; CARRY_SNAPSHOT],
 }
@@ -1188,7 +1215,7 @@ impl<'a> AfterItems<'a> {
         self.linear_horizontal_speed
     }
 
-    pub fn damage_model(&self) -> &DamageModel {
+    pub fn damage_model(&self) -> &DamageModel<'a> {
         &self.damage_model
     }
 
@@ -1222,9 +1249,11 @@ impl<'a> AfterItems<'a> {
         self.stagger_speed_modifier
     }
 
-    /// `m_recent_hits`.
-    pub fn recent_hits(&self) -> &List<RecentHit, MAX_RECENT_HITS> {
-        &self.recent_hits
+    /// `m_recent_hits`, as many as the state has room for (the writer has
+    /// no cap), read again from their bytes.
+    pub fn recent_hits(&self) -> impl Iterator<Item = RecentHit> + 'a {
+        let mut reader = Reader::new(self.recent_hits, 0);
+        core::iter::from_fn(move || RecentHit::read(&mut reader).ok())
     }
 
     /// `m_respawn_disabled`.
@@ -1247,11 +1276,20 @@ impl<'a> AfterItems<'a> {
         let last_tick_time_ms = optional_u32(reader)?;
         let invulnerability_time_ms = optional_u32(reader)?;
         let invulnerability_attenuation = u32(reader)?;
-        let mut parts = List::new();
+        let parts = *reader;
         for _ in 0..body_parts {
-            // `items_and_rest` bounded the count by the list's room.
-            let _ = parts.push(BodyPart::read(reader)?);
+            BodyPart::read(reader)?;
         }
+        let damage_model = DamageModel {
+            have_second_chance,
+            last_hit_time_ms,
+            last_tick_time_ms,
+            invulnerability_time_ms,
+            invulnerability_attenuation,
+            body_parts: reader.since(&parts),
+            body_parts_at: parts.at(),
+            body_part_count: body_parts,
+        };
         let usable = if flag(reader)? {
             Some(Usable {
                 start_using_time_ms: u32(reader)?,
@@ -1283,15 +1321,11 @@ impl<'a> AfterItems<'a> {
                 },
             ));
         }
-        let mut recent_hits = List::new();
+        let hits = *reader;
         for _ in 0..count {
-            let hit = RecentHit {
-                timestamp_ms: u32(reader)?,
-                stopping_speed: float(reader)?,
-            };
-            // A state's room is the list's.
-            let _ = recent_hits.push(hit);
+            RecentHit::read(reader)?;
         }
+        let recent_hits = reader.since(&hits);
         let respawn_disabled = flag(reader)?;
         let at = reader.at();
         let carry: &'a [u8; CARRY_SNAPSHOT] = reader
@@ -1309,14 +1343,7 @@ impl<'a> AfterItems<'a> {
         Ok(Self {
             jump_type,
             linear_horizontal_speed,
-            damage_model: DamageModel {
-                have_second_chance,
-                last_hit_time_ms,
-                last_tick_time_ms,
-                invulnerability_time_ms,
-                invulnerability_attenuation,
-                body_parts: parts,
-            },
+            damage_model,
             usable,
             inserted_time_ms,
             controller,

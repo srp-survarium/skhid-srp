@@ -67,7 +67,7 @@
 use super::AMMO_SLOTS;
 use super::effects::{Effect, EffectFault};
 use super::inventory::{
-    self, Ammo, Body, Fault, Gun, Item, ItemsAndRest, List, Measure, Owner, SLOTS, Slot, SlotId,
+    self, Ammo, Body, Fault, Gun, Item, ItemsAndRest, Measure, Owner, SLOTS, Slot, SlotId,
     flag, float, floats, short, state_id, u8, u32,
 };
 use super::weapon::{Portable, optional_u8, optional_u32};
@@ -631,22 +631,23 @@ impl CarriedBattery {
 }
 
 /// The artefact slots of the inventory header: where they begin and each
-/// slot's artefact (`None` for `artefact_base::invalid_id` 0xFF).
+/// slot's artefact id, borrowed from the world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ArtefactSlots {
+pub struct ArtefactSlots<'a> {
     begin: SlotId,
-    ids: List<Option<u8>, INVENTORY_SLOTS>,
+    ids: &'a [u8],
 }
 
-impl ArtefactSlots {
+impl<'a> ArtefactSlots<'a> {
     /// `slots_begin`: the first slot they take, a quick slot 13..18.
     pub fn begin(&self) -> SlotId {
         self.begin
     }
 
-    /// Each slot's artefact, an index of the artefacts table.
-    pub fn ids(&self) -> &List<Option<u8>, INVENTORY_SLOTS> {
-        &self.ids
+    /// Each slot's artefact, an index of the artefacts table; `None` for
+    /// `artefact_base::invalid_id` 0xFF.
+    pub fn ids(&self) -> impl ExactSizeIterator<Item = Option<u8>> + 'a {
+        self.ids.iter().map(|&id| (id != 0xFF).then_some(id))
     }
 
     /// The slots they take.
@@ -668,18 +669,44 @@ fn slot_or_none(reader: &mut Reader, field: &'static str) -> Result<Option<SlotI
     }
 }
 
-/// The inventory header (`inventory::deserialize` 0x2FE550).
+/// A carried battery as the header holds it: its id and user (what the
+/// match's rule needs) and its bytes, read again by
+/// [`InventoryHeader::carried`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct InventoryHeader {
+struct Carried<'a> {
+    id: u8,
+    user: Place,
+    at: usize,
+    bytes: &'a [u8],
+}
+
+/// A carried battery read and dropped out of line (its frame holds the
+/// view), its user and its bytes kept.
+#[inline(never)]
+fn carried<'a>(reader: &mut Reader<'a>, id: u8) -> Result<Carried<'a>, Fault> {
+    let from = *reader;
+    let battery = CarriedBattery::read(reader, id)?;
+    Ok(Carried {
+        id,
+        user: battery.user,
+        at: from.at(),
+        bytes: reader.since(&from),
+    })
+}
+
+/// The inventory header (`inventory::deserialize` 0x2FE550), borrowed from
+/// the world.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InventoryHeader<'a> {
     carried_weight: Finite,
     need_to_recalculate_weight: bool,
-    carried: Option<CarriedBattery>,
-    artefact_slots: Option<ArtefactSlots>,
+    carried: Option<Carried<'a>>,
+    artefact_slots: Option<ArtefactSlots<'a>>,
     active_slot: Option<SlotId>,
     grenade_slot: Option<SlotId>,
 }
 
-impl InventoryHeader {
+impl<'a> InventoryHeader<'a> {
     /// `m_carried_weight`.
     pub fn carried_weight(&self) -> Finite {
         self.carried_weight
@@ -690,13 +717,15 @@ impl InventoryHeader {
         self.need_to_recalculate_weight
     }
 
-    /// The battery the player carries (`m_carried_item`), if any.
+    /// The battery the player carries (`m_carried_item`), if any, read
+    /// again from its bytes.
     pub fn carried(&self) -> Option<CarriedBattery> {
-        self.carried
+        let carried = self.carried?;
+        CarriedBattery::read(&mut Reader::new(carried.bytes, carried.at), carried.id).ok()
     }
 
     /// The artefact slots, `None` when `m_artefact_slots_count` is 0.
-    pub fn artefact_slots(&self) -> Option<ArtefactSlots> {
+    pub fn artefact_slots(&self) -> Option<ArtefactSlots<'a>> {
         self.artefact_slots
     }
 
@@ -710,7 +739,7 @@ impl InventoryHeader {
         self.grenade_slot
     }
 
-    fn read(reader: &mut Reader, artefacts: Option<usize>) -> Result<Self, Fault> {
+    fn read(reader: &mut Reader<'a>, artefacts: Option<usize>) -> Result<Self, Fault> {
         let carried_weight = float(reader)?;
         let at = reader.at();
         let need_to_recalculate_weight = reader
@@ -719,7 +748,7 @@ impl InventoryHeader {
             .ok_or((at, Reason::TailInventoryBool))?;
         let carried = match u8(reader)? {
             0xFF => None,
-            id => Some(CarriedBattery::read(reader, id)?),
+            id => Some(carried(reader, id)?),
         };
         let count_at = reader.at();
         let count = u8(reader)?;
@@ -738,7 +767,7 @@ impl InventoryHeader {
                 return Err(bad_begin);
             }
             let begin = SlotId::new(begin).ok_or(bad_begin)?;
-            let mut ids = List::new();
+            let from = *reader;
             for _ in 0..count {
                 let at = reader.at();
                 let id = optional_u8(reader)?;
@@ -747,10 +776,11 @@ impl InventoryHeader {
                 {
                     return Err((at, Reason::TailArtefact { index, bound }));
                 }
-                // At most 23: the list has room.
-                let _ = ids.push(id);
             }
-            Some(ArtefactSlots { begin, ids })
+            Some(ArtefactSlots {
+                begin,
+                ids: reader.since(&from),
+            })
         };
         Ok(Self {
             carried_weight,
@@ -764,16 +794,21 @@ impl InventoryHeader {
 }
 
 /// A player's state from its start to the inventory header, borrowed from
-/// the world, and where its items start.
+/// the world, and where its items start. Its records are held as bytes and
+/// handed out by reading them again, so that a check holds one at a time
+/// (the game's check runs on the world loader's stack).
 #[derive(Clone, Copy, Debug)]
 pub struct PlayerState<'a> {
     head: Head<'a>,
-    effects: List<Effect, MAX_PLAYER_EFFECTS>,
-    hit_effects: List<HitEffect, MAX_HIT_EFFECTS>,
+    effects: &'a [u8],
+    effects_at: usize,
+    hit_effects: &'a [u8],
+    hit_effects_at: usize,
+    hit_effect_count: usize,
     current_active_object: Option<u8>,
     target_active_object: Option<u8>,
     stamina: Stamina,
-    inventory: InventoryHeader,
+    inventory: InventoryHeader<'a>,
     items: Reader<'a>,
 }
 
@@ -782,14 +817,20 @@ impl<'a> PlayerState<'a> {
         &self.head
     }
 
-    /// The player effects.
-    pub fn effects(&self) -> &List<Effect, MAX_PLAYER_EFFECTS> {
-        &self.effects
+    /// The player effects, read again from their bytes.
+    pub fn effects(&self) -> impl Iterator<Item = Effect> + 'a {
+        let mut reader = Reader::new(self.effects, self.effects_at);
+        core::iter::from_fn(move || Effect::read(&mut reader).ok())
     }
 
-    /// The hit presenter's `m_effects`.
-    pub fn hit_effects(&self) -> &List<HitEffect, MAX_HIT_EFFECTS> {
-        &self.hit_effects
+    /// The hit presenter's `m_effects`, read again from their bytes.
+    pub fn hit_effects(&self) -> impl Iterator<Item = HitEffect> + 'a {
+        let mut reader = Reader::new(self.hit_effects, self.hit_effects_at);
+        let mut left = self.hit_effect_count;
+        core::iter::from_fn(move || {
+            left = left.checked_sub(1)?;
+            HitEffect::read(&mut reader).ok()
+        })
     }
 
     /// `m_current_active_object`'s id, `None` for 0xFF.
@@ -806,7 +847,7 @@ impl<'a> PlayerState<'a> {
         self.stamina
     }
 
-    pub fn inventory(&self) -> &InventoryHeader {
+    pub fn inventory(&self) -> &InventoryHeader<'a> {
         &self.inventory
     }
 
@@ -829,30 +870,29 @@ impl<'a> PlayerState<'a> {
                 },
             ));
         }
-        let mut effects = List::new();
+        let effects = reader;
         for _ in 0..count {
-            let effect = Effect::read(&mut reader).map_err(|fault| match fault {
-                EffectFault::Short(cut) => short(cut),
-                fault => (fault.at(), Reason::TailEffect(fault)),
-            })?;
-            // The count is bounded by the list's room above.
-            let _ = effects.push(effect);
+            effect(&mut reader)?;
         }
+        let effects = reader.since(&effects);
         let count_at = reader.at();
         let count = u32(&mut reader)?;
-        if usize::try_from(count).map_or(true, |n| n > MAX_HIT_EFFECTS) {
-            return Err((
+        let hit_effect_count = usize::try_from(count)
+            .ok()
+            .filter(|&n| n <= MAX_HIT_EFFECTS)
+            .ok_or((
                 count_at,
                 Reason::TailCount {
                     what: "hit effects",
                     count,
                 },
-            ));
+            ))?;
+        let hit_effects = reader;
+        for _ in 0..hit_effect_count {
+            HitEffect::read(&mut reader)?;
         }
-        let mut hit_effects = List::new();
-        for _ in 0..count {
-            let _ = hit_effects.push(HitEffect::read(&mut reader)?);
-        }
+        let hit_effects_at = hit_effects.at();
+        let hit_effects = reader.since(&hit_effects);
         let current_active_object = optional_u8(&mut reader)?;
         let target_active_object = optional_u8(&mut reader)?;
         let stamina = Stamina::read(&mut reader)?;
@@ -860,7 +900,10 @@ impl<'a> PlayerState<'a> {
         Ok(Self {
             head,
             effects,
+            effects_at: head_len,
             hit_effects,
+            hit_effects_at,
+            hit_effect_count,
             current_active_object,
             target_active_object,
             stamina,
@@ -875,11 +918,11 @@ impl<'a> PlayerState<'a> {
     /// its weapon slot. `None` without the kits. Out of line: the game's
     /// check, which has no kits, never takes the stack this needs.
     #[inline(never)]
-    pub fn items_and_rest(
+    pub fn items_and_rest<'k>(
         &self,
         place: u8,
-        context: &Context,
-    ) -> Result<Option<ItemsAndRest<'a>>, Fault> {
+        context: &Context<'k>,
+    ) -> Result<Option<ItemsAndRest<'a, 'k>>, Fault> {
         let Some(inventory) = context.inventory else {
             return Ok(None);
         };
@@ -966,6 +1009,16 @@ impl<'a> PlayerState<'a> {
     }
 }
 
+/// A player effect read and dropped out of line (an [`Effect`] is a large
+/// value): the reader past it, or why it is no effect.
+#[inline(never)]
+fn effect(reader: &mut Reader) -> Result<(), Fault> {
+    Effect::read(reader).map(drop).map_err(|fault| match fault {
+        EffectFault::Short(cut) => short(cut),
+        fault => (fault.at(), Reason::TailEffect(fault)),
+    })
+}
+
 /// The head of a player's state (snapshot_rules.md section 7.3), as world
 /// apply 0x2D2770 uses it:
 /// - `current_index` picks the place's player object with no bound
@@ -981,6 +1034,8 @@ impl<'a> PlayerState<'a> {
 /// Without the profiles (a tool reading kept worlds) the item count is not
 /// known: the kit bytes are held to the table's three entries and the
 /// pickup record read; [`player_tail`] guesses the rest.
+// Out of line: its frame is its own, not the caller's.
+#[inline(never)]
 pub fn player_head(block: &Block, context: &Context) -> Result<(), Refusal> {
     let refuse = |(offset, reason): Fault| {
         Refusal::new(
@@ -1011,6 +1066,9 @@ pub fn player_head(block: &Block, context: &Context) -> Result<(), Refusal> {
 /// walk is strict; without them (a tool, or the game checking a world with
 /// no live match) M is any count the head and the tail both fit, as the
 /// bullets are framed when the profiles are unknown.
+// Out of line, as `player_head`: its frame is its own, not the caller's
+// (the game's check runs on the world loader's 32 KiB of stack).
+#[inline(never)]
 pub fn player_tail(block: &Block, context: &Context) -> Result<(), Refusal> {
     let fault = match context.profiles {
         Some(profiles) => match profiles.get(usize::from(block.place)) {
@@ -1048,9 +1106,8 @@ fn strict(block: &Block, items: usize, context: &Context) -> Result<(), Fault> {
     Ok(())
 }
 
-/// The items and the rest of `state`, read and dropped. Out of line, so
-/// that the view (some 36 KiB) is in this frame only: the game's check,
-/// which has no kits and never comes here, keeps its stack.
+/// The items and the rest of `state`, read and dropped. Out of line: the
+/// game's check, which has no kits, never comes here.
 #[inline(never)]
 fn check_items(state: &PlayerState, place: u8, context: &Context) -> Result<(), Fault> {
     state.items_and_rest(place, context).map(drop)
@@ -1191,7 +1248,7 @@ mod tests {
         assert!(head.alive() && !head.has_to_die() && !head.need_to_select_animations());
         assert_eq!((head.look_pitch(), head.rotation_y()), (Finite::ZERO, Finite::ZERO));
         assert_eq!((head.actions_mask(), head.effects_time_ms(), head.effect_count()), (0, 0, 0));
-        assert!(read.effects().is_empty() && read.hit_effects().is_empty());
+        assert!(read.effects().next().is_none() && read.hit_effects().next().is_none());
         assert_eq!((read.current_active_object(), read.target_active_object()), (None, None));
         assert!(!read.stamina().is_low_stamina());
         let inventory = read.inventory();
@@ -1484,7 +1541,7 @@ mod tests {
         };
         let read = PlayerState::read(&state, 1, None).unwrap();
         let read = read.items_and_rest(0, &context).unwrap().unwrap();
-        let mut items = read.items().iter();
+        let mut items = read.items();
         let armour = items.next().unwrap();
         assert_eq!(armour.left(), Left::Condition(Finite::of_bits(1f32.to_bits()).unwrap()));
         assert_eq!(armour.owner().map(|own| own.slot().get()), Some(0));
@@ -1503,7 +1560,7 @@ mod tests {
         assert!(!in_hand.aimed());
         assert!(items.next().is_none());
         let rest = read.rest();
-        assert_eq!(rest.damage_model().body_parts().len(), BODY_PARTS);
+        assert_eq!(rest.damage_model().body_parts().count(), BODY_PARTS);
         assert!(rest.controller().is_some());
         assert_eq!(rest.carry()[0], 2);
     }

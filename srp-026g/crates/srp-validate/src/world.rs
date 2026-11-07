@@ -18,7 +18,7 @@ pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State
 mod inventory;
 pub use inventory::{
     Affect, AffectKind, AfterItems, Ammo, Body, BodyPart, Chamber, Controller, DamageModel, Gun,
-    GunState, Inventory, Item, ItemBody, ItemOwner, ItemState, Items, ItemsAndRest, Left, List,
+    GunState, Inventory, Item, ItemBody, ItemOwner, ItemState, ItemsAndRest, Left, List,
     Measure, Medkit, MedkitUse, OxygenTank, PartHit, RecentHit, SlotId, Usable,
 };
 mod player_tail;

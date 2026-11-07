@@ -136,6 +136,13 @@ world still passes; of the flipped copies, 2,570 more are refused (207,392
 of 853,485), none fewer. The domains the writer can widen (counts the
 config sets, float ranges, the recoil seed, the spotted mask) are left open
 and say so where they are read.
+The views hold their records as bytes and the few facts the parse decided
+(each slot's item, the shape it read in, the counts) and hand the records
+out by reading them again, as the statistics do: a check holds one record
+at a time, and no large value lives on the item walk's recursion. Holding
+them parsed had put `PlayerState::read` at 0x1D40 bytes of the game's
+stack, under `world_check::check`'s 0x51AC, and a flipped world overflowed
+the loader's 32 KiB; the player path is now some 0x5B0 bytes past it.
 The bullets, statistics and rules (`world/bullets.rs`, `statistics.rs`,
 `rules.rs`) are read as `world::Bullets` (each `Bullet`), `Statistics`
 (`PlayerStatistics`, `BatteryStatus`, `Tail`) and `Rules` (`Timelimit`,

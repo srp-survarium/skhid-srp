@@ -34,6 +34,11 @@ impl<'a> Reader<'a> {
         self.bytes.get(self.at..).unwrap_or_default()
     }
 
+    /// The bytes read since `from`, an earlier copy of this cursor.
+    pub fn since(&self, from: &Reader<'a>) -> &'a [u8] {
+        self.bytes.get(from.at..self.at).unwrap_or_default()
+    }
+
     /// Whether every byte was read.
     pub fn is_done(&self) -> bool {
         self.rest().is_empty()
