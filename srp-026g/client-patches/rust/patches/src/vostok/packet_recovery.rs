@@ -11,7 +11,7 @@
 //!   One that cannot name what it refuses (a handshake message, or a world
 //!   whose generation cannot be read) carries its number on this connection
 //!   (1, 2, ...) in the generation byte; the server answers each number once.
-//! - A receipt the packet pool has no room for waits, the newest only, and
+//! - A receipt the packet pool has no room for waits, the newest of its kind, and
 //!   goes on the next frame (`game.tick`) that has room. It goes with its
 //!   connection: a closed one tells the server by its silence.
 use super::{Context, GameCell, Thread};
@@ -19,26 +19,47 @@ use super::world::read;
 use crate::raw;
 use srp_validate::recovery::{Outcome, Receipt, SIZE};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct Key { client: usize, seed: u32 }
-/// What this connection has told and has still to tell.
+/// Receipts the pool had no room for, the newest of each kind: one kind
+/// never makes another moot (a handshake or unreadable refusal is no
+/// answer to the world a Loaded or Rejected is for).
+#[derive(Clone, Copy, Default)]
+struct Waiting {
+    world: Option<Receipt>,
+    handshake: Option<Receipt>,
+    unreadable: Option<Receipt>,
+}
+impl Waiting {
+    fn slot(&mut self, outcome: Outcome) -> &mut Option<Receipt> {
+        match outcome {
+            Outcome::Loaded | Outcome::Rejected => &mut self.world,
+            Outcome::OptionsRejected => &mut self.handshake,
+            Outcome::Unreadable => &mut self.unreadable,
+        }
+    }
+}
+/// What this connection has told and has still to tell. It is the
+/// connection's (its client's, until `match_recovery.close`), not its
+/// match seed's: the seed (+577BCh) is written mid-connection, by the first
+/// 0xE3 taken (0x1F0E7A), and a refusal's number must go on across it, or
+/// the server takes the next one for a copy of an earlier one. A receipt
+/// names its seed, so `told` is of that seed's match only.
 #[derive(Clone, Copy)]
 struct Budget {
-    key: Key,
+    client: usize,
     /// The last world outcome told.
     told: Option<Receipt>,
     /// Refusals that name no generation so far (handshake messages, worlds
     /// whose generation could not be read): the next one's number less one.
     numbered: u8,
-    /// The newest receipt the pool had no room for.
-    waiting: Option<Receipt>,
+    waiting: Waiting,
 }
 static BUDGET: GameCell<Option<Budget>> = GameCell::new(None);
 
 pub struct Connection<'a> {
     client: raw::NetworkClient,
     holder: raw::MatchOptionsHolder,
-    key: Key,
+    client_key: usize,
+    seed: u32,
     thread: &'a Thread,
 }
 impl<'a> Connection<'a> {
@@ -47,8 +68,8 @@ impl<'a> Connection<'a> {
         unsafe {
             if read(client.match_connection_state()) > 2 { return None; }
             let holder = client.options_holder()?;
-            let key = Key { client: client.address() as usize, seed: read(holder.match_seed()) };
-            Some(Self { client, holder, key, thread })
+            let (client_key, seed) = (client.address() as usize, read(holder.match_seed()));
+            Some(Self { client, holder, client_key, seed, thread })
         }
     }
     pub(crate) fn at_loaded(ctx: &'a Context<'_>) -> Option<Self> {
@@ -65,8 +86,8 @@ impl<'a> Connection<'a> {
     }
     pub(crate) fn closing(ctx: &Context<'_>) { BUDGET.set(ctx.thread(), None); }
     fn budget(&self) -> Budget {
-        BUDGET.get(self.thread).filter(|budget| budget.key == self.key)
-            .unwrap_or(Budget { key: self.key, told: None, numbered: 0, waiting: None })
+        BUDGET.get(self.thread).filter(|budget| budget.client == self.client_key)
+            .unwrap_or(Budget { client: self.client_key, told: None, numbered: 0, waiting: Waiting::default() })
     }
     /// The number of a refusal that names no generation: the next on the
     /// connection.
@@ -78,12 +99,12 @@ impl<'a> Connection<'a> {
     }
     pub(super) fn options_rejected(&self) {
         let number = self.next_number();
-        self.send(Receipt { match_id: self.key.seed, generation: number, outcome: Outcome::OptionsRejected });
+        self.send(Receipt { match_id: self.seed, generation: number, outcome: Outcome::OptionsRejected });
     }
     /// A world refused by its envelope, before the native generation write:
     /// `generation` read from its first byte.
     pub(super) fn rejected(&self, generation: u8) {
-        self.send(Receipt { match_id: self.key.seed, generation, outcome: Outcome::Rejected });
+        self.send(Receipt { match_id: self.seed, generation, outcome: Outcome::Rejected });
     }
     /// A world refused by its body, after the native generation write
     /// (0x27C040): the generation stored is its own.
@@ -98,18 +119,19 @@ impl<'a> Connection<'a> {
     /// refusal of the world on its way.
     pub(super) fn unreadable(&self) {
         let number = self.next_number();
-        self.send(Receipt { match_id: self.key.seed, generation: number, outcome: Outcome::Unreadable });
+        self.send(Receipt { match_id: self.seed, generation: number, outcome: Outcome::Unreadable });
     }
     pub(crate) fn loaded(&self) {
         // SAFETY: native deserialize returned; its envelope generation is current.
         let generation = unsafe { read(self.client.world_generation()) };
-        self.send(Receipt { match_id: self.key.seed, generation, outcome: Outcome::Loaded });
+        self.send(Receipt { match_id: self.seed, generation, outcome: Outcome::Loaded });
     }
-    /// The receipt that waited for room in the pool, if there is room now.
+    /// The receipts that waited for room in the pool, if there is room now.
     pub(crate) fn send_waiting(&self) {
         let mut budget = self.budget();
-        if let Some(receipt) = budget.waiting.take() {
-            BUDGET.set(self.thread, Some(budget));
+        let waiting = core::mem::take(&mut budget.waiting);
+        BUDGET.set(self.thread, Some(budget));
+        for receipt in [waiting.world, waiting.handshake, waiting.unreadable].into_iter().flatten() {
             self.send(receipt);
         }
     }
@@ -137,12 +159,12 @@ impl<'a> Connection<'a> {
             }
         };
         if sent {
-            // A newer receipt makes an older one that waited moot: the
-            // server waits for the answer to its newest offer only.
-            budget.waiting = None;
+            // A newer receipt of its kind makes an older one that waited
+            // moot: the server waits for the answer to its newest offer.
+            *budget.waiting.slot(receipt.outcome) = None;
             if !numbered { budget.told = Some(receipt); }
         } else {
-            budget.waiting = Some(receipt);
+            *budget.waiting.slot(receipt.outcome) = Some(receipt);
         }
         BUDGET.set(self.thread, Some(budget));
     }
