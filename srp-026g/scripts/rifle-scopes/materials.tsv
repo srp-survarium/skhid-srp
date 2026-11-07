@@ -13,3 +13,4 @@ collimators/hensoldt_rsas_collimator	material_instances/weapons/loc2/aimpoint_co
 scopes/aperture_scope	material_instances/weapons/loc2/leupold_mk4.material
 scopes/aperture_scope_rubber	material_instances/weapons/loc2/leupold_mk4.material
 scopes/leupold_3_7x4x8_scope	material_instances/weapons/loc2/leupold_mk4.material
+gasblocks/m4a1_gasblock	material_instances/weapons/loc2/aimpoint_comp_m4.material
