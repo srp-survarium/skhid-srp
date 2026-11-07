@@ -1,7 +1,8 @@
 //! A room's chat (`room_chat`): its members hear it once their tab is up,
 //! nobody else does; a newcomer gets its last lines; who comes and goes is
 //! not said in it; a match's all-chat is kept in it, its hud given its last
-//! lines once; another match's is not; leaving, a kick or a
+//! lines (but its own all-chat) once a hud; another match's is not; nothing
+//! else a match's hud sends on the channel is a line; leaving, a kick or a
 //! switch ends it; a queue hears nothing.
 
 use survarium::v026g::lobby::rooms::{
@@ -378,11 +379,18 @@ fn ask_history(
     index: usize,
     nonce: &str,
 ) -> (Vec<(String, String)>, Vec<String>) {
+    ask_history_raw(world, index, &format!("#room-chat:{nonce}"))
+}
+
+/// `body` on the room's channel: the room's lines it is given, and the
+/// server's "System" answers.
+fn ask_history_raw(
+    world: &mut World,
+    index: usize,
+    body: &str,
+) -> (Vec<(String, String)>, Vec<String>) {
     world.take(index);
-    world.ask(
-        index,
-        request::chat(0, "", channel::ROOM, &format!("#room-chat:{nonce}")),
-    );
+    world.ask(index, request::chat(0, "", channel::ROOM, body));
     let (system, lines): (Vec<_>, Vec<_>) = room_lines(&world.take(index))
         .into_iter()
         .partition(|(sender, _)| sender == "System");
@@ -391,12 +399,14 @@ fn ask_history(
 
 /// The hud asks once its match chat is up: a player of its room's match is
 /// given the room's last lines (as many as the hud's log shows, but an
-/// ignored sender's), then "done"; again (a retry, a reconnect) "done"
-/// only. In the lobby the ask is a line like any other.
+/// ignored sender's and this match's own all-chat), then "done"; a retry
+/// (the same token) "done" only, a new hud (a reconnect) the lines again.
+/// Out of a match an ask is no line, nor is anything else a match's hud
+/// sends on the room's channel.
 #[test]
 fn a_match_starts_with_the_rooms_last_lines() {
     let ask = |world: &mut World, index: usize| ask_history(world, index, "ab12").0;
-    let done = || vec!["#room-chat:ab12:done".to_owned()];
+    let done = |token: &str| vec![format!("#room-chat:{token}:done")];
     let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
@@ -410,9 +420,9 @@ fn a_match_starts_with_the_rooms_last_lines() {
     for client in [alice, bob, carol] {
         listen(&mut world, client);
     }
-    // In the lobby the ask is no request: a line typed so is said.
+    // In the lobby (a retry come after its match): no answer, no line.
     assert_eq!(ask_history(&mut world, alice, "ab12"), (vec![], vec![]));
-    assert_eq!(heard(&mut world, bob), line("Alice", "#room-chat:ab12"));
+    assert!(heard(&mut world, bob).is_empty());
     assert_eq!(ask_history(&mut world, erin, "ab12"), (vec![], vec![]));
     let bob_id = world.ids[bob].0;
     world.ask(carol, request::ignore(bob_id));
@@ -427,7 +437,9 @@ fn a_match_starts_with_the_rooms_last_lines() {
     }
 
     world.advance(Duration::from_secs(31));
-    sent_to_match(&world.take(alice)).expect("the match");
+    let (match_id, _) = sent_to_match(&world.take(alice)).expect("the match");
+    // Said in this match before a hud asks: its chat has it, not as history.
+    world.ask(alice, request::chat(match_id, "", channel::MATCH, "gl"));
     let last = |from: usize| -> Vec<(String, String)> {
         (from..11)
             .map(|n| ("Alice".to_owned(), format!("line {n}")))
@@ -435,21 +447,42 @@ fn a_match_starts_with_the_rooms_last_lines() {
     };
     let mut alices = last(2);
     alices.push(("Bob".to_owned(), "line 11".to_owned()));
-    assert_eq!(ask_history(&mut world, alice, "ab12"), (alices, done()));
-    // A retry, or a new hud's ask in the same match: "done" only.
-    assert_eq!(ask_history(&mut world, alice, "ab12"), (vec![], done()));
+    assert_eq!(
+        ask_history(&mut world, alice, "ab12"),
+        (alices.clone(), done("ab12"))
+    );
+    // A retry: "done" only; a new hud after a reconnect: the lines again.
+    assert_eq!(
+        ask_history(&mut world, alice, "ab12"),
+        (vec![], done("ab12"))
+    );
     assert_eq!(
         ask_history(&mut world, alice, "cd34"),
-        (vec![], vec!["#room-chat:cd34:done".to_owned()])
+        (alices, done("cd34"))
     );
     // Carol ignores Bob: her ten are Alice's.
     assert_eq!(ask(&mut world, carol), last(1));
+    // Anything else on the room's channel from a match is no line.
+    for body in ["hello", "#mode-intro:scarcity:abc", "#room-chat:no-token"] {
+        assert_eq!(ask_history_raw(&mut world, bob, body), (vec![], vec![]));
+    }
     // Asking is never charged to the chat's allowance: a hud whose player
     // just used it up is answered.
     for n in 0..20 {
-        say(&mut world, bob, &format!("flood {n}"));
+        world.ask(
+            bob,
+            request::chat(match_id, "", channel::MATCH, &format!("flood {n}")),
+        );
     }
-    assert_eq!(ask_history(&mut world, bob, "ab12").1, done());
+    assert_eq!(ask_history(&mut world, bob, "ab12").1, done("ab12"));
+    // After the match, nothing said on the room's channel in it was kept.
+    world.end_match(match_id, 0);
+    world.advance(Duration::from_secs(1));
+    let kept = listen(&mut world, alice);
+    assert!(
+        kept.iter()
+            .all(|(_, body)| !body.starts_with('#') && body != "hello")
+    );
 }
 
 /// A member in another match than its room's (one against bots, started
@@ -472,6 +505,7 @@ fn another_match_is_not_the_rooms() {
         alice,
         request::chat(match_id, "", channel::MATCH, "lol bots"),
     );
+    say(&mut world, alice, "hello from the bots");
     assert!(heard(&mut world, bob).is_empty());
     assert_eq!(
         ask_history(&mut world, alice, "ab12"),
@@ -479,5 +513,8 @@ fn another_match_is_not_the_rooms() {
     );
     world.end_match(match_id, 0);
     world.advance(Duration::from_secs(1));
+    // Its hud's retry come after the match: no line.
+    assert_eq!(ask_history(&mut world, alice, "ab12"), (vec![], vec![]));
+    assert!(heard(&mut world, bob).is_empty());
     assert_eq!(listen(&mut world, alice), line("Bob", "hi"));
 }

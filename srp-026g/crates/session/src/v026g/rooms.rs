@@ -86,7 +86,11 @@ const KEY_MAX: u32 = 99_999;
 /// is given when it comes, and again after its match, the match's all-chat
 /// among them (`social.md` §9.8); each [`Said`] its own last lines, so a
 /// busy match does not push out what was said in the room meanwhile.
-pub const CHAT_KEPT: usize = Said::InRoom.kept() + Said::InMatch.kept();
+pub const CHAT_KEPT: usize = ROOM_LINES_KEPT + MATCH_LINES_KEPT;
+/// The lines said in a room's chat it keeps ([`Said::InRoom`]).
+const ROOM_LINES_KEPT: usize = 20;
+/// The lines of its matches' all-chat a room keeps ([`Said::InMatch`]).
+const MATCH_LINES_KEPT: usize = 20;
 
 /// What a room is made with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -215,17 +219,27 @@ pub struct Room {
 pub enum Said {
     /// In the room's own chat (its "Room Chat" tab).
     InRoom,
-    /// In its match's all-chat.
-    InMatch,
+    /// In the all-chat of its match, the one of this id.
+    InMatch(u32),
 }
 
 impl Said {
-    /// How many of its last lines a room keeps.
+    /// How many of the last lines said so (in the room, or in any of its
+    /// matches) a room keeps.
     pub const fn kept(self) -> usize {
         match self {
-            Self::InRoom => 20,
-            Self::InMatch => 20,
+            Self::InRoom => ROOM_LINES_KEPT,
+            Self::InMatch(_) => MATCH_LINES_KEPT,
         }
+    }
+
+    /// Both in the room, or both in a match (any): kept among the same
+    /// [`Said::kept`].
+    fn kept_with(self, other: Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::InRoom, Self::InRoom) | (Self::InMatch(_), Self::InMatch(_))
+        )
     }
 }
 
@@ -548,9 +562,9 @@ impl Rooms {
     /// where it was (the oldest of those goes); none for a room that is gone.
     pub fn say(&mut self, key: u32, line: ChatLine) {
         if let Some(room) = self.rooms.get_mut(&key) {
-            let said = room.chat.iter().filter(|kept| kept.said == line.said);
-            if said.count() >= line.said.kept()
-                && let Some(oldest) = room.chat.iter().position(|kept| kept.said == line.said)
+            let with = |kept: &ChatLine| kept.said.kept_with(line.said);
+            if room.chat.iter().filter(|kept| with(kept)).count() >= line.said.kept()
+                && let Some(oldest) = room.chat.iter().position(with)
             {
                 room.chat.remove(oldest);
             }
@@ -2707,25 +2721,28 @@ mod tests {
             body: format!("line {i}"),
         };
         rooms.say(key, line(Said::InRoom, 0));
-        for i in 0..Said::InMatch.kept() + 5 {
-            rooms.say(key, line(Said::InMatch, i));
+        for i in 0..MATCH_LINES_KEPT + 4 {
+            rooms.say(key, line(Said::InMatch(7), i));
         }
+        // The next match's line: among the same last lines.
+        rooms.say(key, line(Said::InMatch(8), 0));
         // A busy match: its oldest lines went, not the room's.
         let chat = &rooms.get(key).unwrap().chat;
-        assert_eq!(chat.len(), 1 + Said::InMatch.kept());
+        assert_eq!(chat.len(), 1 + MATCH_LINES_KEPT);
         assert_eq!(chat.front(), Some(&line(Said::InRoom, 0)));
-        assert_eq!(chat.get(1), Some(&line(Said::InMatch, 5)));
-        for i in 1..Said::InRoom.kept() + 5 {
+        assert_eq!(chat.get(1), Some(&line(Said::InMatch(7), 5)));
+        assert_eq!(chat.back(), Some(&line(Said::InMatch(8), 0)));
+        for i in 1..ROOM_LINES_KEPT + 5 {
             rooms.say(key, line(Said::InRoom, i));
         }
         let chat = &rooms.get(key).unwrap().chat;
         assert_eq!(chat.len(), CHAT_KEPT);
-        assert_eq!(chat.front(), Some(&line(Said::InMatch, 5)));
+        assert_eq!(chat.front(), Some(&line(Said::InMatch(7), 5)));
         let mut room = chat.iter().filter(|kept| kept.said == Said::InRoom);
         assert_eq!(room.next(), Some(&line(Said::InRoom, 5)));
         assert_eq!(
             room.next_back(),
-            Some(&line(Said::InRoom, Said::InRoom.kept() + 4))
+            Some(&line(Said::InRoom, ROOM_LINES_KEPT + 4))
         );
         // Nobody left: the room and its chat are gone; a line for it is
         // dropped.

@@ -297,23 +297,41 @@ impl Core<'_> {
         let Some(player) = self.player_mut(who.addr) else {
             return;
         };
-        // A match hud's request on the room's channel (no tab of a match's
-        // chat sends on it), never a chat line: also for a muted player, and
-        // not charged to the allowance, as each is answered once a match and
-        // its retries only with "done".
-        if channel == channel::ROOM
-            && let Some(match_id) = player.in_match
-            && let Some(request) = HudRequest::parse(body)
-        {
-            match request {
-                HudRequest::ModeIntroduction { mode, nonce } => {
-                    self.mode_introduction(who, match_id, mode, nonce);
+        // The room's channel from a match is its hud's (no tab of a match's
+        // chat sends on it), and a hud's request is never a chat line: also
+        // for a muted player, and not charged to the allowance (a retry is
+        // answered only with "done").
+        if channel == channel::ROOM {
+            match (player.in_match, HudRequest::parse(body)) {
+                (Some(match_id), Some(request)) => {
+                    log::info!(
+                        "{}: hud request {request:?} in match {match_id:#x}",
+                        who.name
+                    );
+                    match request {
+                        HudRequest::ModeIntroduction { mode, nonce } => {
+                            self.mode_introduction(who, match_id, mode, nonce);
+                        }
+                        HudRequest::RoomHistory(nonce) => {
+                            self.room_history_to_match(who, match_id, nonce);
+                        }
+                    }
+                    return;
                 }
-                HudRequest::RoomHistory(nonce) => {
-                    self.room_history_to_match(who, match_id, nonce);
+                (Some(match_id), None) => {
+                    log::info!(
+                        "{}: no hud request on channel 10 in match {match_id:#x}",
+                        who.name
+                    );
+                    return;
                 }
+                // A hud's retry come after its match: nothing to answer.
+                (None, Some(request)) => {
+                    log::info!("{}: hud request {request:?} after its match", who.name);
+                    return;
+                }
+                (None, None) => {}
             }
-            return;
         }
         let earned = now.saturating_duration_since(player.chat_at).as_secs_f32() * CHAT_PER_SECOND;
         player.chat_allowance = (player.chat_allowance + earned).min(CHAT_BURST);
@@ -1031,6 +1049,7 @@ impl Core<'_> {
 
 /// A match hud's request, a line it sends on [`channel::ROOM`] that the
 /// server answers as "System" on that channel: parsed once from the line.
+#[derive(Debug)]
 pub(super) enum HudRequest<'a> {
     /// `#mode-intro:<mode>:<nonce>` (`ModeIntroduction.as`).
     ModeIntroduction { mode: Mode, nonce: Nonce<'a> },

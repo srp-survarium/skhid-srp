@@ -620,13 +620,18 @@ one", "there should be to the right of [General Chat] [Room Chat]" (the rules:
 - **At a match's start:** srp's hud (`RoomHistory.as`) sends `4C` channel 10
   `#room-chat:<token>` once its match chat has tabs (a new token after
   `reset`, a new match), again with the same token 2 s later while not
-  answered, 3 times at most. A `4C` on channel 10 from a player in a match is
-  parsed as a hud request (`social::HudRequest`: this or `#mode-intro:`)
-  before the flood allowance and the admin's mute; from the lobby it is a
-  room line like any other. The lobby answers a player of its room's match,
-  once a match, with the room's last 10 lines as kept (but an ignored
-  sender's), `A2` channel 10 as above, then every ask with `A2` channel 10
-  from "System" (sender id 0) `#room-chat:<token>:done`. In a match the exe
+  answered, 3 times at most. A `4C` on channel 10 is parsed as a hud request
+  (`social::HudRequest`: this or `#mode-intro:`) before the flood allowance
+  and the admin's mute. From a player in a match, a request is answered and
+  anything else dropped (a match's chat has no tab that sends on 10); from
+  the lobby, a request (a retry come after its match) is dropped and anything
+  else is a room line. The lobby answers a player of its room's match, once a
+  token (a retry: none; a new hud after a reconnect: again,
+  `Running::room_histories`), with the room's last 10 lines as kept but an
+  ignored sender's and this match's own all-chat (`Said::InMatch` carries the
+  match), `A2` channel 10 as above, then every ask with `A2` channel 10 from
+  "System" (sender id 0) `#room-chat:<token>:done`. Each ask is logged at
+  INFO (`hud request`, `asked for its room's last lines`). In a match the exe
   gives channel 10 to the hud's movie (`add_message` gives the lobby's only 1
   and 4 then, `client_patch.md` §3.53); the hud consumes the ask's local echo
   and "System" lines starting with `#`, and puts any other line in every match

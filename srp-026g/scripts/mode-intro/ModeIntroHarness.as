@@ -113,9 +113,10 @@ package
          return false;
       }
 
-      // The room's last lines given at a match's start (RoomHistory, HUD.add_chat_message): asked with
-      // one token, retried a bounded number of times; the ask's echo and the server's answers never
-      // shown; a player's line (one starting with "#" too) in every match tab, kept when the player
+      // The room's last lines given at a match's start (RoomHistory; HUD.as only calls its update each
+      // frame, its receive first in add_chat_message and its reset per match, not run here: the HUD's
+      // root needs the game): asked with one token, retried a bounded number of times; the ask's echo
+      // and the server's answers never shown; a player's line (one starting with "#" too) in every match tab, kept when the player
       // switches tabs; nothing taken after "done", so an answer is never shown twice.
       private function roomLines() : void
       {

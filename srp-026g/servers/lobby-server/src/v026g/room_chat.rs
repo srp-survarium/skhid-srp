@@ -21,9 +21,12 @@
 //!   starts last messages can be shown too from room chat"): the hud asks
 //!   ([`HudRequest::RoomHistory`], `RoomHistory.as`) once its match chat is
 //!   up, and a player of its room's match is given the room's last
-//!   [`MATCH_HISTORY`] lines on [`channel::ROOM`], then "done"; it shows
-//!   them in every match tab. Once a match: a retry, or a reconnect, is
-//!   answered "done" only.
+//!   [`MATCH_HISTORY`] lines on [`channel::ROOM`] (but this match's own
+//!   all-chat, which its chat has), then "done"; it shows them in every
+//!   match tab. Once a hud (its token): a retry is answered "done" only, a
+//!   new hud after a reconnect is given them again. Whatever else a match's
+//!   hud sends on [`channel::ROOM`] (it has no tab that does), or a retry
+//!   come after its match, is no line.
 //! - **The match's all-chat** (the owner's of 2026-11-06: "show history
 //!   across the previous match of messages to all"): a line a player of
 //!   its room's match says on [`channel::MATCH`] is kept in the room's chat
@@ -139,7 +142,7 @@ impl Core<'_> {
     /// match.
     pub(super) fn room_keep_match_line(&mut self, who: &Who, match_id: u32, body: &str) {
         if let Some(key) = self.room_of_match(who.account_id, match_id) {
-            self.say_in_room(key, Said::InMatch, who, body);
+            self.say_in_room(key, Said::InMatch(match_id), who, body);
         }
     }
 
@@ -159,7 +162,7 @@ impl Core<'_> {
             return;
         }
         let lines = key.map_or_else(Vec::new, |key| {
-            self.room_history(key, who.account_id, CHAT_KEPT)
+            self.room_history(key, who.account_id, CHAT_KEPT, |_| true)
         });
         for line in lines {
             self.send(who.addr, line);
@@ -168,27 +171,50 @@ impl Core<'_> {
 
     /// The hud's ask ([`HudRequest::RoomHistory`]) from a player in match
     /// `match_id`: a player of its room's match is given the room's last
-    /// [`MATCH_HISTORY`] lines (but an ignored sender's), once a match;
-    /// every ask is answered "done" after them, so the hud stops asking.
+    /// [`MATCH_HISTORY`] lines (but an ignored sender's, and this match's
+    /// own all-chat, which its chat has), once a hud (its token: a retry
+    /// gets none, a new hud after a reconnect does); every ask is answered
+    /// "done" after them, so the hud stops asking.
     ///
     /// [`HudRequest::RoomHistory`]: super::social::HudRequest
     pub(super) fn room_history_to_match(&mut self, who: &Who, match_id: u32, nonce: Nonce<'_>) {
-        let first = self
-            .matches
-            .get_mut(&match_id)
-            .is_some_and(|running| running.room_histories.insert(who.account_id));
-        if first && let Some(key) = self.room_of_match(who.account_id, match_id) {
-            for line in self.room_history(key, who.account_id, MATCH_HISTORY) {
+        let new_hud = self.matches.get_mut(&match_id).is_some_and(|running| {
+            let asked = running.room_histories.get(&who.account_id);
+            let new_hud = asked.is_none_or(|asked| asked != nonce.as_str());
+            if new_hud {
+                running
+                    .room_histories
+                    .insert(who.account_id, nonce.as_str().to_owned());
+            }
+            new_hud
+        });
+        let mut given = 0;
+        if new_hud && let Some(key) = self.room_of_match(who.account_id, match_id) {
+            let lines = self.room_history(key, who.account_id, MATCH_HISTORY, |said| {
+                said != Said::InMatch(match_id)
+            });
+            given = lines.len();
+            for line in lines {
                 self.send(who.addr, line);
             }
         }
+        log::info!(
+            "{}: its hud asked for its room's last lines in match {match_id:#x}: {given} given",
+            who.name
+        );
         self.hud_answer(who, &format!("#room-chat:{}:done", nonce.as_str()));
     }
 
-    /// Room `key`'s last `at_most` lines as `account_id` is sent them (an
-    /// ignored sender's left out), the oldest first; none for a room that
-    /// is gone.
-    fn room_history(&self, key: u32, account_id: u32, at_most: usize) -> Vec<ServerMessage> {
+    /// Room `key`'s last `at_most` lines said where `kept` keeps, as
+    /// `account_id` is sent them (an ignored sender's left out), the oldest
+    /// first; none for a room that is gone.
+    fn room_history(
+        &self,
+        key: u32,
+        account_id: u32,
+        at_most: usize,
+        kept: impl Fn(Said) -> bool,
+    ) -> Vec<ServerMessage> {
         let Some(room) = self.rooms.get(key) else {
             return Vec::new();
         };
@@ -196,6 +222,7 @@ impl Core<'_> {
             .chat
             .iter()
             .rev()
+            .filter(|line| kept(line.said))
             .filter_map(|line| {
                 self.chat_body(account_id, line.from, &line.body)
                     .map(|body| message(line, body))

@@ -279,10 +279,10 @@ pub struct MatchTicket {
 pub(super) struct Running {
     /// First HUD request and its answer, per account; retries reuse it, reconnects do not count again.
     pub mode_introductions: std::collections::HashMap<u32, (String, bool)>,
-    /// The accounts whose hud was given its room's last lines
-    /// (`room_chat`): once a match, so a retry or a reconnect never shows
-    /// them twice.
-    pub room_histories: std::collections::HashSet<u32>,
+    /// Each account's hud's last ask for its room's last lines, its token
+    /// (`room_chat`): a retry (the same token) is given none, so never the
+    /// lines twice; a new hud (a reconnect) is given them again.
+    pub room_histories: std::collections::HashMap<u32, String>,
     pub pool: QueuePool,
     pub fixed_teams: bool,
     pub ticket: MatchTicket,
