@@ -39,6 +39,25 @@ impl WalkGrid {
 
     /// How far `node`'s floor is from the nearest wall the standing capsule meets, in the sense of the module: at least the body's
     /// radius where the capsule fits, [`CLEARANCE_MAX_M`] at most. `None` without the table.
+    /// [A333] The grid with a hold for the straight legs a route is pulled into ([`Self::pull_tight`]): with the table of wall
+    /// clearances ([`Self::with_wall_clearance`]) a leg passes a floor nearer a wall than `hold` only where that floor is on the
+    /// grid's path. Without the table, no floor is tight.
+    pub fn with_pull_hold(mut self, hold: f32) -> Self {
+        self.pull_hold = Some(hold);
+        self
+    }
+
+    /// [A333] Whether a route's straight leg may cross `node` only as a floor of its own path: the floor is nearer a wall than
+    /// the pull's hold ([`Self::with_pull_hold`]). False without the hold or the table.
+    /// [A333] The pull's hold ([`Self::with_pull_hold`]), if any.
+    pub fn pull_hold(&self) -> Option<f32> {
+        self.pull_hold
+    }
+
+    pub fn pull_tight(&self, node: NodeId) -> bool {
+        self.pull_hold.is_some_and(|hold| self.wall_clearance(node).is_some_and(|c| c < hold))
+    }
+
     pub fn wall_clearance(&self, node: NodeId) -> Option<f32> {
         self.clearance.get(node as usize).map(|&c| f32::from(c) * CLEARANCE_STEP_M)
     }

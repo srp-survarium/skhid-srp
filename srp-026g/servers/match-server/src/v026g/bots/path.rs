@@ -894,7 +894,14 @@ fn pull_straight(
     let edge = |n: NodeId| grid.is_lip(n) || grid.near_fall(n) || grid.near_lip(n);
     let mut edges: Vec<NodeId> = nodes.iter().copied().filter(|&n| edge(n)).collect();
     edges.sort_unstable();
-    let kept_back = |n: NodeId| allowed(n) && (!edge(n) || edges.binary_search(&n).is_ok());
+    // [A333] Likewise a floor nearer a wall than the client's body holds ([`WalkGrid::pull_tight`], the grid's pull hold:
+    // `grid.wall_clear_pull`): a leg crosses it only as a floor of the path, so a leg pulled past a wall's corner or along a
+    // wall keeps to the cells the search took (the client-tick stand-in stopped at such legs, A333).
+    let mut tights: Vec<NodeId> = nodes.iter().copied().filter(|&n| grid.pull_tight(n)).collect();
+    tights.sort_unstable();
+    let kept_back = |n: NodeId| {
+        allowed(n) && (!edge(n) || edges.binary_search(&n).is_ok()) && (!grid.pull_tight(n) || tights.binary_search(&n).is_ok())
+    };
     // The edge floors a drop's take-off is walked to over (the take-off,
     // and the edge floors before it to it).
     let mut to_drop = vec![false; nodes.len()];

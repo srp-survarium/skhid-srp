@@ -68,6 +68,8 @@ pub struct Scenario {
     pub held_choke: Option<(Place, Vec3, u32)>,
     /// [A320] `BotFacts::route_left_m`.
     pub route_left_m: Option<f32>,
+    /// [A320] `BotFacts::route_total_m`.
+    pub route_total_m: Option<f32>,
 }
 
 impl Scenario {
@@ -162,6 +164,7 @@ impl Scenario {
             crossing: None,
             held_choke: None,
             route_left_m: None,
+            route_total_m: None,
         };
         s.signals();
         s
@@ -330,6 +333,7 @@ impl Scenario {
                 crossing: self.crossing,
                 held_choke: self.held_choke,
                 route_left_m: self.route_left_m,
+                route_total_m: self.route_total_m,
             },
             memory: &self.memory,
             team: &self.team,

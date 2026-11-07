@@ -641,6 +641,24 @@ fn assign_given_up(
             _ if bot.current.is_some() => (best, true, "the play ran out or a higher band came"),
             _ => (best, true, "the best play"),
         };
+        // [A320 F1 bench] A camp flank taken by another play: the winner's band and score against the walk's (its own
+        // candidate, bonus included), or that the walk was no candidate.
+        #[cfg(test)]
+        if changed
+            && let Some(current) = bot.current
+            && current.kind == PlayKind::Flank
+            && matches!(current.target, TargetRef::ThreatSpot(_))
+            && choice.kind != PlayKind::Flank
+        {
+            let walk = running.map_or("no candidate".to_string(), |(_, c)| format!("{:?} {:.2}", band(c), c.score.get()));
+            eprintln!(
+                "A320 camp_flank taken: t {now} place {} by {:?} {:?} {:.2} over the walk {walk} ({reason})",
+                bot.place,
+                choice.kind,
+                cband(choice),
+                by(choice)
+            );
+        }
         if let Some(g) = gang {
             if let Some(i) = GANG_KINDS.iter().position(|&k| k == choice.kind).filter(|_| aimed_at(choice.kind, choice.target).is_some()) {
                 g.tally.chosen_on[i][on_enemy(choice).min(3)].fetch_add(1, Relaxed);
