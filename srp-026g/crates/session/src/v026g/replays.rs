@@ -129,12 +129,6 @@ pub fn oldest_replayable_here(min_patch_revision: u8) -> u8 {
     oldest_replayable(&changes, min_patch_revision)
 }
 
-/// The release tag a revision went out with (`release/release.sh` tags
-/// every release from 15 on; 12 was tagged by hand; 13, 14 and the ones
-/// before 12 have none).
-pub fn release_tag(revision: u8) -> Option<String> {
-    (revision == 12 || revision >= 15).then(|| format!("026g-rev{revision}"))
-}
 /// How long a token lives.
 pub const TOKEN_LIFETIME: Duration = Duration::from_secs(10 * 60);
 /// The downloads one token makes (a broken download resumes with the next).
@@ -1689,15 +1683,6 @@ mod tests {
             "next\ta\n18\tafter next\n",
         ] {
             assert!(simulation_changes(bad).is_err(), "{bad:?}");
-        }
-    }
-
-    #[test]
-    fn a_tag_is_named_for_the_releases_that_have_one() {
-        assert_eq!(release_tag(16).as_deref(), Some("026g-rev16"));
-        assert_eq!(release_tag(12).as_deref(), Some("026g-rev12"));
-        for untagged in [11, 13, 14] {
-            assert_eq!(release_tag(untagged), None);
         }
     }
 

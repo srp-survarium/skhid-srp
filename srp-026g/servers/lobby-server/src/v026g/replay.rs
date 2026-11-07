@@ -19,8 +19,9 @@
 //!   replay was recorded by a game version that yours cannot play."; the
 //!   first answer of each such ask also opens the game's message box
 //!   (`84 49 00 <text>`, `social.md` §9.1) saying why in the game's
-//!   language, with the revisions and the release to watch it with
-//!   ([`refusal_text`]).
+//!   language ([`refusal_text`]): recorded before a game update, which no
+//!   game plays yet; or recorded by a newer game, with its revisions, and
+//!   to update.
 //!
 //! Only the asker's own answer is ever sent (a poll names no account), and
 //! the token is never logged whole (its first six hex digits are; the
@@ -28,7 +29,7 @@
 
 use std::time::Instant;
 
-use session::v026g::replays::{Answer, Known, Refusal, Status, release_tag};
+use session::v026g::replays::{Answer, Known, Refusal, Status};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::requests::id;
 
@@ -111,29 +112,15 @@ fn span(from: u8, to: u8) -> String {
 pub(super) fn refusal_text(refusal: Refusal, language: Option<u8>) -> String {
     let language = language.filter(|&n| n < 5).unwrap_or(0);
     match refusal {
-        Refusal::Older { from, to, .. } => {
-            let revisions = span(from, to);
-            // The release of the newest of them plays them all (a match's
-            // games are of one span).
-            match (language, release_tag(to)) {
-                (1, Some(tag)) => format!("Этот повтор записан старой версией игры (ревизия {revisions}), в которой матчи идут иначе. Смотреть его можно только в том выпуске: {tag}."),
-                (1, None) => format!("Этот повтор записан старой версией игры (ревизия {revisions}), в которой матчи идут иначе. Смотреть его можно только в выпуске той ревизии."),
-                (2, Some(tag)) => format!("Цей повтор записано старою версією гри (ревізія {revisions}), у якій матчі йдуть інакше. Дивитися його можна лише в тому випуску: {tag}."),
-                (2, None) => format!("Цей повтор записано старою версією гри (ревізія {revisions}), у якій матчі йдуть інакше. Дивитися його можна лише у випуску тієї ревізії."),
-                (3, Some(tag)) => format!("Diese Wiederholung wurde mit einer älteren Spielversion (Revision {revisions}) aufgenommen, in der Matches anders ablaufen. Ansehen lässt sie sich nur mit diesem Release: {tag}."),
-                (3, None) => format!("Diese Wiederholung wurde mit einer älteren Spielversion (Revision {revisions}) aufgenommen, in der Matches anders ablaufen. Ansehen lässt sie sich nur mit dem Release dieser Revision."),
-                (4, Some(tag)) => format!("Ta powtórka została nagrana starszą wersją gry (rewizja {revisions}), w której mecze przebiegają inaczej. Obejrzysz ją tylko w tamtym wydaniu: {tag}."),
-                (4, None) => format!("Ta powtórka została nagrana starszą wersją gry (rewizja {revisions}), w której mecze przebiegają inaczej. Obejrzysz ją tylko w wydaniu tej rewizji."),
-                (_, Some(tag)) => format!("This replay was recorded with an older version of the game (revision {revisions}), which plays matches differently. It can be watched only with that release: {tag}."),
-                (_, None) => format!("This replay was recorded with an older version of the game (revision {revisions}), which plays matches differently. It can be watched only with the release of that revision."),
-            }
-        }
-        Refusal::Unknown => match language {
-            1 => "Этот повтор записан старой версией игры (её номер тогда не сохранялся). Смотреть его можно только в том старом выпуске игры.".into(),
-            2 => "Цей повтор записано старою версією гри (її номер тоді не зберігався). Дивитися його можна лише в тому старому випуску гри.".into(),
-            3 => "Diese Wiederholung wurde mit einer älteren Spielversion aufgenommen (ihre Nummer wurde damals nicht gespeichert). Ansehen lässt sie sich nur mit diesem älteren Release.".into(),
-            4 => "Ta powtórka została nagrana starszą wersją gry (jej numer nie był wtedy zapisywany). Obejrzysz ją tylko w tamtym starszym wydaniu gry.".into(),
-            _ => "This replay was recorded with an older version of the game (its number was not kept then). It can be watched only with that older release of the game.".into(),
+        // No game a player has plays it (nothing installs an older one).
+        // No date of the update: the server has none
+        // (`simulation_changes.tsv` keeps revisions only).
+        Refusal::Older { .. } | Refusal::Unknown => match language {
+            1 => "Этот повтор записан до обновления игры; повторы из старых версий пока нельзя воспроизвести.".into(),
+            2 => "Цей повтор записано до оновлення гри; повтори зі старих версій поки не можна відтворити.".into(),
+            3 => "Diese Wiederholung wurde vor einem Spielupdate aufgenommen; Wiederholungen älterer Versionen lassen sich noch nicht abspielen.".into(),
+            4 => "Ta powtórka została nagrana przed aktualizacją gry; powtórek ze starszych wersji nie można jeszcze odtworzyć.".into(),
+            _ => "This replay was recorded before a game update; replays from older versions can't be played yet.".into(),
         },
         Refusal::Newer { from, to } => {
             let revisions = span(from, to);
