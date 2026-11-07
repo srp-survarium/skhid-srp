@@ -3464,6 +3464,32 @@ fn a_world_whose_parts_go_unacked_is_taken_as_loaded_on_the_games_right_hash() {
 }
 
 #[test]
+fn a_world_whose_parts_go_unacked_is_taken_as_loaded_on_the_games_load_receipt() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // Two players and no hash reports from the one who enters: no hash
+    // can prove its load (as in a match of a few, or against bots). Its
+    // acks name nothing of its world, but its game loads it and says so.
+    let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
+    bench.join(0);
+    settle(&mut bench);
+    bench.clients[1].world_receipts = WorldReceiptMode::Accept;
+    bench.clients[1].no_hashes = true;
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+    bench.clients[1].ready();
+    assert!(bench.until(3_000, |bench| bench.stages() == "Lt"), "{}", bench.stages());
+    bench.clients[1].mute_acks = true;
+    assert!(bench.until(1_000, |bench| bench.stages() == "LL"), "{}", bench.stages());
+    bench.clients[1].mute_acks = false;
+    assert_eq!(bench.game().generation(1), Some(0));
+    assert_eq!(bench.clients[1].snapshots().len(), 1);
+    assert!(bench.until(50, |bench| bench.clients[1].entered() == [1]));
+    bench.run(3_000);
+    assert_eq!(bench.clients[1].snapshots().len(), 1);
+    bench.assert_no_faults();
+}
+
+#[test]
 fn a_tie_does_not_clear_a_disagreement_that_stands() {
     let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
     bench.join_all();

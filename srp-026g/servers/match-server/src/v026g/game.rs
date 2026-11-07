@@ -5575,10 +5575,17 @@ impl Game {
                         // look that sees it acked.
                         peer.world_receipts.delivered(peer.generation.0, now + RECEIPT_WAIT);
                     }
-                    let delivered = acked && peer.world_receipts.loaded(peer.generation.0);
+                    // A game that sends receipts has its world when it says
+                    // so, whatever came of the parts' acks: those name only
+                    // its newest few seqs (transport.md section 2.2), and the
+                    // hash proof needs others who report. Its parts go no more.
+                    let delivered = peer.world_receipts.delivery(peer.generation.0, acked);
+                    if delivered && !acked {
+                        peer.transport.forget(serial, now);
+                    }
                     if peer.world_receipts.overdue(peer.generation.0, now) {
                         self.redo_sync(index, entering, "no world load receipt; retry without removing the recipient", now);
-                    } else if peer.transport.is_lost(serial) {
+                    } else if !delivered && peer.transport.is_lost(serial) {
                         // Not acked in its 1.75 s: dropped by the transport.
                         self.redo_sync(index, entering, "the snapshot did not arrive", now);
                     } else if delivered

@@ -93,9 +93,12 @@ impl WorldReceipts {
         matches!(self, Self::Enabled { pending: Pending::Delivered { generation: offered, due }, .. }
             if *offered == generation && now >= *due)
     }
-    pub(super) fn loaded(&self, generation: u8) -> bool {
+    /// Whether the world of `generation` is there: without receipts, when
+    /// its parts were all `acked`; with them, when its Loaded receipt came,
+    /// acked or not.
+    pub(super) fn delivery(&self, generation: u8, acked: bool) -> bool {
         match self {
-            Self::Legacy => true,
+            Self::Legacy => acked,
             Self::Enabled { pending: Pending::Loaded { generation: accepted }, .. } => *accepted == generation,
             Self::Enabled { .. } => false,
         }
@@ -115,8 +118,8 @@ mod tests {
     #[test]
     fn receipts_are_bound_to_an_offer_and_retries_are_bounded() {
         let now = Instant::now(); let mut state = WorldReceipts::default();
-        assert!(state.loaded(0)); state.enable(now); state.offer(255);
-        assert_eq!(state.receive(0, Outcome::Loaded, now), Received::Ignored); assert!(!state.loaded(255));
+        assert!(state.delivery(0, true) && !state.delivery(0, false)); state.enable(now); state.offer(255);
+        assert_eq!(state.receive(0, Outcome::Loaded, now), Received::Ignored); assert!(!state.delivery(255, false));
         assert_eq!(state.receive(255, Outcome::Rejected, now), Received::Rejected);
         for _ in 0..10_000 { assert_eq!(state.receive(255, Outcome::Rejected, now), Received::Ignored); }
         assert!(state.take_retry(255, now)); assert!(!state.take_retry(255, now));
@@ -124,7 +127,7 @@ mod tests {
         assert!(!state.take_retry(0, now)); state.receive(0, Outcome::Rejected, now);
         assert!(!state.take_retry(0, now)); assert!(state.take_retry(0, now + RETRY_GAP));
         state.offer(1); assert_eq!(state.receive(1, Outcome::Loaded, now), Received::Loaded);
-        assert_eq!(state.receive(1, Outcome::Rejected, now), Received::Ignored); assert!(state.loaded(1));
+        assert_eq!(state.receive(1, Outcome::Rejected, now), Received::Ignored); assert!(state.delivery(1, false));
     }
 
     #[test]
@@ -137,7 +140,7 @@ mod tests {
         state.delivered(3, due); state.delivered(3, due + Duration::from_secs(9));
         assert!(!state.overdue(3, due - Duration::from_millis(1))); assert!(state.overdue(3, due)); assert!(!state.overdue(2, due));
         assert_eq!(state.receive(3, Outcome::Loaded, now), Received::Loaded); assert!(!state.overdue(3, due));
-        state.delivered(3, due); assert!(state.loaded(3), "a receipt before the acks settles it");
+        state.delivered(3, due); assert!(state.delivery(3, false), "a receipt before the acks settles it");
         state.offer(4); state.delivered(4, due);
         assert_eq!(state.receive(4, Outcome::Rejected, now), Received::Rejected);
         assert!(!state.overdue(4, due), "a refusal has its own retry");
