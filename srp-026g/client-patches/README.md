@@ -3263,7 +3263,9 @@ does what no config of 0.26g could.
   now activates the pressed one and every other artefact of the same class (vtable) and kind 1
   in the inventory's artefact slots (13..18) that is ready, each as action does (enable_active,
   its effect 0x313350, the time, state 4), and returns: a press of one cooling or active still
-  fires the ready ones. A key-up goes on in action. Different kinds keep their keys.
+  fires the ready ones. A key-up goes on in action. Different kinds keep their keys. Ready
+  includes patch 109's cap (2026-11-07, its entry `artefact.fire`): a copy past the first 4 of
+  its kind in the containers is not fired and stays ready, so a press fires at most 4.
 - **Onyx: a stack is a longer burst, not a stronger one** (the owner, 2026-10-25; its numbers,
   -75 % for 3 s, in `artefacts.tsv`). Its enable_active (0x3128C0) sets the active's time left
   (+F14h, ms) from `active/duration`; the press above, when the kind's enable_active is Onyx's,
@@ -4744,8 +4746,11 @@ sums (`artefact.own_modifier` 0x2D5B0C, `artefact.own_modifiers` 0x2D5C46) leave
 nodes (+340h, +350h, +3D8h), summing the list's other nodes as the game does and going on at the
 loop's end; an Onyx's protect in its passive returns (`artefact.own_onyx` 0x312BF0, `ret 0Ch`);
 a Lifebone's regeneration modifier returns (`artefact.own_lifebone` 0x312590, ECX the Lifebone,
-`ret 8`). Its active is as before.
-Checked with `check_artefact_skills_026g.py`; not run in a game.
+`ret 8`). Nor its active: patch 54's `ready` (artefacts_026g.asm) asks the entry `artefact.fire`
+(cdecl: the copy, its fires pushed 1, made 0 for one past the 4), so a press fires at most the 4
+that count, a fifth stays ready (state 3, no cooldown) and adds no Onyx time; each carrier shares
+only its copies that count (`shared`).
+Checked with `check_artefact_skills_026g.py` (`check_own_cap`, `check_active_cap`); not run in a game.
 
 ## Keeper of the Artifacts: an artefact of the match's kind at the match's start (patch 109, unreleased)
 

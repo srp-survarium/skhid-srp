@@ -613,6 +613,21 @@ pub extern "C" fn hook_medical_skills_on_regenerate(frame: &mut Frame) -> u32 {
 
 // ---- artefact_skills (patch 109) ----
 
+/// The entry `artefact_skills_on_fire` (artefact.fire, patch 54's press (artefacts_026g.asm ready, from fire_kind at artefact_base::action 0x313300) for each copy in its passive with no cooldown it would fire: cdecl, the artefact and its fires (in/out, pushed 1, made 0 for a copy past the 4 of its kind that count for its holder); the caller keeps every register and pops the two) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_fire(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_fire` calls this, from our own code's call (artefact.fire),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_fire(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_skills (patch 109) ----
+
 /// The named exits of artefact_skills::on_own_modifier (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]

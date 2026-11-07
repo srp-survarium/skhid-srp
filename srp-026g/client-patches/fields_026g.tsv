@@ -831,6 +831,8 @@ survarium::player	stamina	0x6C0	obj<survarium::player_stamina>	the embedded stam
 survarium::player_stamina	maximum	0x0	f32	the most stamina: player_stamina::regenerate clamps current to it (0x329925 movss xmm1,[edi])
 survarium::player_stamina	current	0x6C	f32	the stamina now, 0..maximum (regenerate writes it at 0x329938 / 0x32994F)
 survarium::spring_reload_frame	spring	0x4	ptr<survarium::skill_spring>	artefact.spring_reload's argument (by the site ESP, the return address at +0): the Spring whose passive is linked
+survarium::artefact_fire_frame	artefact	0x4	ptr<survarium::artefact>	artefact.fire's first argument (by the site ESP, the return address at +0): a copy patch 54's press would fire (state 3, cooldown 0)
+survarium::artefact_fire_frame	fires	0x8	u32	its second: pushed 1; 0 written for a copy past the 4 of its kind that count for its holder (it does not fire and stays ready)
 survarium::skill_spring	item	0x0	obj<survarium::item>	the Spring's inventory item (its inventory +250h, holder +174h)
 survarium::skill_spring	passive_reload	0x3E4	f32	Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
 survarium::skill_spring	active_reload	0x3F4	f32	Spring II's active reload node's value (patch 54's node at +3E8h, list 13)
