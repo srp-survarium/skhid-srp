@@ -85,7 +85,6 @@
     "honest_drops": false,
     "jump_cap_m": 1.05,
     "landing_carry": false,
-    "pull_walk": false,
     "ramp_faces": false,
     "walk_off_lips": false
   },
