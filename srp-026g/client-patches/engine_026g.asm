@@ -78,6 +78,8 @@ global engine_collision_insert
 global engine_collision_remove
 global engine_effects_stop
 global engine_effect_play
+global engine_set_effect_presenter
+global engine_effect_player_represent
 global engine_emitter_emit
 global engine_emitter_destroy
 global engine_release_resource
@@ -1147,6 +1149,37 @@ engine_effect_play:
     push dword [esp + 40]   ; effect -> 4
     mov edi, [esp + 40]   ; player
     call 0x2de090
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_effect_presenter:
+    ; 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; player
+    mov edi, [esp + 24]   ; holder
+    call 0x1f3740
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_effect_player_represent:
+    ; 0x2de560 survarium::game_effect_player::represent: player ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; player -> 4
+    call 0x2de560
     pop edi
     pop esi
     pop ebx

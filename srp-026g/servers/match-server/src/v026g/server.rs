@@ -427,7 +427,7 @@ impl Server {
             game.sync_roster(formed, now);
         }
         game.attach(index, addr, session_id, revision, transport, now);
-        if matches!(debug, 0x82 | 0x83) { game.enable_world_receipts(index, now); }
+        if matches!(debug, 0x82 | 0x83) { game.enable_world_receipts(index); }
         self.routes.insert(addr, (seat.match_id, index));
         self.store.seen_in_match(session_id);
     }
@@ -461,8 +461,13 @@ impl Server {
                     self.store.matchmaking().join_failed(account_id);
                 }
             }
-            self.registry
-                .set_admitting(game.id, game.roster_size(), game.admission(now));
+            // The phase with the admission, in one record: a join reads both (Keeper's late joiner).
+            self.registry.set_admitting(
+                game.id,
+                game.roster_size(),
+                game.admission(now),
+                game.live_phase(),
+            );
             if tell_live {
                 self.registry.set_live(game.id, game.live_now(now));
             }

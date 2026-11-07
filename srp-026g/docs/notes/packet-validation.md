@@ -414,11 +414,18 @@ Semantic world refusal is not treated as proof of cheating and causes no ban.
 The client (patches 114 and 97) consumes a rejected message and skips its native handler without
 closing the match. Bad E3/E4 handshake envelopes request the recipient's pending
 handshake again; bad E8/world bodies request a fresh world generation. Native
-world deserialization must return before the new Loaded receipt is sent. The
-server waits for this application receipt as well as delivery (or existing
-matching-state hash proof) before admitting a recipient. Transport ACKs alone
-cannot advance it past a rejected world. A lost receipt causes a two-second
-retry; rejection retries are limited to one per second per connection.
+world deserialization must return before the new Loaded receipt is sent. For a
+connection with receipts the server admits a recipient on its Loaded receipt
+(acked or not), or on the existing matching-state hash proof; transport ACKs
+alone never do. Each refusal is answered once and at once: a world's by the
+next generation, a handshake's by its message again. E0 is plain and resent
+until acked, so copies of a receipt come: a world refusal is told from a copy
+by its generation, a handshake refusal by its number on the connection (the
+generation byte, 1, 2, ...). A world refused whose generation the game could not
+read (Unreadable, numbered with the handshake refusals) is taken as a refusal of
+the world on its way. No clock is involved: a world acked and not loaded
+is waited for, since its receipt comes while the link lives; a world not acked
+is given up by the transport at the end of its lifetime, as without receipts.
 
 D8 0x82/0x83 negotiates this behavior. Receipts are fixed 20-byte E0 carriers with
 a separate impossible upload prefix, match seed, generation, outcome and version.
@@ -427,8 +434,15 @@ retry is accepted only while that connection is Connecting/Loading; the seed is
 not required before options decode. Legacy 0x80/0x81 clients keep their prior
 behavior. **Deploy the server before a client with the new capability.**
 
-The client owns a per-match budget for rejection sends, checks packet-pool
-headroom before allocation, and clears it on match teardown.
+The client sends one receipt per event and never drops one for time (a
+wait the server keeps for a refusal must get it): Loaded/Rejected once per
+generation, a handshake refusal once per refused E3/E4, and an Unreadable for
+a world whose generation cannot be read (the generation the client stored is an
+older world's); these two are numbered on their connection (the generation
+byte: 1, 2, ...) so that the server can tell each from a copy (E0 is plain and
+resent until acked). It checks packet-pool headroom
+before allocation; a receipt with no room waits, the newest only, and goes on
+the next frame with room (`game.tick`). Match teardown forgets both.
 Server tests cover rejected first/resync worlds, lost reports, successful retry,
 repeated refusal, forged/stale reports, corrupt handshake envelopes and source
 input removal. A native harness covers 2,000-message bursts, a valid input after

@@ -17,6 +17,7 @@ order = 4
 [[hook]]
 site = "game.tick"
 handler = "on_frame"
+order = 1
 
 # the login screen: the main theme (before patch 83's DXVK marker, order 2)
 [[hook]]

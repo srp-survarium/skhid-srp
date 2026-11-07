@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Storage
 st_aniso_filtering_option	Anisotrope filtering
 st_anomaly_damage_corr_perc_name	Anomaly damage
-st_anomaly_skills_label	Knowledge of the Forest.
+st_anomaly_skills_label	Knowledge of the Forest
 st_antialiasing_option	Antialiasing
 st_antitoxin_description	A complex medicine designed to neutralize poisons and toxins in the human body. To maximize the effect, consume prior to harmful impact. 
 st_antitoxin_name	Antitoxin
@@ -2190,6 +2190,31 @@ st_srp_ammo_scar_ap_desc	Armour-piercing 7.62x51 cartridges for the FN SCAR-H. E
 st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20-round pack
 st_srp_ammo_slug	Slug
 st_srp_ammo_stats	Ammo stats
+st_srp_artefact_501_description	Time to collect an artifact:
+st_srp_artefact_501_name	Quick Hands
+st_srp_artefact_502_description	Isolation against anomalies:
+st_srp_artefact_502_name	Resistance
+st_srp_artefact_512_description	Duration of active artifact effects:
+st_srp_artefact_512_name	Knowledge of Artifacts
+st_srp_artefact_513_description	See passive artifacts as a glow on players' legs, your own included.
+st_srp_artefact_513_name	Artifact Sight
+st_srp_artefact_521_description	Start the match with a random artifact in a container; one kind for everyone in the match.
+st_srp_artefact_521_name	Keeper of the Artifacts
+st_srp_artefact_522_description	One pocket becomes an artifact container.
+st_srp_artefact_522_name	Artifact Container
+st_srp_artefact_523_description	Bullet and fragment damage taken inside an anomaly:
+st_srp_artefact_523_name	Forest Protection
+st_srp_artefact_531_description	Each Spring also speeds up reloading: +5% passive, +15% while active.
+st_srp_artefact_531_name	Spring II
+st_srp_artefact_532_description	No fall damage while an Onyx is active.
+st_srp_artefact_532_name	Onyx II
+st_srp_artefact_533_description	Activating a Larkspur restores all energy.
+st_srp_artefact_533_name	Larkspur II
+st_srp_artefact_541_description	Your artifacts' passive effects also work on living teammates within 8 m.
+st_srp_artefact_541_name	Resonance
+st_srp_artefact_542_description	Activated artifacts also work on living teammates within 5 m. "They glow, you shine"
+st_srp_artefact_542_name	Cascade
+st_srp_artefact_points	 points
 st_srp_attachments	Attachments
 st_srp_ban_reason_account_trading	Selling or trying to sell an account.
 st_srp_ban_reason_administration	Decision of the administration.

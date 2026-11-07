@@ -1482,9 +1482,9 @@ impl Game {
     }
 
     /// Negotiated in D8 before any snapshot can be offered.
-    pub(super) fn enable_world_receipts(&mut self, index: usize, now: Instant) {
+    pub(super) fn enable_world_receipts(&mut self, index: usize) {
         if let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) {
-            peer.world_receipts.enable(now);
+            peer.world_receipts.enable();
         }
     }
 
@@ -1504,10 +1504,14 @@ impl Game {
             // handshake, and only while it is loading. It never resets a live
             // client or another peer.
             Outcome::OptionsRejected if matches!(peer.stage, Stage::Connecting | Stage::Loading) => {
-                peer.world_receipts.reject_options(now)
+                peer.world_receipts.reject_options(receipt.generation)
             }
             Outcome::Loaded | Outcome::Rejected if this_match && peer.stage != Stage::Gone => {
-                peer.world_receipts.receive(receipt.generation, receipt.outcome, now)
+                peer.world_receipts.receive(receipt.generation, receipt.outcome)
+            }
+            // Its `generation` is the refusal's number, not a generation.
+            Outcome::Unreadable if this_match && peer.stage != Stage::Gone => {
+                peer.world_receipts.reject_unreadable(receipt.generation)
             }
             _ => Received::Ignored,
         };
@@ -1516,6 +1520,10 @@ impl Game {
             (Received::Rejected, Outcome::OptionsRejected) => {
                 "refused the match's handshake (E3/E4); its own is sent again".to_string()
             }
+            (Received::Rejected, Outcome::Unreadable) => format!(
+                "refused a world it could not read the generation of (refusal {}); a newer one goes to it alone",
+                receipt.generation
+            ),
             (Received::Rejected, _) => format!(
                 "refused the world of generation {} (its srp_patches.log says why); a newer one goes to it alone",
                 receipt.generation
@@ -5388,7 +5396,7 @@ impl Game {
         self.check_initial_worlds(now);
 
         for index in 0..self.peers.len() {
-            let retry_options = self.peers[index].as_mut().is_some_and(|peer| peer.world_receipts.take_options_retry(now));
+            let retry_options = self.peers[index].as_mut().is_some_and(|peer| peer.world_receipts.take_options_retry());
             if retry_options {
                 let message = self.peers[index].as_ref().and_then(|peer| match peer.stage {
                     Stage::Connecting => Some(ServerMessage::Ports { min: self.port, max: self.port }),
@@ -5401,7 +5409,7 @@ impl Game {
             }
             let retry = self.peers[index].as_mut().and_then(|peer| {
                 if let Stage::Syncing { entering, .. } = peer.stage
-                    && peer.world_receipts.take_retry(peer.generation.0, now)
+                    && peer.world_receipts.take_retry(peer.generation.0)
                 { Some(entering) } else { None }
             });
             if let Some(entering) = retry {
@@ -5579,13 +5587,19 @@ impl Game {
                     let Some(peer) = self.peers[index].as_mut() else {
                         continue;
                     };
-                    let delivered = peer.transport.is_delivered(serial) && peer.world_receipts.loaded(peer.generation.0);
-                    if peer.world_receipts.requires_receipt()
-                        && !peer.world_receipts.loaded(peer.generation.0)
-                        && peer.sync_sent_at.is_some_and(|at| now.saturating_duration_since(at) >= Duration::from_secs(2))
-                    {
-                        self.redo_sync(index, entering, "no world load receipt; retry without removing the recipient", now);
-                    } else if peer.transport.is_lost(serial) {
+                    let acked = peer.transport.is_delivered(serial);
+                    // A game that sends receipts has its world when it says
+                    // so, whatever came of the parts' acks: those name only
+                    // its newest few seqs (transport.md section 2.2), and the
+                    // hash proof needs others who report. Its parts go no more.
+                    let delivered = peer.world_receipts.delivery(peer.generation.0, acked);
+                    if delivered && !acked {
+                        peer.transport.forget(serial, now);
+                    }
+                    // A world acked and not loaded yet is waited for: its
+                    // receipt comes while the link lives (0xE0 is resent until
+                    // acked), Loaded or Rejected (`take_retry`).
+                    if !delivered && peer.transport.is_lost(serial) {
                         // Not acked in its 1.75 s: dropped by the transport.
                         self.redo_sync(index, entering, "the snapshot did not arrive", now);
                     } else if delivered
