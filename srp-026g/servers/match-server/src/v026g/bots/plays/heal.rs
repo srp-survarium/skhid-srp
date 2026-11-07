@@ -67,7 +67,7 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::pools::{Pool, Pools};
-use crate::v026g::bots::stock::{Drug, Held, Pantry, Press};
+use crate::v026g::bots::stock::{Drug, DrugFactors, Held, Pantry, Press};
 #[cfg(test)]
 use survarium::v026g::loadouts::PocketStore;
 use crate::v026g::bots::tactics::SpotQuery;
@@ -144,14 +144,23 @@ pub fn item(drug: Drug) -> &'static Item {
 }
 
 impl Item {
-    /// From the press until the effect is over, ms.
-    fn window_ms(&self) -> u32 {
-        ((self.delay_s + self.active_s) * 1000.0) as u32
+    /// [A341] Its delay for a bot whose medical skills give `f` (Fast Bandaging: the activation delay, 0x33D486), s.
+    pub fn delay_for(&self, f: DrugFactors) -> f32 {
+        self.delay_s * f.delay
     }
 
-    /// Every pool it restores, and its rate a second read by `amounts`: [`Self::treats`] and [`Self::also`].
-    fn restores(&self, amounts: DrugAmounts) -> impl Iterator<Item = (Pool, f32)> + '_ {
-        self.treats.iter().chain(self.also).map(move |&(pool, amount)| (pool, self.rate(pool, amount, amounts)))
+    /// From the press until the effect is over, ms.
+    fn window_ms(&self, f: DrugFactors) -> u32 {
+        ((self.delay_for(f) + self.active_s) * 1000.0) as u32
+    }
+
+    /// Every pool it restores, and its rate a second read by `amounts`, for a bot whose medical skills give `f` (Medical
+    /// Training: every amount times `f.amount`): [`Self::treats`] and [`Self::also`].
+    fn restores(&self, amounts: DrugAmounts, f: DrugFactors) -> impl Iterator<Item = (Pool, f32)> + '_ {
+        self.treats
+            .iter()
+            .chain(self.also)
+            .map(move |&(pool, amount)| (pool, self.rate(pool, amount, amounts) * f.amount))
     }
 
     /// The rate a second of `amount` (of `pool`), read by `amounts`. The old reading took the treated pools' amounts as
@@ -166,8 +175,8 @@ impl Item {
 
     /// When the effect of `press` ends, ms: its window's end, or the hit that stopped it before then when the bot
     /// knows of patch 84 (`HealTuning::drug_stops`).
-    fn ends(&self, press: Press, stops: DrugStops) -> u32 {
-        let end = press.at + self.window_ms();
+    fn ends(&self, press: Press, stops: DrugStops, f: DrugFactors) -> u32 {
+        let end = press.at + self.window_ms(f);
         match press.hit {
             Some(hit) if stops.known() && hit < end => hit,
             _ => end,
@@ -221,9 +230,9 @@ pub fn medkits_left(cx: &Ctx) -> u32 {
 }
 
 /// Whether `held` was pressed and its effect is not over (a hit stopped it, with `stops` known).
-fn busy(held: &Held, now: u32, stops: DrugStops) -> bool {
+fn busy(held: &Held, now: u32, stops: DrugStops, f: DrugFactors) -> bool {
     held.pressed
-        .is_some_and(|press| now < item(held.drug).ends(press, stops))
+        .is_some_and(|press| now < item(held.drug).ends(press, stops, f))
 }
 
 /// Its pools as they will be once every drug pressed has acted: the last
@@ -241,16 +250,17 @@ pub fn projected(cx: &Ctx) -> Pools {
 /// [`projected`] from the raw inputs (the reflex habit has no [`Ctx`]): a drug a hit stopped acts to the hit
 /// only, with `stops` known.
 pub fn projected_of(mut pools: Pools, seen: u32, pantry: &Pantry, stops: DrugStops, amounts: DrugAmounts) -> Pools {
+    let f = pantry.factors();
     for held in pantry.held() {
         let Some(press) = held.pressed else {
             continue;
         };
         let it = item(held.drug);
-        let from = (press.at + (it.delay_s * 1000.0) as u32).max(seen);
-        let to = it.ends(press, stops);
+        let from = (press.at + (it.delay_for(f) * 1000.0) as u32).max(seen);
+        let to = it.ends(press, stops, f);
         if to > from {
             let secs = (to - from) as f32 / 1000.0;
-            for (pool, rate) in it.restores(amounts) {
+            for (pool, rate) in it.restores(amounts, f) {
                 pools.add(pool, rate * secs);
             }
         }
@@ -279,9 +289,9 @@ pub fn need(item: &Item, pools: &Pools, w: &NeedWeights) -> f32 {
 }
 
 /// The need that is left once `item` has done all it will.
-fn left_after(item: &Item, pools: &Pools, w: &NeedWeights, amounts: DrugAmounts) -> f32 {
+fn left_after(item: &Item, pools: &Pools, w: &NeedWeights, amounts: DrugAmounts, f: DrugFactors) -> f32 {
     let mut after = *pools;
-    for (pool, rate) in item.restores(amounts) {
+    for (pool, rate) in item.restores(amounts, f) {
         after.add(pool, rate * item.active_s);
     }
     ITEMS
@@ -305,17 +315,18 @@ pub fn choose_of<'a>(
     now: u32,
 ) -> Option<(&'a Held, f32)> {
     let w = &heal.weights_in_use();
+    let f = pantry.factors();
     let total = |held: &Held| {
         let it = item(held.drug);
-        it.delay_s + it.active_s
+        it.delay_for(f) + it.active_s
     };
     pantry
         .held()
         .iter()
-        .filter(|held| held.hand > 0 && !busy(held, now, heal.drug_stops))
+        .filter(|held| held.hand > 0 && !busy(held, now, heal.drug_stops, f))
         .map(|held| (held, need(item(held.drug), pools, w)))
         .filter(|&(_, need)| need >= heal.start_need)
-        .map(|(held, need)| (held, need, left_after(item(held.drug), pools, w, heal.amounts)))
+        .map(|(held, need)| (held, need, left_after(item(held.drug), pools, w, heal.amounts, f)))
         .min_by(|a, b| {
             if (a.2 - b.2).abs() < 0.05 {
                 total(a.0).total_cmp(&total(b.0))
@@ -381,7 +392,7 @@ pub fn wish(
         .filter(|&until| now < until);
     Some(Wish {
         key: key::QUICK[held.quick],
-        reach_m: heal.walk_mps * item(held.drug).delay_s,
+        reach_m: heal.walk_mps * item(held.drug).delay_for(pantry.factors()),
         enemy_m: heal.enemy_m,
         wait_until,
     })
@@ -998,7 +1009,7 @@ mod tests {
     /// the infection. The old per-second reading: the medkit's 1 and the antitoxin's 0.5 a second, the pain as now.
     #[test]
     fn a_drugs_amounts_are_course_totals_over_its_active_time() {
-        let rates = |drug: Drug, amounts: DrugAmounts| item(drug).restores(amounts).collect::<Vec<_>>();
+        let rates = |drug: Drug, amounts: DrugAmounts| item(drug).restores(amounts, DrugFactors::NONE).collect::<Vec<_>>();
         let close = |a: f32, b: f32| (a - b).abs() < 1e-6;
         for (pool, rate) in rates(Drug::Medkit, DrugAmounts::CourseTotal) {
             let want = if pool == Pool::Pain { 0.4 / 3.0 } else { 1.0 / 3.0 };

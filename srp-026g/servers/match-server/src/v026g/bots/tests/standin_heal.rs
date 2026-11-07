@@ -53,7 +53,7 @@ use std::sync::OnceLock;
 use survarium::v026g::loadouts::QUICK_USE_FIRST_BIT;
 
 use super::*;
-use crate::v026g::bots::stock::{Drug, Reading, Readings};
+use crate::v026g::bots::stock::{Drug, DrugFactors, Reading, Readings};
 
 thread_local! {
     /// A test's word on the model, for its own thread (the tests run one to a thread).
@@ -296,8 +296,8 @@ pub(crate) fn model_of(drug: Drug) -> &'static Model {
 }
 
 /// `model`'s rates over `dt_s` seconds on `target`.
-fn heal(target: &mut impl Restore, model: &Model, dt_s: f32) {
-    for (group, rate) in model.rates_now() {
+fn heal(target: &mut impl Restore, model: &Model, dt_s: f32, f: DrugFactors) {
+    for (group, rate) in model.rates_now().map(|(group, rate)| (group, rate * f.amount)) {
         for &pool in group.pools() {
             target.restore(pool, rate * dt_s);
         }
@@ -310,6 +310,8 @@ struct Use {
     drug: Drug,
     quick: usize,
     at: u32,
+    /// [A341] The body's medical skills, the client's: the delay and the amounts (`stock::DrugFactors`).
+    f: DrugFactors,
 }
 
 /// A slot of a kit, the game's way: `hand` the stack in the slot, `store`
@@ -342,6 +344,8 @@ pub(crate) struct Heal {
     kit: usize,
     /// The kit the next spawn uses ([`tell`]).
     pub(crate) kit_next: usize,
+    /// [A341] What the body's medical skills do to its drugs and its regeneration (a bot's profile's; none else).
+    pub(crate) factors: DrugFactors,
 }
 
 impl Heal {
@@ -400,6 +404,7 @@ impl Heal {
             kits,
             kit: 0,
             kit_next: 0,
+            factors: DrugFactors::of_profile(profile),
         }
     }
 
@@ -409,6 +414,7 @@ impl Heal {
             kits: vec![standard_kit(); 3],
             kit: 0,
             kit_next: 0,
+            factors: DrugFactors::NONE,
         }
     }
 
@@ -452,6 +458,7 @@ impl Heal {
             drug: slot.drug,
             quick,
             at: tick,
+            f: self.factors,
         });
         Pressed::Used(slot.drug)
     }
@@ -484,7 +491,7 @@ impl Heal {
         let mut acted = false;
         for u in &self.uses {
             if active(u, tick) {
-                heal(pools, model_of(u.drug), dt_s);
+                heal(pools, model_of(u.drug), dt_s, u.f);
                 acted = true;
             }
         }
@@ -533,13 +540,13 @@ impl Heal {
 /// active]`.
 fn active(u: &Use, tick: u32) -> bool {
     let model = model_of(u.drug);
-    let from = u.at + (model.delay_s * 1000.0) as u32;
+    let from = u.at + (model.delay_s * u.f.delay * 1000.0) as u32;
     tick > from && tick <= from + (model.active_s * 1000.0) as u32
 }
 
 fn over(u: &Use, tick: u32) -> bool {
     let model = model_of(u.drug);
-    tick >= u.at + ((model.delay_s + model.active_s) * 1000.0) as u32
+    tick >= u.at + ((model.delay_s * u.f.delay + model.active_s) * 1000.0) as u32
 }
 
 /// A living body's drugs for the tick ending at `tick`
