@@ -458,7 +458,20 @@ bytes). The 65 readers' loop bounds fall into:
   reads the matching bytes against the same config;
 - packet counts the validator caps: the 0xE4 options `< players_count`
   (0x27B880, `messages::options`), kd-stats `< roster` (0x323952, `rules`),
-  the ammo id / FSM state / affect & hit counts above.
+  the ammo id / FSM state / affect & hit counts above;
+- a byte that indexes a global object table, read then used only after a null
+  check -- the 255-entry tables are safe for any u8, the 128-entry artefact
+  table is bounded by the validator: 0x301660 (battery portable object,
+  `[+0x130][id]`), 0x31C5B0 and the inventory 0x2FE550 (artefact `[+0x18940]
+  [id]` < `context.artefacts`), 0x2E3490 (weapon ammo id < list);
+- fixed-size records memcpy'd with a constant length (no packet length):
+  0x344D70, 0x3053C0, 0x301660 (`memcpy 0x40`), and pointer values used only
+  after a null/alignment check (0x338430, 0x344870).
+
+Each in-scope reader above was read in the decompilation and its bound line
+confirmed; the account-only lobby readers (status, inventory, prices, skills,
+shop, quests, reputations, drops) are server->self and carry no other player's
+data, so they are outside the one-client-crashes-another scope.
 
 The covering invariant: the validator reads every player state and section to
 its EXACT END against the match config (proven on 50,205 live uploads and
