@@ -850,6 +850,9 @@ pub struct WalkGrid {
     /// [`Self::with_open_sides`] after the grid is built or read, from the map's triangles. In neither the file nor the digest. Empty
     /// without it.
     open: Vec<u16>,
+    /// [A318] The map's walker triangles as the client's controller meets them ([`Self::with_client_walker`],
+    /// [`Self::client_step`]): made after the grid is built or read. In neither the file nor the digest. None without it.
+    walker: Option<std::sync::Arc<crate::controller::Collision>>,
 }
 
 /// The solid spans while the grid is built ([`WalkGrid::wall_beside`]):
@@ -1113,6 +1116,7 @@ impl WalkGrid {
             ramp: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
+            walker: None,
         };
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
@@ -2493,6 +2497,7 @@ impl WalkGrid {
                     ramp: if input.ends() { Vec::new() } else { input.plain(|[v]: [u8; 1]| v)? },
                     clearance: Vec::new(),
                     open: Vec::new(),
+                    walker: None,
                 };
                 grid.check()?;
                 let mut grid = grid;
