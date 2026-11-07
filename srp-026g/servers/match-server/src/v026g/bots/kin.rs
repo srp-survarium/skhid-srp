@@ -526,16 +526,17 @@ pub enum StepInput {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClientStep {
-    /// The grid's slide alone (and [`SlopeSpeed`]): as it was. The default since A318's first harm measure: with the walker
-    /// attached in the bench (it was not, so #1440 shipped unmeasured), [`Self::Client`] made the bots' jumps and stuck worse
-    /// (16 TDM pairs: jumps failed 39 -> 82, stuck 663 -> 1,076 s); OFF until a harm run on a stand-in that walks by the client's
-    /// tick in both arms (`SRP_BENCH_STAND_IN_CLIENT_STEP=on`) says otherwise.
+    /// The grid's slide alone (and [`SlopeSpeed`]): as it was. The default: on the bench world of #1446 (the store's grid tables
+    /// in the bench), [`Self::Client`]'s harm was worse (16 TDM pairs: jumps failed +36 %, stuck s +26 %, routes stuck +17 %). ON
+    /// again only after a harm on the final world with fx-grid's pulled-leg check.
     #[default]
     Grid,
     /// A reckoned step the grid has rising (more than `body::STEP_UP_RISE_M`) or ending short of where it was asked to go (a wall, a
     /// corner: `body::CLIENT_BLOCKED_M`) goes where the client's own walk tick takes the body from the same feet
     /// (`WalkGrid::client_step`, the port of `player_step`: step up, the move sweep's slide, step down); the grid then walks to that
-    /// point. Needs the grid's walker (`WalkGrid::with_client_walker`), else as [`Self::Grid`].
+    /// point. Needs the grid's walker (`WalkGrid::with_client_walker`), else as [`Self::Grid`]. The detectors that read the
+    /// reckoning against the worlds keep the grid's step where the client's tick held it short (`body::GridExtra`: the stuck
+    /// watch, #1444; the hop).
     Client,
 }
 

@@ -212,6 +212,8 @@ pub struct GridExtras {
     pub wall_clearance: bool,
     /// The table of open sides ([`WalkGrid::open_toward`]) for a capsule held this far past a floor's centre at a ledge.
     pub open_sides: Option<f32>,
+    /// [A333] The pull's hold for the routes' straight legs ([`WalkGrid::with_pull_hold`]; it needs the wall clearances).
+    pub pull_hold: Option<f32>,
 }
 
 impl GridExtras {
@@ -219,6 +221,10 @@ impl GridExtras {
     /// A318), all from the map's `walker` triangles.
     pub fn apply(self, grid: WalkGrid, walker: &[Triangle]) -> WalkGrid {
         let grid = if self.wall_clearance { grid.with_wall_clearance(walker) } else { grid };
+        let grid = match self.pull_hold {
+            Some(hold) => grid.with_pull_hold(hold),
+            None => grid,
+        };
         let grid = match self.open_sides {
             Some(support_m) => grid.with_open_sides(walker, support_m),
             None => grid,
@@ -226,9 +232,10 @@ impl GridExtras {
         grid.with_client_walker(walker)
     }
 
-    /// Which of these tables `grid` holds (wall clearances, open sides, the walker's bytes): equal for two grids finished alike.
-    pub fn held_by(grid: &WalkGrid) -> (bool, bool, usize) {
-        (grid.has_wall_clearance(), grid.has_open_sides(), grid.client_walker_bytes())
+    /// Which of these tables `grid` holds (wall clearances, open sides, the walker's bytes, the pull's hold): equal for two
+    /// grids finished alike.
+    pub fn held_by(grid: &WalkGrid) -> (bool, bool, usize, Option<f32>) {
+        (grid.has_wall_clearance(), grid.has_open_sides(), grid.client_walker_bytes(), grid.pull_hold())
     }
 }
 
@@ -251,7 +258,7 @@ impl World {
     /// is set (0.5-1.7 s a map), and its table of open sides ([`WalkGrid::open_toward`]) for a capsule held `support_m` past a
     /// floor's centre at a ledge when `open_sides` is `Some(support_m)`.
     pub fn build_with(map: MapData, cell: f32, body: Body, links: OffMeshLinks, wall_clearance: bool, open_sides: Option<f32>) -> Self {
-        Self::build_with_extras(map, cell, body, links, GridExtras { wall_clearance, open_sides })
+        Self::build_with_extras(map, cell, body, links, GridExtras { wall_clearance, open_sides, pull_hold: None })
     }
 
     /// [`Self::build_with_links`], the grid finished by `extras` ([`GridExtras::apply`]) as the server's map store finishes its

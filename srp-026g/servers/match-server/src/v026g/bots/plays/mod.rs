@@ -525,6 +525,8 @@ pub struct BotFacts<'a> {
     pub held_choke: Option<(Place, Vec3, u32)>,
     /// [A320 `threat.camp_flank`] Its flank route's metres left to its firing floor (`Running::route_left_m`), if it walks one.
     pub route_left_m: Option<f32>,
+    /// [A320] Its flank route's whole length, m (`Running::route_total_m`), if it walks one.
+    pub route_total_m: Option<f32>,
     /// [threat.concede, item 15] Its last hit from a shooter it sensed (`Reflex::last_hit`).
     pub hit: Option<super::concede::Hit>,
 }
@@ -808,6 +810,84 @@ impl Ctx<'_> {
         };
         let past = |b| self.tactics.past_fixed_zones(b);
         !self.tactics.walkable(goal) || !(past(goal) || grid.entered_from(goal, past))
+    }
+
+    /// The held spots cued for the team's jobs: `job_kills` kills or more (the owner's 2-kill cue).
+    fn cued(&self) -> impl Iterator<Item = &super::threat::HeldLine> {
+        let min = self.tuning.threat.job_kills as usize;
+        let held = &self.team.threat.held;
+        // [A342d] Counted over the shooter's held spots within `cue_merge_m`, as the jobs count them.
+        let merge = self.tuning.threat.cue_merge_m;
+        held.iter().filter(move |l| {
+            let kills = match merge {
+                Some(m) => held.iter().filter(|o| o.shooter == l.shooter && o.at.distance_xz(l.at) <= m).map(|o| o.kills).sum(),
+                None => l.kills,
+            };
+            kills >= min
+        })
+    }
+
+    /// [A342a `threat.lane_goal_weight`] The weight of a play whose goal lies in a cued spot's lanes (1 otherwise).
+    pub(crate) fn lane_goal_weight(&self, kind: PlayKind, target: TargetRef) -> f32 {
+        let Some(weight) = self.tuning.threat.lane_goal_weight else {
+            return 1.0;
+        };
+        if !matches!(
+            kind,
+            PlayKind::Collect | PlayKind::Raid | PlayKind::LateDenial | PlayKind::HoldExit | PlayKind::Cut | PlayKind::Crossfire
+        ) {
+            return 1.0;
+        }
+        let Some(to) = self.point_of(target) else {
+            return 1.0;
+        };
+        let in_lanes = |p: Vec3| self.cued().any(|l| l.covers(p) && target != TargetRef::Place(l.shooter));
+        if !in_lanes(to) {
+            return 1.0;
+        }
+        // The owner's rule: objectives are needed to win; an objective in his lanes is weighed down only while another of
+        // similar value (as near, within 1.5 times and 10 m) is out of them. With none, the bot keeps its goal (two campers
+        // could otherwise block two objectives and win).
+        let similar = |p: Vec3| p.distance_xz(self.me.feet) <= to.distance_xz(self.me.feet) * 1.5 + 10.0 && !in_lanes(p);
+        let alternative = match target {
+            TargetRef::Battery(b) => (0..self.view.batteries.len()).filter(|&o| o != b).filter_map(|o| self.battery_at(o)).any(similar),
+            TargetRef::Container(id) => {
+                let team = self.view.containers.iter().find(|c| c.id == id).map(|c| c.team);
+                self.view.containers.iter().filter(|c| c.id != id && Some(c.team) == team).any(|c| similar(c.at))
+            }
+            // Fight places and posts (Cut, Crossfire, HoldExit): no objective of their own; weighed.
+            _ => !matches!(kind, PlayKind::Collect | PlayKind::Raid | PlayKind::LateDenial),
+        };
+        if alternative { weight } else { 1.0 }
+    }
+
+    /// [A342b `threat.no_lone_m`] Whether a new counter-play goes alone at a cued camper or into his lanes: aimed at him
+    /// (his place or his spot) or its goal in his lanes, and no other living teammate within `no_lone_m` more of the goal.
+    pub(crate) fn lone_into_cued(&self, kind: PlayKind, target: TargetRef) -> bool {
+        let Some(extra) = self.tuning.threat.no_lone_m else {
+            return false;
+        };
+        if !matches!(kind, PlayKind::PairUp | PlayKind::Crossfire | PlayKind::Trade | PlayKind::Flank)
+            || matches!(self.bot.current, Some((k, t, _)) if k == kind && t == target)
+        {
+            return false;
+        }
+        let Some(to) = self.point_of(target) else {
+            return false;
+        };
+        let at_him = self.cued().any(|l| match target {
+            TargetRef::Place(p) => p == l.shooter,
+            TargetRef::ThreatSpot(id) => id == l.id,
+            _ => l.covers(to),
+        });
+        if !at_him {
+            return false;
+        }
+        let mine = self.me.feet.distance_xz(to);
+        !self
+            .view
+            .team(self.me.team)
+            .any(|p| p.place != self.me.place && p.alive && p.feet.distance_xz(to) <= mine + extra)
     }
 
     /// Whether this bot's search to a goal at `at` (the motor's, within
@@ -1190,6 +1270,9 @@ impl Ctx<'_> {
         if self.set_aside(kind, target) || (self.bot.dry && kind.seeks_fight()) {
             return None;
         }
+        if self.lone_into_cued(kind, target) {
+            return None;
+        }
         let play = self.play(kind);
         #[cfg(test)]
         fairness::scoring(Some(kind));
@@ -1200,7 +1283,9 @@ impl Ctx<'_> {
                 .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
         if !score.is_zero() {
-            score = Score::new(score.get() * self.sniper_way_weight(kind, target) * self.concede_weight(kind, target, play.rank));
+            score = Score::new(
+                score.get() * self.sniper_way_weight(kind, target) * self.concede_weight(kind, target, play.rank) * self.lane_goal_weight(kind, target),
+            );
         }
         #[cfg(test)]
         fairness::scoring(None);
@@ -1313,6 +1398,19 @@ impl Running {
             Self::Flank(state) => flank::route_left_m(state, tactics, feet),
             _ => None,
         }
+    }
+
+    /// [A320] A flank route's length to its firing floor (`flank::route_total_m`), if this is one.
+    pub fn route_total_m(&self, tactics: &crate::v026g::bots::tactics::Tactics) -> Option<f32> {
+        match self {
+            Self::Flank(state) => flank::route_total_m(state, tactics),
+            _ => None,
+        }
+    }
+
+    /// [A320] Whether this is a flank route's walk or hold (`threat.camp_flank`).
+    pub fn camp_flank_walk(&self) -> bool {
+        matches!(self, Self::Flank(flank::State::Route { .. } | flank::State::Hold { .. }))
     }
 
     pub fn travelling(&self) -> bool {
