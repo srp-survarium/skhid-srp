@@ -951,4 +951,21 @@ mod tests {
             assert_eq!((f.delay, f.regeneration_sooner_ms), (1.0, 0), "{refused}");
         }
     }
+    /// [A341] On the players' data (`SRP_GAME_DATA`): a bot's own profile of every tier carries the medical ranks, so its pantry's
+    /// factors are the skills' (delay x0.9, amounts x1.25, regeneration 2.5 s sooner).
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the players' game data with the medical tab"]
+    fn a_bots_profile_on_the_players_data_gives_its_pantry_the_medical_factors() {
+        use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let profile = bot_profile(1, 0, role, BotEquipment::of(tier, RusherKits::default()));
+                let f = Pantry::of_profile(&profile).factors();
+                eprintln!("{tier:?} {role:?}: {f:?}");
+                assert!((f.delay - 0.9).abs() < 1e-6 && (f.amount - 1.25).abs() < 1e-6, "{tier:?} {role:?} {f:?}");
+                assert_eq!(f.regeneration_sooner_ms, 2_500);
+            }
+        }
+    }
 }
