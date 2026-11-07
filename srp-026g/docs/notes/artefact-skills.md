@@ -233,8 +233,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   live projects): one more generic_anomaly_core in every project's client_objects (not the
   lobby's), `srp/artefact_keeper/pool`, with
   - a pool of 20 dormant artefacts of each kind (one a place: place p's is the p-th of the kind
-    by id; one given and come back is dormant again, with its count), cooked by the map's own
-    cook chain, so its
+    by id), cooked by the map's own cook chain, so its
     resources (the activation effect's at artefact +290h, the models) are there on every map,
     level_08 too;
   - no artefact container and a chance of 0: it never spawns one (spawn_artefact 0x31B6C0
@@ -259,16 +258,27 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
     2 the countdown, 3 in process), nor, for a late joiner's kit (bit 13), while its place has
     no death or suicide counted (the statistics, any kit);
   - nothing when its place's artefact of the drawn kind was given (below);
-  - else, alive with an empty container: its place's artefact, with the count and cooldown a
-    spawn gives one (0x3134C0), through the game's own take_artefact into the first empty
-    container; dead, or every container held: nothing this tick, and the next ticks decide again.
-- Once a match, with nothing kept outside the world: the take gives the artefact a count (the
-  spawn's, never 0; one never given has 0), which stays with it in play, on a body and back in
-  the pool (dormant again), and is in the world's save (the artefact's m_amount). A place's
-  artefact out of the pool, or dormant with a count, was given.
-- Death: as any artefact taken from an anomaly: state 5 on the body, back to the pool at the
-  respawn's unload; held in the hand, patch 78 drops it (state 6, anyone takes it). Never given
-  again after a death. Places are never reused, so a late joiner's place has its own.
+  - else, alive with an empty container: its place's artefact, marked given, with the count and
+    cooldown a spawn gives one (0x3134C0), through the game's own take_artefact into the first
+    empty container; dead, or every container held: nothing this tick, and the next ticks decide
+    again.
+- Once a match, with nothing kept outside the world: the mark is the artefact's activation time
+  (+2A0h): the constructor writes u32::MAX (0x313059), the gift 0, an activation (only ever after
+  a gift) its time (0x313333). No other code writes it, only state 4 reads it, and every world
+  saves and loads it in every state (artefact_base::serialize 0x313735, deserialize 0x3137F7), so
+  every game, late joiner, resync and replay sees the same: a place's artefact whose time is not
+  u32::MAX was given. Not the count: an artefact is not a stack, so the count's bytes are its
+  condition, a float, and a death's degrade (0x2FFC40) zeroes a count of 1 (a denormal) when the
+  game flushes denormals (0xFE5E0, MXCSR DAZ and FTZ).
+- Once given it is an artefact as any found one (the owner, 2026-11-07). A death (0x2D77C0,
+  inventory::on_holder_death 0x2FCA50) keeps it in that kit's container: passive off while the
+  holder is dead (state 5, artefact_base::tick 0x3132E5), on again at the respawn in that kit
+  (setup_from_profile 0x2FCB70's on_taken, state 3); the respawn's unload (0x2DA790,
+  unload_to_profile 0x2FD2D0) returns nothing to the pool. Each kit is its own object, so a
+  respawn in another kit leaves it in the first kit's container until a spawn in that kit again.
+  Held in the hand, patch 78 drops it (state 6, anyone takes it). It goes dormant only when a
+  take with every container held replaces the first container's (take_artefact 0x2FC897): still
+  given, never given again. Places are never reused, so a late joiner's place has its own.
 - Costs: every world about 735 bytes more (the 60 dormant artefacts and the core, about +13 % of
   a 5-6 KB world); 60 more artefact objects a match, the three kinds' models loaded on every
   map; the edit list pins each project's client_objects count (a map change in between: run
@@ -277,7 +287,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   `srp/artefact_keeper/pool`, naming it: a map added later never silently gives Keepers nothing.
 - Checks: `client-patches/check_artefact_keeper_026g.py` (Unicorn, the player's tick: nothing in
   the countdown, the gift at the start into the first empty container, waiting while every
-  container is held or the player is dead, never a second, a late joiner after its first death,
+  container is held or the player is dead, never a second: a death with denormals flushed then a
+  replacement by take_artefact with every container held, a late joiner after its first death,
   the refusals, a new load, a late joiner's ids and container read), the patch's `gift` tests,
   `crates/mapdata/tests/artefact_keeper.rs` (the edit list against the table, the anomaly as a
   map object), `survarium::v026g::keeper` and the match-server test (the draw in every kit, a

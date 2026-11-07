@@ -19,8 +19,8 @@ pub enum Kind {
 /// Every kind, in draw order (draw 1 is the first).
 pub const KINDS: [Kind; 3] = [Kind::Larkspur, Kind::Onyx, Kind::Spring];
 
-/// Dormant artefacts of each kind in the hidden pool: one a place (20 places, a gift only in a
-/// place's first life; one that comes back is dormant again).
+/// Dormant artefacts of each kind in the hidden pool: one a place (20 places, one gift a place a
+/// match; once given it is an artefact as any found one, kept through a death, never given again).
 pub const POOL: u8 = 20;
 
 impl Kind {

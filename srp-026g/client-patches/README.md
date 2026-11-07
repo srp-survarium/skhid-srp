@@ -4728,8 +4728,11 @@ tick_animations 0x2DAAD3, order 4, after the glow's), a kit with the Keeper bit,
 rule is in process (core +18FE4h 3: the countdown's end) and, for a late joiner, once its place
 has a death or suicide counted, takes its place's artefact of the drawn kind (place p the p-th of
 the kind by id) into its first empty container through the game's own take_artefact; dead, or
-with every container held, it waits for a later tick. Once a match: the take gives the artefact
-a count (never 0, 0 until given) that stays through a death and back in the pool, and is in the
-world's save, so nothing is kept outside the world. Only a Keeper's tick reads the match. The
-pool's anomaly ticks and saves it, so nothing is added to a world by the patch. Checked with
-`check_artefact_keeper_026g.py` and the patch's `gift` tests; not run in a game.
+with every container held, it waits for a later tick. Once a match: the take marks the artefact
+given in its activation time (+2A0h: u32::MAX from its constructor, 0 at the gift, an
+activation's time after; read only in state 4, saved in every world in every state), so nothing is
+kept outside the world. Once given it is an artefact as any found one: a death keeps it in that
+kit's container, and a take with every container held that replaces it leaves it dormant and
+still given. Only a Keeper's tick reads the match. The pool's anomaly ticks and saves it, so
+nothing is added to a world by the patch. Checked with `check_artefact_keeper_026g.py` (with a
+death under flushed denormals and a replacement) and the patch's `gift` tests; not run in a game.

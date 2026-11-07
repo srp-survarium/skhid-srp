@@ -5699,3 +5699,7 @@ va	name	location	role	basis
 0x002e9c70	survarium::generic_anomaly_core_cook::translate_query	entry ESP+4	the query (its +108h the anomaly's config): cooks the artefacts pool (query_for_artefacts 0x2E9D40, each artefacts entry {dict_id, count} count times) only when artefacts_enabled is set; else the anomaly is made with none	observed
 0x00369030	vostok::particle::particle_action_animated_source::init	ECX, particle at EBP+0Ch	this: +E0h body-part mask (19 bits), +F7h UseRandomPermutation, +FCh the shuffled part indices, +148h their count, +14Ch the next; +18h the Scale curve. The particle: +98h its part (word), +9Ch a random point of the part's shape (0x72250), +A8h Scale at its age (per axis); its position = the part's transform x (point * Scale), kept as the part moves (0x369430 re-evaluates Scale)	observed
 0x00318100	survarium::timelimit_rule_core::logic_tick	EDX at 0x31816B	the core world ([rule+128h]), whose state +18FE4h the switch to in process sets to ECX = 3 (after the rule's +148h = 3 and +12Ch = EAX, 0x318159..0x318164)	observed
+0x002fca50	survarium::inventory::on_holder_death	EAX	inventory receiver	observed
+0x002ffc40	survarium::inventory_item::degrade_per_death	ECX	item receiver	observed
+0x002ffc80	survarium::inventory_item::degrade_per_use	ECX	item receiver	observed
+0x00246380	survarium::inventory_item::cast_artefact	ECX	item receiver	observed

@@ -5789,6 +5789,15 @@ impl Artefact {
     pub unsafe fn cooldown_left(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x28c).cast::<u32>().as_ptr() }
     }
+
+    /// +0x2a0 (u32): the time its active began: the constructor writes u32::MAX (0x313059), action writes the time (0x313333); read only in state 4 (deserialize 0x313860), in every world in every state (serialize 0x313735, deserialize 0x3137F7), no other code writes it; patch 109 writes 0 at a Keeper gift (its mark: given)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_since(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2a0).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::keyboard_action_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

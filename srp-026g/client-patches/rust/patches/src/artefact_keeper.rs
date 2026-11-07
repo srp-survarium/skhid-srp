@@ -16,10 +16,17 @@
 //!   counted. Due and alive with an empty container: taken at that tick. Dead, or every container
 //!   held: pending, taken at the first later tick with room (a container freed in the same life,
 //!   or a respawn with room).
-//! - Once a match, with nothing kept outside the world: the take gives the artefact its count (the
-//!   anomaly's spawn's, never 0; a pool artefact never given has 0), which stays through a death
-//!   (state 5 on the body, back to the pool at the respawn's unload, dormant again) and is in the
-//!   world's save (the artefact's m_amount): a place's artefact with a count was given.
+//! - Once a match, with nothing kept outside the world: the mark is the pool artefact's activation
+//!   time (artefact +2A0h): the constructor's u32::MAX until a give writes 0 (an activation, only
+//!   ever after a give, writes its time). Nothing else writes it, it is read only in state 4, and
+//!   every world saves it in every state: a place's artefact whose time is not u32::MAX was given,
+//!   in every game, late joiner, resync and replay alike. (Not its count: an artefact is not a
+//!   stack, so the count's bytes are its condition, a float a death's degrade does maths on.)
+//! - Once given it is an artefact as any found one (the owner): a death keeps it in that kit's
+//!   container (state 5 while its holder is dead: passive off), the respawn in that kit switches
+//!   its passive on again (setup_from_profile's on_taken); a respawn in another kit leaves it in
+//!   the first kit's container (each kit its own object). It goes dormant only when a take with
+//!   every container held replaces it (take_artefact 0x2FC897); it stays given then.
 //! - Every input is simulated state: the static info's kits, the time state, the statistics, the
 //!   pool's states and counts, and the inventory, read at the player's simulation tick in every
 //!   game, re-simulation and replay.
@@ -33,15 +40,14 @@ use crate::vostok::keeper::Recipient;
 use crate::vostok::log::{Piece::{Dec, Text}, line};
 use crate::vostok::{Context, Flow, NoExit};
 
-/// Where a pool artefact is.
+/// Whether a pool artefact was given this match (its activation time, the mark).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Whereabouts {
-    /// Dormant (state 0, in no inventory) and never given (its count 0).
+pub enum History {
+    /// Never given: dormant in the pool, its activation time the constructor's u32::MAX.
     Unused,
-    /// Given and in play: in a container, on a body, on the ground.
-    InPlay,
-    /// Given and back in the pool (a death's respawn unloaded it): dormant with a count.
-    Returned,
+    /// Given: in a container (its holder alive or dead), on the ground, or dormant again after
+    /// a take with every container held replaced it.
+    Given,
 }
 
 /// One artefact of the map's Keeper pool.
@@ -49,7 +55,7 @@ pub enum Whereabouts {
 pub struct Registered {
     pub id: ArtefactId,
     pub kind: Kind,
-    pub whereabouts: Whereabouts,
+    pub history: History,
 }
 
 /// Where the match is for a place.
@@ -94,10 +100,10 @@ pub fn gift(skills: Skills, place: u8, standing: Standing, room: Room, pool: imp
     // The place's own (the pool comes in id order): the same artefact in every game, and it says
     // whether it was given.
     let Some(mine) = pool.filter(|r| r.kind == kind).nth(usize::from(place)) else { return Gift::Nothing };
-    match (mine.whereabouts, room) {
-        (Whereabouts::InPlay | Whereabouts::Returned, _) => Gift::Nothing,
-        (Whereabouts::Unused, Room::Free) => Gift::Take(mine.id, kind),
-        (Whereabouts::Unused, Room::None | Room::Full) => Gift::Pending,
+    match (mine.history, room) {
+        (History::Given, _) => Gift::Nothing,
+        (History::Unused, Room::Free) => Gift::Take(mine.id, kind),
+        (History::Unused, Room::None | Room::Full) => Gift::Pending,
     }
 }
 
@@ -133,16 +139,16 @@ mod tests {
         Skills::parse(value as f32).unwrap()
     }
 
-    /// Two of each kind; place 1's Onyx in play, place 0's Spring back in the pool.
+    /// Two of each kind; place 1's Onyx and place 0's Spring given.
     fn pool() -> [Registered; 6] {
-        let at = |id: u8, kind, whereabouts| Registered { id: ArtefactId::parse(id).unwrap(), kind, whereabouts };
+        let at = |id: u8, kind, history| Registered { id: ArtefactId::parse(id).unwrap(), kind, history };
         [
-            at(30, Kind::Larkspur, Whereabouts::Unused),
-            at(31, Kind::Larkspur, Whereabouts::Unused),
-            at(32, Kind::Onyx, Whereabouts::Unused),
-            at(33, Kind::Onyx, Whereabouts::InPlay),
-            at(34, Kind::Spring, Whereabouts::Returned),
-            at(35, Kind::Spring, Whereabouts::Unused),
+            at(30, Kind::Larkspur, History::Unused),
+            at(31, Kind::Larkspur, History::Unused),
+            at(32, Kind::Onyx, History::Unused),
+            at(33, Kind::Onyx, History::Given),
+            at(34, Kind::Spring, History::Given),
+            at(35, Kind::Spring, History::Unused),
         ]
     }
 
@@ -159,7 +165,7 @@ mod tests {
         assert_eq!(at(KEEPER + draw(1), 0), Gift::Take(id(30), Kind::Larkspur));
         assert_eq!(at(KEEPER + draw(1), 1), Gift::Take(id(31), Kind::Larkspur));
         assert_eq!(at(KEEPER + draw(2), 0), Gift::Take(id(32), Kind::Onyx));
-        // Given already: in play, or back in the pool after a death.
+        // Given already (wherever it is now).
         assert_eq!(at(KEEPER + draw(2), 1), Gift::Nothing);
         assert_eq!(at(KEEPER + draw(3), 0), Gift::Nothing);
         assert_eq!(at(KEEPER + draw(3), 1), Gift::Take(id(35), Kind::Spring));
