@@ -107,3 +107,113 @@ impl<'t> ConfigEntries<'t> {
         })
     }
 }
+
+/// Where a value of a config is, from a table: one of its keys, or each
+/// entry of an array (or table) there.
+#[derive(Clone, Copy)]
+pub enum Step<'a> { Key(&'a CStr), Each }
+
+/// A project's client_project as its cook gets it (`project.cook`,
+/// project_cooker_simple::create_game_objects at its entry): loaded and
+/// relocated, read by nothing yet, so the cook and every later reader (the
+/// project's own `config`, patch 81's lamps at its insertion) see only what
+/// is left. Entries are taken out as the game's lists hold them: one
+/// contiguous run of records and a count.
+pub struct ConfigEdit<'t> { root: raw::EngineCfg, _thread: &'t Thread }
+
+impl<'t> ConfigEdit<'t> {
+    pub fn at_project_cook(ctx: &'t super::Context<'_>) -> Option<Self> {
+        use raw::site::project_cook as site;
+        // SAFETY: the site is create_game_objects' entry: its second argument
+        // is the project's binary config, held (counted) by the cook for the
+        // call; nothing has read a record of it yet.
+        let root = unsafe { site::frame(ctx)?.config()?.root()? };
+        Some(Self { root, _thread: ctx.thread() })
+    }
+
+    /// The config, read.
+    pub fn root(&self) -> Result<ConfigTable<'_>, ConfigError> {
+        // SAFETY: the cook holds the config for the hook; this view borrows
+        // the edit, so no record moves while it is read.
+        unsafe { ConfigValue::read(self.root) }?.table()
+    }
+
+    /// The root's list `list` (an array or a table), if the config has it.
+    fn list(&self, list: &CStr) -> Option<raw::EngineCfg> {
+        // SAFETY: as root; the key is a terminated string for both native calls.
+        unsafe {
+            if raw::engine_cfg_has(Some(self.root), list.as_ptr().cast()) == 0 { return None; }
+            raw::engine_cfg_child(Some(self.root), list.as_ptr().cast())
+        }
+    }
+
+    /// Takes out of the root's list `list` every entry `take` names (by its
+    /// index), the later ones moved down in place and the count lowered; the
+    /// number taken. A config without the list: none.
+    pub fn remove(&mut self, list: &CStr, take: impl Fn(usize) -> bool) -> Result<usize, ConfigError> {
+        let Some(node) = self.list(list) else { return Ok(0) };
+        // SAFETY: the list's records are its contiguous children, count of
+        // them (the loader relocated the array); a record is moved whole
+        // (raw::EngineCfg::SIZE bytes) onto one taken or moved before it, and
+        // nothing holds a record of this config while the cook has not begun.
+        unsafe {
+            if !matches!(node.node_type().read(), 3 | 4) { return Err(ConfigError::WrongType); }
+            let count = usize::from(node.count().read());
+            if count == 0 { return Ok(0); }
+            let first = node.children().ok_or(ConfigError::MissingChildren)?;
+            let mut kept = 0;
+            for i in 0..count {
+                if take(i) { continue; }
+                if kept != i {
+                    core::ptr::copy(first.at(i).data().cast::<u8>(), first.at(kept).data().cast::<u8>(),
+                                    raw::EngineCfg::SIZE);
+                }
+                kept += 1;
+            }
+            node.count().write(kept as u16);
+            Ok(count - kept)
+        }
+    }
+
+    /// Each integer at `path` from the root becomes `f` of it (a key a table
+    /// lacks: nothing there).
+    pub fn update_integers<E>(&mut self, path: &[Step<'_>], f: &mut impl FnMut(u32) -> Result<u32, E>)
+        -> Result<(), UpdateError<E>> {
+        // SAFETY: as root; only an integer's value bits are written.
+        unsafe { update(self.root, path, f) }
+    }
+}
+
+/// Why integers could not be updated: the config's shape, or `f`'s refusal.
+#[derive(Debug)]
+pub enum UpdateError<E> { Config(ConfigError), Refused(E) }
+
+/// # Safety
+/// `node` is a record of a config the caller may write.
+unsafe fn update<E>(node: raw::EngineCfg, path: &[Step<'_>], f: &mut impl FnMut(u32) -> Result<u32, E>)
+    -> Result<(), UpdateError<E>> {
+    unsafe {
+        let Some((step, rest)) = path.split_first() else {
+            if node.node_type().read() != 1 { return Err(UpdateError::Config(ConfigError::WrongType)); }
+            let value = f(node.data().read()).map_err(UpdateError::Refused)?;
+            node.data().write(value);
+            return Ok(());
+        };
+        if !matches!(node.node_type().read(), 3 | 4) { return Err(UpdateError::Config(ConfigError::WrongType)); }
+        match step {
+            Step::Key(key) => {
+                if raw::engine_cfg_has(Some(node), key.as_ptr().cast()) == 0 { return Ok(()); }
+                let child = raw::engine_cfg_child(Some(node), key.as_ptr().cast())
+                    .ok_or(UpdateError::Config(ConfigError::Missing))?;
+                update(child, rest, f)
+            }
+            Step::Each => {
+                let count = usize::from(node.count().read());
+                if count == 0 { return Ok(()); }
+                let first = node.children().ok_or(UpdateError::Config(ConfigError::MissingChildren))?;
+                for i in 0..count { update(first.at(i), rest, f)?; }
+                Ok(())
+            }
+        }
+    }
+}

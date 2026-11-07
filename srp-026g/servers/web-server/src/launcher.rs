@@ -947,11 +947,10 @@ mod tests {
         assert_eq!(map_name(Lang::En, &twelve), "level_12");
         assert_eq!(map_name(Lang::Uk, &twelve), "level_12");
         assert_eq!(mode_name(Lang::Uk, &twelve), "режим 5");
-        // Every playable map and mode has a name of the game's (Blackout's is
-        // srp's own, `client-patches/localization`, which the test data's
-        // stock localizations lack).
-        let blackout = maps::GameMode::Blackout;
-        for map in maps::playable().filter(|map| map.mode != blackout) {
+        // Every playable map and mode has a name of the game's (the
+        // variants' are srp's own, `client-patches/localization`, which the
+        // test data's stock localizations lack).
+        for map in maps::playable().filter(|map| !map.mode.is_variant()) {
             for lang in [Lang::En, Lang::Uk] {
                 let game = |key| localization::text(game_language(lang), key).map(str::to_owned);
                 assert_eq!(Some(map_name(lang, map)), game(map.map_name_key));

@@ -183,13 +183,11 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(header(&counting)[NEXT], "0");
     let voted_cards = cards(&counting);
     assert_eq!(voted_cards.len(), 3);
-    // The third card is Blackout (the owner's of 2026-11-02), the others not.
-    assert!(maps::map_mode(voted_cards[2]).is_some_and(|map| map.mode == maps::GameMode::Blackout));
-    assert!(
-        voted_cards[..2]
-            .iter()
-            .all(|&card| !maps::map_mode(card).is_some_and(|map| map.mode == maps::GameMode::Blackout))
-    );
+    // The third card is Blackout or Scarcity (the owner's of 2026-11-02 and
+    // 2026-11-07), the others neither.
+    let variant = |card: u8| maps::map_mode(card).is_some_and(|map| map.mode.is_variant());
+    assert!(variant(voted_cards[2]));
+    assert!(voted_cards[..2].iter().all(|&card| !variant(card)));
     // Alice changes her mind: one vote, the last.
     rows(&mut world, alice, ROOM_VOTE_BASE + 2, 1);
     rows(&mut world, alice, ROOM_VOTE_BASE + 1, 1);
@@ -230,13 +228,13 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(to_alice.0, to_bob.0);
     assert_ne!(to_alice.1, to_bob.1, "one a side");
     let setup = world.host.made.locked().last().unwrap().1.clone();
-    // The third card won: its Blackout map.
+    // The third card won: its variant's map (Blackout or Scarcity).
     assert_eq!(
         setup.map.map().id,
         voted_cards[2],
         "the vote's winner when it started"
     );
-    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
+    assert!(setup.map.mode().is_variant());
     assert_eq!(setup.players.len(), 2, "no bots");
     assert!(!setup.vs_bots);
     assert!(!setup.private, "no PIN: it pays");
@@ -1235,7 +1233,7 @@ fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<u8>) {
         let fields: Vec<&str> = row.split(';').collect();
         assert_eq!(fields[..2], ["E", &chunk.to_string()]);
         let bits: u32 = fields[2].parse().unwrap();
-        tiles_on.extend((0..20).map(|b| bits & 1 << b != 0));
+        tiles_on.extend((0..survarium::v026g::lobby::rooms::BITS_PER_CHUNK).map(|b| bits & 1 << b != 0));
     }
     let chosen = world
         .core
@@ -2783,17 +2781,28 @@ fn a_queued_player_whose_kit_can_not_play_keeps_its_place_and_the_next_goes_in()
 /// plays the Blackout map.
 #[test]
 fn blackout_is_a_mode_of_the_standard_pool() {
+    a_variant_is_a_mode_of_the_standard_pool(maps::GameMode::Blackout);
+}
+
+/// Scarcity (`docs/notes/scarcity.md`): offered as Blackout is, mode 7.
+#[test]
+fn scarcity_is_a_mode_of_the_standard_pool() {
+    a_variant_is_a_mode_of_the_standard_pool(maps::GameMode::Scarcity);
+}
+
+fn a_variant_is_a_mode_of_the_standard_pool(variant: maps::GameMode) {
     let mut settings = Settings::local("127.0.0.1:0");
     // Rudnya's day: batteries (61), chargers (62), Team Deathmatch (117)
-    // and Blackout (its battery map's twin, `blackout-mode-1.json`).
-    let twin = maps::find(1, maps::weather::DAY, maps::GameMode::Blackout).unwrap().id;
+    // and the variant (its battery map's twin, `blackout-mode-1.json`,
+    // `scarcity-mode-1.json`).
+    let twin = maps::find(1, maps::weather::DAY, variant).unwrap().id;
     settings.maps = vec![61, 62, 117, twin];
     let mut world = World::with_settings(settings);
     let entries = world.core.room_entries();
-    let blackout = maps::GameMode::Blackout.lobby_number();
+    let mode = variant.lobby_number();
     let offered: Vec<_> = entries
         .iter()
-        .filter(|entry| entry.mode == blackout)
+        .filter(|entry| entry.mode == mode)
         .copied()
         .collect();
     assert_eq!(offered.len(), 1, "{entries:?}");
@@ -2805,7 +2814,7 @@ fn blackout_is_a_mode_of_the_standard_pool() {
     );
     let index = entries
         .iter()
-        .position(|entry| entry.mode == blackout)
+        .position(|entry| entry.mode == mode)
         .unwrap();
 
     let alice = world.connect("Alice");
@@ -2826,7 +2835,7 @@ fn blackout_is_a_mode_of_the_standard_pool() {
             .contains(&lobby_id)
     );
     rows(&mut world, carol, ROOM_LEAVE, 1);
-    // Alice's room: Blackout alone. Play puts Bob into it.
+    // Alice's room: the variant alone. Play puts Bob into it.
     rows(&mut world, alice, bits_start(0, 1 << index), 1);
     let key = create(
         &mut world,
@@ -2844,8 +2853,8 @@ fn blackout_is_a_mode_of_the_standard_pool() {
         .iter()
         .find(|(id, _)| *id == ticket)
         .expect("the room's match");
-    assert_eq!(setup.map.map().id, twin, "the Blackout map");
-    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
+    assert_eq!(setup.map.map().id, twin, "the variant's map");
+    assert_eq!(setup.map.mode(), variant);
 }
 
 /// The owner's of 2026-11-05 ("i wish matches were always 8vs8"): a room

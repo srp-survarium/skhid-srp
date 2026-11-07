@@ -20,8 +20,9 @@
 //!   soon as a match starts (its players vote during it); a member may
 //!   change its vote. Each card is a map with its weather and mode
 //!   (a `maps_dict` id); the card with the most votes is played, a tie and no
-//!   vote at all are drawn at random. The third card is Blackout while the
-//!   pool has it (the owner's of 2026-11-02, `Rooms::draw`).
+//!   vote at all are drawn at random. The third card is Blackout or
+//!   Scarcity, one of the two at random, while the pool has them (the
+//!   owner's of 2026-11-02 and 2026-11-07, `Rooms::draw`).
 //! - There are no teams in the room: the sides are drawn when the match
 //!   starts (squads together, the sides as even as they can be).
 //! - A squad (two at most) comes together, by its commander alone: a join
@@ -76,8 +77,10 @@ pub const PIN_LIFE: Duration = Duration::from_secs(60);
 pub const PRIVATE_SIZE: u8 = (crate::MAX_PLAYERS_PER_MATCH / 2) as u8;
 /// The cards of a vote.
 pub const CARDS: usize = 3;
-/// The pool entries one piece of a draft carries.
-pub const DRAFT_CHUNK: usize = 20;
+/// The pool entries one piece of a draft carries (the wire's).
+pub const DRAFT_CHUNK: usize = survarium::v026g::lobby::rooms::BITS_PER_CHUNK as usize;
+/// The pieces a draft has at most (the wire's).
+const DRAFT_CHUNKS: usize = survarium::v026g::lobby::rooms::CHUNKS as usize;
 /// The keys new rooms are given first: four digits, easy to say.
 const SHORT_KEYS: std::ops::RangeInclusive<u32> = 1000..=9999;
 /// The largest key.
@@ -426,8 +429,9 @@ pub enum MoveRefused {
 /// A pool being sent in pieces before its create.
 #[derive(Clone, Debug)]
 struct Draft {
-    chunks: [u32; 8],
-    seen: u8,
+    chunks: [u32; DRAFT_CHUNKS],
+    /// Bit `n`: piece `n` was sent.
+    seen: u32,
     at: Instant,
 }
 
@@ -539,19 +543,19 @@ impl Rooms {
     }
 
     /// A piece of the pool of the account's next room: entries `chunk ×
-    /// 20` to `chunk × 20 + 19`, each in by its bit. The entries in so far.
+    /// DRAFT_CHUNK` to the next piece's, each in by its bit. The entries in so far.
     pub fn draft(&mut self, account_id: u32, chunk: u8, bits: u32, now: Instant) -> u32 {
         let draft = self
             .drafts
             .entry(account_id)
             .and_modify(|draft| {
                 if now.saturating_duration_since(draft.at) > DRAFT_LIFE {
-                    draft.chunks = [0; 8];
+                    draft.chunks = [0; DRAFT_CHUNKS];
                     draft.seen = 0;
                 }
             })
             .or_insert(Draft {
-                chunks: [0; 8],
+                chunks: [0; DRAFT_CHUNKS],
                 seen: 0,
                 at: now,
             });
@@ -1271,25 +1275,34 @@ impl Rooms {
     }
 
     /// The vote's cards from the pool, all different while the pool has as
-    /// many, each drawn at random: the third a Blackout map (the owner's of
-    /// 2026-11-02: "offers blackout in voting always as a third choice"),
-    /// on a map the first two are not while the pool's Blackout has one;
-    /// the first two of the rest of the pool. A pool without Blackout (a
-    /// private room's maker left it out) or of Blackout alone: three of it.
+    /// many, each drawn at random: the third a map of a variant (the
+    /// owner's of 2026-11-02: "offers blackout in voting always as a third
+    /// choice"; of 2026-11-07: "let's also make it in lobby to be either
+    /// blackout or scarcity"): Blackout or Scarcity at random, the pool's
+    /// one when it has only one of them, on a map the first two are not
+    /// while that variant has one; the first two of the rest of the pool,
+    /// never a variant. A pool without either (a private room's maker left
+    /// them out) or of variants alone: three of it.
     fn draw(pool: &[u8], below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut left: Vec<u8> = pool.to_vec();
         left.sort_unstable();
         left.dedup();
-        let (blackout, rest): (Vec<u8>, Vec<u8>) = left
+        let (variants, rest): (Vec<u8>, Vec<u8>) = left
             .iter()
-            .partition(|&&id| is_blackout(id));
-        if blackout.is_empty() || rest.is_empty() {
+            .partition(|&&id| variant_of(id).is_some());
+        if variants.is_empty() || rest.is_empty() {
             return Self::pick(left, CARDS, below);
         }
         let mut cards = Self::pick(rest, CARDS - 1, below);
-        let shown: Vec<Option<u8>> = cards.iter().map(|&id| location(id)).collect();
-        let (elsewhere, same): (Vec<u8>, Vec<u8>) = blackout
+        let offered: Vec<maps::GameMode> = maps::GameMode::ALL
             .into_iter()
+            .filter(|&mode| variants.iter().any(|&id| variant_of(id) == Some(mode)))
+            .collect();
+        let variant = offered[below(offered.len()).min(offered.len() - 1)];
+        let shown: Vec<Option<u8>> = cards.iter().map(|&id| location(id)).collect();
+        let (elsewhere, same): (Vec<u8>, Vec<u8>) = variants
+            .into_iter()
+            .filter(|&id| variant_of(id) == Some(variant))
             .partition(|&id| !shown.contains(&location(id)));
         let third = if elsewhere.is_empty() {
             same
@@ -1660,9 +1673,12 @@ fn location(id: u8) -> Option<u8> {
     maps::map_mode(id).map(|map| map.level)
 }
 
-/// Whether a card is a Blackout map.
-fn is_blackout(id: u8) -> bool {
-    maps::map_mode(id).is_some_and(|map| map.mode == maps::GameMode::Blackout)
+/// The variant a card is a map of (Blackout, Scarcity), if any
+/// ([`maps::GameMode::is_variant`]).
+fn variant_of(id: u8) -> Option<maps::GameMode> {
+    maps::map_mode(id)
+        .map(|map| map.mode)
+        .filter(|mode| mode.is_variant())
 }
 
 #[cfg(test)]
@@ -2256,7 +2272,7 @@ mod tests {
                 &mut first,
             )
             .unwrap();
-        assert_eq!(rooms.get(key).unwrap().pool, vec![0, 2, 20]);
+        assert_eq!(rooms.get(key).unwrap().pool, vec![0, 2, DRAFT_CHUNK as u8]);
         // Too old: the default.
         rooms.draft(2, 0, 0b1, now);
         let key = rooms
@@ -2291,9 +2307,43 @@ mod tests {
         );
     }
 
+    /// A pool of every playable map with Blackout's and Scarcity's (172 in
+    /// revision 51's data) and more: each entry sent by its bit, each
+    /// named back.
+    #[test]
+    fn a_draft_of_a_big_pool_names_every_entry() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let entries: Vec<u8> = (1..=250).collect();
+        let pieces = entries.len().div_ceil(DRAFT_CHUNK);
+        assert_eq!(pieces, DRAFT_CHUNKS);
+        for piece in 0..pieces {
+            // every entry but each piece's first
+            rooms.draft(1, piece as u8, ((1 << DRAFT_CHUNK) - 1) & !1, now);
+        }
+        let key = rooms
+            .create(1, 0, spec(8, None), &entries, &[99], &[], 50, now, &mut first)
+            .unwrap();
+        let want: Vec<u8> = entries
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| index % DRAFT_CHUNK != 0)
+            .map(|(_, &id)| id)
+            .collect();
+        assert_eq!(rooms.get(key).unwrap().pool, want);
+        assert!(want.contains(&250) && !want.contains(&1) && want.len() > 172);
+    }
+
     /// Three battery maps of three different places, by id, and their
     /// Blackout twins.
     fn battery_maps() -> ([u8; 3], [u8; 3]) {
+        let (plain, blackout, _) = battery_maps_and_twins();
+        (plain, blackout)
+    }
+
+    /// Three battery maps of three different places, by id, and their
+    /// Blackout and Scarcity twins.
+    fn battery_maps_and_twins() -> ([u8; 3], [u8; 3], [u8; 3]) {
         let mut places = Vec::new();
         let mut plain = Vec::new();
         for map in maps::playable_in(maps::GameMode::Batteries) {
@@ -2303,11 +2353,73 @@ mod tests {
             }
         }
         let plain: [u8; 3] = plain.try_into().expect("three battery places");
-        let twin = |id| {
-            let map = maps::map_mode(id).unwrap();
-            maps::find(map.level, map.weather, maps::GameMode::Blackout).unwrap().id
+        let twin = |mode| {
+            move |id| {
+                let map = maps::map_mode(id).unwrap();
+                maps::find(map.level, map.weather, mode).unwrap().id
+            }
         };
-        (plain, plain.map(twin))
+        (
+            plain,
+            plain.map(twin(maps::GameMode::Blackout)),
+            plain.map(twin(maps::GameMode::Scarcity)),
+        )
+    }
+
+    /// The owner's of 2026-11-07 ("let's also make it in lobby to be either
+    /// blackout or scarcity"): the third card Blackout or Scarcity at
+    /// random, each on a map the first two are not while it has one; the
+    /// first two never a variant; a pool of one variant: that one.
+    #[test]
+    fn the_third_card_is_blackout_or_scarcity_at_random() {
+        let (plain, blackout, scarcity) = battery_maps_and_twins();
+        let pool: Vec<u8> = [plain, blackout, scarcity].concat();
+        // The first choice each time: Blackout (the first variant). The
+        // second of two each time: the second plain card another, and
+        // Scarcity, of the map not shown.
+        assert_eq!(
+            Rooms::draw(&pool, &mut first),
+            vec![plain[0], plain[2], blackout[1]]
+        );
+        let mut second = |bound: usize| usize::from(bound == 2);
+        assert_eq!(
+            Rooms::draw(&pool, &mut second),
+            vec![plain[0], plain[1], scarcity[2]]
+        );
+        let mut seen = [false; 2];
+        for seed in 0..64 {
+            let mut turn = seed;
+            let mut below = |bound: usize| {
+                turn = turn * 7 + 3;
+                turn % bound
+            };
+            let cards = Rooms::draw(&pool, &mut below);
+            assert_eq!(cards.len(), CARDS);
+            assert!(cards[..2].iter().all(|id| plain.contains(id)), "{cards:?}");
+            seen[0] |= blackout.contains(&cards[2]);
+            seen[1] |= scarcity.contains(&cards[2]);
+            assert!(
+                blackout.contains(&cards[2]) || scarcity.contains(&cards[2]),
+                "{cards:?}"
+            );
+            assert!(
+                !cards[..2]
+                    .iter()
+                    .any(|&id| location(id) == location(cards[2]))
+            );
+        }
+        assert_eq!(seen, [true, true]);
+        // Scarcity alone in the pool: the third card is Scarcity.
+        let pool: Vec<u8> = [plain, scarcity].concat();
+        for bound_pick in [0, 1] {
+            let mut below = |bound: usize| bound_pick.min(bound - 1);
+            assert!(scarcity.contains(&Rooms::draw(&pool, &mut below)[2]));
+        }
+        // Variants alone: three of them.
+        let pool: Vec<u8> = [blackout, scarcity].concat();
+        let cards = Rooms::draw(&pool, &mut first);
+        assert_eq!(cards.len(), CARDS);
+        assert!(cards.iter().all(|&id| variant_of(id).is_some()));
     }
 
     /// The owner's of 2026-11-02 ("offers blackout in voting always as a
@@ -2380,7 +2492,7 @@ mod tests {
             .unwrap();
         rooms.join(2, 0, key, now).unwrap();
         let third = rooms.get(key).unwrap().cards[2];
-        assert!(is_blackout(third));
+        assert_eq!(variant_of(third), Some(maps::GameMode::Blackout));
         rooms.vote(1, 2);
         rooms.vote(2, 2);
         rooms.tick(now, &mut first, |_| true);

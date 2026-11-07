@@ -2923,6 +2923,7 @@ va	name	location	role	basis
 0x002fcb70	survarium::inventory::setup_from_profile	EDI	inventory receiver	inferred
 0x002fcb70	survarium::inventory::setup_from_profile	AL	profile index	inferred
 0x002fcb70	survarium::inventory::setup_from_profile	stack+4	profile	inferred
+0x002fcb70	survarium::inventory::setup_from_profile	stack+4	per stack slot of the kit (table 0x925FA0..): profile + kit x 704h + 98h + 4n the item u16 (FFFFh none), +9Ah + 4n the count u16: a count of 0 skips the slot (0x2FCC67), else the slot's m_amount (+260h) = min(count, the item's amount_in_storage +8 of its 0B4h record) and the store loses it (0x2FCC4A..0x2FCCBD)	observed
 0x002fd2d0	survarium::inventory::unload_to_profile	AL	profile index	inferred
 0x002fd2d0	survarium::inventory::unload_to_profile	stack+4	inventory receiver	inferred
 0x002fd2d0	survarium::inventory::unload_to_profile	stack+8	profile	inferred
@@ -4731,6 +4732,7 @@ va	name	location	role	basis
 0x0033d390	survarium::medkit::set_active	stack+4	the medkit, its activation delay: +2A4h configured delay ms; 0x33D45A..0x33D491 uses apply_modifier(profile+kit*704h+F4h,33,delay,1.0), truncates to u32 and stores +2ACh. Unlike effect duration, the delay does not use +2A0h skill weight.	observed
 0x002ffcc0	survarium::stackable_item::get_ui_description	medkit vtable+48h	medical items inherit this descriptor: writes item id at output+0 and stack count at +4; leaves cooldown byte +6 and timer word +2 zero. Medical activation needs its own native timing snapshot.	observed
 0x002f8080	survarium::resupply_zone_core::can_use	ECX	resupply zone	observed
+0x002f8080	survarium::resupply_zone_core::can_use	ECX+54h	the zone's team (0, 1; 2 both), compared with [[record]+6B8h]+45ECh	observed
 0x002f8080	survarium::resupply_zone_core::can_use	entry ESP+4	interaction record; first pointer is base_player	observed
 0x002f80c0	survarium::resupply_zone_core::use_hint	ECX	resupply zone	observed
 0x002f80c0	survarium::resupply_zone_core::use_hint	entry ESP+4	interaction record; first pointer is base_player	observed
@@ -5406,6 +5408,10 @@ va	name	location	role	basis
 0x002d7800	survarium::base_player::on_fire	ECX, entry ESP+4	the player + 110h (vtable 0xA10B1C; called by instant_fire through [weapon+594h] slot +4 at 0x2E258D), the pellet count; held weapon [ECX+18h], inventory [ECX-4] selected slot +170h	observed
 0x002d9f40	survarium::base_player::generate_hit_event	EBP at 0x2DA10C	the bullet or 0 (its +0Ch the weapon core + 10h, +58h player_stance at the shot, +5Ch m_born_time_in_ms); ESI the victim, EBX the victim place, [ESP+24h] the attacker, [ESP+34h] the melee byte, [ESP+38h] the flag 0x2F5450 needs	observed
 0x002e23a0	survarium::weapon_core::instant_fire	EBX at 0x2E2578	the weapon core (+538h its ammo config, +2ACh the pellet count; +594h its user + 110h; +10h its inventory item: +254h slot, +25Ch the dictionary entry, dict_id at +0, item_category at +228h, is_stack at +22Ah)	observed
+0x0022c010	survarium::project_cooker_simple::create_game_objects	entry ESP+4	the project cook (its one caller 0x22BF68 pushes EDI)	observed
+0x0022c010	survarium::project_cooker_simple::create_game_objects	entry ESP+8	the client_project binary config (by value, counted +0D0h; root record at +108h, first read 0x22C11B)	observed
+0x0022c010	survarium::project_cooker_simple::create_game_objects	entry ESP+0Ch	the parent query (its +108h user data, 0x22C01C)	observed
+0x0022c010	survarium::project_cooker_simple::create_game_objects	entry ESP+10h	the requested project path (formatted into resources/projects/%s, 0x22C067)	observed
 0x0023a430	survarium::game_world_ui::set_using_progress_message	entry ESP+4, entry ESP+8	the ui (its +18h world, hud movie at [[ui+8]+108h]+4), the use progress as a float 0..1; unless it is 0.0 (0xA0D984: nothing drawn then) root.set_context("st_using_progress_message" translated, progress x 100, 500): the hud movie's contextInfo with its bar (frame 2)	observed
 0x0023a560	survarium::game_world_ui::set_using_info_message	EAX, entry ESP+4	the hint's string id (an st_ key, such as st_use_artefact_container, st_use_resupply_zone, st_pickup_item, st_put_item, st_artefact_no_free_slots; "" for none, 0x9DB708), the ui; skipped when the same as [ui+334h]; else root.set_context(translated, 0, 1000): the hud movie's contextInfo, frame 1	observed
 0x00246f50	survarium::player::st_draw	entry ESP+4	the player; for the camera's own player: its use in progress ([player+134h] not 0) -> set_using_progress_message(ui [player+F480h], [player+154h]); else the usable in reach (0x2D84C0, its vtable +34h fills the hint id) or none -> set_using_info_message	observed

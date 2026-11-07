@@ -137,7 +137,7 @@ impl GameData {
             Self::from_archive(&mut archive, TEST_ORIGIN.into()).expect("the test archive reads");
         with_srp_tables(&mut data.files);
         with_pocket_units(&mut data.files);
-        with_blackout_maps(&mut data.files);
+        with_variant_maps(&mut data.files);
         data
     }
 
@@ -251,16 +251,20 @@ const THROWABLES_TABLE: &str = include_str!("../../../../scripts/content-edit/th
 /// srp's shop rules, which name items ([`super::prices::SHOP_PATH`]).
 const SHOP_TABLE: &str = include_str!("../../../../scripts/content-edit/shop.tsv");
 
-/// Blackout's maps as the content patch makes them of the live configs
-/// (`docs/notes/blackout.md`): the test data's are this edit list laid over
-/// its own battery configs.
-const BLACKOUT_EDITS: &str = include_str!("../../../../scripts/content-edit/blackout-mode-1.json");
+/// The variants' maps as the content patch makes them of the live configs
+/// (Blackout's, `docs/notes/blackout.md`, and Scarcity's,
+/// `docs/notes/scarcity.md`): the test data's are these edit lists laid
+/// over its own battery configs.
+const VARIANT_EDITS: [&str; 2] = [
+    include_str!("../../../../scripts/content-edit/blackout-mode-1.json"),
+    include_str!("../../../../scripts/content-edit/scarcity-mode-1.json"),
+];
 
-/// `files` with [`BLACKOUT_EDITS`]: for each `maps_dict` entry it appends
-/// whose battery config `files` has, a copy of that config at the entry's
-/// name, with the list's strings replaced and its values added, and the
-/// entry.
-fn with_blackout_maps(files: &mut BTreeMap<String, Vec<u8>>) {
+/// `files` with each of [`VARIANT_EDITS`]: for each `maps_dict` entry it
+/// appends whose battery config `files` has (the config of the name past
+/// the entry's folder), a copy of that config at the entry's name, with the
+/// list's strings replaced and its values added, and the entry.
+fn with_variant_maps(files: &mut BTreeMap<String, Vec<u8>>) {
     fn text(value: &serde_json::Value) -> String {
         value.as_str().expect("a text").to_owned()
     }
@@ -287,16 +291,6 @@ fn with_blackout_maps(files: &mut BTreeMap<String, Vec<u8>>) {
             _ => {}
         }
     }
-    let edits: serde_json::Value =
-        serde_json::from_str(BLACKOUT_EDITS).expect("the edit list reads");
-    let replaced: Vec<(String, String)> = list(&edits, "replace_string")
-        .iter()
-        .map(|each| (text(&each["from"]), text(&each["to"])))
-        .collect();
-    let added: Vec<(String, String, String)> = list(&edits, "add_value")
-        .iter()
-        .map(|each| (text(&each["table"]), text(&each["key"]), text(&each["value"])))
-        .collect();
     let path = super::dictionary::PATH;
     let mut dictionary = ConfigValue::parse(&files[path]).expect("the dictionary parses");
     let ConfigValue::Named(sections) = &mut dictionary else {
@@ -307,32 +301,44 @@ fn with_blackout_maps(files: &mut BTreeMap<String, Vec<u8>>) {
     else {
         panic!("the dictionary has maps_dict")
     };
-    for entry in list(&edits, "append_entry") {
-        let name = text(&entry["value"]["cfg_mode_name"]);
-        let base = name.trim_start_matches("blackout/");
-        let Some(bytes) = files.get(&format!("{}{base}", super::maps::GAME_MODES_DIR)) else {
-            continue;
-        };
-        let mut config = ConfigValue::parse(bytes).expect("a battery config");
-        replace(&mut config, &replaced);
-        let ConfigValue::Named(tables) = &mut config else {
-            panic!("{base} is a named table")
-        };
-        for (table, key, value) in &added {
-            let Some((_, ConfigValue::Named(entries))) =
-                tables.iter_mut().find(|(name, _)| name == table)
-            else {
-                panic!("{base} has no table {table}")
+    for list_text in VARIANT_EDITS {
+        let edits: serde_json::Value =
+            serde_json::from_str(list_text).expect("the edit list reads");
+        let replaced: Vec<(String, String)> = list(&edits, "replace_string")
+            .iter()
+            .map(|each| (text(&each["from"]), text(&each["to"])))
+            .collect();
+        let added: Vec<(String, String, String)> = list(&edits, "add_value")
+            .iter()
+            .map(|each| (text(&each["table"]), text(&each["key"]), text(&each["value"])))
+            .collect();
+        for entry in list(&edits, "append_entry") {
+            let name = text(&entry["value"]["cfg_mode_name"]);
+            let base = name.split_once('/').map_or(name.as_str(), |(_, base)| base);
+            let Some(bytes) = files.get(&format!("{}{base}", super::maps::GAME_MODES_DIR)) else {
+                continue;
             };
-            entries.push((key.clone(), ConfigValue::String(value.clone())));
+            let mut config = ConfigValue::parse(bytes).expect("a battery config");
+            replace(&mut config, &replaced);
+            let ConfigValue::Named(tables) = &mut config else {
+                panic!("{base} is a named table")
+            };
+            for (table, key, value) in &added {
+                let Some((_, ConfigValue::Named(entries))) =
+                    tables.iter_mut().find(|(name, _)| name == table)
+                else {
+                    panic!("{base} has no table {table}")
+                };
+                entries.push((key.clone(), ConfigValue::String(value.clone())));
+            }
+            let config = config.to_bytes().expect("a config");
+            files.insert(format!("{}{name}", super::maps::GAME_MODES_DIR), config);
+            let id = entry["value"]["id"].as_i64().expect("an id");
+            maps.push(ConfigValue::Named(vec![
+                ("cfg_mode_name".into(), ConfigValue::String(name)),
+                ("id".into(), ConfigValue::Integer(id as i32)),
+            ]));
         }
-        let config = config.to_bytes().expect("a config");
-        files.insert(format!("{}{name}", super::maps::GAME_MODES_DIR), config);
-        let id = entry["value"]["id"].as_i64().expect("an id");
-        maps.push(ConfigValue::Named(vec![
-            ("cfg_mode_name".into(), ConfigValue::String(name)),
-            ("id".into(), ConfigValue::Integer(id as i32)),
-        ]));
     }
     files.insert(path.to_owned(), dictionary.to_bytes().expect("a config"));
 }

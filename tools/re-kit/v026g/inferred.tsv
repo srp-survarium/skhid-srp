@@ -1272,7 +1272,6 @@ va	status	ref_021d	name
 0x0022b4e0	inferred-medium	0x0017964c	vostok::detail::concrete_type_helper<vostok::physics::world *>::copy_helper
 0x0022b590	inferred-medium	0x001796a2	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,survarium::animated_model_instance_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<survarium::animated_model_instance_cook *>,boost::arg<1> > > >::manager
 0x0022b790	inferred-medium		survarium::project_cooker_simple::translate_query
-0x0022c010	inferred-medium	0x00179cf0	survarium::project_cooker_simple::create_game_objects
 0x0022f960	inferred-medium	0x0017c62b	vostok::memory::new_array_helper<survarium::static_collision>::call<vostok::memory::doug_lea_allocator>
 0x0022fa00	inferred-medium	0x0017c677	vostok::memory::new_array_helper<survarium::render_visual>::call<vostok::memory::doug_lea_allocator>
 0x00230150	inferred-medium	0x0017ca08	vostok::detail::concrete_type_helper<vostok::render::static_model_instance_user_data>::copy_helper

@@ -5,6 +5,9 @@
 //! options, the reader its frame's local at EBP-2Ch) and
 //! `replay.options_read` (a replay's chunk 1, 0x1F0971: the options its
 //! first argument, the reader its local; both by the site's ESP).
+//!
+//! srp's block after the options ("SRPX", then `{u8 tag, u8 len, bytes}`
+//! entries) is read here once, into the match's [`MatchVariant`] (tag 2).
 
 use super::context::Context;
 use super::hook::Thread;
@@ -12,6 +15,45 @@ use super::breadcrumbs::Match;
 use super::parse::Reader;
 use super::world::read;
 use crate::raw;
+
+/// srp's block's magic.
+const SRPX: [u8; 4] = *b"SRPX";
+/// The variant's entry: one byte, 1 Blackout, 2 Scarcity
+/// (`survarium::v026g::match_msgs::static_info::variant_byte`).
+const TAG_VARIANT: u8 = 2;
+
+/// What a battery match is beside its rules (srp's block, tag 2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MatchVariant {
+    /// No entry, or one this patch does not know.
+    #[default]
+    Plain,
+    /// Patch 65 (docs/notes/blackout.md).
+    Blackout,
+    /// Patch 119 (docs/notes/scarcity.md).
+    Scarcity,
+}
+
+/// The variant srp's block (the bytes after the options' squads) says: its
+/// magic, then entries; an entry of another tag or length is stepped over
+/// (the last variant entry counts), a cut one ends the block.
+pub fn variant_in(mut rest: Reader) -> MatchVariant {
+    if rest.array::<4>() != Some(SRPX) {
+        return MatchVariant::Plain;
+    }
+    let mut variant = MatchVariant::Plain;
+    while let (Some(tag), Some(len)) = (rest.u8(), rest.u8()) {
+        let Some(entry) = rest.take(usize::from(len)) else { break };
+        if tag == TAG_VARIANT {
+            variant = match entry {
+                [1] => MatchVariant::Blackout,
+                [2] => MatchVariant::Scarcity,
+                _ => MatchVariant::Plain,
+            };
+        }
+    }
+    variant
+}
 
 /// The options just read and the reader they were read from (its cursor
 /// where the options end).
@@ -59,6 +101,11 @@ impl<'t> OptionsRead<'t> {
         unsafe { Reader::of_memory(cursor, end - at) }
     }
 
+    /// The match's variant, from srp's block ([`variant_in`]).
+    pub fn variant(&self) -> MatchVariant {
+        variant_in(self.rest())
+    }
+
     /// What names the match, for the crash report's breadcrumbs.
     pub fn context(&self, blackout: bool) -> Match {
         // SAFETY: the options are alive for the hook; plain values of theirs.
@@ -80,5 +127,29 @@ impl<'t> OptionsRead<'t> {
         // SAFETY: the options are alive for the hook; the mark is in their
         // unused "Mode" string.
         unsafe { *self.options.srp_blackout() = if blackout { mark } else { 0 } }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn block(bytes: &[u8]) -> MatchVariant {
+        variant_in(Reader::new(bytes))
+    }
+
+    #[test]
+    fn the_block() {
+        use MatchVariant::{Blackout, Plain, Scarcity};
+        assert_eq!(block(b"SRPX\x02\x01\x01"), Blackout);
+        assert_eq!(block(b"SRPX\x02\x01\x02"), Scarcity);
+        assert_eq!(block(b"SRPX\x01\x0c\0\0\x40\x40\x8f\xc2\x2b\x3f\0\0\0\x40\x02\x01\x01"), Blackout);
+        assert_eq!(block(b"SRPX\x09\x03xyz\x02\x01\x02"), Scarcity);
+        assert_eq!(block(b""), Plain);
+        assert_eq!(block(b"SRPX\x02\x01\x00"), Plain);
+        assert_eq!(block(b"SRPX\x02\x01\x03"), Plain);
+        assert_eq!(block(b"SRPX\x02\x02\x01\x01"), Plain);
+        assert_eq!(block(b"SRPX\x02\x01"), Plain);
+        assert_eq!(block(b"SRPY\x02\x01\x01"), Plain);
     }
 }

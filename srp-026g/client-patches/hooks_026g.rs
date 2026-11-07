@@ -656,6 +656,21 @@ pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- scarcity (patch 119) ----
+
+/// The entry `scarcity_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scarcity_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scarcity_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scarcity::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -710,6 +725,21 @@ pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::music::on_replay(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- scarcity (patch 119) ----
+
+/// The entry `scarcity_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scarcity_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scarcity_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scarcity::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2678,6 +2708,21 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
     }
 }
 
+// ---- scarcity (patch 119) ----
+
+/// The entry `scarcity_on_project_cook` (0x22c010, project_cooker_simple::create_game_objects entry (push ebp / mov ebp,esp / and esp,-10h; [esp+4] the cook, [esp+8] the project's loaded client_project binary config, before the cook reads it; its only call 0x22BF68)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_scarcity_on_project_cook(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `scarcity_on_project_cook` calls this, from the game's jump at 0x22c010,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::scarcity::on_project_cook(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- sound_voices (patch 96) ----
 
 /// The entry `sound_voices_on_voice_made` (0x5cab0, calculate_hdr_audio_frame after create_sound_voice for an audible propagator above the gain floor with no voice (mov [esi+4],eax; test eax,eax): the sound thread, ESI the propagator, EAX its new voice or 0 (the world's 64 all taken), EBP the frame) calls this with the saved machine.
@@ -3130,6 +3175,8 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_scarcity_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -3142,6 +3189,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     let flow = hook_hud_options_on_replay_options(frame);
     if flow != 0 { return flow; }
     let flow = hook_music_on_replay(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_scarcity_on_replay_options(frame);
     if flow != 0 { return flow; }
     0
 }

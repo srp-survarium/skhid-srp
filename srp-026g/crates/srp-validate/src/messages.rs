@@ -417,8 +417,9 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     }
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
-    // Shipped patch 65 appends an SRPX block for Blackout matches.
-    // Keep this in sync with static_info::read_srp_block on the server.
+    // srp appends an SRPX block for a variant's matches: tag 2, one byte, 1
+    // Blackout (patch 65), 2 Scarcity (patch 119). Keep this in sync with
+    // static_info::read_srp_block on the server.
     if !reader.is_done() {
         let at = reader.at();
         let invalid = || {
@@ -436,7 +437,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         while !reader.is_done() {
             let at = reader.at();
             let entry = reader.array::<3>().map_err(short)?;
-            if entry != [2, 1, 1] {
+            if !matches!(entry, [2, 1, 1 | 2]) {
                 return Err(refuse(
                     at,
                     Reason::OptionsTrailing {

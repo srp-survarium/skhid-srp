@@ -88,3 +88,5 @@ pub mod packet_recovery;
 pub mod hud_cursor;
 pub mod ban_time;
 pub mod controller_position;
+
+pub mod scarcity;

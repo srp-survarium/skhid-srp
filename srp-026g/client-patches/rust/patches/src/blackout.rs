@@ -5,8 +5,9 @@
 //! - the match's options read (`static_info.options_read`, after the 0xE4's
 //!   match_options::deserialize; `replay.options_read`, after a replay's
 //!   chunk 1's): srp's block after the squads ("SRPX", tagged entries) may
-//!   hold tag 2, one byte 1. The options keep a mark of it (+57870h) and the
-//!   patch the match's flag, before the match's world is made;
+//!   hold tag 2, one byte 1 (`vostok::options::variant_in`: the variant
+//!   Blackout). The options keep a mark of it (+57870h) and the patch the
+//!   match's flag, before the match's world is made;
 //! - each frame's player icons update (`player_icons.update_start`): the hud
 //!   movie and the player icons movie are told the forced interface
 //!   (`root.force_interface_hidden`: the hud keeps the pre-match countdown and
@@ -29,16 +30,11 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::breadcrumbs::{self, Crumb};
-use crate::vostok::{clock, parse::Reader};
+use crate::vostok::clock;
 use crate::vostok::{
-    ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Movie, NameVisibility, NoExit, OptionsRead,
-    TabTest, Thread,
+    ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, MatchVariant, Movie, NameVisibility, NoExit,
+    OptionsRead, TabTest, Thread,
 };
-
-/// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`.
-const SRPX: [u8; 4] = *b"SRPX";
-/// The Blackout entry: one byte, 1.
-const TAG_BLACKOUT: u8 = 2;
 
 /// Tab held stops these: the moves and the acts. Use is none of them: a
 /// search or a refill held through Tab goes on (the owner, 2026-11-05).
@@ -102,23 +98,6 @@ static HELD: GameCell<ActionMask> = GameCell::new(ActionMask::NONE);
 static HUD_TOLD: GameCell<Told> = GameCell::new(NONE_TOLD);
 static ICONS_TOLD: GameCell<Told> = GameCell::new(NONE_TOLD);
 
-/// Whether srp's block (the bytes after the options' squads) says Blackout:
-/// its magic, then entries; an entry of another tag or length is stepped
-/// over, a cut one ends the block.
-pub fn blackout_in(mut rest: Reader) -> bool {
-    if rest.array::<4>() != Some(SRPX) {
-        return false;
-    }
-    let mut on = false;
-    while let (Some(tag), Some(len)) = (rest.u8(), rest.u8()) {
-        let Some(entry) = rest.take(usize::from(len)) else { break };
-        if tag == TAG_BLACKOUT && entry == [1] {
-            on = true;
-        }
-    }
-    on
-}
-
 /// The input's action mask as built, and the acts held through Tab: what
 /// is sent and what stays held. Not a Blackout match: as built, nothing held.
 fn filtered(blackout: bool, tab: TabState, held: ActionMask, built: ActionMask) -> (ActionMask, ActionMask) {
@@ -141,7 +120,7 @@ pub fn forced(thread: &Thread) -> bool {
 fn options_read(thread: &Thread, read: Option<OptionsRead>, replay: bool) -> Flow<NoExit> {
     let mut on = false;
     if let Some(mut read) = read {
-        on = blackout_in(read.rest());
+        on = read.variant() == MatchVariant::Blackout;
         read.set_blackout_mark(on);
         breadcrumbs::record(thread, Crumb::Match { replay, context: read.context(on) });
     }
@@ -238,22 +217,6 @@ pub fn on_input_end(ctx: &mut Context) -> Flow<NoExit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn block(bytes: &[u8]) -> bool {
-        blackout_in(Reader::new(bytes))
-    }
-
-    #[test]
-    fn the_block() {
-        assert!(block(b"SRPX\x02\x01\x01"));
-        assert!(block(b"SRPX\x01\x0c\0\0\x40\x40\x8f\xc2\x2b\x3f\0\0\0\x40\x02\x01\x01"));
-        assert!(block(b"SRPX\x09\x03xyz\x02\x01\x01"));
-        assert!(!block(b""));
-        assert!(!block(b"SRPX\x02\x01\x00"));
-        assert!(!block(b"SRPX\x02\x02\x01\x01"));
-        assert!(!block(b"SRPX\x02\x01"));
-        assert!(!block(b"SRPY\x02\x01\x01"));
-    }
 
     #[test]
     fn tab_stops_moves_and_acts() {

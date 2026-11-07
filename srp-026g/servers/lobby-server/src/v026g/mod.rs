@@ -208,8 +208,8 @@ impl Settings {
         let modes = match var("SRP_MATCH_MODES") {
             Some(value) => parse_modes(&value).unwrap_or_else(|| {
                 log::error!(
-                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 6 (6 Blackout). Using \
-                     2,3,4,5,6"
+                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 7 (6 Blackout, 7 \
+                     Scarcity). Using 2,3,4,5,6,7"
                 );
                 DEFAULT_MODES.to_vec()
             }),
@@ -341,7 +341,7 @@ fn parse_weight(value: &str) -> Option<f64> {
         .filter(|weight| weight.is_finite() && (0.0..=1000.0).contains(weight))
 }
 
-/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 6 (6 Blackout;
+/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 7 (6 Blackout, 7 Scarcity;
 /// `maps::GameMode::lobby_number`), at least one.
 fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
     let modes: Option<Vec<maps::GameMode>> = value

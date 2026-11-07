@@ -1115,19 +1115,20 @@ impl Core<'_> {
             (Some(choice), _) => choice.map_id,
             (None, Some(map_id)) => map_id,
             // Neither a room's nor against bots: a map of the pool drawn at
-            // random, never Blackout (a room's mode only, by its card).
+            // random, never a variant (Blackout, Scarcity: a room's mode
+            // only, by its card).
             (None, None) => {
                 let pool: Vec<u8> = self
                     .settings
                     .maps
                     .iter()
                     .copied()
-                    .filter(|&id| {
-                        maps::map_mode(id).is_some_and(|map| map.mode != maps::GameMode::Blackout)
-                    })
+                    .filter(|&id| maps::map_mode(id).is_some_and(|map| !map.mode.is_variant()))
                     .collect();
                 match pool.len() {
-                    0 => maps::playable().next().map_or(0, |map| map.id),
+                    0 => maps::playable()
+                        .find(|map| !map.mode.is_variant())
+                        .map_or(0, |map| map.id),
                     count => pool[self.rng.below(count as u32) as usize],
                 }
             }

@@ -194,10 +194,13 @@ fn the_maps_played_are_playable_ones_of_the_modes_asked_for() {
     assert_eq!(map_pool(&[Batteries, TimedBatteries, TeamDeathmatch], &[all[0], 11, 45, 250]), [all[0]]);
     assert!(map_pool(&[TeamDeathmatch], &[all[0]]).len() <= 1);
 
-    // The default: every mode, Blackout's maps too (the test data has no
-    // Research maps).
+    // The default: every mode, Blackout's and Scarcity's maps too (the test
+    // data has no Research maps), by id.
     let settings = Settings::local("127.0.0.1:0");
     let blackout = map_pool(&[maps::GameMode::Blackout], &[]);
-    assert!(!blackout.is_empty());
-    assert_eq!(settings.maps, [all, blackout].concat());
+    let scarcity = map_pool(&[maps::GameMode::Scarcity], &[]);
+    assert!(!blackout.is_empty() && !scarcity.is_empty());
+    let mut every = [all, blackout, scarcity].concat();
+    every.sort_unstable();
+    assert_eq!(settings.maps, every);
 }

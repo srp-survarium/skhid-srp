@@ -1,0 +1,503 @@
+{
+  "_about": "Scarcity (docs/notes/scarcity.md) as a mode of its own maps, as Blackout's (blackout-mode-1.json): each playable battery config (mode 2) of maps_dict once more (level_08 at night has no project: none) under gameplay/game_modes/scarcity/, with srp_variant scarcity (the server plays it as GameMode::Scarcity: the kits cut to the loaded magazines, the static info's Scarcity entry, for which exe patch 119 takes the ammo crates out of the map's project) and the mode's name st_srp_mode_scarcity; a maps_dict row each, ids 12 to 41 (the first free run of 30 below the stock ids; no u8 id above Blackout's 248 has room for 30) in the order of the battery ids. The configs name the battery maps' own projects: nothing of a project is copied. The test data (survarium game_data::test_archive) lays this list over its own configs.",
+  "copy": [
+    {
+      "files": "gameplay/game_modes/level_01_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_01_evn_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_01_rain_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_02_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_02_evn_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_02_rain_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_03_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_03_evn_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_03_rain_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_04_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_04_evn_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_04_rain_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_05_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_05_evn_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_05_rain_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_06_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_06_evn_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_06_rain_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_07_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_07_evn_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_07_rain_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_08_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_08_evn_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_08_prerain_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/v021d_level_03_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/v021d_level_06_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/level_09_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/v011e_level_04_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/v011e_level_03_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    },
+    {
+      "files": "gameplay/game_modes/v069d_level_01_day_2.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/scarcity/"
+    }
+  ],
+  "replace_string": [
+    {
+      "files": "gameplay/game_modes/scarcity/*",
+      "from": "st_mode_02_name",
+      "to": "st_srp_mode_scarcity"
+    }
+  ],
+  "add_value": [
+    {
+      "files": [
+        "gameplay/game_modes/scarcity/level_01_day_2.options",
+        "gameplay/game_modes/scarcity/level_01_evn_2.options",
+        "gameplay/game_modes/scarcity/level_01_rain_2.options",
+        "gameplay/game_modes/scarcity/level_02_day_2.options",
+        "gameplay/game_modes/scarcity/level_02_evn_2.options",
+        "gameplay/game_modes/scarcity/level_02_rain_2.options",
+        "gameplay/game_modes/scarcity/level_03_day_2.options",
+        "gameplay/game_modes/scarcity/level_03_evn_2.options",
+        "gameplay/game_modes/scarcity/level_03_rain_2.options",
+        "gameplay/game_modes/scarcity/level_04_day_2.options",
+        "gameplay/game_modes/scarcity/level_04_evn_2.options",
+        "gameplay/game_modes/scarcity/level_04_rain_2.options",
+        "gameplay/game_modes/scarcity/level_05_day_2.options",
+        "gameplay/game_modes/scarcity/level_05_evn_2.options",
+        "gameplay/game_modes/scarcity/level_05_rain_2.options",
+        "gameplay/game_modes/scarcity/level_06_day_2.options",
+        "gameplay/game_modes/scarcity/level_06_evn_2.options",
+        "gameplay/game_modes/scarcity/level_06_rain_2.options",
+        "gameplay/game_modes/scarcity/level_07_day_2.options",
+        "gameplay/game_modes/scarcity/level_07_evn_2.options",
+        "gameplay/game_modes/scarcity/level_07_rain_2.options",
+        "gameplay/game_modes/scarcity/level_08_day_2.options",
+        "gameplay/game_modes/scarcity/level_08_evn_2.options",
+        "gameplay/game_modes/scarcity/level_08_prerain_2.options",
+        "gameplay/game_modes/scarcity/v021d_level_03_day_2.options",
+        "gameplay/game_modes/scarcity/v021d_level_06_day_2.options",
+        "gameplay/game_modes/scarcity/level_09_day_2.options",
+        "gameplay/game_modes/scarcity/v011e_level_04_day_2.options",
+        "gameplay/game_modes/scarcity/v011e_level_03_day_2.options",
+        "gameplay/game_modes/scarcity/v069d_level_01_day_2.options"
+      ],
+      "table": "mode",
+      "key": "srp_variant",
+      "value": "scarcity"
+    }
+  ],
+  "append_entry": [
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 154,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_01_day_2.options",
+        "id": 12
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 155,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_01_evn_2.options",
+        "id": 13
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 156,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_01_rain_2.options",
+        "id": 14
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 157,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_02_day_2.options",
+        "id": 15
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 158,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_02_evn_2.options",
+        "id": 16
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 159,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_02_rain_2.options",
+        "id": 17
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 160,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_03_day_2.options",
+        "id": 18
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 161,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_03_evn_2.options",
+        "id": 19
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 162,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_03_rain_2.options",
+        "id": 20
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 163,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_04_day_2.options",
+        "id": 21
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 164,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_04_evn_2.options",
+        "id": 22
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 165,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_04_rain_2.options",
+        "id": 23
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 166,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_05_day_2.options",
+        "id": 24
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 167,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_05_evn_2.options",
+        "id": 25
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 168,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_05_rain_2.options",
+        "id": 26
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 169,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_06_day_2.options",
+        "id": 27
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 170,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_06_evn_2.options",
+        "id": 28
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 171,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_06_rain_2.options",
+        "id": 29
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 172,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_07_day_2.options",
+        "id": 30
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 173,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_07_evn_2.options",
+        "id": 31
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 174,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_07_rain_2.options",
+        "id": 32
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 175,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_08_day_2.options",
+        "id": 33
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 176,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_08_evn_2.options",
+        "id": 34
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 177,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_08_prerain_2.options",
+        "id": 35
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 178,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/v021d_level_03_day_2.options",
+        "id": 36
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 179,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/v021d_level_06_day_2.options",
+        "id": 37
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 180,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/level_09_day_2.options",
+        "id": 38
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 181,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/v011e_level_04_day_2.options",
+        "id": 39
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 182,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/v011e_level_03_day_2.options",
+        "id": 40
+      }
+    },
+    {
+      "file": "gameplay/db_static_dictionaries",
+      "list": "maps_dict",
+      "expected_count": 183,
+      "unique_key": "id",
+      "value": {
+        "cfg_mode_name": "scarcity/v069d_level_01_day_2.options",
+        "id": 41
+      }
+    }
+  ]
+}

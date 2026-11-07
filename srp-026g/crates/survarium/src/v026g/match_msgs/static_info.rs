@@ -16,9 +16,10 @@
 //!
 //! The client reads the fields above and nothing after them; srp's block
 //! after them ("SRPX", then tagged entries) is read by exe patches only:
-//! tag 2 is the Blackout flag (patch 65, `docs/notes/blackout.md`; its
-//! reader is at the two calls of `match_options::deserialize`, 0x27B928 and
-//! 0x1F096C); tag 1 is kept for team damage (#370).
+//! tag 2 is the match's variant (one byte: 1 Blackout, patch 65,
+//! `docs/notes/blackout.md`; 2 Scarcity, patch 119, `docs/notes/scarcity.md`;
+//! its readers are at the two calls of `match_options::deserialize`, 0x27B928
+//! and 0x1F096C); tag 1 is kept for team damage (#370).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -523,9 +524,11 @@ pub struct MatchOptions {
     /// The roster, by place: N is its length. The wire's other places are
     /// written empty.
     pub players: Vec<MatchProfile>,
-    /// The map, and with it the mode: a Blackout map's options carry srp's
-    /// Blackout entry (tag 2; exe patch 65, `docs/notes/blackout.md`: no
-    /// interface for anyone, the players' markers on Tab).
+    /// The map, and with it the mode: a variant's map's options carry srp's
+    /// variant entry ([`variant_byte`]: Blackout's, exe patch 65,
+    /// `docs/notes/blackout.md`: no interface for anyone, the players'
+    /// markers on Tab; Scarcity's, exe patch 119, `docs/notes/scarcity.md`:
+    /// no ammo crates).
     pub map: maps::MatchMap,
     /// What the client logs as `Match id`: the seed of the match's
     /// anomalies, victory items and player objects. It must not be the id
@@ -538,8 +541,21 @@ pub struct MatchOptions {
 /// srp's block after the options: its magic, then tagged entries
 /// `{u8 tag, u8 len, len bytes}`.
 pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
-/// The entry of a Blackout map's options ([`maps::GameMode::Blackout`]): one byte, 1.
-pub const SRPX_BLACKOUT: u8 = 2;
+/// The entry of a variant's map's options: one byte, [`variant_byte`].
+pub const SRPX_VARIANT: u8 = 2;
+
+/// The variant entry's byte of a map of `mode`: 1 Blackout, 2 Scarcity; none
+/// for a mode that is no variant (its options have no entry).
+pub const fn variant_byte(mode: maps::GameMode) -> Option<u8> {
+    match mode {
+        maps::GameMode::Blackout => Some(1),
+        maps::GameMode::Scarcity => Some(2),
+        maps::GameMode::Batteries
+        | maps::GameMode::TimedBatteries
+        | maps::GameMode::TeamDeathmatch
+        | maps::GameMode::Research => None,
+    }
+}
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -859,8 +875,8 @@ pub fn options_bytes(
     }
     out.extend(squads);
     let mut block = Vec::new();
-    if options.map.mode() == maps::GameMode::Blackout {
-        block.extend([SRPX_BLACKOUT, 1, 1]);
+    if let Some(variant) = variant_byte(options.map.mode()) {
+        block.extend([SRPX_VARIANT, 1, variant]);
     }
     if !block.is_empty() {
         out.extend(SRPX_MAGIC);
@@ -1098,17 +1114,17 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
-    let blackout = read_srp_block(&mut reader)?;
+    let variant = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
-    // The Blackout entry on a map of another mode, or none on a Blackout
+    // A variant entry on a map of another mode, or none on a variant's
     // map: no map and mode the client plays.
     let map = maps::MatchMap::of(map_id)
-        .filter(|map| (map.mode() == maps::GameMode::Blackout) == blackout)
+        .filter(|map| variant_byte(map.mode()) == variant)
         .ok_or(StaticInfoError::Map(map_id))?;
     players.truncate(roster);
     for (player, (profile, &squad)) in players.iter_mut().zip(squads).enumerate() {
@@ -1124,16 +1140,17 @@ pub fn parse_options(
     })
 }
 
-/// srp's block after the options, if any: as patch 65's reader reads it, but
-/// strict (an unknown tag or a short entry is refused, so a test sees it).
-fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
+/// srp's block after the options, if any: its variant byte, as the patches'
+/// reader reads it, but strict (an unknown tag or value or a short entry is
+/// refused, so a test sees it).
+fn read_srp_block(reader: &mut Reader) -> Result<Option<u8>, StaticInfoError> {
     if reader.bytes.is_empty() {
-        return Ok(false);
+        return Ok(None);
     }
     if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
         return Err(StaticInfoError::SrpBlock);
     }
-    let mut blackout = false;
+    let mut variant = None;
     while !reader.bytes.is_empty() {
         let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
         let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
@@ -1143,11 +1160,14 @@ fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
                 .map_err(|_| StaticInfoError::SrpBlock)?,
         };
         match (tag, len) {
-            (SRPX_BLACKOUT, 1) if entry.u8()? == 1 => blackout = true,
+            (SRPX_VARIANT, 1) => match entry.u8()? {
+                byte @ (1 | 2) => variant = Some(byte),
+                _ => return Err(StaticInfoError::SrpBlock),
+            },
             _ => return Err(StaticInfoError::SrpBlock),
         }
     }
-    Ok(blackout)
+    Ok(variant)
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the
@@ -1232,12 +1252,46 @@ mod tests {
         }
     }
 
-    /// A Blackout map of the test data.
+    /// A map of `mode` of the test data.
+    fn map_of(mode: maps::GameMode) -> maps::MatchMap {
+        maps::playable_in(mode)
+            .find_map(|map| maps::MatchMap::of(map.id))
+            .expect("a map of the mode")
+    }
+
     fn blackout_map() -> maps::MatchMap {
-        maps::playable()
-            .find(|map| map.mode == maps::GameMode::Blackout)
-            .and_then(|map| maps::MatchMap::of(map.id))
-            .expect("a Blackout map")
+        map_of(maps::GameMode::Blackout)
+    }
+
+    #[test]
+    fn a_scarcity_maps_options_end_with_its_entry_and_read_back() {
+        let plain = options(vec![alice()]);
+        let without = options_bytes(&plain, dictionary()).unwrap();
+        let with = MatchOptions {
+            map: map_of(maps::GameMode::Scarcity),
+            ..plain
+        };
+        let bytes = options_bytes(&with, dictionary()).unwrap();
+        assert_eq!(bytes[without.len()..], b"SRPX\x02\x01\x02"[..]);
+        assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        // Blackout's entry on a Scarcity map, Scarcity's on a Blackout or a
+        // plain map: no map and mode the client plays.
+        let blackout = [&bytes[..without.len()], b"SRPX\x02\x01\x01"].concat();
+        assert_eq!(
+            parse_options(&blackout, dictionary()),
+            Err(StaticInfoError::Map(with.map.map().id))
+        );
+        let on_plain = [&without[..], b"SRPX\x02\x01\x02"].concat();
+        assert_eq!(
+            parse_options(&on_plain, dictionary()),
+            Err(StaticInfoError::Map(61))
+        );
+        // A value no variant has: refused.
+        let unknown = [&without[..], b"SRPX\x02\x01\x03"].concat();
+        assert_eq!(
+            parse_options(&unknown, dictionary()),
+            Err(StaticInfoError::SrpBlock)
+        );
     }
 
     #[test]

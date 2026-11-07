@@ -118,6 +118,8 @@ impl std::fmt::Display for RuleMode {
 
 /// The rules a Blackout match plays: the plain battery mode (no chargers).
 pub const BLACKOUT_RULES: RuleMode = RuleMode::Batteries;
+/// The rules a Scarcity match plays: the plain battery mode too.
+pub const SCARCITY_RULES: RuleMode = RuleMode::Batteries;
 
 /// The mode a match is played in, as its map's config says: its rules
 /// (`mode.mode`, [`RuleMode`]), or a variant of srp's of them
@@ -133,11 +135,19 @@ pub enum GameMode {
     /// of [`BLACKOUT_RULES`], the static info's Blackout entry (exe patch
     /// 65) and its own pay.
     Blackout,
+    /// "Protective device: scarcity" (`docs/notes/scarcity.md`): the rules
+    /// of [`SCARCITY_RULES`], each life's ammo the loaded magazines alone
+    /// (the kits cut by the match server, [`super::scarcity`]) and the
+    /// static info's Scarcity entry (exe patch 119: no ammo crates).
+    Scarcity,
 }
 
 /// srp's variants of a config's rules, by `mode.srp_variant`, and the
 /// rules each plays.
-pub const VARIANTS: [(&str, GameMode); 1] = [("blackout", GameMode::Blackout)];
+pub const VARIANTS: [(&str, GameMode); 2] = [
+    ("blackout", GameMode::Blackout),
+    ("scarcity", GameMode::Scarcity),
+];
 
 impl GameMode {
     /// A config's mode: `None` for rules srp does not play; an error for a
@@ -164,15 +174,24 @@ impl GameMode {
             Self::TeamDeathmatch => RuleMode::TeamDeathmatch,
             Self::Research => RuleMode::Research,
             Self::Blackout => BLACKOUT_RULES,
+            Self::Scarcity => SCARCITY_RULES,
         }
+    }
+
+    /// Whether it is a variant of srp's ([`VARIANTS`]): a room's mode only,
+    /// offered by its vote's third card (`session::v026g::rooms`), never
+    /// drawn for a match of no room.
+    pub const fn is_variant(self) -> bool {
+        matches!(self, Self::Blackout | Self::Scarcity)
     }
 
     /// Its number in the lobby (the rooms' pool, cards and rows, the room
     /// settings' modes left out, `SRP_MATCH_MODES`): its rules', 6 for
-    /// Blackout.
+    /// Blackout, 7 for Scarcity.
     pub const fn lobby_number(self) -> u8 {
         match self {
             Self::Blackout => 6,
+            Self::Scarcity => 7,
             other => other.rules().number(),
         }
     }
@@ -183,12 +202,13 @@ impl GameMode {
     }
 
     /// Every mode.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Batteries,
         Self::TimedBatteries,
         Self::TeamDeathmatch,
         Self::Research,
         Self::Blackout,
+        Self::Scarcity,
     ];
 }
 
@@ -850,6 +870,30 @@ mod tests {
     }
 
     #[test]
+    fn scarcity_is_a_mode_of_its_own_maps() {
+        // The test data's 24 battery maps, each once more as Scarcity
+        // (`scripts/content-edit/scarcity-mode-1.json`: ids from 12).
+        let scarcity: Vec<&MapMode> = playable_in(GameMode::Scarcity).collect();
+        assert_eq!(scarcity.len(), playable_in(GameMode::Batteries).count());
+        let ids: Vec<u8> = scarcity.iter().map(|map| map.id).collect();
+        assert_eq!(ids, (12..=35).collect::<Vec<u8>>());
+        for map in scarcity {
+            let twin = find(map.level, map.weather, GameMode::Batteries).unwrap();
+            assert_eq!(map.config, format!("scarcity/{}", twin.config));
+            assert_eq!((map.project, map.rules), (twin.project, twin.rules));
+            assert_eq!(map.mode.rules(), SCARCITY_RULES);
+            assert_eq!(map.mode.lobby_number(), 7);
+            assert_eq!(map.mode_name_key, "st_srp_mode_scarcity");
+            assert_eq!(map.container_teams, twin.container_teams);
+            assert_eq!(MatchMap::of(map.id).unwrap().mode(), GameMode::Scarcity);
+        }
+        assert_eq!(GameMode::of_config(2, Some("scarcity")), Ok(Some(GameMode::Scarcity)));
+        assert!(GameMode::of_config(3, Some("scarcity")).is_err());
+        let variants: Vec<GameMode> = GameMode::ALL.into_iter().filter(|mode| mode.is_variant()).collect();
+        assert_eq!(variants, [GameMode::Blackout, GameMode::Scarcity]);
+    }
+
+    #[test]
     fn a_configs_mode_is_its_rules_or_a_variant_of_them() {
         assert_eq!(GameMode::of_config(4, None), Ok(Some(GameMode::TeamDeathmatch)));
         assert_eq!(GameMode::of_config(2, Some("blackout")), Ok(Some(GameMode::Blackout)));
@@ -874,8 +918,8 @@ mod tests {
         assert_eq!(ids(GameMode::Batteries), mode_2);
         assert_eq!(ids(GameMode::TimedBatteries), mode_3);
         assert_eq!(ids(GameMode::TeamDeathmatch), mode_4);
-        // And Blackout's 24, one for each battery map.
-        assert_eq!(playable().count(), 72 + 24);
+        // And Blackout's and Scarcity's 24 each, one for each battery map.
+        assert_eq!(playable().count(), 72 + 2 * 24);
         for bad in [11, 45, 107, 108, 114, 115].into_iter().chain(141..=151) {
             assert!(playable().all(|map| map.id != bad), "{bad}");
         }
@@ -883,9 +927,10 @@ mod tests {
         for missing in [114, 141, 142].into_iter().chain(143..=151) {
             assert!(map_mode(missing).is_none(), "{missing}");
         }
-        // 12 ids a level: 3 weathers × 3 modes, and Blackout in each weather.
+        // 15 ids a level: 3 weathers × 3 modes, and Blackout and Scarcity
+        // in each weather.
         for level in 1..=8 {
-            assert_eq!(playable().filter(|map| map.level == level).count(), 12);
+            assert_eq!(playable().filter(|map| map.level == level).count(), 15);
         }
     }
 
@@ -908,9 +953,9 @@ mod tests {
             .collect();
         assert_eq!(missing, [114, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151]);
         // A playable id's config name spells its level, weather and mode,
-        // and its project is `level_0X/<weather>_<mode>` (Blackout's: its
+        // and its project is `level_0X/<weather>_<mode>` (a variant's: its
         // battery map's, `blackout_is_a_mode_of_its_own_maps`).
-        for map in playable().filter(|map| map.mode != GameMode::Blackout) {
+        for map in playable().filter(|map| !map.mode.is_variant()) {
             let weather = match map.weather {
                 weather::DAY => "day",
                 weather::RAIN => "rain",
@@ -1027,8 +1072,9 @@ mod tests {
 
     #[test]
     fn the_projects_give_what_srp_had_by_hand() {
-        // The test data: 0.26g's maps, levels 1 to 8, all 72, and Blackout's 24.
-        assert_eq!(playable().count(), 72 + 24);
+        // The test data: 0.26g's maps, levels 1 to 8, all 72, and
+        // Blackout's and Scarcity's 24 each.
+        assert_eq!(playable().count(), 72 + 2 * 24);
         as_before(all());
         // Spot checks: level_04's Team Deathmatch has 75 points (39 of
         // layer `tdm`), level_02's 31 (one of team 2).
@@ -1090,7 +1136,7 @@ mod tests {
             assert!(!playable_in(game_mode).contains(&added.id));
             assert_eq!(playable_in(game_mode), ids(game_mode));
         }
-        assert_eq!(table.iter().filter(|map| map.is_playable()).count(), 73 + 24);
+        assert_eq!(table.iter().filter(|map| map.is_playable()).count(), 73 + 2 * 24);
     }
 
     #[test]
