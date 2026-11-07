@@ -109,6 +109,9 @@ pub struct Estimate {
 pub struct GridExtra {
     pub way_m: f32,
     pub net: Vec3,
+    /// The share of [`Self::way_m`] on steps the grid had rising (a step it walks up, more than [`STEP_UP_RISE_M`]): what the
+    /// hop reads (a body caught on a step), not a wall's slide.
+    pub up_m: f32,
 }
 
 impl Estimate {
@@ -550,11 +553,11 @@ impl BodyTrack {
         self.last_meant
     }
 
-    /// [A318] How far the grid's steps alone would have taken the reckoning past where the client's walk tick held it, since the
-    /// last world (the trail's [`GridExtra::way_m`]): under `kin.client_step = client`, what a world would have put the grid's
+    /// [A318] How far the grid's steps up alone would have taken the reckoning past where the client's walk tick held it, since
+    /// the last world (the trail's [`GridExtra::up_m`]): under `kin.client_step = client`, what a world would have put the grid's
     /// reckoning back by. Zero under `grid`.
     pub fn held_short_since_fix(&self) -> f32 {
-        self.trail.iter().map(|r| r.grid_extra.way_m).sum()
+        self.trail.iter().map(|r| r.grid_extra.up_m).sum()
     }
 
     /// Where the body was reckoned to move between the last two worlds of this life, net ([`Self::last_meant`]'s way's ends).
@@ -1055,7 +1058,11 @@ fn advance(
                     };
                     (node, feet, stopped) = slide_edge(kin, grid, at.node.unwrap_or(node), at.feet, target, offs);
                     let net = Vec3::new(grid_feet.x - feet.x, 0.0, grid_feet.z - feet.z);
-                    at.grid_extra.way_m += at.feet.distance_xz(grid_feet) - at.feet.distance_xz(feet);
+                    let short = at.feet.distance_xz(grid_feet) - at.feet.distance_xz(feet);
+                    at.grid_extra.way_m += short;
+                    if grid_feet.y - at.feet.y > STEP_UP_RISE_M {
+                        at.grid_extra.up_m += short;
+                    }
                     at.grid_extra.net = at.grid_extra.net + net;
                     #[cfg(test)]
                     if feet.distance_xz(grid_feet) > 1e-3 {
