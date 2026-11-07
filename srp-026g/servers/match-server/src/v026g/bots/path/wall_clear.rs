@@ -109,7 +109,7 @@ impl Route {
     fn keyed(&self, at: Vec3) -> bool {
         self.gates.contains(&at)
             || self.ledge_tops.iter().any(|(p, _)| *p == at)
-            || self.ledge_leads.iter().any(|(p, _)| *p == at)
+            || self.ledge_leads.iter().any(|(p, ..)| *p == at)
             || self.sprint_drops.iter().any(|(p, _)| *p == at)
     }
 

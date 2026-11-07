@@ -650,7 +650,7 @@ pub fn walking_press_window(rise: f32, across: f32, run: f32, cell: f32, radius:
     let edge = across + run + 0.5 * cell;
     let least = (WALK_CLIP_END_M - edge - edge_hold_m(radius)).max(0.0);
     let farthest = walking_jump_far(rise)? - face;
-    (farthest - least >= TICK_WALK_M).then_some((least, JUMP_PRESS_LEAD_M.clamp(least, farthest)))
+    (farthest - least >= TICK_WALK_M).then(|| (least, JUMP_PRESS_LEAD_M.clamp(least, farthest)))
 }
 
 /// A sprint jump takes a straight run of this many metres behind its take-off on the same level (the 8e rows: a
