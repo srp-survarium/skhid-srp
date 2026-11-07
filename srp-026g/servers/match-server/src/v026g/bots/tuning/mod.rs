@@ -354,6 +354,16 @@ impl Tuning {
     /// Whether the maps' grids need their table of wall clearances (`mapdata::WalkGrid::wall_clearance`) for this tuning: the one
     /// place that says it, so a map loader derives it from the tuning in force and nothing can be set to disagree. The table costs
     /// 0.5-1.7 s of CPU a map, which a tuning without `think.wall_clear_corners` does not spend.
+    /// [A333] The grid extras this tuning's worlds are finished with (`mapdata::GridExtras`): the tables it needs
+    /// ([`Self::needs_wall_clearance`], [`Self::needs_open_sides`]) and the pull's hold when `grid.wall_clear_pull` is on.
+    pub fn grid_extras(&self) -> mapdata::GridExtras {
+        mapdata::GridExtras {
+            wall_clearance: self.needs_wall_clearance(),
+            open_sides: self.needs_open_sides(),
+            pull_hold: self.grid.wall_clear_pull.then_some(PULL_HOLD_M),
+        }
+    }
+
     pub fn needs_wall_clearance(&self) -> bool {
         self.think.wall_clear_corners || self.grid.wall_clear_pull
     }
