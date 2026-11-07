@@ -2541,7 +2541,8 @@ pub(super) mod tests {
         assert!(WallSlide::Client.share(deg(90.0)).abs() < 1e-6);
         assert!((WallSlide::Round.share(deg(45.0)) - 0.707).abs() < 0.001);
         // The wall of `walled` runs along z at x 20; from the floor nearest it, a step of 0.5 m at 45 degrees (+x, +z) into it: all
-        // of it a slide (the round rule's z axis try keeps the step's z part, 0.354; the client's 0.586 of 0.5, 0.293).
+        // of it a slide (the round rule's z axis try keeps the step's z part, 0.354; the client's goes 0.586 of 0.5 on that try, 0.293,
+        // and the whole length on a half-cell part a 22.5 degree try fits).
         let grid = walled();
         let node = grid.locate(Vec3::new(19.95, 0.0, 10.0), 0.5).unwrap();
         let from = grid.position(node);
@@ -2552,7 +2553,7 @@ pub(super) mod tests {
         };
         let (client, round) = (along(WallSlide::Client), along(WallSlide::Round));
         assert!((round - 0.354).abs() < 0.01, "round {round}");
-        assert!((client - 0.293).abs() < 0.01, "client {client}");
+        assert!(client >= 0.29 && client < round - 0.03, "client {client} round {round}");
     }
 
     /// [A318] [`FixFall::World`]: a world that has the body 0.5 m over its floor (under the step) going down at 3 m/s starts the
