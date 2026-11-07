@@ -617,7 +617,19 @@ dispatches to. There are exactly three entry points, each enumerated above:
 2. The match messages `0xE3..0xF6` (`srp_validate::messages::check`): lengths,
    place indices, input rotation/actions, envelopes, lzma2 output caps, and the
    0xE4 static options (kits/items/slots/mods/upgrades/name<=63/clan<=14). No
-   gap.
+   gap. The native readers, read in full: the dispatcher
+   `on_match_packet_received` 0x27A300 is a `switch(id)` gated by the handshake
+   phase `[+0x1F1C64]` (0->1->2), each case a per-id handler; its 128 KB stack
+   buffer is the decompression target for 0xE4/0xE8, which `lzma2_bound`
+   (`OPTIONS_CAP` 0x578A0 / `SNAPSHOT_STATE_CAP`) caps before the decoder runs.
+   The input path reads fixed node fields (0x318400) and applies the rotation
+   by ADDING its two IEEE halves to the player angle (0x2D86E0 -> 0x2D8AD0, and
+   the merged node 0x2C6640) -- bounded by `rotation_is_sane` (each half finite
+   and < 1024) and the `UNUSED_ACTIONS` bit, so no NaN/Inf or stray action
+   reaches the angle. `enter_match` 0x2D1470 guards the place byte `< 0x14`
+   before indexing the 20-place table (stride 0x45FC) and runs the resync/too-
+   old time checks; `items_dictionary::item_by_id` 0x1F0090 is a lookup that
+   returns NULL (not an array index) on an unknown id, null-checked by callers.
 3. The lobby dispatcher 0x274A00: ids 0x80..0xA1 (jump table) + 0xA2..0xA4
    (chat). All 18 `read_*` cases enumerated above; only chat 0x26B6F0, squad
    0x274720, squad-member profile 0x1F1070, clan 0x271FD0 and elo 0x271EB0
