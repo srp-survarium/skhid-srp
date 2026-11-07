@@ -135,6 +135,9 @@ pub enum Reason {
         len: usize,
         bullets: u32,
     },
+    /// The owner's place has no player object a game could read the bullet
+    /// with: past the places, or (the owner has no block) not of the roster
+    /// or with no usable kit.
     BulletOwner {
         bullet: usize,
         owner: u8,
@@ -148,7 +151,8 @@ pub enum Reason {
         bullet: usize,
         slot: u8,
     },
-    /// The owner's current kit has nothing in the slot.
+    /// A kit of the owner that may be current (he has no block: any usable
+    /// one) has no gun in the slot.
     BulletNoWeapon {
         bullet: usize,
         slot: u8,
@@ -662,7 +666,7 @@ impl fmt::Display for Reason {
             ),
             Reason::BulletOwner { bullet, owner } => write!(
                 f,
-                "bullet {bullet}'s owner {owner} has no player block in the world"
+                "bullet {bullet}'s owner {owner} is no place of the match with a player"
             ),
             Reason::BulletSecond {
                 bullet,

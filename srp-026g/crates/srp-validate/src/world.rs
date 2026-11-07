@@ -182,7 +182,7 @@ pub fn validate_frame(frame: &Frame<'_>, context: &Context<'_>) -> Result<(), Re
         player_head(&block, context)?;
         player_tail(&block, context)?;
     }
-    bullets(frame)?;
+    bullets(frame, context)?;
     statistics(&frame.statistics(), context)?;
     objects(&frame.objects(), context)?;
     rules(&frame.rules(), context)?;

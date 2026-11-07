@@ -275,17 +275,77 @@ fn animation_validate_rejects_a_table_under_run() {
     assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TableUnderrun));
 }
 
-#[test]
-fn animation_validate_rejects_a_floats_index() {
-    // One floats dict entry, but the one index into it is 1.
+/// The minimal tree's 12 floats as a table of two unique ones, the last
+/// float's index `last` (in width(2) = 2 bits).
+fn indexed_floats(last: u32) -> Vec<u8> {
     let mut w = BitW::new();
     tree_header(&mut w, 11, 0, 0);
     w.put(0, 10); // times: count 0
-    w.put(1, 1).put(1, 10); // floats: indexed, count 1
-    w.put(1, 1); // unique = 1, in width(1) = 1 bit
-    w.put(0, 32); // the one dict float
-    w.put(1, 1); // index 1, in width(1) = 1 bit: past the one entry
-    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::FloatsIndex));
+    w.put(1, 1).put(12, 10); // floats: indexed, count 12
+    w.put(2, 4); // unique = 2, in width(12) = 4 bits
+    w.put(0, 32).put(0x3F80_0000, 32); // the two table floats
+    for _ in 0..11 {
+        w.put(1, 2);
+    }
+    w.put(last, 2);
+    w.bytes().to_vec()
+}
+
+#[test]
+fn animation_validate_bounds_a_floats_index_by_the_unique_count() {
+    assert_eq!(animation_validate(&indexed_floats(0)), Ok(()));
+    // The unique count: the index `save_floats` (0x397040) writes for a NaN,
+    // which its `find` never matches (a real stream of
+    // rec026g_20261106-211841_03439962 has three).
+    assert_eq!(animation_validate(&indexed_floats(2)), Ok(()));
+    // Past it: no encoder writes this.
+    assert_eq!(
+        animation_validate(&indexed_floats(3)),
+        Err(AnimFault::FloatsIndex)
+    );
+}
+
+#[test]
+fn animation_validate_takes_a_nan_entry_no_index_names() {
+    // The game's own stream for a NaN value: the entry is kept, no index
+    // names it, the value's index is the count (place 12 of
+    // rec026g_20261106-211841_03439962). A named NaN entry reaches a bone.
+    let stream = |named: bool| {
+        let mut w = BitW::new();
+        tree_header(&mut w, 11, 0, 0);
+        w.put(0, 10); // times: count 0
+        w.put(1, 1).put(12, 10); // floats: indexed, count 12
+        w.put(2, 4); // unique = 2
+        w.put(0x3F80_0000, 32).put(0xFFC0_0000, 32); // 1.0 and a NaN
+        for _ in 0..11 {
+            w.put(0, 2);
+        }
+        w.put(if named { 1 } else { 2 }, 2);
+        w.bytes().to_vec()
+    };
+    assert_eq!(animation_validate(&stream(false)), Ok(()));
+    assert_eq!(
+        animation_validate(&stream(true)),
+        Err(AnimFault::FloatNotNumber)
+    );
+}
+
+#[test]
+fn animation_validate_rejects_a_times_index_at_the_unique_count() {
+    // A time is a u32, always found by the encoder's search: an index at the
+    // count is no stream the game writes.
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(2, 10); // times: count 2
+    w.put(1, 1).put(0, 32); // indexed, base 0
+    w.put(0, 5); // each delta 0 bits
+    w.put(1, 2); // unique = 1, in width(2) = 2 bits
+    w.put(0, 1).put(1, 1); // indexes in width(1) = 1 bit: 0, then 1
+    w.put(0, 1).put(12, 10); // floats: not indexed, 12 of them
+    for _ in 0..12 {
+        w.put(0, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TimesIndex));
 }
 
 #[test]

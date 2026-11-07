@@ -1521,6 +1521,29 @@ mod tests {
     }
 
     #[test]
+    fn the_speed_and_the_last_position_may_be_nan() {
+        // Place 12's state in rec026g_20261106-211841_03439962 from
+        // 540 200 ms: a 0 ms step makes the speed 0/0 (0x2D9535), and the
+        // controller's last position is NaN too.
+        let items = [item(0, Body::None)];
+        let mut state = valid_state();
+        state.extend(header_item(0, 0, 0));
+        let speed = state.len() + 1;
+        let health = speed + 4 + 1 + 16;
+        let last_pos = health + BODY_PARTS * 14 + 1 + 4;
+        state.extend(rest());
+        for bits in [0xFFC0_0000u32, f32::INFINITY.to_bits()] {
+            for at in [speed, last_pos, last_pos + 4, last_pos + 8] {
+                state[at..at + 4].copy_from_slice(&bits.to_le_bytes());
+            }
+            assert_eq!(with_inventory(&state, &items), Ok(()));
+        }
+        // The damage model's floats stay numbers.
+        state[health..health + 4].copy_from_slice(&f32::NAN.to_bits().to_le_bytes());
+        assert!(matches!(reason(&state, &items), Reason::TailNotNumber { .. }));
+    }
+
+    #[test]
     fn the_items_and_the_rest_read_by_name() {
         use crate::world::inventory::{ItemBody, Left};
         let mut state = valid_state();

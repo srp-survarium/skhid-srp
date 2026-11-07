@@ -33,7 +33,7 @@
 //! ```
 
 use crate::reader::{Reader, Short};
-use crate::{Finite, KITS, Reason};
+use crate::{Finite, KITS, MaybeNan, Reason};
 use super::weapon::{JumpType, WeaponState, jump_type, optional_u32};
 use weapon_pickup::{Kit, Place};
 
@@ -223,6 +223,11 @@ pub(super) fn flag(reader: &mut Reader) -> Result<bool, Fault> {
 pub(super) fn float(reader: &mut Reader) -> Result<Finite, Fault> {
     let at = reader.at();
     Finite::of_bits(reader.f32_bits().map_err(short)?).ok_or((at, Reason::TailNotNumber { at }))
+}
+
+/// Any f32, a [`MaybeNan`].
+pub(super) fn any_float(reader: &mut Reader) -> Result<MaybeNan, Fault> {
+    reader.f32_bits().map(MaybeNan::of_bits).map_err(short)
 }
 
 /// `N` f32 that are numbers.
@@ -1045,7 +1050,7 @@ impl Usable {
 /// 0x7F7F0, 67 bytes), saved for a living player.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Controller {
-    last_pos: [Finite; 3],
+    last_pos: [MaybeNan; 3],
     jumping: bool,
     input_is_in_crouch: bool,
     logic_is_in_crouch: bool,
@@ -1060,8 +1065,12 @@ pub struct Controller {
 }
 
 impl Controller {
-    /// `m_last_pos`.
-    pub fn last_pos(&self) -> [Finite; 3] {
+    /// `m_last_pos` (+50h, stored raw at 0x7FB31..0x7FB65): any f32, the
+    /// game writes NaN in it. It is read only by updateAction's moved test
+    /// (0x7B773..0x7B7A7, where a NaN counts as moved) and player_step,
+    /// which writes it anew at its start (0x7BE84); the body's position
+    /// comes from the player's transform (set_transform at 0x2DB934).
+    pub fn last_pos(&self) -> [MaybeNan; 3] {
         self.last_pos
     }
 
@@ -1122,7 +1131,7 @@ impl Controller {
 
     fn read(reader: &mut Reader) -> Result<Self, Fault> {
         Ok(Self {
-            last_pos: floats(reader)?,
+            last_pos: [any_float(reader)?, any_float(reader)?, any_float(reader)?],
             jumping: flag(reader)?,
             input_is_in_crouch: flag(reader)?,
             logic_is_in_crouch: flag(reader)?,
@@ -1171,7 +1180,7 @@ impl RecentHit {
 ///
 /// ```text
 /// u8    m_jump_type (jump_type_enum, 0..=12)    [`JumpType`]
-/// f32   m_linear_horizontal_speed
+/// f32   m_linear_horizontal_speed               any f32 ([`MaybeNan`])
 /// the damage model                               [`DamageModel`]
 ///   bool m_have_second_chance, u32 m_last_hit_time_ms (its protector),
 ///   u32 m_last_tick_time_in_ms, u32 m_invulnerability_time_in_ms (both
@@ -1191,7 +1200,7 @@ impl RecentHit {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AfterItems<'a> {
     jump_type: JumpType,
-    linear_horizontal_speed: Finite,
+    linear_horizontal_speed: MaybeNan,
     damage_model: DamageModel<'a>,
     usable: Option<Usable>,
     inserted_time_ms: Option<u32>,
@@ -1210,8 +1219,14 @@ impl<'a> AfterItems<'a> {
         self.jump_type
     }
 
-    /// `m_linear_horizontal_speed`.
-    pub fn linear_horizontal_speed(&self) -> Finite {
+    /// `m_linear_horizontal_speed` (stored at 0x2DB844): any f32, the game
+    /// writes NaN. The step makes it the move's length over the step's
+    /// milliseconds (0x2D9507..0x2D9545), so a step of 0 ms gives 0/0 or
+    /// x/0. Every reader compares, multiplies or interpolates it
+    /// (0x2D95CF, the curve 0x25F30 from 0x31A4C8, the animation selector
+    /// 0x33705A..0x337299), none takes it as a count or index, and the
+    /// player's next step writes it again.
+    pub fn linear_horizontal_speed(&self) -> MaybeNan {
         self.linear_horizontal_speed
     }
 
@@ -1270,7 +1285,7 @@ impl<'a> AfterItems<'a> {
     fn read(mut reader: Reader<'a>, alive: bool, body_parts: usize) -> Result<Self, Fault> {
         let reader = &mut reader;
         let jump_type = jump_type(reader, "m_jump_type")?;
-        let linear_horizontal_speed = float(reader)?;
+        let linear_horizontal_speed = any_float(reader)?;
         let have_second_chance = flag(reader)?;
         let last_hit_time_ms = u32(reader)?;
         let last_tick_time_ms = optional_u32(reader)?;

@@ -2194,3 +2194,7 @@ va	status	ref_021d	name
 0x002ddad0	observed		survarium::game_effect_player::serialize
 0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
 0x00334310	observed		survarium::composite_game_effect::serialize
+0x0026d660	reviewed	0x0019bf64	survarium::base_local_network_client::get_player
+0x00397040	reviewed	0x0024df70	vostok::animation::mixing::n_ary_tree_serializer::save_floats
+0x00397810	reviewed		stlp_std::unique<float *>
+0x00397880	reviewed		stlp_std::find<float *,float>

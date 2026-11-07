@@ -22,7 +22,7 @@
 //! ```text
 //! off  size  field                          domain
 //!   0  4     m_id
-//!   4  12    m_start_position               float3, numbers
+//!   4  12    m_start_position               float3, any f32
 //!  16  12    m_start_velocity               float3, numbers
 //!  28  4     m_max_damage_speed             a number
 //!  32  4     m_min_damage_speed             a number
@@ -35,7 +35,7 @@
 //!  57  1     u8(m_change_trajectory_count)  open
 //!  58  4     m_max_damage_dealt             a number
 //!  62  1     s8(m_initiator_stance)         open
-//!  63  1     m_initiator->id                a place with a block
+//!  63  1     m_initiator->id                a place (see the rule)
 //!  64  1     m_ignorable_object's player id the initiator
 //!  65  1     the weapon's profile_slot_id   7 or 10
 //!  66  1     the ammunition's ordinal       open
@@ -48,9 +48,18 @@
 //! - `m_ricochet_count`: `try_reflect` 0x32DE40 adds one only below 2
 //!   (`cmp byte [ebx+88h], 2` 0x32DE4D, `inc` 0x32E33A); the constructor
 //!   sets 0 (PROVEN). Nothing indexes by it.
-//! - The initiator is a place of the world (the reader looks the player up
-//!   by it, 0x32BD37); the ignorable object is the initiator's player
-//!   (every bullet is the shooter's; PROVEN in every world kept).
+//! - The initiator is a place (the reader looks the player up by it,
+//!   0x32BD37); the ignorable object is the initiator's player (every
+//!   bullet is the shooter's; PROVEN in every world kept). Whether the
+//!   place has a player a game can read the bullet with is the rule
+//!   [`bullets`] holds it to, over the parsed bullet and the match.
+//! - `m_start_position` (+28h, the loader 0x32BC19) is a [`MaybeNan`]: the
+//!   game writes NaN there for a shooter whose bones went NaN
+//!   (rec026g_20261106-211841_03439962, place 12). It is only computed with
+//!   and compared: the ray test of a NaN segment meets nothing, and
+//!   `update_bullet_position` (0x32EECB..0x32EF0C) takes a NaN or infinite
+//!   position as outside the level and removes the bullet at its first
+//!   step. The other floats are numbers.
 //! - The slot: the reader takes `[[player+10Ch]+10Ch + slot*4]` with no
 //!   bound (0x32BDA1); a bullet is a weapon's, in the kit's slot 7 or 10.
 //! - Open: the trajectory changes (a dword counted by `change_trajectory`
@@ -70,9 +79,9 @@
 //! of fixtures (1 to 256), then ceil(count / 32) words of bits, low bit
 //! first, 1 broken; the bits past the count are 0 (the writer clears them,
 //! PROVEN in the patch's C reference).
-use super::{Frame, Section, WEAPON_SLOTS};
+use super::{Body, Context, Frame, Section, WEAPON_SLOTS};
 use crate::reader::{Reader, Short};
-use crate::{Finite, Part, Place, Reason, Refusal};
+use crate::{Finite, KITS, MaybeNan, Part, Place, Reason, Refusal};
 
 /// The header's length.
 const HEADER: usize = 16;
@@ -84,7 +93,7 @@ const RECORD: usize = 69;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Bullet {
     id: u32,
-    start_position: [Finite; 3],
+    start_position: [MaybeNan; 3],
     start_velocity: [Finite; 3],
     max_damage_speed: Finite,
     min_damage_speed: Finite,
@@ -212,7 +221,7 @@ impl Bullet {
         };
         Ok(Self {
             id,
-            start_position: float3(start_position, 4)?,
+            start_position: start_position.map(MaybeNan::of_bits),
             start_velocity: float3(start_velocity, 16)?,
             max_damage_speed: number(max_speed, 28)?,
             min_damage_speed: number(min_speed, 32)?,
@@ -241,7 +250,8 @@ impl Bullet {
         self.id
     }
 
-    pub fn start_position(&self) -> [Finite; 3] {
+    /// `m_start_position`: any f32 (the module's domains).
+    pub fn start_position(&self) -> [MaybeNan; 3] {
         self.start_position
     }
 
@@ -510,33 +520,96 @@ impl<'a> Bullets<'a> {
     }
 }
 
-/// The bullets read ([`Bullets::read`]), each shooter with a block in the
-/// world.
-pub fn bullets(frame: &Frame<'_>) -> Result<(), Refusal> {
+/// The bullets read ([`Bullets::read`]), each with a shooter a game can
+/// read it with.
+///
+/// The loader (`bullet::bullet` 0x32BBC0) takes the shooter by his place
+/// from `game_world::get_player` (0x1F7660, the engine's slot +24h,
+/// 0x32BD4E), which is `network_client::get_player` (0x27A980, the client's
+/// slot +4Ch): `[[core+18458h] + place*30h + 4*[..+0Ch]]`, the place's
+/// player object of its current kit, with no bound on the place and no look
+/// at the world's mask. A null player is kept at +8, but 0x32BDA1 reads its
+/// inventory (`[player+10Ch]`) with no check, and 0x2E2750 the slot's item
+/// as a gun (`[weapon+5B0h]`) with none: the reader needs a player object at
+/// the place and a gun in the slot of its current kit. A place's objects
+/// last the match: a game makes one for each usable kit of every roster
+/// place (the current kit the lowest of them, 0x321820), the roster only
+/// grows, and a player's leaving clears his bit of the events' masks alone
+/// (`on_player_left_match` 0x2D2040). So a bullet whose shooter left with
+/// it in flight, which has no block in the world
+/// (rec026g_20261106-205639_4900abd9, place 12), is read with the objects
+/// every game still has of him.
+pub fn bullets(frame: &Frame<'_>, context: &Context<'_>) -> Result<(), Refusal> {
     let section = frame.bullets();
     let read = Bullets::read(&section)?;
     for (number, bullet) in read.iter().enumerate() {
-        let owner = bullet.initiator().get();
-        if !frame.has_block(owner) {
+        if let Some(reason) = shooter(number, &bullet, frame, context) {
             let at = section
                 .at
                 .saturating_add(HEADER)
                 .saturating_add(number.saturating_mul(RECORD));
-            return Err(Refusal::new(
-                Part::Bullets,
-                at,
-                Reason::BulletOwner {
-                    bullet: number,
-                    owner,
-                },
-            ));
+            return Err(Refusal::new(Part::Bullets, at, reason));
         }
     }
     Ok(())
 }
 
+/// Why a game could not read bullet `number`'s shooter, if it could not
+/// ([`bullets`]). A shooter with a block is the world's. One without must
+/// be a place of the match: below the world's places and, when the server
+/// has the roster's kits, a roster place every usable kit of which has a
+/// gun in the bullet's slot (which kit is current for a place with no block
+/// differs between games: a newcomer's is the lowest usable, an older
+/// game's the last it saw, so each must have one). Without the kits (the
+/// game's own check) the place bound alone.
+fn shooter(
+    number: usize,
+    bullet: &Bullet,
+    frame: &Frame<'_>,
+    context: &Context<'_>,
+) -> Option<Reason> {
+    let owner = bullet.initiator().get();
+    if frame.has_block(owner) {
+        return None;
+    }
+    let place = usize::from(owner);
+    let no_place = Some(Reason::BulletOwner {
+        bullet: number,
+        owner,
+    });
+    if place >= context.places {
+        return no_place;
+    }
+    // Without the kits, no reason: the place bound alone.
+    let inventory = context.inventory?;
+    let (Some(kits), Some(profile)) = (
+        inventory.kits.get(place),
+        context.profiles.and_then(|profiles| profiles.get(place)),
+    ) else {
+        return no_place;
+    };
+    let slot = bullet.weapon_slot().get();
+    let gun = |kit: u8| {
+        kits.get(usize::from(kit)).is_some_and(|items| {
+            items
+                .iter()
+                .any(|item| item.slot == slot && matches!(item.body, Body::Weapon(_)))
+        })
+    };
+    let mut usable = (0..KITS as u8).filter(|&kit| profile.usable(kit)).peekable();
+    if usable.peek().is_none() {
+        return no_place;
+    }
+    usable.find(|&kit| !gun(kit)).map(|kit| Reason::BulletNoWeapon {
+        bullet: number,
+        slot,
+        kit,
+    })
+}
+
 #[cfg(test)]
 mod tests {
+    use super::super::{Ammo, Chamber, Gun, Inventory, Item, Measure, Profile};
     use super::*;
     fn body(records: &[u8], count: u32) -> std::vec::Vec<u8> {
         let mut body = 1u32.to_le_bytes().to_vec();
@@ -548,8 +621,28 @@ mod tests {
         body.extend([0; 10]);
         body
     }
+    fn context<'a>(
+        places: usize,
+        profiles: Option<&'a [Profile]>,
+        inventory: Option<&'a Inventory<'a>>,
+    ) -> Context<'a> {
+        Context {
+            time: 0,
+            places,
+            game_mode: 4,
+            batteries: 0,
+            respawn_points: None,
+            profiles,
+            artefacts: None,
+            objects: None,
+            inventory,
+        }
+    }
+    fn checked(records: &[u8], count: u32, context: &Context<'_>) -> Result<(), Refusal> {
+        bullets(&super::super::frame(&body(records, count), 1).unwrap(), context)
+    }
     fn verdict(records: &[u8], count: u32) -> Result<(), Refusal> {
-        bullets(&super::super::frame(&body(records, count), 1).unwrap())
+        checked(records, count, &context(1, None, None))
     }
     #[test]
     fn quiet_byte_is_always_present_and_old_ammo_ordinals_are_allowed() {
@@ -573,9 +666,82 @@ mod tests {
             bad[offset] = value;
             assert!(verdict(&bad, 1).is_err(), "{offset}");
         }
-        valid[4..8].copy_from_slice(&f32::NAN.to_bits().to_le_bytes());
+        // The start position may be NaN (a NaN shooter's); the velocity may
+        // not.
+        let mut origin = valid;
+        for at in [4, 8, 12] {
+            origin[at..at + 4].copy_from_slice(&0xFFC0_0000u32.to_le_bytes());
+        }
+        assert_eq!(verdict(&origin, 1), Ok(()));
+        let read = Bullet::read(origin.as_slice().try_into().unwrap()).unwrap();
+        assert!(read.start_position().iter().all(|x| x.finite().is_none()));
+        valid[16..20].copy_from_slice(&f32::NAN.to_bits().to_le_bytes());
         assert!(verdict(&valid, 1).is_err());
         assert!(verdict(&[], u32::MAX).is_err());
+    }
+
+    /// A bullet of place 2, which has no block (the world's mask is place 0
+    /// alone): its shooter left with it in flight
+    /// (rec026g_20261106-205639_4900abd9, 149 550 ms: place 12's).
+    #[test]
+    fn a_bullet_of_a_place_that_left_needs_its_objects() {
+        let record = |slot: u8| {
+            let mut record = [0u8; RECORD];
+            (record[63], record[64], record[65]) = (2, 2, slot);
+            record
+        };
+        let reason = |result: Result<(), Refusal>| result.expect_err("refused").reason;
+        // The game's own check: the places alone.
+        assert_eq!(checked(&record(7), 1, &context(3, None, None)), Ok(()));
+        assert!(matches!(
+            reason(checked(&record(7), 1, &context(2, None, None))),
+            Reason::BulletOwner { owner: 2, .. }
+        ));
+        // The server: every usable kit of the place has a gun in the slot.
+        let gun = Body::Weapon(Gun {
+            states: &[],
+            chamber: Chamber::NotSaved,
+            ammo: Ammo::Kit(1),
+        });
+        let item = |slot, body| Item {
+            slot,
+            measure: Measure::Condition,
+            body,
+        };
+        let rifle = [item(0, Body::None), item(7, gun)];
+        let none = [item(0, Body::None), item(7, Body::None)];
+        let kits: [[&[Item]; KITS]; 3] = [[&[]; KITS], [&[]; KITS], [&rifle, &none, &rifle]];
+        let inventory = Inventory {
+            kits: &kits,
+            body_parts: 1,
+        };
+        let usable = |kits| Profile {
+            usable_kits: kits,
+            ..Profile::default()
+        };
+        let server = |kits: u8, record: &[u8]| {
+            let profiles = [usable(1), usable(1), usable(kits)];
+            checked(record, 1, &context(3, Some(&profiles), Some(&inventory)))
+        };
+        assert_eq!(server(0b101, &record(7)), Ok(()));
+        assert!(matches!(
+            reason(server(0b111, &record(7))),
+            Reason::BulletNoWeapon { slot: 7, kit: 1, .. }
+        ));
+        assert!(matches!(
+            reason(server(0b001, &record(10))),
+            Reason::BulletNoWeapon { slot: 10, kit: 0, .. }
+        ));
+        assert!(matches!(
+            reason(server(0, &record(7))),
+            Reason::BulletOwner { owner: 2, .. }
+        ));
+        // A place past the roster the server has.
+        let profiles = [usable(1), usable(1)];
+        assert!(matches!(
+            reason(checked(&record(7), 1, &context(3, Some(&profiles), Some(&inventory)))),
+            Reason::BulletOwner { owner: 2, .. }
+        ));
     }
 
     #[test]

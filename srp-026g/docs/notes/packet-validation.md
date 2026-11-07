@@ -77,6 +77,18 @@ plain comparisons of fields: its three free floats take any number (live
 games save 0.05 in them, 2 of the 25,456 uploads of the second live sample),
 its two interval ids (`current_interval_id`, `previous_time.interval_id`)
 are held to 0.
+A bullet's owner need not have a block in the world: a shooter who left with
+bullets in flight (2 uploads of rec026g_20261106-205639_4900abd9, place 12). The
+loader (`bullet::bullet` 0x32BBC0) takes the owner's player object of its current
+kit from the core's place table (`game_world::get_player` 0x1F7660 ->
+`network_client::get_player` 0x27A980, no bound, no mask check) and then reads its
+inventory slot (0x32BDA1) and that item as a gun (0x2E2750) with no null check.
+A place's objects last the match (one per usable kit of every roster place;
+leaving clears only the events' masks, `on_player_left_match` 0x2D2040), so such
+a bullet is allowed when its owner is under the places and, with the server's
+roster kits, a roster place every usable kit of which has a gun in the slot
+(which kit is current for him differs between games). The game's own check,
+without the kits, bounds the place alone.
 Since patch 98 the six sections grow past the history item's inline buffers;
 only the body's 0xF000 bytes (`world_frame::MAX_BODY`) and a player state's
 0x1000 bound them. The packed 0xE8 decodes into 0xF000 bytes as well.

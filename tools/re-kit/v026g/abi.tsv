@@ -2370,3 +2370,7 @@ va	name	source	ret_cleanup	result
 0x00305210	survarium::booby_trap_core::switch_to_state	manual	4	no result used
 0x003134c0	survarium::artefact_base::start_spawn_in_container	manual	4	no result used
 0x002ddad0	survarium::game_effect_player::serialize	manual	8	void; writes m_current_time_in_ms, the counts of the nodes of serialization_mode 1 (to ESP+4) and 2 (to ESP+8), then each such node (game_effect_player.cpp, its fields by name)
+0x0026d660	survarium::base_local_network_client::get_player	manual	8	EAX = the out pointer: the place's current kit player ([[client+578BCh]+18650h] + place x 30h, kit byte +0Ch), reference added, or 0; no bound on the place and no active-mask check, unlike get_active_player 0x26D6A0; the replay client's vtable 0x9FF344 +4Ch
+0x00397040	vostok::animation::mixing::n_ary_tree_serializer::save_floats	manual	4	none; writes the floats (+1014h..+1018h) as decode_floats_impl 0x3A9720 reads them: a 1-bit indexed form, the 10-bit count, then the 32-bit values, or the unique count, the sorted unique values (stlp_std::unique 0x397810, ucomiss equality) and each value's position (stlp_std::find 0x397880): a NaN equals none, so its position is the unique count
+0x00397810	stlp_std::unique<float *>	manual	0	EAX = the new end; equality by ucomiss (a NaN is kept each time)
+0x00397880	stlp_std::find<float *,float>	manual	0	EAX = the first element equal (ucomiss) to [ESI], or EDI (the end) for none: always the end for a NaN
