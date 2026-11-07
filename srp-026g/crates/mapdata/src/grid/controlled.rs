@@ -115,6 +115,16 @@ pub(super) fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
     at
 }
 
+thread_local! {
+    /// [A334] [`WalkGrid::pull_walk_fails`]'s answers by (the grid's number, from, to): a pure function of that grid's floors,
+    /// walker and body, so caching changes no answer. Cleared at [`PULL_WALKS_MAX`] entries.
+    static PULL_WALKS: std::cell::RefCell<std::collections::HashMap<(u64, NodeId, NodeId), bool>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// How many answers [`PULL_WALKS`] keeps before it starts over.
+const PULL_WALKS_MAX: usize = 1 << 20;
+
 /// How far [`out_of_walls`] moves a floor's feet at most, m (the 0.42 m hold less the grid's 0.3175 m, and a little).
 pub const OUT_OF_WALLS_M: f32 = 0.15;
 
@@ -223,22 +233,37 @@ impl WalkGrid {
     /// [A334] The grid with the routes' pulled legs walked by the client's walker ([`Self::pull_walk_fails`]); it needs the
     /// walker ([`Self::with_client_walker`]), and without it nothing fails.
     pub fn with_pull_walk(mut self) -> Self {
-        self.pull_walk = true;
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        self.pull_walk = Some(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
         self
     }
 
     /// [A334] Whether [`Self::with_pull_walk`] is set.
     pub fn pull_walk(&self) -> bool {
-        self.pull_walk
+        self.pull_walk.is_some()
     }
 
     /// [A334] Whether a route's straight leg from floor `a` to floor `b` is one the client's walk tick does not walk: the
     /// controller pass's walk test ([`walk_share`]: a standing body from `a`'s centre at the walk speed, with the exe's
     /// collision rules) with the grid's walker. False without [`Self::with_pull_walk`] or the walker.
     pub fn pull_walk_fails(&self, a: NodeId, b: NodeId) -> bool {
-        let (true, Some(world)) = (self.pull_walk, self.walker.as_deref()) else { return false };
+        let (Some(id), Some(world)) = (self.pull_walk, self.walker.as_deref()) else { return false };
+        // The answer is the floors' own (the walker and the body are the grid's): kept per thread by the grid's number and the
+        // floors, so a leg pulled again (most are: the same ways are planned again and again) costs a look-up.
+        let key = (id, a, b);
+        if let Some(known) = PULL_WALKS.with(|c| c.borrow().get(&key).copied()) {
+            return known;
+        }
         let (_, s) = self.body.controller();
-        !walk_share(world, &s, self.body.walk_start(), self.position(a), self.position(b)).1
+        let fails = !walk_share(world, &s, self.body.walk_start(), self.position(a), self.position(b)).1;
+        PULL_WALKS.with(|c| {
+            let mut c = c.borrow_mut();
+            if c.len() >= PULL_WALKS_MAX {
+                c.clear();
+            }
+            c.insert(key, fails);
+        });
+        fails
     }
 
     /// [A318] The heap [`Self::with_client_walker`] keeps, bytes (0 without it).
