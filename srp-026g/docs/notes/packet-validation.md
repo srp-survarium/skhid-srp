@@ -434,9 +434,11 @@ blocks, 0 refused); and the client/host drift gate `check_world_check_026g.py
 --drift` run end to end under Unicorn on 1,101 kept worlds (501 old version-4 +
 600 current) with their sixteen mutations each -- 19,818 checks, 0 differ, so
 the i686 arena build (with `animation_validate`) and the host agree on every
-world and mutation. No unbounded player-to-player read was found without a
-matching server bound or native guard; the animation stream was the one that
-lacked one and now has it.
+world and mutation. After the animation-float and player-effect checks landed
+the arena was relinked (`link_026g.py --write`) and the drift re-run on the 600
+current worlds -- 10,800 checks, 0 differ -- so the deployed i686 arena carries
+and agrees on the new checks too. The animation stream and the E player-effect
+records were the two reads lacking a bound; both now have one.
 
 ### Full reader sweep
 
@@ -528,6 +530,23 @@ kit (0xE4) 0x1F112A: name[64]                       <- options::text(64) refuses
 The client reader is unbounded, so the server clamp is load-bearing. The lobby
 readers otherwise carry only ints (free display values) and sized/`at_most`
 counts -- no raw pointer, bool or float surface.
+
+The lobby dispatcher `lobby_client::on_message_received` 0x274A00 is one large
+function with every id's case inlined (its jump table at 0x275138 maps ids
+0x80..0xA1 to internal labels, not separate functions, so the decompiler's
+flow limit rejects the whole body); ChatText 0xA2..0xA4 branch out of it before
+the table to `messaging_client` 0x26ABE0 -> text 0x26B6F0. Disassembling the
+table and the body, each case calls a named `lobby_client::read_*` reader.
+Most of them are the player's OWN account state the server sends it -- status,
+inventory, prices, skills, service prices, reputations, elo, quests, match
+stats, account services, shop, drops -- which no other player can inject, so
+they are outside the one-client-crashes-another scope. The cases that do carry
+another player's data are the ones audited: a squad member's profile
+(`player_profile::deserialize_static` 0x1F1070 -> name into +8 [64], clan into
++0x48 [+0x48..+0x56], both the `len`+memcpy+NUL pattern, clamped by the server
+to NAME 63 / ACCOUNT_CLAN_TAG 14, kits from the validated account), the clan
+roster (0x271FD0), the elo list (0x271EB0) and chat (0x26B6F0) -- all with a
+server clamp fitting the client buffer.
 
 All three reader groups -- world sections, player-state deep readers, and the
 match-message + lobby readers -- were read in full. Two unbounded or
