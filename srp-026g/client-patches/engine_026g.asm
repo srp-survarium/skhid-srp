@@ -171,7 +171,6 @@ global engine_get_module_handle_a
 global engine_match_packet_begin
 global engine_match_packet_send
 global engine_append_packet_bytes
-global engine_tick_count
 global engine_set_environment_variable_a
 global engine_show_scene_movie
 global engine_hide_scene_movie
@@ -238,7 +237,6 @@ engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: 
 engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
 engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (an import, stdcall)
-engine_tick_count equ 0x8701b8   ; the IAT slot 0x8701b8 (an import, stdcall)
 engine_set_environment_variable_a equ 0x87029c   ; the IAT slot 0x87029c (an import, stdcall)
 engine_get_system_time_as_file_time equ 0x870244   ; the IAT slot 0x870244 (an import, stdcall)
 engine_file_time_to_local_file_time equ 0x870230   ; the IAT slot 0x870230 (an import, stdcall)

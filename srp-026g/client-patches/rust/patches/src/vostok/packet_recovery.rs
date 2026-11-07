@@ -39,8 +39,7 @@ impl<'a> Connection<'a> {
     }
     pub(crate) fn closing(ctx: &Context<'_>) { BUDGET.set(ctx.thread(), None); }
     fn now(&self) -> Millis {
-        // SAFETY: GetTickCount takes no arguments and has no engine lifecycle.
-        Millis(unsafe { raw::engine_tick_count() })
+        Millis(super::files::tick_count())
     }
     fn budget(&self) -> Budget {
         BUDGET.get(self.thread).filter(|budget| budget.key == self.key)
