@@ -67,7 +67,7 @@ fn every_refusal_fits_the_message_box_in_every_language() {
     use session::v026g::replays::Refusal;
     let refusals = [
         Refusal::Unknown,
-        // The longest: two three-digit revisions and a tag.
+        // The longest: two three-digit revisions.
         Refusal::Older {
             from: 199,
             to: 254,
@@ -104,8 +104,16 @@ fn every_refusal_fits_the_message_box_in_every_language() {
             }
         }
     }
-    // 14 has no tag: the release of that revision, unnamed.
-    assert!(!refusal_text(refusals[2], None).contains("026g-rev"));
+    // Nothing installs an older game: no revision or release is named.
+    for language in 0..5 {
+        for refusal in &refusals[..3] {
+            let text = refusal_text(*refusal, Some(language));
+            assert!(
+                !text.contains("13") && !text.contains("199") && !text.contains("026g-rev"),
+                "{text}"
+            );
+        }
+    }
 }
 
 /// From two who can play to their room's match: the vote's 15 s, the wait
@@ -267,7 +275,7 @@ fn a_refused_replay_session_says_why_and_a_busy_player_gets_none() {
     assert_eq!(row, "R1;incompatible;1f07c8fb;0");
     assert!(
         said.unwrap()
-            .starts_with("Этот повтор записан старой версией игры")
+            .starts_with("Этот повтор записан до обновления игры;")
     );
     // A refusal holds nothing; a session not over: `busy`.
     assert_eq!(
