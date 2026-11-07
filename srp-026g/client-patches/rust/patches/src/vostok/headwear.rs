@@ -3,7 +3,7 @@
 //! are touched only on the render thread at update_render_matrices' own hook.
 
 use super::world::{Player, floats, read, write_floats};
-use super::{Context, Reg};
+use super::context::{Context, Reg};
 use crate::raw;
 use ragdoll::corpse::DeathKey;
 
