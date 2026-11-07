@@ -508,11 +508,11 @@ impl Heal {
         acted
     }
 
-    /// The medkits in the slot of the kit in use, and in its store.
+    /// The medkits (the Medikit or the military medkit, A311) in the slot of the kit in use, and in its store.
     pub(crate) fn medkits(&self) -> (u16, u16) {
         self.kits[self.kit]
             .iter()
-            .filter(|slot| slot.drug == Drug::Medkit)
+            .filter(|slot| matches!(slot.drug, Drug::Medkit | Drug::Military))
             .fold((0, 0), |(hand, store), slot| {
                 (hand + slot.hand, store + slot.store)
             })
