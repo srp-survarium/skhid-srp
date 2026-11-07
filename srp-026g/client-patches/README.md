@@ -738,10 +738,7 @@ patched in bytecode; the steps that did (`rooms_026g.py` to
 `player_gear_026g.py` and their Java patchers, on revision 23's movie) are in
 git history only.
 
-The build says whether the movie is `RESULT_SHA256`, the one last checked in
-the game (a note, not a gate): since 2026-10-21 `8b099212…`, the tree of
-6064476c (the owner checked it in the game). Tests:
-`python -m unittest test_build_lobby`. Not in a release yet.
+Tests: `python -m unittest test_build_lobby`. Not in a release yet.
 
 ## What each patch does
 
