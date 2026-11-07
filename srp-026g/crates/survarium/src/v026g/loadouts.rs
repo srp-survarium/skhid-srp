@@ -4166,6 +4166,39 @@ mod tests {
         assert_eq!((&profile.kits, &profile.items), (&fresh.kits, &fresh.items));
         assert_eq!(BotPocketKit::default().smoke, KitSmoke::Off);
     }
+    /// [A311] On the players' data (`SRP_GAME_DATA`): `MilitaryAboveLow` puts the military medkit in the Medikit's pocket of
+    /// every role's kits in the 9-10 and 13-15 tiers (same slot, count and quick-use key), keeps the Medikit in the lowest,
+    /// and the bot still reads back from its kits; `Medikit` changes nothing.
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the players' game data with the military medkit"]
+    fn the_military_medkit_takes_the_medikits_pocket_above_the_lowest_tier() {
+        crate::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        let dictionary = Dictionary::shared();
+        let name = |item: &SlotItem| dictionary.item(item.dict_id).map_or("", |row| row.name.as_str()).to_owned();
+        let kit = |medkit| BotPocketKit { medkit, ..BotPocketKit::stored(PocketStore::PerLife) };
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let old = bot_kits_in_kit(eq(tier), role, true, false, kit(KitMedkit::Medikit));
+                let new = bot_kits_in_kit(eq(tier), role, true, false, kit(KitMedkit::MilitaryAboveLow));
+                for (k, (old, new)) in old.iter().zip(&new).enumerate() {
+                    let at = format!("{tier:?} {role:?} kit {k}");
+                    assert_eq!(old.items.len(), new.items.len(), "{at}");
+                    for (a, b) in old.items.iter().zip(&new.items) {
+                        assert_eq!((a.slot, a.count, a.stored), (b.slot, b.count, b.stored), "{at}");
+                        let swapped = name(a) == BOT_MEDKIT.name && tier != BotTier::Low;
+                        let wanted = if swapped { BOT_MILITARY_MEDKIT_NAME.to_owned() } else { name(a) };
+                        assert_eq!(name(b), wanted, "{at}");
+                    }
+                    if tier != BotTier::Low {
+                        assert!(new.items.iter().any(|item| name(item) == BOT_MILITARY_MEDKIT_NAME), "{at}");
+                    }
+                }
+                let mut profile = bot_profile(1, 1, role, eq(tier));
+                assert!(with_bot_pockets(&mut profile, kit(KitMedkit::MilitaryAboveLow)));
+                assert_eq!(bot_equipment_of(&profile).map(|(_, r)| r), Some(role), "{tier:?} {role:?} reads back");
+            }
+        }
+    }
     /// The frags a kit carries by role (`KitFrags`): `Off` is the owner's kit untouched; `SupportTwo` fills the support's frag
     /// pocket (two, the pocket's size); `SupportAndCamper` adds one frag to the camper in the bandages' pocket, so the pockets
     /// keep their places and the trap stays the third quick-use key. Only legal items: the pockets the armour opens, one item a
