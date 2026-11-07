@@ -372,6 +372,13 @@ pub enum Reason {
         ammo: u8,
         count: u8,
     },
+    /// A field of a player's state holds a value its writer never
+    /// produces (`world::PlayerState` and the views it hands out).
+    TailField {
+        at: usize,
+        field: &'static str,
+        value: u32,
+    },
 
     // A match message.
     /// 0xE2, or an id outside 0xE3..0xF6.
@@ -733,6 +740,9 @@ impl fmt::Display for Reason {
                     f,
                     "a weapon's current ammo id {ammo}, past its {count} ammo"
                 )
+            }
+            Reason::TailField { at, field, value } => {
+                write!(f, "{field} at {at} is {value:#x}, no value its writer saves")
             }
             Reason::UnknownMessage => f.write_str("no message a client takes"),
             Reason::NeverSent => f.write_str("a message srp never sends"),

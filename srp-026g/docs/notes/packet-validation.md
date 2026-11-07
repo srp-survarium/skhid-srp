@@ -116,6 +116,26 @@ none is in any world seen). Next: the game objects, the player states, the
 bullets, statistics and rules, then a typed `World` that only the parse
 makes, for the server to cache and relay.
 
+The player states (`world/player_tail.rs`, `inventory.rs`, `weapon.rs`): a
+state is read into `PlayerState` (the head, the player and hit effects, the
+active objects, the stamina, the inventory header with a carried battery),
+then, with the match's kits, `ItemsAndRest` (each item and its body: medkit,
+oxygen tank, `WeaponState` with its state machine's state and its
+`Portable`; the damage model and its body parts, the usable data, the
+controller, the recent hits, patch 78's carry snapshot). Every field is
+named as the 0.26g writer's assert labels it, and a field the writer only
+ever saves certain values of is read into that type: the active and grenade
+slots (a slot or 23 for none), the artefact slots (from a quick slot 13..18
+to its end), at most 3 hit effects, the jump types (0..12, a selector's
+jump 1..12 with its sub-state of the same kind and, on the spot or in a
+sprint, its on-site weight 1.0), a sprint animation 0, 2, 4 or 6, a
+battery state's animation 0, 2 or 0xFF, a weapon seed in 1..2^31-2, an
+active medkit or oxygen tank that has an owner. Every live upload and local
+world still passes; of the flipped copies, 2,570 more are refused (207,392
+of 853,485), none fewer. The domains the writer can widen (counts the
+config sets, float ranges, the recoil seed, the spotted mask) are left open
+and say so where they are read.
+
 ## Server upload enforcement
 
 The next part calls the shared validator before an upload can enter any snapshot
