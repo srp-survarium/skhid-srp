@@ -3,8 +3,8 @@
 #                           [--revision <n>] [--server-code auto|yes|no]
 #                           [--minutes <n> | --no-maintenance] [--now]
 #                           [--match-wait <minutes>] [--label <word>]
-#                           [--ref <branch>] [--no-bot-data] [--dry-run]
-#                           [--yes --i-know]
+#                           [--ref <branch>] [--no-bot-data] [--worlds <folder>]
+#                           [--dry-run] [--yes --i-know]
 #
 # A whole release of origin/main in one run, and its record. Its revision
 # is the live exe's + 1 (--test: the test exe's + 1; or --revision <n>),
@@ -73,14 +73,21 @@
 #      writes the number in; with one, the server code must be built (and
 #      also when the target's tree still has one: its server would take
 #      this release's revision for it); with none, a note when the exe's
-#      patches changed since the last tag;
+#      patches changed since the last tag; the world check's tool
+#      (srp-world-check) built, and the worlds it checks: the target's
+#      newest 3 kept match recordings (SRP_RECORD_DIR, read under nice and
+#      ionice into the run's folder), or --worlds <folder>'s;
 #   2. takes the release lock, then, nothing players see:
 #      release/upload-patch (with --resources: publishes it and adds its row
 #      to the list; no server offers it before the swap),
 #      release/build-server-db (of the list), release/build-zip (--ref: the
 #      commit checked in step 1; --revision: the release's; --patches: the
 #      list, with the new patch, whose every patch the exe requires at its
-#      start: patch 49); checks the two files as release/deploy does (live:
+#      start: patch 49); the world check: every upload of those recordings
+#      checked as the new server checks an upload before it relays it, with
+#      the new server data (srp-world-check): one refused, or none checked,
+#      stops the release here, before the go; checks the two files as
+#      release/deploy does (live:
 #      and makes the item tables of the server data, srp-item-tables, so a
 #      tool failing on it stops here, before the go); makes the release
 #      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
@@ -196,6 +203,12 @@
 #                       plan says so). Without it a release stops when
 #                       $SKHID_BOT_DATA is not set, or lacks a listed file, or
 #                       has one of another sha256
+#   --worlds <folder>   the match recordings (*.srprec) the world check reads
+#                       instead of the target's newest: a release that
+#                       changes what games write (an exe patch) is checked
+#                       with worlds of its own games (a match on the test
+#                       environment after release.sh --test; one against
+#                       bots is kept), as the live games' are refused then
 #   --dry-run           runs the read-only checks of step 1, prints every
 #                       other command; plans no maintenance, writes nothing
 #   --yes --i-know      answer the y/N before the swap yes (both flags or
@@ -216,7 +229,7 @@ STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
 LAUNCHER_SHA=${SKHID_TEST_LAUNCHER_SHA256:-$(sed -n 's/^EXE_SHA256 = "\([0-9a-f]*\)"$/\1/p' "$ROOT/srp-026g/client-patches/launcher/patch_launcher_026g.py")}
 
 ref=main resources='' revision_arg='' test_server=0 server_code=auto minutes='' label='' yes=0 i_know=0
-no_maint=0 match_wait='' now=0 no_bot_data=0
+no_maint=0 match_wait='' now=0 no_bot_data=0 worlds_arg=''
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -228,6 +241,7 @@ while (($#)); do
     --no-maintenance) no_maint=1; shift ;;
     --now) now=1; shift ;;
     --no-bot-data) no_bot_data=1; shift ;;
+    --worlds) (($# >= 2)) || usage 1; worlds_arg=$2; shift 2 ;;
     --match-wait) (($# >= 2)) || usage 1; match_wait=$2; shift 2 ;;
     --label) (($# >= 2)) || usage 1; label=$2; shift 2 ;;
     --ref) (($# >= 2)) || usage 1; ref=$2; shift 2 ;;
@@ -1357,6 +1371,40 @@ if ((!test_server)) && ! ITEM_TABLES=$(item_tables_bin 2>"$work/item-tables.log"
     problem "the item tables' tool (srp-item-tables) did not build: $(tail -n 3 "$work/item-tables.log" | tr '\n' ' ')"
 fi
 
+# The world check (step 2): its tool, and the worlds it reads. The
+# target's newest kept recordings are its games' worlds, of the target's
+# revision: what this release's games write too, unless it changes that
+# (then --worlds names recordings of its own games). Copied off the host
+# at the lowest priority: it is small and runs the matches.
+WORLD_CHECK='' WORLDS=$work/worlds WORLDS_SAID=''
+WORLD_RECORDINGS=3
+if ! WORLD_CHECK=$(world_check_bin 2>"$work/world-check-build.log"); then
+    problem "the world check's tool (srp-world-check) did not build: $(tail -n 3 "$work/world-check-build.log" | tr '\n' ' ')"
+fi
+if [[ -n $worlds_arg ]]; then
+    given=$(find "$worlds_arg" -maxdepth 1 -name '*.srprec' 2>/dev/null | wc -l)
+    if ((given > 0)); then
+        WORLDS=$worlds_arg WORLDS_SAID="$given recording(s) of --worlds $worlds_arg"
+        okay "the world check: will read $WORLDS_SAID"
+    else
+        problem "--worlds $worlds_arg: no match recording (*.srprec) in it"
+    fi
+elif ((target_ok)) && [[ -n ${RUN_VOLUME_DIR:-} ]]; then
+    rec_dir=$RUN_VOLUME_DIR/recordings
+    mkdir -p "$WORLDS"
+    mapfile -t newest < <(on_target "ls -t $(q "$rec_dir") 2>/dev/null | grep -E '^rec026g_[0-9-]+_[0-9a-f]{8}\.srprec\$' | head -n $WORLD_RECORDINGS" || true)
+    for name in "${newest[@]}"; do
+        on_target "nice -n 19 ionice -c 3 cat $(q "$rec_dir/$name")" >"$WORLDS/$name" ||
+            problem "the world check: $rec_dir/$name on the $TARGET could not be read"
+    done
+    if ((${#newest[@]})); then
+        WORLDS_SAID="the newest ${#newest[@]} recording(s) on the $TARGET host ($(du -sm "$WORLDS" | cut -f1) MB: ${newest[*]})"
+        okay "the world check: will read $WORLDS_SAID"
+    else
+        problem "the world check: no kept match recording on the $TARGET ($rec_dir) to check worlds with: give --worlds <folder>"
+    fi
+fi
+
 # The server code: main's srp-026g build inputs against the live tree.
 build_code=0 code_report=''
 src_tar=$work/srp-026g-src.tar
@@ -1533,6 +1581,7 @@ zip=$work/zip/$ZIP_NAME
 build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH_LIST" --work "$work/zip" "${step_flags[@]}")
 if ((DRY_RUN)); then
     say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
+    say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
     say "[dry run]    and: ${build_zip[*]}"
     say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
     stage_begin
@@ -1543,6 +1592,15 @@ if ((DRY_RUN)); then
 else
     progress "2. building the server data (release/build-server-db)"
     "$here/build-server-db" "${step_flags[@]}" --out "$data" </dev/null || die "build-server-db failed"
+    # Every recorded upload checked as the new server will check an upload
+    # before it relays it, with the new data: a release that would refuse
+    # the worlds games write stops here, before players feel it.
+    progress "2. the world check: $WORLDS_SAID, with the new server data (srp-world-check)"
+    if ! "$WORLD_CHECK" --data "$data" --save "$work/worlds-refused" "$WORLDS" </dev/null >"$work/world-check.log" 2>&1; then
+        grep -E '^  REFUSED |: UNREAD|not checked|^FAILED' "$work/world-check.log" | head -n 12 | sed 's/^/  /'
+        die "the world check: the new server would refuse (or could not check) worlds its games wrote ($work/world-check.log, the refused ones in $work/worlds-refused): a change of the check, of the server data, or of what games write (then check worlds of this release's games: --worlds <folder>)"
+    fi
+    say "the world check: $(tail -n 2 "$work/world-check.log" | head -n 1)"
     progress "2. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip)"
     "${build_zip[@]}" </dev/null 2>&1 | tee "$work/build-zip.log" || die "build-zip failed"
     if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi

@@ -269,6 +269,20 @@ item_tables_bin() {
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-item-tables"
 }
 
+# The world check (srp-world-check, the match server's own check of an
+# upload, run on recorded worlds): $SRP_WORLD_CHECK_BIN, else built here.
+world_check_bin() {
+    if [[ -n ${SRP_WORLD_CHECK_BIN:-} ]]; then
+        printf '%s\n' "$SRP_WORLD_CHECK_BIN"
+        return
+    fi
+    say "building srp-world-check (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p match-server --bin srp-world-check') >&2 ||
+        die "srp-world-check did not build"
+    printf '%s\n' "$ROOT/srp-026g/target/release/srp-world-check"
+}
+
 
 # The building steps (build-patch, build-server-db, build-zip) run at nice
 # 10, with every child: the release PC goes on doing other things.

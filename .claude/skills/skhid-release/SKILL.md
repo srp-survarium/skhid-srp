@@ -274,7 +274,7 @@ release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
                    [--revision <n>] [--server-code auto|yes|no]
                    [--minutes <n> | --no-maintenance] [--now]
                    [--match-wait <minutes>] [--label <word>] [--ref <branch>]
-                   [--no-bot-data] [--dry-run] [--yes --i-know]
+                   [--no-bot-data] [--worlds <folder>] [--dry-run] [--yes --i-know]
 ```
 
 After the preflight it **prepares and stages everything before the go**,
@@ -332,10 +332,26 @@ The order, as it runs:
    only: their values take effect at the recreate), and whether main
    changes what a match computes (a `next` row of `simulation_changes.tsv`,
    above: then the image must be built; with none, a note when the exe's
-   patches changed since the last tag).
+   patches changed since the last tag). Last, the world check's tool
+   (`srp-world-check`) is built and the target's newest 3 kept match
+   recordings are copied off it (`nice -n 19 ionice -c 3 cat`), or
+   `--worlds <folder>`'s recordings are taken instead.
 2. **The lock, then everything prepared and staged**, nothing players
    see: `upload-patch` (with `--resources`; it adds the row; no server
    offers the patch before the swap), `build-server-db` (of the list),
+   then **the world check**: every upload of those recordings checked as
+   the new server checks an upload before it relays it, with the new
+   server data (`srp-world-check --data <it> <recordings>`, the match
+   server's own `world_validation::check`): one world refused, or none
+   checked, stops the release here, before the go, and prints the
+   refusals (section and offset; the refused worlds kept in the run's
+   `worlds-refused/`). A refusal is a check, a server data or a game's
+   writing that changed: never ship over it. A release that changes what
+   games write (an exe patch) refuses the live games' worlds by design;
+   check it with worlds of its own games instead: after `release.sh
+   --test`, play a match on the test environment (one against bots is
+   kept), copy its recording from the test volume's `recordings/`, and
+   give `--worlds <folder>`. Then
    `build-zip` (of the commit checked in step 1); the checks of `deploy`
    on both files; then the **release folder** on the target (below) with
    both files staged in it (sha256 checked there, `chmod 644`) and
