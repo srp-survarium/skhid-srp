@@ -66,6 +66,8 @@ pub struct Kinematics {
     pub edge: Edge,
     /// [A318] How the reckoned body comes down a drop ([`DropFall`]).
     pub drop_fall: DropFall,
+    /// [A318] Which input's keys and yaw move the reckoned body on a step ([`StepInput`]).
+    pub step_input: StepInput,
     /// [A318] The speed a world's falling body starts its reckoned fall at ([`FixFall`]).
     pub fix_fall: FixFall,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
@@ -96,6 +98,8 @@ pub struct Kinematics {
     pub level_source: LevelSource,
     /// [A331] Whether a battery carrier sprints ([`CarrierSprint`]).
     pub carrier_sprint: CarrierSprint,
+    /// [A325f] Whether a body's leg damage gates its moves as the client's does ([`LegDamageGate`]).
+    pub leg_damage: LegDamageGate,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -185,6 +189,19 @@ pub enum CarrierSprint {
     /// against the run).
     #[default]
     Refused,
+}
+
+/// [A325f] Whether a body's `leg_damage` affects gate its moves (`super::legs`; fx-review A325f, PROVEN in the exe): two legs
+/// held stop every move, sprint and jump until the first ends; one leg stops the sprint and the jump. KEPT_RIGHT (a correctness
+/// fix proven in the client's code: the old body walks on where the client stands).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LegDamageGate {
+    /// As it was: the keys move the body whatever its legs (the bots' own jump gate keeps its leg-pool test).
+    Ignored,
+    /// The client's gate: the reckoned body of every place and a bot's own keys drop what the legs refuse.
+    #[default]
+    Client,
 }
 
 /// [A331] How near a world's speed level must be to one of the kit's computed values to be taken as that value: the A332 check's
@@ -386,6 +403,7 @@ impl Default for Kinematics {
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
             drop_fall: DropFall::Client,
+            step_input: StepInput::Previous,
             fix_fall: FixFall::World,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
@@ -401,6 +419,7 @@ impl Default for Kinematics {
             level_read: LevelRead::Settled,
             level_source: LevelSource::Computed,
             carrier_sprint: CarrierSprint::Refused,
+            leg_damage: LegDamageGate::Client,
         }
     }
 }
@@ -472,6 +491,26 @@ pub enum WallSlide {
     /// recordings) drifts 3.31 % of the worlds against 3.54 % with [`Self::Diagonal`], every map and recording better.
     #[default]
     Round,
+}
+
+/// [A318] Which input's keys and yaw move the reckoned body over a step (`advance`). The client's tick T advances the clips
+/// chosen up to input T-50, rotated by the yaw before input T, and only then calls `apply_new_input` 0x2D86E0 for input T (player
+/// vtable +0x44; `apply_rotation` 0x2D8AD0 with the old yaw; a new clip has weight 0 on its own tick), PROVEN (fx-review A336). A
+/// world W carries input W's keys (`actions_mask` +0x330: 6,408 of 6,408 client-test worlds, 1,203 of 1,204 live) and its feet
+/// after tick W-50's step (`m_last_pos`, LIKELY). So the step into the feet at N moves with input N-100's keys and its yaw after
+/// N-100's turn: one input behind what the reckoning had (on turning walk ticks its step matched the client-walk reference's
+/// NEXT tick in 2,360 of 2,487).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StepInput {
+    /// The step from the tick of input N moves with input N's keys and its yaw after N's turn (as it was): one tick early.
+    Same,
+    /// The step from the tick of input N moves with input N-1's keys and its yaw after N-1's turn: each input acts one tick
+    /// later (the client's). After a world W the first step takes input W-50's keys and the world's yaw less input W's turn
+    /// (the world already holds input W's rotation). A stall's further steps (no input decided between) move with the newest
+    /// input, as the client holds it.
+    #[default]
+    Previous,
 }
 
 /// [A318] How the reckoned body (`BodyTrack`, not the lip guard's stop forecast) comes down when its floor drops more than a step

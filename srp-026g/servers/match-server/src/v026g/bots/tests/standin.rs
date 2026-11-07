@@ -345,6 +345,9 @@ pub(crate) struct Body {
     pub(crate) scale: PitchScale,
     pub(crate) blend: Blend,
     pub(crate) keys: u32,
+    /// [A318] With `kin.step_input = previous` (the client's order, fx-review A336): the keys and yaw (after its turn) of the input
+    /// before `keys`, which move the body on this tick; none on its first tick of a life (then `keys` and `yaw`).
+    pub(crate) held: Option<(u32, f32)>,
     pub(crate) health: f32,
     /// Its other pools ([`standin_damage::Pools`]): `health` is the body's.
     pub(crate) pools: standin_damage::Pools,
@@ -877,6 +880,7 @@ impl Game {
             scale: pitch_scale(),
             blend: Blend::default(),
             keys: 0,
+            held: None,
             health: 1.0,
             pools: standin_damage::Pools::default(),
             stock: standin_weapon::Stock::new(standin_weapon::Fill::guess(bench_tier(), gun)),
@@ -1082,6 +1086,7 @@ impl Game {
         };
         body.pitch = 0.0;
         body.blend = Blend::default();
+        body.held = None;
         body.health = 1.0;
         body.pools = standin_damage::Pools::default();
         body.legs = [0.5; 2];
@@ -1301,15 +1306,22 @@ impl Game {
             // A body with the low flag set, or over its capacity, walks at
             // its walk speed with the sprint keys held; the bar is spent on
             // the keys all the same.
+            // [A318] The client moves a tick with the input before the one it takes on that tick (`kin.step_input`).
+            let step_input = super::standin_jump::stand_in_step_input();
+            let (moving, moving_yaw) = match (step_input, body.held) {
+                (super::super::kin::StepInput::Previous, Some(held)) => held,
+                _ => (body.keys, body.yaw),
+            };
+            body.held = (step_input == super::super::kin::StepInput::Previous).then_some((body.keys, body.yaw));
             let keys = if body.carrying.is_some() || caught || !body.stamina.may_sprint() {
-                body.keys & !key::SPRINT
+                moving & !key::SPRINT
             } else {
-                body.keys
+                moving
             };
             let local = body
                 .blend
                 .tick_mixed(self.kin.target_local(keys, level), self.kin.blend_ticks, super::standin_jump::stand_in_mixer());
-            let v = to_world(local, body.yaw);
+            let v = to_world(local, moving_yaw);
             let to = Vec3::new(
                 body.feet.x + v[0] * TICK_S,
                 body.feet.y,
