@@ -279,6 +279,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     plays its next match; the public room's separate capacity is still 16 members.
   - a maintenance within 30 min: "Server maintenance soon: no new joins." (5)
   - the match ending (its mode's rule, its result): "The match is ending: you'll play the next one." (6)
+  - no game of the match can give a joiner a world now: their last worlds were refused by the
+    match server's check (`match.md` §36), until one passes again (8, since 2026-11-07). The
+    movie has no line for it yet: it shows the row with no reason until `JOIN_WHY` and the
+    dictionaries get `st_srp_rooms_join_why_8`.
   - its own kit or gear unfit: the red mark's text, as before a match (no seconds either).
 - **In the match (Tab list), to do:** a lost player's row stays grey for the 90 s; one who
   left to the lobby, or is lost past the 90 s, has its row removed; coming back after the

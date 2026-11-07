@@ -35,6 +35,10 @@ pub enum Closed {
     Ending,
     /// Every roster place of it is taken.
     Full,
+    /// Every game a joiner could take its first world from had its last
+    /// world refused by the match server's check: none can be had until
+    /// one passes again (`match.md` section 36).
+    NoWorld,
 }
 
 /// A side of a match being played, or a joiner: its players and what they
