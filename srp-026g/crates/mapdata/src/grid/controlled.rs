@@ -115,6 +115,74 @@ pub(super) fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
     at
 }
 
+thread_local! {
+    /// [A334] [`WalkGrid::pull_walk_fails`]'s answers by (the grid's number, from, to): a pure function of that grid's floors,
+    /// walker and body, so caching changes no answer. Cleared at [`PULL_WALKS_MAX`] entries.
+    static PULL_WALKS: std::cell::RefCell<std::collections::HashMap<(u64, NodeId, NodeId), bool>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// [A334] This thread's budget of walk ticks for [`WalkGrid::pull_walk_fails`]: set by the bots' poll each tick
+/// ([`set_pull_walk_budget`]), so the worst tick's walk work is bounded (a long route's pull back ran hundreds of walks of
+/// up to 68 ticks each in one poll: 13 s). Empty until first set: a walk outside a poll is not run.
+#[derive(Clone, Copy, Default)]
+struct PullWalkBudget {
+    /// Ticks still to spend this period.
+    left: u32,
+    /// Ticks charged this period.
+    spent: u32,
+    /// The most ticks one period charged since [`pull_walk_ticks_max_take`] last read it.
+    most: u32,
+}
+
+thread_local! {
+    static PULL_WALK_BUDGET: std::cell::Cell<PullWalkBudget> = const {
+        std::cell::Cell::new(PullWalkBudget { left: 0, spent: 0, most: 0 })
+    };
+}
+
+/// [A334] Starts a budget period of `ticks` walk ticks on this thread (the bots' poll calls it once a poll).
+pub fn set_pull_walk_budget(ticks: u32) {
+    PULL_WALK_BUDGET.with(|b| {
+        let old = b.get();
+        b.set(PullWalkBudget { left: ticks, spent: 0, most: old.most.max(old.spent) });
+    });
+}
+
+/// [A334] The walk ticks still left in this thread's period.
+pub fn pull_walk_budget_left() -> u32 {
+    PULL_WALK_BUDGET.with(|b| b.get().left)
+}
+
+/// [A334] The most walk ticks one period charged on this thread since the last call (the bench's per-tick line).
+pub fn pull_walk_ticks_max_take() -> u32 {
+    PULL_WALK_BUDGET.with(|b| {
+        let mut now = b.get();
+        let most = now.most.max(now.spent);
+        now.most = 0;
+        b.set(now);
+        most
+    })
+}
+
+/// [A334] Takes a walk of up to `ticks` from this thread's budget: a walk starts while any of it is left, so a period runs
+/// past it by one walk at most (the caller bounds a walk's length). False: the leg is not walked now.
+fn take_pull_walk(ticks: u32) -> bool {
+    PULL_WALK_BUDGET.with(|b| {
+        let mut now = b.get();
+        if now.left == 0 {
+            return false;
+        }
+        now.left = now.left.saturating_sub(ticks);
+        now.spent = now.spent.saturating_add(ticks);
+        b.set(now);
+        true
+    })
+}
+
+/// How many answers [`PULL_WALKS`] keeps before it starts over.
+const PULL_WALKS_MAX: usize = 1 << 20;
+
 /// How far [`out_of_walls`] moves a floor's feet at most, m (the 0.42 m hold less the grid's 0.3175 m, and a little).
 pub const OUT_OF_WALLS_M: f32 = 0.15;
 
@@ -172,9 +240,16 @@ pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3,
         // Toward the target, at most what is left.
         let go = left.length().min(step);
         c.walk = if left.length() > 1e-6 { left * (go / left.length()) } else { Vec3::ZERO };
+        let before = c;
         if c.step(world, 0.05, s).ceiling {
             // A low ceiling: the client slides under it or crouches (neither ported): not a stall the pass knows.
             return (1.0, false);
+        }
+        // A step is a function of the controller alone (the world and the settings are fixed), and the next walk of the
+        // feet alone: a step that changed nothing is a body held where it is for every tick left, so they change no
+        // answer (CPU: a stall at a wall or a riser would walk out all the leg's ticks).
+        if c == before {
+            break;
         }
     }
     let feet = c.feet();
@@ -218,6 +293,49 @@ impl WalkGrid {
         let (caster, _) = self.body.controller();
         self.walker = Some(std::sync::Arc::new(crate::controller::Collision::build(triangles).with_caster(caster)));
         self
+    }
+
+    /// [A334] The grid with the routes' pulled legs walked by the client's walker ([`Self::pull_walk_fails`]); it needs the
+    /// walker ([`Self::with_client_walker`]), and without it nothing fails.
+    pub fn with_pull_walk(mut self) -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        self.pull_walk = Some(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+        self
+    }
+
+    /// [A334] Whether [`Self::with_pull_walk`] is set.
+    pub fn pull_walk(&self) -> bool {
+        self.pull_walk.is_some()
+    }
+
+    /// [A334] Whether a route's straight leg from floor `a` to floor `b` is one the client's walk tick does not walk: the
+    /// controller pass's walk test ([`walk_share`]: a standing body from `a`'s centre at the walk speed, with the exe's
+    /// collision rules) with the grid's walker. False without [`Self::with_pull_walk`] or the walker.
+    pub fn pull_walk_fails(&self, a: NodeId, b: NodeId) -> bool {
+        let (Some(id), Some(world)) = (self.pull_walk, self.walker.as_deref()) else { return false };
+        // The answer is the floors' own (the walker and the body are the grid's): kept per thread by the grid's number and the
+        // floors, so a leg pulled again (most are: the same ways are planned again and again) costs a look-up.
+        let key = (id, a, b);
+        if let Some(known) = PULL_WALKS.with(|c| c.borrow().get(&key).copied()) {
+            return known;
+        }
+        // The walk's ticks at most (as [`walk_share`] counts them), taken from this thread's budget up front: past the budget
+        // the leg is not walked now (it walks, as with the switch off) and nothing is kept, so a later pull walks it.
+        let (pa, pb) = (self.position(a), self.position(b));
+        let ticks = (Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z).length() / (WALK_MPS * 0.05)).ceil() as u32 + 2;
+        if !take_pull_walk(ticks) {
+            return false;
+        }
+        let (_, s) = self.body.controller();
+        let fails = !walk_share(world, &s, self.body.walk_start(), pa, pb).1;
+        PULL_WALKS.with(|c| {
+            let mut c = c.borrow_mut();
+            if c.len() >= PULL_WALKS_MAX {
+                c.clear();
+            }
+            c.insert(key, fails);
+        });
+        fails
     }
 
     /// [A318] The heap [`Self::with_client_walker`] keeps, bytes (0 without it).

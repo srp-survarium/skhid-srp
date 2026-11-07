@@ -157,14 +157,6 @@ impl Bots {
             {
                 bot.bench_go = None;
             }
-            // [A318] The stand-in camper plans on his own tactics where the bench built him a world of his own.
-            #[cfg(test)]
-            let tactics = self
-                .bench_human_tactics
-                .as_ref()
-                .filter(|_| self.bench_camper.as_ref().is_some_and(|camper| camper.place() == bot.place))
-                .or(self.tactics.as_ref());
-            #[cfg(not(test))]
             let tactics = self.tactics.as_ref();
             #[cfg_attr(not(feature = "jump-test"), allow(unused_mut))]
             let mut decision = match (scripted, estimate, me, tactics) {
