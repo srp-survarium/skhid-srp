@@ -477,6 +477,80 @@ impl LoadedTuning {
     }
 }
 
+/// [A223] JSON pointers of the options the all-off patch never names (`all_off.json`, its test).
+/// Switches whose old value is wrong by the client or the game, read in the exe or the data or measured (A223, the
+/// owner: "All that is wrong for sure shouldnt be returned even if we testing all-off"): the patch never names them, so
+/// the all-off arm keeps the default. Each field's doc gives its proof. An old value that is only weaker (a habit, a
+/// guard, less information) is no bug and stays in the patch. The switch report shows each with its value ([`Tuning::switch_report`]).
+pub(super) const KEPT_RIGHT: &[&str] = &[
+    "/aim/combat/empty_reload",
+    "/aim/combat/grenade_kit_cap",
+    "/aim/combat/hit_cover_reach",
+    "/aim/combat/live_eye",
+    "/aim/combat/mirror_gated",
+    "/aim/friends/spread_source",
+    "/cover/pierce",
+    "/feel/floor_height_clear",
+    "/feel/past_drop",
+    "/grid/client_numbers",
+    "/grid/crack_bridges",
+    "/grid/drop_check",
+    "/grid/drop_room",
+    "/grid/exe_collision",
+    "/grid/gap_no_vaults",
+    "/grid/narrow_doors",
+    "/grid/pocket_exits_walled",
+    "/grid/run_ups_after_erosion",
+    "/grid/slip_landings",
+    "/grid/start_witness",
+    "/grid/steep_walk_base",
+    "/grid/walk_start_clear",
+    "/grid/wall_give_back",
+    "/hazard/leave_islands",
+    "/hazard/zone_intensity",
+    "/hazard/zone_pools",
+    "/heal/amounts",
+    "/heal/drug_stops",
+    "/kin/carrier_sprint",
+    "/kin/drop_fall",
+    "/kin/fix_fall",
+    "/kin/fix_floor",
+    "/kin/jump_snap",
+    "/kin/level_source",
+    "/kin/pitch_scale",
+    "/kin/speed_cap",
+    "/kin/speed_terms",
+    "/kin/step_input",
+    "/kin/walk_off_landing",
+    "/sense/ranges",
+    "/sense/shots",
+    "/sense/sprint_body_mps",
+    "/sense/use_ray_m",
+    "/smoke/aim_point",
+    "/take/drop_impossible",
+    "/take/pitch",
+    "/think/goal_off_floor_no_way",
+    "/think/stamina_rates",
+    "/traps/press_clear",
+    "/traps/release",
+    "/traps/sensed_near",
+    "/unstick/drop_shut_from_top",
+    "/unstick/drop_shut_last_resort",
+    "/unstick/escape_floor",
+];
+
+/// [A234] JSON pointers the all-off patch never names either.
+/// Switches whose old value is a cheat, information no player has (A234, the owner: "Yes, drop cheats"; the rule
+/// "smarter, never cheaters"): the patch never names them either, so the all-off arm keeps the default.
+pub(super) const NO_CHEATS: &[&str] = &[
+    "/aim/combat/aim_last_known",
+    "/aim/combat/band_carrier_seen_ms",
+    "/aim/combat/worth/hurt_from",
+    "/sense/bush_notice",
+    "/sense/grass_notice",
+    "/smoke/sight",
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -762,76 +836,6 @@ mod tests {
         let mut changes = Vec::new();
         leaves(&patch, String::new(), &mut changes);
         assert!(changes.len() > 60, "{}", changes.len());
-        // Switches whose old value is wrong by the client or the game, read in the exe or the data or measured (A223, the
-        // owner: "All that is wrong for sure shouldnt be returned even if we testing all-off"): the patch never names them, so
-        // the all-off arm keeps the default. Each field's doc gives its proof. An old value that is only weaker (a habit, a
-        // guard, less information) is no bug and stays in the patch.
-        const KEPT_RIGHT: &[&str] = &[
-            "/aim/combat/empty_reload",
-            "/aim/combat/grenade_kit_cap",
-            "/aim/combat/hit_cover_reach",
-            "/aim/combat/live_eye",
-            "/aim/combat/mirror_gated",
-            "/aim/friends/spread_source",
-            "/cover/pierce",
-            "/feel/floor_height_clear",
-            "/feel/past_drop",
-            "/grid/client_numbers",
-            "/grid/crack_bridges",
-            "/grid/drop_check",
-            "/grid/drop_room",
-            "/grid/exe_collision",
-            "/grid/gap_no_vaults",
-            "/grid/narrow_doors",
-            "/grid/pocket_exits_walled",
-            "/grid/run_ups_after_erosion",
-            "/grid/slip_landings",
-            "/grid/start_witness",
-            "/grid/steep_walk_base",
-            "/grid/walk_start_clear",
-            "/grid/wall_give_back",
-            "/hazard/leave_islands",
-            "/hazard/zone_intensity",
-            "/hazard/zone_pools",
-            "/heal/amounts",
-            "/heal/drug_stops",
-            "/kin/carrier_sprint",
-            "/kin/drop_fall",
-            "/kin/fix_fall",
-            "/kin/fix_floor",
-            "/kin/jump_snap",
-            "/kin/level_source",
-            "/kin/pitch_scale",
-            "/kin/speed_cap",
-            "/kin/speed_terms",
-            "/kin/step_input",
-            "/kin/walk_off_landing",
-            "/sense/ranges",
-            "/sense/shots",
-            "/sense/sprint_body_mps",
-            "/sense/use_ray_m",
-            "/smoke/aim_point",
-            "/take/drop_impossible",
-            "/take/pitch",
-            "/think/goal_off_floor_no_way",
-            "/think/stamina_rates",
-            "/traps/press_clear",
-            "/traps/release",
-            "/traps/sensed_near",
-            "/unstick/drop_shut_from_top",
-            "/unstick/drop_shut_last_resort",
-            "/unstick/escape_floor",
-        ];
-        // Switches whose old value is a cheat, information no player has (A234, the owner: "Yes, drop cheats"; the rule
-        // "smarter, never cheaters"): the patch never names them either, so the all-off arm keeps the default.
-        const NO_CHEATS: &[&str] = &[
-            "/aim/combat/aim_last_known",
-            "/aim/combat/band_carrier_seen_ms",
-            "/aim/combat/worth/hurt_from",
-            "/sense/bush_notice",
-            "/sense/grass_notice",
-            "/smoke/sight",
-        ];
         for pointer in KEPT_RIGHT {
             assert!(defaults.pointer(pointer).is_some(), "{pointer} is no switch of the tuning");
             assert!(patch.pointer(pointer).is_none(), "{pointer}'s old value is wrong by the game: the all-off arm keeps the default");
