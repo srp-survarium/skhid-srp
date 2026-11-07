@@ -168,6 +168,10 @@ global engine_ray_test_single
 global engine_key_name
 global engine_activate_keyboard_layout
 global engine_get_module_handle_a
+global engine_match_packet_begin
+global engine_match_packet_send
+global engine_append_packet_bytes
+global engine_tick_count
 global engine_set_environment_variable_a
 global engine_show_scene_movie
 global engine_hide_scene_movie
@@ -231,6 +235,7 @@ engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: 
 engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
 engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (an import, stdcall)
+engine_tick_count equ 0x8701b8   ; the IAT slot 0x8701b8 (an import, stdcall)
 engine_set_environment_variable_a equ 0x87029c   ; the IAT slot 0x87029c (an import, stdcall)
 
 engine_cfg_child:
@@ -2003,6 +2008,57 @@ engine_ray_needs_collision:
     mov ecx, [esp + 24]   ; callback
     call 0x75bd0
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_match_packet_begin:
+    ; virtual survarium::match_client+0x18 (1 vtables of vtables.tsv: 0x279fe0): client ECX, id ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; id -> 4
+    mov ecx, [esp + 24]   ; client
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x18]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_match_packet_send:
+    ; virtual survarium::match_client+0x1c (1 vtables of vtables.tsv: 0x27a2a0): client ECX, packet ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; packet -> 4
+    mov ecx, [esp + 24]   ; client
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x1c]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_append_packet_bytes:
+    ; 0x7ac10 vostok::network_core::buffer_writer::w: buffer_writer ESP+4, source_bytes ESP+8, byte_count EDI; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; source_bytes -> 8
+    push dword [esp + 24]   ; buffer_writer -> 4
+    mov edi, [esp + 36]   ; byte_count
+    call 0x7ac10
     pop edi
     pop esi
     pop ebx

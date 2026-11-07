@@ -2170,6 +2170,14 @@ va	status	ref_021d	name
 0x000f66d0	reviewed		vostok::math::half_to_float
 0x003b9c00	verified	0x00265b8a	vostok::input::platform::keyboard::get_dik_name
 0x003b8d20	verified	0x00265091	vostok::input::platform::keyboard::execute
+0x0027a070	observed		survarium::match_client::match_client
+0x00317d40	reviewed		vostok::popcount
+0x003a8980	reviewed		anim_decode_read_bits
+0x003a9580	reviewed		decode_times_in_ms_impl
+0x003a9720	reviewed		decode_floats_impl
+0x003a98c0	reviewed		decode_floats
+0x003a9900	reviewed		decode_data
+0x003a99c0	reviewed		anim_state_deserialize
 0x002614e0	observed	0x00196bf4	survarium::options_item_float::initialize
 0x002616e0	observed	0x00196cdf	survarium::options_item_float::apply
 0x002d1070	reviewed	0x001dcbe6	survarium::game_world_core::is_there_event_horizon_item

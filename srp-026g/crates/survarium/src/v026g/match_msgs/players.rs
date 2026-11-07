@@ -30,6 +30,7 @@
 use std::collections::BTreeMap;
 
 use super::super::dictionary::Dictionary;
+use srp_validate::world::{Body, Chamber, Item, Measure};
 use super::super::item_params::item_params;
 use super::static_info::MatchProfile;
 
@@ -489,6 +490,35 @@ pub fn state_bytes(head: &PlayerState, inventory: &[u8]) -> Vec<u8> {
     out.extend([0; 4]);
     out.extend(head.effects.to_le_bytes());
     out.extend_from_slice(inventory);
+    out
+}
+
+/// The items of a kit's inventory as a game saves them untouched, for tests
+/// and scripted games (`srp_validate::world::Inventory`): each one's
+/// amount or condition, its owner (`place`, `kit`) and slot, and its body
+/// as cooked: a weapon never in a hand with no round chambered, a medkit
+/// and an oxygen tank not in use.
+pub fn untouched_items(place: u8, kit: u8, items: &[Item]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for item in items {
+        match item.measure {
+            Measure::Amount => out.extend(1u16.to_le_bytes()),
+            Measure::Condition => out.extend(1.0f32.to_le_bytes()),
+        }
+        out.extend([place, kit, item.slot]);
+        match item.body {
+            Body::None => {}
+            Body::Medkit { .. } => out.push(0),
+            Body::OxygenTank => out.extend([0; 5]),
+            Body::Weapon(gun) => {
+                out.extend([0; 8]); // seed, tick
+                out.extend([0, 0, 0, 0]); // load, magazine, fire queue, ammo
+                if gun.chamber == Chamber::Saved {
+                    out.push(0);
+                }
+            }
+        }
+    }
     out
 }
 

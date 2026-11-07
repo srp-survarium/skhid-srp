@@ -407,7 +407,7 @@ impl Server {
             self.games.insert(seat.match_id, game);
         }
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
-        if (growing && debug == 0x81) || (!growing && debug != 0) {
+        if (growing && debug & 1 != 0) || (!growing && debug != 0) {
             log::info!(
                 "{addr} (session {session_id:#x}) runs with -debug_hash_mismatch: a stock client \
                  like it would read an upload request (0xF6) as a world to compare"
@@ -427,6 +427,7 @@ impl Server {
             game.sync_roster(formed, now);
         }
         game.attach(index, addr, session_id, revision, transport, now);
+        if matches!(debug, 0x82 | 0x83) { game.enable_world_receipts(index, now); }
         self.routes.insert(addr, (seat.match_id, index));
         self.store.seen_in_match(session_id);
     }
