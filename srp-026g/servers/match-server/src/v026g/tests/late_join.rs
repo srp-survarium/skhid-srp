@@ -1707,7 +1707,12 @@ fn an_upload_is_one_of_a_game_that_has_installed_the_newcomers_or_not() {
     assert_eq!(bench.clients[1].sim.bound(), place);
     let formed = bench.registry.formed(bench.match_id).unwrap();
     let check = |body: &[u8], time| {
-        crate::v026g::world_validation::check(body, time, srp_validate::MAX_PLAYERS, &formed)
+        crate::v026g::world_validation::check(
+            body,
+            time,
+            srp_validate::MAX_PLAYERS,
+            crate::v026g::world_validation::Roster::of(&formed),
+        )
     };
     let time = bench.clients[0].clock();
     // A game with the newcomer's six grenades, and one without them yet.
@@ -1772,7 +1777,12 @@ fn an_upload_whose_player_state_reads_otherwise_than_its_kit_is_refused() {
     let time = bench.clients[0].clock();
     let world = bench.clients[0].sim.world(time);
     let check = |body: &[u8]| {
-        crate::v026g::world_validation::check(body, time, srp_validate::MAX_PLAYERS, &formed)
+        crate::v026g::world_validation::check(
+            body,
+            time,
+            srp_validate::MAX_PLAYERS,
+            crate::v026g::world_validation::Roster::of(&formed),
+        )
     };
     assert!(check(&world).is_ok());
     // Place 1's pistol (slot 7, condition 1.0) saved as owned by its kit 2,

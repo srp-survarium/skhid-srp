@@ -45,6 +45,27 @@ fn options(blackout: bool) -> info::MatchOptions {
     }
 }
 
+/// The options of every playable map, as the server writes them, pass the
+/// clients' check: an entry of srp's block a map or a mode adds
+/// (`static_info::options_bytes`) fails here until the check knows it.
+#[test]
+fn the_options_of_every_map_are_accepted() {
+    let data = Data(Dictionary::shared());
+    let mut modes = Vec::new();
+    for map in maps::playable() {
+        let played = maps::MatchMap::of(map.id).unwrap();
+        let options = info::MatchOptions { map: played, ..options(false) };
+        let bytes = info::options_bytes(&options, data.0).unwrap();
+        assert_eq!(messages::options(&bytes, &data), Ok(1), "map {}", map.id);
+        if !modes.contains(&map.mode) {
+            modes.push(map.mode);
+        }
+    }
+    // The test archive's: Research's maps come with a pack.
+    assert!(modes.contains(&maps::GameMode::Blackout), "{modes:?}");
+    assert!(modes.len() >= 4, "{modes:?}");
+}
+
 #[test]
 fn current_server_options_and_blackout_are_accepted() {
     let data = Data(Dictionary::shared());

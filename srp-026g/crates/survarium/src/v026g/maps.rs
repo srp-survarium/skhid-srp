@@ -79,6 +79,34 @@ impl RuleMode {
     pub const fn has_batteries(self) -> bool {
         matches!(self, Self::Batteries | Self::TimedBatteries)
     }
+
+    /// The rule classes a map of it plays (`mode.rules`), in the order its
+    /// world saves them: timelimit (93), respawn (91), its own rule, kd
+    /// stats (94). srp reads a world's rules section in that order alone
+    /// (`srp_validate::world::rules`, snapshot_rules.md section 2), so a
+    /// playable map with another list stops the data ([`MapMode::of`]).
+    pub const fn rule_classes(self) -> [u16; 4] {
+        let own = match self {
+            Self::Batteries => 88,
+            Self::TimedBatteries => 89,
+            Self::TeamDeathmatch => 90,
+            Self::Research => 480,
+        };
+        [93, 91, own, 94]
+    }
+
+    /// A playable map's `rules`: its [`rule_classes`](Self::rule_classes),
+    /// else an error naming them.
+    pub fn check_rules(self, rules: &[u16]) -> Result<(), ConfigError> {
+        if rules == self.rule_classes() {
+            return Ok(());
+        }
+        Err(ConfigError(format!(
+            "its `rules` are {rules:?}: srp reads a mode {self} world's rules as {:?} \
+             (srp_validate::world::rules), and would refuse every world of it",
+            self.rule_classes()
+        )))
+    }
 }
 
 /// Its `mode.mode`, as the logs have always written it.
@@ -703,6 +731,7 @@ impl MapMode {
                     "it is mode 5 and has no `resources_count`".to_owned(),
                 ));
             }
+            rule_mode.check_rules(row.rules)?;
         }
         Ok(Some(row))
     }
@@ -917,6 +946,18 @@ mod tests {
         // Loading screens, static_info.md §4.
         assert_eq!(find(5, weather::EVENING, GameMode::Batteries).unwrap().loading_screen_id, 14);
         assert_eq!(find(7, weather::DAY, GameMode::TeamDeathmatch).unwrap().loading_screen_id, 18);
+    }
+
+    /// A map whose rules srp would read its worlds otherwise than its game
+    /// writes them stops the data, by name.
+    #[test]
+    fn a_mode_with_rules_other_than_the_world_check_reads_stops_the_data() {
+        for mode in RuleMode::ALL {
+            assert!(mode.check_rules(&mode.rule_classes()).is_ok());
+        }
+        let wrong = RuleMode::TeamDeathmatch.check_rules(&[93, 91, 90, 94, 500]).unwrap_err();
+        assert!(wrong.0.contains("[93, 91, 90, 94, 500]"), "{}", wrong.0);
+        assert!(RuleMode::Research.check_rules(&[93, 91, 90, 94]).is_err());
     }
 
     #[test]

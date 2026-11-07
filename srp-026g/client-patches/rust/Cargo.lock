@@ -26,6 +26,7 @@ version = "0.1.0"
 name = "srp-validate"
 version = "0.1.0"
 dependencies = [
+ "artefact-carry",
  "weapon-pickup",
  "world-frame",
 ]

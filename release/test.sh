@@ -98,6 +98,25 @@ done
 EOF
 chmod +x "$T/bin/srp-item-tables"
 export SRP_ITEM_TABLES_BIN=$T/bin/srp-item-tables
+# srp-world-check --data <data> --save <dir> <folder>: its arguments and the
+# recordings in <folder> a line of $TEST_DIR/world-check.args; every world
+# passes, unless $TEST_DIR/world-check-refuses is there.
+cat >"$T/bin/srp-world-check" <<'EOF'
+#!/usr/bin/env bash
+folder=${!#}
+printf '%s | %s\n' "$*" "$(ls "$folder" | tr '\n' ' ')" >>"$TEST_DIR/world-check.args"
+if [[ -e $TEST_DIR/world-check-refuses ]]; then
+    echo "$folder/rec026g_x.srprec: 2 worlds, 1 passed, 1 refused, 0 not checked"
+    echo "  REFUSED p3 t1000: effects at 0x67e9: the closing part at 12 is not every world's"
+    echo "2 worlds checked: 1 passed, 1 refused; 0 not checked, 0 files unread, 0 recordings skipped"
+    echo "FAILED: the match server would refuse worlds games wrote, or could not check them"
+    exit 1
+fi
+echo "2 worlds checked: 2 passed, 0 refused; 0 not checked, 0 files unread, 0 recordings skipped"
+echo "ok: the match server takes every world"
+EOF
+chmod +x "$T/bin/srp-world-check"
+export SRP_WORLD_CHECK_BIN=$T/bin/srp-world-check
 # The exe patches' self-test (release.sh, step 2, after build-zip): its
 # arguments (the commit's checkout, the original exe) a line of
 # $TEST_DIR/selftest.args; $TEST_DIR/selftest-fails: a check fails.
@@ -269,6 +288,15 @@ cp "$T/docker/latest" "$T/docker/running"
 echo running >"$T/docker/state"
 echo 0 >"$T/docker/starts"
 printf 'srp.db schema 1\n' >"$T/volume/srp.db"
+# The kept match recordings the world check reads (the newest 3), and one
+# being written (.part) and another file, which it does not.
+mkdir -p "$T/volume/recordings"
+for n in 1 2 3 4; do
+    printf 'SRPREC01 match %s\n' "$n" >"$T/volume/recordings/rec026g_20261107-00000${n}_0000000${n}.srprec"
+    touch -d "2026-11-07 00:0$n" "$T/volume/recordings/rec026g_20261107-00000${n}_0000000${n}.srprec"
+done
+: >"$T/volume/recordings/rec026g_20261107-000009_00000009.srprec.part"
+: >"$T/volume/recordings/notes.txt"
 
 serve() { # <folder> <port file>: a port answering from it, with "Server: Caddy"
     local port_file=$2
@@ -1651,6 +1679,11 @@ check "release --dry-run: shows the swap and the restart" has "$out" "docker com
 check "release --dry-run: shows the image built here and loaded" bash -c "grep -q \"server's image of main's source\" <<<\"\$1\" && grep -q 'docker load' <<<\"\$1\"" _ "$out"
 check "release --dry-run: ... builds none" bash -c "! grep -q '^build-image' $T/log"
 check "release --dry-run: says so" has "$out" "dry run: nothing was planned, uploaded or changed"
+check "release --dry-run: reads the live host's newest 3 kept recordings for the world check" has "$out" \
+    "^  ok       the world check: will read the newest 3 recording(s) on the live host ([0-9]* MB: rec026g_20261107-000004_00000004.srprec rec026g_20261107-000003_00000003.srprec rec026g_20261107-000002_00000002.srprec)\$"
+check "release --dry-run: ... read at the lowest priority" grep -q "nice -n 19 ionice -c 3 cat .*rec026g_20261107-000004_00000004.srprec" "$T/args"
+check "release --dry-run: ... and shows step 2 checking them with the new data" has "$out" \
+    "^\[dry run\]    then the world check of the newest 3 recording(s) on the live host .*: $SRP_WORLD_CHECK_BIN --data .*server-game-data.db .*/worlds (one world refused stops the release)\$"
 check "release --dry-run: prints the rebuild of the site's pages with the new patch" has "$out" \
     "^  \[dry run\] would rebuild the Maps tab and the calculator (about 2 min; .*) in a worktree of [0-9a-f]*: $T/build-site --tree $T/tmp/skhid-release\.[^ ]*/site --with $T/r14/resources.db.patch_14\$"
 check "release --dry-run: ... runs none" test ! -s "$T/build-site.args"
@@ -1662,6 +1695,15 @@ check "release --dry-run: ... its server-code report has them changed, as the re
 check "release --dry-run: a GRID_ALGO of the live tree other than main's is warned about" has "$out" \
     "^  WARNING  the built maps (mapdata/built, [0-9]* file(s) now): pub const GRID_ALGO: u32 = 2; pub const SIGHT_ALGO: u32 = 1; on the live tree, pub const GRID_ALGO: u32 = 3; pub const SIGHT_ALGO: u32 = 1; on main: the first match on each map after the swap builds its grid and tree again"
 sed -i 's/^pub const GRID_ALGO: u32 = 2;$/pub const GRID_ALGO: u32 = 3;/' "$T/live/crates/mapdata/src/lib.rs"
+mkdir -p "$T/worlds-given"
+run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 --worlds "$T/worlds-given" &&
+    fail "release.sh --dry-run --worlds <empty>: no problem ($out)"
+check "release --dry-run --worlds: a folder of no recording is a problem" has "$out" "--worlds $T/worlds-given: no match recording (\*.srprec) in it"
+cp "$T/volume/recordings/rec026g_20261107-000001_00000001.srprec" "$T/worlds-given/"
+run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 --worlds "$T/worlds-given" ||
+    fail "release.sh --dry-run --worlds: $out"
+check "release --dry-run --worlds: its recordings are checked in place of the host's" bash -c \
+    "grep -q 'the world check: will read 1 recording(s) of --worlds $T/worlds-given\$' <<<\"\$1\" && grep -q 'then the world check of 1 recording(s) of --worlds $T/worlds-given with it: .* $T/worlds-given (one world' <<<\"\$1\"" _ "$out"
 before=$(tree)
 run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --server-code no --minutes 2 && fail "release.sh --dry-run --server-code no: no problem ($out)"
 check "release --dry-run --server-code no: refused as a real run is, the pages to rebuild" bash -c \
@@ -1833,6 +1875,22 @@ run yes --minutes 2 --label it || true
 rm "$T/item-tables-panics"
 check "release: the item tables' tool failing on the server data stops before the swap" bash -c \
     "grep -q 'the item tables (srp-item-tables) of .*server-game-data.db: thread .main. panicked' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
+check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
+check "release: ... stages nothing" nothing_staged
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+check "release: ... and makes no record" no_record 14
+
+# The world check refusing a recorded world with the new server data:
+# stopped in step 2, before the go, the refusal shown.
+: >"$T/state/admin.log"
+: >"$T/world-check.args"
+touch "$T/world-check-refuses"
+run yes --minutes 2 --label wc || true
+rm "$T/world-check-refuses"
+check "release: a world the new server would refuse stops before the swap" bash -c \
+    "grep -q 'the world check: the new server would refuse (or could not check) worlds its games wrote' <<<\"\$1\" && grep -q '^    REFUSED p3 t1000: effects at 0x67e9' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
+check "release: ... it checked the live host's newest 3 recordings with the new server data" grep -qE \
+    "^--data .*/server-game-data\.db --save .*/worlds-refused .*/worlds \| rec026g_20261107-000002_00000002\.srprec rec026g_20261107-000003_00000003\.srprec rec026g_20261107-000004_00000004\.srprec \$" "$T/world-check.args"
 check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
 check "release: ... stages nothing" nothing_staged
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"

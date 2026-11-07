@@ -451,6 +451,61 @@ flood cannot fill the disk and the count is never lost.
   its id, length, part and offset; a refused world with its part, offset and
   length.
 
+## When the check, not the game, is wrong
+
+The check is exact, so a change of what a game writes (a patch that appends
+bytes, a new item class, weapon state, map object, mode rule or record version)
+or of the data it is read with makes real worlds unreadable. On 2026-11-06 the
+check of 50,205 live uploads found two such layout faults (active artefact
+cores, the effects floats) that every local test had missed. Four guards:
+
+- **Before a release: real worlds, the server's own check.**
+  `srp-world-check --data <server-game-data.db> <recordings, dumps or folders>`
+  (`servers/match-server/src/bin/srp-world-check.rs`,
+  `v026g::world_check`) checks every complete upload of match recordings with
+  `world_validation::check`, the match server's own function, against each
+  match's roster (its 0xE4s and header), and the kept dumps of a match whose
+  recording is given with them. Exit 1 on any refusal, any world it could not
+  check, or none checked. `release/release.sh` runs it in step 2 on the new
+  server data with the target's newest 3 kept recordings (or `--worlds
+  <folder>`), and stops before the go on any refusal. A release that changes
+  what games write is checked with recordings of its own games (a match on the
+  test environment; one against bots is kept), as the live games' are refused
+  then. With rev 51's content data and the typed check (#1458), the 372
+  non-empty live recordings of 2026-11-05..07: 175,872 worlds, all pass;
+  one world with its effects' last byte changed is refused at `effects at
+  0x67e9: the closing part at 12 is not every world's`.
+- **At start: data the check depends on names what it lacks.** An item
+  `data.type`, a weapon state class, an anomaly's artefact core already stopped
+  the data; now also a playable map whose `mode.rules` are not the
+  `[93, 91, <mode's rule>, 94]` the rules section is read with
+  (`RuleMode::rule_classes`), no `hit_params` body part (it was 0, every state
+  refused), and, when the server data is built, a client object of a
+  `game_object_type` srp knows neither as saved in a world (`WORLD_OBJECTS`)
+  nor as saving nothing (`resources_db::server::UNSAVED_OBJECTS`; it was
+  dropped silently). The kit layout (`MatchProfile::inventory`, `held`) names
+  every `ItemClass`, so a new class fails to compile until it is placed.
+- **In a match: loud when many games are refused alike.** A kind of refusal
+  (its part and reason) from two places, or three uploads, is more likely the
+  check or the data than the games: one error line `WORLD CHECK IN DOUBT`
+  with the count and the first refusal (section, offset, the match it was
+  checked as), once a kind; the match's end line counts the uploads refused and
+  lists the kinds in doubt (`world_validation::Refusals`). A kit the check
+  cannot lay out (an item the game makes an untraced object of) leaves that
+  match's states read to their inventories only: said once at error level when
+  the place comes, not per upload. That stays: the kit is the lobby's, the
+  rest of the world is still read exactly, and refusing every world of the
+  match for it would leave all its players without joins or resyncs.
+- **Formats our own code writes are shared, not copied.** The carry snapshot's
+  size and version are `artefact_carry::Carry::SNAPSHOT_SIZE`/`SNAPSHOT_VERSION`
+  for the writer (patch 78) and `srp_validate`; the pickup record is
+  `weapon_pickup::Record` for both; every playable map's 0xE4 options, `SRPX`
+  block included, must pass the clients' check
+  (`current_protocol.rs::the_options_of_every_map_are_accepted`).
+
+Refused uploads still go to nobody (fail closed); whether a match whose uploads
+are in doubt should relay them anyway is the owner's decision.
+
 ## Performance evidence and limits
 
 An optimized host-library benchmark over 1,786 captured worlds measured 3.25 µs

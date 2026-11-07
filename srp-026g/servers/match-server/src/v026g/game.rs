@@ -1008,6 +1008,9 @@ pub(crate) struct Game {
     disagreement_logged: Option<Instant>,
     respawn_points_logged: bool,
     doubtful_dumps: u32,
+    /// The uploads the world check refused, by kind: loud when a kind is
+    /// more likely the check's fault than the games' (`uploaded`, `finish`).
+    upload_refusals: super::world_validation::Refusals,
     /// Worlds of players out of step asked for (`ask_wrong_world`).
     wrong_worlds_asked: u32,
     /// Splits whose worlds were asked for (`capture_split`), and the last.
@@ -1042,6 +1045,7 @@ impl Game {
         let players = formed.places.len();
         let rule = TimelimitRule::new(TimelimitParams::of(formed.played.map(), players as u8));
         let walkers = driven::Walkers::new(&formed, &settings);
+        log_unread_kits(&formed, 0);
         Self {
             id: formed.match_id,
             port,
@@ -1079,6 +1083,7 @@ impl Game {
             disagreement_logged: None,
             respawn_points_logged: false,
             doubtful_dumps: 0,
+            upload_refusals: Default::default(),
             wrong_worlds_asked: 0,
             splits_captured: 0,
             split_captured_at: None,
@@ -3949,9 +3954,16 @@ impl Game {
         // an initial world, candidate, recent snapshot or diagnostic world.
         // A refusal retains the outstanding request, records the body and
         // reports its section/offset. No valid replacement request is lost.
+        let roster = super::world_validation::Roster::of(&self.formed);
         if let Err(refusal) =
-            super::world_validation::check(&snapshot.body, snapshot.time, places, &self.formed)
+            super::world_validation::check(&snapshot.body, snapshot.time, places, roster)
         {
+            // The kind of refusal many games share is a check that is wrong
+            // (or server data other than theirs), not a cheat: said loudly,
+            // once a kind, however the per-player warning below is limited.
+            if let Some(doubt) = self.upload_refusals.count(index, &refusal) {
+                log::error!("Match {id:#x}: {doubt}");
+            }
             peer.uploads_refused += 1;
             if let Some(unlogged) = peer.uploads_log.refuse(now) {
                 log::warn!(
@@ -5268,7 +5280,7 @@ impl Game {
         let result = self.build_result(end, clock, &present);
         self.record_result(&result, now);
         log::info!(
-            "Match {:#x}: over at {clock} ms ({end:?}); winner {:?}, points {:?}, scores {:?}",
+            "Match {:#x}: over at {clock} ms ({end:?}); winner {:?}, points {:?}, scores {:?}; {}",
             self.id,
             result.winner,
             result.team_points,
@@ -5276,7 +5288,8 @@ impl Game {
                 .players
                 .iter()
                 .map(|player| player.score)
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>(),
+            self.upload_refusals.summary()
         );
         self.result = Some(result);
         self.result_made = true;
@@ -6412,6 +6425,19 @@ fn given_clock(set_times: &VecDeque<SetTimeSent>, now: Instant) -> Option<u32> {
         .iter()
         .map(|sent| sent.start + now.saturating_duration_since(sent.at).as_millis() as u32)
         .max()
+}
+
+/// A place from `from` on whose kit the world check cannot lay out
+/// (`world_validation::kits`), at error level: those states are then read
+/// to their inventories only.
+fn log_unread_kits(formed: &Formed, from: usize) {
+    if let Some(why) = super::world_validation::unread_kits(&formed.profiles, from) {
+        log::error!(
+            "Match {:#x}: its players' states are read to their inventories only, as the world \
+             check cannot lay out a kit's objects: {why}",
+            formed.match_id
+        );
+    }
 }
 
 fn input_summary(peer: &Peer) -> String {

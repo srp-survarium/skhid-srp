@@ -154,9 +154,10 @@ const MAX_AMMO: u8 = 8;
 /// (0x32B039, 0x32B5C9).
 const MAX_AFFECTS: usize = 8;
 const MAX_HITS: usize = 64;
-/// Patch 78's carry snapshot and its version.
-const CARRY_SNAPSHOT: usize = 32;
-const CARRY_VERSION: u8 = 2;
+/// Patch 78's carry snapshot and its version, as its writer has them: a
+/// new version is read here as soon as the game writes it.
+const CARRY_SNAPSHOT: usize = artefact_carry::carry::Carry::SNAPSHOT_SIZE;
+const CARRY_VERSION: u8 = artefact_carry::carry::Carry::SNAPSHOT_VERSION;
 
 /// A fault: where in the state and why.
 pub(super) type Fault = (usize, Reason);
