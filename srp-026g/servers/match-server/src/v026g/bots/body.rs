@@ -1877,6 +1877,8 @@ pub(super) mod tests {
     fn the_way_the_keys_meant_between_two_worlds_is_kept() {
         let kin = Kinematics {
             blend_ticks: 1,
+            // [A318] The step timing has its own test (`the_step_moves_with_the_input_before`); these numbers are the old one's.
+            step_input: StepInput::Same,
             ..Kinematics::default()
         };
         let mut track = BodyTrack::default();
@@ -1952,6 +1954,8 @@ pub(super) mod tests {
         // Speeds reached at once, to count the metres.
         let kin = Kinematics {
             blend_ticks: 1,
+            // [A318] The step timing has its own test (`the_step_moves_with_the_input_before`); these numbers are the old one's.
+            step_input: StepInput::Same,
             ..Kinematics::default()
         };
         let mut track = BodyTrack::default();
@@ -2042,6 +2046,8 @@ pub(super) mod tests {
         // Speeds reached at once, to count the metres.
         let kin = Kinematics {
             blend_ticks: 1,
+            // [A318] The step timing has its own test (`the_step_moves_with_the_input_before`); these numbers are the old one's.
+            step_input: StepInput::Same,
             ..Kinematics::default()
         };
         let walk = |track: &mut BodyTrack, from: u32, to: u32| {
@@ -2403,7 +2409,7 @@ pub(super) mod tests {
     fn a_released_sprint_drops_to_the_walk_cap_at_once() {
         use super::super::kin::SpeedCap;
         let run = |speed_cap: SpeedCap| {
-            let kin = Kinematics { speed_cap, ..Kinematics::default() };
+            let kin = Kinematics { speed_cap, step_input: StepInput::Same, ..Kinematics::default() };
             let mut track = BodyTrack::default();
             track.fixed(fix(0, Vec3::new(0.0, 0.0, 0.0), 0.0), &kin, None);
             let mut speeds = Vec::new();

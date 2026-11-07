@@ -1662,9 +1662,11 @@ mod tests {
         late: u32,
     ) -> impl Fn(u32) -> Enemy {
         use crate::v026g::bots::body::Fix;
-        use crate::v026g::bots::kin::Kinematics;
+        use crate::v026g::bots::kin::{Kinematics, StepInput};
         use crate::v026g::bots::view::{Clock, Tracker};
-        let kin = Kinematics::default();
+        // [A318] The sight timings below (300 ms kept, 400 lost by phase) are set on the old step timing; the step's own timing has
+        // its test in `body` (`the_step_moves_with_the_input_before`).
+        let kin = Kinematics { step_input: StepInput::Same, ..Kinematics::default() };
         let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
         let start = Fix { fall: None,
