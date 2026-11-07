@@ -752,6 +752,11 @@ pub struct ThreatTuning {
     /// next flanker of the job the next route; no such spot or no table (`bot-flank-routes.json`): the flank as before.
     /// OFF until its by-side bench against the calibrated farming camper ([`CampFlank`]).
     pub camp_flank: Option<CampFlank>,
+    /// `threat.spot_follows_m` [A320 F7]: a kill spot whose shooter the team senses afresh (its own senses and callouts,
+    /// `Track::own`) farther than this from it moves to him: its place and kept kills' place become his, its lanes are cast
+    /// again (as a sensed sniper's spot follows him). Off: a kill spot stays where he killed from, held by its kills' strength
+    /// after he moved (B3f14: sensed 3-5 m from his true place, the held spot 40-50 m behind him, the job re-cued to it).
+    pub spot_follows_m: Option<f32>,
 }
 
 /// A320 [`ThreatTuning::camp_flank`]: the flank routes round the known camp spots, and what the flanker does when the camper
@@ -981,6 +986,7 @@ impl Default for ThreatTuning {
             pair_target: None,
             walk_watch: None,
             camp_flank: None,
+            spot_follows_m: None,
         }
     }
 }

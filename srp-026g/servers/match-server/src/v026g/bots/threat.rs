@@ -930,6 +930,8 @@ pub struct SpotRules {
     pub recast: bool,
     /// How a sensed sniper's spot is kept.
     pub sniper: SniperLife,
+    /// [A320 F7 `threat.spot_follows_m`] A kill spot whose shooter is sensed afresh farther than this from it moves to him.
+    pub follows_m: Option<f32>,
 }
 
 impl SpotRules {
@@ -941,6 +943,7 @@ impl SpotRules {
                 Some(m) => SniperLife::Remembered { memory_ms: (m.memory_s.max(0.0) * 1000.0) as u32 },
                 None => SniperLife::WhileSensed,
             },
+            follows_m: tuning.spot_follows_m,
         }
     }
 
@@ -1589,14 +1592,32 @@ impl ThreatSpots {
     /// The team sensed `shooter` at `at` at `time`. A sensed sniper's spot is [`Self::sniper_sensed`]'s, which moves it
     /// with the sense.
     pub fn shooter_sensed(&mut self, shooter: Place, at: Vec3, time: u32, rules: SpotRules) {
+        let mut moved = Vec::new();
         for s in self.spots.iter_mut().filter(|s| s.shooter == shooter) {
-            let near = s.at.distance_xz(at) <= rules.on_m();
-            if let SpotSource::Kills { seen, .. } = &mut s.source
-                && near
+            let d = s.at.distance_xz(at);
+            let near = d <= rules.on_m();
+            let follows = rules.follows_m.is_some_and(|m| d > m);
+            if let SpotSource::Kills { seen, kills } = &mut s.source
+                && (near || follows)
                 && seen.is_none_or(|t| time > t)
             {
                 *seen = Some(time);
+                // [A320 F7] He is sensed away from where he killed: the spot (and its kills' place) moves to him.
+                if follows {
+                    s.at = at;
+                    for k in kills.iter_mut() {
+                        k.from = at;
+                    }
+                    s.cast.again(rules.recast);
+                    moved.push(s.id);
+                }
             }
+        }
+        if !moved.is_empty() {
+            self.version = self.version.wrapping_add(1);
+        }
+        for id in moved {
+            self.event(time, id, shooter, at, SpotNote::Recast { why: "its shooter moved" });
         }
     }
 
@@ -2616,7 +2637,7 @@ mod tests {
     }
 
     /// The rules as they were before the area and the recast.
-    const OLD: SpotRules = SpotRules { model: SpotModel::Point, recast: false, sniper: SniperLife::WhileSensed };
+    const OLD: SpotRules = SpotRules { model: SpotModel::Point, recast: false, sniper: SniperLife::WhileSensed, follows_m: None };
 
     fn at(x: f32) -> Vec3 {
         Vec3::new(x, 0.0, 0.0)
@@ -2652,6 +2673,34 @@ mod tests {
         // Sensed 20 m off the spot: not on it.
         spots.shooter_sensed(7, at(20.0), 40_000, OLD);
         assert_eq!(spots.held(41_000).count(), 0);
+    }
+
+    /// [A320 F7 `threat.spot_follows_m`] A kill spot whose shooter is sensed afresh farther than the switch's metres from it
+    /// moves to him (held, sensed there); an older sense does not move it back; off, it stays where he killed from.
+    #[test]
+    fn with_spot_follows_a_kill_spot_moves_to_its_shooter_sensed_away_from_it() {
+        let follows = SpotRules { follows_m: Some(30.0), ..NEW };
+        let mut spots = ThreatSpots::default();
+        spots.died(at(30.0), 7, at(0.0), 0, 500, follows);
+        spots.died(at(30.0), 7, at(0.0), 500, 1_000, follows);
+        let id = spots.spots[0].id;
+        // 20 m off: within the switch's metres, the spot stays.
+        spots.shooter_sensed(7, at(20.0), 2_000, follows);
+        assert_eq!(spots.spots[0].at, at(0.0));
+        // 45 m off: it moves to him, still held.
+        spots.shooter_sensed(7, at(45.0), 3_000, follows);
+        assert_eq!((spots.spots[0].id, spots.spots[0].at), (id, at(45.0)));
+        assert_eq!(spots.held(3_500).count(), 1);
+        assert_eq!(spots.spots[0].sensed(), Some(3_000));
+        // An older sense (another bot's, sensed before) does not move it back.
+        spots.shooter_sensed(7, at(0.0), 2_500, follows);
+        assert_eq!(spots.spots[0].at, at(45.0));
+        // Off: the spot stays where he killed from.
+        let mut off = ThreatSpots::default();
+        off.died(at(30.0), 7, at(0.0), 0, 500, NEW);
+        off.died(at(30.0), 7, at(0.0), 500, 1_000, NEW);
+        off.shooter_sensed(7, at(45.0), 3_000, NEW);
+        assert_eq!(off.spots[0].at, at(0.0));
     }
 
     #[test]
@@ -2810,7 +2859,7 @@ mod tests {
     }
 
     /// The rules on by default: the area, the recentre, the recast.
-    const NEW: SpotRules = SpotRules { model: SpotModel::Area { m: AREA_M }, recast: true, sniper: SniperLife::WhileSensed };
+    const NEW: SpotRules = SpotRules { model: SpotModel::Area { m: AREA_M }, recast: true, sniper: SniperLife::WhileSensed, follows_m: None };
 
     #[test]
     fn a_spot_is_the_shooters_area_and_its_centre_follows_his_kills() {
@@ -2922,6 +2971,7 @@ mod tests {
             model: SpotModel::Area { m: AREA_M },
             recast: true,
             sniper: SniperLife::Remembered { memory_ms: 120_000 },
+            follows_m: None,
         };
         let eyes = Line { blind: vec![] };
         let mut spots = ThreatSpots::default();
