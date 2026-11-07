@@ -22,7 +22,8 @@
 //!   y and the fall velocity's y, the damage model's last hit time, the recent hits' count and latest time, the stagger float
 //!   before the hits' count, and part 0's health; [A325e] then `leg6,leg7,leg_damage_until,hand_damage_until,parts_speed`: the
 //!   legs' health, the latest end time of a leg_damage affect (type 4) on parts 6/7 and of a hand_damage (type 3) on parts 16/17,
-//!   and the sum of the 20 parts' `movement_speed_modifier` (`motion::BodyPart`); empty where the block has none;
+//!   and the sum of the 20 parts' `movement_speed_modifier` (`motion::BodyPart`); then `leg6_damage_until,leg7_damage_until`, each
+//!   leg's own latest leg_damage end (empty: none); empty where the block has none;
 //! - `rec_anim.csv` (A325): `match,time,upload,place,times,floats`: each block's animation state's times and floats tables
 //!   (`players::animation_tables`, `;`-joined, in the state's order: the animation controller's buffer, 0x395AF0);
 //! - `rec_levels.csv` (A332): `match,roster,place,team,kit,level_none,weight,weapons`: each roster place's kits' speed level as the
@@ -171,7 +172,7 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     writeln!(
         motions,
         "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0,\
-         leg6,leg7,leg_damage_until,hand_damage_until,parts_speed"
+         leg6,leg7,leg_damage_until,hand_damage_until,parts_speed,leg6_damage_until,leg7_damage_until"
     )?;
     // [A325] Each block's animation state's two tables (`players::animation_tables`), for the hit selector's per-part values.
     let mut anims = std::io::BufWriter::new(std::fs::File::create(out.join("rec_anim.csv"))?);
@@ -255,20 +256,22 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 let last_recent = motion.recent_hits.last().map_or(String::new(), |h| h.0.to_string());
                 // [A325e] The legs' health (parts 6, 7), the latest end of a leg_damage (type 4) on them and of a hand_damage (type 3)
                 // on the hands (16, 17), and the sum of the 20 parts' own movement_speed_modifier.
-                let parts_cols = motion.damage.as_ref().filter(|d| d.parts.len() >= 18).map_or(",,,,".to_string(), |d| {
-                    let until = |ids: [usize; 2], kind: u8| {
+                let parts_cols = motion.damage.as_ref().filter(|d| d.parts.len() >= 18).map_or(",,,,,,".to_string(), |d| {
+                    let until = |ids: &[usize], kind: u8| {
                         ids.iter()
                             .flat_map(|&p| d.parts[p].affects.iter().filter(|a| a.0 == kind).map(|a| a.1))
                             .max()
                             .map_or(String::new(), |t| t.to_string())
                     };
                     format!(
-                        "{:.3},{:.3},{},{},{:.3}",
+                        "{:.3},{:.3},{},{},{:.3},{},{}",
                         d.parts[6].health,
                         d.parts[7].health,
-                        until([6, 7], 4),
-                        until([16, 17], 3),
-                        d.parts.iter().map(|p| p.movement_speed_modifier).sum::<f32>()
+                        until(&[6, 7], 4),
+                        until(&[16, 17], 3),
+                        d.parts.iter().map(|p| p.movement_speed_modifier).sum::<f32>(),
+                        until(&[6], 4),
+                        until(&[7], 4)
                     )
                 });
                 writeln!(
