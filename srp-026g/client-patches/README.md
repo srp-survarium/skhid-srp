@@ -4631,7 +4631,11 @@ request a resend of that connection's pending handshake.
 
 Receipts use a distinct impossible E0 upload prefix, match seed and generation.
 Stale, duplicate and unsolicited receipts cannot reset another player or accuse
-a donor. Rejection packets are limited to one per second per match. Every
+a donor. A receipt is sent once per event, never dropped for time: a world's
+Loaded or Rejected once per generation (a flood of one corrupt world sends one;
+the next generation's refusal goes at once, however soon), a Rejected handshake
+once per refused E3/E4 (not for a refused late-join proposal); the receipt rides
+E0, which the transport resends every 500 ms until acked. Every
 refused message and world gets a line in `srp_patches.log`: at most one a
 second for the game, each counting the refusals since the last line
 (`vostok::log::refusal`). The server logs each refused world or handshake a

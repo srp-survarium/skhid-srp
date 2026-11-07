@@ -76,7 +76,12 @@ impl<'t> Message<'t> {
             };
             if let Some(connection) = &connection { connection.rejected(generation); }
         }
+        // A late join's profile proposal (an 0xE4 to a game in play) is no
+        // handshake: no handshake is sent again for it.
+        let proposal = matches!(&self.payload, Payload::Readable { bytes, .. }
+            if bytes.starts_with(&srp_validate::messages::LATE_JOIN_PREPARE));
         if matches!(self.id, srp_validate::messages::id::STATIC_INFO | srp_validate::messages::id::PORTS)
+            && !proposal
             && let Some(connection) = &connection
         { connection.options_rejected(); }
         if let Payload::Readable { end, .. } = self.payload {

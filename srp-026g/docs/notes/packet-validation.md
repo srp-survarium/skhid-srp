@@ -427,8 +427,10 @@ retry is accepted only while that connection is Connecting/Loading; the seed is
 not required before options decode. Legacy 0x80/0x81 clients keep their prior
 behavior. **Deploy the server before a client with the new capability.**
 
-The client owns a per-match budget for rejection sends, checks packet-pool
-headroom before allocation, and clears it on match teardown.
+The client sends one receipt per event and never drops one for time (a
+wait the server keeps for a refusal must get it): Loaded/Rejected once per
+generation, a handshake refusal once per refused E3/E4. It checks packet-pool
+headroom before allocation and forgets the last receipt on match teardown.
 Server tests cover rejected first/resync worlds, lost reports, successful retry,
 repeated refusal, forged/stale reports, corrupt handshake envelopes and source
 input removal. A native harness covers 2,000-message bursts, a valid input after

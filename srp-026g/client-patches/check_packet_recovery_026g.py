@@ -21,26 +21,35 @@ def main():
     assert logs==1,logs
     # A valid input after the flood still reaches native dispatch.
     at,_,_=run.message(0xeb,bytes(10));assert at!=END and not run.calls
-    # Repeated/changing corrupt worlds cannot allocate a packet each time.
+    # A flood of one corrupt world allocates one packet: its refusal is told once.
     sent=0
-    for i in range(1000):
-        at,_,_=run.message(0xe8,bytes([i%256,2])+bytes(8))
+    for _ in range(1000):
+        at,_,_=run.message(0xe8,b'\x04\x02'+bytes(8))
         assert at==END and not run.calls
         sent+=len(run.receipts)
     assert sent==1,sent
-    run.ticks+=1001
+    # The next generation's refusal is told at once, however soon: the server
+    # waits for it (no time may drop it), and only once.
     run.message(0xe8,b'\x05\x02'+bytes(8))
     assert len(run.receipts)==1 and run.receipts[0][12:14]==b'\x05\x01'
+    run.ticks+=1001
+    run.message(0xe8,b'\x05\x02'+bytes(8))
+    assert not run.receipts
     # The floods' refusals that got no line are counted in the next one.
-    assert len(run.lines)==1 and b'; 1999 more refused since the last line' in run.lines[0],run.lines
-    run.ticks+=1001;run.word(CLIENT+0x1F1C64,0)
-    run.message(0xe4,b'\0\x01')
-    assert run.receipts[0][13]==2 and not run.calls
+    assert len(run.lines)==1 and b'; 2000 more refused since the last line' in run.lines[0],run.lines
+    # Each refused handshake message is told, the second at once too.
+    run.word(CLIENT+0x1F1C64,0)
+    for _ in range(2):
+        run.message(0xe4,b'\0\x01')
+        assert len(run.receipts)==1 and run.receipts[0][13]==2 and not run.calls
     run.word(CLIENT+0x1F1C64,2)
+    # A refused late-join proposal (0xE4 to a game in play) is no handshake.
+    at,_,_=run.message(0xe4,b'\xffLJ\x01'+bytes(4))
+    assert at==END and not run.receipts and not run.calls
     # No allocator call when the pool lacks the same reserve as send_prepared.
     run.ticks+=1001;run.word(POOL+0x30,99)
     before=run.packet_allocations
-    run.message(0xe8,b'\x05\x02'+bytes(8))
+    run.message(0xe8,b'\x06\x02'+bytes(8))
     assert not run.receipts and run.packet_allocations==before and not run.calls
     run.word(POOL+0x30,0)
     # Complete native deserialize is required for the Loaded receipt. The

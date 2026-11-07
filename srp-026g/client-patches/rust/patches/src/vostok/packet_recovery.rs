@@ -1,5 +1,11 @@
-//! One owner for receipt sending (refusals are logged by `log::refusal`). A pool shortage
-//! skips allocation; the server's missing-receipt timeout requests a fresh world.
+//! One owner for receipt sending (refusals are logged by `log::refusal`).
+//!
+//! One receipt per event, never one dropped for time: a world's load or
+//! refusal is told once per generation (the server offers each generation
+//! once and answers a refusal with the next one), a refused handshake
+//! message (0xE3/0xE4) once per message (the server sends one again only in
+//! answer to a refusal). A refusal the server never hears leaves its wait
+//! for it without an end. A pool shortage skips allocation.
 use super::{Context, GameCell, Thread};
 use super::world::read;
 use crate::raw;
@@ -7,13 +13,9 @@ use srp_validate::recovery::{Outcome, Receipt, SIZE};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Key { client: usize, seed: u32 }
+/// The last world outcome told on this connection.
 #[derive(Clone, Copy)]
-struct Millis(u32);
-impl Millis {
-    fn elapsed(self, earlier: Self) -> u32 { self.0.wrapping_sub(earlier.0) }
-}
-#[derive(Clone, Copy)]
-struct Budget { key: Key, sent: Option<(Receipt, Millis)> }
+struct Budget { key: Key, told: Option<Receipt> }
 static BUDGET: GameCell<Option<Budget>> = GameCell::new(None);
 
 pub struct Connection<'a> {
@@ -38,12 +40,9 @@ impl<'a> Connection<'a> {
         Self::of(client, ctx.thread())
     }
     pub(crate) fn closing(ctx: &Context<'_>) { BUDGET.set(ctx.thread(), None); }
-    fn now(&self) -> Millis {
-        Millis(super::files::tick_count())
-    }
     fn budget(&self) -> Budget {
         BUDGET.get(self.thread).filter(|budget| budget.key == self.key)
-            .unwrap_or(Budget { key: self.key, sent: None })
+            .unwrap_or(Budget { key: self.key, told: None })
     }
     pub(super) fn options_rejected(&self) {
         self.send(Receipt { match_id: self.key.seed, generation: 0, outcome: Outcome::OptionsRejected });
@@ -60,10 +59,10 @@ impl<'a> Connection<'a> {
         self.send(Receipt { match_id: self.key.seed, generation, outcome: Outcome::Loaded });
     }
     fn send(&self, receipt: Receipt) {
-        let now = self.now(); let mut budget = self.budget();
-        if budget.sent.is_some_and(|(sent, at)| sent == receipt && now.elapsed(at) < 1000) { return; }
-        // A different corrupt generation must not evade the rejection rate cap.
-        if receipt.outcome != Outcome::Loaded && budget.sent.is_some_and(|(_, at)| now.elapsed(at) < 1000) { return; }
+        let mut budget = self.budget();
+        // The same world's outcome again (a flood of one corrupt world): told
+        // already. Each refused handshake message is an event of its own.
+        if receipt.outcome != Outcome::OptionsRejected && budget.told == Some(receipt) { return; }
         // SAFETY: the connection and pool remain live during this synchronous
         // hook. Check headroom BEFORE begin, which asserts on an exhausted pool.
         unsafe {
@@ -76,6 +75,8 @@ impl<'a> Connection<'a> {
             raw::engine_append_packet_bytes(Some(packet.writer()), bytes.as_ptr(), SIZE as u32);
             raw::engine_match_packet_send(Some(self.holder), Some(packet));
         }
-        budget.sent = Some((receipt, now)); BUDGET.set(self.thread, Some(budget));
+        if receipt.outcome != Outcome::OptionsRejected {
+            budget.told = Some(receipt); BUDGET.set(self.thread, Some(budget));
+        }
     }
 }
