@@ -5718,3 +5718,7 @@ va	name	location	role	basis
 0x002ffc40	survarium::inventory_item::degrade_per_death	ECX	item receiver	observed
 0x002ffc80	survarium::inventory_item::degrade_per_use	ECX	item receiver	observed
 0x00246380	survarium::inventory_item::cast_artefact	ECX	item receiver	observed
+0x002fe7f0	survarium::inventory::quick_slot_to_inventory_slot	at 0x2FE854..0x2FE86C	every artefact container of the run ([+168h], [+16Ch]) takes a quick ordinal, an empty one too (only a held item of kind 0 is skipped): the HUD shows an empty container as an empty artefact position	observed
+0x0023b740	survarium::game_world_ui::update_local_player_state	at 0x23B79E	the six-position loop stops at the first ordinal with no slot (23) and leaves the positions after it as they were (a run that shrinks leaves its last position drawn)	observed
+0x0023b550	survarium::game_world_ui::clear_player	EAX	the ui (game+1FCh): every quick position updated empty (0x23A380 for 0..5) and their cache +1B5Ch (30h bytes) zeroed; called at 0x242D3C where the network client lets its local player go	observed
+0x002fe550	survarium::inventory::deserialize	at 0x2FE5E7..0x2FE60F	the container run: count byte to +16Ch, then (count not 0) a first-slot byte, any value, +168h = inventory+10Ch + 4 x it; the run is not re-checked against the kit	observed
