@@ -202,11 +202,11 @@ pub struct PantryCounts {
 }
 
 impl PantryCounts {
-    /// The counts as a log line: `spawns 12 (short 0), medkits 5, bandages 3, antitoxins 0, empty presses 0`.
+    /// The counts as a log line: `spawns 12 (short 0), medkits 5, bandages 3, antitoxins 0, military 0, empty presses 0`.
     pub fn line(&self) -> String {
-        let [medkits, bandages, antitoxins] = self.pressed;
+        let [medkits, bandages, antitoxins, military] = self.pressed;
         format!(
-            "spawns {} (short {}), medkits {medkits}, bandages {bandages}, antitoxins {antitoxins}, empty presses {}",
+            "spawns {} (short {}), medkits {medkits}, bandages {bandages}, antitoxins {antitoxins}, military {military}, empty presses {}",
             self.spawns, self.short_spawns, self.empty_presses
         )
     }

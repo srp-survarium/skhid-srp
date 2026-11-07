@@ -35,13 +35,14 @@ impl PocketCounts {
     fn part(&self) -> Part {
         let team = |t: usize| {
             let c = &self.by_team[t];
-            let [medkits, bandages, antitoxins] = c.pressed;
+            let [medkits, bandages, antitoxins, military] = c.pressed;
             serde_json::json!({
                 "spawns": c.spawns,
                 "short_spawns": c.short_spawns,
                 "medkits": medkits,
                 "bandages": bandages,
                 "antitoxins": antitoxins,
+                "military": military,
                 "empty_presses": c.empty_presses,
             })
         };

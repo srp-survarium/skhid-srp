@@ -625,10 +625,12 @@ impl KitMedkit {
         }
     }
 
-    /// The medkit item a bot of `tier` carries with this choice.
+    /// The medkit item a bot of `tier` carries with this choice: the Medikit where the game data in use has no military
+    /// medkit (0.26g's own archive, the tests' data, has none: the item came with a content patch, as the live data has it).
     pub fn item(self, tier: BotTier) -> BotKitItem {
+        let has_military = || Dictionary::shared().item_named(BOT_MILITARY_MEDKIT_NAME).is_some();
         match (self, tier) {
-            (Self::MilitaryAboveLow, BotTier::Mid | BotTier::High) => BotKitItem {
+            (Self::MilitaryAboveLow, BotTier::Mid | BotTier::High) if has_military() => BotKitItem {
                 name: BOT_MILITARY_MEDKIT_NAME,
                 ..BOT_MEDKIT
             },
