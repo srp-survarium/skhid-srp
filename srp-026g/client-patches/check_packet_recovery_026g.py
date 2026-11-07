@@ -54,10 +54,16 @@ def main():
     # Each refused handshake message is told, the second at once too, with
     # its number on the connection: the server tells a new refusal from a
     # copy of one (0xE0 is plain and resent until acked) by it.
+    # The numbers go on across the seed's change mid-connection (the native
+    # E3 reader writes it, 0x1F0E7A, once one is taken): a count started
+    # again would send 1 twice, and the server take the second for a copy.
     run.word(CLIENT+0x1F1C64,0)
-    for number in (1,2):
+    for number,seed in ((1,0x81234567),(2,0x1234ABCD)):
+        run.word(HOLDER+0x577BC,seed)
         run.message(0xe4,b"\0\x01")
         assert len(run.receipts)==1 and run.receipts[0][12:14]==bytes([number,2]) and not run.calls,run.receipts
+        assert run.receipts[0][8:12]==seed.to_bytes(4,"little")
+    run.word(HOLDER+0x577BC,0x81234567)
     run.word(CLIENT+0x1F1C64,2)
     # A world whose generation cannot be read (its reader past its buffer, or
     # no byte) is refused by number, counted with the handshake's: the
@@ -74,10 +80,16 @@ def main():
     before=run.packet_allocations
     run.message(0xe8,b"\x06\x02"+bytes(8))
     assert not run.receipts and run.packet_allocations==before and not run.calls
-    # It waits, and goes on the first frame with room, once.
+    # It waits, and goes on the first frame with room, once. A numbered
+    # refusal meanwhile (here a handshake's, number 6) waits beside it, and
+    # never in its place: the world's receipt is still due.
     assert not frame(run) and run.packet_allocations==before
+    run.word(CLIENT+0x1F1C64,0)
+    run.message(0xe4,b"\0\x01")
+    assert not run.receipts and run.packet_allocations==before
+    run.word(CLIENT+0x1F1C64,2)
     run.word(POOL+0x30,0)
-    sent=frame(run); assert sent==[b"\x06\x01"] and run.packet_allocations==before+1,(sent,run.packet_allocations,before,run.lines)
+    sent=frame(run); assert sent==[b"\x06\x01",bytes([6,2])] and run.packet_allocations==before+2,(sent,run.packet_allocations,before,run.lines)
     assert not frame(run)
     # Complete native deserialize is required for the Loaded receipt. The
     # hook runs after the load; rejected bytes never invoke native deserialize.
