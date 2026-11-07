@@ -95,9 +95,10 @@ class ReleaseTests(unittest.TestCase):
                 archive.addfile(info, io.BytesIO(data))
         self.dxvk_pins = dict(DXVK_SHA256=hashlib.sha256(self.dxvk.read_bytes()).hexdigest(),
                               DXVK_DLLS={name: hashlib.sha256(data).hexdigest() for name, data in self.dxvk_dlls.items()})
-        self.without_launcher = {'README.txt', 'LINUX.txt',
+        self.without_launcher = {'README.txt', 'LINUX.txt', 'MACOS.txt',
             'game/binaries/x86/survarium_skhid.exe', 'game/binaries/x86/bugtrap.dll',
             'game/binaries/x86/play_skhid.bat', 'game/binaries/x86/play_skhid.sh',
+            'game/binaries/x86/play_skhid_mac.sh',
             'game/resources/ssl/survarium_login_server.crt'}
         self.names = self.without_launcher | {
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
@@ -365,6 +366,7 @@ class ReleaseTests(unittest.TestCase):
                          '-server=release.example:2234 -mt_allocator=768 -minimum_resources_memory_size=768')
         with zipfile.ZipFile(archive) as z:
             self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid.sh'))
+            self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid_mac.sh'))
 
     def test_the_default_exe_has_the_late_join_and_can_be_built_without(self):
         code = Path(overlay.P.late_join_bin()).read_bytes()

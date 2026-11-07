@@ -1,0 +1,39 @@
+SURVARIUM 0.26g - MACOS
+
+For Macs with Apple silicon (M1 or newer). Needs Rosetta 2, installed once
+in Terminal with:
+
+    softwareupdate --install-rosetta --agree-to-license
+
+START
+
+Unpack the Skhid archive into an empty folder with about 10 GB free. In
+Terminal, in that folder, run:
+
+    bash Skhid.sh launcher
+
+The launcher downloads the game and updates; press PLAY when ready.
+For an existing game, apply the complete archive over its folder.
+To play directly without checking for updates, run bash Skhid.sh, or run
+bash play_skhid_mac.sh from game/binaries/x86.
+
+The first launch downloads Wine (built by Sikarugir from CrossOver's
+sources) and DXMT, which runs the game's Direct3D 11 on Metal: about
+260 MB into ~/Library/Application Support/Skhid. Later launches reuse it.
+It also creates a Wine prefix in game/binaries/x86/wineprefix.
+Settings: ~/Library/Application Support/Skhid/user.cfg (the first launch
+starts the game in fullscreen at the main display's resolution).
+
+Optional: some UI text (item levels) needs the font Calibri. With Homebrew,
+brew install winetricks cabextract; the next launch installs the font.
+
+IF IT FAILS
+
+Report skhid-wine.log and, for update failures, updater_skhid.log from
+game/binaries/x86. If the prefix is broken, close the game and launcher and
+rename game/binaries/x86/wineprefix to an unused backup name; the next
+launch makes a new one. Settings stored outside the prefix survive.
+
+For a crash a developer asked to investigate, start with full-memory dumps:
+
+    SKHID_CRASH_DUMP=full bash Skhid.sh launcher
