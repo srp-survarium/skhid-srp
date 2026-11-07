@@ -141,6 +141,34 @@ pub struct SmokeTuning {
     /// in that case so enemy would need to leave it"). None: no smoke for that crossing. ON by default as a choice (the
     /// owner's ask; by-side bench in its PR); `all_off.json` names it null.
     pub shooter_spot: Option<ShooterSpot>,
+    /// [A308] The known camper's lane (`ThreatLane`): a held lane that killed one of ours lately, its shooter sensed on it
+    /// within the fairness rule's 15 s, is smoked from far enough ahead that the cloud hides his line when the bot gets
+    /// there at a walk (the fuse and the forming at the walk cap: about 18 m), and nobody holds for it. The lane smoke
+    /// (`cross_lane`) looks 10 m ahead, which a walk covers in 3 s, before a cloud thrown then is up (4 s fuse + 1.24 s), so
+    /// it needed the hold (`wait_for_cloud`), and the holds cost the team more than the cloud saved (A317: wins z -2.6).
+    /// A308's data (fx-gear-2, `a308_cover2.py`): 78 % of a farming camper's kills came 4 s or more after his team had a
+    /// threat spot on him; 0.3 % of other killers' kills were at a spot. None: off.
+    pub threat_lane: Option<ThreatLane>,
+}
+
+/// [A308] `SmokeTuning::threat_lane`.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ThreatLane {
+    /// A held lane is a known camper's when it killed this many of ours (`lane_ahead::Known`),
+    pub kills: usize,
+    /// within this of now, ms (a threat spot keeps one death about two minutes, `threat::DECAY_PER_S`),
+    pub within_ms: u32,
+    /// its shooter sensed on it within this, ms (at most `smoke::FAIR_SENSED_MS`).
+    pub sensed_ms: u32,
+    /// The crossing is looked for this far past the lead (the walk to it while the smoke flies and forms), metres.
+    pub window_m: Metres,
+}
+
+impl Default for ThreatLane {
+    fn default() -> Self {
+        Self { kills: 1, within_ms: 120_000, sensed_ms: super::super::smoke::FAIR_SENSED_MS, window_m: Metres::of(10.0) }
+    }
 }
 
 /// [A291] `SmokeTuning::objective`.
@@ -293,7 +321,11 @@ pub enum CloudWaiters {
 
 impl SmokeTuning {
     pub(super) fn check(&self) -> Result<(), String> {
-        check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")
+        check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")?;
+        check(
+            self.threat_lane.is_none_or(|r| r.sensed_ms <= super::super::smoke::FAIR_SENSED_MS && r.kills >= 1),
+            "smoke.threat_lane",
+        )
     }
 }
 
@@ -328,6 +360,24 @@ impl Default for SmokeTuning {
             aim_point: Some(AimPoint::BestCover(BestCover::default())),
             objective: None,
             shooter_spot: Some(ShooterSpot::default()),
+            threat_lane: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// [A308] `smoke.threat_lane` may not act on a shooter sensed longer ago than the fairness rule's 15 s.
+    #[test]
+    fn the_camper_lane_keeps_the_fairness_rule() {
+        let r = ThreatLane::default();
+        let mut t = SmokeTuning { threat_lane: Some(r), ..Default::default() };
+        assert!(t.check().is_ok());
+        t.threat_lane = Some(ThreatLane { sensed_ms: super::super::super::smoke::FAIR_SENSED_MS + 1, ..r });
+        assert!(t.check().is_err(), "past the fairness rule");
+        t.threat_lane = Some(ThreatLane { kills: 0, ..r });
+        assert!(t.check().is_err(), "a spot that killed none");
     }
 }

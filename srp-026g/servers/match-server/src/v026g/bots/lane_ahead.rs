@@ -110,4 +110,16 @@ mod tests {
         let ahead = known_lane_ahead(&spot, Known::FARMING, now, at(12.0), at, (12.0, 25.0, 2.0), sees).expect("in line");
         assert!(ahead.in_line);
     }
+
+    /// [A308 `smoke.threat_lane`] The known camper's rule: one death within two minutes, sensed within the fairness rule's
+    /// 15 s, is known; a stale sense (past 15 s) or no death in the window is not.
+    #[test]
+    fn a_known_camper_is_one_death_sensed_within_fifteen_seconds() {
+        let r = crate::v026g::bots::tuning::ThreatLane::default();
+        let k = Known { kills: r.kills, within_ms: r.within_ms, sensed_ms: r.sensed_ms };
+        let now = 200_000;
+        assert!(k.holds(&lane(&[110_000], Some(186_000)), now), "one death 90 s ago, sensed 14 s ago");
+        assert!(!k.holds(&lane(&[110_000], Some(184_000)), now), "sensed 16 s ago");
+        assert!(!k.holds(&lane(&[70_000], Some(199_000)), now), "the death is older than 2 min");
+    }
 }

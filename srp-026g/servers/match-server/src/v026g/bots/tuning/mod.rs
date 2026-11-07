@@ -156,6 +156,7 @@ pub use smoke::NearShooter;
 pub use smoke::ObjectiveSmoke;
 pub use smoke::ShooterSpot;
 pub use smoke::SmokeTuning;
+pub use smoke::ThreatLane;
 pub use smoke::WaitForCloud;
 pub use spacing::Callouts;
 pub use spacing::SpacingTuning;

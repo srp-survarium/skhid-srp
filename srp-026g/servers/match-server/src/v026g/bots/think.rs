@@ -884,6 +884,55 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             if sniper.is_some() { smoke::tally::Event::Outranged } else { smoke::tally::Event::OutrangedNoPlan },
         );
     }
+    // [A308 `smoke.threat_lane`] A known camper's lane (a held lane that killed one of ours lately, its shooter sensed on it
+    // within the fairness rule's window): the first point of the route he sees from his spot (`lane_ahead`, his own 3D eye
+    // test), far enough ahead that a cloud thrown now hides his line when a walk gets there (the fuse and the client's
+    // forming at the walk cap, PROVEN 3.5 m/s), and not so far it is another crossing. Nobody holds for it.
+    let camper = || {
+        let rule = t.threat_lane?;
+        if !t.cross_lane || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life || sprinting {
+            return None;
+        }
+        let (route, _) = bot.route.as_ref()?;
+        let heights = bot.motor.heights();
+        let lead_ms = grenade.cloud.fuse_ms + smoke::Forming::of(t).ms(&grenade.cloud);
+        let lead_m = lead_ms as f32 / 1000.0 * super::plays::crossfire::WALK_M_S;
+        let start = route.walked();
+        let end = (start + lead_m + rule.window_m.get()).min(route.length());
+        let known = super::lane_ahead::Known { kills: rule.kills, within_ms: rule.within_ms, sensed_ms: rule.sensed_ms };
+        let ahead = super::lane_ahead::known_lane_ahead(
+            &bot.lanes,
+            known,
+            view.clock,
+            me.feet,
+            |s| route.at(s, heights),
+            (start, end, 2.0),
+            |a, b| tactics.sees(a, b),
+        )?;
+        // In his sight already, or the crossing nearer than the cloud can be up: the run-through (`threat.sprint`) is the answer.
+        if ahead.in_line || ahead.crossing_s - start < lead_m {
+            return None;
+        }
+        let eye = ahead.lane.at + Vec3::new(0.0, super::lane_ahead::EYE_M, 0.0);
+        let crossing = ahead.crossing;
+        if smoke_there(eye, crossing + chest_over) || !open_from(&[eye], ahead.crossing_s) {
+            return None;
+        }
+        plan_line(&[eye], ahead.crossing_s, crossing, SmokeUse::CrossLane).map(|(plan, stretch)| {
+            let why = format!(
+                "a known camper: the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1}), {:.0} m ahead",
+                ahead.lane.shooter,
+                ahead.lane.at.x,
+                ahead.lane.at.y,
+                ahead.lane.at.z,
+                crossing.x,
+                crossing.y,
+                crossing.z,
+                ahead.crossing_s - start
+            );
+            (plan, why, eye, None, Some(ahead.lane.shooter), stretch)
+        })
+    };
     // Across the first held lane its route enters ahead, before it steps in.
     let lane = || {
         if !t.cross_lane || bot.smoke_threat.is_empty() || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life {
@@ -986,7 +1035,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         );
         Some((plan, why, eye, None, Some(held.shooter), stretch))
     };
-    let Some((plan, why, against, hold, threat, stretch)) = sniper.or_else(lane).or_else(carrier) else {
+    let Some((plan, why, against, hold, threat, stretch)) = sniper.or_else(camper).or_else(lane).or_else(carrier) else {
         return;
     };
     #[cfg(not(test))]
