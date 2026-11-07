@@ -170,15 +170,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     {
         out.extend(cx.job_candidate(PlayKind::Flank, TargetRef::ThreatSpot(id), JOB_KEY + id, JOB_HEALTH));
     }
-    // [A320 `threat.camp_flank.alarm_near_fire_m`] Near its firing floor a route walker's flank is in the alarm band.
-    if let Some(near) = cx.tuning.threat.camp_flank.and_then(|c| c.alarm_near_fire_m)
-        && cx.bot.route_left_m.is_some_and(|m| m <= near)
-        && let Some((PlayKind::Flank, target @ TargetRef::ThreatSpot(_), _)) = cx.bot.current
-    {
-        for c in out.iter_mut().filter(|c| c.kind == PlayKind::Flank && c.target == target) {
-            c.rank = c.rank.max(Rank::Alarm);
-        }
-    }
+    near_fire_alarm(cx, out);
     for track in cx.memory.tracks() {
         let target = TargetRef::Place(track.who);
         let running = matches!(cx.bot.current, Some((PlayKind::Flank, t, _)) if t == target);
@@ -216,6 +208,19 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         let changed = OFFER_SEEN.with(|m| m.borrow_mut().insert(cx.me.place, now.clone()).as_ref() != Some(&now));
         if changed && (offer.is_none() || !now.starts_with("band Objective")) {
             eprintln!("A320 camp_flank offer: t {} place {} {now}", cx.now, cx.me.place);
+        }
+    }
+}
+
+/// [A320 `threat.camp_flank.alarm_near_fire_m`] Near its firing floor a route walker's own flank is in the alarm band (a
+/// Trade does not take it there).
+fn near_fire_alarm(cx: &Ctx, out: &mut [Candidate]) {
+    if let Some(near) = cx.tuning.threat.camp_flank.and_then(|c| c.alarm_near_fire_m)
+        && cx.bot.route_left_m.is_some_and(|m| m <= near)
+        && let Some((PlayKind::Flank, target @ TargetRef::ThreatSpot(_), _)) = cx.bot.current
+    {
+        for c in out.iter_mut().filter(|c| c.kind == PlayKind::Flank && c.target == target) {
+            c.rank = c.rank.max(Rank::Alarm);
         }
     }
 }
@@ -1071,14 +1076,17 @@ mod tests {
             s.current = Some((PlayKind::Flank, target, 0));
             s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank { alarm_near_fire_m: Some(25.0), ..Default::default() });
             let rank_of = |s: &Scenario| {
-                let mut found = Vec::new();
-                candidates(&s.cx(0), &mut found);
-                found.into_iter().find(|c| c.kind == PlayKind::Flank && c.target == target).map(|c| c.rank)
+                let mut found = [
+                    Candidate { kind: PlayKind::Flank, target, rank: Rank::Objective, score: Score::new(0.5), why: Default::default(), slot: None },
+                    Candidate { kind: PlayKind::Roam, target: TargetRef::None, rank: Rank::Roam, score: Score::new(0.5), why: Default::default(), slot: None },
+                ];
+                near_fire_alarm(&s.cx(0), &mut found);
+                (found[0].rank, found[1].rank)
             };
             s.route_left_m = Some(10.0);
-            assert_eq!(rank_of(&s), Some(Rank::Alarm));
+            assert_eq!(rank_of(&s), (Rank::Alarm, Rank::Roam), "near: its flank only in the alarm band");
             s.route_left_m = Some(40.0);
-            assert_ne!(rank_of(&s), Some(Rank::Alarm));
+            assert_eq!(rank_of(&s), (Rank::Objective, Rank::Roam), "far: its own band");
             s.route_left_m = None;
             s.current = None;
             s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank::default());
