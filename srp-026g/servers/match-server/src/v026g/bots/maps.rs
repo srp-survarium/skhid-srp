@@ -1167,6 +1167,30 @@ mod tests {
         let _ = std::fs::remove_dir_all(built);
     }
 
+    /// [A346] [`a_bench_world_is_the_map_stores_world`] on real maps: `SRP_MAPDATA_DIR` (the map files), `SRP_A346_PROJECTS`
+    /// (comma-separated projects), the tuning `SRP_BENCH_TUNING` (JSON over the defaults, `{}` if unset). Prints each map's
+    /// digests and tables both ways.
+    #[test]
+    #[ignore = "real maps; minutes a map"]
+    fn bench_worlds_are_the_stores_on_real_maps() {
+        let dir = PathBuf::from(std::env::var("SRP_MAPDATA_DIR").expect("SRP_MAPDATA_DIR"));
+        let projects = std::env::var("SRP_A346_PROJECTS").expect("SRP_A346_PROJECTS");
+        let tuning: crate::v026g::bots::tuning::Tuning =
+            serde_json::from_str(&std::env::var("SRP_BENCH_TUNING").unwrap_or_else(|_| "{}".into())).expect("SRP_BENCH_TUNING");
+        let (wall_clearance, open_sides) = (tuning.needs_wall_clearance(), tuning.needs_open_sides());
+        for project in projects.split(',').filter(|p| !p.is_empty()) {
+            let path = dir.join(mapdata::format::file_name(project));
+            let map = MapData::from_bytes(&std::fs::read(&path).expect("map file")).expect("map");
+            let bench = World::build_with(map, mapdata::CELL, tuning.grid_body(), tuning.off_mesh_links(), wall_clearance, open_sides);
+            let store = Maps::configured_for(Some(dir.clone()), KEEP, AT_ONCE, None, tuning.grid.clone(), wall_clearance, open_sides);
+            let served = wait_ready(&store, project, Duration::from_secs(1800));
+            let (a, b) = (bench.grid.digest(), served.world.grid.digest());
+            let (ta, tb) = (mapdata::GridExtras::held_by(&bench.grid), mapdata::GridExtras::held_by(&served.world.grid));
+            println!("A346 {project}: bench {a:?} {ta:?} store {b:?} {tb:?} {}", if a == b && ta == tb { "EQUAL" } else { "DIFFER" });
+            assert_eq!((a, ta), (b, tb), "{project}");
+        }
+    }
+
     #[test]
     fn the_least_recently_used_world_is_dropped_but_kept_while_held() {
         let dir = temp_dir("lru");
