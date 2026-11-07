@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Varasto
 st_aniso_filtering_option	Anisotrooppinen suodatus
 st_anomaly_damage_corr_perc_name	Anomaliavahinko
-st_anomaly_skills_label	Metsän tuntemus.
+st_anomaly_skills_label	Metsän tuntemus
 st_antialiasing_option	Reunanpehmennys
 st_antitoxin_description	Yhdistelmälääke kehon myrkkyjen neutralointiin. Parhaan tehon saat ottamalla sen ennen altistumista. 
 st_antitoxin_name	Vastamyrkky

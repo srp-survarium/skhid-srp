@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Sklad
 st_aniso_filtering_option	Anizotropní filtrování
 st_anomaly_damage_corr_perc_name	Poškození od anomálií
-st_anomaly_skills_label	Znalost Lesa.
+st_anomaly_skills_label	Znalost Lesa
 st_antialiasing_option	Vyhlazování hran
 st_antitoxin_description	Kombinovaný lék k neutralizaci jedů a toxinů v těle. Pro nejlepší účinek ho užij před vystavením škodlivinám. 
 st_antitoxin_name	Antitoxin

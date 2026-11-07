@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Storage
 st_aniso_filtering_option	Anisotrope filtering
 st_anomaly_damage_corr_perc_name	Anomaly damage
-st_anomaly_skills_label	Knowledge of the Forest.
+st_anomaly_skills_label	Knowledge of the Forest
 st_antialiasing_option	Antialiasing
 st_antitoxin_description	A complex medicine designed to neutralize poisons and toxins in the human body. To maximize the effect, consume prior to harmful impact. 
 st_antitoxin_name	Antitoxin

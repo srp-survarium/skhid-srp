@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Raktár
 st_aniso_filtering_option	Anizotrop szűrés
 st_anomaly_damage_corr_perc_name	Anomáliasebzés
-st_anomaly_skills_label	Az Erdő ismerete.
+st_anomaly_skills_label	Az Erdő ismerete
 st_antialiasing_option	Élsimítás
 st_antitoxin_description	Összetett gyógyszer a szervezetben lévő mérgek semlegesítésére. A legjobb hatásért a káros behatás előtt vedd be. 
 st_antitoxin_name	Antitoxin
