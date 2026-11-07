@@ -110,6 +110,8 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 9: Forest Protection's glow on the forearms and hands, made as a quarter is.
 - Version 10: Forest Protection's glow the legs' system of 5..8 moved to the arms; it and the leg quarters composites with a
   first-person twin (view 0) without the point light and the haze, as the kinds' own glows are.
+- Version 11: Forest Protection's puffs, strokes and haze out of the arm on every side (their
+  animated domain's Scale outward on all three axes), the puffs twice as large; the twin 10's.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

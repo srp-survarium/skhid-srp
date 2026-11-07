@@ -132,6 +132,18 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   parts: upper leg to upper arm, lower leg to forearm, foot to hand. No rescaling (one part for
   one). `check_forest` proves the legs' system is the file @5..@8 shipped and that only those
   flags moved.
+- Since @11 (the owner, 2026-11-07: the arms glowed from some sides only, the cloud must be
+  outside the arm on every side, a fog as the leg quarters show): an animated domain puts each
+  particle at a random point of its body part's shape, the point's coordinates times the
+  domain's Scale per axis in the part's own frame, and keeps it there as the part moves (0.26g
+  0x369030, `particle_action_animated_source::init`). The stock Scale was made for the legs:
+  `up` pushes its puffs out on x only (1.76 -> 1.26) and keeps them inside on y (0.79 -> 0.83),
+  the haze is flat (z 0.02), the strokes sit at each part's centre (0). On the arms that put
+  the cloud inside the sleeve or along it, and the point light at the hands (lighting the
+  face from the front) was most of what showed. Now the puffs, the strokes and the haze have on
+  all three axes the x curve of `up` (the haze its own, 1.0), and the puffs are twice as large
+  (`FOREST_OUTWARD`, `FOREST_PUFF_SIZE`); the light and everything else are @10's, and so is the
+  first-person twin. `check_forest` allows exactly those values (and their data sources).
 - First person since @10 (the owner, 2026-11-06: the carrier's own view washed white/grey): its
   effect and each leg quarter's are made as effect_artefact_<kind> is, a composite (type 110) of
   the system with no `view` (everyone else's third person, unchanged: its point light and haze)
@@ -274,7 +286,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   each 4 less the recipient's own carried copies of the kind (in their passive or active).
   Larkspur's active heal is Medic's, which has no cap: a full heal twice is one.
 
-### Leg quarters (patch 111, pack artefact-glow@10)
+### Leg quarters (patch 111, pack artefact-glow@11)
 
 - The owner (2026-11-06): each passive artefact copy that counts for a player lights a quarter
   of its legs in that artefact's colour (how stacked a player is).
