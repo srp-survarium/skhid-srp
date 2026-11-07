@@ -251,6 +251,10 @@ fn job_line<'a>(cx: &Ctx<'a>, target: TargetRef) -> Option<&'a crate::v026g::bot
 
 /// [A320] A route floor this near is passed, m.
 const ROUTE_PASS_M: f32 = 2.0;
+/// [A320] The firing floor is reached this near only, m: it is the route's first floor that sees the spot (the edge of his
+/// cover), so a flanker stopped 2 m short is still behind it (B3g4: no line to him at 17 of 21 arrivals). Half a cell's
+/// diagonal and a margin.
+const ROUTE_FIRE_M: f32 = 0.5;
 /// [A320] The way point is the first route floor this far ahead at least, m.
 const ROUTE_LEAD_M: f32 = 5.0;
 /// [A320] The team's knowledge of an enemy counts toward a route's risk this long after it was sensed or called out, ms,
@@ -688,7 +692,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             let at = |i: usize| grid.position(r.floors[i]);
             let fire = r.fire;
             // Passed: every floor up to the last one within reach (the route is walked in order).
-            if let Some(k) = (*next..=fire).rev().find(|&i| at(i).distance_xz(cx.me.feet) <= ROUTE_PASS_M) {
+            let pass = |i: usize| if i == fire { ROUTE_FIRE_M } else { ROUTE_PASS_M };
+            if let Some(k) = (*next..=fire).rev().find(|&i| at(i).distance_xz(cx.me.feet) <= pass(i)) {
                 *next = k + 1;
             }
             // [A320 bench] Whether the camper (bench truth: the world's place of the held spot's shooter) has a line to it.
@@ -729,7 +734,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             let way = (*next..=fire).find(|&i| at(i).distance_xz(cx.me.feet) >= ROUTE_LEAD_M).unwrap_or(fire);
             let to_fire = at(fire).distance_xz(cx.me.feet);
             let pace = if to_fire < num("sneak_m") { Pace::Sneak } else { Pace::Walk };
-            let mut intent = Intent::to(at(way), pace).within(ROUTE_PASS_M * 0.7);
+            let mut intent = Intent::to(at(way), pace).within(pass(way) * 0.7);
             if to_fire < num("sneak_m") {
                 intent = intent.looking(Look::At(him));
             }
