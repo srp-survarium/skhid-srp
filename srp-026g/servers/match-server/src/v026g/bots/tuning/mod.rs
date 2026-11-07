@@ -801,6 +801,7 @@ mod tests {
             "/kin/fix_floor",
             "/kin/jump_snap",
             "/kin/level_source",
+            "/kin/own_lead",
             "/kin/pitch_scale",
             "/kin/speed_cap",
             "/kin/speed_terms",

@@ -68,6 +68,8 @@ pub struct Kinematics {
     pub drop_fall: DropFall,
     /// [A318] Which input's keys and yaw move the reckoned body on a step ([`StepInput`]).
     pub step_input: StepInput,
+    /// [A318] Where a bot's own motor plans from ([`OwnLead`]).
+    pub own_lead: OwnLead,
     /// [A318] The speed a world's falling body starts its reckoned fall at ([`FixFall`]).
     pub fix_fall: FixFall,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
@@ -389,6 +391,7 @@ impl Default for Kinematics {
             edge: Edge::Client,
             drop_fall: DropFall::Client,
             step_input: StepInput::Previous,
+            own_lead: OwnLead::FirstMoved,
             fix_fall: FixFall::World,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
@@ -495,6 +498,33 @@ pub enum StepInput {
     /// input, as the client holds it.
     #[default]
     Previous,
+}
+
+/// [A318] Where a bot's own decision plans from. At its tick T the bot's own reckoning stands at T-50 (the input it decides now
+/// is not taken yet). The steps after it are already set by the inputs it sent ([`StepInput`]): under the client's order
+/// ([`StepInput::Previous`]) the step into T moves with input T-100's keys and the step into T+50 with input T-50's, so the keys
+/// decided at T first move the step into T+100; under [`StepInput::Same`] they first move the step into T+50.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OwnLead {
+    /// From the reckoning as it stands (T-50): as it was, two ticks behind where the new keys act under the client's order.
+    Seen,
+    /// From the body where the new keys first move it: the reckoning played on with the inputs already sent
+    /// (`BodyTrack::at`, [`Self::lead_ms`] past the decision's tick).
+    #[default]
+    FirstMoved,
+}
+
+impl OwnLead {
+    /// How far past its tick a bot's decision plans from (ms): the feet before the first step its keys move. None with
+    /// [`Self::Seen`] (the reckoning as it stands).
+    pub fn lead_ms(self, step_input: StepInput) -> Option<u32> {
+        match (self, step_input) {
+            (Self::Seen, _) => None,
+            (Self::FirstMoved, StepInput::Previous) => Some(survarium::v026g::match_msgs::TICK_MS),
+            (Self::FirstMoved, StepInput::Same) => Some(0),
+        }
+    }
 }
 
 /// [A318] How the reckoned body (`BodyTrack`, not the lip guard's stop forecast) comes down when its floor drops more than a step

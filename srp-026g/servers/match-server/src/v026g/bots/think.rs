@@ -135,10 +135,13 @@ impl Bots {
             {
                 bot.bench_driven = clock.clock;
             }
-            let estimate = self
-                .tracker
-                .body(bot.place)
-                .and_then(|body| body.estimate().copied());
+            // [A318] [`kin::OwnLead::FirstMoved`]: the body where this tick's keys first move it, the steps before played with
+            // the inputs already sent ([`kin::OwnLead::lead_ms`]).
+            let lead = tuning.kin.own_lead.lead_ms(tuning.kin.step_input);
+            let estimate = self.tracker.body(bot.place).and_then(|body| match lead {
+                Some(lead) => body.at(time + lead, &tuning.kin, world.as_deref().map(|w| &*w.grid)),
+                None => body.estimate().copied(),
+            });
             let me = view.place(bot.place).filter(|p| p.alive);
             // [A318] Whether a jump this tick would go, before the drive spends the bar: the client's gate (`kin.jump_arc`).
             let may_jump = bot.stamina.may_jump()
