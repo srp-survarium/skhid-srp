@@ -480,19 +480,41 @@ fn connection_info(session_id: u32, ip: Ipv4Addr, port: u16) -> [u8; 11] {
 /// What the client is told of a refused sign-in. A wrong password, a name
 /// locked out for too many of them and a name no account can have get the
 /// same answer, so a guesser learns nothing more.
-fn refusal_code(store: &SessionStore, user_name: &str, error: SignInError) -> u8 {
-    match error {
+fn refusal(store: &SessionStore, user_name: &str, error: SignInError) -> Vec<u8> {
+    let code = match error {
         SignInError::WrongPassword
         | SignInError::TooManyAttempts
         | SignInError::InvalidUserName => INVALID_USER_NAME_OR_PASSWORD,
         SignInError::TooManyFromAddress | SignInError::RegistrationLimit => TOO_MANY_ATTEMPTS,
         SignInError::RegistrationsClosed => REGISTRATION_CLOSED,
         // A ban lifted this very moment has no reason left to tell.
-        SignInError::Banned => store
-            .account_id_by_name(user_name)
-            .and_then(|account_id| store.account_ban(account_id))
-            .map_or(BANNED, |ban| ban_code(&ban.reason)),
+        SignInError::Banned => {
+            return store
+                .account_id_by_name(user_name)
+                .and_then(|account_id| store.account_ban(account_id))
+                .map_or_else(|| vec![BANNED], |ban| ban_answer(&ban, unix_now()));
+        }
+    };
+    vec![code]
+}
+
+/// A banned account's answer: its reason's code, then, for a ban that ends,
+/// the seconds it has left (u32 LE, at most u32::MAX). The game reads byte 0
+/// alone; patch 116 shows the rest under the reason, as the end's local
+/// time and the time left.
+fn ban_answer(ban: &session::Ban, now: u64) -> Vec<u8> {
+    let mut answer = vec![ban_code(&ban.reason)];
+    if let Some(until) = ban.until {
+        let left = u32::try_from(until.saturating_sub(now)).unwrap_or(u32::MAX);
+        answer.extend_from_slice(&left.to_le_bytes());
     }
+    answer
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs())
 }
 
 fn handle_sign_in(
@@ -624,7 +646,7 @@ fn handle_sign_in(
                         log::warn!("Sign-in of banned account {user_name} from {peer} refused");
                     }
                 }
-                let _ = ssl_stream.write_all(&[refusal_code(store, &user_name, error)]);
+                let _ = ssl_stream.write_all(&refusal(store, &user_name, error));
                 return;
             }
         };
@@ -975,7 +997,7 @@ mod tests {
     #[test]
     fn each_refusal_gets_its_0_26g_number() {
         let store = SessionStore::new();
-        let code = |error| refusal_code(&store, "nobody", error);
+        let code = |error| refusal(&store, "nobody", error)[0];
         assert_eq!(code(SignInError::WrongPassword), 0x0A);
         assert_eq!(code(SignInError::TooManyAttempts), 0x0A);
         assert_eq!(code(SignInError::InvalidUserName), 0x0A);
@@ -994,7 +1016,7 @@ mod tests {
             last = store.sign_in_with_digest_from(name, DIGEST_1, from, now);
         }
         assert_eq!(last, Err(SignInError::RegistrationLimit));
-        assert_eq!(refusal_code(&store, "four", last.unwrap_err()), 0x0C);
+        assert_eq!(refusal(&store, "four", last.unwrap_err()), [0x0C]);
     }
 
     #[test]
@@ -1186,6 +1208,12 @@ mod tests {
             let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
             assert_eq!(reply, [code], "{reason}");
         }
+        // A ban that ends: the seconds it has left after the code.
+        store.ban_account(id, session::Ban { until: Some(unix_now() + 1800), reason: String::new() });
+        let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
+        assert_eq!((reply[0], reply.len()), (0x1C, 5));
+        let left = u32::from_le_bytes(reply[1..].try_into().unwrap());
+        assert!((1790..=1800).contains(&left), "{left}");
         assert_eq!(store.session_count(), 0);
 
         // A banned address: before the password, and nobody registers.

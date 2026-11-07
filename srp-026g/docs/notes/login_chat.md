@@ -173,6 +173,7 @@ Dispatch in `on_sign_in_answer_received` 0x37FB10 is on byte 0:
   - Layout `25 | 1 byte skipped | u32 queue_id | u32 place | u32 total`, the same as 0.21d's 0x16.
   - The client resolves UDP `<login host>:<m_host_port>` (itoa of +0x296, 0x37fbcf), starts the 10 s queue ping and listens for answers.
 - **Any other byte** → callback with that byte. For mapping, see §4.5.
+- **srp: a ban that ends** (0x12..0x1F) is followed by its seconds left, `u32` LE, in the same write. The stock client reads byte 0 alone; patch 116 (`client-patches/README.md`, "A ban's end on the sign-in screen") shows the end and the time left after the reason.
 
 ### 4.5 Login server message ids (0.26g)
 
