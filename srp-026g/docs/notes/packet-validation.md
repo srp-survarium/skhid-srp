@@ -531,22 +531,32 @@ doubt and no guess. `game/refused_worlds.rs`; tests `tests/refused_worlds.rs`.
 - **Each game's standing** (`UploadStanding`, one transition): its initial
   world and every upload asked for as a world of the present (a vote) are
   judged; a world asked for only to look at (its own out of step, a
-  newcomer's) is not. Passing clears it. Three asked uploads refused in a row
+  newcomer's) is not. Passing clears it. A refusal counts only when it is its
+  game's own fault (`Blame`): another game's upload of the same round
+  (`Round`, one 0xF6 request) passed, or its game's hash for the tick
+  disagrees with the majority's; else it stays open until that tick's hashes
+  are judged, and a world every game has (every source refused, the hashes
+  agreeing: rev50's NaN bot, rec026g_20261106-211841_03439962, all 174
+  refusals so) counts against nobody: nothing is relayed, the players stay,
+  joiners and resyncs get the exits below. Three own refusals in a row
   (`REFUSED_IN_A_ROW`): resynced from another game's world, when another game
   whose last upload passed can give one, else removed; three more in a row
   after that: removed.
 - **Each waiting game's refusers** (`Stage::WaitingSnapshot::refused`): the
   places whose upload the check refused while it waited for a world it could
   take (a newcomer's, past its preparation), less those whose upload passed
-  since. When every game it could take a world from (`possible_sources`) is
+  since or whose game connected again (a new game, its standing new). When
+  every game it could take a world from (`possible_sources`) is
   among them, none can be had: a late joiner fails its admission and is
   removed, any other (resynced, back in the match, an initial player that
   came after the start) is removed.
 - **No first world.** Before the match has a world: when an initial world
-  was refused and every other human place's game gave one refused too, has
-  gone, was given up or is a stock game (loaded with no upload), the match is
-  not made (`MatchEnd::NotMade`). A place whose game has not connected yet is
-  waited for, as before (it may come with a world).
+  was refused and every other human place gave one refused too, was given up,
+  or has no game there (never connected, gone, or loaded with no world yet)
+  past the server's bound for games that do not come (`Timing::unstarted`,
+  from the match's first connection), the match is not made
+  (`MatchEnd::NotMade`). A loading game is waited for (it ends in its world or
+  its link's timeout); an honest game's 0xDA can come before its first chunk.
 - **No joiner into a match with no world to give**: while every game a
   joiner could take its world from had its last judged upload refused, the
   match is closed to joiners (`Closed::NoWorld`, a room's `J;-1;8`) until an
@@ -564,7 +574,7 @@ What each end looks like (counts, never time):
 | Late joiner | every possible source's upload refused while it waited | admission failed, `remove(NoWorldToJoin)`: 0xFD, leave | today: `close_current_match(4)`, nothing closed, stays on its screen with no link (`match.md` §24); with the kick-to-lobby exe patch (branch `fix/kick-returns-to-lobby`): back to the lobby as a lost connection | `take_rejected_joins` -> `join_failed`: seat freed, a room member waits in its room (`J;-1;8` while no world can be had) |
 | Resynced / back in the match | the same, not a newcomer | `remove(NoWorldToResync)`: 0xFD, leave; the others get its 0xEA | as above | seat kept: Play sends it back |
 | No first world | an initial world refused, no other place can give one | `finish(NotMade)`: 0xEA of its own place to each game | `close_current_match(3)`: world ended, results screen with its spinner (§34, LIKELY) | not made: nothing counts, a room votes again |
-| Refused again and again | 3 asked uploads refused in a row | resync from another game whose last upload passed (else remove); 3 more: `remove(UploadsRefused)` | resync: as any resync; removal: as the first row | seat kept |
+| Refused again and again | 3 own refusals in a row (its fault, `Blame`) | resync from another game whose last upload passed (else remove); 3 more: `remove(UploadsRefused)` | resync: as any resync; removal: as the first row | seat kept |
 
 ## The world corpus
 

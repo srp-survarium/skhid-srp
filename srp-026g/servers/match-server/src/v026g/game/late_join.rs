@@ -1088,7 +1088,7 @@ impl Game {
         });
         for asked in std::iter::once(index).chain(source) {
             if let Some(peer) = self.peers[asked].as_mut() {
-                peer.ask_at = Some((clock, Wanted::Vote));
+                peer.ask_at = Some((clock, Wanted::Vote(Round::at(now))));
             }
         }
         self.send_requests(now);

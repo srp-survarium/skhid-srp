@@ -818,8 +818,12 @@ saved worlds unless tagged.
 - A late joiner (or a resynced player, or one back in the match) whose every possible source
   gave a refused world while it waited is removed (a joiner's admission fails first: the lobby
   frees its seat). A match whose only initial worlds were refused is not made
-  (`MatchEnd::NotMade`). A game refused three times in a row is resynced from a world that
-  passed, and removed after three more.
+  (`MatchEnd::NotMade`) once no other human place can give one: refused too, given up, or not
+  there (or loaded with none) past `Timing::unstarted`; a loading game is waited for. A game
+  whose own refusals (another upload of its round passed, or its hash for the tick disagrees
+  with the majority) come three in a row is resynced from a world that passed, and removed after
+  three more. A world every game has (rev50 rec026g_20261106-211841_03439962: all 174 refusals
+  so) counts against nobody.
 - **Every removal** (these, the invalid inputs, the restore limit) is `Game::remove`: 0xFD and
   the leave. Today 0xFD ends in `close_current_match(4)`, which closes nothing (§24): the game
   stays on its screen with no link. The exe patch on `fix/kick-returns-to-lobby` makes reason 4
