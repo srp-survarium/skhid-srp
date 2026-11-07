@@ -2284,11 +2284,19 @@ impl Bots {
         }
     }
 
+    /// [A334] The per-poll budgets a poll starts with: the pulled legs' client walks share [`path::PULL_WALK_TICKS_A_POLL`]
+    /// walk ticks (the worst poll's walk work is bounded). Called by [`Self::poll`] and by the bench's timed copy of it, so
+    /// the bench measures the server's budget.
+    pub(super) fn poll_budgets(&self) {
+        mapdata::grid::controlled::set_pull_walk_budget(path::PULL_WALK_TICKS_A_POLL);
+    }
+
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
         #[cfg(test)]
         bench_work::set(bench_work::Who::Shared);
         view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
         view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
+        self.poll_budgets();
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());

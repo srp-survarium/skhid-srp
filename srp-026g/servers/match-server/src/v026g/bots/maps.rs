@@ -583,7 +583,7 @@ fn build(
                 // ([`mapdata::GridExtras::apply`]; the bench's and the tests' worlds through `World::build_with_extras`).
                 // [A333] With the pull's hold for the routes' straight legs when `grid.wall_clear_pull` is on.
                 let pull_hold = grid_tuning.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M);
-                let grid = mapdata::GridExtras { wall_clearance, open_sides, pull_hold }.apply(grid, &walker);
+                let grid = mapdata::GridExtras { wall_clearance, open_sides, pull_hold, pull_walk: grid_tuning.pull_walk }.apply(grid, &walker);
                 let grid = Arc::new(grid);
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)
@@ -1139,6 +1139,8 @@ mod tests {
         // [A333] And the pull's hold.
         let mut held = tables.clone();
         held.grid.wall_clear_pull = true;
+        // [A334] And the pulled legs walked.
+        held.grid.pull_walk = true;
         for tuning in [crate::v026g::bots::tuning::Tuning::default(), tables, held] {
             let (wall_clearance, open_sides) = (tuning.needs_wall_clearance(), tuning.needs_open_sides());
             let bench =
@@ -1158,9 +1160,10 @@ mod tests {
                 assert_eq!(served.world.grid.digest(), bench.grid.digest());
                 assert_eq!(mapdata::GridExtras::held_by(&served.world.grid), mapdata::GridExtras::held_by(&bench.grid));
             }
-            let (clearances, sides, walker, hold) = mapdata::GridExtras::held_by(&bench.grid);
+            let (clearances, sides, walker, hold, pull_walk) = mapdata::GridExtras::held_by(&bench.grid);
             assert_eq!((clearances, sides), (wall_clearance, open_sides.is_some()));
             assert_eq!(hold.is_some(), tuning.grid.wall_clear_pull);
+            assert_eq!(pull_walk, tuning.grid.pull_walk);
             assert!(walker > 0, "the client's walker is always kept");
         }
         let _ = std::fs::remove_dir_all(dir);

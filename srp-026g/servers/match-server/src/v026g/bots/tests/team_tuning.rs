@@ -819,3 +819,24 @@ fn a_hit_is_a_teams_own_by_its_own_credit_window() {
     bots.bullet_hit(1, 10_500);
     assert_eq!(bots.teams[0].knowledge.wounds.hurt(1, 0, 10_500, 0, 400), one);
 }
+
+/// [A334] The server's poll and the bench's timed copy of it start a poll with the same budgets (`Bots::poll_budgets`): the
+/// pulled legs' walk budget is set to `PULL_WALK_TICKS_A_POLL` by both, so the bench measures the server's bound.
+#[test]
+fn the_server_poll_and_the_bench_poll_set_the_same_walk_budget() {
+    use crate::v026g::bots::path::PULL_WALK_TICKS_A_POLL;
+    use mapdata::grid::controlled::{pull_walk_budget_left, set_pull_walk_budget};
+    let clock = Clock { clock: 1_100, time_left_s: 600.0, total_s: 900.0, playing: true };
+    let mut bots = facing_bots(Tuning::default(), Tuning::default(), 0xB0D6);
+    set_pull_walk_budget(0);
+    bots.poll(clock.clone());
+    let by_server = pull_walk_budget_left();
+    let mut bots = facing_bots(Tuning::default(), Tuning::default(), 0xB0D6);
+    set_pull_walk_budget(0);
+    let mut times = crate::v026g::bots::tests::bench::Times::default();
+    crate::v026g::bots::tests::bench::timed_poll(&mut bots, clock, &mut times);
+    let by_bench = pull_walk_budget_left();
+    // The soak field's grid walks no pulled leg, so the budget is the one the poll set.
+    assert_eq!(by_server, PULL_WALK_TICKS_A_POLL);
+    assert_eq!(by_bench, by_server);
+}

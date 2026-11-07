@@ -1000,6 +1000,23 @@ fn pull_straight(
         } {
             j += 1;
         }
+        // [A334] A leg the client's walk tick does not walk is pulled back, a floor at a time, to one it walks or to the next
+        // floor of the path (a grid link): `grid.pull_walk`, the grid's extra ([`WalkGrid::pull_walk_fails`]). With the
+        // client-tick stand-in 93 % of the routes stuck were on pulled legs over several cells (fx-zones' route-stuck table).
+        // Only a leg the client could be stopped on is walked: one whose path floors (the search's, which the leg replaces)
+        // include a floor nearer a wall than the client's body holds (the grid's clearance table) or a step over
+        // [`PULL_WALK_LEVEL_M`]; a level leg clear of walls has nothing to stop a body (CPU: one walk test a leg costs
+        // +41 % of the bots' time even cached).
+        let risky = |i: usize, j: usize| {
+            nodes[i..=j].windows(2).any(|w| (grid.position(w[1]).y - grid.position(w[0]).y).abs() > PULL_WALK_LEVEL_M)
+                || nodes[i..=j].iter().any(|&n| grid.wall_clearance(n).is_none_or(|c| c < crate::v026g::bots::tuning::PULL_HOLD_M))
+        };
+        // A risky leg longer than [`PULL_WALK_LEG_M`] is first shortened to it (no walk): one walk test is then a bounded
+        // number of client ticks, and a failed leg a bounded number of tests (the CPU spikes of long legs).
+        let long = |i: usize, j: usize| grid.position(nodes[i]).distance_xz(grid.position(nodes[j])) > PULL_WALK_LEG_M;
+        while j > i + 1 && grid.pull_walk() && risky(i, j) && (long(i, j) || grid.pull_walk_fails(nodes[i], nodes[j])) {
+            j -= 1;
+        }
         let from = i;
         i = j;
         points.push(Waypoint {
@@ -1042,6 +1059,21 @@ pub(crate) fn top_depth(grid: &WalkGrid, a: NodeId, b: NodeId) -> f32 {
     }
     run + 0.5 * grid.cell_size()
 }
+
+/// [A334] A step between two path floors over this, metres, makes a pulled leg one the client's walk tick checks
+/// ([`WalkGrid::pull_walk_fails`]): under it the floors are level (a cell's own floor reads within a few centimetres).
+const PULL_WALK_LEVEL_M: f32 = 0.1;
+
+/// [A334] A risky pulled leg is at most this long, metres: Detour's crowd checks a path's visibility only this near
+/// (`pathOptimizationRange`, "often agent radius x 30"; the stand radius 0.38 m x 30).
+const PULL_WALK_LEG_M: f32 = 0.38 * 30.0;
+
+/// [A334] The client walk ticks the pulled legs' walk tests may run in one bots' poll, all bots of the match together
+/// (`mapdata::grid::controlled::set_pull_walk_budget`, from [`super::Bots::poll_budgets`]): a leg past it is not walked
+/// this poll (as with the switch off) and a later pull walks it. A walk starts while any is left, so a poll runs one walk
+/// over at most (a leg of [`PULL_WALK_LEG_M`]: 68 ticks). Measured (8v8, 16 matches): the worst poll 126 ms against
+/// 140 ms with the switch off, bots +9.8 %; at 120 ticks +21 %; unbounded a single pull ran 346 walks (13 s).
+pub(crate) const PULL_WALK_TICKS_A_POLL: u32 = 40;
 
 /// The top of a jump link is measured to this depth at most, metres.
 const TOP_DEPTH_MAX_M: f32 = 3.5;
