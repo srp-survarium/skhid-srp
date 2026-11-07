@@ -24,6 +24,8 @@ use std::sync::Arc;
 use mapdata::{NodeId, Vec3, World};
 
 use super::super::body::{self, BodyTrack, Fix};
+use super::super::kin::LegDamageGate;
+use super::super::legs::LegDamage;
 use super::bench::bench_tuning;
 
 /// A world reaches the bots this long after its tick, ms (the bench's own delay; the live one is 200-400).
@@ -175,6 +177,21 @@ fn drift_on_a_real_match() {
         })
         .collect();
     ticks.sort_by_key(|t| (t.0, t.1));
+    // [A325f] Each world's legs' `leg_damage` ends (`rec_motion.csv` beside the worlds, `leg6_damage_until` / `leg7_damage_until`:
+    // each leg's latest type-4 end, empty if none; fx-bench's tools/rec-anim 88de4271), as the server reads them from the world
+    // (`motion::Damage::leg_damage_ends`). Tables without the columns leave the gate out.
+    let leg_ends: HashMap<(usize, u32), Vec<u32>> = {
+        let path = worlds.replace("rec_worlds.csv", "rec_motion.csv");
+        let rows = if path != worlds && std::path::Path::new(&path).exists() { read_csv(&path) } else { Vec::new() };
+        rows.iter()
+            .filter(|r| r.get("upload").is_some_and(|u| u == "0") && r.contains_key("leg6_damage_until"))
+            .filter_map(|r| {
+                let key = (r.get("place")?.parse().ok()?, r.get("time")?.parse().ok()?);
+                let ends = ["leg6_damage_until", "leg7_damage_until"].iter().filter_map(|c| r.get(*c)?.parse::<u32>().ok()).collect();
+                Some((key, ends))
+            })
+            .collect()
+    };
     let mut rows: Vec<WorldRow> = read_csv(&worlds)
         .iter()
         .filter_map(|r| {
@@ -332,6 +349,12 @@ fn drift_on_a_real_match() {
         {
             *sent = (*kit, *hands);
             track.set_speed_candidates(speeds.clone());
+        }
+        // [A325f] The world's leg state, as `game/driven.rs` hands it (`Bots::hurt`).
+        if kin.leg_damage == LegDamageGate::Client
+            && let Some(ends) = leg_ends.get(&(w.place, w.time))
+        {
+            track.set_leg_damage(LegDamage::of(ends, w.time));
         }
         let feet = w.fix.feet;
         let speed = w.fix.speed;
