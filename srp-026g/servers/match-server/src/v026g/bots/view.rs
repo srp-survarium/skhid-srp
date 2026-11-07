@@ -560,6 +560,11 @@ pub struct Tracker {
     /// live human is.
     #[cfg(test)]
     pub seen_late: Option<Vec<u32>>,
+    /// [A318] The bench only: one place (the stand-in camper) reckoned by its own kin and world (`tests::standin_aim`'s pinned
+    /// tuning, and his own world where the bench built him one), whatever the callers pass, so an A/B arm's kin and grid leave
+    /// him alone. Unreachable on the server.
+    #[cfg(test)]
+    pub(crate) place_override: Option<(Place, Kinematics, std::sync::Arc<World>)>,
     /// The bench only (`SRP_BENCH_PING_JITTER`): each place's `seen_late`
     /// is off by a random walk within this many ms either way, one step a
     /// tick of at most [`JITTER_STEP_MS`] (the live lateness changes by
@@ -621,6 +626,8 @@ impl Tracker {
             activity: Default::default(),
             #[cfg(test)]
             seen_late: None,
+            #[cfg(test)]
+            place_override: None,
             #[cfg(test)]
             seen_jitter: (0, 0),
             #[cfg(test)]
@@ -940,6 +947,13 @@ impl Tracker {
         kin: &Kinematics,
         world: Option<&World>,
     ) {
+        #[cfg(test)]
+        let over = self.override_of(place);
+        #[cfg(test)]
+        let (kin, world) = match &over {
+            Some((kin, own)) => (kin, Some(&**own)),
+            None => (kin, world),
+        };
         let walls = self.arc_walls(kin, world);
         let Some(state) = self.places.get_mut(place) else {
             return;
@@ -1313,6 +1327,13 @@ impl Tracker {
         kin: &Kinematics,
         world: Option<&World>,
     ) -> bool {
+        #[cfg(test)]
+        let over = self.override_of(place);
+        #[cfg(test)]
+        let (kin, world) = match &over {
+            Some((kin, own)) => (kin, Some(&**own)),
+            None => (kin, world),
+        };
         let walls = self.arc_walls(kin, world);
         // [A331] A battery carrier does not sprint (the owner; `can_sprint` 0x2DBF40, LIKELY): the believed carrier's world keys
         // move its body at a run, and its level is read against the run.
@@ -1636,6 +1657,12 @@ impl Tracker {
     /// The match as it is at `clock`. A human's body is reckoned on from
     /// its last input to the clock; a bot's is where its last decided tick
     /// put it.
+    /// [A318] [`Self::place_override`]'s kin and world for `place`, if it is the overridden one.
+    #[cfg(test)]
+    fn override_of(&self, place: Place) -> Option<(Kinematics, std::sync::Arc<World>)> {
+        self.place_override.as_ref().filter(|o| o.0 == place).map(|o| (o.1.clone(), o.2.clone()))
+    }
+
     pub fn view(&self, clock: &Clock, kin: &Kinematics, world: Option<&World>) -> MatchView {
         let places = self
             .places

@@ -942,6 +942,13 @@ pub struct Bots {
     /// spot (or works an area), and plays by a tuning of its own.
     #[cfg(test)]
     pub(crate) bench_camper: Option<tests::BenchCamper>,
+    /// [A318] The stand-in camper's own tactics, on a world built by his pinned grid (`tests::standin_aim::human_tuning`), when
+    /// the bench's arm builds its world otherwise: his routes are planned on it, so an arm's grid switch leaves him alone.
+    #[cfg(test)]
+    pub(crate) bench_human_tactics: Option<Tactics>,
+    /// [A318] The route points of the stand-in camper [0] and of the bots [1], folded each decided tick (the bench's line).
+    #[cfg(test)]
+    pub(crate) bench_route_hash: [u64; 2],
     tracker: Tracker,
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
@@ -1046,6 +1053,10 @@ impl Bots {
             opening_pass: false,
             #[cfg(test)]
             bench_camper: None,
+            #[cfg(test)]
+            bench_human_tactics: None,
+            #[cfg(test)]
+            bench_route_hash: [0; 2],
             layers: MapLayers::default(),
             features: MatchFeatures::default(),
             seen_hits: Vec::new(),
@@ -2452,6 +2463,12 @@ impl Bots {
 
     /// The tuning team `team` plays by: the match's (the bench's one-sided
     /// runs give team 1 another).
+    /// [A318] The bench only: the stand-in camper's place reckoned by his own kin and world (`Tracker::place_override`).
+    #[cfg(test)]
+    pub(crate) fn bench_pin_place(&mut self, place: Place, kin: kin::Kinematics, world: Arc<World>) {
+        self.tracker.place_override = Some((place, kin, world));
+    }
+
     fn tuning_of(&self, team: u8) -> Arc<Tuning> {
         self.tunings.of(team).clone()
     }
