@@ -204,6 +204,12 @@ pub struct Body {
     /// 21.4) eighteen sprint exits with 0.25 m to run; routes dropped bots into both (fx-grid's A257, 315-345 s stuck). A build
     /// input: in the key when set.
     pub pocket_exits_walled: bool,
+    /// [A347] Whether a pocket's exits rise at most what every clip of the client's sprint jump reaches ([`SPRINT_JUMP_LOW_M`],
+    /// the lowest of the clips' tops 1.282-1.350 m, PROVEN: `SPRINT_JUMP_RISE`), as the bots' own jump reach is
+    /// (`motor`'s `out_of_reach`, `body`'s jump top). Off: up to [`POCKET_EXIT_HIGH_M`] (the highest clip): Chemical Plant day 2's
+    /// pocket at (31.12, 6.14, 79.38) kept a 1.316 m sprint exit that the bots pressed 3 of 3 times and never went up (TOO_LOW;
+    /// A347 census, 48 matches). A build input (the shut pockets): in the key when set.
+    pub exits_in_reach: bool,
     /// [A293] Whether a gap link down is refused where its flight went over a face that had held the body (`gap::Over::Vaulted`):
     /// the flight lets a body held at a face rise with the clip and, once its feet are over it, take the clip's travel on past it
     /// (the chase rule), so a jump at a rail or a parapet with a floor more than a step under its far side became a link. The
@@ -348,6 +354,7 @@ impl Body {
             run_ups_after_erosion: false,
             steep_walk_base: false,
             pocket_exits_walled: false,
+            exits_in_reach: false,
             gap_no_vaults: false,
             ramp_faces: false,
             client_controller: false,
@@ -427,6 +434,7 @@ impl Default for Body {
             run_ups_after_erosion: false,
             steep_walk_base: false,
             pocket_exits_walled: false,
+            exits_in_reach: false,
             gap_no_vaults: false,
             ramp_faces: false,
             client_controller: false,
@@ -3035,6 +3043,8 @@ impl WalkGrid {
         let Some(pocket) = self.pocket_of(from) else {
             return Vec::new();
         };
+        // [A347] The highest exit: every sprint clip's top with `exits_in_reach`, else the highest clip's.
+        let high = if self.body.exits_in_reach { SPRINT_JUMP_LOW_M } else { POCKET_EXIT_HIGH_M };
         let mut seen = std::collections::HashSet::from([from]);
         let mut queue = std::collections::VecDeque::from([from]);
         let mut exits: Vec<PocketExit> = Vec::new();
@@ -3054,7 +3064,7 @@ impl WalkGrid {
                     || !self.can_stand(b)
                     || self.ceiling[a as usize] - to.y < self.body.stand_height
                     || across > POCKET_EXIT_ACROSS_M
-                    || !(POCKET_EXIT_LOW_M..=POCKET_EXIT_HIGH_M).contains(&rise)
+                    || !(POCKET_EXIT_LOW_M..=high).contains(&rise)
                 {
                     continue;
                 }
@@ -4901,6 +4911,28 @@ pub(crate) mod tests {
         let on = grid(true);
         let bottom = on.locate(Vec3::new(10.0, -1.2, 5.0), 0.3).unwrap();
         assert!(on.in_shut_pocket(bottom), "on: no run-up for any, the pocket is shut");
+    }
+
+    /// [`Body::exits_in_reach`] (A347): a pit 1.32 m deep has sprint exits up to [`POCKET_EXIT_HIGH_M`], over the sprint jump's
+    /// lowest top; with the switch it has none and is shut. A pit 1.2 m deep keeps its exits either way.
+    #[test]
+    fn a_pocket_exit_over_the_sprint_jumps_lowest_top_is_none_with_exits_in_reach() {
+        let pit = [8.25, 3.25, 11.75, 6.75];
+        let grid = |depth: f32, exits_in_reach: bool| {
+            pit_in_yard(depth, pit, 0.0, None, Body { exits_in_reach, drop_room: true, erosion: Erosion::Exact, ..Body::client() })
+        };
+        for (depth, in_reach) in [(1.32, false), (1.2, true)] {
+            for on in [false, true] {
+                let g = grid(depth, on);
+                let bottom = g.locate(Vec3::new(10.0, -depth, 5.0), 0.3).expect("the pit's floor");
+                let exits = g.pocket_exits(bottom);
+                assert!(exits.iter().all(|e| e.rise <= POCKET_EXIT_HIGH_M + 1e-3), "{exits:?}");
+                let kept = !on || in_reach;
+                assert_eq!(!exits.is_empty(), kept, "depth {depth} on {on}: {exits:?}");
+                assert_eq!(g.in_shut_pocket(bottom), !kept, "depth {depth} on {on}");
+                assert!(exits.iter().all(|e| !on || e.rise <= SPRINT_JUMP_LOW_M), "{exits:?}");
+            }
+        }
     }
 
     /// A rise of up to 0.6 m into a neighbour cell out of a pocket is a

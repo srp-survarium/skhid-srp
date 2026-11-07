@@ -112,6 +112,12 @@ pub struct GridTuning {
     /// bots into both (fx-grid's A257). On by default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches). The old value counts exits a body cannot take, so the
     /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub pocket_exits_walled: bool,
+    /// [A347] Whether the maps' walk grids keep a pocket's exits within what every clip of the client's sprint jump reaches (the
+    /// lowest clip top 1.282 m, PROVEN, `mapdata::grid::SPRINT_JUMP_RISE`), as the bots' own jump reach does
+    /// (`mapdata::Body::exits_in_reach`). Off: up to 1.35 m (the highest clip): Chemical Plant day 2's ground-floor pocket kept a
+    /// 1.316 m sprint exit that bots pressed and never went up (3 of 3, TOO_LOW; the A347 census of 48 matches). Client-proven:
+    /// ON, and the all-off arm keeps it (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
+    pub exits_in_reach: bool,
     /// [A293] Whether the maps' walk grids refuse a gap link down whose flight went over a face that had held the body
     /// (`mapdata::Body::gap_no_vaults`): a rail or a parapet at the edge with a floor more than a step under its far side. The
     /// flight let the body rise with the clip at the face and go on past it once its feet were over; the client does not:
@@ -232,6 +238,7 @@ impl Default for GridTuning {
             run_ups_after_erosion: true,
             steep_walk_base: true,
             pocket_exits_walled: true,
+            exits_in_reach: true,
             gap_no_vaults: true,
             ramp_faces: true,
             client_controller: true,
@@ -274,6 +281,7 @@ impl GridTuning {
             run_ups_after_erosion: self.run_ups_after_erosion,
             steep_walk_base: self.steep_walk_base,
             pocket_exits_walled: self.pocket_exits_walled,
+            exits_in_reach: self.exits_in_reach,
             gap_no_vaults: self.gap_no_vaults,
             ramp_faces: self.ramp_faces,
             client_controller: self.client_controller,
