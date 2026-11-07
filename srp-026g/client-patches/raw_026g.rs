@@ -16909,6 +16909,115 @@ impl ThirdPersonGameEffectsPresenter {
     }
 }
 
+/// A survarium::particle_game_effect_presenter (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleGameEffectPresenter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleGameEffectPresenter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (ptr<survarium::particle_effect_data>): the end of the effects it plays, a buffer_vector<effect_data> {begin +0Ch, end, capacity end} of six entries inline (a third-person presenter's +8h: storage at its +20h, made by 0x297570; a first-person one's +470h: 0x2971C0); on_event's play pushes one (0x2AC695, push_back 0x2ACC20 asserts "buffer overflow" at the capacity end), its stop erases one (0x2ACD80)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn entries_end(self) -> Option<ParticleEffectData> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<ParticleEffectData>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::particle_effect_data>): the end of the effects it plays, a buffer_vector<effect_data> {begin +0Ch, end, capacity end} of six entries inline (a third-person presenter's +8h: storage at its +20h, made by 0x297570; a first-person one's +470h: 0x2971C0); on_event's play pushes one (0x2AC695, push_back 0x2ACC20 asserts "buffer overflow" at the capacity end), its stop erases one (0x2ACD80)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_entries_end(self, value: Option<ParticleEffectData>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<ParticleEffectData>>().write_volatile(value) }
+    }
+
+    /// +0x14 (ptr<survarium::particle_effect_data>): the list's capacity end: its storage's +90h, six entries of 18h (0x29759E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn entries_capacity(self) -> Option<ParticleEffectData> {
+        unsafe { self.0.byte_add(0x14).cast::<Option<ParticleEffectData>>().read_volatile() }
+    }
+
+    /// +0x14 (ptr<survarium::particle_effect_data>): the list's capacity end: its storage's +90h, six entries of 18h (0x29759E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_entries_capacity(self, value: Option<ParticleEffectData>) {
+        unsafe { self.0.byte_add(0x14).cast::<Option<ParticleEffectData>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::particle_effect_data (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleEffectData(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleEffectData {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// 0x18 bytes: one effect a particle presenter plays: {effect reference, its particle system, ...} (the constructor 0x2AC1F0; the list's 0x2AAAAAAB / 4 divides by 18h, 0x2AC4D0)
+    pub const SIZE: usize = 0x18;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::particle_effect_datas (0x18 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ParticleEffectDataStorage([u8; 0x18]);
+
+#[allow(dead_code)]
+impl ParticleEffectDataStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x18])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ParticleEffectData {
+        ParticleEffectData(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ParticleEffectData> {
+        (!rooms.is_empty()).then(|| ParticleEffectData(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A survarium::medical_effect_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -20344,6 +20453,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn options(machine: &impl Machine) -> Option<GameOptions> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameOptions)
+        }
+    }
+
+    /// effect_presenter.particle_play (0x2ac686): particle_game_effect_presenter::on_event 0x2AC400, a play (event kind 0: the je at 0x2AC436) before its entry is made (mov eax,ecx / lea ecx,[esp+30h]; effect_data's constructor 0x2AC1F0, then buffer_vector::push_back 0x2ACC20 at 0x2AC695, which asserts "buffer overflow" (int3 0x2ACC7F) when the list's end is its capacity end, six entries inline): EBX the presenter, ECX the effect; full is its return without an entry (pop edi / pop esi / pop ebx; ret 8, as a stop's 0x2AC6B3)
+    pub mod effect_presenter_particle_play {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::particle_game_effect_presenter (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn presenter(machine: &impl Machine) -> Option<ParticleGameEffectPresenter> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(ParticleGameEffectPresenter)
         }
     }
 

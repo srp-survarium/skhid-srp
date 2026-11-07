@@ -1,5 +1,6 @@
 # A presenter given an event for an effect it holds no entry of ignores it
-# (README "A presenter ignores an effect it does not hold").
+# (README "A presenter ignores an effect it does not hold"); a particle
+# presenter with its six entries in use skips a play.
 name = "effect_presenters"
 patch = 117
 
@@ -14,3 +15,7 @@ handler = "on_sound_update"
 [[hook]]
 site = "effect_presenter.particle_stop"
 handler = "on_particle_stop"
+
+[[hook]]
+site = "effect_presenter.particle_play"
+handler = "on_particle_play"

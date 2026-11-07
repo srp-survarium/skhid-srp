@@ -2743,6 +2743,48 @@ effect_presenters_on_particle_stop_replay:
     db 0x8d, 0x14, 0x40, 0x8b, 0x07
     jmp 0x2ac65f
 
+; 0x2ac686 particle_game_effect_presenter::on_event 0x2AC400, a play (event kind 0: the je at 0x2AC436) before its entry is made (mov eax,ecx / lea ecx,[esp+30h]; effect_data's constructor 0x2AC1F0, then buffer_vector::push_back 0x2ACC20 at 0x2AC695, which asserts "buffer overflow" (int3 0x2ACC7F) when the list's end is its capacity end, six entries inline): EBX the presenter, ECX the effect; full is its return without an entry (pop edi / pop esi / pop ebx; ret 8, as a stop's 0x2AC6B3): lohook -> effect_presenters_on_particle_play
+global effect_presenters_on_particle_play
+extern hook_effect_presenters_on_particle_play
+effect_presenters_on_particle_play:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_effect_presenters_on_particle_play
+    mov edx, effect_presenters_on_particle_play_replay
+    cmp eax, 0
+    je effect_presenters_on_particle_play_go
+    mov edx, 0x2ac68c
+    cmp eax, 1
+    je effect_presenters_on_particle_play_go
+    mov edx, 0x2ac6b3
+    cmp eax, 2
+    je effect_presenters_on_particle_play_go
+    ud2
+effect_presenters_on_particle_play_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+effect_presenters_on_particle_play_replay:
+    db 0x8b, 0xc1, 0x8d, 0x4c, 0x24, 0x30
+    jmp 0x2ac68c
+
 ; 0x2a6485 player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0: lohook -> footsteps_on_step_guard
 global footsteps_on_step_guard
 extern hook_footsteps_on_step_guard

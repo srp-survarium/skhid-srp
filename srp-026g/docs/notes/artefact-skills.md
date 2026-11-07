@@ -504,6 +504,14 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Played as Forest Protection's glow: at the player's tick each quarter it shows and plays none
   of is played with the player's own calculator, which ends it when the count drops below it
   (or at death); nothing new serialized, no `next` row. The thirteen effects come in one query.
+- At most four at once on a player (2026-11-08, the rev53 crash): a player's presenter holds six
+  particle effects, and the quarters and Forest Protection's glow on top of the stock glows went
+  past them. Forest Protection's glow first, then the quarters by number, each kind's first
+  before any second (Spring, Lifebone, Onyx), the two left to the stock effects (an activation
+  glow, a damage zone's). So every kind's 4 with Forest Protection show Forest's glow and each
+  kind's first quarter; one kind's 4 with it, three of its quarters. A higher one entering (a
+  new kind's first copy, the zone) ends the lowest. A play past six (stock or ours) is skipped
+  (patch 117).
 - Timing: the sharing's own effects read the roster where they are used (`apply_modifier`, the
   hit, the regeneration); the quarters read it at the player's tick, the same function on the
   same world, so a quarter and the effect agree but for a carrier crossing the 9 m line within

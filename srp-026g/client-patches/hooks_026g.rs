@@ -1351,6 +1351,26 @@ pub extern "C" fn hook_effect_presenters_on_particle_stop(frame: &mut Frame) -> 
     }
 }
 
+// ---- effect_presenters (patch 117) ----
+
+/// The named exits of effect_presenters::on_particle_play (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum EffectPresentersOnParticlePlayExit { Full }
+/// The entry `effect_presenters_on_particle_play` (0x2ac686, particle_game_effect_presenter::on_event 0x2AC400, a play (event kind 0: the je at 0x2AC436) before its entry is made (mov eax,ecx / lea ecx,[esp+30h]; effect_data's constructor 0x2AC1F0, then buffer_vector::push_back 0x2ACC20 at 0x2AC695, which asserts "buffer overflow" (int3 0x2ACC7F) when the list's end is its capacity end, six entries inline): EBX the presenter, ECX the effect; full is its return without an entry (pop edi / pop esi / pop ebx; ret 8, as a stop's 0x2AC6B3)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_effect_presenters_on_particle_play(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `effect_presenters_on_particle_play` calls this, from the game's jump at 0x2ac686,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::effect_presenters::on_particle_play(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- footsteps (patch 101) ----
 
 /// The named exits of footsteps::on_step_guard (the order the shim's Flow code

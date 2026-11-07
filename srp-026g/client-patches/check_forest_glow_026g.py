@@ -28,9 +28,13 @@ modifier getter, game_effect_resource::emit (its emitter stubbed). It checks:
   calculator goes on through the native calculation unchanged;
 - the leg quarters: own passives 0 to 4, an active Onyx (no passive), own
   and Resonance's shared copies of a second kind, an enemy's (none) and the
-  cap of 4: a tick lights each kind's quarters 1..copies; the count dropping
-  (shared copies leaving, the carrier dying, an own copy going) and the
-  player's death end the quarters above it through the calculator;
+  cap of 4: a tick lights each kind's quarters 1..copies, at most four of
+  the glows in all (a presenter holds six particle effects, two left to the
+  stock ones; Forest Protection's first, then the quarters by number, each
+  kind's first before any second); every kind's 4 and Forest Protection's
+  (thirteen wanted) play four; the count dropping (shared copies leaving,
+  the carrier dying, an own copy going) and the player's death end the
+  quarters above it through the calculator;
 - the effect cook gives each effect 20 instances (and still
   artefact_lifebone 20, any other effect its own count);
 - a place's third-person presenter (made by its constructor 0x297570) on its
@@ -68,6 +72,8 @@ FUNCTION_VTABLE = 0x9DB9E0
 DEFAULT_CLOCK_VT = 0xA11398  # default_game_effect_time_calculator (+0 calculate 0x2E5D80)
 CAPACITY = 0x2EC81E
 MODIFIER_41 = 0xF4 + 41 * 4  # a kit's modifier 41 in its profile (kit n at +704h x n)
+KINDS = ("spring", "lifebone", "onyx")
+BUDGET = 4                   # the glows a player shows at most (six in a presenter, two left to the stock)
 
 
 NAMES = ["forest_protection"] + [f"artefact_leg_{kind}_{n}" for kind in ("spring", "lifebone", "onyx")
@@ -234,7 +240,7 @@ def check_quarters(data):
     giving their passive, Resonance's shared ones, at most 4) light that many of the kind's
     quarters, from the first; the player's calculator ends a quarter when the count drops below
     it, and every one at death."""
-    from check_artefact_skills_026g import Match, RESONANCE, SPRING_ACTIVE, ONYX_ACTIVE_
+    from check_artefact_skills_026g import Match, RESONANCE, SPRING_ACTIVE, ONYX_ACTIVE_, LIFEBONE_ACTIVE_
     m = Match(data)
     g = m.g
     g.queries = []
@@ -246,24 +252,32 @@ def check_quarters(data):
     g.effect_instances.clear()
     tick()
     resources = asked_and_kept(g)
-    quarter = {(kind, n): resources[1 + 4 * k + n - 1]
-               for k, kind in enumerate(("spring", "lifebone", "onyx")) for n in (1, 2, 3, 4)}
+    quarter = {(kind, n): resources[1 + 4 * k + n - 1] for k, kind in enumerate(KINDS) for n in (1, 2, 3, 4)}
 
-    def lit(expected, who=PLAYER):
-        """A tick with no effect playing lights exactly `expected` {kind: copies}; each quarter's
-        clock goes on for those and ends for the others."""
+    def budgeted(expected, forest):
+        """The glows a player wanting `expected` {kind: copies} (and Forest Protection's) shows: at
+        most BUDGET, Forest's first, then the quarters by number, in the kinds' order."""
+        quarters = sorted(((kind, n) for kind, copies in expected.items() for n in range(1, copies + 1)),
+                          key=lambda q: (q[1], KINDS.index(q[0])))
+        return ([("forest", 0)] if forest else []) + quarters
+
+    def lit(expected, who=PLAYER, forest=False):
+        """A tick with no effect playing lights `expected` {kind: copies} within the budget; each
+        glow's clock goes on for those and ends for the others."""
         g.word(who + 0x358 + 0x2C, 0)
         g.effect_instances.clear()
         _, played = tick(who)
-        want = sorted(quarter[(kind, n)] for kind, copies in expected.items() for n in range(1, copies + 1))
-        assert sorted(played) == want, (expected, played)
-        for (kind, n), resource in quarter.items():
+        shown = budgeted(expected, forest)[:BUDGET]
+        glows = {("forest", 0): resources[0], **quarter}
+        assert sorted(played) == sorted(glows[q] for q in shown), (expected, forest, played)
+        for q, resource in glows.items():
             effect, node, out = g.block(0x60), g.block(0x50), g.block(12)
             g.word(effect + 0x10, resource)
             g.word(node, effect)
             g.call(g.read(DEFAULT_CLOCK_VT), (out, node, 1000, 5000), ecx=who + 0x394)
             ended = g.emu.mem_read(out + 8, 1)[0]
-            assert ended == int(n > expected.get(kind, 0)), (expected, kind, n, ended)
+            assert ended == int(q not in shown), (expected, forest, q, ended)
+        return played
 
     def slot_of(player, item):
         inv = m.inventory(player)
@@ -289,6 +303,23 @@ def check_quarters(data):
     lit({"onyx": 4, "spring": 3})
     # Past 4: two more shared stop at the cap (the sharing's own room).
     shared += [m.artefact(carrier, SPRING_ACTIVE, 3) for _ in range(2)]
+    lit({"onyx": 4, "spring": 4})
+    # Every kind's 4 (a second Resonance teammate's Lifebones) and Forest Protection's glow (a damage
+    # zone, a rank in the current kit): thirteen wanted, four played (the 2026-11-07 crash: past the
+    # presenter's six with the stock glows).
+    lifebones = m.player(3, 0, (0.0, 3.0, 0.0), RESONANCE)
+    for _ in range(4):
+        m.artefact(lifebones, LIFEBONE_ACTIVE_, 3)
+    lit({"onyx": 4, "spring": 4, "lifebone": 4})
+    g.emu.mem_write(PLAYER + 0x2E4, b"\1")
+    rank = g.read(PLAYER + 0x6B8) + MODIFIER_41 + g.emu.mem_read(PLAYER + 0x115, 1)[0] * 0x704
+    g.word(rank, bits(-0.05))
+    played = lit({"onyx": 4, "spring": 4, "lifebone": 4}, forest=True)
+    assert len(budgeted({"onyx": 4, "spring": 4, "lifebone": 4}, True)) == 13 and len(played) == BUDGET
+    assert sorted(played) == sorted([resources[0]] + [quarter[(kind, 1)] for kind in KINDS])
+    g.emu.mem_write(PLAYER + 0x2E4, b"\0")
+    g.word(rank, 0)
+    g.emu.mem_write(lifebones + 0x33C, b"\0")
     lit({"onyx": 4, "spring": 4})
     # The count drops: the carrier's copies leave, then the carrier dies, then an own Onyx goes.
     for item in shared[2:]:
@@ -362,7 +393,8 @@ def check_quarters(data):
     lit({})
     assert own_spring
     print("Leg quarters: a kind's passive copies (own 0..4, own and Resonance's shared, two kinds, an active "
-          "Onyx, an enemy's and the cap of 4) light that many of its quarters from the first; the count "
+          "Onyx, an enemy's and the cap of 4) light that many of its quarters from the first, four glows at most "
+          "(every kind's 4 and Forest Protection's: Forest and each kind's first); the count "
           "dropping and death end them through the player's calculator; a player without a world core lights none; "
           "a game shows them (every player's, its own too) only when its local player's current kit has Artifact "
           "Sight (modifier 40 bit 12; Knowledge of Artifacts alone shows none) in its place's current kit object (a kit "

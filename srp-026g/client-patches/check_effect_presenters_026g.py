@@ -27,7 +27,14 @@ given an event by its `on_event` (0x2A9EF0: presenter, effect, event;
 - a sound stop and a sound update of an effect the presenter holds, and a
   particle stop at the erase of a held entry (from the site, the search's
   index 0, 2 and -1 of three): the build does what the original does, to
-  the byte and register.
+  the byte and register;
+- a particle play on a full list (its six inline entries in use, the
+  2026-11-07 crash): the original's push_back 0x2ACC20 takes its "buffer
+  overflow" branch (the assert, 0x2ACC2B); the build returns at 0x2AC6B3,
+  the presenter unchanged, and logs one line; that effect's later stop (it
+  holds no entry) returns there too, without the erase;
+- a particle play with room (five entries): the build reaches push_back's
+  push as the original, to the byte and register.
 
 At four stack alignments (the generated entries realign). Says nothing about
 what a match plays; the owner's test does.
@@ -49,8 +56,11 @@ SOUND_UPDATE_ENTRY = 0x2AA0BD          # mov ecx,[esi+10h]: the update's entry
 PARTICLE_SEARCHED = 0x2AC656           # the particle stop after its search ([esp+14h] the index)
 PARTICLE_ERASE = 0x2AC678              # its call of the erase 0x2ACD80
 PARTICLE_RETURN = 0x2AC6B3             # its return without one
+PUSH_OVERFLOW = 0x2ACC2B               # push_back 0x2ACC20 at its capacity end: the assert's branch
+PUSH_ROOM = 0x2ACC80                   # push_back with room: the push
+ENTRY, ENTRIES = 0x18, 6               # effect_data's size, the list's inline room
 SOUND_VTABLE, PARTICLE_VTABLE = 0xA0D1D0, 0xA0D2E4
-STOP_KIND, UPDATE_KIND = 1, 2
+PLAY_KIND, STOP_KIND, UPDATE_KIND = 0, 1, 2
 CREATE_FILE, WRITE_FILE, CLOSE_HANDLE, TICK_COUNT = 0x870048, 0x870108, 0x870040, 0x870090
 # GetCurrentProcessId, a constant: a clock read from it would stand still and
 # drop every refusal line after the first (each case expects one).
@@ -74,7 +84,7 @@ class Game:
         for n, slot in enumerate((CREATE_FILE, WRITE_FILE, CLOSE_HANDLE, TICK_COUNT, PROCESS_ID)):
             self.word(slot, STUBS + 0x10 * n)
             emu.hook_add(UC_HOOK_CODE, self.kernel32, begin=STUBS + 0x10 * n, end=STUBS + 0x10 * n)
-        for at in (STOP, SOUND_FREE, PARTICLE_ERASE, PARTICLE_RETURN):
+        for at in (STOP, SOUND_FREE, PARTICLE_ERASE, PARTICLE_RETURN, PUSH_OVERFLOW, PUSH_ROOM):
             emu.hook_add(UC_HOOK_CODE, self.on_stop, begin=at, end=at)
         self.next = MEMORY
         self.ticks = 0
@@ -285,8 +295,39 @@ def check(stock_data, built_data):
             else:
                 expect(results[0] == results[1] and results[0][0] == PARTICLE_ERASE,
                        f"index {index}: the build erases as the original")
+        # A particle play on a full list, then that effect's stop.
+        s, o = Scene(stock), Scene(ours)
+        for scene in (s, o):
+            begin = scene.game.read(scene.particle + 0xC)
+            assert scene.game.read(scene.particle + 0x14) == begin + ENTRY * ENTRIES, "six entries inline"
+            scene.game.word(scene.particle + 0x10, begin + ENTRY * ENTRIES)
+        before = o.game.snapshot(o.tp, 0x300)
+        s.particle_event(PLAY_KIND, align)
+        expect(stock.stopped == PUSH_OVERFLOW and stock.fault is None,
+               f"the original's play on a full list reaches push_back's overflow assert ({stock.stopped}, {stock.fault})")
+        o.particle_event(PLAY_KIND, align)
+        expect(ours.stopped == PARTICLE_RETURN and ours.fault is None and ours.snapshot(o.tp, 0x300) == before,
+               f"the build skips the play, the presenter unchanged ({ours.stopped}, {ours.fault})")
+        expect(len(ours.lines) == 1 and b"full presenter" in ours.lines[0]
+               and f"{o.particle:#010x}".encode() in ours.lines[0], f"one line logged, naming the presenter: {ours.lines}")
+        o.particle_event(STOP_KIND, align)
+        expect(ours.stopped == PARTICLE_RETURN and ours.fault is None and ours.snapshot(o.tp, 0x300) == before,
+               f"its later stop is ignored, no erase ({ours.stopped}, {ours.fault})")
+
+        # A particle play with room (five entries): the same push in both.
+        results = []
+        for game in (stock, ours):
+            scene = Scene(game)
+            begin = game.read(scene.particle + 0xC)
+            game.word(scene.particle + 0x10, begin + ENTRY * (ENTRIES - 1))
+            scene.particle_event(PLAY_KIND, align)
+            results.append((game.stopped, game.fault, game.snapshot(scene.tp, 0x300),
+                            tuple(game.emu.reg_read(r) for r in REGS), game.snapshot(game.emu.reg_read(UC_X86_REG_ESP), 0x10)))
+        expect(results[0] == results[1] and results[0][0] == PUSH_ROOM,
+               f"a play with room pushes as the original's ({results[0][:2]}, {results[1][:2]})")
     print(f"{checks} presenter cases passed (the original's miss erases or faults, the build ignores it; "
-          f"held effects as the original)")
+          f"held effects as the original; a play on a full list asserts in the original, the build skips it "
+          f"and ignores its stop; a play with room as the original)")
 
 
 def main():

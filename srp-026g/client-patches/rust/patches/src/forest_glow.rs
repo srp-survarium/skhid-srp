@@ -15,9 +15,16 @@
 //!   2 the right lower leg, 3 the left thigh, 4 the right one. Each kind
 //!   lights its own quarters from the first up; two kinds on one quarter
 //!   layer (their sprites add, as the stock glows of two kinds do). Shown
-//!   only by a game whose local player's current kit has Knowledge of
-//!   Artifacts (every player's quarters, its own too), or that has no local
-//!   player (a spectator, a replay).
+//!   only by a game whose local player's current kit has Artifact Sight
+//!   (every player's quarters, its own too), or that has no local player (a
+//!   spectator, a replay).
+//!
+//! At most [`BUDGET`] of them at once on a player: its presenter holds six
+//! particle effects (patch 117 skips a play past them), and the stock
+//! effects (an activation glow, a damage zone's own) keep the rest. Forest
+//! Protection's first, then the quarters by number, each kind's first before
+//! any second (the 2026-11-07 crash: Forest's glow and up to twelve
+//! quarters on top of the stock glows overflowed it).
 //!
 //! In the simulation, as the artefacts' own glow: at a player's tick each
 //! effect is played when the game shows it and none of it plays (so it is in
@@ -40,6 +47,13 @@ use crate::vostok::{Context, Flow, GameCell, NoExit};
 /// An instance of each effect for each place of a match (every player can
 /// glow at once).
 const INSTANCES: u32 = 20;
+
+/// The particle effects a presenter holds (its buffer_vector's inline six,
+/// 0x297570), and those of them left to the stock effects.
+const PRESENTER_ROOM: usize = 6;
+const KEPT_FOR_STOCK: usize = 2;
+/// The most of ours a player shows at once.
+const BUDGET: usize = PRESENTER_ROOM - KEPT_FOR_STOCK;
 
 /// One of the effects the patch plays.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,11 +129,44 @@ struct Legs {
     copies: Copies,
 }
 
+impl Legs {
+    /// What `player`'s legs and arms show in its game, read now.
+    fn of(player: &Player<'_>) -> Legs {
+        Legs { forest: glow(player), quarters: Quarters::seen_in(player), copies: player.passive_copies() }
+    }
+
+    /// Which of [`EFFECTS`] they show: those wanted, at most [`BUDGET`], by
+    /// [`LegEffect::rank`] (in [`EFFECTS`]' order within a rank).
+    fn lit(self) -> [bool; 13] {
+        let mut lit = [false; 13];
+        let mut left = BUDGET;
+        for rank in 0..=4 {
+            for (index, effect) in EFFECTS.into_iter().enumerate() {
+                if left > 0 && effect.rank() == rank && effect.wanted(self) {
+                    lit[index] = true;
+                    left -= 1;
+                }
+            }
+        }
+        lit
+    }
+}
+
 impl LegEffect {
-    fn shown(self, legs: Legs) -> bool {
+    /// Whether the legs would show it without the budget.
+    fn wanted(self, legs: Legs) -> bool {
         match self {
             LegEffect::Forest => legs.forest == Glow::On,
             LegEffect::Quarter { kind, nth } => legs.quarters == Quarters::Shown && legs.copies.get(kind) >= nth,
+        }
+    }
+
+    /// Its place in the budget: Forest Protection's first, then a quarter by
+    /// its number.
+    fn rank(self) -> u8 {
+        match self {
+            LegEffect::Forest => 0,
+            LegEffect::Quarter { nth, .. } => nth,
         }
     }
 }
@@ -192,16 +239,6 @@ fn glow(player: &Player<'_>) -> Glow {
     Glow::of(player.alive(), player.damage_zones(), player.weapon_damage_in_anomaly())
 }
 
-/// Whether `player` shows `effect` (the copies counted only for a quarter).
-fn shows(effect: LegEffect, player: &Player<'_>) -> bool {
-    match effect {
-        LegEffect::Forest => glow(player) == Glow::On,
-        LegEffect::Quarter { kind, nth } => {
-            Quarters::seen_in(player) == Quarters::Shown && player.passive_copies().get(kind) >= nth
-        }
-    }
-}
-
 /// A player's simulation tick: each effect it shows played when none of it
 /// plays; the effects asked for at the first tick.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -218,9 +255,8 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
             resources::query_effects(thread, &NAMES, crate::vostok::forest_glow_on_loaded_entry());
         }
         Action::Show(kept) => {
-            let legs = Legs { forest: glow(&player), quarters: Quarters::seen_in(&player), copies: player.passive_copies() };
-            for (effect, kept) in EFFECTS.into_iter().zip(kept) {
-                if effect.shown(legs) && !player.plays_effect(kept) {
+            for (lit, kept) in Legs::of(&player).lit().into_iter().zip(kept) {
+                if lit && !player.plays_effect(kept) {
                     player.hold_effect(kept);
                 }
             }
@@ -260,7 +296,7 @@ pub fn on_capacity(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// The default clock: an effect ends when its player no longer shows it.
 pub fn on_clock(ctx: &mut Context<'_>) -> Flow<crate::vostok::ForestGlowOnClockExit> {
     let Load::Ready(kept) = LOAD.get(ctx.thread()) else { return Flow::Continue };
-    if effect::kept_clock(ctx, &kept, |index, player| shows(EFFECTS[index], player)) {
+    if effect::kept_clock(ctx, &kept, |index, player| Legs::of(player).lit()[index]) {
         Flow::Exit(crate::vostok::ForestGlowOnClockExit::Returned)
     } else {
         Flow::Continue
@@ -312,19 +348,47 @@ mod tests {
             Kind::Onyx => (4, 0),
         });
         let legs = Legs { forest: Glow::Off, quarters: Quarters::Shown, copies };
-        let lit: std::vec::Vec<_> = EFFECTS.into_iter().filter(|effect| effect.shown(legs)).collect();
-        assert_eq!(lit, [
+        // Spring 2, Onyx 4: six wanted, the budget's four by rank
+        assert_eq!(lit(legs), [
             LegEffect::Quarter { kind: Kind::Spring, nth: 1 },
             LegEffect::Quarter { kind: Kind::Spring, nth: 2 },
             LegEffect::Quarter { kind: Kind::Onyx, nth: 1 },
             LegEffect::Quarter { kind: Kind::Onyx, nth: 2 },
+        ]);
+        let one = Copies::of(|kind| if kind == Kind::Onyx { (3, 0) } else { (0, 0) });
+        assert_eq!(lit(Legs { forest: Glow::Off, quarters: Quarters::Shown, copies: one }), [
+            LegEffect::Quarter { kind: Kind::Onyx, nth: 1 },
+            LegEffect::Quarter { kind: Kind::Onyx, nth: 2 },
             LegEffect::Quarter { kind: Kind::Onyx, nth: 3 },
-            LegEffect::Quarter { kind: Kind::Onyx, nth: 4 },
         ]);
         let none = Legs { forest: Glow::On, quarters: Quarters::Shown, copies: Copies::default() };
         let hidden = Legs { forest: Glow::On, quarters: Quarters::Hidden, copies };
-        assert_eq!(EFFECTS.into_iter().filter(|effect| effect.shown(hidden)).collect::<std::vec::Vec<_>>(), [LegEffect::Forest]);
-        assert_eq!(EFFECTS.into_iter().filter(|effect| effect.shown(none)).collect::<std::vec::Vec<_>>(), [LegEffect::Forest]);
+        assert_eq!(lit(hidden), [LegEffect::Forest]);
+        assert_eq!(lit(none), [LegEffect::Forest]);
+    }
+
+    fn lit(legs: Legs) -> std::vec::Vec<LegEffect> {
+        EFFECTS.into_iter().zip(legs.lit()).filter(|(_, lit)| *lit).map(|(effect, _)| effect).collect()
+    }
+
+    #[test]
+    fn the_most_stays_within_the_presenters_room() {
+        // every kind's 4 counted copies and Forest Protection's glow: thirteen wanted
+        let all = Legs { forest: Glow::On, quarters: Quarters::Shown, copies: Copies::of(|_| (4, 0)) };
+        assert_eq!(EFFECTS.into_iter().filter(|effect| effect.wanted(all)).count(), 13);
+        // Forest first, then each kind's first quarter: four, two of six left to the stock effects
+        assert_eq!(lit(all), [
+            LegEffect::Forest,
+            LegEffect::Quarter { kind: Kind::Spring, nth: 1 },
+            LegEffect::Quarter { kind: Kind::Lifebone, nth: 1 },
+            LegEffect::Quarter { kind: Kind::Onyx, nth: 1 },
+        ]);
+        assert!(lit(all).len() + KEPT_FOR_STOCK <= PRESENTER_ROOM);
+        // one kind's four and Forest: Forest and three
+        let spring = Legs { copies: Copies::of(|kind| if kind == Kind::Spring { (4, 0) } else { (0, 0) }), ..all };
+        assert_eq!(lit(spring).len(), BUDGET);
+        assert_eq!(lit(spring)[0], LegEffect::Forest);
+        assert!(!lit(spring).contains(&LegEffect::Quarter { kind: Kind::Spring, nth: 4 }));
     }
 
     #[test]
