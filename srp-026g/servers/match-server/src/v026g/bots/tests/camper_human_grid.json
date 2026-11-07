@@ -16,6 +16,7 @@
   "steep_walk_base": true,
   "pocket_exits_walled": true,
   "press_window": false,
+  "exits_in_reach": false,
   "gap_no_vaults": true,
   "ramp_faces": true,
   "client_controller": true,
