@@ -96,7 +96,7 @@ impl DrugFactors {
         let at = |name| survarium::v026g::skills::modifier_index(name).expect("a modifier of the 68");
         let packed = modifiers[at("armored_trap")];
         let ranks = (packed.is_finite() && (0.0..=16_777_215.0).contains(&packed) && packed == packed.trunc())
-            .then(|| packed as u32)
+            .then_some(packed as u32)
             .filter(|bits| [0, 3, 6, 9, 12, 17, 21].iter().all(|shift| (bits >> shift) & 7 <= 5));
         let rank = |shift: u32| ranks.map_or(0, |bits| (bits >> shift) & 7);
         Self {
