@@ -211,8 +211,9 @@ pub struct GridTuning {
     /// 93 % of the routes stuck are on pulled legs over several cells (fx-zones' route-stuck table on 65c6990b: 290 of 314).
     /// Only a risky leg is walked (a floor under the wall hold or a step), shortened to 11.4 m first, with the walks of a poll
     /// in a budget of walk ticks (`path::PULL_WALK_TICKS_A_POLL`): the worst poll is no worse than with it off. Not a build
-    /// input: the grids and their key are the same either way. ON: a choice (16-match harms are inside the bench's swing);
-    /// the final check's 48-pair arm with it off decides whether it stays.
+    /// input: the grids and their key are the same either way. OFF: with the stand-in human pinned (#1460) the bots' own harm
+    /// is worse at jumps (16 matches: jumps failed 52 -> 124, jumps wrong +35 %, stuck s +10 %); ON again only after that is
+    /// root-caused and fixed.
     pub pull_walk: bool,
 }
 
@@ -254,7 +255,7 @@ impl Default for GridTuning {
             start_witness: true,
             give_back_in_cell: false,
             wall_clear_pull: false,
-            pull_walk: true,
+            pull_walk: false,
         }
     }
 }
