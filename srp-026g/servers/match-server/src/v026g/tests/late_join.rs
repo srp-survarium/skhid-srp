@@ -1751,3 +1751,43 @@ fn an_upload_is_one_of_a_game_that_has_installed_the_newcomers_or_not() {
     bench.clients[1].prepared(&prepare, Status::Installed);
     bench.assert_no_faults();
 }
+
+#[test]
+fn an_upload_whose_player_state_reads_otherwise_than_its_kit_is_refused() {
+    let mut bench = running_three();
+    // Place 1 in game 0's worlds, alive in its kit 0 (its pistol).
+    bench.clients[0].sim.player_states[1] = Some(survarium::v026g::match_msgs::players::PlayerState {
+        current_index: 0,
+        target_index: 0,
+        pickup: weapon_pickup::Record::EMPTY,
+        items: vec![1],
+        alive: true,
+        has_to_die: false,
+        look_pitch: 0.0,
+        rotation_y: 0.0,
+        actions_mask: 0,
+        effects: 0,
+    });
+    let formed = bench.registry.formed(bench.match_id).unwrap();
+    let time = bench.clients[0].clock();
+    let world = bench.clients[0].sim.world(time);
+    let check = |body: &[u8]| {
+        crate::v026g::world_validation::check(body, time, srp_validate::MAX_PLAYERS, &formed)
+    };
+    assert!(check(&world).is_ok());
+    // Place 1's pistol (slot 7, condition 1.0) saved as owned by its kit 2,
+    // which has no player; or as the item of another slot.
+    let pistol = [0, 0, 0x80, 0x3F, 1, 0, 7];
+    let at = world
+        .windows(pistol.len())
+        .position(|window| window == pistol)
+        .expect("place 1's pistol");
+    let mut owner = world.clone();
+    owner[at + 5] = 2;
+    let refusal = check(&owner).unwrap_err().to_string();
+    assert!(refusal.contains("owned by place 1 kit 2"), "{refusal}");
+    let mut slot = world.clone();
+    slot[at + 6] = 8;
+    let refusal = check(&slot).unwrap_err().to_string();
+    assert!(refusal.contains("player 1"), "{refusal}");
+}

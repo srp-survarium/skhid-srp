@@ -4,8 +4,10 @@ use std::fmt;
 use super::registry::Formed;
 use srp_validate::{
     KITS, MAX_PLAYERS, Part, Refusal,
-    world::{self, Context, Held, Objects, Profile},
+    world::{self, Context, Held, Inventory, Item, Objects, Profile},
 };
+use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::item_params;
 use survarium::v026g::match_msgs::static_info::KIT_USABLE;
 
 /// A refused upload, with the match it was checked as: the clients take
@@ -43,6 +45,35 @@ pub(super) fn check(body: &[u8], time: u32, places: usize, formed: &Formed) -> R
     }
     let known = formed.profiles.len().min(MAX_PLAYERS);
     let map = formed.played.map();
+    // Each place's kits as its game makes their objects: a player's state
+    // is read with them to its exact end. A profile the game would make an
+    // object of nothing for leaves the states read to their inventories.
+    let dictionary = Dictionary::shared();
+    let built: Result<Vec<[Vec<Item<'static>>; KITS]>, String> = formed.profiles[..known]
+        .iter()
+        .map(|profile| {
+            Ok([
+                profile.inventory(0, dictionary)?,
+                profile.inventory(1, dictionary)?,
+                profile.inventory(2, dictionary)?,
+            ])
+        })
+        .collect();
+    let built = built
+        .inspect_err(|why| {
+            log::warn!(
+                "Match {:#x}: its players' states are read to their inventories only: {why}",
+                formed.match_id
+            );
+        })
+        .ok();
+    let kits: Option<Vec<[&[Item]; KITS]>> = built
+        .as_ref()
+        .map(|built| built.iter().map(|[a, b, c]| [&a[..], &b[..], &c[..]]).collect());
+    let inventory = kits.as_ref().map(|kits| Inventory {
+        kits,
+        body_parts: item_params::body_parts(),
+    });
     let refused = |refusal| Refused {
         refusal,
         game_mode: map.mode.rules().number(),
@@ -74,11 +105,11 @@ pub(super) fn check(body: &[u8], time: u32, places: usize, formed: &Formed) -> R
             batteries: map.victory_items_count as usize,
             respawn_points: Some(map.respawn_points),
             profiles: Some(&profiles[..known]),
-            // Current server game data does not expose these native tables. Do
-            // not invent bounds or reject valid data using an assumed layout.
+            // The artefacts table is the game's live one; the inventory's
+            // artefact ids are bounded by its own check (patch 113).
             artefacts: None,
             objects: Some(&objects),
-            inventory: None,
+            inventory: inventory.as_ref(),
         };
         match world::validate(body, &context) {
             Ok(()) => return Ok(()),

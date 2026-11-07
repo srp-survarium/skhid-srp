@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use world_frame::{MAX_BODY, PLAYER_STATE_CAP};
+use world_frame::{AnimFault, MAX_BODY, PLAYER_STATE_CAP};
 
 /// The part of a world a fault is in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,6 +119,9 @@ pub enum Reason {
     NextKit(u8),
     /// `m_need_to_select_animations` is no bool.
     SelectAnimations,
+    /// The block's animation state is malformed in a way a native client
+    /// reads a count or index out of bounds on (`snapshot_rules.md` 7.2.1).
+    Animation(AnimFault),
     /// The look pitch or the rotation is no number.
     LookNotNumber,
 
@@ -361,6 +364,34 @@ pub enum Reason {
     },
     /// A weapon's `m_current_ammo_id` is past its ammo list of `count`
     /// (0x2E350A).
+    /// A carried battery's user or container byte is no game's.
+    TailBattery {
+        at: usize,
+    },
+    /// An item saves another slot than its own.
+    TailItemSlot {
+        slot: u8,
+        wanted: u8,
+    },
+    /// A weapon's state machine names a state past its states.
+    TailGunState {
+        state: u8,
+        states: usize,
+    },
+    /// A throw names a grenade slot past the inventory's.
+    TailGrenadeSlot {
+        slot: u8,
+    },
+    /// A body part's affect is of no type the game has.
+    TailAffect {
+        kind: u8,
+    },
+    /// A bool that is not 0x00 or 0xFF.
+    TailBool {
+        at: usize,
+    },
+    /// The carry snapshot is of another version.
+    TailCarry,
     TailWeaponAmmo {
         ammo: u8,
         count: u8,
@@ -521,6 +552,15 @@ impl fmt::Display for Reason {
             Reason::SelectAnimations => {
                 f.write_str("m_need_to_select_animations is not 0x00 or 0xFF")
             }
+            Reason::Animation(fault) => f.write_str(match fault {
+                AnimFault::Short => "an animation state ends mid-stream",
+                AnimFault::TimesIndex => "an animation times index is out of range",
+                AnimFault::FloatsIndex => "an animation floats index is out of range",
+                AnimFault::ChannelIndex => "an animation channel pick is out of range",
+                AnimFault::Recursion => "an animation expression tree is too deep",
+                AnimFault::TreeLength => "an animation tree does not end at its length",
+                AnimFault::TableUnderrun => "an animation pops more values than its tables hold",
+            }),
             Reason::LookNotNumber => f.write_str("a look pitch or rotation that is no number"),
             Reason::StatisticsEmpty => f.write_str("empty (no statistics object)"),
             Reason::StatisticsUnread {
@@ -731,6 +771,17 @@ impl fmt::Display for Reason {
                 f,
                 "an inventory item owned by place {player_id} kit {profile_id}, no player object in the match"
             ),
+            Reason::TailBattery { at } => write!(f, "a carried battery's byte at {at} is no game's"),
+            Reason::TailItemSlot { slot, wanted } => {
+                write!(f, "the item of slot {wanted} saves slot {slot}")
+            }
+            Reason::TailGunState { state, states } => {
+                write!(f, "a state machine in state {state}, past its {states}")
+            }
+            Reason::TailGrenadeSlot { slot } => write!(f, "a throw of the grenade in slot {slot}"),
+            Reason::TailAffect { kind } => write!(f, "a body part affect of type {kind}"),
+            Reason::TailBool { at } => write!(f, "a bool at {at} that is not 0x00 or 0xFF"),
+            Reason::TailCarry => f.write_str("a carry snapshot of another version"),
             Reason::TailWeaponAmmo { ammo, count } => {
                 write!(
                     f,

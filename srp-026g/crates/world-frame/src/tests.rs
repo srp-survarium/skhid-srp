@@ -177,7 +177,141 @@ fn an_animated_block_ends_where_its_bits_do() {
     world.push(1);
     world.extend(animation);
     world.extend([0; 12]);
-    assert!(Frame::parse(&world, Places::of(1)).is_ok());
+    // The length walk ends the block here, but a set animation flag means a
+    // real tree: `T` = 0 cannot be one, so the content validator refuses it.
+    assert_eq!(
+        Frame::parse(&world, Places::of(1)),
+        Err(Refusal::Animation {
+            slot: Slot(0),
+            at: 40,
+            fault: AnimFault::TreeLength,
+        })
+    );
+}
+
+/// Writes bits most significant first, like the animation encoder, to test
+/// [`animation_validate`] against hand-built streams.
+struct BitW {
+    bytes: Vec<u8>,
+    at: usize,
+}
+
+impl BitW {
+    fn new() -> Self {
+        BitW { bytes: Vec::new(), at: 0 }
+    }
+
+    fn put(&mut self, value: u32, bits: usize) -> &mut Self {
+        for i in (0..bits).rev() {
+            if self.at.is_multiple_of(8) {
+                self.bytes.push(0);
+            }
+            let bit = (value.wrapping_shr(i as u32) & 1) as u8;
+            let shift = (7 ^ (self.at % 8)) as u32;
+            *self.bytes.last_mut().unwrap() |= bit.wrapping_shl(shift);
+            self.at = self.at.wrapping_add(1);
+        }
+        self
+    }
+
+    fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// The header of a tree with `nodes` nodes and `channels_mask` set channel
+/// bits, behind a `tree`-bit length.
+fn tree_header(w: &mut BitW, tree: u32, nodes: u32, channels_mask: u32) {
+    w.put(tree, 16).put(nodes, 6).put(0, 1).put(channels_mask, 4);
+}
+
+#[test]
+fn animation_validate_accepts_a_minimal_tree() {
+    // No nodes (the 11-bit header is the whole tree), no times, and the 12
+    // floats the matrix init always pops, written plainly.
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(0, 10); // times: count 0
+    w.put(0, 1).put(12, 10); // floats: not indexed, 12 of them
+    for _ in 0..12 {
+        w.put(0, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Ok(()));
+}
+
+#[test]
+fn animation_validate_rejects_a_wrong_tree_length() {
+    // The same 11-bit tree, but `T` claims 10: the structure outruns it.
+    let mut w = BitW::new();
+    tree_header(&mut w, 10, 0, 0);
+    w.put(0, 10);
+    w.put(0, 1).put(12, 10);
+    for _ in 0..12 {
+        w.put(0, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TreeLength));
+}
+
+#[test]
+fn animation_validate_rejects_a_table_under_run() {
+    // No floats, but the matrix init pops 12.
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(0, 10); // times: count 0
+    w.put(0, 1).put(0, 10); // floats: not indexed, count 0
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TableUnderrun));
+}
+
+#[test]
+fn animation_validate_rejects_a_floats_index() {
+    // One floats dict entry, but the one index into it is 1.
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(0, 10); // times: count 0
+    w.put(1, 1).put(1, 10); // floats: indexed, count 1
+    w.put(1, 1); // unique = 1, in width(1) = 1 bit
+    w.put(0, 32); // the one dict float
+    w.put(1, 1); // index 1, in width(1) = 1 bit: past the one entry
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::FloatsIndex));
+}
+
+#[test]
+fn animation_validate_rejects_a_channel_index() {
+    // A node that picks a channel from an empty channel set.
+    let mut w = BitW::new();
+    tree_header(&mut w, 0, 1, 0); // 1 node, 0 channels
+    // Base tracks (0x3A8C10): four bits, a zero time track, a flag track.
+    w.put(0, 1).put(0, 1).put(0, 1).put(0, 1);
+    w.put(0, 6); // time-track count 0
+    w.put(0, 1).put(0, 1); // flag track
+    // Node record (0x3A8F40) up to its first channel pick.
+    w.put(0, 4).put(0, 1).put(0, 1); // the record head, M = 1
+    w.put(0, 10).put(0, 1); // the one M entry
+    w.put(0, 1); // before the first pick
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::ChannelIndex));
+}
+
+#[test]
+fn animation_validate_rejects_runaway_recursion() {
+    // One node with one expression root, then only internal ops: the tree
+    // never closes, and the node cap stops it before a stack would.
+    let mut w = BitW::new();
+    tree_header(&mut w, 0, 1, 1); // 1 node, 1 channel (a pick reads 0 bits)
+    w.put(0, 1).put(0, 1).put(0, 1).put(0, 1);
+    w.put(0, 6);
+    w.put(0, 1).put(0, 1);
+    // Node record, M = 1, then the fixed fields and exprs = 1.
+    w.put(0, 4).put(0, 1).put(0, 1);
+    w.put(0, 10).put(0, 1);
+    w.put(0, 1);
+    for width in [1, 5, 2, 1, 3, 3, 2, 1, 1] {
+        w.put(0, width);
+    }
+    w.put(1, 2); // exprs = 1
+    for _ in 0..70_000 {
+        w.put(2, 2); // op 2: two children, forever -- past the node cap
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::Recursion));
 }
 
 #[test]

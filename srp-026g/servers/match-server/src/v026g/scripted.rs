@@ -11,7 +11,8 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use survarium::v026g::dictionary::Dictionary;
-use srp_validate::world::Held;
+use srp_validate::world::{Held, Item};
+use survarium::v026g::match_msgs::static_info::MatchProfile;
 use survarium::v026g::maps::{self, RuleMode};
 use survarium::v026g::match_msgs::client_model::{ClientModel, Skip, Taken};
 use survarium::v026g::match_msgs::late_join::{CONNECT_CAPABILITY, Prepare, Prepared, Status};
@@ -71,6 +72,9 @@ pub struct Sim {
     /// (its options' places; a late joiner's from its install on): a
     /// world's game objects begin with them, the newest place first.
     held: Vec<Vec<Held>>,
+    /// By place, its kits' items as its game cooked them: a player's state
+    /// saves its current kit's.
+    kits: Vec<[Vec<Item<'static>>; 3]>,
     /// From a tick on the world's game objects have this many zero bytes
     /// more in front: objects no game of the match has.
     pub stray_objects_from: Option<(u32, usize)>,
@@ -112,6 +116,7 @@ impl Sim {
             ballast: 0,
             profile_items: Vec::new(),
             held: Vec::new(),
+            kits: Vec::new(),
             stray_objects_from: None,
             player_states: vec![None; players],
             player_tails: vec![None; players],
@@ -316,8 +321,13 @@ impl Sim {
         .to_bytes();
         // Keep the large-world transport tests large with valid current
         // records: fixed-size bullets, not bytes in the empty physics
-        // section. The salt changes a free header field.
-        let bullet_count = self.ballast.div_ceil(69);
+        // section. The salt changes a free header field. Place 0 shoots
+        // them once it has entered (an initial world has none).
+        let bullet_count = if rule.mask & 1 != 0 {
+            self.ballast.div_ceil(69)
+        } else {
+            0
+        };
         let mut bullets = vec![0; 16];
         bullets[12..16].copy_from_slice(&(bullet_count as u32).to_le_bytes());
         for number in 0..bullet_count {
@@ -354,27 +364,53 @@ impl Sim {
                 effects: 0,
             });
         }
-        let inventory = valid_empty_inventory();
+        let header = valid_empty_inventory();
         let mut effects = vec![0; 12];
         effects.extend([0, 0, 0x80, 0x3f, 0, 0, 0, 0]);
-        // The player blocks: a state, and an animation state after it.
+        // The player blocks: a state, and an animation state after it, of
+        // each place that has entered (a game's world has no other: its
+        // initial one none).
         let mut mask = 0u32;
         let mut blocks = Vec::new();
         for (place, head) in states.iter().enumerate() {
-            if let Some(head) = head {
+            let entered = rule.mask & 1u32.checked_shl(place as u32).unwrap_or(0) != 0;
+            if let Some(head) = head.as_ref().filter(|_| entered) {
                 mask |= 1 << place;
-                let animation = players::animation_bytes(&[true; 9], &[time, time + 7], &[0.5]);
-                let state = match self.player_tails.get(place).and_then(Option::as_ref) {
-                    Some(tail) => motion::state_bytes(
-                        head,
-                        &inventory,
-                        &motion::Tail {
-                            time_ms: time,
-                            ..tail.clone()
-                        },
-                    ),
-                    None => players::state_bytes(head, &inventory),
-                };
+                let mut inventory = header.clone();
+                if let Some(items) = self
+                    .kits
+                    .get(place)
+                    .and_then(|kits| kits.get(usize::from(head.current_index)))
+                {
+                    inventory.extend(players::untouched_items(place as u8, head.current_index, items));
+                }
+                // The smallest tree a client decodes (`world_frame::
+                // animation_validate`): no node, so its 11 header bits, and
+                // the first matrix's 12 floats.
+                let animation =
+                    players::animation_bytes(&[false; 11], &[time, time + 7], &[0.5; 12]);
+                // A state is whole: with no tail of its own, a player who
+                // stands where it entered.
+                let tail = self.player_tails.get(place).and_then(Option::as_ref).cloned().unwrap_or(
+                    motion::Tail {
+                        time_ms: time,
+                        speed: 0.0,
+                        health: 1.0,
+                        inserted_time_ms: 0,
+                        physics_position: head.alive.then_some([0.0; 3]),
+                        crouching: false,
+                        sprinting: false,
+                        recent_hits: Vec::new(),
+                    },
+                );
+                let state = motion::state_bytes(
+                    head,
+                    &inventory,
+                    &motion::Tail {
+                        time_ms: time,
+                        ..tail
+                    },
+                );
                 blocks.extend(players::block_bytes(&state, Some(&animation)));
             }
         }
@@ -421,6 +457,12 @@ impl Sim {
             self.base_time = time;
         }
     }
+}
+
+/// A profile's kits as its game cooks them (an item of no object: none).
+fn kits_of(profile: &MatchProfile) -> [Vec<Item<'static>>; 3] {
+    let kit = |kit| profile.inventory(kit, Dictionary::shared()).unwrap_or_default();
+    [kit(0), kit(1), kit(2)]
 }
 
 /// Native state through its empty inventory header, before the motion tail.
@@ -651,6 +693,7 @@ impl Client {
                 options.players.push(prepare.profile.clone());
                 self.sim.profile_items.push(prepare.profile.items.len());
                 self.sim.held.push(prepare.profile.held().collect());
+                self.sim.kits.push(kits_of(&prepare.profile));
                 self.sim.players = options.players.len();
                 self.sim.player_states.resize(self.sim.players, None);
                 self.sim.player_tails.resize(self.sim.players, None);
@@ -1049,6 +1092,7 @@ impl Client {
                 .iter()
                 .map(|profile| profile.held().collect())
                 .collect();
+            self.sim.kits = options.players.iter().map(kits_of).collect();
         }
         match &taken.message {
             ServerMessage::Ports { min, max } => {

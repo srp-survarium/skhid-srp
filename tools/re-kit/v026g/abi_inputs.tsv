@@ -5626,3 +5626,6 @@ va	name	location	role	basis
 0x0027bff0	survarium::network_client::process_dynamic_match_info	EDI at 0x27C116	network_client after both world deserialization call sites return; +1F1C68 is the envelope generation stored at 0x27C040, not proof of a completed load	observed
 0x0027a070	survarium::match_client::match_client	EDI	receiver; sets vtable 0xA08864 at 0x27A08F after constructing options at +0Ch via 0x3183A0; constructs embedded network client at +578B0h via 0x378A40 at 0x27A147, before returning	observed
 0x003183a0	survarium::match_options::match_options	ESI	options receiver; 20 profiles of 45FCh bytes, then mov dword [esi+577B0h],FFFFFFFFh at 0x3183D2; holder+577BCh match seed is initialized before the handshake, although its real match value is unknown until options decode	observed
+0x003a8980	anim_decode_read_bits	EAX	entry: number of bits to read (0..32)	observed
+0x003a8980	anim_decode_read_bits	EDI	the bit-stream state: +0x203c current byte ptr, +0x2048 bit position 0..7	observed
+0x00317d40	vostok::popcount	ECX	entry: the word whose set bits are counted	observed
