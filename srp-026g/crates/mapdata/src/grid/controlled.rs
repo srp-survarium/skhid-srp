@@ -220,14 +220,14 @@ impl WalkGrid {
         self
     }
 
-    /// [A318] One tick of the client's walk (`player_step`, the port `controller::tick::Controller::step`: `step_up` 0x7C900, the
-    /// move sweep, `step_down` 0x7E1B0) for a standing body at `feet` asked to move `by` (flat, this tick's displacement): where its
-    /// feet end, from where the walk starts it ([`Body::walk_start`]). None without [`Self::with_client_walker`].
     /// [A318] The heap [`Self::with_client_walker`] keeps, bytes (0 without it).
     pub fn client_walker_bytes(&self) -> usize {
         self.walker.as_deref().map_or(0, crate::controller::Collision::bytes)
     }
 
+    /// [A318] One tick of the client's walk (`player_step`, the port `controller::tick::Controller::step`: `step_up` 0x7C900, the
+    /// move sweep, `step_down` 0x7E1B0) for a standing body at `feet` asked to move `by` (flat, this tick's displacement): where its
+    /// feet end, from where the walk starts it ([`Body::walk_start`]). None without [`Self::with_client_walker`].
     pub fn client_step(&self, feet: Vec3, by: Vec3) -> Option<(Vec3, Vec3)> {
         let world = self.walker.as_deref()?;
         let (_, s) = self.body.controller();
