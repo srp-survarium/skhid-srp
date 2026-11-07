@@ -362,3 +362,83 @@ fn every_refusal_fits_the_message_box_in_every_language() {
     // 14 has no tag: the release of that revision, unnamed.
     assert!(!refusal_text(refusals[2], None).contains("026g-rev"));
 }
+
+/// From two who can play to their room's match: the vote's 15 s, the wait
+/// of `rooms_tests::spec` (15 s), and a little more.
+const ROOM_TO_MATCH: Duration = Duration::from_secs(32);
+
+/// The players of `names` in a room of the first's, the last given the
+/// link of the replay of `MATCH`: their indexes.
+fn room_with_a_watcher(world: &mut World, root: &std::path::Path, names: &[&str]) -> Vec<usize> {
+    use super::rooms_tests::{create, rows, spec};
+    use survarium::v026g::lobby::rooms::{ROOM_JOIN_BASE, ROOM_STATE};
+    let players: Vec<usize> = names.iter().map(|name| world.connect(name)).collect();
+    let (&owner, &watcher) = (players.first().unwrap(), players.last().unwrap());
+    world.core.replays = Some(replays(root, &[world.ids[watcher].0]));
+    let key = create(world, owner, spec(6), None);
+    for &index in &players[1..] {
+        rows(world, index, ROOM_JOIN_BASE + key, 1);
+    }
+    world.ask(watcher, request::player_details(REPLAY_ASK, MATCH));
+    assert!(poll(world, watcher).0.is_some(), "the link");
+    // Its movie's polls of the room are no action of its player.
+    rows(world, watcher, ROOM_STATE, 1);
+    for &index in &players {
+        world.take(index);
+    }
+    players
+}
+
+/// Live, 2026-10-19: with the room's next match after the last, the lobby
+/// game was pulled into a match while its player watched a replay in a
+/// second game. Given the link, the player is in none of its room's
+/// matches, nor put into one late, until it acts in the lobby again.
+#[test]
+fn a_replays_watcher_is_in_no_match_of_its_room_until_it_acts() {
+    let root = temp("hold");
+    let mut world = World::new();
+    let players = room_with_a_watcher(&mut world, &root, &["Alice", "Bob", "Carol"]);
+    let [alice, bob, carol] = players[..] else {
+        unreachable!()
+    };
+    world.advance(ROOM_TO_MATCH);
+    let (match_id, _) = sent_to_match(&world.take(alice)).expect("Alice plays");
+    assert!(sent_to_match(&world.take(bob)).is_some(), "Bob plays");
+    assert_eq!(sent_to_match(&world.take(carol)), None);
+    // Nor late, past the late join's wait.
+    world.advance(Duration::from_secs(20));
+    assert_eq!(sent_to_match(&world.take(carol)), None);
+    world.end_match(match_id, 0);
+    world.advance(Duration::from_secs(2));
+    // Back: she votes, and the next match takes her (the vote after a
+    // match is 10 s longer).
+    super::rooms_tests::rows(
+        &mut world,
+        carol,
+        survarium::v026g::lobby::rooms::ROOM_VOTE_BASE,
+        1,
+    );
+    world.take(carol);
+    world.advance(ROOM_TO_MATCH + Duration::from_secs(10));
+    assert!(sent_to_match(&world.take(carol)).is_some(), "Carol plays");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A player that never comes back to the lobby game is taken again once
+/// `WATCH_HOLD` is over: until then its room of two waits for it.
+#[test]
+fn a_replays_hold_ends_after_its_time() {
+    use crate::v026g::replay::WATCH_HOLD;
+    let root = temp("hold-time");
+    let mut world = World::new();
+    let players = room_with_a_watcher(&mut world, &root, &["Alice", "Carol"]);
+    world.advance(WATCH_HOLD - Duration::from_secs(1));
+    for &index in &players {
+        assert_eq!(sent_to_match(&world.take(index)), None);
+    }
+    world.advance(Duration::from_secs(1) + ROOM_TO_MATCH);
+    for &index in &players {
+        assert!(sent_to_match(&world.take(index)).is_some());
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}

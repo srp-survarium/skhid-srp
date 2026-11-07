@@ -22,11 +22,20 @@
 //!   language, with the revisions and the release to watch it with
 //!   ([`refusal_text`]).
 //!
+//! - The replay plays in a second game; the first stays in the lobby, in
+//!   its room. A player given a link is in no match its room starts, nor
+//!   put into one late (`rooms::room_free`), until it acts in the lobby
+//!   again (a room action or Play, not the movie's own polls) or
+//!   [`WATCH_HOLD`] is over. Live, 2026-10-19: with the room's next match
+//!   after the last, the lobby game was pulled into a match while its
+//!   player watched. Nothing tells the server that the link was clicked
+//!   or that the replay ended.
+//!
 //! Only the asker's own answer is ever sent (a poll names no account), and
 //! the token is never logged whole (its first six hex digits are; the
 //! packet log redacts every `9E`, `core`).
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use session::v026g::replays::{Answer, Known, Refusal, Status, release_tag};
 use survarium::v026g::lobby;
@@ -34,7 +43,30 @@ use survarium::v026g::lobby::requests::id;
 
 use super::core::{Core, Who};
 
+/// How long a link keeps its player out of its room's matches when it
+/// does nothing in the lobby: a long match's replay (15 minutes) and the
+/// download and load before it.
+pub(super) const WATCH_HOLD: Duration = Duration::from_secs(20 * 60);
+
 impl Core<'_> {
+    /// The player acts in the lobby: its room's matches take it again.
+    pub(super) fn replay_back(&mut self, account_id: u32) {
+        if self.replay_watchers.remove(&account_id).is_some() {
+            log::info!("Account {account_id}: back in the lobby from its replay");
+        }
+    }
+
+    /// The links whose [`WATCH_HOLD`] is over.
+    pub(super) fn replay_holds_over(&mut self, now: Instant) {
+        self.replay_watchers.retain(|account_id, until| {
+            let held = *until > now;
+            if !held {
+                log::info!("Account {account_id}: its replay's hold is over");
+            }
+            held
+        });
+    }
+
     /// `3D 00 <REPLAY_ASK> <match_id>`: the asker wants that match's replay.
     pub(super) fn replay_ask(&mut self, who: &Who, match_id: u32, now: Instant) {
         let Some(replays) = self.replays else {
@@ -77,6 +109,13 @@ impl Core<'_> {
         };
         if let Some(link) = answer.link() {
             self.send(who.addr, lobby::video_link(false, &link));
+            if self
+                .replay_watchers
+                .insert(who.account_id, now + WATCH_HOLD)
+                .is_none()
+            {
+                log::info!("{}: in no room's match while it may watch its replay", who.name);
+            }
         }
         // The size when `ready`, the place in the conversion line while
         // `preparing`.

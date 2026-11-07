@@ -247,6 +247,10 @@ pub(super) struct Core<'a> {
     /// A member (or one queued) whose game started anew, until its new
     /// game is told the room: by then, or it loses the place (`rooms`).
     pub room_unseen: HashMap<u32, Instant>,
+    /// Who was given a replay's link, until when: its replay may play in a
+    /// second game, so no room puts this one into a match until its player
+    /// acts in the lobby again or the time is over (`replay`).
+    pub replay_watchers: HashMap<u32, Instant>,
 }
 
 impl<'a> Core<'a> {
@@ -299,6 +303,7 @@ impl<'a> Core<'a> {
             room_join_at: HashMap::new(),
             room_seen: HashMap::new(),
             room_unseen: HashMap::new(),
+            replay_watchers: HashMap::new(),
         }
     }
 
