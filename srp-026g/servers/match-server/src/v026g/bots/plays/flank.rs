@@ -515,17 +515,47 @@ fn camp_route_at(cx: &Ctx, spot: usize, shooter: Place) -> Option<State> {
     Some(State::Route { spot, route, next: 0, give_up_at, camper: shooter, orphan: None })
 }
 
+/// The old job flank round the held spot `line` (its runtime flank spots), or `NoSpot`.
+fn old_job_flank(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine, rng: &mut Rng) -> State {
+    let spots = job_flank_spots(cx, line);
+    match round(cx, line.at, line.facing_dir(), &spots, rng) {
+        State::Wait { .. } => State::NoSpot,
+        state => state,
+    }
+}
+
+/// [F6] The metres a flank state's walk has to its spot from `feet`: a camp route's start and its length to the firing
+/// floor; the old flank's way point and spot, straight; None for the other states.
+fn walk_m(state: &State, tactics: &crate::v026g::bots::tactics::Tactics, feet: Vec3) -> Option<f32> {
+    match state {
+        State::Route { .. } => Some(route_left_m(state, tactics, feet)?),
+        State::Via { via, spot } => Some(feet.distance_xz(*via) + via.distance_xz(*spot)),
+        State::Approach { spot } => Some(feet.distance_xz(*spot)),
+        _ => None,
+    }
+}
+
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     // The team's job (K2): him at the spot, facing down his death lanes.
     if let Some(line) = job_line(cx, target) {
         if let Some(route) = camp_route(cx, line) {
+            // [F6] The old flank when it arrives sooner.
+            if cx.tuning.threat.camp_flank.is_some_and(|c| c.keep_old_flank) {
+                let old = old_job_flank(cx, line, rng);
+                if let (Some(old_m), Some(route_m)) = (walk_m(&old, &cx.tactics, cx.me.feet), walk_m(&route, &cx.tactics, cx.me.feet))
+                    && old_m < route_m
+                {
+                    #[cfg(test)]
+                    {
+                        ROUTE_SEEN.with(|m| m.borrow_mut().remove(&cx.me.place));
+                        eprintln!("A320 camp_flank old flank sooner: t {} place {} {old_m:.0} m vs the route's {route_m:.0} m", cx.now, cx.me.place);
+                    }
+                    return old;
+                }
+            }
             return route;
         }
-        let spots = job_flank_spots(cx, line);
-        return match round(cx, line.at, line.facing_dir(), &spots, rng) {
-            State::Wait { .. } => State::NoSpot,
-            state => state,
-        };
+        return old_job_flank(cx, line, rng);
     }
     let TargetRef::Place(who) = target else {
         return wait(cx, rng);
@@ -757,6 +787,21 @@ fn follow(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng, from: u
             step(state, target, cx, rng)
         }
         None => {
+            // [F6] The old flank round the held spot instead of no flank.
+            if cx.tuning.threat.camp_flank.is_some_and(|c| c.keep_old_flank)
+                && let Some(line) = job_line(cx, target)
+            {
+                let old = old_job_flank(cx, line, rng);
+                if !matches!(old, State::NoSpot) {
+                    #[cfg(test)]
+                    {
+                        ROUTE_SEEN.with(|m| m.borrow_mut().remove(&cx.me.place));
+                        eprintln!("A320 camp_flank follow: t {} place {} from spot {from}: he moved, the old flank goes on", cx.now, cx.me.place);
+                    }
+                    *state = old;
+                    return step(state, target, cx, rng);
+                }
+            }
             #[cfg(test)]
             {
                 // Bench truth beside the team's sense: where he is, where the walked spot and the held spot are.
@@ -1191,6 +1236,15 @@ mod tests {
             assert_eq!(found[0].rank, Rank::Alarm);
             assert!((found[0].score.get() - 0.65).abs() < 1e-4, "{}", found[0].score.get());
             s.route_total_m = None;
+            // [F6] keep_old_flank: the shorter walk of the old flank and the camp route.
+            s.current = None;
+            s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank { keep_old_flank: true, ..Default::default() });
+            let mut r = Rng::new(3);
+            let chosen = start(target, &s.cx(0), &mut r);
+            let (old_m, route_m) = (walk_m(&off, &s.tactics, me), walk_m(&on, &s.tactics, me));
+            assert!(old_m.is_some() && route_m.is_some(), "{off:?} {on:?}");
+            assert_eq!(matches!(chosen, State::Route { .. }), route_m <= old_m, "{chosen:?}: old {old_m:?} route {route_m:?}");
+            s.current = Some((PlayKind::Flank, target, 0));
             s.route_left_m = None;
             s.current = None;
             s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank::default());

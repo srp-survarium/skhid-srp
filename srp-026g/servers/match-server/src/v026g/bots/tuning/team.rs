@@ -778,6 +778,12 @@ pub struct CampFlank {
     /// not held by `commit.hold_to_arrival`: another alarm play (a Trade, B3f8: 5 of 18 walks) takes it only when it scores
     /// more than the walk with its bonus by the commander's margin (utility AI's inertia, Dave Mark's IAUS). None: as before.
     pub inertia: Option<f32>,
+    /// `threat.camp_flank.keep_old_flank` [F6]: the job's flanker takes a camp route only when it arrives no later than the
+    /// old flank's spot (its walk, straight-line metres), and a walk that ends because he moved where no known spot is goes
+    /// on as the old flank round the held spot: so the switch never flanks him less than the old flank (B3f12+B3f13: his
+    /// kills +26.7 %, most outside the walks, his deaths fewer; the old flank, 12-30 m from him, replaced by walks that
+    /// mostly ended early). Off: the camp route whenever there is one, and such a walk ends.
+    pub keep_old_flank: bool,
 }
 
 /// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its
