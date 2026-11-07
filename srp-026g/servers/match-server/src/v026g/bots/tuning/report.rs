@@ -282,6 +282,22 @@ mod tests {
         assert!(moved.iter().all(|l| l.contains(" heal:") || l.ends_with(": none")), "{moved:?}");
     }
 
+    /// Every option the all-off reference keeps (kept right, no cheats) is in the default tuning's report, whatever its kind: a
+    /// struct or a number equal in both shows whole, so the golden proves each default.
+    #[test]
+    fn every_kept_option_is_in_the_report() {
+        let report = Tuning::default().switch_report();
+        let all: Vec<&(String, String)> = [&report.on, &report.off, &report.values, &report.changed].into_iter().flatten().collect();
+        for pointer in KEPT_RIGHT.iter().chain(NO_CHEATS) {
+            let path: Vec<String> = pointer.trim_start_matches('/').split('/').map(str::to_owned).collect();
+            let (section, name) = entry(&path);
+            let shown = all.iter().any(|(s, text)| {
+                *s == section && (*text == name || text.starts_with(&format!("{name}=")) || text.starts_with(&format!("{name}.")))
+            });
+            assert!(shown, "{pointer} is not in the report");
+        }
+    }
+
     /// A324: a kept-right option the all-off reference has set too shows with its value when set, and not when none.
     #[test]
     fn a_kept_right_option_shows_when_set() {
