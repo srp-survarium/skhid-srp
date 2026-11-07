@@ -24,6 +24,7 @@ struct cc_bool;
 struct cc_float;
 struct cc_string;
 struct closest_ray_result_callback;
+struct collision_geometry;
 struct core_world;
 struct critical_section;
 struct di_command_queue;
@@ -36,6 +37,7 @@ struct game_effect_listener;
 struct game_effect_player;
 struct game_effect_slot;
 struct game_material_manager;
+struct game_object;
 struct game_project_resource;
 struct game_scene;
 struct game_world;
@@ -44,6 +46,7 @@ struct gfx_movie;
 struct gfx_object;
 struct gfx_object_interface;
 struct gfx_value;
+struct hit_object;
 struct inventory;
 struct inventory_recipe;
 struct item;
@@ -72,12 +75,14 @@ struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
 struct player_profile;
+struct pthreads3_allocator;
 struct pure_game_effect_emitter;
 struct queries_result;
 struct query_callback;
 struct query_function;
 struct query_result_for_cook;
 struct query_user_data;
+struct ray_hits;
 struct ray_result;
 struct render_model_instance;
 struct render_notify;
@@ -101,6 +106,9 @@ struct static_collision;
 struct static_model_instance;
 struct statistics_listener;
 struct text_translator;
+struct usable_list;
+struct usable_object;
+struct usable_user;
 struct weapon_locator;
 struct world_user;
 
@@ -625,5 +633,26 @@ extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_local_f
 
 /* the IAT slot 0x87022c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_system_time)(const unsigned int * file_time, unsigned int * system_time);
+
+/* virtual vostok::physics::world+0x4c (1 vtables of vtables.tsv: 0x77560): world ECX, origin ESP+4, direction ESP+8, length ESP+12, hits ESP+16, group ESP+20, mask ESP+24; pops 24 */
+void engine_ray_query(struct bullet_physics_world *world, const float *origin, const float *direction, float length, struct ray_hits *hits, unsigned int group, unsigned int mask);
+
+/* virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; EAX */
+unsigned int engine_collision_group(struct hit_object *object);
+
+/* virtual vostok::collision::game_object+0x4 (12 vtables of vtables.tsv: 0x2f8bb0, 0x300040): object ECX; pops 0; EAX */
+struct collision_geometry *engine_collision_geometry(struct game_object *object);
+
+/* 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12 */
+void engine_query_usables(struct usable_list *result, struct collision_geometry *geometry, const void *cast, unsigned int offset);
+
+/* virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL */
+unsigned char engine_can_use(struct usable_object *usable, struct usable_user *user);
+
+/* virtual survarium::usable_object+0x44 (12 vtables of vtables.tsv: 0x246ed0, 0x2f8440): usable ECX, matrix ESP+4; pops 4 */
+void engine_usable_transform(struct usable_object *usable, float *matrix);
+
+/* 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly */
+void __attribute__((thiscall)) engine_mt_free(struct pthreads3_allocator *allocator, void *block, const char *function, const char *file, unsigned int line);
 
 #endif

@@ -823,3 +823,33 @@ survarium::login_menu	game	0x9C	ptr<survarium::game>	the game (set_status 0x21EE
 survarium::login_status_frame	begin	0x18	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
 survarium::login_status_frame	cursor	0x1C	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217 (made at 0x21EECB..0x21EEED over the 200h bytes at +24h): the cursor, at the text's zero (0x21F3B4)
 survarium::login_status_frame	end	0x20	ptr<u8>	the text's end, its buffer's last byte + 1 (esp+224h, 0x21EECF)
+survarium::player	use_user	0x130	obj<survarium::usable_user>	its usable_object_user_data (0.10b collision_user +4): what a usable object's can_use and use get (detect_usable_object 0x2D85C6, apply_new_input 0x2D88B7)
+survarium::usable_user	player	0x0	ptr<survarium::player>	usable_object_user_data's owner: the player (0.10b +0; the can_use bodies read [ESP+4]'s +0)
+survarium::detect_frame	player	0x4	ptr<survarium::player>	detect_usable_object's player at its start (0x2D84C0, by the site's ESP): entry ESP+4
+survarium::detect_frame	point	0x8	ptr<f32>	its point: a float3 written with the hit point of the object found, or 0 (entry ESP+8)
+vostok::physics::hit_object	user	0xC	ptr<vostok::collision::game_object>	base_physics_object's user data, the game's object (0.10b +8; detect_usable_object reads +0Ch at 0x2D8587)
+vostok::collision::game_object	vtable	0x0	u32	its vtable (0.10b: cast_to_hit_receiver +0, cast_to_collision_geometry +4, cast_to_base_player +8)
+survarium::collision_geometry	subscribers	0xC	ptr<survarium::usable_slot>	its subscribers' begin (+10h the end), which query_objects_by_type 0x2DC39A walks
+vostok::physics::ray_hits	begin	0x0	ptr<vostok::physics::ray_result>	a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} (detect_usable_object's at 0x2D850F..0x2D851F, ray_query appends 0x777DE): the first hit
+vostok::physics::ray_hits	end	0x4	ptr<vostok::physics::ray_result>	past the last hit (the count is (end - begin) / 28h, 0x2D852C)
+vostok::physics::ray_hits	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	what grows it (0x788C0) and frees it: detect_usable_object gives the multithreaded one (0xA8001C)
+vostok::physics::ray_hits	capacity	0xC	ptr<vostok::physics::ray_result>	its room's end
+vostok::physics::ray_hits	size	0x10	size	four words
+survarium::usable_list	begin	0x0	ptr<survarium::usable_slot>	a buffer_vector<usable_object*> {begin, end, allocator, capacity end}, query_objects_by_type's result (detect_usable_object's at 0x2D859F..0x2D85AF): the first
+survarium::usable_list	end	0x4	ptr<survarium::usable_slot>	past the last
+survarium::usable_list	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	what grows it (0x2DC429 by 0x1E1C0) and frees it: the multithreaded one (0xA8001C)
+survarium::usable_list	capacity	0xC	ptr<survarium::usable_slot>	its room's end
+survarium::usable_list	size	0x10	size	four words
+survarium::usable_slot	object	0x0	ptr<survarium::usable_object>	one usable object found (the cast's answer)
+survarium::usable_slot	size	0x4	size	a pointer
+survarium::usable_object	vtable	0x0	u32	its vtable as a usable object (the collision geometry subscriber's: +20h cast_to_usable, +30h can_use, +34h use_info, +44h get_transform)
+survarium::usable_distance	value	0x0	f32	usable_objects_detection_distance's value (2.0 in the image)
+survarium::image	usable_distance	0xA710D8	obj<survarium::usable_distance>	usable_objects_detection_distance: detect_usable_object's ray reaches this far (fld at 0x2D84E9), a use's tick allows this far (0x300830)
+survarium::image	mt_allocator	0xA8001C	obj<vostok::memory::pthreads3_allocator>	the global multithreaded allocator (vtable 0x9E6000: call_realloc +14h, call_free +18h), the allocator of detect_usable_object's two vectors
+survarium::image	usable_cast	0x2DD730	u32	the cast detect_usable_object hands query_objects_by_type (mov eax,[ecx] / jmp [eax+20h]: cast_to_usable)
+survarium::image	hits_deallocate	0x9E2E60	u32	"vostok::detail::std_allocator<struct vostok::physics::closest_ray_result>::deallocate": the function name detect_usable_object frees its hits with (0x2D8682)
+survarium::image	usables_deallocate	0x9DC2BC	u32	"vostok::detail::std_allocator<void *>::deallocate": the function name it frees a usable list with (0x2D860C)
+survarium::image	std_allocator_file	0x9DC1E0	u32	"d:\survarium.deploy\sources\vostok/std_allocator_inline.h": the file name of both frees (line 67h)
+survarium::image	victory_item_core_usable_vtable	0xA13E8C	u32	victory_item_core's usable_object vtable (RTTI, the usable_object at +14h): a battery's; +30h victory_item_core::can_use 0x300710, +44h its get_transform thunk 0x246ED0
+survarium::image	victory_item_usable_vtable	0xA0437C	u32	victory_item's usable_object vtable (RTTI): the client's battery; +30h 0x300710, +44h 0x246ED0 as victory_item_core's (the only two vtables holding 0x300710 at +30h)
+vostok::memory::pthreads3_allocator	vtable	0x0	u32	its vtable (0x9E6000: call_realloc +14h, call_free +18h)

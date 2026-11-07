@@ -235,6 +235,18 @@ unsafe extern "C" {
     pub fn engine_show_scene_movie(scene: Option<GameWorld>, movie: Option<MovieSlot>);
     /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
     pub fn engine_hide_scene_movie(movie: Option<MovieSlot>, scene: Option<GameWorld>);
+    /// virtual vostok::physics::world+0x4c (1 vtables of vtables.tsv: 0x77560): world ECX, origin ESP+4, direction ESP+8, length ESP+12, hits ESP+16, group ESP+20, mask ESP+24; pops 24
+    pub fn engine_ray_query(world: Option<BulletPhysicsWorld>, origin: *const f32, direction: *const f32, length: f32, hits: Option<RayHits>, group: u32, mask: u32);
+    /// virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; EAX
+    pub fn engine_collision_group(object: Option<HitObject>) -> u32;
+    /// virtual vostok::collision::game_object+0x4 (12 vtables of vtables.tsv: 0x2f8bb0, 0x300040): object ECX; pops 0; EAX
+    pub fn engine_collision_geometry(object: Option<GameObject>) -> Option<CollisionGeometry>;
+    /// 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12
+    pub fn engine_query_usables(result: Option<UsableList>, geometry: Option<CollisionGeometry>, cast: *const c_void, offset: u32);
+    /// virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
+    pub fn engine_can_use(usable: Option<UsableObject>, user: Option<UsableUser>) -> u8;
+    /// virtual survarium::usable_object+0x44 (12 vtables of vtables.tsv: 0x246ed0, 0x2f8440): usable ECX, matrix ESP+4; pops 4
+    pub fn engine_usable_transform(usable: Option<UsableObject>, matrix: *mut f32);
 }
 
 #[allow(dead_code)]
@@ -309,6 +321,8 @@ unsafe extern "thiscall" {
     pub fn engine_translate_query(cook: Option<CamouflageDecalTextureTypeBakerCook>, query: Option<QueryResultForCook>);
     /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
     pub fn engine_key_name(keyboard: Option<Keyboard>, key: u32, name: *mut u8, size: u32) -> u8;
+    /// 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
+    pub fn engine_mt_free(allocator: Option<Pthreads3Allocator>, block: *mut c_void, function: *const u8, file: *const u8, line: u32);
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -1244,6 +1258,15 @@ impl Player {
     pub unsafe fn look_pitch(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x48c).cast::<f32>().as_ptr() }
     }
+
+    /// +0x130 (obj<survarium::usable_user>): its usable_object_user_data (0.10b collision_user +4): what a usable object's can_use and use get (detect_usable_object 0x2D85C6, apply_new_input 0x2D88B7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn use_user(self) -> UsableUser {
+        UsableUser(unsafe { self.0.byte_add(0x130) })
+    }
 }
 
 /// A survarium::player_profile (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -1614,6 +1637,24 @@ impl HitObject {
     #[inline(always)]
     pub unsafe fn body(self) -> BtAnimatedRigidBody {
         BtAnimatedRigidBody(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0xc (ptr<vostok::collision::game_object>): base_physics_object's user data, the game's object (0.10b +8; detect_usable_object reads +0Ch at 0x2D8587)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn user(self) -> Option<GameObject> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<GameObject>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::collision::game_object>): base_physics_object's user data, the game's object (0.10b +8; detect_usable_object reads +0Ch at 0x2D8587)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_user(self, value: Option<GameObject>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<GameObject>>().write_volatile(value) }
     }
 }
 
@@ -15499,6 +15540,555 @@ impl LoginStatusFrame {
     }
 }
 
+/// A survarium::usable_user (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UsableUser(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UsableUser {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::player>): usable_object_user_data's owner: the player (0.10b +0; the can_use bodies read [ESP+4]'s +0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::player>): usable_object_user_data's owner: the player (0.10b +0; the can_use bodies read [ESP+4]'s +0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Player>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::detect_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DetectFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DetectFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::player>): detect_usable_object's player at its start (0x2D84C0, by the site's ESP): entry ESP+4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::player>): detect_usable_object's player at its start (0x2D84C0, by the site's ESP): entry ESP+4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<f32>): its point: a float3 written with the hit point of the object found, or 0 (entry ESP+8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn point(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut f32>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<f32>): its point: a float3 written with the hit point of the object found, or 0 (entry ESP+8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_point(self, value: *mut f32) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut f32>().write_volatile(value) }
+    }
+}
+
+/// A vostok::collision::game_object (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameObject(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameObject {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable (0.10b: cast_to_hit_receiver +0, cast_to_collision_geometry +4, cast_to_base_player +8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::collision_geometry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CollisionGeometry(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CollisionGeometry {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (ptr<survarium::usable_slot>): its subscribers' begin (+10h the end), which query_objects_by_type 0x2DC39A walks
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn subscribers(self) -> Option<UsableSlot> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<UsableSlot>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<survarium::usable_slot>): its subscribers' begin (+10h the end), which query_objects_by_type 0x2DC39A walks
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_subscribers(self, value: Option<UsableSlot>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<UsableSlot>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::ray_hits (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RayHits(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RayHits {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::physics::ray_result>): a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} (detect_usable_object's at 0x2D850F..0x2D851F, ray_query appends 0x777DE): the first hit
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn begin(self) -> Option<RayResult> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<RayResult>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::ray_result>): a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} (detect_usable_object's at 0x2D850F..0x2D851F, ray_query appends 0x777DE): the first hit
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_begin(self, value: Option<RayResult>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<RayResult>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::physics::ray_result>): past the last hit (the count is (end - begin) / 28h, 0x2D852C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn end(self) -> Option<RayResult> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RayResult>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::physics::ray_result>): past the last hit (the count is (end - begin) / 28h, 0x2D852C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_end(self, value: Option<RayResult>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RayResult>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<vostok::memory::pthreads3_allocator>): what grows it (0x788C0) and frees it: detect_usable_object gives the multithreaded one (0xA8001C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn allocator(self) -> Option<Pthreads3Allocator> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Pthreads3Allocator>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::memory::pthreads3_allocator>): what grows it (0x788C0) and frees it: detect_usable_object gives the multithreaded one (0xA8001C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_allocator(self, value: Option<Pthreads3Allocator>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Pthreads3Allocator>>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<vostok::physics::ray_result>): its room's end
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity(self) -> Option<RayResult> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<RayResult>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::physics::ray_result>): its room's end
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_capacity(self, value: Option<RayResult>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<RayResult>>().write_volatile(value) }
+    }
+
+    /// 0x10 bytes: four words
+    pub const SIZE: usize = 0x10;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::physics::ray_hitss (0x10 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct RayHitsStorage([u8; 0x10]);
+
+#[allow(dead_code)]
+impl RayHitsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x10])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> RayHits {
+        RayHits(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<RayHits> {
+        (!rooms.is_empty()).then(|| RayHits(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::usable_list (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UsableList(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UsableList {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::usable_slot>): a buffer_vector<usable_object*> {begin, end, allocator, capacity end}, query_objects_by_type's result (detect_usable_object's at 0x2D859F..0x2D85AF): the first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn begin(self) -> Option<UsableSlot> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<UsableSlot>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::usable_slot>): a buffer_vector<usable_object*> {begin, end, allocator, capacity end}, query_objects_by_type's result (detect_usable_object's at 0x2D859F..0x2D85AF): the first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_begin(self, value: Option<UsableSlot>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<UsableSlot>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<survarium::usable_slot>): past the last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn end(self) -> Option<UsableSlot> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<UsableSlot>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::usable_slot>): past the last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_end(self, value: Option<UsableSlot>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<UsableSlot>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<vostok::memory::pthreads3_allocator>): what grows it (0x2DC429 by 0x1E1C0) and frees it: the multithreaded one (0xA8001C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn allocator(self) -> Option<Pthreads3Allocator> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Pthreads3Allocator>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::memory::pthreads3_allocator>): what grows it (0x2DC429 by 0x1E1C0) and frees it: the multithreaded one (0xA8001C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_allocator(self, value: Option<Pthreads3Allocator>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Pthreads3Allocator>>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<survarium::usable_slot>): its room's end
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity(self) -> Option<UsableSlot> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<UsableSlot>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<survarium::usable_slot>): its room's end
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_capacity(self, value: Option<UsableSlot>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<UsableSlot>>().write_volatile(value) }
+    }
+
+    /// 0x10 bytes: four words
+    pub const SIZE: usize = 0x10;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::usable_lists (0x10 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct UsableListStorage([u8; 0x10]);
+
+#[allow(dead_code)]
+impl UsableListStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x10])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> UsableList {
+        UsableList(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<UsableList> {
+        (!rooms.is_empty()).then(|| UsableList(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::usable_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UsableSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UsableSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::usable_object>): one usable object found (the cast's answer)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> Option<UsableObject> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<UsableObject>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::usable_object>): one usable object found (the cast's answer)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_object(self, value: Option<UsableObject>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<UsableObject>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: a pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::usable_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct UsableSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl UsableSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> UsableSlot {
+        UsableSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<UsableSlot> {
+        (!rooms.is_empty()).then(|| UsableSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::usable_object (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UsableObject(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UsableObject {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable as a usable object (the collision geometry subscriber's: +20h cast_to_usable, +30h can_use, +34h use_info, +44h get_transform)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::usable_distance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UsableDistance(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UsableDistance {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (f32): usable_objects_detection_distance's value (2.0 in the image)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::memory::pthreads3_allocator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pthreads3Allocator(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Pthreads3Allocator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable (0x9E6000: call_realloc +14h, call_free +18h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -15991,6 +16581,38 @@ pub mod image {
 
     /// 0xa16084 (u32, survarium::image): client respawn rule vtable
     pub const RESPAWN_CLIENT_RULE_VTABLE: u32 = 0xa16084;
+
+    /// 0xa710d8 (obj<survarium::usable_distance>, survarium::image): usable_objects_detection_distance: detect_usable_object's ray reaches this far (fld at 0x2D84E9), a use's tick allows this far (0x300830)
+    #[inline(always)]
+    pub fn usable_distance() -> UsableDistance {
+        // SAFETY: an image VA, not 0.
+        UsableDistance(unsafe { NonNull::new_unchecked(0xa710d8 as *mut c_void) })
+    }
+
+    /// 0xa8001c (obj<vostok::memory::pthreads3_allocator>, survarium::image): the global multithreaded allocator (vtable 0x9E6000: call_realloc +14h, call_free +18h), the allocator of detect_usable_object's two vectors
+    #[inline(always)]
+    pub fn mt_allocator() -> Pthreads3Allocator {
+        // SAFETY: an image VA, not 0.
+        Pthreads3Allocator(unsafe { NonNull::new_unchecked(0xa8001c as *mut c_void) })
+    }
+
+    /// 0x2dd730 (u32, survarium::image): the cast detect_usable_object hands query_objects_by_type (mov eax,[ecx] / jmp [eax+20h]: cast_to_usable)
+    pub const USABLE_CAST: u32 = 0x2dd730;
+
+    /// 0x9e2e60 (u32, survarium::image): "vostok::detail::std_allocator<struct vostok::physics::closest_ray_result>::deallocate": the function name detect_usable_object frees its hits with (0x2D8682)
+    pub const HITS_DEALLOCATE: u32 = 0x9e2e60;
+
+    /// 0x9dc2bc (u32, survarium::image): "vostok::detail::std_allocator<void *>::deallocate": the function name it frees a usable list with (0x2D860C)
+    pub const USABLES_DEALLOCATE: u32 = 0x9dc2bc;
+
+    /// 0x9dc1e0 (u32, survarium::image): "d:\survarium.deploy\sources\vostok/std_allocator_inline.h": the file name of both frees (line 67h)
+    pub const STD_ALLOCATOR_FILE: u32 = 0x9dc1e0;
+
+    /// 0xa13e8c (u32, survarium::image): victory_item_core's usable_object vtable (RTTI, the usable_object at +14h): a battery's; +30h victory_item_core::can_use 0x300710, +44h its get_transform thunk 0x246ED0
+    pub const VICTORY_ITEM_CORE_USABLE_VTABLE: u32 = 0xa13e8c;
+
+    /// 0xa0437c (u32, survarium::image): victory_item's usable_object vtable (RTTI): the client's battery; +30h 0x300710, +44h 0x246ED0 as victory_item_core's (the only two vtables holding 0x300710 at +30h)
+    pub const VICTORY_ITEM_USABLE_VTABLE: u32 = 0xa0437c;
 }
 
 /// A general-purpose register at a hook's site.
@@ -18909,6 +19531,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn controller(machine: &impl Machine) -> Option<BulletCharacterController> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletCharacterController)
+        }
+    }
+
+    /// use.detect (0x2d84c0): base_player::detect_usable_object's start (push ebp / mov ebp,esp / and esp,-8): every use scan (a use's start 0x2D8900, its tick 0x2D86AD, the prompt 0x246FCD); ESP+4 the player, +8 the point or 0; returned is its `ret 8` (0x2D8697), EAX the object
+    pub mod use_detect {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::detect_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DetectFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(DetectFrame)
         }
     }
 }

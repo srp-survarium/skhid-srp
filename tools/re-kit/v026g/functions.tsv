@@ -2203,3 +2203,11 @@ va	status	ref_021d	name
 0x002ac400	observed		survarium::particle_game_effect_presenter::on_event
 0x002de350	observed		survarium::game_effect_player::stop
 0x0031a210	observed		survarium::damage_zone_core::stop_effect
+0x002dc390	observed		survarium::collision_geometry::query_objects_by_type<survarium::usable_object>
+0x002dd730	observed		[thunk]:survarium::collision_geometry_subscriber::`vcall'{32}'
+0x002f8bb0	observed		survarium::collision_geometry::cast_to_collision_geometry
+0x00305070	observed		survarium::booby_trap_core::can_use
+0x00356d50	observed		vostok::physics::bt_static_rigid_body::get_collision_group
+0x00356d50	observed		vostok::physics::bt_dynamic_rigid_body::get_collision_group
+0x00357a90	observed		vostok::physics::bt_ghost_object::get_collision_group
+0x00246ed0	observed		[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'

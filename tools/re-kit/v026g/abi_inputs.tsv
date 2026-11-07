@@ -5090,7 +5090,7 @@ va	name	location	role	basis
 0x002f55f0	survarium::shared_statistics::on_artefact_taken	AL, EDX, entry ESP+4	place, the shared statistics, kit: inc word [EDX + place x 1F8h + 1Eh + kit x 2] (event 5, no bound), then notify_listener 0x2F5D40 (place, 5, 1) when the listener at +31A0h is set; ret 4	observed
 0x0031c780	survarium::artefact_container_core::use_execute	at 0x31C810: EBX, EDI	EBX the user (a player), EDI the container; [EDI+54h] the world core, [core+18FA8h] the statistics handler (0 none: nothing counted); after the transfer (0x31C817) event 5 is counted for place [EBX+114h], kit [EBX+115h] (0x31C845). Patch 80's site artefact_container.transfer	observed
 0x002f4cf0	survarium::shared_statistics::finish_match	EAX, entry ESP+4	what it stores at +31C0h, the shared statistics: per place below +31E0h counts event 11 (+42h), 12 (+48h, the winner's team) and 27 (+A2h, protection 0) and tells the listener; event 16 is counted nowhere in 0.26g (no inc of a +60h..+64h cell in .text)	observed
-0x0031c6b0	survarium::artefact_container_core::can_use	ECX, entry ESP+4	the container, the user (a pointer to the player): usable only while the container's artefact [ECX+4Ch] is in state 2 ([+280h]) and the user's inventory [player+10Ch] has an artefact slot ([+16Ch] > 0) and [+178h] = 0 (0x31C6EC..0x31C70B); a free slot is not asked: a full inventory may take one	observed
+0x0031c6b0	survarium::artefact_container_core::can_use	ECX	the container (entry ESP+4 the user, a pointer to the player): usable only while the container's artefact [ECX+4Ch] is in state 2 ([+280h]) and the user's inventory [player+10Ch] has an artefact slot ([+16Ch] > 0) and [+178h] = 0 (0x31C6EC..0x31C70B); a free slot is not asked: a full inventory may take one	observed
 0x002dbb50	survarium::base_player::movement_speed	stack+4	the player (+115h kit, +6B8h profile, +15Ch and +190h the two speed tables read by 0x2F0980)	observed
 0x002dbb50	survarium::base_player::movement_speed	stack+10h	byte flag: also apply modifiers 4 and 20 through apply_modifiers 0x2D5BC0 and take the lower speed	observed
 0x002e2a30	survarium::weapon_core::initialize	EDI	the weapon; at 0x2E2C26..0x2E2C9C its movement node (+610h, value +61Ch) is added to the kit container (0x2D5A90) unless modifier 62 (Bear Arms, additive, apply_modifier 0x2D5AE0 with B 0) is above 0 and the value is not	observed
@@ -5672,3 +5672,40 @@ va	name	location	role	basis
 0x002de350	survarium::game_effect_player::stop	ECX	the effect (a playing item's +0)	observed
 0x0031a210	survarium::damage_zone_core::stop_effect	ECX	the damage zone core	observed
 0x0031a210	survarium::damage_zone_core::stop_effect	EDX	the player that left	observed
+0x00077560	vostok::physics::bullet_physics_world::ray_query	ECX	the physics world (vtable 0x9E2EBC +4Ch; a player's +350h)	observed
+0x00077560	vostok::physics::bullet_physics_world::ray_query	entry ESP+4	the ray's origin (float3*; detect_usable_object: the eye, player+47Ch)	observed
+0x00077560	vostok::physics::bullet_physics_world::ray_query	entry ESP+8	the ray's direction (float3*, times the length: 0x775CC..0x7760E; detect_usable_object: the view, player+46Ch)	observed
+0x00077560	vostok::physics::bullet_physics_world::ray_query	entry ESP+12	the ray's length (float32)	observed
+0x00077560	vostok::physics::bullet_physics_world::ray_query	entry ESP+16	the hits: a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} it appends every hit to (28h each, 0x777DE; grown by 0x788C0), then sorts nearest the origin first (0x78960)	observed
+0x00077560	vostok::physics::bullet_physics_world::ray_query	entry ESP+20	the filter group (u16, the callback's +0Ch at 0x7766E)	observed
+0x00077560	vostok::physics::bullet_physics_world::ray_query	entry ESP+24	the filter mask (u16, the callback's +0Eh at 0x7767E)	observed
+0x000716c0	vostok::physics::bt_animated_rigid_body::get_collision_group	ECX	the physics object (this)	observed
+0x0007ab10	vostok::physics::bullet_character_controller::get_collision_group	ECX	the physics object (this: the controller's base_physics_object)	observed
+0x00356d50	vostok::physics::bt_static_rigid_body::get_collision_group	ECX	the physics object (this)	observed
+0x00357a90	vostok::physics::bt_ghost_object::get_collision_group	ECX	the physics object (this)	observed
+0x002f8bb0	survarium::collision_geometry::cast_to_collision_geometry	ECX	the game object (this: a collision_geometry's collision::game_object, at its +4)	observed
+0x00300040		ECX	this, not read: the object (a game object, a collision geometry subscriber, ...)	observed
+0x00246380		ECX	this: the object (a usable object as its collision geometry subscriber, ...), returned	observed
+0x002dc390	survarium::collision_geometry::query_objects_by_type<survarium::usable_object>	ESI	the result: a buffer_vector of the objects found {begin, end, allocator, capacity end}, each appended (0x2DC3CB; grown by its allocator, 0x2DC429)	observed
+0x002dc390	survarium::collision_geometry::query_objects_by_type<survarium::usable_object>	entry ESP+4	the collision geometry: its subscribers +0Ch..+10h (0x2DC39A)	observed
+0x002dc390	survarium::collision_geometry::query_objects_by_type<survarium::usable_object>	entry ESP+8	the cast: called with ECX each subscriber moved by the next argument, its non-zero answers kept (0x2DC3BB; detect_usable_object gives 0x2DD730, cast_to_usable)	observed
+0x002dc390	survarium::collision_geometry::query_objects_by_type<survarium::usable_object>	entry ESP+12	the offset added to each subscriber first (detect_usable_object: 0)	observed
+0x00300710	survarium::victory_item_core::can_use	ECX	the usable object (this: the battery's usable_object)	observed
+0x00300710	survarium::victory_item_core::can_use	entry ESP+4	the user (usable_object_user_data*: +0 the player)	observed
+0x00305070	survarium::booby_trap_core::can_use	ECX	the usable object (this: the trap's usable_object)	observed
+0x00305070	survarium::booby_trap_core::can_use	entry ESP+4	the user (usable_object_user_data*: +0 the player)	observed
+0x0031c6b0	survarium::artefact_container_core::can_use	ECX	the usable object (this)	observed
+0x0031c6b0	survarium::artefact_container_core::can_use	entry ESP+4	the user (usable_object_user_data*: +0 the player)	observed
+0x0031cb10	survarium::victory_items_container_core::can_use	ECX	the usable object (this)	observed
+0x0031cb10	survarium::victory_items_container_core::can_use	entry ESP+4	the user (usable_object_user_data*: +0 the player)	observed
+0x002f8080	survarium::resupply_zone_core::can_use	ECX	the usable object (this)	observed
+0x002f8080	survarium::resupply_zone_core::can_use	entry ESP+4	the user (usable_object_user_data*: +0 the player)	observed
+0x002f8440	survarium::usable_object::get_transform	ECX	the usable object (this)	observed
+0x002f8440	survarium::usable_object::get_transform	entry ESP+4	the out matrix (float4x4, returned in EAX)	observed
+0x00246ed0	[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'	ECX	the usable object (this: the battery's usable_object, victory_item_core +14h)	observed
+0x00246ed0	[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'	entry ESP+4	the out matrix (float4x4, returned in EAX)	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	entry ESP+8	the caller's function name (a debug string: detect_usable_object gives std_allocator<...>::deallocate's, 0x9E2E60 / 0x9DC2BC)	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	entry ESP+12	the caller's file name (a debug string, 0x9DC1E0 std_allocator_inline.h)	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	entry ESP+16	the caller's line (67h)	observed
+0x002d84c0	survarium::base_player::detect_usable_object	entry ESP+4	the player ([+33Ch] alive, else 0 at once; +350h its physics world, +47Ch the eye, +46Ch the view, +130h the user data can_use gets)	observed
+0x002d84c0	survarium::base_player::detect_usable_object	entry ESP+8	the point (float3*, or 0): the result's hit point, written when one is found (apply_new_input 0x2D88E8 gives one, the prompt 0x246FCB and the use's tick 0x2D86AA give 0)	observed
