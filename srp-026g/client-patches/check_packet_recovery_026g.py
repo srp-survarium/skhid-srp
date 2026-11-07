@@ -59,6 +59,13 @@ def main():
         run.message(0xe4,b"\0\x01")
         assert len(run.receipts)==1 and run.receipts[0][12:14]==bytes([number,2]) and not run.calls,run.receipts
     run.word(CLIENT+0x1F1C64,2)
+    # A world whose generation cannot be read (its reader past its buffer, or
+    # no byte) is refused by number, counted with the handshake's: the
+    # generation stored is an older world's, which the server would take as
+    # stale. Copies of it are told apart by the number; each goes.
+    for number,payload,invalid in ((3,b"\x05\x02"+bytes(8),True),(4,b"",False),(5,b"",False)):
+        at,_,_=run.message(0xe8,payload,invalid_cursor=invalid)
+        assert at==END and not run.calls and len(run.receipts)==1 and run.receipts[0][12:14]==bytes([number,3]),(number,run.receipts)
     # A refused late-join proposal (0xE4 to a game in play) is no handshake.
     at,_,_=run.message(0xe4,b'\xffLJ\x01'+bytes(4))
     assert at==END and not run.receipts and not run.calls

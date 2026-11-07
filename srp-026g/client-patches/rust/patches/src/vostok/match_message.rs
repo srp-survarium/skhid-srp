@@ -74,7 +74,11 @@ impl<'t> Message<'t> {
                 Payload::Readable { bytes, .. } => bytes.first().copied(),
                 Payload::Invalid => None,
             };
-            if let Some(connection) = &connection { connection.rejected(generation); }
+            match (&connection, generation) {
+                (Some(connection), Some(generation)) => connection.rejected(generation),
+                (Some(connection), None) => connection.unreadable(),
+                (None, _) => {}
+            }
         }
         // A late join's profile proposal (an 0xE4 to a game in play) is no
         // handshake: no handshake is sent again for it.

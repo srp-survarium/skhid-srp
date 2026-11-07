@@ -7,9 +7,10 @@
 //! answer to a refusal). A refusal the server never hears leaves its wait
 //! for it without an end, so none is dropped:
 //! - 0xE0 is plain and resent until acked (transport.md section 3.3), so
-//!   the server gets copies of one refusal. A handshake refusal carries
-//!   its number on this connection (1, 2, ...) in the generation byte; the
-//!   server answers each number once. A world's carries its generation.
+//!   the server gets copies of one refusal. A world's carries its generation.
+//!   One that cannot name what it refuses (a handshake message, or a world
+//!   whose generation cannot be read) carries its number on this connection
+//!   (1, 2, ...) in the generation byte; the server answers each number once.
 //! - A receipt the packet pool has no room for waits, the newest only, and
 //!   goes on the next frame (`game.tick`) that has room. It goes with its
 //!   connection: a closed one tells the server by its silence.
@@ -26,8 +27,9 @@ struct Budget {
     key: Key,
     /// The last world outcome told.
     told: Option<Receipt>,
-    /// Handshake messages refused so far.
-    refused_handshakes: u8,
+    /// Refusals that name no generation so far (handshake messages, worlds
+    /// whose generation could not be read): the next one's number less one.
+    numbered: u8,
     /// The newest receipt the pool had no room for.
     waiting: Option<Receipt>,
 }
@@ -64,20 +66,39 @@ impl<'a> Connection<'a> {
     pub(crate) fn closing(ctx: &Context<'_>) { BUDGET.set(ctx.thread(), None); }
     fn budget(&self) -> Budget {
         BUDGET.get(self.thread).filter(|budget| budget.key == self.key)
-            .unwrap_or(Budget { key: self.key, told: None, refused_handshakes: 0, waiting: None })
+            .unwrap_or(Budget { key: self.key, told: None, numbered: 0, waiting: None })
+    }
+    /// The number of a refusal that names no generation: the next on the
+    /// connection.
+    fn next_number(&self) -> u8 {
+        let mut budget = self.budget();
+        budget.numbered = budget.numbered.wrapping_add(1);
+        BUDGET.set(self.thread, Some(budget));
+        budget.numbered
     }
     pub(super) fn options_rejected(&self) {
-        let mut budget = self.budget();
-        budget.refused_handshakes = budget.refused_handshakes.wrapping_add(1);
-        BUDGET.set(self.thread, Some(budget));
-        let number = budget.refused_handshakes;
+        let number = self.next_number();
         self.send(Receipt { match_id: self.key.seed, generation: number, outcome: Outcome::OptionsRejected });
     }
-    pub(super) fn rejected(&self, generation: Option<u8>) {
-        // Envelope checks run before the native generation write. Semantic
-        // checks run after it. The server accepts only its offered generation.
-        let generation = generation.unwrap_or_else(|| unsafe { read(self.client.world_generation()) });
+    /// A world refused by its envelope, before the native generation write:
+    /// `generation` read from its first byte.
+    pub(super) fn rejected(&self, generation: u8) {
         self.send(Receipt { match_id: self.key.seed, generation, outcome: Outcome::Rejected });
+    }
+    /// A world refused by its body, after the native generation write
+    /// (0x27C040): the generation stored is its own.
+    pub(super) fn rejected_current(&self) {
+        // SAFETY: the client is the synchronous load's; a plain byte read.
+        let generation = unsafe { read(self.client.world_generation()) };
+        self.rejected(generation);
+    }
+    /// A world refused whose generation could not be read (its reader
+    /// outside its buffer, or no byte): the generation stored is an older
+    /// world's, so the refusal goes by number and the server takes it as a
+    /// refusal of the world on its way.
+    pub(super) fn unreadable(&self) {
+        let number = self.next_number();
+        self.send(Receipt { match_id: self.key.seed, generation: number, outcome: Outcome::Unreadable });
     }
     pub(crate) fn loaded(&self) {
         // SAFETY: native deserialize returned; its envelope generation is current.
@@ -95,8 +116,9 @@ impl<'a> Connection<'a> {
     fn send(&self, receipt: Receipt) {
         let mut budget = self.budget();
         // The same world's outcome again (a flood of one corrupt world): told
-        // already. Each refused handshake message has its own number.
-        if receipt.outcome != Outcome::OptionsRejected && budget.told == Some(receipt) { return; }
+        // already. A numbered refusal is an event of its own.
+        let numbered = matches!(receipt.outcome, Outcome::OptionsRejected | Outcome::Unreadable);
+        if !numbered && budget.told == Some(receipt) { return; }
         // SAFETY: the connection and pool remain live during this synchronous
         // hook. Check headroom BEFORE begin, which asserts on an exhausted pool.
         let sent = unsafe {
@@ -118,7 +140,7 @@ impl<'a> Connection<'a> {
             // A newer receipt makes an older one that waited moot: the
             // server waits for the answer to its newest offer only.
             budget.waiting = None;
-            if receipt.outcome != Outcome::OptionsRejected { budget.told = Some(receipt); }
+            if !numbered { budget.told = Some(receipt); }
         } else {
             budget.waiting = Some(receipt);
         }
