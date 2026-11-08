@@ -221,6 +221,17 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .protection tbody th { text-align:left; font:400 .82rem var(--body); color:var(--ink-2) }
 .gear-modifiers { grid-column:1 / -1 }
 .gear-modifiers h3 { font-size:.85rem; margin:8px 0 6px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em }
+/* Quests (src/quests.rs): laid out as the modifiers, a section a faction and a row a goal;
+   the match levels a wrapping grid of cells. */
+.quests>h2 { display:flex; align-items:center; gap:10px }
+.quest-emblem { width:40px; height:40px; object-fit:contain; flex:none }
+.quest-pay { margin:4px 0 0; font:.82rem var(--data); color:var(--ink-3) }
+.quest-goal { margin:0; color:var(--ink-2) }
+.quest-levels { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:6px }
+.quest-levels li { margin:0; display:grid; gap:2px; padding:6px 8px; border:1px solid var(--rule); background:var(--panel); font:.85rem var(--data); text-align:right }
+.quest-levels b { font:700 1rem var(--display); color:var(--accent) }
+.quest-levels .quest-levels-key { text-align:left; font:.75rem/1.75 var(--body); color:var(--ink-3) }
+.quest-levels .quest-levels-key b { font:700 .75rem/1.75 var(--body); color:var(--ink-3) }
 /* Skills: each branch a card of the wiki's (.wiki-link), its skills the lobby's own (the
    skill renderer's icons, states and rank indicator; PerkTipRenderer's tooltip). A tree is
    never reflowed: a card that does not fit goes to the next row, and one wider than the

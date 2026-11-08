@@ -50,6 +50,7 @@ mod moderation;
 mod modifiers;
 mod password_reset;
 mod patches;
+mod quests;
 mod skills;
 mod stats;
 mod v026g;
@@ -709,7 +710,12 @@ impl Web {
         } else if self.game.is_some()
             && matches!(
                 request.path.as_str(),
-                wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT | skills::PATH
+                wiki::PATH
+                    | wiki::WEAPONS
+                    | wiki::MODIFIERS
+                    | wiki::EQUIPMENT
+                    | skills::PATH
+                    | quests::PATH
             )
         {
             damage::POLICY
@@ -981,7 +987,8 @@ impl Web {
                     | wiki::WEAPONS
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
-                    | skills::PATH) => {
+                    | skills::PATH
+                    | quests::PATH) => {
                         return wiki_page(path, &request.target, request.lang, game);
                     }
                     path if path.starts_with(launcher::FRESH) => {
