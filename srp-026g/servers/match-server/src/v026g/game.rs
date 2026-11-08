@@ -133,7 +133,7 @@ use super::{LateInputs, Settings};
 mod driven;
 mod late_join;
 mod live;
-mod playback;
+pub(crate) mod playback;
 mod spectate;
 mod start;
 use late_join::{Admission, LoadingProfile};

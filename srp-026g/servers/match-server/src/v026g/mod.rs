@@ -117,8 +117,11 @@ mod kill_cap;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
 pub mod record;
 mod registry;
-/// The replays' desk, and what replay sessions read of the recordings.
+/// The replays' desk, what replay sessions read of the recordings, and
+/// Save's files made of them.
 pub mod replay;
+/// Save's file, `.srpreplay`: a header and the `.sur` a replay plays.
+pub mod replay_file;
 /// A player's Research units pay at most 200 score a match.
 mod research_cap;
 mod reward_caps;

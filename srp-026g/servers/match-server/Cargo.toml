@@ -13,6 +13,8 @@ serde = { workspace = true }
 # The maps the server's bots path on (`v026g::bots::maps`).
 mapdata = { path = "../../crates/mapdata" }
 serde_json = { workspace = true }
+# SHA-256 of Save's file (`v026g::replay`): its sidecar, the updater's check.
+sha2 = { workspace = true }
 
 # The replay viewer's notes and requests (`v026g::game::playback`), one
 # encoding with the game's arena.

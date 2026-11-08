@@ -205,3 +205,177 @@ fn a_recordings_places_read_and_its_sur_holds_nothing_private() {
     }
     let _ = fs::remove_dir_all(&root);
 }
+
+/// Recordings in `root/recordings`, Save's files in `root/replays`.
+fn saving(root: &Path) -> Replays {
+    let record_dir = root.join("recordings");
+    fs::create_dir_all(&record_dir).unwrap();
+    let save = SaveSettings {
+        replay_dir: root.join("replays"),
+        max_replay_bytes: 1 << 30,
+    }
+    .checked(&record_dir)
+    .unwrap();
+    Replays::new(Some(record_dir)).with_save(save)
+}
+
+fn names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn a_kept_recording_becomes_a_save_file_that_holds_nothing_private() {
+    let root = temp("save");
+    let replays = saving(&root);
+    let record_dir = replays.record_dir().unwrap().to_owned();
+    let replay_dir = replays.save_settings().unwrap().replay_dir.clone();
+    let recording = record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
+    let secrets = [
+        TOKEN,
+        ADDRESS,
+        &record_dir.to_string_lossy(),
+        &replay_dir.to_string_lossy(),
+    ]
+    .map(str::to_owned);
+    write_recording(&recording, &secrets.each_ref().map(String::as_str));
+
+    let sidecar = make(&replays, None, MATCH).unwrap();
+    assert_eq!(names(&replay_dir), ["1f07c8fb.json", "1f07c8fb.srpreplay"]);
+    let bytes = fs::read(replay_dir.join("1f07c8fb.srpreplay")).unwrap();
+    assert_eq!(sidecar.size, bytes.len() as u64);
+    let sha: String = Sha256::digest(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    assert_eq!(sidecar.sha256, sha);
+    assert_eq!(sidecar.account_ids, [1001, 1002, 1003]);
+    let (newer, today) = revisions();
+    assert_eq!(sidecar.revisions, [Some(newer), Some(today), None]);
+    let json = fs::read_to_string(replay_dir.join("1f07c8fb.json")).unwrap();
+    assert_eq!(Sidecar::parse(&json), Some(sidecar));
+
+    // The container: the header of the options and the recording's name,
+    // and a `.sur` a replay session plays.
+    let file = ReplayFile::read(&bytes).unwrap();
+    let map = survarium::v026g::maps::playable().next().unwrap();
+    assert_eq!(file.header.match_id, MATCH);
+    // 2026-10-15 12:00:00 UTC.
+    assert_eq!(file.header.made, 1_792_065_600);
+    assert_eq!(file.header.map, map.id);
+    assert_eq!(file.header.mode, map.mode.lobby_number());
+    assert_eq!(file.header.score, None);
+    let names: Vec<&str> = file.header.places.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, ["a", "b"]);
+    assert!(file.events.is_empty());
+    crate::v026g::game::playback::Recording::from_sur(&file.sur, MATCH).unwrap();
+    // Nothing of the session, the token, the address, the accounts or the
+    // server's folders, in the file or in what the game unpacks of it.
+    let chunks = decoded(&file.sur);
+    for place in [&bytes[..], &chunks.concat()] {
+        assert!(!holds(place, &SESSION.to_le_bytes()));
+        assert!(!holds(place, &1001u32.to_le_bytes()));
+        for secret in secrets.iter().map(String::as_str).chain(["planted", "account_id", "1001"]) {
+            assert!(!holds(place, secret.as_bytes()), "{secret}");
+        }
+    }
+
+    // A recording still being written, or of another match: none made.
+    assert!(make(&replays, None, 0x1234).is_err());
+    fs::rename(&recording, recording.with_extension("srprec.part")).unwrap();
+    assert_eq!(
+        make(&replays, None, MATCH).unwrap_err(),
+        MakeError {
+            why: "no kept recording".into(),
+            failure: Failure::Lasting
+        }
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_oldest_files_over_the_cap_go_and_the_new_one_stays() {
+    let root = temp("cap");
+    let replays = saving(&root);
+    let mut save = replays.save_settings().unwrap().clone();
+    let dir = save.replay_dir.clone();
+    let at = |seconds: u64| UNIX_EPOCH + std::time::Duration::from_secs(seconds);
+    // Four files of 1,000 bytes and a sidecar of 10 each, the newest last.
+    for (n, id) in [3u32, 1, 4, 2].into_iter().enumerate() {
+        let path = dir.join(format!("{id:08x}.srpreplay"));
+        fs::write(&path, vec![0u8; 1000]).unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(at(1_000_000 + n as u64))
+            .unwrap();
+        fs::write(dir.join(format!("{id:08x}.json")), [b'x'; 10]).unwrap();
+    }
+    // Other names are neither counted nor touched.
+    for name in ["notes.txt", "00000009.srpreplay.part", "ABCDEF01.srpreplay"] {
+        fs::write(dir.join(name), vec![0u8; 5000]).unwrap();
+    }
+    save.max_replay_bytes = 4_040;
+    cap(&save, None);
+    assert_eq!(names(&dir).len(), 11);
+    // 4,040 bytes over 2,500: the two oldest (3, then 1) go.
+    save.max_replay_bytes = 2_500;
+    cap(&save, None);
+    let left = [
+        "00000002.json",
+        "00000002.srpreplay",
+        "00000004.json",
+        "00000004.srpreplay",
+        "00000009.srpreplay.part",
+        "ABCDEF01.srpreplay",
+        "notes.txt",
+    ];
+    assert_eq!(names(&dir), left);
+    // The one just made stays, even when it alone is over the cap.
+    save.max_replay_bytes = 100;
+    cap(&save, Some(4));
+    assert_eq!(names(&dir), left[2..]);
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn files_of_gone_recordings_and_parts_are_deleted_and_nothing_else() {
+    let root = temp("prune");
+    let replays = saving(&root);
+    let save = replays.save_settings().unwrap();
+    let record_dir = replays.record_dir().unwrap();
+    fs::write(
+        record_dir.join("rec026g_20261015-120000_00000001.srprec"),
+        b"x",
+    )
+    .unwrap();
+    for name in [
+        "00000001.srpreplay",
+        "00000001.json",
+        "00000002.srpreplay",
+        "00000002.json",
+        "00000003.srpreplay.part",
+        "00000004.json.part",
+        "ABCDEF01.srpreplay",
+        "notes.txt",
+    ] {
+        fs::write(save.replay_dir.join(name), b"x").unwrap();
+    }
+    prune(save, record_dir);
+    assert_eq!(
+        names(&save.replay_dir),
+        [
+            "00000001.json",
+            "00000001.srpreplay",
+            "ABCDEF01.srpreplay",
+            "notes.txt"
+        ]
+    );
+    let _ = fs::remove_dir_all(&root);
+}

@@ -101,13 +101,7 @@ impl Recording {
     /// `.sur`'s chunk 4 is the viewer's alone).
     pub(crate) fn load(path: &Path, match_id: u32) -> Result<Self, String> {
         let notes = record::read_notes(path).map_err(|error| error.to_string())?;
-        let settings = sur_convert::Settings {
-            // As many key frames as a file may hold: more places to seek to.
-            key_frame_every_ms: 1_000,
-            ..sur_convert::Settings::default()
-        };
-        let (file, _) = sur_convert::convert_file(path, &notes, &[], settings)
-            .map_err(|error| error.to_string())?;
+        let file = sur_of(path, &notes)?;
         let mut recording = Self::from_sur(&file, match_id)?;
         (recording.accounts, recording.revisions) = replay::by_place(&notes);
         Ok(recording)
@@ -217,10 +211,10 @@ impl Recording {
     }
 
     /// The history's events of this recording's match (`events_of_replay`
-    /// of its replay id) taken as its timeline: kills and deaths (a death
-    /// no kill was paired with, no actor), batteries found and delivered;
-    /// and each death's earliest time, for "my deaths".
+    /// of its replay id) taken as its timeline ([`timeline_of`]), and each
+    /// death's earliest time, for "my deaths".
     pub(crate) fn take_events(&mut self, events: &[MatchEvent]) {
+        self.timeline = timeline_of(events);
         let earliest = |timing: Timing| match timing {
             Timing::Exact(at) => at,
             Timing::Between { after, .. } => after,
@@ -239,33 +233,6 @@ impl Recording {
             })
             .collect();
         self.deaths.sort_by_key(|(_, at)| *at);
-        self.timeline = events
-            .iter()
-            .filter_map(|event| {
-                let time = MatchMs(event.timing.at());
-                let (kind, actor, victim) = match event.kind {
-                    match_events::EventKind::Kill { killer, victim } => {
-                        (EventKind::Kill, Some(killer.place), victim.map(|v| v.place))
-                    }
-                    match_events::EventKind::Death { victim } => {
-                        (EventKind::Kill, None, Some(victim.place))
-                    }
-                    match_events::EventKind::BatteryFound { by }
-                    | match_events::EventKind::BatteryDelivered { by } => {
-                        (EventKind::Objective, Some(by.place), None)
-                    }
-                    match_events::EventKind::Capture { .. }
-                    | match_events::EventKind::Score { .. }
-                    | match_events::EventKind::End { .. } => return None,
-                };
-                Some(TimelineEvent {
-                    time,
-                    kind,
-                    actor,
-                    victim,
-                })
-            })
-            .collect();
     }
 
     /// The account's place (its first, if it had two).
@@ -808,6 +775,54 @@ fn messages(direction: Direction, datagram: &[u8]) -> String {
             .join(", "),
         Err(error) => format!("unparsed: {error:?}"),
     }
+}
+
+/// The `.sur` a replay plays of a match's `.srprec` (its notes read):
+/// what `sur_convert` makes of it with no mode config (the `.sur`'s chunk
+/// 4 is the viewer's alone) and as many key frames as a file may hold
+/// (more places to seek to). Replay sessions play it; Save's file holds it
+/// (`super::super::replay_file`).
+pub(crate) fn sur_of(path: &Path, notes: &[record::Record]) -> Result<Vec<u8>, String> {
+    let settings = sur_convert::Settings {
+        key_frame_every_ms: 1_000,
+        ..sur_convert::Settings::default()
+    };
+    let (file, _) = sur_convert::convert_file(path, notes, &[], settings)
+        .map_err(|error| error.to_string())?;
+    Ok(file)
+}
+
+/// The history's events of a match as a replay's timeline: kills and
+/// deaths (a death no kill was paired with, no actor), batteries found and
+/// delivered.
+pub(crate) fn timeline_of(events: &[MatchEvent]) -> Vec<TimelineEvent> {
+    events
+        .iter()
+        .filter_map(|event| {
+            let time = MatchMs(event.timing.at());
+            let (kind, actor, victim) = match event.kind {
+                match_events::EventKind::Kill { killer, victim } => {
+                    (EventKind::Kill, Some(killer.place), victim.map(|v| v.place))
+                }
+                match_events::EventKind::Death { victim } => {
+                    (EventKind::Kill, None, Some(victim.place))
+                }
+                match_events::EventKind::BatteryFound { by }
+                | match_events::EventKind::BatteryDelivered { by } => {
+                    (EventKind::Objective, Some(by.place), None)
+                }
+                match_events::EventKind::Capture { .. }
+                | match_events::EventKind::Score { .. }
+                | match_events::EventKind::End { .. } => return None,
+            };
+            Some(TimelineEvent {
+                time,
+                kind,
+                actor,
+                victim,
+            })
+        })
+        .collect()
 }
 
 /// Why a session's recording is not shown: its answer to the lobby.

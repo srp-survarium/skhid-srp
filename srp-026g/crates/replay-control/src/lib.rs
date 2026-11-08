@@ -219,14 +219,17 @@ pub struct Event {
 }
 
 const NO_PLACE: u8 = 0xFF;
-const EVENT_LEN: usize = 7;
+/// The bytes of one [`Event`] ([`Event::encode`]).
+pub const EVENT_LEN: usize = 7;
 const EVENTS_HEAD: usize = 4;
 
 /// The most events one note carries.
 pub const EVENTS_PER_NOTE: usize = 64;
 
 impl Event {
-    fn encode(&self, out: &mut [u8]) {
+    /// Its [`EVENT_LEN`] bytes into `out`: the time (u32 LE), the kind, the
+    /// actor and the victim (0xFF: none).
+    pub fn encode(&self, out: &mut [u8]) {
         out[0..4].copy_from_slice(&self.time.0.to_le_bytes());
         out[4] = self.kind.code();
         out[5] = self.actor.unwrap_or(NO_PLACE);
@@ -235,7 +238,7 @@ impl Event {
 
     /// An event of a kind this build knows; `None` for another kind (a newer
     /// server's), which a game skips.
-    fn parse(bytes: &[u8]) -> Option<Event> {
+    pub fn parse(bytes: &[u8]) -> Option<Event> {
         let [t0, t1, t2, t3, kind, actor, victim] = *bytes else { return None };
         let place = |place: u8| (place != NO_PLACE).then_some(place);
         Some(Event {
