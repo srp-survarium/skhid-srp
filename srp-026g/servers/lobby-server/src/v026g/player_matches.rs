@@ -1,14 +1,20 @@
-//! The player pop-up's Matches tab (`survarium::v026g::lobby::
-//! player_matches`): the latest public matches of the player whose kits
-//! the asker was shown last, or of the asker itself, from the match
-//! history. Private matches and matches against bots are never listed.
+//! The lists of matches from the match history: the player pop-up's
+//! Matches tab (`survarium::v026g::lobby::player_matches`), the latest
+//! public matches of the player whose kits the asker was shown last, or of
+//! the asker itself; and the Watch hub's Recent tab
+//! (`survarium::v026g::lobby::recent_matches`), the latest public matches,
+//! or those of the asker's friends. Private rooms' matches and matches
+//! against bots are never listed.
 
 use std::time::Instant;
 
 use session::LockExt;
-use session::v026g::persist::history::{PlayerMatch, Winner};
+use session::v026g::persist::history::{MatchSummary, PlayerMatch, Winner};
 use survarium::v026g::lobby::player_matches::{
-    Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, Whose, player_matches,
+    Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, ReplayState, Whose, player_matches,
+};
+use survarium::v026g::lobby::recent_matches::{
+    RECENT_MATCHES_ROWS, RecentFilter, RecentMatchRow, recent_matches,
 };
 
 use super::core::{Core, Who};
@@ -43,22 +49,83 @@ impl Core<'_> {
         let unix = session::v026g::quests::now();
         let rows: Vec<PlayerMatchRow> = matches
             .iter()
-            .map(|played| {
-                let match_id = played.summary.replay_id.match_id();
-                row(
-                    played,
-                    unix,
-                    self.replays.is_some_and(|r| r.kept(match_id, now)),
-                )
-            })
+            .map(|played| player_row(played, unix, self.replay_state(who, &played.summary, now)))
             .collect();
         self.send_made(who.addr, player_matches(&nickname, &rows));
     }
+
+    /// `3B 00 <RECENT_MATCHES_START + f> <count>`: at most `count` (and
+    /// [`RECENT_MATCHES_ROWS`]) of the newest public matches, or of those a
+    /// friend of the asker played in.
+    pub(super) fn recent_matches(
+        &mut self,
+        who: &Who,
+        filter: RecentFilter,
+        count: u8,
+        now: Instant,
+    ) {
+        let limit = usize::from(count).min(RECENT_MATCHES_ROWS);
+        let found = match (self.accounts.history(), filter) {
+            (Some(history), RecentFilter::All) if limit > 0 => history.matches(None, limit, None),
+            (Some(history), RecentFilter::Friends) if limit > 0 => {
+                let friends = self
+                    .store
+                    .account(who.account_id)
+                    .map(|account| account.locked().friends.clone())
+                    .unwrap_or_default();
+                history.matches_with(&friends, limit)
+            }
+            _ => Ok(Vec::new()),
+        };
+        let matches = found.unwrap_or_else(|error| {
+            log::warn!("{} asked for the recent matches: {error}", who.name);
+            Vec::new()
+        });
+        let unix = session::v026g::quests::now();
+        let rows: Vec<RecentMatchRow> = matches
+            .iter()
+            .map(|summary| recent_row(summary, unix, self.replay_state(who, summary, now)))
+            .collect();
+        self.send_made(who.addr, recent_matches(&rows));
+    }
+
+    /// What "Watch" on `summary`'s match would get for `who`'s game.
+    fn replay_state(&self, _who: &Who, summary: &MatchSummary, now: Instant) -> ReplayState {
+        let match_id = summary.replay_id.match_id();
+        if self
+            .replays
+            .is_some_and(|replays| replays.kept(match_id, now))
+        {
+            ReplayState::Kept
+        } else {
+            ReplayState::NotRecorded
+        }
+    }
 }
 
-/// A match's row: `unix` is now, `replay` whether its replay can be asked
-/// for.
-fn row(played: &PlayerMatch, unix: u64, replay: bool) -> PlayerMatchRow {
+/// Minutes from the end `ended_at` to `unix`.
+fn minutes_since(ended_at: u64, unix: u64) -> u32 {
+    (unix.saturating_sub(ended_at) / 60).min(u64::from(u32::MAX)) as u32
+}
+
+/// A recent match's row: `unix` is now.
+fn recent_row(summary: &MatchSummary, unix: u64, replay: ReplayState) -> RecentMatchRow {
+    let info = &summary.info;
+    RecentMatchRow {
+        match_id: summary.replay_id.match_id(),
+        map_id: info.map_id,
+        mode: info.game_mode.lobby_number(),
+        // No trusted world said the standing: no points either.
+        score: (info.winner != Winner::Unknown).then_some(info.team_points),
+        players: u8::try_from(summary.players).unwrap_or(u8::MAX),
+        length_ms: info.duration_ms,
+        minutes_since_end: minutes_since(info.ended_at, unix),
+        replay,
+    }
+}
+
+/// A player's match's row: `unix` is now.
+fn player_row(played: &PlayerMatch, unix: u64, replay: ReplayState) -> PlayerMatchRow {
     let info = &played.summary.info;
     let line = &played.line;
     let outcome = match info.winner {
@@ -74,8 +141,7 @@ fn row(played: &PlayerMatch, unix: u64, replay: bool) -> PlayerMatchRow {
         outcome,
         kills: line.kills.min(u64::from(u16::MAX)) as u16,
         deaths: line.deaths.min(u64::from(u16::MAX)) as u16,
-        minutes_since_end: (unix.saturating_sub(info.ended_at) / 60).min(u64::from(u32::MAX))
-            as u32,
+        minutes_since_end: minutes_since(info.ended_at, unix),
         replay,
     }
 }

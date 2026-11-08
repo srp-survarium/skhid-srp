@@ -1,7 +1,8 @@
 //! The player pop-up's Matches tab (`player_matches`): `3B` at
 //! `PLAYER_MATCHES_START`, about the account of the asker's last `93`, or
 //! at `OWN_MATCHES_START`, about the asker, answered from srp.db's history
-//! with its public matches only.
+//! with its public matches only; and the Watch hub's Recent tab
+//! (`recent_matches`) at `RECENT_MATCHES_START` and the next.
 
 use session::v026g::persist::history::{
     Counters, Eligibility, MatchInfo, MatchKind, MatchRecord, PlayerLine, PlayerRecord, Presence,
@@ -11,6 +12,7 @@ use session::v026g::persist::{GameRepository, SqliteGameRepository};
 use session::v026g::replays::{ReplayId, ReplaySettings, Replays, Sidecar};
 use survarium::v026g::lobby::GEAR_BY_PLACE;
 use survarium::v026g::lobby::player_matches::{OWN_MATCHES_START, PLAYER_MATCHES_START};
+use survarium::v026g::lobby::recent_matches::RECENT_MATCHES_START;
 use survarium::v026g::maps::GameMode;
 
 use super::*;
@@ -94,6 +96,12 @@ fn matches(world: &mut World, index: usize, count: u8) -> Vec<String> {
 
 /// The rows of the answer to the ask at `start` for `count`.
 fn matches_at(world: &mut World, index: usize, start: u32, count: u8) -> Vec<String> {
+    rows_at(world, index, start, count, PLAYER_MATCHES_START)
+}
+
+/// The rows of the answer to the ask at `start` for `count`, at places
+/// from `first` on.
+fn rows_at(world: &mut World, index: usize, start: u32, count: u8, first: u32) -> Vec<String> {
     world.take(index);
     world.ask(index, request::ranking(start, count));
     let decoded = world.take(index);
@@ -103,10 +111,7 @@ fn matches_at(world: &mut World, index: usize, start: u32, count: u8) -> Vec<Str
     rows.iter()
         .enumerate()
         .map(|(i, (name, place, rating, change))| {
-            assert_eq!(
-                (*place, *rating, *change),
-                (PLAYER_MATCHES_START + i as u32, 0, 0)
-            );
+            assert_eq!((*place, *rating, *change), (first + i as u32, 0, 0));
             assert!(name.len() <= 63, "{name}");
             name.clone()
         })
@@ -224,5 +229,59 @@ fn a_match_whose_replay_is_kept_says_so() {
         .map(|row| row.rsplit(';').next().unwrap())
         .collect();
     assert_eq!(replay, ["1", "1", "0"]);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_recent_tab_lists_public_matches_all_or_the_friends() {
+    let dir = temp("recent");
+    let mut world = world(&dir, BOB);
+    let recent = |world: &mut World, index, f: u32, count| {
+        rows_at(
+            world,
+            index,
+            RECENT_MATCHES_START + f,
+            count,
+            RECENT_MATCHES_START,
+        )
+    };
+    let alice = world.connect("Alice");
+    let rows = recent(&mut world, alice, 0, 20);
+    // Bob's 12 public matches, newest first; the private one and the one
+    // against bots never.
+    assert_eq!(rows.len(), 13);
+    assert_eq!(rows[0], "M0;12");
+    let now = session::v026g::quests::now();
+    let minutes = |n: u64| (now - (86_400 + n * 3_600)) / 60;
+    assert_eq!(
+        rows[1],
+        format!("M1;0000010b;3;2;5;2;1;600;{};0", minutes(11))
+    );
+    assert!(rows[12].starts_with("M1;00000100;"));
+    assert_eq!(recent(&mut world, alice, 0, 3).len(), 4);
+
+    // A match no trusted world gave a standing has no score.
+    let mut unknown = bobs_match(BOB, 14, MatchKind::Public(Eligibility::Counted));
+    unknown.info.winner = Winner::Unknown;
+    unknown.info.team_points = [0, 0];
+    SqliteGameRepository::open_in(&dir)
+        .unwrap()
+        .record_match(&unknown)
+        .unwrap();
+    assert!(recent(&mut world, alice, 0, 1)[1].starts_with("M1;0000010e;3;2;-;-;1;600;"));
+
+    // Friends only: none until Bob is Alice's friend.
+    assert_eq!(recent(&mut world, alice, 1, 20), ["M0;0"]);
+    let alice_id = world.ids[alice].0;
+    world
+        .store
+        .account(alice_id)
+        .unwrap()
+        .locked()
+        .friends
+        .push(BOB);
+    let friends = recent(&mut world, alice, 1, 20);
+    assert_eq!(friends[0], "M0;13");
+    assert!(friends[1].starts_with("M1;0000010e;"));
     let _ = std::fs::remove_dir_all(&dir);
 }

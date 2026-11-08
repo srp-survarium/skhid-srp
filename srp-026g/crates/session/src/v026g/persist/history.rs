@@ -1371,6 +1371,29 @@ impl MatchHistory {
         Ok(rows)
     }
 
+    /// The newest public matches one of `accounts` played in, at most
+    /// `limit`.
+    pub fn matches_with(
+        &self,
+        accounts: &[u32],
+        limit: usize,
+    ) -> Result<Vec<MatchSummary>, PersistError> {
+        if accounts.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ids = serde_json::to_string(accounts).expect("ids serialize");
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT {SUMMARY} FROM g26_matches m
+             WHERE m.kind = 'public' AND m.id IN (
+                 SELECT p.match_id FROM g26_match_players p
+                 WHERE p.account_id IN (SELECT value FROM json_each(?1)))
+             ORDER BY m.id DESC LIMIT ?2"
+        ))?;
+        let rows = statement.query_map(params![ids, bounded(limit)], |row| summary_at(row, 0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
     /// A public match and its players, by team, then place.
     pub fn game_match(
         &self,
@@ -2150,6 +2173,34 @@ mod tests {
         assert_eq!(players[0].line, line(0, 1, 300, 14, 6));
         assert_eq!(players[1].line.team, 1);
         assert!(history.player(99).unwrap().is_none());
+    }
+
+    #[test]
+    fn the_public_matches_some_accounts_played_in_newest_first() {
+        let dir = TempDir::new("with");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
+        repository
+            .record_match(&record(MatchKind::Private, 200))
+            .unwrap();
+        repository
+            .record_match(&record(MatchKind::VsBots, 300))
+            .unwrap();
+        repository.record_match(&record(PUBLIC, 400)).unwrap();
+        let ids = |accounts: &[u32]| -> Vec<u64> {
+            history
+                .matches_with(accounts, 10)
+                .unwrap()
+                .iter()
+                .map(|summary| summary.id)
+                .collect()
+        };
+        // Both Alice and Bob played: each match once.
+        assert_eq!(ids(&[10, 11, 99]), [4, 1]);
+        assert_eq!(ids(&[11]), [4, 1]);
+        assert!(ids(&[99]).is_empty());
+        assert!(ids(&[]).is_empty());
+        assert_eq!(history.matches_with(&[10], 1).unwrap()[0].id, 4);
     }
 
     #[test]

@@ -16,8 +16,8 @@
 //!     `P2;<match id 8 hex>;<place>;<map id>;<mode>;<result>;<kills>;<deaths>;<minutes since its end>;<replay>`.
 //!     `place` is the player's place in its team by score, from 1.
 //!     `mode` is the mode's lobby number. `result` is [`Outcome`].
-//!     `replay` is 1 while the match's recording or replay is kept, else 0,
-//!     whoever asks: no row is left out by who may watch it.
+//!     `replay` is [`ReplayState`] for the asker's game; no row is left out
+//!     by who may watch it (anyone may watch any replay).
 
 use super::push::{Ranked, elo_rows};
 use super::{ServerMessage, WireError, cut, limits};
@@ -49,6 +49,23 @@ impl Whose {
     }
 }
 
+/// What "Watch" on a listed match would get, for the asker's game: the
+/// rows' `<replay>` (P2 here, M1 of `super::recent_matches`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReplayState {
+    /// Too few players, or recordings were off.
+    NotRecorded = 0,
+    /// Its recording is kept: the replay is made when asked for.
+    Kept = 1,
+    /// Its replay is made, for this game.
+    Ready = 2,
+    /// Its recording and replay were deleted (the storage caps).
+    Gone = 3,
+    /// Recorded by games whose matches play out otherwise than the
+    /// asker's.
+    OldVersion = 4,
+}
+
 /// How a match ended for the player.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outcome {
@@ -72,8 +89,7 @@ pub struct PlayerMatchRow {
     pub kills: u16,
     pub deaths: u16,
     pub minutes_since_end: u32,
-    /// Whether its recording or its replay is still kept.
-    pub replay: bool,
+    pub replay: ReplayState,
 }
 
 /// `91` with `nickname`'s matches: at most [`PLAYER_MATCHES_ROWS`].
@@ -98,7 +114,7 @@ pub fn player_matches(
             row.kills,
             row.deaths,
             row.minutes_since_end,
-            u8::from(row.replay)
+            row.replay as u8
         )
     }));
     let rows: Vec<Ranked> = names
@@ -132,9 +148,9 @@ mod tests {
             kills: u16::MAX,
             deaths: u16::MAX,
             minutes_since_end: u32::MAX,
-            replay: true,
+            replay: ReplayState::OldVersion,
         };
-        let longest = "P2;ffffffff;255;255;255;2;65535;65535;4294967295;1";
+        let longest = "P2;ffffffff;255;255;255;2;65535;65535;4294967295;4";
         assert!(longest.len() <= limits::NAME);
         // A name past the row's room is cut, never the row refused.
         let message = player_matches(&"Ж".repeat(40), &[row; 12]).unwrap();

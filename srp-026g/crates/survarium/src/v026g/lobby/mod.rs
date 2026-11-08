@@ -44,6 +44,7 @@ pub mod lobby_pick;
 pub mod player_matches;
 pub mod presets;
 pub mod push;
+pub mod recent_matches;
 pub mod requests;
 pub mod results;
 pub mod rooms;

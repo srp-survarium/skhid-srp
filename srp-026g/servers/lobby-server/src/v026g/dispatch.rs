@@ -673,7 +673,9 @@ impl Core<'_> {
     /// own "Watch replay" answer (`replay`),
     /// `lobby::player_matches::PLAYER_MATCHES_START` and `OWN_MATCHES_START`
     /// with the matches of the player whose kits the asker was shown last,
-    /// or its own (`player_matches`), a presets start
+    /// or its own (`player_matches`), `lobby::recent_matches::RECENT_MATCHES_START`
+    /// and the next with the latest public matches, all or the asker's
+    /// friends' (`recent_matches`), a presets start
     /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
     /// presets (`presets`), a lobby pick (`lobby::lobby_pick::LOBBY_PICK_BASE`
     /// and its id: kept, shown back in `0xA1`); any other gets no answer.
@@ -705,6 +707,10 @@ impl Core<'_> {
         }
         if let Some(whose) = lobby::player_matches::Whose::of_start(start) {
             self.player_matches(who, whose, count, now);
+            return;
+        }
+        if let Some(filter) = lobby::recent_matches::RecentFilter::of_start(start) {
+            self.recent_matches(who, filter, count, now);
             return;
         }
         log::debug!(
