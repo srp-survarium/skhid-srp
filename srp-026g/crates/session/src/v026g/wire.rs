@@ -20,23 +20,17 @@ use super::{premium, tutorial};
 /// 0; a match's static info sets the real one].
 pub const LOBBY_TEAM: u8 = 0;
 
-/// An item as the wire describes it, by the clock.
-pub fn item_descr(item: &Item) -> ItemDescr {
-    item_descr_at(item, super::quests::now())
-}
 
-/// An item as the wire describes it at `now` (Unix seconds): its two
-/// timers are the seconds left. A modification or defect the client's
+/// An item as the wire describes it. A modification or defect the client's
 /// tables lack is left out: the client would read the row it did not find
 /// (`Account::repair` takes them off a loaded account; this is the last
 /// guard).
-pub fn item_descr_at(item: &Item, now: u64) -> ItemDescr {
+pub fn item_descr(item: &Item) -> ItemDescr {
     let table = Modifications::shared();
     ItemDescr {
         item_id: item.item_id,
         dict_id: item.dict_id,
         condition_or_stack: item.condition_or_stack,
-        repair_time: items_rules::seconds_left(item.repair_time, now),
         // no wait between rerolls (items_rules: Reroll)
         reroll_time: 0,
         modifications: item
@@ -97,7 +91,7 @@ pub fn account_body(account: &Account, now: u64) -> AccountBody {
             let item_index = match items.iter().position(|item| item.item_id == owned.item_id) {
                 Some(position) => position,
                 None => {
-                    items.push(item_descr_at(owned, now));
+                    items.push(item_descr(owned));
                     items.len() - 1
                 }
             };
@@ -124,18 +118,9 @@ pub fn account_body(account: &Account, now: u64) -> AccountBody {
     }
 }
 
-/// `89`: everything the account owns, by the clock.
+/// `89`: everything the account owns.
 pub fn inventory(account: &Account) -> Result<ServerMessage, WireError> {
-    inventory_at(account, super::quests::now())
-}
-
-/// `89`: everything the account owns, at `now` (Unix seconds).
-pub fn inventory_at(account: &Account, now: u64) -> Result<ServerMessage, WireError> {
-    let items: Vec<ItemDescr> = account
-        .inventory
-        .iter()
-        .map(|item| item_descr_at(item, now))
-        .collect();
+    let items: Vec<ItemDescr> = account.inventory.iter().map(item_descr).collect();
     lobby::inventory(&items)
 }
 
@@ -162,7 +147,6 @@ pub fn own_account(account: &Account, now: u64) -> Result<ServerMessage, WireErr
             .collect(),
         active_kit: account.active().map_or(0, |kit| kit.id),
         autobuy: account.autobuy,
-        auto_repair: account.extras.auto_repair,
         level,
         exp_total: account.exp_total.max(start),
         exp_level_start: start,
@@ -268,7 +252,7 @@ pub fn craft_tables() -> ServerMessage {
 /// The inventory comes first: the account's items are looked up in it.
 pub fn after_change(account: &Account, now: u64) -> Result<Vec<ServerMessage>, WireError> {
     Ok(vec![
-        inventory_at(account, now)?,
+        inventory(account)?,
         own_account(account, now)?,
         money(account),
     ])
@@ -339,7 +323,7 @@ pub fn sign_in_push(account: &Account, info: &SignInInfo) -> Result<Vec<ServerMe
         push.push(lobby::shop(&settings.shop_records())?);
     }
     push.extend([
-        inventory_at(account, now)?,
+        inventory(account)?,
         own_account(account, now)?,
         level_and_skills(account)?,
         quests(account, now),

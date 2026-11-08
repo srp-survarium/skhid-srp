@@ -19,7 +19,7 @@
 //! - a non-zero search step in 0x85, LZMA2 payloads of the exact size.
 //!
 //! It keeps what the client keeps where a later message depends on it: the
-//! inventory (changed by 0x89, purchases, sales, uses, repairs and drops),
+//! inventory (changed by 0x89, purchases, sales, uses and drops),
 //! the friend count (0xA3 09) and the important messages waiting for an
 //! answer.
 
@@ -33,7 +33,7 @@ use super::super::prices::PriceItem;
 use super::super::skills::MODIFIERS;
 use super::push::{
     AccountBody, Bought, ClientState, Crafted, FULL_CONDITION, ItemDescr, Kit, KitSlot,
-    Modification, NameRefusal, OwnAccount, QuestRecord, Repaired, ServicePrices, ShopRecord,
+    Modification, NameRefusal, OwnAccount, QuestRecord, ServicePrices, ShopRecord,
     ShopRecordItem, SpentMoney, Upgrade,
 };
 use super::requests::id as client_id;
@@ -147,16 +147,9 @@ pub enum Permitted {
         amount: u32,
     },
     OfferBought,
-    Repaired {
-        item_id: u32,
-        repaired: Repaired,
-    },
-    /// `83 49 01` with auto-repair off: the autobuy box.
+    /// `83 49 01`: the autobuy box (bit 1, the stock auto-repair, is not
+    /// kept: srp has no repair).
     Autobuy(bool),
-    /// `83 49 01` with auto-repair on.
-    AutoRepair {
-        autobuy: bool,
-    },
     ActiveKit(u32),
     NicknameCheck {
         nickname: String,
@@ -751,19 +744,6 @@ impl Client {
             {
                 self.take_from(*ticket_item_id, |_| Some(1));
             }
-            Decoded::Permitted(Permitted::Repaired { item_id, repaired }) => {
-                if let Some(item) = self
-                    .inventory
-                    .iter_mut()
-                    .find(|item| item.item_id == *item_id)
-                {
-                    item.condition_or_stack = FULL_CONDITION;
-                    item.repair_time = match repaired {
-                        Repaired::Timed { repair_time } => *repair_time,
-                        _ => 0,
-                    };
-                }
-            }
             Decoded::Drop {
                 item,
                 card_item_id,
@@ -859,10 +839,11 @@ impl Client {
         lobby_form: bool,
     ) -> Result<ItemDescr, ModelError> {
         let condition_or_stack = r.u32()?;
-        let (mut repair_time, mut reroll_time) = (0, 0);
+        let mut reroll_time = 0;
         if !is_stack {
             if lobby_form {
-                repair_time = r.u32()?;
+                // repair_time: srp has no repair, and writes 0.
+                r.u32()?;
             }
             reroll_time = r.u32()?;
         }
@@ -894,7 +875,6 @@ impl Client {
             item_id,
             dict_id,
             condition_or_stack,
-            repair_time,
             reroll_time,
             modifications,
             upgrades,
@@ -1163,26 +1143,6 @@ impl Client {
                         Permitted::Sold { item_id, amount }
                     }
                     2 => Permitted::OfferBought,
-                    3 => {
-                        let item_id = r.u32()?;
-                        // Nothing more is read for an item it lacks.
-                        if self.find(item_id).is_none() {
-                            return Err(ModelError::NotInInventory(item_id));
-                        }
-                        let repair_time = r.u32()?;
-                        let repaired = if repair_time != 0 {
-                            Repaired::Timed { repair_time }
-                        } else {
-                            // A repair kit's id: srp has none (the owner,
-                            // 2026-11-08), so a kit is one no inventory holds.
-                            let kit_item_id = r.u32()?;
-                            if kit_item_id != 0 {
-                                return Err(ModelError::NotInInventory(kit_item_id));
-                            }
-                            Repaired::AtOnce
-                        };
-                        Permitted::Repaired { item_id, repaired }
-                    }
                     event => Permitted::NoEffect {
                         op,
                         event: Some(event),
@@ -1192,12 +1152,7 @@ impl Client {
             client_id::PROFILE => {
                 let event = r.u8()?;
                 match event {
-                    0x01 => match r.auto_state()? {
-                        state if state & 2 == 0 => Permitted::Autobuy(state & 1 != 0),
-                        state => Permitted::AutoRepair {
-                            autobuy: state & 1 != 0,
-                        },
-                    },
+                    0x01 => Permitted::Autobuy(r.auto_state()? & 1 != 0),
                     0x02 => Permitted::ActiveKit(r.u32()?),
                     0x03 => {
                         let (nickname, refusal) = self.read_name_check(r, 6)?;
@@ -1600,7 +1555,6 @@ impl Client {
                     revisions,
                     active_kit,
                     autobuy: auto_state & 1 != 0,
-                    auto_repair: auto_state & 2 != 0,
                     level: r.u8()?,
                     exp_total: r.u32()?,
                     exp_level_start: r.u32()?,
@@ -1642,11 +1596,13 @@ impl Client {
                 // 0x26EF40: three lists of {u32, u16}, each into a stack
                 // buffer; a count past the buffer is a fatal assert.
                 let mut spent = SpentMoney::default();
+                // The repair list: srp writes it empty (it has no repair).
+                let mut repair = Vec::new();
                 let limits = spent.lists().map(|(_, _, most)| most);
                 for (list, most) in [
                     &mut spent.autobuy_ammo,
                     &mut spent.autobuy_consumables,
-                    &mut spent.repair,
+                    &mut repair,
                 ]
                 .into_iter()
                 .zip(limits)

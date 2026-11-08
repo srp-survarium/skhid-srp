@@ -149,6 +149,8 @@ package survarium.messages
          this.radioButtonVouchers.visible = false;
          this._price = new SilverPrice(this.radioButtonPremium,this.background.x + this.background.width / 2);
          this._price.cost = _data.cost;
+         // No second pay row (the voucher's) under it: the buttons and the window close up.
+         this._price.fitWindow(this.background,[this.btnAccept,this.btnCancel]);
          this.btnAccept.enabled = false;
          this.timer.addEventListener(TimerEvent.TIMER,this.requestNameValidation);
          this.timerRequest.addEventListener(TimerEvent.TIMER,this.handleRequestFailed);

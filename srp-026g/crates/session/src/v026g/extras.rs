@@ -1,6 +1,6 @@
 //! What the lobby's later features keep of an account, beside the
-//! [`Account`](super::account::Account)'s own fields: the auto-repair box,
-//! the tutorial's steps and the daily bonus. Kept in its own table
+//! [`Account`](super::account::Account)'s own fields: the tutorial's steps
+//! and the daily bonus. Kept in its own table
 //! (`g26_extras`, `persist`), one row an account.
 //!
 //! The rules are in [`super::tutorial`], [`super::bonus`] and
@@ -27,8 +27,6 @@ pub struct DailyBonus {
 /// See the module.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Extras {
-    /// The auto-repair box (`49 01`, bit 1).
-    pub auto_repair: bool,
     /// The tutorial's steps done: [`super::tutorial::flag`].
     pub tutorial_flags: u32,
     pub bonus: DailyBonus,

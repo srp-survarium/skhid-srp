@@ -104,6 +104,8 @@ package survarium.controls
          this.btnAccept.visible = false;
          this.btnCancel.visible = false;
          this.btn_show_use.visible = false;
+         // No Fix button: srp has no repair (the owner, 2026-11-08). The timeline still places it.
+         this.btn_item_fix.visible = false;
          this.updateData(null);
          var timer:Timer = MainScene.getTimerInstance();
          timer.addEventListener(TimerEvent.TIMER,this.onTimerUpdate);
@@ -128,7 +130,6 @@ package survarium.controls
          this.btn_item_upgrade.data = {name:LocalizationData.getName("btn_upgrade_hint")};
          this.btn_item_sell.label = LocalizationData.getName("sell");
          this.btn_item_buy.label = LocalizationData.getName("buy");
-         this.btn_item_fix.label = LocalizationData.getName("fix");
          this.btn_show_r.label = LocalizationData.getName("sell");
          this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label");
          this.btn_item_craft.label = LocalizationData.getName("btn_craft_label");
@@ -140,7 +141,6 @@ package survarium.controls
          this.btn_item_sell.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick2);
          this.btn_item_buy.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick1);
          this.btnSellBig.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick1);
-         this.btn_item_fix.addEventListener(ButtonEvent.CLICK,this._itemCard.repairItem);
          this.btn_item_upgrade.addEventListener(ButtonEvent.CLICK,this.openModifiersWindow);
          this.btn_item_reroll.addEventListener(ButtonEvent.CLICK,this._itemCard.upgradeItem);
          this.btn_item_craft.addEventListener(ButtonEvent.CLICK,this.craftItem);
@@ -207,7 +207,6 @@ package survarium.controls
          this.btn_show_l.enabled = canBuy;
          this.btn_show_r.alpha = this.btn_show_r.enabled ? 1 : 0.5;
          this.btn_show_l.alpha = this.btn_show_l.enabled ? 1 : 0.5;
-         var hasModifierToFix:Boolean = false;
          this._rerollable = false;
          if(!this._data.isStack && Boolean(this._data.modifiers))
          {
@@ -216,10 +215,6 @@ package survarium.controls
             while(i < modifierCount)
             {
                modifier = this._data.modifiers[i];
-               if(Boolean(modifier) && modifier.state == ModificationState.DEFECT)
-               {
-                  hasModifierToFix = true;
-               }
                if(Boolean(modifier) && Boolean(modifier.state == ModificationState.MODIFICATION) && !modifier.isDefault)
                {
                   this._rerollable = true;
@@ -245,28 +240,11 @@ package survarium.controls
             this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label");
             this.rerollTimer.visible = false;
          }
-         this.btn_item_reroll.enabled = this._rerollable && !this._isShopItems && !this._data.repairTime;
+         this.btn_item_reroll.enabled = this._rerollable && !this._isShopItems;
          this.btn_item_craft.enabled = ItemFactory.isItemCraftable(this._data);
-         if(Boolean(this._data.repairTime))
-         {
-            if(this.rerollTimer.visible == false)
-            {
-               this.btn_item_reroll.tipEnabled = true;
-               this.btn_item_reroll.tooltipRendererName = "SrvProfileTipRenderer";
-               this.btn_item_reroll.tipData = {"name":LocalizationData.getName("cant_upgrade_while_repair_hint")};
-            }
-            this.btn_item_craft.tipEnabled = true;
-            this.btn_item_craft.tooltipRendererName = "SrvProfileTipRenderer";
-            this.btn_item_craft.tipData = {"name":LocalizationData.getName("cant_upgrade_while_repair_hint")};
-         }
-         else
-         {
-            this.btn_item_craft.tipEnabled = false;
-         }
-         this.btn_item_fix.enabled = !this._isShopItems && (this._data.value != ItemCondition.FULL || hasModifierToFix) && this._data.enabled;
+         this.btn_item_craft.tipEnabled = false;
          this.btn_item_sell.data = {"name":this.btn_item_sell.label};
          this.btn_item_buy.data = {"name":this.btn_item_buy.label};
-         this.btn_item_fix.data = {"name":this.btn_item_fix.label};
          trace("ICPData:",this._data.name,canBuy,"isShopItems::",this._isShopItems);
          this.updateButtons();
          this.btn_item_sell.tooltipRendererName = "SrvProfileTipRenderer";
@@ -285,10 +263,6 @@ package survarium.controls
          this.btn_item_upgrade.enabled = !this._isShopItems && !this._isStack && this.isUpgradeable(this._data) && this._data.enabled;
          this.btn_item_upgrade.alpha = this.btn_item_upgrade.enabled ? 1 : 0.5;
          this.btn_item_upgrade.label = UpgradeWindow.isWeaponCategory(int(this._data.category)) ? LocalizationData.getName("scope_window_title") : LocalizationData.getName("btn_upgrade_label");
-         var condition:uint = this._isShopItems ? ItemCondition.FULL : this._data.value;
-         var conditionRatio:Number = condition / ItemCondition.FULL;
-         this.btn_item_fix.progress = conditionRatio;
-         this.btn_item_fix.progressLabel = condition.toString() + "%";
          if(this._isQuickSlot || this._isStack)
          {
             this.checkButtonEnabled();
@@ -310,7 +284,7 @@ package survarium.controls
       {
          if(!this._data)
          {
-            this.btnSellBig.enabled = this.btn_item_sell.enabled = this.btn_item_buy.enabled = this.btn_item_upgrade.enabled = this.btn_item_fix.enabled = this.btn_item_reroll.enabled = false;
+            this.btnSellBig.enabled = this.btn_item_sell.enabled = this.btn_item_buy.enabled = this.btn_item_upgrade.enabled = this.btn_item_reroll.enabled = false;
             this.btn_item_craft.enabled = false;
             this.btn_item_craft.alpha = this.btn_item_reroll.alpha = this.btn_item_upgrade.alpha = this.btn_item_buy.alpha = this.btn_item_sell.alpha = 0.5;
             return;
@@ -350,7 +324,6 @@ package survarium.controls
             this.btn_item_reroll.visible = false;
             this.btn_item_sell.visible = false;
             this.btn_item_buy.visible = false;
-            this.btn_item_fix.visible = false;
             this.btn_item_craft.visible = false;
             return;
          }
@@ -360,7 +333,6 @@ package survarium.controls
             this.btn_show_l.visible = false;
             this.btn_show_r.visible = false;
             this.btn_item_upgrade.visible = true;
-            this.btn_item_fix.visible = true;
             this.btn_item_reroll.visible = true;
             this.btn_item_craft.visible = true;
          }
@@ -372,10 +344,9 @@ package survarium.controls
             this.btn_item_buy.visible = !this.btn_item_sell.visible;
             this.btn_item_reroll.visible = true;
             this.btn_item_upgrade.visible = true;
-            this.btn_item_fix.visible = true;
             this.btn_item_craft.visible = true;
-            this.btn_item_reroll.enabled = this.btn_item_craft.enabled = this.btn_item_sell.enabled = this.btn_item_buy.enabled = this.btn_item_fix.enabled = this.btn_item_upgrade.enabled = false;
-            this.btn_item_reroll.alpha = this.btn_item_craft.alpha = this.btn_item_sell.alpha = this.btn_item_buy.alpha = this.btn_item_fix.alpha = this.btn_item_upgrade.alpha = 0.5;
+            this.btn_item_reroll.enabled = this.btn_item_craft.enabled = this.btn_item_sell.enabled = this.btn_item_buy.enabled = this.btn_item_upgrade.enabled = false;
+            this.btn_item_reroll.alpha = this.btn_item_craft.alpha = this.btn_item_sell.alpha = this.btn_item_buy.alpha = this.btn_item_upgrade.alpha = 0.5;
          }
          else if(this._isStack && !this._isQuickSlot)
          {
@@ -385,7 +356,6 @@ package survarium.controls
             this.btn_item_reroll.visible = false;
             this.btn_item_sell.visible = false;
             this.btn_item_buy.visible = false;
-            this.btn_item_fix.visible = false;
             this.btn_item_craft.visible = false;
          }
          else if(this._isQuickSlot)
@@ -395,7 +365,6 @@ package survarium.controls
             this.btn_item_upgrade.visible = false;
             this.btn_item_sell.visible = false;
             this.btn_item_buy.visible = false;
-            this.btn_item_fix.visible = false;
             this.btn_item_reroll.visible = false;
             this.btn_item_craft.visible = false;
          }
@@ -408,7 +377,6 @@ package survarium.controls
             this.btn_item_craft.visible = true;
             this.btn_item_reroll.visible = true;
             this.btn_item_upgrade.visible = true;
-            this.btn_item_fix.visible = true;
          }
       }
       

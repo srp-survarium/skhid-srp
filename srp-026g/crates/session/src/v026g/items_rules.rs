@@ -1,6 +1,6 @@
 //! What the lobby does to one item: its cosmetics ("upgrades": a
 //! camouflage and decals), changing a modification ("reroll"), upgrading it
-//! with a donor ("craft"), the whole repair with its defects, and what a
+//! with a donor ("craft"), and what a
 //! match and a drop do to it. The data is the game's
 //! ([`survarium::v026g::modifications`]); the requests and answers are in
 //! `docs/notes/lobby_requests.md` (`46 01`, `02`, `05`..`09`,
@@ -46,7 +46,7 @@
 //!   and 1, its camouflage in 2, its scope in 3, a muzzle device in 4 and a
 //!   grip in 5 ([`upgrade_capacity`]); the account keeps them so, and the
 //!   client gets them packed into at most three records
-//!   (`super::wire::item_descr_at`). The client never writes a weapon's
+//!   (`super::wire::item_descr`). The client never writes a weapon's
 //!   records itself: a change of one is answered with the inventory and the
 //!   account only (no `83 46 01` or `83 46 02`, whose own copy of the
 //!   record could be a fourth, the client's fatal assert).
@@ -63,8 +63,7 @@
 //!   Cancel button (`docs/notes/reroll-keep-old.md`). [srp, the
 //!   owner's rule of 2026-10-22] At any time: the
 //!   game's six hours between silver changes are gone, so the item's
-//!   `reroll_time` stays 0 (one left from before is cleared,
-//!   [`finish_repairs`]). A damaged
+//!   `reroll_time` the client is told is 0. A damaged
 //!   item can not be changed (`st_reroll_message_broken_item`). The prices
 //!   are `reroll.options`' by item level, [srp, the owner's rule of
 //!   2026-10-25] the same for every change: no growth with the changes
@@ -75,7 +74,7 @@
 //!   chosen; until the choice the item keeps the old one, and an offer not
 //!   answered (the client went away, a restart: it is saved) is kept and
 //!   shown again, with nothing more to pay.
-//! - **Craft.** The item and a donor: neither damaged nor in repair, the
+//! - **Craft.** The item and a donor: neither damaged, the
 //!   item with fewer than three modifications and no fewer than the donor
 //!   (`MessageCraftItem`). The price is `craft.options`' by the item's
 //!   level; the chances by how many more modifications the item has than
@@ -107,19 +106,10 @@
 //!   given once to those owned before ([`give_premium_armour_bonuses`]);
 //!   its plain piece and it are donors for each other as a golden weapon
 //!   and its plain weapon are.
-//! - **Repair.** In silver: what the window shows,
-//!   `(1 - condition) * repair_cost_ratio * cost` and each defect's
-//!   `fix_cost_general`, and the item is locked for the defects'
-//!   `fix_time_general` together; with no defect it is done at once. [the
-//!   owner, 2026-11-08] Gold is gone, and the silver repair is the game's
-//!   gold one ("quick repair"): the live data has each defect's
-//!   `fix_cost_gold` in silver as its `fix_cost_general` and no time
-//!   (`scripts/content-edit/defects.tsv`). Silver is the only payment: the
-//!   repair kits (the voucher `repair_voucher`) are gone (the owner,
-//!   2026-11-08). Every repair makes the item whole (the client sets its
-//!   condition to full on the answer) and [srp] takes its defects off at
-//!   once: the wait only locks the item in the lobby. When it ends the
-//!   client is told (`#ir[<item>]`, an important message of type 6).
+//! - **No repair** (the owner, 2026-11-08: "we don't have repair in the
+//!   game at all"): `47 03` is no request. Items wear nothing unless
+//!   `SRP_ITEM_WEAR=on`, so none needs one; with wear on, a worn item and
+//!   its defects stay as they are.
 //! - **Defects.** [LIKELY, the reading of `defect_slots` in
 //!   `modifications`] After a match that wore an item, one roll for its
 //!   first free defect slot. `SRP_ITEM_DEFECTS=off` switches them off.
@@ -137,19 +127,14 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::Rng;
 use survarium::v026g::golden;
 use survarium::v026g::item_params::item_params;
-use survarium::v026g::lobby::requests::{KEEP_OLD_MODIFICATION, RepairPayment};
-use survarium::v026g::lobby::{Crafted, FULL_CONDITION, Repaired, limits};
+use survarium::v026g::lobby::requests::KEEP_OLD_MODIFICATION;
+use survarium::v026g::lobby::{Crafted, FULL_CONDITION, limits};
 use survarium::v026g::modifications::{self, Bonuses, CraftOutcome, MAX_RANK, Modifications};
-use survarium::v026g::prices;
 use survarium::v026g::scopes::ScopeFits;
 use survarium::v026g::weapon_kit;
 
 use super::account::{Account, Item, Upgrade};
-use super::rules::shown_condition;
 
-/// The important message that tells the client a repair is over
-/// (`social.md` §1.4, type 6; the text is `#ir[<item id>]`, 0x226848).
-pub const REPAIRED_MESSAGE: u8 = 6;
 /// The setting that switches defects off.
 pub const DEFECTS_VAR: &str = "SRP_ITEM_DEFECTS";
 
@@ -163,9 +148,6 @@ pub enum ItemError {
     /// The item has defects.
     RerollBroken,
     NotEnoughMoney,
-    /// Nothing to repair, or not that way; why, for the log.
-    Repair(&'static str),
-    NotEnoughMoneyForRepair,
 }
 
 impl ItemError {
@@ -176,8 +158,6 @@ impl ItemError {
             Self::Reroll(_) => "st_cannot_select_rerolled_modification",
             Self::RerollBroken => "st_reroll_message_broken_item",
             Self::NotEnoughMoney => "st_not_enougth_money",
-            Self::Repair(_) => "st_cannot_repair_item",
-            Self::NotEnoughMoneyForRepair => "st_not_enought_money_for_repair",
         }
     }
 }
@@ -223,19 +203,6 @@ pub fn rank(item: &Item) -> usize {
         .iter()
         .filter(|&&(_, state)| !state)
         .count()
-}
-
-/// The seconds from `now` until the Unix second `until`; 0 once it is
-/// over, or for none.
-pub fn seconds_left(until: u32, now: u64) -> u32 {
-    u64::from(until)
-        .saturating_sub(now)
-        .min(u64::from(u32::MAX)) as u32
-}
-
-fn until(now: u64, seconds: u32) -> u32 {
-    now.saturating_add(u64::from(seconds))
-        .min(u64::from(u32::MAX)) as u32
 }
 
 /// Takes off every upgrade whose cosmetic the inventory lacks
@@ -655,7 +622,6 @@ pub fn reroll(
     account: &mut Account,
     item_id: u32,
     modification: u32,
-    now: u64,
     rng: &mut Rng,
 ) -> Result<Rerolled, ItemError> {
     let item = account
@@ -677,9 +643,6 @@ pub fn reroll(
     }
     if !defects(item).is_empty() {
         return Err(ItemError::RerollBroken);
-    }
-    if seconds_left(item.repair_time, now) != 0 {
-        return Err(ItemError::Reroll("the item is in repair"));
     }
     let held = own_modifications(item);
     if !held.contains(&modification) {
@@ -781,7 +744,6 @@ pub fn craft(
     item_id: u32,
     donor_item_id: u32,
     queued: bool,
-    now: u64,
     rng: &mut Rng,
 ) -> Result<Crafted, &'static str> {
     if item_id == donor_item_id {
@@ -797,9 +759,6 @@ pub fn craft(
     }
     if !defects(item).is_empty() || !defects(donor).is_empty() {
         return Err("a damaged item");
-    }
-    if seconds_left(item.repair_time, now) != 0 || seconds_left(donor.repair_time, now) != 0 {
-        return Err("an item in repair");
     }
     if item.reroll.offer.is_some() {
         return Err("a modification of the item is being changed");
@@ -863,103 +822,8 @@ pub fn craft(
     Ok(crafted)
 }
 
-// -------------------------------------------------------------- repair
-
-/// What the repair window shows for the item: `(silver, seconds, defects)`.
-pub fn repair_quote(item: &Item) -> (u32, u32, usize) {
-    let table = Modifications::shared();
-    let wear = prices::repair_cost(
-        Dictionary::shared(),
-        item.dict_id,
-        shown_condition(item.condition_or_stack),
-    );
-    let rows: Vec<_> = defects(item)
-        .into_iter()
-        .filter_map(|id| table.defect(id))
-        .collect();
-    let sum = |value: fn(&modifications::Defect) -> u32| {
-        rows.iter()
-            .fold(0_u32, |sum, row| sum.saturating_add(value(row)))
-    };
-    (
-        wear.saturating_add(sum(|row| row.fix_cost_general)),
-        sum(|row| row.fix_time_general),
-        rows.len(),
-    )
-}
-
-/// `47 03 <item> <kind>`: repair an item whole, in silver. Returns what
-/// `83 47 03` carries.
-pub fn repair(
-    account: &mut Account,
-    item_id: u32,
-    payment: RepairPayment,
-    now: u64,
-) -> Result<Repaired, ItemError> {
-    let dictionary = Dictionary::shared();
-    let item = account
-        .item(item_id)
-        .ok_or(ItemError::Repair("no such item"))?;
-    if dictionary.is_stack(item.dict_id) {
-        return Err(ItemError::Repair("a stack"));
-    }
-    if seconds_left(item.repair_time, now) != 0 {
-        return Err(ItemError::Repair("already in repair"));
-    }
-    let (silver, seconds, broken) = repair_quote(item);
-    if broken == 0 && item.condition_or_stack >= FULL_CONDITION {
-        return Err(ItemError::Repair("nothing to repair"));
-    }
-    let repaired = match payment {
-        RepairPayment::Silver => {
-            if silver > account.generic_money {
-                return Err(ItemError::NotEnoughMoneyForRepair);
-            }
-            account.generic_money -= silver;
-            if seconds == 0 {
-                Repaired::AtOnce
-            } else {
-                Repaired::Timed {
-                    repair_time: seconds,
-                }
-            }
-        }
-        RepairPayment::Other(_) => return Err(ItemError::Repair("no such payment")),
-    };
-    let item = account.item_mut(item_id).expect("the item was found above");
-    item.condition_or_stack = FULL_CONDITION;
-    item.modifications.retain(|&(_, state)| !state);
-    item.repair_time = match repaired {
-        Repaired::Timed { repair_time } => until(now, repair_time),
-        _ => 0,
-    };
-    bump_kits_wearing(account, item_id);
-    account.sync_kits();
-    Ok(repaired)
-}
-
-/// The repairs that are over at `now`: their timers are cleared, and the
-/// ids returned are what the client is told ([`repaired_notice`]).
-pub fn finish_repairs(account: &mut Account, now: u64) -> Vec<u32> {
-    let mut done = Vec::new();
-    for item in &mut account.inventory {
-        if item.repair_time != 0 && u64::from(item.repair_time) <= now {
-            item.repair_time = 0;
-            done.push(item.item_id);
-        }
-        // No wait between rerolls any more: one left from before goes.
-        item.reroll_time = 0;
-    }
-    done
-}
-
-/// The important message for a repair that is over: `(type, text)`.
-pub fn repaired_notice(item_id: u32) -> (u8, String) {
-    (REPAIRED_MESSAGE, format!("#ir[{item_id}]"))
-}
-
 /// Makes every weapon and armour piece of the account whole: full
-/// condition, no defect, no repair running. Returns how many needed it.
+/// condition, no defect. Returns how many needed it.
 /// For the day wear was switched off (`pay::item_wear`): what matches had
 /// worn until then would stay worn for ever.
 pub fn mend_all(account: &mut Account) -> usize {
@@ -971,13 +835,11 @@ pub fn mend_all(account: &mut Account) -> usize {
                 params.kind.starts_with("wpn_") || params.kind.starts_with("arm_")
             });
         let broken = item.modifications.iter().any(|&(_, state)| state);
-        if !gear || (item.condition_or_stack >= FULL_CONDITION && !broken && item.repair_time == 0)
-        {
+        if !gear || (item.condition_or_stack >= FULL_CONDITION && !broken) {
             continue;
         }
         item.condition_or_stack = FULL_CONDITION;
         item.modifications.retain(|&(_, state)| !state);
-        item.repair_time = 0;
         mended.push(item.item_id);
     }
     for &item_id in &mended {

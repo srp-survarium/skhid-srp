@@ -20,7 +20,7 @@
 //! and says so ([`super::items_rules::upgrades_taken_off`]), a kept results
 //! screen loses it when restored ([`super::rewards::Results::restored`]),
 //! and the wire never sends one whose dict id the data lacks
-//! ([`super::wire::item_descr_at`]). The scope item a player owns is an
+//! ([`super::wire::item_descr`]). The scope item a player owns is an
 //! item like any other and stays checked.
 
 use std::collections::{BTreeMap, BTreeSet};

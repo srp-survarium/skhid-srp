@@ -42,8 +42,6 @@ package survarium.data
       
       public var clipsInBag:Number = 0;
       
-      public var repairCostRatio:Number = 0;
-      
       public var sellerLevel:uint;
       
       public var slotId:uint;
@@ -59,10 +57,6 @@ package survarium.data
       public var weight:Number = 0;
       
       public var rank:uint;
-      
-      public var repairTime:uint;
-      
-      public var repairTimeDelta:uint;
       
       public var timeDelta:uint;
       
@@ -202,7 +196,6 @@ package survarium.data
          itemData.quickSlotItemSize = origin.quickSlotItemSize;
          itemData.requiredBags = origin.requiredBags;
          itemData.clipsInBag = origin.clipsInBag;
-         itemData.repairCostRatio = origin.repairCostRatio;
          itemData.modifierUpgraded = origin.modifierUpgraded;
          itemData.sellerLevel = origin.sellerLevel;
          itemData.slotId = origin.slotId;
@@ -212,8 +205,6 @@ package survarium.data
          itemData.type = origin.type;
          itemData.weight = origin.weight;
          itemData.rank = origin.rank;
-         itemData.repairTime = origin.repairTime;
-         itemData.repairTimeDelta = origin.repairTimeDelta;
          itemData.camoAvailable = origin.camoAvailable;
          itemData.decalAvailable = origin.decalAvailable;
          itemData.upgradesAvailable = origin.upgradesAvailable;

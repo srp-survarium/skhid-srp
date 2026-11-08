@@ -26,19 +26,18 @@ in silver will also get cheaper".
   - a modification change (reroll): `reroll_price_premium` times 100, half the old silver price;
   - an upgrade (craft): `craft_price_premium` times 100, half the old silver price, at the gold
     chances table (`craft_probabilities_premium`; silver's was 50 / 25 / 12.5 %), which srp sets to
-    100 / 95 / 90 % for a difference of 0 / 1 / 2 (`craft-menu.md`, "Success chances");
-  - a repair of defects: the gold repair ("quick repair"), at once, 5,000 a defect (its 50 gold;
-    the silver repair was 100 and six minutes a defect): `defects.tsv` `fix_cost` 5,000,
-    `fix_time` 0, `fix_gold` 0 (the exe reads it). Wear is repaired as before, by the item's
-    `repair_cost_ratio`. Silver is the only payment: no repair kits.
+    100 % for any difference (`craft-menu.md`, "Always a success; the window");
+  - no repair at all (the owner, 2026-11-08: "we don't have repair in the game at all", "so the
+    whole repair path can go"): `47 03` is no request, the lobby has no Fix button, menu entry,
+    repair window, auto-repair or "Repair cost" row (items.md §4).
 - **No vouchers but the drop card** (the owner, 2026-11-08: "for renames remove rename ticket too",
   "and remove it from shop too", "premium ticket and repoair kit should be removed too", "remove
   them completely and for players just give back them in silver as a release script"): the repair
   kit (151), the rename voucher (152) and the one-day premium voucher (213) are sold by no shop
   (`shop.tsv` `not_sold`) and dropped by no table (`vouchers-removed-1.json`: their `drop_weight` 0,
   `generic_drop` rescaled so every other rate, the drop card's too, stays). Nothing uses them: a
-  rename pays silver (`49 04`'s voucher id is not kept, `83 49 04` says 0), a repair kit (`47 03`
-  kind 2) is refused, `46 04` (using an item) is no request. Their dictionary rows stay, for the
+  rename pays silver (`49 04`'s voucher id is not kept, `83 49 04` says 0), `46 04` (using an
+  item) is no request. Their dictionary rows stay, for the
   client.
 - **Income:** nothing gives gold.
   - The gold rewards are gone, not converted (the owner, 2026-11-08: "I know there are also gold

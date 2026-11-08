@@ -1,4 +1,4 @@
-# 0.26g items: modifications, defects, cosmetics, reroll, craft, repair
+# 0.26g items: modifications, defects, cosmetics, reroll, craft
 
 **Version scope:** client 0.26g (build 2777). Read from its exe, its
 `lobby_menu.swf` (decompiled ActionScript) and its `resources.db`
@@ -77,8 +77,8 @@ bytes a row, and **reads the row it did not find in both cases** (`xor
 esi,esi; mov eax,[esi+4]` at 0x229AC2). So every id must exist in the
 table of its kind. (The earlier note had "state 0: no lookup"; wrong.)
 
-- The lobby shows a state-1 entry as damage (`MessageRepair`, "critical
-  damages", with its `fix_*` values), counts the state-0 entries as the
+- The lobby showed a state-1 entry as damage (the stock `MessageRepair`, "critical
+  damages", with its `fix_*` values; srp has no repair window), counts the state-0 entries as the
   item's **rank** (`InventoryList.getItemRank`; the exe's `rarity_level =
   min(3, base_rarity_level + count)`), and lets only those be changed.
 - `default_modifications` are **not** sent: the client adds them from the
@@ -100,9 +100,10 @@ for the camouflage (`DragRegion.as`: `relocate_upgrade_item(item, camo,
 weapon's (srp's, client patch 68) are sent packed into those three: the
 weapon kit, `weapon-kit.md`.
 
-`repair_time` and `reroll_time` are **seconds left** (PROVEN in the UI:
-`InventoryItem.updateRepairTime` counts `repairTime - delta` down with its
-own timer; `ItemControlPanel` shows `rerollTime / 60` minutes).
+`repair_time` and `reroll_time` are **seconds left** (PROVEN in the stock UI:
+`InventoryItem.updateRepairTime` counted `repairTime - delta` down with its
+own timer; `ItemControlPanel` shows `rerollTime / 60` minutes). srp sends
+`repair_time` 0: it has no repair.
 
 ## 3. Requests and answers (corrects lobby_requests.md)
 
@@ -128,9 +129,9 @@ own timer; `ItemControlPanel` shows `rerollTime / 60` minutes).
 | 08 | u32 item, u32 old, u32 new, **u32 regular_cost, u32 premium_cost, u32 reroll_time** | the client replaces old by new in the inventory and the kit copies, then fills the window again with `new` as the one changed before (0x2759F0..0x275A16) |
 | 09 | u8 mode, u32 item; **mode 0xFE ends here**; else u32 consumed item; if mode ≠ 0: u32 modification | 0x275A31: for 0xFE nothing more is read (the earlier note had a modification id; wrong). Mode 1 adds, another non-zero mode removes. The window shows **the consumed item's dictionary entry** as the upgraded item (0x275B84 → 0x29F770 `dict_id`) and the modification from its table |
 
-`83 47 03`: as lobby_requests.md §4. The client sets the condition to
-full and `repair_time`; it does **not** take the defects off its copy:
-send the inventory after it.
+`83 47 03` (srp never sends it: no repair): as lobby_requests.md §4. The
+client sets the condition to full and `repair_time`; it does **not** take
+the defects off its copy.
 
 Important message type 6 (`social.md` §1.4): the text is
 **`#ir[<item id>]`** (PROVEN: prefix check 0x226851, then the bracket
@@ -160,20 +161,20 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   (`st_reroll_message_broken_item`). The window can not be closed between
   the offer and the choice. [srp, the owner's rule of 2026-10-21] Its Cancel button
   then keeps the old modification ([reroll-keep-old.md](reroll-keep-old.md)).
-- Craft: both items not damaged and not in repair; both with fewer than
+- Craft: both items not damaged; both with fewer than
   three modifications; the item with no fewer than the donor
   (`st_craft_message_modifiers_difference`); not an equipped item while in
   the queue. Price = table[item level of the item]. Outcomes: "+1 mod.",
   "-1 mod.", or "you failed to upgrade the item". [srp, the owner's rule of
   2026-10-23] Never "-1 mod.": a failure leaves the item as it was
   ([craft-menu.md](craft-menu.md), "A failed upgrade").
-- Repair: silver = `(1 - condition) * repair_cost_ratio * cost` + each
-  defect's `fix_cost_general`, and takes the defects' `fix_time_general`
-  together; gold ("quick repair") = the defects' `fix_cost_gold`; kits = one
-  `repair_voucher` a defect. Gold and kits are offered only with defects.
-  [srp, 2026-11-08] Silver only: the live data has the gold repair's price
-  and no time as `fix_cost_general` / `fix_time_general`, and the kits are
-  gone (silver-only.md).
+- Repair: none in srp (the owner, 2026-11-08: "we don't have repair in
+  the game at all"): `47 03` is not read, and the lobby has no Fix button,
+  menu entry or repair window. (The game's was silver = `(1 - condition) *
+  repair_cost_ratio * cost` + each defect's `fix_cost_general`, gold = the
+  defects' `fix_cost_gold`, kits = one `repair_voucher` a defect.) Items
+  wear nothing unless `SRP_ITEM_WEAR=on`; with it on, a worn item and its
+  defects stay as they are.
 
 srp's reading of what only the server knew:
 
@@ -189,7 +190,6 @@ srp's reading of what only the server knew:
 | a gained modification is rolled as a drop's | [srp] |
 | a failure takes no modification: it does what "nothing" does (price and donor spent, the item as it was); 0x9B sends every failure chance as 0 and the window shows no failure row | the owner's rule of 2026-10-23 ([craft-menu.md](craft-menu.md)) |
 | no roll (a drop, an upgrade, a reroll's offer) gives a modification that only changes wear ("reliability"); owned ones stay; masks may roll Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs, so every item rolls three types or more | the owner's rule of 2026-10-23 ([no-reliability-roll.md](no-reliability-roll.md), `third-mod-1.json`) |
-| a repair takes the defects off at once; the wait only locks the item in the lobby | [srp] |
 | a defect slot opens under its first `condition`; its chance goes from the first `probability` there to the second at condition 0 | LIKELY |
 | one defect roll for each match that wore the item, for its first free slot | [srp] (`SRP_ITEM_DEFECTS=off` switches defects off). Since 2026-10-13 a match wears nothing unless `SRP_ITEM_WEAR=on` (the owner's choice, `results.md` §12), so only a found item has a defect |
 | a defect needs its type in `available_defects_mask` and, with `required_modifications`, such a modification on the item (a default counts) | LIKELY |
@@ -201,7 +201,6 @@ srp's reading of what only the server knew:
 
 ## 5. Not done
 
-- Whether an item in repair may be played with: srp lets it [srp].
 - `fill_craft_data {craft_time, …}` (`MessageCraftItem.fillCraftData`): a
   craft timer the window has a clip for; no message that sets it was
   found, and srp crafts at once.

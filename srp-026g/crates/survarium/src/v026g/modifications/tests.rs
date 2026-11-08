@@ -69,14 +69,7 @@ fn the_three_files_parse_to_what_the_dump_shows() {
 
     let defect = data.defect(3000).unwrap();
     assert_eq!(defect.name, "st_defect_barrel_deformation");
-    assert_eq!(
-        (
-            defect.kind,
-            defect.fix_cost_general,
-            defect.fix_time_general
-        ),
-        (1, 100, 360)
-    );
+    assert_eq!(defect.kind, 1);
     assert_eq!(defect.required_modifications, None);
     assert_eq!(defect.modifiers[0].value, -0.1);
     // The three defects that take away what a modification gave.
@@ -97,14 +90,7 @@ fn the_three_files_parse_to_what_the_dump_shows() {
     let mut kinds: Vec<u8> = data.defects.iter().map(|d| d.kind).collect();
     kinds.sort_unstable();
     assert_eq!(kinds, (1..=20).collect::<Vec<u8>>());
-    // Every defect costs and takes the same.
-    assert!(data.defects.iter().all(|d| {
-        (
-            d.fix_cost_general,
-            d.fix_time_general,
-            d.drop_weight,
-        ) == (100, 360, 10.0)
-    }));
+    assert!(data.defects.iter().all(|d| d.drop_weight == 10.0));
 
     assert_eq!(
         data.defect_slots,

@@ -1,5 +1,7 @@
-//! The row an account has in `g26_extras`: the auto-repair box, the
-//! tutorial's steps and the daily bonus ([`crate::v026g::extras`]).
+//! The row an account has in `g26_extras`: the tutorial's steps and the
+//! daily bonus ([`crate::v026g::extras`]). Its `auto_repair` column (the
+//! stock auto-repair box) stays, unused: srp has no repair (the owner,
+//! 2026-11-08); a new row takes its default, 0.
 
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -36,20 +38,19 @@ pub(super) const MIGRATION: &str = "
 pub(super) fn load(connection: &Connection, account_id: u32) -> Result<Extras, PersistError> {
     let extras = connection
         .query_row(
-            "SELECT auto_repair, tutorial_flags, bonus_day, bonus_last_day, bonus_wins,
+            "SELECT tutorial_flags, bonus_day, bonus_last_day, bonus_wins,
                     bonus_completed, bonus_shown_day
              FROM g26_extras WHERE account_id = ?1",
             [account_id],
             |row| {
                 Ok(Extras {
-                    auto_repair: row.get(0)?,
-                    tutorial_flags: row.get(1)?,
+                    tutorial_flags: row.get(0)?,
                     bonus: DailyBonus {
-                        day: row.get(2)?,
-                        last_day: row.get::<_, i64>(3)?.max(0) as u64,
-                        wins: DailyBonus::unpack_wins(row.get(4)?),
-                        completed: row.get(5)?,
-                        shown_day: row.get::<_, i64>(6)?.max(0) as u64,
+                        day: row.get(1)?,
+                        last_day: row.get::<_, i64>(2)?.max(0) as u64,
+                        wins: DailyBonus::unpack_wins(row.get(3)?),
+                        completed: row.get(4)?,
+                        shown_day: row.get::<_, i64>(5)?.max(0) as u64,
                     },
                 })
             },
@@ -69,18 +70,17 @@ pub(super) fn save(
     // a new row takes their default, 0.
     connection.execute(
         "INSERT INTO g26_extras (
-            account_id, auto_repair, tutorial_flags, bonus_day, bonus_last_day, bonus_wins,
+            account_id, tutorial_flags, bonus_day, bonus_last_day, bonus_wins,
             bonus_completed, bonus_shown_day
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(account_id) DO UPDATE SET
-            auto_repair = excluded.auto_repair, tutorial_flags = excluded.tutorial_flags,
+            tutorial_flags = excluded.tutorial_flags,
             bonus_day = excluded.bonus_day, bonus_last_day = excluded.bonus_last_day,
             bonus_wins = excluded.bonus_wins,
             bonus_completed = excluded.bonus_completed,
             bonus_shown_day = excluded.bonus_shown_day",
         params![
             account_id,
-            extras.auto_repair,
             extras.tutorial_flags,
             extras.bonus.day,
             day(extras.bonus.last_day),
@@ -119,7 +119,6 @@ mod tests {
         let mut repository = SqliteGameRepository::open(&dir.join(DB_FILE)).unwrap();
         let mut account = Account::new("Alice");
         account.extras = Extras {
-            auto_repair: true,
             tutorial_flags: flag::NICKNAME | flag::ITEM_NOTES | flag::SKIPPED,
             bonus: DailyBonus {
                 day: 4,
@@ -139,7 +138,6 @@ mod tests {
             crate::v026g::tutorial::ALL_DONE
         );
         // A change is written over the row.
-        account.extras.auto_repair = false;
         account.extras.bonus.completed = true;
         account.extras.bonus.day = 7;
         repository.save(7, &account).unwrap();
@@ -213,16 +211,15 @@ mod tests {
                 flag::NICKNAME | flag::COMPLETED | flag::SKIPPED,
             ]
         );
-        // Nothing else of the new state: no auto-repair, no bonus yet.
+        // Nothing else of the new state: no bonus yet.
         for (_, account) in &loaded {
-            assert!(!account.extras.auto_repair);
             assert_eq!(account.extras.bonus, DailyBonus::default());
         }
         // An account saved after the step has its row written.
         let mut alice = alice.clone();
-        alice.extras.auto_repair = true;
+        alice.extras.bonus.day = 2;
         repository.save(5, &alice).unwrap();
-        assert!(repository.load_all().unwrap()[0].1.extras.auto_repair);
+        assert_eq!(repository.load_all().unwrap()[0].1.extras.bonus.day, 2);
         drop(repository);
         let _ = std::fs::remove_dir_all(dir);
     }

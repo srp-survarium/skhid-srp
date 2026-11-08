@@ -218,11 +218,6 @@ pub struct Defect {
     pub kind: u8,
     pub drop_weight: f32,
     pub name: String,
-    /// Silver and seconds to fix it (`fix_cost_gold` is not read: gold is
-    /// gone; the live data has the gold repair's price and time here,
-    /// `scripts/content-edit/defects.tsv`).
-    pub fix_cost_general: u32,
-    pub fix_time_general: u32,
     /// `required_modifications`: the item must hold a modification with an
     /// id in `low..=high`.
     pub required_modifications: Option<(u32, u32)>,
@@ -727,8 +722,6 @@ impl Modifications {
                     kind: kind_of(row)?,
                     drop_weight: row.f32_at("drop_weight")?,
                     name: name_of(row)?,
-                    fix_cost_general: number(row.req("fix_cost_general")?)?,
-                    fix_time_general: number(row.req("fix_time_general")?)?,
                     required_modifications: required,
                     modifiers: modifiers(row)?,
                 })

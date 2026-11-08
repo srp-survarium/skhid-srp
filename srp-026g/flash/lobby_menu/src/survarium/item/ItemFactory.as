@@ -272,7 +272,7 @@ package survarium.item
       // panel's Upgrade and the right-click menu's entry are off then (owner 2026-10-22).
       public static function isItemCraftable(value:ItemData) : Boolean
       {
-         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && value.rank < ItemRank.MAX && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
+         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && value.rank < ItemRank.MAX && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
       }
       
       public function registerItemDescriptor(link:ItemDescriptor) : void
@@ -361,7 +361,6 @@ package survarium.item
          item.oneHanded = !description.double_handed;
          item.name = description.name;
          item.dictId = dictId;
-         item.repairCostRatio = description.repair_cost_ratio;
          if(description.modifiers == undefined)
          {
             description.modifiers = [];
@@ -683,81 +682,6 @@ package survarium.item
          var levelText:String = item.superCategory != SuperCategory.UPGRADES ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
          var tip:String = Util.styledChar(item.name,"white") + "\n" + (item.rank ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + (item.ammoText ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + (levelText ? Util.styledChar(" \n","small") + levelText : "");
          item.tipText = tip;
-      }
-      
-      protected function getFailModifiers(itemInfo:Object) : Array
-      {
-         var modifiers:Array = itemInfo.modifiers != null ? itemInfo.modifiers : [];
-         var failed:Array = [];
-         var i:uint = 0;
-         var icons:IconContainer;
-         var modifierIcon:Icon;
-         while(i < modifiers.length)
-         {
-            if(modifiers[i].state == ModificationState.DEFECT)
-            {
-               icons = IconContainer.getInstance("modifiers");
-               modifierIcon = icons.getIcon(modifiers[i].icon);
-               failed.push({
-                  name:modifiers[i].name,
-                  props:modifiers[i].props,
-                  icon:modifierIcon,
-                  state:modifiers[i].state,
-                  fix_time_general:modifiers[i].fix_time_general,
-                  fix_cost_general:modifiers[i].fix_cost_general
-               });
-            }
-            i++;
-         }
-         this.fillModifiersNames(failed);
-         return failed;
-      }
-      
-      protected function fillModifiersNames(modifiers:Array) : void
-      {
-         var i:uint = 0;
-         var propsText:String;
-         var props:Object;
-         var prop:Object;
-         var propDesc:Object;
-         var postfix:String;
-         var sign:String;
-         var propValue:Number;
-         var color:String;
-         while(i < modifiers.length)
-         {
-            propsText = "";
-            props = modifiers[i].props;
-            trace("props::",propsText,props,this._propsDescriptor);
-            for each(prop in props)
-            {
-               propDesc = this._propsDescriptor.getPropertyDescription(prop.prop_id);
-               if(propDesc)
-               {
-                  if(propDesc.postfix == undefined)
-                  {
-                     propDesc.postfix = "";
-                  }
-                  postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
-                  sign = prop.prop_value >= 0 ? "+" : "";
-                  if(propDesc.modifier_type == undefined)
-                  {
-                     propDesc.modifier_type = ModifierType.INVALID;
-                     propDesc.modifier_type = prop.modifier_type;
-                  }
-                  if(propDesc.modifier_type == ModifierType.INVALID)
-                  {
-                     throw Error("modifier_type at modifier " + modifiers[i].name + " for prop_id " + prop.prop_id + " is invalid");
-                  }
-                  trace("propValue::",propDesc.direction,prop.direction);
-                  propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
-                  color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
-                  propsText += propDesc.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
-               }
-            }
-            modifiers[i].name = propsText;
-            i++;
-         }
       }
       
       private function getItemBroken(modifiers:Array) : Boolean

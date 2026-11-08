@@ -219,13 +219,12 @@ fn the_inventory_writes_gear_and_stacks_differently() {
 }
 
 /// The tail the client reads at 0x26EF40: three lists of `u32 silver,
-/// u16 dict id`.
+/// u16 dict id` (the third, repairs, always empty).
 #[test]
 fn the_inventory_ends_with_the_money_spent_after_a_match() {
     let spent = SpentMoney {
         autobuy_ammo: vec![(120, AMMO), (7, 51)],
-        autobuy_consumables: vec![],
-        repair: vec![(0x0102_0304, PISTOL)],
+        autobuy_consumables: vec![(0x0102_0304, PISTOL)],
     };
     let message = inventory_with_spent(&[ammo(2, 50)], &spent).unwrap();
     assert_bytes(
@@ -233,8 +232,8 @@ fn the_inventory_ends_with_the_money_spent_after_a_match() {
         "89 01000000
          02000000 3200 32000000 00 00
          02  78000000 3200  07000000 3300
-         00
-         01  04030201 1200",
+         01  04030201 1200
+         00",
     );
     let mut client = Client::signed_in();
     assert_eq!(
@@ -246,13 +245,12 @@ fn the_inventory_ends_with_the_money_spent_after_a_match() {
     );
 
     // One row more than a buffer of the client holds.
-    for (list, most) in [(0, 24), (1, 18), (2, 27)] {
+    for (list, most) in [(0, 24), (1, 18)] {
         let mut spent = SpentMoney::default();
         let rows = vec![(1, AMMO); most + 1];
         match list {
             0 => spent.autobuy_ammo = rows,
-            1 => spent.autobuy_consumables = rows,
-            _ => spent.repair = rows,
+            _ => spent.autobuy_consumables = rows,
         }
         assert!(matches!(
             inventory_with_spent(&[], &spent),
@@ -270,7 +268,6 @@ fn an_item_with_times_modifications_and_upgrades() {
         item_id: 0x0A0B0C0D,
         dict_id: PISTOL,
         condition_or_stack: 755_000,
-        repair_time: 60,
         reroll_time: 90,
         modifications: vec![
             Modification {
@@ -294,7 +291,7 @@ fn an_item_with_times_modifications_and_upgrades() {
         "89 01000000
          0D0C0B0A 1200
          38850B00                 condition 75.5 x 10000
-         3C000000                 repair time
+         00000000                 repair time: always 0 (no repair)
          5A000000                 reroll time
          02  B80B0000 01  D0070000 00
          01  11000000 22000000 0807060504030201 03
@@ -309,7 +306,6 @@ fn the_own_account() {
         revisions: vec![7],
         active_kit: 1,
         autobuy: true,
-        auto_repair: false,
         level: 3,
         exp_total: 1000,
         exp_level_start: 500,
@@ -343,7 +339,6 @@ fn an_account_with_no_kit_modifiers_has_an_empty_mask() {
         revisions: vec![1],
         active_kit: 5,
         autobuy: false,
-        auto_repair: false,
         level: 0,
         exp_total: 0,
         exp_level_start: 0,
@@ -448,7 +443,6 @@ fn the_account_bodys_limits() {
         revisions: Vec::new(),
         active_kit: 1,
         autobuy: false,
-        auto_repair: false,
         level: 1,
         exp_total: 0,
         exp_level_start: 0,
@@ -914,16 +908,6 @@ fn shop_answers() {
     // No profile list after the amount any more.
     assert_bytes(&permitted_sold(2, 50), "83 47 01 02000000 32000000");
     assert_bytes(&permitted_offer_bought(), "83 47 02");
-    // `u32 item, u32 v`; only for v = 0 a kit id, and for a kit its count.
-    assert_bytes(
-        &permitted_repaired(1, Repaired::Timed { repair_time: 600 }).unwrap(),
-        "83 47 03 01000000 58020000",
-    );
-    assert_bytes(
-        &permitted_repaired(1, Repaired::AtOnce).unwrap(),
-        "83 47 03 01000000 00000000 00000000",
-    );
-    assert!(permitted_repaired(1, Repaired::Timed { repair_time: 0 }).is_err());
     assert_bytes(&permitted_shop_event(4).unwrap(), "83 47 04");
     assert_bytes(&permitted_shop_event(5).unwrap(), "83 47 05");
     assert!(permitted_shop_event(0).is_err());
@@ -1611,27 +1595,22 @@ fn a_kit_may_fill_every_slot_and_modifier() {
 // ---- offer after a match
 
 #[test]
-fn the_autobuy_and_auto_repair_boxes_are_one_number() {
+fn the_autobuy_box_is_bit_0_of_one_number() {
     use crate::v026g::lobby::client_model::Permitted;
-    // `83 49 01 <state>`: bit 0 autobuy, bit 1 auto-repair.
-    assert_bytes(&permitted_auto_state(false, false), "83 49 01 00");
-    assert_bytes(&permitted_auto_state(true, false), "83 49 01 01");
-    assert_bytes(&permitted_auto_state(false, true), "83 49 01 02");
-    assert_bytes(&permitted_auto_state(true, true), "83 49 01 03");
+    // `83 49 01 <state>`: bit 0 autobuy; bit 1, the stock auto-repair, never
+    // set (srp has no repair).
+    assert_bytes(&permitted_autobuy(false), "83 49 01 00");
+    assert_bytes(&permitted_autobuy(true), "83 49 01 01");
     let mut client = Client::signed_in();
     assert_eq!(
-        client.receive(&permitted_auto_state(true, true)).unwrap(),
-        Decoded::Permitted(Permitted::AutoRepair { autobuy: true })
-    );
-    assert_eq!(
-        client.receive(&permitted_auto_state(true, false)).unwrap(),
+        client.receive(&permitted_autobuy(true)).unwrap(),
         Decoded::Permitted(Permitted::Autobuy(true))
     );
     // The lobby ticks its boxes for 0..=3 only: `FF` would show both off.
     assert!(client.receive_raw(0x83, &[0x49, 0x01, 0xFF]).is_err());
 
     // The same number in the account (`87`), after the active kit's id.
-    let account = |autobuy, auto_repair| OwnAccount {
+    let account = |autobuy| OwnAccount {
         body: AccountBody {
             team: 0,
             name: "A".into(),
@@ -1643,19 +1622,13 @@ fn the_autobuy_and_auto_repair_boxes_are_one_number() {
         revisions: Vec::new(),
         active_kit: 1,
         autobuy,
-        auto_repair,
         level: 0,
         exp_total: 0,
         exp_level_start: 0,
         exp_next_level: 500,
     };
-    for (autobuy, auto_repair, state) in [
-        (false, false, 0),
-        (true, false, 1),
-        (false, true, 2),
-        (true, true, 3),
-    ] {
-        let message = own_account(&account(autobuy, auto_repair)).unwrap();
+    for (autobuy, state) in [(false, 0), (true, 1)] {
+        let message = own_account(&account(autobuy)).unwrap();
         let body = message.body();
         // team, name, tag, protection, no kits, no items, the active kit.
         assert_eq!(body[..13], [0, 1, b'A', 0, 10, 0, 0, 0, 0, 0, 1, 0, 0]);
@@ -1664,7 +1637,7 @@ fn the_autobuy_and_auto_repair_boxes_are_one_number() {
         let Decoded::Account(read) = Client::signed_in().receive(&message).unwrap() else {
             panic!("not the account");
         };
-        assert_eq!((read.autobuy, read.auto_repair), (autobuy, auto_repair));
+        assert_eq!(read.autobuy, autobuy);
     }
 }
 

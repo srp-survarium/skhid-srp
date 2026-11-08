@@ -778,7 +778,6 @@ package survarium.controls
          item_data.oneHanded = !descrData.double_handed;
          item_data.name = descrData.name;
          item_data.dictId = dictId;
-         item_data.repairCostRatio = descrData.repair_cost_ratio;
          if(descrData.modifiers == undefined)
          {
             descrData.modifiers = [];
@@ -1174,16 +1173,9 @@ package survarium.controls
                item.slotTarget = itemData.is_attached_to;
             }
          }
-         item.repairTime = itemData.repair_time;
          item.rerollTime = itemData.reroll_time;
-         if((item.repairTime))
-         {
-            item.enabled = false;
-         }
-         else
-         {
-            item.enabled = true;
-         }
+         // No repair (the owner, 2026-11-08): an item is never locked by one.
+         item.enabled = true;
          if(itemData.equipped != undefined)
          {
             item.equipped = itemData.equipped;
@@ -1343,28 +1335,13 @@ package survarium.controls
                this.updateItem(item,itemData);
             }
             item.descriptor = ItemPlace.INVENTORY;
-            inRepair = item.repairTime != 0;
-            item.repairTime = itemData.repair_time;
             item.rerollTime = itemData.reroll_time;
             item.modifierUpgraded = itemData.rerolled_modifier;
             item.value = itemData.condition_or_stack;
             item.equipped = itemData.is_attached_to;
             item.slotTarget = itemData.is_attached_to;
-            trace("IV:addItem::",item.name,"rt::",item.repairTime,itemData.repair_time,"| icon:id",item.iconId,item.dictId,itemData.is_attached_to,item.itemId,item.rank,"category::",item.category,"vcat",ItemCategory.VOUCHERS,"cost::",item.cost,itemData.cost,item.icon,item.sellerIcon,item.messIcon);
-            if((item.repairTime))
-            {
-               item.enabled = false;
-               timer = QuestWindow.getTimerInstance();
-               if(!created || created && !inRepair)
-               {
-                  item.repairTimeDelta = timer.currentCount;
-               }
-               trace("updatedRp::",itemData.repair_time,timer.currentCount,item.repairTimeDelta);
-            }
-            else
-            {
-               item.enabled = true;
-            }
+            trace("IV:addItem::",item.name,"| icon:id",item.iconId,item.dictId,itemData.is_attached_to,item.itemId,item.rank,"category::",item.category,"vcat",ItemCategory.VOUCHERS,"cost::",item.cost,itemData.cost,item.icon,item.sellerIcon,item.messIcon);
+            item.enabled = true;
             if((item.rerollTime))
             {
                timer = QuestWindow.getTimerInstance();
@@ -1425,7 +1402,6 @@ package survarium.controls
          var item:ItemData;
          var itemId:int;
          var created:Boolean;
-         var inRepair:Boolean;
          var timer:Timer;
          var victory_screen:*;
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
@@ -1916,97 +1892,6 @@ package survarium.controls
             this.bundleList.itemId = -1;
             this.bundleList.visible = false;
             this.onFilterShowed();
-         }
-      }
-      
-      protected function fixElement(event:Event = null) : void
-      {
-         var _data:Object = this.menuItem();
-         if(_data == null)
-         {
-            return;
-         }
-         trace("repairItem::",_data.itemId,_data.icon,_data.messIcon);
-         var messageData:ItemData = new ItemData();
-         messageData.itemId = _data.itemId;
-         messageData.name = _data.name;
-         messageData.sellerIcon = (_data.sellerIcon) ? _data.sellerIcon.clone() : null;
-         messageData.icon = _data.messIcon;
-         messageData.value = _data.value;
-         messageData.modifiers = this.getFailModifiers(_data);
-         messageData.repairCostRatio = _data.repairCostRatio;
-         messageData.cost = _data.cost;
-         Message.showMessage("repair",messageData,true);
-      }
-      
-      protected function getFailModifiers(_data:Object) : Array
-      {
-         var modifiers:Array = _data.modifiers != null ? _data.modifiers : [];
-         var modificators:Array = [];
-         for(var j:uint = 0; j < modifiers.length; j++)
-         {
-            var _modifiersIconContainer:IconContainer;
-            var icon:Icon;
-            if(modifiers[j].state == ModificationState.DEFECT)
-            {
-               _modifiersIconContainer = IconContainer.getInstance("modifiers");
-               icon = _modifiersIconContainer.getIcon(modifiers[j].icon);
-               modificators.push({
-                  name:modifiers[j].name,
-                  props:modifiers[j].props,
-                  icon:icon,
-                  state:modifiers[j].state,
-                  fix_time_general:modifiers[j].fix_time_general,
-                  fix_cost_general:modifiers[j].fix_cost_general
-               });
-            }
-         }
-         this.fillModifiersNames(modificators);
-         return modificators;
-      }
-      
-      protected function fillModifiersNames(modificators:Array) : void
-      {
-         for(var i:uint = 0; i < modificators.length; i++)
-         {
-            var hintText:String;
-            var modificatorProps:Object;
-            var modifierProp:Object;
-            var propDescription:Object;
-            var propPostFix:String;
-            var propPrefix:String;
-            var propValue:Number;
-            var style:String;
-            hintText = "";
-            modificatorProps = modificators[i].props;
-            trace("props::",hintText,modificatorProps,this._propsDescriptor);
-            for each(modifierProp in modificatorProps)
-            {
-               propDescription = this._propsDescriptor.getPropertyDescription(modifierProp.prop_id);
-               if((propDescription))
-               {
-                  if(propDescription.postfix == undefined)
-                  {
-                     propDescription.postfix = "";
-                  }
-                  propPostFix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
-                  propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
-                  if(propDescription.modifier_type == undefined)
-                  {
-                     propDescription.modifier_type = ModifierType.INVALID;
-                     propDescription.modifier_type = modifierProp.modifier_type;
-                  }
-                  if(propDescription.modifier_type == ModifierType.INVALID)
-                  {
-                     throw Error("modifier_type at modifier " + modificators[i].name + " for prop_id " + modifierProp.prop_id + " is invalid");
-                  }
-                  trace("propValue::",propDescription.direction,modifierProp.direction);
-                  propValue = propDescription.modifier_type == ModifierType.ADD ? (modifierProp.prop_value) : modifierProp.prop_value * 100;
-                  style = ModificationRolls.style(propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
-                  hintText += propDescription.prop_name + ": " + Util.styledChar(propPrefix + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + propPostFix,style) + "\n";
-               }
-            }
-            modificators[i].name = hintText;
          }
       }
       
@@ -3402,7 +3287,6 @@ package survarium.controls
          var options:Array;
          var itemAvailable:Boolean;
          var owned:Boolean;
-         var fixable:Boolean;
          var rerollable:Boolean;
          var br:Boolean;
          var modifiersLength:uint;
@@ -3452,42 +3336,21 @@ package survarium.controls
                         });
                      }
                   }
-                  fixable = false;
+                  // No Fix entry: srp has no repair (the owner, 2026-11-08).
                   rerollable = false;
                   br = false;
-                  if(itemData.value < ItemCondition.FULL)
-                  {
-                     fixable = true;
-                  }
                   if((itemData.modifiers))
                   {
                      modifiersLength = itemData.modifiers.length;
                      for(i = 0; i < modifiersLength; i++)
                      {
                         modifier = itemData.modifiers[i];
-                        if((modifier))
+                        if(Boolean(modifier) && modifier.state == ModificationState.MODIFICATION && !modifier.isDefault)
                         {
-                           if(!fixable && modifier.state == ModificationState.DEFECT)
-                           {
-                              fixable = true;
-                           }
-                           else if(!rerollable && modifier.state == ModificationState.MODIFICATION && !modifier.isDefault)
-                           {
-                              rerollable = true;
-                           }
-                           if(fixable && rerollable)
-                           {
-                              break;
-                           }
+                           rerollable = true;
+                           break;
                         }
                      }
-                  }
-                  if(fixable && owned)
-                  {
-                     options.push({
-                        name:LocalizationData.getName("fix"),
-                        click_function:this.fixElement
-                     });
                   }
                   if(owned && rerollable && !itemData.rerollTime && !itemData.broken)
                   {

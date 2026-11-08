@@ -548,32 +548,22 @@ fn buying_selling_and_moving_go_round_with_their_pushes() {
 }
 
 #[test]
-fn a_worn_item_is_repaired_and_no_gold_is_exchanged() {
+fn no_repair_and_no_gold_exchange() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     world.change(alice, |account| {
         account.generic_money = 1_000_000;
         rules::wear(account, 1, 0.5);
     });
-    assert!(world.account(alice).item(1).unwrap().condition_or_stack < FULL_CONDITION);
-
-    world.ask(alice, request::repair(1, 0));
-    assert_eq!(world.client(alice).ids, [0x83, 0x89, 0x87, 0x8B]);
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::Repaired { item_id: 1, .. })
-    ));
-    assert_eq!(
-        world.account(alice).item(1).unwrap().condition_or_stack,
-        FULL_CONDITION
-    );
-    // Nothing left to repair: the game's own text for it.
-    world.ask(alice, request::repair(1, 0));
+    // No repair (the owner, 2026-11-08): `47 03` is no request, refused
+    // with the shop's text; the worn item stays as it is.
+    let before = world.account(alice).clone();
+    world.ask(alice, (0x47, vec![3, 1, 0, 0, 0, 0]));
     assert_eq!(
         denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_repair_item")
+        Some("st_cannot_buy_item")
     );
+    assert_eq!(*world.account(alice), before);
 
     // No exchange: gold is gone (the owner, 2026-11-08). `47 04` is no
     // request: refused with the shop's text, nothing changed.
@@ -726,9 +716,8 @@ fn what_srp_does_not_have_is_refused_never_ignored() {
         (0x47, u32s(2, &[99, 0, 0], &[]), "st_cannot_buy_item"),
         (0x47, u32s(5, &[1, 0, 0, 0, 0], &[1]), "st_cannot_buy_item"),
         (0x47, u32s(6, &[1, 0], &[]), "st_cannot_buy_item"),
-        // A repair (kind 1, the stock window's gold: silver now) of an item
-        // with nothing to repair.
-        (0x47, u32s(3, &[1], &[1]), "st_cannot_repair_item"),
+        // A repair: srp has none, not read.
+        (0x47, u32s(3, &[1], &[1]), "st_cannot_buy_item"),
         // A nickname change, a comment about a player.
         // (A name too short.)
         (0x49, bytes(&[&[4, 2], b"Al", &[0, 0, 0, 0]]), "st_change_name_error"),
@@ -3422,23 +3411,24 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
 }
 
 #[test]
-fn the_two_boxes_of_the_kit_window_are_kept() {
+fn the_autobuy_box_is_kept_and_auto_repair_is_not() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     world.take(alice);
-    // The lobby's number: 2 is auto-repair alone, 3 both, 0 neither.
+    // The lobby's number: bit 1, the stock auto-repair, is not kept (srp
+    // has no repair); bit 0 is autobuy.
     world.ask(alice, (0x49, vec![1, 2]));
     assert!(matches!(
         world.take(alice)[..],
-        [Decoded::Permitted(Permitted::AutoRepair { autobuy: false })]
+        [Decoded::Permitted(Permitted::Autobuy(false))]
     ));
-    assert!(world.account(alice).extras.auto_repair && !world.account(alice).autobuy);
+    assert!(!world.account(alice).autobuy);
     world.ask(alice, (0x49, vec![1, 3]));
     assert!(matches!(
         world.take(alice)[..],
-        [Decoded::Permitted(Permitted::AutoRepair { autobuy: true })]
+        [Decoded::Permitted(Permitted::Autobuy(true))]
     ));
-    assert!(world.account(alice).extras.auto_repair && world.account(alice).autobuy);
+    assert!(world.account(alice).autobuy);
     // The account says so when it is sent again.
     world.change(alice, |_| {});
     world.ask(alice, request::active_kit(2));
@@ -3446,12 +3436,12 @@ fn the_two_boxes_of_the_kit_window_are_kept() {
     world.ask(alice, request::move_item(2, 99, 1, 100, 7, 1));
     assert!(world.take(alice).iter().any(|message| matches!(
         message,
-        Decoded::Account(own) if own.autobuy && own.auto_repair
+        Decoded::Account(own) if own.autobuy
     )));
     world.ask(alice, (0x49, vec![1, 0]));
     assert!(matches!(
         world.take(alice)[..],
         [Decoded::Permitted(Permitted::Autobuy(false))]
     ));
-    assert!(!world.account(alice).extras.auto_repair && !world.account(alice).autobuy);
+    assert!(!world.account(alice).autobuy);
 }

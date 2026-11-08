@@ -249,30 +249,11 @@ fn shop_actions() {
             factor: 0.0
         }
     );
-    // The kit's id only for kind 2.
+    // No repair: srp has none.
     assert_eq!(
-        read("47 03 09000000 00"),
-        M::Repair {
-            item_id: 9,
-            payment: RepairPayment::Silver
-        }
+        parse(0x47, &h("03 09000000 00")),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 3 })
     );
-    // The stock window's gold is silver: srp has one payment.
-    assert_eq!(
-        read("47 03 09000000 01"),
-        M::Repair {
-            item_id: 9,
-            payment: RepairPayment::Silver
-        }
-    );
-    // No repair kits: kind 2 is no payment, its kit id too many bytes.
-    assert!(matches!(
-        parse(0x47, &h("03 09000000 02 0C000000")),
-        Err(ParseError::Trailing { message, extra: 4 }) if *message == M::Repair {
-            item_id: 9,
-            payment: RepairPayment::Other(2)
-        }
-    ));
     // No exchange: gold is gone.
     assert_eq!(
         parse(0x47, &h("04 64000000")),
@@ -321,35 +302,11 @@ fn kit_and_account_actions() {
             name: "Sniper".into()
         }
     );
-    assert_eq!(
-        read("49 01 01"),
-        M::SetAutobuy {
-            on: true,
-            repair: false
-        }
-    );
-    assert_eq!(
-        read("49 01 00"),
-        M::SetAutobuy {
-            on: false,
-            repair: false
-        }
-    );
-    // The lobby's number: 2 is auto-repair alone, 3 both.
-    assert_eq!(
-        read("49 01 02"),
-        M::SetAutobuy {
-            on: false,
-            repair: true
-        }
-    );
-    assert_eq!(
-        read("49 01 03"),
-        M::SetAutobuy {
-            on: true,
-            repair: true
-        }
-    );
+    assert_eq!(read("49 01 01"), M::SetAutobuy { on: true });
+    assert_eq!(read("49 01 00"), M::SetAutobuy { on: false });
+    // The lobby's number: bit 1, the stock auto-repair, is not read.
+    assert_eq!(read("49 01 02"), M::SetAutobuy { on: false });
+    assert_eq!(read("49 01 03"), M::SetAutobuy { on: true });
     assert_eq!(read("49 02 02000000"), M::SetActiveKit { kit_id: 2 });
     assert_eq!(
         read("49 03 'Alice'"),

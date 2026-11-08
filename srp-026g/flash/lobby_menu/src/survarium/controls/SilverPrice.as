@@ -12,6 +12,12 @@ package survarium.controls
    public class SilverPrice extends Sprite
    {
 
+      // The gap above and below a window's price row, and what a window's bottom keeps under its buttons'
+      // top (MessageCraftItem/MessageRerollItem.updateLayout: the buttons' top is the bottom less 47).
+      public static const GAP:Number = 14;
+
+      public static const BUTTON_AREA:Number = 47;
+
       private var _label:SrvCostLabelShared = new SrvCostLabelShared();
 
       private var _stood:CheckBoxValue;
@@ -31,6 +37,26 @@ package survarium.controls
          stood.visible = false;
          stood.parent.addChildAt(this,stood.parent.getChildIndex(stood));
          this.cost = 0;
+      }
+
+      // The window height that leaves GAP between the price row and the buttons.
+      public function get windowHeight() : Number
+      {
+         return this.y + this._label.textField.y + this._label.textField.height + GAP + BUTTON_AREA;
+      }
+
+      // For a window whose buttons the timeline (or its own code) placed: the buttons move to GAP under
+      // the price row, and the window's bottom keeps its distance under them. The window's height changes
+      // with it (`background`); the buttons share a row (the first one's y).
+      public function fitWindow(background:DisplayObject, buttons:Array) : void
+      {
+         var underButtons:Number = background.height - DisplayObject(buttons[0]).y;
+         var top:Number = this.windowHeight - BUTTON_AREA;
+         for each(var button:DisplayObject in buttons)
+         {
+            button.y = top;
+         }
+         background.height = top + underButtons;
       }
 
       public function set cost(value:uint) : void

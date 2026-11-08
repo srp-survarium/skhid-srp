@@ -1,5 +1,6 @@
 package survarium.messages
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.events.MouseEvent;
@@ -177,6 +178,7 @@ package survarium.messages
             this.labelChooseModifier2.text = LocalizationData.getName("choose_modifier");
             // A change is paid in silver only: the game has no gold (the owner, 2026-11-08). Its
             // price, centred, in place of the silver checkbox (SilverPrice).
+            this.fitDescription();
             this._price = new SilverPrice(this.checkBoxRegularCost,this.background.x + this.background.width / 2);
             this.checkBoxPremiumCost.visible = false;
             this.labelChooseModifier2.visible = this.modifiersList2.visible = false;
@@ -356,6 +358,29 @@ package survarium.messages
          btnAccept.enabled = false;
       }
       
+      // The description's panel fits its text, DESCRIPTION_MARGIN above and below (the owner, 2026-11-08:
+      // "too much padding for that text", "from above and below"); the price under it moves up by what the
+      // panel gave back. The panel is rerollContainer's `background`; without one, nothing moves.
+      private static const DESCRIPTION_MARGIN:Number = 12;
+
+      private function fitDescription() : void
+      {
+         var panel:DisplayObject = this.rerollContainer.getChildByName("background");
+         if(panel == null)
+         {
+            return;
+         }
+         var top:Number = this.rerollContainer.y + panel.y;
+         var oldBottom:Number = top + panel.height;
+         var textHeight:Number = this.decriptionLabel.textHeight + 4;
+         this.decriptionLabel.height = textHeight;
+         this.decriptionLabel.y = top + DESCRIPTION_MARGIN;
+         panel.height = textHeight + 2 * DESCRIPTION_MARGIN;
+         var up:Number = oldBottom - (top + panel.height);
+         this.decriptionTimerLabel.y -= up;
+         this.checkBoxRegularCost.y -= up;
+      }
+
       private function setChooseReollOptionState(choosing:Boolean) : void
       {
          this.rerollContainer.visible = !choosing;
@@ -366,7 +391,10 @@ package survarium.messages
          this._price.visible = !choosing;
          this.modifiersList.enabled = !choosing;
          this.decriptionTimerLabel.visible = !choosing;
-         this.background.height = !choosing ? 392 : 337;
+         // While the price shows, the window ends SilverPrice.GAP under it, as the upgrade window does (the
+         // owner, 2026-11-08: "there is too much empty space after 200 silver"): the stock 392 left room for
+         // the taller money choice.
+         this.background.height = !choosing && this._price ? this._price.windowHeight : (!choosing ? 392 : 337);
          this.lockBackground.height = this.background.height;
          var buttonAreaHeight:int = 48;
          var backgroundBottom:int = this.background.height - 3;

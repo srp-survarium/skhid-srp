@@ -31,7 +31,6 @@ package survarium.messages
    public class MessageCraftItem extends MessageAccept
    {
       
-      protected static var _craftChance:Array = [1,2,3,4,5,6,7,8,9,10,11,12];
       
       protected static var _regularCostArray:Array = [];
       
@@ -119,11 +118,6 @@ package survarium.messages
          this.dragItemSlot2.itemRenderer.showLoadouts = true;
       }
       
-      public static function setCraftChances(chances:Array) : void
-      {
-         _craftChance = chances;
-      }
-      
       public static function setCraftRegularCost(costs:Array) : void
       {
          trace("setCraftRegularCost",costs);
@@ -175,7 +169,7 @@ package survarium.messages
          btnAccept.label = LocalizationData.getName("btn_item_craft");
          this.background.height = 415;
          this.rerollContainer.y += 1;
-         this.removeFailureRow();
+         this.removeChancePanel();
          this.updateLayout();
          tabEnabled = true;
          btnAccept.enabled = false;
@@ -183,6 +177,8 @@ package survarium.messages
          {
             trace("in:data::",this.newModiferRenderer,this.labelNewModifier);
             this._price = new SilverPrice(this.checkBoxRegularCost,this.background.x + this.background.width / 2);
+            this.background.height = this._price.windowHeight;
+            this.updateLayout();
             this.lockWindow(false);
             this.craftTimer.visible = false;
             this.newModiferRenderer.visible = false;
@@ -198,12 +194,7 @@ package survarium.messages
             }
             this.dragItemSlot1.dragEnabled = true;
             this.labelText.text = LocalizationData.getName("item_craft_label");
-            this.decriptionLabel.text = LocalizationData.getName("item_craft_description");
-            this.labelSuccessChance.text = LocalizationData.getName("item_craft_success_label");
-            this.labelFailChance.text = LocalizationData.getName("item_craft_fail_label");
-            this.labelRegularMoney.text = LocalizationData.getName("regular_money");
-            // An upgrade is paid in silver only, at the chances the server sends for it: the game
-            // has no gold (the owner, 2026-11-08). The gold column is hidden.
+            // No gold column either (removeChancePanel hides the rest of the panel).
             this.labelGoldMoney.visible = false;
             this.successChanceGold.visible = false;
             this.failChanceGold.visible = false;
@@ -231,18 +222,23 @@ package survarium.messages
          this.checkAcceptButton();
       }
       
-      // An upgrade never takes a modification away (the owner's rule of 2026-10-23, craft-menu.md):
-      // no failure ("-1 mod.") row, and the server sends its chances as 0. The chances' panel,
-      // the prices under it and the window close up by the row's height; the top stays.
-      private function removeFailureRow() : void
+      // An upgrade always succeeds (the owner, 2026-11-08: "make it 100% always", "remove the text
+      // completely", "it is just two weapons, silver and buttons"): before it, the window holds the two
+      // slots, the price and the buttons. The panel under the slots (its text, the chances and their
+      // column) is hidden, the price moves up to where the panel began and the window closes up by
+      // as much; the top stays. The result view (fillCraftedItem) shows the panel again.
+      private function removeChancePanel() : void
       {
-         var row:Number = this.labelFailChance.y - this.labelSuccessChance.y;
-         this.labelFailChance.visible = false;
-         this.failChanceRegular.visible = false;
-         this.rerollContainer.background.height -= row;
-         this.checkBoxRegularCost.y -= row;
-         this.craftTimer.y -= row;
-         this.background.height -= row;
+         // The price's text GAP under the slots (SilverPrice puts its text where the checkbox's was).
+         var slotsBottom:Number = this.dragItemSlot1.y + this.dragItemSlot1.height;
+         var up:Number = this.checkBoxRegularCost.y + this.checkBoxRegularCost.textFieldValue.y - slotsBottom - SilverPrice.GAP;
+         this.rerollContainer.visible = false;
+         this.decriptionLabel.visible = false;
+         this.labelSuccessChance.visible = this.successChanceRegular.visible = false;
+         this.labelFailChance.visible = this.failChanceRegular.visible = false;
+         this.labelRegularMoney.visible = false;
+         this.checkBoxRegularCost.y -= up;
+         this.craftTimer.y -= up;
       }
       
       private function updateLayout() : void
@@ -259,17 +255,6 @@ package survarium.messages
          var droppedItem:ItemData;
          trace("onPaperDollSlot",event.target);
          trace("items",this.dragItemSlot1.data ? this.dragItemSlot1.data.itemId : null,this.dragItemSlot2.data ? this.dragItemSlot2.data.itemId : null);
-         if(!this.dragItemSlot3.visible)
-         {
-            if(this.dragItemSlot1.data && this.dragItemSlot2.data)
-            {
-               this.decriptionLabel.text = LocalizationData.getName("item_craft_description");
-            }
-            else
-            {
-               this.decriptionLabel.text = LocalizationData.getName(this.dragItemSlot1.data ? "item_craft_description_choose_donor" : "item_craft_description_choose_item");
-            }
-         }
          if(event.target.data)
          {
             droppedItem = event.target.data;
@@ -322,9 +307,6 @@ package survarium.messages
          var donorItem:ItemData = this.dragItemSlot2.data;
          var mainRank:uint;
          var donorRank:uint;
-         var successRegular:uint = 0;
-         var failRegular:uint = 0;
-         var chanceIndex:uint;
          var costLevel:uint;
          _craftAvailable = true;
          if(!mainItem || !donorItem)
@@ -342,15 +324,7 @@ package survarium.messages
                _craftAvailable = false;
                this.onWrongModifiers();
             }
-            else
-            {
-               chanceIndex = (mainRank - donorRank) * 4;
-               successRegular = _craftChance[chanceIndex];
-               failRegular = _craftChance[chanceIndex + 1];
-            }
          }
-         this.successChanceRegular.text = successRegular + "%";
-         this.failChanceRegular.text = failRegular + "%";
          if(mainItem || donorItem)
          {
             costLevel = mainItem ? mainItem.itemLevel : (donorItem ? donorItem.itemLevel : 0);
@@ -403,10 +377,6 @@ package survarium.messages
             {
                canCraft = false;
             }
-            else if(mainItem.repairTime || donorItem.repairTime)
-            {
-               canCraft = false;
-            }
             else if(PlayerInfo.genericMoney < _regularCost)
             {
                canCraft = false;
@@ -421,50 +391,30 @@ package survarium.messages
          trace("fillCraftData::",craftData.regular_cost);
       }
       
+      // The result view. An upgrade always adds a modification (the owner, 2026-11-08: "item upgrade
+      // successfully after combining two items is unnecessary text", "since it is always succesful"): the
+      // upgraded item and its new modification, no result text and no panel for one; the modification's
+      // row moves up to where the panel began. A refused upgrade (CraftResult.FAILED) closes the window.
       public function fillCraftedItem(craftedItem:Object, result:int, newModifier:Object) : void
       {
-         trace("fillCraftedItem::",result);
          this.dragItemSlot3.data = craftedItem;
          this.dragItemSlot3.visible = true;
          this.dragItemSlot1.visible = this.dragItemSlot2.visible = false;
-         if(result == CraftResult.NOTHING)
-         {
-            this.labelNewModifier.text = "";
-         }
-         else
-         {
-            this.labelNewModifier.text = result == CraftResult.ADDED ? LocalizationData.getName("new_modifier") : LocalizationData.getName("lost_modifier");
-         }
-         this.labelNewModifier.textColor = result == CraftResult.ADDED ? Colors.SOFT_GRAY : Colors.RED;
+         this.labelNewModifier.text = LocalizationData.getName("new_modifier");
+         this.labelNewModifier.textColor = Colors.SOFT_GRAY;
          this.newModiferRenderer.data = newModifier;
          this.newModiferRenderer.visible = newModifier != null;
          this.labelNewModifier.visible = true;
-         this.labelSuccessChance.visible = false;
-         this.labelFailChance.visible = false;
-         this.labelRegularMoney.visible = false;
-         this.successChanceRegular.visible = false;
-         this.failChanceRegular.visible = false;
          this._price.visible = false;
          this.craftTimer.visible = false;
          btnCancel.visible = false;
          btnAccept.x = (width - btnAccept.width) / 2;
          btnAccept.label = LocalizationData.getName("btn_craft_accept");
-         if(result == CraftResult.NOTHING)
-         {
-            this.rerollContainer.background.height = 55;
-            this.labelNewModifier.visible = false;
-            this.background.height = 307;
-            this.decriptionLabel.text = LocalizationData.getName("craft_result_neutral_label");
-            this.updateLayout();
-         }
-         else
-         {
-            this.rerollContainer.background.height = 51;
-            this.decriptionLabel.text = result == CraftResult.ADDED ? LocalizationData.getName("craft_result_success_label") : LocalizationData.getName("craft_result_fail_label");
-            this.background.height = 341;
-            this.updateLayout();
-         }
-         this.decriptionLabel.textColor = result == CraftResult.ADDED ? Colors.GOLD : Colors.SOFT_GRAY;
+         var up:Number = Math.max(0,Math.min(this.labelNewModifier.y,this.newModiferRenderer.y) - this.rerollContainer.y);
+         this.labelNewModifier.y -= up;
+         this.newModiferRenderer.y -= up;
+         this.background.height = 341 - up;
+         this.updateLayout();
          this.lockWindow(false);
          if(result == CraftResult.FAILED)
          {

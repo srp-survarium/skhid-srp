@@ -64,10 +64,9 @@ pub struct ItemDescr {
     pub dict_id: u16,
     /// A stack's count, or an item's condition × 10 000.
     pub condition_or_stack: u32,
-    /// Only on the wire for an item that is no stack (and only in the
-    /// lobby's form of the descriptor). Meaning LIKELY from the UI's names
-    /// (`repair_time`, `reroll_time`); srp sends 0.
-    pub repair_time: u32,
+    /// Only on the wire for an item that is no stack. Meaning LIKELY from
+    /// the UI's names. Before it, in the lobby's form, the item's
+    /// `repair_time`: always 0, srp has no repair (the owner, 2026-11-08).
     pub reroll_time: u32,
     pub modifications: Vec<Modification>,
     pub upgrades: Vec<Upgrade>,
@@ -80,7 +79,6 @@ impl ItemDescr {
             item_id,
             dict_id,
             condition_or_stack,
-            repair_time: 0,
             reroll_time: 0,
             modifications: Vec::new(),
             upgrades: Vec::new(),
@@ -94,7 +92,7 @@ impl ItemDescr {
 pub(crate) enum DescrMode {
     /// Mode 0: every lobby reader but the results' dropped item.
     Lobby,
-    /// Mode 1: no `repair_time`.
+    /// Mode 1: no `repair_time` (srp writes 0 in mode 0).
     Brief,
 }
 
@@ -127,7 +125,8 @@ pub(crate) fn write_item_tail(
     writer.u32(item.condition_or_stack);
     if !is_stack {
         if mode == DescrMode::Lobby {
-            writer.u32(item.repair_time);
+            // repair_time: no repair.
+            writer.u32(0);
         }
         writer.u32(item.reroll_time);
     }
@@ -283,12 +282,10 @@ pub struct OwnAccount {
     /// The id of the kit the player plays; the client selects the kit with
     /// this id.
     pub active_kit: u32,
-    /// The two boxes of the kit window: one byte on the wire, bit 0
-    /// autobuy and bit 1 auto-repair (the client hands the byte to
-    /// `root.set_autobuy` as a number, 0x227760; `LobbyMenu.set_autobuy`
-    /// ticks autobuy for 1 and 3, auto-repair for 2 and 3. PROVEN).
+    /// The kit window's autobuy box: bit 0 of one byte on the wire (the
+    /// client hands the byte to `root.set_autobuy` as a number, 0x227760;
+    /// PROVEN). Bit 1, the stock auto-repair, is 0: srp has no repair.
     pub autobuy: bool,
-    pub auto_repair: bool,
     /// The account's level: also the skill points it has unlocked.
     pub level: u8,
     pub exp_total: u32,
@@ -449,7 +446,7 @@ pub fn own_account(account: &OwnAccount) -> Result<ServerMessage, WireError> {
     }
     writer
         .u32(account.active_kit)
-        .u8(auto_state(account.autobuy, account.auto_repair))
+        .u8(auto_state(account.autobuy))
         .u8(account.level)
         .u32(account.exp_total)
         .u32(account.exp_level_start)
@@ -470,12 +467,12 @@ pub fn squad_member_account(body: &AccountBody, revision: u32) -> Result<ServerM
 /// of `89` (`lobby.md` §2.9; client 0x26EF40): three lists of `(silver,
 /// dict id)`, shown on the results screen as "Ammunition", "Special
 /// equipment" and "Repair cost" (`VictoryScreen.setSpendMoneyDetailed`).
-/// All empty unless the server really took that money.
+/// All empty unless the server really took that money; the repair list
+/// always is (srp has no repair).
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SpentMoney {
     pub autobuy_ammo: Vec<(u32, u16)>,
     pub autobuy_consumables: Vec<(u32, u16)>,
-    pub repair: Vec<(u32, u16)>,
 }
 
 /// One list of [`SpentMoney`]: what it is, its rows, and the most the
@@ -497,7 +494,7 @@ impl SpentMoney {
                 &self.autobuy_consumables,
                 limits::SPENT_AUTOBUY_CONSUMABLES,
             ),
-            ("repair rows", &self.repair, limits::SPENT_REPAIR),
+            ("repair rows", &[], limits::SPENT_REPAIR),
         ]
     }
 }
@@ -1355,36 +1352,6 @@ pub fn permitted_offer_bought() -> ServerMessage {
     permitted_event(SHOP, 2).done(ServerId::Permitted)
 }
 
-/// How a repair was paid (`83 47 03`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Repaired {
-    /// The item's `repair_time` becomes this non-zero value.
-    Timed { repair_time: u32 },
-    /// At once, with nothing taken from the inventory.
-    AtOnce,
-}
-
-/// `83 47 03`: repaired. The client sets the item's condition to full and
-/// its `repair_time`; **only for a `repair_time` of 0** it reads a kit item
-/// id, and for a kit it has, how many were used. srp has no repair kits
-/// (the owner, 2026-11-08): the id is always 0.
-pub fn permitted_repaired(item_id: u32, repaired: Repaired) -> Result<ServerMessage, WireError> {
-    let mut writer = permitted_event(SHOP, 3);
-    writer.u32(item_id);
-    match repaired {
-        Repaired::Timed { repair_time } => {
-            if repair_time == 0 {
-                return Err(WireError::BadValue("a timed repair with no time"));
-            }
-            writer.u32(repair_time);
-        }
-        Repaired::AtOnce => {
-            writer.u32(0).u32(0);
-        }
-    }
-    Ok(writer.done(ServerId::Permitted))
-}
-
 /// `83 47 04` (gold exchanged) and `83 47 05` (shows an important message
 /// of type 7): no body is read.
 pub fn permitted_shop_event(event: u8) -> Result<ServerMessage, WireError> {
@@ -1396,22 +1363,17 @@ pub fn permitted_shop_event(event: u8) -> Result<ServerMessage, WireError> {
 
 // ---- 83 49: kits and the account (`process_profiles_action`) ----
 
-/// `83 49 01`: the account's autobuy box.
+/// The lobby's number for the kit window's boxes (`LobbyMenu.set_autobuy`):
+/// bit 0 autobuy; bit 1, the stock auto-repair, 0 (srp has no repair).
+pub(crate) fn auto_state(autobuy: bool) -> u8 {
+    u8::from(autobuy)
+}
+
+/// `83 49 01`: the account's autobuy box, one byte the client stores and
+/// shows (0x275CC5 → `root.set_autobuy`).
 pub fn permitted_autobuy(on: bool) -> ServerMessage {
-    permitted_auto_state(on, false)
-}
-
-/// The lobby's number for the autobuy and auto-repair boxes: bit 0 and
-/// bit 1 (`LobbyMenu.set_autobuy`).
-pub(crate) fn auto_state(autobuy: bool, auto_repair: bool) -> u8 {
-    u8::from(autobuy) | u8::from(auto_repair) << 1
-}
-
-/// `83 49 01`: the account's autobuy and auto-repair boxes, one byte the
-/// client stores and shows (0x275CC5 → `root.set_autobuy`).
-pub fn permitted_auto_state(autobuy: bool, auto_repair: bool) -> ServerMessage {
     permitted_event(PROFILE, 1)
-        .u8(auto_state(autobuy, auto_repair))
+        .u8(auto_state(on))
         .done(ServerId::Permitted)
 }
 

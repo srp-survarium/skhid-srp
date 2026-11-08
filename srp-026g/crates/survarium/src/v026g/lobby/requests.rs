@@ -70,18 +70,6 @@ pub struct Relocation {
     pub count_in_inventory: u32,
 }
 
-/// How a repair is paid (`47 03`; `MessageRepair.onMessageAccept`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RepairPayment {
-    /// Kind 0: silver. Kind 1, the stock window's gold, is silver too: gold
-    /// is gone (the owner, 2026-11-08), and the silver repair is the gold
-    /// one of before, at its price in silver.
-    Silver,
-    /// Another kind byte: kind 2 was a repair kit (voucher), which is gone
-    /// (the owner, 2026-11-08); its kit item id is left unread.
-    Other(u8),
-}
-
 /// A clan request: `49 06..=23` (`social.md` §3.3). The layouts are PROVEN,
 /// the meanings LIKELY from the Flash callback names.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -284,11 +272,8 @@ pub enum ClientMessage {
     Sell { item_id: u32, amount: u32 },
     /// `47 02`: buy a shop offer; `x` is 0 except from the results screen.
     BuyOffer { offer_id: u32, x: u32, factor: f32 },
-    /// `47 03`.
-    Repair {
-        item_id: u32,
-        payment: RepairPayment,
-    },
+    // `47 03`, a repair, is no request: srp has no repair (the owner,
+    // 2026-11-08: "we don't have repair in the game at all"); it is not read.
     /// `47 05`.
     AcceptPremiumWithBonuses {
         a0: u32,
@@ -313,8 +298,8 @@ pub enum ClientMessage {
     RenameKit { kit_id: u32, name: String },
     /// `49 01`: the account's two boxes, as the lobby's number
     /// (`LocalPlayerProfile.getAutoBuyState`; PROVEN): bit 0 is autobuy
-    /// (`on`), bit 1 auto-repair.
-    SetAutobuy { on: bool, repair: bool },
+    /// (`on`); bit 1, the stock auto-repair, is not read (srp has no repair).
+    SetAutobuy { on: bool },
     /// `49 02`.
     SetActiveKit { kit_id: u32 },
     /// `49 03`.
@@ -726,14 +711,6 @@ fn parse_shop(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             x: r.u32()?,
             factor: r.f32()?,
         },
-        0x03 => {
-            let item_id = r.u32()?;
-            let payment = match r.u8()? {
-                0 | 1 => RepairPayment::Silver,
-                other => RepairPayment::Other(other),
-            };
-            M::Repair { item_id, payment }
-        }
         0x05 => M::AcceptPremiumWithBonuses {
             a0: r.u32()?,
             a1: r.f32()?,
@@ -762,10 +739,7 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
         }
         0x01 => {
             let state = r.u8()?;
-            return Ok(M::SetAutobuy {
-                on: state & 1 != 0,
-                repair: state & 2 != 0,
-            });
+            return Ok(M::SetAutobuy { on: state & 1 != 0 });
         }
         0x02 => return Ok(M::SetActiveKit { kit_id: r.u32()? }),
         0x03 => {

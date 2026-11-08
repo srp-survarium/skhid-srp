@@ -2135,12 +2135,9 @@ impl<'a> Shared<'a> {
                 reward.drop = Some(dropped);
             }
         }
-        // The supplies used are taken, and the account's autobuy and
-        // auto-repair boxes buy them back and repair what the match wore,
-        // paid from what it has now (the match's pay included).
-        let worn: Vec<u32> = reward.worn.iter().map(|&(item_id, _, _)| item_id).collect();
-        reward.spent =
-            super::autobuy::settle(account, &reward.supplies_used, &worn, self.terms.now).spent;
+        // The supplies used are taken, and the account's autobuy box buys
+        // them back, paid from what it has now (the match's pay included).
+        reward.spent = super::autobuy::settle(account, &reward.supplies_used).spent;
         account.sync_kits();
         (reward, full, notices)
     }

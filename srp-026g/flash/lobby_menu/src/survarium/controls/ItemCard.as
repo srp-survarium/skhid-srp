@@ -113,22 +113,6 @@ package survarium.controls
          this.upgradeMessage.updateReroll(modifiers);
       }
       
-      public function repairItem(event:ButtonEvent = null) : void
-      {
-         trace("repairItem::",this._data.itemId,this._data.icon,this._data.messIcon);
-         var repairData:ItemData = new ItemData();
-         repairData.itemId = this._data.itemId;
-         repairData.name = this._data.name;
-         repairData.sellerIcon = this._data.sellerIcon ? this._data.sellerIcon.clone() : null;
-         repairData.icon = this._data.messIcon;
-         repairData.value = this._data.value;
-         repairData.modifiers = this.getFailModifiers();
-         repairData.repairCostRatio = this._data.repairCostRatio;
-         repairData.cost = this._data.cost;
-         var profile:IPlayerProfile = parent["player_profile"];
-         Message.showMessage("repair",repairData,true);
-      }
-      
       public function openModifiersWindow(event:ButtonEvent = null) : void
       {
          dispatchEvent(new Event(Events.OPEN_MODIFIERS));
@@ -314,79 +298,6 @@ package survarium.controls
       public function setModifiersIcons(icons:IconContainer) : void
       {
          _modifiersIconContainer = icons;
-      }
-      
-      protected function getFailModifiers() : Array
-      {
-         var allModifiers:Array = this._data.modifiers != null ? this._data.modifiers : [];
-         var failModifiers:Array = [];
-         var i:uint = 0;
-         var modifierIcon:Icon;
-         while(i < allModifiers.length)
-         {
-            if(allModifiers[i].state == ModificationState.DEFECT)
-            {
-               modifierIcon = this._modifiersIconContainer.getIcon(allModifiers[i].icon);
-               failModifiers.push({
-                  name:allModifiers[i].name,
-                  props:allModifiers[i].props,
-                  icon:modifierIcon,
-                  state:allModifiers[i].state,
-                  fix_time_general:allModifiers[i].fix_time_general,
-                  fix_cost_general:allModifiers[i].fix_cost_general
-               });
-            }
-            i++;
-         }
-         this.fillModifiersNames(failModifiers);
-         return failModifiers;
-      }
-      
-      protected function fillModifiersNames(modifiers:Array) : void
-      {
-         var i:uint = 0;
-         var text:String;
-         var props:Object;
-         var prop:Object;
-         var propDescription:Object;
-         var postfix:String;
-         var sign:String;
-         var propValue:Number;
-         var color:String;
-         while(i < modifiers.length)
-         {
-            text = "";
-            props = modifiers[i].props;
-            trace("props::",text,props,this._propsDescriptor);
-            for each(prop in props)
-            {
-               propDescription = this._propsDescriptor.getPropertyDescription(prop.prop_id);
-               if(propDescription)
-               {
-                  if(propDescription.postfix == undefined)
-                  {
-                     propDescription.postfix = "";
-                  }
-                  postfix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
-                  sign = prop.prop_value >= 0 ? "+" : "";
-                  if(propDescription.modifier_type == undefined)
-                  {
-                     propDescription.modifier_type = ModifierType.INVALID;
-                     propDescription.modifier_type = prop.modifier_type;
-                  }
-                  if(propDescription.modifier_type == ModifierType.INVALID)
-                  {
-                     throw Error("modifier_type at modifier " + modifiers[i].name + " for prop_id " + prop.prop_id + " is invalid");
-                  }
-                  trace("propValue::",propDescription.direction,prop.direction);
-                  propValue = propDescription.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
-                  color = ModificationRolls.style(propDescription,prop.prop_id,ModificationRolls.value(prop));
-                  text += propDescription.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
-               }
-            }
-            modifiers[i].name = text;
-            i++;
-         }
       }
       
       protected function updateData() : void

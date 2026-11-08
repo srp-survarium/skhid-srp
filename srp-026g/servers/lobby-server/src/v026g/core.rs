@@ -995,10 +995,6 @@ impl<'a> Core<'a> {
                 }
             }
             self.friend_statuses(addr);
-            // A repair that is over (`items`).
-            if let Some(who) = self.who(addr) {
-                self.item_timers(&who);
-            }
             // A match that ended after its player had left it.
             let in_lobby = self
                 .player(addr)

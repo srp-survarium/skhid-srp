@@ -117,15 +117,20 @@ upgradable item and press buy").
   the slots are hidden: nothing.
 - Code: `MessageCraftItem.onSlotDown`, `onSlotClick`; `InventoryList.showCraftSlotMenu`.
 
-## Success chances
+## Always a success; the window
 
 The owner's rule: 2026-11-08 ("the combining modification changes drop too fast 100% on the same
-level, 50 and 25% for levels lower"; "it should be 100, 95, 90").
+level, 50 and 25% for levels lower"; "it should be 100, 95, 90"; then "i would honestly also make
+it 100% always", "remove the text completely", "it is just two weapons, silver and buttons").
 
-- **Success:** 100 % when the item has as many modifications as its donor, 95 % with one more,
-  90 % with two more. Before: 100 / 50 / 25 % (the gold upgrade's, which silver-only.md made the
-  one upgrade).
-- **Otherwise:** nothing happens (see above); no failure chance is left in the data.
+- **Success:** always: an upgrade adds a modification whatever the difference in modifications.
+  Before: 100 / 50 / 25 % (the gold upgrade's, which silver-only.md made the one upgrade).
+- **The window before an upgrade:** the two slots, the price (centred, silver) and the buttons. No
+  description, no chances, no "Silver" column: the panel under the slots is hidden and the window
+  closes up (`MessageCraftItem.removeChancePanel`).
+- **The window after it:** the upgraded item and its new modification, with Continue and Exit; no
+  result text ("item upgraded successfully": always so, the owner, 2026-11-08) and no panel for it
+  (`fillCraftedItem`).
 - **Price:** unchanged (the gold price in silver, silver-only.md).
 - Data: `craft_probabilities_premium` of `craft.options` (`scripts/content-edit/craft-chances-1.json`);
-  the server reads it, the window shows what 0x9B sends.
+  the server rolls on it (always a success now); 0x9B still carries it, and the window ignores it.

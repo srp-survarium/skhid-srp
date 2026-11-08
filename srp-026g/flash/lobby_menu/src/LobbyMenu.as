@@ -205,11 +205,9 @@ package
       // as an admin text; the exe never calls it.
       private static const ADMIN_MESSAGE_WARNING:int = 0;
 
-      // set_autobuy's value: bit 0 the autobuy box, bit 1 the auto-repair box (gone: an account
-      // that had it ticked still sends 3).
+      // set_autobuy's value: bit 0 the autobuy box; bit 1, the stock auto-repair box, is never set (srp
+      // has no repair).
       private static const AUTO_BUY:int = 1;
-
-      private static const AUTO_BUY_AND_REPAIR:int = 3;
 
       // meaning unknown: the progress show_daily_reward_window takes a day's reward to need.
       private static const DAILY_REWARD_PROGRESS_REQUIRED:int = 3;
@@ -1141,7 +1139,6 @@ package
          SrvContextMenu.setPatternt(new ContextPattern());
          DragManager.init(this.stage,this._overlay);
          Message.registerMessage("ask",MessageAsk);
-         Message.registerMessage("repair",SrvMessageRepairSkinned);
          Message.registerMessage("askr",MessageAskRelocate);
          Message.registerMessage("premium",SrvMessagePremium);
          Message.registerMessage("post_premium",SrvMessagePremiumLost);
@@ -1674,8 +1671,7 @@ package
          this.victory_screen.setData(reportData);
          if((reportData) && (reportData.statistics_money))
          {
-            trace("showFullReaport::",reportData.statistics_money.autobuy_money,reportData.statistics_money.autorepair_money);
-            this.victory_screen.setSpendMoneyDetailed(reportData.statistics_money.autobuy_money_ammo_arr,reportData.statistics_money.autobuy_money_consulables_arr,reportData.statistics_money.autorepair_money_arr);
+            this.victory_screen.setSpendMoneyDetailed(reportData.statistics_money.autobuy_money_ammo_arr,reportData.statistics_money.autobuy_money_consulables_arr);
          }
       }
       
@@ -1776,18 +1772,18 @@ package
          this.victory_screen.setBonus(mathId,bonus);
       }
       
+      // `repair`, the exe's third list, is always empty: srp has no repair (the owner, 2026-11-08).
       public function fill_victory_screen_spend_money_detailed(autobuy_ammo:Array, autobuy_consulables:Array, repair:Array) : void
       {
-         trace("fill_victory_screen_spend_money_detailed",autobuy_ammo,autobuy_consulables);
-         this.victory_screen.setSpendMoneyDetailed(autobuy_ammo,autobuy_consulables,repair);
+         this.victory_screen.setSpendMoneyDetailed(autobuy_ammo,autobuy_consulables);
          this.updateReport(this.victory_screen.getData());
          this.set_log_list(this._reports);
       }
       
+      // `repair` is always 0: srp has no repair.
       public function fill_victory_screen_spend_money(autobuy:int, repair:int) : void
       {
-         trace("fill_victory_screen_spend_money",autobuy,repair);
-         this.victory_screen.setSpendMoney(autobuy,repair);
+         this.victory_screen.setSpendMoney(autobuy);
          this.updateReport(this.victory_screen.getData());
          this.set_log_list(this._reports);
       }
@@ -3402,7 +3398,7 @@ package
       public function set_autobuy(value:uint) : void
       {
          trace("set_auto_buy::",value);
-         this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
+         this.player_profile.checkbox_autobuy.selected = (value & AUTO_BUY) != 0;
       }
       
       public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, origin:BuyOrigin, seller:int = -1, onComplete:Function = null) : Boolean
@@ -4335,10 +4331,11 @@ package
       {
       }
       
+      // The upgrade's chances (0x9B), which the exe still hands over: an upgrade always succeeds and its
+      // window shows no chances (the owner, 2026-11-08: "make it 100% always", "remove the text
+      // completely"), so nothing reads them.
       public function setup_item_craft_chances(value:Array) : void
       {
-         trace("setup_item_craft_chances",value);
-         MessageCraftItem.setCraftChances(value);
       }
       
       public function update_inventory_item(value:Object) : void

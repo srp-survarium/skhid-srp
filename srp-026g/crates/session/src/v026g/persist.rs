@@ -780,7 +780,8 @@ impl GameRepository for SqliteGameRepository {
             }
             {
                 let mut statement = transaction.prepare_cached(
-                    "SELECT item_id, dict_id, condition_or_stack, repair_time, reroll_time,
+                    // repair_time is not read: srp has no repair.
+                    "SELECT item_id, dict_id, condition_or_stack, reroll_time,
                             modifications, upgrades, reroll
                      FROM g26_items WHERE account_id = ?1 ORDER BY seq",
                 )?;
@@ -790,15 +791,14 @@ impl GameRepository for SqliteGameRepository {
                             item_id: row.get(0)?,
                             dict_id: row.get(1)?,
                             condition_or_stack: row.get(2)?,
-                            repair_time: row.get(3)?,
-                            reroll_time: row.get(4)?,
+                            reroll_time: row.get(3)?,
                             modifications: Vec::new(),
                             upgrades: Vec::new(),
                             reroll: Default::default(),
                         },
+                        row.get::<_, String>(4)?,
                         row.get::<_, String>(5)?,
                         row.get::<_, String>(6)?,
-                        row.get::<_, String>(7)?,
                     ))
                 })?;
                 for row in rows {
@@ -1038,7 +1038,8 @@ fn write_account(
                 seq as i64,
                 item.dict_id,
                 item.condition_or_stack,
-                item.repair_time,
+                // repair_time: srp has no repair.
+                0,
                 item.reroll_time,
                 modifications_text(item),
                 upgrades_text(item),
@@ -1145,7 +1146,6 @@ mod tests {
         quests::refresh(&mut account, 1_000, &mut Rng::new(4));
         account.quest_cooldowns.push((10101, 5_000));
         account.inventory[0].condition_or_stack = 654_321;
-        account.inventory[0].repair_time = 7;
         account.inventory[0].reroll_time = 8;
         account.inventory[0].modifications = vec![(1050, true), (7, false)];
         account.inventory[0].upgrades = vec![Upgrade {
@@ -1162,7 +1162,6 @@ mod tests {
             rating: -1250,
             matches: 9,
         };
-        account.extras.auto_repair = true;
         account.extras.tutorial_flags = 0b101;
         account.extras.bonus.day = 3;
         account.extras.bonus.last_day = 20_373;

@@ -18,8 +18,9 @@
 //! - Selling gives a quarter: `cost / 4`, times `condition / 100` for an item
 //!   that is no stack (`InventoryList.sellObject`, `ItemCard`). PROVEN (what
 //!   the client shows; the server pays).
-//! - A repair costs `(1 - condition / 100) * repair_cost_ratio * cost`, plus
-//!   the fix costs of the item's defects (`MessageRepair.init`). PROVEN.
+//! - There is no repair (the owner, 2026-11-08): the stock one cost
+//!   `(1 - condition / 100) * repair_cost_ratio * cost` plus the defects'
+//!   fix costs (`MessageRepair.init`, PROVEN).
 //! - Every `cost` is silver, a premium item's too [srp, the owner's rule of
 //!   2026-11-08: silver is the one currency]. The stock lobby read a
 //!   premium item's `cost` as gold and multiplied it by the exchange rate
@@ -107,7 +108,7 @@
 use binary_config_parser::tree::ConfigValue;
 
 use super::dictionary::{Dictionary, Item};
-use super::item_params::{ItemParams, item_params};
+use super::item_params::ItemParams;
 use super::scopes::{SCOPE_CATEGORY, ScopeFits};
 
 /// Silver for one gold: the game's exchange rate (0.21d's web page sold gold
@@ -522,19 +523,10 @@ pub fn sell_price(dictionary: &Dictionary, dict_id: u16, condition_or_count: u32
     }
 }
 
-/// What the lobby shows for repairing `dict_id` from `condition` (0..=100)
-/// to full, without its defects' fix costs.
-pub fn repair_cost(dictionary: &Dictionary, dict_id: u16, condition: u32) -> u32 {
-    let (Some(item), Some(params)) = (dictionary.item(dict_id), item_params(dict_id)) else {
-        return 0;
-    };
-    let worn = 1.0 - condition.min(100) as f32 / 100.0;
-    (worn * (params.repair_cost_ratio * item.base_cost as f32)) as u32
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::v026g::item_params::item_params;
     use crate::v026g::game_data::key_value_config;
 
     #[test]
@@ -1013,11 +1005,6 @@ mod tests {
         // is 50,000 (`items.tsv`).
         let uzi = dictionary.item_named("uzi_premium").unwrap().dict_id;
         assert_eq!(sell_price(dictionary, uzi, 100), 12_500);
-        // Repair: ratio 0.1 of 47500 for the whole, a half for a half.
-        assert_eq!(repair_cost(dictionary, 3, 0), 4750);
-        assert_eq!(repair_cost(dictionary, 3, 50), 2375);
-        assert_eq!(repair_cost(dictionary, 3, 100), 0);
-        assert_eq!(repair_cost(dictionary, 7, 0), 0);
     }
 
     /// The owner's choice: the starting Mosin carbine and PPSh-41 (2026-10-18,

@@ -40,7 +40,6 @@ fn account(items: Vec<ItemDescr>) -> OwnAccount {
         revisions: vec![3],
         active_kit: 1,
         autobuy: true,
-        auto_repair: false,
         level: 4,
         exp_total: 10,
         exp_level_start: 5,
@@ -402,38 +401,11 @@ fn the_inventory_follows_purchases_and_sales() {
 }
 
 #[test]
-fn repairs_and_drops_change_the_inventory() {
+fn drops_change_the_inventory() {
     let mut client = Client::signed_in();
-    let mut worn = pistol(1);
-    worn.condition_or_stack = 400_000;
     client
-        .receive(&inventory(&[worn, ammo(4, 2)]).unwrap())
+        .receive(&inventory(&[pistol(1), ammo(4, 2)]).unwrap())
         .unwrap();
-    let repaired = permitted_repaired(1, Repaired::AtOnce).unwrap();
-    assert_eq!(
-        client.receive(&repaired),
-        Ok(Decoded::Permitted(Permitted::Repaired {
-            item_id: 1,
-            repaired: Repaired::AtOnce
-        }))
-    );
-    assert_eq!(client.inventory(), [pistol(1), ammo(4, 2)]);
-    // A kit's id (srp has no kits): the model refuses it.
-    assert_eq!(
-        client.receive_raw(0x83, &h("47 03 01000000 00000000 04000000 01")),
-        Err(ModelError::NotInInventory(4))
-    );
-    // A repair of an item the client lacks is read no further.
-    assert_eq!(
-        client.receive(&permitted_repaired(9, Repaired::AtOnce).unwrap()),
-        Err(ModelError::NotInInventory(9))
-    );
-    assert!(
-        client
-            .receive(&permitted_repaired(1, Repaired::Timed { repair_time: 60 }).unwrap())
-            .is_ok()
-    );
-    assert_eq!(client.inventory()[0].repair_time, 60);
 
     // A drop: the new item is added and the card's count set.
     client.receive(&drop(&pistol(7), 4, 0, 2).unwrap()).unwrap();

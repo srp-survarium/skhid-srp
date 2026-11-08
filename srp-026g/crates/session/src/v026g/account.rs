@@ -66,10 +66,8 @@ pub struct Item {
     /// A stack's count in units (rounds of ammo), or an item's condition
     /// × 10 000 ([`FULL_CONDITION`] is 100).
     pub condition_or_stack: u32,
-    /// The Unix second its repair ends at, and the one from which a
-    /// modification may be changed for silver again; 0: none. (The wire
-    /// carries the seconds left, `wire::item_descr_at`.)
-    pub repair_time: u32,
+    /// The Unix second from which a modification may be changed for silver
+    /// again; 0: none. Not read: rerolls have no wait (`items_rules`).
     pub reroll_time: u32,
     /// `(id, state)`: a modification (false) or a defect (true), each of
     /// `survarium::v026g::modifications`; at most 8.
@@ -387,7 +385,6 @@ impl Account {
             item_id,
             dict_id,
             condition_or_stack,
-            repair_time: 0,
             reroll_time: 0,
             modifications: golden::starting_modifications(dict_id),
             upgrades: Vec::new(),
@@ -789,7 +786,7 @@ impl Account {
             super::items_rules::make_safe(item);
             item.modifications.truncate(limits::MODIFICATIONS);
             // A weapon's six logical slots go to the client packed into
-            // three records (wire::item_descr_at); any other item's three.
+            // three records (wire::item_descr); any other item's three.
             item.upgrades
                 .truncate(super::items_rules::upgrade_capacity(item.dict_id));
         }
@@ -1016,7 +1013,6 @@ mod tests {
             item_id: 9,
             dict_id: 9999,
             condition_or_stack: 1,
-            repair_time: 0,
             reroll_time: 0,
             modifications: Vec::new(),
             upgrades: Vec::new(),

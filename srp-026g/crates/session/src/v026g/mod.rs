@@ -1236,11 +1236,10 @@ mod tests {
             let account = store.get_or_create(5, "Alice");
             let mut account = account.locked();
             // A rifle found in a match: 40 % and a defect beside its own
-            // modification; a vest a match wore, in repair.
+            // modification; a vest a match wore.
             let rifle = account.add_item(dict("ak_74m"), FULL_CONDITION * 2 / 5);
             account.item_mut(rifle).unwrap().modifications = vec![(2110, false), (3060, true)];
             let vest = account.add_item(dict("scav_torso_1"), FULL_CONDITION - 10_000);
-            account.item_mut(vest).unwrap().repair_time = 2_000_000_000;
             let whole = account.add_item(dict("toz_34"), FULL_CONDITION);
             let rounds = account.add_item(dict("ammo_5.45x39_7n6m"), 90);
             (rifle, vest, whole, rounds)
@@ -1257,10 +1256,7 @@ mod tests {
             assert_eq!(rifle.condition_or_stack, FULL_CONDITION);
             assert_eq!(rifle.modifications, [(2110, false)]);
             let vest = account.item(vest).unwrap();
-            assert_eq!(
-                (vest.condition_or_stack, vest.repair_time),
-                (FULL_CONDITION, 0)
-            );
+            assert_eq!(vest.condition_or_stack, FULL_CONDITION);
             assert_eq!(
                 account.item(whole).unwrap().condition_or_stack,
                 FULL_CONDITION
