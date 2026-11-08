@@ -97,8 +97,9 @@ pub(super) struct Player<'a> {
     /// its place, which resolves to what the page (or a cached tab of it)
     /// showed there (`gear`). The last `gear::PAGES_KEPT` only.
     pub ranked_shown: Vec<(u32, Vec<u32>)>,
-    /// The account whose kits it was last shown (its last `93`): what the
-    /// player pop-up's Matches tab asks about (`player_matches`).
+    /// The account whose kits it was last shown (its last `93`), or that the
+    /// Watch window's search chose (`PLAYER_MATCHES_ASK`): what a
+    /// `PLAYER_MATCHES_START` ask is about (`player_matches`).
     pub shown_kits_of: Option<u32>,
     /// The online counts the client was last sent, and when (`None`: only
     /// with the sign-in's pushes).

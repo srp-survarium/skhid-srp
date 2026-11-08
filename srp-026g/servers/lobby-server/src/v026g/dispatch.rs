@@ -152,6 +152,18 @@ impl Core<'_> {
                 player_id: lobby::LIVE_ROSTER_ASK,
                 match_id,
             } => self.live_roster_ask(who, match_id),
+            // `3D 00 <PLAYER_MATCHES_ASK> <account>`: the Watch window's
+            // search by name; that account's matches come next
+            // (`player_matches`).
+            M::QueryPlayerDetails {
+                player_id: lobby::player_matches::PLAYER_MATCHES_ASK,
+                match_id: account_id,
+            } => {
+                let known = self.accounts.get(account_id).is_some();
+                if let Some(player) = self.player_mut(addr).filter(|_| known) {
+                    player.shown_kits_of = Some(account_id);
+                }
+            }
             // `3D 00 <GEAR_BY_PLACE> <place>`: the kits of a row of the
             // Rankings window (`gear`), any player's.
             M::QueryPlayerDetails {
