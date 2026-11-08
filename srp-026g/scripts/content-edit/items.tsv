@@ -192,7 +192,7 @@ items	name	base_cost	gold	like	start
 218	ammo_7.62x39_7n23	40	false		
 219	rdg-m	50	false		
 220	a_545	85500	false		
-221	decals_1_1	1000000	false		
+221	decals_1_1	50000	false		
 222	rpk	69300	false		
 223	camo_cyfra_03_camo	1000	true		
 224	camo_izlom	500	true		
@@ -590,6 +590,16 @@ items	name	base_cost	gold	like	start
 1881	eq069_snow_20_boots_7	16630	false		
 1882	eq069_league_shadow_mask	23630	false		
 1883	eq069_snow_20_helmet_7	39080	false		
+1884	decals_7_10	300	true		
+1885	decals_7_23	300	true		
+1886	decals_7_24	300	true		
+1887	decals_7_30	300	true		
+1888	decals_7_31	300	true		
+1889	decals_7_35	300	true		
+1890	decals_7_37	300	true		
+1891	decals_1_9	50000	false		
+1892	decals_1_10	50000	false		
+1893	decals_1_11	50000	false		
 1901	fit_pso1_gip	0	false		
 1902	fit_pso1_rem	0	false		
 1903	fit_pso1_mosin	0	false		

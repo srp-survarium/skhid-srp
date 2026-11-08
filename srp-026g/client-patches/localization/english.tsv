@@ -594,6 +594,8 @@ st_change_quest_label	Change task
 st_change_weapon_speed_description	Change weapon swap speed:
 st_change_weapon_speed_name	Deft hands
 st_character	Character
+st_character_decals_1_10_name	Boar hunter
+st_character_decals_1_11_name	Deer hunter
 st_character_decals_1_12_name	Jarilo
 st_character_decals_1_1_name	Literator
 st_character_decals_1_2_name	"Alpha" Squad
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veteran
 st_character_decals_1_6_name	Master
 st_character_decals_1_7_name	Legend
 st_character_decals_1_8_name	Flying Hussars
+st_character_decals_1_9_name	Musician
 st_character_decals_2_1_name	Scavengers rookie
 st_character_decals_2_2_name	Scavengers veteran
 st_character_decals_2_3_name	Black Market Recruit
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Coat of arms of Lithuania
 st_character_decals_5_7_name	Coat of arms of Lithuania
 st_character_decals_5_8_name	Coat of arms of Estonia
 st_character_decals_5_9_name	Coat of arms of Moldova
+st_character_decals_7_10_name	Matchsticks
+st_character_decals_7_23_name	Heart
+st_character_decals_7_24_name	Frightening Pumpkin
 st_character_decals_7_27_name	Clover ornament
 st_character_decals_7_28_name	Horseshoe
+st_character_decals_7_30_name	Homing pigeon
+st_character_decals_7_31_name	Victory
+st_character_decals_7_35_name	Bloody Hand
+st_character_decals_7_37_name	The Keeper
 st_character_decals_7_9_name	Herbs
 st_character_decals_generic_desc	Use decals in the vests and pants window to change their appearance.
 st_characteristics_label	Player stats

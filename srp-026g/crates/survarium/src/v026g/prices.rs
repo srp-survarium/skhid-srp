@@ -921,8 +921,9 @@ mod tests {
     }
 
     /// The badges (owner, 2026-11-07): every rank badge to everyone at no
-    /// rank, a million each but the Flying Hussars; each faction badge by
-    /// its faction at the rank it is named after.
+    /// rank, a million each but the Literator (50,000, the owner,
+    /// 2026-11-08) and the Flying Hussars; each faction badge by its faction
+    /// at the rank it is named after.
     #[test]
     fn the_badges_are_sold_dear() {
         let dictionary = Dictionary::shared();
@@ -934,7 +935,8 @@ mod tests {
         for n in 1..=7 {
             let name = format!("decals_1_{n}");
             assert_eq!(sold_by(&name), [(0, 0)], "{name}");
-            assert_eq!(cost(&name), 1_000_000, "{name}");
+            let price = if n == 1 { 50_000 } else { 1_000_000 };
+            assert_eq!(cost(&name), price, "{name}");
         }
         assert_eq!(sold_by("decals_1_8"), [(0, 0)]);
         assert_eq!(cost("decals_1_8"), 20_000);
