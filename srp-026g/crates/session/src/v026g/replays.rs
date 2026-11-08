@@ -17,9 +17,10 @@
 //!   the file of the token's match, by a path built here from that match
 //!   id alone ([`Replays::sur_path`]).
 //!
-//! What is checked of the asker (the account played the match) is a
-//! courtesy (owner, 2026-10-15: a replay of a match one did not play is
-//! fine); the line that must hold is that nothing but a converter-made
+//! Who may have a match's replay follows `SRP_REPLAY_WATCH` (anyone by
+//! default, the owner's of 2026-11-08; `match`: its players and the
+//! moderators), as for a replay session (`WatchSettings::may_watch`);
+//! the line that must hold is that nothing but a converter-made
 //! `.sur` is ever served. Tokens are kept in memory only: a restart ends
 //! them all.
 //!
@@ -1136,11 +1137,20 @@ impl Replays {
         if revision < MIN_REVISION {
             return Ok((Status::OldGame, None));
         }
-        if known.is_some_and(|known| !known.played) {
+        // Who may (`SRP_REPLAY_WATCH`, anyone by default), as for a replay
+        // session.
+        let may_watch = |played: bool| {
+            self.watches
+                .settings()
+                .is_none_or(|settings| settings.may_watch(account_id, played))
+        };
+        if known.is_some_and(|known| !known.played) && !may_watch(false) {
             return Ok((Status::NotYours, None));
         }
         if let Some(sidecar) = self.made(match_id) {
-            if !sidecar.account_ids.is_empty() && !sidecar.account_ids.contains(&account_id) {
+            let played =
+                sidecar.account_ids.is_empty() || sidecar.account_ids.contains(&account_id);
+            if !may_watch(played) {
                 return Ok((Status::NotYours, None));
             }
             if let Some(refusal) = sidecar.refusal(revision, self.oldest) {
@@ -1776,7 +1786,10 @@ mod tests {
     #[test]
     fn an_ask_is_refused_for_an_old_game_another_players_match_and_other_revisions() {
         let root = temp("refused");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = Replays::new(Some(settings(&root)), 6).with_watch(WatchSettings {
+            access: super::super::replay_watch::Access::Match,
+            ..WatchSettings::default()
+        });
         let now_revision = current();
         let newer = now_revision + 1;
         made(&replays, vec![Some(now_revision), Some(newer)]);
@@ -1804,6 +1817,10 @@ mod tests {
             Status::NotYours
         );
         assert_eq!(ask(BOB, Some(newer), None), Status::NotYours);
+        // Anyone may by default: Bob gets it.
+        let open = Replays::new(Some(settings(&root)), 6).with_watch(WatchSettings::default());
+        let at = Instant::now();
+        assert_eq!(open.ask(BOB, MATCH, Some(newer), None, at), Status::Ready);
         // Made by a newer game too: not for the current one.
         assert_eq!(
             ask(ALICE, Some(now_revision), played()),

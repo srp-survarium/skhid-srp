@@ -71,6 +71,15 @@ impl Default for WatchSettings {
 }
 
 impl WatchSettings {
+    /// Whether `account_id` may watch a match's replay, having `played` it
+    /// or not: a replay session's rule, and History's download's.
+    pub fn may_watch(&self, account_id: u32, played: bool) -> bool {
+        match self.access {
+            Access::All => true,
+            Access::Match => played || self.moderators.contains(&account_id),
+        }
+    }
+
     pub fn from_env() -> Self {
         let var = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
         let access = match var("SRP_REPLAY_WATCH").as_deref().map(str::trim) {
@@ -380,14 +389,7 @@ impl Watches {
         oldest: u8,
     ) -> Result<(), (Status, Option<Refusal>)> {
         let settings = self.settings.as_ref().ok_or((Status::Off, None))?;
-        let allowed = match settings.access {
-            Access::All => true,
-            Access::Match => {
-                players.contains(&request.account_id)
-                    || settings.moderators.contains(&request.account_id)
-            }
-        };
-        if !allowed {
+        if !settings.may_watch(request.account_id, players.contains(&request.account_id)) {
             return Err((Status::NotYours, None));
         }
         match refusal_of(revisions, request.revision, oldest) {

@@ -148,7 +148,7 @@ is a `91` row at the request's start plus its index.
 | setting | |
 |---|---|
 | `SRP_RECORD_DIR` | the recordings; sessions are off without it |
-| `SRP_REPLAY_WATCH` | `all` (default: anyone) or `match` (the match's players and the moderators); another value is `match` |
+| `SRP_REPLAY_WATCH` | `all` (default: anyone) or `match` (the match's players and the moderators); another value is `match`. History's download follows it too |
 | `SRP_REPLAY_MODERATORS` | account ids, comma-separated, that may watch any match |
 | `SRP_REPLAY_WATCH_MAX` | sessions at once (default 4: the host has 1 vCPU and 512 MB; each costs about one player's traffic and its recording in memory, a few MB to a few tens) |
 | `SRP_REPLAY_MAX_RECORDING_MB` | as for History (default 24) |

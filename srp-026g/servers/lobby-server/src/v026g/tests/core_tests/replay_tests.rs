@@ -127,12 +127,12 @@ fn a_player_of_the_match_gets_the_link_before_a_ready_row() {
         Ok(MATCH)
     );
 
-    // Bob did not play it: `not_yours`, no link; his polls are his own.
+    // Bob did not play it: anyone may watch (`SRP_REPLAY_WATCH=all`, the
+    // default), so he gets a link of his own.
     world.ask(bob, request::player_details(REPLAY_ASK, MATCH));
-    assert_eq!(
-        poll(&mut world, bob),
-        (None, "R1;not_yours;1f07c8fb;0".into())
-    );
+    let (link, row) = poll(&mut world, bob);
+    assert_eq!(row, "R1;ready;1f07c8fb;12");
+    assert_ne!(link.expect("Bob's link").split(' ').nth(2), Some(token));
     // Carol played it with revision 12 (the patches' mount, no
     // replay link): her game cannot start a replay.
     world.ask(carol, request::player_details(REPLAY_ASK, MATCH));
