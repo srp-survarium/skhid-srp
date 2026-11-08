@@ -56,6 +56,7 @@ impl Dik {
     pub const LEFT_BRACKET: Dik = Dik(0x1A);
     pub const RIGHT_BRACKET: Dik = Dik(0x1B);
     pub const H: Dik = Dik(0x23);
+    pub const M: Dik = Dik(0x32);
     pub const LEFT_SHIFT: Dik = Dik(0x2A);
     pub const RIGHT_SHIFT: Dik = Dik(0x36);
     pub const SPACE: Dik = Dik(0x39);

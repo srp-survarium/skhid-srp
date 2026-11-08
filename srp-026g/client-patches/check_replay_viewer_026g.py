@@ -15,8 +15,9 @@ and keyboard, a packet and an 0xF6's reader are made up. The game's functions
 the patch calls are stand-ins that keep what they were given: game::pause
 and game::resume (0x1ED5C0 / 0x1ED650, the paused flag 0x1F1DA3C set and
 cleared as theirs), new_packet (0x279FE0), buffer_writer::w (0x7AC10),
-enqueue (0x27A2A0), close_current_match (0x27A790), Movie::Invoke (0x511600)
-and show_cursor (0x23A930).
+enqueue (0x27A2A0), close_current_match (0x27A790), Movie::Invoke (0x511600),
+show_cursor (0x23A930) and text_translator::translate_text (0x1FF0F0, the key
+itself as the text).
 
 - The sites' bytes in the original and the build's jumps to the arena.
 - A player's game and a spectator before any playback note run the game's
@@ -31,7 +32,8 @@ and show_cursor (0x23A930).
   events note and a malformed one of ours are taken with nothing called;
   Space, Right, Shift+Right, `]`, `[` each send one 0xE0 alone in its
   datagram with the request's 14 bytes; H hides the hud and the icons
-  (root.hide_interface true), H again shows them; Esc is
+  (root.hide_interface true), H again shows them; M is taken with nothing
+  sent (the Moments switch is the patch's own); Esc is
   close_current_match(2); a key held is taken with nothing done; a match's
   end (reason 4, a kick) resumes a paused game and sets time_scale 1, after
   which Space goes to the game again.
@@ -83,7 +85,8 @@ SHOW_CONTROLS, DETACH = 0x23A9D0, 0x242CC0
 WORLD_UI = GAME + 0x18 + 0x1FC              # the game world's hud (game_world+1FCh)
 REPLAY_HOLDER, REPLAY_VIEW, REPLAY_MOVIE = OBJECTS + 0x6C000, OBJECTS + 0x6D000, OBJECTS + 0x6E000
 CALL_NAME, CALL_ARGS = OBJECTS + 0x6F000, OBJECTS + 0x6F100
-SPACE, ESC, H, F11, LEFT, RIGHT, LBRACKET, RBRACKET, LSHIFT = 0x39, 0x01, 0x23, 0x57, 0xCB, 0xCD, 0x1A, 0x1B, 0x2A
+SPACE, ESC, H, F11, LEFT, RIGHT, LBRACKET, RBRACKET, LSHIFT, M = 0x39, 0x01, 0x23, 0x57, 0xCB, 0xCD, 0x1A, 0x1B, 0x2A, 0x32
+TRANSLATE = 0x1FF0F0
 DOWN, HELD = 1, 3
 CLOCK = 100_000                            # the world core's time in the made-up match
 
@@ -114,7 +117,7 @@ class Game:
         for va, how in ((PAUSE, self.pause), (RESUME, self.resume), (NEW_PACKET, self.new_packet),
                         (WRITE, self.write), (ENQUEUE, self.enqueue), (CLOSE, self.close),
                         (INVOKE, self.invoke), (SHOW_CURSOR, self.show_cursor),
-                        (SHOW_CONTROLS, self.show_controls), (DETACH, self.detach)):
+                        (SHOW_CONTROLS, self.show_controls), (DETACH, self.detach), (TRANSLATE, self.translate)):
             emu.hook_add(UC_HOOK_CODE, how, begin=va, end=va)
 
     def word(self, at, value, size=4):
@@ -182,6 +185,12 @@ class Game:
         self.calls.append(("detach_from_player", emu.reg_read(UC_X86_REG_ECX)))
         self.word(emu.reg_read(UC_X86_REG_ECX) + 4, 0)
         self.ret(0)
+
+    def translate(self, emu, *_):
+        key, out = self.text(self.arg(1)), self.arg(2)
+        self.calls.append(("translate", key))
+        emu.mem_write(out, key.encode() + b"\0")
+        self.ret(8)
 
     def show_cursor(self, emu, *_):
         self.calls.append(("show_cursor",))
@@ -391,6 +400,9 @@ def main():
     state, _, calls = ours.run("note", note_regs(ours, events(0, 3, [(30_000, 1, 1, 2), (104_500, 1, 2, 3),
                                                                     (150_000, 1, 3, 0xFF)])))
     check(state[UC_X86_REG_EIP] == exit_ and not calls, "note, the events (three kills): taken, nothing called")
+    state, _, calls = ours.run("note", note_regs(ours, b"\x52\x03\x01"))
+    check(state[UC_X86_REG_EIP] == exit_ and not calls,
+          "note, a view of place 1 (no player there in the made-up match): taken, nothing called")
     for bad in (b"\x52", b"\x52\x01\x07", b"\x52\x09" + bytes(12)):
         state, _, calls = ours.run("note", note_regs(ours, bad))
         check(state[UC_X86_REG_EIP] == exit_ and not calls and ours.time_scale() == 2.0,
@@ -420,6 +432,8 @@ def main():
     state, _, calls = key(ours, F11)
     check(state[UC_X86_REG_EIP] == taken and [c[4] for c in calls] == [(2, 0), (2, 0)],
           "key, a viewer, F11: root.hide_interface(false) to both, the key taken")
+    state, _, calls = key(ours, M)
+    check(state[UC_X86_REG_EIP] == taken and not calls, "key, a viewer, M: the Moments switch's next choice, taken, nothing sent")
     state, _, calls = key(ours, SPACE, kind=HELD)
     check(state[UC_X86_REG_EIP] == taken and not calls, "key, a viewer, Space held: taken, nothing done")
     state, _, calls = key(ours, 0x10)
@@ -482,16 +496,33 @@ def main():
           and ("root.set_match_time", (4, 590_000)) in names and any(n == "root.set_markers_text" and v[1].startswith("60000:1:") for n, v in names if v)
           and ("root.set_position", (4, CLOCK - 10_000)) in names and ("root.set_play_state", (2, 0)) in names,
           "frame, a viewer: the controls shown, the bar's length, the markers, its position and the play button")
+    keys = ["st_srp_viewer_back", "st_srp_viewer_moments", "st_srp_viewer_moments_all", "st_srp_viewer_moments_mine",
+            "st_srp_viewer_moments_followed", "st_srp_viewer_cursor", "st_srp_viewer_pause", "st_srp_viewer_filter",
+            "st_srp_viewer_hide", "st_srp_viewer_cap_ctrl", "st_srp_viewer_cap_space"]
+    check([c[1] for c in calls if c[0] == "translate"] == keys
+          and ("root.start_viewer", (6, "st_srp_viewer_back")) in names
+          and any(c[2] == "root.start_viewer" and c[3] == 11 for c in calls if c[0] == "invoke")
+          and ("root.set_moments", (4, 0)) in names and ("root.set_cursor_shown", (2, 0)) in names,
+          "frame, a viewer: the controls made a viewer's (root.start_viewer with its 11 texts translated), "
+          "the Moments switch at All (the viewer did not play), the cursor hidden")
     state, _, calls = frame(ours)
     names = [c[2] for c in calls if c[0] == "invoke"]
     check(names == ["root.set_position", "root.set_play_state"] and not [c for c in calls if c[0] != "invoke"],
           "frame, a viewer, the next frame: only the position and the play button")
+    state, _, calls = control(ours, "moments_clicked", (4, 2, 0))
+    check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls, "call, a viewer, moments_clicked(2): taken, nothing sent")
+    state, _, calls = frame(ours)
+    names = [(c[2], c[4]) for c in calls if c[0] == "invoke"]
+    check(("root.set_moments", (4, 2)) in names, "frame, after moments_clicked(2): the switch at Followed")
     state, mode, calls = world_load(ours, "raw")
     check(mode == 0 and state[UC_X86_REG_EIP] == SITES["raw"][2] and not calls,
           "raw, a viewer: its world loads as the replay's own seek (mode 0, its pending inputs cleared)")
     key(ours, H)
     state, _, calls = frame(ours)
     check(("show_replay_controls", WORLD_UI, 0) in calls, "frame, after H: the controls hidden with the interface")
+    state, _, calls = control(ours, "back_clicked")
+    check(state[UC_X86_REG_EIP] == SITES["call"][3] and sent(calls, request(3, 4, 0)),
+          "call, a viewer, back_clicked: a leave request (the server's farewell ends the world), no close here")
     close(ours, 0)
     state, _, calls = frame(ours)
     check(not calls, "frame, after the match's end: nothing fed")

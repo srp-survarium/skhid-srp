@@ -11,6 +11,7 @@ package
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
+   import flash.utils.getTimer;
 
    // The replay player's one-string lists from the exe (survarium.replay.ReplayText, the root's
    // set_markers_text and set_players_text): the markers bar and the players bar show the good
@@ -20,7 +21,13 @@ package
    // text) in the stage, a press seeking 4 s before it (the slider's VALUE_CHANGE, which the movie
    // sends as update_position); set_replay_speed(percent) shows 0.25x .. 8x in the speed
    // stepper (25 to 800, the nearest end outside), kept over the bottom panel's frames; a player's
-   // name of 16 characters (Latin, the 10 languages' letters, wide ones) fits its row whole.
+   // name of 16 characters (Latin, the 10 languages' letters, wide ones) fits its row whole; a
+   // viewer's own controls (root.start_viewer, survarium.replay.ViewerControls): Back at the top left
+   // and the Moments switch right of the bottom panel, both in the stage and calling the exe when
+   // pressed, the switch's choice from set_moments (Mine offered only to a viewer who played) fading
+   // the ticks it does not light, and the key hint (survarium.replay.KeyHint: key caps and actions on
+   // a panel) centred above the bar, fading in for its first 10 s and while the cursor is
+   // (set_cursor_shown), in the stage in every language (two rows at most, nothing clipped).
    // Parameter shot=1: the player set for a screenshot (shot.sh), "SHOT ready" once drawn.
    // Prints "MARKERS ..." lines and ends with "MARKERS RESULT pass" or "MARKERS RESULT fail: ...".
    public class MarkersHarness extends Sprite
@@ -81,6 +88,7 @@ package
             root.show_buttons(false);
             root.show_buttons(true);
             longNames(root);
+            viewer(root);
          }
          catch(err:Error)
          {
@@ -97,11 +105,171 @@ package
                expect("the speed after the bottom panel's frames reads '" + root.stepper.textField.text + "'",root.stepper.textField.text == "2x");
                expect("the bottom panel's frames set the speed to " + root.speedPercent + " %",root.speedPercent == 200);
                namesFit(root);
+               viewerPlaced(root);
             }
             catch(err:Error)
             {
                failures.push("the player: " + err.getStackTrace());
             }
+            hintTimes(root);
+         });
+      }
+
+      // start_viewer's texts in the 10 languages (the dictionaries' st_srp_viewer_*): Back, Moments,
+      // All, Mine, Followed, Cursor, Pause, Filter, Hide, the Ctrl and Space caps.
+      private static const TEXTS:Array = [
+         ["Back","Moments","All","Mine","Followed","Cursor","Pause","Filter","Hide","Ctrl","Space"],
+         ["Назад","Моменти","Усі","Мої","Відстежуваний","Курсор","Пауза","Фільтр","Сховати","Ctrl","Space"],
+         ["Назад","Моменты","Все","Мои","Отслеживаемый","Курсор","Пауза","Фильтр","Скрыть","Ctrl","Space"],
+         ["Назад","Моманты","Усе","Мае","Адсочваны","Курсор","Паўза","Фільтр","Схаваць","Ctrl","Space"],
+         ["Zurück","Momente","Alle","Meine","Verfolgt","Cursor","Pause","Filter","Ausblenden","Strg","Leertaste"],
+         ["Wstecz","Momenty","Wszystkie","Moje","Śledzony","Kursor","Pauza","Filtr","Ukryj","Ctrl","Spacja"],
+         ["Nazad","Momenti","Svi","Moji","Praćeni","Kursor","Pauza","Filter","Sakrij","Ctrl","Space"],
+         ["Zpět","Momenty","Vše","Moje","Sledovaný","Kurzor","Pauza","Filtr","Skrýt","Ctrl","Space"],
+         ["Vissza","Pillanatok","Mind","Saját","Követett","Kurzor","Szünet","Szűrő","Elrejtés","Ctrl","Space"],
+         ["Takaisin","Hetket","Kaikki","Omat","Seurattu","Kursori","Tauko","Suodatin","Piilota","Ctrl","Space"]];
+
+      private static function texts(i:int, first:String = null) : Array
+      {
+         var out:Array = TEXTS[i].concat();
+         if(first != null)
+            out[0] = first;
+         return out;
+      }
+
+      private static const LIT:Number = 1;
+
+      private static const FADED:Number = 0.3;
+
+      // The ticks' alphas, in their order.
+      private function alphas(root:*) : String
+      {
+         var out:Array = [];
+         for(var i:int = 0; tickAt(root,i) != null; i++)
+            out.push(Math.round(tickAt(root,i).alpha * 10) / 10);
+         return out.join(",");
+      }
+
+      // What a press on `target` calls the exe with (ViewerControls.lastCall: Ruffle has no exe).
+      private function calls(v:*, target:Sprite) : String
+      {
+         v.lastCall = "";
+         target.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN));
+         return v.lastCall;
+      }
+
+      private function viewer(root:*) : void
+      {
+         root.set_match_time(600000);
+         // a kill of the viewer's, the followed player's, a death of the followed one that the viewer
+         // made, an objective of no one's
+         root.set_markers_text("30000:1:1:Me > Bob;60000:1:2:Ada > Eve;90000:3:3:Me > Eve;120000:2:0:Battery;bad:1:1:x;7000:1:x:y");
+         expect("before start_viewer, no viewer's controls",root.viewer == null);
+         expect("the markers with whose are " + labels(root).join(","),labels(root).join(",") == "30000=Me > Bob,60000=Ada > Eve,90000=Me > Eve,120000=Battery");
+         root.start_viewer.apply(null,texts(0));
+         root.start_viewer.apply(null,texts(0,"Twice"));
+         var v:* = root.viewer;
+         expect("start_viewer made no controls",v != null);
+         if(v == null)
+            return;
+         expect("a second start_viewer made the controls again",Object(v.back.getChildAt(1)).text == "<  Back");
+         root.set_moments(1,1);
+         expect("Mine fades " + alphas(root),alphas(root) == [LIT,FADED,LIT,FADED].join(","));
+         expect("Mine is not shown as the choice",v.choice == 1 && v.choices[1].visible && v.choices[1].getChildAt(0).alpha == 1 && v.choices[0].getChildAt(0).alpha < 1);
+         root.set_moments(2,1);
+         expect("Followed fades " + alphas(root),alphas(root) == [FADED,LIT,LIT,FADED].join(","));
+         root.set_markers_text("30000:1:1:Me > Bob;60000:1:2:Ada > Eve;90000:3:3:Me > Eve;120000:2:0:Battery");
+         expect("new markers under Followed fade " + alphas(root),alphas(root) == [FADED,LIT,LIT,FADED].join(","));
+         root.set_moments(0,0);
+         expect("All fades " + alphas(root),alphas(root) == [LIT,LIT,LIT,LIT].join(","));
+         expect("Mine offered to a viewer who did not play",!v.choices[1].visible);
+         expect("Followed not next to All with Mine hidden",Math.abs(v.choices[2].x - (v.choices[0].x + v.choices[0].width + 3)) < 1);
+         expect("a press on Back calls '" + calls(v,v.back) + "'",calls(v,v.back) == "back_clicked");
+         expect("a press on Followed calls '" + calls(v,v.choices[2]) + "'",calls(v,v.choices[2]) == "moments_clicked 2");
+         expect("a press on All calls '" + calls(v,v.choices[0]) + "'",calls(v,v.choices[0]) == "moments_clicked 0");
+         expect("the hint takes the mouse",!v.hint.mouseEnabled);
+         root.set_moments(1,1);
+         trace("MARKERS viewer: start_viewer once, set_moments fades the ticks it does not light, Back and the switch call the exe");
+      }
+
+      private function viewerPlaced(root:*) : void
+      {
+         var v:* = root.viewer;
+         if(v == null)
+            return;
+         var back:Rectangle = v.back.getBounds(stage);
+         var hint:Rectangle = v.hint.getBounds(stage);
+         var moments:Rectangle = v.moments.getBounds(stage);
+         var panel:Rectangle = root.bottomPanel.getBounds(stage);
+         expect("Back is not at the top left, right of the minimap " + back,inStage(back) && back.x > stage.stageWidth * 0.15 && back.x < stage.stageWidth * 0.25 && back.y < 40);
+         expect("the hint leaves the stage " + hint,inStage(hint));
+         expect("the hint is not above the bar " + hint + " " + panel,hint.bottom < panel.y - 20 && hint.bottom > panel.y - 80);
+         expect("the hint is not centred " + hint,Math.abs(hint.x + hint.width / 2 - stage.stageWidth / 2) < 3);
+         expect("the hint has " + v.hint.groups.length + " keys",v.hint.groups.length == 6);
+         expect("the switch leaves the stage " + moments,inStage(moments));
+         expect("the switch is on the bottom panel " + moments + " " + panel,moments.x >= panel.right && moments.y < panel.bottom && moments.bottom > panel.y);
+         expect("the hint is not shown at the start",v.hintShown);
+         // every language's hint in this stage: two rows at most, each action whole, in the stage
+         var Hint:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.replay.KeyHint") as Class;
+         var font:String = root.freeViewButton.textField.getTextFormat().font;
+         var room:Number = stage.stageWidth / root.scaleX - 20;
+         for(var i:int = 0; i < TEXTS.length; i++)
+         {
+            var t:Array = TEXTS[i];
+            var h:* = new Hint(font,[t[5],t[6],t[1],t[7],t[8],t[0],t[9],t[10]]);
+            root.addChild(h);
+            h.layout(room);
+            var clipped:Array = [];
+            for each(var g:* in h.groups)
+            {
+               var action:* = g.getChildByName("action");
+               if(action.textWidth > action.width || action.maxScrollH > 0)
+                  clipped.push(action.text);
+            }
+            expect(t[0] + "'s hint has " + h.rows + " rows, " + int(h.width) + " of " + int(room) + " units, clipped " + clipped.join(","),
+               h.rows <= 2 && h.width <= room && clipped.length == 0);
+            trace("MARKERS hint " + t[0] + ": " + h.rows + " row(s), " + int(h.width) + " of " + int(room));
+            h.layout(360);
+            expect(t[0] + "'s hint in 360 units has " + h.rows + " rows, " + int(h.width) + " wide",h.rows >= 2 && h.width <= 360);
+            root.removeChild(h);
+         }
+         trace("MARKERS viewer: Back at the top left, the hint above the bar, the switch by the bottom panel, in the stage");
+      }
+
+      // The hint: hidden 10 s after start_viewer, shown again with the cursor.
+      private function hintTimes(root:*) : void
+      {
+         var v:* = root.viewer;
+         if(v == null)
+         {
+            finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+            return;
+         }
+         // at ms after the first: the check
+         var steps:Array = [
+            [500,function():void { expect("the hint faded in to " + v.hint.alpha,v.hint.visible && v.hint.alpha == 1); }],
+            [10600,function():void
+            {
+               expect("the hint still shown after 10 s",!v.hint.visible && v.hint.alpha == 0);
+               root.set_cursor_shown(true);
+               expect("the hint not to be shown with the cursor",v.hintShown);
+               expect("the hint cut in, not faded (" + v.hint.alpha + ")",v.hint.alpha == 0);
+            }],
+            [11100,function():void
+            {
+               expect("the hint not shown with the cursor",v.hint.visible && v.hint.alpha == 1);
+               root.set_cursor_shown(false);
+            }],
+            [11600,function():void { expect("the hint shown with the cursor hidden",!v.hint.visible); }]];
+         var from:int = getTimer();
+         addEventListener(Event.ENTER_FRAME,function waited(f:Event):void
+         {
+            while(steps.length > 0 && getTimer() - from >= steps[0][0])
+               steps.shift()[1]();
+            if(steps.length > 0)
+               return;
+            removeEventListener(Event.ENTER_FRAME,waited);
+            trace("MARKERS viewer: the hint fades in its first 10 s and with the cursor, out after");
             finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
          });
       }
@@ -155,7 +323,9 @@ package
       private function shot(root:*) : void
       {
          root.set_match_time(600000);
-         root.set_markers_text("24000:1:0'24;39000:1:0'39;61000:2:Battery;125000:3:;212000:1:3'32;300000:2:Battery;365000:1:6'05;480000:1:Ada > Bob;552000:3:");
+         root.set_markers_text("24000:1:0:0'24;39000:1:1:0'39;61000:2:0:Battery;125000:3:3:;212000:1:1:3'32;300000:2:0:Battery;365000:1:0:6'05;480000:1:2:Ada > Bob;552000:3:2:");
+         root.start_viewer.apply(null,texts(0));
+         root.set_moments(1,1);
          longNames(root);
          root.set_replay_speed(200);
          addEventListener(Event.ENTER_FRAME,function later(f:Event):void
@@ -180,7 +350,7 @@ package
       private function markers(root:*) : void
       {
          root.set_match_time(600000);
-         root.set_markers_text("125000:1:2:05;bad;30000:1:;9x:1:no;61000:2:Battery;");
+         root.set_markers_text("125000:1:0:2:05;bad;30000:1:0:;9x:1:0:no;61000:2:0:Battery;40000:1:Battery;");
          var got:String = labels(root).join(",");
          expect("markers are " + got,got == "30000=,61000=Battery,125000=2:05");
          expect("the left list of markers shown",!root.labelsBar.visible);
@@ -214,7 +384,7 @@ package
       {
          var times:Array = [2000,30000,61000,300000,598000];
          root.set_match_time(600000);
-         root.set_markers_text("300000:3:;61000:2:Battery;bad;2000:1:;598000:1:0'00 Ada > Bob;30000:1:0'30");
+         root.set_markers_text("300000:3:0:;61000:2:0:Battery;bad;2000:1:0:;598000:1:0:0'00 Ada > Bob;30000:1:0:0'30");
          var track:Rectangle = root.slider.track.getBounds(stage);
          var xs:Array = [];
          for(var i:int = 0; i < times.length; i++)

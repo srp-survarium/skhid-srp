@@ -35,6 +35,15 @@ The 0.26g exe has a replay player the 0.21d exe only began (0.21d: `replay_match
     16 characters do; one too wide even then ends with "…". Free view sits under the last player
     (it was over it). The same check covers them;
     `scripts/replay-markers/shot.sh <replay_player.swf> <out.png>` takes a screenshot.
+  - a replay viewer's own controls (`survarium.replay.ViewerControls`, `KeyHint`), made once by the exe's
+    `start_viewer(back, moments, all, mine, followed, cursor, pause, filter, hide, ctrl, space)` (the
+    dictionaries' texts): a Back button (`back_clicked`), the Moments switch right of the bottom panel
+    (`moments_clicked(0|1|2)`, shown by `set_moments(choice, mine)`; Mine only when `mine` is not 0) and the
+    key hint above the bar (key caps and their actions on a panel, the arrows drawn, wrapped onto more rows
+    rather than leave the stage), shown its first 10 s and while `set_cursor_shown(true)`, fading in and out.
+    The markers text is `time_ms:kind:whose:label` since then: `whose` 1 the viewer's own, 2 the player in
+    view's; the ticks the switch does not light are drawn at 30 %. A `.sur` played by the replay client gets
+    none of it.
 - no lobby list of replays, and **no writer**: the strings "replays" and ".sur" each have one reader, nothing in the exe opens a `.sur` for writing, and `key_frame_type::push_back` is called only by the reader (LIKELY: no writer path found). The game's own recorder is the journal (`-record_journal`), which is off since patch revision 4 and is another thing (it holds the packets one client got and its device input, and plays only with `-replay_journal`).
 
 ## 2. Where the file is

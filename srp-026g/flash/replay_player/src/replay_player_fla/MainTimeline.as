@@ -38,6 +38,7 @@ package replay_player_fla
    import survarium.constants.TeamSide;
    import survarium.replay.MarkerTicks;
    import survarium.replay.ReplayText;
+   import survarium.replay.ViewerControls;
    
    public dynamic class MainTimeline extends MovieClip
    {
@@ -93,6 +94,9 @@ package replay_player_fla
 
       // srp's: the markers as ticks on the bar (made at the first use: markerTicks())
       public var _ticks:MarkerTicks;
+
+      // srp's: a replay viewer's Back, Moments switch and key hint (start_viewer), null for a .sur's
+      public var viewer:ViewerControls;
 
       // srp's: the playback's speed in percent (set_replay_speed, or the stepper's own steps).
       public var speedPercent:int = 100;
@@ -462,10 +466,45 @@ package replay_player_fla
          this.markerTicks().draw(labels);
       }
       
-      // srp's: the markers as one string from the exe, `time_ms:kind:label;...` (ReplayText.markers).
+      // srp's: the markers as one string from the exe, `time_ms:kind:whose:label;...` (ReplayText.markers).
       public function set_markers_text(value:String) : void
       {
          this.set_markers_list(ReplayText.markers(value));
+      }
+
+      // srp's: the controls a replay viewer's (the exe, once): its Back button, Moments switch and key
+      // hint (ViewerControls), with their texts in the running language: Back, the switch's label and
+      // its choices All, Mine, Followed, the hint's actions Cursor, Pause, Filter, Hide and its Ctrl and
+      // Space caps.
+      public function start_viewer(back:String, moments:String, all:String, mine:String, followed:String, cursor:String, pause:String, filter:String, hide:String, ctrl:String, space:String) : void
+      {
+         if(this.viewer != null)
+         {
+            return;
+         }
+         this.viewer = new ViewerControls(this.bottomPanel,this.freeViewButton.textField.getTextFormat().font,[back,moments,all,mine,followed,cursor,pause,filter,hide,ctrl,space]);
+         addChild(this.viewer);
+         this.viewer.place();
+      }
+
+      // srp's: the Moments switch's choice (0 All, 1 Mine, 2 Followed; Mine offered when `mine` is not
+      // 0), shown on the switch and by the ticks (the others faded).
+      public function set_moments(choice:int, mine:int) : void
+      {
+         this.markerTicks().moments = choice;
+         if(this.viewer != null)
+         {
+            this.viewer.setMoments(choice,mine != 0);
+         }
+      }
+
+      // srp's: the hud's cursor shown (Ctrl): the key hint shows with it.
+      public function set_cursor_shown(shown:Boolean) : void
+      {
+         if(this.viewer != null)
+         {
+            this.viewer.setCursor(shown);
+         }
       }
 
       // srp's: the players as one string from the exe, `place:team:name;...` (ReplayText.players).

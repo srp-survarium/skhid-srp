@@ -28,6 +28,14 @@ package survarium.replay
 
       public static const DEATH:int = 3;
 
+      // a marker's `whose` (ReplayText.markers): what the Moments switch lights it under
+      public static const OWN:int = 1;
+
+      public static const FOLLOWED:int = 2;
+
+      // a tick the switch does not light
+      public static const FADED:Number = 0.3;
+
       private static const TICK_W:Number = 3;
 
       private static const TICK_H:Number = 12;
@@ -40,6 +48,9 @@ package survarium.replay
       private var _font:String;
 
       private var _markers:Array = [];
+
+      // the Moments switch's choice (ViewerControls.ALL, MINE, FOLLOWED)
+      private var _moments:int = 0;
 
       // the label shown over a tick (on the stage's root), null none
       private var _label:Sprite;
@@ -79,6 +90,29 @@ package survarium.replay
       public static function kindWord(kind:int) : String
       {
          return kind == KILL ? "Kill" : kind == OBJECTIVE ? "Objective" : kind == DEATH ? "Death" : "Event";
+      }
+
+      // Whether the switch's `moments` (0 All, 1 Mine, 2 Followed) lights `marker`.
+      public static function lit(marker:Object, moments:int) : Boolean
+      {
+         var whose:int = int(marker.whose);
+         return moments == 1 ? (whose & OWN) != 0 : moments == 2 ? (whose & FOLLOWED) != 0 : true;
+      }
+
+      // The ticks the switch lights at full strength, the others faded.
+      public function set moments(value:int) : void
+      {
+         this._moments = value;
+         for(var i:int = 0; i < numChildren; i++)
+         {
+            var tick:Sprite = getChildAt(i) as Sprite;
+            tick.alpha = lit(this._markers[int(tick.name.substr("srpMarkerTick".length))],value) ? 1 : FADED;
+         }
+      }
+
+      public function get moments() : int
+      {
+         return this._moments;
       }
 
       // A time as the markers show it, m'ss.
@@ -143,6 +177,7 @@ package survarium.replay
             tick.graphics.beginFill(colourOf(int(marker.kind)),1);
             tick.graphics.drawRect(-TICK_W / 2,0,TICK_W,TICK_H);
             tick.graphics.endFill();
+            tick.alpha = lit(marker,this._moments) ? 1 : FADED;
             tick.buttonMode = true;
             tick.addEventListener(MouseEvent.ROLL_OVER,this.onOver);
             tick.addEventListener(MouseEvent.ROLL_OUT,this.onOut);

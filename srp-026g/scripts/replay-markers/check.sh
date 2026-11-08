@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # check.sh <replay_player.swf> [work dir]: the replay player's one-string lists from the exe
-# (set_markers_text as ticks on the bar, set_players_text, set_replay_speed; MarkersHarness.as says
+# (set_markers_text as ticks on the bar, set_players_text, set_replay_speed, a viewer's Back, Moments
+# switch and key hint; MarkersHarness.as says
 # what), at 1280x720 and 1920x1080, in Ruffle (CPU only: lavapipe
 # on its own virtual X display, never the GPU). Exits 0 when it says pass; prints its lines.
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.

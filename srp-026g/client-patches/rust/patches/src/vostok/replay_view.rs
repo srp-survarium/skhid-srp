@@ -15,6 +15,7 @@
 //!   as close_current_match's leave and the snapshot upload send theirs);
 //! - `close_match.reason` (0x27A7F3): every end of a match.
 
+use core::ffi::CStr;
 use core::marker::PhantomData;
 
 use replay_control::{MatchMs, Request};
@@ -293,9 +294,39 @@ impl<'t> Overlay<'t> {
     }
 
     /// The markers, as the movie's text helper takes them
-    /// (root.set_markers_text: `time_ms:kind:label;...`).
-    pub fn set_markers(&self, text: &core::ffi::CStr) {
+    /// (root.set_markers_text: `time_ms:kind:whose:label;...`).
+    pub fn set_markers(&self, text: &CStr) {
         self.movie.invoke_text(c"root.set_markers_text", text);
+    }
+
+    /// Which movie this is (a new game world's is another).
+    pub fn id(&self) -> usize {
+        self.movie.id()
+    }
+
+    /// The controls made a viewer's (root.start_viewer: the Back button, the
+    /// Moments switch and the key hint, shown its first 10 s), with the
+    /// dictionary texts of `keys` in the running language; whether the movie
+    /// took it (its root is made).
+    pub fn start_viewer<const N: usize>(&self, keys: &[&CStr; N]) -> bool {
+        let ui = super::ui::GameWorldUi::of(self.ui);
+        let mut rooms = [[0u8; 0x200]; N];
+        let mut texts = [c""; N];
+        for ((room, key), text) in rooms.iter_mut().zip(keys).zip(texts.iter_mut()) {
+            *text = ui.translate(key, room);
+        }
+        self.movie.invoke_strings(c"root.start_viewer", &texts)
+    }
+
+    /// The Moments switch's choice (root.set_moments: 0 All, 1 Mine, 2
+    /// Followed), its Mine shown only to a viewer who played.
+    pub fn set_moments(&self, choice: u32, mine: bool) {
+        self.movie.invoke_uints(c"root.set_moments", &[choice, u32::from(mine)]);
+    }
+
+    /// The hud's cursor shown: the key hint with it (root.set_cursor_shown).
+    pub fn set_cursor_shown(&self, shown: bool) {
+        self.movie.invoke_bool(c"root.set_cursor_shown", shown);
     }
 }
 
@@ -368,5 +399,10 @@ impl<'t> Names<'t> {
     pub fn of_place(&self, place: u8) -> Option<&[u8]> {
         let name = self.lobby.place_name(super::types::Place::new(u32::from(place))?)?;
         Some(name.to_bytes()).filter(|name| !name.is_empty())
+    }
+
+    /// The game's own account's name (the lobby's).
+    pub fn own(&self) -> Option<&[u8]> {
+        self.lobby.own_name().map(CStr::to_bytes)
     }
 }

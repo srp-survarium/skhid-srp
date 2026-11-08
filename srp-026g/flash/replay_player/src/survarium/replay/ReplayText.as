@@ -8,21 +8,23 @@ package survarium.replay
    // a malformed entry is left out, an empty string is an empty list.
    public class ReplayText
    {
-      // `time_ms:kind:label;...` (kind 1 a kill, 2 an objective; the label may be empty): the
-      // markers [{time, kind, label}] in time order, as set_markers_list takes them (the prev/next
-      // label buttons then step from one to the next).
+      // `time_ms:kind:whose:label;...` (kind 1 a kill, 2 an objective, 3 a death of the player in
+      // view; whose, the Moments switch's: 1 the viewer's own, 2 the player in view's, 3 both, 0
+      // neither; the label may be empty): the markers [{time, kind, whose, label}] in time order, as
+      // set_markers_list takes them (the prev/next label buttons then step from one to the next).
       public static function markers(value:String) : Array
       {
          var list:Array = [];
          for each(var entry:String in ReplayText.entries(value))
          {
-            var f:Array = ReplayText.fields(entry);
-            if(f != null && ReplayText.isNumber(f[0]) && ReplayText.isNumber(f[1]))
+            var f:Array = ReplayText.fields(entry,4);
+            if(f != null && ReplayText.isNumber(f[0]) && ReplayText.isNumber(f[1]) && ReplayText.isNumber(f[2]))
             {
                list.push({
                   "time":uint(f[0]),
                   "kind":uint(f[1]),
-                  "label":String(f[2])
+                  "whose":uint(f[2]),
+                  "label":String(f[3])
                });
             }
          }
@@ -37,7 +39,7 @@ package survarium.replay
          var list:Array = [];
          for each(var entry:String in ReplayText.entries(value))
          {
-            var f:Array = ReplayText.fields(entry);
+            var f:Array = ReplayText.fields(entry,3);
             if(f != null && ReplayText.isNumber(f[0]) && uint(f[0]) <= 19 && (f[1] == "0" || f[1] == "1") && f[2].length > 0)
             {
                list.push({
@@ -55,12 +57,23 @@ package survarium.replay
          return value == null || value.length == 0 ? [] : value.split(";");
       }
 
-      // [first, second, the rest] of an entry, null if it has fewer than 3 fields.
-      private static function fields(entry:String) : Array
+      // The `count` fields of an entry, the last the rest of it; null if it has fewer.
+      private static function fields(entry:String, count:int) : Array
       {
-         var one:int = entry.indexOf(":");
-         var two:int = one < 0 ? -1 : entry.indexOf(":",one + 1);
-         return two < 0 ? null : [entry.substring(0,one),entry.substring(one + 1,two),entry.substring(two + 1)];
+         var out:Array = [];
+         var from:int = 0;
+         while(out.length < count - 1)
+         {
+            var at:int = entry.indexOf(":",from);
+            if(at < 0)
+            {
+               return null;
+            }
+            out.push(entry.substring(from,at));
+            from = at + 1;
+         }
+         out.push(entry.substring(from));
+         return out;
       }
 
       private static function isNumber(text:String) : Boolean

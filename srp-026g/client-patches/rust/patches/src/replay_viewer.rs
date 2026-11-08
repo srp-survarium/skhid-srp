@@ -9,15 +9,19 @@
 //!   replay controls' time_scale), 0.25x to 8x;
 //! - its keys ask the server for a change (an 0xE0): Space pause, Left and
 //!   Right 10 s back and on, Shift+Left and Shift+Right the previous and
-//!   the next kill (4 s before it, from the server's events), `[` and `]`
-//!   slower and faster; F11 and H hide the interface; Ctrl shows or hides the
-//!   hud's cursor (the controls' bar and buttons take the mouse, the camera
-//!   stands); Esc leaves, as the
-//!   game's own leave does (an empty 0xE0, back to the lobby). F5, F6 and F2
-//!   stay patch 121's.
+//!   the next moment the Moments switch lights (4 s before it, from the
+//!   server's events), `[` and `]` slower and faster; M the switch's next
+//!   choice (All, Mine, Followed); F11 and H hide the interface; Ctrl shows or
+//!   hides the hud's cursor (the controls' bar and buttons take the mouse,
+//!   the camera stands); Esc leaves, as the game's own leave does (an empty
+//!   0xE0, back to the lobby); the controls' Back asks the server to let the
+//!   game go (its farewell, as at the recording's end). F5, F6 and F2 stay
+//!   patch 121's.
 //!
-//! A live match's spectator (no playback note) and a player's game are not
-//! touched: every key goes on to the game. Nothing a match computes changes:
+//! A spectator's game, a live match's too, follows the place its watcher asked
+//! for when the server names it (a view note). A live match's spectator (no
+//! playback note) and a player's game are not touched otherwise: every key
+//! goes on to the game. Nothing a match computes changes:
 //! the clock's pace is the server's to keep, the world the recording's.
 #![forbid(unsafe_code)]
 
@@ -43,26 +47,36 @@ enum Command {
     SetSpeed(Speed),
     Back,
     Forward,
-    PreviousKill,
-    NextKill,
+    PreviousMoment,
+    NextMoment,
     Slower,
     Faster,
+    /// M: the Moments switch's next choice.
+    NextMoments,
+    /// A choice of the switch, clicked.
+    SetMoments(Moments),
     ToggleUi,
     /// Ctrl: the hud's cursor on or off, for the controls' bar and buttons.
     ToggleCursor,
     Leave,
+    /// The controls' Back: the server asked to let the game go (its
+    /// farewell ends the world in the match's message handling; ending it
+    /// from the controls' own call did nothing, and from the hud's next
+    /// frame crashed the game in update_player_icons, 0x23AA46).
+    BackButton,
 }
 
 impl Command {
     fn of(key: Dik, shift: bool) -> Option<Command> {
         Some(match key {
             Dik::SPACE => Command::TogglePause,
-            Dik::LEFT if shift => Command::PreviousKill,
-            Dik::RIGHT if shift => Command::NextKill,
+            Dik::LEFT if shift => Command::PreviousMoment,
+            Dik::RIGHT if shift => Command::NextMoment,
             Dik::LEFT => Command::Back,
             Dik::RIGHT => Command::Forward,
             Dik::LEFT_BRACKET => Command::Slower,
             Dik::RIGHT_BRACKET => Command::Faster,
+            Dik::M => Command::NextMoments,
             Dik::F11 | Dik::H => Command::ToggleUi,
             Dik::LEFT_CONTROL | Dik::RIGHT_CONTROL => Command::ToggleCursor,
             Dik::ESCAPE => Command::Leave,
@@ -73,10 +87,102 @@ impl Command {
 
 /// How far Left and Right go.
 const SKIP_MS: u32 = 10_000;
-/// A kill is played from this long before it.
-const KILL_LEAD_MS: u32 = 4_000;
-/// A kill this near the clock (once led) is the one just seen, not the next or the previous.
-const KILL_MARGIN_MS: u32 = 1_000;
+/// A moment is played from this long before it.
+const MOMENT_LEAD_MS: u32 = 4_000;
+/// A moment this near the clock (once led) is the one just seen, not the next or the previous.
+const MOMENT_MARGIN_MS: u32 = 1_000;
+
+/// Which of the events the Moments switch lights: their ticks on the bar
+/// (the others faded) and Shift+Left/Right's steps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Moments {
+    All,
+    /// The viewer's own: it played in the match ([`Own`]).
+    Mine,
+    /// The player in view's.
+    Followed,
+}
+
+impl Moments {
+    /// The first choice: Mine when the viewer played, else All.
+    fn first(own: Own) -> Moments {
+        if own.played() { Moments::Mine } else { Moments::All }
+    }
+
+    /// The choice after this one (M), in the switch's order, past Mine when
+    /// the viewer did not play.
+    fn next(self, own: Own) -> Moments {
+        match self {
+            Moments::All if own.played() => Moments::Mine,
+            Moments::All | Moments::Mine => Moments::Followed,
+            Moments::Followed => Moments::All,
+        }
+    }
+
+    /// `wanted` when the viewer may choose it (Mine only for one who played).
+    fn chosen(self, wanted: Moments, own: Own) -> Moments {
+        if wanted == Moments::Mine && !own.played() { self } else { wanted }
+    }
+
+    /// The switch's index of the choice (the movie's set_moments and
+    /// moments_clicked: 0 All, 1 Mine, 2 Followed).
+    fn index(self) -> u32 {
+        match self {
+            Moments::All => 0,
+            Moments::Mine => 1,
+            Moments::Followed => 2,
+        }
+    }
+
+    fn of_index(index: u32) -> Option<Moments> {
+        Some(match index {
+            0 => Moments::All,
+            1 => Moments::Mine,
+            2 => Moments::Followed,
+            _ => return None,
+        })
+    }
+
+    /// Whether this choice lights `event`, of the viewer's own places `own`
+    /// and with `watched` in view.
+    fn lights(self, event: &Event, own: Own, watched: Option<u8>) -> bool {
+        match self {
+            Moments::All => true,
+            Moments::Mine => own.in_event(event),
+            Moments::Followed => watched.is_some_and(|place| [event.actor, event.victim].contains(&Some(place))),
+        }
+    }
+}
+
+/// The viewer's own places in the replay: those under its account's name (a
+/// player who left and came back may have had two). None: it did not play.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Own(u32);
+
+impl Own {
+    /// The places among `places` whose name is `own` (ignoring ASCII case, as
+    /// the lobby finds an account).
+    fn by_name<'n>(own: Option<&[u8]>, places: u32, name: impl Fn(u8) -> Option<&'n [u8]>) -> Own {
+        let Some(own) = own.filter(|own| !own.is_empty()) else { return Own(0) };
+        let mask = (0..places.min(32) as u8)
+            .filter(|&place| name(place).is_some_and(|name| name.eq_ignore_ascii_case(own)))
+            .fold(0, |mask, place| mask | 1 << place);
+        Own(mask)
+    }
+
+    fn played(self) -> bool {
+        self.0 != 0
+    }
+
+    fn has(self, place: Option<u8>) -> bool {
+        place.is_some_and(|place| place < 32 && self.0 & 1 << place != 0)
+    }
+
+    /// One of its places made the event or died in it.
+    fn in_event(self, event: &Event) -> bool {
+        self.has(event.actor) || self.has(event.victim)
+    }
+}
 
 /// The interface's look (F11 and H), or the cursor's (Ctrl).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,6 +217,9 @@ struct Viewer {
     ui: Ui,
     /// The hud's cursor (Ctrl): the controls take the mouse while it shows.
     cursor: Ui,
+    /// The viewer's own places, and the Moments switch's choice.
+    own: Own,
+    moments: Moments,
     /// The next request's number.
     seq: u8,
 }
@@ -131,11 +240,12 @@ enum Input {
     NewMatch,
     /// close_current_match past its guard: the match ends.
     MatchEnded,
-    /// The server's playback note.
-    Playback(Playback),
+    /// The server's playback note; the viewer's own places (the first note
+    /// makes the viewer with them).
+    Playback { playback: Playback, own: Own },
     /// A key went down or the controls were used; the match's clock, when
-    /// the game has a world.
-    Command { command: Command, now: Option<MatchMs> },
+    /// the game has a world, and the player in view.
+    Command { command: Command, now: Option<MatchMs>, watched: Option<u8> },
 }
 
 /// What the game does for an input.
@@ -162,17 +272,25 @@ fn step(session: Session, input: Input, events: &Events) -> (Session, Act) {
     match (session, input) {
         (Session::Live, Input::NewMatch | Input::MatchEnded) => (Session::Live, Act::Pass),
         (Session::Replay(_), Input::NewMatch | Input::MatchEnded) => (Session::Live, Act::Restore),
-        (Session::Live, Input::Playback(playback)) => {
-            let viewer = Viewer { playback, asked: Asked::of(playback), ui: Ui::Shown, cursor: Ui::Hidden, seq: 0 };
+        (Session::Live, Input::Playback { playback, own }) => {
+            let viewer = Viewer {
+                playback,
+                asked: Asked::of(playback),
+                ui: Ui::Shown,
+                cursor: Ui::Hidden,
+                own,
+                moments: Moments::first(own),
+                seq: 0,
+            };
             (Session::Replay(viewer), Act::play(playback))
         }
-        (Session::Replay(viewer), Input::Playback(playback)) if newer(playback.revision, viewer.playback.revision) => {
+        (Session::Replay(viewer), Input::Playback { playback, .. }) if newer(playback.revision, viewer.playback.revision) => {
             (Session::Replay(Viewer { playback, asked: Asked::of(playback), ..viewer }), Act::play(playback))
         }
-        (Session::Replay(viewer), Input::Playback(_)) => (Session::Replay(viewer), Act::Nothing),
+        (Session::Replay(viewer), Input::Playback { .. }) => (Session::Replay(viewer), Act::Nothing),
         (Session::Live, Input::Command { .. }) => (Session::Live, Act::Pass),
-        (Session::Replay(viewer), Input::Command { command, now }) => {
-            let (viewer, act) = viewer.command(command, now, events);
+        (Session::Replay(viewer), Input::Command { command, now, watched }) => {
+            let (viewer, act) = viewer.command(command, now, watched, events);
             (Session::Replay(viewer), act)
         }
     }
@@ -191,24 +309,30 @@ impl Act {
 }
 
 impl Viewer {
-    fn command(self, command: Command, now: Option<MatchMs>, events: &Events) -> (Viewer, Act) {
+    fn command(self, command: Command, now: Option<MatchMs>, watched: Option<u8>, events: &Events) -> (Viewer, Act) {
         let (start, end) = (self.playback.start, self.playback.end);
         let seek = |time: Option<MatchMs>| time.map(|time| Op::Seek(time.within(start, end)));
+        let lit = |event: &Event| self.moments.lights(event, self.own, watched);
         let op = match command {
             Command::TogglePause => Some(Op::Pause(!self.asked.paused)),
             Command::SeekTo(offset) => seek(Some(start.plus(offset))),
             Command::SetSpeed(speed) => Some(speed).filter(|&s| s != self.asked.speed).map(Op::Speed),
             Command::Back => seek(now.map(|now| now.minus(SKIP_MS))),
             Command::Forward => seek(now.map(|now| now.plus(SKIP_MS))),
-            Command::PreviousKill => seek(now.and_then(|now| events.previous_kill(now))),
-            Command::NextKill => seek(now.and_then(|now| events.next_kill(now))),
+            Command::PreviousMoment => seek(now.and_then(|now| events.previous_moment(now, lit))),
+            Command::NextMoment => seek(now.and_then(|now| events.next_moment(now, lit))),
             Command::Slower => Some(self.asked.speed.slower()).filter(|&s| s != self.asked.speed).map(Op::Speed),
             Command::Faster => Some(self.asked.speed.faster()).filter(|&s| s != self.asked.speed).map(Op::Speed),
+            Command::NextMoments => return (Viewer { moments: self.moments.next(self.own), ..self }, Act::Nothing),
+            Command::SetMoments(wanted) => {
+                return (Viewer { moments: self.moments.chosen(wanted, self.own), ..self }, Act::Nothing);
+            }
             Command::ToggleUi => {
                 let ui = self.ui.other();
                 return (Viewer { ui, ..self }, Act::ShowUi(ui == Ui::Shown));
             }
             Command::ToggleCursor => return (Viewer { cursor: self.cursor.other(), ..self }, Act::Nothing),
+            Command::BackButton => Some(Op::Leave),
             Command::Leave => return (self, Act::Leave),
         };
         let Some(op) = op else { return (self, Act::Nothing) };
@@ -225,7 +349,7 @@ impl Viewer {
 const MAX_EVENTS: usize = 256;
 
 /// The replay's events as the server sent them (by their index in its
-/// list), for the keys' previous and next kill. Kept apart from the session:
+/// list), for the keys' previous and next moment. Kept apart from the session:
 /// a note may come before the first playback note (the transport reorders).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Events {
@@ -247,13 +371,15 @@ impl Events {
         self
     }
 
-    /// The controls' markers text (`time_ms:kind:label;...`, the time from
-    /// the replay's `start`), up to the room of `out`; an event before the
-    /// start is left out. The kind is the movie's tick: 1 a kill, 2 an
-    /// objective, 3 a death of the player `watched`; the label its players
-    /// by `name` (`Ada > Bob`, the victim alone for a death no one made,
-    /// the actor of an objective), at most [`LABEL_MAX`] bytes.
-    fn markers<'o, 'n>(&self, start: MatchMs, watched: Option<u8>, name: impl Fn(u8) -> Option<&'n [u8]>,
+    /// The controls' markers text (`time_ms:kind:whose:label;...`, the time
+    /// from the replay's `start`), up to the room of `out`; an event before
+    /// the start is left out. The kind is the movie's tick: 1 a kill, 2 an
+    /// objective, 3 a death of the player `watched`; whose, what the Moments
+    /// switch lights it under: 1 one of the viewer's `own` places in it, 2 the
+    /// player `watched`, 3 both, 0 neither; the label its players by `name`
+    /// (`Ada > Bob`, the victim alone for a death no one made, the actor of an
+    /// objective), at most [`LABEL_MAX`] bytes.
+    fn markers<'o, 'n>(&self, start: MatchMs, own: Own, watched: Option<u8>, name: impl Fn(u8) -> Option<&'n [u8]>,
                        out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
         let mut text = Text { out, len: 0 };
         for event in self.slots.iter().flatten() {
@@ -267,9 +393,12 @@ impl Events {
                 EventKind::Kill => (event.actor.and_then(&name), event.victim.and_then(&name)),
                 EventKind::Objective => (event.actor.and_then(&name), None),
             };
+            let whose = u32::from(Moments::Mine.lights(event, own, watched))
+                | u32::from(Moments::Followed.lights(event, own, watched)) << 1;
             let mark = text.len;
             let fits = (text.len == 0 || text.push(b";")) && text.number(offset) && text.push(b":")
-                && text.number(kind) && text.push(b":") && text.label(first, second);
+                && text.number(kind) && text.push(b":") && text.number(whose) && text.push(b":")
+                && text.label(first, second);
             if !fits {
                 text.len = mark;
                 break;
@@ -278,19 +407,19 @@ impl Events {
         text.finish()
     }
 
-    /// The times kills are played from (each 4 s before its kill).
-    fn kill_starts(&self) -> impl Iterator<Item = MatchMs> + '_ {
-        self.slots.iter().flatten().filter(|event| event.kind == EventKind::Kill).map(|event| event.time.minus(KILL_LEAD_MS))
+    /// The times the `lit` events are played from (each 4 s before it).
+    fn moment_starts<'e>(&'e self, lit: impl Fn(&Event) -> bool + 'e) -> impl Iterator<Item = MatchMs> + 'e {
+        self.slots.iter().flatten().filter(move |event| lit(event)).map(|event| event.time.minus(MOMENT_LEAD_MS))
     }
 
-    /// Where the first kill after the one being watched is played from.
-    fn next_kill(&self, now: MatchMs) -> Option<MatchMs> {
-        self.kill_starts().filter(|&start| start > now.plus(KILL_MARGIN_MS)).min()
+    /// Where the first lit moment after the one being watched is played from.
+    fn next_moment(&self, now: MatchMs, lit: impl Fn(&Event) -> bool) -> Option<MatchMs> {
+        self.moment_starts(lit).filter(|&start| start > now.plus(MOMENT_MARGIN_MS)).min()
     }
 
-    /// Where the last kill before the one being watched is played from.
-    fn previous_kill(&self, now: MatchMs) -> Option<MatchMs> {
-        self.kill_starts().filter(|&start| start < now.minus(KILL_MARGIN_MS)).max()
+    /// Where the last lit moment before the one being watched is played from.
+    fn previous_moment(&self, now: MatchMs, lit: impl Fn(&Event) -> bool) -> Option<MatchMs> {
+        self.moment_starts(lit).filter(|&start| start < now.minus(MOMENT_MARGIN_MS)).max()
     }
 }
 
@@ -312,7 +441,9 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
     }
     match ServerNote::parse(site.payload) {
         Some(ServerNote::Playback(playback)) => {
-            let (next, act) = step(SESSION.get(thread), Input::Playback(playback), &EVENTS.get(thread));
+            let names = Names::of(&site.client);
+            let own = Own::by_name(names.own(), site.client.places(), |place| names.of_place(place));
+            let (next, act) = step(SESSION.get(thread), Input::Playback { playback, own }, &EVENTS.get(thread));
             SESSION.set(thread, next);
             if let (Act::Play { paused, speed }, Some(clock)) = (act, GameClock::of(&site.client)) {
                 clock.set_paused(paused);
@@ -320,7 +451,11 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
             }
         }
         Some(ServerNote::Events(note)) => EVENTS.update(thread, |events| events.take(&note)),
-        Some(ServerNote::View(_)) | None => {}
+        // The place its watcher asked to see (a replay's or a live match's
+        // spectator, once its first world is in): followed, as a player list
+        // click does.
+        Some(ServerNote::View(place)) => spectator::view_player(&site.client, thread, place),
+        None => {}
     }
     Flow::Exit(ReplayViewerOnServerNoteExit::Done)
 }
@@ -343,7 +478,8 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
     }
     let client = key.hud().client(thread);
     let now = client.as_ref().and_then(|client| client.clock());
-    let (next, act) = step(session, Input::Command { command: replay_key, now }, &EVENTS.get(thread));
+    let watched = client.as_ref().and_then(|client| client.local_place());
+    let (next, act) = step(session, Input::Command { command: replay_key, now, watched }, &EVENTS.get(thread));
     SESSION.set(thread, next);
     match act {
         Act::Ask(request) => {
@@ -463,17 +599,31 @@ impl<'o> Text<'o> {
 /// the session): kept apart from the session, as the movie's own state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Fed {
+    /// The movie made a viewer's (its Back button, Moments switch and key
+    /// hint, with their texts): its id.
+    movie: Option<usize>,
     /// The playback revision its bar's length is from.
     revision: Option<u8>,
     /// What its markers are from.
     markers: Option<MarkersOf>,
     /// Shown or hidden.
     ui: Option<Ui>,
+    /// The switch's choice it shows, and the cursor it shows the key hint for.
+    moments: Option<Moments>,
+    cursor: Option<Ui>,
 }
 
 impl Fed {
-    const NOTHING: Fed = Fed { revision: None, markers: None, ui: None };
+    const NOTHING: Fed = Fed { movie: None, revision: None, markers: None, ui: None, moments: None, cursor: None };
 }
+
+/// The dictionary keys of the viewer's own controls, in root.start_viewer's
+/// order: the Back button, the Moments switch and its choices, the key hint's
+/// actions and its Ctrl and Space caps.
+const VIEWER_TEXTS: [&CStr; 11] = [c"st_srp_viewer_back", c"st_srp_viewer_moments", c"st_srp_viewer_moments_all",
+                                   c"st_srp_viewer_moments_mine", c"st_srp_viewer_moments_followed",
+                                   c"st_srp_viewer_cursor", c"st_srp_viewer_pause", c"st_srp_viewer_filter",
+                                   c"st_srp_viewer_hide", c"st_srp_viewer_cap_ctrl", c"st_srp_viewer_cap_space"];
 
 /// The markers' sources: the events' version, and the player watched (whose
 /// deaths are their own kind).
@@ -485,14 +635,17 @@ struct MarkersOf {
 
 static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
 
-/// The controls of a viewer's game, brought to the session: shown or hidden
-/// with the interface, the bar's length and the speed stepper at each playback, the markers when they changed, its
+/// The controls of a viewer's game, brought to the session: made a viewer's
+/// once (Back, the Moments switch, the key hint), shown or hidden with the
+/// interface, the bar's length and the speed stepper at each playback, the
+/// markers and the switch when they changed, the cursor for the key hint, its
 /// position and play button every frame (as the replay client's tick does,
-/// 0x218C16 / 0x218C27), the hud's kit chooser and quick slots kept hidden, and its
-/// cursor kept as Ctrl left it.
+/// 0x218C16 / 0x218C27), the hud's kit chooser and quick slots kept hidden,
+/// and its cursor kept as Ctrl left it.
 fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) -> Fed {
     let Some(overlay) = Overlay::of(client) else { return fed };
     let Playback { revision, paused, speed, start, end } = viewer.playback;
+    let movie = Some(overlay.id()).filter(|&id| fed.movie == Some(id) || overlay.start_viewer(&VIEWER_TEXTS));
     if fed.ui != Some(viewer.ui) {
         overlay.show(viewer.ui == Ui::Shown);
     }
@@ -505,7 +658,13 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) 
     if fed.markers != Some(markers) || fed.revision.is_none() {
         let mut room = [0; MARKERS_ROOM];
         let names = Names::of(client);
-        overlay.set_markers(events.markers(start, watched, |place| names.of_place(place), &mut room));
+        overlay.set_markers(events.markers(start, viewer.own, watched, |place| names.of_place(place), &mut room));
+    }
+    if fed.moments != Some(viewer.moments) {
+        overlay.set_moments(viewer.moments.index(), viewer.own.played());
+    }
+    if fed.cursor != Some(viewer.cursor) {
+        overlay.set_cursor_shown(viewer.cursor == Ui::Shown);
     }
     if let Some(now) = client.clock() {
         overlay.set_position(now.within(start, end).0 - start.0);
@@ -513,7 +672,14 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) 
     overlay.set_paused(paused);
     overlay.hide_player_panels();
     overlay.keep_cursor(viewer.cursor == Ui::Shown);
-    Fed { revision: Some(revision), markers: Some(markers), ui: Some(viewer.ui) }
+    Fed {
+        movie,
+        revision: Some(revision),
+        markers: Some(markers),
+        ui: Some(viewer.ui),
+        moments: Some(viewer.moments),
+        cursor: Some(viewer.cursor),
+    }
 }
 
 /// `hud.update` (game_world_ui::update_ui, every frame of the hud): a
@@ -570,6 +736,10 @@ enum ControlCall {
     Speed(f64),
     Player(u8),
     FreeView,
+    /// The Moments switch's choice clicked (srp's).
+    Moments(Moments),
+    /// The Back button (srp's).
+    Back,
     Other,
 }
 
@@ -582,6 +752,8 @@ impl ControlCall {
             b"update_play_speed" => number(0).map_or(ControlCall::Other, ControlCall::Speed),
             b"select_player" => number(0).filter(|&n| n < 256.0).map_or(ControlCall::Other, |n| ControlCall::Player(n as u8)),
             b"select_free_view" => ControlCall::FreeView,
+            b"moments_clicked" => number(0).and_then(|n| Moments::of_index(n as u32)).map_or(ControlCall::Other, ControlCall::Moments),
+            b"back_clicked" => ControlCall::Back,
             b"camera_smooth_changed" => ControlCall::Other,
             _ => return None,
         })
@@ -590,9 +762,9 @@ impl ControlCall {
 
 /// `hud.callback` (after patch 86's): the replay controls in a network
 /// game. A viewer's become requests to the server (play, the bar, the
-/// speed) or patch 121's camera (a player, the free view); any other game's
-/// are taken with nothing done. A replay client's, and every other call,
-/// go on as the game's.
+/// speed, Back's leave), patch 121's camera (a player, the free view) or the
+/// Moments switch; any other game's are taken with nothing done.
+/// A replay client's, and every other call, go on as the game's.
 pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
     let Some(call) = HudCall::at(ctx) else { return Flow::Continue };
     let Some(control) = ControlCall::of(&call) else { return Flow::Continue };
@@ -616,10 +788,13 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
             spectator::view_free(&client, thread);
             None
         }
+        ControlCall::Moments(moments) => Some(Command::SetMoments(moments)),
+        ControlCall::Back => Some(Command::BackButton),
         ControlCall::Other => None,
     };
     if let Some(command) = command {
-        let (next, act) = step(session, Input::Command { command, now: client.clock() }, &EVENTS.get(thread));
+        let input = Input::Command { command, now: client.clock(), watched: client.local_place() };
+        let (next, act) = step(session, input, &EVENTS.get(thread));
         SESSION.set(thread, next);
         if let Act::Ask(request) = act {
             client.send_request(request);
@@ -636,12 +811,17 @@ mod tests {
         Playback { revision, paused, speed, start: MatchMs(10_000), end: MatchMs(600_000) }
     }
 
+    /// A playback note to a game whose viewer did not play.
+    fn played(playback: Playback) -> Input {
+        Input::Playback { playback, own: Own(0) }
+    }
+
     fn viewer() -> Session {
-        step(Session::Live, Input::Playback(playback(3, false, Speed::Normal)), &Events::NONE).0
+        step(Session::Live, played(playback(3, false, Speed::Normal)), &Events::NONE).0
     }
 
     fn key(session: Session, key: Command, now: u32, events: &Events) -> (Session, Act) {
-        step(session, Input::Command { command: key, now: Some(MatchMs(now)) }, events)
+        step(session, Input::Command { command: key, now: Some(MatchMs(now)), watched: None }, events)
     }
 
     fn kill(time: u32) -> Option<Event> {
@@ -650,7 +830,7 @@ mod tests {
 
     #[test]
     fn the_first_playback_makes_a_viewer_and_plays_it() {
-        let (session, act) = step(Session::Live, Input::Playback(playback(200, true, Speed::Half)), &Events::NONE);
+        let (session, act) = step(Session::Live, played(playback(200, true, Speed::Half)), &Events::NONE);
         assert!(matches!(session, Session::Replay(_)));
         assert_eq!(act, Act::Play { paused: true, speed: Speed::Half });
     }
@@ -666,9 +846,9 @@ mod tests {
     #[test]
     fn only_a_newer_playback_is_taken() {
         let session = viewer();
-        let (same, act) = step(session, Input::Playback(playback(2, true, Speed::Double)), &Events::NONE);
+        let (same, act) = step(session, played(playback(2, true, Speed::Double)), &Events::NONE);
         assert_eq!((same, act), (session, Act::Nothing));
-        let (_, act) = step(session, Input::Playback(playback(4, true, Speed::Double)), &Events::NONE);
+        let (_, act) = step(session, played(playback(4, true, Speed::Double)), &Events::NONE);
         assert_eq!(act, Act::Play { paused: true, speed: Speed::Double });
     }
 
@@ -680,7 +860,7 @@ mod tests {
         let (session, second) = key(session, Command::TogglePause, 0, &Events::NONE);
         assert_eq!(second, Act::Ask(Request { seq: 1, op: Op::Pause(false) }));
         // The server's playback is what the next press starts from.
-        let (session, _) = step(session, Input::Playback(playback(4, true, Speed::Normal)), &Events::NONE);
+        let (session, _) = step(session, played(playback(4, true, Speed::Normal)), &Events::NONE);
         assert_eq!(key(session, Command::TogglePause, 0, &Events::NONE).1, Act::Ask(Request { seq: 2, op: Op::Pause(false) }));
     }
 
@@ -693,23 +873,75 @@ mod tests {
         assert_eq!(key(viewer(), Command::Forward, 595_000, &Events::NONE).1,
                    Act::Ask(Request { seq: 0, op: Op::Seek(MatchMs(600_000)) }));
         // No world yet: nothing asked, the key still the viewer's.
-        let (_, act) = step(viewer(), Input::Command { command: Command::Back, now: None }, &Events::NONE);
+        let (_, act) = step(viewer(), Input::Command { command: Command::Back, now: None, watched: None }, &Events::NONE);
         assert_eq!(act, Act::Nothing);
     }
 
     #[test]
-    fn shift_arrows_go_from_kill_to_kill() {
+    fn shift_arrows_go_from_moment_to_moment() {
         let mut events = Events::NONE;
         events.slots[0] = kill(30_000);
         events.slots[1] = Some(Event { time: MatchMs(40_000), kind: EventKind::Objective, actor: None, victim: None });
         events.slots[5] = kill(60_000);
         let seek = |ms| Act::Ask(Request { seq: 0, op: Op::Seek(MatchMs(ms)) });
-        assert_eq!(key(viewer(), Command::NextKill, 12_000, &events).1, seek(26_000));
+        assert_eq!(key(viewer(), Command::NextMoment, 12_000, &events).1, seek(26_000));
         // Just sent to a kill (4 s before it): the next is the one after it.
-        assert_eq!(key(viewer(), Command::NextKill, 26_000, &events).1, seek(56_000));
-        assert_eq!(key(viewer(), Command::PreviousKill, 56_200, &events).1, seek(26_000));
-        assert_eq!(key(viewer(), Command::PreviousKill, 26_000, &events).1, Act::Nothing);
-        assert_eq!(key(viewer(), Command::NextKill, 56_000, &events).1, Act::Nothing);
+        assert_eq!(key(viewer(), Command::NextMoment, 26_000, &events).1, seek(36_000));
+        assert_eq!(key(viewer(), Command::PreviousMoment, 56_200, &events).1, seek(36_000));
+        assert_eq!(key(viewer(), Command::PreviousMoment, 26_000, &events).1, Act::Nothing);
+        assert_eq!(key(viewer(), Command::NextMoment, 56_000, &events).1, Act::Nothing);
+    }
+
+    #[test]
+    fn the_moments_switch_starts_at_mine_for_a_player_and_lights_what_it_says() {
+        // Place 2 is the viewer's: it was killed at 30 s by 1, killed 3 at 50 s; 1 killed 3 at 70 s.
+        let mut events = Events::NONE;
+        events.slots[0] = kill(30_000);
+        events.slots[1] = Some(Event { time: MatchMs(50_000), kind: EventKind::Kill, actor: Some(2), victim: Some(3) });
+        events.slots[2] = Some(Event { time: MatchMs(70_000), kind: EventKind::Kill, actor: Some(1), victim: Some(3) });
+        let own = Own(1 << 2);
+        let (player, _) = step(Session::Live, Input::Playback { playback: playback(3, false, Speed::Normal), own }, &events);
+        assert!(matches!(player, Session::Replay(Viewer { moments: Moments::Mine, .. })));
+        assert!(matches!(viewer(), Session::Replay(Viewer { moments: Moments::All, .. })));
+        let step_at = |session, command, now, watched| {
+            step(session, Input::Command { command, now: Some(MatchMs(now)), watched }, &events)
+        };
+        let seek = |seq, ms| Act::Ask(Request { seq, op: Op::Seek(MatchMs(ms)) });
+        // Mine: its death and its kill, not 1's kill of 3.
+        let (player, act) = step_at(player, Command::NextMoment, 30_000, Some(3));
+        assert_eq!(act, seek(0, 46_000));
+        assert_eq!(step_at(player, Command::NextMoment, 46_000, Some(3)).1, Act::Nothing);
+        // M: Followed (3 in view: both its deaths), then All, then Mine again.
+        let (player, _) = step_at(player, Command::NextMoments, 46_000, Some(3));
+        assert!(matches!(player, Session::Replay(Viewer { moments: Moments::Followed, .. })));
+        assert_eq!(step_at(player, Command::NextMoment, 46_000, Some(3)).1, seek(1, 66_000));
+        assert_eq!(step_at(player, Command::NextMoment, 10_000, None).1, Act::Nothing);
+        let (all, _) = step_at(player, Command::NextMoments, 0, None);
+        assert!(matches!(all, Session::Replay(Viewer { moments: Moments::All, .. })));
+        let (mine, _) = step_at(all, Command::NextMoments, 0, None);
+        assert!(matches!(mine, Session::Replay(Viewer { moments: Moments::Mine, .. })));
+        // One who did not play: All and Followed only, Mine clicked is no choice.
+        let (watcher, _) = key(viewer(), Command::NextMoments, 0, &events);
+        assert!(matches!(watcher, Session::Replay(Viewer { moments: Moments::Followed, .. })));
+        assert!(matches!(key(watcher, Command::NextMoments, 0, &events).0, Session::Replay(Viewer { moments: Moments::All, .. })));
+        assert_eq!(key(watcher, Command::SetMoments(Moments::Mine), 0, &events).0, watcher);
+        assert!(matches!(key(watcher, Command::SetMoments(Moments::All), 0, &events).0,
+                         Session::Replay(Viewer { moments: Moments::All, .. })));
+    }
+
+    #[test]
+    fn own_places_are_those_of_the_accounts_name() {
+        let names = |place: u8| match place {
+            0 => Some(&b"Ada"[..]),
+            1 => Some(&b"replaytester"[..]),
+            3 => Some(&b"ReplayTester"[..]),
+            _ => None,
+        };
+        assert_eq!(Own::by_name(Some(b"ReplayTester"), 4, names), Own(0b1010));
+        assert_eq!(Own::by_name(Some(b"ReplayTester"), 2, names), Own(0b10));
+        assert_eq!(Own::by_name(Some(b"Bob"), 4, names), Own(0));
+        assert_eq!(Own::by_name(Some(b""), 4, |_| Some(&b""[..])), Own(0));
+        assert_eq!(Own::by_name(None, 4, names), Own(0));
     }
 
     #[test]
@@ -718,7 +950,7 @@ mod tests {
         assert_eq!(act, Act::Ask(Request { seq: 0, op: Op::Speed(Speed::Double) }));
         let (_, act) = key(session, Command::Faster, 0, &Events::NONE);
         assert_eq!(act, Act::Ask(Request { seq: 1, op: Op::Speed(Speed::Quadruple) }));
-        let (slow, _) = step(Session::Live, Input::Playback(playback(0, false, Speed::Quarter)), &Events::NONE);
+        let (slow, _) = step(Session::Live, played(playback(0, false, Speed::Quarter)), &Events::NONE);
         assert_eq!(key(slow, Command::Slower, 0, &Events::NONE), (slow, Act::Nothing));
     }
 
@@ -728,6 +960,8 @@ mod tests {
         assert_eq!(act, Act::ShowUi(false));
         assert_eq!(key(session, Command::ToggleUi, 0, &Events::NONE).1, Act::ShowUi(true));
         assert_eq!(key(viewer(), Command::Leave, 0, &Events::NONE).1, Act::Leave);
+        // Back: the server asked to let the game go.
+        assert_eq!(key(viewer(), Command::BackButton, 0, &Events::NONE).1, Act::Ask(Request { seq: 0, op: Op::Leave }));
         let (session, act) = key(viewer(), Command::ToggleCursor, 0, &Events::NONE);
         assert!(matches!((session, act), (Session::Replay(Viewer { cursor: Ui::Shown, .. }), Act::Nothing)));
         assert!(matches!(key(session, Command::ToggleCursor, 0, &Events::NONE).0, Session::Replay(Viewer { cursor: Ui::Hidden, .. })));
@@ -765,16 +999,19 @@ mod tests {
         };
         let mut room = [0; MARKERS_ROOM];
         // Kill 1 > 2, the objective (nobody), a death of 1 no one made.
-        assert_eq!(events.markers(MatchMs(10_000), None, names, &mut room).to_bytes(),
-                   b"65500:1:Ada > Bob,;601000:2:;80000:1:Ada");
-        // Watching 2: its death is kind 3; watching 1: the lone death.
-        assert_eq!(events.markers(MatchMs(10_000), Some(2), names, &mut room).to_bytes(),
-                   b"65500:3:Ada > Bob,;601000:2:;80000:1:Ada");
-        assert_eq!(events.markers(MatchMs(10_000), Some(1), names, &mut room).to_bytes(),
-                   b"65500:1:Ada > Bob,;601000:2:;80000:3:Ada");
+        assert_eq!(events.markers(MatchMs(10_000), Own(0), None, names, &mut room).to_bytes(),
+                   b"65500:1:0:Ada > Bob,;601000:2:0:;80000:1:0:Ada");
+        // Watching 2: its death is kind 3, followed; watching 1: the lone death and its kill.
+        assert_eq!(events.markers(MatchMs(10_000), Own(0), Some(2), names, &mut room).to_bytes(),
+                   b"65500:3:2:Ada > Bob,;601000:2:0:;80000:1:0:Ada");
+        assert_eq!(events.markers(MatchMs(10_000), Own(0), Some(1), names, &mut room).to_bytes(),
+                   b"65500:1:2:Ada > Bob,;601000:2:0:;80000:3:2:Ada");
+        // The viewer was 1, watching 2: its kill is both, its death its own.
+        assert_eq!(events.markers(MatchMs(10_000), Own(1 << 1), Some(2), names, &mut room).to_bytes(),
+                   b"65500:3:3:Ada > Bob,;601000:2:0:;80000:1:1:Ada");
         // Long names (UTF-8) cut on a character, the label within 63 bytes.
         let long = |_: u8| Some("ЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖ".as_bytes());
-        let text = events.markers(MatchMs(10_000), None, long, &mut room).to_bytes();
+        let text = events.markers(MatchMs(10_000), Own(0), None, long, &mut room).to_bytes();
         let first = text.split(|&b| b == b';').next().unwrap();
         let label = &first[first.iter().rposition(|&b| b == b':').unwrap() + 1..];
         assert!(label.len() <= LABEL_MAX && core::str::from_utf8(label).is_ok(), "{}", label.len());
@@ -782,14 +1019,15 @@ mod tests {
         for (i, slot) in many.slots.iter_mut().enumerate() {
             *slot = kill(1_000_000 + i as u32);
         }
-        let text = many.markers(MatchMs(0), None, names, &mut room).to_bytes();
+        let text = many.markers(MatchMs(0), Own(0), None, names, &mut room).to_bytes();
         assert!(text.len() < MARKERS_ROOM && text.ends_with(b"Ada > Bob,"), "{}", text.len());
-        assert_eq!(Events::NONE.markers(MatchMs(0), None, names, &mut room).to_bytes(), b"");
+        assert_eq!(Events::NONE.markers(MatchMs(0), Own(0), None, names, &mut room).to_bytes(), b"");
     }
 
     #[test]
     fn keys_map_with_shift() {
-        assert_eq!(Command::of(Dik::LEFT, true), Some(Command::PreviousKill));
+        assert_eq!(Command::of(Dik::LEFT, true), Some(Command::PreviousMoment));
+        assert_eq!(Command::of(Dik::M, false), Some(Command::NextMoments));
         assert_eq!(Command::of(Dik::LEFT, false), Some(Command::Back));
         assert_eq!(Command::of(Dik::H, true), Some(Command::ToggleUi));
         assert_eq!(Command::of(Dik::TAB, false), None);

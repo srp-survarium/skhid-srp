@@ -2808,6 +2808,17 @@ st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_viewer_back	Wstecz
+st_srp_viewer_cap_ctrl	Ctrl
+st_srp_viewer_cap_space	Spacja
+st_srp_viewer_cursor	Kursor
+st_srp_viewer_filter	Filtr
+st_srp_viewer_hide	Ukryj
+st_srp_viewer_moments	Momenty
+st_srp_viewer_moments_all	Wszystkie
+st_srp_viewer_moments_followed	Śledzony
+st_srp_viewer_moments_mine	Moje
+st_srp_viewer_pause	Pauza
 st_srp_vulkan_dedicated_gpu	Preferuj dedykowany GPU
 st_srp_vulkan_dedicated_gpu_hint	Na laptopach wybiera mocniejszą kartę graficzną.\n+ Lepsza wydajność na laptopach\n- Zużywa więcej baterii
 st_srp_vulkan_frame_limit	Limit klatek
