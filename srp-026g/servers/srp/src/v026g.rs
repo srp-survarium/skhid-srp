@@ -37,6 +37,7 @@ use login_server::v026g::{self as login, Endpoint, RevisionGate};
 use match_server::v026g::{self as matches, MatchRegistry};
 use session::LockExt;
 use session::SessionStore;
+use session::v026g::replays::Replays;
 use session::v026g::rewards::{self, Results, Terms};
 use session::v026g::{GameAccounts, quests, wire};
 use survarium::v026g::drops::Rng;
@@ -461,6 +462,9 @@ pub struct Stack {
     pub results: Arc<Results>,
     pub registry: Arc<MatchRegistry>,
     pub inbox: Arc<Inbox>,
+    /// The replays: the match server's recordings and Save's files, the
+    /// lobby's asks and the web page's downloads (`/replays/<token>`).
+    pub replays: Arc<Replays>,
     /// Where each server listens (the ports given, for a port of 0).
     pub login_addr: SocketAddr,
     pub lobby_addr: SocketAddr,
@@ -569,6 +573,11 @@ impl Stack {
         };
 
         let mut threads = Vec::new();
+        match matches::replay::start(replays.clone(), Some(accounts.clone())) {
+            Some(Ok(thread)) => threads.push(thread),
+            Some(Err(error)) => log::error!("Save: its thread failed: {error}"),
+            None => {}
+        }
         {
             let (registry, store, accounts, results, inbox, stop, replays) = (
                 registry.clone(),
@@ -642,6 +651,7 @@ impl Stack {
             results,
             registry,
             inbox,
+            replays,
             login_addr,
             lobby_addr,
             match_addr,
@@ -667,6 +677,7 @@ impl Stack {
                 Some(session::persist::data_dir().join(MIRRORS_FILE)),
             )),
             min_patch_revision: self.min_patch_revision,
+            replays: Some(self.replays.clone()),
             results: self.results.clone(),
         }
     }
@@ -677,6 +688,8 @@ impl Stack {
     pub fn stop(mut self) {
         self.stop.store(true, Ordering::Relaxed);
         self.inbox.stop();
+        // A file being made ends first (a few seconds at most).
+        self.replays.stop();
         for thread in self.threads.drain(..) {
             let _ = thread.join();
         }

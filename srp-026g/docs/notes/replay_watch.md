@@ -86,6 +86,21 @@ Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none
 
 **What the player sees of a refusal** (`incompatible`): nothing starts; the movie's own "This replay was recorded by a game version that yours cannot play." (English, Ukrainian, Russian), and with the first answer of each ask the game's message box (`84 49 00 <text>`, `social.md` §9.1: the box and nothing else) in the game's language (`4F`'s byte: English, Russian, Ukrainian, German, Polish): recorded before a game update, and replays from older versions can't be played yet (also for a recording with no revision; no revision or release is named: nothing installs an older game, and the server knows no date of the update to name); for a newer one, its revisions and to update the game (`lobby-server/src/v026g/replay.rs`, `refusal_text`). Not seen in a game yet: a sentence (rather than a key) in that box, with Cyrillic letters.
 
+### 2.1 Save
+
+The save icon of the Watch window's cards and the results screen's Save replay save a match's replay to a file in the player's `<game>\replays` (`research/local-replays-design.md` section 1; the movie: `survarium/watch/ReplaySave.as`).
+
+| message | bytes |
+|---|---|
+| ask (C->S) | `3D 00 <u32 0xFFFFFF01> <u32 match id>` (`lobby::SAVE_ASK`), answered at once as a poll |
+| poll (C->S) | `3B 00 <u32 2210000000> <u8 count>` (`lobby::SAVE_START`) |
+| answer (S->C) | `91 01 <str "R2;<status>;<match id 8 lower hex>;<n>"> <u32 2210000000> <u16 0> <u16 0>` (`lobby::save_answer`); `<n>` the place in the line with `preparing` (0 not known), the file's size with `ready`, else 0 |
+| link (S->C) | `9E` `video_link(false, "replay <id 8 hex> <token 32 hex> <sha256 64 hex> <size>")`, just before each `ready` row; never in the packet log |
+
+Statuses as above, and `ready`; `none` (no ask), `gone` also for a match closed under the recordings' minimum, `busy` also for a second ask within 2 s, 20 files waiting or 3 live tokens of the account. On `ready` the movie calls `video_tutorial_link_clicked` once: patch revision 14's `replay_link` (`client_patch.md` 3.27) starts `updater_skhid.exe replay <link>`, which fetches `/replays/<token>` (a token: 10 minutes, 5 downloads, one at a time) and writes `<game>\replays\<date>_<map>_<id>.srpreplay` (`client/updater/README.md`).
+
+The match server makes the file on a thread of its own (`match_server::v026g::replay`, nice 19, one at a time, when first asked for): `SRP_REPLAY_DIR/<id:08x>.srpreplay` (`replay_file`: a header of the map, mode, score, places' names, teams, kills and deaths, the history's timeline events, and the `.sur` a replay session plays) and its sidecar `<id:08x>.json` (size, SHA-256, revisions, accounts; never served). A file lives as long as its recording and within `SRP_REPLAY_MAX_MB`. Who may save follows `SRP_REPLAY_WATCH`, and the compatibility rule below holds for a file as for a session.
+
 ## 3. What a replay holds
 
 A replay session plays what `sur_convert` makes of the recording, in memory (`replay-stream.md`); `srp-recording-to-sur` writes the same as a `.sur` file for the game's own player (`-match_replay=`, `replay_sur.md`). It holds what every player of the match was sent (`sur_convert`'s chunks): chunk 0 the engine version; chunk 1 the 0xE4 options of the largest roster (names, clan tags, kits, items, the map, the match's static id, the squad numbers); chunk 2 the relayed inputs, roster changes and kit choices; chunk 3 worlds the clients uploaded; chunk 4 the mode's config, which every game has. No address (the recording has none), no session id (the clients' 0xD8, which the recording holds, is not read into it), no token, no server path. `match_server::v026g::replay::tests::a_recordings_places_read_and_its_sur_holds_nothing_private` plants a session id, a token, an address and the server's folders in a recording and finds none in the file or in any chunk unpacked.
@@ -102,6 +117,7 @@ A replay session plays what `sur_convert` makes of the recording, in memory (`re
 | `/launcher…`, `/launcher/places/<lang>`, `/launcher/fresh/<lang>` (0.26g) | GET | the board and counts; the skin is compiled in (`include_bytes!`) | no file; the language is read from the path, nothing else |
 | `/`, `/exchange` | GET | the store's counts (`/exchange` only says the exchange is in the game now) | pages; no file |
 | `/<SRP_ADMIN_PATH>` | GET, POST | accounts, bans, maintenance (with `SRP_ADMIN_TOKEN`, from `SRP_ADMIN_IPS` only) | no file; any other address gets the plain "not found" |
+| `/replays/<token>` (0.26g) | GET, HEAD | `SRP_REPLAY_DIR/<id:08x>.srpreplay` of the live token's match | the token is looked up, never a path; the name is made from the match id alone, a regular file whose real path is in the folder; anything else is one and the same 404, and 30 failed lookups a minute from one address are answered 429 for a minute (`web-server/src/replay_tests.rs`) |
 | anything else | any | nothing | "not found" page |
 
 Recordings, `srp.db`, logs, `.env` and certificates are opened by no route.

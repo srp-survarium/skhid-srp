@@ -83,6 +83,19 @@ services:
       # Replay sessions (docs/notes/replay-stream.md) read the recordings;
       # a larger one than this many MB is not read (default 24).
       - SRP_REPLAY_MAX_RECORDING_MB
+      # Save (the Watch window's save icon, the results screen's Save
+      # replay): a kept recording is made into a .srpreplay file in
+      # SRP_REPLAY_DIR (a folder of its own, never inside the recordings')
+      # when a player first asks to save it, at the lowest CPU priority, and
+      # handed out only at /replays/<token> of the web page, which the
+      # player's updater fetches into the game's replays folder. `off`
+      # switches Save off. Behind the caddy26 proxy set
+      # SRP_WEB_TRUST_PROXY=on: failed /replays/ lookups are limited per
+      # address.
+      - SRP_REPLAY_DIR=${SRP_REPLAY_DIR:-/srv/srp/data/replays}
+      # The files (.srpreplay and .json) over this many MB together: the
+      # oldest go (default 1000; apart from SRP_RECORD_MAX_MB).
+      - SRP_REPLAY_MAX_MB
       # The server's log, <server>.log for each of login, lobby, match, web
       # and srp, in the data volume: it outlives the container, which an
       # update makes anew (the container's own output, `docker compose logs`,

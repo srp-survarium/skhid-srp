@@ -187,6 +187,8 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_RECORD_MIN_PLAYERS` | `6` | PvP recordings are kept after this many human players enter, including late joiners. PvE recordings need one human regardless of this setting. Empty matches are discarded |
 | `SRP_RECORD_MAX_MB` | `5000` | Kept recordings over this together: the oldest are deleted |
 | `SRP_REPLAY_MAX_RECORDING_MB` | `24` | A replay session (`docs/notes/replay-stream.md`) does not read a larger recording (status `failed`): it is kept in memory with what is made of it |
+| `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | Save: the `.srpreplay` files players ask to save (`docs/notes/replay_watch.md` section 2.1), made from the kept recordings and handed out at `/replays/<token>`; a folder of its own (never the recordings', inside it or around it: then Save is off). `off`: off |
+| `SRP_REPLAY_MAX_MB` | `1000` | Save's files (and their sidecars) over this together: the oldest are deleted (made again when asked for) |
 | `SRP_PACKET_LOG` | unset | A folder: every datagram of the lobby and the match server, one file a connection (the lobby sign-in's session id left out). **Set it for every live test** |
 
 ### Sign-in
