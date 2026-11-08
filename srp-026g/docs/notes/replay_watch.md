@@ -26,6 +26,11 @@ In the running game instead (no download, no second process): a replay session, 
 - Each answer sets the match's chip on its History rows, under Watch: `ready`/`watching` Ready,
   `preparing` Preparing, `incompatible` Old version, `not_recorded` Not recorded, `gone` Expired; no
   chip before an answer, nor for one about the asker or the server (`busy`, `old_game`, ...).
+- **Watch by match number:** each History row shows its match's number (`#` and the 8 hex digits of the
+  `R1` rows and the logs) left of its chip, and the results screen after its buttons. A strip above the
+  History takes a number typed as shown (any case, `#` optional) and watches it (Watch or Enter); anything
+  else opens the prompt saying what a number is, and asks nothing. The server's rules on who may watch
+  which match apply as for any ask.
 - `srp-026g/scripts/replay-buttons/check.sh <lobby_menu.swf>` checks them in Ruffle, every language.
 
 ## 2. Wire

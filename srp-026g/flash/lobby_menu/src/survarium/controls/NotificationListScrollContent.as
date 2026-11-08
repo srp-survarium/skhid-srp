@@ -7,6 +7,7 @@ package survarium.controls
    import flash.display.Shape;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
    import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
@@ -18,6 +19,7 @@ package survarium.controls
    import flash.utils.Timer;
    import flash.utils.getDefinitionByName;
    import flash.utils.getTimer;
+   import flash.ui.Keyboard;
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.ComponentEvent;
@@ -134,6 +136,16 @@ package survarium.controls
 
       private static const RP_CHIP_GREY:uint = 0x6E7378;
 
+      // a row's match number (`#` and the 8 hex digits the server's rows and logs use), grey
+      private static const RP_NUMBER_GREY:uint = 0x8A9096;
+
+      private static const RP_KEY_NUMBER_HINT:String = "st_srp_replay_number_hint";
+
+      private static const RP_KEY_NUMBER_BAD:String = "st_srp_replay_number_bad";
+
+      // the "watch by match number" strip, above the list
+      private static const RP_BOX_H:int = 34;
+
       // The highest place in the replay server's line the prompt shows.
       private static const RP_PLACE_MAX:int = 999;
       
@@ -171,6 +183,9 @@ package survarium.controls
 
       // match id (8 hex) -> its chip's dictionary key (RP_CHIPS)
       protected var _rpChips:Object;
+
+      // the "watch by match number" box and its Watch
+      protected var _rpBox:SrvTextInput;
       
       protected var _rpPolls:int;
       
@@ -392,6 +407,7 @@ package survarium.controls
          this._rpDemoStep = 0;
          this._rpDemoAdded = false;
          this._scrollContent.width = 310 + NotificationListScrollContent.HISTORY_EXTRA;
+         this.historyNumberBox();
          try
          {
             if(this.background)
@@ -896,6 +912,7 @@ package survarium.controls
             if(rec.button)
             {
                this.historyChip(row,rec,this._rpChips[this.rpHex(uint(data.match_id))] as String);
+               this.historyNumber(row,rec,uint(data.match_id));
             }
          }
          catch(e:Error)
@@ -923,7 +940,7 @@ package survarium.controls
       }
 
       // A small button ending at `right`, as wide as its label wants (70 to 120).
-      protected function historyButton(row:MovieClip, name:String, label:String, right:Number, click:Function) : Button
+      protected function historyButton(row:Sprite, name:String, label:String, right:Number, click:Function) : Button
       {
          var buttonClass:Class = getDefinitionByName("SvButton2SmallFr") as Class;
          var button:Button = new buttonClass() as Button;
@@ -940,6 +957,112 @@ package survarium.controls
          row.addChild(button);
          button.width = width;
          return button;
+      }
+
+      // "Watch by match number": a strip above the list, a box for the number (as a row shows it,
+      // `#` optional) and Watch; Enter watches too.
+      protected function historyNumberBox() : void
+      {
+         var strip:Sprite = new Sprite();
+         var width:Number = 310 + NotificationListScrollContent.HISTORY_EXTRA;
+         var watch:Button = null;
+         strip.name = "srpReplayNumber";
+         strip.y = -RP_BOX_H - 2;
+         strip.graphics.lineStyle(1,0x2A3036,1);
+         strip.graphics.beginFill(0x0B0F12,0.94);
+         strip.graphics.drawRect(0,0,width,RP_BOX_H);
+         strip.graphics.endFill();
+         this._rpBox = new TextInputFriendName();
+         this._rpBox.name = "srpReplayNumberBox";
+         this._rpBox.maxChars = 9;
+         this._rpBox.x = 7;
+         this._rpBox.y = int((RP_BOX_H - this._rpBox.height) / 2);
+         this._rpBox.textField.addEventListener(KeyboardEvent.KEY_DOWN,this.onRpBoxKey,false,0,true);
+         strip.addChild(this._rpBox);
+         watch = this.historyButton(strip,"srpReplayNumberWatch",this.rpText(RP_KEY_WATCH),width - 7,this.onRpBoxWatch);
+         watch.y = int((RP_BOX_H - watch.height) / 2);
+         this._rpBox.setSize(watch.x - 8 - this._rpBox.x,this._rpBox.height);
+         this._rpBox.defaultText = this.rpText(RP_KEY_NUMBER_HINT);
+         addChild(strip);
+      }
+
+      protected function onRpBoxKey(e:KeyboardEvent) : void
+      {
+         if(e.keyCode == Keyboard.ENTER)
+         {
+            this.rpWatchTyped();
+         }
+      }
+
+      protected function onRpBoxWatch(e:Event) : void
+      {
+         e.stopPropagation();
+         this.rpWatchTyped();
+      }
+
+      // The box's number watched, or the prompt says what a number is.
+      protected function rpWatchTyped() : void
+      {
+         var id:uint = NotificationListScrollContent.matchNumber(this._rpBox.text);
+         if(id == 0)
+         {
+            if(this._rpState != RP_ASKING)
+            {
+               this._rpState = RP_ENDED;
+               this.rpShow(RP_KEY_NUMBER_BAD,false);
+            }
+            return;
+         }
+         this.replayBegin(id,NotificationListScrollContent.REPLAY_WATCH_ALL);
+      }
+
+      // A typed match number: 1 to 8 hex digits, an optional `#` and spaces around; 0 if not one.
+      public static function matchNumber(text:String) : uint
+      {
+         var digits:String = text == null ? "" : text.replace(/^\s+|\s+$/g,"").replace(/^#/,"");
+         if(!/^[0-9a-fA-F]{1,8}$/.test(digits))
+         {
+            return 0;
+         }
+         return uint(parseInt(digits,16));
+      }
+
+      // A row's number, `#` and 8 hex digits, as the box takes it.
+      public static function matchNumberText(id:uint) : String
+      {
+         var text:String = id.toString(16).toLowerCase();
+         while(text.length < 8)
+         {
+            text = "0" + text;
+         }
+         return "#" + text;
+      }
+
+      // The row's number, in the chip's line, right-aligned left of the chip (or of Watch's end).
+      protected function historyNumber(row:MovieClip, rec:Object, id:uint) : void
+      {
+         var field:TextField = rec.number as TextField;
+         var right:Number = Number(rec.watch.x) + Number(rec.watch.width);
+         if(!field)
+         {
+            field = new TextField();
+            field.name = "srpReplayNumberText";
+            field.embedFonts = true;
+            field.selectable = false;
+            field.mouseEnabled = false;
+            field.autoSize = TextFieldAutoSize.LEFT;
+            field.wordWrap = false;
+            field.defaultTextFormat = new TextFormat(Button(rec.watch).textField.getTextFormat().font,11,RP_NUMBER_GREY,true);
+            field.text = NotificationListScrollContent.matchNumberText(id);
+            row.addChild(field);
+            rec.number = field;
+         }
+         if(rec.chip)
+         {
+            right = Number(rec.chip.x) - 6;
+         }
+         field.x = int(right - field.width);
+         field.y = int(Number(rec.watch.y) + Number(rec.watch.height) + 4);
       }
 
       // The row's chip (`key` a dictionary key of RP_CHIPS, null none), under its buttons, right-aligned.

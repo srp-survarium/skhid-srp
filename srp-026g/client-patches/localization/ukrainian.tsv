@@ -2686,6 +2686,8 @@ st_srp_replay_my_deaths	Watch my deaths
 st_srp_replay_no_answer	Сервер не відповів. Спробуйте пізніше.
 st_srp_replay_not_recorded	Цей матч не записано: у ньому було менше 6 гравців або запис тоді був вимкнений.
 st_srp_replay_not_yours	Дивитися можна лише повтори матчів, у яких ви грали.
+st_srp_replay_number_bad	Type a match's number as History shows it: # and 8 letters and digits, such as #1ce45cbe.
+st_srp_replay_number_hint	Match number
 st_srp_replay_off	Повтори на цьому сервері вимкнено.
 st_srp_replay_old_game	Ваша версія гри не відтворює повтори. Оновіть гру: запустіть її знову через лаунчер.
 st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s

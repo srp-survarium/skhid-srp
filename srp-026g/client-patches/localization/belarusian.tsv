@@ -2686,6 +2686,8 @@ st_srp_replay_my_deaths	Watch my deaths
 st_srp_replay_no_answer	Сервер не адказаў. Паспрабуйце пазней.
 st_srp_replay_not_recorded	Гэты матч не запісаны: у ім было менш за 6 гульцоў або запіс тады быў выключаны.
 st_srp_replay_not_yours	Глядзець можна толькі паўторы матчаў, у якіх вы гулялі.
+st_srp_replay_number_bad	Type a match's number as History shows it: # and 8 letters and digits, such as #1ce45cbe.
+st_srp_replay_number_hint	Match number
 st_srp_replay_off	Паўторы на гэтым серверы адключаныя.
 st_srp_replay_old_game	Ваша версія гульні не прайграе паўторы. Абнавіце гульню: запусціце яе зноў праз лаўнчар.
 st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s

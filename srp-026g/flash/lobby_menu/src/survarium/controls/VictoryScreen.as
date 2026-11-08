@@ -7,6 +7,8 @@ package survarium.controls
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.text.TextField;
+   import flash.text.TextFieldAutoSize;
+   import flash.text.TextFormat;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ToolTip;
    import scaleform.clik.events.ButtonEvent;
@@ -139,6 +141,9 @@ package survarium.controls
       protected var _watchAll:Button;
 
       protected var _watchDeaths:Button;
+
+      // the match's number after them, as History's box takes it (`#` and 8 hex digits)
+      protected var _matchNumber:TextField;
       
       protected var _maxMatchResult:uint = 0;
       
@@ -285,7 +290,8 @@ package survarium.controls
          return button;
       }
 
-      // The replay buttons, shown for a match with an id, sized to their labels (the language's).
+      // The replay buttons and the match's number, shown for a match with an id, the buttons sized
+      // to their labels (the language's).
       protected function placeReplayButtons() : void
       {
          var x:Number = 15;
@@ -296,6 +302,21 @@ package survarium.controls
             button.x = x;
             x += button.width + 8;
          }
+         if(!this._matchNumber)
+         {
+            this._matchNumber = new TextField();
+            this._matchNumber.name = "srpMatchNumber";
+            this._matchNumber.embedFonts = true;
+            this._matchNumber.selectable = true;
+            this._matchNumber.autoSize = TextFieldAutoSize.LEFT;
+            this._matchNumber.wordWrap = false;
+            this._matchNumber.defaultTextFormat = new TextFormat(this._watchAll.textField.getTextFormat().font,13,0x8A9096,true);
+            addChild(this._matchNumber);
+         }
+         this._matchNumber.visible = this._match_id != 0;
+         this._matchNumber.text = NotificationListScrollContent.matchNumberText(this._match_id);
+         this._matchNumber.x = int(x + 4);
+         this._matchNumber.y = int(this.btn_close.y + (this.btn_close.height - this._matchNumber.height) / 2);
       }
 
       override public function get width() : Number
@@ -806,6 +827,10 @@ package survarium.controls
          this.premium_button.visible = false;
          this._watchAll.visible = false;
          this._watchDeaths.visible = false;
+         if(this._matchNumber)
+         {
+            this._matchNumber.visible = false;
+         }
          this.btnShare.label = "";
          this.btnShare.enabled = false;
          this.btnSave.label = "";

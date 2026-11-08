@@ -2686,6 +2686,8 @@ st_srp_replay_my_deaths	Watch my deaths
 st_srp_replay_no_answer	Server nije odgovorio. Pokušaj kasnije.
 st_srp_replay_not_recorded	Ovaj meč nije snimljen: imao je manje od 6 igrača ili je snimanje tada bilo isključeno.
 st_srp_replay_not_yours	Možeš gledati samo snimke mečeva u kojima si učestvovao.
+st_srp_replay_number_bad	Type a match's number as History shows it: # and 8 letters and digits, such as #1ce45cbe.
+st_srp_replay_number_hint	Match number
 st_srp_replay_off	Snimci su isključeni na ovom serveru.
 st_srp_replay_old_game	Tvoja verzija igre ne podržava snimke. Ažuriraj igru: ponovo je pokreni preko pokretača.
 st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s
