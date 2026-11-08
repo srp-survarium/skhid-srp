@@ -84,6 +84,8 @@ fn world_with(accounts: GameAccounts) -> World {
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
         resource_downloads: AtomicU32::new(0),
+        replay_downloads: AtomicU32::new(0),
+        replay_failures: Mutex::new(std::collections::HashMap::new()),
         plans: Default::default(),
         game: Some(Game {
             accounts: accounts.clone(),
@@ -91,7 +93,8 @@ fn world_with(accounts: GameAccounts) -> World {
             matches: told.clone(),
             downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
             min_patch_revision: 0,
-                results: Arc::new(session::v026g::rewards::Results::new()),
+            replays: None,
+            results: Arc::new(session::v026g::rewards::Results::new()),
         }),
     };
     World {
