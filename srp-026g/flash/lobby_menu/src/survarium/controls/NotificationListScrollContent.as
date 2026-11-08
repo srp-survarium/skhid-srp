@@ -5,12 +5,14 @@ package survarium.controls
    import flash.display.InteractiveObject;
    import flash.display.MovieClip;
    import flash.display.Shape;
+   import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
    import flash.geom.Rectangle;
    import flash.text.TextField;
+   import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
    import flash.utils.Dictionary;
    import flash.utils.Timer;
@@ -39,6 +41,16 @@ package survarium.controls
       public static const REPLAY_ASK:uint = 4294967041;
       
       public static const REPLAY_START:uint = 2200000000;
+
+      // srp's ask to watch a match's replay in this game, as a spectator (a replay session, the
+      // lobby server's REPLAY_WATCH_BASE, docs/notes/replay-stream.md): the player of
+      // victory_screen_request_player_data is 0xC0000000 | place << 16 | seconds, the place in
+      // view first (0xFF anyone's) and the match time to start at. This one: from the start, anyone.
+      public static const REPLAY_WATCH_ALL:uint = 0xC0FF0000;
+
+      // PLACEHOLDER, not taken by the lobby server yet: the asker's own deaths, from the first one
+      // less 4 s, the asker in view (the movie knows neither its place nor when it died).
+      public static const REPLAY_WATCH_MY_DEATHS:uint = 0xC1000000;
       
       public static const REPLAY_POLLS:int = 30;
       
@@ -64,7 +76,11 @@ package survarium.controls
       // The prompt's texts (dictionary keys; rpShow); RP_KEY_NONE is no text shown.
       private static const RP_KEY_NONE:String = null;
       
-      private static const RP_KEY_TITLE:String = "st_srp_replay_title";
+      private static const RP_KEY_WATCH:String = "st_srp_replay_watch";
+
+      private static const RP_KEY_DOWNLOAD_BUTTON:String = "st_srp_replay_download_button";
+
+      private static const RP_KEY_WATCHING:String = "st_srp_replay_watching";
       
       private static const RP_KEY_DOWNLOAD:String = "st_srp_replay_download";
       
@@ -96,6 +112,25 @@ package survarium.controls
       
       private static const RP_KEY_STILL_PREPARING:String = "st_srp_replay_still_preparing";
       
+      // A History row's chip: what the last answer said of its match's replay, by the server's
+      // status (no chip before an answer, nor for one that says nothing of the replay).
+      private static const RP_CHIPS:Object = {
+         "ready":"st_srp_replay_chip_ready",
+         "watching":"st_srp_replay_chip_ready",
+         "preparing":"st_srp_replay_chip_preparing",
+         "incompatible":"st_srp_replay_chip_old",
+         "not_recorded":"st_srp_replay_chip_not_recorded",
+         "gone":"st_srp_replay_chip_gone"
+      };
+
+      // The chip's colour by its text: ready green, preparing amber, the others grey.
+      private static const RP_CHIP_COLOURS:Object = {
+         "st_srp_replay_chip_ready":0x5FA65A,
+         "st_srp_replay_chip_preparing":0xC8962E
+      };
+
+      private static const RP_CHIP_GREY:uint = 0x6E7378;
+
       // The highest place in the replay server's line the prompt shows.
       private static const RP_PLACE_MAX:int = 999;
       
@@ -127,6 +162,12 @@ package survarium.controls
       protected var _rpState:int;
       
       protected var _rpMatch:uint;
+
+      // the player of the ask (REPLAY_ASK: download; REPLAY_WATCH_*: in this game)
+      protected var _rpAsk:uint;
+
+      // match id (8 hex) -> its chip's dictionary key (RP_CHIPS)
+      protected var _rpChips:Object;
       
       protected var _rpPolls:int;
       
@@ -330,9 +371,12 @@ package survarium.controls
       {
          var i:int = 0;
          var child:DisplayObject = null;
+         NotificationListScrollContent.replayHolder = this;
          this._rpRows = new Dictionary(true);
+         this._rpChips = {};
          this._rpState = RP_IDLE;
          this._rpMatch = 0;
+         this._rpAsk = NotificationListScrollContent.REPLAY_ASK;
          this._rpPolls = 0;
          this._rpStatus = "";
          this._rpHex = "";
@@ -844,7 +888,11 @@ package survarium.controls
             this.historyFit(rec,String(data.result != undefined ? data.result : result.text));
             if(!rec.button && rec.popup != true && (uint(data.match_id) != 0 || data.srpDemo == true || NotificationListScrollContent.REPLAY_DEMO))
             {
-               this.historyAddButton(row,rec);
+               this.historyAddButtons(row,rec);
+            }
+            if(rec.button)
+            {
+               this.historyChip(row,rec,this._rpChips[this.rpHex(uint(data.match_id))] as String);
             }
          }
          catch(e:Error)
@@ -852,56 +900,129 @@ package survarium.controls
          }
       }
       
-      protected function historyAddButton(row:MovieClip, rec:Object) : void
+      // A match row's buttons, at its top right: Watch (in this game) and Download (the replay
+      // file, a second game window).
+      protected function historyAddButtons(row:MovieClip, rec:Object) : void
       {
-         var buttonClass:Class = getDefinitionByName("SvButton2SmallFr") as Class;
-         var button:Button = new buttonClass() as Button;
-         var label:String = this.rpText(RP_KEY_TITLE);
-         var width:int = int(label.length * 7.3 + 18);
          var right:Number = 286 + NotificationListScrollContent.HISTORY_EXTRA;
          var map:TextField = null;
-         if(width < 100)
-         {
-            width = 100;
-         }
-         if(width > 160)
-         {
-            width = 160;
-         }
          if(rec.back != undefined)
          {
             right = Number(rec.back);
          }
-         button.name = "srpReplay";
+         rec.watch = this.historyButton(row,"srpReplayWatch",this.rpText(RP_KEY_WATCH),right - 6,this.onRpWatchClick);
+         rec.button = this.historyButton(row,"srpReplay",this.rpText(RP_KEY_DOWNLOAD_BUTTON),rec.watch.x - 4,this.onRpButtonClick);
+         map = row["textFieldLabel"] as TextField;
+         if(map && map.x + map.width > rec.button.x - 4)
+         {
+            map.width = rec.button.x - 4 - map.x;
+         }
+      }
+
+      // A small button ending at `right`, as wide as its label wants (70 to 120).
+      protected function historyButton(row:MovieClip, name:String, label:String, right:Number, click:Function) : Button
+      {
+         var buttonClass:Class = getDefinitionByName("SvButton2SmallFr") as Class;
+         var button:Button = new buttonClass() as Button;
+         var width:int = Math.max(70,Math.min(120,int(label.length * 7.3 + 18)));
+         button.name = name;
          button.label = label;
-         button.x = int(right - 6 - width);
+         button.x = int(right - width);
          button.y = 5;
          button.addEventListener(MouseEvent.MOUSE_DOWN,this.onRpStopEvent,false,0,true);
          button.addEventListener(MouseEvent.CLICK,this.onRpStopEvent,false,0,true);
          button.addEventListener(MouseEvent.DOUBLE_CLICK,this.onRpStopEvent,false,0,true);
          button.addEventListener(ButtonEvent.PRESS,this.onRpStopEvent,false,0,true);
-         button.addEventListener(ButtonEvent.CLICK,this.onRpButtonClick,false,0,true);
+         button.addEventListener(ButtonEvent.CLICK,click,false,0,true);
          row.addChild(button);
          button.width = width;
-         rec.button = button;
-         map = row["textFieldLabel"] as TextField;
-         if(map && map.x + map.width > button.x - 4)
+         return button;
+      }
+
+      // The row's chip (`key` a dictionary key of RP_CHIPS, null none), under its buttons, right-aligned.
+      protected function historyChip(row:MovieClip, rec:Object, key:String) : void
+      {
+         var chip:Sprite = rec.chip as Sprite;
+         var field:TextField = null;
+         var colour:uint = RP_CHIP_GREY;
+         if(rec.chipKey === key)
          {
-            map.width = button.x - 4 - map.x;
+            return;
+         }
+         rec.chipKey = key;
+         if(chip)
+         {
+            row.removeChild(chip);
+            rec.chip = null;
+         }
+         if(key == null)
+         {
+            return;
+         }
+         if(RP_CHIP_COLOURS[key] != undefined)
+         {
+            colour = uint(RP_CHIP_COLOURS[key]);
+         }
+         field = new TextField();
+         field.embedFonts = true;
+         field.selectable = false;
+         field.mouseEnabled = false;
+         field.autoSize = TextFieldAutoSize.LEFT;
+         field.wordWrap = false;
+         // the font of the Watch button's label
+         field.defaultTextFormat = new TextFormat(Button(rec.watch).textField.getTextFormat().font,11,colour,true);
+         field.text = this.rpText(key);
+         field.x = 5;
+         field.y = 0;
+         chip = new Sprite();
+         chip.name = "srpReplayChip";
+         chip.mouseEnabled = false;
+         chip.mouseChildren = false;
+         chip.graphics.lineStyle(1,colour,0.9);
+         chip.graphics.beginFill(colour,0.15);
+         chip.graphics.drawRoundRect(0,0,int(field.width + 10),int(field.height),8,8);
+         chip.graphics.endFill();
+         chip.addChild(field);
+         chip.x = int(Number(rec.watch.x) + Number(rec.watch.width) - chip.width);
+         chip.y = int(Number(rec.watch.y) + Number(rec.watch.height) + 4);
+         row.addChild(chip);
+         rec.chip = chip;
+      }
+
+      // The answer's word for the match's chip; the rows of that match drawn again.
+      protected function rpChip(hex:String, status:String) : void
+      {
+         var key:String = RP_CHIPS[status] as String;
+         var i:int = 0;
+         var row:MovieClip = null;
+         if(key == null)
+         {
+            return;
+         }
+         this._rpChips[hex] = key;
+         i = 0;
+         while(i < this._renderers.length)
+         {
+            row = this._renderers[i] as MovieClip;
+            if(row && row.data && this.rpHex(uint(row.data.match_id)) == hex)
+            {
+               this.historyDecorate(row);
+            }
+            i++;
          }
       }
-      
+
       protected function onRpStopEvent(e:Event) : void
       {
          e.stopPropagation();
       }
       
-      protected function onRpButtonClick(e:Event) : void
+      // The match of the row whose button was pressed (0: none).
+      protected function rpRowMatch(e:Event) : uint
       {
          var row:MovieClip = null;
          var data:Object = null;
          var id:uint = 0;
-         e.stopPropagation();
          try
          {
             row = (e.currentTarget as DisplayObject).parent as MovieClip;
@@ -917,16 +1038,33 @@ package survarium.controls
             {
                id = 484727998;
             }
-            if(id != 0)
-            {
-               this.replayBegin(id);
-            }
          }
          catch(err:Error)
          {
          }
+         return id;
       }
-      
+
+      protected function onRpButtonClick(e:Event) : void
+      {
+         var id:uint = this.rpRowMatch(e);
+         e.stopPropagation();
+         if(id != 0)
+         {
+            this.replayBegin(id,NotificationListScrollContent.REPLAY_ASK);
+         }
+      }
+
+      protected function onRpWatchClick(e:Event) : void
+      {
+         var id:uint = this.rpRowMatch(e);
+         e.stopPropagation();
+         if(id != 0)
+         {
+            this.replayBegin(id,NotificationListScrollContent.REPLAY_WATCH_ALL);
+         }
+      }
+
       protected function rpText(key:String) : String
       {
          return LocalizationData.getName(key);
@@ -963,7 +1101,9 @@ package survarium.controls
          return LocalizationData.format("st_srp_replay_size",Math.floor(tenths / 10),tenths % 10);
       }
       
-      public function replayBegin(id:uint) : void
+      // Ask for match `id`'s replay: `ask` REPLAY_ASK (the file, to download) or REPLAY_WATCH_* (in
+      // this game). The History's rows and the results screen ask through here.
+      public function replayBegin(id:uint, ask:uint) : void
       {
          if(this._rpState == RP_ASKING)
          {
@@ -975,6 +1115,7 @@ package survarium.controls
             this._rpDemoStep += 1;
          }
          this._rpMatch = id;
+         this._rpAsk = ask;
          this._rpPolls = 0;
          this._rpStatus = "";
          this._rpHex = "";
@@ -988,7 +1129,7 @@ package survarium.controls
          {
             try
             {
-               this.rpCallAsk(NotificationListScrollContent.REPLAY_ASK,this._rpMatch);
+               this.rpCallAsk(this._rpAsk,this._rpMatch);
             }
             catch(e:Error)
             {
@@ -1084,6 +1225,14 @@ package survarium.controls
          }
          this._rpStatus = status;
          this._rpHex = hex;
+         this.rpChip(hex,status);
+         if(status == "watching")
+         {
+            this.rpStop();
+            this._rpState = RP_ENDED;
+            this.rpShow(RP_KEY_WATCHING,false);
+            return;
+         }
          if(status == "preparing")
          {
             this._rpPrepSeen = true;

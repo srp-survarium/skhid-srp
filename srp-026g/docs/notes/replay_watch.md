@@ -6,12 +6,26 @@
 
 ## 1. Flow
 
-1. A History row's "Watch replay" sends `3D 00 <REPLAY_ASK> <match id>` (`victory_screen_request_player_data`; `REPLAY_ASK = 0xFFFF_FF01`, no account id is that high). The lobby looks the replay up and keeps the answer as the asker's latest (`lobby-server/src/v026g/replay.rs`). The ask is not answered by itself.
+1. A History row's "Download" (until 2026-11-08 "Watch replay") sends `3D 00 <REPLAY_ASK> <match id>` (`victory_screen_request_player_data`; `REPLAY_ASK = 0xFFFF_FF01`, no account id is that high). The lobby looks the replay up and keeps the answer as the asker's latest (`lobby-server/src/v026g/replay.rs`). The ask is not answered by itself.
 2. The movie polls with `3B 00 <REPLAY_START> 01` (`REPLAY_START = 2_200_000_000`, above the JOIN starts) every second (30 times at most, up to 180 s while the answer is `preparing`). Each poll is answered with one `91` row (the asker's own answer, never anyone else's). A `preparing` answer is looked at again once a second at most per account (`RECHECK_EVERY`), or at once after news of its match (the writer kept, dropped or deleted its recording, or its conversion ended); polls in between, however many a datagram carries, get the same answer with the place in line made anew. The recordings' folder is listed once in 5 s at most for all the asks (and again after the writer's news), not at each look.
 3. When the answer is `ready`, a `9E` goes just before that `91`: `video_link(false, "replay <id> <token> <sha256> <size>")`. The game keeps it hidden; "Download and watch" calls `video_tutorial_link_clicked`, which patch revision 14 turns into `updater_skhid.exe replay <id> <token> <sha256> <size>`.
 4. The updater downloads `GET /replays/<token>` from the server's web page, checks the size and the SHA-256, and starts the game with `-match_replay`.
 
 In the running game instead (no download, no second process): a replay session, `replay-stream.md`.
+### In the movie, since 2026-11-08 (watching in the running game)
+
+- A History row has **Download** (this flow) and **Watch**; the results screen has **Watch replay** and
+  **Watch my deaths** on its bottom bar, left of the close button (`VictoryScreen.as`).
+- Watch and Watch replay ask for a replay session (`replay-stream.md`): `3D 00 <0xC0FF0000> <match id>`
+  (`REPLAY_WATCH_BASE | 0xFF << 16 | 0`: from the start, anyone in view). Watch my deaths asks with
+  `0xC1000000`, a **placeholder** the lobby server does not take yet: the asker's own deaths from the
+  first one less 4 s (the movie knows neither the asker's place nor the deaths' times).
+- All of them go through the History's prompt (`NotificationListScrollContent.replayBegin(id, ask)`):
+  the same polls and `R1` answers; `watching` closes it with "The replay opens in this game window".
+- Each answer sets the match's chip on its History rows, under Watch: `ready`/`watching` Ready,
+  `preparing` Preparing, `incompatible` Old version, `not_recorded` Not recorded, `gone` Expired; no
+  chip before an answer, nor for one about the asker or the server (`busy`, `old_game`, ...).
+- `srp-026g/scripts/replay-buttons/check.sh <lobby_menu.swf>` checks them in Ruffle, every language.
 
 ## 2. Wire
 

@@ -133,6 +133,12 @@ package survarium.controls
       protected var _match_id:uint = 0;
       
       protected var _foundRenderers:Array = [];
+
+      // srp's replay buttons, on the bottom bar left of the close button: the match from the start,
+      // and the player's own deaths (NotificationListScrollContent's replay prompt asks and polls).
+      protected var _watchAll:Button;
+
+      protected var _watchDeaths:Button;
       
       protected var _maxMatchResult:uint = 0;
       
@@ -235,6 +241,8 @@ package survarium.controls
          this.onLocal();
          LocalizationData.addCallback(this.onLocal,"item_drop_chance_label");
          this.btn_close.addEventListener(ButtonEvent.CLICK,this.closeWindow);
+         this._watchAll = this.replayButton("srpWatchReplay","st_srp_replay_title",NotificationListScrollContent.REPLAY_WATCH_ALL);
+         this._watchDeaths = this.replayButton("srpWatchDeaths","st_srp_replay_my_deaths",NotificationListScrollContent.REPLAY_WATCH_MY_DEATHS);
          this.players_list.autoSizeLists = true;
          this.premium_button.addEventListener(ButtonEvent.CLICK,this.showPremiumMessage);
          this.treasureCount.mouseEnabled = false;
@@ -257,6 +265,39 @@ package survarium.controls
          this.droppedItem.addEventListener(MouseEvent.ROLL_OUT,this.hideItemHint);
       }
       
+      // A button like the close button, for asking to watch this match's replay with `ask`.
+      protected function replayButton(name:String, key:String, ask:uint) : Button
+      {
+         var button:Button = new (Object(this.btn_close).constructor as Class)() as Button;
+         button.name = name;
+         button.visible = false;
+         button.y = this.btn_close.y;
+         button.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
+         {
+            var history:NotificationListScrollContent = NotificationListScrollContent.replayHolder;
+            if(_match_id != 0 && history != null)
+            {
+               history.replayBegin(_match_id,ask);
+            }
+         });
+         LocalizationData.addButton(button,key);
+         addChild(button);
+         return button;
+      }
+
+      // The replay buttons, shown for a match with an id, sized to their labels (the language's).
+      protected function placeReplayButtons() : void
+      {
+         var x:Number = 15;
+         for each(var button:Button in [this._watchAll,this._watchDeaths])
+         {
+            button.visible = this._match_id != 0;
+            button.width = Math.max(this.btn_close.width,int(button.label.length * 8 + 30));
+            button.x = x;
+            x += button.width + 8;
+         }
+      }
+
       override public function get width() : Number
       {
          return 1199;
@@ -763,6 +804,8 @@ package survarium.controls
          this.dropChanceValueLabel.visible = false;
          this.percentSprite.visible = false;
          this.premium_button.visible = false;
+         this._watchAll.visible = false;
+         this._watchDeaths.visible = false;
          this.btnShare.label = "";
          this.btnShare.enabled = false;
          this.btnSave.label = "";
@@ -1322,6 +1365,7 @@ package survarium.controls
          _data = value;
          _victory = value.match_result > MatchResult.DEFEAT_MAX;
          _match_id = value.match_id;
+         this.placeReplayButtons();
          // A card bought for another screen's match is not used on this one.
          if(this._cardPending != null && this._cardPending.step == CARD_BUYING && this._cardPending.match != this._match_id)
          {

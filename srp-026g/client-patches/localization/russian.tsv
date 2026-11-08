@@ -2677,15 +2677,22 @@ st_srp_renderer_option	Рендер
 st_srp_replay_asking	Запрашиваем у сервера матча повтор этого матча…
 st_srp_replay_being_made	Повтор создаётся из записи матча. Так бывает, когда этот матч смотрят впервые, и это занимает немного времени.\nЭто окно можно закрыть: сервер продолжит его создавать.\n\n%1$s
 st_srp_replay_busy	Сервер сейчас занят другими повторами. Попробуйте ещё раз через минуту.
+st_srp_replay_chip_gone	Удалён
+st_srp_replay_chip_not_recorded	Не записан
+st_srp_replay_chip_old	Старая версия
+st_srp_replay_chip_preparing	Готовится
+st_srp_replay_chip_ready	Готов
 st_srp_replay_close	ЗАКРЫТЬ
 st_srp_replay_demo_quest	Вклад в победу
 st_srp_replay_demo_rank	«%1$s»: достигнут ранг 3. В магазине появились новые предметы.
 st_srp_replay_demo_seller	Бродяги
 st_srp_replay_download	СКАЧАТЬ И СМОТРЕТЬ
+st_srp_replay_download_button	Скачать
 st_srp_replay_failed	Серверу не удалось подготовить повтор этого матча.
 st_srp_replay_gone	Повтор этого матча больше не хранится на сервере.
 st_srp_replay_incompatible	Этот повтор записан версией игры, которую ваша игра не может воспроизвести.
 st_srp_replay_made_now	Создаётся сейчас. Ожидание: %1$s с.
+st_srp_replay_my_deaths	Смотреть мои смерти
 st_srp_replay_no_answer	Сервер не ответил. Попробуйте позже.
 st_srp_replay_not_recorded	Этот матч не записан: в нём было меньше 6 игроков или запись тогда была выключена.
 st_srp_replay_not_yours	Смотреть можно только повторы матчей, в которых вы играли.
@@ -2699,6 +2706,8 @@ st_srp_replay_starting	Запускаем повтор: откроется вт�
 st_srp_replay_still_preparing	Повтор ещё готовится. Сервер продолжает его создавать; откройте «Смотреть повтор» ещё раз через минуту.
 st_srp_replay_title	Смотреть повтор
 st_srp_replay_waiting	Ожидание: %1$s с.
+st_srp_replay_watch	Смотреть
+st_srp_replay_watching	Повтор откроется в этом окне игры. Когда он закончится или вы выйдете из него, вы вернётесь в лобби.
 st_srp_reroll_description	Можно изменить любой модификатор предмета, сколько угодно раз. Затем выберите один из трёх случайных модификаторов.
 st_srp_rooms_all	Все
 st_srp_rooms_all_rooms	Все комнаты
