@@ -686,6 +686,21 @@ class OtherTables(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'does not read back'):
             ce.stats_write(category, columns, rows, files, 't')
 
+    def test_a_weight_bonus_cell_replaces_a_guns_aim_built_in(self):
+        """docs/notes/vssk-built-ins.md: the Vychlop's 2074 (aim, decade 207) cleared, 2064 (weight, 206) set."""
+        weapons = ce.STATS['weapon-stats']
+        self.assertEqual(weapons['columns']['weight_bonus'], ce.default_modification(206))
+        self.assertLessEqual({'weight_bonus', 'aim_bonus'}, weapons['add'] & weapons['match'])
+        category = {'configs': 'a/*.options', 'match': set(), 'add': weapons['add'],
+                    'columns': {c: weapons['columns'][c] for c in ('weight_bonus', 'aim_bonus')}}
+        files = {'a/gun.options': config({'parameters': {'weight': 7}, 'default_modifications': [2074]})}
+        columns, rows = read_table(category, 'name\tweight_bonus\taim_bonus\ngun\t2064\t\n')
+        ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(ce.items_of(files['a/gun.options'], 'default_modifications'), [2064])
+        files = {'a/gun.options': config({'parameters': {'weight': 7}})}
+        ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(ce.items_of(files['a/gun.options'], 'default_modifications'), [2064])
+
     def test_a_row_that_takes_a_bonus_out_and_puts_two_in_reads_back(self):
         columns = list(ce.STATS['armor']['columns'])
         cells = {'weight': '3', 'stamina_regen': '1103', 'experience': '1240'}
