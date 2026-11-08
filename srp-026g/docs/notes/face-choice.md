@@ -73,9 +73,12 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
   `88`) and the last match's or replay's options (`E4`, chunk 1). The lobby's are asked first.
   A name not known: face 0.
 - The cook (`profile_skin_visual_cook::on_configs_loaded` 0x204560) makes the head's records in
-  Rust (the native block 0x205659..0x2056F0 replaced): `heads[face]`, its variant by the worn
-  helmet (tag 5) and mask (tag 6) records, its base model and part, and a record for each
-  additional model (tag 0); `_f<face>` is added to the skin's name for a face other than 0.
+  Rust (the native block 0x205659..0x2056F0 replaced, patch 123): `heads[face]`, its variant by
+  the worn helmet (tag 5) and mask (tag 6) records, its base model, part and material, and a
+  record for each additional model (tag 0, hidden in first person with the head); `f<face>_` is
+  added to the skin's name for a face other than 0.
+- A late joiner is face 0 to the players already in (its late-join options carry no srp block),
+  but to its squad. [open]
 - Without `heads` in the data the native head is made, as today.
 
 ## Lobby
@@ -88,3 +91,6 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
 - Cosmetic only: no simulation_changes row.
 - The faces pack, the server and the exe ship together, the server first. Until the pack ships
   the data has one face and nothing changes.
+- An exe from before this release refuses an `E4` with the faces entry (its options check,
+  srp-validate). The entry is sent only once a face but 0 is in play (a player's choice or a
+  bot's draw), which needs the pack's `heads`: the server's data lists them only with this exe.
