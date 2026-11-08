@@ -10,7 +10,9 @@
 //! - its keys ask the server for a change (an 0xE0): Space pause, Left and
 //!   Right 10 s back and on, Shift+Left and Shift+Right the previous and
 //!   the next kill (4 s before it, from the server's events), `[` and `]`
-//!   slower and faster; F11 and H hide the interface; Esc leaves, as the
+//!   slower and faster; F11 and H hide the interface; Ctrl shows or hides the
+//!   hud's cursor (the controls' bar and buttons take the mouse, the camera
+//!   stands); Esc leaves, as the
 //!   game's own leave does (an empty 0xE0, back to the lobby). F5, F6 and F2
 //!   stay patch 121's.
 //!
@@ -24,7 +26,7 @@ use replay_control::{newer, Event, EventKind, EventsNote, MatchMs, Op, Playback,
 use core::ffi::CStr;
 
 use crate::spectator;
-use crate::vostok::replay_view::{query_spectator, take_spectator, CoreLoad, GameClock, HudFrame, MatchClose, Overlay, ServerNoteSite};
+use crate::vostok::replay_view::{query_spectator, take_spectator, CoreLoad, GameClock, HudFrame, MatchClose, Names, Overlay, ServerNoteSite};
 use crate::vostok::world::{NetworkClient, Role};
 use crate::vostok::{
     Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, NoExit, ReplayViewerOnHudCallExit,
@@ -46,6 +48,8 @@ enum Command {
     Slower,
     Faster,
     ToggleUi,
+    /// Ctrl: the hud's cursor on or off, for the controls' bar and buttons.
+    ToggleCursor,
     Leave,
 }
 
@@ -60,6 +64,7 @@ impl Command {
             Dik::LEFT_BRACKET => Command::Slower,
             Dik::RIGHT_BRACKET => Command::Faster,
             Dik::F11 | Dik::H => Command::ToggleUi,
+            Dik::LEFT_CONTROL | Dik::RIGHT_CONTROL => Command::ToggleCursor,
             Dik::ESCAPE => Command::Leave,
             _ => return None,
         })
@@ -73,11 +78,20 @@ const KILL_LEAD_MS: u32 = 4_000;
 /// A kill this near the clock (once led) is the one just seen, not the next or the previous.
 const KILL_MARGIN_MS: u32 = 1_000;
 
-/// The interface's look (F11 and H).
+/// The interface's look (F11 and H), or the cursor's (Ctrl).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Ui {
     Shown,
     Hidden,
+}
+
+impl Ui {
+    fn other(self) -> Ui {
+        match self {
+            Ui::Shown => Ui::Hidden,
+            Ui::Hidden => Ui::Shown,
+        }
+    }
 }
 
 /// What a viewer last asked for: the next key's toggle and step start from
@@ -95,6 +109,8 @@ struct Viewer {
     playback: Playback,
     asked: Asked,
     ui: Ui,
+    /// The hud's cursor (Ctrl): the controls take the mouse while it shows.
+    cursor: Ui,
     /// The next request's number.
     seq: u8,
 }
@@ -147,7 +163,7 @@ fn step(session: Session, input: Input, events: &Events) -> (Session, Act) {
         (Session::Live, Input::NewMatch | Input::MatchEnded) => (Session::Live, Act::Pass),
         (Session::Replay(_), Input::NewMatch | Input::MatchEnded) => (Session::Live, Act::Restore),
         (Session::Live, Input::Playback(playback)) => {
-            let viewer = Viewer { playback, asked: Asked::of(playback), ui: Ui::Shown, seq: 0 };
+            let viewer = Viewer { playback, asked: Asked::of(playback), ui: Ui::Shown, cursor: Ui::Hidden, seq: 0 };
             (Session::Replay(viewer), Act::play(playback))
         }
         (Session::Replay(viewer), Input::Playback(playback)) if newer(playback.revision, viewer.playback.revision) => {
@@ -189,12 +205,10 @@ impl Viewer {
             Command::Slower => Some(self.asked.speed.slower()).filter(|&s| s != self.asked.speed).map(Op::Speed),
             Command::Faster => Some(self.asked.speed.faster()).filter(|&s| s != self.asked.speed).map(Op::Speed),
             Command::ToggleUi => {
-                let ui = match self.ui {
-                    Ui::Shown => Ui::Hidden,
-                    Ui::Hidden => Ui::Shown,
-                };
+                let ui = self.ui.other();
                 return (Viewer { ui, ..self }, Act::ShowUi(ui == Ui::Shown));
             }
+            Command::ToggleCursor => return (Viewer { cursor: self.cursor.other(), ..self }, Act::Nothing),
             Command::Leave => return (self, Act::Leave),
         };
         let Some(op) = op else { return (self, Act::Nothing) };
@@ -234,21 +248,28 @@ impl Events {
     }
 
     /// The controls' markers text (`time_ms:kind:label;...`, the time from
-    /// the replay's `start`, the label m'ss), up to the room of `out`; an
-    /// event before the start is left out.
-    fn markers<'o>(&self, start: MatchMs, out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
+    /// the replay's `start`), up to the room of `out`; an event before the
+    /// start is left out. The kind is the movie's tick: 1 a kill, 2 an
+    /// objective, 3 a death of the player `watched`; the label its players
+    /// by `name` (`Ada > Bob`, the victim alone for a death no one made,
+    /// the actor of an objective), at most [`LABEL_MAX`] bytes.
+    fn markers<'o, 'n>(&self, start: MatchMs, watched: Option<u8>, name: impl Fn(u8) -> Option<&'n [u8]>,
+                       out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
         let mut text = Text { out, len: 0 };
         for event in self.slots.iter().flatten() {
             let Some(offset) = event.time.0.checked_sub(start.0) else { continue };
-            let seconds = offset / 1000;
             let kind = match event.kind {
+                EventKind::Kill if event.victim.is_some() && event.victim == watched => 3,
                 EventKind::Kill => 1,
                 EventKind::Objective => 2,
             };
+            let (first, second) = match event.kind {
+                EventKind::Kill => (event.actor.and_then(&name), event.victim.and_then(&name)),
+                EventKind::Objective => (event.actor.and_then(&name), None),
+            };
             let mark = text.len;
             let fits = (text.len == 0 || text.push(b";")) && text.number(offset) && text.push(b":")
-                && text.number(kind) && text.push(b":") && text.number(seconds / 60) && text.push(b"'")
-                && text.push(&[b'0' + (seconds % 60 / 10) as u8, b'0' + (seconds % 10) as u8]);
+                && text.number(kind) && text.push(b":") && text.label(first, second);
             if !fits {
                 text.len = mark;
                 break;
@@ -373,8 +394,13 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The markers text's room, its zero included (the movie's helper takes under 1 KB).
-const MARKERS_ROOM: usize = 1000;
+/// The markers text's room, its zero included: a match's events with their
+/// names (an entry is at most about 80 bytes).
+const MARKERS_ROOM: usize = 4096;
+/// A marker's label at most (the movie's helper cuts one longer).
+const LABEL_MAX: usize = 63;
+/// A name in a label at most: two and the arrow fit [`LABEL_MAX`].
+const NAME_MAX: usize = 30;
 
 /// A text written into a fixed room, kept one byte short for its zero.
 struct Text<'o> {
@@ -407,6 +433,26 @@ impl<'o> Text<'o> {
         self.push(&digits[at..])
     }
 
+    /// A marker's label: `first > second`, or the one there is, each name
+    /// cut to [`NAME_MAX`] bytes on a character's start; a `;` (the entries'
+    /// separator) becomes `,`.
+    fn label(&mut self, first: Option<&[u8]>, second: Option<&[u8]>) -> bool {
+        let start = self.len;
+        let name = |text: &mut Text<'o>, name: &[u8]| {
+            let mut cut = name.len().min(NAME_MAX);
+            while cut > 0 && cut < name.len() && name[cut] & 0xC0 == 0x80 {
+                cut -= 1;
+            }
+            name[..cut].iter().all(|&b| text.push(&[if b == b';' { b',' } else { b }]))
+        };
+        let fits = match (first, second) {
+            (Some(a), Some(b)) => name(self, a) && self.push(b" > ") && name(self, b),
+            (Some(one), None) | (None, Some(one)) => name(self, one),
+            (None, None) => true,
+        };
+        fits && self.len - start <= LABEL_MAX
+    }
+
     fn finish(self) -> &'o CStr {
         self.out[self.len] = 0;
         CStr::from_bytes_until_nul(&self.out[..]).unwrap_or(c"")
@@ -419,14 +465,22 @@ impl<'o> Text<'o> {
 struct Fed {
     /// The playback revision its bar's length is from.
     revision: Option<u8>,
-    /// The events' version its markers are from.
-    events: Option<u16>,
+    /// What its markers are from.
+    markers: Option<MarkersOf>,
     /// Shown or hidden.
     ui: Option<Ui>,
 }
 
 impl Fed {
-    const NOTHING: Fed = Fed { revision: None, events: None, ui: None };
+    const NOTHING: Fed = Fed { revision: None, markers: None, ui: None };
+}
+
+/// The markers' sources: the events' version, and the player watched (whose
+/// deaths are their own kind).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MarkersOf {
+    events: u16,
+    watched: Option<u8>,
 }
 
 static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
@@ -434,7 +488,8 @@ static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
 /// The controls of a viewer's game, brought to the session: shown or hidden
 /// with the interface, the bar's length and the speed stepper at each playback, the markers when they changed, its
 /// position and play button every frame (as the replay client's tick does,
-/// 0x218C16 / 0x218C27), and the hud's kit chooser and quick slots kept hidden.
+/// 0x218C16 / 0x218C27), the hud's kit chooser and quick slots kept hidden, and its
+/// cursor kept as Ctrl left it.
 fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) -> Fed {
     let Some(overlay) = Overlay::of(client) else { return fed };
     let Playback { revision, paused, speed, start, end } = viewer.playback;
@@ -445,16 +500,20 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) 
         overlay.set_length(end.0.saturating_sub(start.0));
         overlay.set_speed(speed.percent());
     }
-    if fed.events != Some(events.version) || fed.revision.is_none() {
+    let watched = client.local_place();
+    let markers = MarkersOf { events: events.version, watched };
+    if fed.markers != Some(markers) || fed.revision.is_none() {
         let mut room = [0; MARKERS_ROOM];
-        overlay.set_markers(events.markers(start, &mut room));
+        let names = Names::of(client);
+        overlay.set_markers(events.markers(start, watched, |place| names.of_place(place), &mut room));
     }
     if let Some(now) = client.clock() {
         overlay.set_position(now.within(start, end).0 - start.0);
     }
     overlay.set_paused(paused);
     overlay.hide_player_panels();
-    Fed { revision: Some(revision), events: Some(events.version), ui: Some(viewer.ui) }
+    overlay.keep_cursor(viewer.cursor == Ui::Shown);
+    Fed { revision: Some(revision), markers: Some(markers), ui: Some(viewer.ui) }
 }
 
 /// `hud.update` (game_world_ui::update_ui, every frame of the hud): a
@@ -669,6 +728,9 @@ mod tests {
         assert_eq!(act, Act::ShowUi(false));
         assert_eq!(key(session, Command::ToggleUi, 0, &Events::NONE).1, Act::ShowUi(true));
         assert_eq!(key(viewer(), Command::Leave, 0, &Events::NONE).1, Act::Leave);
+        let (session, act) = key(viewer(), Command::ToggleCursor, 0, &Events::NONE);
+        assert!(matches!((session, act), (Session::Replay(Viewer { cursor: Ui::Shown, .. }), Act::Nothing)));
+        assert!(matches!(key(session, Command::ToggleCursor, 0, &Events::NONE).0, Session::Replay(Viewer { cursor: Ui::Hidden, .. })));
     }
 
     #[test]
@@ -695,15 +757,34 @@ mod tests {
         events.slots[0] = kill(5_000);
         events.slots[1] = kill(75_500);
         events.slots[2] = Some(Event { time: MatchMs(611_000), kind: EventKind::Objective, actor: None, victim: None });
+        events.slots[3] = Some(Event { time: MatchMs(90_000), kind: EventKind::Kill, actor: None, victim: Some(1) });
+        let names = |place: u8| match place {
+            1 => Some(&b"Ada"[..]),
+            2 => Some(&b"Bob;"[..]),
+            _ => None,
+        };
         let mut room = [0; MARKERS_ROOM];
-        assert_eq!(events.markers(MatchMs(10_000), &mut room).to_bytes(), b"65500:1:1'05;601000:2:10'01");
+        // Kill 1 > 2, the objective (nobody), a death of 1 no one made.
+        assert_eq!(events.markers(MatchMs(10_000), None, names, &mut room).to_bytes(),
+                   b"65500:1:Ada > Bob,;601000:2:;80000:1:Ada");
+        // Watching 2: its death is kind 3; watching 1: the lone death.
+        assert_eq!(events.markers(MatchMs(10_000), Some(2), names, &mut room).to_bytes(),
+                   b"65500:3:Ada > Bob,;601000:2:;80000:1:Ada");
+        assert_eq!(events.markers(MatchMs(10_000), Some(1), names, &mut room).to_bytes(),
+                   b"65500:1:Ada > Bob,;601000:2:;80000:3:Ada");
+        // Long names (UTF-8) cut on a character, the label within 63 bytes.
+        let long = |_: u8| Some("ЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖ".as_bytes());
+        let text = events.markers(MatchMs(10_000), None, long, &mut room).to_bytes();
+        let first = text.split(|&b| b == b';').next().unwrap();
+        let label = &first[first.iter().rposition(|&b| b == b':').unwrap() + 1..];
+        assert!(label.len() <= LABEL_MAX && core::str::from_utf8(label).is_ok(), "{}", label.len());
         let mut many = Events::NONE;
         for (i, slot) in many.slots.iter_mut().enumerate() {
             *slot = kill(1_000_000 + i as u32);
         }
-        let text = many.markers(MatchMs(0), &mut room).to_bytes();
-        assert!(text.len() < MARKERS_ROOM && text.ends_with(b"'40"), "{}", text.len());
-        assert_eq!(Events::NONE.markers(MatchMs(0), &mut room).to_bytes(), b"");
+        let text = many.markers(MatchMs(0), None, names, &mut room).to_bytes();
+        assert!(text.len() < MARKERS_ROOM && text.ends_with(b"Ada > Bob,"), "{}", text.len());
+        assert_eq!(Events::NONE.markers(MatchMs(0), None, names, &mut room).to_bytes(), b"");
     }
 
     #[test]
@@ -712,5 +793,6 @@ mod tests {
         assert_eq!(Command::of(Dik::LEFT, false), Some(Command::Back));
         assert_eq!(Command::of(Dik::H, true), Some(Command::ToggleUi));
         assert_eq!(Command::of(Dik::TAB, false), None);
+        assert_eq!(Command::of(Dik::RIGHT_CONTROL, false), Some(Command::ToggleCursor));
     }
 }

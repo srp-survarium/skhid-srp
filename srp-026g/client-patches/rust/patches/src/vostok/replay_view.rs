@@ -268,6 +268,19 @@ impl<'t> Overlay<'t> {
         }
     }
 
+    /// The hud's cursor as the viewer wants it (show_cursor 0x23A930, when the
+    /// hud's +2DCh says otherwise): the kits show it before the start, and a
+    /// viewer has none to pick. While the Tab list is up, patch 86's cursor
+    /// is left as it is.
+    pub fn keep_cursor(&self, shown: bool) {
+        // SAFETY: the hud's own bytes and its own call, on its thread.
+        unsafe {
+            if *self.ui.list_shown() == 0 && (*self.ui.cursor_shown() != 0) != shown {
+                raw::engine_show_cursor(Some(self.ui), u32::from(shown));
+            }
+        }
+    }
+
     /// The speed stepper's value, as a percent (root.set_replay_speed: 25 to
     /// 800, the movie answers nothing).
     pub fn set_speed(&self, percent: u16) {
@@ -339,3 +352,21 @@ impl CoreLoad {
 
 /// game_world_core::deserialize's mode of a user seek (0x1EE359..0x1EE36A).
 const SEEK_MODE: u32 = 0;
+
+/// The match's players' names, by place (the options' profiles, as the Tab
+/// list shows them), for the controls' markers.
+pub struct Names<'t> {
+    lobby: super::lobby::Lobby<'t>,
+}
+
+impl<'t> Names<'t> {
+    pub fn of(client: &NetworkClient<'t>) -> Names<'t> {
+        Names { lobby: super::lobby::Lobby::of(client.raw()) }
+    }
+
+    /// The name of the player at `place`, when the match has one.
+    pub fn of_place(&self, place: u8) -> Option<&[u8]> {
+        let name = self.lobby.place_name(super::types::Place::new(u32::from(place))?)?;
+        Some(name.to_bytes()).filter(|name| !name.is_empty())
+    }
+}

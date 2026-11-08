@@ -479,7 +479,7 @@ def main():
     state, _, calls = frame(ours)
     names = [(c[2], c[4]) for c in calls if c[0] == "invoke"]
     check(state[UC_X86_REG_EIP] == SITES["frame"][2] and ("show_replay_controls", WORLD_UI, 1) in calls
-          and ("root.set_match_time", (4, 590_000)) in names and ("root.set_markers_text", (6, "60000:1:1'00")) in names
+          and ("root.set_match_time", (4, 590_000)) in names and any(n == "root.set_markers_text" and v[1].startswith("60000:1:") for n, v in names if v)
           and ("root.set_position", (4, CLOCK - 10_000)) in names and ("root.set_play_state", (2, 0)) in names,
           "frame, a viewer: the controls shown, the bar's length, the markers, its position and the play button")
     state, _, calls = frame(ours)
