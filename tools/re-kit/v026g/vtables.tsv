@@ -44,3 +44,5 @@ vtable	slot	va	class	base	basis
 0x009ffb14	0x28	0x0027b4b0	survarium::network_client	survarium::base_network_client	observed: unload, called by game_world::unload 0x1F8B9F
 0x009ffb14	0x3c	0x00219960	survarium::network_client	survarium::base_network_client	observed: lobby_client (this + 1E0h); close_current_match 0x27A939, the 0xEA handler 0x27C757
 0x009ffb14	0x58	0x0027a790	survarium::network_client	survarium::base_network_client	observed: close_current_match, called by on_match_disconnected 0x21BEA5 and the 0xEA handler 0x27C774 (a tail jump)
+0x00a0d2e4	0x8	0x002ac720	survarium::particle_game_effect_presenter	survarium::particle_game_effect_presenter	observed: its assert's name; the third-person presenter's +8h (0x2976B0) calls it, base_player::serialize (0x2DB132) reaches it
+0x00a0d2e4	0xc	0x002ac870	survarium::particle_game_effect_presenter	survarium::particle_game_effect_presenter	observed: the third-person presenter's +0Ch (0x2976F0) calls it, base_player::deserialize (0x2DB5C4) reaches it with a saved world's entries

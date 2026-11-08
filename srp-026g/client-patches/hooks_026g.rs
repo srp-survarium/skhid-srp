@@ -2925,6 +2925,71 @@ pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- particle_room (patch 122) ----
+
+/// The entry `particle_room_on_first_person_made` (0x1f6884, game_world::game_world 0x1F67B0 after its first-person presenter's constructor 0x2971C0 at 0x1F686A (mov [ebp+4D38h],eax / mov [ebp+4D3Ch],ebx; the first site after it without a relocation under it, EAX no longer the presenter): EBP the game world, its first-person presenter at +1D98h (the EDI given at 0x1F6857), its particle list inline (six entries); game_world is the static at 0xA96860, so the address is the same at every construction) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_first_person_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_first_person_made` calls this, from the game's jump at 0x1f6884,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_first_person_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- particle_room (patch 122) ----
+
+/// The entry `particle_room_on_third_person_made` (0x1f6b14, game_world::game_world 0x1F67B0's loop over the twenty places' holders, after each third-person presenter's constructor 0x297570 at 0x1F6B0F (add eax,220h / sub esi,edi): EAX the presenter (holder +8h, the game world's +22BCh + place x 220h; the constructor keeps EAX), its particle list inline (six entries)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_third_person_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_third_person_made` calls this, from the game's jump at 0x1f6b14,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_third_person_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- particle_room (patch 122) ----
+
+/// The entry `particle_room_on_read_room` (0x2ac8a6, particle_game_effect_presenter::deserialize 0x2AC870 once its local list is set up and the presenter stored (mov [esp+4Ch],edx / mov [esp+58h],eax): EAX the local's capacity end (ESP+0ECh, six entries inline from ESP+5Ch) the second instruction stores; the saved entries are pushed into it (0x2AC9B8) and it is swapped into the presenter at 0x2ACC00) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_read_room(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_read_room` calls this, from the game's jump at 0x2ac8a6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_read_room(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- particle_room (patch 122) ----
+
+/// The named exits of particle_room::on_swap (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ParticleRoomOnSwapExit { Returned }
+/// The entry `particle_room_on_swap` (0x2acd00, the particle lists' swap 0x2ACD00 (sub esp,0A4h), whose one caller is deserialize 0x2AC870 at 0x2ACC00: EDI the presenter's list, ESI the local read; it copies EDI's entries into a stack room of six (ESP+10h..+0A0h) and assigns with 0x2AD360, which checks no capacity; returned is its ret (at the site ESP is the return address)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_swap(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_swap` calls this, from the game's jump at 0x2acd00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_swap(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_cull` (0x24757c, mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)) calls this with the saved machine.

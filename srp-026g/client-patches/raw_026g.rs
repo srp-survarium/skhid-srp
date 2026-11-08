@@ -568,6 +568,15 @@ impl GameWorld {
         GameWorldUi(unsafe { self.0.byte_add(0x1fc) })
     }
 
+    /// +0x1d98 (obj<survarium::first_person_game_effects_presenter>): its first-person presenter (game_world::game_world 0x1F6857: lea edi,[ebp+1D98h], then its constructor 0x2971C0; its holder +1D90h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first_person_presenter(self) -> FirstPersonGameEffectsPresenter {
+        FirstPersonGameEffectsPresenter(unsafe { self.0.byte_add(0x1d98) })
+    }
+
     /// +0x4e20 (u8): 1 while a level loads: game_world::load sets it (0x1F8CB4), set_game_project clears it after switch_to_game_world (0x1F862F), and on_project_loaded's abort (0x1F8B14)
     ///
     /// # Safety
@@ -16907,6 +16916,232 @@ impl ThirdPersonGameEffectsPresenter {
     pub unsafe fn set_player(self, value: Option<Player>) {
         unsafe { self.0.byte_add(0x10).cast::<Option<Player>>().write_volatile(value) }
     }
+
+    /// +0x8 (obj<survarium::particle_game_effect_presenter>): its particle presenter (vtable 0xA0D2E4, written by its constructor 0x297570 at 0x297585)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn particles(self) -> ParticleGameEffectPresenter {
+        ParticleGameEffectPresenter(unsafe { self.0.byte_add(0x8) })
+    }
+}
+
+/// A survarium::first_person_game_effects_presenter (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FirstPersonGameEffectsPresenter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FirstPersonGameEffectsPresenter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x470 (obj<survarium::particle_game_effect_presenter>): its particle presenter (vtable 0xA0D2E4, written by its constructor 0x2971C0 at 0x2972B6)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn particles(self) -> ParticleGameEffectPresenter {
+        ParticleGameEffectPresenter(unsafe { self.0.byte_add(0x470) })
+    }
+}
+
+/// A survarium::particle_game_effect_presenter (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleGameEffectPresenter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleGameEffectPresenter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (obj<survarium::particle_effect_list>): the particle effects it plays: a buffer_vector<effect_data> whose room the constructors put inline at +18h, six entries (0x297592..0x29759E, 0x2972C0..0x2972D1); push_back 0x2ACC20 asserts at 0x2ACC7F when it is full, nothing grows it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn effects(self) -> ParticleEffectList {
+        ParticleEffectList(unsafe { self.0.byte_add(0xc) })
+    }
+}
+
+/// A survarium::particle_effect_list (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleEffectList(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleEffectList {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<u8>): the first entry (buffer_vector<effect_data>: begin, end, capacity end; the list's code reads only these three, never its inline room: erase 0x2ACD80, assign 0x2AD360, the destructors 0x2AC250 and 0x1F75D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn begin(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): the first entry (buffer_vector<effect_data>: begin, end, capacity end; the list's code reads only these three, never its inline room: erase 0x2ACD80, assign 0x2AD360, the destructors 0x2AC250 and 0x1F75D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_begin(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<u8>): one past the last entry (push_back 0x2ACC20 adds 18h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn end(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): one past the last entry (push_back 0x2ACC20 adds 18h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_end(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<u8>): the room's end (push_back 0x2ACC26 compares end with it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<u8>): the room's end (push_back 0x2ACC26 compares end with it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_capacity(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().write_volatile(value) }
+    }
+}
+
+/// A survarium::particle_effect_data (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleEffectData(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleEffectData {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// 0x18 bytes: a particle presenter's entry (effect_data, 18h: an effect reference, two words, a particle reference whose count is at +0D0h, two floats; assign 0x2AD360 copies one)
+    pub const SIZE: usize = 0x18;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::particle_effect_datas (0x18 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ParticleEffectDataStorage([u8; 0x18]);
+
+#[allow(dead_code)]
+impl ParticleEffectDataStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x18])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ParticleEffectData {
+        ParticleEffectData(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ParticleEffectData> {
+        (!rooms.is_empty()).then(|| ParticleEffectData(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::particle_read_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleReadFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleReadFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x18 (ptr<survarium::particle_game_effect_presenter>): particle_game_effect_presenter::deserialize 0x2AC870's ESP+18h: the presenter (`this`, ECX, stored at 0x2AC8A2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn presenter(self) -> Option<ParticleGameEffectPresenter> {
+        unsafe { self.0.byte_add(0x18).cast::<Option<ParticleGameEffectPresenter>>().read_volatile() }
+    }
+
+    /// +0x18 (ptr<survarium::particle_game_effect_presenter>): particle_game_effect_presenter::deserialize 0x2AC870's ESP+18h: the presenter (`this`, ECX, stored at 0x2AC8A2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_presenter(self, value: Option<ParticleGameEffectPresenter>) {
+        unsafe { self.0.byte_add(0x18).cast::<Option<ParticleGameEffectPresenter>>().write_volatile(value) }
+    }
+
+    /// +0x50 (obj<survarium::particle_effect_list>): its local list the saved entries are read into (0x2AC891..0x2AC8AA: begin = end = ESP+5Ch, capacity end ESP+0ECh, six entries; push_back 0x2AC9B8), swapped into the presenter at 0x2ACC00
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn read(self) -> ParticleEffectList {
+        ParticleEffectList(unsafe { self.0.byte_add(0x50) })
+    }
 }
 
 /// A survarium::medical_effect_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -20359,6 +20594,75 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn options(machine: &impl Machine) -> Option<GameOptions> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameOptions)
+        }
+    }
+
+    /// game_world.first_person_presenter_made (0x1f6884): game_world::game_world 0x1F67B0 after its first-person presenter's constructor 0x2971C0 at 0x1F686A (mov [ebp+4D38h],eax / mov [ebp+4D3Ch],ebx; the first site after it without a relocation under it, EAX no longer the presenter): EBP the game world, its first-person presenter at +1D98h (the EDI given at 0x1F6857), its particle list inline (six entries); game_world is the static at 0xA96860, so the address is the same at every construction
+    pub mod game_world_first_person_presenter_made {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::game_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<GameWorld> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(GameWorld)
+        }
+    }
+
+    /// game_world.third_person_presenter_made (0x1f6b14): game_world::game_world 0x1F67B0's loop over the twenty places' holders, after each third-person presenter's constructor 0x297570 at 0x1F6B0F (add eax,220h / sub esi,edi): EAX the presenter (holder +8h, the game world's +22BCh + place x 220h; the constructor keeps EAX), its particle list inline (six entries)
+    pub mod game_world_third_person_presenter_made {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::third_person_game_effects_presenter (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn presenter(machine: &impl Machine) -> Option<ThirdPersonGameEffectsPresenter> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(ThirdPersonGameEffectsPresenter)
+        }
+    }
+
+    /// effect_presenter.particle_read_room (0x2ac8a6): particle_game_effect_presenter::deserialize 0x2AC870 once its local list is set up and the presenter stored (mov [esp+4Ch],edx / mov [esp+58h],eax): EAX the local's capacity end (ESP+0ECh, six entries inline from ESP+5Ch) the second instruction stores; the saved entries are pushed into it (0x2AC9B8) and it is swapped into the presenter at 0x2ACC00
+    pub mod effect_presenter_particle_read_room {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::particle_read_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ParticleReadFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ParticleReadFrame)
+        }
+    }
+
+    /// effect_presenter.particle_swap (0x2acd00): the particle lists' swap 0x2ACD00 (sub esp,0A4h), whose one caller is deserialize 0x2AC870 at 0x2ACC00: EDI the presenter's list, ESI the local read; it copies EDI's entries into a stack room of six (ESP+10h..+0A0h) and assigns with 0x2AD360, which checks no capacity; returned is its ret (at the site ESP is the return address)
+    pub mod effect_presenter_particle_swap {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::particle_effect_list (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn kept(machine: &impl Machine) -> Option<ParticleEffectList> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ParticleEffectList)
+        }
+
+        /// ESI: a survarium::particle_effect_list (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn read(machine: &impl Machine) -> Option<ParticleEffectList> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ParticleEffectList)
         }
     }
 

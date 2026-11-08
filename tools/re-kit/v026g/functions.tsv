@@ -2213,3 +2213,5 @@ va	status	ref_021d	name
 0x001ed170	observed		survarium::game::switch_to_game_world
 0x002203a0	observed		survarium::lobby_menu::show_loading_screen
 0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
+0x002acc20	observed		vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back
+0x002ac720	observed		survarium::particle_game_effect_presenter::serialize

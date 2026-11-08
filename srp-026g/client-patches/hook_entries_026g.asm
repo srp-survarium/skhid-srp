@@ -5558,6 +5558,165 @@ packet_recovery_on_close_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x27a796
 
+; 0x1f6884 game_world::game_world 0x1F67B0 after its first-person presenter's constructor 0x2971C0 at 0x1F686A (mov [ebp+4D38h],eax / mov [ebp+4D3Ch],ebx; the first site after it without a relocation under it, EAX no longer the presenter): EBP the game world, its first-person presenter at +1D98h (the EDI given at 0x1F6857), its particle list inline (six entries); game_world is the static at 0xA96860, so the address is the same at every construction: lohook -> particle_room_on_first_person_made
+global particle_room_on_first_person_made
+extern hook_particle_room_on_first_person_made
+particle_room_on_first_person_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_first_person_made
+    mov edx, particle_room_on_first_person_made_replay
+    cmp eax, 0
+    je particle_room_on_first_person_made_go
+    mov edx, 0x1f688a
+    cmp eax, 1
+    je particle_room_on_first_person_made_go
+    ud2
+particle_room_on_first_person_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_first_person_made_replay:
+    db 0x89, 0x85, 0x38, 0x4d, 0x00, 0x00
+    jmp 0x1f688a
+
+; 0x1f6b14 game_world::game_world 0x1F67B0's loop over the twenty places' holders, after each third-person presenter's constructor 0x297570 at 0x1F6B0F (add eax,220h / sub esi,edi): EAX the presenter (holder +8h, the game world's +22BCh + place x 220h; the constructor keeps EAX), its particle list inline (six entries): lohook -> particle_room_on_third_person_made
+global particle_room_on_third_person_made
+extern hook_particle_room_on_third_person_made
+particle_room_on_third_person_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_third_person_made
+    mov edx, particle_room_on_third_person_made_replay
+    cmp eax, 0
+    je particle_room_on_third_person_made_go
+    mov edx, 0x1f6b19
+    cmp eax, 1
+    je particle_room_on_third_person_made_go
+    ud2
+particle_room_on_third_person_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_third_person_made_replay:
+    db 0x05, 0x20, 0x02, 0x00, 0x00
+    jmp 0x1f6b19
+
+; 0x2ac8a6 particle_game_effect_presenter::deserialize 0x2AC870 once its local list is set up and the presenter stored (mov [esp+4Ch],edx / mov [esp+58h],eax): EAX the local's capacity end (ESP+0ECh, six entries inline from ESP+5Ch) the second instruction stores; the saved entries are pushed into it (0x2AC9B8) and it is swapped into the presenter at 0x2ACC00: lohook -> particle_room_on_read_room
+global particle_room_on_read_room
+extern hook_particle_room_on_read_room
+particle_room_on_read_room:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_read_room
+    mov edx, particle_room_on_read_room_replay
+    cmp eax, 0
+    je particle_room_on_read_room_go
+    mov edx, 0x2ac8ae
+    cmp eax, 1
+    je particle_room_on_read_room_go
+    ud2
+particle_room_on_read_room_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_read_room_replay:
+    db 0x89, 0x54, 0x24, 0x4c, 0x89, 0x44, 0x24, 0x58
+    jmp 0x2ac8ae
+
+; 0x2acd00 the particle lists' swap 0x2ACD00 (sub esp,0A4h), whose one caller is deserialize 0x2AC870 at 0x2ACC00: EDI the presenter's list, ESI the local read; it copies EDI's entries into a stack room of six (ESP+10h..+0A0h) and assigns with 0x2AD360, which checks no capacity; returned is its ret (at the site ESP is the return address): lohook -> particle_room_on_swap
+global particle_room_on_swap
+extern hook_particle_room_on_swap
+particle_room_on_swap:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_swap
+    mov edx, particle_room_on_swap_replay
+    cmp eax, 0
+    je particle_room_on_swap_go
+    mov edx, 0x2acd06
+    cmp eax, 1
+    je particle_room_on_swap_go
+    mov edx, 0x2acd73
+    cmp eax, 2
+    je particle_room_on_swap_go
+    ud2
+particle_room_on_swap_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_swap_replay:
+    db 0x81, 0xec, 0xa4, 0x00, 0x00, 0x00
+    jmp 0x2acd06
+
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull
