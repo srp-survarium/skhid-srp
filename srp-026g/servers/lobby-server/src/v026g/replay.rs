@@ -126,21 +126,27 @@ impl Core<'_> {
     /// the lobby, or gone, gets `busy`). `SRP_DEV_REPLAY_WATCH`: the games
     /// due ask.
     pub(super) fn replay_sessions(&mut self, now: Instant) {
-        if let Some((match_id, ask)) = self.settings.dev_replay_watch {
+        if let Some(aid) = self.settings.dev_aid {
             let due: Vec<_> = self
-                .dev_watch
+                .dev_due
                 .iter()
                 .filter(|(_, at)| **at <= now)
                 .map(|(addr, _)| *addr)
                 .collect();
             for addr in due {
-                self.dev_watch.remove(&addr);
-                if let Some(who) = self.who(addr) {
-                    log::warn!(
-                        "SRP_DEV_REPLAY_WATCH: {} asks for match {match_id:#x}",
-                        who.name
-                    );
-                    self.replay_watch(&who, match_id, ask, now);
+                self.dev_due.remove(&addr);
+                let Some(who) = self.who(addr) else {
+                    continue;
+                };
+                match aid {
+                    DevAid::Watch { match_id, ask } => {
+                        log::warn!(
+                            "SRP_DEV_REPLAY_WATCH: {} asks for match {match_id:#x}",
+                            who.name
+                        );
+                        self.replay_watch(&who, match_id, ask, now);
+                    }
+                    DevAid::PlaySolo => self.play_solo(&who, now),
                 }
             }
         }
@@ -227,9 +233,35 @@ impl Core<'_> {
     }
 }
 
+/// A dev aid, for tests that cannot click the lobby: done for each game
+/// ten seconds after it signs in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DevAid {
+    /// `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]` or
+    /// `<match hex>,deaths`: it asks to watch that replay, as the movie
+    /// would.
+    Watch { match_id: u32, ask: ReplayWatchAsk },
+    /// `SRP_DEV_PLAY_SOLO=1`: Play is pressed for it, and it is seated alone
+    /// in a match of its own (played and recorded as any; it ends when the
+    /// game leaves it or closes): a recording made with the game being
+    /// tested (`play::play_solo`).
+    PlaySolo,
+}
+
+impl DevAid {
+    pub(super) fn from_env() -> Option<Self> {
+        let var = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
+        if var("SRP_DEV_PLAY_SOLO").is_some() {
+            return Some(Self::PlaySolo);
+        }
+        let (match_id, ask) = dev_watch(&var("SRP_DEV_REPLAY_WATCH")?)?;
+        Some(Self::Watch { match_id, ask })
+    }
+}
+
 /// `SRP_DEV_REPLAY_WATCH`: `<match hex>[,<seconds>[,<place>]]`, or
 /// `<match hex>,deaths` (the asker's deaths).
-pub(super) fn dev_watch(value: &str) -> Option<(u32, ReplayWatchAsk)> {
+fn dev_watch(value: &str) -> Option<(u32, ReplayWatchAsk)> {
     let mut parts = value.trim().split(',').map(str::trim);
     let match_id = u32::from_str_radix(parts.next()?.trim_start_matches("0x"), 16).ok()?;
     let ask = match parts.next() {

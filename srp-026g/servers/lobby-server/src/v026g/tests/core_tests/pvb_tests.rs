@@ -469,3 +469,28 @@ fn a_level_15_player_plays_level_15_bots_in_the_top_players_kits() {
             .all(|&each| each == session::v026g::level_stats::BOT_STRENGTH)
     );
 }
+
+/// `SRP_DEV_PLAY_SOLO` (dev aid): ten seconds after it signs in, a game is
+/// seated alone in a match of its own, no room and no bots, played and
+/// recorded as any.
+#[test]
+fn dev_play_solo_seats_a_signed_in_player_alone_in_a_match() {
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.dev_aid = Some(crate::v026g::replay::DevAid::PlaySolo);
+    let mut world = World::with_settings(settings);
+    let alice = world.connect("Alice");
+    world.take(alice);
+    world.advance(Duration::from_secs(8));
+    assert_eq!(sent_to_match(&world.take(alice)), None);
+    world.advance(Duration::from_secs(3));
+    let decoded = world.take(alice);
+    let (ticket, _) = sent_to_match(&decoded).expect("sent to a match");
+    let made = world.host.made.locked();
+    let (id, setup) = made.last().unwrap();
+    assert_eq!(*id, ticket);
+    assert!(!setup.vs_bots);
+    assert_eq!(setup.players.len(), 1);
+    assert_eq!(setup.players[0].account_id, world.ids[alice].0);
+    drop(made);
+    assert!(world.core.rooms.of(world.ids[alice].0).is_none());
+}

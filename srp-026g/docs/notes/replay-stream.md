@@ -119,6 +119,7 @@ watching.
 | `SRP_REPLAY_WATCH_MAX` | sessions at once (default 4: the host has 1 vCPU and 512 MB; each costs about one player's traffic and its recording in memory, a few MB to a few tens) |
 | `SRP_REPLAY_MAX_RECORDING_MB` | as for History (default 24) |
 | `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]`, or `<match hex>,deaths` | dev aid: each game that signs in asks for that replay 10 s later, as the movie would |
+| `SRP_DEV_PLAY_SOLO=1` | dev aid: each game that signs in is seated alone in a match of its own 10 s later (no room, no bots), played and recorded as any (with `SRP_RECORD_MIN_PLAYERS=1`); it ends when the game leaves the match or closes: a fresh recording made with the exe being tested |
 | `SRP_DEV_REPLAY_CONTROL=<file>` | dev aid: lines `pause`, `play`, `speed 0.25|0.5|1|2|4|8`, `seek <seconds>` to every playback, read every 250 ms and removed |
 
 ## How to try it with a real game

@@ -202,10 +202,9 @@ pub struct Settings {
     pub pvb: pvb::Config,
     /// Rooms (`RoomRules::rooms_most`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
     pub rooms: rooms::Config,
-    /// `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]` (dev aid):
-    /// each game that signs in asks to watch that match's replay ten
-    /// seconds later, as the movie's request would (`replay`).
-    pub dev_replay_watch: Option<(u32, survarium::v026g::lobby::ReplayWatchAsk)>,
+    /// A dev aid for tests that cannot click the lobby: what each game
+    /// that signs in does ten seconds later (`replay::DevAid`).
+    pub dev_aid: Option<replay::DevAid>,
 }
 
 impl Settings {
@@ -307,9 +306,7 @@ impl Settings {
         Self {
             pvb: pvb::Config::from_env(),
             rooms: rooms::Config::from_env(),
-            dev_replay_watch: std::env::var("SRP_DEV_REPLAY_WATCH")
-                .ok()
-                .and_then(|value| replay::dev_watch(&value)),
+            dev_aid: replay::DevAid::from_env(),
             balance,
             min_patch_revision,
             bind: config.bind_addr(),
@@ -339,7 +336,7 @@ impl Settings {
             balance: Weights::default(),
             pvb: pvb::Config::default(),
             rooms: rooms::Config::default(),
-            dev_replay_watch: None,
+            dev_aid: None,
         }
     }
 }
