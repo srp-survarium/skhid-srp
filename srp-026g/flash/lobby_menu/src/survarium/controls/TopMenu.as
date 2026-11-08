@@ -2,9 +2,12 @@ package survarium.controls
 {
    import flash.display.MovieClip;
    import flash.display.Shape;
+   import flash.display.Sprite;
    import flash.events.Event;
    import flash.geom.Rectangle;
    import flash.text.TextField;
+   import flash.text.TextFieldAutoSize;
+   import flash.text.TextFormat;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ButtonBar;
    import scaleform.clik.core.UIComponent;
@@ -14,6 +17,7 @@ package survarium.controls
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsLook;
    import survarium.rooms.RoomsWindow;
+   import survarium.watch.WatchWindow;
    
    public class TopMenu extends UIComponent
    {
@@ -28,11 +32,14 @@ package survarium.controls
       
       public const CLAN_INDEX:uint = 3;
       
-      public const QUESTS_INDEX:uint = 6;
+      public const QUESTS_INDEX:uint = 7;
       
-      public const RANK_INDEX:uint = 5;
+      public const RANK_INDEX:uint = 6;
       
       public const MAP_INDEX:uint = 4;
+
+      // srp's Watch (survarium.watch), between Rooms and Ranking
+      public const WATCH_INDEX:uint = 5;
       
       protected var sceneContainer:MovieClip;
       
@@ -56,6 +63,13 @@ package survarium.controls
       private var _roomsLabel:TextField;
 
       private var _roomsLabelColour:uint;
+
+      // The Watch tab: our eye in place of its art, and the live matches' red count on it.
+      private var _watchIcon:Shape;
+
+      private var _watchBadge:Sprite;
+
+      private var _watchCount:int = -1;
       
       public function TopMenu()
       {
@@ -202,6 +216,9 @@ package survarium.controls
             icon:6,
             enabled:false
          },{
+            name:LocalizationData.getName("st_srp_watch_title"),
+            icon:6
+         },{
             name:LocalizationData.getName("ranking"),
             icon:5
          },{
@@ -282,6 +299,7 @@ package survarium.controls
          }
          _byUser = true;
          this.roomsTabChanged();
+         this.watchTabChanged();
       }
       
       protected function onClose(event:Event) : void
@@ -301,7 +319,7 @@ package survarium.controls
       
       // The rooms' tab: its label (the rooms window's), on as the Clan tab
       // is: the lobby locks its tabs for a moment while it loads, and ours
-      // then waits with them.
+      // (Watch's too) then wait with them.
       public function setRoomsTab(text:String) : void
       {
          try
@@ -310,6 +328,12 @@ package survarium.controls
             this._roomsTabOn = clan == null || clan.enabled !== false;
             this.tabPage.dataProvider[this.MAP_INDEX] = {
                "name":text,
+               "icon":6,
+               "enabled":this._roomsTabOn
+            };
+            // Watch is on and off with it
+            this.tabPage.dataProvider[this.WATCH_INDEX] = {
+               "name":LocalizationData.getName("st_srp_watch_title"),
                "icon":6,
                "enabled":this._roomsTabOn
             };
@@ -366,6 +390,8 @@ package survarium.controls
                g.endFill();
                tab.addChild(this._roomsIcon);
             }
+            // measured shown (Ruffle has no bounds for a hidden clip)
+            art.visible = true;
             var box:Rectangle = art.getBounds(tab);
             if(box.width > 0)
             {
@@ -441,6 +467,121 @@ package survarium.controls
          this._roomsSyncing = false;
       }
       
+      // Each frame (WatchWindow): the Watch tab's eye, as the rooms' tab has its own icon, and
+      // `live` (the matches being played) on a red badge at its top right, none for 0.
+      public function paintWatchTab(live:int) : void
+      {
+         try
+         {
+            var tab:* = this.getRenderer(this.WATCH_INDEX);
+            var art:MovieClip = tab != null ? tab.icon as MovieClip : null;
+            if(art == null)
+            {
+               return;
+            }
+            if(this._watchIcon == null || this._watchIcon.parent != tab)
+            {
+               this._watchIcon = new Shape();
+               var g:* = this._watchIcon.graphics;
+               // one tone, as the other tabs' art: an eye
+               g.lineStyle(3,0x4E5457);
+               g.moveTo(-14,0);
+               g.curveTo(0,-14,14,0);
+               g.curveTo(0,14,-14,0);
+               g.lineStyle();
+               g.beginFill(0x4E5457,1);
+               g.drawCircle(0,0,4.5);
+               g.endFill();
+               tab.addChild(this._watchIcon);
+               this._watchBadge = new Sprite();
+               this._watchBadge.name = "srpWatchBadge";
+               this._watchBadge.mouseEnabled = false;
+               this._watchBadge.mouseChildren = false;
+               var field:TextField = new TextField();
+               var label:TextField = tab.textField as TextField;
+               field.embedFonts = true;
+               field.selectable = false;
+               field.autoSize = TextFieldAutoSize.LEFT;
+               field.defaultTextFormat = new TextFormat(label != null ? label.getTextFormat().font : null,12,0xFFFFFF,true);
+               this._watchBadge.addChild(field);
+               tab.addChild(this._watchBadge);
+               this._watchCount = -1;
+            }
+            art.visible = true;
+            var box:Rectangle = art.getBounds(tab);
+            if(box.width > 0)
+            {
+               this._watchIcon.x = Math.round(box.x + box.width / 2);
+               this._watchIcon.y = Math.round(box.y + box.height / 2);
+            }
+            art.visible = false;
+            this._watchIcon.alpha = art.alpha;
+            this._watchIcon.transform.colorTransform = art.transform.colorTransform;
+            if(live != this._watchCount)
+            {
+               this._watchCount = live;
+               this.drawWatchBadge(live);
+            }
+            this._watchBadge.x = int(this._watchIcon.x + 12);
+            this._watchBadge.y = int(this._watchIcon.y - 18);
+         }
+         catch(e:Error)
+         {
+         }
+      }
+
+      private function drawWatchBadge(live:int) : void
+      {
+         var field:TextField = this._watchBadge.getChildAt(0) as TextField;
+         this._watchBadge.visible = live > 0;
+         field.text = String(live);
+         var w:int = Math.max(18,int(field.textWidth + 10));
+         field.x = int((w - field.width) / 2);
+         field.y = int((18 - field.height) / 2);
+         this._watchBadge.graphics.clear();
+         this._watchBadge.graphics.beginFill(0xC62B22,1);
+         this._watchBadge.graphics.drawRoundRect(0,0,w,18,18,18);
+         this._watchBadge.graphics.endFill();
+      }
+
+      // The Watch window opened or closed: its tab follows, as the rooms' does (selectRoomsTab).
+      public function selectWatchTab(on:Boolean) : void
+      {
+         this._roomsSyncing = true;
+         try
+         {
+            var at:int = this.tabPage.selectedIndex;
+            if(on && at != this.WATCH_INDEX)
+            {
+               this.selectActiveWindow(this.WATCH_INDEX);
+            }
+            else if(!on && at == this.WATCH_INDEX)
+            {
+               this.selectActiveWindow(-1);
+            }
+         }
+         catch(e:Error)
+         {
+         }
+         this._roomsSyncing = false;
+      }
+
+      // A tab chosen: Watch opens its window, another closes it.
+      private function watchTabChanged() : void
+      {
+         try
+         {
+            WatchWindow.topMenu = this;
+            if(WatchWindow.me != null && !this._roomsSyncing)
+            {
+               WatchWindow.me.tabChosen(this.tabPage.selectedIndex == this.WATCH_INDEX);
+            }
+         }
+         catch(err:Error)
+         {
+         }
+      }
+
       // The tabs made: the map's (its index, which the game leaves off) is
       // the rooms': Rooms, and the countdown while their window is hidden.
       private function nameRoomsTab() : void
@@ -448,6 +589,7 @@ package survarium.controls
          try
          {
             RoomsWindow.topMenu = this;
+            WatchWindow.topMenu = this;
             if(RoomsWindow.me != null)
             {
                RoomsWindow.me.retitle();

@@ -4863,6 +4863,11 @@ package
       public function fill_players_search(value:Array) : void
       {
          trace("fill_players_search::",value.length,this._playerRequestTarget);
+         // the Watch window's search by name asked for it
+         if(WatchWindow.found(value))
+         {
+            return;
+         }
          this._playerRequestTarget.fillFoundPlayers(value);
       }
       

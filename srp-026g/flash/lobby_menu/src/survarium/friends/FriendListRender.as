@@ -290,7 +290,7 @@ package survarium.friends
                   click_function:this.sendMessage
                });
             }
-            // a friend in a match: watch it (the Watch window's Live, that match's roster)
+            // a friend in a match: watch it, following them (the Watch window's Live)
             if(_data.status == FriendStatus.IN_GAME)
             {
                menuItems.push({

@@ -25,7 +25,7 @@ package survarium.messages
       
       public var textFieldNickname:TextField;
 
-      // srp's Matches: the button left of Close, the player's matches in the Watch window
+      // srp's Matches: the button left of Close, the player's matches in the Watch window (Replays)
       protected var _matchesButton:Button;
       
       public function MessagePlayerInfo()
@@ -60,12 +60,12 @@ package survarium.messages
          addChild(this._matchesButton);
       }
 
-      // The pop-up closes, and the Watch window opens on this player's matches.
+      // The pop-up closes, and the Watch window opens on Replays, this player's name searched.
       protected function onMatches(e:ButtonEvent) : void
       {
          var nickname:String = String(_data.nickname);
          onMessageAccept();
-         WatchWindow.open(WatchWindow.PLAYER,nickname);
+         WatchWindow.openPlayer(nickname);
       }
       
       private function onProfileSelected(e:Event) : void
