@@ -7,8 +7,7 @@
 //!   are those two; [`session::v026g::quests::QuestPay`] has nothing else);
 //! - both times the match level's `money_k` and `reputation_k`, the
 //!   reputation times `SRP_REPUTATION_RATE` too ([`pay::reputation_rate`],
-//!   read as the server reads it), and twice in a match of the daily bonus
-//!   ([`bonus::settings`]; [`session::v026g::quests::Scale`]);
+//!   read as the server reads it; [`session::v026g::quests::Scale`]);
 //! - the match levels shown stop at the highest a match can have
 //!   ([`matchmaking::highest_match_level`]).
 //!
@@ -19,7 +18,7 @@
 use std::collections::BTreeSet;
 use std::fmt::Write;
 
-use session::v026g::{bonus, matchmaking, pay, quests::QUESTS_AT_ONCE};
+use session::v026g::{matchmaking, pay};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::quests::{FACTIONS, Quest, Quests};
 
@@ -42,31 +41,6 @@ fn span(values: impl IntoIterator<Item = u32>) -> String {
         (Some(least), Some(most)) if least != most => format!("{least}–{most}"),
         (Some(value), _) => value.to_string(),
         _ => "—".to_owned(),
-    }
-}
-
-/// `n` quests, in words.
-fn quests_word(lang: Lang, n: usize) -> String {
-    let (tens, ones) = (n % 100, n % 10);
-    let uk = if (1..=4).contains(&ones) && !(11..=14).contains(&tens) {
-        "завдання"
-    } else {
-        "завдань"
-    };
-    lang.tr(
-        &format!("{n} quest{}", if n == 1 { "" } else { "s" }),
-        &format!("{n} {uk}"),
-    )
-}
-
-/// Minutes as hours, for the intro.
-fn hours(minutes: impl IntoIterator<Item = u32>) -> String {
-    let values: BTreeSet<u32> = minutes.into_iter().collect();
-    let hour = |m: u32| modifiers::number(m as f32 / 60.0);
-    match (values.first(), values.last()) {
-        (Some(&least), Some(&most)) if least != most => format!("{}–{}", hour(least), hour(most)),
-        (Some(&value), _) => hour(value),
-        _ => "0".to_owned(),
     }
 }
 
@@ -200,62 +174,21 @@ fn level_grid(lang: Lang, out: &mut String) {
 
 /// The page's body in `lang`, for the wiki's page.
 pub(crate) fn body(lang: Lang) -> String {
-    let quests = &Quests::shared().quests;
     let code = lang.code();
-    let lasts = hours(quests.iter().map(|q| q.ttl_minutes));
-    let rests = hours(quests.iter().map(|q| q.cooldown_minutes));
-    let rate = times(f64::from(pay::reputation_rate()) / 100.0);
-    let wins = bonus::settings().enabled.then_some(bonus::WINS_A_DAY);
-    let (no_experience, intro, runs, scaled, doubled) = match lang {
-        Lang::En => (
-            "Quests give no experience: they pay silver and reputation.".to_owned(),
-            format!(
-                "Choose a faction in the lobby: it gives you {QUESTS_AT_ONCE} of its quests at a time, \
-                 for your reputation level with it. A quest lasts {lasts} h; one you complete comes back after {rests} h."
-            ),
-            "Targets by reputation level: \u{201c}0–2: 5\u{201d} is 5 at levels 0 to 2.",
-            format!(
-                "Silver and reputation are multiplied by the level of the match the quest is completed in; \
-                 reputation includes Skhid's {rate}."
-            ),
-            wins.map(|wins| format!(" Reputation counts twice in the day's first {wins} wins.")),
-        ),
-        Lang::Uk => (
-            "Завдання не дають досвіду: за них платять срібло й репутацію.".to_owned(),
-            format!(
-                "Оберіть угруповання в лобі: воно дає {} водночас, за вашим рівнем репутації з ним. \
-                 Завдання триває {lasts} год; виконане повертається за {rests} год.",
-                quests_word(lang, QUESTS_AT_ONCE),
-            ),
-            "Мета за рівнем репутації: «0–2: 5» — це 5 на рівнях від 0 до 2.",
-            format!(
-                "Срібло й репутацію множать на рівень матчу, у якому завдання виконано; \
-                 у репутації вже є множник Сходу {rate}."
-            ),
-            wins.map(|wins| format!(" У перших {wins} перемогах за день репутація подвоюється.")),
-        ),
-    };
     let mut out = format!(
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
-         <div class=wiki-heading><div><h1>{}</h1></div><span class=catalogue-count>{}</span></div>\
-         <p class=wiki-intro><strong>{}</strong> {}</p><p class=wiki-note>{}</p>",
+         <div class=wiki-heading><div><h1>{}</h1></div></div>",
         lang.tr("Wiki", "Вікі"),
         lang.tr("Quests", "Завдання"),
         lang.tr("Quests", "Завдання"),
-        quests_word(lang, quests.len()),
-        escape(&no_experience),
-        escape(&intro),
-        escape(runs),
     );
     for faction in FACTIONS {
         faction_section(lang, &mut out, faction);
     }
     let _ = write!(
         out,
-        "<section class=\"modifiers quests\" id=match-level><h2>{}</h2><p class=wiki-note>{}{}</p>",
+        "<section class=\"modifiers quests\" id=match-level><h2>{}</h2>",
         lang.tr("Pay by match level", "Оплата за рівнем матчу"),
-        escape(&scaled),
-        escape(&doubled.unwrap_or_default()),
     );
     level_grid(lang, &mut out);
     out.push_str("</section>");
@@ -273,7 +206,6 @@ mod tests {
             let page = crate::wiki::page(PATH, "", lang, "site header", None).body;
             assert!(page.contains("site header"));
             assert!(page.contains(&format!("lang=\"{}\"", lang.code())));
-            assert!(page.contains(&quests_word(lang, quests.len())));
             for faction in FACTIONS {
                 assert!(
                     page.contains(&format!("id=faction-{faction}>")),
@@ -299,7 +231,6 @@ mod tests {
             assert!(!page.contains(&format!("<li><b>{}</b>", highest + 1)));
         }
         let en = body(Lang::En);
-        assert!(en.contains("Quests give no experience"));
         // Scavengers' first: defend the batteries, levels 0 to 5, no number, 50 and 50.
         assert!(en.contains(
             "Possessions defence</h3><p class=quest-pay>Silver 50 · Reputation 50</p></div>\
@@ -362,6 +293,5 @@ mod tests {
         assert_eq!(times(13.59), "×13.59");
         assert_eq!(span([75, 50, 75]), "50–75");
         assert_eq!(span([150]), "150");
-        assert_eq!(hours([1440]), "24");
     }
 }
