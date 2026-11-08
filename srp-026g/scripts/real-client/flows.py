@@ -335,7 +335,36 @@ def save(run: Run) -> None:
     say(f"saved from the results screen: {new}")
 
 
-FLOWS = {"kit": kit_after_replay, "live": live, "follow": follow, "save": save}
+def first_click(run: Run) -> None:
+    """The first click on Back after Ctrl brings up the viewer's cursor must register. Regression flow: it fails while
+    the viewer swallows that click."""
+    a = sign_in(run, "ReplayTester")
+    a.wait_screen(play_ready, "a lobby that has settled", 20, steady=3)
+    misses = 0
+    for cycle in range(1, 13):
+        open_replays(a)
+        a.wait_screen(card_listed, "a card on the Replays tab")
+        mark = run.server.mark()
+        a.click(CARD_WATCH[0], CARD_WATCH[1])
+        a.expect_server(r"spectator 0x[0-9a-f]+ watches", 20, mark)
+        a.cursor_on()
+        a.click(*BACK, 10)
+        try:
+            run.wait(run.server, r": Leave at \d+ ms", 3, None, mark)
+        except Stop:
+            misses += 1
+            a.click(*BACK, 10)
+            a.expect_server(r": Leave at \d+ ms", 6, mark)
+        a.expect_server(r"session of match 0x[0-9a-f]+ is over", 20, mark)
+        a.wait_screen(window_open, "the Watch window, after the replay", 20, steady=1.5)
+        a.click(*CLOSE_WATCH, 6)
+        a.wait_screen(lobby_clear, "the lobby", 5)
+        say(f"cycle {cycle}: {misses} missed so far")
+    if misses:
+        raise Stop(f"{misses} of 12 first clicks on Back did nothing")
+
+
+FLOWS = {"kit": kit_after_replay, "live": live, "follow": follow, "save": save, "first_click": first_click}
 
 
 def main() -> int:

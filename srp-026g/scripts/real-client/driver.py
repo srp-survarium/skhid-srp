@@ -445,14 +445,20 @@ class Game:
             time.sleep(0.015)
 
     def cursor_on(self) -> None:
-        """Ctrl toggles a replay viewer's cursor: pressed only when the cursor is off."""
+        """Ctrl toggles a replay viewer's cursor. It comes up at the corner and takes the Windows cursor's place when the
+        mouse next moves, so it is moved after Ctrl and then looked for where it must be: a look-alike in the scene cannot pass."""
+        self.focus()
+        here = (800, 700, 25)
         if self.cursor() is None:
             self.key("ctrl")
-            end = time.time() + 2
-            while self.cursor() is None:
-                if time.time() > end:
-                    raise self.fail("Ctrl did not bring up the cursor")
-                time.sleep(0.05)
+            time.sleep(0.3)
+        self._place(*here[:2])
+        if self.steady_cursor(here) is None:  # it was a look-alike: the cursor is still off
+            self.key("ctrl")
+            time.sleep(0.3)
+            self._place(*here[:2])
+            if self.steady_cursor(here) is None:
+                raise self.fail("Ctrl did not bring up the cursor")
 
     # What the run needs to see.
 
