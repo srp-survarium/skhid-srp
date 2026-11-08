@@ -97,6 +97,9 @@ pub(super) struct Player<'a> {
     /// its place, which resolves to what the page (or a cached tab of it)
     /// showed there (`gear`). The last `gear::PAGES_KEPT` only.
     pub ranked_shown: Vec<(u32, Vec<u32>)>,
+    /// The account whose kits it was last shown (its last `93`): what the
+    /// player pop-up's Matches tab asks about (`player_matches`).
+    pub shown_kits_of: Option<u32>,
     /// The online counts the client was last sent, and when (`None`: only
     /// with the sign-in's pushes).
     pub online_sent: (u32, u32, u32),
@@ -696,6 +699,7 @@ impl<'a> Core<'a> {
             money_sent: balance,
             ranked_sent: ranking.len() as u32,
             ranked_shown: Vec::new(),
+            shown_kits_of: None,
             online_sent: online,
             online_at: None,
             friends_sent: Vec::new(),

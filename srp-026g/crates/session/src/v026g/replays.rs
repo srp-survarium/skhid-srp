@@ -896,6 +896,17 @@ impl Replays {
 
     // ------------------------------------------------------- the lobby
 
+    /// Whether the match's replay is made or its recording kept: a replay
+    /// of it can be asked for (the player pop-up's Matches tab). Nobody's
+    /// ask is changed or kept.
+    pub fn kept(&self, match_id: u32, now: Instant) -> bool {
+        if self.made(match_id).is_some() {
+            return true;
+        }
+        let mut inner = self.inner.locked();
+        self.recorded(&mut inner, match_id, now) == Recorded::Kept
+    }
+
     /// A player asks for a match's replay (`3D` with [`REPLAY_ASK`]).
     /// `revision`: its game's patch revision, if known; `known`: what the
     /// lobby knows of the match. The status is kept for its polls.

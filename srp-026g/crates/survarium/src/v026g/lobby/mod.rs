@@ -41,6 +41,7 @@ use std::fmt;
 pub mod client_model;
 pub mod client_rules;
 pub mod lobby_pick;
+pub mod player_matches;
 pub mod presets;
 pub mod push;
 pub mod requests;

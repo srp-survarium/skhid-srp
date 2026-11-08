@@ -50,8 +50,13 @@ impl World {
     }
 
     fn with_settings(settings: Settings) -> Self {
+        Self::with_accounts(settings, GameAccounts::new())
+    }
+
+    /// With `accounts` (one on a repository: srp.db's history).
+    fn with_accounts(settings: Settings, accounts: GameAccounts) -> Self {
         let store: &'static SessionStore = Box::leak(Box::new(SessionStore::new()));
-        let accounts: &'static GameAccounts = Box::leak(Box::new(GameAccounts::new()));
+        let accounts: &'static GameAccounts = Box::leak(Box::new(accounts));
         // The tests are written against the stock first kit (the TT-33) and
         // no premium: a new account has neither starter kit nor starter
         // premium unless a test turns them on.
@@ -2784,6 +2789,7 @@ mod gear_tests;
 mod items_tests;
 mod mode_intro_tests;
 mod patch_check_tests;
+mod player_matches_tests;
 mod presets_tests;
 mod pvb_tests;
 mod reconnect_tests;

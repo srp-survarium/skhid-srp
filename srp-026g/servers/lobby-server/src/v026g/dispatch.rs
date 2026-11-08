@@ -170,9 +170,20 @@ impl Core<'_> {
                     .results
                     .find(match_id)
                     .filter(|report| report.player(who.account_id).is_some())
-                    .and_then(|report| report.player_details(player_id));
+                    .and_then(|report| {
+                        let shown = report
+                            .players
+                            .iter()
+                            .find(|player| player.player_id == player_id)?;
+                        Some((shown.account_id, report.player_details(player_id)?))
+                    });
                 match details {
-                    Some(details) => self.send_made(addr, details),
+                    Some((account_id, details)) => {
+                        self.send_made(addr, details);
+                        if let Some(player) = self.player_mut(addr) {
+                            player.shown_kits_of = Some(account_id);
+                        }
+                    }
                     // Not from an open results screen: the report of a
                     // screen a client may have open is kept
                     // (`Results`, `SHOWN_FOR_SECONDS`), and the client has
@@ -659,7 +670,9 @@ impl Core<'_> {
     /// match against bots (`pvb`), a rooms' start (`lobby::rooms::ROOMS_FIRST`
     /// to `ROOMS_LAST`) with a room request (`rooms`),
     /// [`lobby::REPLAY_START`] with the asker's
-    /// own "Watch replay" answer (`replay`), a presets start
+    /// own "Watch replay" answer (`replay`),
+    /// `lobby::player_matches::PLAYER_MATCHES_START` with the matches of the
+    /// player whose kits the asker was shown last (`player_matches`), a presets start
     /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
     /// presets (`presets`), a lobby pick (`lobby::lobby_pick::LOBBY_PICK_BASE`
     /// and its id: kept, shown back in `0xA1`); any other gets no answer.
@@ -687,6 +700,10 @@ impl Core<'_> {
         }
         if start == lobby::REPLAY_START {
             self.replay_poll(who, now);
+            return;
+        }
+        if start == lobby::player_matches::PLAYER_MATCHES_START {
+            self.player_matches(who, count, now);
             return;
         }
         log::debug!(

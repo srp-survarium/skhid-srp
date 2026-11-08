@@ -104,6 +104,7 @@ mod items;
 /// History's rows.
 pub mod match_events;
 mod patch_check;
+mod player_matches;
 mod play;
 mod presets;
 pub mod pvb;
