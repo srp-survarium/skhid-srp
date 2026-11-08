@@ -152,8 +152,9 @@ def tool_versions(nasm):
             return subprocess.run(command, capture_output=True, text=True, check=True).stdout.splitlines()[0].strip()
         except (OSError, subprocess.CalledProcessError, IndexError):
             return "unknown"
-    return {"cc": first_line([CC, "--version"]),
-            "ld": first_line([LD, "--version"]),
+    cross = os.path.basename(CROSS or "")  # gcc names itself by its argv[0]: as link_026g.py
+    return {"cc": first_line([CC, "--version"]).removeprefix(cross),
+            "ld": first_line([LD, "--version"]).removeprefix(cross),
             "nasm": first_line([nasm, "-v"])}
 
 

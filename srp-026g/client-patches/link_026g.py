@@ -144,7 +144,11 @@ def first_line(command):
 
 
 def versions(tools, rust=False):
-    out = {"cc": first_line([tools["cc"], "--version"]), "ld": first_line([tools["ld"], "--version"]),
+    # gcc names itself by its argv[0]: the cross prefix left out, the lock is
+    # the same whichever host wrote it.
+    cross = os.path.basename(os.environ.get("CROSS_COMPILE", ""))
+    out = {"cc": first_line([tools["cc"], "--version"]).removeprefix(cross),
+           "ld": first_line([tools["ld"], "--version"]).removeprefix(cross),
            "nasm": first_line([tools["nasm"], "-v"])}
     if rust:
         out["rustc"] = first_line([tools["rustc"], "--version"])
