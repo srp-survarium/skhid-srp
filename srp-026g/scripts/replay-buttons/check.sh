@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# check.sh <lobby_menu.swf> [work dir]: srp's replay buttons (the History rows' Download, Watch and
-# chip; the results screen's Watch replay and Watch my deaths) in every language, in Ruffle (CPU
+# check.sh <lobby_menu.swf> [work dir]: srp's replay buttons (the History rows' Watch and
+# chip; the results screen's Watch replay and Watch my deaths; the Watch window) in every language, in Ruffle (CPU
 # only: lavapipe on its own virtual X display, never the GPU). ReplayButtonsHarness.as says what.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.

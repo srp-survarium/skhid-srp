@@ -16,10 +16,9 @@ package survarium.controls
    import scaleform.gfx.MouseEventEx;
    import survarium.data.LocalizationData;
    import survarium.gsearch.MatchMakingSettings;
-   import survarium.live.LiveWindow;
-   import survarium.messages.PlayerMatches;
    import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
+   import survarium.watch.WatchWindow;
    
    public class PlayerRanking extends UIWindow
    {
@@ -140,13 +139,8 @@ package survarium.controls
          {
             return;
          }
-         // the Matches tab's running matches and their players (LiveWindow)
-         if(LiveWindow.take(players))
-         {
-            return;
-         }
-         // The player pop-up's Matches tab (PlayerMatches).
-         if(PlayerMatches.take(players))
+         // the Watch window's lists (live, recent, a player's matches) and a live match's roster
+         if(WatchWindow.take(players))
          {
             return;
          }

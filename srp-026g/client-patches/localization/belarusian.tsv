@@ -2850,6 +2850,23 @@ st_srp_vulkan_overlay_full	Поўны
 st_srp_vulkan_overlay_hint	Паказвае хуткасць гульні на экране.
 st_srp_vulkan_tear_free	Без разрываў без V-Sync
 st_srp_vulkan_tear_free_hint	Карцінка не рвецца пры выключанай вертыкальнай сінхранізацыі.\n+ Няма рваных палос пры хуткім павароце\n- Затрымка крыху большая, чым проста без VSync
+st_srp_watch_delay	затрымка %1$s с
+st_srp_watch_friends	Сябры: %1$s
+st_srp_watch_friends_only	Толькі з сябрамі
+st_srp_watch_friends_playing	Гуляюць сябры
+st_srp_watch_live	Наўпрост
+st_srp_watch_live_count	Ідуць матчы: %1$s
+st_srp_watch_live_word	НАЎПРОСТ
+st_srp_watch_mine	Мае матчы
+st_srp_watch_none_friends	Нядаўніх матчаў з сябрамі няма.
+st_srp_watch_none_mine	Тут будуць вашы матчы, пачынаючы з гэтага моманту.
+st_srp_watch_none_recent	Запісаных матчаў яшчэ няма.
+st_srp_watch_others	Іншыя матчы
+st_srp_watch_player	Гулец: %1$s
+st_srp_watch_players	гульцоў: %1$s
+st_srp_watch_recent	Нядаўнія
+st_srp_watch_spectate	Назіраць
+st_srp_watch_title	Прагляд
 st_srp_weapon069_akmsu_desc	Укарочаны АКМС са складным прыкладам пад патрон 7.62×39. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
 st_srp_weapon069_akmsu_name	АКМСУ
 st_srp_weapon069_famas_desc	Французская штурмавая вінтоўка схемы булпап пад боепрыпас 5.56х45. Падтрымлівае адзіночны рэжым, чэргі па тры стрэлы і аўтаматычны рэжым стральбы.

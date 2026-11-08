@@ -2850,6 +2850,23 @@ st_srp_vulkan_overlay_full	Täysi
 st_srp_vulkan_overlay_hint	Näyttää pelin nopeuden ruudulla.
 st_srp_vulkan_tear_free	Repeilytön ilman V-Synciä
 st_srp_vulkan_tear_free_hint	Pitää kuvan ehjänä, kun pystytahdistus on pois päältä.\n+ Ei repeäviä viivoja nopeissa käännöksissä\n- Hieman enemmän viivettä kuin pelkkä VSync pois
+st_srp_watch_delay	viive %1$s s
+st_srp_watch_friends	Kaverit: %1$s
+st_srp_watch_friends_only	Vain kavereiden
+st_srp_watch_friends_playing	Kaverit pelaavat
+st_srp_watch_live	Suorana
+st_srp_watch_live_count	Käynnissä olevia otteluita: %1$s
+st_srp_watch_live_word	SUORANA
+st_srp_watch_mine	Omat ottelut
+st_srp_watch_none_friends	Ei viimeaikaisia otteluita kavereiden kanssa.
+st_srp_watch_none_mine	Tästä lähtien ottelusi näkyvät täällä.
+st_srp_watch_none_recent	Tallennettuja otteluita ei vielä ole.
+st_srp_watch_others	Muut ottelut
+st_srp_watch_player	Pelaaja: %1$s
+st_srp_watch_players	%1$s pelaajaa
+st_srp_watch_recent	Viimeisimmät
+st_srp_watch_spectate	Katsele
+st_srp_watch_title	Katso
 st_srp_weapon069_akmsu_desc	Lyhennetty taittoperäinen AKMS, kaliiperi 7.62x39. Kerta- ja sarjatuli.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Ranskalainen bullpup-rynnäkkökivääri, kaliiperi 5.56x45. Kertatuli, kolmen laukauksen sarja ja sarjatuli.

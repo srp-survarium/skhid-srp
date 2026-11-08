@@ -92,27 +92,27 @@ package survarium.rooms
 
         // The window's content (the views' parts) and its backdrop (the
         // frame under them).
-        internal var _content:Sprite;
-        internal var _backdrop:Sprite;
+        public var _content:Sprite;
+        public var _backdrop:Sprite;
         // The font of the bottom bar's tabs (the game's own).
         internal var _font:String;
         internal var _bold:Object;
         // The window's size in the design's units.
-        internal var _w:Number = 900;
-        internal var _h:Number = 500;
+        public var _w:Number = 900;
+        public var _h:Number = 500;
         // Controls placed straight in the content, each with what a press on
         // it does: Scaleform gave such presses to the content itself (the
         // left of the make view took none: PIN, sliders, modes).
-        internal var _routes:Array = [];
+        public var _routes:Array = [];
         // A scrolled box: its rows go into the sprite it gives; done() sets
         // their height. The wheel and the bar's thumb move it.
-        internal var _scrollInner:Sprite;
-        internal var _scrollThumb:Sprite;
+        public var _scrollInner:Sprite;
+        public var _scrollThumb:Sprite;
         internal var _scrollTop:Number = 0;
         internal var _scrollViewH:Number = 0;
         internal var _scrollTotal:Number = 0;
         internal var _scrollBarX:Number = 0;
-        internal var _scrollPx:Number = 0;
+        public var _scrollPx:Number = 0;
         internal var _scrollGrab:Number = 0;
 
         public function RoomsLook(content:Sprite, backdrop:Sprite, font:String, bold:Object)
@@ -145,7 +145,7 @@ package survarium.rooms
             return tf;
         }
 
-        internal function button(box:Sprite, label:String, x:Number, y:Number, w:Number, handler:Function,
+        public function button(box:Sprite, label:String, x:Number, y:Number, w:Number, handler:Function,
             data:Object = null, h:Number = 32, primary:Boolean = false):*
         {
             // The game's framed button with a label (the game menu's look); the
@@ -189,6 +189,65 @@ package survarium.rooms
             return b;
         }
 
+        // The window's frame, in the backdrop: the inventory's frame and
+        // header, by its colours (a 1 px edge, a near-black band for the
+        // bold title, and a darker line of 3 px under it).
+        public function frame():void
+        {
+            var body:Shape = new Shape();
+            var bg:* = body.graphics;
+            bg.beginFill(0x3A3E44, 1);
+            bg.drawRect(0, 0, _w, _h);
+            bg.endFill();
+            bg.beginFill(0x131517, 0.97);
+            bg.drawRect(1, 1, _w - 2, _h - 2);
+            bg.endFill();
+            var m:Matrix = new Matrix();
+            m.createGradientBox(_w, HEAD_H, Math.PI / 2, 0, 0);
+            bg.beginGradientFill("linear", [0x0F1114, 0x0B0D10], [1, 1], [0, 255], m);
+            bg.drawRect(1, 1, _w - 2, HEAD_H);
+            bg.endFill();
+            bg.beginFill(0x040507, 1);
+            bg.drawRect(1, HEAD_H + 1, _w - 2, 3);
+            bg.endFill();
+            _backdrop.addChild(body);
+        }
+
+        // A tab of the header, `w` wide at `x`, named `name`: chosen as the
+        // list's rows are, a dark gold fill and a gold bar along its bottom.
+        // `pick` gets the name on a press.
+        public function headTab(name:String, label:String, x:Number, w:Number, on:Boolean, pick:Function):Sprite
+        {
+            var tab:Sprite = new Sprite();
+            tab.x = x;
+            tab.y = 1;
+            tab.graphics.beginFill(on ? 0x3C2C10 : 0x000000, on ? 0.6 : 0.01);
+            tab.graphics.drawRect(0, 0, w, HEAD_H);
+            tab.graphics.endFill();
+            if (on)
+            {
+                tab.graphics.beginFill(GOLD, 1);
+                tab.graphics.drawRect(0, HEAD_H - 3, w, 3);
+                tab.graphics.endFill();
+            }
+            text(tab, label, 0, 9, w, 15, on ? 0xFFFFFF : GREY, "center");
+            tab.name = name;
+            tab.buttonMode = true;
+            tab.mouseChildren = false;
+            tab.addEventListener(MouseEvent.CLICK, function(e:MouseEvent):void
+            {
+                var ex:MouseEventEx = e as MouseEventEx;
+                if (ex == null || ex.buttonIdx == MouseEventEx.LEFT_BUTTON)
+                    pick(name);
+            });
+            _content.addChild(tab);
+            route(tab, function(control:DisplayObject, e:MouseEvent):void
+            {
+                pick(control.name);
+            });
+            return tab;
+        }
+
         // The strip along the window's bottom, as the shop's under its list;
         // `buttons` are [label, handler, data] laid out centred in it, or at
         // `at` (x of the first) when given.
@@ -226,7 +285,7 @@ package survarium.rooms
 
         // The game's own window close button (the inventory's, SquareVloseBtnChIL),
         // at its size in the header's right end; drawn when it is missing.
-        internal function closeButton(handler:Function):void
+        public function closeButton(handler:Function):void
         {
             try
             {
@@ -282,7 +341,7 @@ package survarium.rooms
         // too: a mask drawn in the window's coordinates was hit-tested by
         // Scaleform at the rows' offset, over the controls left of the pool,
         // and took their clicks.
-        internal function scrollBox(x:Number, y:Number, w:Number, h:Number):Sprite
+        public function scrollBox(x:Number, y:Number, w:Number, h:Number):Sprite
         {
             var holder:Sprite = new Sprite();
             holder.x = x;
@@ -303,7 +362,7 @@ package survarium.rooms
             return inner;
         }
 
-        internal function scrollDone(total:Number):void
+        public function scrollDone(total:Number):void
         {
             _scrollTotal = total;
             if (total > _scrollViewH)
@@ -404,7 +463,7 @@ package survarium.rooms
 
         // A game button (CLIK) placed in the content: a press the content
         // got itself clicks it as the game's own press would, sound and all.
-        internal function routeButton(b:*):void
+        public function routeButton(b:*):void
         {
             route(b, function(control:DisplayObject, e:MouseEvent):void
             {
@@ -446,7 +505,7 @@ package survarium.rooms
             FocusManager.setFocus(e.currentTarget as TextField);
         }
 
-        internal function line(box:Sprite, x:Number, y:Number, w:Number):void
+        public function line(box:Sprite, x:Number, y:Number, w:Number):void
         {
             var s:Shape = new Shape();
             s.graphics.beginFill(0x26323C, 1);
@@ -456,7 +515,7 @@ package survarium.rooms
         }
 
         // The game's own check box (its bitmaps), drawn when they are missing.
-        internal function box(on:Boolean):DisplayObject
+        public function box(on:Boolean):DisplayObject
         {
             try
             {
@@ -478,7 +537,7 @@ package survarium.rooms
 
         // A map's render for its weather, made small once and kept.
         // A map's render scaled to a tile or card, kept for the next time.
-        internal function mapRender(level:int, weather:int, w:int, h:int):Bitmap
+        public function mapRender(level:int, weather:int, w:int, h:int):Bitmap
         {
             var key:String = level + "_" + weather + "_" + w + "x" + h;
             var small:BitmapData = _renders[key] as BitmapData;
@@ -544,7 +603,7 @@ package survarium.rooms
             fitName(text(box, "", x, y, w, 12, DIM), LocalizationData.getName("st_srp_rooms_spectators") + " " + names.join(", "), "");
         }
 
-        internal static function fitName(field:TextField, value:String, tail:String):void
+        public static function fitName(field:TextField, value:String, tail:String):void
         {
             var room:Number = field.width - 4;
             field.text = value + tail;
@@ -647,7 +706,7 @@ package survarium.rooms
             }
         }
 
-        internal function onWheel(e:MouseEvent):void
+        public function onWheel(e:MouseEvent):void
         {
             _scrollPx += e.delta < 0 ? 60 : -60;
             applyScroll();

@@ -2850,6 +2850,23 @@ st_srp_vulkan_overlay_full	Полный
 st_srp_vulkan_overlay_hint	Показывает скорость игры на экране.
 st_srp_vulkan_tear_free	Без разрывов без V-Sync
 st_srp_vulkan_tear_free_hint	Картинка не рвётся при выключенной вертикальной синхронизации.\n+ Нет рваных полос при быстром повороте\n- Задержка чуть больше, чем просто без VSync
+st_srp_watch_delay	задержка %1$s с
+st_srp_watch_friends	Друзья: %1$s
+st_srp_watch_friends_only	Только с друзьями
+st_srp_watch_friends_playing	Играют друзья
+st_srp_watch_live	В эфире
+st_srp_watch_live_count	Идут матчи: %1$s
+st_srp_watch_live_word	В ЭФИРЕ
+st_srp_watch_mine	Мои матчи
+st_srp_watch_none_friends	Недавних матчей с друзьями нет.
+st_srp_watch_none_mine	Здесь будут ваши матчи, начиная с этого момента.
+st_srp_watch_none_recent	Записанных матчей пока нет.
+st_srp_watch_others	Другие матчи
+st_srp_watch_player	Игрок: %1$s
+st_srp_watch_players	игроков: %1$s
+st_srp_watch_recent	Недавние
+st_srp_watch_spectate	Наблюдать
+st_srp_watch_title	Просмотр
 st_srp_weapon069_akmsu_desc	Укороченный АКМС со складным прикладом под патрон 7.62×39. Поддерживает одиночный и автоматический режим стрельбы.
 st_srp_weapon069_akmsu_name	АКМСУ
 st_srp_weapon069_famas_desc	Французская штурмовая винтовка схемы булл-пап под боеприпас 5.56х45. Поддерживает одиночный режим, очередь по три выстрела и автоматический режим стрельбы.
