@@ -14,9 +14,7 @@ package
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
-   import flash.text.Font;
    import flash.text.TextField;
-   import flash.text.TextFormat;
    import flash.ui.Keyboard;
    import flash.utils.getQualifiedClassName;
 
@@ -73,7 +71,6 @@ package
 
       private var told:Array = [];
 
-      private var font:Font;
 
       private var failures:Array = [];
 
@@ -111,7 +108,6 @@ package
             {
                told.push(key);
             };
-            font = new (domain.getDefinition("Fonts_CB_Bold") as Class)() as Font;
             lobby = new WatchLobby(domain,this,WatchLobby.texts("english"));
             for each(var language:String in HarnessText.LANGUAGES)
             {
@@ -155,20 +151,12 @@ package
          return field == null || !field.visible ? null : field.text;
       }
 
-      // How wide `text` is in the movie's bold Calibri at `size`.
-      private function measure(text:String, size:Number) : Number
-      {
-         var field:TextField = new TextField();
-         field.embedFonts = true;
-         field.defaultTextFormat = new TextFormat(font.fontName,size,0xFFFFFF,true);
-         field.text = text;
-         return field.textWidth;
-      }
-
       private function fits(what:String, button:*) : void
       {
-         var size:Number = Number(button.textField.getTextFormat().size);
-         var want:Number = measure(button.label,size) + 8;
+         // The button's own field, in the game's font: a field made here does not see the movie's
+         // fonts under Ruffle and measures a wider fallback font.
+         var want:Number = button.textField.textWidth + 8;
+         expect(what + " shows its label ('" + button.textField.text + "', '" + button.label + "')",button.textField.text == button.label);
          expect(what + " '" + button.label + "' needs " + int(want) + " px, has " + int(button.width),want <= button.width);
       }
 

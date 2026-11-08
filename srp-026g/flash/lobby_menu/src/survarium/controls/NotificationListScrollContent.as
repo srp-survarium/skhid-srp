@@ -841,7 +841,7 @@ package survarium.controls
       {
          var buttonClass:Class = getDefinitionByName("SvButton2SmallFr") as Class;
          var button:Button = new buttonClass() as Button;
-         var width:int = Math.max(70,Math.min(120,int(label.length * 8.75 + 18)));
+         var width:int = Math.max(70,Math.min(120,int(label.length * 7.3 + 18)));
          button.name = name;
          button.label = label;
          button.x = int(right - width);
