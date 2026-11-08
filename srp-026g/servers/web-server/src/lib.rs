@@ -982,7 +982,7 @@ impl Web {
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
                     | skills::PATH) => {
-                        return wiki_page(path, &request.target, request.lang);
+                        return wiki_page(path, &request.target, request.lang, game);
                     }
                     path if path.starts_with(launcher::FRESH) => {
                         return launcher::fresh(
@@ -1629,13 +1629,16 @@ fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, &lang.tr("Maps", "Мапи")))
 }
 
-fn wiki_page(path: &str, target: &str, lang: Lang) -> Response {
+fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
     let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
     let query = target.split_once('?').map_or("", |(_, query)| query);
-    wiki::page(path, query, lang, &format!("{header}{notice}"))
+    let per_match = (path == skills::PATH)
+        .then(|| game.results.per_match())
+        .flatten();
+    wiki::page(path, query, lang, &format!("{header}{notice}"), per_match)
 }
 
 /// The site's header over a wiki page of its own look (the calculator's, the
@@ -1733,12 +1736,6 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
         Form::Home(stats) => home(lang, stats),
         Form::None | Form::None26 => String::new(),
     };
-    let disclaimer = lang.tr(
-        "Community server, unofficial. Not affiliated with or endorsed by Vostok Games. \
-         Survarium is a trademark of its owners.",
-        "Неофіційний ком'юніті сервер. Не пов'язаний із Vostok Games і не схвалений ними. \
-         Survarium є торговельною маркою її власників.",
-    );
     Response {
         status: "200 OK",
         content_type: ContentType::Html,
@@ -1747,13 +1744,23 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
              <meta name=viewport content=\"width=device-width,initial-scale=1\">\
              <title>{}</title><style>{}{STYLE}</style>\
              {header}\
-             <main>{test_notice}{notice}{body}</main>\
-             <footer>{}</footer></html>",
+             <main>{test_notice}{notice}{body}</main>{}</html>",
             escape(&page_title(lang, version, test)),
             damage::font_faces(),
-            escape(&disclaimer),
+            footer(lang),
         ),
     }
+}
+
+/// The site's footer, on the home page and the wiki's: what the server is not.
+pub(crate) fn footer(lang: Lang) -> String {
+    let disclaimer = lang.tr(
+        "Community server, unofficial. Not affiliated with or endorsed by Vostok Games. \
+         Survarium is a trademark of its owners.",
+        "Неофіційний ком'юніті сервер. Не пов'язаний із Vostok Games і не схвалений ними. \
+         Survarium є торговельною маркою її власників.",
+    );
+    format!("<footer>{}</footer>", escape(&disclaimer))
 }
 
 /// The site's look: the damage calculator's (paper and ink, PT Sans, PT Sans
