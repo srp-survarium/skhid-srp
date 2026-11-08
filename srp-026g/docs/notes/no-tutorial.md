@@ -26,9 +26,11 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   - the Scavengers at reputation level 5, their highest (3000 points), as earned: all they
     sell is buyable; they are its quest faction (never neutral);
   - owned: the TT-33, the Mosin and the PPSh-41 (the game's free weapons), the AKM, AKMSU and
-    AK-74N and 10 stash maps (the owner's of 2026-11-04), 50 medkits, 50 antitoxins and 20
-    bandages (the owner's of 2026-11-02). The kits' pockets take theirs from these stacks:
-    the inventory shows 20 bandages, each kit's pocket some of them;
+    AK-74N (the owner's of 2026-11-04), the Glock 17 (2283; the owner's of 2026-11-08, "it can
+    be kept in inventory"), 50 stash maps (the owner's of 2026-11-08; 10 from 2026-11-04), 50
+    medkits, 50 antitoxins and 20 bandages (the owner's of 2026-11-02), 10 Tornado energy
+    drinks (`speed_booster` 340; the owner's of 2026-11-08). The kits' pockets take theirs
+    from these stacks: the inventory shows 20 bandages, each kit's pocket some of them;
   - two of its five kit presets (`presets.md`), each the item of its English name, new, full
     condition, one item worn by every kit and preset that wears it (they share the
     inventory), put on by the lobby's rule (`rules::fill_kit`):
@@ -42,30 +44,33 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
       modification; three pockets of three (a medkit's, bandages', antitoxins');
     - **preset 2**, kept with the account, put on when the player chooses it (the owner's of
       2026-11-08: "keeper of the sun + keeper set to all starting players + AK-12 in their
-      second loadout", "e2k1 is ak-12, e2k2 is saiga", "no need for e2k3", every slot
-      filled, a backpack with an artefact slot, light): kits 1 and 2 the Keeper set, "Keeper" helmet (202), "Keeper" mask
-      (200), Keeper's gloves (201) and boots (198), all level 14, the "Wanderer" container
-      (199, level 14, 4 kg: an artefact slot and a pocket's unit), a Glock 17 (2283) in weapon
-      slot 2 with 50 rounds of 9x19 7N31 (368), and three pockets of two (a medkit's,
-      bandages', antitoxins'); kit 1 the Keeper Of The Sun Vest (977) and Pants (978) and the
-      AK-12 (363, not the premium copy) with 120 of 6.5x39 (369); kit 2 Bulletproof vest
-      "Keeper" (196) and "Keeper" pants (197) and the Saiga-12 (2227) with 80 of 12x70
-      buckshot (2205); kit 3 nothing;
+      second loadout", "e2k1 is ak-12, e2k2 is saiga", "no need for e2k3", a backpack with
+      an artefact slot, light): kits 1 and 2 the "Keeper" helmet (202), "Keeper" mask (200),
+      the Keeper Of The Sun Vest (977) and Pants (978), Keeper's gloves (201) and boots (198),
+      all level 14, the "Wanderer" container (199, level 14, 4 kg: an artefact slot, a pocket
+      and a pocket's unit), and three pockets of two: 2 medkits, a Tornado energy drink (a
+      booster fills a pocket alone; "instead of bandages") and 2 antitoxins; kit 1 the AK-12
+      (363, not the premium copy) with 150 of 6.5x39 (369), kit 2 the Saiga-12 (2227) with
+      100 of 12x70 buckshot (2205); kit 3 nothing; no plain Keeper vest and pants ("can be
+      removed from inventory");
     - rounds: an ammo slot full, as the ammo window fills it, from the kit's bags (the
-      player's 3, +1 from each Keeper vest's and pants' default 1050) shared by its ammo
-      slots: one for weapon 2's, the rest for weapon 1's, a clip a bag;
-    - pockets: a player's one pocket of one unit, preset 2's +1 pocket from the vest's 1030,
-      +1 from the container's own 1030 and +1 unit from its 1170: three of two;
-    - carried (the -15 % counted): preset 2's kits 28.9 and 29.6 kg, within the 30 kg
-      `max_carried_weight`; the Saiga's kit wears the plain vest and pants for theirs;
+      player's 3, +1 from each Keeper of the Sun piece's default 1050), a clip a bag; a kit of
+      two weapons would share them, one bag for weapon 2's ammo, the rest for weapon 1's;
+    - pockets: a player's one pocket of one unit, +1 pocket from the vest's 1030, +1 from the
+      container's built-in 1030 (armor.tsv, every player's container) and +1 unit from its
+      1170: three of two; `pocket_units` is a pocket's size, an item gets what such a pocket
+      holds of it;
+    - carried (the -15 % counted): preset 2's kits 27.5 and 30.7 kg, within the player's
+      30 kg `max_carried_weight` and the container's +5 kg;
   - modifications of their own (the reroll's storage; the owner's of 2026-11-08, "-15%
     weight and +8 armor"), after those an item comes with (items.tsv `start`), at most 3 an
-    item (`MAX_RANK`): every Keeper piece armour +8 (1004, the strongest armour row) and
-    weight -15 % (1064, the strongest weight row), but the mask, which rolls no armour
-    (weight, isolation and reliability only): weight -15 % alone; the container, which rolls
-    no armour either: weight -15 % and a pocket (1030); the Keeper of the Sun pieces come
-    with experience +5 % (1240) and reputation +5 % (1280), so only armour +8 is added.
-    Preset 1's respirator 1183 and gloves 1133;
+    item (`MAX_RANK`): the Keeper helmet, gloves and boots armour +8 (1004, the strongest
+    armour row) and weight -15 % (1064, the strongest weight row); the mask, which rolls no
+    armour (weight, isolation and reliability only): weight -15 % alone; the container
+    weight -15 % and carried weight +5 kg (1124, the strongest; "weight -15% and +5kg");
+    the AK-12 and the Saiga-12 weight -15 % (2064, the weapons' strongest weight row); the
+    Keeper of the Sun pieces come with experience +20 % (1240) and reputation +50 % (1280),
+    so only armour +8 is added. Preset 1's respirator 1183 and gloves 1133;
   - autobuy on (`premium.md` §3).
 - **The kits' levels** (`match_making_level`, the highest item's): preset 1's 7, 5 and 4;
   preset 2's 15 (the AK-12) and 14 (the Keeper set and the container).
@@ -79,18 +84,22 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   pocket's, a modification of a type its item does not take, on a stack or on an item it
   is not given (worn or owned), or more than 3 on an item with those it comes with. The
   test data lacks the knit cap, the backpack, the Keeper of the Sun, the Saiga-12, its
-  buckshot and the Glock 17; the whole grant on released data, preset 2 chosen as a player
+  buckshot and the Glock 17, and predates the container's pocket; the whole grant on released data, preset 2 chosen as a player
   chooses it: `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test
   starter_kit -- --ignored`.
 - **Accounts made before:** raised once to where a new one starts (37 999 experience, level
   15; the owner's of 2026-11-06) by the release that ships it, in the database with srp
   stopped (`UPDATE g26_accounts SET exp_total = 37999 WHERE exp_total < 37999`): the levels
   passed pay nothing, their points are theirs to spend. They get no tutorial; steps they had
-  not done are not paid. Preset 2's items (the owner's of 2026-11-08, "everyone"): given
-  once by the release that ships them, the same way, into storage with the same
-  modifications of their own (`private/release/keeper-ak12-once.sql`, its SQL in the PR); an account's preset 2, when
-  empty and not active, becomes the new account's, its stacks the account's own (a stack it
-  lacks leaves its slot out); its kits and other presets stay as the player made them.
+  not done are not paid. Preset 2's items and the Glock 17 (the owner's of 2026-11-08,
+  "everyone"): given once by the release that ships them, the same way, into storage with
+  the same modifications of their own, 10 Tornado energy drinks to an account without one
+  and stash maps up to 50 (`private/release/keeper-ak12-once.sql`, its SQL in the PR); an
+  account's preset 2, when empty and not active, becomes the new account's, its stacks the
+  account's own (a stack it lacks leaves its slot out); its kits and other presets stay as
+  the player made them.
 - **No switch:** `SRP_TUTORIAL` is gone.
 - **Release:** the server, and the content patch that carries `new_account.options` (srp
-  refuses data without it); no exe change.
+  refuses data without it), the container's pocket and the premium bonuses (+20 % experience,
+  +50 % reputation, `premium_armour.md`; both in `simulation_changes.tsv`'s `next` row); no
+  exe change.

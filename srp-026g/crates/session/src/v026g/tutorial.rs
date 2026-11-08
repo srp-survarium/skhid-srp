@@ -227,7 +227,7 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
 /// preset that wears it names that one, as a player's own kits share the
 /// inventory; a stack worn is the one owned: an ammo slot filled to the
 /// most its share of the kit's bags takes ([`starter_slot_bags`],
-/// [`full_rounds`]), a pocket with the preset's `pocket_units`. Every item
+/// [`full_rounds`]), a pocket with what one of the preset's `pocket_units` holds of it. Every item
 /// given, owned or worn, has the modifications of its own the grant names
 /// for it (`NewAccount::modifications`) before a kit wears it (they may
 /// open a pocket). An item the game data lacks is left out: srp starts
@@ -293,7 +293,10 @@ pub fn wear_starter_kit(account: &mut Account, dictionary: &Dictionary) {
                         .expect("bought above");
                     (*item_id, 1)
                 } else if POCKET_SLOTS.contains(&slot) {
-                    (account.add_to_stack(item.dict_id, 0), preset.pocket_units)
+                    (
+                        account.add_to_stack(item.dict_id, 0),
+                        preset.pocket_units_of(item.dict_id),
+                    )
                 } else {
                     let bags = starter_slot_bags(dictionary, preset, kit, slot);
                     let rounds = full_rounds(item.dict_id, bags);
@@ -438,10 +441,10 @@ mod tests {
         };
         // What it owns: the free weapons and the AKs, unworn, the stash
         // maps, and the stacks the pockets take theirs from (the inventory
-        // shows them whole). The test data predates the AKMSU.
+        // shows them whole). The test data predates the AKMSU and the Glock 17.
         for (name, units) in &grant.own {
             let Some(item) = dictionary.item_named(name) else {
-                assert_eq!(name, "akmsu");
+                assert!(["akmsu", "glock_17"].contains(&name.as_str()), "{name}");
                 continue;
             };
             let owned = stacks(item.dict_id);
@@ -467,29 +470,31 @@ mod tests {
 
         // Preset 1's ammo slots full: the player's three bags, three clips
         // of one bag each (no bag modification on its gear); preset 2's
-        // five (the Keeper vest's and pants' 1050), four for weapon 1's
-        // ammo and one for the Glock's.
+        // five (the Keeper vest's and pants' 1050), all for its one weapon.
         let [active, keeper] = [&grant.active, &grant.saved[0]];
         for kit in 0..KITS {
             assert_eq!(starter_ammo_bags(dictionary, active, kit), 3);
             assert_eq!(starter_slot_bags(dictionary, active, kit, 8), 3);
         }
-        // Preset 2 on the test data: kit 1 without the Keeper of the Sun,
-        // kit 3 wearing nothing, the player's three.
+        // Preset 2 on the test data: kits 1 and 2 without the Keeper of the
+        // Sun, kit 3 wearing nothing: the player's three.
         let bags: Vec<u32> = (0..KITS)
             .map(|kit| starter_ammo_bags(dictionary, keeper, kit))
             .collect();
-        assert_eq!(bags, [3, 5, 3]);
-        // Kit 1's AK-12 ammo and the Glock's, both of which the test data
-        // has: one bag for the Glock, the rest for the AK-12.
-        assert_eq!(starter_slot_bags(dictionary, keeper, 0, 8), 2);
-        assert_eq!(starter_slot_bags(dictionary, keeper, 0, 11), 1);
+        assert_eq!(bags, [3, 3, 3]);
+        assert_eq!(starter_slot_bags(dictionary, keeper, 0, 8), 3);
+        // A kit of two weapons shares its bags: a TT-33 with its ammo in
+        // weapon slot 2 of kit 1 takes one, the AK-12's ammo the rest.
+        let mut two = keeper.clone();
+        two.kits[0].extend([(10, "tt_33".into()), (11, "ammo_7.62x25".into())]);
+        assert_eq!(starter_slot_bags(dictionary, &two, 0, 8), 2);
+        assert_eq!(starter_slot_bags(dictionary, &two, 0, 11), 1);
         let rounds =
             |ammo: &str, bags| full_rounds(dictionary.item_named(ammo).unwrap().dict_id, bags);
         assert_eq!(rounds("ammo_7.62x51", 3), 30);
         assert_eq!(rounds("ammo_12mm_buck", 3), 45);
-        assert_eq!(rounds("ammo_6.5x39", 4), 120);
-        assert_eq!(rounds("ammo_9x19p_7n31", 1), 50);
+        assert_eq!(rounds("ammo_6.5x39", 3), 90);
+        assert_eq!(rounds("ammo_7.62x25", 1), 50);
         // A bag modification counts: 1051 adds two.
         assert_eq!(ammo_bags([1030, 1051]), 5);
         // Each preset's kits: preset 1 the kits themselves, preset 2 kept
@@ -511,7 +516,7 @@ mod tests {
                         continue;
                     };
                     let count = match (item.is_stack, POCKET_SLOTS.contains(&slot)) {
-                        (true, true) => preset.pocket_units,
+                        (true, true) => preset.pocket_units_of(item.dict_id),
                         (true, false) => {
                             rounds(name, starter_slot_bags(dictionary, preset, index, slot))
                         }
@@ -543,8 +548,8 @@ mod tests {
             }
         }
         // The test data predates the knit cap and the Novice's backpack
-        // (preset 1), the Glock 17, the Keeper of the Sun and the Saiga-12
-        // and its buckshot (preset 2).
+        // (preset 1), the Keeper of the Sun and the Saiga-12 and its buckshot
+        // (preset 2).
         missing.sort_unstable();
         missing.dedup();
         assert_eq!(
@@ -553,7 +558,6 @@ mod tests {
                 "ammo_12mm_buck2",
                 "edge_legs_5_special",
                 "edge_torso_5_special",
-                "glock_17",
                 "novice_026_helmet",
                 "saiga_12",
                 "stk2_novice_026_back"

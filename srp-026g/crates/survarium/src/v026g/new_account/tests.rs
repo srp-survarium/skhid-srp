@@ -73,10 +73,8 @@ fn the_grant_is_the_tables() {
         (3, "edge_back_5"),
         (5, "edge_gloves_5"),
         (6, "edge_boots_5"),
-        (10, "glock_17"),
-        (11, "ammo_9x19p_7n31"),
         (13, "medkit"),
-        (14, "bandages"),
+        (14, "speed_booster"),
         (15, "antitoxin"),
     ];
     // Kit 3: nothing (the owner's: "no need for e2k3").
@@ -91,8 +89,8 @@ fn the_grant_is_the_tables() {
                 (8, "ammo_6.5x39")
             ]),
             with([
-                (2, "edge_torso_5"),
-                (4, "edge_legs_5"),
+                (2, "edge_torso_5_special"),
+                (4, "edge_legs_5_special"),
                 (7, "saiga_12"),
                 (8, "ammo_12mm_buck2")
             ]),
@@ -103,8 +101,9 @@ fn the_grant_is_the_tables() {
     // The owner's of 2026-11-08: each Keeper piece with armour +8 (1004)
     // and weight -15 % (1064), the strongest of their kinds; but the mask,
     // which takes no armour (weight only), the container, which takes none
-    // either (weight and a pocket, 1030), and the Keeper of the Sun, which
-    // comes with two (experience and reputation +5 %, its `start`) and so
+    // either (weight and carried weight +5 kg, 1124), the weapons, weight -15 %
+    // of their own kind (2064), and the Keeper of the Sun, which
+    // comes with two (experience +20 % and reputation +50 %, its `start`) and so
     // takes one more (armour).
     let modifications: Vec<(&str, u32)> = grant
         .modifications
@@ -119,18 +118,16 @@ fn the_grant_is_the_tables() {
             ("edge_helmet_5", 1004),
             ("edge_helmet_5", 1064),
             ("edge_mask_5", 1064),
-            ("edge_torso_5", 1004),
-            ("edge_torso_5", 1064),
-            ("edge_legs_5", 1004),
-            ("edge_legs_5", 1064),
             ("edge_gloves_5", 1004),
             ("edge_gloves_5", 1064),
             ("edge_boots_5", 1004),
             ("edge_boots_5", 1064),
             ("edge_back_5", 1064),
-            ("edge_back_5", 1030),
+            ("edge_back_5", 1124),
             ("edge_torso_5_special", 1004),
-            ("edge_legs_5_special", 1004)
+            ("edge_legs_5_special", 1004),
+            ("ak_12", 2064),
+            ("saiga_12", 2064)
         ]
     );
     let own: Vec<(&str, u32)> = grant
@@ -146,10 +143,12 @@ fn the_grant_is_the_tables() {
             ("ppsh", 1),
             ("akmn", 1),
             ("akmsu", 1),
-            ("drop_card", 10),
+            ("glock_17", 1),
+            ("drop_card", 50),
             ("medkit", 50),
             ("antitoxin", 50),
-            ("bandages", 20)
+            ("bandages", 20),
+            ("speed_booster", 10)
         ]
     );
 }
@@ -245,7 +244,8 @@ fn pockets_the_gear_does_not_give_are_named() {
 }
 
 /// A modification of the grant opens a pocket as the item's own do: preset
-/// 2's container opens the third pocket with its own 1030. Without it the
+/// 2's container given a pocket of its own (1030; the released data has it
+/// built in, the test data does not) opens the third. Without it the
 /// antitoxins' pocket is shut.
 #[test]
 fn a_pocket_a_modification_of_the_grant_opens_is_open() {
@@ -253,13 +253,17 @@ fn a_pocket_a_modification_of_the_grant_opens_is_open() {
     let mut grant = on_the_test_data();
     grant.saved = shared().saved.clone();
     grant.modifications = shared().modifications.clone();
-    // Kit 2: the test data has the Keeper vest and the container, not the
-    // Saiga-12 nor the Glock 17 (nor kit 1's Keeper of the Sun).
+    // Kit 2: the test data has the container, not the Keeper of the Sun nor
+    // the Saiga-12: the Keeper vest (its pocket, 1030) in the Sun's place.
     let lacks = |name: &str| Dictionary::shared().item_named(name).is_none();
-    grant.modifications.retain(|(name, _)| !lacks(name));
+    grant
+        .modifications
+        .retain(|(name, _)| !lacks(name) && name != "ak_12");
+    grant.modifications.push(("edge_back_5".into(), 1030));
     let preset = &mut grant.saved[0];
     preset.kits[0].clear();
     preset.kits[1].retain(|(_, name)| !lacks(name));
+    preset.kits[1].push((2, "edge_torso_5".into()));
     assert_eq!(
         grant.check(Dictionary::shared(), table, SkillsTree::shared()),
         Vec::<String>::new()
@@ -341,7 +345,9 @@ fn an_items_modifications_are_a_list() {
 /// modifications.
 fn on_the_test_data() -> NewAccount {
     let mut grant = without_medical_skills();
-    grant.own.retain(|(name, _)| name != "akmsu");
+    grant
+        .own
+        .retain(|(name, _)| name != "akmsu" && name != "glock_17");
     let preset = &mut grant.active;
     preset
         .all_kits

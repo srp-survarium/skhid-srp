@@ -8,6 +8,10 @@ The owner's rule of 2026-10-22: give the premium armour the golden weapons' trea
 `start`); the lobby: `ItemDictId.PREMIUM_ARMOUR*`,
 `ItemFactory` (`isGolden`, `plainOf`, `startingModifiers`, `BONUS_UI`).
 
+**The bonuses' values** (the owner's of 2026-11-08, "a general update to those types of bonuses"):
+experience +20 % (1240) and reputation +50 % (1250 to 1280), each +5 % in 0.26g; every item that
+holds one, the Keeper of the Sun's too (`modifications.tsv`). The +5 % below is the 0.26g value.
+
 - **The items:** every armour piece with a base rarity in the game's data, the jackets and trousers
   of the Bandit (8) and Survivor (14) bundles. Nothing else gold-sold is armour with premium bonuses:
   `scav_torso_4` and `scav_legs_4` are sold for gold one by one but are the plain pieces (base

@@ -126,33 +126,38 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     }
 
     // Owned: the TT-33 (18), the PPSh-41 (106), the Mosin (107), the AKMN
-    // (80) and the AKMSU (2290), 10 stash maps (153), 50 medkits (67), 50
-    // antitoxins (82) and 20 bandages (66), the kits' pockets taking theirs
-    // from these stacks.
+    // (80), the AKMSU (2290) and the Glock 17 (2283, the owner's of
+    // 2026-11-08: "it can be kept in inventory"), 50 stash maps (153, the
+    // owner's of 2026-11-08; 10 before), 50 medkits (67), 50 antitoxins (82),
+    // 20 bandages (66) and 10 Tornado energy drinks (340), the kits' pockets
+    // taking theirs from these stacks.
     for (dict_id, owned) in [
         (18, FULL_CONDITION),
         (106, FULL_CONDITION),
         (107, FULL_CONDITION),
         (80, FULL_CONDITION),
         (2290, FULL_CONDITION),
-        (153, 10),
+        (2283, FULL_CONDITION),
+        (153, 50),
         (67, 50),
         (82, 50),
         (66, 20),
+        (340, 10),
     ] {
         assert_eq!(stacks(dict_id), [owned], "{dict_id}");
     }
     // One of each item the presets wear, new.
     for dict_id in [
-        1821, 43, 325, 1869, 46, 42, 38, 306, 14, 110, 202, 200, 196, 197, 977, 978, 201, 198, 199,
-        363, 2227, 2283,
+        1821, 43, 325, 1869, 46, 42, 38, 306, 14, 110, 202, 200, 977, 978, 201, 198, 199,
+        363, 2227,
     ] {
         assert_eq!(stacks(dict_id), [FULL_CONDITION], "{dict_id}");
     }
 
     // No SOK-94 (the owner's of 2026-10-24), no trap (68, the owner's of
-    // 2026-11-02).
-    let none = [2215, 68];
+    // 2026-11-02), no plain Keeper vest (196) or pants (197) (the owner's of
+    // 2026-11-08).
+    let none = [2215, 68, 196, 197];
     assert!(
         account
             .inventory
@@ -219,14 +224,15 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     // Preset 2, chosen as the player chooses it: the Keeper set (the
     // owner's of 2026-11-08), each piece with armour +8 (1004) and weight
     // -15 % (1064; the mask, which takes no armour, the weight only), the
-    // "Wanderer" container (199: an artefact slot and a pocket's unit; its
-    // own weight -15 % and a pocket, 1030), a Glock 17 (2283) with one bag
-    // of 9x19 7N31 (368) in weapon slot 2, and three pockets of two. Kit 1
-    // wears the Keeper Of The Sun Vest (977) and Pants (978), their own
-    // experience and reputation +5 % (1240, 1280) and armour +8, with the
-    // AK-12 (363); kit 2 the Keeper vest (196) and pants (197) with the
-    // Saiga-12 (2227) and its buckshot (2205); kit 3 nothing (the owner's:
-    // "no need for e2k3").
+    // "Wanderer" container (199: an artefact slot, a pocket, 1030, and a
+    // pocket's unit; its own weight -15 % and carried weight +5 kg, 1124),
+    // and three pockets of two: 2 medkits, a Tornado energy drink (340, the
+    // owner's of 2026-11-08: "instead of bandages"; a booster fills a pocket
+    // alone) and 2 antitoxins; the Keeper Of The Sun Vest (977) and Pants
+    // (978), their own experience +20 % and reputation +50 % (1240, 1280) and
+    // armour +8 (the owner's: no plain Keeper vest and pants). Kit 1 with
+    // the AK-12 (363), kit 2 with the Saiga-12 (2227) and its buckshot
+    // (2205); kit 3 nothing (the owner's: "no need for e2k3").
     assert_eq!(
         presets::choose(&mut account, 2, 0),
         Ok(presets::Applied { empty: 0 })
@@ -241,11 +247,11 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     assert!(account.kits[2].slots.iter().all(Option::is_none));
     let both = || vec![(1004, false), (1064, false)];
     let sun = || vec![(1240, false), (1280, false), (1004, false)];
-    // `(vest and pants, weapon, ammo, rounds, the kit's level)`: four bags
-    // of one clip of the weapon's ammo, one of the Glock's.
+    // `(vest and pants, weapon, ammo, rounds, the kit's level)`: five bags
+    // of one clip; each weapon with its own weight -15 % (2064).
     let weapons = [
-        ((977, 978, sun()), 363, 369, 120, 15),
-        ((196, 197, both()), 2227, 2205, 80, 14),
+        ((977, 978, sun()), 363, 369, 150, 15),
+        ((977, 978, sun()), 2227, 2205, 100, 14),
     ];
     for (kit, ((vest, pants, own), weapon, ammo, rounds, level)) in account.kits.iter().zip(weapons)
     {
@@ -255,29 +261,27 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
                 (0, 202, 1, both()),
                 (1, 200, 1, vec![(1064, false)]),
                 (2, vest, 1, own.clone()),
-                (3, 199, 1, vec![(1064, false), (1030, false)]),
+                (3, 199, 1, vec![(1064, false), (1124, false)]),
                 (4, pants, 1, own),
                 (5, 201, 1, both()),
                 (6, 198, 1, both()),
-                (7, weapon, 1, vec![]),
+                (7, weapon, 1, vec![(2064, false)]),
                 (8, ammo, rounds, vec![]),
-                (10, 2283, 1, vec![]),
-                (11, 368, 50, vec![]),
                 (13, 67, 2, vec![]),
-                (14, 66, 2, vec![]),
+                (14, 340, 1, vec![]),
                 (15, 82, 2, vec![]),
             ],
             "kit {}",
             kit.id
         );
-        // Three pockets of two: the vest's pocket and the container's, a
-        // unit more of the container.
+        // Three pockets of two: the vest's pocket and the container's (its
+        // 1030), a unit more of the container.
         assert_eq!(pockets(&account, kit), (3, 2), "kit {}", kit.id);
         assert!(dictionary.compatible(weapon, ammo));
-        assert!(dictionary.compatible(2283, 368));
         assert_eq!(rules::check_play(&account, kit.id, 0), Ok(()));
         let weight = carried(&account, kit);
-        assert!(weight < 30.0, "kit {}: {weight}", kit.id);
+        // Within the player's 30 kg and the container's 5 (1124).
+        assert!(weight < 35.0, "kit {}: {weight}", kit.id);
         assert_eq!(
             session::v026g::matchmaking::kit_level(&account, kit),
             level,
@@ -285,6 +289,14 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
             kit.id
         );
     }
+    // The Glock 17 in no kit of either preset.
+    let glock = account
+        .inventory
+        .iter()
+        .find(|item| item.dict_id == 2283)
+        .unwrap()
+        .item_id;
+    assert!(account.kits.iter().all(|kit| kit.slot_of(glock).is_none()));
     // And back: preset 1 as it was.
     assert_eq!(
         presets::choose(&mut account, 1, 0),
@@ -293,4 +305,18 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     assert_eq!(account.kits[1].slots[7].unwrap().item_id, rifle);
     let back = account.kits[0].slots[3].unwrap().item_id;
     assert_eq!(account.item(back).unwrap().dict_id, 1869);
+
+    // The premium bonuses (the owner's of 2026-11-08, "a general update to
+    // those types of bonuses"): experience +20 % (1240), reputation +50 %
+    // with each faction (1250 to 1280); 0.05 each in 0.26g.
+    let table = Modifications::shared();
+    let value = |id: u32| {
+        let row = table.modification(id).unwrap();
+        assert_eq!(row.modifiers.len(), 1, "{id}");
+        (row.modifiers[0].path.as_str(), row.modifiers[0].value)
+    };
+    assert_eq!(value(1240), ("parameters/experience_bonus", 0.2));
+    for id in [1250, 1260, 1270, 1280] {
+        assert_eq!(value(id), ("parameters/reputation_bonus", 0.5), "{id}");
+    }
 }

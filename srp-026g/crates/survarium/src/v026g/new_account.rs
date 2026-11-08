@@ -56,11 +56,19 @@ pub struct Preset {
     pub all_kits: Vec<Worn>,
     /// What each kit wears more, kit by kit: its weapons and their ammo.
     pub kits: [Vec<Worn>; KITS],
-    /// The units of each pocket's item.
+    /// The units of a pocket: each pocket's item has what a pocket of so
+    /// many units holds of it ([`Self::pocket_units_of`]).
     pub pocket_units: u32,
 }
 
 impl Preset {
+    /// The units of `dict_id` a pocket of the preset holds: its
+    /// [`Self::pocket_units`], fewer of an item that takes more of a pocket
+    /// (one booster, which fills a pocket alone).
+    pub fn pocket_units_of(&self, dict_id: u16) -> u32 {
+        loadouts::pocket_share(dict_id).units_in(self.pocket_units)
+    }
+
     /// What kit `kit` (0 on) wears: [`Self::all_kits`], then its own.
     pub fn kit(&self, kit: usize) -> impl Iterator<Item = (u8, &str)> {
         self.all_kits
@@ -324,11 +332,12 @@ impl NewAccount {
                         .map_or("?", |item| item.name.as_str());
                     let open = POCKET_SLOTS[..count as usize].contains(&item.slot);
                     let takes = loadouts::pocket_share(item.dict_id).units_in(size);
-                    if !open || preset.pocket_units > takes {
+                    let asked = preset.pocket_units_of(item.dict_id);
+                    if !open || asked > takes {
                         wrong.push(format!(
                             "{at}: slot {}: the gear opens {count} pockets of {size} units, \
-                             {} of `{name}` asked",
-                            item.slot, preset.pocket_units,
+                             {asked} of `{name}` asked",
+                            item.slot,
                         ));
                     }
                     let owned = self
@@ -336,10 +345,10 @@ impl NewAccount {
                         .iter()
                         .find(|(own, _)| own == name)
                         .map_or(0, |&(_, units)| units);
-                    if owned < preset.pocket_units {
+                    if owned < asked {
                         wrong.push(format!(
-                            "{at}: slot {}: {} of `{name}` asked, {owned} owned (`own/{name}`)",
-                            item.slot, preset.pocket_units
+                            "{at}: slot {}: {asked} of `{name}` asked, {owned} owned (`own/{name}`)",
+                            item.slot
                         ));
                     }
                 }
