@@ -200,12 +200,9 @@ mod tests {
         assert_eq!(loaded.len(), 4);
         let alice = &loaded[0].1;
         assert_eq!(
-            (
-                alice.name.as_str(),
-                alice.generic_money,
-                alice.premium_money
-            ),
-            ("Alice", 777, 12)
+            (alice.name.as_str(), alice.generic_money),
+            // Its 12 gold is silver since step 14.
+            ("Alice", 777 + 1_200)
         );
         assert!(alice.autobuy);
         let flags: Vec<u32> = loaded

@@ -42,8 +42,6 @@ package survarium.char
       
       protected var _reroll_cost:uint = 0;
       
-      protected var _reroll_cost_premium:uint = 0;
-      
       protected var _perkItems:Array = [];
       
       protected var _charStats:DataProvider;
@@ -153,19 +151,9 @@ package survarium.char
          _reroll_cost = value;
       }
       
-      public function set reroll_cost_premium(value:int) : void
-      {
-         _reroll_cost_premium = value;
-      }
-      
       public function get reroll_cost() : int
       {
          return this._reroll_cost;
-      }
-      
-      public function get reroll_cost_premium() : int
-      {
-         return this._reroll_cost_premium;
       }
       
       public function init(e:Event) : void
@@ -1116,7 +1104,6 @@ package survarium.char
       {
          var _obj:Object = new Object();
          _obj.price = this.reroll_cost;
-         _obj.price_premium = this.reroll_cost_premium;
          _obj.text = LocalizationData.getName("message_reroll_text");
          _obj.branch = this._activeSkillBranch;
          var progressData:Object = this._skillsProgressArray[this._activeSkillBranch];

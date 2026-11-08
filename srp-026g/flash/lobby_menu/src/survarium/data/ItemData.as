@@ -25,7 +25,6 @@ package survarium.data
       
       public var cost:uint;
       
-      public var premiumCost:uint;
       
       public var price:uint;
       
@@ -101,7 +100,6 @@ package survarium.data
       
       public var equipped:Boolean = false;
       
-      public var isPremium:Boolean = false;
       
       public var broken:Boolean = false;
       
@@ -231,7 +229,6 @@ package survarium.data
          itemData.buyValue = origin.buyValue;
          itemData.canBuy = origin.canBuy;
          itemData.equipped = origin.equipped;
-         itemData.isPremium = origin.isPremium;
          itemData.name = origin.name;
          itemData.itemDescription = origin.itemDescription;
          itemData.modifiersDescription = origin.modifiersDescription;

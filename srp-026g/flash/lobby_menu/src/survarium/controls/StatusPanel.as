@@ -29,7 +29,6 @@ package survarium.controls
    import survarium.gsearch.MatchMakingSettings;
    import survarium.messages.MessageBase;
    import survarium.messages.MessageEnterName;
-   import survarium.messages.MessageMoneyExchange;
    import survarium.rooms.RoomsLook;
    import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
@@ -120,11 +119,7 @@ package survarium.controls
       
       public var icon_generic:MovieClip;
       
-      public var icon_premium:MovieClip;
-      
       public var txGeneric:TextField;
-      
-      public var txPremium:TextField;
       
       public var centerContainerTop:MovieClip;
       
@@ -142,7 +137,7 @@ package survarium.controls
       
       public var labelInfoAdmin:MovieClip;
       
-      public var changeNameCostPremium:int;
+      public var changeNameCost:int;
       
       public var postRewardData:Object;
       
@@ -183,10 +178,9 @@ package survarium.controls
          this.btn_add_regular_money = this.panel_player.btn_add_regular_money;
          this.btn_add_premium_money = this.panel_player.btn_add_premium_money;
          this.txGeneric = this.panel_player.btn_add_regular_money.content.txMoney;
-         this.txPremium = this.panel_player.btn_add_premium_money.content.txMoney;
          this.videoTutorial = this.left_corner.videoTutorial;
-         this.icon_premium = this.panel_player.btn_add_premium_money.content.icon;
-         this.txPremium.mouseEnabled = this.btn_add_premium_money.mouseEnabled = false;
+         // No gold: its box in the top bar is hidden (the owner, 2026-11-08).
+         this.btn_add_premium_money.visible = false;
          this.txGeneric.mouseEnabled = this.btn_add_regular_money.mouseEnabled = false;
          this.playBtn = this.play_container.playBtn;
          this.factionHint = this.panelFaction.factionHint;
@@ -427,12 +421,11 @@ package survarium.controls
          }
       }
       
-      public function setMoneyData(generic:uint, premium:uint) : void
+      public function setMoneyData(generic:uint) : void
       {
          this.panel_player.hintButton.alpha = 0;
          trace("setMoneyData",this.btn_add_regular_money);
          this.txGeneric.text = Util.getMoneyString(generic);
-         this.txPremium.text = Util.getMoneyString(premium);
          invalidateData();
       }
       
@@ -498,11 +491,6 @@ package survarium.controls
          var txF:TextFormat = tx.getTextFormat(0,1);
          tx.autoSize = TextFieldAutoSize.LEFT;
          tx.defaultTextFormat = txF;
-         tx = this.txPremium;
-         txF = tx.getTextFormat(0,1);
-         tx.autoSize = TextFieldAutoSize.LEFT;
-         tx.defaultTextFormat = txF;
-         this.icon_premium.gotoAndStop(2);
          LocalizationData.addButton(this.playBtn,"Play");
          panel_games_block = this.mid_back.getChildByName("panel_games_block") as MovieClip;
          panel_players_block = this.mid_back.getChildByName("panel_players_block") as MovieClip;
@@ -529,9 +517,6 @@ package survarium.controls
          }
          this.btn_lobby.addEventListener(ButtonEvent.CLICK,this.onClickLobby);
          this.btn_add_regular_money.enabled = true;
-         this.btn_add_premium_money.enabled = true;
-         this.btn_add_premium_money.addEventListener(ButtonEvent.CLICK,this.onPremiumMoneyAddClick);
-         this.btn_add_regular_money.addEventListener(ButtonEvent.CLICK,this.onRegulatMoneyAddClick);
          this.left_corner.btnKnowledgeBase.addEventListener(ButtonEvent.CLICK,this.onKnowlengeBaseClick);
          var date:Date = new Date();
          _time = getTimer() - date.milliseconds - int(date.seconds) * 1000;
@@ -550,7 +535,6 @@ package survarium.controls
          this.btn_off.tooltipRendererName = "SrvProfileTipRenderer";
          this.btnChangeName.tooltipRendererName = "SrvProfileTipRenderer";
          this.factionHint.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.btn_add_premium_money.tooltipRendererName = "SrvProfileTipRenderer";
          this.btn_add_regular_money.tooltipRendererName = "SrvProfileTipRenderer";
          this.panel_player.hintButton.tooltipRendererName = "SrvProfileTipRenderer";
          this.right_corner.btnShowDailyMessage.tooltipRendererName = "SrvProfileTipRenderer";
@@ -559,10 +543,10 @@ package survarium.controls
          this.left_corner.videoTutorial.closeBtn.addEventListener(MouseEvent.CLICK,this.closeVT);
          this.left_corner.videoTutorial.clickArea.addEventListener(MouseEvent.CLICK,this.showVT);
          this.left_corner.notesTutorial.visible = false;
+         // The stock "Buy gold" label: there is no gold.
          if((this.right_corner.textFieldShop))
          {
-            LocalizationData.addTextField(this.right_corner.textFieldShop,"online_store");
-            this.right_corner.textFieldShop.mouseEnabled = false;
+            this.right_corner.textFieldShop.visible = false;
          }
          LocalizationData.addCallback(this.updateButtons,"btn_settings_label");
          stage.addEventListener(Event.RESIZE,this.onStageResize);
@@ -617,11 +601,6 @@ package survarium.controls
       {
          var selectedOption:String = (this.matchSettings.checkBoxClan.selected) ? LocalizationData.getName("match_settings_clan_match") : LocalizationData.getName("match_settings_checkbox_PVP");
          this.play_container.dropDownButton.label = selectedOption;
-      }
-      
-      private function onRegulatMoneyAddClick(e:ButtonEvent) : void
-      {
-         MessageMoneyExchange.open(false);
       }
       
       public function setFactionProgress(value:Object) : void
@@ -744,7 +723,7 @@ package survarium.controls
          var voucherId:uint = PlayerInfo.getVoucherId(VoucherType.RENAME);
          var messageData:Object = {
             nickname:PlayerInfo.nickname,
-            premiumCost:this.changeNameCostPremium,
+            cost:this.changeNameCost,
             vouchersCost:1,
             voucherId:voucherId,
             changeNameFailedDelay:this.changeNameFailedDelay,
@@ -759,8 +738,7 @@ package survarium.controls
          this.btn_settings.data = {name:LocalizationData.getName("btn_settings_label")};
          this.btn_off.data = {name:LocalizationData.getName("btn_exit_label")};
          this.btnChangeName.data = {name:LocalizationData.getName("btn_change_name_label")};
-         this.btn_add_premium_money.data = {name:LocalizationData.getName("btn_add_premium_label")};
-         this.btn_add_regular_money.data = {name:LocalizationData.getName("btn_exchange_premium_money")};
+         this.btn_add_regular_money.data = {name:LocalizationData.getName("regular_money")};
          this.left_corner.btnKnowledgeBase.data = {name:LocalizationData.getName("btn_knowledge_base")};
          this.left_corner.videoTutorial.textField.text = LocalizationData.getName("youtube_video_tutorial_button");
          this.left_corner.videoTutorial.closeBtn.x = this.left_corner.videoTutorial.textField.x + this.left_corner.videoTutorial.textField.textWidth + 10;
@@ -858,11 +836,6 @@ package survarium.controls
          this.btnChangeName.setActualSize(newWidth,this.btnChangeName.height);
       }
       
-      private function onPremiumMoneyAddClick(e:Event) : void
-      {
-         MessageMoneyExchange.open(true);
-      }
-      
       private function onKnowlengeBaseClick(e:Event) : void
       {
          var object:Object = {
@@ -872,11 +845,6 @@ package survarium.controls
             label_cancel:LocalizationData.getName("cancel")
          };
          Message.showMessage("apply",object,true);
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
       }
       
       protected function goToKnowledgeBase() : void

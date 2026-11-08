@@ -91,8 +91,6 @@ package survarium.messages
       
       protected var _rerollCost:int = 0;
       
-      protected var _rerollCostGold:int = 0;
-      
       protected var _itemId:uint = 0;
       
       protected var _modifierSelection:*;
@@ -173,16 +171,12 @@ package survarium.messages
             // (items_rules: Reroll, the owner's rule of 2026-10-22)
             this.decriptionTimerLabel.text = "";
             this.labelChooseModifier2.text = LocalizationData.getName("choose_modifier");
+            // A change is paid in silver only: the game has no gold (the owner, 2026-11-08).
             this.checkBoxRegularCost.selected = true;
-            this.checkBoxPremiumCost.selected = false;
             this.checkBoxRegularCost.money_type = MoneyType.REGULAR;
-            this.checkBoxPremiumCost.money_type = MoneyType.PREMIUM;
             this.checkBoxRegularCost.toggle = false;
-            this.checkBoxPremiumCost.toggle = false;
-            this.checkBoxRegularCost.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
-            this.checkBoxPremiumCost.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
             this.checkBoxRegularCost.value = 0;
-            this.checkBoxPremiumCost.value = 0;
+            this.checkBoxPremiumCost.visible = false;
             this.labelChooseModifier2.visible = this.modifiersList2.visible = false;
             _rerollTimer = _data.rerollTime;
             this.itemRenderer.data = _data;
@@ -276,9 +270,7 @@ package survarium.messages
          var option:Object;
          this.lockWindow(false);
          _rerollCost = rerollData.regular_cost;
-         _rerollCostGold = rerollData.premium_cost;
          this.checkBoxRegularCost.value = this._rerollCost;
-         this.checkBoxPremiumCost.value = this._rerollCostGold;
          if(modifiers)
          {
             // The card's item: its modifications as the server has them now (after a choice
@@ -324,34 +316,18 @@ package survarium.messages
          }
       }
       
-      private function unBtnClicked(event:Event) : void
-      {
-         this.checkBoxRegularCost.selected = event.target == this.checkBoxRegularCost;
-         this.checkBoxPremiumCost.selected = event.target == this.checkBoxPremiumCost;
-         this.checkAcceptButton();
-      }
-      
       protected function checkAcceptButton(event:Event = null) : void
       {
          var selectedModifier:int;
-         var moneyType:uint;
          if(this.rerollContainer.visible)
          {
-            moneyType = this.getSelectedIndex();
             selectedModifier = this.modifiersList.selectedIndex;
             if(selectedModifier == -1)
             {
                btnAccept.enabled = false;
                return;
             }
-            if(moneyType == MoneyType.REGULAR)
-            {
-               btnAccept.enabled = this._rerollCost <= PlayerInfo.genericMoney && !this._rerollTimer;
-            }
-            else if(moneyType == MoneyType.PREMIUM)
-            {
-               btnAccept.enabled = true;
-            }
+            btnAccept.enabled = this._rerollCost <= PlayerInfo.genericMoney && !this._rerollTimer;
          }
          else
          {
@@ -365,36 +341,6 @@ package survarium.messages
                btnAccept.enabled = true;
             }
          }
-      }
-      
-      protected function getSelectedIndex() : uint
-      {
-         var moneyType:uint;
-         if(this.checkBoxRegularCost.selected)
-         {
-            moneyType = MoneyType.REGULAR;
-         }
-         else
-         {
-            moneyType = MoneyType.PREMIUM;
-         }
-         return moneyType;
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
-      }
-      
-      protected function onNoMoneyEnought() : void
-      {
-         var messageData:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",messageData,true);
       }
       
       protected function showModifierSelection(selectedModifier:uint, options:Array) : void
@@ -413,7 +359,6 @@ package survarium.messages
          this.modifiersList2.visible = choosing;
          this.decriptionLabel.visible = !choosing;
          this.checkBoxRegularCost.visible = !choosing;
-         this.checkBoxPremiumCost.visible = !choosing;
          this.modifiersList.enabled = !choosing;
          this.decriptionTimerLabel.visible = !choosing;
          this.background.height = !choosing ? 392 : 337;
@@ -460,24 +405,14 @@ package survarium.messages
             return;
          }
          var selectedModifier:uint = this.modifiersList.selectedIndex;
-         var moneyType:uint;
          var modifierIndex:uint;
          if(this.rerollContainer.visible)
          {
-            moneyType = this.getSelectedIndex();
             modifierIndex = selectedModifier;
-            trace("reroll_item_modifier",uint(moneyType));
-            if(moneyType == MoneyType.PREMIUM && this._rerollCostGold > PlayerInfo.premiumMoney)
-            {
-               this.onNoMoneyEnought();
-            }
-            else
-            {
-               trace("reroll_item_modifier",uint(_data.itemId),uint(modifierIndex));
-               ExternalInterface.call("reroll_item_modifier",_data.itemId,modifierIndex,uint(moneyType));
-               closable = false;
-               this.lockWindow(true);
-            }
+            trace("reroll_item_modifier",uint(_data.itemId),uint(modifierIndex));
+            ExternalInterface.call("reroll_item_modifier",_data.itemId,modifierIndex,uint(MoneyType.REGULAR));
+            closable = false;
+            this.lockWindow(true);
          }
          else
          {

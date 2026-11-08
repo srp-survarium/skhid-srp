@@ -62,8 +62,6 @@ package survarium.messages
       
       private var repairCost:uint = 0;
       
-      private var repairCostGold:uint = 0;
-      
       private var repairCostGeneral:uint = 0;
       
       private var repairTimeGeneral:uint = 0;
@@ -110,33 +108,29 @@ package survarium.messages
             this.textFieldDamageLabel.text = LocalizationData.getName("item_damage_state");
             this.textFieldCritical.text = LocalizationData.getName("critical_damages");
             this.textFieldRegular.text = LocalizationData.getName("regular_fix");
-            this.textFieldPremium.text = LocalizationData.getName("quick_fix");
+            // No quick fix: it was paid in gold, and the game has no gold (the owner, 2026-11-08).
+            this.textFieldPremium.visible = false;
+            this.checkBox_2.visible = this.checkBox_2.enabled = false;
             this.textFieldVoucher.text = LocalizationData.getName("use_fix_voucher");
             this.textFieldLabel.text = LocalizationData.getName("repair_window_label");
             this.textFieldRegular.mouseEnabled = this.textFieldPremium.mouseEnabled = this.textFieldVoucher.mouseEnabled = false;
             this.checkBox_1.selected = true;
-            this.checkBox_2.selected = false;
             this.checkBox_3.selected = false;
             this.checkBox_1.money_type = MoneyType.REGULAR;
-            this.checkBox_2.money_type = MoneyType.PREMIUM;
             this.checkBox_3.money_type = CheckBoxValue.REPAIR_VOUCHER_ICON;
             this.checkBox_1.toggle = false;
-            this.checkBox_2.toggle = false;
             this.checkBox_3.toggle = false;
             this.checkBox_1.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
-            this.checkBox_2.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
             this.checkBox_3.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
             this.itemSlot.data = _data;
             this.redGlow.visible = _data.modifiers.length > 0;
             this.redGlowBottom.visible = this.redGlow.visible;
             this.redGlow.alpha = this.redGlow.visible ? 1 : 0;
-            repairCostGold = 0;
             repairCostGeneral = 0;
             repairTimeGeneral = 0;
             l = (_data.modifiers as Array).length;
             for(i = 0; i < l; i++)
             {
-               repairCostGold += _data.modifiers[i].fix_cost_gold;
                repairCostGeneral += _data.modifiers[i].fix_cost_general;
                repairTimeGeneral += _data.modifiers[i].fix_time_general;
             }
@@ -148,7 +142,6 @@ package survarium.messages
             this.checkBox_3.textFieldValue.textColor = 14933471;
             this.checkBox_1.value = this.repairCost;
             this.checkBox_1.validateNow();
-            this.checkBox_2.value = this.repairCostGold;
             this.checkBox_3.value = (_data.modifiers as Array).length;
             this.timeToRepair.x = this.checkBox_1.x + this.checkBox_1.textFieldValue.x + this.checkBox_1.textFieldValue.textWidth + 10;
             this.textFieldDamage.text = _data.value + "%";
@@ -187,10 +180,6 @@ package survarium.messages
             hasModifiers = (_data.modifiers as Array).length > 0;
             trace("hasModifiers",hasModifiers,(_data.modifiers as Array).length);
             this.background.height = hasModifiers ? 413 : 413 - 25;
-            if(this.checkBox_2.enabled)
-            {
-               this.checkBox_2.enabled = hasModifiers;
-            }
             if(this.checkBox_3.enabled)
             {
                this.checkBox_3.enabled = hasModifiers;
@@ -198,27 +187,20 @@ package survarium.messages
             this.textFieldCritical.visible = this.modifiersList.visible = hasModifiers;
             offset = hasModifiers ? -8 : 25;
             this.checkBox_1.y -= offset;
-            this.checkBox_2.y -= offset;
             this.checkBox_3.y -= offset;
             this.timeToRepair.y -= offset;
             this.textFieldRegular.y -= offset;
-            this.textFieldPremium.y -= offset;
             this.textFieldVoucher.y -= offset;
             bbHeight = 48;
             bbPos = this.background.height - 3;
             btnAccept.y = bbPos + 5 - bbHeight;
             btnCancel.y = btnAccept.y;
             this.checkBox_1.enabled = this.repairCost <= PlayerInfo.genericMoney;
-            if(this.checkBox_2.enabled)
-            {
-               this.checkBox_2.enabled = hasModifiers;
-            }
-            if(this.checkBox_2.enabled)
+            if(this.checkBox_3.enabled)
             {
                this.checkBox_3.enabled = hasModifiers && PlayerInfo.getVoucherCount(VoucherType.REPAIR) >= Math.max(l,1);
             }
             this.checkBox_1.alpha = this.checkBox_1.enabled ? 1 : 0.5;
-            this.checkBox_2.alpha = this.checkBox_2.enabled ? 1 : 0.5;
             this.checkBox_3.alpha = this.checkBox_3.enabled ? 1 : 0.5;
             TextFieldEx.setVerticalAlign(this.textFieldVoucher,TextFieldEx.VALIGN_CENTER);
             this.timeToRepair.x = 160 - this.timeToRepair.textField.x - this.timeToRepair.textField.textWidth - 1;
@@ -230,7 +212,6 @@ package survarium.messages
       private function unBtnClicked(e:Event) : void
       {
          this.checkBox_1.selected = e.target == this.checkBox_1;
-         this.checkBox_2.selected = e.target == this.checkBox_2;
          this.checkBox_3.selected = e.target == this.checkBox_3;
          this.checkAcceptButton();
       }
@@ -242,10 +223,6 @@ package survarium.messages
          if(selectedPaymentType == RepairPayment.REGULAR)
          {
             btnAccept.enabled = this.repairCost <= PlayerInfo.genericMoney;
-         }
-         else if(selectedPaymentType == RepairPayment.PREMIUM)
-         {
-            btnAccept.enabled = true;
          }
          else
          {
@@ -260,31 +237,11 @@ package survarium.messages
          {
             index = RepairPayment.REGULAR;
          }
-         else if(this.checkBox_2.selected)
-         {
-            index = RepairPayment.PREMIUM;
-         }
          else
          {
             index = RepairPayment.VOUCHER;
          }
          return index;
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
-      }
-      
-      protected function onNoMoneyEnought() : void
-      {
-         var object:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",object,true);
       }
       
       override protected function onMessageAccept(event:ButtonEvent = null) : void
@@ -301,10 +258,6 @@ package survarium.messages
          {
             voucherId = PlayerInfo.getVoucherId(VoucherType.REPAIR);
             ExternalInterface.call("repair_item",uint(_data.itemId),uint(selectedPaymentType),voucherId);
-         }
-         else if(selectedPaymentType == RepairPayment.PREMIUM && this.repairCostGold > PlayerInfo.premiumMoney)
-         {
-            this.onNoMoneyEnought();
          }
          else
          {

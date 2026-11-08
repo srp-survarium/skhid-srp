@@ -130,8 +130,9 @@ impl Core<'_> {
             who.addr,
             lobby::permitted_reroll_window(
                 window.item_id,
-                window.regular_cost,
-                window.premium_cost,
+                window.cost,
+                // Nothing is paid in gold.
+                0,
                 window.changed,
             ),
         );
@@ -167,15 +168,14 @@ impl Core<'_> {
         }
     }
 
-    /// `46 07 <item> <modification> <gold>`.
-    pub(super) fn reroll_modifier(&mut self, who: &Who, item_id: u32, modification: u32, gold: bool) {
+    /// `46 07 <item> <modification>`.
+    pub(super) fn reroll_modifier(&mut self, who: &Who, item_id: u32, modification: u32) {
         let rolled = {
             let mut account = who.account.locked();
             items_rules::reroll(
                 &mut account,
                 item_id,
                 modification,
-                gold,
                 quests::now(),
                 &mut self.rng,
             )
@@ -192,7 +192,7 @@ impl Core<'_> {
                     );
                 } else {
                     log::info!(
-                        "{} changes modification {modification} of item {item_id} for {:?}",
+                        "{} changes modification {modification} of item {item_id} for {} silver",
                         who.name,
                         rolled.paid
                     );
@@ -205,7 +205,7 @@ impl Core<'_> {
                 self.send(who.addr, money);
                 if let Some(player) = self.player_mut(who.addr) {
                     let account = who.account.locked();
-                    player.money_sent = (account.generic_money, account.premium_money);
+                    player.money_sent = account.generic_money;
                 }
             }
             Err(error) => {
@@ -247,7 +247,7 @@ impl Core<'_> {
                         item_id,
                         chosen.old_modification,
                         chosen.new_modification,
-                        [window.regular_cost, window.premium_cost, wait],
+                        [window.cost, 0, wait],
                     ),
                 );
             }
@@ -260,8 +260,8 @@ impl Core<'_> {
 
     // ----------------------------------------------------------- craft
 
-    /// `46 09 <item> <donor> <gold>`.
-    pub(super) fn craft(&mut self, who: &Who, item_id: u32, donor: u32, gold: bool) {
+    /// `46 09 <item> <donor>`.
+    pub(super) fn craft(&mut self, who: &Who, item_id: u32, donor: u32) {
         let queued = self
             .player(who.addr)
             .is_some_and(|player| player.queued_since.is_some());
@@ -269,7 +269,6 @@ impl Core<'_> {
             &mut who.account.locked(),
             item_id,
             donor,
-            gold,
             queued,
             quests::now(),
             &mut self.rng,

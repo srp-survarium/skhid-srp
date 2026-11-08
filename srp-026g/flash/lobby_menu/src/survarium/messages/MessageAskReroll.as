@@ -30,40 +30,21 @@ package survarium.messages
          this.textField.text = LocalizationData.getName("message_reroll_text");
          if(_data)
          {
-            trace("MessageAskReroll",_data.price,_data.price_premium,"|",_data.points);
+            trace("MessageAskReroll",_data.price,"|",_data.points);
+            // Paid in silver only: the game has no gold (the owner, 2026-11-08).
             this.checkBoxRegularCost.money_type = MoneyType.REGULAR;
-            this.checkBoxPremiumCost.money_type = MoneyType.PREMIUM;
             this.checkBoxRegularCost.selected = true;
             this.checkBoxRegularCost.value = int(_data.price * _data.points);
-            this.checkBoxPremiumCost.value = int(_data.price_premium * _data.points);
-            this.checkBoxPremiumCost.enabled = this.checkBoxPremiumCost.value > 0;
             this.checkBoxRegularCost.toggle = false;
-            this.checkBoxPremiumCost.toggle = false;
-            this.checkBoxRegularCost.addEventListener(ButtonEvent.CLICK,this.onCheckBoxChanged);
-            this.checkBoxPremiumCost.addEventListener(ButtonEvent.CLICK,this.onCheckBoxChanged);
+            this.checkBoxPremiumCost.visible = this.checkBoxPremiumCost.enabled = false;
          }
       }
-      
-      private function onCheckBoxChanged(event:ButtonEvent) : void
-      {
-         if(event.target == this.checkBoxRegularCost)
-         {
-            this.checkBoxRegularCost.selected = true;
-            this.checkBoxPremiumCost.selected = false;
-         }
-         else
-         {
-            this.checkBoxRegularCost.selected = false;
-            this.checkBoxPremiumCost.selected = true;
-         }
-      }
-      
+
       override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          super.onMessageAccept();
-         var moneyType:uint = this.checkBoxRegularCost.selected ? MoneyType.REGULAR : MoneyType.PREMIUM;
          trace("reroll_ok_clicked",uint(_data.branch));
-         ExternalInterface.call("reroll_ok_clicked",uint(_data.branch),moneyType);
+         ExternalInterface.call("reroll_ok_clicked",uint(_data.branch),uint(MoneyType.REGULAR));
       }
    }
 }

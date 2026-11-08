@@ -146,6 +146,19 @@ const MIGRATIONS: &[&str] = &[
     level_stats::MIGRATION,
     // 13: per-mode onboarding allowances.
     mode_intro::MIGRATION,
+    // 14: gold is gone (the owner, 2026-11-08: silver is the one currency):
+    // every balance becomes silver at the game's rate, 100 silver a gold
+    // (`survarium::v026g::prices::GOLD_IN_SILVER`), once, and so does a daily
+    // bonus's reward waiting in gold (dict id 215; silver is 214). The
+    // column stays, always 0.
+    "
+    UPDATE g26_accounts
+    SET generic_money = MIN(generic_money + premium_money * 100, 4294967295), premium_money = 0
+    WHERE premium_money != 0;
+    UPDATE g26_extras
+    SET bonus_reward_dict = 214, bonus_reward_count = MIN(bonus_reward_count * 100, 4294967295)
+    WHERE bonus_reward_dict = 215;
+    ",
 ];
 
 /// The child tables of an account, children of children first.
@@ -582,8 +595,8 @@ impl GameRepository for SqliteGameRepository {
         let mut accounts: Vec<(u32, Account)> = Vec::new();
         {
             let mut statement = transaction.prepare(
-                "SELECT account_id, name, clan_tag, generic_money, premium_money,
-                        premium_until, exp_total, quest_faction, rating, rating_before,
+                "SELECT account_id, name, clan_tag, generic_money, premium_until,
+                        exp_total, quest_faction, rating, rating_before,
                         active_kit, autobuy, next_item_id, next_quest_instance,
                         tutorial_step, tutorial_done
                  FROM g26_accounts ORDER BY account_id",
@@ -595,26 +608,25 @@ impl GameRepository for SqliteGameRepository {
                         name: row.get(1)?,
                         clan_tag: row.get(2)?,
                         generic_money: row.get(3)?,
-                        premium_money: row.get(4)?,
-                        premium_until: row.get::<_, i64>(5)?.max(0) as u64,
-                        exp_total: row.get(6)?,
+                        premium_until: row.get::<_, i64>(4)?.max(0) as u64,
+                        exp_total: row.get(5)?,
                         skills: Vec::new(),
                         reputations: Vec::new(),
-                        quest_faction: row.get(7)?,
-                        rating: row.get(8)?,
-                        rating_before: row.get(9)?,
+                        quest_faction: row.get(6)?,
+                        rating: row.get(7)?,
+                        rating_before: row.get(8)?,
                         balance: Default::default(),
                         level_stats: Default::default(),
                         kits: Vec::new(),
-                        active_kit: row.get(10)?,
-                        autobuy: row.get(11)?,
+                        active_kit: row.get(9)?,
+                        autobuy: row.get(10)?,
                         inventory: Vec::new(),
-                        next_item_id: row.get(12)?,
+                        next_item_id: row.get(11)?,
                         quests: Vec::new(),
                         quest_cooldowns: Vec::new(),
-                        next_quest_instance: row.get(13)?,
-                        tutorial_step: row.get(14)?,
-                        tutorial_done: row.get(15)?,
+                        next_quest_instance: row.get(12)?,
+                        tutorial_step: row.get(13)?,
+                        tutorial_done: row.get(14)?,
                         extras: Default::default(),
                         map_plays: Vec::new(),
                         room_settings: None,
@@ -854,7 +866,7 @@ fn write_account(
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
          ON CONFLICT(account_id) DO UPDATE SET
             name = excluded.name, clan_tag = excluded.clan_tag,
-            generic_money = excluded.generic_money, premium_money = excluded.premium_money,
+            generic_money = excluded.generic_money, premium_money = 0,
             premium_until = excluded.premium_until, exp_total = excluded.exp_total,
             quest_faction = excluded.quest_faction, rating = excluded.rating,
             rating_before = excluded.rating_before, active_kit = excluded.active_kit,
@@ -866,7 +878,8 @@ fn write_account(
             account.name,
             account.clan_tag,
             account.generic_money,
-            account.premium_money,
+            // The gold column (migration 14): always 0.
+            0,
             account.premium_until.min(i64::MAX as u64) as i64,
             account.exp_total,
             account.quest_faction,
@@ -1032,7 +1045,6 @@ mod tests {
             param: 9,
         }];
         // What the later steps added: all of it must come back too.
-        account.premium_money = 321;
         account.rating = 137;
         account.rating_before = 125;
         account.map_plays = vec![(1, 4), (6, 2)];
@@ -1179,6 +1191,78 @@ mod tests {
             SqliteGameRepository::open(&temp.path()),
             Err(PersistError::NewerSchema { found: 99, .. })
         ));
+    }
+
+    /// Migration 14: the gold of a file of before is silver at 100 a gold,
+    /// once; a balance past what silver holds stops at its most.
+    #[test]
+    fn gold_of_before_is_silver_once() {
+        let temp = TempDb::new("gold");
+        {
+            let connection = Connection::open(temp.path()).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
+                )
+                .unwrap();
+            let before = MIGRATIONS.len() - 1;
+            for step in &MIGRATIONS[..before] {
+                connection.execute_batch(step).unwrap();
+            }
+            connection
+                .execute(
+                    "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
+                    [before as i64],
+                )
+                .unwrap();
+            connection
+                .execute_batch(
+                    "INSERT INTO g26_accounts (
+                        account_id, name, clan_tag, generic_money, premium_money,
+                        premium_until, exp_total, quest_faction, rating, rating_before,
+                        active_kit, autobuy, next_item_id, next_quest_instance,
+                        tutorial_step, tutorial_done
+                     ) VALUES
+                     (5, 'Carol', '', 4321, 150, 0, 900, 2, 118, 100, 1, 0, 3, 1, 0, 1),
+                     (6, 'Dave', '', 4294967000, 10, 0, 900, 2, 118, 100, 1, 0, 3, 1, 0, 1),
+                     (7, 'Erin', '', 70, 0, 0, 900, 2, 118, 100, 1, 0, 3, 1, 0, 1);
+                     INSERT INTO g26_extras (account_id, bonus_reward_dict, bonus_reward_count)
+                     VALUES (5, 215, 50), (7, 214, 3000);",
+                )
+                .unwrap();
+        }
+        let silver = |repository: &mut SqliteGameRepository| {
+            repository
+                .load_all()
+                .unwrap()
+                .into_iter()
+                .map(|(id, account)| (id, account.generic_money))
+                .collect::<Vec<_>>()
+        };
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        let expected = [(5, 4321 + 15_000), (6, u32::MAX), (7, 70)];
+        assert_eq!(silver(&mut repository), expected);
+        // A daily bonus waiting in gold waits in silver; one in silver stays.
+        let rewards: Vec<_> = repository
+            .load_all()
+            .unwrap()
+            .into_iter()
+            .map(|(_, account)| (account.extras.bonus.reward_dict, account.extras.bonus.reward_count))
+            .collect();
+        assert_eq!(rewards, [(214, 5_000), (0, 0), (214, 3000)]);
+        let (_, carol) = repository.load_all().unwrap().remove(0);
+        repository.save(5, &carol).unwrap();
+        drop(repository);
+        // Opened again: nothing is converted twice, and no gold is left.
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        assert_eq!(silver(&mut repository), expected);
+        let gold: u32 = repository
+            .connection
+            .query_row("SELECT SUM(premium_money) FROM g26_accounts", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(gold, 0);
     }
 
     #[test]

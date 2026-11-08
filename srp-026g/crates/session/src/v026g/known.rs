@@ -202,7 +202,7 @@ pub fn named_items() -> Vec<Named> {
 
 /// What the code of the lobby's rules names of the game's data, all in
 /// the data of this process ([`survarium::v026g::game_data::shared`]):
-/// the items of [`named_items`], the dict ids of silver and gold the
+/// the items of [`named_items`], the dict id of silver the
 /// rewards and the daily bonus give (what a new account is given is checked
 /// by `game_data::init`, `survarium::v026g::new_account`). Else an error that
 /// lists every one it lacks: srp does not start (`survarium`'s own names
@@ -215,9 +215,7 @@ pub fn check_code() -> Result<(), GameDataError> {
     let mut missing = tables::lacking(dictionary, &named_items());
     let ids = [
         ("rewards::GENERIC_MONEY", super::rewards::GENERIC_MONEY),
-        ("rewards::PREMIUM_MONEY", super::rewards::PREMIUM_MONEY),
         ("bonus::GENERIC_MONEY", super::bonus::GENERIC_MONEY),
-        ("bonus::PREMIUM_MONEY", super::bonus::PREMIUM_MONEY),
         ("bonus::FALLBACK", super::bonus::FALLBACK.0),
     ];
     for (place, dict_id) in ids {

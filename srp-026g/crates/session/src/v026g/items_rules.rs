@@ -61,7 +61,7 @@
 //!   (`MessageRerollItem`: the window can not be closed before), or
 //!   [srp, the owner's rule of 2026-10-21] keeps the old one: the window's
 //!   Cancel button (`docs/notes/reroll-keep-old.md`). [srp, the
-//!   owner's rule of 2026-10-22] In silver or gold, at any time: the
+//!   owner's rule of 2026-10-22] At any time: the
 //!   game's six hours between silver changes are gone, so the item's
 //!   `reroll_time` stays 0 (one left from before is cleared,
 //!   [`finish_repairs`]). A damaged
@@ -70,6 +70,7 @@
 //!   2026-10-25] the same for every change: no growth with the changes
 //!   made (`docs/notes/flat-reroll.md`,
 //!   [`Reroll::price`](survarium::v026g::modifications::Reroll::price)).
+//!   [the owner, 2026-11-08] Silver only: the game's gold price in silver.
 //!   [srp] The payment is taken when the three are offered, whatever is
 //!   chosen; until the choice the item keeps the old one, and an offer not
 //!   answered (the client went away, a restart: it is saved) is kept and
@@ -78,7 +79,8 @@
 //!   item with fewer than three modifications and no fewer than the donor
 //!   (`MessageCraftItem`). The price is `craft.options`' by the item's
 //!   level; the chances by how many more modifications the item has than
-//!   the donor, in silver or in gold: one more modification
+//!   the donor, [the owner, 2026-11-08] the game's gold ones, paid in
+//!   silver at the gold price in silver: one more modification
 //!   (`st_item_craft_success_label`), one fewer
 //!   (`st_item_craft_fail_label`), or nothing. [srp, the owner's rule of
 //!   2026-10-23] Never one fewer: a failure is a "nothing", the item keeps
@@ -108,11 +110,13 @@
 //! - **Repair.** In silver: what the window shows,
 //!   `(1 - condition) * repair_cost_ratio * cost` and each defect's
 //!   `fix_cost_general`, and the item is locked for the defects'
-//!   `fix_time_general` together (six minutes each); with no defect it is
-//!   done at once. In gold ("quick repair"): the defects' `fix_cost_gold`,
-//!   at once. With repair kits (the voucher `repair_voucher`): one a
-//!   defect, at once. The client offers gold and kits only for an item with
-//!   defects. Every repair makes the item whole (the client sets its
+//!   `fix_time_general` together; with no defect it is done at once. [the
+//!   owner, 2026-11-08] Gold is gone, and the silver repair is the game's
+//!   gold one ("quick repair"): the live data has each defect's
+//!   `fix_cost_gold` in silver as its `fix_cost_general` and no time
+//!   (`scripts/content-edit/defects.tsv`). With repair kits (the voucher
+//!   `repair_voucher`): one a defect, at once. The client offers kits only
+//!   for an item with defects. Every repair makes the item whole (the client sets its
 //!   condition to full on the answer) and [srp] takes its defects off at
 //!   once: the wait only locks the item in the lobby. When it ends the
 //!   client is told (`#ir[<item>]`, an important message of type 6).
@@ -159,7 +163,6 @@ pub enum ItemError {
     /// The item has defects.
     RerollBroken,
     NotEnoughMoney,
-    NotEnoughGold,
     /// Nothing to repair, or not that way; why, for the log.
     Repair(&'static str),
     /// Fewer repair kits than defects.
@@ -175,7 +178,6 @@ impl ItemError {
             Self::Reroll(_) => "st_cannot_select_rerolled_modification",
             Self::RerollBroken => "st_reroll_message_broken_item",
             Self::NotEnoughMoney => "st_not_enougth_money",
-            Self::NotEnoughGold => "st_cant_buy_premium_message",
             Self::Repair(_) => "st_cannot_repair_item",
             Self::NoRepairKit => "st_you_have_no_voucher_for_repair",
             Self::NotEnoughMoneyForRepair => "st_not_enought_money_for_repair",
@@ -605,9 +607,8 @@ pub fn place_upgrade(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RerollWindow {
     pub item_id: u32,
-    /// What the next change costs, in silver and in gold.
-    pub regular_cost: u32,
-    pub premium_cost: u32,
+    /// What the next change costs, in silver.
+    pub cost: u32,
     /// Once a modification was changed: the id of the one changed last
     /// (the window marks it; any may be changed) and the seconds until
     /// silver pays again, always 0 now.
@@ -621,8 +622,7 @@ fn window_of(item: &Item) -> RerollWindow {
     let level = item_level(item.dict_id);
     RerollWindow {
         item_id: item.item_id,
-        regular_cost: reroll.price(level, false),
-        premium_cost: reroll.price(level, true),
+        cost: reroll.price(level),
         changed: (item.reroll.modification != 0).then_some((item.reroll.modification, 0)),
         offer: item.reroll.offer.map(|(_, choices)| choices),
     }
@@ -642,9 +642,8 @@ pub struct Rerolled {
     pub choices: [u32; 3],
     /// The item's `reroll_time` for the client: always 0 (no wait).
     pub reroll_seconds: u32,
-    /// What was taken: silver, gold. Both 0 for an offer made before and
-    /// shown again.
-    pub paid: (u32, u32),
+    /// The silver taken: 0 for an offer made before and shown again.
+    pub paid: u32,
     /// The modification the three are offered for: the one asked for, or
     /// the pending offer's when it is shown again.
     pub replaced: u32,
@@ -652,14 +651,13 @@ pub struct Rerolled {
     pub again: bool,
 }
 
-/// `46 07 <item> <modification> <gold>`: change `modification` of the
+/// `46 07 <item> <modification>`: change `modification` of the
 /// item, any of its own (the one changed before locks nothing: the
 /// owner's rule of 2026-10-22); three are offered in its place.
 pub fn reroll(
     account: &mut Account,
     item_id: u32,
     modification: u32,
-    gold: bool,
     now: u64,
     rng: &mut Rng,
 ) -> Result<Rerolled, ItemError> {
@@ -672,7 +670,7 @@ pub fn reroll(
         return Ok(Rerolled {
             choices,
             reroll_seconds: 0,
-            paid: (0, 0),
+            paid: 0,
             replaced,
             again: true,
         });
@@ -691,29 +689,14 @@ pub fn reroll(
         return Err(ItemError::Reroll("the item has no such modification"));
     }
     let table = Modifications::shared();
-    let price = table.reroll.price(item_level(item.dict_id), gold);
-    let balance = if gold {
-        account.premium_money
-    } else {
-        account.generic_money
-    };
-    if price > balance {
-        return Err(if gold {
-            ItemError::NotEnoughGold
-        } else {
-            ItemError::NotEnoughMoney
-        });
+    let price = table.reroll.price(item_level(item.dict_id));
+    if price > account.generic_money {
+        return Err(ItemError::NotEnoughMoney);
     }
     let choices = table
         .reroll_choices(item.dict_id, &held, modification, rng)
         .ok_or(ItemError::Reroll("nothing to offer for the item"))?;
-    let paid = if gold {
-        account.premium_money -= price;
-        (0, price)
-    } else {
-        account.generic_money -= price;
-        (price, 0)
-    };
+    account.generic_money -= price;
     let item = account.item_mut(item_id).expect("the item was found above");
     item.reroll.modification = modification;
     item.reroll.count = item.reroll.count.saturating_add(1);
@@ -721,7 +704,7 @@ pub fn reroll(
     Ok(Rerolled {
         choices,
         reroll_seconds: 0,
-        paid,
+        paid: price,
         replaced: modification,
         again: false,
     })
@@ -792,7 +775,7 @@ pub fn choose_modifier(
 
 // --------------------------------------------------------------- craft
 
-/// `46 09 <item> <donor> <gold>`: upgrade an item with a donor. `Err` is
+/// `46 09 <item> <donor>`: upgrade an item with a donor. `Err` is
 /// why it is refused, for the log: the client is told with
 /// [`Crafted::Failed`] (its window waits for an `83 46 09`). `queued`:
 /// the account waits for a match (`st_craft_message_equipped_item`).
@@ -800,7 +783,6 @@ pub fn craft(
     account: &mut Account,
     item_id: u32,
     donor_item_id: u32,
-    gold: bool,
     queued: bool,
     now: u64,
     rng: &mut Rng,
@@ -844,19 +826,14 @@ pub fn craft(
     if table.candidates(dict_id, &held).is_empty() {
         return Err("nothing left to roll for the item");
     }
-    let price = table.craft.price(item_level(dict_id), gold);
-    let balance = if gold {
-        account.premium_money
-    } else {
-        account.generic_money
-    };
-    if price > balance {
+    let price = table.craft.price(item_level(dict_id));
+    if price > account.generic_money {
         return Err("not enough money");
     }
     let at = rng.below(100_000) as f32 / 1000.0;
     let outcome = table
         .craft
-        .outcome_at(held.len() - donor_rank, gold, at)
+        .outcome_at(held.len() - donor_rank, at)
         .ok_or("no chances for that difference")?;
     // The modification gained, before anything changes. [srp, the owner's
     // rule of 2026-10-23] An upgrade never takes one away: the data's
@@ -867,11 +844,7 @@ pub fn craft(
         CraftOutcome::Failure | CraftOutcome::Neutral => None,
     };
 
-    if gold {
-        account.premium_money -= price;
-    } else {
-        account.generic_money -= price;
-    }
+    account.generic_money -= price;
     account
         .inventory
         .retain(|item| item.item_id != donor_item_id);
@@ -895,9 +868,8 @@ pub fn craft(
 
 // -------------------------------------------------------------- repair
 
-/// What the repair window shows for the item: `(silver, gold, seconds,
-/// defects)`.
-pub fn repair_quote(item: &Item) -> (u32, u32, u32, usize) {
+/// What the repair window shows for the item: `(silver, seconds, defects)`.
+pub fn repair_quote(item: &Item) -> (u32, u32, usize) {
     let table = Modifications::shared();
     let wear = prices::repair_cost(
         Dictionary::shared(),
@@ -914,7 +886,6 @@ pub fn repair_quote(item: &Item) -> (u32, u32, u32, usize) {
     };
     (
         wear.saturating_add(sum(|row| row.fix_cost_general)),
-        sum(|row| row.fix_cost_gold),
         sum(|row| row.fix_time_general),
         rows.len(),
     )
@@ -938,7 +909,7 @@ pub fn repair(
     if seconds_left(item.repair_time, now) != 0 {
         return Err(ItemError::Repair("already in repair"));
     }
-    let (silver, gold, seconds, broken) = repair_quote(item);
+    let (silver, seconds, broken) = repair_quote(item);
     if broken == 0 && item.condition_or_stack >= FULL_CONDITION {
         return Err(ItemError::Repair("nothing to repair"));
     }
@@ -956,17 +927,7 @@ pub fn repair(
                 }
             }
         }
-        // Gold and kits mend defects: the window offers neither without.
-        RepairPayment::Gold => {
-            if broken == 0 {
-                return Err(ItemError::Repair("no defects to pay gold for"));
-            }
-            if gold > account.premium_money {
-                return Err(ItemError::NotEnoughGold);
-            }
-            account.premium_money -= gold;
-            Repaired::AtOnce
-        }
+        // Kits mend defects: the window offers none without.
         RepairPayment::Kit { kit_item_id } => {
             if broken == 0 {
                 return Err(ItemError::Repair("no defects to use a kit on"));

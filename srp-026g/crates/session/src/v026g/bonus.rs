@@ -11,7 +11,8 @@
 //! the current day's progress, 0..=3.
 //!
 //! What gives the seventh day's reward is the game's `daily_bonus_drop`
-//! table (`survarium::v026g::drops`: it always gives 50 gold).
+//! table (`survarium::v026g::drops`: it always gives 50 gold, which srp pays
+//! in silver, 5,000).
 //!
 //! How the seven days run (PROVEN, the patch notes of 0.24a and 0.24c:
 //! "the reward for three wins in a series of seven days is not reset if
@@ -55,11 +56,11 @@ use super::premium;
 pub const DAYS: u8 = 7;
 /// The victories of a day that are paid double.
 pub const WINS_A_DAY: u8 = 3;
-/// Silver and gold as dropped items.
+/// Silver as a dropped item (no drop is gold, `drops::dropped`).
 pub(crate) const GENERIC_MONEY: u16 = 214;
-pub(crate) const PREMIUM_MONEY: u16 = 215;
-/// What the table gives, should a roll ever give nothing: its 50 gold.
-pub(crate) const FALLBACK: (u16, u32) = (PREMIUM_MONEY, 50);
+/// What the table gives, should a roll ever give nothing: its 50 gold, in
+/// silver.
+pub(crate) const FALLBACK: (u16, u32) = (GENERIC_MONEY, 5_000);
 
 /// The operator's settings of the daily bonus.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -234,10 +235,6 @@ pub fn count_win_with(account: &mut Account, settings: &Settings) -> Win {
                 account.generic_money = account.generic_money.saturating_add(count);
                 0
             }
-            PREMIUM_MONEY => {
-                account.premium_money = account.premium_money.saturating_add(count);
-                0
-            }
             _ => premium::grant(account, dict_id, count)
                 .first()
                 .map_or(0, |bought| bought.item_id),
@@ -325,8 +322,8 @@ mod tests {
         assert_eq!(visit, Visit { new_day: true });
         let bonus = account.extras.bonus;
         assert_eq!((bonus.day, bonus.last_day), (1, 20_000));
-        // The table's reward: 50 gold.
-        assert_eq!((bonus.reward_dict, bonus.reward_count), (215, 50));
+        // The table's reward: 50 gold, in silver.
+        assert_eq!((bonus.reward_dict, bonus.reward_count), (214, 5_000));
         assert!(!bonus.completed);
         // The same day again, later: nothing.
         assert_eq!(
@@ -346,11 +343,11 @@ mod tests {
         super::visit(&mut account, NOON, &mut rng());
         account.extras.bonus.wins[0] = 2;
         let message = message(&account, true).unwrap().unwrap();
-        // One day with progress 2; item id 0, a stack, dict 215, 50 of it,
+        // One day with progress 2; item id 0, a stack, dict 214, 5000 of it,
         // no modifications or upgrades; not given; open the window.
         assert_eq!(
             message.body(),
-            [1, 2, 1, 0, 0, 0, 0, 215, 0, 50, 0, 0, 0, 0, 0, 0, 1]
+            [1, 2, 1, 0, 0, 0, 0, 214, 0, 0x88, 0x13, 0, 0, 0, 0, 0, 1]
         );
         assert_eq!(message.id_byte(), 0x99);
         let mut client = Client::signed_in();
@@ -364,7 +361,7 @@ mod tests {
             panic!("not the daily bonus");
         };
         assert_eq!(progress, [2]);
-        assert_eq!((reward.dict_id, reward.condition_or_stack), (215, 50));
+        assert_eq!((reward.dict_id, reward.condition_or_stack), (214, 5_000));
         assert!(!completed && show_window);
     }
 
@@ -385,19 +382,19 @@ mod tests {
     #[test]
     fn the_seventh_day_made_gives_the_reward() {
         let mut account = Account::new("Alice");
-        let gold = account.premium_money;
+        let silver = account.generic_money;
         let mut rng = rng();
         for day in 0..6 {
             assert_eq!(win_three(&mut account, NOON + day * DAY, &mut rng), None);
             assert_eq!(u64::from(account.extras.bonus.day), day + 1);
         }
-        assert_eq!(account.premium_money, gold);
+        assert_eq!(account.generic_money, silver);
         // The seventh day: seen, two victories, nothing yet.
         super::visit(&mut account, NOON + 6 * DAY, &mut rng);
         assert_eq!(account.extras.bonus.day, 7);
         count_win(&mut account);
         count_win(&mut account);
-        assert_eq!(account.premium_money, gold);
+        assert_eq!(account.generic_money, silver);
         assert!(!account.extras.bonus.completed);
         // The third gives it.
         assert_eq!(
@@ -405,13 +402,13 @@ mod tests {
             Win {
                 doubled: true,
                 given: Some(Given {
-                    dict_id: 215,
-                    count: 50,
+                    dict_id: 214,
+                    count: 5_000,
                     item_id: 0
                 })
             }
         );
-        assert_eq!(account.premium_money, gold + 50);
+        assert_eq!(account.generic_money, silver + 5_000);
         assert!(account.extras.bonus.completed);
         // Seven days on the wire, the reward given.
         let message = message(&account, false).unwrap().unwrap();
@@ -427,13 +424,13 @@ mod tests {
         ));
         // Once: a fourth victory of the day is a plain one.
         assert_eq!(count_win(&mut account), Win::default());
-        assert_eq!(account.premium_money, gold + 50);
+        assert_eq!(account.generic_money, silver + 5_000);
         // The day after starts a new run.
         super::visit(&mut account, NOON + 7 * DAY, &mut rng);
         assert_eq!(account.extras.bonus.day, 1);
         assert_eq!(account.extras.bonus.wins, [0; 7]);
         assert!(!account.extras.bonus.completed);
-        assert_eq!(account.premium_money, gold + 50);
+        assert_eq!(account.generic_money, silver + 5_000);
     }
 
     #[test]
@@ -468,7 +465,7 @@ mod tests {
         assert_eq!(account.extras.bonus.day, 6);
         let given = win_three(&mut account, at, &mut rng);
         assert_eq!(account.extras.bonus.day, 7);
-        assert_eq!(given.map(|given| given.count), Some(50));
+        assert_eq!(given.map(|given| given.count), Some(5_000));
         // A clock that went back changes nothing.
         assert_eq!(super::visit(&mut account, NOON, &mut rng), Visit::default());
     }

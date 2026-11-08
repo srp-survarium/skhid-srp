@@ -576,84 +576,17 @@ revision 11, `fov_slider_026g.py`'s, in git history only) was checked live in th
 the Gameplay one in Ruffle only (`../scripts/hud-options/check.sh`) and patch 83's side in Unicorn
 (`check_hud_options_026g.py`).
 
-## Lobby exchange, silver and gold both ways
+## Silver only: no gold, no exchange
 
-The lobby's gold-for-silver window is an exchange both ways (since revision
-23; source: the window's class, `../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
-open the online store) opens it to buy gold; the silver box opens it to sell
-gold. The window has:
-
-- **Pay**: an amount, the coin and its name, the balance;
-- a **v^** button that swaps the two currencies (the old Receive amount
-  becomes the new Pay amount);
-- **Receive**, the same way;
-- the rate under them, Pay first: "100 Silver = 1 Gold" or "1 Gold = 100 Silver";
-- "Not enough silver" / "Not enough gold" in red, with the Exchange button
-  greyed out, when the Pay amount is more than the balance (since the
-  exchange update below, a typed amount becomes the most the balance pays
-  for; the note is left for the amount the window opens or swaps with).
-
-Typing in either field updates the other. Silver goes by whole gold: a silver
-amount that is not a multiple of the rate is evened out when the field is
-left, and on Exchange. The texts are dictionary keys (`st_srp_exchange_*`,
-`localization/README.md`, Flash menus' own texts). "Silver" is the game's own word
-(`regular_money`, `st_regular_money`); "Gold" (`st_srp_exchange_gold`) is the game's
-`st_premium_money_name`, copied, as the movie has no key for it; the rest are the
-window's own words, the game having none for them.
-
-It is the stock window (`MessageMoneyExchange`, symbol `SrvMessageExchangeSkinned`)
-with the stock pieces moved: its 9-slice background made 300 x 300, its buttons
-and title. The panels are drawn as the stock stepper's dark box, the coins are
-`CoinsIcon2`, the swap is a `SrvButtonScale` (the skin of EXCHANGE / CANCEL)
-with two arrows drawn on it. The texts take the font of the stock title
-(bold Calibri from the font library, embedded): the movie's own plain
-"Calibri" has two glyphs, and text in it shows as squares. Five methods
-change, in two ABC blocks: the window's constructor (builds the layout, so the
-size is final when `Message` centres it; the swap button is added in
-`configUI`, after that, or the window opens in the corner), `configUI` and
-`onMessageAccept`, and `StatusPanel.onPremiumMoneyAddClick` /
-`onRegulatMoneyAddClick`. The exe is not
-changed: the window calls the game's `exchange_premium_money`, which sends `47 04`
-with the u32 it is given. Gold for silver sends the gold, as the stock window
-did; silver for gold sends `0x40000000` + the gold (`MessageMoneyExchange.BUY_GOLD`),
-which the server reads as `BuyPremium` (`requests::BUY_PREMIUM`). So the server
-must be released first; an older server refuses such an amount as more gold
-than the account has.
-
-Checked in a local lobby under Wine (2026-10-15): the window opens centred,
-shows both directions with their balances and rate, the swap button works,
-and gold bought with silver reaches the top bar. Its first build (a bytecode
-step on revision 22's movie) is in revision 23's movie; it is built from
-source now ("Building the lobby movie"). Tests (the buy-gold mark agrees with
-the server's, every text in every language): `python -m unittest test_build_lobby`.
-
-## Get Gold opens the exchange
-
-`MessageMoneyExchange.buyGold()` (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`)
-makes every "Get Gold" of the lobby open the exchange window above, to buy gold with silver, instead of the online store (a browser
-window on a dead site). The rules: `docs/notes/buy-gold.md`. The
-"Insufficient Gold Rubles" dialog's button calls `goToStore` of the window that
-showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
-`MessageCraftItem`, `MessagePostPremium`, `MessagePremium`,
-`MessagePremiumDiscount`, `MessagePremiumProfile`, `MessageRepair`,
-`MessageRerollItem`) and the premium window's gold button
-(`MessagePremium.onPremiumMoneyAddClick`, which asked first) become
-`MessageMoneyExchange.buyGold()`. It shows the exchange with `showMessage`'s third
-and fifth arguments set, so it opens over a window still open instead of
-waiting behind it, and that window stays visible under it. The exe and the
-server do not change. Not in a release yet.
-
-## Exchange window updates
-
-A change of the window (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`) is built in by
-building the lobby movie.
-
-The first such change (2026-10-20): an amount more than the Pay balance pays
-for becomes, as it is typed, the most it does, in the field typed in. Buying
-gold with 5,500 silver: 10,000 in Pay becomes 5,500, 100 in Receive becomes
-55. Selling gold works the same way with the gold balance. Silver is still
-whole gold: with 5,550 silver, anything over 5,500 becomes 5,500. Not in a
-release yet.
+Gold is gone (the owner, 2026-11-08): silver is the one currency. The lobby
+movie has no gold balance, no exchange window (`MessageMoneyExchange` and its
+stepper were removed; the two symbols the graphics bind keep empty classes)
+and no "Get Gold": every price is silver, a premium item's too
+(`docs/notes/buy-gold.md`, `docs/notes/exchange.md`). The windows that offered
+gold (the skills reset, the reroll, the upgrade, the repair, the rename, the
+premium shop) offer silver only. The exe is not changed; the server answers
+`47 04` as a request it does not know. The exchange's history (revisions 23 to
+53: both ways at 100 silver a gold, Get Gold opening it) is in git.
 
 ## Buy for modified items
 
@@ -723,9 +656,8 @@ its ActionScript source tree, `../flash/lobby_menu/src`
 ([lobby-source.md](../docs/notes/lobby-source.md)), with every lobby change as
 an edit of it:
 
-- the features written in the game's own classes: the exchange and Get Gold in
-  `MessageMoneyExchange` (#214, #213; the ten `goToStore` and the premium
-  window's gold button call it), Buy on owned items in `LobbyMenu` and
+- the features written in the game's own classes: silver only (no gold, no
+  exchange: the windows that offered gold, `StatusPanel`, `PlayerInfo`), Buy on owned items in `LobbyMenu` and
   `InventoryList` (#215), the craft window's Buy/Sell and Continue in
   `InventoryList` and `MessageCraftItem` (#216), Optics in `InventoryList`
   (#217), the player gear in `LobbyMenu` and `PlayerRanking` (#232);

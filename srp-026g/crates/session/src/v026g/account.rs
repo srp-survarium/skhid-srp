@@ -139,8 +139,9 @@ pub struct Account {
     pub name: String,
     /// The clan abbreviation; empty without a clan.
     pub clan_tag: String,
+    /// Silver, the one currency (gold was removed 2026-11-08: the balances
+    /// were converted, `persist` migration 14).
     pub generic_money: u32,
-    pub premium_money: u32,
     /// When the premium account runs out, Unix seconds; 0 without.
     pub premium_until: u64,
     /// All the experience earned; the level follows from it ([`level_at`]).
@@ -304,7 +305,6 @@ impl Account {
             name: cap_name(name),
             clan_tag: String::new(),
             generic_money: 0,
-            premium_money: 0,
             premium_until: 0,
             exp_total: 0,
             skills: Vec::new(),
@@ -904,7 +904,7 @@ mod tests {
         assert!(account.kits[1].slots.iter().all(Option::is_none));
         assert_eq!(account.next_item_id, 6);
         // No money: what a player starts with is the grant's (`tutorial`).
-        assert_eq!((account.generic_money, account.premium_money), (0, 0));
+        assert_eq!(account.generic_money, 0);
         assert_eq!((account.rating, account.rating_before), (100, 100));
         assert_eq!(account.reputations, [(1, 0), (2, 0), (3, 0), (4, 0)]);
         // No faction chosen: the client asks.

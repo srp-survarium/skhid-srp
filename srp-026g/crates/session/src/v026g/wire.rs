@@ -186,7 +186,7 @@ pub fn player_gear(account: &Account, id: u32, now: u64) -> Result<ServerMessage
 
 /// `8B`.
 pub fn money(account: &Account) -> ServerMessage {
-    lobby::money(account.generic_money, account.premium_money)
+    lobby::money(account.generic_money)
 }
 
 /// `8C`.
@@ -251,7 +251,9 @@ pub fn player_elo(account: &Account, place: u32) -> ServerMessage {
 /// its price out from them (`MessageCraftItem.updateCraftChance`).
 /// [srp, the owner's rule of 2026-10-23] An upgrade never takes a
 /// modification away ([`items_rules::craft`]): every failure ("-1 mod.")
-/// chance is sent as 0.
+/// chance is sent as 0. [the owner, 2026-11-08] In silver only: the game's
+/// gold chances at its gold prices in silver; the gold half of each row and
+/// the gold prices are 0 (`Craft::tables`).
 pub fn craft_tables() -> ServerMessage {
     let (mut chances, general, premium) = Modifications::shared().craft.tables();
     // Each row: success and failure in silver, success and failure in gold.
@@ -321,7 +323,7 @@ pub fn sign_in_push(account: &Account, info: &SignInInfo) -> Result<Vec<ServerMe
         reputations(account)?,
         lobby::service_prices(&rules::service_prices()),
         services(account, now),
-        // The shop's list and the premium items sold for gold.
+        // The shop's list and the premium items sold one by one.
         lobby::prices(shop_offers::price_list())?,
         // The reputations again. The movie's shop list is filled only when
         // a reputations push redraws it (`GangShop.draw`), not when the
@@ -432,10 +434,10 @@ mod tests {
         assert_eq!(bytes(&own_account(&account, NOW).unwrap()), expected);
         // The stock account has no money.
         assert_eq!(bytes(&money(&account)), [0x8B, 0, 0, 0, 0, 0, 0, 0, 0]);
-        // And with gold: the second u32.
+        // With silver: the first u32; the second, gold, is always 0.
         let mut rich = account.clone();
-        rich.premium_money = 1_000;
-        assert_eq!(bytes(&money(&rich)), [0x8B, 0, 0, 0, 0, 0xE8, 0x03, 0, 0]);
+        rich.generic_money = 1_000;
+        assert_eq!(bytes(&money(&rich)), [0x8B, 0xE8, 0x03, 0, 0, 0, 0, 0, 0]);
         assert_eq!(
             bytes(&level_and_skills(&account).unwrap()),
             [0x8C, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xF4, 0x01, 0, 0, 0]
@@ -471,17 +473,17 @@ mod tests {
         // item with 0, 1 and 2 more modifications than its donor: success
         // and failure in silver, then in gold; every failure 0, the owner's
         // rule of 2026-10-23), the sixteen prices in silver and the sixteen
-        // in gold.
+        // in gold. In silver the game's gold chances and prices; no gold.
         #[rustfmt::skip]
         let mut tables: Vec<u8> = vec![
             0x9B,
-            0, 0, 0x48, 0x42,  0, 0, 0, 0,  0, 0, 0xC8, 0x42,  0, 0, 0, 0,
-            0, 0, 0xC8, 0x41,  0, 0, 0, 0,  0, 0, 0x48, 0x42,  0, 0, 0, 0,
-            0, 0, 0x48, 0x41,  0, 0, 0, 0,  0, 0, 0xC8, 0x41,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+            0, 0, 0x48, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x41,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
         ];
         for price in [
-            400_u16, 400, 800, 1600, 2400, 3400, 4400, 5400, 6600, 8000, 10000, 12000, 14000,
-            16000, 18000, 20000, 2, 2, 4, 8, 12, 17, 22, 27, 33, 40, 50, 60, 70, 80, 90, 100,
+            200_u16, 200, 400, 800, 1200, 1700, 2200, 2700, 3300, 4000, 5000, 6000, 7000, 8000,
+            9000, 10000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ] {
             tables.extend(price.to_le_bytes());
         }

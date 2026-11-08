@@ -777,7 +777,6 @@ package survarium.controls
          item_data.isWeapon = category == SuperCategory.WEAPONS;
          item_data.isStack = descrData.is_stack;
          item_data.oneHanded = !descrData.double_handed;
-         item_data.isPremium = descrData.is_premium;
          item_data.name = descrData.name;
          item_data.dictId = dictId;
          item_data.repairCostRatio = descrData.repair_cost_ratio;
@@ -1271,7 +1270,6 @@ package survarium.controls
             item.dictId = itemData.bundle_id;
             item.itemDescription = itemData.bundle_descr;
             item.properties = itemData.bundle_properties;
-            item.isPremium = itemData.currency_type;
             item.cost = itemData.cost;
             item.price = itemData.cost;
             item.sellerIcon = sellerIcons.getIcon(0);
@@ -2122,8 +2120,7 @@ package survarium.controls
             _obj.count = int(_objData.value);
          }
          var shopCost:uint = value.cost;
-         var itemCost:uint = _objData.isPremium ? (shopCost * PlayerInfo.premiumExchangeRate) : shopCost;
-         var sellCost:uint = itemCost / ItemPrice.SELL_DIVISOR * (_objData.isStack ? 1 : _objData.value / ItemCondition.FULL);
+         var sellCost:uint = shopCost / ItemPrice.SELL_DIVISOR * (_objData.isStack ? 1 : _objData.value / ItemCondition.FULL);
          _obj.price = sellCost;
          _obj.id = _objData.itemId;
          _obj.uid = _objData.dictId;
@@ -2131,7 +2128,6 @@ package survarium.controls
          _obj.name = _objData.name;
          _obj.is_stack = _objData.isStack;
          _obj.weight = _objData.weight;
-         _obj.isPremium = false;
          if((_objData.clipSize))
          {
             _obj.clip_size = _objData.clipSize;
@@ -3561,7 +3557,7 @@ package survarium.controls
                   click_function:this.craftElement
                });
             }
-            trace("IL::context:",itemData.name,itemData.canBuy,itemData.descriptor,itemData.enabled,itemData.isPremium,itemData.cost);
+            trace("IL::context:",itemData.name,itemData.canBuy,itemData.descriptor,itemData.enabled,itemData.cost);
             if((itemData) && this.buyable(itemData))
             {
                if(itemData.isStack || !itemData.isStack && (!itemData.rank || itemAvailable))
@@ -3842,7 +3838,6 @@ package survarium.controls
                         itemData.canBuy = relativeItem.canBuy;
                         itemData.unlockLevelLabel = relativeItem.unlockLevelLabel;
                         itemData.lockText = relativeItem.lockText;
-                        itemData.premiumCost = relativeItem.premiumCost;
                      }
                      if((itemData.isStack || !itemData.rank) && itemData.canBuy)
                      {
@@ -3895,7 +3890,6 @@ package survarium.controls
                            itemData.canBuy = relativeItem.canBuy;
                            itemData.unlockLevelLabel = relativeItem.unlockLevelLabel;
                            itemData.lockText = relativeItem.lockText;
-                           itemData.premiumCost = relativeItem.premiumCost;
                         }
                         if((itemData.isStack || !itemData.rank) && itemData.canBuy)
                         {
@@ -3932,7 +3926,6 @@ package survarium.controls
                         itemData.canBuy = relativeItem.canBuy;
                         itemData.unlockLevelLabel = relativeItem.unlockLevelLabel;
                         itemData.lockText = relativeItem.lockText;
-                        itemData.premiumCost = relativeItem.premiumCost;
                      }
                      if((itemData.isStack || !itemData.rank) && itemData.canBuy)
                      {

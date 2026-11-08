@@ -408,18 +408,15 @@ fn account_id(stack: &Stack, name: &str) -> u32 {
     stack.store.account_id_by_name(name).expect("an account")
 }
 
-/// `(silver, gold, experience)` of the account in the server's memory.
+/// `(silver, gold, experience)` of the account in the server's memory, as
+/// the client is told them: gold is always 0.
 fn held(stack: &Stack, name: &str) -> (u32, u32, u32) {
     let account = stack
         .accounts
         .get(account_id(stack, name))
         .expect("a 0.26g account");
     let account = account.locked();
-    (
-        account.generic_money,
-        account.premium_money,
-        account.exp_total,
-    )
+    (account.generic_money, 0, account.exp_total)
 }
 
 // ------------------------------------------------------------------ tests
@@ -471,7 +468,7 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
     // A new account's start (there is no tutorial).
     assert_eq!((start_money.0, start_money.1), {
         let grant = session::v026g::tutorial::new_account();
-        (grant.silver, grant.gold)
+        (grant.silver, 0)
     });
     assert_eq!(start_money.2, session::v026g::tutorial::start_experience());
 
@@ -914,11 +911,7 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
         let account = kept.get(id).expect("the account in the file");
         let account = account.locked();
         assert_eq!(
-            (
-                account.generic_money,
-                account.premium_money,
-                account.exp_total
-            ),
+            (account.generic_money, 0, account.exp_total),
             paid
         );
     }

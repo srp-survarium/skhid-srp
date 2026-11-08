@@ -1336,7 +1336,7 @@ STATS = {
     # of its own a new item comes with. srp reads both from the dictionary.
     'items': {
         'configs': DICTIONARY + '#items_dict[dict_id]',
-        'columns': {'name': 'name', 'base_cost': 'base_cost', 'gold': 'is_premium', 'like': 'srp_like',
+        'columns': {'name': 'name', 'base_cost': 'base_cost', 'premium': 'is_premium', 'like': 'srp_like',
                     'start': id_list('srp_start')},
         'add': {'like'},
         'match': set(),

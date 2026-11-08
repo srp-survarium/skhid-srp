@@ -13,7 +13,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::Rng;
 use survarium::v026g::lobby::client_model::{Decoded, FriendshipPush, Permitted};
 use survarium::v026g::lobby::requests::ClientMessage;
-use survarium::v026g::lobby::requests::{BUY_PREMIUM, INVENTORY_SLOT};
+use survarium::v026g::lobby::requests::INVENTORY_SLOT;
 use survarium::v026g::lobby::{ClientState, FULL_CONDITION, NameRefusal, channel};
 use survarium::v026g::maps;
 use survarium::v026g::match_msgs::late_join::PATCH_REVISION;
@@ -548,7 +548,7 @@ fn buying_selling_and_moving_go_round_with_their_pushes() {
 }
 
 #[test]
-fn a_worn_item_is_repaired_and_gold_is_exchanged() {
+fn a_worn_item_is_repaired_and_no_gold_is_exchanged() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     world.change(alice, |account| {
@@ -575,45 +575,15 @@ fn a_worn_item_is_repaired_and_gold_is_exchanged() {
         Some("st_cannot_repair_item")
     );
 
-    // A new account has no gold: this one is given some.
-    world.change(alice, |account| account.premium_money = 1_000);
-    let gold = world.account(alice).premium_money;
+    // No exchange: gold is gone (the owner, 2026-11-08). `47 04` is no
+    // request: refused with the shop's text, nothing changed.
+    let before = world.account(alice).clone();
     world.ask(alice, request::exchange(2));
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::NoEffect {
-            op: 0x47,
-            event: Some(4)
-        })
-    ));
-    assert!(decoded.iter().any(|message| matches!(
-        message,
-        Decoded::Money { premium, .. } if *premium == gold - 2
-    )));
-
-    // srp's exchange window buys gold back: the same answer.
-    let silver = world.account(alice).generic_money;
-    world.ask(alice, request::exchange(BUY_PREMIUM + 3));
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::NoEffect {
-            op: 0x47,
-            event: Some(4)
-        })
-    ));
-    assert!(decoded.iter().any(|message| matches!(
-        message,
-        Decoded::Money { premium, generic } if *premium == gold + 1 && *generic == silver - 300
-    )));
-    // More gold than the silver pays for: the game's own text for it.
-    world.ask(alice, request::exchange(BUY_PREMIUM + 1_000_000));
     assert_eq!(
         denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_not_enougth_money")
+        Some("st_cannot_buy_item")
     );
-    assert_eq!(world.account(alice).premium_money, gold + 1);
+    assert_eq!(*world.account(alice), before);
     world.assert_clean();
 }
 
@@ -754,7 +724,8 @@ fn what_srp_does_not_have_is_refused_never_ignored() {
         (0x47, u32s(2, &[99, 0, 0], &[]), "st_cannot_buy_item"),
         (0x47, u32s(5, &[1, 0, 0, 0, 0], &[1]), "st_cannot_buy_item"),
         (0x47, u32s(6, &[1, 0], &[]), "st_cannot_buy_item"),
-        // A repair in gold of an item with no defects.
+        // A repair (kind 1, the stock window's gold: silver now) of an item
+        // with nothing to repair.
         (0x47, u32s(3, &[1], &[1]), "st_cannot_repair_item"),
         // A nickname change, a comment about a player.
         // (A name too short.)
@@ -2018,20 +1989,20 @@ fn other_servers_reach_a_client_through_the_inbox() {
     world.inbox.push(
         account_id,
         vec![
-            survarium::v026g::lobby::money(1, 2),
+            survarium::v026g::lobby::money(1),
             survarium::v026g::lobby::match_stats_notice(77),
         ],
     );
     world
         .inbox
-        .push(9_999, vec![survarium::v026g::lobby::money(3, 4)]);
+        .push(9_999, vec![survarium::v026g::lobby::money(3)]);
     world.settle();
     let decoded = world.take(alice);
     assert!(matches!(
         decoded[0],
         Decoded::Money {
             generic: 1,
-            premium: 2
+            premium: 0
         }
     ));
     assert!(matches!(
@@ -2040,13 +2011,13 @@ fn other_servers_reach_a_client_through_the_inbox() {
     ));
     // The balance changed with no word to the lobby (the web page): the
     // client is told within a second.
-    world.account(alice).premium_money = 5;
+    world.account(alice).generic_money = 5;
     world.advance(Duration::from_secs(2));
     assert!(
         world
             .take(alice)
             .iter()
-            .any(|message| matches!(message, Decoded::Money { premium: 5, .. }))
+            .any(|message| matches!(message, Decoded::Money { generic: 5, .. }))
     );
     world.assert_clean();
 }
@@ -2062,7 +2033,7 @@ fn hundreds_of_ordered_pushes_through_a_lossy_link_all_arrive_in_order() {
     // (transport.md §4.1): the transport must hold the later ones back.
     world.client(alice).loss_percent = 33;
     let pushes: Vec<_> = (0..400)
-        .map(|index| survarium::v026g::lobby::money(index, 0))
+        .map(survarium::v026g::lobby::money)
         .collect();
     world.inbox.push(world.ids[alice].0, pushes);
     world.advance(Duration::from_secs(40));
@@ -2384,7 +2355,7 @@ fn a_finished_match_pays_its_players_and_shows_them_the_results() {
             _ => None,
         });
         let account = world.account(client);
-        assert_eq!(told, Some((account.generic_money, account.premium_money)));
+        assert_eq!(told, Some((account.generic_money, 0)));
         assert_eq!(
             world.clients[client].1.model.inventory().len(),
             account.inventory.len()
@@ -2427,7 +2398,8 @@ fn a_finished_match_pays_its_players_and_shows_them_the_results() {
     assert!(world.take(carol).is_empty());
 
     // The screen's "buy premium" (`47 02 <offer> <match>`): three days
-    // (offer 1) for 600 gold, and the premium half the screen promised.
+    // (offer 1) for 20,000 silver (200 gold), and the premium half the
+    // screen promised.
     let half = world
         .results
         .find(match_id)
@@ -2436,8 +2408,7 @@ fn a_finished_match_pays_its_players_and_shows_them_the_results() {
         .unwrap()
         .reward
         .premium_bonus;
-    // A new account has no gold: this one is given some.
-    world.change(alice, |account| account.premium_money = 1_000);
+    world.change(alice, |account| account.generic_money += 100_000);
     let paid = world.account(alice).clone();
     world.ask(alice, request::buy_offer(1, match_id));
     let decoded = world.take(alice);
@@ -2453,13 +2424,12 @@ fn a_finished_match_pays_its_players_and_shows_them_the_results() {
     )));
     {
         let account = world.account(alice);
-        assert_eq!(account.premium_money, paid.premium_money - 200);
-        assert!(account.generic_money >= paid.generic_money + half.0);
+        assert!(account.generic_money + 20_000 >= paid.generic_money + half.0);
         assert_eq!(account.exp_total, paid.exp_total + half.1);
     }
     // Once: a second purchase adds time and no second half.
     let paid = world.account(alice).clone();
-    world.change(alice, |account| account.premium_money += 600);
+    world.change(alice, |account| account.generic_money += 60_000);
     world.ask(alice, request::buy_offer(1, match_id));
     assert!(world.take(alice).iter().any(|message| matches!(
         message,
@@ -2787,7 +2757,7 @@ mod replay_tests;
 mod room_chat_tests;
 mod rooms_tests;
 
-// ---- the premium shop, items for gold, the daily bonus, the tutorial, a
+// ---- the premium shop, the premium items, the daily bonus, the tutorial, a
 // ---- nickname change (`shop`)
 
 /// The last balance the client was told.
@@ -2830,10 +2800,10 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
         .expect("the prices");
     assert_eq!(prices_sent, shop_offers::price_list().len());
     assert!(prices_sent > prices::price_list().len());
-    // The rename's price: the voucher's 250 gold.
+    // The rename's price, in silver: the voucher's 250 gold.
     assert!(decoded.iter().any(|message| matches!(
         message,
-        Decoded::ServicePrices(prices) if prices.change_name == 250
+        Decoded::ServicePrices(prices) if prices.change_name == 25_000
     )));
     // No tutorial: every step done.
     assert!(decoded.iter().any(|message| matches!(
@@ -2844,7 +2814,8 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
             b: 1
         }
     )));
-    // The daily bonus: day 1 of 7, nothing won, 50 gold on the seventh;
+    // The daily bonus: day 1 of 7, nothing won, the table's 50 gold in
+    // silver on the seventh;
     // the welcome window is opened.
     let bonus = decoded
         .iter()
@@ -2864,7 +2835,7 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
             _ => None,
         })
         .expect("the daily bonus");
-    assert_eq!(bonus, (vec![0], 215, 50, false, true));
+    assert_eq!(bonus, (vec![0], 214, 5_000, false, true));
     // No discount is set: none is offered.
     assert!(
         !decoded
@@ -2937,14 +2908,12 @@ fn the_third_kit_is_filled_and_played_without_premium() {
 }
 
 #[test]
-fn premium_time_is_bought_for_gold() {
+fn premium_time_is_bought_for_silver() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     world.take(alice);
-    // A new account has no gold: this one is given some.
-    world.change(alice, |account| account.premium_money = 1_000);
-    let gold = world.account(alice).premium_money;
-    assert!(gold >= 100);
+    world.change(alice, |account| account.generic_money = 100_000);
+    let silver = world.account(alice).generic_money;
     // The third kit is every account's, premium or not.
     world.ask(alice, request::active_kit(3));
     assert!(matches!(
@@ -2952,7 +2921,7 @@ fn premium_time_is_bought_for_gold() {
         [Decoded::Permitted(Permitted::ActiveKit(3))]
     ));
 
-    // A day (offer 7) for 100 gold.
+    // A day (offer 7) for 100 gold, in silver.
     world.ask(alice, request::buy_offer(7, 0));
     let decoded = world.take(alice);
     assert!(matches!(
@@ -2960,7 +2929,7 @@ fn premium_time_is_bought_for_gold() {
         Decoded::Permitted(Permitted::OfferBought)
     ));
     assert_eq!(told_premium(&decoded), Some(Some(24)));
-    assert_eq!(told_money(&decoded).unwrap().1, gold - 100);
+    assert_eq!(told_money(&decoded), Some((silver - 10_000, 0)));
     // The services say so when asked.
     world.ask(alice, request::query(0x3E));
     assert!(matches!(
@@ -2970,7 +2939,7 @@ fn premium_time_is_bought_for_gold() {
         }]
     ));
 
-    // No such offer, and not the gold for a year: the game's texts.
+    // No such offer, and not the silver for a year: the game's texts.
     world.ask(alice, request::buy_offer(99, 0));
     assert_eq!(
         denial(&world.take(alice), 0x47).as_deref(),
@@ -2979,23 +2948,23 @@ fn premium_time_is_bought_for_gold() {
     world.ask(alice, request::buy_offer(6, 0));
     assert_eq!(
         denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cant_buy_premium_message")
+        Some("st_not_enougth_money")
     );
-    assert_eq!(world.account(alice).premium_money, gold - 100);
+    assert_eq!(world.account(alice).generic_money, silver - 10_000);
     world.assert_clean();
 }
 
 #[test]
-fn a_bundle_and_a_premium_item_are_bought_for_gold() {
+fn a_bundle_and_a_premium_item_are_bought_for_silver() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     world.take(alice);
-    world.change(alice, |account| account.premium_money = 2_000);
+    world.change(alice, |account| account.generic_money = 200_000);
     let dictionary = Dictionary::shared();
     let id = |name: &str| dictionary.item_named(name).unwrap().dict_id;
-    let silver = world.account(alice).generic_money;
 
-    // The AK-74N bundle (offer 9): the rifle and 2000 rounds, 1500 gold,
+    // The AK-74N bundle (offer 9): the rifle and 2000 rounds, 1500 gold in
+    // silver,
     // onto the 1000 a new account has.
     world.ask(alice, request::buy_offer(9, 0));
     let decoded = world.take(alice);
@@ -3003,7 +2972,7 @@ fn a_bundle_and_a_premium_item_are_bought_for_gold() {
         decoded[0],
         Decoded::Permitted(Permitted::OfferBought)
     ));
-    assert_eq!(told_money(&decoded), Some((silver, 500)));
+    assert_eq!(told_money(&decoded), Some((50_000, 0)));
     let owned: Vec<(u16, u32)> = world.clients[alice]
         .1
         .model
@@ -3014,7 +2983,7 @@ fn a_bundle_and_a_premium_item_are_bought_for_gold() {
     assert!(owned.contains(&(id("ak_74n_premium"), FULL_CONDITION)));
     assert!(owned.contains(&(id("ammo_5.45x39_7n6m"), 3_000)));
 
-    // Two repair kits from the shop's list: 50 gold each, silver untouched.
+    // Two repair kits from the shop's list: their 50 gold in silver each.
     world.ask(
         alice,
         request::buy(id("repair_voucher"), 2, 0, INVENTORY_SLOT, 1),
@@ -3025,21 +2994,23 @@ fn a_bundle_and_a_premium_item_are_bought_for_gold() {
         Decoded::Permitted(Permitted::Bought(bought))
             if bought.len() == 1 && bought[0].dict_id == id("repair_voucher") && bought[0].value == 2
     ));
-    assert_eq!(told_money(&decoded), Some((silver, 400)));
-    // Not the gold for the AK-74N (1500): the game's text for it.
+    assert_eq!(told_money(&decoded), Some((40_000, 0)));
+    // Not the silver for the AK-74N (its 1500 gold): the game's text for it.
+    world.change(alice, |account| account.generic_money = 1_000);
+    world.take(alice);
     world.ask(alice, request::buy(id("ak_74n"), 1, 0, INVENTORY_SLOT, 1));
     assert_eq!(
         denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cant_buy_premium_message")
+        Some("st_not_enougth_money")
     );
-    assert_eq!(world.account(alice).premium_money, 400);
+    assert_eq!(world.account(alice).generic_money, 1_000);
     world.assert_clean();
 }
 
 /// The owner's choice of 2026-10-18 (`prices::is_not_sold`): the Russian and
 /// Belarusian flags and coats of arms, the flag of the USSR and the red
 /// star are in no price record the lobby is
-/// sent and a buy of one is refused, for gold as for silver; one already
+/// sent and a buy of one is refused; one already
 /// owned is still sold back. The other flags are sold as before.
 #[test]
 fn the_excluded_flags_and_emblems_are_not_sold() {
@@ -3068,10 +3039,7 @@ fn the_excluded_flags_and_emblems_are_not_sold() {
     // The flag of Ukraine and the coat of arms of Lithuania still are.
     assert!(sent.contains(&id("decals_4_3")) && sent.contains(&id("decals_5_7")));
 
-    world.change(alice, |account| {
-        account.premium_money = 10_000;
-        account.generic_money = 1_000_000;
-    });
+    world.change(alice, |account| account.generic_money = 1_000_000);
     let before = world.account(alice).clone();
     for dict_id in excluded {
         world.ask(alice, request::buy(dict_id, 1, 0, INVENTORY_SLOT, 1));
@@ -3082,7 +3050,7 @@ fn the_excluded_flags_and_emblems_are_not_sold() {
         );
     }
     assert_eq!(*world.account(alice), before);
-    // Another flag: 300 gold.
+    // Another flag: its 300 gold, in silver.
     world.ask(
         alice,
         request::buy(id("decals_4_3"), 1, 0, INVENTORY_SLOT, 1),
@@ -3092,7 +3060,7 @@ fn the_excluded_flags_and_emblems_are_not_sold() {
         &decoded[0],
         Decoded::Permitted(Permitted::Bought(bought)) if bought[0].dict_id == id("decals_4_3")
     ));
-    assert_eq!(world.account(alice).premium_money, 9_700);
+    assert_eq!(world.account(alice).generic_money, 970_000);
 
     // One owned from before is sold back like any decal.
     let mut item_id = 0;
@@ -3197,9 +3165,8 @@ fn a_discount_the_operator_set_is_offered_and_taken() {
             |message| matches!(message, Decoded::PremiumDiscount(discount) if *discount == 0.25)
         )
     );
-    // A new account has no gold: this one is given some.
-    world.change(alice, |account| account.premium_money = 1_000);
-    let gold = world.account(alice).premium_money;
+    world.change(alice, |account| account.generic_money = 100_000);
+    let silver = world.account(alice).generic_money;
     // Closing the window (`-1`) is answered with nothing.
     world.ask(alice, accept_with_discount(u32::MAX, -1.0));
     assert!(world.take(alice).is_empty());
@@ -3209,7 +3176,7 @@ fn a_discount_the_operator_set_is_offered_and_taken() {
         denial(&world.take(alice), 0x47).as_deref(),
         Some("st_cannot_buy_item")
     );
-    // A day at a quarter off: 75 gold.
+    // A day at a quarter off: 7,500 silver.
     world.ask(alice, accept_with_discount(7, 0.25));
     let decoded = world.take(alice);
     assert!(matches!(
@@ -3217,7 +3184,7 @@ fn a_discount_the_operator_set_is_offered_and_taken() {
         Decoded::Permitted(Permitted::OfferBought)
     ));
     assert_eq!(told_premium(&decoded), Some(Some(24)));
-    assert_eq!(told_money(&decoded).unwrap().1, gold - 75);
+    assert_eq!(told_money(&decoded), Some((silver - 7_500, 0)));
     // With premium there is no discount to take.
     world.ask(alice, accept_with_discount(7, 0.25));
     assert_eq!(
@@ -3287,8 +3254,7 @@ fn the_offer_after_a_match_gives_the_premium_half() {
         denial(&world.take(alice), 0x47).as_deref(),
         Some("st_cannot_buy_item")
     );
-    // A new account has no gold: this one is given some.
-    world.change(alice, |account| account.premium_money = 1_000);
+    world.change(alice, |account| account.generic_money += 100_000);
     let before = world.account(alice).clone();
     world.ask(alice, accept_with_bonuses(7, 0.2));
     let decoded = world.take(alice);
@@ -3302,13 +3268,12 @@ fn the_offer_after_a_match_gives_the_premium_half() {
     ));
     assert_eq!(told_premium(&decoded), Some(Some(24)));
     let after = world.account(alice).clone();
-    // A day at a fifth off: 80 gold; the half's money and experience.
-    assert_eq!(after.premium_money, before.premium_money - 80);
-    assert!(after.generic_money >= before.generic_money + half.0);
+    // A day at a fifth off: 8,000 silver; the half's money and experience.
+    assert!(after.generic_money + 8_000 >= before.generic_money + half.0);
     assert_eq!(after.exp_total, before.exp_total + half.1);
     assert_eq!(
         told_money(&decoded),
-        Some((after.generic_money, after.premium_money))
+        Some((after.generic_money, 0))
     );
     assert!(
         decoded
@@ -3359,9 +3324,8 @@ fn a_nickname_is_checked_and_changed() {
         body.extend(voucher.to_le_bytes());
         (id, body)
     };
-    // A new account has no gold: this one is given some.
-    world.change(alice, |account| account.premium_money = 1_000);
-    let gold = world.account(alice).premium_money;
+    world.change(alice, |account| account.generic_money = 100_000);
+    let silver = world.account(alice).generic_money;
     // A taken or bad name: the game's text, and nothing is paid.
     for name in ["Bob", "Al"] {
         world.ask(alice, rename(name, 0));
@@ -3370,9 +3334,9 @@ fn a_nickname_is_checked_and_changed() {
             Some("st_change_name_error")
         );
     }
-    assert_eq!(world.account(alice).premium_money, gold);
+    assert_eq!(world.account(alice).generic_money, silver);
 
-    // In gold: 250.
+    // In silver: the voucher's 250 gold.
     world.ask(alice, rename("Alisa", 0));
     let decoded = world.take(alice);
     assert!(matches!(
@@ -3387,7 +3351,7 @@ fn a_nickname_is_checked_and_changed() {
         message,
         Decoded::Account(own) if own.body.name == "Alisa"
     )));
-    assert_eq!(told_money(&decoded).unwrap().1, gold - 250);
+    assert_eq!(told_money(&decoded), Some((silver - 25_000, 0)));
     assert_eq!(world.account(alice).name, "Alisa");
     // The store's name follows: others find the account by it, and the
     // old name is free.
@@ -3423,7 +3387,7 @@ fn a_nickname_is_checked_and_changed() {
     // And she signs in as before.
     assert_eq!(world.store.account_id_by_name("Alice"), Some(alice_id));
 
-    // With a rename voucher: one is taken, no gold.
+    // With a rename voucher: one is taken, no silver.
     let voucher = Dictionary::shared()
         .item_named(premium::RENAME_VOUCHER)
         .unwrap()
@@ -3436,15 +3400,15 @@ fn a_nickname_is_checked_and_changed() {
         decoded[0],
         Decoded::Permitted(Permitted::NicknameChanged { ticket_item_id }) if ticket_item_id == item_id
     ));
-    assert_eq!(told_money(&decoded).unwrap().1, gold - 250);
+    assert_eq!(told_money(&decoded), Some((silver - 25_000, 0)));
     assert!(world.account(alice).item(item_id).is_none());
     assert_eq!(world.account(alice).name, "Alina");
     world.assert_clean();
 }
 
 /// No tutorial (`session::v026g::tutorial`): a new account is told every
-/// step is done, so its client runs none of it, and starts with 15 000
-/// silver, 150 gold, level 15, the ammo and the starter kit
+/// step is done, so its client runs none of it, and starts with 30 000
+/// silver (the table's 15 000 and its 150 gold in silver), level 15, the ammo and the starter kit
 /// (`tutorial::tests`); a step a client sends anyway is not answered.
 #[test]
 fn a_new_account_has_no_tutorial_and_what_it_paid() {
@@ -3454,7 +3418,7 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
     let alice = world.connect("Alice");
     // The start is what the client is first told: no window for it.
     let decoded = world.take(alice);
-    assert_eq!(told_money(&decoded), Some((15_000, 150)));
+    assert_eq!(told_money(&decoded), Some((30_000, 0)));
     // A month of premium: 720 hours left.
     assert_eq!(told_premium(&decoded), Some(Some(720)));
     // Its inventory, the respirator's and the gloves' modifications too.
@@ -3476,10 +3440,7 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
     );
     assert_eq!(world.client(alice).model.tutorial().state(), State::Default);
     let account = world.account(alice);
-    assert_eq!(
-        (account.generic_money, account.premium_money),
-        (15_000, 150)
-    );
+    assert_eq!(account.generic_money, 30_000);
     assert_eq!(account.level(), 15);
     // The Scavengers' quests, never neutral, at their level 5.
     assert_eq!(account.quest_faction, 1);

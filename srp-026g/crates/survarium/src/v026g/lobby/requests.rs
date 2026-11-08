@@ -53,11 +53,6 @@ pub const INVENTORY_SLOT: u8 = 100;
 /// `ItemPlace.SHOP`): a stack dropped from the shop on a pocket.
 pub const SHOP_SLOT: u8 = 200;
 
-/// Added to the amount of `47 04` by srp's exchange window when it buys gold
-/// with silver (`MessageMoneyExchange.BUY_GOLD`). The stock window sends only gold
-/// for silver, and no account has this much gold.
-pub const BUY_PREMIUM: u32 = 0x4000_0000;
-
 /// The place of `46 08` that srp's reroll window sends for "keep the old
 /// one" (`MessageRerollItem`, `RerollChoice.KEEP_OLD`): none of the three
 /// offered is taken (`docs/notes/reroll-keep-old.md`). The exe sends the
@@ -78,10 +73,10 @@ pub struct Relocation {
 /// How a repair is paid (`47 03`; `MessageRepair.onMessageAccept`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RepairPayment {
-    /// Kind 0: silver.
+    /// Kind 0: silver. Kind 1, the stock window's gold, is silver too: gold
+    /// is gone (the owner, 2026-11-08), and the silver repair is the gold
+    /// one of before, at its price in silver.
     Silver,
-    /// Kind 1: gold.
-    Gold,
     /// Kind 2: a repair kit (voucher), by its item id.
     Kit { kit_item_id: u32 },
     /// Another kind byte.
@@ -259,12 +254,9 @@ pub enum ClientMessage {
     },
     /// `46 06`.
     OpenReroll { item_id: u32 },
-    /// `46 07`: change a modification; `flag`: paid in gold.
-    RerollModifier {
-        item_id: u32,
-        modification_id: u32,
-        flag: bool,
-    },
+    /// `46 07`: change a modification. Its last byte, the stock window's
+    /// "paid in gold", is read and not kept: srp has one payment, silver.
+    RerollModifier { item_id: u32, modification_id: u32 },
     /// `46 08`: take one of the three offered. `new_modification_id` is
     /// its place among them (0..=2), not an id (`items.md` §3), or
     /// [`KEEP_OLD_MODIFICATION`]: none of them.
@@ -273,9 +265,10 @@ pub enum ClientMessage {
         old_modification_id: u32,
         new_modification_id: u32,
     },
-    /// `46 09`: upgrade the item `a0` with the donor item `a1`; `flag`:
-    /// paid in gold (PROVEN, `items.md` §3).
-    Craft { a0: u32, a1: u32, flag: bool },
+    /// `46 09`: upgrade the item `a0` with the donor item `a1`. Its last
+    /// byte, "paid in gold" (PROVEN, `items.md` §3), is read and not kept:
+    /// srp has one payment, silver.
+    Craft { a0: u32, a1: u32 },
     /// `46 0A`: the tutorial entered its "choose a weapon" step
     /// (0x2A4678) and waits for the inventory (`89`): `tutorial_model`.
     /// (No weapon is chosen yet, whatever the name says.)
@@ -299,12 +292,6 @@ pub enum ClientMessage {
         item_id: u32,
         payment: RepairPayment,
     },
-    /// `47 04`: gold for silver (the stock window).
-    ExchangePremium { amount: u32 },
-    /// `47 04` with [`BUY_PREMIUM`] added: silver for so much gold. srp's
-    /// own: its exchange window (`client-patches/exchange`) sends it; the
-    /// stock client has no way to.
-    BuyPremium { gold: u32 },
     /// `47 05`.
     AcceptPremiumWithBonuses {
         a0: u32,
@@ -320,10 +307,10 @@ pub enum ClientMessage {
     /// `48 00`: the account's whole set of skills, `(skill id, points)`.
     SetSkills { skills: Vec<(u16, u8)> },
     /// `48 01`: reset the skills of a branch (the window's tab: 0 for
-    /// skills 101.., 1 for 201..), paid in silver (0) or gold (1)
-    /// (`MessageAskReroll`: `reroll_ok_clicked(branch, payment)`; PROVEN in
-    /// the UI).
-    ResetSkills { branch: u8, payment: u8 },
+    /// skills 101.., 1 for 201..). Its last byte, the payment (0 silver, 1
+    /// gold: `MessageAskReroll`: `reroll_ok_clicked(branch, payment)`;
+    /// PROVEN in the UI), is read and not kept: srp has one, silver.
+    ResetSkills { branch: u8 },
 
     /// `49 00`.
     RenameKit { kit_id: u32, name: String },
@@ -567,10 +554,11 @@ fn parse_body(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
                 }
                 M::SetSkills { skills }
             }
-            1 => M::ResetSkills {
-                branch: r.u8()?,
-                payment: r.u8()?,
-            },
+            1 => {
+                let branch = r.u8()?;
+                r.u8()?;
+                M::ResetSkills { branch }
+            }
             sub => return Err(r.unknown_sub(sub)),
         },
         id::PROFILE => parse_profile(r)?,
@@ -694,21 +682,24 @@ fn parse_inventory(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             value: r.u64()?,
         },
         0x06 => M::OpenReroll { item_id: r.u32()? },
-        0x07 => M::RerollModifier {
-            item_id: r.u32()?,
-            modification_id: r.u32()?,
-            flag: r.bool()?,
-        },
+        0x07 => {
+            let (item_id, modification_id) = (r.u32()?, r.u32()?);
+            r.bool()?;
+            M::RerollModifier {
+                item_id,
+                modification_id,
+            }
+        }
         0x08 => M::ChooseModifier {
             item_id: r.u32()?,
             old_modification_id: r.u32()?,
             new_modification_id: r.u32()?,
         },
-        0x09 => M::Craft {
-            a0: r.u32()?,
-            a1: r.u32()?,
-            flag: r.bool()?,
-        },
+        0x09 => {
+            let (a0, a1) = (r.u32()?, r.u32()?);
+            r.bool()?;
+            M::Craft { a0, a1 }
+        }
         0x0A => M::TutorialWeaponChosen,
         sub => return Err(r.unknown_sub(sub)),
     })
@@ -743,8 +734,7 @@ fn parse_shop(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
         0x03 => {
             let item_id = r.u32()?;
             let payment = match r.u8()? {
-                0 => RepairPayment::Silver,
-                1 => RepairPayment::Gold,
+                0 | 1 => RepairPayment::Silver,
                 // Only this kind carries the kit's id.
                 2 => RepairPayment::Kit {
                     kit_item_id: r.u32()?,
@@ -753,12 +743,6 @@ fn parse_shop(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             };
             M::Repair { item_id, payment }
         }
-        0x04 => match r.u32()? {
-            amount if amount >= BUY_PREMIUM => M::BuyPremium {
-                gold: amount - BUY_PREMIUM,
-            },
-            amount => M::ExchangePremium { amount },
-        },
         0x05 => M::AcceptPremiumWithBonuses {
             a0: r.u32()?,
             a1: r.f32()?,

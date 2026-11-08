@@ -7,7 +7,7 @@
 //!
 //! | the client | the answer |
 //! |---|---|
-//! | `47 00` for a premium item | `83 47 00`, then the inventory, the account and the money (gold taken) |
+//! | `47 00` for a premium item | `83 47 00`, then the inventory, the account and the money (silver taken) |
 //! | `47 02 <offer> 0` | `83 47 02`, the services (`94`), the inventory, the account, the money |
 //! | `47 02 <offer> <match>` (the results screen's button) | the same, and the premium half of the match: skills (`8C`), reputations (`8E`), notices |
 //! | `47 05 <offer> <discount> ..` (after `A8`) | `83 47 05` (the client's "premium activated" notice), then as above |
@@ -119,7 +119,7 @@ impl Core<'_> {
 
     // ----------------------------------------------------------- the shop
 
-    /// `47 00` for an item the shop sells for gold.
+    /// `47 00` for a premium item, which the shop sells one by one.
     pub(super) fn buy_premium_item(
         &mut self,
         who: &Who,
@@ -177,7 +177,7 @@ impl Core<'_> {
         match bought {
             Ok(purchase) => {
                 log::info!(
-                    "{} bought offer {offer_id} for {} gold: {:?}",
+                    "{} bought offer {offer_id} for {} silver: {:?}",
                     who.name,
                     purchase.cost,
                     purchase.gave
@@ -359,7 +359,7 @@ impl Core<'_> {
     }
 
     /// `49 04 <name> <voucher item or 0>`: a new nickname, paid with a
-    /// rename voucher or in gold.
+    /// rename voucher or in silver.
     pub(super) fn change_nickname(&mut self, who: &Who, nickname: &str, voucher_item_id: u32) {
         let nickname = nickname.trim();
         if let Some(refusal) = self.nickname_refusal(nickname, who.account_id) {
@@ -394,10 +394,10 @@ impl Core<'_> {
             player.name = name.clone();
         }
         log::info!(
-            "{} (account {}) is now named {name} ({} gold, voucher {})",
+            "{} (account {}) is now named {name} ({} silver, voucher {})",
             who.name,
             who.account_id,
-            paid.gold,
+            paid.silver,
             paid.voucher_item_id
         );
         self.send(

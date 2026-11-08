@@ -360,7 +360,6 @@ package survarium.item
          item.isWeapon = superCategory == SuperCategory.WEAPONS;
          item.isStack = description.is_stack;
          item.oneHanded = !description.double_handed;
-         item.isPremium = description.is_premium;
          item.name = description.name;
          item.dictId = dictId;
          item.repairCostRatio = description.repair_cost_ratio;

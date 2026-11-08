@@ -248,8 +248,7 @@ package survarium.controls
          {
             sellData.clip_size = item.clipSize;
          }
-         trace("sellFromIC::",item.name,item.isPremium,this._cost);
-         sellData.isPremium = item.isPremium && this.isShopItems;
+         trace("sellFromIC::",item.name,this._cost);
          sellData.icon = (item.icon as Icon).clone();
          Message.showMessage("asks",sellData,true);
       }
@@ -295,8 +294,7 @@ package survarium.controls
          }
          else
          {
-            price = this._data.isPremium ? (this._data.cost * PlayerInfo.premiumExchangeRate) : this._data.cost;
-            trace("IC::itemCost::",price,this._data.cost,PlayerInfo.premiumExchangeRate);
+            price = this._data.cost;
             sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
             _cost = sellPrice;
          }
@@ -440,9 +438,8 @@ package survarium.controls
          }
          else
          {
-            price = this._data.isPremium ? (this._data.cost * PlayerInfo.premiumExchangeRate) : this._data.cost;
+            price = this._data.cost;
             sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
-            trace("IC::itemCost::",price,this._data.isPremium,this._data.cost,PlayerInfo.premiumExchangeRate,"sellCost::",sellPrice);
             _cost = sellPrice;
          }
          _step = this._data.clipSize == 0 ? 1 : (this._data.clipSize);

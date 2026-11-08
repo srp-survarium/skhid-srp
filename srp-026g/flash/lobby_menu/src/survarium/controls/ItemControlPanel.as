@@ -21,7 +21,6 @@ package survarium.controls
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
-   import survarium.constants.MoneyType;
    import survarium.constants.ProfileSlot;
    
    public class ItemControlPanel extends MovieClip
@@ -69,8 +68,6 @@ package survarium.controls
       private var _isQuickSlot:Boolean;
       
       private var _isStack:Boolean;
-      
-      private var _money_type:int = MoneyType.REGULAR;
       
       private var _step:int = 0;
       
@@ -203,7 +200,7 @@ package survarium.controls
          }
          else
          {
-            price = this._data.isPremium ? uint(this._data.cost * PlayerInfo.premiumExchangeRate) : this._data.cost;
+            price = this._data.cost;
             sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
             this._cost = sellPrice;
          }
@@ -281,13 +278,12 @@ package survarium.controls
          this.btnSellBig.label = LocalizationData.getName("buy");
          if(this._isShopItems)
          {
-            maxCount = this._data.cost < 1 ? int(Math.min(Math.max(0,int((PlayerInfo.MAX_FREE_ITEMS_COUNT - this._data.value) / this._step)),MAX_COUNT_STEPS)) : int((this._data.isPremium ? PlayerInfo.premiumMoney : PlayerInfo.genericMoney) / this._data.cost);
+            maxCount = this._data.cost < 1 ? int(Math.min(Math.max(0,int((PlayerInfo.MAX_FREE_ITEMS_COUNT - this._data.value) / this._step)),MAX_COUNT_STEPS)) : int(PlayerInfo.genericMoney / this._data.cost);
          }
          else
          {
             maxCount = Math.min(MAX_COUNT_STEPS * this._step,this._data.isStack ? this._data.value : 1);
          }
-         var premiumLocked:Boolean = !this._data.canBuy && Boolean(this._data.premiumCost);
          this.btn_item_upgrade.enabled = !this._isShopItems && !this._isStack && this.isUpgradeable(this._data) && this._data.enabled;
          this.btn_item_upgrade.alpha = this.btn_item_upgrade.enabled ? 1 : 0.5;
          this.btn_item_upgrade.label = UpgradeWindow.isWeaponCategory(int(this._data.category)) ? LocalizationData.getName("scope_window_title") : LocalizationData.getName("btn_upgrade_label");
@@ -333,10 +329,9 @@ package survarium.controls
          }
          var buyUnlocked:Boolean = !this._inventory.getElelementLocked(LobbyMenu.SHOP_ELEMNENT_ID);
          var sellUnlocked:Boolean = !this._inventory.getElelementLocked(LobbyMenu.INVENTORY_ELEMNENT_ID);
-         var premiumLocked:Boolean = !this._data.canBuy && this._data.premiumCost;
-         var canAfford:Boolean = this._data.isPremium || !this._data.isPremium && PlayerInfo.genericMoney >= this._data.cost;
+         var canAfford:Boolean = PlayerInfo.genericMoney >= this._data.cost;
          this.btn_item_sell.enabled = this._data.enabled && sellUnlocked;
-         this.btn_item_buy.enabled = (this._data.canBuy || premiumLocked) && buyUnlocked && canAfford;
+         this.btn_item_buy.enabled = this._data.canBuy && buyUnlocked && canAfford;
          this.btnSellBig.enabled = this.btn_item_buy.enabled;
          this.btnSellBig.alpha = this.btnSellBig.enabled ? 1 : 0.5;
          this.btn_item_buy.alpha = this.btn_item_buy.enabled ? 1 : 0.5;
@@ -350,10 +345,10 @@ package survarium.controls
             buyable = this._data.canBuy;
          }
          this.btn_show_r.enabled = !this._isShopItems && buyUnlocked && sellUnlocked;
-         this.btn_show_l.enabled = (buyable || premiumLocked) && buyUnlocked && sellUnlocked;
+         this.btn_show_l.enabled = buyable && buyUnlocked && sellUnlocked;
          this.btn_show_r.alpha = this.btn_show_r.enabled ? 1 : 0.5;
          this.btn_show_l.alpha = this.btn_show_l.enabled ? 1 : 0.5;
-         trace("ICP:checkButtonEnabled","canBuy",this._data.canBuy,buyable,"lockedPremium::",premiumLocked,this.btn_show_l.enabled,this.btn_item_sell.enabled,"locked::",this._inventory.getElelementLocked(LobbyMenu.INVENTORY_ELEMNENT_ID),this._inventory.getElelementLocked(LobbyMenu.SHOP_ELEMNENT_ID));
+         trace("ICP:checkButtonEnabled","canBuy",this._data.canBuy,buyable,this.btn_show_l.enabled,this.btn_item_sell.enabled,"locked::",this._inventory.getElelementLocked(LobbyMenu.INVENTORY_ELEMNENT_ID),this._inventory.getElelementLocked(LobbyMenu.SHOP_ELEMNENT_ID));
       }
       
       private function updateButtons() : void

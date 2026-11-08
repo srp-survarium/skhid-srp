@@ -1443,10 +1443,7 @@ impl Core<'_> {
                     unseen.report.match_id
                 );
                 self.send_all(addr, push);
-                let balance = {
-                    let account = who.account.locked();
-                    (account.generic_money, account.premium_money)
-                };
+                let balance = who.account.locked().generic_money;
                 if let Some(player) = self.player_mut(addr) {
                     player.money_sent = balance;
                 }

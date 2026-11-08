@@ -1559,7 +1559,7 @@ mod tests {
         let account = store.get_or_create(5, "Alice");
         store.flush();
         repository.fail_saves(true);
-        account.locked().premium_money = 3;
+        account.locked().generic_money = 3;
         assert!(matches!(
             store.write_admin(5, admin_action(5, "refused")),
             ResetWrite::Failed(_)
@@ -1578,7 +1578,7 @@ mod tests {
         // The saver's next pass writes the account and the rows, in order.
         repository.fail_saves(false);
         store.flush();
-        assert_eq!(repository.get(5).unwrap().premium_money, 3);
+        assert_eq!(repository.get(5).unwrap().generic_money, 3);
         let written: Vec<String> = repository
             .all_admin_actions()
             .into_iter()

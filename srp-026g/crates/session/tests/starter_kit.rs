@@ -25,10 +25,8 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     // As `GameAccounts::sign_up` makes it.
     let mut account = Account::with_loadout("Alice", &Loadout { items: Vec::new() });
     tutorial::signup_grant(&mut account, 1_800_000_000);
-    assert_eq!(
-        (account.generic_money, account.premium_money),
-        (15_000, 150)
-    );
+    // All silver: the table's gold, if any, at 100 silver a gold.
+    assert_eq!(account.generic_money, 30_000);
     assert_eq!(account.reputation_level(1), 5);
     // Level 15, its points spent in the five skills of the table (the
     // released tree takes them: `game_data::init` checked it).

@@ -1156,7 +1156,6 @@ package
          Message.registerMessage("ok",MessageBox);
          Message.registerMessage("char",MessageCreateChar);
          Message.registerMessage("no_faction",MessageNoFactionSelected);
-         Message.registerMessage("exchange",SrvMessageExchangeSkinned);
          Message.registerMessage("craft",SrvMessageCraftItemSkinned);
          Message.registerMessage("rename",SrvMessageEnterName);
          Message.registerBackground(BackBlack);
@@ -2327,9 +2326,10 @@ package
          }
       }
       
+      // The game still hands the lobby a premium exchange rate (0x8D's fifth price, 0 now): there is
+      // no gold to exchange (the owner, 2026-11-08).
       public function set_premium_exchange_rate(value:uint) : void
       {
-         PlayerInfo.premiumExchangeRate = value;
       }
       
       public function set_item_props_data(value:Array) : void
@@ -3432,8 +3432,7 @@ package
                icon:itemData.iconId,
                is_stack:itemData.isStack,
                sellers:itemData.sellers,
-               name:itemData.name,
-               is_premium:itemData.isPremium
+               name:itemData.name
             };
          }
          if(count != -1)
@@ -3442,11 +3441,10 @@ package
          }
          else
          {
-            _obj.count = int(((_descr.is_premium) ? PlayerInfo.premiumMoney : PlayerInfo.genericMoney) / price);
+            _obj.count = int(PlayerInfo.genericMoney / price);
          }
-         var lockedPremiumCost:uint = this.shop_list.getItemLockedCost(dict_uid);
          var icons:IconContainer;
-         _obj.price = (lockedPremiumCost) ? lockedPremiumCost : price;
+         _obj.price = price;
          _obj.seller = seller != Faction.ANY ? seller : this.shop_list.getItemSeller(dict_uid);
          _obj.faction = _obj.seller;
          _obj.sellers = _descr.sellers;
@@ -3513,7 +3511,6 @@ package
          _obj.icon = icon;
          _obj.sourceSlot = sourceSlot;
          _obj.targetSlot = targetSlot;
-         _obj.isPremium = lockedPremiumCost || _descr.is_premium;
          if(targetSlot != ItemPlace.INVENTORY)
          {
             _obj.onYes = this.relocate_to_paperdoll;
@@ -3763,8 +3760,7 @@ package
       public function set_account_money(value:Object) : void
       {
          PlayerInfo.genericMoney = value.generic_money;
-         PlayerInfo.premiumMoney = value.premium_money;
-         this.statusPanel.setMoneyData(value.generic_money,value.premium_money);
+         this.statusPanel.setMoneyData(value.generic_money);
          this.inventory_list.onPlayerMoneyUpdate();
          this.clanWindow.createClanRenderer.updateClanCreationEnabled();
       }
@@ -3773,8 +3769,7 @@ package
       {
          PlayerInfo.nickname = value.nickname;
          PlayerInfo.genericMoney = value.generic_money;
-         PlayerInfo.premiumMoney = value.premium_money;
-         this.statusPanel.setMoneyData(value.generic_money,value.premium_money);
+         this.statusPanel.setMoneyData(value.generic_money);
          this.statusPanel.setPlayerName(value.nickname);
          this.inventory_list.onPlayerMoneyUpdate();
       }
@@ -4361,10 +4356,9 @@ package
          }
       }
       
+      // The game still hands the lobby the upgrade's gold prices (0x9B, all 0): there is no gold.
       public function setup_item_craft_prices_premium(value:Array) : void
       {
-         trace("setup_item_craft_prices_premium",value);
-         MessageCraftItem.setCraftPremiumCost(value);
       }
       
       public function setup_item_craft_prices_general(value:Array) : void
@@ -4380,7 +4374,6 @@ package
       
       public function set_craft_premium_cost(cost:uint) : void
       {
-         MessageCraftItem.setCraftPremiumCost([cost]);
       }
       
       public function setup_item_craft_chances(value:Array) : void
@@ -4935,10 +4928,10 @@ package
          this.charWindow.setData(value);
       }
       
+      // value_prem: the reset's gold price, which the game still hands over (0): there is no gold.
       public function set_reroll_cost(value:uint, value_prem:uint = 0) : void
       {
          this.charWindow.reroll_cost = value;
-         this.charWindow.reroll_cost_premium = value_prem;
       }
       
       public function set_change_name_properties(delay:uint, failed_delay:uint) : void
@@ -4949,7 +4942,7 @@ package
       
       public function set_change_name_cost(value:uint) : void
       {
-         this.statusPanel.changeNameCostPremium = value;
+         this.statusPanel.changeNameCost = value;
       }
       
       public function show_quest_selector(value:Array) : void

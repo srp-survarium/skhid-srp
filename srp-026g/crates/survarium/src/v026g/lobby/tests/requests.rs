@@ -198,7 +198,6 @@ fn inventory_actions() {
         M::RerollModifier {
             item_id: 5,
             modification_id: 1050,
-            flag: true
         }
     );
     assert_eq!(
@@ -211,12 +210,10 @@ fn inventory_actions() {
     );
     assert_eq!(
         read("46 09 05000000 06000000 00"),
-        M::Craft {
-            a0: 5,
-            a1: 6,
-            flag: false
-        }
+        M::Craft { a0: 5, a1: 6 }
     );
+    // The stock windows' "paid in gold" byte is read and changes nothing.
+    assert_eq!(read("46 09 05000000 06000000 01"), M::Craft { a0: 5, a1: 6 });
     assert_eq!(read("46 0A"), M::TutorialWeaponChosen);
 }
 
@@ -256,11 +253,12 @@ fn shop_actions() {
             payment: RepairPayment::Silver
         }
     );
+    // The stock window's gold is silver: srp has one payment.
     assert_eq!(
         read("47 03 09000000 01"),
         M::Repair {
             item_id: 9,
-            payment: RepairPayment::Gold
+            payment: RepairPayment::Silver
         }
     );
     assert_eq!(
@@ -270,15 +268,11 @@ fn shop_actions() {
             payment: RepairPayment::Kit { kit_item_id: 12 }
         }
     );
-    assert_eq!(read("47 04 64000000"), M::ExchangePremium { amount: 100 });
+    // No exchange: gold is gone.
     assert_eq!(
-        read("47 04 FFFFFF3F"),
-        M::ExchangePremium {
-            amount: 0x3FFF_FFFF
-        }
+        parse(0x47, &h("04 64000000")),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 4 })
     );
-    assert_eq!(read("47 04 05000040"), M::BuyPremium { gold: 5 });
-    assert_eq!(read("47 04 00000040"), M::BuyPremium { gold: 0 });
     assert_eq!(
         read("47 05 01000000 0000003F 02000000 03000000 04000000 02"),
         M::AcceptPremiumWithBonuses {
@@ -308,11 +302,9 @@ fn skills() {
     assert_eq!(read("48 00 00"), M::SetSkills { skills: Vec::new() });
     assert_eq!(
         read("48 01 01 00"),
-        M::ResetSkills {
-            branch: 1,
-            payment: 0
-        }
+        M::ResetSkills { branch: 1 }
     );
+    assert_eq!(read("48 01 01 01"), M::ResetSkills { branch: 1 });
 }
 
 #[test]

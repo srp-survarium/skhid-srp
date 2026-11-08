@@ -72,13 +72,9 @@ package survarium.controls
       
       public static var clanState:uint = ClanState.RESERVE;
       
-      public static var premiumMoney:uint = 0;
-      
       public static var genericMoney:uint = 0;
       
       public static var premiumState:uint = PremiumState.NONE;
-      
-      public static var premiumExchangeRate:uint = 0;
       
       public static var premiumLeft:String;
       
@@ -310,16 +306,7 @@ package survarium.controls
       public function setData(newData:Object) : void
       {
          nickname = newData.nickname;
-         premiumMoney = newData.premium_money;
          genericMoney = newData.generic_money;
-         if(newData.premium_money_new != undefined && this.playerCoinsP.text != "")
-         {
-            premium_money_new = newData.premium_money_new;
-         }
-         else if(this.playerCoinsP.text != "" && newData.premium_money - this._coinsP != 0)
-         {
-            premium_money_new = newData.premium_money - this._coinsP;
-         }
          if(newData.generic_money_new != undefined && this.playerCoins.text != "")
          {
             generic_money_new = newData.generic_money_new;
@@ -328,7 +315,6 @@ package survarium.controls
          {
             generic_money_new = newData.generic_money - this._coins;
          }
-         premium_money = newData.premium_money;
          generic_money = newData.generic_money;
          dispatchEvent(new Event(Event.CHANGE));
       }

@@ -196,10 +196,10 @@ pub const GRENADE_KILL: usize = 25;
 /// Event 21: an enemy caught in a trap (0.21d's name for it; LIKELY kept).
 pub const ENTRAP_ENEMY: usize = 21;
 
-/// The silver and the gold as dropped items. The client keeps neither in
-/// its inventory (`results.md` §3: dict ids 0xD6 and 0xD7 are never added).
+/// The silver as a dropped item. The client keeps it out of its inventory
+/// (`results.md` §3: dict ids 0xD6 and 0xD7, silver and gold, are never
+/// added). No drop is gold (`drops::dropped`).
 pub const GENERIC_MONEY: u16 = 214;
-pub const PREMIUM_MONEY: u16 = 215;
 /// The drop card's item name (`use_drop_card`).
 pub const DROP_CARD: &str = "drop_card";
 
@@ -434,7 +434,6 @@ pub struct Reward {
     /// The levels reached, and what they paid.
     pub levels: Vec<u8>,
     pub level_money: u32,
-    pub level_gold: u32,
     /// The reputation levels the match's own reputation reached.
     pub reputation_levels: Vec<u8>,
     pub quest_money: u32,
@@ -1257,7 +1256,7 @@ impl Results {
         let (money, experience, reputation) = reward.premium_bonus;
         account.generic_money = account.generic_money.saturating_add(money);
         let mut notices = Vec::new();
-        let (levels, _, _) = pay_levels(account, experience);
+        let (levels, _) = pay_levels(account, experience);
         notices.extend(super::notices::levels_reached(&levels));
         if reward.reputation_faction != 0 {
             let faction = reward.reputation_faction;
@@ -1399,20 +1398,15 @@ fn player_id(player: &PlayerResult) -> u32 {
     u32::from(player.place) + 1
 }
 
-/// Adds experience and pays the levels it reaches: `(levels, silver,
-/// gold)`, by [`pay::level_reward`].
-pub(super) fn pay_levels(account: &mut Account, experience: u32) -> (Vec<u8>, u32, u32) {
+/// Adds experience and pays the levels it reaches: `(levels, silver)`,
+/// by [`pay::level_reward`].
+pub(super) fn pay_levels(account: &mut Account, experience: u32) -> (Vec<u8>, u32) {
     let levels = account.add_experience(experience);
-    let (mut silver, mut gold) = (0_u32, 0_u32);
-    for &level in &levels {
-        match pay::level_reward(level) {
-            pay::LevelReward::Silver(amount) => silver = silver.saturating_add(amount),
-            pay::LevelReward::Gold(amount) => gold = gold.saturating_add(amount),
-        }
-    }
+    let silver = levels
+        .iter()
+        .fold(0_u32, |sum, &level| sum.saturating_add(pay::level_reward(level)));
     account.generic_money = account.generic_money.saturating_add(silver);
-    account.premium_money = account.premium_money.saturating_add(gold);
-    (levels, silver, gold)
+    (levels, silver)
 }
 
 /// A player's counters by event and kit; none without statistics.
@@ -2092,7 +2086,7 @@ impl<'a> Shared<'a> {
         reward.experience = experience;
         reward.reputation = reputation;
         account.generic_money = account.generic_money.saturating_add(money);
-        (reward.levels, reward.level_money, reward.level_gold) = pay_levels(account, experience);
+        (reward.levels, reward.level_money) = pay_levels(account, experience);
         notices.extend(super::notices::levels_reached(&reward.levels));
         if faction != 0 {
             reward.reputation_levels = account.add_reputation(faction, reputation);
@@ -2261,7 +2255,8 @@ impl<'a> Shared<'a> {
     }
 }
 
-/// Gives the account a rolled drop: silver and gold to the balances, a
+/// Gives the account a rolled drop: silver to the balance (a drop is never
+/// gold, `drops::dropped`), a
 /// stack onto the one owned, anything else as a new item with the
 /// modifications of its rarity (`items_rules::roll_modifications`), whole.
 /// Returns what was given and the item as a message describes it (a
@@ -2272,10 +2267,6 @@ fn give_drop(account: &mut Account, rolled: &drops::Drop, rng: &mut Rng) -> (Dro
     let (item_id, value, rarity) = match rolled.dict_id {
         GENERIC_MONEY => {
             account.generic_money = account.generic_money.saturating_add(rolled.count);
-            (0, rolled.count, rolled.rarity)
-        }
-        PREMIUM_MONEY => {
-            account.premium_money = account.premium_money.saturating_add(rolled.count);
             (0, rolled.count, rolled.rarity)
         }
         dict_id if dictionary.is_stack(dict_id) => (

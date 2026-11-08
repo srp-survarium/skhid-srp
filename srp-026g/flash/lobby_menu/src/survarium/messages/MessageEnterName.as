@@ -141,9 +141,10 @@ package survarium.messages
          this.nickName.text = this._nickname;
          lastNickName = this._nickname;
          this.warning.visible = false;
-         this.radioButtonPremium.money_type = MoneyType.PREMIUM;
+         // Paid in silver: the game has no gold (the owner, 2026-11-08).
+         this.radioButtonPremium.money_type = MoneyType.REGULAR;
          this.radioButtonVouchers.money_type = CheckBoxValue.RENAME_VOUCHER_ICON;
-         this.radioButtonPremium.value = _data.premiumCost;
+         this.radioButtonPremium.value = _data.cost;
          this.radioButtonVouchers.value = _data.vouchersCost;
          this.radioButtonVouchers.selected = _data.selectVoucher;
          this.radioButtonPremium.selected = !this.radioButtonVouchers.selected;
@@ -225,7 +226,7 @@ package survarium.messages
       protected function checkLocalNicknameValidation() : Boolean
       {
          trace("_data.vouchersCost",_data.vouchersCost,PlayerInfo.getVoucherCount(VoucherType.RENAME),this.radioButtonPremium.selected,_data.voucherId);
-         return this.lastNickName.length >= this.MIN_CHARS && this.lastNickName.length <= this.MAX_CHARS && (this.radioButtonPremium.selected ? _data.premiumCost <= PlayerInfo.premiumMoney : _data.vouchersCost <= PlayerInfo.getVoucherCount(VoucherType.RENAME));
+         return this.lastNickName.length >= this.MIN_CHARS && this.lastNickName.length <= this.MAX_CHARS && (this.radioButtonPremium.selected ? _data.cost <= PlayerInfo.genericMoney : _data.vouchersCost <= PlayerInfo.getVoucherCount(VoucherType.RENAME));
       }
       
       public function handleNicknameValidation(result:Boolean, nickname:String, message:String = null) : void

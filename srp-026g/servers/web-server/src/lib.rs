@@ -1,9 +1,9 @@
 //! A small website for the people running srp.
 //!
 //! - `/` is a home page: what the project is and where it came from.
-//! - `/exchange` (the 0.26g page only, `GET`) says that silver and gold are
-//!   exchanged in the game now: the SHOP button of the launchers already in
-//!   players' hands opens it ([`v026g::in_the_game_now`]). Nothing is
+//! - `/exchange` (the 0.26g page only, `GET`) says that there is no gold:
+//!   everything is bought with silver. The SHOP button of the launchers
+//!   already in players' hands opens it ([`v026g::no_gold`]). Nothing is
 //!   exchanged on the page; on the 0.21d page it is "not found".
 //! - `/launcher/…` and `/api/client-files` (the 0.26g page only) are for the
 //!   patched game launcher and its updater ([`launcher`]): the page it shows
@@ -193,7 +193,7 @@ enum Form {
     Admin(Box<AdminView>),
     /// The 0.26g page's "not found".
     None26,
-    /// The 0.26g page's `/exchange`: in the game now, in the launcher's
+    /// The 0.26g page's `/exchange`: no gold, in the launcher's
     /// language ([`v026g::launcher_code`]).
     InTheGame26(&'static str),
 }
@@ -1728,7 +1728,7 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
     };
     let (header, test_notice) = site_header(lang, form.is_026g(), test, other_url, current);
     let body = match form {
-        Form::InTheGame26(code) => v026g::in_the_game_now(code),
+        Form::InTheGame26(code) => v026g::no_gold(code),
         Form::Admin(view) => admin_form(lang, &view),
         Form::Home(stats) => home(lang, stats),
         Form::None | Form::None26 => String::new(),

@@ -78,6 +78,7 @@ use super::dictionary::Dictionary;
 use super::drops::Rng;
 use super::game_data::{GameData, GameDataError};
 use super::item_params::item_params;
+use super::prices::GOLD_IN_SILVER;
 use super::scopes::{SCOPE_SLOT, ScopeFits};
 
 /// The paths of the three files in the archive.
@@ -217,9 +218,10 @@ pub struct Defect {
     pub kind: u8,
     pub drop_weight: f32,
     pub name: String,
-    /// Silver, gold and seconds to fix it.
+    /// Silver and seconds to fix it (`fix_cost_gold` is not read: gold is
+    /// gone; the live data has the gold repair's price and time here,
+    /// `scripts/content-edit/defects.tsv`).
     pub fix_cost_general: u32,
-    pub fix_cost_gold: u32,
     pub fix_time_general: u32,
     /// `required_modifications`: the item must hold a modification with an
     /// id in `low..=high`.
@@ -250,16 +252,17 @@ impl DefectSlot {
     }
 }
 
-/// `craft.options`.
+/// `craft.options`, in silver: gold is gone [the owner, 2026-11-08], and the
+/// one upgrade left is the game's gold one (`craft_price_premium` times
+/// [`GOLD_IN_SILVER`], `craft_probabilities_premium`). The silver tables of
+/// the file (`*_general`) are not read.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Craft {
-    /// Silver and gold by the item's level.
-    pub price_general: [u16; PRICE_LEVELS],
-    pub price_premium: [u16; PRICE_LEVELS],
+    /// Silver by the item's level.
+    pub price: [u16; PRICE_LEVELS],
     /// By how many more modifications the item has than its donor (0, 1,
     /// 2): `(success %, failure %)`; the rest is "nothing happened".
-    pub chances_general: [(f32, f32); 3],
-    pub chances_premium: [(f32, f32); 3],
+    pub chances: [(f32, f32); 3],
 }
 
 /// What an upgrade ("craft") does.
@@ -276,33 +279,23 @@ pub enum CraftOutcome {
 }
 
 impl Craft {
-    /// The price for an item of `item_level`, in silver or in gold. A level
-    /// past the table costs the table's last.
-    pub fn price(&self, item_level: u8, gold: bool) -> u32 {
-        let table = if gold {
-            &self.price_premium
-        } else {
-            &self.price_general
-        };
-        u32::from(table[usize::from(item_level).min(PRICE_LEVELS - 1)])
+    /// The price for an item of `item_level`. A level past the table costs
+    /// the table's last.
+    pub fn price(&self, item_level: u8) -> u32 {
+        u32::from(self.price[usize::from(item_level).min(PRICE_LEVELS - 1)])
     }
 
     /// `(success %, failure %)` for an item with `difference` more
     /// modifications than its donor; `None` past the table (the lobby
     /// refuses a donor with more than the item, and 3 is the most).
-    pub fn chances(&self, difference: usize, gold: bool) -> Option<(f32, f32)> {
-        let table = if gold {
-            &self.chances_premium
-        } else {
-            &self.chances_general
-        };
-        table.get(difference).copied()
+    pub fn chances(&self, difference: usize) -> Option<(f32, f32)> {
+        self.chances.get(difference).copied()
     }
 
     /// The outcome for a point `at` of 0..100 (success first, then
     /// failure, then nothing).
-    pub fn outcome_at(&self, difference: usize, gold: bool, at: f32) -> Option<CraftOutcome> {
-        let (success, failure) = self.chances(difference, gold)?;
+    pub fn outcome_at(&self, difference: usize, at: f32) -> Option<CraftOutcome> {
+        let (success, failure) = self.chances(difference)?;
         Some(if at < success {
             CraftOutcome::Success
         } else if at < success + failure {
@@ -315,39 +308,35 @@ impl Craft {
     /// What 0x9B carries: the twelve chances as the lobby indexes them
     /// (`MessageCraftItem.updateCraftChance`: row = the difference in
     /// rank, then success and failure in silver, success and failure in
-    /// gold), and the two price tables.
+    /// gold), and the silver and gold price tables. Everything is in the
+    /// silver places; the gold ones are 0.
     pub fn tables(&self) -> ([f32; 12], [u16; PRICE_LEVELS], [u16; PRICE_LEVELS]) {
         let mut chances = [0.0; 12];
         for row in 0..3 {
-            chances[row * 4] = self.chances_general[row].0;
-            chances[row * 4 + 1] = self.chances_general[row].1;
-            chances[row * 4 + 2] = self.chances_premium[row].0;
-            chances[row * 4 + 3] = self.chances_premium[row].1;
+            chances[row * 4] = self.chances[row].0;
+            chances[row * 4 + 1] = self.chances[row].1;
         }
-        (chances, self.price_general, self.price_premium)
+        (chances, self.price, [0; PRICE_LEVELS])
     }
 }
 
-/// `reroll.options`. Its `reroll_modificator_multiplicator` (1.1) is not
-/// read: [srp, the owner's rule of 2026-10-25] every change costs the same
+/// `reroll.options`, in silver: `reroll_price_premium` times
+/// [`GOLD_IN_SILVER`] (gold is gone [the owner, 2026-11-08]; the silver
+/// table, `reroll_price_general`, is not read). Its
+/// `reroll_modificator_multiplicator` (1.1) is not read either: [srp, the
+/// owner's rule of 2026-10-25] every change costs the same
 /// (`docs/notes/flat-reroll.md`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reroll {
-    pub price_general: [u16; PRICE_LEVELS],
-    pub price_premium: [u16; PRICE_LEVELS],
+    pub price: [u16; PRICE_LEVELS],
 }
 
 impl Reroll {
     /// The price of a change of a modification on an item of `item_level`:
     /// the table's, however many changes the item had (the owner's rule of
     /// 2026-10-25).
-    pub fn price(&self, item_level: u8, gold: bool) -> u32 {
-        let table = if gold {
-            &self.price_premium
-        } else {
-            &self.price_general
-        };
-        u32::from(table[usize::from(item_level).min(PRICE_LEVELS - 1)])
+    pub fn price(&self, item_level: u8) -> u32 {
+        u32::from(self.price[usize::from(item_level).min(PRICE_LEVELS - 1)])
     }
 }
 
@@ -444,14 +433,18 @@ fn shown_of(row: &ConfigValue) -> Result<Shown, ConfigError> {
     })
 }
 
-fn prices(root: &ConfigValue, key: &str) -> Result<[u16; PRICE_LEVELS], ConfigError> {
+/// A table of gold prices, `key`, in silver ([`GOLD_IN_SILVER`] a gold): what
+/// the wire carries, a u16 each (0x9B), or an error.
+fn silver_prices(root: &ConfigValue, key: &str) -> Result<[u16; PRICE_LEVELS], ConfigError> {
     let list: Vec<u16> = root
         .req(key)?
         .children()
         .into_iter()
         .map(|price| {
-            number(price).and_then(|price| {
-                u16::try_from(price).map_err(|_| ConfigError(format!("`{key}` is over a u16")))
+            number(price).and_then(|gold: u32| {
+                gold.checked_mul(GOLD_IN_SILVER)
+                    .and_then(|silver| u16::try_from(silver).ok())
+                    .ok_or_else(|| ConfigError(format!("`{key}` in silver is over a u16")))
             })
         })
         .collect::<Result<_, _>>()?;
@@ -735,7 +728,6 @@ impl Modifications {
                     drop_weight: row.f32_at("drop_weight")?,
                     name: name_of(row)?,
                     fix_cost_general: number(row.req("fix_cost_general")?)?,
-                    fix_cost_gold: number(row.req("fix_cost_gold")?)?,
                     fix_time_general: number(row.req("fix_time_general")?)?,
                     required_modifications: required,
                     modifiers: modifiers(row)?,
@@ -764,14 +756,11 @@ impl Modifications {
             defects,
             defect_slots,
             craft: Craft {
-                price_general: prices(craft, "craft_price_general")?,
-                price_premium: prices(craft, "craft_price_premium")?,
-                chances_general: chances(craft, "craft_probabilities_general")?,
-                chances_premium: chances(craft, "craft_probabilities_premium")?,
+                price: silver_prices(craft, "craft_price_premium")?,
+                chances: chances(craft, "craft_probabilities_premium")?,
             },
             reroll: Reroll {
-                price_general: prices(reroll, "reroll_price_general")?,
-                price_premium: prices(reroll, "reroll_price_premium")?,
+                price: silver_prices(reroll, "reroll_price_premium")?,
             },
         })
     }

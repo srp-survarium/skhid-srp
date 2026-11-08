@@ -549,12 +549,13 @@ pub fn prices(records: &[PriceItem]) -> Result<ServerMessage, WireError> {
     Ok(writer.done(ServerId::Prices))
 }
 
-/// `8B`: the account's silver and gold (`lobby.md` §2.11). The client never
-/// asks: push it after every change.
-pub fn money(generic: u32, premium: u32) -> ServerMessage {
+/// `8B`: the account's silver and gold (`lobby.md` §2.11); gold is always 0
+/// (gone, the owner's of 2026-11-08). The client never asks: push it
+/// after every change.
+pub fn money(silver: u32) -> ServerMessage {
     Writer::new()
-        .u32(generic)
-        .u32(premium)
+        .u32(silver)
+        .u32(0)
         .done(ServerId::Money)
 }
 
@@ -592,7 +593,8 @@ pub struct ServicePrices {
     pub profile: u32,
     /// `set_change_name_cost`.
     pub change_name: u32,
-    /// `set_premium_exchange_rate`: silver for one gold.
+    /// `set_premium_exchange_rate`: silver for one gold; 0, since nothing is
+    /// paid in gold.
     pub premium_exchange_rate: u32,
     /// `set_clan_creation_cost`.
     pub clan_creation: u32,

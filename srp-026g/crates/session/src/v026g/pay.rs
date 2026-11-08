@@ -18,6 +18,8 @@
 //! multiplier (`match_levels_dict`), rounded down after multiplying
 //! (PROVEN by SHOT2: every cell of its kills and help rows comes out).
 
+use survarium::v026g::prices::GOLD_IN_SILVER;
+
 /// What one event, or one point of score, pays before the match level's
 /// multipliers: silver, experience, reputation.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -231,28 +233,22 @@ pub const START_RATING: u16 = 100;
 pub const RATING_STEP: f64 = 4.0;
 pub const RATING_SPREAD: f64 = 40.0;
 
-/// What reaching a level pays.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LevelReward {
-    Silver(u32),
-    Gold(u32),
-}
-
 /// The gold of the last level (the wiki's table of February 2015).
 pub const LAST_LEVEL_GOLD: u32 = 250;
 
-/// The reward for reaching `level` (counted from 0, as a 0.26g account's
+/// The silver for reaching `level` (counted from 0, as a 0.26g account's
 /// is): 0.21d's table, which is the wiki's (100 gold at level 1 and every
 /// fifth, silver between: 500 rising by 250 each five levels to 5,000),
-/// and 250 gold at the last level, 100.
-pub fn level_reward(level: u8) -> LevelReward {
+/// and 250 gold at the last level, 100. Gold is gone (the owner, 2026-11-08):
+/// a level that paid gold pays its silver, [`GOLD_IN_SILVER`] a gold.
+pub fn level_reward(level: u8) -> u32 {
     use survarium::v021d::results::{LevelReward as Old, level_reward};
     if level >= super::account::MAX_LEVEL {
-        return LevelReward::Gold(LAST_LEVEL_GOLD);
+        return LAST_LEVEL_GOLD * GOLD_IN_SILVER;
     }
     match level_reward(level.saturating_add(1)) {
-        Old::Money(amount) => LevelReward::Silver(amount),
-        Old::Premium(amount) => LevelReward::Gold(amount),
+        Old::Money(amount) => amount,
+        Old::Premium(amount) => amount.saturating_mul(GOLD_IN_SILVER),
     }
 }
 
@@ -364,13 +360,14 @@ mod tests {
     }
 
     #[test]
-    fn the_last_level_pays_250_gold() {
-        assert_eq!(level_reward(1), LevelReward::Gold(100));
-        assert_eq!(level_reward(2), LevelReward::Silver(500));
-        assert_eq!(level_reward(5), LevelReward::Gold(100));
-        assert_eq!(level_reward(6), LevelReward::Silver(750));
-        assert_eq!(level_reward(95), LevelReward::Gold(100));
-        assert_eq!(level_reward(99), LevelReward::Silver(5_000));
-        assert_eq!(level_reward(100), LevelReward::Gold(250));
+    fn the_levels_gold_is_paid_in_silver() {
+        // 100 gold at the wiki's level 1 and every fifth, 250 at the last.
+        assert_eq!(level_reward(1), 10_000);
+        assert_eq!(level_reward(2), 500);
+        assert_eq!(level_reward(5), 10_000);
+        assert_eq!(level_reward(6), 750);
+        assert_eq!(level_reward(95), 10_000);
+        assert_eq!(level_reward(99), 5_000);
+        assert_eq!(level_reward(100), 25_000);
     }
 }

@@ -169,7 +169,6 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     // A faction whose quests the lobby shows (`QuestFaction`).
     super::quests::choose_faction(account, faction).expect("every quest faction is open");
     account.generic_money = grant.silver;
-    account.premium_money = grant.gold;
     if starter_kit {
         super::premium::add_premium(account, u64::from(grant.premium_days) * 86_400, now);
         // The levels below it pay nothing. Before the kits: they carry the
@@ -318,10 +317,7 @@ mod tests {
             &survarium::v026g::loadouts::Loadout { items: Vec::new() },
         );
         signup_grant(&mut account, NOW);
-        assert_eq!(
-            (account.generic_money, account.premium_money),
-            (grant.silver, grant.gold)
-        );
+        assert_eq!(account.generic_money, grant.silver);
         // 30 days of premium from the making, 720 hours as the lobby is
         // told.
         assert_eq!(account.premium_until, NOW + 30 * 86_400);

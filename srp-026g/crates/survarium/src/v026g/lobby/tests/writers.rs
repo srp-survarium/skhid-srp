@@ -125,7 +125,7 @@ fn the_x_byte_follows_the_id() {
     // Unique: `id, unique id, body`.
     assert_eq!(signed_in(0, false).wire(0x07), h("80 07 00 00"));
     // Ordered: `id, order id, body`.
-    assert_eq!(money(1, 2).wire(0x03), h("8B 03 01000000 02000000"));
+    assert_eq!(money(1).wire(0x03), h("8B 03 01000000 00000000"));
     // 0x9F is plain: no x byte.
     assert_eq!(
         online_stats(1, 2, 3).wire(0x55),
@@ -509,7 +509,7 @@ fn prices_are_packed_as_stored_lzma2() {
 
 #[test]
 fn money_skills_and_the_small_pushes() {
-    assert_bytes(&money(2000, 1000), "8B D0070000 E8030000");
+    assert_bytes(&money(2000), "8B D0070000 00000000");
     assert_bytes(
         &level_and_skills(3, 1000, 500, 1500, &[(101, 2), (209, 1)]).unwrap(),
         "8C 03 E8030000 F4010000 DC050000 02  6500 02  D100 01",
@@ -1705,8 +1705,8 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
         let at = record * 0xD0 + offset;
         u32::from_le_bytes(unpacked[at..at + 4].try_into().unwrap())
     };
-    // The first record: a year of premium (bundle 6), 8000 gold, kind 0,
-    // no items.
+    // The first record: a year of premium (bundle 6), 8000 gold in silver,
+    // kind 0, no items, silver (money type 0).
     assert_eq!(
         [
             u32_at(0, 0x00),
@@ -1716,9 +1716,10 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
             u32_at(0, 0x14),
             u32_at(0, 0xCC)
         ],
-        [6, 6, 0, 8_000, 0, 1]
+        [6, 6, 0, 800_000, 0, 0]
     );
-    // The ninth: the AK-74N bundle (9), kind 1, 1500 gold, two items: the
+    // The ninth: the AK-74N bundle (9), kind 1, 1500 gold in silver, two
+    // items: the
     // rifle (dict 338, 1) and its ammo (dict 7, 2000), each an item of the
     // inventory (0 at +0x20 of the item).
     assert_eq!(
@@ -1730,7 +1731,7 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
             u32_at(8, 0x14),
             u32_at(8, 0xCC)
         ],
-        [9, 9, 1, 1_500, 2, 1]
+        [9, 9, 1, 150_000, 2, 0]
     );
     assert_eq!(
         [

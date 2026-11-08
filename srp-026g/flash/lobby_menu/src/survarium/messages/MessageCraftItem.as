@@ -32,10 +32,6 @@ package survarium.messages
       
       protected static var _craftChance:Array = [1,2,3,4,5,6,7,8,9,10,11,12];
       
-      protected static var _pemiumCostArray:Array = [];
-      
-      protected static var _pemiumCost:uint;
-      
       protected static var _regularCostArray:Array = [];
       
       protected static var _regularCost:uint;
@@ -130,10 +126,6 @@ package survarium.messages
          _regularCostArray = costs;
       }
       
-      public static function setCraftPremiumCost(costs:Array) : void
-      {
-         _pemiumCostArray = costs;
-      }
       
       public function setMatchState(matchState:int) : void
       {
@@ -205,7 +197,12 @@ package survarium.messages
             this.labelSuccessChance.text = LocalizationData.getName("item_craft_success_label");
             this.labelFailChance.text = LocalizationData.getName("item_craft_fail_label");
             this.labelRegularMoney.text = LocalizationData.getName("regular_money");
-            this.labelGoldMoney.text = LocalizationData.getName("premium_money");
+            // An upgrade is paid in silver only, at the chances the server sends for it: the game
+            // has no gold (the owner, 2026-11-08). The gold column is hidden.
+            this.labelGoldMoney.visible = false;
+            this.successChanceGold.visible = false;
+            this.failChanceGold.visible = false;
+            this.checkBoxPremiumCost.visible = false;
             this.dragItemSlot1.selected = false;
             this.dragItemSlot2.selected = false;
             this.dragItemSlot3.selected = false;
@@ -223,16 +220,10 @@ package survarium.messages
             this.dragItemSlot1.dispatchEvent(new Event(Events.DROPED_IN));
             this.dragItemSlot3.dragEnabled = false;
             this.dragItemSlot3.visible = false;
-            this.checkBoxPremiumCost.toggle = false;
-            this.checkBoxRegularCost.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
-            this.checkBoxPremiumCost.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
             this.checkBoxRegularCost.selected = true;
-            this.checkBoxPremiumCost.selected = false;
             this.checkBoxRegularCost.money_type = MoneyType.REGULAR;
-            this.checkBoxPremiumCost.money_type = MoneyType.PREMIUM;
             this.checkBoxRegularCost.toggle = false;
             this.checkBoxRegularCost.value = _regularCost;
-            this.checkBoxPremiumCost.value = _pemiumCost;
          }
          this.updateCraftChance();
          this.checkAcceptButton();
@@ -246,10 +237,8 @@ package survarium.messages
          var row:Number = this.labelFailChance.y - this.labelSuccessChance.y;
          this.labelFailChance.visible = false;
          this.failChanceRegular.visible = false;
-         this.failChanceGold.visible = false;
          this.rerollContainer.background.height -= row;
          this.checkBoxRegularCost.y -= row;
-         this.checkBoxPremiumCost.y -= row;
          this.craftTimer.y -= row;
          this.background.height -= row;
       }
@@ -333,8 +322,6 @@ package survarium.messages
          var donorRank:uint;
          var successRegular:uint = 0;
          var failRegular:uint = 0;
-         var successGold:uint = 0;
-         var failGold:uint = 0;
          var chanceIndex:uint;
          var costLevel:uint;
          _craftAvailable = true;
@@ -358,31 +345,22 @@ package survarium.messages
                chanceIndex = (mainRank - donorRank) * 4;
                successRegular = _craftChance[chanceIndex];
                failRegular = _craftChance[chanceIndex + 1];
-               successGold = _craftChance[chanceIndex + 2];
-               failGold = _craftChance[chanceIndex + 3];
             }
          }
          this.successChanceRegular.text = successRegular + "%";
          this.failChanceRegular.text = failRegular + "%";
-         this.successChanceGold.text = successGold + "%";
-         this.failChanceGold.text = failGold + "%";
          if(mainItem || donorItem)
          {
             costLevel = mainItem ? mainItem.itemLevel : (donorItem ? donorItem.itemLevel : 0);
-            _pemiumCost = _pemiumCostArray[costLevel];
             _regularCost = _regularCostArray[costLevel];
          }
          else
          {
-            _pemiumCost = 0;
             _regularCost = 0;
          }
          this.checkBoxRegularCost.value = _regularCost;
          this.checkBoxRegularCost.invalidateState();
          this.checkBoxRegularCost.validateNow();
-         this.checkBoxPremiumCost.value = _pemiumCost;
-         this.checkBoxPremiumCost.invalidateState();
-         this.checkBoxPremiumCost.validateNow();
       }
       
       public function onDrag(event:DragEvent) : void
@@ -402,13 +380,6 @@ package survarium.messages
             this.dragItemSlot2.highlighted = false;
             this.dragItemSlot1.highlighted = false;
          }
-      }
-      
-      private function unBtnClicked(event:Event) : void
-      {
-         this.checkBoxRegularCost.selected = event.target == this.checkBoxRegularCost;
-         this.checkBoxPremiumCost.selected = event.target == this.checkBoxPremiumCost;
-         this.checkAcceptButton();
       }
       
       protected function checkAcceptButton(event:Event = null) : void
@@ -433,7 +404,7 @@ package survarium.messages
             {
                canCraft = false;
             }
-            else if(PlayerInfo.genericMoney < _regularCost && this.checkBoxRegularCost.selected)
+            else if(PlayerInfo.genericMoney < _regularCost)
             {
                canCraft = false;
             }
@@ -444,7 +415,7 @@ package survarium.messages
       public function fillCraftData(craftData:Object) : void
       {
          this.craftTimer.setTime(Util.getTimeStringMinutes(int(craftData.craft_time / 60)));
-         trace("fillCraftData::",craftData.regular_cost,craftData.premium_cost);
+         trace("fillCraftData::",craftData.regular_cost);
       }
       
       public function fillCraftedItem(craftedItem:Object, result:int, newModifier:Object) : void
@@ -468,14 +439,10 @@ package survarium.messages
          this.labelSuccessChance.visible = false;
          this.labelFailChance.visible = false;
          this.labelRegularMoney.visible = false;
-         this.labelGoldMoney.visible = false;
          this.successChanceRegular.visible = false;
          this.failChanceRegular.visible = false;
-         this.failChanceGold.visible = false;
-         this.successChanceGold.visible = false;
          this.checkBoxRegularCost.visible = false;
          this.craftTimer.visible = false;
-         this.checkBoxPremiumCost.visible = false;
          btnCancel.visible = false;
          btnAccept.x = (width - btnAccept.width) / 2;
          btnAccept.label = LocalizationData.getName("btn_craft_accept");
@@ -507,22 +474,6 @@ package survarium.messages
          }
       }
 
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
-      }
-      
-      protected function onNoMoneyEnought() : void
-      {
-         var messageData:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",messageData,true);
-      }
-      
       protected function dropItem() : void
       {
          this.dragItemSlot2.data = null;
@@ -568,7 +519,6 @@ package survarium.messages
       
       override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
-         var moneyType:uint;
          if(!btnAccept.enabled)
          {
             return;
@@ -576,17 +526,9 @@ package survarium.messages
          trace("onMessageAccept",this.dragItemSlot1.data,this.dragItemSlot2.data);
          if(this.dragItemSlot1.data && this.dragItemSlot2.data && !this.dragItemSlot3.visible)
          {
-            moneyType = uint(this.checkBoxPremiumCost.selected ? MoneyType.PREMIUM : MoneyType.REGULAR);
-            if(moneyType == MoneyType.PREMIUM && _pemiumCost > PlayerInfo.premiumMoney)
-            {
-               this.onNoMoneyEnought();
-            }
-            else
-            {
-               ExternalInterface.call("craft_item",this.dragItemSlot1.data.itemId,this.dragItemSlot2.data.itemId,moneyType);
-               trace("craft_item",this.dragItemSlot1.data.itemId,this.dragItemSlot2.data.itemId,moneyType);
-               this.lockWindow(true);
-            }
+            ExternalInterface.call("craft_item",this.dragItemSlot1.data.itemId,this.dragItemSlot2.data.itemId,uint(MoneyType.REGULAR));
+            trace("craft_item",this.dragItemSlot1.data.itemId,this.dragItemSlot2.data.itemId);
+            this.lockWindow(true);
             return;
          }
       }

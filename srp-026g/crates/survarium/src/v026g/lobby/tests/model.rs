@@ -64,7 +64,7 @@ fn forbidden_ids_never_reach_a_reader() {
 fn only_the_sign_in_answer_is_taken_first() {
     let mut client = Client::new();
     assert_eq!(
-        client.receive(&money(1, 2)),
+        client.receive(&money(1)),
         Err(ModelError::NotSignedIn(ServerId::Money))
     );
     assert_eq!(
@@ -75,7 +75,7 @@ fn only_the_sign_in_answer_is_taken_first() {
         })
     );
     assert!(client.is_signed_in());
-    assert!(client.receive(&money(1, 2)).is_ok());
+    assert!(client.receive(&money(1)).is_ok());
     assert_eq!(client.received(), 2);
 }
 
@@ -509,10 +509,10 @@ fn every_core_push_reads_back() {
         },
     );
     round_trip(
-        money(5, 6),
+        money(5),
         Decoded::Money {
             generic: 5,
-            premium: 6,
+            premium: 0,
         },
     );
     round_trip(

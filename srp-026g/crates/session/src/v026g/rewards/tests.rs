@@ -127,8 +127,8 @@ fn spent_day() -> crate::v026g::extras::DailyBonus {
         day: 1,
         last_day: crate::v026g::bonus::day_of(NOW),
         wins: [3, 0, 0, 0, 0, 0, 0],
-        reward_dict: PREMIUM_MONEY,
-        reward_count: 50,
+        reward_dict: GENERIC_MONEY,
+        reward_count: 5_000,
         ..Default::default()
     }
 }
@@ -159,12 +159,11 @@ fn account(store: &GameAccounts, account_id: u32) -> Account {
     store.get(account_id).unwrap().locked().clone()
 }
 
-/// The silver and the gold a reward's drop put in the balances.
-fn dropped_money(reward: &Reward) -> (u32, u32) {
+/// The silver a reward's drop put in the balance (no drop is gold).
+fn dropped_money(reward: &Reward) -> u32 {
     match reward.drop {
-        Some(drop) if drop.dict_id == GENERIC_MONEY => (drop.count, 0),
-        Some(drop) if drop.dict_id == PREMIUM_MONEY => (0, drop.count),
-        _ => (0, 0),
+        Some(drop) if drop.dict_id == GENERIC_MONEY => drop.count,
+        _ => 0,
     }
 }
 
@@ -230,10 +229,9 @@ fn the_winner_and_the_loser_are_paid_by_the_score() {
     assert_eq!((alice.full.elo_before, alice.full.elo_after), (100, 102));
 
     let after = account(&store, 10);
-    let (silver, gold) = dropped_money(&alice.reward);
+    let silver = dropped_money(&alice.reward);
     assert_eq!(after.exp_total, before.exp_total + 132);
     assert_eq!(after.generic_money, before.generic_money + 167 + silver);
-    assert_eq!(after.premium_money, before.premium_money + gold);
     assert_eq!((after.rating, after.rating_before), (102, 100));
 
     // Bob: a kill, and half the fixed part for a match lost and played to
@@ -825,27 +823,30 @@ fn experience_reaches_levels_and_they_pay() {
         .settle(&result(players), &store, &terms(), &mut Rng::new(1))
         .unwrap();
     let reward = &report.players[0].reward;
-    // 400 + 132 is past the 500 of level 1, which pays 100 gold.
+    // 400 + 132 is past the 500 of level 1, which pays 100 gold, in silver.
     assert_eq!(reward.levels, [1]);
-    assert_eq!((reward.level_money, reward.level_gold), (0, 100));
+    assert_eq!(reward.level_money, 10_000);
     let after = account(&store, 10);
     assert_eq!(after.level(), 1);
     assert_eq!(after.free_skill_points(), 1);
-    let (silver, gold) = dropped_money(reward);
-    assert_eq!(after.premium_money, before.premium_money + 100 + gold);
-    assert_eq!(after.generic_money, before.generic_money + 167 + silver);
+    let silver = dropped_money(reward);
+    assert_eq!(
+        after.generic_money,
+        before.generic_money + 167 + 10_000 + silver
+    );
     // Bob reached none.
     assert!(report.players[1].reward.levels.is_empty());
     // Level 2 pays silver.
     let mut account = Account::new("Eve");
-    assert_eq!(pay_levels(&mut account, 1250), (vec![1, 2], 500, 100));
-    // The last level is the hundredth, and pays 250 gold.
+    assert_eq!(pay_levels(&mut account, 1250), (vec![1, 2], 10_500));
+    // The last level is the hundredth, and pays 250 gold, in silver.
     let mut account = Account::new("Eve");
     account.exp_total = 1_287_499;
     assert_eq!(account.level(), 99);
-    assert_eq!(pay_levels(&mut account, 1), (vec![100], 0, 250));
-    assert_eq!(pay_levels(&mut account, 1_000_000), (vec![], 0, 0));
-    assert_eq!(account.premium_money, 250);
+    let silver = account.generic_money;
+    assert_eq!(pay_levels(&mut account, 1), (vec![100], 25_000));
+    assert_eq!(pay_levels(&mut account, 1_000_000), (vec![], 0));
+    assert_eq!(account.generic_money, silver + 25_000);
 }
 
 #[test]
@@ -909,7 +910,7 @@ fn a_quest_the_match_meets_is_paid_and_reputation_goes_to_the_quest_faction() {
     );
     let after = account(&store, 10);
     assert_eq!(after.reputation(1), 94 + 6 + points);
-    let (silver, _) = dropped_money(&alice.reward);
+    let silver = dropped_money(&alice.reward);
     assert_eq!(
         after.generic_money,
         before.generic_money + 167 + alice.reward.quest_money + silver
@@ -2199,7 +2200,7 @@ fn the_third_victory_of_the_seventh_day_gives_the_weeks_reward() {
         // Six days made, and two victories today.
         alice.extras.bonus.day = 7;
         alice.extras.bonus.wins = [3, 3, 3, 3, 3, 3, 2];
-        // Past level 1, far from level 2: the match pays no level's gold.
+        // Past level 1, far from level 2: the match pays no level's silver.
         alice.exp_total = 600;
     }
     let before = account(&store, 10);
@@ -2212,14 +2213,13 @@ fn the_third_victory_of_the_seventh_day_gives_the_weeks_reward() {
     assert_eq!(
         alice.reward.daily_reward,
         Some(crate::v026g::bonus::Given {
-            dict_id: PREMIUM_MONEY,
-            count: 50,
+            dict_id: GENERIC_MONEY,
+            count: 5_000,
             item_id: 0
         })
     );
     let after = account(&store, 10);
-    let (_, gold) = dropped_money(&alice.reward);
-    assert_eq!(after.premium_money, before.premium_money + 50 + gold);
+    assert!(after.generic_money >= before.generic_money + 5_000);
     assert!(after.extras.bonus.completed);
     // The window's message says so: seven days, each made, the reward
     // given.
@@ -2251,17 +2251,17 @@ fn a_level_reached_is_told_with_its_reward() {
     let store = accounts(&players);
     // One point short of level 1.
     store.get(10).unwrap().locked().exp_total = 499;
-    let gold = account(&store, 10).premium_money;
+    let silver = account(&store, 10).generic_money;
     let report = Results::new()
         .settle(&result(players), &store, &terms(), &mut Rng::new(1))
         .unwrap();
     let alice = &report.players[0];
     assert_eq!(alice.reward.levels, [1]);
-    assert_eq!(alice.reward.level_gold, 100);
-    // Important message type 14: the level, the money's kind twice (gold)
+    assert_eq!(alice.reward.level_money, 10_000);
+    // Important message type 14: the level, the money's kind twice (silver)
     // and the amount.
-    assert!(alice.notices.contains(&(14, "[1][1][1][100]".to_owned())));
-    assert!(account(&store, 10).premium_money >= gold + 100);
+    assert!(alice.notices.contains(&(14, "[1][0][0][10000]".to_owned())));
+    assert!(account(&store, 10).generic_money >= silver + 10_000);
     // Bob reached none.
     assert!(
         report.players[1]
@@ -2659,7 +2659,7 @@ fn a_private_rooms_match_pays_nobody_anything() {
         );
         assert_eq!(reward.premium_bonus, (0, 0, 0));
         assert!(reward.quest_reputation.is_empty() && reward.levels.is_empty());
-        assert_eq!((reward.level_money, reward.level_gold), (0, 0));
+        assert_eq!(reward.level_money, 0);
         assert_eq!((reward.drop, reward.drop_chance), (None, 0.0));
         assert!(!reward.daily_bonus && reward.daily_reward.is_none());
         assert_eq!(reward.rating_after, reward.rating_before);

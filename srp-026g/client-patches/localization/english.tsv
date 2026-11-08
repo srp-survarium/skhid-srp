@@ -2486,14 +2486,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_legs_7_name	Snow-20 Pants
 st_srp_equipment069_snow_20_torso_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_torso_7_name	Snow-20 Vest
-st_srp_exchange_balance	Balance
-st_srp_exchange_button	Exchange
-st_srp_exchange_gold	Gold
-st_srp_exchange_pay	Pay
-st_srp_exchange_receive	Receive
-st_srp_exchange_short_gold	Not enough gold
-st_srp_exchange_short_silver	Not enough silver
-st_srp_exchange_title	Exchange
 st_srp_hide_hit_markers_option	Hide hit markers
 st_srp_hide_quests_option	Hide quests
 st_srp_hide_scores_option	Hide player scores

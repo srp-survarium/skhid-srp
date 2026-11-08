@@ -1,5 +1,9 @@
 # 0.26g: premium, the shop's offers, daily bonus, tutorial, nickname, autobuy
 
+> **Since 2026-11-08 there is no gold** ([silver-only.md](silver-only.md)): every gold price and
+> amount below is paid or given in silver at 100 silver a gold, the shop's records carry money type 0,
+> and the exchange is gone. What follows is the client's reading as it was found.
+
 Version scope: client **0.26g build 2777**. Read from the exe (VAs of that build), the decompiled `lobby_menu.swf` (class names given) and the game's data, 2026-10-12. Nothing here was tried against a running client. Tags: **PROVEN** (read at the place named), **LIKELY**, **GUESS**, **[srp]** = srp's own choice where the client does not say.
 
 Code: `crates/survarium/src/v026g/{shop_offers,awards}.rs`, `crates/session/src/v026g/{premium,bonus,tutorial,names,autobuy,notices,extras}.rs`, `servers/lobby-server/src/v026g/shop.rs`.

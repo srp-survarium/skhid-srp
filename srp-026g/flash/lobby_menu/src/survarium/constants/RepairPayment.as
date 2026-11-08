@@ -6,8 +6,6 @@ package survarium.constants
       
       public static const REGULAR:int = 0;
       
-      public static const PREMIUM:int = 1;
-      
       // a repair voucher
       public static const VOUCHER:int = 2;
       

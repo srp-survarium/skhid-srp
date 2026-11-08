@@ -16,7 +16,6 @@ package survarium.item
    import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemRank;
-   import survarium.constants.MoneyType;
    import survarium.constants.RendererState;
    import survarium.constants.SuperCategory;
    
@@ -252,8 +251,7 @@ package survarium.item
          if(isShopItem)
          {
             this.labelCost.visible = true;
-            this.labelCost.moneyType = item.isPremium ? MoneyType.PREMIUM : MoneyType.REGULAR;
-            this.labelCost.textField.textColor = item.isPremium ? Colors.GOLD : Colors.PRICE_REG;
+            this.labelCost.textField.textColor = Colors.PRICE_REG;
             this.labelCost.cost = item.cost;
          }
          else

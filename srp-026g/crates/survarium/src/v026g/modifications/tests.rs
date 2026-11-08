@@ -73,10 +73,9 @@ fn the_three_files_parse_to_what_the_dump_shows() {
         (
             defect.kind,
             defect.fix_cost_general,
-            defect.fix_cost_gold,
             defect.fix_time_general
         ),
-        (1, 100, 50, 360)
+        (1, 100, 360)
     );
     assert_eq!(defect.required_modifications, None);
     assert_eq!(defect.modifiers[0].value, -0.1);
@@ -102,10 +101,9 @@ fn the_three_files_parse_to_what_the_dump_shows() {
     assert!(data.defects.iter().all(|d| {
         (
             d.fix_cost_general,
-            d.fix_cost_gold,
             d.fix_time_general,
             d.drop_weight,
-        ) == (100, 50, 360, 10.0)
+        ) == (100, 360, 10.0)
     }));
 
     assert_eq!(
@@ -126,31 +124,21 @@ fn the_three_files_parse_to_what_the_dump_shows() {
         ]
     );
 
+    // In silver, the game's gold prices and chances (the owner, 2026-11-08):
+    // its silver ones, half the chances at twice the price, are not read.
     #[rustfmt::skip]
     assert_eq!(
-        data.craft.price_general,
-        [400, 400, 800, 1600, 2400, 3400, 4400, 5400, 6600, 8000, 10000, 12000, 14000, 16000, 18000, 20000]
+        data.craft.price,
+        [200, 200, 400, 800, 1200, 1700, 2200, 2700, 3300, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
     );
     assert_eq!(
-        data.craft.price_premium,
-        [2, 2, 4, 8, 12, 17, 22, 27, 33, 40, 50, 60, 70, 80, 90, 100]
-    );
-    assert_eq!(
-        data.craft.chances_general,
-        [(50.0, 0.0), (25.0, 25.0), (12.5, 67.5)]
-    );
-    assert_eq!(
-        data.craft.chances_premium,
+        data.craft.chances,
         [(100.0, 0.0), (50.0, 0.0), (25.0, 25.0)]
     );
     #[rustfmt::skip]
     assert_eq!(
-        data.reroll.price_general,
-        [200, 200, 400, 400, 600, 800, 1000, 1200, 1600, 2000, 2400, 2800, 3200, 3800, 4400, 5000]
-    );
-    assert_eq!(
-        data.reroll.price_premium,
-        [1, 1, 2, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 19, 22, 25]
+        data.reroll.price,
+        [100, 100, 200, 200, 300, 400, 500, 600, 800, 1000, 1200, 1400, 1600, 1900, 2200, 2500]
     );
 }
 
@@ -512,42 +500,39 @@ fn defects_come_with_wear() {
 #[test]
 fn craft_and_reroll_go_by_the_tables() {
     let data = Modifications::shared();
-    assert_eq!(data.craft.price(0, false), 400);
-    assert_eq!(data.craft.price(10, false), 10_000);
-    assert_eq!(data.craft.price(10, true), 50);
+    assert_eq!(data.craft.price(0), 200);
+    assert_eq!(data.craft.price(10), 5_000);
     // Level 16 (the highest an item has) costs the table's last.
-    assert_eq!(data.craft.price(16, false), 20_000);
-    assert_eq!(data.craft.chances(0, false), Some((50.0, 0.0)));
-    assert_eq!(data.craft.chances(2, true), Some((25.0, 25.0)));
-    assert_eq!(data.craft.chances(3, false), None);
+    assert_eq!(data.craft.price(16), 10_000);
+    assert_eq!(data.craft.chances(0), Some((100.0, 0.0)));
+    assert_eq!(data.craft.chances(2), Some((25.0, 25.0)));
+    assert_eq!(data.craft.chances(3), None);
     use CraftOutcome::{Failure, Neutral, Success};
-    assert_eq!(data.craft.outcome_at(0, false, 49.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(0, false, 50.0), Some(Neutral));
-    assert_eq!(data.craft.outcome_at(0, true, 99.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(2, false, 12.4), Some(Success));
-    assert_eq!(data.craft.outcome_at(2, false, 12.5), Some(Failure));
-    assert_eq!(data.craft.outcome_at(2, false, 79.9), Some(Failure));
-    assert_eq!(data.craft.outcome_at(2, false, 80.0), Some(Neutral));
-    assert_eq!(data.craft.outcome_at(3, false, 0.0), None);
+    assert_eq!(data.craft.outcome_at(0, 99.9), Some(Success));
+    assert_eq!(data.craft.outcome_at(1, 49.9), Some(Success));
+    assert_eq!(data.craft.outcome_at(1, 50.0), Some(Neutral));
+    assert_eq!(data.craft.outcome_at(2, 24.9), Some(Success));
+    assert_eq!(data.craft.outcome_at(2, 25.0), Some(Failure));
+    assert_eq!(data.craft.outcome_at(2, 49.9), Some(Failure));
+    assert_eq!(data.craft.outcome_at(2, 50.0), Some(Neutral));
+    assert_eq!(data.craft.outcome_at(3, 0.0), None);
     // The lobby's rows: silver success and failure, gold success and
-    // failure, for a difference of 0, 1 and 2.
-    let (chances, general, premium) = data.craft.tables();
+    // failure, for a difference of 0, 1 and 2; nothing in gold.
+    let (chances, silver, gold) = data.craft.tables();
     #[rustfmt::skip]
     assert_eq!(
         chances,
-        [50.0, 0.0, 100.0, 0.0,  25.0, 25.0, 50.0, 0.0,  12.5, 67.5, 25.0, 25.0]
+        [100.0, 0.0, 0.0, 0.0,  50.0, 0.0, 0.0, 0.0,  25.0, 25.0, 0.0, 0.0]
     );
-    assert_eq!((general[2], premium[2]), (800, 4));
+    assert_eq!((silver[2], gold), (400, [0; 16]));
 
-    assert_eq!(data.reroll.price(0, false), 200);
-    assert_eq!(data.reroll.price(10, false), 2400);
-    assert_eq!(data.reroll.price(10, true), 12);
-    assert_eq!(data.reroll.price(16, true), 25);
+    assert_eq!(data.reroll.price(0), 100);
+    assert_eq!(data.reroll.price(10), 1200);
+    assert_eq!(data.reroll.price(16), 2500);
     // No level changes for nothing (the owner's rule of 2026-10-25: the
     // same price every time, `docs/notes/flat-reroll.md`).
     for level in 0..=u8::MAX {
-        assert!(data.reroll.price(level, false) > 0);
-        assert!(data.reroll.price(level, true) > 0);
+        assert!(data.reroll.price(level) > 0);
     }
 }
 
