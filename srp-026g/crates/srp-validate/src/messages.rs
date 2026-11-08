@@ -448,7 +448,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
                 return Err(refuse(
                     at,
                     Reason::OptionsTrailing {
-                        len: reader.rest().len() + 2 + entry.len(),
+                        len: reader.rest().len().saturating_add(2).saturating_add(entry.len()),
                     },
                 ));
             }

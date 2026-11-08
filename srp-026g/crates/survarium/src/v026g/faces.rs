@@ -69,9 +69,9 @@ impl Faces {
             return Err(ConfigError("`body_parts.heads` is no array".into()));
         };
         for (index, head) in heads.iter().enumerate() {
-            let data = head
-                .req("data")
-                .map_err(|cause| ConfigError(format!("`body_parts.heads[{index}]`: {}", cause.0)))?;
+            let data = head.req("data").map_err(|cause| {
+                ConfigError(format!("`body_parts.heads[{index}]`: {}", cause.0))
+            })?;
             for key in ["base_model", "part_name"] {
                 data.str_at(key).map_err(|cause| {
                     ConfigError(format!("`body_parts.heads[{index}].data`: {}", cause.0))
@@ -186,7 +186,10 @@ mod tests {
         assert!(Faces::parse(&file(Some(ConfigValue::Indexed(Vec::new())))).is_err());
         let no_part = ConfigValue::Named(vec![(
             "data".to_owned(),
-            ConfigValue::Named(vec![("base_model".to_owned(), ConfigValue::String("a".into()))]),
+            ConfigValue::Named(vec![(
+                "base_model".to_owned(),
+                ConfigValue::String("a".into()),
+            )]),
         )]);
         assert!(Faces::parse(&file(Some(ConfigValue::Indexed(vec![no_part])))).is_err());
         assert!(Faces::of_count(usize::from(MAX_FACES)).is_ok());

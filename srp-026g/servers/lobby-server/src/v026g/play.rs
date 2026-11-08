@@ -31,6 +31,7 @@ use session::v026g::bot_kits::{self, BotKit, BotKits};
 use session::v026g::level_stats;
 use session::v026g::{Account, matchmaking, quests, rules, wire};
 use session::{Level, LockExt, MAX_PLAYERS_PER_MATCH, QueuePool, QueueState, Strength};
+use survarium::v026g::faces::{Face, Faces};
 use survarium::v026g::loadouts::BotRole;
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, ClientState, limits};
@@ -166,8 +167,9 @@ fn bots_gear_level(levels: &[u8]) -> u8 {
 /// first kit's ammo is spent. Its kits carry 10 kg more
 /// (`loadouts::bot_gear::bot_modifiers`). The match server reads the role
 /// back from the profile (`loadouts::bot_role_of`), and each kit's weapon
-/// and rounds.
-pub fn server_bot(n: usize, team: u8, kit: &BotKit) -> MatchPlayer {
+/// and rounds. Its face is `face` (`face-choice.md`: a bot's, fixed for
+/// its match, `Faces::bot_face`).
+pub fn server_bot(n: usize, team: u8, kit: &BotKit, face: Face) -> MatchPlayer {
     let mut profile = MatchProfile::from_loadouts(
         &server_bot_name(n),
         team,
@@ -177,6 +179,7 @@ pub fn server_bot(n: usize, team: u8, kit: &BotKit) -> MatchPlayer {
         1,
     );
     profile.clan_tag = "BOT".to_owned();
+    profile.face = face;
     MatchPlayer {
         session_id: 0,
         account_id: 0,
@@ -401,6 +404,7 @@ pub fn match_profile(account: &Account, team: u8, squad: u8, now: u64) -> MatchP
             })
             .collect(),
         squad,
+        face: account.face,
     }
 }
 
@@ -1101,14 +1105,12 @@ impl Core<'_> {
                 .map(|(k, &role)| table.bot_kit(bot_level, role, k))
                 .collect()
         };
+        // Their faces: fixed for the match, by the second it is made.
+        let faces = Faces::shared();
         let players = players.map(|mut players| {
-            players.extend(
-                bot_teams
-                    .iter()
-                    .zip(&bot_kits)
-                    .enumerate()
-                    .map(|(n, (&team, kit))| server_bot(n + 1, team, kit)),
-            );
+            players.extend(bot_teams.iter().zip(&bot_kits).enumerate().map(|(n, (&team, kit))| {
+                server_bot(n + 1, team, kit, faces.bot_face(unix, n + 1))
+            }));
             players
         });
         let chosen = match (pvb, room_map) {
@@ -1508,7 +1510,9 @@ mod tests {
         let bots: Vec<MatchPlayer> = BotRole::ALL
             .iter()
             .enumerate()
-            .map(|(n, &role)| server_bot(n + 1, (n % 2) as u8, &table.bot_kit(15, role, n)))
+            .map(|(n, &role)| {
+                server_bot(n + 1, (n % 2) as u8, &table.bot_kit(15, role, n), Face::DEFAULT)
+            })
             .collect();
         for (bot, role) in bots.iter().zip(BotRole::ALL) {
             let profile = &bot.profile;

@@ -34,13 +34,11 @@ pub enum FaceRequest {
 pub fn face_request(start: u32, faces: Faces) -> Option<FaceRequest> {
     match start {
         FACES_FIRST => Some(FaceRequest::State),
-        _ if (FACE_CHOOSE_BASE..FACE_CHOOSE_BASE + u32::from(MAX_FACES)).contains(&start) => {
-            Some(
-                faces
-                    .face(start - FACE_CHOOSE_BASE)
-                    .map_or(FaceRequest::Unlisted, FaceRequest::Choose),
-            )
-        }
+        _ if (FACE_CHOOSE_BASE..FACE_CHOOSE_BASE + u32::from(MAX_FACES)).contains(&start) => Some(
+            faces
+                .face(start - FACE_CHOOSE_BASE)
+                .map_or(FaceRequest::Unlisted, FaceRequest::Choose),
+        ),
         _ => None,
     }
 }
@@ -96,8 +94,14 @@ mod tests {
             face_request(FACE_CHOOSE_BASE + 2, faces),
             Some(FaceRequest::Choose(faces.face(2).unwrap()))
         );
-        assert_eq!(face_request(FACE_CHOOSE_BASE + 3, faces), Some(FaceRequest::Unlisted));
-        assert_eq!(face_request(FACE_CHOOSE_BASE + 89, faces), Some(FaceRequest::Unlisted));
+        assert_eq!(
+            face_request(FACE_CHOOSE_BASE + 3, faces),
+            Some(FaceRequest::Unlisted)
+        );
+        assert_eq!(
+            face_request(FACE_CHOOSE_BASE + 89, faces),
+            Some(FaceRequest::Unlisted)
+        );
         for start in [FACES_FIRST + 1, FACE_CHOOSE_BASE + 90, FACES_FIRST - 1] {
             assert_eq!(face_request(start, faces), None, "{start}");
         }
@@ -106,7 +110,10 @@ mod tests {
     #[test]
     fn the_state_is_one_row() {
         let faces = Faces::of_count(11).unwrap();
-        assert_eq!(state_name(FaceDone::Chosen, faces.face(4).unwrap(), faces), "F1;1;4;11");
+        assert_eq!(
+            state_name(FaceDone::Chosen, faces.face(4).unwrap(), faces),
+            "F1;1;4;11"
+        );
         assert!(face_state(FaceDone::Stated, Face::DEFAULT, faces).is_ok());
     }
 }

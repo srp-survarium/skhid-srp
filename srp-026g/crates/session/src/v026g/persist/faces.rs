@@ -41,7 +41,11 @@ pub(super) fn load(
 }
 
 /// Replaces the account's face; face 0 keeps no row.
-pub(super) fn save(connection: &Connection, account_id: u32, face: Face) -> Result<(), PersistError> {
+pub(super) fn save(
+    connection: &Connection,
+    account_id: u32,
+    face: Face,
+) -> Result<(), PersistError> {
     if face == Face::DEFAULT {
         connection.execute("DELETE FROM g26_faces WHERE account_id = ?1", [account_id])?;
         return Ok(());
@@ -87,7 +91,10 @@ mod tests {
         // A face the data does not list (the pack took faces away): face 0.
         let connection = Connection::open(&path).unwrap();
         connection
-            .execute("INSERT INTO g26_faces (account_id, face) VALUES (7, 200)", [])
+            .execute(
+                "INSERT INTO g26_faces (account_id, face) VALUES (7, 200)",
+                [],
+            )
             .unwrap();
         assert_eq!(load(&connection, 7, faces).unwrap(), Face::DEFAULT);
         connection
