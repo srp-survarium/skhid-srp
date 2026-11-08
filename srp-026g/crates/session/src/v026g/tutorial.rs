@@ -199,11 +199,15 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
 /// bought once and the kits that wear it name that one, as a player's own
 /// kits share the inventory; a stack worn is the one owned: an ammo slot
 /// filled to the most the kit's bags take ([`full_rounds`]), a pocket with
-/// `NewAccount::pocket_units`. An item the game data lacks is left out:
+/// `NewAccount::pocket_units`. Every item given, owned or worn, has the
+/// modifications of its own the grant names for it
+/// (`NewAccount::modifications`). An item the game data lacks is left out:
 /// srp starts only on data with all of them (`known::check_code`); the test
-/// data predates the knit cap and the Novice's backpack.
+/// data predates the Keeper of the Sun and the Novice's backpack.
 pub fn wear_starter_kit(account: &mut Account, dictionary: &Dictionary) {
     let grant = new_account();
+    // The items given, owned and bought for the kits, `(dict id, item id)`.
+    let mut given: Vec<(u16, u32)> = Vec::new();
     for (name, units) in &grant.own {
         let Some(item) = dictionary.item_named(name) else {
             continue;
@@ -217,7 +221,7 @@ pub fn wear_starter_kit(account: &mut Account, dictionary: &Dictionary) {
             account.add_to_stack(item.dict_id, units.saturating_sub(owned));
         } else {
             for _ in 0..*units {
-                account.add_item(item.dict_id, FULL_CONDITION);
+                given.push((item.dict_id, account.add_item(item.dict_id, FULL_CONDITION)));
             }
         }
     }
@@ -258,13 +262,15 @@ pub fn wear_starter_kit(account: &mut Account, dictionary: &Dictionary) {
             log::error!("starter kit: kit {} could not wear it ({error})", kit + 1);
         }
     }
+    given.extend(bought);
     for (name, modification) in &grant.modifications {
         let Some(dict_id) = dictionary.item_named(name).map(|item| item.dict_id) else {
             continue;
         };
-        let worn = bought.iter().find(|(id, _)| *id == dict_id);
-        if let Some(item) = worn.and_then(|&(_, item_id)| account.item_mut(item_id)) {
-            item.modifications.push((*modification, false));
+        for &(_, item_id) in given.iter().filter(|(id, _)| *id == dict_id) {
+            if let Some(item) = account.item_mut(item_id) {
+                item.modifications.push((*modification, false));
+            }
         }
     }
     account.sync_kits();
@@ -302,7 +308,7 @@ mod tests {
     }
 
     /// A fresh account on the test data, made as `GameAccounts::sign_up`
-    /// makes it: everything, but the knit cap and the Novice's backpack of
+    /// makes it: everything, but the Keeper of the Sun and the Novice's backpack of
     /// patches the test data predates (srp refuses such data,
     /// `known::check_code`). The whole kit by its dict ids on released
     /// data: `tests/starter_kit.rs`.
@@ -368,13 +374,31 @@ mod tests {
             assert_eq!(item_params(dict_id).unwrap().kind, "ammo");
             assert_eq!(stacks(dict_id), [grant.rounds], "{dict_id}");
         }
-        // What it owns: the free weapons and the AKs, unworn, the stash maps,
-        // and the stacks the pockets take theirs from (the inventory shows
-        // them whole). The test data predates the AKMSU.
+        // The modifications of its own a given item has: those it comes
+        // with (items.tsv `start`), then the grant's.
+        let own_modifications = |name: &str| -> Vec<(u32, bool)> {
+            let dict_id = dictionary.item_named(name).unwrap().dict_id;
+            let mut own = survarium::v026g::golden::starting_modifications(dict_id);
+            own.extend(
+                grant
+                    .modifications
+                    .iter()
+                    .filter(|(piece, _)| piece == name)
+                    .map(|&(_, modification)| (modification, false)),
+            );
+            own
+        };
+        // What it owns: the free weapons, the AKs and the Remington 700,
+        // unworn, the stash maps, and the stacks the pockets take theirs
+        // from (the inventory shows them whole). The test data predates the
+        // AKMSU and the Keeper of the Sun.
         for (name, units) in &grant.own {
             let Some(item) = dictionary.item_named(name) else {
-                assert_eq!(name, "akmsu");
-                assert!(account.inventory.iter().all(|it| it.dict_id != 2290));
+                assert!(
+                    ["akmsu", "edge_torso_5_special", "edge_legs_5_special"]
+                        .contains(&name.as_str()),
+                    "{name}"
+                );
                 continue;
             };
             let owned = stacks(item.dict_id);
@@ -393,18 +417,23 @@ mod tests {
                             .iter()
                             .all(|kit| kit.slot_of(it.item_id).is_none())
                     );
+                    assert_eq!(it.modifications, own_modifications(name), "{name}");
                 }
             }
         }
 
-        // Each ammo slot full: the gear has no ammo bag modification, so
-        // the player's three bags, three clips of one bag each.
+        // Each ammo slot full: the player's three bags and the Keeper
+        // vest's and pants' one each (their default 1050), five clips of
+        // one bag each.
+        for kit in 0..KITS {
+            assert_eq!(starter_ammo_bags(dictionary, kit), 5);
+        }
         let bags = starter_ammo_bags(dictionary, 0);
-        assert_eq!(bags, 3);
         let rounds = |ammo: &str| full_rounds(dictionary.item_named(ammo).unwrap().dict_id, bags);
-        assert_eq!(rounds("ammo_9x18_makarov"), 150);
-        assert_eq!(rounds("ammo_7.62x51"), 30);
-        assert_eq!(rounds("ammo_12mm_buck"), 45);
+        assert_eq!(rounds("ammo_9x18_makarov"), 250);
+        assert_eq!(rounds("ammo_5.45x39_7n6m"), 150);
+        assert_eq!(rounds("ammo_6.5x39"), 150);
+        assert_eq!(rounds("ammo_12mm_buck"), 75);
         // A bag modification counts: 1051 adds two.
         assert_eq!(ammo_bags([1030, 1051]), 5);
         let mut missing = Vec::new();
@@ -433,55 +462,37 @@ mod tests {
                         .filter(|o| o.dict_id == item.dict_id);
                     assert_eq!(of_kind.count(), 1, "{name}");
                     assert_eq!(owned.condition_or_stack, FULL_CONDITION, "{name}");
-                    let own: Vec<(u32, bool)> = grant
-                        .modifications
-                        .iter()
-                        .filter(|(piece, _)| piece == name)
-                        .map(|&(_, modification)| (modification, false))
-                        .collect();
-                    assert_eq!(owned.modifications, own, "{name}");
+                    assert_eq!(owned.modifications, own_modifications(name), "{name}");
                 }
             }
             let worn: Vec<u8> = (0..KIT_SLOTS as u8)
                 .filter(|&slot| kit.slots[usize::from(slot)].is_some())
                 .collect();
-            // One weapon, in weapon slot 1; weapon slot 2 empty; three
-            // pockets.
-            assert_eq!(worn, [1, 2, 4, 5, 6, 7, 8, 13, 14, 15], "kit {index}");
-            assert_eq!(super::super::rules::check_play(&account, kit.id, 0), Ok(()));
+            // The Keeper set; one weapon, in weapon slot 1; weapon slot 2
+            // empty; three pockets.
+            assert_eq!(worn, [0, 1, 2, 4, 5, 6, 7, 8, 13, 14, 15], "kit {index}");
+            assert_eq!(
+                super::super::rules::check_play(&account, kit.id, 0),
+                Ok(()),
+                "kit {index}"
+            );
             let weight = account.kit_weight(kit);
             assert!(weight <= 30.0, "kit {index}: {weight}");
             assert!(account.doubled_pockets(kit).is_empty());
             levels.push(super::super::matchmaking::kit_level(&account, kit));
         }
-        assert_eq!(
-            missing,
-            ["novice_026_helmet", "stk2_novice_026_back"].repeat(3)
-        );
-        assert_eq!(levels, [7, 5, 4]);
+        assert_eq!(missing, ["stk2_novice_026_back"].repeat(3));
+        assert_eq!(levels, [14, 15, 14]);
         assert_eq!(account.active_kit, account.kits[0].id);
 
-        // The two modifications: the game's own rows.
+        // The two modifications of every Keeper piece: the game's own rows,
+        // armour +8 and weight -15 %, the strongest of their kinds.
         let table = Modifications::shared();
-        let isolation = table.modification(1183).unwrap();
-        assert_eq!(isolation.name, "st_modify_anom_filters");
-        assert_eq!(isolation.lobby_info, [("mask_ano_armor".to_owned(), 0.2)]);
-        assert!(
-            isolation
-                .modifiers
-                .iter()
-                .all(|m| m.value == 0.2 && m.kind == 1)
-        );
-        let respirator = dictionary.item_named("scav_resp_1").unwrap().dict_id;
-        assert!(table.fits(respirator, &[], 1183));
-        let collection = table.modification(1133).unwrap();
-        assert_eq!(collection.name, "st_modify_artefact_search");
-        assert_eq!(
-            collection.lobby_info,
-            [("artefact_search_time_modifier".to_owned(), -0.2)]
-        );
-        // The gloves' own default of that type: 1130, -5 %.
-        let gloves = dictionary.item_named("scav_gloves_2").unwrap().dict_id;
-        assert_eq!(item_params(gloves).unwrap().default_modifications, [1130]);
+        let armour = table.modification(1004).unwrap();
+        assert_eq!(armour.name, "st_modify_armor");
+        assert_eq!(armour.lobby_info, [("armor".to_owned(), 0.08)]);
+        let weight = table.modification(1064).unwrap();
+        assert_eq!(weight.name, "st_modify_weight");
+        assert_eq!(weight.lobby_info, [("weight".to_owned(), -0.15)]);
     }
 }

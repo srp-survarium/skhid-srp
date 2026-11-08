@@ -14,7 +14,7 @@ use super::dictionary::Dictionary;
 use super::game_data;
 use super::loadouts::{self, Loadout, POCKET_SLOTS};
 use super::lobby::limits::{KIT_SLOTS, KITS};
-use super::modifications::{self, Modifications};
+use super::modifications::{self, MAX_RANK, Modifications};
 use super::quests::FACTIONS;
 use super::skills::SkillsTree;
 
@@ -76,7 +76,8 @@ pub struct NewAccount {
     pub kits: [Vec<Worn>; KITS],
     /// The units of each pocket's item.
     pub pocket_units: u32,
-    /// Modifications of their own worn items have, `(item, modification)`.
+    /// Modifications of their own the items it is given have, worn or
+    /// owned, `(item, modification)`: an item of several, a row each.
     pub modifications: Vec<(String, u32)>,
 }
 
@@ -182,7 +183,20 @@ impl NewAccount {
             all_kits: worn("all_kits", at("all_kits")?)?,
             kits,
             pocket_units: num("pocket_units")?,
-            modifications: by_item("own_modifications")?,
+            modifications: table("own_modifications", at("own_modifications")?)?
+                .iter()
+                .map(|(item, ids)| {
+                    let key = format!("own_modifications/{item}");
+                    let ConfigValue::Indexed(ids) = ids else {
+                        return Err(format!("{PATH}: `{key}` is {ids:?}, not a list of ids"));
+                    };
+                    ids.iter()
+                        .enumerate()
+                        .map(|(i, id)| Ok((item.clone(), number(&format!("{key}[{i}]"), id)?)))
+                        .collect::<Result<Vec<_>, String>>()
+                })
+                .collect::<Result<Vec<_>, String>>()?
+                .concat(),
         })
     }
 
@@ -199,7 +213,8 @@ impl NewAccount {
     /// level; an item; a slot it does not fit; a pocket the kit does not
     /// open, that takes fewer units, or whose item is not owned with as
     /// many; a modification, of a type its item does not take, on a stack
-    /// or on an item no kit wears; the faction's level.
+    /// or on an item it is not given (worn or owned), or more than
+    /// [`MAX_RANK`] on an item with those it comes with; the faction's level.
     pub fn check(
         &self,
         dictionary: &Dictionary,
@@ -265,8 +280,8 @@ impl NewAccount {
         }
         for (name, id) in &self.modifications {
             let item = dictionary.item_named(name).expect("checked above");
-            // Of a type the item takes; beside its defaults too (the
-            // gloves' 1133 with their own 1130: the owner's choice).
+            // Of a type the item takes; beside a default of that type too
+            // (the owner's choice of 2026-11-02).
             let takes = modifications.modification(*id).is_some_and(|row| {
                 modifications::item_mods(item.dict_id)
                     .is_some_and(|mods| mods.modifications & 1 << row.kind != 0)
@@ -276,8 +291,27 @@ impl NewAccount {
             } else if !takes || item.is_stack {
                 wrong.push(format!("modification {id} is none `{name}` takes"));
             }
-            if !(0..KITS).any(|kit| self.kit(kit).any(|(_, worn)| worn == name)) {
-                wrong.push(format!("modification {id} of `{name}`, which no kit wears"));
+            let given = self.own.iter().any(|(own, _)| own == name)
+                || (0..KITS).any(|kit| self.kit(kit).any(|(_, worn)| worn == name));
+            if !given {
+                wrong.push(format!(
+                    "modification {id} of `{name}`, which it is not given"
+                ));
+            }
+        }
+        // With those it comes with, an item holds at most MAX_RANK.
+        let mut named: Vec<&str> = self.modifications.iter().map(|(n, _)| n.as_str()).collect();
+        named.sort_unstable();
+        named.dedup();
+        for name in named {
+            let item = dictionary.item_named(name).expect("checked above");
+            let own = self.modifications.iter().filter(|(n, _)| n == name).count();
+            if item.start.len() + own > MAX_RANK {
+                wrong.push(format!(
+                    "`{name}`: {own} modifications of its own and the {} it comes with, more \
+                     than {MAX_RANK}",
+                    item.start.len()
+                ));
             }
         }
         let level = dictionary
@@ -310,7 +344,7 @@ pub fn shared() -> &'static NewAccount {
 
 /// [`NewAccount::check`] of the grant of this process's data, as
 /// [`super::game_data::init`] runs it; an error names each problem. Not in
-/// [`super::tables::check`]: the test data predates the knit cap and the
+/// [`super::tables::check`]: the test data predates the Keeper of the Sun and the
 /// Novice's backpack the grant names.
 pub fn check_data(data: &game_data::GameData) -> Result<(), game_data::GameDataError> {
     let wrong = shared().check(

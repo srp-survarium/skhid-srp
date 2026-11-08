@@ -17,7 +17,10 @@
 #   kit_<n>/<slot>            what kit n wears more: its weapon, and its ammo (the slot filled to
 #                             the most its ammo bags take)
 #   pocket_units              the units of each pocket's item
-#   own_modifications/<item>  a modification of its own a worn item has (modifications.options)
+#   own_modifications/<item>[i]
+#                             the modifications of its own (modifications.options) an item it is
+#                             given has, worn or owned, after those it comes with (items.tsv
+#                             `start`): every such item has them all, at most 3 in all
 key	value
 level	15
 skills/101	5
@@ -36,26 +39,40 @@ own/mosin_nagant	1
 own/ppsh	1
 own/akmn	1
 own/akmsu	1
+own/rem_700	1
+own/edge_torso_5_special	1
+own/edge_legs_5_special	1
 own/drop_card	10
 own/medkit	50
 own/antitoxin	50
 own/bandages	20
-all_kits/0	novice_026_helmet
-all_kits/1	scav_resp_1
-all_kits/2	scav_torso_4
+all_kits/0	edge_helmet_5
+all_kits/1	edge_mask_5
+all_kits/2	edge_torso_5
 all_kits/3	stk2_novice_026_back
-all_kits/4	scav_legs_2
-all_kits/5	scav_gloves_2
-all_kits/6	scav_boots_2
+all_kits/4	edge_legs_5
+all_kits/5	edge_gloves_5
+all_kits/6	edge_boots_5
 all_kits/13	medkit
 all_kits/14	bandages
 all_kits/15	antitoxin
 kit_1/7	ak_74n
 kit_1/8	ammo_5.45x39_7n6m
-kit_2/7	rem_700
-kit_2/8	ammo_7.62x51
+kit_2/7	ak_12
+kit_2/8	ammo_6.5x39
 kit_3/7	mp_153
 kit_3/8	ammo_12mm_buck
-pocket_units	3
-own_modifications/scav_resp_1	1183
-own_modifications/scav_gloves_2	1133
+pocket_units	2
+own_modifications/edge_helmet_5[0]	1004
+own_modifications/edge_helmet_5[1]	1064
+own_modifications/edge_mask_5[0]	1064
+own_modifications/edge_torso_5[0]	1004
+own_modifications/edge_torso_5[1]	1064
+own_modifications/edge_legs_5[0]	1004
+own_modifications/edge_legs_5[1]	1064
+own_modifications/edge_gloves_5[0]	1004
+own_modifications/edge_gloves_5[1]	1064
+own_modifications/edge_boots_5[0]	1004
+own_modifications/edge_boots_5[1]	1064
+own_modifications/edge_torso_5_special[0]	1004
+own_modifications/edge_legs_5_special[0]	1004
