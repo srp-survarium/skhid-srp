@@ -2667,15 +2667,22 @@ st_srp_renderer_option	Рэндар
 st_srp_replay_asking	Запытваем у сервера матча паўтор гэтага матча…
 st_srp_replay_being_made	Паўтор ствараецца з запісу матча. Так бывае, калі гэты матч глядзяць упершыню, і гэта займае крыху часу.\nГэтае акно можна закрыць: сервер працягне яго ствараць.\n\n%1$s
 st_srp_replay_busy	Сервер зараз заняты іншымі паўторамі. Паспрабуйце яшчэ раз праз хвіліну.
+st_srp_replay_chip_gone	Expired
+st_srp_replay_chip_not_recorded	Not recorded
+st_srp_replay_chip_old	Old version
+st_srp_replay_chip_preparing	Preparing
+st_srp_replay_chip_ready	Ready
 st_srp_replay_close	ЗАКРЫЦЬ
 st_srp_replay_demo_quest	Унёсак у перамогу
 st_srp_replay_demo_rank	«%1$s»: дасягнуты ранг 3. У краме з'явіліся новыя прадметы.
 st_srp_replay_demo_seller	Бадзягі
 st_srp_replay_download	СПАМПАВАЦЬ І ГЛЯДЗЕЦЬ
+st_srp_replay_download_button	Download
 st_srp_replay_failed	Серверу не ўдалося падрыхтаваць паўтор гэтага матча.
 st_srp_replay_gone	Паўтор гэтага матча больш не захоўваецца на серверы.
 st_srp_replay_incompatible	Гэты паўтор запісаны версіяй гульні, якую ваша гульня не можа прайграць.
 st_srp_replay_made_now	Ствараецца зараз. Чаканне: %1$s с.
+st_srp_replay_my_deaths	Watch my deaths
 st_srp_replay_no_answer	Сервер не адказаў. Паспрабуйце пазней.
 st_srp_replay_not_recorded	Гэты матч не запісаны: у ім было менш за 6 гульцоў або запіс тады быў выключаны.
 st_srp_replay_not_yours	Глядзець можна толькі паўторы матчаў, у якіх вы гулялі.
@@ -2689,6 +2696,8 @@ st_srp_replay_starting	Запускаем паўтор: адкрыецца др�
 st_srp_replay_still_preparing	Паўтор яшчэ рыхтуецца. Сервер працягвае яго ствараць; адкрыйце «Глядзець паўтор» яшчэ раз праз хвіліну.
 st_srp_replay_title	Глядзець паўтор
 st_srp_replay_waiting	Чаканне: %1$s с.
+st_srp_replay_watch	Watch
+st_srp_replay_watching	The replay opens in this game window. When it ends, or when you leave it, you are back in the lobby.
 st_srp_reroll_description	Можна змяніць любы мадыфікатар прадмета, колькі заўгодна разоў. Потым выберыце адзін з трох выпадковых мадыфікатараў.
 st_srp_rooms_all	Усе
 st_srp_rooms_all_rooms	Усе пакоі
