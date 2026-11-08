@@ -6,7 +6,7 @@
 
 ## 1. Flow
 
-1. A History row's "Download" (until 2026-11-08 "Watch replay") sends `3D 00 <REPLAY_ASK> <match id>` (`victory_screen_request_player_data`; `REPLAY_ASK = 0xFFFF_FF01`, no account id is that high). The lobby looks the replay up and keeps the answer as the asker's latest (`lobby-server/src/v026g/replay.rs`). The ask is not answered by itself.
+1. A History row's "Download" (until 2026-11-08 "Watch replay"; gone from the movie since, still served for older games) sends `3D 00 <REPLAY_ASK> <match id>` (`victory_screen_request_player_data`; `REPLAY_ASK = 0xFFFF_FF01`, no account id is that high). The lobby looks the replay up and keeps the answer as the asker's latest (`lobby-server/src/v026g/replay.rs`). The ask is not answered by itself.
 2. The movie polls with `3B 00 <REPLAY_START> 01` (`REPLAY_START = 2_200_000_000`, above the JOIN starts) every second (30 times at most, up to 180 s while the answer is `preparing`). Each poll is answered with one `91` row (the asker's own answer, never anyone else's). A `preparing` answer is looked at again once a second at most per account (`RECHECK_EVERY`), or at once after news of its match (the writer kept, dropped or deleted its recording, or its conversion ended); polls in between, however many a datagram carries, get the same answer with the place in line made anew. The recordings' folder is listed once in 5 s at most for all the asks (and again after the writer's news), not at each look.
 3. When the answer is `ready`, a `9E` goes just before that `91`: `video_link(false, "replay <id> <token> <sha256> <size>")`. The game keeps it hidden; "Download and watch" calls `video_tutorial_link_clicked`, which patch revision 14 turns into `updater_skhid.exe replay <id> <token> <sha256> <size>`.
 4. The updater downloads `GET /replays/<token>` from the server's web page, checks the size and the SHA-256, and starts the game with `-match_replay`.
@@ -14,8 +14,9 @@
 In the running game instead (no download, no second process): a replay session, `replay-stream.md`.
 ### In the movie, since 2026-11-08 (watching in the running game)
 
-- A History row has **Download** (this flow) and **Watch**; the results screen has **Watch replay** and
-  **Watch my deaths** on its bottom bar, left of the close button (`VictoryScreen.as`).
+- A History row has **Watch** (its Download, the flow above, is gone from the movie: the server side
+  stays for older games); the results screen has **Watch replay** and **Watch my deaths** on its
+  bottom bar, left of the close button (`VictoryScreen.as`).
 - Watch and Watch replay ask for a replay session (`replay-stream.md`): `3D 00 <0xC0FF0000> <match id>`
   (`REPLAY_WATCH_BASE | 0xFF << 16 | 0`: from the start, anyone in view). Watch my deaths asks with
   `0xC1000000` (`REPLAY_WATCH_MY_DEATHS`, no fields: the server finds the asker's place and deaths,
@@ -23,33 +24,43 @@ In the running game instead (no download, no second process): a replay session, 
 - All of them go through the History's prompt (`NotificationListScrollContent.replayBegin(id, ask)`):
   the same polls and `R1` answers. A session's `preparing` (1 reading, 2 waiting: no place in line)
   says the match server is opening it; `watching` closes it with "The replay opens in this game window".
-- Each answer sets the match's chip on its History rows, under Watch: `ready`/`watching` Ready,
-  `preparing` Preparing, `incompatible` Old version, `not_recorded` Not recorded, `gone` Expired; no
-  chip before an answer, nor for one about the asker or the server (`busy`, `old_game`, ...).
-- **Watch by match number:** each History row shows its match's number (`#` and the 8 hex digits of the
-  `R1` rows and the logs) left of its chip, and the results screen after its buttons. A strip above the
-  History takes a number typed as shown (any case, `#` optional) and watches it (Watch or Enter); anything
-  else opens the prompt saying what a number is, and asks nothing. The server's rules on who may watch
-  which match apply as for any ask.
-- **The player pop-up's Matches tab** (`survarium/messages/PlayerMatches.as`, a button left of Close in
-  `MessagePlayerInfo`): the shown player's recent public matches, each with Watch from that player's
-  place (`0xC0000000 | place << 16`). **The lobby server does not answer it yet**; the rows the movie
-  takes: `3B 00 <2 230 000 000> <10>` about the player of the asker's last `93` (`+ 1`: the asker's
-  own pop-up, which has no `93`), answered with `91` rows `P1;<n>;<nickname>` then n of
-  `P2;<match 8 hex>;<place>;<map id>;<mode>;<result 0 defeat|1 victory|2 draw>;<kills>;<deaths>;<minutes since its end>;<replay kept 1|0>`.
-  Rows for another nickname than the pop-up's are left; Watch only where the replay is kept. Watching
-  another player's match needs the server to let the asker (today: its players and moderators).
-- **The bottom bar's Matches tab** (`survarium/live/LiveWindow.as`, in place of the "matches now"
-  window and its JOIN, gone with the queue): the running matches, each with **Watch** (anyone in view)
-  and **Players**, both teams as buttons that watch from that player's place. Both send the session ask
-  above with the running match's id; for a running match the server is to take the game in as a live
-  spectator (with its delay) instead of a recording. **The lobby server does not answer it yet**; the
-  rows the movie takes, polled every 5 s while open (the roster once a second until it comes):
-  - `3B 00 <2 240 000 000> <20>`: `L0;<n>`, then n of
-    `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch 1 may|0 full|2 not public>`;
-  - `3D 00 <0xFFFF_FF06> <match>` chooses the match for the roster, then `3B 00 <2 241 000 000> <24>`:
-    rows `L2;<match 8 hex>;<place>;<team 0|1>;<kills>;<deaths>;<name>` (others' rows are left).
-- `srp-026g/scripts/replay-buttons/check.sh <lobby_menu.swf>` checks them in Ruffle, every language.
+- Each answer sets the match's chip on its History rows (under Watch) and its Watch window cards:
+  `ready`/`watching` Ready, `preparing` Preparing, `incompatible` Old version, `not_recorded` Not
+  recorded, `gone` Expired; no chip before an answer, nor for one about the asker or the server
+  (`busy`, `old_game`, ...). Each History row shows its match's number (`#` and the 8 hex digits of
+  the `R1` rows and the logs) left of its chip, and the results screen after its buttons.
+- **The Watch window** (`survarium/watch/`, `research/watch-hub-proposal.md`): the bottom bar's
+  Watch tab opens it in the rooms window's frame and look (`RoomsLook`); opening one closes the other.
+  Tabs Live, Recent, My matches, and a player's matches (the player pop-up's Matches button closes
+  the pop-up and opens it); at the toolbar's right a box takes a match number as the cards show it
+  (any case, `#` optional; Watch or Enter; anything else opens the prompt saying what a number is).
+  Each match is a card (`MatchCard`): its map's render and name, mode, state or number and age,
+  score or the player's result and K/D, the friends in it, the replay's chip, Watch, and Players
+  (live: the roster, each player a button that watches from its place) or My deaths (My matches).
+  A friend's right-click menu has **Spectate** for a friend in a match: Live, that match's roster
+  with the friend marked. After a watch asked from the window plays (`watching`, then the game
+  loads a match within 2 min), the lobby's return (`show_match_making(false)`) opens it on that tab
+  again. **The lobby server does not answer its rows yet** (tracks A and D build them); the rows the
+  movie takes (`survarium/watch/WatchRows.as`; `91` rows at the request's start plus their index):
+  - Live, `3B 00 <2 240 000 000> <20>`, polled every 5 s: `L0;<n>;<delay s>`, then n of
+    `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch 1 may|0 full|2 not public>`,
+    then the asker's friends in them, `F1;<match 8 hex>;<place>;<team 0|1>;<name>` (their matches first);
+  - its roster: `3D 00 <0xFFFF_FF06> <match>` chooses the match, then `3B 00 <2 241 000 000> <24>`:
+    rows `L2;<match 8 hex>;<place>;<team 0|1>;<kills>;<deaths>;<name>` (others' rows are left);
+  - Recent, `3B 00 <2 250 000 000 + f> <20>` (`f` 0 all, 1 with a friend of the asker; no bot-only
+    matches), asked on opening and every 30 s: `M0;<n>`, then n of
+    `M1;<match 8 hex>;<map id>;<mode>;<score a|->;<score b|->;<players>;<length s>;<minutes since its end>;<replay>`,
+    then `F1` rows as Live's;
+  - a player's matches, `3B 00 <2 230 000 000> <10>` about the player of the asker's last `93`
+    (`+ 1`: the asker's own, My matches): `P1;<n>;<nickname>` then n of
+    `P2;<match 8 hex>;<place>;<map id>;<mode>;<result 0 defeat|1 victory|2 draw>;<kills>;<deaths>;<minutes since its end>;<replay>`;
+    rows for another nickname than the tab's are left;
+  - `<replay>`: 0 not recorded, 1 kept (made into a replay when first asked), 2 ready, 3 gone, 4 old
+    version (revisions the asker's game does not play): the card's chip before any answer, and Watch
+    only for 1 and 2. A card's Watch asks with `0xC0FF0000` (a player's matches: from that place,
+    `0xC0000000 | place << 16`).
+- `srp-026g/scripts/replay-buttons/check.sh <lobby_menu.swf>` checks them in Ruffle, every language;
+  `shots.sh <lobby_menu.swf> <out>` takes their screenshots (1280x720, 1920x1080).
 
 ## 2. Wire
 

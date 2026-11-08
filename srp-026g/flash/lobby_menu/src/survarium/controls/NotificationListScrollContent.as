@@ -7,7 +7,6 @@ package survarium.controls
    import flash.display.Shape;
    import flash.display.Sprite;
    import flash.events.Event;
-   import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
    import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
@@ -19,7 +18,6 @@ package survarium.controls
    import flash.utils.Timer;
    import flash.utils.getDefinitionByName;
    import flash.utils.getTimer;
-   import flash.ui.Keyboard;
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.ComponentEvent;
@@ -137,12 +135,7 @@ package survarium.controls
       // a row's match number (`#` and the 8 hex digits the server's rows and logs use), grey
       private static const RP_NUMBER_GREY:uint = 0x8A9096;
 
-      private static const RP_KEY_NUMBER_HINT:String = "st_srp_replay_number_hint";
-
       private static const RP_KEY_NUMBER_BAD:String = "st_srp_replay_number_bad";
-
-      // the "watch by match number" strip, above the list
-      private static const RP_BOX_H:int = 34;
 
       // The highest place in the replay server's line the prompt shows.
       private static const RP_PLACE_MAX:int = 999;
@@ -184,9 +177,6 @@ package survarium.controls
 
       // match id (8 hex) -> its chip's dictionary key (RP_CHIPS)
       protected var _rpChips:Object;
-
-      // the "watch by match number" box and its Watch
-      protected var _rpBox:SrvTextInput;
       
       protected var _rpPolls:int;
       
@@ -408,7 +398,6 @@ package survarium.controls
          this._rpDemoStep = 0;
          this._rpDemoAdded = false;
          this._scrollContent.width = 310 + NotificationListScrollContent.HISTORY_EXTRA;
-         this.historyNumberBox();
          try
          {
             if(this.background)
@@ -958,54 +947,7 @@ package survarium.controls
          return button;
       }
 
-      // "Watch by match number": a strip above the list, a box for the number (as a row shows it,
-      // `#` optional) and Watch; Enter watches too.
-      protected function historyNumberBox() : void
-      {
-         var strip:Sprite = new Sprite();
-         var width:Number = 310 + NotificationListScrollContent.HISTORY_EXTRA;
-         var watch:Button = null;
-         strip.name = "srpReplayNumber";
-         strip.y = -RP_BOX_H - 2;
-         strip.graphics.lineStyle(1,0x2A3036,1);
-         strip.graphics.beginFill(0x0B0F12,0.94);
-         strip.graphics.drawRect(0,0,width,RP_BOX_H);
-         strip.graphics.endFill();
-         this._rpBox = new TextInputFriendName();
-         this._rpBox.name = "srpReplayNumberBox";
-         this._rpBox.maxChars = 9;
-         this._rpBox.x = 7;
-         this._rpBox.y = int((RP_BOX_H - this._rpBox.height) / 2);
-         this._rpBox.textField.addEventListener(KeyboardEvent.KEY_DOWN,this.onRpBoxKey,false,0,true);
-         strip.addChild(this._rpBox);
-         watch = this.historyButton(strip,"srpReplayNumberWatch",this.rpText(RP_KEY_WATCH),width - 7,this.onRpBoxWatch);
-         watch.y = int((RP_BOX_H - watch.height) / 2);
-         this._rpBox.setSize(watch.x - 8 - this._rpBox.x,this._rpBox.height);
-         this._rpBox.defaultText = this.rpText(RP_KEY_NUMBER_HINT);
-         addChild(strip);
-      }
-
-      protected function onRpBoxKey(e:KeyboardEvent) : void
-      {
-         if(e.keyCode == Keyboard.ENTER)
-         {
-            this.rpWatchTyped();
-         }
-      }
-
-      protected function onRpBoxWatch(e:Event) : void
-      {
-         e.stopPropagation();
-         this.rpWatchTyped();
-      }
-
-      protected function rpWatchTyped() : void
-      {
-         this.replayTyped(this._rpBox.text);
-      }
-
-      // A typed match number watched (the box above the History, the Watch window's), or the
-      // prompt says what a number is.
+      // A typed match number watched (the Watch window's box), or the prompt says what a number is.
       public function replayTyped(text:String) : void
       {
          var id:uint = NotificationListScrollContent.matchNumber(text);

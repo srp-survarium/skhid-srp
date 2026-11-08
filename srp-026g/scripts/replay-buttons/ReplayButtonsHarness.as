@@ -177,6 +177,7 @@ package
          }
          var watch:* = find(row,"srpReplayWatch");
          expect(language + ": a Download on the History row",find(row,"srpReplay") == null);
+         expect(language + ": the number strip above the History",find(list,"srpReplayNumberBox") == null);
          fits(language + ": History Watch",watch);
          var map:TextField = row["textFieldLabel"] as TextField;
          expect(language + ": the map name is left " + int(map.width) + " px",map != null && map.width >= 60 && map.x + map.width <= watch.x);

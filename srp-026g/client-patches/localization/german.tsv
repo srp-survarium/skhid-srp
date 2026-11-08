@@ -2583,26 +2583,10 @@ st_srp_map_vector	Labor Vektor
 st_srp_map_vostok	RS Vostok
 st_srp_map_vostok_v011	RS Vostok (v0.11)
 st_srp_map_vostok_v021	RS Vostok (v0.21)
-st_srp_matches_another_joining	Ein anderer Spieler tritt gerade bei
-st_srp_matches_balanced	Match ist bereits ausgeglichen
-st_srp_matches_cannot_join	Beitritt gerade nicht möglich
-st_srp_matches_closed	Dieses Match ist geschlossen
-st_srp_matches_ends_soon	Match endet bald
 st_srp_matches_full	Kein freier Platz im Match
-st_srp_matches_in_match	Du bist bereits in einem Match
-st_srp_matches_in_squad	Verlasse zuerst deine Abteilung
-st_srp_matches_joining	Beitritt…
-st_srp_matches_maintenance	Endet nach Beginn der Wartung
 st_srp_matches_no_answer	Keine Antwort, erneut versuchen
-st_srp_matches_no_late_join	Match nimmt keine neuen Spieler auf
-st_srp_matches_no_place	Kein freier Platz im Match
 st_srp_matches_none	Zurzeit keine Matches
-st_srp_matches_not_in_play	Match hat noch nicht begonnen
-st_srp_matches_outdated	Aktualisiere dein Spiel
-st_srp_matches_played_before	Du hast in diesem Match schon gespielt
-st_srp_matches_queued	Brich zuerst die Suche ab
 st_srp_matches_starting	Start
-st_srp_matches_title	Matches
 st_srp_matches_versus	gegen
 st_srp_matches_waiting	Warten
 st_srp_medical_301_description	Wird zu Schmerzschutz und Wirkungsdauer von Schmerzmitteln addiert:
@@ -2656,9 +2640,7 @@ st_srp_pierce_stone	Stein
 st_srp_pierce_tinplate	Blech
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	Im Trupp
-st_srp_player_equipment	Equipment
 st_srp_player_matches	Matches
-st_srp_player_matches_asking	Asking the server for this player's matches…
 st_srp_player_matches_days	%1$s d ago
 st_srp_player_matches_draw	Draw
 st_srp_player_matches_hours	%1$s h ago

@@ -2583,26 +2583,10 @@ st_srp_map_vector	Vektor-laboratorio
 st_srp_map_vostok	Vostokin tutka-asema
 st_srp_map_vostok_v011	Vostokin tutka-asema (v0.11)
 st_srp_map_vostok_v021	Vostokin tutka-asema (v0.21)
-st_srp_matches_another_joining	Toinen pelaaja liittyy
-st_srp_matches_balanced	Ottelu on jo tasapainossa
-st_srp_matches_cannot_join	Et voi liittyä nyt
-st_srp_matches_closed	Ottelu on suljettu
-st_srp_matches_ends_soon	Ottelu päättyy pian
 st_srp_matches_full	Ottelussa ei ole tilaa
-st_srp_matches_in_match	Olet jo ottelussa
-st_srp_matches_in_squad	Poistu ensin ryhmästä
-st_srp_matches_joining	liitytään…
-st_srp_matches_maintenance	Päättyy huollon alkamisen jälkeen
 st_srp_matches_no_answer	Ei vastausta, yritä uudelleen
-st_srp_matches_no_late_join	Otteluun ei oteta uusia pelaajia
-st_srp_matches_no_place	Ottelussa ei ole tilaa
 st_srp_matches_none	Ei otteluita juuri nyt
-st_srp_matches_not_in_play	Ottelu ei ole vielä alkanut
-st_srp_matches_outdated	Päivitä peli
-st_srp_matches_played_before	Olet jo pelannut tässä ottelussa
-st_srp_matches_queued	Lopeta ensin haku
 st_srp_matches_starting	alkaa
-st_srp_matches_title	Ottelut
 st_srp_matches_versus	vs
 st_srp_matches_waiting	odottaa
 st_srp_medical_301_description	Lisätään kipulääkkeen kipusuojaan ja vaikutusaikaan:
@@ -2656,9 +2640,7 @@ st_srp_pierce_stone	Kivi
 st_srp_pierce_tinplate	Pelti
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	Ryhmässä
-st_srp_player_equipment	Equipment
 st_srp_player_matches	Matches
-st_srp_player_matches_asking	Asking the server for this player's matches…
 st_srp_player_matches_days	%1$s d ago
 st_srp_player_matches_draw	Draw
 st_srp_player_matches_hours	%1$s h ago
