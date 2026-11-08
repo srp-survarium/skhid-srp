@@ -3,7 +3,7 @@
 //! must hold what the account does.
 
 use survarium::v026g::lobby::client_model::Client;
-use survarium::v026g::lobby::{self, ItemDescr, ServerMessage};
+use survarium::v026g::lobby::{self, FULL_CONDITION, ItemDescr, ServerMessage};
 
 use super::*;
 use crate::v026g::account::{KitSlot, Reroll};
@@ -786,22 +786,8 @@ fn a_modification_is_changed_for_one_of_three() {
     .unwrap();
     assert_eq!(rolled.paid, 1200);
 
-    // A damaged item and a stack can not be changed.
+    // A stack can not be changed.
     let mut account = rich();
-    let broken = give(&mut account, "ak_74m", &[2000]);
-    account
-        .item_mut(broken)
-        .unwrap()
-        .modifications
-        .push((3000, true));
-    assert_eq!(
-        reroll(&mut account, broken, 2000, &mut rng),
-        Err(ItemError::RerollBroken)
-    );
-    assert_eq!(
-        ItemError::RerollBroken.text_key(),
-        "st_reroll_message_broken_item"
-    );
     let ammo = account.kits[0].slots[8].unwrap().item_id;
     assert!(reroll(&mut account, ammo, 2000, &mut rng).is_err());
 }
@@ -1229,17 +1215,6 @@ fn a_craft_the_lobby_would_not_offer_is_refused() {
         refused(&mut account, full, full - 1, false),
         "the most modifications already"
     );
-    // Damaged.
-    let broken = give(&mut account, "ak_74m", &[]);
-    account
-        .item_mut(broken)
-        .unwrap()
-        .modifications
-        .push((3000, true));
-    assert_eq!(
-        refused(&mut account, rifle, broken, false),
-        "a damaged item"
-    );
     // An equipped item while the account waits for a match.
     let slot = (0..23)
         .find(|&slot| Dictionary::shared().fits(dict("ak_74m"), slot))
@@ -1284,57 +1259,9 @@ fn a_craft_the_lobby_would_not_offer_is_refused() {
 }
 
 #[test]
-fn a_worn_item_may_get_a_defect() {
-    let mut rng = Rng::new(2);
-    let mut account = rich();
-    let rifle = give(&mut account, "ak_74m", &[]);
-    // Over 90 % nothing breaks.
-    account.item_mut(rifle).unwrap().condition_or_stack = 950_000;
-    for _ in 0..200 {
-        let worn = [(rifle, 960_000, 950_000)];
-        assert!(roll_defects(&mut account, &worn, &mut rng).is_empty());
-    }
-    // An item that did not wear is not rolled for.
-    assert!(roll_defects(&mut account, &[(rifle, 100, 100)], &mut rng).is_empty());
-    // Worn out, match after match: three defects at most, each of another
-    // kind and one the rifle may have, and the client takes them.
-    let mut broke = Vec::new();
-    for _ in 0..200 {
-        broke.extend(roll_defects(&mut account, &[(rifle, 1000, 0)], &mut rng));
-    }
-    assert_eq!(broke.len(), 3);
-    let ids = defects(account.item(rifle).unwrap());
-    assert_eq!(ids.len(), 3);
-    for &(item_id, defect) in &broke {
-        assert_eq!(item_id, rifle);
-        assert!([3000, 3010, 3020, 3030, 3040, 3060].contains(&defect));
-        assert_eq!(ids.iter().filter(|&&id| id == defect).count(), 1);
-    }
-    let client = client_of(&account);
-    assert_eq!(client.inventory().last().unwrap().modifications.len(), 3);
-    // A damaged item's rank is still its modifications.
-    assert_eq!(rank(account.item(rifle).unwrap()), 0);
-    // Half worn: the first slot about one match in three (10 % at 90 %
-    // to 50 % at nothing).
-    let mut count = 0;
-    for _ in 0..2000 {
-        let mut account = rich();
-        let rifle = give(&mut account, "ak_74m", &[]);
-        count += roll_defects(&mut account, &[(rifle, 460_000, 450_000)], &mut rng).len();
-    }
-    assert!((500..700).contains(&count), "{count}");
-}
-
-#[test]
-fn wear_drops_and_pay_follow_the_modifications() {
+fn drops_and_pay_follow_the_modifications() {
     let mut rng = Rng::new(4);
     let mut account = rich();
-    // Reliability: a fifth less wear with 2093.
-    let plain = give(&mut account, "ak_74m", &[]);
-    let reliable = give(&mut account, "ak_74m", &[2093]);
-    assert_eq!(wear_factor(&account, plain), 1.0);
-    assert!((wear_factor(&account, reliable) - 0.8).abs() < 1e-6);
-    assert_eq!(wear_factor(&account, 999), 1.0);
 
     // A drop of rarity n has n modifications, and that is its rank.
     for rarity in 0..=3 {
@@ -1343,7 +1270,6 @@ fn wear_drops_and_pay_follow_the_modifications() {
         assert_eq!(shown, rarity);
         let item = account.item(item_id).unwrap();
         assert_eq!(rank(item), usize::from(rarity));
-        assert!(defects(item).is_empty());
     }
     // A camouflage takes none.
     let camo = account.add_item(dict("camo_city"), FULL_CONDITION);
@@ -1732,64 +1658,6 @@ fn the_silver_bonus_of_a_golden_weapon_rerolls_like_any_modification() {
     assert_eq!(table.bonuses(item.dict_id, &item.modifications).money, 0.0);
 }
 
-#[test]
-fn golden_weapons_owned_before_get_the_silver_bonus_once() {
-    let mut account = rich();
-    let golden_rifle = dict("ak_74n_premium");
-    // As the store had them before the rule: no modification of their own
-    // (the silver bonus was the config's).
-    let owned = |account: &mut Account, modifications: &[u32]| {
-        let item_id = account.add_item(golden_rifle, FULL_CONDITION);
-        account.item_mut(item_id).unwrap().modifications =
-            modifications.iter().map(|&id| (id, false)).collect();
-        item_id
-    };
-    let bare = owned(&mut account, &[]);
-    let one = owned(&mut account, &[2000]);
-    let full = owned(&mut account, &[2000, 2010, 2020]);
-    let has = owned(&mut account, &[SILVER]);
-    let damaged = owned(&mut account, &[]);
-    account
-        .item_mut(damaged)
-        .unwrap()
-        .modifications
-        .push((3000, true));
-    let plain = give(&mut account, "ak_74n", &[]);
-    let vss = account.add_item(dict("vss_premium"), FULL_CONDITION);
-    account.item_mut(vss).unwrap().modifications.clear();
-    // A kit wearing one: it shows another item.
-    let slot = (0..23)
-        .find(|&slot| Dictionary::shared().fits(golden_rifle, slot))
-        .unwrap();
-    account.kits[1].slots[usize::from(slot)] = Some(KitSlot {
-        item_id: bare,
-        count: 1,
-    });
-    let revision = account.kits[1].revision;
-
-    let done = give_golden_silver(&mut account);
-    assert_eq!(done.given, [bare, one, damaged, vss]);
-    assert_eq!(done.full, [full]);
-    let mods = |account: &Account, item_id| account.item(item_id).unwrap().modifications.clone();
-    assert_eq!(mods(&account, bare), [(SILVER, false)]);
-    assert_eq!(mods(&account, one), [(SILVER, false), (2000, false)]);
-    assert_eq!(
-        mods(&account, full),
-        [(2000, false), (2010, false), (2020, false)]
-    );
-    assert_eq!(mods(&account, has), [(SILVER, false)]);
-    assert_eq!(mods(&account, damaged), [(SILVER, false), (3000, true)]);
-    assert_eq!(mods(&account, vss), [(SILVER, false)]);
-    assert!(mods(&account, plain).is_empty());
-    assert_ne!(account.kits[1].revision, revision);
-    // The client takes it all.
-    client_of(&account);
-    // Once: a second run changes nothing.
-    let again = account.clone();
-    assert_eq!(give_golden_silver(&mut account).given, Vec::<u32>::new());
-    assert_eq!(account, again);
-}
-
 // ------------------------------------------------------- premium armour
 
 const EXPERIENCE: u32 = golden::EXPERIENCE_BONUS;
@@ -1896,81 +1764,6 @@ fn a_premium_armour_piece_is_upgraded_and_rerolled_like_its_plain_piece() {
         table.bonuses(item.dict_id, &item.modifications).reputation[1],
         0.0
     );
-}
-
-#[test]
-fn premium_armour_owned_before_gets_its_bonuses_once() {
-    let mut account = rich();
-    let jacket = dict("scav_torso_4_premium");
-    let scav_reputation = golden::SCAVENGER_REPUTATION_BONUS;
-    // As the store had them before the rule: no modification of their own
-    // (the bonuses were the config's).
-    let owned = |account: &mut Account, modifications: &[u32]| {
-        let item_id = account.add_item(jacket, FULL_CONDITION);
-        account.item_mut(item_id).unwrap().modifications =
-            modifications.iter().map(|&id| (id, false)).collect();
-        item_id
-    };
-    let bare = owned(&mut account, &[]);
-    let one = owned(&mut account, &[1090]);
-    let two = owned(&mut account, &[1090, 1100]);
-    let full = owned(&mut account, &[1090, 1100, 1110]);
-    let has = owned(&mut account, &[EXPERIENCE, scav_reputation]);
-    let half = owned(&mut account, &[scav_reputation]);
-    let damaged = owned(&mut account, &[]);
-    account
-        .item_mut(damaged)
-        .unwrap()
-        .modifications
-        .push((3000, true));
-    let plain = give(&mut account, "scav_torso_4", &[]);
-    let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
-    account.item_mut(rifle).unwrap().modifications.clear();
-    // A kit wearing one: it shows another item.
-    let slot = (0..23)
-        .find(|&slot| Dictionary::shared().fits(jacket, slot))
-        .unwrap();
-    account.kits[1].slots[usize::from(slot)] = Some(KitSlot {
-        item_id: bare,
-        count: 1,
-    });
-    let revision = account.kits[1].revision;
-
-    let done = give_premium_armour_bonuses(&mut account);
-    assert_eq!(done.given, [bare, one, two, half, damaged]);
-    assert_eq!(done.full, [two, full]);
-    let mods = |account: &Account, item_id| -> Vec<u32> {
-        account
-            .item(item_id)
-            .unwrap()
-            .modifications
-            .iter()
-            .map(|&(id, _)| id)
-            .collect()
-    };
-    assert_eq!(mods(&account, bare), [EXPERIENCE, scav_reputation]);
-    assert_eq!(mods(&account, one), [EXPERIENCE, scav_reputation, 1090]);
-    // Room for one: the first.
-    assert_eq!(mods(&account, two), [EXPERIENCE, 1090, 1100]);
-    assert_eq!(mods(&account, full), [1090, 1100, 1110]);
-    assert_eq!(mods(&account, has), [EXPERIENCE, scav_reputation]);
-    assert_eq!(mods(&account, half), [EXPERIENCE, scav_reputation]);
-    assert_eq!(mods(&account, damaged), [EXPERIENCE, scav_reputation, 3000]);
-    assert!(mods(&account, plain).is_empty());
-    // Not a golden weapon's silver: that is the other grant's.
-    assert!(mods(&account, rifle).is_empty());
-    assert_ne!(account.kits[1].revision, revision);
-    client_of(&account);
-    // A second run changes nothing; nor does the silver grant to armour.
-    let again = account.clone();
-    assert_eq!(
-        give_premium_armour_bonuses(&mut account).given,
-        Vec::<u32>::new()
-    );
-    let silver = give_golden_silver(&mut account);
-    assert_eq!(silver.given, [rifle]);
-    account.item_mut(rifle).unwrap().modifications.clear();
-    assert_eq!(account.inventory, again.inventory);
 }
 
 #[test]

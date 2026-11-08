@@ -93,22 +93,16 @@
 //!   [srp] The modification gained is rolled as a drop's are.
 //! - **Golden weapons** ([`golden`], the owner's rule of 2026-10-21): the
 //!   silver bonus is the item's own first modification, given when it is
-//!   made ([`Account::add_item`]) and once to those owned before
-//!   ([`give_golden_silver`]); from then on it rerolls, crafts and counts
-//!   for the rank as any modification.
+//!   made ([`Account::add_item`]); it rerolls, crafts and counts for the
+//!   rank as any modification.
 //! - **Premium armour** ([`golden::armour_bonuses`], the owner's rule of
 //!   2026-10-22): the same, with its two premium bonuses (+5 % experience,
-//!   +5 % reputation with its faction) as its own first modifications,
-//!   given once to those owned before ([`give_premium_armour_bonuses`]);
+//!   +5 % reputation with its faction) as its own first modifications;
 //!   its plain piece and it are donors for each other as a golden weapon
 //!   and its plain weapon are.
-//! - **No repair** (the owner, 2026-11-08: "we don't have repair in the
-//!   game at all"): `47 03` is no request. Items wear nothing unless
-//!   `SRP_ITEM_WEAR=on`, so none needs one; with wear on, a worn item and
-//!   its defects stay as they are.
-//! - **Defects.** [LIKELY, the reading of `defect_slots` in
-//!   `modifications`] After a match that wore an item, one roll for its
-//!   first free defect slot. `SRP_ITEM_DEFECTS=off` switches them off.
+//! - **No repair, no wear, no defects** (the owner, 2026-11-08: "we don't
+//!   have repair in the game at all"): `47 03` is no request, a match wears
+//!   nothing and no item gets a defect, so every item stays whole.
 //! - **Drops.** A dropped weapon or armour of rarity `n` has `n`
 //!   modifications (the lobby's rank is their count), fewer when the item
 //!   takes fewer types.
@@ -124,15 +118,12 @@ use survarium::v026g::drops::Rng;
 use survarium::v026g::golden;
 use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::requests::KEEP_OLD_MODIFICATION;
-use survarium::v026g::lobby::{Crafted, FULL_CONDITION, limits};
+use survarium::v026g::lobby::{Crafted, limits};
 use survarium::v026g::modifications::{self, Bonuses, MAX_RANK, Modifications};
 use survarium::v026g::scopes::ScopeFits;
 use survarium::v026g::weapon_kit;
 
 use super::account::{Account, Item, Upgrade};
-
-/// The setting that switches defects off.
-pub const DEFECTS_VAR: &str = "SRP_ITEM_DEFECTS";
 
 /// Why an item action is refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,8 +132,6 @@ pub enum ItemError {
     Upgrade(&'static str),
     /// A modification can not be changed or chosen; why, for the log.
     Reroll(&'static str),
-    /// The item has defects.
-    RerollBroken,
     NotEnoughMoney,
 }
 
@@ -152,7 +141,6 @@ impl ItemError {
         match self {
             Self::Upgrade(_) => "st_cannot_upgrade_item",
             Self::Reroll(_) => "st_cannot_select_rerolled_modification",
-            Self::RerollBroken => "st_reroll_message_broken_item",
             Self::NotEnoughMoney => "st_not_enougth_money",
         }
     }
@@ -166,13 +154,6 @@ impl std::fmt::Display for ItemError {
 
 impl std::error::Error for ItemError {}
 
-/// Whether defects appear ([`DEFECTS_VAR`]; on unless `off`, `0`, `no` or
-/// `false`).
-pub fn defects_enabled() -> bool {
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| crate::switch(DEFECTS_VAR, true))
-}
-
 // ------------------------------------------------------------ the item
 
 /// The item's own modifications (not its defects, not its defaults).
@@ -180,15 +161,6 @@ pub fn own_modifications(item: &Item) -> Vec<u32> {
     item.modifications
         .iter()
         .filter(|&&(_, state)| !state)
-        .map(|&(id, _)| id)
-        .collect()
-}
-
-/// The item's defects.
-pub fn defects(item: &Item) -> Vec<u32> {
-    item.modifications
-        .iter()
-        .filter(|&&(_, state)| state)
         .map(|&(id, _)| id)
         .collect()
 }
@@ -637,9 +609,6 @@ pub fn reroll(
     if !is_gear(item) {
         return Err(ItemError::Reroll("not an item with modifications"));
     }
-    if !defects(item).is_empty() {
-        return Err(ItemError::RerollBroken);
-    }
     let held = own_modifications(item);
     if !held.contains(&modification) {
         return Err(ItemError::Reroll("the item has no such modification"));
@@ -753,9 +722,6 @@ pub fn craft(
     if !golden::may_donate(donor.dict_id, item.dict_id) {
         return Err("the donor is another item");
     }
-    if !defects(item).is_empty() || !defects(donor).is_empty() {
-        return Err("a damaged item");
-    }
     if item.reroll.offer.is_some() {
         return Err("a modification of the item is being changed");
     }
@@ -798,136 +764,6 @@ pub fn craft(
     })
 }
 
-/// Makes every weapon and armour piece of the account whole: full
-/// condition, no defect. Returns how many needed it.
-/// For the day wear was switched off (`pay::item_wear`): what matches had
-/// worn until then would stay worn for ever.
-pub fn mend_all(account: &mut Account) -> usize {
-    let dictionary = Dictionary::shared();
-    let mut mended = Vec::new();
-    for item in &mut account.inventory {
-        let gear = !dictionary.is_stack(item.dict_id)
-            && item_params(item.dict_id).is_some_and(|params| {
-                params.kind.starts_with("wpn_") || params.kind.starts_with("arm_")
-            });
-        let broken = item.modifications.iter().any(|&(_, state)| state);
-        if !gear || (item.condition_or_stack >= FULL_CONDITION && !broken) {
-            continue;
-        }
-        item.condition_or_stack = FULL_CONDITION;
-        item.modifications.retain(|&(_, state)| !state);
-        mended.push(item.item_id);
-    }
-    for &item_id in &mended {
-        bump_kits_wearing(account, item_id);
-    }
-    if !mended.is_empty() {
-        account.sync_kits();
-    }
-    mended.len()
-}
-
-/// What [`give_golden_silver`] or [`give_premium_armour_bonuses`] did to
-/// one account.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct GoldenGrant {
-    /// The items that got a bonus (all they lacked that fit) as their own
-    /// first modifications.
-    pub given: Vec<u32>,
-    /// Items with no place left for a bonus they lack (three modifications
-    /// of their own): a fourth would be cut at the next load
-    /// (`make_safe`), so they keep theirs; for the log.
-    pub full: Vec<u32>,
-}
-
-/// The golden weapons of the account (`survarium::v026g::golden`) get
-/// the silver bonus as their own first modification, unless they hold a
-/// modification of its type already. Once in the database's life, for the
-/// golden weapons owned before the rule (their silver was a default of
-/// the item's config, which the golden-weapons patch takes off).
-pub fn give_golden_silver(account: &mut Account) -> GoldenGrant {
-    let table = Modifications::shared();
-    let silver_kind = table.modification(golden::SILVER_BONUS).map(|row| row.kind);
-    let mut done = GoldenGrant::default();
-    for item in &mut account.inventory {
-        if !golden::is_golden_weapon(item.dict_id) {
-            continue;
-        }
-        let held = own_modifications(item);
-        let has_silver = held.iter().any(|&id| {
-            id == golden::SILVER_BONUS || table.modification(id).map(|row| row.kind) == silver_kind
-        });
-        if has_silver {
-            continue;
-        }
-        if held.len() >= MAX_RANK {
-            done.full.push(item.item_id);
-            continue;
-        }
-        item.modifications.insert(0, (golden::SILVER_BONUS, false));
-        done.given.push(item.item_id);
-    }
-    for &item_id in &done.given {
-        bump_kits_wearing(account, item_id);
-    }
-    if !done.given.is_empty() {
-        account.sync_kits();
-    }
-    done
-}
-
-/// The premium armour pieces of the account (`survarium::v026g::golden::
-/// armour_bonuses`) get each premium bonus they lack as their own
-/// modification, first and in their order; a bonus is lacking when
-/// the piece holds no modification of its type. Once in the database's
-/// life, for the pieces owned before the rule (their bonuses were defaults
-/// of the item's config, which the premium-armour patch takes off). A
-/// piece with no place left for a bonus it lacks (three of its own) gets
-/// those that fit and is listed in `full`.
-pub fn give_premium_armour_bonuses(account: &mut Account) -> GoldenGrant {
-    let table = Modifications::shared();
-    let kind = |id: u32| table.modification(id).map(|row| row.kind);
-    let mut done = GoldenGrant::default();
-    for item in &mut account.inventory {
-        let Some(bonuses) = Dictionary::shared()
-            .item(item.dict_id)
-            .and_then(|entry| golden::armour_bonuses(&entry.name))
-        else {
-            continue;
-        };
-        let mut held = own_modifications(item);
-        let (mut given, mut short) = (0, false);
-        for &bonus in bonuses {
-            let lacking = !held
-                .iter()
-                .any(|&id| id == bonus || (kind(id).is_some() && kind(id) == kind(bonus)));
-            if !lacking {
-                continue;
-            }
-            if held.len() >= MAX_RANK {
-                short = true;
-                continue;
-            }
-            item.modifications.insert(given, (bonus, false));
-            held.push(bonus);
-            given += 1;
-        }
-        if given > 0 {
-            done.given.push(item.item_id);
-        }
-        if short {
-            done.full.push(item.item_id);
-        }
-    }
-    for &item_id in &done.given {
-        bump_kits_wearing(account, item_id);
-    }
-    if !done.given.is_empty() {
-        account.sync_kits();
-    }
-    done
-}
-
 // ------------------------------------------------- matches and drops
 
 /// Gives a new item its modifications by the rarity a drop rolled: as many
@@ -949,65 +785,6 @@ pub fn roll_modifications(account: &mut Account, item_id: u32, rarity: u8, rng: 
     }
     let base = item_params(item.dict_id).map_or(0, |params| params.base_rarity_level);
     (usize::from(base) + rank(item)).min(MAX_RANK) as u8
-}
-
-/// What the item's wear is multiplied by: its "reliability"
-/// modifications (5 % to 25 % less).
-pub fn wear_factor(account: &Account, item_id: u32) -> f32 {
-    account.item(item_id).map_or(1.0, |item| {
-        Modifications::shared().wear_factor(item.dict_id, &item.modifications, "degrade_per_match")
-    })
-}
-
-/// The defect rolls for the items a match wore: `worn` is `(item id,
-/// condition before, after)`. Returns `(item id, defect)` for each that
-/// got one. Nothing with [`DEFECTS_VAR`] off.
-pub fn after_wear(
-    account: &mut Account,
-    worn: &[(u32, u32, u32)],
-    rng: &mut Rng,
-) -> Vec<(u32, u32)> {
-    if !defects_enabled() {
-        return Vec::new();
-    }
-    roll_defects(account, worn, rng)
-}
-
-/// [`after_wear`] whatever the setting.
-pub fn roll_defects(
-    account: &mut Account,
-    worn: &[(u32, u32, u32)],
-    rng: &mut Rng,
-) -> Vec<(u32, u32)> {
-    let table = Modifications::shared();
-    let mut broke = Vec::new();
-    for &(item_id, before, after) in worn {
-        if after >= before {
-            continue;
-        }
-        let Some(item) = account.item_mut(item_id) else {
-            continue;
-        };
-        if item.modifications.len() >= limits::MODIFICATIONS {
-            continue;
-        }
-        let condition = after as f32 / FULL_CONDITION as f32;
-        let rolled = table.roll_defect(
-            item.dict_id,
-            &own_modifications(item),
-            &defects(item),
-            condition,
-            rng,
-        );
-        if let Some(defect) = rolled {
-            item.modifications.push((defect, true));
-            broke.push((item_id, defect));
-        }
-    }
-    for &(item_id, _) in &broke {
-        bump_kits_wearing(account, item_id);
-    }
-    broke
 }
 
 /// What the items of the kit at `kit_index` add to a match's pay (the

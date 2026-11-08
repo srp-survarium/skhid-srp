@@ -5,7 +5,8 @@
 //! The game's own files, embedded as they are in 0.26g's `resources.db`:
 //!
 //! - `gameplay/items/modifications/modifications.options`: 158
-//!   `modifications`, 20 `defects` and 3 `defect_slots`;
+//!   `modifications`, 20 `defects` and 3 `defect_slots` (not read: no item
+//!   gets a defect, as nothing wears);
 //! - `gameplay/items/craft/craft.options`: prices by item level (its
 //!   chances are not read: an upgrade always succeeds);
 //! - `gameplay/items/reroll/reroll.options`: prices by item level (its
@@ -62,12 +63,11 @@
 //!   three such defects take a pocket, an artefact slot or an ammo bag away
 //!   and name the ids of the modifications that give one].
 //! - `defect_slots`: three slots, `condition: [0.9, 0]`, `[0.5, 0]`,
-//!   `[0.1, 0]` and `probability: [0.1, 0.5]`, `[0.3, 0.7]`, `[0.5, 1]`.
-//!   Read as: slot `n` opens when the condition is under its first number,
-//!   and the chance of a defect in it goes from the first probability there
-//!   to the second at condition 0 [LIKELY]; when the roll is made is not in
-//!   the data [srp: once for each match that wore the item,
-//!   [`Modifications::roll_defect`]].
+//!   `[0.1, 0]` and `probability: [0.1, 0.5]`, `[0.3, 0.7]`, `[0.5, 1]`
+//!   [LIKELY: slot `n` opens under its first condition]. srp rolls no
+//!   defect: items wear nothing and nothing repairs them (the owner,
+//!   2026-11-08). The defect rows are read for what the client knows of
+//!   them ([`Modifications::is_known`]).
 //! - A modifier's `type` 1 adds its value and 2 multiplies by `1 + value`
 //!   [LIKELY: armour and slot counts are type 1 with absolute steps, damage,
 //!   weight and wear type 2 with small fractions].
@@ -224,29 +224,6 @@ pub struct Defect {
     pub modifiers: Vec<Modifier>,
 }
 
-/// A row of `defect_slots`.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct DefectSlot {
-    /// `condition`: the slot is open under the first; the second is where
-    /// the chance is highest.
-    pub condition: (f32, f32),
-    /// `probability` at those two conditions.
-    pub probability: (f32, f32),
-}
-
-impl DefectSlot {
-    /// The chance of a defect in this slot at `condition` (0..=1): none
-    /// until the slot is open.
-    pub fn chance(&self, condition: f32) -> f32 {
-        let (open, worst) = self.condition;
-        if condition >= open || open <= worst {
-            return 0.0;
-        }
-        let along = ((open - condition) / (open - worst)).clamp(0.0, 1.0);
-        self.probability.0 + (self.probability.1 - self.probability.0) * along
-    }
-}
-
 /// `craft.options`, in silver: gold is gone [the owner, 2026-11-08], and the
 /// one upgrade left is the game's gold one (`craft_price_premium` times
 /// [`GOLD_IN_SILVER`]; the silver table, `craft_price_general`, is not read).
@@ -319,7 +296,6 @@ pub struct Modifications {
     pub modifications: Vec<Modification>,
     /// By `id`.
     pub defects: Vec<Defect>,
-    pub defect_slots: Vec<DefectSlot>,
     pub craft: Craft,
     pub reroll: Reroll,
 }
@@ -328,12 +304,6 @@ fn number(value: &ConfigValue) -> Result<u32, ConfigError> {
     value
         .as_i32()
         .and_then(|number| u32::try_from(number).ok())
-        .ok_or_else(|| ConfigError("a modifications number is not one".into()))
-}
-
-fn float(value: &ConfigValue) -> Result<f32, ConfigError> {
-    value
-        .as_f32()
         .ok_or_else(|| ConfigError("a modifications number is not one".into()))
 }
 
@@ -410,18 +380,6 @@ fn silver_prices(root: &ConfigValue, key: &str) -> Result<[u16; PRICE_LEVELS], C
         .collect::<Result<_, _>>()?;
     list.try_into()
         .map_err(|_| ConfigError(format!("`{key}` has not {PRICE_LEVELS} prices")))
-}
-
-fn pair(row: &ConfigValue, key: &str) -> Result<(f32, f32), ConfigError> {
-    match row.req(key)?.children()[..] {
-        [first, second] => Ok((float(first)?, float(second)?)),
-        _ => Err(ConfigError(format!("`{key}` is not a pair"))),
-    }
-}
-
-/// A fraction in `[0, 1)`.
-fn unit(rng: &mut Rng) -> f32 {
-    rng.below(1 << 24) as f32 / (1 << 24) as f32
 }
 
 /// A `drop_weight` as a whole weight for [`Rng::pick`] (4.096 is the
@@ -679,17 +637,6 @@ impl Modifications {
             })
             .collect::<Result<_, ConfigError>>()?;
         defects.sort_by_key(|defect| defect.id);
-        let defect_slots = root
-            .req("defect_slots")?
-            .children()
-            .into_iter()
-            .map(|row| {
-                Ok(DefectSlot {
-                    condition: pair(row, "condition")?,
-                    probability: pair(row, "probability")?,
-                })
-            })
-            .collect::<Result<_, ConfigError>>()?;
 
         let craft = ConfigValue::parse(craft)?;
         let craft = craft.req("parameters")?;
@@ -698,7 +645,6 @@ impl Modifications {
         Ok(Self {
             modifications: list,
             defects,
-            defect_slots,
             craft: Craft {
                 price: silver_prices(craft, "craft_price_premium")?,
             },
@@ -843,101 +789,6 @@ impl Modifications {
             pool.retain(|row| row.id != picked.id);
         }
         Some(choices)
-    }
-
-    /// The defects `dict_id` may get beside those it has: of the types its
-    /// mask names, none of a type it has, and with the modification a
-    /// defect requires among `modifications` (the item's own; its defaults
-    /// are counted too).
-    pub fn defect_candidates(
-        &self,
-        dict_id: u16,
-        modifications: &[u32],
-        defects: &[u32],
-    ) -> Vec<&Defect> {
-        let Some(item) = item_mods(dict_id) else {
-            return Vec::new();
-        };
-        let defaults = item_params(dict_id).map_or(&[][..], |params| params.default_modifications);
-        let has = |low: u32, high: u32| {
-            modifications
-                .iter()
-                .chain(defaults)
-                .any(|id| (low..=high).contains(id))
-        };
-        let taken = defects
-            .iter()
-            .filter_map(|&id| self.defect(id))
-            .fold(0_u32, |mask, defect| mask | 1 << defect.kind);
-        self.defects
-            .iter()
-            .filter(|row| {
-                row.drop_weight > 0.0
-                    && item.defects & (1 << row.kind) != 0
-                    && taken & (1 << row.kind) == 0
-                    && row
-                        .required_modifications
-                        .is_none_or(|(low, high)| has(low, high))
-            })
-            .collect()
-    }
-
-    /// The chance, of 1, that an item at `condition` (0..=1) with
-    /// `defects` defects gets one more: that of the first slot it has no
-    /// defect in; 0 with every slot taken.
-    pub fn defect_chance(&self, condition: f32, defects: usize) -> f32 {
-        self.defect_slots
-            .get(defects)
-            .map_or(0.0, |slot| slot.chance(condition))
-    }
-
-    /// The roll made for an item a match wore down to `condition` (0..=1):
-    /// a defect for its first free slot, by that slot's chance, among the
-    /// defects the item may get, by drop weight.
-    pub fn roll_defect(
-        &self,
-        dict_id: u16,
-        modifications: &[u32],
-        defects: &[u32],
-        condition: f32,
-        rng: &mut Rng,
-    ) -> Option<u32> {
-        let chance = self.defect_chance(condition, defects.len());
-        if chance <= 0.0 || unit(rng) >= chance {
-            return None;
-        }
-        let candidates = self.defect_candidates(dict_id, modifications, defects);
-        let weights: Vec<u32> = candidates
-            .iter()
-            .map(|row| weight(row.drop_weight))
-            .collect();
-        rng.pick(&weights).map(|index| candidates[index].id)
-    }
-
-    /// What the item's wear is multiplied by: the product of `1 + value`
-    /// of its modifications' and defects' changes to `parameter`
-    /// (`degrade_per_match`, `degrade_per_use`, `degrade_per_death`; only
-    /// the "reliability" modifications change them). `modifications` are
-    /// the item's `{id, state}`; its defaults are counted too.
-    pub fn wear_factor(&self, dict_id: u16, modifications: &[(u32, bool)], parameter: &str) -> f32 {
-        let defaults = item_params(dict_id).map_or(&[][..], |params| params.default_modifications);
-        let path = format!("parameters/{parameter}");
-        let own = modifications.iter().copied();
-        let all = own.chain(defaults.iter().map(|&id| (id, false)));
-        let mut factor = 1.0_f32;
-        for (id, state) in all {
-            let modifiers = if state {
-                self.defect(id).map(|row| &row.modifiers)
-            } else {
-                self.modification(id).map(|row| &row.modifiers)
-            };
-            for modifier in modifiers.into_iter().flatten() {
-                if modifier.path == path && modifier.kind == 2 {
-                    factor *= 1.0 + modifier.value;
-                }
-            }
-        }
-        factor.max(0.0)
     }
 
     /// What the modifications of one item add to a match's pay: its own

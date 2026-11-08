@@ -262,11 +262,6 @@ package survarium.messages
                Message.showMessage("ok",LocalizationData.getName("craft_message_equipped_item"));
                event.target.data = null;
             }
-            else if(droppedItem.broken)
-            {
-               Message.showMessage("ok",LocalizationData.getName("craft_message_broken_item"));
-               event.target.data = null;
-            }
             else if(droppedItem.rank >= ItemRank.MAX)
             {
                Message.showMessage("ok",LocalizationData.getName("craft_message_modifers_count"));
@@ -366,12 +361,7 @@ package survarium.messages
          {
             mainItem = this.dragItemSlot1.data;
             donorItem = this.dragItemSlot2.data;
-            trace("checkAcceptButton::",mainItem.broken,donorItem.broken);
-            if(mainItem.broken || donorItem.broken)
-            {
-               canCraft = false;
-            }
-            else if(mainItem.rank == ItemRank.MAX || donorItem.rank == ItemRank.MAX)
+            if(mainItem.rank == ItemRank.MAX || donorItem.rank == ItemRank.MAX)
             {
                canCraft = false;
             }

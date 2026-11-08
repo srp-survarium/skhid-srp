@@ -2,8 +2,8 @@
 
 The owner's rule of 2026-10-22: give the premium armour the golden weapons' treatment
 ([golden_weapons.md](golden_weapons.md)), so that the Modification (reroll) button works on it. Code:
-`survarium::v026g::golden`, `session::v026g::items_rules`
-(`give_premium_armour_bonuses`), `Account::add_item`; the data:
+`survarium::v026g::golden`, `session::v026g::items_rules`, `Account::add_item` (owned pieces got
+their bonuses once in 2026-10); the data:
 `scripts/content-edit/armor.tsv` (rarity 0, no experience or reputation cell), `items.tsv` (`like`,
 `start`); the lobby: `ItemDictId.PREMIUM_ARMOUR*`,
 `ItemFactory` (`isGolden`, `plainOf`, `startingModifiers`, `BONUS_UI`).

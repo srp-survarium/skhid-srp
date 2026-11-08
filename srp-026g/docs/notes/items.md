@@ -173,8 +173,8 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   menu entry or repair window. (The game's was silver = `(1 - condition) *
   repair_cost_ratio * cost` + each defect's `fix_cost_general`, gold = the
   defects' `fix_cost_gold`, kits = one `repair_voucher` a defect.) Items
-  wear nothing unless `SRP_ITEM_WEAR=on`; with it on, a worn item and its
-  defects stay as they are.
+  wear nothing and get no defect (no `SRP_ITEM_WEAR`, no `SRP_ITEM_DEFECTS`
+  any more): every item stays whole.
 
 srp's reading of what only the server knew:
 
@@ -190,10 +190,9 @@ srp's reading of what only the server knew:
 | a gained modification is rolled as a drop's | [srp] |
 | a failure takes no modification: it does what "nothing" does (price and donor spent, the item as it was); 0x9B sends every failure chance as 0 and the window shows no failure row | the owner's rule of 2026-10-23 ([craft-menu.md](craft-menu.md)) |
 | no roll (a drop, an upgrade, a reroll's offer) gives a modification that only changes wear ("reliability"); owned ones stay; masks may roll Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs, so every item rolls three types or more | the owner's rule of 2026-10-23 ([no-reliability-roll.md](no-reliability-roll.md), `third-mod-1.json`) |
-| a defect slot opens under its first `condition`; its chance goes from the first `probability` there to the second at condition 0 | LIKELY |
-| one defect roll for each match that wore the item, for its first free slot | [srp] (`SRP_ITEM_DEFECTS=off` switches defects off). Since 2026-10-13 a match wears nothing unless `SRP_ITEM_WEAR=on` (the owner's choice, `results.md` §12), so only a found item has a defect |
-| a defect needs its type in `available_defects_mask` and, with `required_modifications`, such a modification on the item (a default counts) | LIKELY |
-| wear is multiplied by `1 + value` of the item's "reliability" modifications | LIKELY |
+| a defect slot opens under its first `condition`; its chance goes from the first `probability` there to the second at condition 0 | LIKELY; srp rolls no defect (no wear, no repair: the owner, 2026-11-08) |
+| a defect needs its type in `available_defects_mask` and, with `required_modifications`, such a modification on the item (a default counts) | LIKELY; not used |
+| wear is multiplied by `1 + value` of the item's "reliability" modifications | LIKELY; no wear |
 | the kit's items' `money_bonus` / `experience_bonus` / `reputation_bonus` (modifications 1230..1280, defaults of the premium items) add that share to a match's pay, shown in the screen's "premium items" column | LIKELY for the meaning; that the three bytes of the column are percents is GUESS |
 | any camouflage goes on any vest or trousers | [srp]: the data pairs none |
 | a weapon's decal in slot 0 (one, with `decal_available`: the client keeps three upgrades an item), its camouflage in 2, its scope in 3 | [srp] (`weapon-camo.md`; client patches 44, 45 and 47 bake and place them) |

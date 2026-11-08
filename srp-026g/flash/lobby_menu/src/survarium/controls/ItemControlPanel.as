@@ -17,7 +17,6 @@ package survarium.controls
    import survarium.item.ItemFactory;
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.ItemCategory;
-   import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
@@ -199,7 +198,7 @@ package survarium.controls
          else
          {
             price = this._data.cost;
-            sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
+            sellPrice = price / ItemPrice.SELL_DIVISOR;
             this._cost = sellPrice;
          }
          this._step = this._data.clipSize == 0 ? 1 : int(this._data.clipSize);

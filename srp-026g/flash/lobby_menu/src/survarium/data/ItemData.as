@@ -94,7 +94,6 @@ package survarium.data
       public var equipped:Boolean = false;
       
       
-      public var broken:Boolean = false;
       
       public var fromBundle:Boolean = false;
       
@@ -228,7 +227,6 @@ package survarium.data
          itemData.modifiersDefault = origin.modifiersDefault;
          itemData.properties = origin.properties;
          itemData.sellers = origin.sellers;
-         itemData.broken = origin.broken;
          itemData.equipped = origin.equipped;
          itemData.fromBundle = origin.fromBundle;
          itemData.additionalSlots = origin.additionalSlots;

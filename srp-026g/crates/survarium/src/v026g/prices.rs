@@ -508,19 +508,14 @@ pub fn buy_cost(dict_id: u16, steps: u32) -> Option<u64> {
     price(dict_id).map(|price| u64::from(price.cost) * u64::from(steps))
 }
 
-/// What the lobby shows for selling `dict_id`: a quarter of its cost, for a
-/// stack a step (`count` units are `count / shop_unit` steps), else times
-/// its condition (0..=100).
-pub fn sell_price(dictionary: &Dictionary, dict_id: u16, condition_or_count: u32) -> u64 {
-    let Some(item) = dictionary.item(dict_id) else {
-        return 0;
-    };
-    let quarter = u64::from(item.base_cost) / 4;
-    if item.is_stack {
-        quarter * u64::from(condition_or_count / super::item_params::shop_unit(dict_id))
-    } else {
-        quarter * u64::from(condition_or_count.min(100)) / 100
-    }
+/// What the lobby shows for selling `steps` of `dict_id`: a quarter of its
+/// cost a step (a step: a clip of ammo, else one item;
+/// [`super::item_params::shop_unit`]). Items never wear (no repair, the
+/// owner 2026-11-08), so their condition counts for nothing.
+pub fn sell_price(dictionary: &Dictionary, dict_id: u16, steps: u32) -> u64 {
+    dictionary
+        .item(dict_id)
+        .map_or(0, |item| u64::from(item.base_cost) / 4 * u64::from(steps))
 }
 
 #[cfg(test)]
@@ -984,7 +979,7 @@ mod tests {
             };
             assert_eq!(sellers_of(dictionary, &silver, params), []);
             // An owned one sells back for a quarter of its price.
-            assert_eq!(sell_price(dictionary, dict_id, 100), 7_500);
+            assert_eq!(sell_price(dictionary, dict_id, 1), 7_500);
         }
         // The other flags and coats of arms are not in it, the coat of arms
         // of Lithuania (the Vytis) included.
@@ -994,17 +989,16 @@ mod tests {
     }
 
     #[test]
-    fn selling_gives_a_quarter_and_repair_goes_by_the_wear() {
+    fn selling_gives_a_quarter_a_step() {
         let dictionary = Dictionary::shared();
-        // The AK-74M at full condition and at 40.
-        assert_eq!(sell_price(dictionary, 3, 100), 11875);
-        assert_eq!(sell_price(dictionary, 3, 40), 4750);
+        // The AK-74M.
+        assert_eq!(sell_price(dictionary, 3, 1), 11875);
         // Two clips of 5.45: 7 a clip (a quarter of 30).
-        assert_eq!(sell_price(dictionary, 7, 60), 14);
+        assert_eq!(sell_price(dictionary, 7, 2), 14);
         // A premium item's cost is silver as any other's: the Uzi's 500 gold
         // is 50,000 (`items.tsv`).
         let uzi = dictionary.item_named("uzi_premium").unwrap().dict_id;
-        assert_eq!(sell_price(dictionary, uzi, 100), 12_500);
+        assert_eq!(sell_price(dictionary, uzi, 1), 12_500);
     }
 
     /// The owner's choice: the starting Mosin carbine and PPSh-41 (2026-10-18,
@@ -1024,7 +1018,7 @@ mod tests {
             assert_eq!(records, [(0, 0, cost)], "{name}");
             assert_eq!(buy_cost(dict_id, 1), Some(u64::from(cost)), "{name}");
             let quarter = u64::from(cost / 4);
-            assert_eq!(sell_price(dictionary, dict_id, 100), quarter, "{name}");
+            assert_eq!(sell_price(dictionary, dict_id, 1), quarter, "{name}");
         }
     }
 
@@ -1254,7 +1248,7 @@ mod tests {
             assert_eq!(dictionary.item(dict_id).unwrap().base_cost, cost);
             // Selling back pays a quarter, as the client shows.
             assert_eq!(
-                sell_price(&dictionary, dict_id, 100),
+                sell_price(&dictionary, dict_id, 1),
                 u64::from(cost / 4)
             );
         }

@@ -16,7 +16,6 @@ fn the_three_files_parse_to_what_the_dump_shows() {
     let data = Modifications::shared();
     assert_eq!(data.modifications.len(), 158);
     assert_eq!(data.defects.len(), 20);
-    assert_eq!(data.defect_slots.len(), 3);
     // Sorted by id, each once.
     assert!(
         data.modifications
@@ -91,24 +90,6 @@ fn the_three_files_parse_to_what_the_dump_shows() {
     kinds.sort_unstable();
     assert_eq!(kinds, (1..=20).collect::<Vec<u8>>());
     assert!(data.defects.iter().all(|d| d.drop_weight == 10.0));
-
-    assert_eq!(
-        data.defect_slots,
-        [
-            DefectSlot {
-                condition: (0.9, 0.0),
-                probability: (0.1, 0.5)
-            },
-            DefectSlot {
-                condition: (0.5, 0.0),
-                probability: (0.3, 0.7)
-            },
-            DefectSlot {
-                condition: (0.1, 0.0),
-                probability: (0.5, 1.0)
-            },
-        ]
-    );
 
     // In silver, the game's gold prices (the owner, 2026-11-08): its silver
     // ones, twice the price, are not read; nor are its chances.
@@ -429,57 +410,6 @@ fn a_reroll_offers_three_on_an_item_of_few_types() {
 }
 
 #[test]
-fn defects_come_with_wear() {
-    let data = Modifications::shared();
-    // No defect at all over 90 %.
-    assert_eq!(data.defect_chance(1.0, 0), 0.0);
-    assert_eq!(data.defect_chance(0.9, 0), 0.0);
-    // The first slot: 10 % just under 90 %, 50 % at nothing.
-    assert!((data.defect_chance(0.8999, 0) - 0.1).abs() < 1e-3);
-    assert!((data.defect_chance(0.45, 0) - 0.3).abs() < 1e-5);
-    assert!((data.defect_chance(0.0, 0) - 0.5).abs() < 1e-6);
-    // The second opens under 50 %, the third under 10 %; there is no
-    // fourth.
-    assert_eq!(data.defect_chance(0.6, 1), 0.0);
-    assert!((data.defect_chance(0.25, 1) - 0.5).abs() < 1e-5);
-    assert_eq!(data.defect_chance(0.2, 2), 0.0);
-    assert!((data.defect_chance(0.0, 2) - 1.0).abs() < 1e-6);
-    assert_eq!(data.defect_chance(0.0, 3), 0.0);
-
-    let rifle = dict("ak_74m");
-    let ids = |list: Vec<&Defect>| list.iter().map(|d| d.id).collect::<Vec<u32>>();
-    // The rifle's mask: types 1..=5 and 7.
-    assert_eq!(
-        ids(data.defect_candidates(rifle, &[], &[])),
-        [3000, 3010, 3020, 3030, 3040, 3060]
-    );
-    assert_eq!(
-        ids(data.defect_candidates(rifle, &[], &[3000, 3060])),
-        [3010, 3020, 3030, 3040]
-    );
-    // Trousers with ammo bags (a default modification 1050) may lose one;
-    // those without may not.
-    let with_bags = dict("bm_legs_4");
-    assert!(ids(data.defect_candidates(with_bags, &[], &[])).contains(&4050));
-    let plain = dict("scav_legs_1");
-    assert!(item_mods(plain).unwrap().defects & (1 << 12) != 0);
-    assert!(!ids(data.defect_candidates(plain, &[], &[])).contains(&4050));
-
-    let mut rng = Rng::new(11);
-    // A whole item never breaks; one at nothing does half the time.
-    assert!((0..500).all(|_| { data.roll_defect(rifle, &[], &[], 0.95, &mut rng).is_none() }));
-    let broke = (0..4000)
-        .filter(|_| data.roll_defect(rifle, &[], &[], 0.0, &mut rng).is_some())
-        .count();
-    assert!((1800..2200).contains(&broke), "{broke}");
-    // At nothing the third slot always fills, with a defect it has not.
-    let third = data
-        .roll_defect(rifle, &[], &[3000, 3010], 0.0, &mut rng)
-        .unwrap();
-    assert!([3020, 3030, 3040, 3060].contains(&third));
-}
-
-#[test]
 fn craft_and_reroll_go_by_the_tables() {
     let data = Modifications::shared();
     assert_eq!(data.craft.price(0), 200);
@@ -507,28 +437,9 @@ fn craft_and_reroll_go_by_the_tables() {
 }
 
 #[test]
-fn reliability_slows_wear_and_premium_gear_pays_more() {
+fn premium_gear_pays_more() {
     let data = Modifications::shared();
-    let rifle = dict("ak_74m");
-    assert_eq!(data.wear_factor(rifle, &[], "degrade_per_match"), 1.0);
-    // 2090: 5 % less wear; 2094: 25 %.
-    let factor = data.wear_factor(rifle, &[(2090, false)], "degrade_per_match");
-    assert!((factor - 0.95).abs() < 1e-6);
-    let factor = data.wear_factor(rifle, &[(2094, false)], "degrade_per_use");
-    assert!((factor - 0.75).abs() < 1e-6);
-    // Another modification changes nothing of it, and a defect's id is
-    // not read as a modification's.
-    assert_eq!(
-        data.wear_factor(rifle, &[(2000, false)], "degrade_per_match"),
-        1.0
-    );
-    assert_eq!(
-        data.wear_factor(rifle, &[(2090, true)], "degrade_per_match"),
-        1.0
-    );
-    // The golden rifle's 2094 default is gone (`super::super::golden`).
     let premium = dict("ak_74n_premium");
-    assert_eq!(data.wear_factor(premium, &[], "degrade_per_death"), 1.0);
 
     // Its 1230 (10 % more silver) is a modification of its own: it pays
     // as one, and without it nothing.
@@ -551,7 +462,7 @@ fn reliability_slows_wear_and_premium_gear_pays_more() {
         &[(1240, false), (1250, false)],
     );
     assert!((bonuses.reputation[0] - 0.05).abs() < 1e-6);
-    assert_eq!(data.bonuses(rifle, &[(2000, false)]), Bonuses::default());
+    assert_eq!(data.bonuses(dict("ak_74m"), &[(2000, false)]), Bonuses::default());
 }
 
 /// The lobby colours a bonus at the best value it rolls gold and shows its

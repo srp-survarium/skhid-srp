@@ -494,7 +494,6 @@ package survarium.item
          }
          if(itemInfo.modifiers != undefined)
          {
-            item.broken = this.getItemBroken(itemInfo.modifiers);
             item.modifiers = (itemInfo.modifiers as Array).concat(item.modifiersDefault);
          }
          if(itemInfo.rarity_level != undefined)
@@ -684,26 +683,6 @@ package survarium.item
          item.tipText = tip;
       }
       
-      private function getItemBroken(modifiers:Array) : Boolean
-      {
-         if(!modifiers)
-         {
-            return false;
-         }
-         var count:uint = modifiers.length;
-         var i:uint = 0;
-         var modifier:Object;
-         while(i < count)
-         {
-            modifier = modifiers[i];
-            if(modifier.state)
-            {
-               return true;
-            }
-            i++;
-         }
-         return false;
-      }
    }
 }
 

@@ -17,7 +17,6 @@ package survarium.controls
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.Faction;
    import survarium.constants.ItemCategory;
-   import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
@@ -69,11 +68,6 @@ package survarium.controls
       public function upgradeItem(event:ButtonEvent = null) : void
       {
          trace("upgradeItem::",this._data.itemId,this._data.icon,this._data.messIcon);
-         if(this._data.broken)
-         {
-            Message.showMessage("ok",LocalizationData.getName("reroll_message_broken_item"));
-            return;
-         }
          var rerollItem:ItemData = this._data.clone();
          rerollItem.itemId = this._data.itemId;
          rerollItem.name = this._data.name;
@@ -249,7 +243,7 @@ package survarium.controls
          else
          {
             price = this._data.cost;
-            sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
+            sellPrice = price / ItemPrice.SELL_DIVISOR;
             _cost = sellPrice;
          }
          _step = slotData.clip_size == undefined ? 1 : (slotData.clip_size);
@@ -319,7 +313,7 @@ package survarium.controls
          else
          {
             price = this._data.cost;
-            sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
+            sellPrice = price / ItemPrice.SELL_DIVISOR;
             _cost = sellPrice;
          }
          _step = this._data.clipSize == 0 ? 1 : (this._data.clipSize);

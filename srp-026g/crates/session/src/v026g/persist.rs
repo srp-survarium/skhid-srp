@@ -222,17 +222,6 @@ pub trait GameRepository: Send {
     ) -> Result<Vec<AdminAction>, PersistError> {
         Ok(Vec::new())
     }
-    /// Whether what is done to the accounts once under `key` was done and
-    /// its accounts written ([`Self::mark_done`]). (A repository that keeps
-    /// no marks: never.)
-    fn is_done(&mut self, _key: &str) -> Result<bool, PersistError> {
-        Ok(false)
-    }
-    /// Marks `key` done: called only after the accounts it changed were
-    /// written, so a crash between leaves it to be done again, whole.
-    fn mark_done(&mut self, _key: &str) -> Result<(), PersistError> {
-        Ok(())
-    }
 }
 
 /// Accounts kept in memory. Clones share one set, so a test can keep one
@@ -252,8 +241,6 @@ pub struct MemoryGameRepository {
     gate: Arc<Mutex<()>>,
     /// Account writes waiting at the gate now.
     held: Arc<std::sync::atomic::AtomicUsize>,
-    /// The keys marked done ([`GameRepository::mark_done`]).
-    done: Arc<Mutex<std::collections::BTreeSet<String>>>,
 }
 
 impl MemoryGameRepository {
@@ -320,15 +307,6 @@ impl GameRepository for MemoryGameRepository {
         let mut inner = self.inner.locked();
         inner.0.insert(account_id, account.clone());
         inner.1 += 1;
-        Ok(())
-    }
-
-    fn is_done(&mut self, key: &str) -> Result<bool, PersistError> {
-        Ok(self.done.locked().contains(key))
-    }
-
-    fn mark_done(&mut self, key: &str) -> Result<(), PersistError> {
-        self.done.locked().insert(key.to_owned());
         Ok(())
     }
 
@@ -456,17 +434,6 @@ impl SqliteGameRepository {
         schema_version(&self.connection)
     }
 
-    /// Whether this is the first call with `key` in the database's life:
-    /// the key is written to `g26_meta`, so every later call says no. For
-    /// what is done to the accounts once ([`GEAR_MENDED`]).
-    pub fn first_time(&mut self, key: &str) -> Result<bool, PersistError> {
-        let written = self.connection.execute(
-            "INSERT OR IGNORE INTO g26_meta (key, value) VALUES (?1, 1)",
-            [key],
-        )?;
-        Ok(written == 1)
-    }
-
     /// The one-off pay-back of the release that removed gold and the
     /// vouchers but the drop card (the owner, 2026-11-08: "we should have
     /// release script which will give players silver back for gold they
@@ -585,26 +552,6 @@ impl PaidBack {
         self.gold.saturating_mul(100).saturating_add(vouchers)
     }
 }
-
-/// The `g26_meta` key that says the accounts' weapons and armour were made
-/// whole when wear was switched off (`GameAccounts::from_env`).
-pub const GEAR_MENDED: &str = "gear_mended";
-
-/// The `g26_meta` key that says the golden weapons owned got the silver
-/// bonus as their own modification, and the accounts were written
-/// (`GameAccounts::give_golden_silver_once`): it is written after them.
-pub const GOLDEN_SILVER_GIVEN: &str = "golden_silver_given";
-
-/// The `g26_meta` key that says the premium armour owned got its premium
-/// bonuses as its own modifications, and the accounts were written
-/// (`GameAccounts::give_premium_armour_bonuses_once`): it is written after
-/// them.
-pub const PREMIUM_ARMOUR_GIVEN: &str = "premium_armour_given";
-
-/// The `g26_meta` key that says every account's autobuy was turned on, and
-/// the accounts were written (`GameAccounts::turn_autobuy_on_once`): it is
-/// written after them.
-pub const AUTOBUY_TURNED_ON: &str = "autobuy_turned_on";
 
 fn schema_version(connection: &Connection) -> Result<i64, PersistError> {
     connection.execute_batch(
@@ -888,21 +835,6 @@ impl GameRepository for SqliteGameRepository {
         self.path.clone()
     }
 
-    fn is_done(&mut self, key: &str) -> Result<bool, PersistError> {
-        Ok(self
-            .connection
-            .query_row("SELECT 1 FROM g26_meta WHERE key = ?1", [key], |_| Ok(()))
-            .optional()?
-            .is_some())
-    }
-
-    fn mark_done(&mut self, key: &str) -> Result<(), PersistError> {
-        self.connection.execute(
-            "INSERT OR IGNORE INTO g26_meta (key, value) VALUES (?1, 1)",
-            [key],
-        )?;
-        Ok(())
-    }
 
     fn load_clans(&mut self) -> Result<Vec<Clan>, PersistError> {
         clans::load(&mut self.connection)
@@ -1371,39 +1303,6 @@ mod tests {
         let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
         assert_eq!(repository.pay_back_once().unwrap(), None);
         assert_eq!(state(&mut repository), expected);
-    }
-
-    #[test]
-    fn a_first_time_is_once_in_the_databases_life() {
-        let temp = TempDb::new("first-time");
-        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert!(repository.first_time(GEAR_MENDED).unwrap());
-        assert!(!repository.first_time(GEAR_MENDED).unwrap());
-        assert!(repository.first_time("another").unwrap());
-        // It outlives the repository, and the schema's own row is as it was.
-        let version = repository.version().unwrap();
-        drop(repository);
-        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert!(!repository.first_time(GEAR_MENDED).unwrap());
-        assert_eq!(repository.version().unwrap(), version);
-    }
-
-    #[test]
-    fn a_mark_done_is_read_back_and_outlives_the_repository() {
-        let temp = TempDb::new("mark-done");
-        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert!(!repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
-        // Reading it marks nothing.
-        assert!(!repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
-        repository.mark_done(GOLDEN_SILVER_GIVEN).unwrap();
-        repository.mark_done(GOLDEN_SILVER_GIVEN).unwrap();
-        assert!(repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
-        assert!(!repository.is_done("another").unwrap());
-        let version = repository.version().unwrap();
-        drop(repository);
-        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert!(repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
-        assert_eq!(repository.version().unwrap(), version);
     }
 
     #[test]

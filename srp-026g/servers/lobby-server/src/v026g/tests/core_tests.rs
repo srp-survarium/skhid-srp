@@ -553,10 +553,9 @@ fn no_repair_and_no_gold_exchange() {
     let alice = world.connect("Alice");
     world.change(alice, |account| {
         account.generic_money = 1_000_000;
-        rules::wear(account, 1, 0.5);
     });
     // No repair (the owner, 2026-11-08): `47 03` is no request, refused
-    // with the shop's text; the worn item stays as it is.
+    // with the shop's text; nothing changes.
     let before = world.account(alice).clone();
     world.ask(alice, (0x47, vec![3, 1, 0, 0, 0, 0]));
     assert_eq!(

@@ -20,7 +20,7 @@
 //! goes with which weapon. The client's lobby checks both before it sends.
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::item_params::{covered_slots, item_params, shop_unit};
+use survarium::v026g::item_params::{covered_slots, shop_unit};
 use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation, SHOP_SLOT};
 use survarium::v026g::lobby::{
     Bought, CONDITION_UNIT, FULL_CONDITION, ServicePrices, limits,
@@ -538,8 +538,7 @@ pub fn shown_condition(condition: u32) -> u32 {
 
 /// `47 01`: sell `steps` of an item (clips of ammo; an item that is no
 /// stack is sold whole). The pay is what the lobby shows
-/// ([`prices::sell_price`]): a quarter of the cost a step, for a worn item
-/// times its condition.
+/// ([`prices::sell_price`]): a quarter of the cost a step.
 pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, ActionError> {
     let dictionary = Dictionary::shared();
     let index = account
@@ -560,20 +559,13 @@ pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, Act
             return Err(ActionError::BadCount);
         }
         // A step that the stack's last rounds do not fill is still a step.
-        let paid_for = amount.div_ceil(shop_unit(owned.dict_id)) * shop_unit(owned.dict_id);
+        let paid_steps = amount.div_ceil(shop_unit(owned.dict_id));
         (
             amount,
-            prices::sell_price(dictionary, owned.dict_id, paid_for),
+            prices::sell_price(dictionary, owned.dict_id, paid_steps),
         )
     } else {
-        (
-            1,
-            prices::sell_price(
-                dictionary,
-                owned.dict_id,
-                shown_condition(owned.condition_or_stack),
-            ),
-        )
+        (1, prices::sell_price(dictionary, owned.dict_id, 1))
     };
     if is_stack && amount < owned.condition_or_stack {
         account.inventory[index].condition_or_stack -= amount;
@@ -589,25 +581,6 @@ pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, Act
         amount,
         money,
     })
-}
-
-/// Wears an item that is no stack by `fraction` of its full condition (the
-/// item configs' `degrade_per_match` and the like): for the results of a
-/// match. Returns the new condition.
-pub fn wear(account: &mut Account, item_id: u32, fraction: f32) -> Option<u32> {
-    let dictionary = Dictionary::shared();
-    let item = account.item_mut(item_id)?;
-    if dictionary.is_stack(item.dict_id) || !fraction.is_finite() || fraction <= 0.0 {
-        return Some(item.condition_or_stack);
-    }
-    let lost = (fraction.min(1.0) * FULL_CONDITION as f32) as u32;
-    item.condition_or_stack = item.condition_or_stack.saturating_sub(lost);
-    Some(item.condition_or_stack)
-}
-
-/// The wear a match puts on an item (`degrade_per_match`), as a fraction.
-pub fn wear_per_match(dict_id: u16) -> f32 {
-    item_params(dict_id).map_or(0.0, |params| params.degrade_per_match)
 }
 
 /// `48 00`: the account's whole set of skills. The set must keep the
@@ -890,6 +863,7 @@ const _: () = assert!(limits::KITS * limits::KIT_SLOTS == limits::ACCOUNT_ITEMS)
 mod tests {
     use super::*;
     use crate::v026g::account::Item;
+    use survarium::v026g::item_params::item_params;
     use survarium::v026g::loadouts;
 
     const NOW: u64 = 1_000;
@@ -2317,34 +2291,6 @@ mod tests {
         assert_eq!(account.kits[0].slots[8], None);
         // What is left is what a new account does not wear.
         assert_eq!(account.inventory.len(), loadouts::starter_stash().len());
-    }
-
-    #[test]
-    fn a_worn_item_sells_for_less() {
-        let dictionary = Dictionary::shared();
-        let record = prices::price_list()
-            .iter()
-            .filter(|record| !dictionary.is_stack(record.dict_id))
-            // Of what wears: a badge, dearer, has no wear.
-            .filter(|record| wear_per_match(record.dict_id) > 0.0)
-            .max_by_key(|record| record.cost)
-            .unwrap();
-        let mut account = rich(1_000_000);
-        let item_id = account.add_item(record.dict_id, FULL_CONDITION);
-        let ammo = account.inventory[1].item_id;
-        // A match's wear, a few times over.
-        let per_match = wear_per_match(record.dict_id);
-        assert!(per_match > 0.0);
-        assert_eq!(wear(&mut account, item_id, 0.5), Some(FULL_CONDITION / 2));
-        assert_eq!(shown_condition(FULL_CONDITION / 2), 50);
-        // Sold at half its condition: half of a quarter.
-        let sold = sell(&mut account, item_id, 1).unwrap();
-        assert_eq!(sold.money, record.cost / 4 * 50 / 100);
-        // Wear stops at nothing left, and leaves a stack alone.
-        let item_id = account.add_item(record.dict_id, FULL_CONDITION);
-        assert_eq!(wear(&mut account, item_id, 7.0), Some(0));
-        assert_eq!(wear(&mut account, ammo, 0.5), Some(50));
-        assert_eq!(wear(&mut account, 999, 0.5), None);
     }
 
     #[test]

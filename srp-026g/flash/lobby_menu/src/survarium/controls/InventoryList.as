@@ -330,34 +330,6 @@ package survarium.controls
          LocalizationData.addTextField(label,"inventory_label");
       }
       
-      public static function logModifiers(value:*) : void
-      {
-         trace("logModifiers");
-         if(!value)
-         {
-            return;
-         }
-         var _propsDescriptor:* = PropertiesDescriptor.getPropertiesDescriptor("properties");
-         var modifiers:Array = value;
-         if(!modifiers)
-         {
-            return;
-         }
-         for(var i:uint = 0; i < modifiers.length; i++)
-         {
-            var modificatorProps:Object;
-            var modifierProp:Object;
-            var propDescription:Object;
-            modificatorProps = modifiers[i].props;
-            trace("modifier::",modifiers[i].id,modifiers[i].name);
-            for each(modifierProp in modificatorProps)
-            {
-               propDescription = _propsDescriptor.getPropertyDescription(modifierProp.prop_id);
-               trace("addPropValue::",modifierProp.prop_id,modifierProp.prop_value,propDescription.prop_name);
-            }
-         }
-      }
-      
       override public function activate(value:Boolean, byUser:Boolean = true) : void
       {
          var subsystemName:String;
@@ -912,7 +884,6 @@ package survarium.controls
          }
          if(value.modifiers != undefined)
          {
-            item.broken = this.getItemBroken(value.modifiers);
             item.modifiers = (value.modifiers as Array).concat(item.modifiersDefault);
          }
          if(value.rarity_level != undefined)
@@ -1073,25 +1044,6 @@ package survarium.controls
          return;
       }
       
-      private function getItemBroken(value:Array) : Boolean
-      {
-         if(!value)
-         {
-            return false;
-         }
-         var l:uint = value.length;
-         for(var i:uint = 0; i < l; i++)
-         {
-            var modifier:Object;
-            modifier = value[i];
-            if((modifier.state))
-            {
-               return true;
-            }
-         }
-         return false;
-      }
-      
       private function getItemRank(value:Array) : int
       {
          var rank:uint = 0;
@@ -1123,7 +1075,6 @@ package survarium.controls
          item.value = itemData.condition_or_stack;
          if(itemData.modifiers != undefined)
          {
-            item.broken = this.getItemBroken(itemData.modifiers);
             item.modifiers = (itemData.modifiers as Array).concat(item.modifiersDefault);
          }
          if(itemData.rarity_level != undefined)
@@ -2000,7 +1951,8 @@ package survarium.controls
             _obj.count = int(_objData.value);
          }
          var shopCost:uint = value.cost;
-         var sellCost:uint = shopCost / ItemPrice.SELL_DIVISOR * (_objData.isStack ? 1 : _objData.value / ItemCondition.FULL);
+         // A quarter, whatever the condition: items never wear (no repair, the owner 2026-11-08).
+         var sellCost:uint = shopCost / ItemPrice.SELL_DIVISOR;
          _obj.price = sellCost;
          _obj.id = _objData.itemId;
          _obj.uid = _objData.dictId;
@@ -2939,7 +2891,7 @@ package survarium.controls
          return false;
       }
 
-      // An item's bonus lines: its modifications' (rolled, built-in, the defaults; no defect), each
+      // An item's bonus lines: its modifications' (rolled, built-in, the defaults), each
       // only when it helps: the card shows it green (ModificationRolls.style, not red: a value
       // worse than none, as a weapon's built-in "Movement speed -5%" or a weight's +2 kg, is no
       // bonus; owner 2026-11-06).
@@ -2949,10 +2901,6 @@ package survarium.controls
          var descriptor:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
          for each(var modifier:Object in item.modifiers is Array ? item.modifiers : [])
          {
-            if(modifier.state == ModificationState.DEFECT)
-            {
-               continue;
-            }
             for each(var prop:Object in modifier.props)
             {
                if(descriptor != null && descriptor.knows(prop.prop_id) && ModificationRolls.style(descriptor.getPropertyDescription(prop.prop_id),prop.prop_id,ModificationRolls.value(prop)) != "red")
@@ -3352,7 +3300,7 @@ package survarium.controls
                         }
                      }
                   }
-                  if(owned && rerollable && !itemData.rerollTime && !itemData.broken)
+                  if(owned && rerollable)
                   {
                      options.push({
                         name:LocalizationData.getName("btn_reroll_label"),

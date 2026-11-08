@@ -3,6 +3,7 @@ use crate::v026g::MemoryGameRepository;
 use crate::v026g::account::QuestInstance;
 use crate::v026g::quests::QUEST_MESSAGE;
 use survarium::v026g::lobby::client_model::{Client, Decoded};
+use survarium::v026g::item_params::item_params;
 use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::snapshot;
 use survarium::v026g::quests::Quests;
@@ -22,7 +23,6 @@ fn terms() -> Terms {
         money_rate: pay::MoneyRate::Flat(100),
         reputation_rate: 100,
         score_weights: SCORE_WEIGHTS,
-        wear: true,
         rated_players: 1,
         pvb_pay: 0.5,
     }
@@ -513,13 +513,12 @@ fn the_money_rate_scales_the_rows_silver_and_premiums_half_of_it() {
     assert_eq!(alice.reward.premium_bonus, (67, 132, 3));
     assert_eq!(alice.reward.money, 134);
     // srp's own terms: the owner's silver by match level, twice the
-    // experience and 120 % of the reputation, no wear.
+    // experience and 120 % of the reputation.
     let own = Terms::at(NOW);
     assert_eq!(
         (own.money_rate, own.experience_rate, own.reputation_rate),
         (pay::MoneyRate::ByLevel, 2, 120)
     );
-    assert!(!own.wear);
     assert_eq!(own.score_weights, SCORE_WEIGHTS);
 }
 
@@ -681,8 +680,6 @@ fn one_who_left_gets_no_finish_bonus_and_no_drop_and_loses_rating() {
     assert_eq!(carol.drop_chance, 0.0);
     assert_eq!(report.players[2].full.dropped, None);
     assert_eq!(report.players[2].full.play_seconds, [90, 0, 0]);
-    // Its pistol was in a match.
-    assert_eq!(carol.worn.len(), 1);
 
     let dave = &report.players[3];
     assert_eq!(dave.reward.standing, Standing::Absent);
@@ -707,7 +704,6 @@ fn one_who_left_gets_no_finish_bonus_and_no_drop_and_loses_rating() {
         assert_eq!(reward.drop_chance, 1.0);
         let owner = account(&store, 10 + index as u32);
         let item = owner.item(drop.item_id).unwrap();
-        assert_eq!(crate::v026g::items_rules::defects(item).len(), 0);
         assert_eq!(
             (item.dict_id, item.condition_or_stack),
             (drop.dict_id, FULL_CONDITION)
@@ -1149,7 +1145,6 @@ fn a_finisher_always_finds_a_drop_cards_item() {
         assert!(!Dictionary::shared().is_stack(drop.dict_id), "{drop:?}");
         let item = after.item(drop.item_id).unwrap();
         assert_eq!(item.condition_or_stack, FULL_CONDITION);
-        assert!(crate::v026g::items_rules::defects(item).is_empty());
         let rank = crate::v026g::items_rules::rank(item);
         assert_eq!(usize::from(alice.full.drop_rarity), rank);
         let shown = alice.full.dropped.as_ref().unwrap();
@@ -1200,115 +1195,7 @@ fn a_stack_dropped_goes_onto_the_stack_owned() {
     assert_eq!(account.item(first.item_id).unwrap().condition_or_stack, 4);
 }
 
-/// With wear off (srp's own terms) a match leaves every item as it was:
-/// nothing worn, no defect, nothing for auto-repair to pay; the ammo is
-/// still used.
-#[test]
-fn with_wear_off_a_match_leaves_the_items_whole() {
-    let mut players = alice_and_bob();
-    players[0].statistics.as_mut().unwrap().events[event::BULLET_FIRE][0] = 100;
-    let store = accounts(&players);
-    let pistol = {
-        let alice = store.get(10).unwrap();
-        let alice = alice.locked();
-        alice.kits[0].slots[7].unwrap().item_id
-    };
-    let terms = Terms {
-        wear: false,
-        ..terms()
-    };
-    let report = Results::new()
-        .settle(&result(players), &store, &terms, &mut Rng::new(1))
-        .unwrap();
-    for player in &report.players {
-        assert!(player.reward.worn.is_empty());
-        assert!(player.reward.defects.is_empty());
-    }
-    let alice = account(&store, 10);
-    assert_eq!(
-        alice.item(pistol).unwrap().condition_or_stack,
-        FULL_CONDITION
-    );
-    assert_eq!(report.players[0].reward.supplies_used, [(50, 50)]);
-}
 
-#[test]
-fn the_kit_played_wears() {
-    let mut players = alice_and_bob();
-    // Alice fired 100 bullets with her first kit.
-    players[0].statistics.as_mut().unwrap().events[event::BULLET_FIRE][0] = 100;
-    let store = accounts(&players);
-    // A helmet in Alice's second kit, which she did not use.
-    let helmet = Dictionary::shared()
-        .item_named("ren_helmet_1")
-        .unwrap()
-        .dict_id;
-    let (pistol, ammo, spare) = {
-        let alice = store.get(10).unwrap();
-        let mut alice = alice.locked();
-        let spare = alice.add_item(helmet, FULL_CONDITION);
-        alice.kits[1].slots[1] = Some(crate::v026g::KitSlot {
-            item_id: spare,
-            count: 1,
-        });
-        // Autobuy off (on for a new account): the ammo used stays used.
-        alice.autobuy = false;
-        (
-            alice.kits[0].slots[7].unwrap().item_id,
-            alice.kits[0].slots[8].unwrap().item_id,
-            spare,
-        )
-    };
-    let report = Results::new()
-        .settle(&result(players), &store, &terms(), &mut Rng::new(1))
-        .unwrap();
-    // The TT-33: 1 % a match and 0.05 % a shot.
-    let worn = &report.players[0].reward.worn;
-    assert_eq!(worn.len(), 1);
-    let (item_id, before, after) = worn[0];
-    assert_eq!((item_id, before), (pistol, FULL_CONDITION));
-    assert!((939_990..=940_010).contains(&after), "{after}");
-    let alice = account(&store, 10);
-    assert_eq!(alice.item(pistol).unwrap().condition_or_stack, after);
-    // Stacks do not wear. The bullets the counters saw were the pistol's
-    // one kind of ammo (`autobuy`): no more than the 50 rounds she owned,
-    // so the stack is used up and its slot empty.
-    assert_eq!(report.players[0].reward.supplies_used, [(50, 50)]);
-    assert!(alice.item(ammo).is_none());
-    assert_eq!(alice.kits[0].slots[8], None);
-    assert_eq!(
-        alice.item(spare).unwrap().condition_or_stack,
-        FULL_CONDITION
-    );
-    // Bob fired nothing: the match's 1 %.
-    let (_, _, after) = report.players[1].reward.worn[0];
-    assert!((989_990..=990_010).contains(&after), "{after}");
-    // The kits other players see carry the wear.
-    assert_eq!(
-        report.players[0].body.items[0].condition_or_stack,
-        worn[0].2
-    );
-
-    // Counters of the second kit wear it too.
-    let mut players = alice_and_bob();
-    players[0].statistics.as_mut().unwrap().events[event::DEATH][1] = 1;
-    let store = accounts(&players);
-    let spare = {
-        let alice = store.get(10).unwrap();
-        let mut alice = alice.locked();
-        let spare = alice.add_item(helmet, FULL_CONDITION);
-        alice.kits[1].slots[1] = Some(crate::v026g::KitSlot {
-            item_id: spare,
-            count: 1,
-        });
-        spare
-    };
-    let report = Results::new()
-        .settle(&result(players), &store, &terms(), &mut Rng::new(1))
-        .unwrap();
-    assert_eq!(report.players[0].reward.worn.len(), 2);
-    assert!(account(&store, 10).item(spare).unwrap().condition_or_stack < FULL_CONDITION);
-}
 
 #[test]
 fn premium_adds_half_and_can_be_claimed_from_the_screen() {
@@ -1424,9 +1311,8 @@ fn without_a_trusted_snapshot_only_staying_is_paid() {
         assert_eq!(account(&store, 10 + index as u32).rating_before, 100);
         // No standing known: no part of the drop chance for batteries.
         assert_eq!(player.full.drop_chances[1], 0.0);
-        // A drop is still rolled, and the kit was in a match.
+        // A drop is still rolled.
         assert!(player.reward.drop_chance > 0.0);
-        assert_eq!(player.reward.worn.len(), 1);
     }
 
     // Numbers no client vouched for are not used, even if they are there.
@@ -1470,7 +1356,6 @@ fn a_match_nobody_reached_or_never_played_pays_nothing() {
         assert_eq!(player.reward.standing, Standing::NotPlayed);
         assert_eq!(player.reward.experience, 0);
         assert_eq!(player.reward.drop, None);
-        assert!(player.reward.worn.is_empty());
     }
     assert_eq!(account(&store, 10), before);
     assert_eq!(report.stats.winner_team, NO_WINNER);
@@ -2609,7 +2494,6 @@ fn a_private_rooms_match_pays_nobody_anything() {
     }
     assert!(plain.players[0].reward.quest_money >= quest.money);
     assert!(plain.players[0].reward.daily_bonus);
-    assert!(!plain.players[0].reward.worn.is_empty());
 
     let mut private = result(players);
     private.private = true;
@@ -2639,7 +2523,6 @@ fn a_private_rooms_match_pays_nobody_anything() {
         assert_eq!((reward.drop, reward.drop_chance), (None, 0.0));
         assert!(!reward.daily_bonus);
         assert_eq!(reward.rating_after, reward.rating_before);
-        assert!(reward.worn.is_empty() && reward.defects.is_empty());
         assert!(reward.supplies_used.is_empty());
         assert!(player.notices.is_empty());
         assert_eq!(player.full.quest_money, 0);

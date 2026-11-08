@@ -24,7 +24,6 @@ package survarium.controls
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemRank;
-   import survarium.constants.ModificationState;
    import survarium.constants.SuperCategory;
    
    public class ItemInfoRenderer extends Sprite implements IDataRenderer
@@ -182,12 +181,15 @@ package survarium.controls
          this.itemAmmoName.textField.styleSheet = styleSheet;
          this.modifiersList.setMaxFit(true);
          this.defaultModifiersList.setMaxFit(true);
-         this.criticalModifiersList.setMaxFit(true);
+         // No defects ("critical damages"): items never wear (the owner, 2026-11-08); their list and
+         // separator, timeline children, stay hidden.
+         this.criticalModifiersList.visible = false;
+         this.criticalSeparator.visible = false;
          this.itemCompare.addEventListener(Event.RESIZE,this.layoutDetails);
          addChildAt(this._spr,5);
       }
       
-      protected function sortModifiers(regularModifiers:Array, defaultModifiers:Array, criticalModifiers:Array) : void
+      protected function sortModifiers(regularModifiers:Array, defaultModifiers:Array) : void
       {
          var allModifiers:Array = this._data.modifiers != null ? this._data.modifiers : [];
          var icons:IconContainer = IconContainer.getInstance("modifiers");
@@ -205,11 +207,7 @@ package survarium.controls
                icon:modifierIcon,
                label:effects == null ? modifier.textValue : WeaponMovement.inMatch(_data,modifier,effects)
             };
-            if(modifier.state == ModificationState.DEFECT)
-            {
-               criticalModifiers.push(entry);
-            }
-            else if(modifier.isDefault)
+            if(modifier.isDefault)
             {
                defaultModifiers.push(entry);
             }
@@ -434,21 +432,16 @@ package survarium.controls
 
       }
 
-      // The card's bonus, built-in and critical lines, as the card's mode shows them (sortModifiers).
+      // The card's bonus and built-in lines, as the card's mode shows them (sortModifiers).
       private function fillModifiers() : void
       {
          var regularModifiers:Array = [];
          var defaultModifiers:Array = [];
-         var criticalModifiers:Array = [];
-         this.sortModifiers(regularModifiers,defaultModifiers,criticalModifiers);
-         InventoryList.logModifiers(criticalModifiers);
-         trace("modifiersList",this.modifiersList,this.defaultModifiersList,this.criticalModifiersList);
+         this.sortModifiers(regularModifiers,defaultModifiers);
          this.modifiersList.dataProvider = new DataProvider(regularModifiers);
          this.modifiersList.validateNow();
          this.defaultModifiersList.dataProvider = new DataProvider(defaultModifiers);
          this.defaultModifiersList.validateNow();
-         this.criticalModifiersList.dataProvider = new DataProvider(criticalModifiers);
-         this.criticalModifiersList.validateNow();
       }
 
       private function naturalHeaderHeight() : Number
@@ -487,15 +480,13 @@ package survarium.controls
       {
          // Native timeline children can dispatch RESIZE before this card has
          // data/providers. The final data setter lays it out once all exist.
-         if(_data == null || modifiersList.dataProvider == null || defaultModifiersList.dataProvider == null || criticalModifiersList.dataProvider == null) return;
-         if(modifiersList.container == null || defaultModifiersList.container == null || criticalModifiersList.container == null) return;
+         if(_data == null || modifiersList.dataProvider == null || defaultModifiersList.dataProvider == null) return;
+         if(modifiersList.container == null || defaultModifiersList.container == null) return;
          if(e != null) updateDetailsText();
          var regularHeight:uint = this.modifiersList.container.height * this.modifiersList.scaleY;
          var defaultHeight:uint = this.defaultModifiersList.container.height * this.defaultModifiersList.scaleY;
-         var criticalHeight:uint = this.criticalModifiersList.container.height * this.criticalModifiersList.scaleY;
          var hasDefaultModifiers:Boolean = this.defaultModifiersList.dataProvider.length > 0;
-         var hasCriticalModifiers:Boolean = this.criticalModifiersList.dataProvider.length > 0;
-         var hasModifiers:Boolean = Boolean(regularHeight) || Boolean(criticalHeight) || Boolean(defaultHeight);
+         var hasModifiers:Boolean = Boolean(regularHeight) || Boolean(defaultHeight);
          trace("IIR::FRED",this.itemCompare,this.defaultModfiersBack,this.propsBottomLine,this.bottomBackContainer,this.bottomLine,this.background);
          this.defaultModfiersBack.height = defaultHeight + 11;
          this.propsBottomLine.y = Math.max(this.itemCompare.y + this.itemCompare.height + (this.itemCompare.height > 5 ? 5 : -15),this.propsTopLine.y);
@@ -506,18 +497,14 @@ package survarium.controls
             this.propsBottomLine.y = _detailsText.y + _detailsText.height + 6;
          }
          this.bottomBackContainer.y = this.propsBottomLine.y;
-         this.bottomBackContainer.height = regularHeight + criticalHeight + defaultHeight + (hasModifiers ? 14 : 0) + (hasCriticalModifiers ? 40 : 0) + (Boolean(regularHeight) || Boolean(criticalHeight) ? 5 : 0);
+         this.bottomBackContainer.height = regularHeight + defaultHeight + (hasModifiers ? 14 : 0) + (Boolean(regularHeight) ? 5 : 0);
          this.bottomLine.y = this.bottomBackContainer.y + this.bottomBackContainer.height;
          this.bottomLine.visible = false;
          this.background.height = this.bottomLine.y + 5;
-         this.criticalSeparator.visible = hasCriticalModifiers;
          this.defaultModfiersBack.visible = this.defaultModifiersList.visible = hasDefaultModifiers;
          this.defaultModifiersList.y = this.propsBottomLine.y + 10;
          this.defaultModfiersBack.y = this.propsBottomLine.y + 2;
          this.modifiersList.y = this.defaultModifiersList.y + defaultHeight + (hasDefaultModifiers ? 5 : 0);
-         this.criticalSeparator.y = this.modifiersList.y + regularHeight + 15;
-         this.criticalModifiersList.y = this.criticalSeparator.visible ? this.criticalSeparator.y + this.criticalSeparator.height - 10 : this.modifiersList.y;
-         this.criticalSeparator.textField.text = LocalizationData.getName("critical_damages");
          if(this._displayOrange)
          {
             this.orangeOverlay.y = this.propsTopLine.y;

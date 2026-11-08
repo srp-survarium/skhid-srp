@@ -26,7 +26,6 @@ package survarium.messages
    import survarium.data.IconContainer;
    import survarium.data.LocalizationData;
    import survarium.item.ModificationRolls;
-   import survarium.constants.ModificationState;
    import survarium.constants.MoneyType;
    import survarium.constants.RerollChoice;
 
@@ -195,7 +194,7 @@ package survarium.messages
                while(i < modifierCount)
                {
                   modifier = modifiers[i];
-                  if(!modifier.isDefault && modifier.state != ModificationState.DEFECT)
+                  if(!modifier.isDefault)
                   {
                      modifierIcon = iconContainer.getIcon(modifier.icon);
                      option = {

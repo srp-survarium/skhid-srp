@@ -250,16 +250,6 @@ pub fn level_reward(level: u8) -> u32 {
     }
 }
 
-/// `SRP_ITEM_WEAR`: whether a match wears the weapons and armour of the
-/// kits played (the items' `degrade_per_match` and `degrade_per_use`), and
-/// with it whether a worn item may get a defect. Off unless `on`: the
-/// owner's choice (2026-10-13), an item a player has stays as it is. The
-/// game's own rule is `on`. Read once.
-pub fn item_wear() -> bool {
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| crate::switch("SRP_ITEM_WEAR", false))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
