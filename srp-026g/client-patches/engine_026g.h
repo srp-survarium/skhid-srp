@@ -649,4 +649,7 @@ void __attribute__((thiscall)) engine_game_pause(struct game *game);
 /* 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_game_resume(struct game *game);
 
+/* 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4 */
+void engine_show_replay_controls(struct game_world_ui *hud, unsigned int shown);
+
 #endif

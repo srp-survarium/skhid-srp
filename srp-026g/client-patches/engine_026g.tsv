@@ -184,3 +184,4 @@ engine_spectator_camera	0x1f8360	EDX:world	void engine_spectator_camera(struct g
 engine_detach_player	0x242cc0	ECX:client	void engine_detach_player(struct network_client *client)	thiscall	
 engine_game_pause	0x1ed5c0	ECX:game	void engine_game_pause(struct game *game)	thiscall	
 engine_game_resume	0x1ed650	ECX:game	void engine_game_resume(struct game *game)	thiscall	
+engine_show_replay_controls	0x23a9d0	EDI:hud ESP+4:shown	void engine_show_replay_controls(struct game_world_ui *hud, unsigned int shown)	thunk	

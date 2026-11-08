@@ -3,6 +3,7 @@
 # sites are sites_026g.tsv's, the logic replay_viewer.rs.
 name = "replay_viewer"
 patch = 130
+uses = ["spectator"]
 
 # An 0xF6: the server's playback and events notes (payload 'R'); the
 # snapshot upload's request goes on to the game's case.
@@ -26,3 +27,24 @@ handler = "on_close"
 site = "static_info.options_read"
 handler = "on_static_info"
 order = 4
+
+# A spectator's world loads the replay controls' movie too (the game asks
+# for it only with a replay reader), hidden until a viewer shows it.
+[[hook]]
+site = "replay_movie.query"
+handler = "on_movie_query"
+
+[[hook]]
+site = "replay_movie.take"
+handler = "on_movie_take"
+
+# The replay controls' calls in a network game, after patch 86's.
+[[hook]]
+site = "hud.callback"
+handler = "on_hud_call"
+order = 1
+
+# Each frame of the hud: a viewer's controls fed.
+[[hook]]
+site = "hud.update"
+handler = "on_frame"

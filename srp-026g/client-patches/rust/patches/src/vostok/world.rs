@@ -245,6 +245,32 @@ impl<'t> NetworkClient<'t> {
 }
 
 impl NetworkClient<'_> {
+    /// A spectator's camera to the player of `place` (the replay controls'
+    /// player list, patch 130), alive or not, as [`Self::follow`] moves it:
+    /// set_followed_player and the attached spectator's camera. Whether it
+    /// follows that player now (not a spectator, no such player, or one not
+    /// in the match: nothing).
+    pub fn follow_place(&self, place: u8) -> bool {
+        if self.take_role() != Some(Role::Spectator) {
+            return false;
+        }
+        if !self.player(u32::from(place)).is_some_and(|player| player.inserted()) {
+            return false;
+        }
+        let mut out = None;
+        // SAFETY: as follow: the client's own get_active_player gives the
+        // player with a reference added, which set_followed_player takes;
+        // the game world is the client's game's own.
+        unsafe {
+            raw::engine_active_player(Some(self.this), &mut out, u32::from(place));
+            let Some(player) = out else { return false };
+            raw::engine_follow_player(Some(self.this), Some(player));
+            let Some(game) = self.this.game() else { return true };
+            raw::engine_spectator_camera(Some(game.world()));
+        }
+        true
+    }
+
     /// A spectator's game leaves its match, back to the lobby with no
     /// results screen: close_current_match(0), the world ended and nothing
     /// sent (the end a game takes after its server went silent, match.md

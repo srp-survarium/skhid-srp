@@ -926,3 +926,6 @@ survarium::game_world_key_frame	input_world	0x4	ptr<vostok::input::input_world>	
 vostok::input::input_world	vtable	0x0	u32	its vtable: INPUT_WORLD_VTABLE for the platform's (its constructor 0x3B7B3C)
 vostok::input::input_world	keyboard	0x24	ptr<vostok::input::keyboard>	the keyboard (create_devices writes it, 0x3B8414; vtable+24h 0x79E40 returns it)
 survarium::image	input_world_vtable	0xA252D4	u32	the platform input world's vtable (its constructor 0x3B7B3C; slot 9, +24h, 0x79E40: the keyboard at +24h)
+survarium::game_world_ui	replay_movie	0x14	ptr<vostok::ui::movie_holder>	the replay controls' holder (replay_player.swf): set by initialize_resources only when the game world's load queried it (0x1F8F9E, 0x1F88CC: a replay reader, or patch 130's spectator); initialize_resources sets it up when not 0 (0x23411D), on_keyboard_action's toggle_replay_ui tests it (0x25CED5, as the input's +18h)
+survarium::game_world_ui	replay_shown	0x2DD	u8	the replay controls shown: show_replay_controls 0x23A9D0 writes it
+scaleform::gfx_value	value_high	0xC	u32	a Number's (type 5) high dword: its double is +8..+0Fh (update_play_speed's movsd [ecx+8], 0x233E4D)

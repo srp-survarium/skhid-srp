@@ -80,6 +80,19 @@ fn camera(client: &NetworkClient<'_>, thread: &Thread, event: Event) {
     }
 }
 
+/// The replay controls' player list (patch 130): the camera follows the
+/// player of `place`, as F6/F5 would reach it.
+pub fn view_player(client: &NetworkClient<'_>, thread: &Thread, place: u8) {
+    if client.follow_place(place) {
+        CAMERA.set(thread, Camera::Follows);
+    }
+}
+
+/// The replay controls' free view (patch 130): as F2.
+pub fn view_free(client: &NetworkClient<'_>, thread: &Thread) {
+    camera(client, thread, Event::Key(CameraKey::FlyFree));
+}
+
 /// `static_info.options_read` (after patches 65, 86 and 58's): a new match.
 pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // A new match's camera does nothing yet (Act::Nothing): its first world

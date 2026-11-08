@@ -17,6 +17,12 @@ use super::hook::Thread;
 use super::lobby::Lobby;
 use super::world::NetworkClient;
 use super::ui::{Movie, TEXT_LIMIT, c_string, movie_of, string_argument};
+
+/// GFx value types (Scaleform::GFx::Value): bool, int, uint, Number.
+const GFX_BOOL_TYPE: u32 = 2;
+const GFX_INT: u32 = 3;
+const GFX_UINT_TYPE: u32 = 4;
+const GFX_NUMBER: u32 = 5;
 use crate::raw;
 
 /// What the hud shows, as the game keeps it.
@@ -238,6 +244,26 @@ impl<'c> HudCall<'c> {
 
     pub fn thread(&self) -> &Thread {
         self.thread
+    }
+
+    /// The call's argument `index` when it is a number (an int, a uint or a
+    /// Number, GFx types 3, 4 and 5) or a bool (2: 0 or 1).
+    pub fn number_argument(&self, index: u32) -> Option<f64> {
+        // SAFETY: the callback's arguments and their count, alive for the call.
+        unsafe {
+            if index >= *self.frame.count() {
+                return None;
+            }
+            let value = self.frame.arguments()?.at(index as usize);
+            let low = *value.value();
+            match *value.kind() & 0x3F {
+                GFX_BOOL_TYPE => Some(f64::from(low & 0xFF != 0)),
+                GFX_INT => Some(f64::from(low as i32)),
+                GFX_UINT_TYPE => Some(f64::from(low)),
+                GFX_NUMBER => Some(f64::from_bits(u64::from(*value.value_high()) << 32 | u64::from(low))),
+                _ => None,
+            }
+        }
     }
 
     /// Answers the hud movie: invokes its `method` with plain unsigned values

@@ -5921,6 +5921,171 @@ replay_viewer_on_close_replay:
     db 0x8b, 0x5d, 0x08, 0x83, 0xfb, 0x05
     jmp 0x27a7f9
 
+; 0x1f8f9e game_world::load's query of the replay controls' movie (cmp [ecx+53C8h],edi / je 0x1F8FD6: only with a replay reader); load is the query's push of replay_player.swf (0x1F8FA6). ECX the game: lohook -> replay_viewer_on_movie_query
+global replay_viewer_on_movie_query
+extern hook_replay_viewer_on_movie_query
+replay_viewer_on_movie_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_movie_query
+    mov edx, replay_viewer_on_movie_query_replay
+    cmp eax, 0
+    je replay_viewer_on_movie_query_go
+    mov edx, 0x1f8fa4
+    cmp eax, 1
+    je replay_viewer_on_movie_query_go
+    mov edx, 0x1f8fa6
+    cmp eax, 2
+    je replay_viewer_on_movie_query_go
+    ud2
+replay_viewer_on_movie_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_movie_query_replay:
+    db 0x39, 0xb9, 0xc8, 0x53, 0x00, 0x00
+    jmp 0x1f8fa4
+
+; 0x1f88cc the movies' query-done callback (0x1F8650) taking the replay controls' result (cmp [eax+53C8h],ecx / je 0x1F8909: only with a replay reader, the test of the query again); take is its read of that result (0x1F88D4). EAX the game: lohook -> replay_viewer_on_movie_take
+global replay_viewer_on_movie_take
+extern hook_replay_viewer_on_movie_take
+replay_viewer_on_movie_take:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_movie_take
+    mov edx, replay_viewer_on_movie_take_replay
+    cmp eax, 0
+    je replay_viewer_on_movie_take_go
+    mov edx, 0x1f88d2
+    cmp eax, 1
+    je replay_viewer_on_movie_take_go
+    mov edx, 0x1f88d4
+    cmp eax, 2
+    je replay_viewer_on_movie_take_go
+    ud2
+replay_viewer_on_movie_take_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_movie_take_replay:
+    db 0x39, 0x88, 0xc8, 0x53, 0x00, 0x00
+    jmp 0x1f88d2
+
+; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
+global tab_cursor_on_hud_call
+extern hook_tab_cursor_on_hud_call_chain
+tab_cursor_on_hud_call:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tab_cursor_on_hud_call_chain
+    mov edx, tab_cursor_on_hud_call_replay
+    cmp eax, 0
+    je tab_cursor_on_hud_call_go
+    mov edx, 0x233d36
+    cmp eax, 1
+    je tab_cursor_on_hud_call_go
+    mov edx, 0x233d73
+    cmp eax, 2
+    je tab_cursor_on_hud_call_go
+    ud2
+tab_cursor_on_hud_call_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tab_cursor_on_hud_call_replay:
+    db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
+    jmp 0x233d36
+
+; 0x23b200 game_world_ui::update_ui's start (push ebx / push ebp / push esi / push edi / mov edi,eax; EAX the hud), every frame the game world shows its interface (game_world::tick 0x1F8023, with the game world's +0A0h): lohook -> replay_viewer_on_frame
+global replay_viewer_on_frame
+extern hook_replay_viewer_on_frame
+replay_viewer_on_frame:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_frame
+    mov edx, replay_viewer_on_frame_replay
+    cmp eax, 0
+    je replay_viewer_on_frame_go
+    mov edx, 0x23b206
+    cmp eax, 1
+    je replay_viewer_on_frame_go
+    ud2
+replay_viewer_on_frame_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_frame_replay:
+    db 0x53, 0x55, 0x56, 0x57, 0x8b, 0xf8
+    jmp 0x23b206
+
 ; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
 global scaleform_capture_on_next_capture
 extern hook_scaleform_capture_on_next_capture
@@ -6210,48 +6375,6 @@ spectator_on_player_left_replay:
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
-
-; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
-global tab_cursor_on_hud_call
-extern hook_tab_cursor_on_hud_call
-tab_cursor_on_hud_call:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_tab_cursor_on_hud_call
-    mov edx, tab_cursor_on_hud_call_replay
-    cmp eax, 0
-    je tab_cursor_on_hud_call_go
-    mov edx, 0x233d36
-    cmp eax, 1
-    je tab_cursor_on_hud_call_go
-    mov edx, 0x233d73
-    cmp eax, 2
-    je tab_cursor_on_hud_call_go
-    ud2
-tab_cursor_on_hud_call_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-tab_cursor_on_hud_call_replay:
-    db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
-    jmp 0x233d36
 
 ; 0x79d369 AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated: lohook -> text_input_on_char
 global text_input_on_char

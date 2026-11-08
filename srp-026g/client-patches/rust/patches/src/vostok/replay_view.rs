@@ -192,3 +192,95 @@ const LEAVE_MESSAGE: u32 = 0xE0;
 const MAY_JOIN: u8 = 0x40;
 /// Packets left for the game's own inputs, hashes and acks (the upload's 16).
 const POOL_RESERVE: u32 = 16;
+
+/// The game world's load at `replay_movie.query` and its callback at
+/// `replay_movie.take`, where the game asks for the replay controls' movie
+/// only with a replay reader: whether this game is a spectator's (its 0xE4
+/// made no place local, patch 121), whose world gets the movie too, kept
+/// hidden until it is a replay's viewer. Both sites answer alike for one
+/// game, so the query and its results stay in step.
+pub fn spectator_load(game: Option<raw::Game>, thread: &Thread) -> bool {
+    // SAFETY: the game of the site's register, alive while it loads its
+    // world on the game's thread; its client likewise.
+    let Some(client) = game.and_then(|game| unsafe { game.network_client() }) else { return false };
+    let client = NetworkClient::of(client, thread);
+    client.role().is_some() && client.places() > 0 && client.local_profile().is_none()
+}
+
+/// At `replay_movie.query`.
+pub fn query_spectator(ctx: &Context<'_>) -> bool {
+    // SAFETY: the context is this site's: ECX the game.
+    spectator_load(unsafe { raw::site::replay_movie_query::game(ctx) }, ctx.thread())
+}
+
+/// At `replay_movie.take`.
+pub fn take_spectator(ctx: &Context<'_>) -> bool {
+    // SAFETY: the context is this site's: EAX the game.
+    spectator_load(unsafe { raw::site::replay_movie_take::game(ctx) }, ctx.thread())
+}
+
+/// The replay controls (replay_player.swf) over a viewer's hud.
+pub struct Overlay<'t> {
+    ui: raw::GameWorldUi,
+    movie: super::ui::Movie<'t>,
+}
+
+impl<'t> Overlay<'t> {
+    /// The controls of the client's game world's hud, when it has them.
+    pub fn of(client: &NetworkClient<'t>) -> Option<Overlay<'t>> {
+        // SAFETY: the client's game, its game world and the hud inside it,
+        // alive with the match on the game's thread; the holder the hud's.
+        unsafe {
+            let ui = client.raw().game()?.world().ui();
+            let movie = super::ui::movie_of(ui.replay_movie())?;
+            Some(Overlay { ui, movie })
+        }
+    }
+
+    /// Shows or hides the controls (show_replay_controls: the movie into or
+    /// out of the scene; nothing when it already is so).
+    pub fn show(&self, shown: bool) {
+        // SAFETY: the hud's own call, on its thread (the replay client's F11 makes it).
+        unsafe { raw::engine_show_replay_controls(Some(self.ui), u32::from(shown)) }
+    }
+
+    /// The bar's position, ms from the replay's start (root.set_position).
+    pub fn set_position(&self, ms: u32) {
+        self.movie.invoke_uints(c"root.set_position", &[ms]);
+    }
+
+    /// The play button's state (root.set_play_state: true playing).
+    pub fn set_playing(&self, playing: bool) {
+        self.movie.invoke_bool(c"root.set_play_state", playing);
+    }
+
+    /// The bar's length, ms (root.set_match_time).
+    pub fn set_length(&self, ms: u32) {
+        self.movie.invoke_uints(c"root.set_match_time", &[ms]);
+    }
+
+    /// The markers, as the movie's text helper takes them
+    /// (root.set_markers_text: `time_ms:kind:label;...`).
+    pub fn set_markers(&self, text: &core::ffi::CStr) {
+        self.movie.invoke_text(c"root.set_markers_text", text);
+    }
+}
+
+/// The hud at `hud.update` (game_world_ui::update_ui's start, every frame).
+pub struct HudFrame {
+    ui: raw::GameWorldUi,
+}
+
+impl HudFrame {
+    pub fn at(ctx: &Context<'_>) -> Option<HudFrame> {
+        // SAFETY: the context is this site's: EAX the hud, alive while it updates on the game's thread.
+        Some(HudFrame { ui: unsafe { raw::site::hud_update::ui(ctx) }? })
+    }
+
+    /// Its game's network client.
+    pub fn client<'t>(&self, thread: &'t Thread) -> Option<NetworkClient<'t>> {
+        // SAFETY: the hud's game world, its game and the game's client, alive with the hud.
+        let client = unsafe { self.ui.world()?.game()?.network_client()? };
+        Some(NetworkClient::of(client, thread))
+    }
+}

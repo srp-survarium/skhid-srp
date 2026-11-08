@@ -235,6 +235,8 @@ unsafe extern "C" {
     pub fn engine_hide_scene_movie(movie: *mut c_void, scene: *mut c_void);
     /// 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0
     pub fn engine_spectator_camera(world: *mut c_void);
+    /// 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
+    pub fn engine_show_replay_controls(hud: *mut c_void, shown: u32);
 }
 
 #[allow(dead_code)]

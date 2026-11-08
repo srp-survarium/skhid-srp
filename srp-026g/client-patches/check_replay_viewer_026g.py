@@ -63,8 +63,9 @@ ICONS_HOLDER, ICONS_VIEW, ICONS_MOVIE = OBJECTS + 0x64000, OBJECTS + 0x65000, OB
 INPUT_WORLD, KEYBOARD = OBJECTS + 0x67000, OBJECTS + 0x68000
 READER, PAYLOAD = OBJECTS + 0x69000, OBJECTS + 0x6A000
 PACKET = OBJECTS + 0x70000
-SP = STACK + 0x8000
-FRAME = STACK + 0x9000                     # close_current_match's EBP
+STACK_SIZE = 0x40000                       # patch 76's after_move entry probes 0x9000 below it
+SP = STACK + 0x30000
+FRAME = STACK + 0x38000                     # close_current_match's EBP
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP)
 # site: (start, bytes, the instruction after the span, the patch's exit)
@@ -72,7 +73,15 @@ SITES = {
     "note": (0x27A4F4, bytes.fromhex("83be641c1f0002"), 0x27A4FB, 0x27A5AB),
     "key": (0x25CD00, bytes.fromhex("558bec83e4f883ec0c"), 0x25CD09, 0x25CF15),
     "close": (0x27A7F3, bytes.fromhex("8b5d0883fb05"), 0x27A7F9, None),
+    "query": (0x1F8F9E, bytes.fromhex("39b9c8530000"), 0x1F8FA4, 0x1F8FA6),
+    "take": (0x1F88CC, bytes.fromhex("3988c8530000"), 0x1F88D2, 0x1F88D4),
+    "call": (0x233D30, bytes.fromhex("53568b742410"), 0x233D36, 0x233D73),
+    "frame": (0x23B200, bytes.fromhex("53555657 8bf8".replace(" ", "")), 0x23B206, None),
 }
+SHOW_CONTROLS, DETACH = 0x23A9D0, 0x242CC0
+WORLD_UI = GAME + 0x18 + 0x1FC              # the game world's hud (game_world+1FCh)
+REPLAY_HOLDER, REPLAY_VIEW, REPLAY_MOVIE = OBJECTS + 0x6C000, OBJECTS + 0x6D000, OBJECTS + 0x6E000
+CALL_NAME, CALL_ARGS = OBJECTS + 0x6F000, OBJECTS + 0x6F100
 SPACE, ESC, H, F11, LEFT, RIGHT, LBRACKET, RBRACKET, LSHIFT = 0x39, 0x01, 0x23, 0x57, 0xCB, 0xCD, 0x1A, 0x1B, 0x2A
 DOWN, HELD = 1, 3
 CLOCK = 100_000                            # the world core's time in the made-up match
@@ -96,14 +105,15 @@ class Game:
         emu.mem_map(NC, 0x200000, UC_PROT_ALL)
         emu.mem_map(GAME, 0x10000, UC_PROT_ALL)
         emu.mem_map(OBJECTS, 0x80000, UC_PROT_ALL)
-        for at in (STUBS, STACK):
-            emu.mem_map(at, 0x10000, UC_PROT_ALL)
+        emu.mem_map(STUBS, 0x10000, UC_PROT_ALL)
+        emu.mem_map(STACK, STACK_SIZE, UC_PROT_ALL)
         self.word(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
         self.calls = []
         for va, how in ((PAUSE, self.pause), (RESUME, self.resume), (NEW_PACKET, self.new_packet),
                         (WRITE, self.write), (ENQUEUE, self.enqueue), (CLOSE, self.close),
-                        (INVOKE, self.invoke), (SHOW_CURSOR, self.show_cursor)):
+                        (INVOKE, self.invoke), (SHOW_CURSOR, self.show_cursor),
+                        (SHOW_CONTROLS, self.show_controls), (DETACH, self.detach)):
             emu.hook_add(UC_HOOK_CODE, how, begin=va, end=va)
 
     def word(self, at, value, size=4):
@@ -157,9 +167,20 @@ class Game:
     def invoke(self, emu, *_):
         args, count = self.arg(3), self.arg(4)
         value = (self.read(args + 4), self.read(args + 8)) if count else None   # a GFx value: +4 its type, +8 a bool
+        if value and value[0] & 0x3F == 6:
+            value = (6, self.text(value[1]))
         self.calls.append(("invoke", emu.reg_read(UC_X86_REG_ECX), self.text(self.arg(1)), count, value))
         emu.reg_write(UC_X86_REG_EAX, 1)
         self.ret(16)
+
+    def show_controls(self, emu, *_):
+        self.calls.append(("show_replay_controls", emu.reg_read(UC_X86_REG_EDI), self.arg(1)))
+        self.ret(4)
+
+    def detach(self, emu, *_):
+        self.calls.append(("detach_from_player", emu.reg_read(UC_X86_REG_ECX)))
+        self.word(emu.reg_read(UC_X86_REG_ECX) + 4, 0)
+        self.ret(0)
 
     def show_cursor(self, emu, *_):
         self.calls.append(("show_cursor",))
@@ -195,12 +216,18 @@ class Game:
         self.word(KEYBOARD, KEYBOARD_VTABLE)
         self.word(PACKET + 0x98, 0x60, 1)
         self.word(PAUSED_FLAG, 0)
+        if local != 0xFF:
+            self.word(LINK + 0xC + local * 0x45FC + 0x45F0, 1, 1)     # the options' local place (is_local)
+        self.word(WORLD_UI + 0x14, REPLAY_HOLDER)
+        self.word(WORLD_UI + 0x18, GAME + 0x18)                      # the hud's game world
+        self.word(REPLAY_HOLDER + 0x108, REPLAY_VIEW)
+        self.word(REPLAY_VIEW + 4, REPLAY_MOVIE)
         self.calls = []
 
     def run(self, site, regs, stack=b""):
         start, _, past, exit_ = SITES[site]
         emu = self.emu
-        emu.mem_write(STACK, bytes(0x10000))
+        emu.mem_write(STACK, bytes(STACK_SIZE))
         emu.mem_write(SP, stack)
         regs = dict(regs)
         reason = regs.pop("reason", None)
@@ -219,7 +246,7 @@ class Game:
         state["flags"] = emu.reg_read(UC_X86_REG_EFLAGS) & 0x8D5
         objects = (bytes(emu.mem_read(NC, 0x20)), bytes(emu.mem_read(NC + 0x1F1C40, 0x30)),
                    bytes(emu.mem_read(GAME, 0x10000)), bytes(emu.mem_read(OBJECTS, 0x80000)),
-                   bytes(emu.mem_read(SP, STACK + 0x10000 - SP)), self.read(PAUSED_FLAG), self.time_scale())
+                   bytes(emu.mem_read(SP, 0x400)), self.read(PAUSED_FLAG), self.time_scale())
         calls, self.calls = self.calls, []
         return state, objects, calls
 
@@ -250,6 +277,29 @@ def close(game, reason):
     regs[UC_X86_REG_EDI] = NC
     regs["reason"] = reason
     return game.run("close", regs)
+
+
+def load(game, site):
+    regs = dict(STEADY)
+    regs[UC_X86_REG_ECX if site == "query" else UC_X86_REG_EAX] = GAME
+    if site == "take":
+        regs[UC_X86_REG_ECX] = 0
+    return game.run(site, regs)
+
+
+def control(game, method, *args):
+    """The replay controls' ExternalInterface call: (type, low, high) GFx values."""
+    game.emu.mem_write(CALL_NAME, method.encode() + b"\0")
+    game.emu.mem_write(CALL_ARGS, b"".join(struct.pack("<6I", 0, kind, low, high, 0, 0) for kind, low, high in args))
+    regs = dict(STEADY)
+    regs[UC_X86_REG_ECX] = UI
+    return game.run("call", regs, struct.pack("<5I", STUBS + 0xF00, REPLAY_MOVIE, CALL_NAME, CALL_ARGS, len(args)))
+
+
+def frame(game):
+    regs = dict(STEADY)
+    regs[UC_X86_REG_EAX] = WORLD_UI
+    return game.run("frame", regs, bytes(0x20))
 
 
 def playback(revision, paused, percent, start=10_000, end=600_000):
@@ -378,6 +428,51 @@ def main():
           "close, a viewer, reason 4 (a kick, reason 1's end since patch 119): game::resume, time_scale 1, on as the original")
     state, _, calls = key(ours, SPACE)
     check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls, "key, after the end: Space goes to the game again")
+
+
+    # The replay controls (patch 130's second part).
+    for local, who, to in ((2, "a player's", "past"), (0xFF, "a spectator's (no place local)", "exit")):
+        for site, name in (("query", "the query"), ("take", "the callback's take")):
+            stock.setup(local)
+            ours.setup(local)
+            s, o = load(stock, site), load(ours, site)
+            want = SITES[site][2] if to == "past" else SITES[site][3]
+            check(o[0][UC_X86_REG_EIP] == want and not o[2] and (to == "exit" or s == o),
+                  f"{site}, {who} world: {name} of replay_player.swf " + ("as the original (none)" if to == "past" else f"made ({want:#x})"))
+    ours.setup(0xFF)
+    state, _, calls = control(ours, "update_position", (4, 5000, 0))
+    check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls,
+          "call, a live spectator, update_position: taken with nothing done (the game's would seek with no reader)")
+    state, _, calls = control(ours, "profile_changed", (4, 1, 0))
+    check(state[UC_X86_REG_EIP] == SITES["call"][2], "call, a live spectator, profile_changed (the hud's own): on as the game's")
+    ours.run("note", note_regs(ours, playback(1, 0, 100)))
+    state, _, calls = control(ours, "update_position", (4, 5000, 0))
+    check(state[UC_X86_REG_EIP] == SITES["call"][3] and sent(calls, request(0, 3, 15_000)),
+          "call, a viewer, update_position(5000): a seek to the start + 5 s")
+    state, _, calls = control(ours, "update_play_speed", (5,) + struct.unpack("<2I", struct.pack("<d", 2.2)))
+    check(sent(calls, request(1, 2, 200)), "call, a viewer, update_play_speed(2.2): a speed request, 2x (the nearest step)")
+    state, _, calls = control(ours, "button_play_clicked", (2, 0, 0))
+    check(sent(calls, request(2, 1, 1)), "call, a viewer, button_play_clicked: a pause request")
+    state, _, calls = control(ours, "select_free_view")
+    check(state[UC_X86_REG_EIP] == SITES["call"][3] and calls == [("detach_from_player", NC)],
+          "call, a viewer, select_free_view: patch 121's free view (detach_from_player), no vtable slot past the client's")
+    ours.run("note", note_regs(ours, events(0, 1, [(70_000, 1, 1, 2)])))
+    state, _, calls = frame(ours)
+    names = [(c[2], c[4]) for c in calls if c[0] == "invoke"]
+    check(state[UC_X86_REG_EIP] == SITES["frame"][2] and ("show_replay_controls", WORLD_UI, 1) in calls
+          and ("root.set_match_time", (4, 590_000)) in names and ("root.set_markers_text", (6, "60000:1:1'00")) in names
+          and ("root.set_position", (4, CLOCK - 10_000)) in names and ("root.set_play_state", (2, 1)) in names,
+          "frame, a viewer: the controls shown, the bar's length, the markers, its position and the play button")
+    state, _, calls = frame(ours)
+    names = [c[2] for c in calls if c[0] == "invoke"]
+    check(names == ["root.set_position", "root.set_play_state"] and not [c for c in calls if c[0] != "invoke"],
+          "frame, a viewer, the next frame: only the position and the play button")
+    key(ours, H)
+    state, _, calls = frame(ours)
+    check(("show_replay_controls", WORLD_UI, 0) in calls, "frame, after H: the controls hidden with the interface")
+    close(ours, 0)
+    state, _, calls = frame(ours)
+    check(not calls, "frame, after the match's end: nothing fed")
 
     print("all checks passed" if not failed else f"{failed} check(s) FAILED")
     sys.exit(1 if failed else 0)

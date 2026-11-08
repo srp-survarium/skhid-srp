@@ -185,6 +185,7 @@ global engine_spectator_camera
 global engine_detach_player
 global engine_game_pause
 global engine_game_resume
+global engine_show_replay_controls
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2154,6 +2155,22 @@ engine_spectator_camera:
     push edi
     mov edx, [esp + 20]   ; world
     call 0x1f8360
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_replay_controls:
+    ; 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; shown -> 4
+    mov edi, [esp + 24]   ; hud
+    call 0x23a9d0
     pop edi
     pop esi
     pop ebx

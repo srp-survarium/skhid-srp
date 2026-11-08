@@ -21,16 +21,24 @@
 
 use replay_control::{newer, Event, EventKind, EventsNote, MatchMs, Op, Playback, Request, ServerNote, Speed};
 
-use crate::vostok::replay_view::{GameClock, MatchClose, ServerNoteSite};
-use crate::vostok::world::Role;
+use core::ffi::CStr;
+
+use crate::spectator;
+use crate::vostok::replay_view::{query_spectator, take_spectator, GameClock, HudFrame, MatchClose, Overlay, ServerNoteSite};
+use crate::vostok::world::{NetworkClient, Role};
 use crate::vostok::{
-    Context, Dik, Flow, GameCell, GameWorldKey, KeyKind, NoExit, ReplayViewerOnKeyExit, ReplayViewerOnServerNoteExit,
+    Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, NoExit, ReplayViewerOnHudCallExit,
+    ReplayViewerOnKeyExit, ReplayViewerOnMovieQueryExit, ReplayViewerOnMovieTakeExit, ReplayViewerOnServerNoteExit,
 };
 
-/// What a replay's viewer key asks for.
+/// What a replay's viewer asks for, by a key or the replay controls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ReplayKey {
+enum Command {
     TogglePause,
+    /// The bar's position, ms from the replay's start.
+    SeekTo(u32),
+    /// The speed stepper's value, as the nearest step.
+    SetSpeed(Speed),
     Back,
     Forward,
     PreviousKill,
@@ -41,18 +49,18 @@ enum ReplayKey {
     Leave,
 }
 
-impl ReplayKey {
-    fn of(key: Dik, shift: bool) -> Option<ReplayKey> {
+impl Command {
+    fn of(key: Dik, shift: bool) -> Option<Command> {
         Some(match key {
-            Dik::SPACE => ReplayKey::TogglePause,
-            Dik::LEFT if shift => ReplayKey::PreviousKill,
-            Dik::RIGHT if shift => ReplayKey::NextKill,
-            Dik::LEFT => ReplayKey::Back,
-            Dik::RIGHT => ReplayKey::Forward,
-            Dik::LEFT_BRACKET => ReplayKey::Slower,
-            Dik::RIGHT_BRACKET => ReplayKey::Faster,
-            Dik::F11 | Dik::H => ReplayKey::ToggleUi,
-            Dik::ESCAPE => ReplayKey::Leave,
+            Dik::SPACE => Command::TogglePause,
+            Dik::LEFT if shift => Command::PreviousKill,
+            Dik::RIGHT if shift => Command::NextKill,
+            Dik::LEFT => Command::Back,
+            Dik::RIGHT => Command::Forward,
+            Dik::LEFT_BRACKET => Command::Slower,
+            Dik::RIGHT_BRACKET => Command::Faster,
+            Dik::F11 | Dik::H => Command::ToggleUi,
+            Dik::ESCAPE => Command::Leave,
             _ => return None,
         })
     }
@@ -109,8 +117,9 @@ enum Input {
     MatchEnded,
     /// The server's playback note.
     Playback(Playback),
-    /// A key went down; the match's clock, when the game has a world.
-    Key { key: ReplayKey, now: Option<MatchMs> },
+    /// A key went down or the controls were used; the match's clock, when
+    /// the game has a world.
+    Command { command: Command, now: Option<MatchMs> },
 }
 
 /// What the game does for an input.
@@ -145,9 +154,9 @@ fn step(session: Session, input: Input, events: &Events) -> (Session, Act) {
             (Session::Replay(Viewer { playback, asked: Asked::of(playback), ..viewer }), Act::play(playback))
         }
         (Session::Replay(viewer), Input::Playback(_)) => (Session::Replay(viewer), Act::Nothing),
-        (Session::Live, Input::Key { .. }) => (Session::Live, Act::Pass),
-        (Session::Replay(viewer), Input::Key { key, now }) => {
-            let (viewer, act) = viewer.key(key, now, events);
+        (Session::Live, Input::Command { .. }) => (Session::Live, Act::Pass),
+        (Session::Replay(viewer), Input::Command { command, now }) => {
+            let (viewer, act) = viewer.command(command, now, events);
             (Session::Replay(viewer), act)
         }
     }
@@ -166,25 +175,27 @@ impl Act {
 }
 
 impl Viewer {
-    fn key(self, key: ReplayKey, now: Option<MatchMs>, events: &Events) -> (Viewer, Act) {
+    fn command(self, command: Command, now: Option<MatchMs>, events: &Events) -> (Viewer, Act) {
         let (start, end) = (self.playback.start, self.playback.end);
         let seek = |time: Option<MatchMs>| time.map(|time| Op::Seek(time.within(start, end)));
-        let op = match key {
-            ReplayKey::TogglePause => Some(Op::Pause(!self.asked.paused)),
-            ReplayKey::Back => seek(now.map(|now| now.minus(SKIP_MS))),
-            ReplayKey::Forward => seek(now.map(|now| now.plus(SKIP_MS))),
-            ReplayKey::PreviousKill => seek(now.and_then(|now| events.previous_kill(now))),
-            ReplayKey::NextKill => seek(now.and_then(|now| events.next_kill(now))),
-            ReplayKey::Slower => Some(self.asked.speed.slower()).filter(|&s| s != self.asked.speed).map(Op::Speed),
-            ReplayKey::Faster => Some(self.asked.speed.faster()).filter(|&s| s != self.asked.speed).map(Op::Speed),
-            ReplayKey::ToggleUi => {
+        let op = match command {
+            Command::TogglePause => Some(Op::Pause(!self.asked.paused)),
+            Command::SeekTo(offset) => seek(Some(start.plus(offset))),
+            Command::SetSpeed(speed) => Some(speed).filter(|&s| s != self.asked.speed).map(Op::Speed),
+            Command::Back => seek(now.map(|now| now.minus(SKIP_MS))),
+            Command::Forward => seek(now.map(|now| now.plus(SKIP_MS))),
+            Command::PreviousKill => seek(now.and_then(|now| events.previous_kill(now))),
+            Command::NextKill => seek(now.and_then(|now| events.next_kill(now))),
+            Command::Slower => Some(self.asked.speed.slower()).filter(|&s| s != self.asked.speed).map(Op::Speed),
+            Command::Faster => Some(self.asked.speed.faster()).filter(|&s| s != self.asked.speed).map(Op::Speed),
+            Command::ToggleUi => {
                 let ui = match self.ui {
                     Ui::Shown => Ui::Hidden,
                     Ui::Hidden => Ui::Shown,
                 };
                 return (Viewer { ui, ..self }, Act::ShowUi(ui == Ui::Shown));
             }
-            ReplayKey::Leave => return (self, Act::Leave),
+            Command::Leave => return (self, Act::Leave),
         };
         let Some(op) = op else { return (self, Act::Nothing) };
         let asked = match op {
@@ -205,10 +216,12 @@ const MAX_EVENTS: usize = 256;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Events {
     slots: [Option<Event>; MAX_EVENTS],
+    /// Counts the notes taken (the controls' markers follow it).
+    version: u16,
 }
 
 impl Events {
-    const NONE: Events = Events { slots: [None; MAX_EVENTS] };
+    const NONE: Events = Events { slots: [None; MAX_EVENTS], version: 0 };
 
     fn take(mut self, note: &EventsNote<'_>) -> Events {
         for (index, event) in note.events() {
@@ -216,7 +229,32 @@ impl Events {
                 *slot = event;
             }
         }
+        self.version = self.version.wrapping_add(1);
         self
+    }
+
+    /// The controls' markers text (`time_ms:kind:label;...`, the time from
+    /// the replay's `start`, the label m'ss), up to the room of `out`; an
+    /// event before the start is left out.
+    fn markers<'o>(&self, start: MatchMs, out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
+        let mut text = Text { out, len: 0 };
+        for event in self.slots.iter().flatten() {
+            let Some(offset) = event.time.0.checked_sub(start.0) else { continue };
+            let seconds = offset / 1000;
+            let kind = match event.kind {
+                EventKind::Kill => 1,
+                EventKind::Objective => 2,
+            };
+            let mark = text.len;
+            let fits = (text.len == 0 || text.push(b";")) && text.number(offset) && text.push(b":")
+                && text.number(kind) && text.push(b":") && text.number(seconds / 60) && text.push(b"'")
+                && text.push(&[b'0' + (seconds % 60 / 10) as u8, b'0' + (seconds % 10) as u8]);
+            if !fits {
+                text.len = mark;
+                break;
+            }
+        }
+        text.finish()
     }
 
     /// The times kills are played from (each 4 s before its kill).
@@ -276,7 +314,7 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
     let Some(key) = GameWorldKey::at_start(ctx) else { return Flow::Continue };
     let thread = key.thread();
     let shift = matches!(key.key(), Dik::LEFT | Dik::RIGHT) && key.shift_down();
-    let Some(replay_key) = ReplayKey::of(key.key(), shift) else { return Flow::Continue };
+    let Some(replay_key) = Command::of(key.key(), shift) else { return Flow::Continue };
     if key.kind() != KeyKind::Down {
         // A viewer's key held or let go: the game's player handler never sees it.
         key.take();
@@ -284,7 +322,7 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
     }
     let client = key.hud().client(thread);
     let now = client.as_ref().and_then(|client| client.clock());
-    let (next, act) = step(session, Input::Key { key: replay_key, now }, &EVENTS.get(thread));
+    let (next, act) = step(session, Input::Command { command: replay_key, now }, &EVENTS.get(thread));
     SESSION.set(thread, next);
     match act {
         Act::Ask(request) => {
@@ -317,6 +355,7 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let (next, act) = step(SESSION.get(thread), Input::MatchEnded, &EVENTS.get(thread));
     SESSION.set(thread, next);
     EVENTS.set(thread, Events::NONE);
+    FED.set(thread, Fed::NOTHING);
     if let (Act::Restore, Some(clock)) = (act, GameClock::of(&close.client)) {
         clock.restore();
     }
@@ -330,7 +369,181 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let (next, _) = step(SESSION.get(thread), Input::NewMatch, &EVENTS.get(thread));
     SESSION.set(thread, next);
     EVENTS.set(thread, Events::NONE);
+    FED.set(thread, Fed::NOTHING);
     Flow::Continue
+}
+
+/// The markers text's room, its zero included (the movie's helper takes under 1 KB).
+const MARKERS_ROOM: usize = 1000;
+
+/// A text written into a fixed room, kept one byte short for its zero.
+struct Text<'o> {
+    out: &'o mut [u8; MARKERS_ROOM],
+    len: usize,
+}
+
+impl<'o> Text<'o> {
+    fn push(&mut self, bytes: &[u8]) -> bool {
+        let end = self.len + bytes.len();
+        if end >= MARKERS_ROOM {
+            return false;
+        }
+        self.out[self.len..end].copy_from_slice(bytes);
+        self.len = end;
+        true
+    }
+
+    fn number(&mut self, value: u32) -> bool {
+        let mut digits = [0u8; 10];
+        let (mut n, mut at) = (value, digits.len());
+        loop {
+            at -= 1;
+            digits[at] = b'0' + (n % 10) as u8;
+            n /= 10;
+            if n == 0 {
+                break;
+            }
+        }
+        self.push(&digits[at..])
+    }
+
+    fn finish(self) -> &'o CStr {
+        self.out[self.len] = 0;
+        CStr::from_bytes_until_nul(&self.out[..]).unwrap_or(c"")
+    }
+}
+
+/// What the replay controls were last given (they are fed each frame from
+/// the session): kept apart from the session, as the movie's own state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Fed {
+    /// The playback revision its bar's length is from.
+    revision: Option<u8>,
+    /// The events' version its markers are from.
+    events: Option<u16>,
+    /// Shown or hidden.
+    ui: Option<Ui>,
+}
+
+impl Fed {
+    const NOTHING: Fed = Fed { revision: None, events: None, ui: None };
+}
+
+static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
+
+/// The controls of a viewer's game, brought to the session: shown or hidden
+/// with the interface, the bar's length and markers when they changed, its
+/// position and play button every frame (as the replay client's tick does,
+/// 0x218C16 / 0x218C27).
+fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) -> Fed {
+    let Some(overlay) = Overlay::of(client) else { return fed };
+    let Playback { revision, paused, start, end, .. } = viewer.playback;
+    if fed.ui != Some(viewer.ui) {
+        overlay.show(viewer.ui == Ui::Shown);
+    }
+    if fed.revision != Some(revision) {
+        overlay.set_length(end.0.saturating_sub(start.0));
+    }
+    if fed.events != Some(events.version) || fed.revision.is_none() {
+        let mut room = [0; MARKERS_ROOM];
+        overlay.set_markers(events.markers(start, &mut room));
+    }
+    if let Some(now) = client.clock() {
+        overlay.set_position(now.within(start, end).0 - start.0);
+    }
+    overlay.set_playing(!paused);
+    Fed { revision: Some(revision), events: Some(events.version), ui: Some(viewer.ui) }
+}
+
+/// `hud.update` (game_world_ui::update_ui, every frame of the hud): a
+/// viewer's controls fed for this frame.
+pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let Session::Replay(viewer) = SESSION.get(thread) else { return Flow::Continue };
+    let Some(client) = HudFrame::at(ctx).and_then(|hud| hud.client(thread)) else { return Flow::Continue };
+    let fed = feed(&client, &viewer, &EVENTS.get(thread), FED.get(thread));
+    FED.set(thread, fed);
+    Flow::Continue
+}
+
+/// `replay_movie.query`: a spectator's world queries the replay controls'
+/// movie too (hidden until a replay's viewer shows it).
+pub fn on_movie_query(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMovieQueryExit> {
+    if query_spectator(ctx) { Flow::Exit(ReplayViewerOnMovieQueryExit::Load) } else { Flow::Continue }
+}
+
+/// `replay_movie.take`: and takes it from the query's results.
+pub fn on_movie_take(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMovieTakeExit> {
+    if take_spectator(ctx) { Flow::Exit(ReplayViewerOnMovieTakeExit::Take) } else { Flow::Continue }
+}
+
+/// The replay controls' calls a network game takes from its hud's
+/// scaleform_callback (0x233D30), whose own cases are a replay client's:
+/// update_position seeks with the replay reader (0x1EE2E0), the free view
+/// and the player list call vtable slots past a network client's.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ControlCall {
+    Play,
+    Position(u32),
+    Speed(f64),
+    Player(u8),
+    FreeView,
+    Other,
+}
+
+impl ControlCall {
+    fn of(call: &HudCall<'_>) -> Option<ControlCall> {
+        let number = |index| call.number_argument(index).filter(|n| n.is_finite() && *n >= 0.0);
+        Some(match call.method().to_bytes() {
+            b"button_play_clicked" => ControlCall::Play,
+            b"update_position" => number(0).map_or(ControlCall::Other, |n| ControlCall::Position(n.min(f64::from(u32::MAX)) as u32)),
+            b"update_play_speed" => number(0).map_or(ControlCall::Other, ControlCall::Speed),
+            b"select_player" => number(0).filter(|&n| n < 256.0).map_or(ControlCall::Other, |n| ControlCall::Player(n as u8)),
+            b"select_free_view" => ControlCall::FreeView,
+            b"camera_smooth_changed" => ControlCall::Other,
+            _ => return None,
+        })
+    }
+}
+
+/// `hud.callback` (after patch 86's): the replay controls in a network
+/// game. A viewer's become requests to the server (play, the bar, the
+/// speed) or patch 121's camera (a player, the free view); any other game's
+/// are taken with nothing done. A replay client's, and every other call,
+/// go on as the game's.
+pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
+    let Some(call) = HudCall::at(ctx) else { return Flow::Continue };
+    let Some(control) = ControlCall::of(&call) else { return Flow::Continue };
+    let thread = call.thread();
+    let Some(client) = call.hud().client(thread).filter(|client| client.role().is_some()) else {
+        return Flow::Continue;
+    };
+    let session = SESSION.get(thread);
+    if session == Session::Live {
+        return Flow::Exit(ReplayViewerOnHudCallExit::Done);
+    }
+    let command = match control {
+        ControlCall::Play => Some(Command::TogglePause),
+        ControlCall::Position(offset) => Some(Command::SeekTo(offset)),
+        ControlCall::Speed(factor) => Some(Command::SetSpeed(Speed::nearest(factor as f32))),
+        ControlCall::Player(place) => {
+            spectator::view_player(&client, thread, place);
+            None
+        }
+        ControlCall::FreeView => {
+            spectator::view_free(&client, thread);
+            None
+        }
+        ControlCall::Other => None,
+    };
+    if let Some(command) = command {
+        let (next, act) = step(session, Input::Command { command, now: client.clock() }, &EVENTS.get(thread));
+        SESSION.set(thread, next);
+        if let Act::Ask(request) = act {
+            client.send_request(request);
+        }
+    }
+    Flow::Exit(ReplayViewerOnHudCallExit::Done)
 }
 
 #[cfg(test)]
@@ -345,8 +558,8 @@ mod tests {
         step(Session::Live, Input::Playback(playback(3, false, Speed::Normal)), &Events::NONE).0
     }
 
-    fn key(session: Session, key: ReplayKey, now: u32, events: &Events) -> (Session, Act) {
-        step(session, Input::Key { key, now: Some(MatchMs(now)) }, events)
+    fn key(session: Session, key: Command, now: u32, events: &Events) -> (Session, Act) {
+        step(session, Input::Command { command: key, now: Some(MatchMs(now)) }, events)
     }
 
     fn kill(time: u32) -> Option<Event> {
@@ -362,7 +575,7 @@ mod tests {
 
     #[test]
     fn a_live_game_passes_every_key_and_end() {
-        for k in [ReplayKey::TogglePause, ReplayKey::Leave, ReplayKey::ToggleUi] {
+        for k in [Command::TogglePause, Command::Leave, Command::ToggleUi] {
             assert_eq!(key(Session::Live, k, 0, &Events::NONE), (Session::Live, Act::Pass));
         }
         assert_eq!(step(Session::Live, Input::MatchEnded, &Events::NONE), (Session::Live, Act::Pass));
@@ -379,26 +592,26 @@ mod tests {
 
     #[test]
     fn space_asks_the_other_of_what_it_asked_last() {
-        let (session, first) = key(viewer(), ReplayKey::TogglePause, 0, &Events::NONE);
+        let (session, first) = key(viewer(), Command::TogglePause, 0, &Events::NONE);
         assert_eq!(first, Act::Ask(Request { seq: 0, op: Op::Pause(true) }));
         // Before the server's answer, a second press asks to play again.
-        let (session, second) = key(session, ReplayKey::TogglePause, 0, &Events::NONE);
+        let (session, second) = key(session, Command::TogglePause, 0, &Events::NONE);
         assert_eq!(second, Act::Ask(Request { seq: 1, op: Op::Pause(false) }));
         // The server's playback is what the next press starts from.
         let (session, _) = step(session, Input::Playback(playback(4, true, Speed::Normal)), &Events::NONE);
-        assert_eq!(key(session, ReplayKey::TogglePause, 0, &Events::NONE).1, Act::Ask(Request { seq: 2, op: Op::Pause(false) }));
+        assert_eq!(key(session, Command::TogglePause, 0, &Events::NONE).1, Act::Ask(Request { seq: 2, op: Op::Pause(false) }));
     }
 
     #[test]
     fn arrows_seek_ten_seconds_within_the_replay() {
-        assert_eq!(key(viewer(), ReplayKey::Forward, 50_000, &Events::NONE).1,
+        assert_eq!(key(viewer(), Command::Forward, 50_000, &Events::NONE).1,
                    Act::Ask(Request { seq: 0, op: Op::Seek(MatchMs(60_000)) }));
-        assert_eq!(key(viewer(), ReplayKey::Back, 15_000, &Events::NONE).1,
+        assert_eq!(key(viewer(), Command::Back, 15_000, &Events::NONE).1,
                    Act::Ask(Request { seq: 0, op: Op::Seek(MatchMs(10_000)) }));
-        assert_eq!(key(viewer(), ReplayKey::Forward, 595_000, &Events::NONE).1,
+        assert_eq!(key(viewer(), Command::Forward, 595_000, &Events::NONE).1,
                    Act::Ask(Request { seq: 0, op: Op::Seek(MatchMs(600_000)) }));
         // No world yet: nothing asked, the key still the viewer's.
-        let (_, act) = step(viewer(), Input::Key { key: ReplayKey::Back, now: None }, &Events::NONE);
+        let (_, act) = step(viewer(), Input::Command { command: Command::Back, now: None }, &Events::NONE);
         assert_eq!(act, Act::Nothing);
     }
 
@@ -409,30 +622,30 @@ mod tests {
         events.slots[1] = Some(Event { time: MatchMs(40_000), kind: EventKind::Objective, actor: None, victim: None });
         events.slots[5] = kill(60_000);
         let seek = |ms| Act::Ask(Request { seq: 0, op: Op::Seek(MatchMs(ms)) });
-        assert_eq!(key(viewer(), ReplayKey::NextKill, 12_000, &events).1, seek(26_000));
+        assert_eq!(key(viewer(), Command::NextKill, 12_000, &events).1, seek(26_000));
         // Just sent to a kill (4 s before it): the next is the one after it.
-        assert_eq!(key(viewer(), ReplayKey::NextKill, 26_000, &events).1, seek(56_000));
-        assert_eq!(key(viewer(), ReplayKey::PreviousKill, 56_200, &events).1, seek(26_000));
-        assert_eq!(key(viewer(), ReplayKey::PreviousKill, 26_000, &events).1, Act::Nothing);
-        assert_eq!(key(viewer(), ReplayKey::NextKill, 56_000, &events).1, Act::Nothing);
+        assert_eq!(key(viewer(), Command::NextKill, 26_000, &events).1, seek(56_000));
+        assert_eq!(key(viewer(), Command::PreviousKill, 56_200, &events).1, seek(26_000));
+        assert_eq!(key(viewer(), Command::PreviousKill, 26_000, &events).1, Act::Nothing);
+        assert_eq!(key(viewer(), Command::NextKill, 56_000, &events).1, Act::Nothing);
     }
 
     #[test]
     fn brackets_step_the_speed_and_stop_at_the_ends() {
-        let (session, act) = key(viewer(), ReplayKey::Faster, 0, &Events::NONE);
+        let (session, act) = key(viewer(), Command::Faster, 0, &Events::NONE);
         assert_eq!(act, Act::Ask(Request { seq: 0, op: Op::Speed(Speed::Double) }));
-        let (_, act) = key(session, ReplayKey::Faster, 0, &Events::NONE);
+        let (_, act) = key(session, Command::Faster, 0, &Events::NONE);
         assert_eq!(act, Act::Ask(Request { seq: 1, op: Op::Speed(Speed::Quadruple) }));
         let (slow, _) = step(Session::Live, Input::Playback(playback(0, false, Speed::Quarter)), &Events::NONE);
-        assert_eq!(key(slow, ReplayKey::Slower, 0, &Events::NONE), (slow, Act::Nothing));
+        assert_eq!(key(slow, Command::Slower, 0, &Events::NONE), (slow, Act::Nothing));
     }
 
     #[test]
     fn ui_toggles_and_esc_leaves() {
-        let (session, act) = key(viewer(), ReplayKey::ToggleUi, 0, &Events::NONE);
+        let (session, act) = key(viewer(), Command::ToggleUi, 0, &Events::NONE);
         assert_eq!(act, Act::ShowUi(false));
-        assert_eq!(key(session, ReplayKey::ToggleUi, 0, &Events::NONE).1, Act::ShowUi(true));
-        assert_eq!(key(viewer(), ReplayKey::Leave, 0, &Events::NONE).1, Act::Leave);
+        assert_eq!(key(session, Command::ToggleUi, 0, &Events::NONE).1, Act::ShowUi(true));
+        assert_eq!(key(viewer(), Command::Leave, 0, &Events::NONE).1, Act::Leave);
     }
 
     #[test]
@@ -443,10 +656,38 @@ mod tests {
     }
 
     #[test]
+    fn the_controls_seek_on_the_bar_and_snap_the_speed() {
+        assert_eq!(key(viewer(), Command::SeekTo(5_000), 0, &Events::NONE).1,
+                   Act::Ask(Request { seq: 0, op: Op::Seek(MatchMs(15_000)) }));
+        assert_eq!(key(viewer(), Command::SeekTo(u32::MAX), 0, &Events::NONE).1,
+                   Act::Ask(Request { seq: 0, op: Op::Seek(MatchMs(600_000)) }));
+        assert_eq!(key(viewer(), Command::SetSpeed(Speed::Normal), 0, &Events::NONE).1, Act::Nothing);
+        assert_eq!(key(viewer(), Command::SetSpeed(Speed::Quadruple), 0, &Events::NONE).1,
+                   Act::Ask(Request { seq: 0, op: Op::Speed(Speed::Quadruple) }));
+    }
+
+    #[test]
+    fn markers_are_from_the_start_in_m_ss_and_fit_their_room() {
+        let mut events = Events::NONE;
+        events.slots[0] = kill(5_000);
+        events.slots[1] = kill(75_500);
+        events.slots[2] = Some(Event { time: MatchMs(611_000), kind: EventKind::Objective, actor: None, victim: None });
+        let mut room = [0; MARKERS_ROOM];
+        assert_eq!(events.markers(MatchMs(10_000), &mut room).to_bytes(), b"65500:1:1'05;601000:2:10'01");
+        let mut many = Events::NONE;
+        for (i, slot) in many.slots.iter_mut().enumerate() {
+            *slot = kill(1_000_000 + i as u32);
+        }
+        let text = many.markers(MatchMs(0), &mut room).to_bytes();
+        assert!(text.len() < MARKERS_ROOM && text.ends_with(b"'40"), "{}", text.len());
+        assert_eq!(Events::NONE.markers(MatchMs(0), &mut room).to_bytes(), b"");
+    }
+
+    #[test]
     fn keys_map_with_shift() {
-        assert_eq!(ReplayKey::of(Dik::LEFT, true), Some(ReplayKey::PreviousKill));
-        assert_eq!(ReplayKey::of(Dik::LEFT, false), Some(ReplayKey::Back));
-        assert_eq!(ReplayKey::of(Dik::H, true), Some(ReplayKey::ToggleUi));
-        assert_eq!(ReplayKey::of(Dik::TAB, false), None);
+        assert_eq!(Command::of(Dik::LEFT, true), Some(Command::PreviousKill));
+        assert_eq!(Command::of(Dik::LEFT, false), Some(Command::Back));
+        assert_eq!(Command::of(Dik::H, true), Some(Command::ToggleUi));
+        assert_eq!(Command::of(Dik::TAB, false), None);
     }
 }
