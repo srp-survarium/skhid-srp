@@ -78,6 +78,9 @@ clock):
   - op 1 pause: value 1 paused, 0 playing;
   - op 2 speed: percent, 25, 50, 100, 200, 400, 800;
   - op 3 seek: the match time (never before the opening, the end of the countdown: the playback's start).
+  - op 4 leave (value 0): the viewer's Back; the server lets the game go as at the recording's end
+    (the farewell, an 0xEA naming no place), and patch 121 ends its world in the match's message
+    handling. Esc keeps the game's own leave (an empty 0xE0).
 - **Server -> game**, notes in an 0xF6 (an 0xF6 `00` stays the upload request, never sent to a
   spectator):
   - the playback, `52 01 revision paused speed:u16 start:u32 end:u32` (start and end: the

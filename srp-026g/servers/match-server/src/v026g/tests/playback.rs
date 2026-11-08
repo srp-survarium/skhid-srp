@@ -564,6 +564,22 @@ fn the_end_of_the_recording_ends_the_session() {
     bench.assert_no_faults();
 }
 
+/// The viewer's leave (its Back) lets its game go as the recording's end
+/// does: the farewell, silence, then the session is over.
+#[test]
+fn a_leave_request_lets_the_game_go() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(2_000);
+    assert!(!bench.clients[at].told_to_leave);
+    control(&mut bench, at, 1, Op::Leave);
+    assert!(bench.until(1_000, |b| b.clients[at].told_to_leave));
+    bench.run_long(8_000);
+    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
+    bench.assert_no_faults();
+}
+
 #[test]
 fn dev_controls_read_as_written() {
     assert_eq!(dev_control("pause"), Some(Op::Pause(true)));

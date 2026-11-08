@@ -331,6 +331,11 @@ pub enum Op {
     /// Play from this time on (the server starts the game again from the
     /// recording's world at or before it).
     Seek(MatchMs),
+    /// The viewer is done (its controls' Back): the server lets its game
+    /// go, as at the recording's end, and the game ends its world in the
+    /// match's own message handling (ending it from the controls' call
+    /// crashed the game).
+    Leave,
 }
 
 /// A viewer's request, numbered: `seq` grows by one a request (wrapping).
@@ -349,6 +354,7 @@ impl Request {
             Op::Pause(paused) => (1, u32::from(paused)),
             Op::Speed(speed) => (2, u32::from(speed.percent())),
             Op::Seek(time) => (3, time.0),
+            Op::Leave => (4, 0),
         };
         let mut out = [0; Request::LEN];
         out[..8].copy_from_slice(&REQUEST_HEAD);
@@ -371,6 +377,7 @@ impl Request {
             (1, 1) => Op::Pause(true),
             (2, percent) => Op::Speed(Speed::of_percent(u16::try_from(percent).ok()?)?),
             (3, ms) => Op::Seek(MatchMs(ms)),
+            (4, 0) => Op::Leave,
             _ => return None,
         };
         Some(Request { seq, op })
@@ -449,7 +456,7 @@ mod tests {
 
     #[test]
     fn requests_go_and_come_back() {
-        for op in [Op::Pause(true), Op::Pause(false), Op::Speed(Speed::Quarter), Op::Speed(Speed::Octuple), Op::Seek(MatchMs(123_456))] {
+        for op in [Op::Pause(true), Op::Pause(false), Op::Speed(Speed::Quarter), Op::Speed(Speed::Octuple), Op::Seek(MatchMs(123_456)), Op::Leave] {
             let request = Request { seq: 250, op };
             let bytes = request.encode();
             assert_eq!(bytes.len(), Request::LEN);
@@ -463,7 +470,7 @@ mod tests {
         };
         assert_eq!(Request { seq: 1, op: Op::Seek(MatchMs(0x01020304)) }.encode(), with([1, 3, 4, 3, 2, 1]));
         // Other ops and values, a byte more or less, a leave (empty), the old 8-byte form: no request.
-        for bad in [with([1, 1, 2, 0, 0, 0]), with([1, 2, 30, 0, 0, 0]), with([1, 4, 0, 0, 0, 0])] {
+        for bad in [with([1, 1, 2, 0, 0, 0]), with([1, 2, 30, 0, 0, 0]), with([1, 4, 1, 0, 0, 0]), with([1, 5, 0, 0, 0, 0])] {
             assert_eq!(Request::parse(&bad), None, "{bad:?}");
         }
         let good = with([1, 1, 1, 0, 0, 0]);
