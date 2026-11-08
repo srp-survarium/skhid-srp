@@ -2672,7 +2672,6 @@ st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Megjelenítő
 st_srp_replay_asking	A meccs visszajátszásának lekérése a szerverről…
-st_srp_replay_being_made	A visszajátszás a meccs naplójából készül. Ez az első megtekintéskor történik, és eltart egy ideig.\nBezárhatod ezt az ablakot, a szerver tovább dolgozik.\n\n%1$s
 st_srp_replay_busy	A szerver most más felvételekkel dolgozik. Próbáld újra egy perc múlva.
 st_srp_replay_chip_gone	Expired
 st_srp_replay_chip_not_recorded	Not recorded
@@ -2680,28 +2679,17 @@ st_srp_replay_chip_old	Old version
 st_srp_replay_chip_preparing	Preparing
 st_srp_replay_chip_ready	Ready
 st_srp_replay_close	BEZÁRÁS
-st_srp_replay_demo_quest	Hozzájárulás a győzelemhez
-st_srp_replay_demo_rank	«%1$s»: elérted a 3. rangot. Új tárgyak kaphatók a boltban.
-st_srp_replay_demo_seller	Guberálók
-st_srp_replay_download	LETÖLTÉS ÉS LEJÁTSZÁS
 st_srp_replay_failed	A szerver nem tudta előkészíteni a meccs felvételét.
 st_srp_replay_gone	A szerver már nem tárolja ennek a meccsnek a felvételét.
 st_srp_replay_incompatible	Ez a felvétel a játék egy nem kompatibilis verziójával készült.
-st_srp_replay_made_now	Most készül. Várakozás: %1$s mp.
 st_srp_replay_my_deaths	Watch my deaths
 st_srp_replay_no_answer	A szerver nem válaszolt. Próbáld újra később.
-st_srp_replay_not_recorded	Erről a meccsről nem készült felvétel: 6-nál kevesebb játékos volt, vagy a rögzítés ki volt kapcsolva.
 st_srp_replay_not_yours	Csak olyan meccset nézhetsz vissza, amelyen részt vettél.
 st_srp_replay_number_bad	Type a match's number as History shows it: # and 8 letters and digits, such as #1ce45cbe.
 st_srp_replay_number_hint	Match number
 st_srp_replay_off	A visszajátszás ki van kapcsolva ezen a szerveren.
 st_srp_replay_old_game	Ez a játékverzió nem támogatja a visszajátszást. Frissítsd a játékot: indítsd újra az indítóprogramból.
 st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s
-st_srp_replay_place_in_line	Helyed a sorban: %1$s. Várakozás: %2$s mp.
-st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
-st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
-st_srp_replay_size	%1$s,%2$s MB
-st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F11 nyitja meg a vezérlőket.
 st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc múlva nyisd meg újra a Visszajátszás ablakot.
 st_srp_replay_title	Visszajátszás
 st_srp_replay_waiting	Várakozás: %1$s mp.

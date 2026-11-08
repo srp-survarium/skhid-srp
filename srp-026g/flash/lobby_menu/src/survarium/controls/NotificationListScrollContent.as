@@ -24,21 +24,13 @@ package survarium.controls
    import scaleform.clik.layout.LayoutData;
    import survarium.Util;
    import survarium.data.LocalizationData;
-   import survarium.constants.Faction;
    import survarium.constants.ImportantMessageType;
-   import survarium.constants.MoneyType;
    import survarium.constants.NotificationType;
-   import survarium.constants.QuestStatus;
-   import survarium.constants.Reward;
    
    public class NotificationListScrollContent extends MovieClip
    {
       
-      public static const REPLAY_DEMO:Boolean = false;
-      
       public static const HISTORY_EXTRA:int = 100;
-      
-      public static const REPLAY_ASK:uint = 4294967041;
       
       public static const REPLAY_START:uint = 2200000000;
 
@@ -56,22 +48,14 @@ package survarium.controls
       
       public static const REPLAY_PREPARE_MS:int = 180000;
       
-      public static const REPLAY_DEMO_PREPARE_MS:int = 30000;
-      
       // srp's replay prompt: its state (_rpState).
       private static const RP_IDLE:int = 0;
       
       // asking the match server, polling
       private static const RP_ASKING:int = 1;
       
-      // the replay is ready to download
-      private static const RP_READY:int = 2;
-      
-      // a final message is shown: nothing to fetch
-      private static const RP_ENDED:int = 3;
-      
-      // the download was started
-      private static const RP_STARTED:int = 4;
+      // a final message is shown
+      private static const RP_ENDED:int = 2;
       
       // The prompt's texts (dictionary keys; rpShow); RP_KEY_NONE is no text shown.
       private static const RP_KEY_NONE:String = null;
@@ -80,24 +64,15 @@ package survarium.controls
 
       private static const RP_KEY_WATCHING:String = "st_srp_replay_watching";
 
-      // a session's `preparing` (the match server reads the recording; its number is no place in line)
+      // a session's `preparing` (the match server reads the recording)
       private static const RP_KEY_OPENING:String = "st_srp_replay_opening";
-      
-      private static const RP_KEY_DOWNLOAD:String = "st_srp_replay_download";
       
       private static const RP_KEY_CLOSE:String = "st_srp_replay_close";
       
       private static const RP_KEY_ASKING:String = "st_srp_replay_asking";
       
-      private static const RP_KEY_BEING_MADE:String = "st_srp_replay_being_made";
-      
-      private static const RP_KEY_READY_SIZE:String = "st_srp_replay_ready_size";
-      
-      private static const RP_KEY_READY:String = "st_srp_replay_ready";
-      
       // the final answers (rpFinalKey), by the server's status
       private static const RP_FINALS:Object = {
-         "not_recorded":"st_srp_replay_not_recorded",
          "gone":"st_srp_replay_gone",
          "not_yours":"st_srp_replay_not_yours",
          "old_game":"st_srp_replay_old_game",
@@ -109,18 +84,14 @@ package survarium.controls
       
       private static const RP_KEY_NO_ANSWER:String = "st_srp_replay_no_answer";
       
-      private static const RP_KEY_STARTING:String = "st_srp_replay_starting";
-      
       private static const RP_KEY_STILL_PREPARING:String = "st_srp_replay_still_preparing";
       
       // A History row's chip: what the last answer said of its match's replay, by the server's
       // status (no chip before an answer, nor for one that says nothing of the replay).
       private static const RP_CHIPS:Object = {
-         "ready":"st_srp_replay_chip_ready",
          "watching":"st_srp_replay_chip_ready",
          "preparing":"st_srp_replay_chip_preparing",
          "incompatible":"st_srp_replay_chip_old",
-         "not_recorded":"st_srp_replay_chip_not_recorded",
          "gone":"st_srp_replay_chip_gone"
       };
 
@@ -136,9 +107,6 @@ package survarium.controls
       private static const RP_NUMBER_GREY:uint = 0x8A9096;
 
       private static const RP_KEY_NUMBER_BAD:String = "st_srp_replay_number_bad";
-
-      // The highest place in the replay server's line the prompt shows.
-      private static const RP_PLACE_MAX:int = 999;
       
       // meaning unknown: onShowQuestMessage shows the quest message only for a notification of this type
       private static const QUEST_MESSAGE_TYPE:int = 3;
@@ -172,7 +140,7 @@ package survarium.controls
       
       protected var _rpMatch:uint;
 
-      // the player of the ask (REPLAY_ASK: download; REPLAY_WATCH_*: in this game)
+      // the player of the ask (REPLAY_WATCH_*)
       protected var _rpAsk:uint;
 
       // match id (8 hex) -> its chip's dictionary key (RP_CHIPS)
@@ -181,14 +149,6 @@ package survarium.controls
       protected var _rpPolls:int;
       
       protected var _rpTimer:Timer;
-      
-      protected var _rpStatus:String;
-      
-      protected var _rpHex:String;
-      
-      protected var _rpSize:Number;
-      
-      protected var _rpPlace:int;
       
       protected var _rpPrepSeen:Boolean;
       
@@ -202,15 +162,7 @@ package survarium.controls
       
       protected var _rpShownKey:String;
       
-      protected var _rpDemoStep:int;
-      
-      protected var _rpDemoAdded:Boolean;
-      
       protected var _rpPopupWait:Boolean;
-      
-      protected var _rpDemoTempCallback:Function;
-      
-      protected var _rpDemoSeenAt:int;
       
       public function NotificationListScrollContent()
       {
@@ -289,7 +241,6 @@ package survarium.controls
       public function registerRenderer(notificationType:int, rendererClass:Class) : void
       {
          this._rendererTypes[notificationType] = rendererClass;
-         this.historyRegistered(notificationType);
       }
       
       public function addNotification(notification:Object, prepend:Boolean = false) : void
@@ -336,10 +287,6 @@ package survarium.controls
       
       private function onMatchtMessage(e:Event) : void
       {
-         if(this.historyDemoEvent(e))
-         {
-            return;
-         }
          trace("onMatchtMessage::",e.target,e.currentTarget);
          if(e.target.data)
          {
@@ -385,18 +332,12 @@ package survarium.controls
          this._rpChips = {};
          this._rpState = RP_IDLE;
          this._rpMatch = 0;
-         this._rpAsk = NotificationListScrollContent.REPLAY_ASK;
+         this._rpAsk = NotificationListScrollContent.REPLAY_WATCH_ALL;
          this._rpPolls = 0;
-         this._rpStatus = "";
-         this._rpHex = "";
-         this._rpSize = 0;
-         this._rpPlace = 0;
          this._rpPrepSeen = false;
          this._rpAskAt = 0;
          this._rpShownText = "";
          this._rpShownKey = RP_KEY_NONE;
-         this._rpDemoStep = 0;
-         this._rpDemoAdded = false;
          this._scrollContent.width = 310 + NotificationListScrollContent.HISTORY_EXTRA;
          try
          {
@@ -441,28 +382,6 @@ package survarium.controls
          catch(e:Error)
          {
          }
-      }
-      
-      public function historyRegistered(type:int) : void
-      {
-         if(NotificationListScrollContent.REPLAY_DEMO && type == NotificationType.MATCH)
-         {
-            addEventListener(Event.ENTER_FRAME,this.onRpDemoFrame,false,0,true);
-         }
-      }
-      
-      public function historyDemoEvent(e:Event) : Boolean
-      {
-         var data:Object = null;
-         try
-         {
-            data = e.target.data;
-            return data != null && data.srpDemo == true;
-         }
-         catch(err:Error)
-         {
-         }
-         return false;
       }
       
       public function historyWiden(row:MovieClip, data:Object = null) : void
@@ -895,7 +814,7 @@ package survarium.controls
             }
             this.historyPlaceRing(rec);
             this.historyFit(rec,String(data.result != undefined ? data.result : result.text));
-            if(!rec.watch && rec.popup != true && (uint(data.match_id) != 0 || data.srpDemo == true || NotificationListScrollContent.REPLAY_DEMO))
+            if(!rec.watch && rec.popup != true && uint(data.match_id) != 0)
             {
                this.historyAddWatch(row,rec);
             }
@@ -956,7 +875,7 @@ package survarium.controls
             if(this._rpState != RP_ASKING)
             {
                this._rpState = RP_ENDED;
-               this.rpShow(RP_KEY_NUMBER_BAD,false);
+               this.rpShow(RP_KEY_NUMBER_BAD);
             }
             return;
          }
@@ -1123,10 +1042,6 @@ package survarium.controls
             {
                id = uint(data.match_id);
             }
-            if(id == 0 && (NotificationListScrollContent.REPLAY_DEMO || data && data.srpDemo == true))
-            {
-               id = 484727998;
-            }
          }
          catch(err:Error)
          {
@@ -1165,23 +1080,8 @@ package survarium.controls
          return text;
       }
       
-      protected function rpSizeText(bytes:Number) : String
-      {
-         var tenths:Number = 0;
-         if(!(bytes > 0))
-         {
-            return "";
-         }
-         tenths = Math.round(bytes / 104857.6);
-         if(tenths < 1)
-         {
-            tenths = 1;
-         }
-         return LocalizationData.format("st_srp_replay_size",Math.floor(tenths / 10),tenths % 10);
-      }
-      
-      // Ask for match `id`'s replay: `ask` REPLAY_ASK (the file, to download) or REPLAY_WATCH_* (in
-      // this game). The History's rows and the results screen ask through here.
+      // Ask to watch match `id`'s replay in this game: `ask` a REPLAY_WATCH_* player. The History's
+      // rows, the results screen and the Watch window ask through here.
       public function replayBegin(id:uint, ask:uint) : void
       {
          if(this._rpState == RP_ASKING)
@@ -1189,30 +1089,19 @@ package survarium.controls
             return;
          }
          NotificationListScrollContent.replayHolder = this;
-         if(NotificationListScrollContent.REPLAY_DEMO)
-         {
-            this._rpDemoStep += 1;
-         }
          this._rpMatch = id;
          this._rpAsk = ask;
          this._rpPolls = 0;
-         this._rpStatus = "";
-         this._rpHex = "";
-         this._rpSize = 0;
-         this._rpPlace = 0;
          this._rpPrepSeen = false;
          this._rpAskAt = getTimer();
          this._rpState = RP_ASKING;
-         this.rpShow(RP_KEY_ASKING,false);
-         if(!NotificationListScrollContent.REPLAY_DEMO)
+         this.rpShow(RP_KEY_ASKING);
+         try
          {
-            try
-            {
-               this.rpCallAsk(this._rpAsk,this._rpMatch);
-            }
-            catch(e:Error)
-            {
-            }
+            this.rpCallAsk(this._rpAsk,this._rpMatch);
+         }
+         catch(e:Error)
+         {
          }
          if(!this._rpTimer)
          {
@@ -1253,11 +1142,11 @@ package survarium.controls
          if(this._rpPrepSeen)
          {
             waited = getTimer() - this._rpAskAt;
-            if(waited >= this.rpPrepareLimit())
+            if(waited >= NotificationListScrollContent.REPLAY_PREPARE_MS)
             {
                this.rpStop();
                this._rpState = RP_ENDED;
-               this.rpShow(RP_KEY_STILL_PREPARING,false);
+               this.rpShow(RP_KEY_STILL_PREPARING);
                return;
             }
             this.rpShowPreparing();
@@ -1266,12 +1155,7 @@ package survarium.controls
          {
             this.rpStop();
             this._rpState = RP_ENDED;
-            this.rpShow(RP_KEY_NO_ANSWER,false);
-            return;
-         }
-         if(NotificationListScrollContent.REPLAY_DEMO)
-         {
-            this.rpDemoAnswer(this._rpPolls);
+            this.rpShow(RP_KEY_NO_ANSWER);
             return;
          }
          try
@@ -1288,7 +1172,6 @@ package survarium.controls
          var fields:Array = name.split(";");
          var status:String = fields.length > 1 ? String(fields[1]) : "";
          var hex:String = fields.length > 2 ? String(fields[2]).toLowerCase() : "";
-         var size:Number = fields.length > 3 ? Number(fields[3]) : 0;
          var key:String = RP_KEY_NONE;
          if(this._rpState != RP_ASKING)
          {
@@ -1298,33 +1181,18 @@ package survarium.controls
          {
             return;
          }
-         if(!(size >= 0))
-         {
-            size = 0;
-         }
-         this._rpStatus = status;
-         this._rpHex = hex;
          this.rpChip(hex,status);
          if(status == "watching")
          {
             this.rpStop();
             this._rpState = RP_ENDED;
-            this.rpShow(RP_KEY_WATCHING,false);
+            this.rpShow(RP_KEY_WATCHING);
             return;
          }
          if(status == "preparing")
          {
             this._rpPrepSeen = true;
-            this._rpPlace = this._rpAsk == NotificationListScrollContent.REPLAY_ASK ? int(Math.min(size,RP_PLACE_MAX)) : 0;
             this.rpShowPreparing();
-            return;
-         }
-         this._rpSize = size;
-         if(status == "ready")
-         {
-            this.rpStop();
-            this._rpState = RP_READY;
-            this.rpShow(this._rpSize > 0 ? RP_KEY_READY_SIZE : RP_KEY_READY,true);
             return;
          }
          key = this.rpFinalKey(status);
@@ -1332,41 +1200,19 @@ package survarium.controls
          {
             this.rpStop();
             this._rpState = RP_ENDED;
-            this.rpShow(key,false);
+            this.rpShow(key);
             return;
          }
-      }
-      
-      protected function rpPrepareLimit() : int
-      {
-         if(NotificationListScrollContent.REPLAY_DEMO)
-         {
-            return NotificationListScrollContent.REPLAY_DEMO_PREPARE_MS;
-         }
-         return NotificationListScrollContent.REPLAY_PREPARE_MS;
       }
       
       protected function rpPreparingText() : String
       {
          var seconds:int = int((getTimer() - this._rpAskAt) / 1000);
-         var line:String = null;
          if(seconds < 0)
          {
             seconds = 0;
          }
-         if(this._rpPlace > 1)
-         {
-            line = LocalizationData.format("st_srp_replay_place_in_line",this._rpPlace,seconds);
-         }
-         else if(this._rpPlace == 1)
-         {
-            line = LocalizationData.format("st_srp_replay_made_now",seconds);
-         }
-         else
-         {
-            line = LocalizationData.format("st_srp_replay_waiting",seconds);
-         }
-         return LocalizationData.format(this._rpAsk == NotificationListScrollContent.REPLAY_ASK ? RP_KEY_BEING_MADE : RP_KEY_OPENING,line);
+         return LocalizationData.format(RP_KEY_OPENING,LocalizationData.format("st_srp_replay_waiting",seconds));
       }
       
       protected function rpShowPreparing() : void
@@ -1374,9 +1220,9 @@ package survarium.controls
          var text:String = this.rpPreparingText();
          var message:Object = this._rpDialog;
          var high:Number = 0;
-         if(this._rpShownKey != RP_KEY_BEING_MADE || !message || !message.textField)
+         if(this._rpShownKey != RP_KEY_OPENING || !message || !message.textField)
          {
-            this.rpShow(RP_KEY_BEING_MADE,false);
+            this.rpShow(RP_KEY_OPENING);
             return;
          }
          if(text == this._rpShownText)
@@ -1390,26 +1236,23 @@ package survarium.controls
             this._rpShownText = text;
             if(message.textField.textHeight != high)
             {
-               this.rpShow(RP_KEY_BEING_MADE,false);
+               this.rpShow(RP_KEY_OPENING);
             }
          }
          catch(e:Error)
          {
-            this.rpShow(RP_KEY_BEING_MADE,false);
+            this.rpShow(RP_KEY_OPENING);
          }
       }
       
-      protected function rpShow(key:String, download:Boolean) : void
+      // The prompt with `key`'s text and Close alone.
+      protected function rpShow(key:String) : void
       {
          var text:String = this.rpText(key);
          var data:Object = null;
          var message:Object = null;
          var format:TextFormat = null;
-         if(key == RP_KEY_READY_SIZE)
-         {
-            text = LocalizationData.format(RP_KEY_READY_SIZE,this.rpSizeText(this._rpSize));
-         }
-         if(key == RP_KEY_BEING_MADE)
+         if(key == RP_KEY_OPENING)
          {
             text = this.rpPreparingText();
          }
@@ -1417,9 +1260,9 @@ package survarium.controls
          this._rpShownText = text;
          data = {
             "text":text,
-            "label_ok":(download ? this.rpText(RP_KEY_DOWNLOAD) : null),
+            "label_ok":null,
             "label_cancel":this.rpText(RP_KEY_CLOSE),
-            "onYes":this.onRpYes,
+            "onYes":this.onRpNo,
             "onNo":this.onRpNo
          };
          this._rpDialogData = data;
@@ -1437,7 +1280,7 @@ package survarium.controls
                   message.textField.defaultTextFormat = format;
                }
                message.validateNow();
-               if(!download && message.btnAccept && message.btnCancel && message.background)
+               if(message.btnAccept && message.btnCancel && message.background)
                {
                   message.btnAccept.visible = false;
                   message.btnAccept.enabled = false;
@@ -1480,265 +1323,6 @@ package survarium.controls
          this._rpDialog = null;
          this._rpDialogData = null;
          this._rpShownKey = RP_KEY_NONE;
-      }
-      
-      protected function onRpYes(data:Object = null) : void
-      {
-         var ready:Boolean = this._rpState == RP_READY && this._rpStatus == "ready" && this._rpHex == this.rpHex(this._rpMatch);
-         this.rpStop();
-         this._rpDialog = null;
-         this._rpDialogData = null;
-         this._rpShownKey = RP_KEY_NONE;
-         if(!ready)
-         {
-            this._rpState = RP_IDLE;
-            return;
-         }
-         this._rpState = RP_STARTED;
-         if(!NotificationListScrollContent.REPLAY_DEMO)
-         {
-            try
-            {
-               ExternalInterface.call("video_tutorial_link_clicked");
-            }
-            catch(e:Error)
-            {
-            }
-         }
-         this.rpShow(RP_KEY_STARTING,false);
-      }
-      
-      protected function rpDemoAnswer(poll:int) : void
-      {
-         var cases:Array = [["none","preparing:0","preparing:3","preparing:3","preparing:3","preparing:2","preparing:2","preparing:2","preparing:1","preparing:1","preparing:1","preparing:1","ready"],["preparing:2"],["not_recorded"],["gone"],["not_yours"],["old_game"],["incompatible"],["busy"],["failed"],["off"],["other","ready0"],["none"]];
-         var which:int = (this._rpDemoStep - 1) % cases.length;
-         var answers:Array = null;
-         var word:String = null;
-         var hex:String = this.rpHex(this._rpMatch);
-         var size:String = "4404019";
-         if(which < 0)
-         {
-            which = 0;
-         }
-         answers = cases[which];
-         word = answers[Math.min(poll,answers.length) - 1];
-         if(word.indexOf("preparing:") == 0)
-         {
-            size = word.substr(10);
-            word = "preparing";
-         }
-         if(word == "other")
-         {
-            hex = this.rpHex(uint(this._rpMatch + 1));
-            word = "ready";
-         }
-         if(word == "ready0")
-         {
-            word = "ready";
-            size = "0";
-         }
-         NotificationListScrollContent.replayTake([{
-            "nickname":"R1;" + word + ";" + hex + ";" + size,
-            "place":0,
-            "ranking":0,
-            "ranking_diff":0
-         }]);
-      }
-      
-      protected function onRpDemoFrame(e:Event) : void
-      {
-         var lobby:Object = null;
-         var now:int = getTimer();
-         if(this._rpDemoAdded)
-         {
-            removeEventListener(Event.ENTER_FRAME,this.onRpDemoFrame);
-            return;
-         }
-         try
-         {
-            lobby = this.lobby;
-            if(!stage || !lobby || !lobby["bottom_panel"] || !(lobby["add_notification"] is Function))
-            {
-               return;
-            }
-         }
-         catch(err:Error)
-         {
-            return;
-         }
-         if(this._rpDemoSeenAt == 0)
-         {
-            this._rpDemoSeenAt = now;
-            if(this._rpDemoSeenAt == 0)
-            {
-               this._rpDemoSeenAt = 1;
-            }
-            return;
-         }
-         if(now - this._rpDemoSeenAt < 3000)
-         {
-            return;
-         }
-         this._rpDemoSeenAt = 0;
-         this._rpDemoAdded = true;
-         removeEventListener(Event.ENTER_FRAME,this.onRpDemoFrame);
-         this.rpDemoAddRows(lobby);
-      }
-      
-      public function rpDemoTempMatch(data:Object) : void
-      {
-         if(data && data.srpDemo == true)
-         {
-            return;
-         }
-         if(this._rpDemoTempCallback != null)
-         {
-            this._rpDemoTempCallback(data);
-         }
-      }
-      
-      protected function rpDemoOtherRows() : Array
-      {
-         var quest:String = LocalizationData.getName("st_srp_replay_demo_quest");
-         var seller:String = GangShop.getSellerName(Faction.SCAVENGERS);
-         if(!seller || seller == "noSuchSeller")
-         {
-            seller = LocalizationData.getName("st_srp_replay_demo_seller");
-         }
-         return [{
-            "notificationType":NotificationType.QUEST,
-            "srpDemo":true,
-            "hideTimer":15000,
-            "status":QuestStatus.COMPLETED,
-            "faction_id":Faction.SCAVENGERS,
-            "quest_icon":1,
-            "quest_label":quest,
-            "label":Util.styledChar(LocalizationData.getName("quest_status_2"),"gold") + Util.styledChar("\n«" + quest + "»","gray_highlight"),
-            "reward":[{
-               "type":Reward.EXPERIENCE,
-               "amount":1500
-            },{
-               "type":Reward.REPUTATION,
-               "amount":150,
-               "param":Faction.SCAVENGERS
-            },{
-               "type":Reward.MONEY,
-               "amount":3000,
-               "param":MoneyType.REGULAR
-            }]
-         },{
-            "notificationType":NotificationType.PLAYER_RANK,
-            "srpDemo":true,
-            "type":ImportantMessageType.SKILL_POINT_REWARD,
-            "hideTimer":15000,
-            "skill_level":12,
-            "reward_id":MoneyType.REGULAR,
-            "reward_amount":5000,
-            "label":Util.styledChar(LocalizationData.getName("level") + " " + "12" + " ","highlight") + LocalizationData.getName("achieved"),
-            "reward":[{
-               "type":Reward.MONEY,
-               "amount":5000,
-               "param":MoneyType.REGULAR
-            },{
-               "type":Reward.POINT,
-               "amount":1
-            }]
-         },{
-            "notificationType":NotificationType.FACTION_RANK,
-            "srpDemo":true,
-            "hideTimer":15000,
-            "faction_id":Faction.SCAVENGERS,
-            "level":3,
-            "label":LocalizationData.format("st_srp_replay_demo_rank",seller)
-         },{
-            "notificationType":NotificationType.PLAIN,
-            "srpDemo":true,
-            "hideTimer":15000,
-            "label":LocalizationData.getName("premium_post_reward_label")
-         }];
-      }
-      
-      protected function rpDemoAddRows(lobby:Object) : void
-      {
-         var rows:Array = null;
-         var i:int = 0;
-         var temp:Object = null;
-         try
-         {
-            temp = lobby["notificationListTemp"];
-            if(temp && temp.matchCalback is Function && temp.matchCalback != this.rpDemoTempMatch)
-            {
-               this._rpDemoTempCallback = temp.matchCalback;
-               temp.matchCalback = this.rpDemoTempMatch;
-            }
-         }
-         catch(err0:Error)
-         {
-         }
-         rows = [{
-            "notificationType":NotificationType.MATCH,
-            "srpDemo":true,
-            "hideTimer":5000,
-            "match_id":484727998,
-            "map_name":"Rudnya",
-            "time":"18:42",
-            "result":"38:41",
-            "match_result":3,
-            "reward":[{
-               "type":Reward.RATING,
-               "amount":12
-            },{
-               "type":Reward.EXPERIENCE,
-               "amount":6500
-            },{
-               "type":Reward.REPUTATION,
-               "amount":50,
-               "param":Faction.SCAVENGERS
-            },{
-               "type":Reward.MONEY,
-               "amount":1250,
-               "param":MoneyType.REGULAR
-            }]
-         },{
-            "notificationType":NotificationType.MATCH,
-            "srpDemo":true,
-            "hideTimer":5000,
-            "match_id":1777910972,
-            "map_name":"Vostok Radar Station",
-            "time":"19:05",
-            "result":"100:98",
-            "match_result":1,
-            "reward":null
-         },{
-            "notificationType":NotificationType.MATCH,
-            "srpDemo":true,
-            "hideTimer":5000,
-            "match_id":0,
-            "map_name":"Chemical Plant",
-            "time":"19:31",
-            "result":"1000:999",
-            "match_result":3,
-            "reward":null
-         }];
-         try
-         {
-            rows = rows.concat(this.rpDemoOtherRows());
-         }
-         catch(err1:Error)
-         {
-         }
-         try
-         {
-            i = 0;
-            while(i < rows.length)
-            {
-               lobby["add_notification"](rows[i]);
-               i++;
-            }
-         }
-         catch(err:Error)
-         {
-         }
       }
    }
 }

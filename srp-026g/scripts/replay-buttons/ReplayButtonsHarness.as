@@ -19,8 +19,8 @@ package
    // - a History match row (NotificationListScrollContent) has Watch at its top right (no
    //   Download), its label fitting, the map name left room; no number strip above the History;
    // - Watch asks; the server's answers (`R1;<status>;<match>;<n>`, PlayerRanking's rows) set the
-   //   row's chip under Watch: watching/ready Ready, preparing Preparing, incompatible Old version,
-   //   not_recorded Not recorded, gone Expired; an answer that says nothing of the replay (busy)
+   //   row's chip under Watch: watching Ready, preparing Preparing, incompatible Old version, gone
+   //   Expired; an answer that says nothing of the replay (busy)
    //   and an answer for another match leave it; the chip fits the row; the row's number;
    // - the results screen (SrvVictoryScreenReskin) shows Watch replay and Watch my deaths for a
    //   match with an id, left of the close button, labels fitting; none without an id; Watch my
@@ -183,9 +183,8 @@ package
          expect(language + ": the map name is left " + int(map.width) + " px",map != null && map.width >= 60 && map.x + map.width <= watch.x);
          var back:DisplayObject = row["background"] as DisplayObject;
          expect(language + ": a chip before any answer",chip(row) == null);
-         var cases:Array = [["watching","st_srp_replay_chip_ready"],["preparing","st_srp_replay_chip_preparing"],
-            ["incompatible","st_srp_replay_chip_old"],["not_recorded","st_srp_replay_chip_not_recorded"],
-            ["gone","st_srp_replay_chip_gone"],["ready","st_srp_replay_chip_ready"]];
+         var cases:Array = [["preparing","st_srp_replay_chip_preparing"],["incompatible","st_srp_replay_chip_old"],
+            ["gone","st_srp_replay_chip_gone"],["watching","st_srp_replay_chip_ready"]];
          for each(var c:Array in cases)
          {
             watch.dispatchEvent(new Click(Click.CLICK));
