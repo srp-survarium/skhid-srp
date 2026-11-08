@@ -139,6 +139,11 @@ pub struct Quest {
     pub reputation: Vec<(u8, u32)>,
     /// `ui.name`, a localization key.
     pub name: String,
+    /// The goal as the lobby lists it (`ui.task_descriptions`' pair): its
+    /// text's localization key, and the target the lobby prints after it
+    /// (" 6", " 1.5", " 25%"), none for a goal without a number.
+    pub objective: String,
+    pub target: Option<String>,
 }
 
 /// What one match gave a player, as far as quests ask.
@@ -242,6 +247,15 @@ fn int(value: &ConfigValue, key: &str) -> Result<i32, ConfigError> {
 
 fn parse_quest(quest: &ConfigValue) -> Result<Quest, ConfigError> {
     let params = quest.req("params")?;
+    let ui = quest.req("ui")?;
+    let (objective, target) = match ui.req("task_descriptions")?.children().as_slice() {
+        [pair] => match pair.children().as_slice() {
+            [key, target] => key.as_str().zip(target.as_str()),
+            _ => None,
+        },
+        _ => None,
+    }
+    .ok_or_else(|| ConfigError("`ui.task_descriptions` is not one pair of strings".into()))?;
     let mut parsed = Quest {
         id: int(quest, "id")? as u32,
         faction: int(quest, "faction")? as u8,
@@ -263,7 +277,11 @@ fn parse_quest(quest: &ConfigValue) -> Result<Quest, ConfigError> {
         max_level: u8::MAX,
         money: 0,
         reputation: Vec::new(),
-        name: quest.req("ui")?.str_at("name")?.to_owned(),
+        name: ui.str_at("name")?.to_owned(),
+        objective: objective.to_owned(),
+        target: Some(target.trim())
+            .filter(|target| !target.is_empty())
+            .map(str::to_owned),
     };
     parsed.level_faction = parsed.faction;
     for condition in quest.req("preconditions")?.children() {
@@ -381,6 +399,12 @@ mod tests {
             (50, &[(1, 50)][..])
         );
         assert_eq!(quest.name, "st_scavengers_defend_items_name");
+        assert_eq!(
+            (quest.objective.as_str(), quest.target.as_deref()),
+            ("st_scavengers_defend_items_obj", None)
+        );
+        // The lobby's target: an accuracy's in percent.
+        assert_eq!(quests.quest(10113).unwrap().target.as_deref(), Some("15%"));
         assert!(quests.quest(1).is_none());
     }
 

@@ -5,8 +5,11 @@
 //! The calculator ([`crate::damage`]) and the maps ([`crate::maps`]) are its
 //! sections too, each a page of its own look; the skills ([`crate::skills`])
 //! are built like them, from the released game, into a page of the wiki's.
+//! The quests ([`crate::quests`]) come from the server's game data and pay rules.
 
-use crate::{ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, skills};
+use crate::{
+    ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, quests, skills,
+};
 
 pub(crate) const PATH: &str = "/wiki";
 pub(crate) const WEAPONS: &str = "/wiki/weapons";
@@ -52,6 +55,8 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
         (lang.tr("Weapons", "Зброя"), body.to_owned())
     } else if path == skills::PATH {
         (lang.tr("Skills", "Навички"), skills::body(lang).to_owned())
+    } else if path == quests::PATH {
+        (lang.tr("Quests", "Завдання"), quests::body(lang))
     } else if path == EQUIPMENT {
         (lang.tr("Equipment", "Спорядження"), equipment::body(lang))
     } else if path == MODIFIERS {
@@ -63,7 +68,7 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
         (
             lang.tr("Wiki", "Вікі"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}</div>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}</div>",
                 lang.tr("Wiki", "Вікі"),
                 section(
                     lang,
@@ -92,6 +97,13 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
                     &lang.tr("Skills", "Навички"),
                     &lang.tr("Every skill tree: thresholds, ranks and what each rank gives.",
                         "Усі гілки навичок: пороги, ранги й що дає кожен ранг."),
+                ),
+                section(
+                    lang,
+                    quests::PATH,
+                    &lang.tr("Quests", "Завдання"),
+                    &lang.tr("Every faction quest: its goal at each reputation level and what it pays.",
+                        "Усі завдання угруповань: мета на кожному рівні репутації й винагорода."),
                 ),
                 section(
                     lang,
