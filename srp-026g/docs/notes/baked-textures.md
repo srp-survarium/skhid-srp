@@ -57,7 +57,7 @@ fixes them; the RE is in `client_patch.md` section 3.57.
   bake burst's stall (16:37:47, 0.4 s).
 - Textures only: nothing a match computes changes. Games with and without the patch play together.
 
-## Bakes off the GPU's clock (patch 111)
+## Bakes off the GPU's clock (patch 121)
 
 A player's report (2026-11-05): with `streamed_textures` emptied, every player joining a room or a
 match makes a hitch while their items bake. A RAM disk does not help: the save was already
@@ -68,29 +68,54 @@ asynchronous, the cost is the GPU work the game waited for.
   read back (16 MB, blocking), uploaded again as the compressor's level 0, and each of its 10
   compressed levels is read back, blocking each time. Diffuse bake ~15 ms against ~3 ms for the normal
   and smoothness bakes of the same size, right after it: LIKELY the frames still queued, waited for.
+- **The first version gave nothing** (measured 2026-11-08: 19 bots in recorded live players' gear and
+  one headless game, live content, `streamed_textures` empty; ~800 bakes in the match load, 9-12 s).
+  Frames over 100 ms: 7.7 s on main, 7.2 s with it; the longest ~1.3 s in both. It had 8 bakes on the
+  GPU and 8 queued, and past them the stock bake: at least 474 of 768 bakes took the stock bake, which
+  then waited behind the GPU work. It finished 2 done bakes a dispatch (~36 a second at 18 fps). The
+  game also ran out of its 512 MB managed resources arena or its 8 MB resources helper arena now and
+  then in that load ("not enough memory"), so what a burst holds matters.
 - A bake is issued in the frame it is asked for, and nothing waits:
   - level 0 is a GPU copy of the target (the same R8G8B8A8_UNORM texels): no readback, no upload;
-  - the levels are drawn, compressed and copied to stagings, flushed, and none is mapped;
-  - process_compression ends with its query not finished; patch 70's waiting queries go on waiting.
-- Each resources dispatch on the bake's thread asks the oldest bake's last staging without waiting
-  (map2D's no-wait byte, as the occlusion manager polls). Once the GPU has done it, the levels are
-  copied into the DDS and the game's own tail finishes the bake: the texture, the slot, patch 70's
-  sharing, the save, the record, the query, the "camouflage/decal cook" line. The line's "bake" is
-  the ms the game's thread spent until the bake was issued (the draw's with it); its "compress" the
-  ms of the readback.
-- A dispatch finishes at most 2 done bakes (each makes its texture from its DDS and runs its CRC).
-  More done bakes wait in their places and finish in the next frames, oldest first; a done bake
-  behind one the GPU has not done waits for it.
+  - the levels are drawn, compressed and copied to stagings, the last copy flushed, none mapped;
+  - process_compression ends with its query not finished; patch 70's waiting queries go on waiting;
+  - no DDS memory is held while the GPU has the bake: the DDS is allocated (MT) when it is read back.
+- At most 8 bakes are on the GPU (their stagings, up to 5.6 MB each). A bake with no place (8 on it,
+  or the bakes on it another thread's: the immediate context is one thread's) is **put off before its
+  draw**: on_textures_loaded ends as after a failed bake, its query unfinished, its model held. Once
+  a place is free its query is made again (finish_query's result 4, requery): the resource system asks
+  the baker again from the start, and the draw comes then. Patch 70 makes the waiters of its path
+  again with it, so one of them owns the path. Nothing is drawn twice, and no stock bake runs.
+- The resource system's "postponed" (result 2) is no "later" for this query: finish_query stores it
+  and the query ends there, unanswered (0xF0F59, 0x109BD0, 0x103140); nothing asks again. Requery
+  (4) is the one that does. An unfinished query held by the cook is what "postponed" means in the
+  engine (0.10b: a cook that finishes later).
+- Each resources dispatch on the bakes' thread asks the oldest bake's last staging without waiting
+  (map2D's no-wait byte, as the occlusion manager polls). Once the GPU has done it, the DDS is
+  allocated, the levels are copied into it and the game's own tail finishes the bake: the texture,
+  the slot, patch 70's sharing, the save, the record, the query, the "camouflage/decal cook" line.
+  The line's "bake" is the ms the game's thread spent until the bake was issued (the draw's with
+  it); its "compress" the ms of the readback.
+- **A frame's budget:** done bakes are finished while the frame's 6 ms last (each makes its texture
+  from its DDS, runs its CRC, saves it; a frame always starts one). The rest wait in their places for
+  the next frames, oldest first; a done bake behind one the GPU has not done waits for it. A frame
+  is engine_world::tick (once a frame, the main loop's); a dispatch with no tick for 100 ms (apc's
+  wait loops) starts a new budget. Then the put-off queries are made again, oldest first, as many
+  as the free places less those made again this frame (they come back to take them).
 - A bake the GPU has had 1 s is read back waiting, and a line goes to `srp_patches.log`.
-- At most 8 bakes are on the GPU, and 8 more wait their turn (each keeps its level 0, 16 MB of the
-  GPU's). Past those, the stock bake (it waits), with a line in `srp_patches.log`.
-- The model instance a bake is for is held until the bake ends: a player who leaves meanwhile only
-  delays its release.
+- The model instance a bake is for is held until the bake ends or is made again: a player who leaves
+  meanwhile only delays its release.
 - The save takes the DDS the bake owns, MT memory, with no copy: the save's descriptor frees it once
   written. The stock save copied the whole DDS into MT (a 5.6 MB copy ran MT out, 2026-10-28). With no
   MT memory for the DDS, the bake fails, as a bake that fails does (patch 70 makes its waiters again).
-- A bake whose levels cannot be mapped (the device lost) fails its query the same way, and is logged.
-- At game::exit every pending bake is finished first, waiting.
+  With no memory for the descriptor, the texture is used and not saved (the stock save would write
+  through 0).
+- A bake whose levels cannot be mapped (the device lost), or whose compressor does not fit its DDS,
+  fails its query the same way, and is logged.
+- At game::exit (its start: every exit passes it) every bake on the GPU is finished, waiting, and
+  every put-off query made again; bakes after it are the stock ones.
+- `srp_patches.log`: the game's threads all log; a line now goes out whole, one at a time, and is
+  not cut before 512 bytes (in the 2026-11-08 run lines came out cut and mixed).
 - Textures only: nothing a match computes changes. Games with and without the patch play together.
 
 ## Not done
@@ -98,10 +123,13 @@ asynchronous, the cost is the GPU work the game waited for.
 - A first load of a kept file is still on the main thread: a joiner's kit read from the folder took
   ~40 ms for 12 textures (15:11:27). Spreading them over frames, or moving them behind the loading
   screen, is a separate change.
-- The stock bake (past 16 pending, or a bake this does not take) still waits for the GPU, and its save
-  still copies the DDS.
-- Not measured in a game: the owner compares the "camouflage/decal cook" lines and the frame times
-  with `streamed_textures` emptied, players joining a room and a match, before and after.
+- The stock bake (after game::exit, or a bake whose frame patch 121 does not read) still waits for the
+  GPU, and its save still copies the DDS.
+- Patch 121 as reworked is not measured in a game: the owner compares the frame times (over 100 ms, the
+  longest) and the "camouflage/decal cook" and `bake_async` lines with `streamed_textures` emptied, in
+  the match load of 2026-11-08, before and after. The 6 ms budget and the 8 places are the knobs.
+- A put-off query's texture queries run again when it is made again (cheap when the textures are
+  still loaded); past 512 put off, a query is made again at once.
 - "camouflage_decal_texture_type_baker_cook: gbuffer_render_stage not found!" (15:41:05, ×28): a bake
   asked for a surface whose material has no gbuffer stage yet (translate_query 0x12D5C5..0x12D64F: the
   material's stage 1 through 0x12C6A0). It fails at once, which costs nothing, and the model's bakes come

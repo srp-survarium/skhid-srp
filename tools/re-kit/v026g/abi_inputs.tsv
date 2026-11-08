@@ -5792,3 +5792,7 @@ va	name	location	role	basis
 0x001ed170	survarium::game::switch_to_game_world	EAX	the game	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	AL	the flag: 1 shown, 0 hidden	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	EDX	the lobby menu	observed
+0x00013ca0	vostok::engine::engine_world::tick	ECX	the engine world (+2C4h, +2C8h its render modules, +2B8h the render channels)	observed
+0x00109bd0	vostok::resources::query_result::finish_translated_query	EAX	the query (its +0E0h the save, +2C0h flags, +2D8h the guard)	observed
+0x00103140	vostok::resources::resources_manager::on_created_resource	EAX	the query (+104h its result, +100h its error type, +2D8h the guard)	observed
+0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	entry ESP+8 = 2	postponed: +104h 2 unless +2C0h's 200000h (finished) is set, no error type; then as any result (0xF0E42): a translate query ends unanswered (on_created_resource takes it as created), nothing asks again; 4 is the one that asks again (0x103140)	observed

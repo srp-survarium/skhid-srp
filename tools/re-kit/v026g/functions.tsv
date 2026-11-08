@@ -2211,3 +2211,6 @@ va	status	ref_021d	name
 0x002717e0	verified	0x0019e562	survarium::lobby_client::discard_playing_order
 0x001ed170	observed		survarium::game::switch_to_game_world
 0x002203a0	observed		survarium::lobby_menu::show_loading_screen
+0x00013ca0	observed		vostok::engine::engine_world::tick
+0x00103140	observed		vostok::resources::resources_manager::on_created_resource
+0x00109bd0	observed	0x000cbaaa	vostok::resources::query_result::finish_translated_query
