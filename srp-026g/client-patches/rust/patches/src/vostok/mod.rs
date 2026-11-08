@@ -56,6 +56,7 @@ pub mod melee;
 mod options;
 pub mod parse;
 pub mod resources;
+pub mod skin_cook;
 pub mod renderer;
 pub mod gun_cook;
 pub mod pickup;
