@@ -607,6 +607,7 @@ impl Stack {
                     move |result| settler.match_ended(result),
                     &flag,
                     Some(replays.clone()),
+                    Some(accounts.clone()),
                 )
             }));
         }

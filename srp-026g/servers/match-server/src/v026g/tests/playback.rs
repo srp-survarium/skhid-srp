@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU32;
 
-use session::v026g::persist::match_events::{self, MatchEvent, MatchEvents, Player, Timing};
+use session::v026g::persist::match_events::{self, MatchEvent, Player, Timing};
 use session::v026g::replay_watch::{Access, Stage, WatchFrom, WatchRequest, WatchSettings};
 use session::v026g::replays::{Refusal, ReplayId, Replays, Status};
 use survarium::v026g::maps::MatchMap;
@@ -170,30 +170,22 @@ fn bench() -> (Bench, Arc<Replays>) {
 /// A session of the tests' recording from `at_ms`, read and sent, as the
 /// lobby leaves it.
 fn session_of_the_recording(bench: &mut Bench, replays: &Replays, at_ms: u32) -> WatchRequest {
-    session_with_events(bench, replays, at_ms, None)
+    session_with_events(bench, replays, at_ms, Vec::new())
 }
 
-/// The name the tests' recording is given.
-fn test_replay_id() -> ReplayId {
-    ReplayId::parse("rec026g_20261107-135509_00001234").unwrap()
-}
-
-/// The same, with the history's `events` of the match named `replay_id`.
+/// The same, with the history's `events` of its match.
 fn session_with_events(
     bench: &mut Bench,
     replays: &Replays,
     at_ms: u32,
-    events: Option<MatchEvents>,
+    events: Vec<MatchEvent>,
 ) -> WatchRequest {
     let request = request(WATCHER_ACCOUNT, 0x1234, at_ms, None);
     let now = bench.now();
-    assert_eq!(
-        replays.watches().start(request, events, now),
-        Status::Preparing
-    );
+    assert_eq!(replays.watches().start(request, now), Status::Preparing);
     assert_eq!(replays.watches().next_job(now), Some(request));
     let watch = bench.server.replay_watch.as_mut().unwrap();
-    watch.prepare_for_test(request, playable(), Some(test_replay_id()), now);
+    watch.prepare_for_test(request, playable(), &events, now);
     replays.watches().sent(WATCHER_ACCOUNT, now);
     request
 }
@@ -634,7 +626,7 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
             revision,
             ..request(account, match_id, 0, None)
         };
-        assert_eq!(watches.start(request, None, bench.now()), Status::Preparing);
+        assert_eq!(watches.start(request, bench.now()), Status::Preparing);
         read_for(bench, &replays, account)
     };
     // Not a player.
@@ -667,7 +659,7 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
     let open = self::replays(Access::All);
     let mut anyone = Bench::growing(2, MAP_TDM, settings(&dir, &open));
     let request = request(555, match_id, 0, Some(1));
-    open.watches().start(request, None, anyone.now());
+    open.watches().start(request, anyone.now());
     let Stage::Ready { start_ms } = read_for(&mut anyone, &open, 555) else {
         panic!("anyone may watch");
     };
@@ -677,34 +669,47 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
         from: WatchFrom::MyDeaths,
         ..self::request(101, match_id, 0, None)
     };
-    open.watches().start(deaths, None, anyone.now());
+    open.watches().start(deaths, anyone.now());
     assert_eq!(read_for(&mut anyone, &open, 101), Stage::Ready { start_ms });
-    // With place 1 killed at 10 s: from 6 s, as a session asked for 6 s.
+    // From 6 s, place 1 in view: what "my deaths" starts at with place 1
+    // dead between 10 and 14 s (4 s before the earliest it can have been).
     let at_six = self::request(556, match_id, 6_000, Some(1));
-    open.watches().start(at_six, None, anyone.now());
+    open.watches().start(at_six, anyone.now());
     let Stage::Ready { start_ms } = read_for(&mut anyone, &open, 556) else {
         panic!("anyone may watch");
     };
-    let deaths = WatchRequest {
-        account_id: 101,
-        session_id: session_for(101) + 1,
-        ..deaths
-    };
-    open.watches().ended(&WatchRequest {
-        session_id: session_for(101),
-        ..deaths
-    });
     let replay_id = path
         .file_stem()
         .and_then(|stem| ReplayId::parse(stem.to_str()?))
         .expect("a recording named by its replay id");
-    let killed = MatchEvents {
-        replay_id,
-        events: vec![kill(10_000, 0, Some(1))],
+    let died = MatchEvent {
+        timing: Timing::Between {
+            after: 10_000,
+            by: 14_000,
+        },
+        kind: match_events::EventKind::Death {
+            victim: Player {
+                place: 1,
+                account_id: 101,
+            },
+        },
     };
-    open.watches().start(deaths, Some(killed), anyone.now());
-    assert_eq!(read_for(&mut anyone, &open, 101), Stage::Ready { start_ms });
+    let kept = self::replays(Access::All);
+    let mut with_history = Bench::growing(
+        2,
+        MAP_TDM,
+        Settings {
+            accounts: Some(history(&dir.join("history"), replay_id, vec![died])),
+            ..settings(&dir, &kept)
+        },
+    );
+    kept.watches().start(deaths, with_history.now());
+    assert_eq!(
+        read_for(&mut with_history, &kept, 101),
+        Stage::Ready { start_ms }
+    );
     assert!(start_ms > 0);
+    drop(with_history);
     drop(anyone);
 
     // Player 100's game is sent and connects.
@@ -733,7 +738,7 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
 fn a_match_without_a_recording_is_gone() {
     let (mut bench, replays) = bench();
     let request = request(WATCHER_ACCOUNT, 0xDEAD, 0, None);
-    replays.watches().start(request, None, bench.now());
+    replays.watches().start(request, bench.now());
     assert_eq!(
         read_for(&mut bench, &replays, WATCHER_ACCOUNT),
         Stage::Refused {
@@ -840,11 +845,7 @@ fn the_game_is_told_the_matchs_events_in_notes_of_64() {
         timing: Timing::Exact(114_600),
         kind: match_events::EventKind::End { points: [3, 2] },
     });
-    let events = MatchEvents {
-        replay_id: test_replay_id(),
-        events,
-    };
-    session_with_events(&mut bench, &replays, 0, Some(events));
+    session_with_events(&mut bench, &replays, 0, events);
     let at = watching(&mut bench, WATCHER);
     bench.run(200);
     let noted = events_noted(&bench.clients[at]);
@@ -873,19 +874,34 @@ fn the_game_is_told_the_matchs_events_in_notes_of_64() {
     bench.assert_no_faults();
 }
 
-/// The history's newest match of the id is another recording's (ids repeat
-/// across restarts): its events are not shown.
-#[test]
-fn another_matchs_events_are_not_shown() {
-    let (mut bench, replays) = bench();
-    let events = MatchEvents {
-        replay_id: ReplayId::parse("rec026g_20261108-010203_00001234").unwrap(),
-        events: vec![kill(20_000, 0, Some(1))],
+/// The srp process's accounts with a match history holding `events` of
+/// the match `replay_id`.
+fn history(dir: &Path, replay_id: ReplayId, events: Vec<MatchEvent>) -> crate::v026g::Accounts {
+    use session::v026g::GameAccounts;
+    use session::v026g::persist::history::{
+        Eligibility, MatchInfo, MatchKind, MatchRecord, Winner,
     };
-    session_with_events(&mut bench, &replays, 0, Some(events));
-    let at = watching(&mut bench, WATCHER);
-    bench.run(200);
-    assert_eq!(events_noted(&bench.clients[at]), [(0, 0, Vec::new())]);
+    use session::v026g::persist::{GameRepository, SqliteGameRepository};
+    let _ = std::fs::remove_dir_all(dir);
+    let mut repository = SqliteGameRepository::open_in(dir).unwrap();
+    let record = MatchRecord {
+        replay_id,
+        kind: MatchKind::Public(Eligibility::Counted),
+        info: MatchInfo {
+            ended_at: 1,
+            duration_ms: 12_000,
+            map_id: MAP_TDM,
+            game_mode: survarium::v026g::maps::GameMode::TeamDeathmatch,
+            match_level: 3,
+            winner: Winner::Unknown,
+            team_points: [0, 0],
+        },
+        players: Vec::new(),
+        events,
+    };
+    repository.record_match(&record).unwrap();
+    let accounts = GameAccounts::with_repository(Box::new(repository)).unwrap();
+    crate::v026g::Accounts(Arc::new(accounts))
 }
 
 /// A match id comes again after a restart: the session plays the newest

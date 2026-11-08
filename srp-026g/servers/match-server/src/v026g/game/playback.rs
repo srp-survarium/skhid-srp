@@ -31,7 +31,8 @@ use replay_control::{
     EVENTS_PER_NOTE, Event as TimelineEvent, EventKind, EventsNote, MatchMs, Op, Playback as Note,
     Request, Speed,
 };
-use session::v026g::persist::match_events::{self, MatchEvents};
+use session::v026g::GameAccounts;
+use session::v026g::persist::match_events::{self, MatchEvent, Timing};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
 use session::v026g::replay_watch::{WatchFrom, WatchRequest};
@@ -69,9 +70,12 @@ const DRIFT_REPORTS: u8 = 3;
 /// A recording made into what a game is shown.
 pub(crate) struct Recording {
     match_id: u32,
-    /// Its file's stem (`None` for the tests' `.sur`): which kept match of
-    /// the history its events are.
-    replay_id: Option<ReplayId>,
+    /// The history's events of it, the viewer's timeline (none without a
+    /// history, for a match not kept in it, or the tests' `.sur`).
+    timeline: Vec<TimelineEvent>,
+    /// Each death in the history's events: the victim's place and the
+    /// earliest it can have been, by time.
+    deaths: Vec<(u8, u32)>,
     info: StaticInfo,
     /// Each place's account, and each place's game's patch revision (the
     /// recording's notes): who may watch it, which games play it, and
@@ -101,10 +105,6 @@ impl Recording {
         let (file, _) = sur_convert::convert_file(path, &notes, &[], settings)
             .map_err(|error| error.to_string())?;
         let mut recording = Self::from_sur(&file, match_id)?;
-        recording.replay_id = path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .and_then(ReplayId::parse);
         (recording.accounts, recording.revisions) = replay::by_place(&notes);
         Ok(recording)
     }
@@ -169,7 +169,8 @@ impl Recording {
         }
         Ok(Self {
             match_id,
-            replay_id: None,
+            timeline: Vec::new(),
+            deaths: Vec::new(),
             info,
             accounts: Vec::new(),
             revisions: Vec::new(),
@@ -189,43 +190,50 @@ impl Recording {
 
     /// Where a session of `account_id` asked from `from` starts.
     ///
-    /// "My deaths": [`DEATH_LEAD_MS`] before its place's first death in
-    /// `events` (as a victim), its place in view; with none known, from
-    /// where its place is first in view.
-    pub(crate) fn start(&self, from: WatchFrom, account_id: u32, events: &[TimelineEvent]) -> u32 {
+    /// "My deaths": [`DEATH_LEAD_MS`] before the earliest its place's first
+    /// death can have been (a death known within a window, the window's
+    /// start), its place in view; with none known, from where its place is
+    /// first in view.
+    pub(crate) fn start(&self, from: WatchFrom, account_id: u32) -> u32 {
         match from {
             WatchFrom::At { ms, place } => self.start_at(ms, place),
             WatchFrom::MyDeaths => {
                 let place = self.place_of(account_id);
-                let death = events
+                let death = self
+                    .deaths
                     .iter()
-                    .find(|event| event.kind == EventKind::Kill && event.victim == place)
-                    .filter(|_| place.is_some());
-                let at = death.map_or(0, |death| death.time.0.saturating_sub(DEATH_LEAD_MS));
+                    .find(|(victim, _)| Some(*victim) == place)
+                    .map(|(_, earliest)| *earliest);
+                let at = death.map_or(0, |earliest| earliest.saturating_sub(DEATH_LEAD_MS));
                 self.start_at(at, place)
             }
         }
     }
 
-    /// The history's events of this recording's match as the viewer's
-    /// timeline: kills and deaths (a death no kill was paired with, no
-    /// actor), batteries found and delivered. None when they are another
-    /// match's: the history's newest of the match id, not this recording
-    /// (ids repeat across restarts).
-    pub(crate) fn timeline(&self, events: Option<MatchEvents>) -> Vec<TimelineEvent> {
-        let Some(events) = events else {
-            return Vec::new();
+    /// The history's events of this recording's match (`events_of_replay`
+    /// of its replay id) taken as its timeline: kills and deaths (a death
+    /// no kill was paired with, no actor), batteries found and delivered;
+    /// and each death's earliest time, for "my deaths".
+    pub(crate) fn take_events(&mut self, events: &[MatchEvent]) {
+        let earliest = |timing: Timing| match timing {
+            Timing::Exact(at) => at,
+            Timing::Between { after, .. } => after,
         };
-        if self.replay_id.as_ref() != Some(&events.replay_id) {
-            log::warn!(
-                "Replay of match {:#x}: the history's events are of {}; none shown",
-                self.match_id,
-                events.replay_id.as_str()
-            );
-            return Vec::new();
-        }
-        events
-            .events
+        self.deaths = events
+            .iter()
+            .filter_map(|event| match event.kind {
+                match_events::EventKind::Kill {
+                    victim: Some(victim),
+                    ..
+                }
+                | match_events::EventKind::Death { victim } => {
+                    Some((victim.place, earliest(event.timing)))
+                }
+                _ => None,
+            })
+            .collect();
+        self.deaths.sort_by_key(|(_, at)| *at);
+        self.timeline = events
             .iter()
             .filter_map(|event| {
                 let time = MatchMs(event.timing.at());
@@ -251,7 +259,7 @@ impl Recording {
                     victim,
                 })
             })
-            .collect()
+            .collect();
     }
 
     /// The account's place (its first, if it had two).
@@ -407,8 +415,6 @@ enum Ended {
 struct Playback {
     recording: Arc<Recording>,
     request: WatchRequest,
-    /// Its timeline ([`Recording::timeline`]), for its game's events note.
-    timeline: Vec<TimelineEvent>,
     spectator: Spectator,
     clock: Clock,
     speed: Speed,
@@ -431,22 +437,17 @@ struct Playback {
 
 impl Playback {
     fn new(
-        prepared: Prepared,
+        recording: Arc<Recording>,
+        request: WatchRequest,
         spectator: Spectator,
         start: u32,
         settings: Settings,
         now: Instant,
     ) -> Self {
-        let Prepared {
-            request,
-            recording,
-            timeline,
-        } = prepared;
         let (inputs, events) = recording.due(start);
         Self {
             recording,
             request,
-            timeline,
             spectator,
             clock: Clock::Loading { at: start },
             speed: Speed::Normal,
@@ -641,11 +642,12 @@ impl Playback {
         self.spectator.note(&note.encode());
         if fresh {
             // The timeline, in notes of up to 64 (an empty one for none).
-            let total = self.timeline.len().min(usize::from(u16::MAX)) as u16;
+            let timeline = &self.recording.timeline;
+            let total = timeline.len().min(usize::from(u16::MAX)) as u16;
             let mut buffer = [0; 6 + 7 * EVENTS_PER_NOTE];
             let mut first = 0;
             loop {
-                let chunk = &self.timeline[usize::from(first)..]
+                let chunk = &timeline[usize::from(first)..]
                     [..usize::from(total - first).min(EVENTS_PER_NOTE)];
                 if let Some(len) = EventsNote::encode(first, total, chunk, &mut buffer) {
                     self.spectator.note(&buffer[..len]);
@@ -771,6 +773,7 @@ type Refused = (Status, Option<Refusal>);
 /// [`Watches::judge`]: session::v026g::replay_watch::Watches::judge
 fn read(
     replays: &Replays,
+    accounts: Option<&GameAccounts>,
     record_dir: &Path,
     max_bytes: u64,
     request: &WatchRequest,
@@ -794,14 +797,30 @@ fn read(
     replays
         .watches()
         .judge(request, &players, &revisions, replays.oldest())?;
-    Recording::load(&path, match_id).map_err(failed)
+    let mut recording = Recording::load(&path, match_id).map_err(failed)?;
+    // Its file's stem is its replay id: the history's match it is.
+    let replay_id = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .and_then(ReplayId::parse);
+    if let (Some(history), Some(replay_id)) = (accounts.and_then(GameAccounts::history), replay_id)
+    {
+        match history.events_of_replay(&replay_id) {
+            Ok(Some(kept)) => recording.take_events(&kept.events),
+            Ok(None) => {}
+            Err(error) => log::warn!(
+                "Replay sessions: the events of {} not read: {error}",
+                replay_id.as_str()
+            ),
+        }
+    }
+    Ok(recording)
 }
 
-/// A session's recording read, and its timeline: its game not here yet.
+/// A session's recording read: its game not here yet.
 struct Prepared {
     request: WatchRequest,
     recording: Arc<Recording>,
-    timeline: Vec<TimelineEvent>,
 }
 
 /// A recording being read on its own thread, for a session.
@@ -905,7 +924,6 @@ impl ReplayWatch {
             Some(old) => Prepared {
                 request,
                 recording: old.recording,
-                timeline: old.timeline,
             },
             None => match self.ready.remove(&session_id) {
                 Some(prepared) => prepared,
@@ -928,7 +946,14 @@ impl ReplayWatch {
             sur::MAX_PLAYERS as u8,
             self.port,
         );
-        let playback = Playback::new(prepared, spectator, start, self.settings.clone(), now);
+        let playback = Playback::new(
+            prepared.recording,
+            prepared.request,
+            spectator,
+            start,
+            self.settings.clone(),
+            now,
+        );
         self.playbacks.insert(addr, playback);
         Ok(())
     }
@@ -998,8 +1023,7 @@ impl ReplayWatch {
     /// The recording read for the session: where it starts, told to the
     /// lobby, which sends its game.
     fn prepare(&mut self, request: WatchRequest, recording: Arc<Recording>, now: Instant) {
-        let timeline = recording.timeline(self.replays.watches().events(&request));
-        let start = recording.start(request.from, request.account_id, &timeline);
+        let start = recording.start(request.from, request.account_id);
         if self.replays.watches().loaded(&request, start, now) {
             log::info!(
                 "Replay sessions: match {:#x} ready for account {}: from {start} ms of {} ms, {} \
@@ -1009,14 +1033,8 @@ impl ReplayWatch {
                 recording.end,
                 recording.worlds.len()
             );
-            self.ready.insert(
-                request.session_id,
-                Prepared {
-                    request,
-                    recording,
-                    timeline,
-                },
-            );
+            self.ready
+                .insert(request.session_id, Prepared { request, recording });
         }
     }
 
@@ -1054,8 +1072,9 @@ impl ReplayWatch {
             return;
         }
         let (send, answer) = channel();
-        let (replays, dir, max) = (
+        let (replays, accounts, dir, max) = (
             Arc::clone(&self.replays),
+            self.settings.accounts.clone(),
             self.record_dir.clone(),
             self.max_recording_bytes,
         );
@@ -1064,7 +1083,8 @@ impl ReplayWatch {
             .spawn(move || {
                 replay::lowest_priority();
                 let started = Instant::now();
-                let read = read(&replays, &dir, max, &request);
+                let accounts = accounts.as_ref().map(|accounts| &*accounts.0);
+                let read = read(&replays, accounts, &dir, max, &request);
                 log::info!(
                     "Replay sessions: match {:#x} read in {} ms",
                     request.match_id,
@@ -1107,18 +1127,18 @@ impl ReplayWatch {
         }
     }
 
-    /// A session's game shown `recording` as if read for it, its file named
-    /// `replay_id` (the tests' recordings are `.sur` files of no known
-    /// players and no name).
+    /// A session's game shown `recording` as if read for it, with the
+    /// history's `events` of it (the tests' recordings are `.sur` files of
+    /// no known players and no history).
     #[cfg(test)]
     pub(crate) fn prepare_for_test(
         &mut self,
         request: WatchRequest,
         mut recording: Recording,
-        replay_id: Option<ReplayId>,
+        events: &[MatchEvent],
         now: Instant,
     ) {
-        recording.replay_id = replay_id;
+        recording.take_events(events);
         self.prepare(request, Arc::new(recording), now);
     }
 

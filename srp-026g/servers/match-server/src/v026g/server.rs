@@ -100,12 +100,13 @@ pub fn run_on(
     results: impl ResultsSink + 'static,
     stop: &AtomicBool,
 ) -> io::Result<()> {
-    run_on_with_replays(socket, registry, store, results, stop, None)
+    run_on_with_replays(socket, registry, store, results, stop, None, None)
 }
 
 /// [`run_on`] whose recordings' writer tells `replays` of every file it
 /// keeps, drops or deletes (`SRP_REPLAY_DIR`, `super::replay`): srp's, one
-/// for the process, which its lobby and web page share.
+/// for the process, which its lobby and web page share; its replay
+/// sessions read their timelines from the history of `accounts`.
 pub fn run_on_with_replays(
     socket: &UdpSocket,
     registry: Arc<MatchRegistry>,
@@ -113,8 +114,10 @@ pub fn run_on_with_replays(
     results: impl ResultsSink + 'static,
     stop: &AtomicBool,
     replays: Option<Arc<Replays>>,
+    accounts: Option<Arc<session::v026g::GameAccounts>>,
 ) -> io::Result<()> {
     let mut settings = Settings::from_env();
+    settings.accounts = accounts.map(super::Accounts);
     if let Some(record) = settings.record.as_mut() {
         record.replays = replays.map(Desk);
     }

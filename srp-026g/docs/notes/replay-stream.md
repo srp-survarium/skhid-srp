@@ -17,8 +17,9 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    the first view; `place` the roster place the movie wants in view first, 0xFF for anyone.
    Or `player = 0xC100_0000` (`ReplayWatchAsk::MyDeaths`, the results screen's "Watch my
    deaths"): from the asker's first death (4 s before it), its own place in view; the server finds
-   its place in the recording, its deaths in the match's events (the history, below); with no
-   death kept, it starts where the asker's place is first in view.
+   its place in the recording, its deaths in the match's events (the history, below): 4 s before
+   the earliest its first death can have been (a death known within a window, the window's
+   start); with no death kept, it starts where the asker's place is first in view.
 2. The lobby answers at once with one `R1` row (`91`, as History's ask is answered,
    `replay_watch.md` section 2): `R1;preparing;<id 8 hex>;2`, or why not: `off` (no recordings),
    `old_game` (revision below 14), `busy` (the player is in a match or queued, has a session
@@ -77,13 +78,12 @@ clock):
     victim:u8` (kind 1 kill, 2 objective; 0xFF no place), as many notes as it takes, once live
     (an empty one for none).
 
-**The events** are the match history's (`persist::match_events`, `docs/notes/match-events.md`),
-read by the lobby when the session starts (`MatchHistory::events` of the match id: the newest kept
-match of it) and kept with the session: a kill (kind 1, killer and victim), a death no kill was
-paired with (kind 1, no actor), a battery found or delivered (kind 2, its player); captures, scores
-and the end are not shown. A match is in the history a moment after its result; older ones only
-if backfilled. The session plays the newest recording of the match id, and shows the events only
-when their replay id is that recording's file stem (ids repeat across restarts).
+**The events** are the match history's (`persist::match_events`, `docs/notes/match_history.md`),
+read by the match server with the recording (`MatchHistory::events_of_replay` of its file stem,
+the replay id; srp hands the match server its accounts): a kill (kind 1, killer and victim), a
+death no kill was paired with (kind 1, no actor), a battery found or delivered (kind 2, its
+player); captures, scores and the end are not shown. A match is in the history a moment after its
+result; older ones only if backfilled. The session plays the newest recording of the match id.
 
 What the server does:
 - `pause` stops the clock (nothing more is sent but a 0xE6 ping each second, so the game's 5 s
