@@ -380,15 +380,18 @@ fn recording(settings: &ReplaySettings, match_id: u32) -> Option<PathBuf> {
     recording_in(&settings.record_dir, match_id)
 }
 
-/// The kept recording of a match in `record_dir`: a regular file named
-/// `rec026g_<UTC start>_<id:08x>.srprec`.
+/// The newest kept recording of a match in `record_dir`: a regular file
+/// named `rec026g_<UTC start>_<id:08x>.srprec`.
 pub(crate) fn recording_in(record_dir: &Path, match_id: u32) -> Option<PathBuf> {
     fs::read_dir(record_dir)
         .ok()?
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
         .map(|entry| entry.path())
-        .find(|path| record::match_of_file(path) == Some(match_id))
+        .filter(|path| record::match_of_file(path) == Some(match_id))
+        // The newest: an id comes again after a restart, and the name
+        // starts with when it was made.
+        .max()
 }
 
 /// Every place's account, and the patch revision each place's game

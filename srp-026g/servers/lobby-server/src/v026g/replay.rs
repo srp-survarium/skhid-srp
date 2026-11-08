@@ -41,6 +41,7 @@
 
 use std::time::Instant;
 
+use session::v026g::persist::match_events::MatchEvents;
 use session::v026g::replay_watch::{WatchFrom, WatchRequest};
 use session::v026g::replays::{Answer, Known, Refusal, Status, release_tag};
 use survarium::v026g::lobby;
@@ -106,6 +107,7 @@ impl Core<'_> {
                     },
                     revision: self.store.client_revision(who.session_id).unwrap_or(0),
                 },
+                self.match_events(match_id),
                 now,
             ),
         };
@@ -119,6 +121,19 @@ impl Core<'_> {
             who.addr,
             lobby::replay_answer(status.word(), match_id, figure),
         );
+    }
+
+    /// The history's events of the newest match of the id (none without a
+    /// history): the replay's timeline and its deaths (`match_events`). The
+    /// match server shows them only if their replay id is its recording's.
+    fn match_events(&self, match_id: u32) -> Option<MatchEvents> {
+        match self.accounts.history()?.events(match_id) {
+            Ok(found) => found,
+            Err(error) => {
+                log::warn!("Match {match_id:#x}'s events not read for its replay: {error}");
+                None
+            }
+        }
     }
 
     /// The replay sessions' turn: those waiting too long end, and the games

@@ -26,6 +26,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use super::persist::match_events::MatchEvents;
 use super::replays::{MIN_REVISION, Refusal, Status, refusal_of};
 use crate::LockExt;
 
@@ -169,6 +170,10 @@ pub struct WatchAnswer {
 
 struct Session {
     request: WatchRequest,
+    /// The history's events of the newest match of its id
+    /// (`persist::match_events`): the replay's timeline and its deaths, if
+    /// their replay id is its recording's. `None` when the history has none.
+    events: Option<MatchEvents>,
     stage: Stage,
     /// When it came to its stage.
     since: Instant,
@@ -199,7 +204,12 @@ impl Watches {
     /// A player asks to watch a match: `preparing` (its recording is read
     /// next), or why not at once. A player with a session not over gets
     /// `busy`, as does one past [`WatchSettings::max_sessions`].
-    pub fn start(&self, request: WatchRequest, now: Instant) -> Status {
+    pub fn start(
+        &self,
+        request: WatchRequest,
+        events: Option<MatchEvents>,
+        now: Instant,
+    ) -> Status {
         let Some(settings) = &self.settings else {
             return Status::Off;
         };
@@ -232,6 +242,7 @@ impl Watches {
             request.account_id,
             Session {
                 request,
+                events,
                 stage: Stage::Queued,
                 since: now,
             },
@@ -292,6 +303,15 @@ impl Watches {
                 session.request == *request
                     && matches!(session.stage, Stage::Ready { .. } | Stage::Sent { .. })
             })
+    }
+
+    /// The match's events the lobby gave the request's session.
+    pub fn events(&self, request: &WatchRequest) -> Option<MatchEvents> {
+        self.sessions
+            .locked()
+            .get(&request.account_id)
+            .filter(|session| session.request == *request)
+            .and_then(|session| session.events.clone())
     }
 
     /// The sessions read and ready, whose games the lobby sends now
@@ -558,11 +578,11 @@ mod tests {
         let now = Instant::now();
         let watches = watches(Access::Match, 1);
         let alice = request(ALICE);
-        assert_eq!(watches.start(alice, now), Status::Preparing);
+        assert_eq!(watches.start(alice, None, now), Status::Preparing);
         assert!(watches.holds(ALICE));
         // One session at a time: the cap, and the same player again.
-        assert_eq!(watches.start(request(MOD), now), Status::Busy);
-        assert_eq!(watches.start(alice, now), Status::Busy);
+        assert_eq!(watches.start(request(MOD), None, now), Status::Busy);
+        assert_eq!(watches.start(alice, None, now), Status::Busy);
         assert_eq!(watches.next_job(now), Some(alice));
         assert_eq!(watches.next_job(now), None);
         assert_eq!(watches.answer(ALICE).unwrap().status, Status::Preparing);
@@ -580,7 +600,7 @@ mod tests {
         watches.ended(&alice);
         assert!(!watches.holds(ALICE));
         assert_eq!(watches.answer(ALICE), None);
-        assert_eq!(watches.start(request(MOD), now), Status::Preparing);
+        assert_eq!(watches.start(request(MOD), None, now), Status::Preparing);
     }
 
     #[test]
@@ -588,7 +608,7 @@ mod tests {
         let now = Instant::now();
         let watches = watches(Access::Match, 1);
         let alice = request(ALICE);
-        watches.start(alice, now);
+        watches.start(alice, None, now);
         watches.next_job(now);
         let why = Refusal::Older {
             from: 20,
@@ -597,7 +617,7 @@ mod tests {
         };
         watches.refuse(&alice, Status::Incompatible, Some(why), now);
         assert!(!watches.holds(ALICE));
-        assert_eq!(watches.start(request(MOD), now), Status::Preparing);
+        assert_eq!(watches.start(request(MOD), None, now), Status::Preparing);
         let answer = watches.answer(ALICE).unwrap();
         assert_eq!(
             (answer.status, answer.refusal),
@@ -611,8 +631,8 @@ mod tests {
         let now = Instant::now();
         let watches = watches(Access::Match, 4);
         let (alice, other) = (request(ALICE), request(MOD));
-        watches.start(alice, now);
-        watches.start(other, now);
+        watches.start(alice, None, now);
+        watches.start(other, None, now);
         watches.next_job(now);
         watches.next_job(now);
         assert!(watches.loaded(&other, 50, now));
@@ -626,7 +646,7 @@ mod tests {
             revision: MIN_REVISION - 1,
             ..alice
         };
-        assert_eq!(watches.start(old, now), Status::OldGame);
-        assert_eq!(Watches::new(None).start(alice, now), Status::Off);
+        assert_eq!(watches.start(old, None, now), Status::OldGame);
+        assert_eq!(Watches::new(None).start(alice, None, now), Status::Off);
     }
 }

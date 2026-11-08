@@ -17,13 +17,13 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    the first view; `place` the roster place the movie wants in view first, 0xFF for anyone.
    Or `player = 0xC100_0000` (`ReplayWatchAsk::MyDeaths`, the results screen's "Watch my
    deaths"): from the asker's first death (4 s before it), its own place in view; the server finds
-   both in the recording (the movie has neither). Until track D's per-match events are read, the
-   deaths are not known: it starts where the asker's place is first in view.
+   its place in the recording, its deaths in the match's events (the history, below); with no
+   death kept, it starts where the asker's place is first in view.
 2. The lobby answers at once with one `R1` row (`91`, as History's ask is answered,
    `replay_watch.md` section 2): `R1;preparing;<id 8 hex>;2`, or why not: `off` (no recordings),
    `old_game` (revision below 14), `busy` (the player is in a match or queued, has a session
    already, or `SRP_REPLAY_WATCH_MAX` sessions run).
-3. The match server reads the match's `.srprec` from `SRP_RECORD_DIR` on a thread of its own
+3. The match server reads the match's newest `.srprec` from `SRP_RECORD_DIR` on a thread of its own
    (nice 19, one at a time; a recording already loaded for another session of that match is
    shared), and judges the asker before converting it: the players of the match and the
    moderators (`SRP_REPLAY_WATCH=match`, the default) or anyone (`all`); the recording's
@@ -74,8 +74,16 @@ clock):
     world), after each change and after each start again (a seek, a drift); the game takes one
     only when its revision is newer;
   - the events, `52 02 first:u16 total:u16` and up to 64 of `time:u32 kind:u8 actor:u8
-    victim:u8` (kind 1 kill, 2 objective; 0xFF no place), once live. Empty for now; track D's
-    per-match list fills it.
+    victim:u8` (kind 1 kill, 2 objective; 0xFF no place), as many notes as it takes, once live
+    (an empty one for none).
+
+**The events** are the match history's (`persist::match_events`, `docs/notes/match-events.md`),
+read by the lobby when the session starts (`MatchHistory::events` of the match id: the newest kept
+match of it) and kept with the session: a kill (kind 1, killer and victim), a death no kill was
+paired with (kind 1, no actor), a battery found or delivered (kind 2, its player); captures, scores
+and the end are not shown. A match is in the history a moment after its result; older ones only
+if backfilled. The session plays the newest recording of the match id, and shows the events only
+when their replay id is that recording's file stem (ids repeat across restarts).
 
 What the server does:
 - `pause` stops the clock (nothing more is sent but a 0xE6 ping each second, so the game's 5 s

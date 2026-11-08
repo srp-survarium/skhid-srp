@@ -16,8 +16,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU32;
 
+use session::v026g::persist::match_events::{self, MatchEvent, MatchEvents, Player, Timing};
 use session::v026g::replay_watch::{Access, Stage, WatchFrom, WatchRequest, WatchSettings};
-use session::v026g::replays::{Refusal, Replays, Status};
+use session::v026g::replays::{Refusal, ReplayId, Replays, Status};
 use survarium::v026g::maps::MatchMap;
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
 use survarium::v026g::match_msgs::static_info::{MatchOptions, SCORE_WEIGHTS, StaticInfo};
@@ -169,12 +170,30 @@ fn bench() -> (Bench, Arc<Replays>) {
 /// A session of the tests' recording from `at_ms`, read and sent, as the
 /// lobby leaves it.
 fn session_of_the_recording(bench: &mut Bench, replays: &Replays, at_ms: u32) -> WatchRequest {
+    session_with_events(bench, replays, at_ms, None)
+}
+
+/// The name the tests' recording is given.
+fn test_replay_id() -> ReplayId {
+    ReplayId::parse("rec026g_20261107-135509_00001234").unwrap()
+}
+
+/// The same, with the history's `events` of the match named `replay_id`.
+fn session_with_events(
+    bench: &mut Bench,
+    replays: &Replays,
+    at_ms: u32,
+    events: Option<MatchEvents>,
+) -> WatchRequest {
     let request = request(WATCHER_ACCOUNT, 0x1234, at_ms, None);
     let now = bench.now();
-    assert_eq!(replays.watches().start(request, now), Status::Preparing);
+    assert_eq!(
+        replays.watches().start(request, events, now),
+        Status::Preparing
+    );
     assert_eq!(replays.watches().next_job(now), Some(request));
     let watch = bench.server.replay_watch.as_mut().unwrap();
-    watch.prepare_for_test(request, playable(), now);
+    watch.prepare_for_test(request, playable(), Some(test_replay_id()), now);
     replays.watches().sent(WATCHER_ACCOUNT, now);
     request
 }
@@ -615,7 +634,7 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
             revision,
             ..request(account, match_id, 0, None)
         };
-        assert_eq!(watches.start(request, bench.now()), Status::Preparing);
+        assert_eq!(watches.start(request, None, bench.now()), Status::Preparing);
         read_for(bench, &replays, account)
     };
     // Not a player.
@@ -648,18 +667,44 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
     let open = self::replays(Access::All);
     let mut anyone = Bench::growing(2, MAP_TDM, settings(&dir, &open));
     let request = request(555, match_id, 0, Some(1));
-    open.watches().start(request, anyone.now());
+    open.watches().start(request, None, anyone.now());
     let Stage::Ready { start_ms } = read_for(&mut anyone, &open, 555) else {
         panic!("anyone may watch");
     };
-    // "My deaths" of place 1's player: from where its place is in view
-    // (its deaths are not kept yet).
+    // "My deaths" of place 1's player with no deaths kept: from where its
+    // place is in view.
     let deaths = WatchRequest {
         from: WatchFrom::MyDeaths,
         ..self::request(101, match_id, 0, None)
     };
-    open.watches().start(deaths, anyone.now());
+    open.watches().start(deaths, None, anyone.now());
     assert_eq!(read_for(&mut anyone, &open, 101), Stage::Ready { start_ms });
+    // With place 1 killed at 10 s: from 6 s, as a session asked for 6 s.
+    let at_six = self::request(556, match_id, 6_000, Some(1));
+    open.watches().start(at_six, None, anyone.now());
+    let Stage::Ready { start_ms } = read_for(&mut anyone, &open, 556) else {
+        panic!("anyone may watch");
+    };
+    let deaths = WatchRequest {
+        account_id: 101,
+        session_id: session_for(101) + 1,
+        ..deaths
+    };
+    open.watches().ended(&WatchRequest {
+        session_id: session_for(101),
+        ..deaths
+    });
+    let replay_id = path
+        .file_stem()
+        .and_then(|stem| ReplayId::parse(stem.to_str()?))
+        .expect("a recording named by its replay id");
+    let killed = MatchEvents {
+        replay_id,
+        events: vec![kill(10_000, 0, Some(1))],
+    };
+    open.watches().start(deaths, Some(killed), anyone.now());
+    assert_eq!(read_for(&mut anyone, &open, 101), Stage::Ready { start_ms });
+    assert!(start_ms > 0);
     drop(anyone);
 
     // Player 100's game is sent and connects.
@@ -688,7 +733,7 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
 fn a_match_without_a_recording_is_gone() {
     let (mut bench, replays) = bench();
     let request = request(WATCHER_ACCOUNT, 0xDEAD, 0, None);
-    replays.watches().start(request, bench.now());
+    replays.watches().start(request, None, bench.now());
     assert_eq!(
         read_for(&mut bench, &replays, WATCHER_ACCOUNT),
         Stage::Refused {
@@ -738,4 +783,123 @@ fn recorded_start(path: &Path, place: u8) -> Vec<(u8, Vec<u8>)> {
         }
     }
     panic!("place {place} never sent 0xDA");
+}
+
+/// A kill of the history at `at`.
+fn kill(at: u32, killer: u8, victim: Option<u8>) -> MatchEvent {
+    let player = |place| Player {
+        place,
+        account_id: 100 + u32::from(place),
+    };
+    MatchEvent {
+        timing: Timing::Exact(at),
+        kind: match_events::EventKind::Kill {
+            killer: player(killer),
+            victim: victim.map(player),
+        },
+    }
+}
+
+/// The events notes its game took: (first, total, events).
+fn events_noted(client: &Client) -> Vec<(u16, u16, Vec<replay_control::Event>)> {
+    client
+        .replay_notes
+        .iter()
+        .filter_map(|payload| match ServerNote::parse(payload)? {
+            ServerNote::Events(note) => Some((
+                note.first,
+                note.total,
+                note.events().filter_map(|(_, event)| event).collect(),
+            )),
+            ServerNote::Playback(_) => None,
+        })
+        .collect()
+}
+
+/// The history's events of the match go to its game once live, 64 a note:
+/// kills, deaths (no actor) and batteries; scores and the like do not.
+#[test]
+fn the_game_is_told_the_matchs_events_in_notes_of_64() {
+    let (mut bench, replays) = bench();
+    let mut events: Vec<MatchEvent> = (0..69)
+        .map(|n| kill(15_000 + n * 1_000, (n % 2) as u8, Some(((n + 1) % 2) as u8)))
+        .collect();
+    events.push(MatchEvent {
+        timing: Timing::Between {
+            after: 90_000,
+            by: 95_000,
+        },
+        kind: match_events::EventKind::Death {
+            victim: Player {
+                place: 1,
+                account_id: 101,
+            },
+        },
+    });
+    events.push(MatchEvent {
+        timing: Timing::Exact(114_600),
+        kind: match_events::EventKind::End { points: [3, 2] },
+    });
+    let events = MatchEvents {
+        replay_id: test_replay_id(),
+        events,
+    };
+    session_with_events(&mut bench, &replays, 0, Some(events));
+    let at = watching(&mut bench, WATCHER);
+    bench.run(200);
+    let noted = events_noted(&bench.clients[at]);
+    assert_eq!(
+        noted
+            .iter()
+            .map(|(first, total, events)| (*first, *total, events.len()))
+            .collect::<Vec<_>>(),
+        [(0, 70, 64), (64, 70, 6)]
+    );
+    let first = noted[0].2[0];
+    assert_eq!(
+        (first.time, first.kind, first.actor, first.victim),
+        (
+            MatchMs(15_000),
+            replay_control::EventKind::Kill,
+            Some(0),
+            Some(1)
+        )
+    );
+    let death = noted[1].2[5];
+    assert_eq!(
+        (death.time, death.actor, death.victim),
+        (MatchMs(95_000), None, Some(1))
+    );
+    bench.assert_no_faults();
+}
+
+/// The history's newest match of the id is another recording's (ids repeat
+/// across restarts): its events are not shown.
+#[test]
+fn another_matchs_events_are_not_shown() {
+    let (mut bench, replays) = bench();
+    let events = MatchEvents {
+        replay_id: ReplayId::parse("rec026g_20261108-010203_00001234").unwrap(),
+        events: vec![kill(20_000, 0, Some(1))],
+    };
+    session_with_events(&mut bench, &replays, 0, Some(events));
+    let at = watching(&mut bench, WATCHER);
+    bench.run(200);
+    assert_eq!(events_noted(&bench.clients[at]), [(0, 0, Vec::new())]);
+}
+
+/// A match id comes again after a restart: the session plays the newest
+/// recording of it (the one the history's newest match is).
+#[test]
+fn the_newest_recording_of_a_match_id_is_read() {
+    let dir = temp("newest");
+    for stamp in ["20261107-235959", "20261108-010203", "20261101-120000"] {
+        std::fs::write(dir.join(format!("rec026g_{stamp}_00001234.srprec")), b"x").unwrap();
+    }
+    std::fs::write(dir.join("rec026g_20261109-000000_00005678.srprec"), b"x").unwrap();
+    assert_eq!(
+        crate::v026g::replay::recording_in(&dir, 0x1234),
+        Some(dir.join("rec026g_20261108-010203_00001234.srprec"))
+    );
+    std::fs::remove_dir_all(dir).unwrap();
 }
