@@ -193,6 +193,10 @@ pub struct QuestPay {
     pub money: u32,
     /// `(faction, points)`.
     pub reputation: Vec<(u8, u32)>,
+    /// The reputation of the factions whose top level the account holds
+    /// ([`Account::faction_complete`]), paid as experience: the caller pays
+    /// it with the match's (`rewards::pay_levels`).
+    pub experience: u32,
     pub notices: Vec<Notice>,
 }
 
@@ -255,7 +259,8 @@ pub fn evaluate(account: &mut Account, stats: &MatchStats, now: u64, rng: &mut R
 
 /// Check the account's quests against a finished match. A quest whose goal
 /// the match met is paid (its money and reputation, as `scale` makes
-/// them), rests for its cooldown, and is replaced. `win_x_games` counts
+/// them; a faction's reputation as experience once the account holds its
+/// top level), rests for its cooldown, and is replaced. `win_x_games` counts
 /// won battles towards its `max_games_count`.
 pub fn evaluate_scaled(
     account: &mut Account,
@@ -300,6 +305,10 @@ pub fn evaluate_scaled(
             .push((QUEST_MESSAGE, format!("#q![{instance_id}][{}]", quest.id)));
         for &(faction, amount) in &quest.reputation {
             let (_, amount) = scale.of(0, amount);
+            if account.faction_complete(faction) {
+                pay.experience = pay.experience.saturating_add(amount);
+                continue;
+            }
             for level in account.add_reputation(faction, amount) {
                 pay.notices
                     .push((REPUTATION_LEVEL_MESSAGE, format!("#ru[{faction}:{level}]")));

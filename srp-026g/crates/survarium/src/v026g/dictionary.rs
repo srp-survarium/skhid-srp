@@ -359,6 +359,16 @@ impl Dictionary {
             .and_then(|entry| entry.levels.iter().rposition(|level| points >= level.value))
             .unwrap_or(0) as u8
     }
+
+    /// The threshold of a faction's top reputation level; `None` for a
+    /// faction the dictionary has not.
+    pub fn reputation_top(&self, faction: u8) -> Option<u32> {
+        self.factions
+            .iter()
+            .find(|entry| entry.id == faction)
+            .and_then(|entry| entry.levels.last())
+            .map(|level| level.value)
+    }
 }
 
 #[cfg(test)]
@@ -528,6 +538,9 @@ mod tests {
         assert_eq!(dictionary.reputation_level(1, 100), 1);
         assert_eq!(dictionary.reputation_level(1, 2999), 4);
         assert_eq!(dictionary.reputation_level(1, 1_000_000), 5);
+        assert_eq!(dictionary.reputation_top(1), Some(3000));
+        assert_eq!(dictionary.reputation_top(3), Some(35250));
+        assert_eq!(dictionary.reputation_top(99), None);
 
         assert_eq!(
             dictionary.bundles[0].cfg,

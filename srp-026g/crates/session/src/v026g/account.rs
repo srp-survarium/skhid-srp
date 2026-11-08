@@ -521,6 +521,16 @@ impl Account {
         (before + 1..=self.reputation_level(faction)).collect()
     }
 
+    /// Whether its reputation with `faction` holds the faction's top level
+    /// (`factions_dict`): that faction's quests pay experience instead of
+    /// reputation (the owner, 2026-11-08; `quests::evaluate_scaled`, and the
+    /// lobby movie's quest rewards show it).
+    pub fn faction_complete(&self, faction: u8) -> bool {
+        Dictionary::shared()
+            .reputation_top(faction)
+            .is_some_and(|top| self.reputation(faction) >= top)
+    }
+
     /// The slots of `kit` whose item is worn in a slot another worn item
     /// covers ([`item_params::covered_slots`]), and which the rule of the
     /// lobby (`rules::move_items`) never lets be filled. An item covering

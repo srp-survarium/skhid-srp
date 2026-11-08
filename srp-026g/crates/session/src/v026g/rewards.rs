@@ -440,6 +440,10 @@ pub struct Reward {
     pub quest_money: u32,
     /// `(faction, points)`.
     pub quest_reputation: Vec<(u8, u32)>,
+    /// What the quests of factions whose top level the account holds paid
+    /// as experience instead of reputation ([`quests::QuestPay`]).
+    #[serde(default)]
+    pub quest_experience: u32,
     pub rating_before: u16,
     pub rating_after: u16,
     pub drop: Option<Dropped>,
@@ -1135,7 +1139,7 @@ impl Results {
             };
             log::info!(
                 "Match {:#x}: {} ({:?}) gets {} experience, {} money, {} reputation with faction \
-                 {}, quests {} money, drop {:?}, rating {} -> {} (score {})",
+                 {}, quests {} money {} experience, drop {:?}, rating {} -> {} (score {})",
                 result.match_id,
                 player.name,
                 report.reward.standing,
@@ -1144,6 +1148,7 @@ impl Results {
                 report.reward.reputation,
                 report.reward.reputation_faction,
                 report.reward.quest_money,
+                report.reward.quest_experience,
                 report.reward.drop,
                 report.reward.rating_before,
                 report.reward.rating_after,
@@ -2092,8 +2097,6 @@ impl<'a> Shared<'a> {
         reward.experience = experience;
         reward.reputation = reputation;
         account.generic_money = account.generic_money.saturating_add(money);
-        (reward.levels, reward.level_money, reward.level_gold) = pay_levels(account, experience);
-        notices.extend(super::notices::levels_reached(&reward.levels));
         if faction != 0 {
             reward.reputation_levels = account.add_reputation(faction, reputation);
             for &level in &reward.reputation_levels {
@@ -2119,8 +2122,14 @@ impl<'a> Shared<'a> {
                     .map_or(0, |&(_, points)| points),
             );
             reward.quest_reputation = pay.reputation;
+            reward.quest_experience = pay.experience;
             notices.extend(pay.notices);
         }
+        // The levels, after the quests: a complete faction's quests pay
+        // experience.
+        (reward.levels, reward.level_money, reward.level_gold) =
+            pay_levels(account, experience.saturating_add(reward.quest_experience));
+        notices.extend(super::notices::levels_reached(&reward.levels));
 
         // The drop: a drop card's roll (the owner's of 2026-11-04), every
         // time. Its table gives a weapon, an armour piece or a cosmetic,

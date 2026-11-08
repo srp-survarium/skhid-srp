@@ -724,6 +724,11 @@ package survarium.controls
          this._reputationsList.dataProvider = new DataProvider(this._factions);
          this._reputationsList.validateNow();
          this.resetFilter(null);
+         // A faction complete now shows its quests' reputation as experience.
+         if(this._questsList && this._questsList.dataProvider)
+         {
+            this._questsList.dataProvider.invalidate();
+         }
          if(this._activeFaction != Faction.ANY)
          {
             this.setActiveFaction(this._activeFaction);

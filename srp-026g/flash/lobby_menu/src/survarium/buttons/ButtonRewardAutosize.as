@@ -42,6 +42,14 @@ package survarium.buttons
          invalidateData();
       }
       
+      // A quest's reputation with a faction whose top level the player holds:
+      // the server pays it as experience, so it shows as experience (its own
+      // number, no reputation entry).
+      protected function reputationAsExperience() : Boolean
+      {
+         return _data.quest == true && _data.type == Reward.REPUTATION && PlayerInfo.isFactionComplete(_data.param);
+      }
+      
       protected function updateContent() : void
       {
          var useMultiplier:Boolean;
@@ -55,7 +63,7 @@ package survarium.buttons
             this.icon.gotoAndStop(_data.param == MoneyType.REGULAR ? 1 : 2);
             this.icon.visible = true;
          }
-         else if(_data.type == Reward.EXPERIENCE)
+         else if(_data.type == Reward.EXPERIENCE || this.reputationAsExperience())
          {
             this.icon.gotoAndStop(4);
             this.icon.visible = true;

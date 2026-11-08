@@ -563,11 +563,13 @@ package survarium.controls
                   last = (this._reputations[i][unlockedLevel]);
                   if(this._reputations[i][unlockedLevel + 1] == undefined)
                   {
+                     PlayerInfo.completedFactions[i] = true;
                      tot = (this._reputations[i][unlockedLevel]);
                      next = (this._reputations[i][unlockedLevel]);
                   }
                   else
                   {
+                     PlayerInfo.completedFactions[i] = false;
                      tot = this._reputations[i][unlockedLevel + 1] - last;
                      next = (this._reputations[i][unlockedLevel + 1]);
                   }
