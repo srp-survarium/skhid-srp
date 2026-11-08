@@ -303,11 +303,12 @@ does nothing else with it. The updater (`exe/src/replay.rs`, the rules in
    has: the same bytes are this replay saved before (the download goes),
    else `_2`, `_3`, ... A header that does not read: "damaged".
 
-The outcome is one message box in the game's language (the `localization`
+A problem is one message box in the game's language (the `localization`
 line of `<Documents>\survarium\user.cfg`, which the game's Settings and the
 launcher's menu write, read only; English for a language the messages are
-not written in, or without one): "The replay is saved:" and the file's full
-path, or the problem; and a line `replay: saved <path>` or `replay: FAILED
+not written in, or without one). A saved replay shows none, since the game is
+up and a box would take its focus: the card in the Watch window says Saved.
+Either way there is a line `replay: saved <path>` or `replay: FAILED
 (<problem>): <text>` in `updater_skhid.log`. The log names the token by its
 first 6 hex digits only. No progress is shown while the replay downloads (at
 most 12 MiB). No game is started (before 2026-11-08 it fetched a `.sur` and

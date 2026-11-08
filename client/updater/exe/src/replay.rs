@@ -36,21 +36,13 @@ const SPARE: u64 = 1 << 20;
 const OK: u32 = 0;
 const FAILED: u32 = 1;
 
-/// Which box a run ends with.
-enum Shown {
-    Saved,
-    Problem,
-}
-
-/// The one place the replay shows a window: a message box, unless the run
-/// is `quiet`. Every other path of this file reports through here or the
-/// log only.
-fn notify(quiet: bool, text: &str, shown: Shown) {
+/// The one place the replay shows a window: a problem's message box, unless
+/// the run is `quiet`. A saved replay shows none: the game is up, a box would
+/// take its focus, and its card already says it is saved. Every other path of
+/// this file reports through here or the log only.
+fn notify(quiet: bool, text: &str) {
     if !quiet {
-        match shown {
-            Shown::Saved => crate::info_box(text),
-            Shown::Problem => crate::message_box(text),
-        }
+        crate::message_box(text);
     }
 }
 
@@ -73,7 +65,7 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
     let layout = match Layout::find() {
         Ok(layout) => layout,
         Err(path) => {
-            notify(quiet, &crate::text::wrong_folder(&path), Shown::Problem);
+            notify(quiet, &crate::text::wrong_folder(&path));
             return FAILED;
         }
     };
@@ -90,18 +82,17 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
     match save(&layout, arguments) {
         Ok(path) => {
             log!("replay: saved {path}; exit 0");
-            notify(quiet, &replay::saved_message(language, &path), Shown::Saved);
             OK
         }
         Err(Failure::Problem(problem)) => {
             let text = replay::message(language, &problem);
             log!("replay: FAILED ({problem:?}): {text}");
-            notify(quiet, &text, Shown::Problem);
+            notify(quiet, &text);
             FAILED
         }
         Err(Failure::Server(message)) => {
             log!("replay: FAILED (server address): {message}");
-            notify(quiet, &message, Shown::Problem);
+            notify(quiet, &message);
             FAILED
         }
     }

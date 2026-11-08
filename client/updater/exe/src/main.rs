@@ -51,7 +51,7 @@ use updater_logic::zip;
 use windows_sys::Win32::System::Environment::GetCommandLineW;
 use windows_sys::Win32::System::Threading::ExitProcess;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    IDRETRY, MB_ICONERROR, MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL,
+    IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL,
     MB_SETFOREGROUND, MB_TOPMOST, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW,
 };
 
@@ -281,11 +281,6 @@ fn show_box(caption: &str, message: &str, style: MESSAGEBOX_STYLE) -> MESSAGEBOX
 
 fn message_box(message: &str) {
     show_box(text::TITLE, message, MB_OK | MB_ICONERROR);
-}
-
-/// A box that tells, with no problem in it (a replay saved): OK.
-fn info_box(message: &str) {
-    show_box(text::TITLE, message, MB_OK | MB_ICONINFORMATION);
 }
 
 /// A box of `updater_logic::problem` that needs no answer: OK.

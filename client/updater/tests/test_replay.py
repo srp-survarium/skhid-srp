@@ -138,9 +138,8 @@ class QuietSource(unittest.TestCase):
         with open(os.path.join(SOURCE, "replay.rs"), encoding="utf-8") as file:
             replay = file.read()
         # The one place of the boxes in the replay's code, behind `if !quiet`.
-        self.assertEqual(len(re.findall(r"_box\(", replay)), 2)
-        self.assertRegex(replay, r"fn notify\(quiet: bool, text: &str, shown: Shown\) \{\s*if !quiet \{\s*match shown \{"
-                                 r"\s*Shown::Saved => crate::info_box\(text\),\s*Shown::Problem => crate::message_box\(text\),")
+        self.assertEqual(len(re.findall(r"_box\(", replay)), 1)
+        self.assertRegex(replay, r"fn notify\(quiet: bool, text: &str\) \{\s*if !quiet \{\s*crate::message_box\(text\);")
         self.assertNotRegex(replay, r"MessageBox|CreateWindow|DialogBox")
         # The box is MessageBoxW of main.rs alone, and the replay branch returns
         # before any of main.rs's own calls of it.
