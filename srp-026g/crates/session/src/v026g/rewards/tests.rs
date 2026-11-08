@@ -920,6 +920,47 @@ fn a_quest_the_match_meets_is_paid_and_reputation_goes_to_the_quest_faction() {
     assert_eq!(report.players[1].reward.reputation, 0);
 }
 
+/// A faction whose top level the account holds pays its quests'
+/// reputation as experience; the match's own reputation is as ever.
+#[test]
+fn a_complete_factions_quest_pays_experience() {
+    let quests = Quests::shared();
+    let players = alice_and_bob();
+    let store = accounts(&players);
+    let quest = quests.quest(10101).unwrap();
+    {
+        let alice = store.get(10).unwrap();
+        let mut alice = alice.locked();
+        quests::choose_faction(&mut alice, 1).unwrap();
+        alice.quests.push(QuestInstance {
+            instance_id: 50,
+            quest_id: quest.id,
+            games: 0,
+            expires_at: NOW + 10_000,
+        });
+        alice.next_quest_instance = 51;
+        // The Scavengers' top level, 5 at 3000.
+        alice.add_reputation(1, 3000);
+        assert!(alice.faction_complete(1));
+    }
+    let before = account(&store, 10);
+    let report = Results::new()
+        .settle(&result(players), &store, &terms(), &mut Rng::new(5))
+        .unwrap();
+    let alice = &report.players[0];
+    assert_eq!(alice.reward.reputation, 6);
+    assert!(alice.reward.quest_money >= quest.money);
+    assert!(alice.reward.quest_reputation.is_empty());
+    assert_eq!(alice.full.quest_reputation, 0);
+    assert!(alice.reward.quest_experience >= quest.reputation[0].1);
+    let after = account(&store, 10);
+    assert_eq!(after.reputation(1), 3000 + 6);
+    assert_eq!(
+        after.exp_total,
+        before.exp_total + alice.reward.experience + alice.reward.quest_experience
+    );
+}
+
 /// A quest's award is multiplied by the level of the match it was
 /// completed in, and its reputation doubled in one of the day's doubled
 /// victories.

@@ -193,6 +193,7 @@ package survarium.controls
                   while(i < rewards.length)
                   {
                      rewards[i].useMultiplier = _data.useMultiplier != undefined ? _data.useMultiplier : true;
+                     rewards[i].quest = true;
                      i++;
                   }
                }

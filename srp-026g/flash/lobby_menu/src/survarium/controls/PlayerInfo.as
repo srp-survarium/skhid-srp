@@ -86,6 +86,16 @@ package survarium.controls
       
       public static var questRewardsMultiplierMoney:Number = 1;
       
+      // By faction id, true for one whose top reputation level the player holds
+      // (GangShop, from the faction levels): its quests pay their reputation as
+      // experience (the server's Account::faction_complete), and their rewards say so.
+      public static var completedFactions:Array = [];
+      
+      public static function isFactionComplete(faction:int) : Boolean
+      {
+         return completedFactions[faction] == true;
+      }
+      
       public static var isInTeam:Boolean = false;
       
       public static var isCommander:Boolean = false;
