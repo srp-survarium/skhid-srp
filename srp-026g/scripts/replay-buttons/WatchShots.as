@@ -114,7 +114,7 @@ package
                   watches.push(w);
                   w.name = "seen";
                }
-               asked(watches.length > 0 ? watches[0] : null,"ready","1ce45cbe");
+               asked(watches.length > 0 ? watches[0] : null,"watching","1ce45cbe");
                asked(watches.length > 1 ? watches[1] : null,"gone","69f8c4bc");
                shown = list;
             }

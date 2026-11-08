@@ -2662,7 +2662,6 @@ st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Renderer
 st_srp_replay_asking	Asking the match server for the replay of this match…
-st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
 st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
 st_srp_replay_chip_gone	Expired
 st_srp_replay_chip_not_recorded	Not recorded
@@ -2670,28 +2669,17 @@ st_srp_replay_chip_old	Old version
 st_srp_replay_chip_preparing	Preparing
 st_srp_replay_chip_ready	Ready
 st_srp_replay_close	CLOSE
-st_srp_replay_demo_quest	Victory contribution
-st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the shop.
-st_srp_replay_demo_seller	Scavengers
-st_srp_replay_download	DOWNLOAD AND WATCH
 st_srp_replay_failed	The server could not prepare the replay of this match.
 st_srp_replay_gone	The replay of this match is no longer kept on the server.
 st_srp_replay_incompatible	This replay was recorded by a game version that yours cannot play.
-st_srp_replay_made_now	Being made now. Waiting: %1$s s.
 st_srp_replay_my_deaths	Watch my deaths
 st_srp_replay_no_answer	The server did not answer. Try again later.
-st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
 st_srp_replay_not_yours	You can watch replays only of matches you played in.
 st_srp_replay_number_bad	Type a match's number as History shows it: # and 8 letters and digits, such as #1ce45cbe.
 st_srp_replay_number_hint	Match number
 st_srp_replay_off	Replays are switched off on this server.
 st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
 st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s
-st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
-st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
-st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
-st_srp_replay_size	%1$s.%2$s MB
-st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
 st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
 st_srp_replay_title	Watch replay
 st_srp_replay_waiting	Waiting: %1$s s.
