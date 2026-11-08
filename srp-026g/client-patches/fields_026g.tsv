@@ -911,3 +911,38 @@ survarium::game_world	loading	0x4E20	u8	1 while a level loads: game_world::load 
 survarium::lobby_client	status	0x1E5790	u32	what the lobby says the client is: the 0x85's first byte (read_status_info 0x270112: 0 the lobby, 1 the queue, 2 in a match), 2 at the 0x82 connect (0x274A95), 4 from the constructor (0x26F182); on_project_loaded aborts the load at 0 (0x1F8AF3)
 survarium::close_match_frame	reason	0x8	u32	close_current_match's argument by EBP (mov ebx,[ebp+8] at 0x27A7F3): the reason, jump table 0x27A958
 survarium::match_ready_frame	client	0x18	ptr<survarium::network_client>	on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
+survarium::core_world	physics	0x18FA4	ptr<vostok::physics::bullet_physics_world>	its physics world (the core's constructor 0x2CFE90 sets it, 0x2D00AC): game_world_core::serialize gives its vtable +40h the history item's physics writer (0x2D26C7..0x2D26D9) and world apply its +44h a reader of those bytes (0x2D2BEE..0x2D2C18); both are empty (0x75AF0 ret 4, 0x15A4B0 ret 8)
+vostok::physics::bullet_physics_world	dynamics	0x3C	ptr<vostok::physics::bt_dynamics_world>	its btDiscreteDynamicsWorld (initialize 0x74E36, made by 0x9AC50 with the dispatcher +2Ch, the broadphase +30h, the solver +34h and the configuration +28h; tick 0x75550 steps it through its vtable +2Ch)
+vostok::physics::bt_dynamics_world	object_count	0x8	u32	m_collisionObjects' size (btCollisionWorld of Bullet 2.79: vtable, then the array {allocator, size +8, capacity +0Ch, data +10h, owns +14h})
+vostok::physics::bt_dynamics_world	objects	0x10	ptr<vostok::physics::bt_object_slot>	m_collisionObjects' data: a pointer for each body in the world
+vostok::physics::bt_dynamics_world	dispatcher	0x18	ptr<vostok::physics::bt_dispatcher>	m_dispatcher1 (internalSingleStepSimulation 0x9B390 writes its dispatch info's time step +1Ch and step count +20h after it)
+vostok::physics::bt_dynamics_world	broadphase	0x4C	ptr<vostok::physics::bt_axis_sweep>	m_broadphasePairCache, the btAxisSweep3 (0x94400) initialize 0x74D8F makes
+vostok::physics::bt_object_slot	object	0x0	ptr<vostok::physics::bt_collision_object>	an entry of m_collisionObjects
+vostok::physics::bt_object_slot	size	0x4	size	an entry: a pointer
+vostok::physics::bt_axis_sweep	pair_cache	0x64	ptr<vostok::physics::bt_pair_cache>	m_pairCache: the btHashedOverlappingPairCache (vtable 0x9E4DA4) its constructor makes at 0x94455 (getOverlappingPairCache 0x943B0 returns it)
+vostok::physics::bt_pair_cache	vtable	0x0	u32	its vtable: 0x9E4DA4 (findPair +30h 0xB41D0, cleanOverlappingPair +1Ch 0xB40E0)
+vostok::physics::bt_dispatcher	manifold_count	0xC	u32	m_manifoldsPtr's size (getNewManifold 0x8F400 appends at 0x8F5C5, releaseManifold 0x8F650 swaps the last into the freed index)
+vostok::physics::bt_dispatcher	manifolds	0x14	ptr<vostok::physics::bt_manifold_slot>	m_manifoldsPtr's data: a pointer for each persistent manifold
+vostok::physics::bt_manifold_slot	manifold	0x0	ptr<vostok::physics::bt_persistent_manifold>	an entry of a manifold array (the dispatcher's, or the one solveGroup 0x9A8B0 is given)
+vostok::physics::bt_manifold_slot	size	0x4	size	an entry: a pointer
+vostok::physics::bt_persistent_manifold	points	0x10	obj<vostok::physics::bt_manifold_point>	m_pointCache[4] (the constructor 0x8F200: four of 120h at +10h, m_objectType 401h at +0)
+vostok::physics::bt_persistent_manifold	body0	0x490	ptr<vostok::physics::bt_collision_object>	m_body0 (the constructor 0x8F237)
+vostok::physics::bt_persistent_manifold	body1	0x494	ptr<vostok::physics::bt_collision_object>	m_body1 (0x8F23D)
+vostok::physics::bt_persistent_manifold	cached	0x498	u32	m_cachedPoints, 0..4 (0x8F243; clearManifold 0x8F5E0 sets it 0)
+vostok::physics::bt_manifold_point	words	0x0	u32	its words: a btManifoldPoint of Bullet 2.79 (the constructor 0x8F1B0: +64h/+68h m_index0/1 -1, +6Ch m_userPersistentData, +70h m_appliedImpulse, +74h m_lateralFrictionInitialized, +78h..+8Ch the lateral impulses, motions and CFMs, +90h m_lifeTime)
+vostok::physics::bt_manifold_point	size	0x120	size	a btManifoldPoint: 120h bytes (the manifold's constructor 0x8F207)
+vostok::physics::bt_collision_object	flags	0xD8	u32	m_collisionFlags (needsResponse 0x8F734: 1 static, 2 kinematic, 4 no contact response)
+vostok::physics::bt_collision_object	activation	0xE4	u32	m_activationState1 (needsCollision 0x8F774: 2 asleep, 5 simulation disabled; victory_item_core's load writes it, 0x301874)
+vostok::physics::bt_broadphase_proxy	client	0x0	ptr<vostok::physics::bt_collision_object>	m_clientObject: its body
+vostok::physics::bt_broadphase_proxy	mask	0x6	u16	m_collisionFilterMask
+vostok::physics::bt_broadphase_proxy	aabb	0x10	f32	m_aabbMin, then m_aabbMax at +20h, a float4 each (btAxisSweep3::setAabb 0x94C18 / 0x94C33)
+vostok::physics::bt_broadphase_pair	proxy0	0x0	ptr<vostok::physics::bt_broadphase_proxy>	m_pProxy0 (the lower m_uniqueId, findPair 0xB41E0)
+vostok::physics::bt_broadphase_pair	proxy1	0x4	ptr<vostok::physics::bt_broadphase_proxy>	m_pProxy1
+vostok::physics::bt_broadphase_pair	algorithm	0x8	ptr<vostok::physics::bt_collision_algorithm>	m_algorithm, 0 until the near callback (0x8F9B1) or patch 121 makes one
+vostok::physics::bt_broadphase_pair	swapped	0xC	u32	m_internalInfo1 as the near callback 0x8F860 keeps it: 1 when it passes proxy 1's body first (the one nearer the world's origin, 0x8F8F1; it makes the algorithm again when that changes, 0x8F906)
+vostok::physics::bt_collision_algorithm	vtable	0x0	u32	its vtable (an algorithm of the configuration's create functions; 0 the destructor cleanOverlappingPair 0xB40EC calls)
+survarium::history_item	physics_bytes	0xBBF0C	ptr<u8>	the physics section's bytes: the mutable_buffer's data at +0BBF08h (patch 98's heap block; the wire reader fills it, 0x324FB6..0x325026)
+survarium::history_item	physics_size	0xBBF14	u32	its size (physics_world_history_item::serialize 0x324411 writes it as the section's u16)
+survarium::history_item	physics_writer	0xBBF18	obj<vostok::buffer_writer>	the physics section's writer, the one game_world_core::serialize hands the physics world's vtable +40h (0x2D26D2); its packet +14h is the buffer at +0BBF08h
+vostok::physics::solve_group_frame	manifolds	0xC	ptr<vostok::physics::bt_manifold_slot>	btSequentialImpulseConstraintSolver::solveGroup 0x9A8B0's third argument by its entry ESP (the return address at +0): the manifolds to solve (the island callback's batch)
+vostok::physics::solve_group_frame	manifold_count	0x10	u32	its fourth: their count

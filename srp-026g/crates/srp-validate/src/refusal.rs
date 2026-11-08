@@ -279,9 +279,10 @@ pub enum Reason {
         fault: ObjectFault,
     },
 
-    // The physics.
-    PhysicsBytes {
-        len: usize,
+    // The physics (exe patch 121's contact manifolds).
+    /// The section is not as the patch writes it (`world::Contacts::parse`).
+    PhysicsContacts {
+        fault: crate::world::ContactsFault,
     },
 
     // The effects (a template).
@@ -659,7 +660,7 @@ impl fmt::Display for Reason {
                 "object {object} names owner {place} kit {kit}, which has no player"
             ),
             Reason::ObjectsField { object, fault } => write!(f, "object {object}: {fault}"),
-            Reason::PhysicsBytes { len } => write!(f, "{len} bytes where a game writes none"),
+            Reason::PhysicsContacts { fault } => write!(f, "contacts: {fault}"),
             Reason::BulletsUnread { len, bullets } => write!(
                 f,
                 "{len} bytes do not read as the header and {bullets} bullets to the end"

@@ -309,6 +309,12 @@ unsafe extern "thiscall" {
     pub fn engine_translate_query(cook: *mut c_void, query: *mut c_void);
     /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
     pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
+    /// 0xb41d0 btHashedOverlappingPairCache::findPair: cache ECX, proxy0 ESP+4, proxy1 ESP+8; pops 8; EAX; thiscall, called directly
+    pub fn engine_pair_find(cache: *mut c_void, proxy0: *mut c_void, proxy1: *mut c_void) -> *mut c_void;
+    /// 0xb40e0 btHashedOverlappingPairCache::cleanOverlappingPair: cache ECX, pair ESP+4, dispatcher ESP+8; pops 8; thiscall, called directly
+    pub fn engine_pair_clean(cache: *mut c_void, pair: *mut c_void, dispatcher: *mut c_void);
+    /// 0x8f6e0 btCollisionDispatcher::findAlgorithm: dispatcher ECX, body0 ESP+4, body1 ESP+8, manifold ESP+12; pops 12; EAX; thiscall, called directly
+    pub fn engine_algorithm_find(dispatcher: *mut c_void, body0: *mut c_void, body1: *mut c_void, manifold: *mut c_void) -> *mut c_void;
 }
 
 #[allow(dead_code, non_upper_case_globals)]

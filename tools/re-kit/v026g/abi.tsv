@@ -2401,3 +2401,9 @@ va	name	source	ret_cleanup	result
 0x0027b110	survarium::network_client::disconnect	manual	0	none; vtable 0x9FFB14 +14h, the main menu's logoff (0x1FF736, then switch_to_login): when the time rule's state +1F1C60h is not 0, clears it, unloads the world (0x1F8B40), clears the match link's disconnect callback and disconnects it; then the lobby client's 0x26F8C0, whatever the state
 0x001ed170	survarium::game::switch_to_game_world	manual	0	none; EAX the game: the game world (game+18h) the active scene (game+539Ch; the old one's on_deactivate, vtable +4, then the world's on_activate); set_game_project's (0x1F8626), so the lobby menu's on_deactivate hides the loading screen there
 0x002203a0	survarium::lobby_menu::show_loading_screen	manual	0	none; AL the flag, EDX the lobby menu: invokes the lobby movie's root.show_loading_screen; shown by switch_to_level_loading (0x220433), hidden only by lobby_menu::on_deactivate (0x21D54A)
+0x0008f400	btCollisionDispatcher::getNewManifold	manual	8	EAX the new btPersistentManifold (bodies at +490h/+494h, m_index1a +4ACh), appended to m_manifoldsPtr (+0Ch size, +14h data)
+0x0008f6e0	btCollisionDispatcher::findAlgorithm	manual	12	EAX the pair's algorithm from m_doubleDispatch (+0DCh, 36x36 by the shapes' types), made by its create function's vtable +4
+0x0008f860	vostok::physics::near_callback	manual	0	none; the btBroadphasePair's algorithm made (again when the body nearer the world's origin changes, pair +0Ch) and its processCollision run
+0x0009a8b0	btSequentialImpulseConstraintSolver::solveGroup	manual	40	ST0 (setup vtable +1Ch, iterations +20h, finish)
+0x000b40e0	btHashedOverlappingPairCache::cleanOverlappingPair	manual	8	none; the pair's algorithm destroyed (vtable +0 with 0, then the dispatcher's vtable +38h) and 0
+0x000b41d0	btHashedOverlappingPairCache::findPair	manual	8	EAX the btBroadphasePair of the two proxies, 0 when they do not overlap

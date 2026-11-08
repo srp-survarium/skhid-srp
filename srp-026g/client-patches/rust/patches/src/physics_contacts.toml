@@ -1,0 +1,36 @@
+# Patch 121 (docs/notes/physics_contacts.md): the contact manifolds of the bodies
+# that move go with every world and come back at every load; solveGroup takes its
+# manifolds in their bodies' order. The sites are sites_026g.tsv's; the logic is
+# physics_contacts.rs.
+name = "physics_contacts"
+patch = 121
+
+[[hook]]
+site = "physics_contacts.saved"
+handler = "on_saved"
+
+# after Keeper's mend (order 1)
+[[hook]]
+site = "keeper.world_loaded"
+handler = "on_world_loaded"
+order = 2
+
+[[hook]]
+site = "physics_contacts.near_entry"
+handler = "on_near_entry"
+
+[[hook]]
+site = "physics_contacts.near_process"
+handler = "on_near_process"
+
+[[hook]]
+site = "physics_contacts.new_manifold"
+handler = "on_new_manifold"
+
+[[hook]]
+site = "physics_contacts.detected"
+handler = "on_detected"
+
+[[hook]]
+site = "physics_contacts.solve"
+handler = "on_solve"

@@ -962,7 +962,7 @@ battery_progress_on_carrier_tick_replay:
 
 ; 0x2d2d5d game_world_core::deserialize's end (mov byte [ebp+18FE0h],0 after pop edi / pop esi; the je at 0x2D2CBB and the loop's end join at 0x2D2D5B): every place's current kit and its inventory loaded, every object (the anomalies, their artefacts with their inventory and slot) loaded, every active place put into the world; EBP the core world. Every world load passes here: a rollback's (move 0x2D2FF0, 0x2D357A), a joiner's or a resync's (0x2D0B70 -> 0x2D0FB9), a replay's seek: lohook -> artefact_keeper_on_world_loaded
 global artefact_keeper_on_world_loaded
-extern hook_artefact_keeper_on_world_loaded
+extern hook_artefact_keeper_on_world_loaded_chain
 artefact_keeper_on_world_loaded:
     lea esp, [esp - 4]
     pushfd
@@ -980,7 +980,7 @@ artefact_keeper_on_world_loaded:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_keeper_on_world_loaded
+    call hook_artefact_keeper_on_world_loaded_chain
     mov edx, artefact_keeper_on_world_loaded_replay
     cmp eax, 0
     je artefact_keeper_on_world_loaded_go
@@ -5515,6 +5515,240 @@ packet_recovery_on_close_go:
 packet_recovery_on_close_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x27a796
+
+; 0x2d26db game_world_core::serialize after the physics world's vtable +40h (which writes nothing, 0x75AF0), before mov ecx,[ebp+19030h]: ESI the history item being saved, its physics writer at +0BBF18h; EBP the core world: lohook -> physics_contacts_on_saved
+global physics_contacts_on_saved
+extern hook_physics_contacts_on_saved
+physics_contacts_on_saved:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_physics_contacts_on_saved
+    mov edx, physics_contacts_on_saved_replay
+    cmp eax, 0
+    je physics_contacts_on_saved_go
+    mov edx, 0x2d26e1
+    cmp eax, 1
+    je physics_contacts_on_saved_go
+    ud2
+physics_contacts_on_saved_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+physics_contacts_on_saved_replay:
+    db 0x8b, 0x8d, 0x30, 0x90, 0x01, 0x00
+    jmp 0x2d26e1
+
+; 0x8f860 the near callback 0x8F860 at its entry (push ebp / mov ebp,esp / and esp,0FFFFFFF0h): a new pair's dispatch begins: lohook -> physics_contacts_on_near_entry
+global physics_contacts_on_near_entry
+extern hook_physics_contacts_on_near_entry
+physics_contacts_on_near_entry:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_physics_contacts_on_near_entry
+    mov edx, physics_contacts_on_near_entry_replay
+    cmp eax, 0
+    je physics_contacts_on_near_entry_go
+    mov edx, 0x8f866
+    cmp eax, 1
+    je physics_contacts_on_near_entry_go
+    ud2
+physics_contacts_on_near_entry_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+physics_contacts_on_near_entry_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf0
+    jmp 0x8f866
+
+; 0x8f9c2 the near callback 0x8F860 with the pair's algorithm made or kept, before its processCollision (mov edx,[esi+0Ch] / mov ecx,ebx; the creation path and the kept one join here): ESI the pair, EDI the dispatcher, EBX the pair's proxy 0 body: lohook -> physics_contacts_on_near_process
+global physics_contacts_on_near_process
+extern hook_physics_contacts_on_near_process
+physics_contacts_on_near_process:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_physics_contacts_on_near_process
+    mov edx, physics_contacts_on_near_process_replay
+    cmp eax, 0
+    je physics_contacts_on_near_process_go
+    mov edx, 0x8f9c7
+    cmp eax, 1
+    je physics_contacts_on_near_process_go
+    ud2
+physics_contacts_on_near_process_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+physics_contacts_on_near_process_replay:
+    db 0x8b, 0x56, 0x0c, 0x8b, 0xcb
+    jmp 0x8f9c7
+
+; 0x8f5b6 btCollisionDispatcher::getNewManifold before it appends the manifold (mov edx,[edi+0Ch] / mov eax,[edi+14h]; both growth paths join here): EBX the new manifold (0 when the pool and the allocator failed), its bodies set; EDI the dispatcher: lohook -> physics_contacts_on_new_manifold
+global physics_contacts_on_new_manifold
+extern hook_physics_contacts_on_new_manifold
+physics_contacts_on_new_manifold:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_physics_contacts_on_new_manifold
+    mov edx, physics_contacts_on_new_manifold_replay
+    cmp eax, 0
+    je physics_contacts_on_new_manifold_go
+    mov edx, 0x8f5bc
+    cmp eax, 1
+    je physics_contacts_on_new_manifold_go
+    ud2
+physics_contacts_on_new_manifold_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+physics_contacts_on_new_manifold_replay:
+    db 0x8b, 0x57, 0x0c, 0x8b, 0x47, 0x14
+    jmp 0x8f5bc
+
+; 0x9b3e3 btDiscreteDynamicsWorld::internalSingleStepSimulation after performDiscreteCollisionDetection (vtable +24h), before calculateSimulationIslands (mov eax,[esi] / mov edx,[eax+8Ch]): every overlapping pair dispatched; ESI the world: lohook -> physics_contacts_on_detected
+global physics_contacts_on_detected
+extern hook_physics_contacts_on_detected
+physics_contacts_on_detected:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_physics_contacts_on_detected
+    mov edx, physics_contacts_on_detected_replay
+    cmp eax, 0
+    je physics_contacts_on_detected_go
+    mov edx, 0x9b3eb
+    cmp eax, 1
+    je physics_contacts_on_detected_go
+    ud2
+physics_contacts_on_detected_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+physics_contacts_on_detected_replay:
+    db 0x8b, 0x06, 0x8b, 0x90, 0x8c, 0x00, 0x00, 0x00
+    jmp 0x9b3eb
+
+; 0x9a8b0 btSequentialImpulseConstraintSolver::solveGroup's entry (mov edx,[esp+14h] / push ebx), before its setup (vtable +1Ch) reads the manifolds: the frame its arguments by ESP: lohook -> physics_contacts_on_solve
+global physics_contacts_on_solve
+extern hook_physics_contacts_on_solve
+physics_contacts_on_solve:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_physics_contacts_on_solve
+    mov edx, physics_contacts_on_solve_replay
+    cmp eax, 0
+    je physics_contacts_on_solve_go
+    mov edx, 0x9a8b5
+    cmp eax, 1
+    je physics_contacts_on_solve_go
+    ud2
+physics_contacts_on_solve_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+physics_contacts_on_solve_replay:
+    db 0x8b, 0x54, 0x24, 0x14, 0x53
+    jmp 0x9a8b5
 
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull

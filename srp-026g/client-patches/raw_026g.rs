@@ -315,6 +315,12 @@ unsafe extern "thiscall" {
     pub fn engine_translate_query(cook: Option<CamouflageDecalTextureTypeBakerCook>, query: Option<QueryResultForCook>);
     /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
     pub fn engine_key_name(keyboard: Option<Keyboard>, key: u32, name: *mut u8, size: u32) -> u8;
+    /// 0xb41d0 btHashedOverlappingPairCache::findPair: cache ECX, proxy0 ESP+4, proxy1 ESP+8; pops 8; EAX; thiscall, called directly
+    pub fn engine_pair_find(cache: Option<BtPairCache>, proxy0: Option<BtBroadphaseProxy>, proxy1: Option<BtBroadphaseProxy>) -> Option<BtBroadphasePair>;
+    /// 0xb40e0 btHashedOverlappingPairCache::cleanOverlappingPair: cache ECX, pair ESP+4, dispatcher ESP+8; pops 8; thiscall, called directly
+    pub fn engine_pair_clean(cache: Option<BtPairCache>, pair: Option<BtBroadphasePair>, dispatcher: Option<BtDispatcher>);
+    /// 0x8f6e0 btCollisionDispatcher::findAlgorithm: dispatcher ECX, body0 ESP+4, body1 ESP+8, manifold ESP+12; pops 12; EAX; thiscall, called directly
+    pub fn engine_algorithm_find(dispatcher: Option<BtDispatcher>, body0: Option<BtCollisionObject>, body1: Option<BtCollisionObject>, manifold: Option<BtPersistentManifold>) -> Option<BtCollisionAlgorithm>;
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -6883,6 +6889,24 @@ impl CoreWorld {
     #[inline(always)]
     pub unsafe fn set_rules_end(self, value: Option<RuleEntry>) {
         unsafe { self.0.byte_add(0x18828).cast::<Option<RuleEntry>>().write_volatile(value) }
+    }
+
+    /// +0x18fa4 (ptr<vostok::physics::bullet_physics_world>): its physics world (the core's constructor 0x2CFE90 sets it, 0x2D00AC): game_world_core::serialize gives its vtable +40h the history item's physics writer (0x2D26C7..0x2D26D9) and world apply its +44h a reader of those bytes (0x2D2BEE..0x2D2C18); both are empty (0x75AF0 ret 4, 0x15A4B0 ret 8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physics(self) -> Option<BulletPhysicsWorld> {
+        unsafe { self.0.byte_add(0x18fa4).cast::<Option<BulletPhysicsWorld>>().read_volatile() }
+    }
+
+    /// +0x18fa4 (ptr<vostok::physics::bullet_physics_world>): its physics world (the core's constructor 0x2CFE90 sets it, 0x2D00AC): game_world_core::serialize gives its vtable +40h the history item's physics writer (0x2D26C7..0x2D26D9) and world apply its +44h a reader of those bytes (0x2D2BEE..0x2D2C18); both are empty (0x75AF0 ret 4, 0x15A4B0 ret 8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_physics(self, value: Option<BulletPhysicsWorld>) {
+        unsafe { self.0.byte_add(0x18fa4).cast::<Option<BulletPhysicsWorld>>().write_volatile(value) }
     }
 }
 
@@ -13743,6 +13767,24 @@ impl BtCollisionObject {
     pub unsafe fn set_user(self, value: Option<HitObject>) {
         unsafe { self.0.byte_add(0xf8).cast::<Option<HitObject>>().write_volatile(value) }
     }
+
+    /// +0xd8 (u32): m_collisionFlags (needsResponse 0x8F734: 1 static, 2 kinematic, 4 no contact response)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn flags(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xe4 (u32): m_activationState1 (needsCollision 0x8F774: 2 asleep, 5 simulation disabled; victory_item_core's load writes it, 0x301874)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn activation(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xe4).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::physics::bt_transform (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -14014,6 +14056,42 @@ impl BtBroadphaseProxy {
     #[inline(always)]
     pub unsafe fn group(self) -> *mut u16 {
         unsafe { self.0.byte_add(0x4).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_collision_object>): m_clientObject: its body
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn client(self) -> Option<BtCollisionObject> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtCollisionObject>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_collision_object>): m_clientObject: its body
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_client(self, value: Option<BtCollisionObject>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtCollisionObject>>().write_volatile(value) }
+    }
+
+    /// +0x6 (u16): m_collisionFilterMask
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mask(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x6).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x10 (f32): m_aabbMin, then m_aabbMax at +20h, a float4 each (btAxisSweep3::setAabb 0x94C18 / 0x94C33)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn aabb(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
     }
 }
 
@@ -17026,6 +17104,684 @@ impl BulletPhysicsWorld {
     #[inline(always)]
     pub fn address(self) -> u32 {
         self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x3c (ptr<vostok::physics::bt_dynamics_world>): its btDiscreteDynamicsWorld (initialize 0x74E36, made by 0x9AC50 with the dispatcher +2Ch, the broadphase +30h, the solver +34h and the configuration +28h; tick 0x75550 steps it through its vtable +2Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn dynamics(self) -> Option<BtDynamicsWorld> {
+        unsafe { self.0.byte_add(0x3c).cast::<Option<BtDynamicsWorld>>().read_volatile() }
+    }
+
+    /// +0x3c (ptr<vostok::physics::bt_dynamics_world>): its btDiscreteDynamicsWorld (initialize 0x74E36, made by 0x9AC50 with the dispatcher +2Ch, the broadphase +30h, the solver +34h and the configuration +28h; tick 0x75550 steps it through its vtable +2Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_dynamics(self, value: Option<BtDynamicsWorld>) {
+        unsafe { self.0.byte_add(0x3c).cast::<Option<BtDynamicsWorld>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::bt_dynamics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtDynamicsWorld(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtDynamicsWorld {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): m_collisionObjects' size (btCollisionWorld of Bullet 2.79: vtable, then the array {allocator, size +8, capacity +0Ch, data +10h, owns +14h})
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (ptr<vostok::physics::bt_object_slot>): m_collisionObjects' data: a pointer for each body in the world
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn objects(self) -> Option<BtObjectSlot> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<BtObjectSlot>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<vostok::physics::bt_object_slot>): m_collisionObjects' data: a pointer for each body in the world
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_objects(self, value: Option<BtObjectSlot>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<BtObjectSlot>>().write_volatile(value) }
+    }
+
+    /// +0x18 (ptr<vostok::physics::bt_dispatcher>): m_dispatcher1 (internalSingleStepSimulation 0x9B390 writes its dispatch info's time step +1Ch and step count +20h after it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn dispatcher(self) -> Option<BtDispatcher> {
+        unsafe { self.0.byte_add(0x18).cast::<Option<BtDispatcher>>().read_volatile() }
+    }
+
+    /// +0x18 (ptr<vostok::physics::bt_dispatcher>): m_dispatcher1 (internalSingleStepSimulation 0x9B390 writes its dispatch info's time step +1Ch and step count +20h after it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_dispatcher(self, value: Option<BtDispatcher>) {
+        unsafe { self.0.byte_add(0x18).cast::<Option<BtDispatcher>>().write_volatile(value) }
+    }
+
+    /// +0x4c (ptr<vostok::physics::bt_axis_sweep>): m_broadphasePairCache, the btAxisSweep3 (0x94400) initialize 0x74D8F makes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn broadphase(self) -> Option<BtAxisSweep> {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<BtAxisSweep>>().read_volatile() }
+    }
+
+    /// +0x4c (ptr<vostok::physics::bt_axis_sweep>): m_broadphasePairCache, the btAxisSweep3 (0x94400) initialize 0x74D8F makes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_broadphase(self, value: Option<BtAxisSweep>) {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<BtAxisSweep>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::bt_object_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtObjectSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtObjectSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_collision_object>): an entry of m_collisionObjects
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> Option<BtCollisionObject> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtCollisionObject>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_collision_object>): an entry of m_collisionObjects
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_object(self, value: Option<BtCollisionObject>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtCollisionObject>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: an entry: a pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::physics::bt_object_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct BtObjectSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl BtObjectSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> BtObjectSlot {
+        BtObjectSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<BtObjectSlot> {
+        (!rooms.is_empty()).then(|| BtObjectSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::physics::bt_axis_sweep (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtAxisSweep(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtAxisSweep {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x64 (ptr<vostok::physics::bt_pair_cache>): m_pairCache: the btHashedOverlappingPairCache (vtable 0x9E4DA4) its constructor makes at 0x94455 (getOverlappingPairCache 0x943B0 returns it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pair_cache(self) -> Option<BtPairCache> {
+        unsafe { self.0.byte_add(0x64).cast::<Option<BtPairCache>>().read_volatile() }
+    }
+
+    /// +0x64 (ptr<vostok::physics::bt_pair_cache>): m_pairCache: the btHashedOverlappingPairCache (vtable 0x9E4DA4) its constructor makes at 0x94455 (getOverlappingPairCache 0x943B0 returns it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_pair_cache(self, value: Option<BtPairCache>) {
+        unsafe { self.0.byte_add(0x64).cast::<Option<BtPairCache>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::bt_pair_cache (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtPairCache(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtPairCache {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable: 0x9E4DA4 (findPair +30h 0xB41D0, cleanOverlappingPair +1Ch 0xB40E0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::physics::bt_dispatcher (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtDispatcher(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtDispatcher {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (u32): m_manifoldsPtr's size (getNewManifold 0x8F400 appends at 0x8F5C5, releaseManifold 0x8F650 swaps the last into the freed index)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn manifold_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (ptr<vostok::physics::bt_manifold_slot>): m_manifoldsPtr's data: a pointer for each persistent manifold
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn manifolds(self) -> Option<BtManifoldSlot> {
+        unsafe { self.0.byte_add(0x14).cast::<Option<BtManifoldSlot>>().read_volatile() }
+    }
+
+    /// +0x14 (ptr<vostok::physics::bt_manifold_slot>): m_manifoldsPtr's data: a pointer for each persistent manifold
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_manifolds(self, value: Option<BtManifoldSlot>) {
+        unsafe { self.0.byte_add(0x14).cast::<Option<BtManifoldSlot>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::bt_manifold_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtManifoldSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtManifoldSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_persistent_manifold>): an entry of a manifold array (the dispatcher's, or the one solveGroup 0x9A8B0 is given)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn manifold(self) -> Option<BtPersistentManifold> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtPersistentManifold>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_persistent_manifold>): an entry of a manifold array (the dispatcher's, or the one solveGroup 0x9A8B0 is given)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_manifold(self, value: Option<BtPersistentManifold>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtPersistentManifold>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: an entry: a pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::physics::bt_manifold_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct BtManifoldSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl BtManifoldSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> BtManifoldSlot {
+        BtManifoldSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<BtManifoldSlot> {
+        (!rooms.is_empty()).then(|| BtManifoldSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::physics::bt_persistent_manifold (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtPersistentManifold(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtPersistentManifold {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (obj<vostok::physics::bt_manifold_point>): m_pointCache[4] (the constructor 0x8F200: four of 120h at +10h, m_objectType 401h at +0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn points(self) -> BtManifoldPoint {
+        BtManifoldPoint(unsafe { self.0.byte_add(0x10) })
+    }
+
+    /// +0x490 (ptr<vostok::physics::bt_collision_object>): m_body0 (the constructor 0x8F237)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn body0(self) -> Option<BtCollisionObject> {
+        unsafe { self.0.byte_add(0x490).cast::<Option<BtCollisionObject>>().read_volatile() }
+    }
+
+    /// +0x490 (ptr<vostok::physics::bt_collision_object>): m_body0 (the constructor 0x8F237)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_body0(self, value: Option<BtCollisionObject>) {
+        unsafe { self.0.byte_add(0x490).cast::<Option<BtCollisionObject>>().write_volatile(value) }
+    }
+
+    /// +0x494 (ptr<vostok::physics::bt_collision_object>): m_body1 (0x8F23D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn body1(self) -> Option<BtCollisionObject> {
+        unsafe { self.0.byte_add(0x494).cast::<Option<BtCollisionObject>>().read_volatile() }
+    }
+
+    /// +0x494 (ptr<vostok::physics::bt_collision_object>): m_body1 (0x8F23D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_body1(self, value: Option<BtCollisionObject>) {
+        unsafe { self.0.byte_add(0x494).cast::<Option<BtCollisionObject>>().write_volatile(value) }
+    }
+
+    /// +0x498 (u32): m_cachedPoints, 0..4 (0x8F243; clearManifold 0x8F5E0 sets it 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cached(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x498).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::physics::bt_manifold_point (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtManifoldPoint(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtManifoldPoint {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its words: a btManifoldPoint of Bullet 2.79 (the constructor 0x8F1B0: +64h/+68h m_index0/1 -1, +6Ch m_userPersistentData, +70h m_appliedImpulse, +74h m_lateralFrictionInitialized, +78h..+8Ch the lateral impulses, motions and CFMs, +90h m_lifeTime)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn words(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x120 bytes: a btManifoldPoint: 120h bytes (the manifold's constructor 0x8F207)
+    pub const SIZE: usize = 0x120;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::physics::bt_manifold_points (0x120 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct BtManifoldPointStorage([u8; 0x120]);
+
+#[allow(dead_code)]
+impl BtManifoldPointStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x120])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> BtManifoldPoint {
+        BtManifoldPoint(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<BtManifoldPoint> {
+        (!rooms.is_empty()).then(|| BtManifoldPoint(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::physics::bt_broadphase_pair (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtBroadphasePair(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtBroadphasePair {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_broadphase_proxy>): m_pProxy0 (the lower m_uniqueId, findPair 0xB41E0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn proxy0(self) -> Option<BtBroadphaseProxy> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtBroadphaseProxy>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_broadphase_proxy>): m_pProxy0 (the lower m_uniqueId, findPair 0xB41E0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_proxy0(self, value: Option<BtBroadphaseProxy>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtBroadphaseProxy>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::physics::bt_broadphase_proxy>): m_pProxy1
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn proxy1(self) -> Option<BtBroadphaseProxy> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<BtBroadphaseProxy>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::physics::bt_broadphase_proxy>): m_pProxy1
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_proxy1(self, value: Option<BtBroadphaseProxy>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<BtBroadphaseProxy>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<vostok::physics::bt_collision_algorithm>): m_algorithm, 0 until the near callback (0x8F9B1) or patch 121 makes one
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn algorithm(self) -> Option<BtCollisionAlgorithm> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BtCollisionAlgorithm>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::physics::bt_collision_algorithm>): m_algorithm, 0 until the near callback (0x8F9B1) or patch 121 makes one
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_algorithm(self, value: Option<BtCollisionAlgorithm>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BtCollisionAlgorithm>>().write_volatile(value) }
+    }
+
+    /// +0xc (u32): m_internalInfo1 as the near callback 0x8F860 keeps it: 1 when it passes proxy 1's body first (the one nearer the world's origin, 0x8F8F1; it makes the algorithm again when that changes, 0x8F906)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn swapped(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::physics::bt_collision_algorithm (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtCollisionAlgorithm(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtCollisionAlgorithm {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable (an algorithm of the configuration's create functions; 0 the destructor cleanOverlappingPair 0xB40EC calls)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::history_item (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HistoryItem(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HistoryItem {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xbbf0c (ptr<u8>): the physics section's bytes: the mutable_buffer's data at +0BBF08h (patch 98's heap block; the wire reader fills it, 0x324FB6..0x325026)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physics_bytes(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xbbf0c).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0xbbf0c (ptr<u8>): the physics section's bytes: the mutable_buffer's data at +0BBF08h (patch 98's heap block; the wire reader fills it, 0x324FB6..0x325026)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_physics_bytes(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0xbbf0c).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0xbbf14 (u32): its size (physics_world_history_item::serialize 0x324411 writes it as the section's u16)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physics_size(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xbbf14).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xbbf18 (obj<vostok::buffer_writer>): the physics section's writer, the one game_world_core::serialize hands the physics world's vtable +40h (0x2D26D2); its packet +14h is the buffer at +0BBF08h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physics_writer(self) -> BufferWriter {
+        BufferWriter(unsafe { self.0.byte_add(0xbbf18) })
+    }
+}
+
+/// A vostok::physics::solve_group_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SolveGroupFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SolveGroupFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (ptr<vostok::physics::bt_manifold_slot>): btSequentialImpulseConstraintSolver::solveGroup 0x9A8B0's third argument by its entry ESP (the return address at +0): the manifolds to solve (the island callback's batch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn manifolds(self) -> Option<BtManifoldSlot> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<BtManifoldSlot>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::physics::bt_manifold_slot>): btSequentialImpulseConstraintSolver::solveGroup 0x9A8B0's third argument by its entry ESP (the return address at +0): the manifolds to solve (the island callback's batch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_manifolds(self, value: Option<BtManifoldSlot>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<BtManifoldSlot>>().write_volatile(value) }
+    }
+
+    /// +0x10 (u32): its fourth: their count
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn manifold_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
     }
 }
 
@@ -20758,6 +21514,117 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn world(machine: &impl Machine) -> Option<CoreWorld> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CoreWorld)
+        }
+
+        /// EBX: a survarium::history_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<HistoryItem> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(HistoryItem)
+        }
+    }
+
+    /// physics_contacts.saved (0x2d26db): game_world_core::serialize after the physics world's vtable +40h (which writes nothing, 0x75AF0), before mov ecx,[ebp+19030h]: ESI the history item being saved, its physics writer at +0BBF18h; EBP the core world
+    pub mod physics_contacts_saved {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::history_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<HistoryItem> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HistoryItem)
+        }
+
+        /// EBP: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CoreWorld)
+        }
+    }
+
+    /// physics_contacts.near_process (0x8f9c2): the near callback 0x8F860 with the pair's algorithm made or kept, before its processCollision (mov edx,[esi+0Ch] / mov ecx,ebx; the creation path and the kept one join here): ESI the pair, EDI the dispatcher, EBX the pair's proxy 0 body
+    pub mod physics_contacts_near_process {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::physics::bt_broadphase_pair (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn pair(machine: &impl Machine) -> Option<BtBroadphasePair> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BtBroadphasePair)
+        }
+
+        /// EDI: a vostok::physics::bt_dispatcher (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn dispatcher(machine: &impl Machine) -> Option<BtDispatcher> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BtDispatcher)
+        }
+    }
+
+    /// physics_contacts.new_manifold (0x8f5b6): btCollisionDispatcher::getNewManifold before it appends the manifold (mov edx,[edi+0Ch] / mov eax,[edi+14h]; both growth paths join here): EBX the new manifold (0 when the pool and the allocator failed), its bodies set; EDI the dispatcher
+    pub mod physics_contacts_new_manifold {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::physics::bt_persistent_manifold (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manifold(machine: &impl Machine) -> Option<BtPersistentManifold> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(BtPersistentManifold)
+        }
+
+        /// EDI: a vostok::physics::bt_dispatcher (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn dispatcher(machine: &impl Machine) -> Option<BtDispatcher> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BtDispatcher)
+        }
+    }
+
+    /// physics_contacts.detected (0x9b3e3): btDiscreteDynamicsWorld::internalSingleStepSimulation after performDiscreteCollisionDetection (vtable +24h), before calculateSimulationIslands (mov eax,[esi] / mov edx,[eax+8Ch]): every overlapping pair dispatched; ESI the world
+    pub mod physics_contacts_detected {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::physics::bt_dynamics_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<BtDynamicsWorld> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BtDynamicsWorld)
+        }
+    }
+
+    /// physics_contacts.solve (0x9a8b0): btSequentialImpulseConstraintSolver::solveGroup's entry (mov edx,[esp+14h] / push ebx), before its setup (vtable +1Ch) reads the manifolds: the frame its arguments by ESP
+    pub mod physics_contacts_solve {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::physics::solve_group_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SolveGroupFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(SolveGroupFrame)
         }
     }
 }

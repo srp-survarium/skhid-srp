@@ -2211,3 +2211,31 @@ va	status	ref_021d	name
 0x002717e0	verified	0x0019e562	survarium::lobby_client::discard_playing_order
 0x001ed170	observed		survarium::game::switch_to_game_world
 0x002203a0	observed		survarium::lobby_menu::show_loading_screen
+0x0008c2e0	verified		btRigidBody::updateInertiaTensor
+0x0008eee0	observed		vostok::physics::bt_collision_configuration::bt_collision_configuration
+0x0008f140	observed		vostok::physics::bt_collision_configuration::getCollisionAlgorithmCreateFunc
+0x0008f1b0	verified		btManifoldPoint::btManifoldPoint
+0x0008f200	verified		btPersistentManifold::btPersistentManifold
+0x0008f2c0	verified		btCollisionDispatcher::btCollisionDispatcher
+0x0008f400	verified		btCollisionDispatcher::getNewManifold
+0x0008f5e0	verified		btCollisionDispatcher::clearManifold
+0x0008f650	verified		btCollisionDispatcher::releaseManifold
+0x0008f6e0	verified		btCollisionDispatcher::findAlgorithm
+0x0008f730	verified		btCollisionDispatcher::needsResponse
+0x0008f770	verified		btCollisionDispatcher::needsCollision
+0x0008f7c0	observed		btCollisionPairCallback::processOverlap
+0x0008f860	observed		vostok::physics::near_callback
+0x00094400	verified		btAxisSweep3Internal<unsigned short>::btAxisSweep3Internal
+0x00094c00	verified		btAxisSweep3Internal<unsigned short>::setAabb
+0x0009a8b0	verified		btSequentialImpulseConstraintSolver::solveGroup
+0x0009ac50	verified		btDiscreteDynamicsWorld::btDiscreteDynamicsWorld
+0x0009b260	verified		btDiscreteDynamicsWorld::stepSimulation
+0x0009b390	verified		btDiscreteDynamicsWorld::internalSingleStepSimulation
+0x000b3f40	verified		btHashedOverlappingPairCache::btHashedOverlappingPairCache
+0x000b40e0	verified		btHashedOverlappingPairCache::cleanOverlappingPair
+0x000b41d0	verified		btHashedOverlappingPairCache::findPair
+0x000b4fa0	verified		btAxisSweep3Internal<unsigned short>::getAabb
+0x00301660	observed		survarium::victory_item_core::deserialize
+0x003576c0	observed		vostok::physics::bt_rigid_body::set_linear_velocity
+0x00357750	observed		vostok::physics::bt_rigid_body::set_angular_velocity
+0x003578b0	observed		vostok::physics::bt_rigid_body::set_transform

@@ -10,9 +10,14 @@
 
 struct artefact;
 struct baked_texture_resource;
+struct bt_broadphase_pair;
 struct bt_broadphase_proxy;
+struct bt_collision_algorithm;
 struct bt_collision_object;
 struct bt_collision_shape;
+struct bt_dispatcher;
+struct bt_pair_cache;
+struct bt_persistent_manifold;
 struct bt_transform;
 struct buffer_string;
 struct buffer_writer;
@@ -632,5 +637,14 @@ extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_system_
 
 /* 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly */
 void __attribute__((stdcall)) engine_discard_playing_order(struct lobby_client *client, unsigned int left);
+
+/* 0xb41d0 btHashedOverlappingPairCache::findPair: cache ECX, proxy0 ESP+4, proxy1 ESP+8; pops 8; EAX; thiscall, called directly */
+struct bt_broadphase_pair *__attribute__((thiscall)) engine_pair_find(struct bt_pair_cache *cache, struct bt_broadphase_proxy *proxy0, struct bt_broadphase_proxy *proxy1);
+
+/* 0xb40e0 btHashedOverlappingPairCache::cleanOverlappingPair: cache ECX, pair ESP+4, dispatcher ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_pair_clean(struct bt_pair_cache *cache, struct bt_broadphase_pair *pair, struct bt_dispatcher *dispatcher);
+
+/* 0x8f6e0 btCollisionDispatcher::findAlgorithm: dispatcher ECX, body0 ESP+4, body1 ESP+8, manifold ESP+12; pops 12; EAX; thiscall, called directly */
+struct bt_collision_algorithm *__attribute__((thiscall)) engine_algorithm_find(struct bt_dispatcher *dispatcher, struct bt_collision_object *body0, struct bt_collision_object *body1, struct bt_persistent_manifold *manifold);
 
 #endif

@@ -4873,3 +4873,31 @@ for an open match never played:
 A played match (states 1-3, a resync's) and a closed one go as before (patch 119's path for a kick).
 Nothing a match computes. Checked with `check_unplayed_match_026g.py` (Unicorn) and the patch crate's
 tests. Not run in a game.
+
+## The contacts of the bodies that move go with the world (patch 121, unreleased)
+
+Bullet keeps a touching pair's contact points from step to step (a persistent manifold of the
+dispatcher), and no world carried them: the physics world's own save and load of a world are empty
+(its vtable +40h and +44h, 0x75AF0 / 0x15A4B0). So a game that loaded a world (every rollback, a
+resync, a joiner, a replay's seek) stepped a landing or settling battery or grenade from the contacts
+its dispatcher had then, where a game that stepped straight on had those of the world's moment, and
+the worlds parted by millimetres: live match 0x54417103 (rev52) at 135.45 s split seven ways among
+fifteen games, the kept worlds differing in one falling battery's record alone. About six resyncs an
+hour on 2026-11-07.
+
+**The patch** (`physics_contacts`, Rust, seven lohooks; `../docs/notes/physics_contacts.md`). The
+world's physics section holds every manifold with points of a pair with a moving body (filter group
+800h) and one manifold: its bodies' keys (a moving body's origin, a fixed one's broadphase box and
+filter), whether the near callback passes its body 0 first, its points
+(`srp_validate::world::Contacts`). A load (`keeper.world_loaded`, order 2) empties those manifolds of
+the game, and the step puts each record back into its pair's algorithm as the saving game had it:
+before the pair's processCollision in the near callback (0x8F9C2), in a manifold a processCollision
+makes (getNewManifold 0x8F5B6), and after the first collision detection (0x9B3E3) for a pair asleep,
+its algorithm made in the record's order. Every solveGroup (0x9A8B0) takes its manifolds in their
+bodies' key order, which the dispatcher's array, in the order the game made them, is not after a
+load. What a match computes changes (`simulation_changes.tsv` `next`). The world check reads the
+physics section as the patch writes it (it refused any byte there).
+
+Checked with `check_physics_contacts_026g.py` (Unicorn, the game's own Bullet; fails on main
+164c3118a's build) and `contacts_sim.cpp` (Bullet 2.79: a game, its twin with rollbacks and a joiner,
+600 drops, bit for bit with the fix, apart in 599 and 533 without). Not run in a game.

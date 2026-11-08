@@ -145,7 +145,7 @@ Same shape as 0.21d (match.md §2), with the new ids and the sync generation:
 | 4 | `u16 len` + bullet_manager | `u16 len` + **bullet_manager_history_item** (writer 0x323F90; item+0xB4690) | same |
 | 5 | `u16 len` + statistics | `u16 len` + **statistics_history_item** (writer 0x324090; +0xB6AB8) | same position; format: 28 score events per modes_maps.md (LIKELY changed) |
 | 6 | `u16 len` + game_objects | `u16 len` + **game_objects_serialized_state** (writer 0x324210; +0xBBF30) | same position |
-| 7 | `u16 len` + game_rules | `u16 len` + **physics_world_history_item** (writer 0x324410; +0xB7F08) | **new** |
+| 7 | `u16 len` + game_rules | `u16 len` + **physics_world_history_item** (writer 0x324410; +0xB7F08) | **new**; empty in a stock world (the physics world's vtable +40h writes nothing), the contact manifolds of the bodies that move since exe patch 121 (physics_contacts.md) |
 | 8 | — | `u16 len` + **game_rules_history_item** (writer 0x324110; +0xB76E0) | moved one place later |
 | 9 | — | `u16 len` + **game_effect_player_history_item** (writer 0x324310; +0xBFF80) | **new** |
 

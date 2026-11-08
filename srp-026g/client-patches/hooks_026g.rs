@@ -456,6 +456,21 @@ pub extern "C" fn hook_artefact_keeper_on_world_loaded(frame: &mut Frame) -> u32
     }
 }
 
+// ---- physics_contacts (patch 121) ----
+
+/// The entry `physics_contacts_on_world_loaded` (0x2d2d5d, game_world_core::deserialize's end (mov byte [ebp+18FE0h],0 after pop edi / pop esi; the je at 0x2D2CBB and the loop's end join at 0x2D2D5B): every place's current kit and its inventory loaded, every object (the anomalies, their artefacts with their inventory and slot) loaded, every active place put into the world; EBP the core world. Every world load passes here: a rollback's (move 0x2D2FF0, 0x2D357A), a joiner's or a resync's (0x2D0B70 -> 0x2D0FB9), a replay's seek) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_physics_contacts_on_world_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `physics_contacts_on_world_loaded` calls this, from the game's jump at 0x2d2d5d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::physics_contacts::on_world_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_score (patch 80) ----
 
 /// The entry `artefact_score_on_transfer` (0x31c810, artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845)) calls this with the saved machine.
@@ -2905,6 +2920,96 @@ pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- physics_contacts (patch 121) ----
+
+/// The entry `physics_contacts_on_saved` (0x2d26db, game_world_core::serialize after the physics world's vtable +40h (which writes nothing, 0x75AF0), before mov ecx,[ebp+19030h]: ESI the history item being saved, its physics writer at +0BBF18h; EBP the core world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_physics_contacts_on_saved(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `physics_contacts_on_saved` calls this, from the game's jump at 0x2d26db,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::physics_contacts::on_saved(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- physics_contacts (patch 121) ----
+
+/// The entry `physics_contacts_on_near_entry` (0x8f860, the near callback 0x8F860 at its entry (push ebp / mov ebp,esp / and esp,0FFFFFFF0h): a new pair's dispatch begins) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_physics_contacts_on_near_entry(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `physics_contacts_on_near_entry` calls this, from the game's jump at 0x8f860,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::physics_contacts::on_near_entry(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- physics_contacts (patch 121) ----
+
+/// The entry `physics_contacts_on_near_process` (0x8f9c2, the near callback 0x8F860 with the pair's algorithm made or kept, before its processCollision (mov edx,[esi+0Ch] / mov ecx,ebx; the creation path and the kept one join here): ESI the pair, EDI the dispatcher, EBX the pair's proxy 0 body) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_physics_contacts_on_near_process(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `physics_contacts_on_near_process` calls this, from the game's jump at 0x8f9c2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::physics_contacts::on_near_process(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- physics_contacts (patch 121) ----
+
+/// The entry `physics_contacts_on_new_manifold` (0x8f5b6, btCollisionDispatcher::getNewManifold before it appends the manifold (mov edx,[edi+0Ch] / mov eax,[edi+14h]; both growth paths join here): EBX the new manifold (0 when the pool and the allocator failed), its bodies set; EDI the dispatcher) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_physics_contacts_on_new_manifold(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `physics_contacts_on_new_manifold` calls this, from the game's jump at 0x8f5b6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::physics_contacts::on_new_manifold(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- physics_contacts (patch 121) ----
+
+/// The entry `physics_contacts_on_detected` (0x9b3e3, btDiscreteDynamicsWorld::internalSingleStepSimulation after performDiscreteCollisionDetection (vtable +24h), before calculateSimulationIslands (mov eax,[esi] / mov edx,[eax+8Ch]): every overlapping pair dispatched; ESI the world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_physics_contacts_on_detected(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `physics_contacts_on_detected` calls this, from the game's jump at 0x9b3e3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::physics_contacts::on_detected(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- physics_contacts (patch 121) ----
+
+/// The entry `physics_contacts_on_solve` (0x9a8b0, btSequentialImpulseConstraintSolver::solveGroup's entry (mov edx,[esp+14h] / push ebx), before its setup (vtable +1Ch) reads the manifolds: the frame its arguments by ESP) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_physics_contacts_on_solve(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `physics_contacts_on_solve` calls this, from the game's jump at 0x9a8b0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::physics_contacts::on_solve(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_cull` (0x24757c, mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)) calls this with the saved machine.
@@ -3593,6 +3698,15 @@ pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame)
     let flow = hook_forest_glow_on_tick(frame);
     if flow != 0 { return flow; }
     let flow = hook_artefact_keeper_on_tick(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_keeper_on_world_loaded_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_artefact_keeper_on_world_loaded(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_physics_contacts_on_world_loaded(frame);
     if flow != 0 { return flow; }
     0
 }

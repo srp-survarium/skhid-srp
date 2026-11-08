@@ -3,6 +3,11 @@ mod bullets;
 mod effects;
 mod frame;
 mod objects;
+mod physics;
+pub use physics::{
+    BodyKey, Contact, ContactHead, Contacts, ContactsFault, HEAD_BYTES, KEY_BYTES, MAX_CONTACTS,
+    MAX_POINTS, POINT_BYTES, PointCount, fnv1a, key_bits, physics,
+};
 pub use bullets::{Bullet, BulletFault, Bullets, Lamps, WeaponSlot, bullets};
 pub use effects::{
     ActivationStatus, Effect, EffectFault, Effects, PlaybackType, SerializationMode, effects,
@@ -36,7 +41,7 @@ pub use weapon::{
 };
 mod rules;
 mod statistics;
-use crate::{KITS, Part, Reason, Refusal, mode};
+use crate::{KITS, Refusal, mode};
 pub use frame::{Block, Frame, PLAYER_STATE_CAP, Section, frame};
 pub use rules::{
     Battery, Container, ContainerId, FreeBattery, Gather, KillsDeaths, ModeRule, Phase, PlaceList,
@@ -146,33 +151,6 @@ fn battery_records(context: &Context) -> usize {
     } else {
         0
     }
-}
-
-/// The physics section is empty. The world's physics object has two
-/// virtuals for it: slot +0x40, which `game_world_core::serialize`
-/// 0x2D2570 calls with the section's writer (0x2D26C7..0x2D26D9), and slot
-/// +0x44, which world apply 0x2D2770 calls with its reader
-/// (0x2D2BEE..0x2D2C18), both on `[core+0x18FA4]` (set by the core's
-/// constructor 0x2CFE90 from an argument, 0x2D00AC). In the vtable of
-/// `vostok::physics::bullet_physics_world` (0x9E2EBC, written by its
-/// constructor 0x74950), the only physics world 0.26g has, they sit
-/// between `move` and `ray_test` and are `ret 4` (0x75AF0) and `ret 8`
-/// (0x15A4B0): the game writes nothing there and reads nothing. PROVEN for
-/// the vtable; that the core's object is that class is LIKELY (the only
-/// implementation of the interface). All 2319 kept worlds have 0 bytes.
-/// So a game that loads a world never reads its physics bytes, and a real
-/// one never writes any: any byte there is not a game's.
-pub fn physics(section: &Section) -> Result<(), Refusal> {
-    if section.bytes.is_empty() {
-        return Ok(());
-    }
-    Err(Refusal::new(
-        Part::Physics,
-        section.at,
-        Reason::PhysicsBytes {
-            len: section.bytes.len(),
-        },
-    ))
 }
 
 /// Validate all supported semantic sections after parsing the frame once.

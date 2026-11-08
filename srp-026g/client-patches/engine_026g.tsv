@@ -179,3 +179,6 @@ engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_fi
 engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
 engine_discard_playing_order	0x2717e0	ESP+4:lobby ESP+8:left	void engine_discard_playing_order(struct lobby_client *client, unsigned int left)	stdcall	
+engine_pair_find	0x0b41d0	ECX:cache ESP+4:proxy0 ESP+8:proxy1	struct bt_broadphase_pair *engine_pair_find(struct bt_pair_cache *cache, struct bt_broadphase_proxy *proxy0, struct bt_broadphase_proxy *proxy1)	thiscall	
+engine_pair_clean	0x0b40e0	ECX:cache ESP+4:pair ESP+8:dispatcher	void engine_pair_clean(struct bt_pair_cache *cache, struct bt_broadphase_pair *pair, struct bt_dispatcher *dispatcher)	thiscall	
+engine_algorithm_find	0x08f6e0	ECX:dispatcher ESP+4:body0 ESP+8:body1 ESP+12:manifold	struct bt_collision_algorithm *engine_algorithm_find(struct bt_dispatcher *dispatcher, struct bt_collision_object *body0, struct bt_collision_object *body1, struct bt_persistent_manifold *manifold)	thiscall	

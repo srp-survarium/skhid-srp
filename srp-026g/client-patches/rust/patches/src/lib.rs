@@ -72,6 +72,8 @@ pub mod weapon_pickup;
 pub mod medical_skills;
 pub mod artefact_skills;
 pub mod artefact_keeper;
+// patch 121: the physics world's contacts with every world
+pub mod physics_contacts;
 
 pub mod hand_kill;
 pub mod forest_glow;

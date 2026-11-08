@@ -20,3 +20,5 @@ order = 4
 [[hook]]
 site = "keeper.world_loaded"
 handler = "on_world_loaded"
+# before patch 121's (order 2)
+order = 1

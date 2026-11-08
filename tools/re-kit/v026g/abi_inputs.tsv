@@ -5735,3 +5735,22 @@ va	name	location	role	basis
 0x001ed170	survarium::game::switch_to_game_world	EAX	the game	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	AL	the flag: 1 shown, 0 hidden	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	EDX	the lobby menu	observed
+0x0008f400	btCollisionDispatcher::getNewManifold	ECX	the dispatcher	observed
+0x0008f400	btCollisionDispatcher::getNewManifold	entry ESP+4	body 0 (its shape's contact breaking threshold, +0CCh vtable +10h)	observed
+0x0008f400	btCollisionDispatcher::getNewManifold	entry ESP+8	body 1	observed
+0x0008f6e0	btCollisionDispatcher::findAlgorithm	ECX	the dispatcher (dispatcher)	observed
+0x0008f6e0	btCollisionDispatcher::findAlgorithm	entry ESP+4	body0 (its shape +0CCh, type +4: the dispatch row)	observed
+0x0008f6e0	btCollisionDispatcher::findAlgorithm	entry ESP+8	body1 (the column)	observed
+0x0008f6e0	btCollisionDispatcher::findAlgorithm	entry ESP+12	a shared manifold (manifold), 0 for none	observed
+0x0008f860	vostok::physics::near_callback	entry ESP+4	the btBroadphasePair (proxies +0/+4, algorithm +8, order +0Ch)	observed
+0x0008f860	vostok::physics::near_callback	entry ESP+8	the dispatcher	observed
+0x0008f860	vostok::physics::near_callback	entry ESP+12	the btDispatcherInfo	observed
+0x0009a8b0	btSequentialImpulseConstraintSolver::solveGroup	ECX	the solver	observed
+0x0009a8b0	btSequentialImpulseConstraintSolver::solveGroup	entry ESP+12	the manifolds (an array of pointers)	observed
+0x0009a8b0	btSequentialImpulseConstraintSolver::solveGroup	entry ESP+16	their count	observed
+0x000b40e0	btHashedOverlappingPairCache::cleanOverlappingPair	ECX	the pair cache (cache)	observed
+0x000b40e0	btHashedOverlappingPairCache::cleanOverlappingPair	entry ESP+4	the pair (pair)	observed
+0x000b40e0	btHashedOverlappingPairCache::cleanOverlappingPair	entry ESP+8	the dispatcher (dispatcher)	observed
+0x000b41d0	btHashedOverlappingPairCache::findPair	ECX	the pair cache (cache)	observed
+0x000b41d0	btHashedOverlappingPairCache::findPair	entry ESP+4	proxy0, a proxy (m_uniqueId +0Ch)	observed
+0x000b41d0	btHashedOverlappingPairCache::findPair	entry ESP+8	proxy1, the other proxy	observed

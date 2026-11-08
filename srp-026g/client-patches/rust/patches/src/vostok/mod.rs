@@ -69,6 +69,7 @@ mod sync;
 pub mod trace;
 pub mod types;
 mod upgrades;
+pub mod physics_contacts;
 pub mod world;
 mod world_load;
 mod ui;

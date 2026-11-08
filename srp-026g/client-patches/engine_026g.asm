@@ -180,6 +180,9 @@ global engine_get_system_time_as_file_time
 global engine_file_time_to_local_file_time
 global engine_file_time_to_system_time
 global engine_discard_playing_order
+global engine_pair_find
+global engine_pair_clean
+global engine_algorithm_find
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -245,6 +248,9 @@ engine_get_system_time_as_file_time equ 0x870244   ; the IAT slot 0x870244 (an i
 engine_file_time_to_local_file_time equ 0x870230   ; the IAT slot 0x870230 (an import, stdcall)
 engine_file_time_to_system_time equ 0x87022c   ; the IAT slot 0x87022c (an import, stdcall)
 engine_discard_playing_order equ 0x2717e0   ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+engine_pair_find equ 0xb41d0   ; 0xb41d0 btHashedOverlappingPairCache::findPair: cache ECX, proxy0 ESP+4, proxy1 ESP+8; pops 8; EAX; thiscall, called directly
+engine_pair_clean equ 0xb40e0   ; 0xb40e0 btHashedOverlappingPairCache::cleanOverlappingPair: cache ECX, pair ESP+4, dispatcher ESP+8; pops 8; thiscall, called directly
+engine_algorithm_find equ 0x8f6e0   ; 0x8f6e0 btCollisionDispatcher::findAlgorithm: dispatcher ECX, body0 ESP+4, body1 ESP+8, manifold ESP+12; pops 12; EAX; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
