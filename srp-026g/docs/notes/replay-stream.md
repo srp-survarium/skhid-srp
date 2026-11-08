@@ -83,7 +83,9 @@ read by the match server with the recording (`MatchHistory::events_of_replay` of
 the replay id; srp hands the match server its accounts): a kill (kind 1, killer and victim), a
 death no kill was paired with (kind 1, no actor), a battery found or delivered (kind 2, its
 player); captures, scores and the end are not shown. A match is in the history a moment after its
-result; older ones only if backfilled. The session plays the newest recording of the match id.
+result; there is no backfill (the owner's decision): matches played before the history shipped
+have no events, so their replays get an empty events note and "my deaths" starts where the asker's
+place is first in view. The session plays the newest recording of the match id.
 
 What the server does:
 - `pause` stops the clock (nothing more is sent but a 0xE6 ping each second, so the game's 5 s
