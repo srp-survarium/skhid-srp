@@ -367,7 +367,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Window:** Rooms replaces Map in the top bar ("rooms" in every language; its own icon; locked with Clan and
   Ranking while the lobby loads); the window fills the Character + Inventory area, the
   inventory's header and close button; × and Esc hide it; opening another lobby window hides
-  it. The bottom bar's Matches tab is hidden.
+  it. The bottom bar's Matches tab lists the running matches to watch, no JOIN (`replay_watch.md`, since 2026-11-08).
 - **Sounds:** the game's click on every control; its alert (6) once a vote, 10 s before the
   match starts (the vote's last seconds; the vote runs until the start, 2026-10-19), also with
   the window hidden (not the match start's 15).
