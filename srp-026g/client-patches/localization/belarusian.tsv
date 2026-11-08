@@ -2541,6 +2541,7 @@ st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.
 st_srp_live_back	Back
+st_srp_live_over	over
 st_srp_live_pick	%1$s: pick whom to watch
 st_srp_live_players	Players
 st_srp_live_private	private

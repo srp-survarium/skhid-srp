@@ -2541,6 +2541,7 @@ st_srp_item_props_mps	м/с
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
 st_srp_live_back	Назад
+st_srp_live_over	закончен
 st_srp_live_pick	%1$s: выберите, за кем смотреть
 st_srp_live_players	Игроки
 st_srp_live_private	закрытый

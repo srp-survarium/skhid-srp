@@ -370,14 +370,15 @@ package
          var hex:String = "1ce45cbe";
          expect(language + ": L0 rows not taken",LW.take([{"nickname":"L0;4"},{"nickname":"L1;" + hex + ";13;1;2;8;7;12;9;421;2;1"},
             {"nickname":"L1;69f8c4bc;2;2;2;10;10;100;98;1300;0;0"},{"nickname":"L1;bad"},
-            {"nickname":"L1;00000004;1;3;0;3;2;-;-;0;0;2"}]));
-         var lines:Array = [find(win,"srpLiveMatch0"),find(win,"srpLiveMatch1"),find(win,"srpLiveMatch2")];
-         expect(language + ": the running matches are not the 3 good rows",lines[0] != null && lines[1] != null && lines[2] != null
-            && find(win,"srpLiveMatch3") == null);
-         if(lines[2] == null)
+            {"nickname":"L1;00000004;1;3;0;3;2;-;-;0;0;2"},{"nickname":"L1;00000005;2;1;3;5;5;10;7;1800;0;1"},
+            {"nickname":"L1;00000006;2;1;4;5;5;10;7;1800;0;1"}]));
+         var lines:Array = [find(win,"srpLiveMatch0"),find(win,"srpLiveMatch1"),find(win,"srpLiveMatch2"),find(win,"srpLiveMatch3")];
+         expect(language + ": the running matches are not the 4 good rows",lines[0] != null && lines[1] != null && lines[2] != null
+            && lines[3] != null && find(win,"srpLiveMatch4") == null);
+         if(lines[3] == null)
             return;
-         var mays:Array = [true,false,false];
-         for(var i:int = 0; i < 3; i++)
+         var mays:Array = [true,false,false,true];
+         for(var i:int = 0; i < 4; i++)
          {
             var line:DisplayObjectContainer = lines[i] as DisplayObjectContainer;
             var watch:* = find(line,"srpLiveWatch");
@@ -392,8 +393,8 @@ package
                   expect(language + ": '" + field.text + "' reaches Players",field.x + Math.min(field.width,field.textWidth + 4) <= players.x);
             }
          }
-         var words:Array = [this.words.getName("st_srp_matches_full"),this.words.getName("st_srp_live_private")];
-         for(i = 1; i < 3; i++)
+         var words:Array = [this.words.getName("st_srp_matches_full"),this.words.getName("st_srp_live_private"),this.words.getName("st_srp_live_over")];
+         for(i = 1; i < 4; i++)
          {
             var said:Boolean = false;
             line = lines[i] as DisplayObjectContainer;

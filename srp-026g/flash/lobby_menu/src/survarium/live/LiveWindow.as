@@ -24,7 +24,7 @@ package survarium.live
    // makes it a live spectator's. The lobby server's rows (PlayerRanking's), polled while open:
    // - `3B 00 <LIST_START> <LIST_COUNT>`: `L0;<n>`, then n rows
    //   `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch>`
-   //   (watch: 1 may, 0 full, 2 not public);
+   //   (phase: 0 made, 1 countdown, 2 in play, 3 over; watch: 1 may, 0 full, 2 not watchable live);
    // - the picker: `3D 00 <ROSTER_ASK> <match>` chooses the match, then `3B 00 <ROSTER_START> <ROSTER_COUNT>`:
    //   rows `L2;<match 8 hex>;<place>;<team 0|1>;<kills>;<deaths>;<name>`.
    public class LiveWindow extends Sprite
@@ -46,6 +46,9 @@ package survarium.live
       private static const ROWS_SHOWN:int = 6;
 
       private static const TOP:int = 34;
+
+      // the server's phase past MatchPhase.PLAYING: the match is over (Watch then plays its recording)
+      private static const PHASE_OVER:int = 3;
 
       // a watch row's word
       private static const WATCH_MAY:int = 1;
@@ -247,7 +250,7 @@ package survarium.live
                return null;
             }
          }
-         if((f[7] == "-") != (f[8] == "-") || f[7] != "-" && (count(f[7]) < 0 || count(f[8]) < 0) || count(f[11]) > 2 || count(f[4]) > MatchPhase.PLAYING)
+         if((f[7] == "-") != (f[8] == "-") || f[7] != "-" && (count(f[7]) < 0 || count(f[8]) < 0) || count(f[11]) > 2 || count(f[4]) > PHASE_OVER)
          {
             return null;
          }
@@ -485,6 +488,10 @@ package survarium.live
          if(int(row.phase) == MatchPhase.COUNTDOWN)
          {
             return LocalizationData.getName("st_srp_matches_starting");
+         }
+         if(int(row.phase) == PHASE_OVER)
+         {
+            return LocalizationData.getName("st_srp_live_over");
          }
          return int(row.spectators) > 0 ? LocalizationData.format("st_srp_live_spectators",row.spectators) : "";
       }
