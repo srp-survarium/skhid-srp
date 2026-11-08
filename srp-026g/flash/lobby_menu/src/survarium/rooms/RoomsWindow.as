@@ -1224,29 +1224,7 @@ package survarium.rooms
                 : _view == "create" ? say("st_srp_rooms_new") : say("st_srp_rooms_servers");
             look._scrollInner = null;
             look._scrollThumb = null;
-            // The shop's look: a near black body with a thin edge, and a slim
-            // steel header with the title in the middle and two small square
-            // buttons at its right.
-            var body:Shape = new Shape();
-            var bg:* = body.graphics;
-            // The inventory's frame and header, by its colours: a 1 px edge,
-            // a near-black band with the bold title in its middle, and a
-            // darker line of 3 px under it.
-            bg.beginFill(0x3A3E44, 1);
-            bg.drawRect(0, 0, look._w, look._h);
-            bg.endFill();
-            bg.beginFill(0x131517, 0.97);
-            bg.drawRect(1, 1, look._w - 2, look._h - 2);
-            bg.endFill();
-            var m:Matrix = new Matrix();
-            m.createGradientBox(look._w, RoomsLook.HEAD_H, Math.PI / 2, 0, 0);
-            bg.beginGradientFill("linear", [0x0F1114, 0x0B0D10], [1, 1], [0, 255], m);
-            bg.drawRect(1, 1, look._w - 2, RoomsLook.HEAD_H);
-            bg.endFill();
-            bg.beginFill(0x040507, 1);
-            bg.drawRect(1, RoomsLook.HEAD_H + 1, look._w - 2, 3);
-            bg.endFill();
-            look._backdrop.addChild(body);
+            look.frame();
             // A member: the tabs in place of the title.
             if (_room != null)
                 drawTabs();
@@ -1283,39 +1261,7 @@ package survarium.rooms
             var tabs:Array = [["myRoom", "st_srp_rooms_my_room", _view == "room"],
                 ["allRooms", "st_srp_rooms_all_rooms", _view != "room"]];
             for (var i:int = 0; i < tabs.length; i++)
-            {
-                var on:Boolean = tabs[i][2];
-                var tab:Sprite = new Sprite();
-                tab.x = x + i * tabW;
-                tab.y = 1;
-                tab.graphics.beginFill(on ? 0x3C2C10 : 0x000000, on ? 0.6 : 0.01);
-                tab.graphics.drawRect(0, 0, tabW, RoomsLook.HEAD_H);
-                tab.graphics.endFill();
-                if (on)
-                {
-                    tab.graphics.beginFill(RoomsLook.GOLD, 1);
-                    tab.graphics.drawRect(0, RoomsLook.HEAD_H - 3, tabW, 3);
-                    tab.graphics.endFill();
-                }
-                look.text(tab, say(tabs[i][1]), 0, 9, tabW, 15, on ? 0xFFFFFF : RoomsLook.GREY, "center");
-                tab.name = tabs[i][0];
-                tab.buttonMode = true;
-                tab.mouseChildren = false;
-                tab.addEventListener(MouseEvent.CLICK, onTab, false, 0, true);
-                look._content.addChild(tab);
-                look.route(tab, function(control:DisplayObject, e:MouseEvent):void
-                {
-                    pickTab(control.name);
-                });
-            }
-        }
-
-        private function onTab(e:MouseEvent):void
-        {
-            var ex:MouseEventEx = e as MouseEventEx;
-            if (ex != null && ex.buttonIdx != MouseEventEx.LEFT_BUTTON)
-                return;
-            pickTab(DisplayObject(e.currentTarget).name);
+                look.headTab(tabs[i][0], say(tabs[i][1]), x + i * tabW, tabW, tabs[i][2], pickTab);
         }
 
         private function pickTab(which:String):void

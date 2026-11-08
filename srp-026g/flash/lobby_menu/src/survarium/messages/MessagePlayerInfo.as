@@ -7,10 +7,10 @@ package survarium.messages
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
    import survarium.constants.Events;
-   import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
    import survarium.interfaces.IPlayerProfile;
    import survarium.player.ProfileSelector;
+   import survarium.watch.WatchWindow;
    
    public class MessagePlayerInfo extends MessageInfoBase
    {
@@ -25,10 +25,8 @@ package survarium.messages
       
       public var textFieldNickname:TextField;
 
-      // srp's Matches tab: the button left of Close, and its panel over the equipment while open
+      // srp's Matches: the button left of Close, the player's matches in the Watch window
       protected var _matchesButton:Button;
-
-      protected var _matches:PlayerMatches;
       
       public function MessagePlayerInfo()
       {
@@ -53,34 +51,21 @@ package survarium.messages
          this.btnAccept.addEventListener(ButtonEvent.CLICK,onMessageAccept,false,0,true);
          this.textFieldNickname.text = _data.nickname;
          this._matchesButton = new (Object(this.btnAccept).constructor as Class)() as Button;
-         this._matchesButton.name = "srpPlayerMatchesTab";
+         this._matchesButton.name = "srpPlayerMatches";
          this._matchesButton.label = LocalizationData.getName("st_srp_player_matches");
          this._matchesButton.y = this.btnAccept.y;
          this._matchesButton.width = Math.max(this.btnAccept.width,int(this._matchesButton.label.length * 8 + 30));
          this._matchesButton.x = this.btnAccept.x - 8 - this._matchesButton.width;
-         this._matchesButton.addEventListener(ButtonEvent.CLICK,this.onMatchesTab,false,0,true);
+         this._matchesButton.addEventListener(ButtonEvent.CLICK,this.onMatches,false,0,true);
          addChild(this._matchesButton);
       }
 
-      // Matches <-> Equipment: the panel over the equipment view, asked anew each time it opens.
-      protected function onMatchesTab(e:ButtonEvent) : void
+      // The pop-up closes, and the Watch window opens on this player's matches.
+      protected function onMatches(e:ButtonEvent) : void
       {
-         var area:MovieClip = this.playerProfile as MovieClip;
-         if(this._matches)
-         {
-            this._matches.hide();
-            removeChild(this._matches);
-            this._matches = null;
-            this._matchesButton.label = LocalizationData.getName("st_srp_player_matches");
-            return;
-         }
-         this._matches = new PlayerMatches(String(_data.nickname),_data.nickname == PlayerInfo.nickname,area.width,area.height,
-            this.btnAccept.textField.getTextFormat().font);
-         this._matches.x = area.x;
-         this._matches.y = area.y;
-         addChild(this._matches);
-         this._matches.show();
-         this._matchesButton.label = LocalizationData.getName("st_srp_player_equipment");
+         var nickname:String = String(_data.nickname);
+         onMessageAccept();
+         WatchWindow.open(WatchWindow.PLAYER,nickname);
       }
       
       private function onProfileSelected(e:Event) : void

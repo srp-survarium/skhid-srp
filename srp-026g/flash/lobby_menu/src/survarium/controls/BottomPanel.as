@@ -15,8 +15,8 @@ package survarium.controls
    import scaleform.clik.utils.Constraints;
    import survarium.buttons.ButtonFriends;
    import survarium.data.LocalizationData;
-   import survarium.live.LiveWindow;
    import survarium.rooms.RoomsWindow;
+   import survarium.watch.WatchWindow;
    import survarium.constants.ChatTab;
    
    public class BottomPanel extends UIComponent
@@ -47,9 +47,6 @@ package survarium.controls
       protected var _tabs:Array = [];
       
       protected var _invites:Array = [];
-      
-      // the Matches tab's window (survarium.live), made at its first opening
-      protected var _live:LiveWindow;
 
       public function BottomPanel()
       {
@@ -224,6 +221,10 @@ package survarium.controls
          {
             RoomsWindow.me.layout();
          }
+         if(WatchWindow.me != null)
+         {
+            WatchWindow.me.layout();
+         }
       }
       
       protected function onStageResize(event:Event = null) : void
@@ -236,7 +237,10 @@ package survarium.controls
          this.tabsBar.x = this.btnFriends.x + 154;
          this.resizeTab();
          this.y = MainScene.stageHeight - height + 13;
-         this.placeMatchesWindow();
+         if(WatchWindow.me != null)
+         {
+            WatchWindow.me.layout();
+         }
       }
       
       protected function onMatchesLocal(value:String) : void
@@ -245,11 +249,13 @@ package survarium.controls
          {
             this.matchesTab.data = {
                "id":-1,
-               "name":LocalizationData.getName("st_srp_matches_title")
+               "name":LocalizationData.getName("st_srp_watch_title")
             };
+            this.matchesTab.label = LocalizationData.getName("st_srp_watch_title");
          }
       }
 
+      // The Watch tab (survarium.watch): a chat tab's look, an eye of our own on it.
       protected function createMatchesTab() : void
       {
          var icon:Shape = null;
@@ -258,29 +264,36 @@ package survarium.controls
          this.matchesTab.name = "matchesTab";
          this.matchesTab.data = {
             "id":-1,
-            "name":LocalizationData.getName("st_srp_matches_title")
+            "name":LocalizationData.getName("st_srp_watch_title")
          };
+         this.matchesTab.label = LocalizationData.getName("st_srp_watch_title");
          this.matchesTab.y = 1;
          addChild(this.matchesTab);
          icon = new Shape();
          icon.graphics.lineStyle(1.6,10266277);
-         icon.graphics.moveTo(1,12);
-         icon.graphics.lineTo(12,1);
-         icon.graphics.moveTo(12,12);
-         icon.graphics.lineTo(1,1);
-         icon.graphics.moveTo(2,8);
-         icon.graphics.lineTo(5,11);
-         icon.graphics.moveTo(8,11);
-         icon.graphics.lineTo(11,8);
+         icon.graphics.moveTo(0,6.5);
+         icon.graphics.curveTo(6.5,-1.5,13,6.5);
+         icon.graphics.curveTo(6.5,14.5,0,6.5);
+         icon.graphics.drawCircle(6.5,6.5,2.4);
          icon.x = 11;
          icon.y = 8;
          this.matchesTab.addChild(icon);
          this.matchesTab.addEventListener(ButtonEvent.CLICK,this.onMatchesTabClick);
          this.matchesTab.addEventListener(Event.ENTER_FRAME,this.onMatchesTabFrame);
-         LocalizationData.addCallback(this.onMatchesLocal,"st_srp_matches_title");
+         LocalizationData.addCallback(this.onMatchesLocal,"st_srp_watch_title");
          this.placeMatchesTab();
-         // the rooms window (in the lobby, over this bar) is made with it
+         // the rooms window and the Watch window (in the lobby, over this bar) are made with it
          this.makeRoomsWindow();
+         try
+         {
+            if(WatchWindow.me == null)
+            {
+               WatchWindow.me = new WatchWindow(this);
+            }
+         }
+         catch(err:Error)
+         {
+         }
       }
 
       // the chat tab's own icon off (the tab is a chat tab's look)
@@ -307,7 +320,6 @@ package survarium.controls
          }
          used = this.tabsBar.container.width / this.tabsBar.container.scaleX;
          this.matchesTab.x = this.tabsBar.x + int(used);
-         this.placeMatchesWindow();
          // The rooms window follows the bar.
          if(RoomsWindow.me != null)
          {
@@ -317,48 +329,19 @@ package survarium.controls
 
       protected function onMatchesTabClick(e:Event) : void
       {
-         this.showMatches(!(this._live && this._live.shown));
+         if(WatchWindow.me != null)
+         {
+            WatchWindow.me.show(!WatchWindow.me.shown);
+         }
       }
 
-      // The running matches (LiveWindow), over the bar at the tab.
-      public function showMatches(value:Boolean) : void
+      // The Watch window opened or closed: its tab follows.
+      public function watchShown(value:Boolean) : void
       {
-         if(value && !this._live)
+         if(this.matchesTab)
          {
-            this._live = new LiveWindow(this.matchesTab.textField.getTextFormat().font);
-            this._live.addEventListener(Event.RESIZE,this.onLiveResize,false,0,true);
-            parent.addChild(this._live);
+            this.matchesTab.selected = value;
          }
-         if(this._live)
-         {
-            this._live.visible = value;
-            if(value)
-            {
-               parent.setChildIndex(this._live,parent.numChildren - 1);
-               this._live.show();
-            }
-            else
-            {
-               this._live.hide();
-            }
-         }
-         this.matchesTab.selected = value;
-         this.placeMatchesWindow();
-      }
-
-      protected function onLiveResize(e:Event) : void
-      {
-         this.placeMatchesWindow();
-      }
-
-      protected function placeMatchesWindow() : void
-      {
-         if(!this._live)
-         {
-            return;
-         }
-         this._live.x = int(this.x + this.matchesTab.x);
-         this._live.y = int(this.y - this._live.height - 4);
       }
 
       // The rooms window, made once, with the Matches tab: in the lobby, over

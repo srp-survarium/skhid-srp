@@ -2871,6 +2871,23 @@ st_srp_vulkan_overlay_full	Full
 st_srp_vulkan_overlay_hint	Shows the game's speed on screen.
 st_srp_vulkan_tear_free	Tear-free with vsync off
 st_srp_vulkan_tear_free_hint	Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off
+st_srp_watch_delay	%1$s s behind live
+st_srp_watch_friends	Friends: %1$s
+st_srp_watch_friends_only	Friends only
+st_srp_watch_friends_playing	Friends playing
+st_srp_watch_live	Live
+st_srp_watch_live_count	Matches being played: %1$s
+st_srp_watch_live_word	LIVE
+st_srp_watch_mine	My matches
+st_srp_watch_none_friends	No recent matches with your friends.
+st_srp_watch_none_mine	Your matches are listed here from now on.
+st_srp_watch_none_recent	No matches recorded yet.
+st_srp_watch_others	Other matches
+st_srp_watch_player	Player: %1$s
+st_srp_watch_players	%1$s players
+st_srp_watch_recent	Recent
+st_srp_watch_spectate	Spectate
+st_srp_watch_title	Watch
 st_srp_weapon069_akmsu_desc	Shortened AKMS with a folding stock, ammo: 7.62x39. Supports single shot and automatic fire modes.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	French bullpup assault rifle, ammo: 5.56x45. Supports single shot, three-round burst and automatic fire modes.

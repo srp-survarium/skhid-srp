@@ -2871,6 +2871,23 @@ st_srp_vulkan_overlay_full	Vollständig
 st_srp_vulkan_overlay_hint	Zeigt die Geschwindigkeit des Spiels am Bildschirm.
 st_srp_vulkan_tear_free	Kein Tearing ohne VSync
 st_srp_vulkan_tear_free_hint	Hält das Bild ganz, wenn die vertikale Synchronisierung aus ist.\n+ Keine Risse beim schnellen Drehen\n- Etwas mehr Eingabeverzögerung als nur VSync aus
+st_srp_watch_delay	%1$s s Verzögerung
+st_srp_watch_friends	Freunde: %1$s
+st_srp_watch_friends_only	Nur mit Freunden
+st_srp_watch_friends_playing	Freunde spielen
+st_srp_watch_live	Live
+st_srp_watch_live_count	Laufende Matches: %1$s
+st_srp_watch_live_word	LIVE
+st_srp_watch_mine	Meine Matches
+st_srp_watch_none_friends	Keine letzten Matches mit Freunden.
+st_srp_watch_none_mine	Ab jetzt stehen hier deine Matches.
+st_srp_watch_none_recent	Noch keine aufgezeichneten Matches.
+st_srp_watch_others	Andere Matches
+st_srp_watch_player	Spieler: %1$s
+st_srp_watch_players	%1$s Spieler
+st_srp_watch_recent	Letzte
+st_srp_watch_spectate	Zuschauen
+st_srp_watch_title	Zuschauen
 st_srp_weapon069_akmsu_desc	Verkürzte AKMS mit Klappschaft, Munition: 7,62x39. Einzel- und Dauerfeuer.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Französisches Bullpup-Sturmgewehr, Munition: 5,56x45. Einzelfeuer, Dreischussfeuerstöße und Dauerfeuer.

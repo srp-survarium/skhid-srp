@@ -2871,6 +2871,23 @@ st_srp_vulkan_overlay_full	Úplný
 st_srp_vulkan_overlay_hint	Ukazuje rychlost hry na obrazovce.
 st_srp_vulkan_tear_free	Bez trhání obrazu bez V-Sync
 st_srp_vulkan_tear_free_hint	Obraz se netrhá, když je vertikální synchronizace vypnutá.\n+ Žádné roztržené čáry při rychlém otáčení\n- O něco větší zpoždění než jen vypnutá VSync
+st_srp_watch_delay	zpoždění %1$s s
+st_srp_watch_friends	Přátelé: %1$s
+st_srp_watch_friends_only	Jen s přáteli
+st_srp_watch_friends_playing	Hrají přátelé
+st_srp_watch_live	Živě
+st_srp_watch_live_count	Probíhající zápasy: %1$s
+st_srp_watch_live_word	ŽIVĚ
+st_srp_watch_mine	Moje zápasy
+st_srp_watch_none_friends	Žádné nedávné zápasy s přáteli.
+st_srp_watch_none_mine	Od teď tu najdete své zápasy.
+st_srp_watch_none_recent	Zatím žádné nahrané zápasy.
+st_srp_watch_others	Ostatní zápasy
+st_srp_watch_player	Hráč: %1$s
+st_srp_watch_players	hráčů: %1$s
+st_srp_watch_recent	Nedávné
+st_srp_watch_spectate	Sledovat
+st_srp_watch_title	Sledovat
 st_srp_weapon069_akmsu_desc	Zkrácený AKMS se sklopnou pažbou na náboje 7.62x39. Střílí jednotlivě i automaticky.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francouzská útočná puška bullpup na náboje 5.56x45. Střílí jednotlivě, dávkou po třech i automaticky.

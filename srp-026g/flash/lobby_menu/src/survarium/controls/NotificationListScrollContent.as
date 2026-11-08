@@ -153,6 +153,9 @@ package survarium.controls
       private static const QUEST_MESSAGE_TYPE:int = 3;
       
       public static var replayHolder:NotificationListScrollContent;
+
+      // Told (match 8 hex, status) of each answer that sets a chip: the Watch window's cards follow.
+      public static var chipListener:Function;
       
       public var matchCalback:Function;
 
@@ -1000,10 +1003,16 @@ package survarium.controls
          this.rpWatchTyped();
       }
 
-      // The box's number watched, or the prompt says what a number is.
       protected function rpWatchTyped() : void
       {
-         var id:uint = NotificationListScrollContent.matchNumber(this._rpBox.text);
+         this.replayTyped(this._rpBox.text);
+      }
+
+      // A typed match number watched (the box above the History, the Watch window's), or the
+      // prompt says what a number is.
+      public function replayTyped(text:String) : void
+      {
+         var id:uint = NotificationListScrollContent.matchNumber(text);
          if(id == 0)
          {
             if(this._rpState != RP_ASKING)
@@ -1115,6 +1124,18 @@ package survarium.controls
          rec.chip = chip;
       }
 
+      // The chip's dictionary key the last answer about match `hex` set (RP_CHIPS), null none.
+      public function chipOf(hex:String) : String
+      {
+         return this._rpChips[hex] as String;
+      }
+
+      // A chip's colour by its dictionary key: ready green, preparing amber, the others grey.
+      public static function chipColour(key:String) : uint
+      {
+         return RP_CHIP_COLOURS[key] != undefined ? uint(RP_CHIP_COLOURS[key]) : RP_CHIP_GREY;
+      }
+
       // The answer's word for the match's chip; the rows of that match drawn again.
       protected function rpChip(hex:String, status:String) : void
       {
@@ -1126,6 +1147,10 @@ package survarium.controls
             return;
          }
          this._rpChips[hex] = key;
+         if(NotificationListScrollContent.chipListener != null)
+         {
+            NotificationListScrollContent.chipListener(hex,status);
+         }
          i = 0;
          while(i < this._renderers.length)
          {

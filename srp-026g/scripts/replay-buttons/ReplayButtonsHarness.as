@@ -5,29 +5,32 @@ package
    import flash.display.Loader;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.events.UncaughtErrorEvent;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
+   import flash.geom.Rectangle;
    import flash.system.LoaderContext;
    import flash.text.Font;
    import flash.text.TextField;
    import flash.text.TextFormat;
 
    // srp's replay buttons in the lobby movie, in every language (HarnessText):
-   // - a History match row (NotificationListScrollContent) has Download and Watch at its top right,
-   //   side by side, each label fitting its button, the map name left room;
+   // - a History match row (NotificationListScrollContent) has Watch at its top right (no
+   //   Download), its label fitting, the map name left room; no number strip above the History;
    // - Watch asks; the server's answers (`R1;<status>;<match>;<n>`, PlayerRanking's rows) set the
    //   row's chip under Watch: watching/ready Ready, preparing Preparing, incompatible Old version,
    //   not_recorded Not recorded, gone Expired; an answer that says nothing of the replay (busy)
-   //   and an answer for another match leave it; the chip fits the row;
+   //   and an answer for another match leave it; the chip fits the row; the row's number;
    // - the results screen (SrvVictoryScreenReskin) shows Watch replay and Watch my deaths for a
    //   match with an id, left of the close button, labels fitting; none without an id; Watch my
    //   deaths asks through the History's prompt (its answer sets the History row's chip); the
-//   match's number after them;
-// - the player pop-up's Matches tab (PlayerMatches) with the server's P1/P2 rows;
-// - the bottom bar's Matches tab (LiveWindow) with the server's L0/L1/L2 rows;
-// - "watch by match number": the row's number (#1ce45cbe) and the box above the History that
-//   watches a number typed as rows show it.
+   //   match's number after them;
+   // - the Watch window (survarium.watch.WatchWindow) fed WatchFake's rows: Live (friends' first,
+   //   Watch only where one may, the roster and its players, a friend's Spectate), Recent (each
+   //   replay state's chip and Watch, an answer's chip, Friends only, back on its tab after a
+   //   replay), My matches (results, My deaths), a player's matches (another's rows left), the
+   //   number box; every card's texts apart and its buttons' labels fitting, the window in the stage.
    // Ruffle has no exe (ExternalInterface throws): the asks are seen through the answers taken.
    // Prints "REPLAYBUTTONS ..." lines and ends with "REPLAYBUTTONS RESULT pass" or "... fail: ...".
    public class ReplayButtonsHarness extends Sprite
@@ -81,13 +84,13 @@ package
             font = make("Fonts_CB_Bold") as Font;
             addChild(loader);
             domain.getDefinition("MainScene").layout = make("scaleform.clik.layout.Layout");
+            domain.getDefinition("MainScene").stage = this;
             for each(var language:String in HarnessText.LANGUAGES)
             {
                words.setData(HarnessText.DATA[language]);
                history(language);
                results(language);
-               playerMatches(language);
-               live(language);
+               watch(language);
             }
          }
          catch(err:Error)
@@ -304,130 +307,279 @@ package
          trace("REPLAYBUTTONS " + language + ": results: Watch replay, Watch my deaths");
       }
 
-      // The player pop-up's Matches tab (survarium.messages.PlayerMatches), fed the server's rows:
-      // another player's rows are left; a malformed row is dropped; Watch only where the replay is
-      // kept, asking from that player's place; every language's texts in the row's room.
-      private function playerMatches(language:String) : void
+      // ---- the Watch window (survarium.watch.WatchWindow), fed WatchFake's rows ----
+
+      // The window, made by the bottom bar as in the lobby (or made here when the bar did not).
+      private function watchWindow() : *
       {
-         var PM:* = domain.getDefinition("survarium.messages.PlayerMatches");
-         var list:* = make("SrvNotificationListSC");
-         var row:DisplayObjectContainer = historyRow(list);
-         var panel:* = new PM("Ada",false,520,320,font.fontName);
-         Object(loader.content).addChild(panel);
-         panel.show();
-         expect(language + ": PlayerMatches.watchAsk(4) is " + uint(PM.watchAsk(4)).toString(16),PM.watchAsk(4) == 0xC0040000);
-         expect(language + ": P1 rows not taken",PM.take([{"nickname":"P1;1;Bob"},{"nickname":"P2;1ce45cbe;4;13;1;1;12;7;35;1"}]));
-         expect(language + ": another player's matches shown",find(panel,"srpPlayerMatch0") == null);
-         PM.take([{"nickname":"P1;3;Ada"},{"nickname":"P2;1ce45cbe;4;13;1;1;12;7;35;1"},{"nickname":"P2;broken;1"},
-            {"nickname":"P2;69f8c4bc;2;2;3;2;3;9;3000;0"}]);
-         var first:DisplayObjectContainer = find(panel,"srpPlayerMatch0") as DisplayObjectContainer;
-         var second:DisplayObjectContainer = find(panel,"srpPlayerMatch1") as DisplayObjectContainer;
-         expect(language + ": the matches shown are not the 2 good rows",first != null && second != null && find(panel,"srpPlayerMatch2") == null);
-         if(first == null || second == null)
-            return;
-         var watch:* = find(first,"srpPlayerMatchWatch");
-         expect(language + ": Watch on a match without its replay, or none with it",watch != null && find(second,"srpPlayerMatchWatch") == null);
-         for each(var line:DisplayObjectContainer in [first,second])
+         var W:* = domain.getDefinition("survarium.watch.WatchWindow");
+         if(W.me == null)
          {
-            var right:Number = 0;
-            for(var i:int = 0; i < line.numChildren; i++)
-            {
-               var part:DisplayObject = line.getChildAt(i);
-               if(part is TextField)
-               {
-                  var field:TextField = part as TextField;
-                  expect(language + ": '" + field.text + "' overlaps the row's text before it",field.x >= right);
-                  right = field.x + Math.min(field.width,field.textWidth + 4);
-               }
-            }
-            expect(language + ": a match row's texts reach its Watch",watch == null || line != first || right <= watch.x);
+            var panel:* = make("SrvBottomPanel");
+            panel.y = stage.stageHeight - panel.height + 13;
+            Object(loader.content).addChild(panel);
+            if(W.me == null)
+               W.me = new W(panel);
+            Object(loader.content).addChild(W.me);
+            W.me.layout();
          }
-         if(watch != null)
-         {
-            fits(language + ": Matches tab Watch",watch);
-            watch.dispatchEvent(new Click(Click.CLICK));
-            answer("watching",MATCH,0);
-            expect(language + ": the Matches tab's Watch did not ask",chip(row) == words.getName("st_srp_replay_chip_ready"));
-         }
-         panel.hide();
-         expect(language + ": rows taken by a closed tab",PM.take([{"nickname":"P1;0;Ada"}]) && find(panel,"srpPlayerMatch0") != null);
-         panel.parent.removeChild(panel);
-         list.parent.removeChild(list);
-         trace("REPLAYBUTTONS " + language + ": player pop-up Matches tab");
+         return W.me;
       }
 
-      // The bottom bar's Matches tab (survarium.live.LiveWindow), fed the server's rows: the good L1
-      // rows listed, Watch only where one may watch, the word for a full or private match; Watch and
-      // a player of Players ask; Back to the list; every language's texts in their room.
-      private function live(language:String) : void
+      private function take(names:Array) : Boolean
       {
-         var LW:* = domain.getDefinition("survarium.live.LiveWindow");
-         var list:* = make("SrvNotificationListSC");
-         var row:DisplayObjectContainer = historyRow(list);
-         var win:* = new LW(font.fontName);
-         Object(loader.content).addChild(win);
-         win.show();
-         var hex:String = "1ce45cbe";
-         expect(language + ": L0 rows not taken",LW.take([{"nickname":"L0;4"},{"nickname":"L1;" + hex + ";13;1;2;8;7;12;9;421;2;1"},
-            {"nickname":"L1;69f8c4bc;2;2;2;10;10;100;98;1300;0;0"},{"nickname":"L1;bad"},
-            {"nickname":"L1;00000004;1;3;0;3;2;-;-;0;0;2"},{"nickname":"L1;00000005;2;1;3;5;5;10;7;1800;0;1"},
-            {"nickname":"L1;00000006;2;1;4;5;5;10;7;1800;0;1"}]));
-         var lines:Array = [find(win,"srpLiveMatch0"),find(win,"srpLiveMatch1"),find(win,"srpLiveMatch2"),find(win,"srpLiveMatch3")];
-         expect(language + ": the running matches are not the 4 good rows",lines[0] != null && lines[1] != null && lines[2] != null
-            && lines[3] != null && find(win,"srpLiveMatch4") == null);
-         if(lines[3] == null)
-            return;
-         var mays:Array = [true,false,false,true];
-         for(var i:int = 0; i < 4; i++)
+         return domain.getDefinition("survarium.watch.WatchWindow").take(WatchFake.rows(names));
+      }
+
+      private function pickTab(win:*, tab:String) : void
+      {
+         var at:DisplayObject = find(win,"srpWatchTab_" + tab);
+         if(at == null)
+            failures.push("no tab " + tab);
+         else
+            at.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+      }
+
+      private function click(box:DisplayObjectContainer, name:String) : void
+      {
+         var b:* = find(box,name);
+         if(b != null)
+            b.dispatchEvent(new Click(Click.CLICK));
+      }
+
+      private function textOf(box:DisplayObjectContainer, name:String) : String
+      {
+         var field:TextField = find(box,name) as TextField;
+         return field == null ? null : field.text;
+      }
+
+      private function chipText(card:DisplayObjectContainer) : String
+      {
+         var box:DisplayObjectContainer = find(card,"srpWatchChip") as DisplayObjectContainer;
+         return box == null ? null : TextField(box.getChildAt(0)).text;
+      }
+
+      // A card's texts: none past the chip and buttons, none over the next one on its line; its
+      // buttons' labels fit; nothing past the card.
+      private function cardFits(what:String, card:DisplayObjectContainer, w:Number) : void
+      {
+         var stop:Number = w;
+         var fields:Array = [];
+         for(var i:int = 0; i < card.numChildren; i++)
          {
-            var line:DisplayObjectContainer = lines[i] as DisplayObjectContainer;
-            var watch:* = find(line,"srpLiveWatch");
-            var players:* = find(line,"srpLivePlayers");
-            expect(language + ": match " + i + " Watch " + (watch.enabled ? "on" : "off"),watch.enabled == mays[i]);
-            fits(language + ": Matches tab Watch",watch);
-            fits(language + ": Matches tab Players",players);
-            for(var j:int = 0; j < line.numChildren; j++)
+            var part:DisplayObject = card.getChildAt(i);
+            if(part.name == "srpWatchChip" || part.name == "srpWatchWatch" || part.name == "srpWatchPlayers" || part.name == "srpWatchDeaths")
             {
-               var field:TextField = line.getChildAt(j) as TextField;
-               if(field != null && field.x > 60)
-                  expect(language + ": '" + field.text + "' reaches Players",field.x + Math.min(field.width,field.textWidth + 4) <= players.x);
+               stop = Math.min(stop,part.x);
+               expect(what + ": " + part.name + " leaves the card",part.x >= 0 && part.x + part.width <= w + 1);
+               if(part.name != "srpWatchChip")
+                  fits(what + " " + part.name,part);
             }
+            else if(part is TextField && TextField(part).text != "")
+               fields.push(part);
          }
-         var words:Array = [this.words.getName("st_srp_matches_full"),this.words.getName("st_srp_live_private"),this.words.getName("st_srp_live_over")];
-         for(i = 1; i < 4; i++)
+         fields.sortOn("x",Array.NUMERIC);
+         for(var j:int = 0; j < fields.length; j++)
          {
-            var said:Boolean = false;
-            line = lines[i] as DisplayObjectContainer;
-            for(j = 0; j < line.numChildren; j++)
-               if(line.getChildAt(j) is TextField && TextField(line.getChildAt(j)).text == words[i - 1])
-                  said = true;
-            expect(language + ": match " + i + " does not say '" + words[i - 1] + "'",said);
+            var f:TextField = fields[j];
+            var right:Number = f.x + Math.min(f.width,f.textWidth + 4);
+            expect(what + ": '" + f.text + "' reaches the chip or buttons",right <= stop);
+            for(var k:int = j + 1; k < fields.length; k++)
+               if(Math.abs(fields[k].y - f.y) < 8)
+               {
+                  expect(what + ": '" + f.text + "' overlaps '" + fields[k].text + "'",right <= fields[k].x);
+                  break;
+               }
          }
-         find(lines[0],"srpLiveWatch").dispatchEvent(new Click(Click.CLICK));
+      }
+
+      private function cards(win:*) : Array
+      {
+         var list:Array = [];
+         for(var i:int = 0; find(win,"srpWatchCard" + i) != null; i++)
+            list.push(find(win,"srpWatchCard" + i));
+         return list;
+      }
+
+      // The window's place: in the stage, over the bottom bar, and the toolbar's texts apart.
+      private function watchFrame(language:String, win:*) : void
+      {
+         var r:Rectangle = win.getBounds(stage);
+         expect(language + ": the Watch window leaves the stage " + r,r.x >= 0 && r.y >= 0 && r.right <= stage.stageWidth && r.bottom <= stage.stageHeight);
+         var box:DisplayObject = find(win,"srpWatchNumberBox");
+         var hint:TextField = find(win,"srpWatchNumberHint") as TextField;
+         fits(language + ": the number box's Watch",find(win,"srpWatchNumberWatch"));
+         expect(language + ": the number box overlaps its hint or Watch",hint != null && hint.x + hint.textWidth <= box.x
+            && box.x + box.width <= find(win,"srpWatchNumberWatch").x);
+      }
+
+      private function watchLive(language:String, win:*, row:DisplayObjectContainer) : void
+      {
+         var W:* = domain.getDefinition("survarium.watch.WatchWindow");
+         W.open("live");
+         expect(language + ": the window did not open on Live",win.shown && win.tab == "live");
+         expect(language + ": L0 rows not taken",take(WatchFake.LIVE));
+         var list:Array = cards(win);
+         expect(language + ": Live is not the 5 good matches",list.length == 5);
+         if(list.length != 5)
+            return;
+         expect(language + ": the friends' match is not first",textOf(list[0],"srpWatchNumber") == null
+            && String(textOf(list[0],"srpWatchFriends")).indexOf("Petro") >= 0 && find(win,"srpWatchSectionFriends") != null
+            && find(win,"srpWatchSectionOthers") != null);
+         var head:TextField = find(win,"srpWatchTab_live") ? TextField(DisplayObjectContainer(find(win,"srpWatchTab_live")).getChildAt(0)) : null;
+         expect(language + ": the Live tab does not count 5",head != null && head.text.indexOf("(5)") > 0);
+         var mays:Array = [true,true,false,false,true];
+         for(var i:int = 0; i < 5; i++)
+         {
+            var watch:* = find(list[i],"srpWatchWatch");
+            expect(language + ": live match " + i + " Watch " + (watch && watch.enabled ? "on" : "off"),watch != null && watch.enabled == mays[i]);
+            cardFits(language + ": live card " + i,list[i],list[i].width);
+         }
+         watchFrame(language,win);
+         click(list[0],"srpWatchWatch");
          answer("watching",MATCH,0);
-         expect(language + ": the Matches tab's Watch did not ask",chip(row) == this.words.getName("st_srp_replay_chip_ready"));
-         find(lines[0],"srpLivePlayers").dispatchEvent(new Click(Click.CLICK));
-         expect(language + ": the picker's rows not taken",LW.take([{"nickname":"L2;69f8c4bc;1;0;0;0;Eve"},{"nickname":"L2;" + hex + ";4;0;5;2;Ada"},
-            {"nickname":"L2;" + hex + ";9;1;1;3;Bob;the;Builder"}]));
-         var ada:* = find(win,"srpLivePlayer4");
-         var bob:* = find(win,"srpLivePlayer9");
-         expect(language + ": the picker is not Ada and Bob in their teams",ada != null && bob != null && find(win,"srpLivePlayer1") == null
-            && bob.x > ada.x && bob.label.indexOf("Bob;the;Builder") == 0);
+         expect(language + ": Live's Watch did not ask",chip(row) == words.getName("st_srp_replay_chip_ready"));
+         click(list[0],"srpWatchPlayers");
+         expect(language + ": L2 rows not taken",take(WatchFake.ROSTER));
+         var ada:* = find(win,"srpWatchPlayer4");
+         var bob:* = find(win,"srpWatchPlayer10");
+         expect(language + ": the roster is not its 6 players in their teams",ada != null && bob != null && find(win,"srpWatchPlayer1") == null
+            && bob.x > ada.x && String(bob.label).indexOf("Bob;the;Builder") == 0);
          if(ada != null)
          {
-            fits(language + ": the picker's player",ada);
+            fits(language + ": the roster's player",ada);
             ada.dispatchEvent(new Click(Click.CLICK));
             answer("preparing",MATCH,1);
-            expect(language + ": the picker's player did not ask",chip(row) == this.words.getName("st_srp_replay_chip_preparing"));
+            expect(language + ": the roster's player did not ask",chip(row) == words.getName("st_srp_replay_chip_preparing"));
             answer("failed",MATCH);
          }
-         find(win,"srpLiveBack").dispatchEvent(new Click(Click.CLICK));
-         expect(language + ": Back did not list the matches again",find(win,"srpLiveMatch0") != null && find(win,"srpLivePlayer4") == null);
-         win.hide();
-         expect(language + ": rows not taken with the window closed",LW.take([{"nickname":"L0;0"}]) && find(win,"srpLiveMatch0") != null);
-         win.parent.removeChild(win);
+         click(win,"srpWatchBack");
+         expect(language + ": Back did not list the matches again",find(win,"srpWatchCard0") != null && find(win,"srpWatchPlayer4") == null);
+         // a friend's Spectate: that friend's match's roster
+         W.spectate("PETRO");
+         take(WatchFake.ROSTER);
+         expect(language + ": Spectate did not open Petro's match's roster",find(win,"srpWatchBack") != null && find(win,"srpWatchPlayer3") != null);
+         click(win,"srpWatchBack");
+         take(["L0;0"]);
+         expect(language + ": an empty Live says '" + textOf(win,"srpWatchEmpty") + "'",textOf(win,"srpWatchEmpty") == words.getName("st_srp_matches_none"));
+         take(WatchFake.LIVE);
+      }
+
+      private function watchRecent(language:String, win:*, row:DisplayObjectContainer) : void
+      {
+         pickTab(win,"recent");
+         expect(language + ": M0 rows not taken",take(WatchFake.RECENT));
+         var list:Array = cards(win);
+         expect(language + ": Recent is not the 5 good matches",list.length == 5);
+         if(list.length != 5)
+            return;
+         var chips:Array = ["st_srp_replay_chip_not_recorded",null,"st_srp_replay_chip_ready","st_srp_replay_chip_gone","st_srp_replay_chip_old"];
+         var mays:Array = [false,true,true,false,false];
+         for(var i:int = 0; i < 5; i++)
+         {
+            var want:String = chips[i] == null ? null : words.getName(chips[i]);
+            expect(language + ": recent " + i + " chip '" + chipText(list[i]) + "', not '" + want + "'",chipText(list[i]) == want);
+            expect(language + ": recent " + i + " Watch",Object(find(list[i],"srpWatchWatch")).enabled == mays[i]);
+            cardFits(language + ": recent card " + i,list[i],list[i].width);
+         }
+         expect(language + ": the friend not on recent 1",String(textOf(list[1],"srpWatchFriends")).indexOf("Petro") >= 0);
+         expect(language + ": recent 1's number",textOf(list[1],"srpWatchNumber") == "#69f8c4bc");
+         click(list[1],"srpWatchWatch");
+         answer("preparing",OTHER,1);
+         expect(language + ": the answer did not set recent 1's chip",chipText(cards(win)[1]) == words.getName("st_srp_replay_chip_preparing"));
+         answer("watching",OTHER,0);
+         // back on Recent after the replay
+         var W:* = domain.getDefinition("survarium.watch.WatchWindow");
+         W.away();
+         win.show(false);
+         W.back();
+         expect(language + ": not back on Recent after the replay",win.shown && win.tab == "recent");
+         var tick:DisplayObject = find(win,"srpWatchFriendsOnly");
+         expect(language + ": no Friends only",tick != null);
+         if(tick != null)
+         {
+            tick.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+            take(["M0;0"]);
+            expect(language + ": Friends only, none: '" + textOf(win,"srpWatchEmpty") + "'",textOf(win,"srpWatchEmpty") == words.getName("st_srp_watch_none_friends"));
+            find(win,"srpWatchFriendsOnly").dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+            take(WatchFake.RECENT);
+         }
+      }
+
+      private function watchPlayed(language:String, win:*, row:DisplayObjectContainer) : void
+      {
+         var W:* = domain.getDefinition("survarium.watch.WatchWindow");
+         pickTab(win,"mine");
+         expect(language + ": P1 rows not taken",take(WatchFake.played("PocketTest1")));
+         var list:Array = cards(win);
+         expect(language + ": My matches is not the 3 good rows",list.length == 3);
+         if(list.length != 3)
+            return;
+         var results:Array = ["victory","defeat","st_srp_player_matches_draw"];
+         for(var i:int = 0; i < 3; i++)
+         {
+            expect(language + ": my match " + i + " result",textOf(list[i],"srpWatchResult") == words.getName(results[i]));
+            expect(language + ": my match " + i + " has no My deaths",find(list[i],"srpWatchDeaths") != null);
+            cardFits(language + ": my card " + i,list[i],list[i].width);
+         }
+         click(list[0],"srpWatchDeaths");
+         answer("watching",MATCH,0);
+         expect(language + ": My deaths did not ask",chip(row) == words.getName("st_srp_replay_chip_ready"));
+         var ada:String = "Ada_" + language;
+         W.open("player",ada);
+         expect(language + ": the player's tab",win.tab == "player" && find(win,"srpWatchTab_player") != null);
+         take(WatchFake.played("Bob"));
+         expect(language + ": another player's rows shown",find(win,"srpWatchCard0") == null);
+         take(WatchFake.played(ada));
+         list = cards(win);
+         expect(language + ": Ada's matches are not the 3 good rows",list.length == 3 && find(list[0],"srpWatchDeaths") == null);
+         if(list.length == 3)
+         {
+            cardFits(language + ": Ada's card",list[0],list[0].width);
+            answer("failed",MATCH);
+            click(list[0],"srpWatchWatch");
+            answer("preparing",MATCH,1);
+            expect(language + ": Ada's Watch did not ask",chip(row) == words.getName("st_srp_replay_chip_preparing"));
+            answer("failed",MATCH);
+         }
+      }
+
+      private function watchNumber(language:String, win:*, row:DisplayObjectContainer) : void
+      {
+         var box:TextField = find(win,"srpWatchNumberBox") as TextField;
+         for each(var typed:String in ["#1CE45CBE","1ce45cbe"," #1ce45cbe "])
+         {
+            answer("gone",OTHER);
+            box.text = typed;
+            click(win,"srpWatchNumberWatch");
+            answer("preparing",MATCH,2);
+            expect(language + ": '" + typed + "' was not asked for",chip(row) == words.getName("st_srp_replay_chip_preparing"));
+            answer("failed",MATCH);
+            box = find(win,"srpWatchNumberBox") as TextField;
+         }
+         for each(var bad:String in ["","1ce45cbe0","zz","#"])
+         {
+            box.text = bad;
+            click(win,"srpWatchNumberWatch");
+            answer("gone",MATCH);
+            expect(language + ": '" + bad + "' was asked for",chip(row) == words.getName("st_srp_replay_chip_preparing"));
+            box = find(win,"srpWatchNumberBox") as TextField;
+         }
+      }
+
+      private function watch(language:String) : void
+      {
+         var list:* = make("SrvNotificationListSC");
+         var row:DisplayObjectContainer = historyRow(list);
+         var win:* = watchWindow();
+         watchLive(language,win,row);
+         watchRecent(language,win,row);
+         watchPlayed(language,win,row);
+         watchNumber(language,win,row);
+         win.show(false);
+         expect(language + ": rows not taken with the window closed",take(["L0;0"]) && take(["M0;0"]));
          list.parent.removeChild(list);
-         trace("REPLAYBUTTONS " + language + ": Matches tab: running matches, Watch, Players");
+         trace("REPLAYBUTTONS " + language + ": Watch window: Live, roster, Spectate, Recent, My matches, a player's, the number box");
       }
 
       private function finish(result:String) : void
