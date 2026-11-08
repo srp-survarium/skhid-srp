@@ -2,8 +2,10 @@
 //! session's player) and the polls (`3B` with `REPLAY_START`), answered
 //! with the asker's own `R1` row.
 
-use session::v026g::replays::{Replays, Status, oldest_replayable_here};
-use survarium::v026g::lobby::REPLAY_START;
+use session::v026g::replays::{
+    Replays, SaveSettings, Sidecar, Status, oldest_replayable_here,
+};
+use survarium::v026g::lobby::{REPLAY_START, SAVE_ASK, SAVE_START};
 
 use super::*;
 
@@ -23,15 +25,14 @@ fn player(world: &mut World, name: &str, revision: u8) -> usize {
 }
 
 /// A poll without a session gets `none` (no match); with replays off,
-/// `off`. The download's ask of older movies (`3D 00 FFFFFF01 <match>`)
-/// is no replay ask: nothing answers it.
+/// `off`. A save's ask (`3D 00 FFFFFF01 <match>`) is no replay session's.
 #[test]
 fn a_poll_without_a_session_answers_none_and_off_when_off() {
     let mut world = World::new();
     let alice = player(&mut world, "Alice", current());
     world.take(alice);
     world.ask(alice, request::player_details(0xFFFF_FF01, MATCH));
-    assert!(world.take(alice).is_empty());
+    assert_eq!(saved(&mut world, alice), (None, "R2;off;00000000;0".into(), None));
     assert_eq!(poll_in_room(&mut world, alice), "R1;off;00000000;0");
     world.core.replays = Some(sessions());
     assert_eq!(poll_in_room(&mut world, alice), "R1;none;00000000;0");
@@ -303,4 +304,203 @@ fn watch_my_deaths_asks_for_a_session_from_the_askers_deaths() {
     assert_eq!(r1(&world.take(taras)), "R1;preparing;1f07c8fb;2");
     let request = desk.watches().next_job(world.now).unwrap();
     assert_eq!(request.from, WatchFrom::MyDeaths);
+}
+
+// ------------------------------------------------------- Save
+
+/// What came back to the asker of a save (its ask, or `3B 00 <SAVE_START>`
+/// when `poll`): the `9E` link, the `R2` row, the message box's text.
+fn save_answer(world: &mut World, index: usize) -> (Option<String>, String, Option<String>) {
+    let decoded = world.take(index);
+    let mut link = None;
+    let mut row = None;
+    let mut said = None;
+    for message in decoded {
+        match message {
+            Decoded::VideoLink { show, url } => {
+                assert!(!show, "the link is never shown in the lobby");
+                assert!(row.is_none(), "the link comes before the row");
+                link = Some(url);
+            }
+            Decoded::EloList(rows) => {
+                let [(name, place, 0, 0)] = &rows[..] else {
+                    panic!("not one row: {rows:?}");
+                };
+                assert_eq!(*place, SAVE_START);
+                row = Some(name.clone());
+            }
+            Decoded::Denied { op: 0x49, text } => said = Some(text),
+            other => panic!("not a save's answer: {other:?}"),
+        }
+    }
+    (link, row.expect("an R2 row"), said)
+}
+
+fn saved(world: &mut World, index: usize) -> (Option<String>, String, Option<String>) {
+    save_answer(world, index)
+}
+
+fn save(world: &mut World, index: usize, match_id: u32) -> (Option<String>, String, Option<String>) {
+    world.take(index);
+    world.ask(index, request::player_details(SAVE_ASK, match_id));
+    save_answer(world, index)
+}
+
+fn save_poll(world: &mut World, index: usize) -> (Option<String>, String, Option<String>) {
+    world.take(index);
+    world.ask(index, request::ranking(SAVE_START, 1));
+    save_answer(world, index)
+}
+
+/// Save on in `root`, oldest given `oldest`, with a made file of `MATCH`
+/// that `players` played, recorded by games of `revisions`.
+fn save_desk(
+    root: &std::path::Path,
+    oldest: u8,
+    players: &[u32],
+    revisions: Vec<Option<u8>>,
+) -> &'static Replays {
+    let record_dir = root.join("recordings");
+    std::fs::create_dir_all(&record_dir).unwrap();
+    let save = SaveSettings {
+        replay_dir: root.join("replays"),
+        max_replay_bytes: 1 << 20,
+    }
+    .checked(&record_dir)
+    .unwrap();
+    let replays: &'static Replays = Box::leak(Box::new(
+        Replays::new(Some(record_dir))
+            .with_save(save)
+            .with_oldest_revision(oldest),
+    ));
+    std::fs::write(replays.file_path(MATCH).unwrap(), b"0123456789ab").unwrap();
+    let sidecar = Sidecar {
+        match_id: MATCH,
+        size: 12,
+        sha256: "cd".repeat(32),
+        revisions,
+        account_ids: players.to_vec(),
+        made_at: 0,
+    };
+    std::fs::write(replays.json_path(MATCH).unwrap(), sidecar.to_json()).unwrap();
+    replays
+}
+
+fn temp(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "srp-lobby-save-{name}-{}-{:?}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    dir
+}
+
+/// A made file: its `R2 ready` with the hidden link just before it, at
+/// the ask and at each poll; each asker its own token; the others' polls
+/// show nobody's answer.
+#[test]
+fn a_save_gets_the_link_before_a_ready_row() {
+    let root = temp("ready");
+    let mut world = World::new();
+    let alice = player(&mut world, "Alice", current());
+    let bob = player(&mut world, "Bob", current());
+    let carol = player(&mut world, "Carol", 12);
+    let dave = player(&mut world, "Dave", current());
+    let ids = [world.ids[alice].0, world.ids[carol].0];
+    let desk = save_desk(&root, current(), &ids, vec![Some(current()), None]);
+    world.core.replays = Some(desk);
+
+    assert_eq!(save_poll(&mut world, alice), (None, "R2;none;00000000;0".into(), None));
+    let (link, row, said) = save(&mut world, alice, MATCH);
+    assert_eq!((row.as_str(), said), ("R2;ready;1f07c8fb;12", None));
+    let link = link.expect("a 9E before the ready row");
+    let parts: Vec<&str> = link.split(' ').collect();
+    assert_eq!(
+        (parts.len(), parts[0], parts[1], parts[3], parts[4]),
+        (5, "replay", "1f07c8fb", "cd".repeat(32).as_str(), "12")
+    );
+    let token = parts[2].to_owned();
+    // The token downloads that match, and only from the web page.
+    assert_eq!(
+        desk.take_download(&token, false, world.now)
+            .map(|download| download.match_id),
+        Ok(MATCH)
+    );
+    // A poll: the same link again.
+    assert_eq!(save_poll(&mut world, alice).0, Some(link));
+    // Bob did not play it: anyone may (the default), his own token.
+    let (bobs, row, _) = save(&mut world, bob, MATCH);
+    assert_eq!(row, "R2;ready;1f07c8fb;12");
+    assert_ne!(bobs.unwrap().split(' ').nth(2), Some(token.as_str()));
+    // Carol's game (revision 12) has no replay link.
+    assert_eq!(
+        save(&mut world, carol, MATCH),
+        (None, "R2;old_game;1f07c8fb;0".into(), None)
+    );
+    assert_eq!(save_poll(&mut world, dave), (None, "R2;none;00000000;0".into(), None));
+    // Another match, of no recording: gone; asked again at once: busy.
+    world.advance(Duration::from_secs(3));
+    assert_eq!(
+        save(&mut world, alice, 0x1234),
+        (None, "R2;gone;00001234;0".into(), None)
+    );
+    assert_eq!(
+        save(&mut world, alice, MATCH),
+        (None, "R2;busy;1f07c8fb;0".into(), None)
+    );
+    // A replay session's polls are their own.
+    assert_eq!(poll_in_room(&mut world, alice), "R1;off;00000000;0");
+    world.assert_clean();
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A file of games before the last simulation change: `incompatible`, and
+/// the message box says why with the first answer only.
+#[test]
+fn a_save_of_games_before_the_last_simulation_change_is_refused_and_said_why() {
+    let root = temp("older");
+    let mut world = World::new();
+    let taras = player(&mut world, "Taras", 17);
+    world.core.replays = Some(save_desk(&root, 17, &[], vec![Some(16), None]));
+    world.ask(taras, subscribe(2));
+    let (link, row, said) = save(&mut world, taras, MATCH);
+    assert_eq!((link, row.as_str()), (None, "R2;incompatible;1f07c8fb;0"));
+    assert!(said.expect("a message box").contains("(ревізія 16)"));
+    assert_eq!(
+        save_poll(&mut world, taras),
+        (None, "R2;incompatible;1f07c8fb;0".into(), None)
+    );
+    world.assert_clean();
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A kept recording with no file yet: `preparing` with its place in the
+/// line, from the ask on.
+#[test]
+fn a_preparing_save_carries_its_place_in_the_line() {
+    let root = temp("line");
+    let mut world = World::new();
+    let alice = player(&mut world, "Alice", current());
+    let bob = player(&mut world, "Bob", current());
+    let desk = save_desk(&root, current(), &[], vec![Some(current())]);
+    world.core.replays = Some(desk);
+    for id in [0x0A, 0x0B] {
+        std::fs::write(
+            desk.record_dir()
+                .unwrap()
+                .join(format!("rec026g_20261015-120000_{id:08x}.srprec")),
+            b"x",
+        )
+        .unwrap();
+        desk.recording_kept(id);
+    }
+    assert_eq!(save(&mut world, alice, 0x0A).1, "R2;preparing;0000000a;1");
+    assert_eq!(save(&mut world, bob, 0x0B).1, "R2;preparing;0000000b;2");
+    assert_eq!(desk.next_job(), Some(0x0A));
+    assert_eq!(save_poll(&mut world, bob).1, "R2;preparing;0000000b;2");
+    world.assert_clean();
+    let _ = std::fs::remove_dir_all(&root);
 }

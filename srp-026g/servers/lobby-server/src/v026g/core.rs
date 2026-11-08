@@ -678,9 +678,12 @@ impl<'a> Core<'a> {
         if let Some(log) = &self.packet_log {
             match log.connection(Table::Lobby, from) {
                 // The sign-in's body is the session id: all a connection
-                // shows to prove whose it is.
+                // shows to prove whose it is. A `9E` may carry a save's
+                // download token (`replay`): never logged whole.
                 Ok(file) => transport.set_log(file.with_redaction(Box::new(|direction, id, _| {
-                    direction == Direction::ToServer && id == requests::id::SIGN_IN
+                    (direction == Direction::ToServer && id == requests::id::SIGN_IN)
+                        || (direction == Direction::ToClient
+                            && id == lobby::ServerId::VideoLink as u8)
                 }))),
                 Err(error) => log::warn!("No packet log for {from}: {error}"),
             }

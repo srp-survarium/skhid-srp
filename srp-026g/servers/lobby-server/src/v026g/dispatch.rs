@@ -136,6 +136,12 @@ impl Core<'_> {
                     ),
                 }
             }
+            // `3D 00 <SAVE_ASK> <match>`: save the match's replay to a file
+            // (`replay`); no row of a results screen has that player.
+            M::QueryPlayerDetails {
+                player_id: lobby::SAVE_ASK,
+                match_id,
+            } => self.save_ask(who, match_id, now),
             // `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match>`:
             // watch the match's replay in this game (`replay`).
             M::QueryPlayerDetails {
@@ -692,7 +698,8 @@ impl Core<'_> {
     /// match against bots (`pvb`), a rooms' start (`lobby::rooms::ROOMS_FIRST`
     /// to `ROOMS_LAST`) with a room request (`rooms`),
     /// [`lobby::REPLAY_START`] with the asker's
-    /// own "Watch replay" answer (`replay`),
+    /// own "Watch replay" answer, [`lobby::SAVE_START`] with its save's
+    /// (`replay`),
     /// `lobby::player_matches::PLAYER_MATCHES_START` and `OWN_MATCHES_START`
     /// with the matches of the player whose kits the asker was shown last,
     /// or its own (`player_matches`), `lobby::recent_matches::RECENT_MATCHES_START`
@@ -725,6 +732,10 @@ impl Core<'_> {
         }
         if start == lobby::REPLAY_START {
             self.replay_poll(who);
+            return;
+        }
+        if start == lobby::SAVE_START {
+            self.save_poll(who, now);
             return;
         }
         if let Some(whose) = lobby::player_matches::Whose::of_start(start) {

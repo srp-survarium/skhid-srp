@@ -26,11 +26,19 @@
 //! then `82` with its session) and is shown the replay there; its player
 //! is in none of its room's matches until the session is over. Only the
 //! asker's own answer is ever sent (a poll names no account).
+//!
+//! Save (the Watch window's save icon, the results screen's Save replay;
+//! `research/local-replays-design.md` section 1): `3D 00 <SAVE_ASK>
+//! <match>` asks for the match's file, `3B 00 <SAVE_START> <count>` polls,
+//! each answered with one `R2` row (`lobby::save_answer`): `preparing`
+//! (its place in the line) while the match server makes it, `ready` (its
+//! size) with the hidden `9E` link just before the row, or why not as a
+//! session says it. A row of its own: a save and a session may run at once.
 
 use std::time::Instant;
 
 use session::v026g::replay_watch::{WatchFrom, WatchRequest};
-use session::v026g::replays::{Refusal, Status};
+use session::v026g::replays::{Answer, Refusal, Status};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::ReplayWatchAsk;
 use survarium::v026g::lobby::requests::id;
@@ -165,6 +173,58 @@ impl Core<'_> {
             answer.match_id,
             u64::from(answer.figure),
         );
+        self.send_made(who.addr, row);
+        if let Some(refusal) = answer.refusal {
+            self.tell_refusal(who, answer.match_id, refusal);
+        }
+    }
+
+    /// `3D 00 <SAVE_ASK> <match_id>`: the asker wants that match's replay
+    /// saved to a file (`session::v026g::replays`, Save). Answered at once
+    /// as a poll is.
+    pub(super) fn save_ask(&mut self, who: &Who, match_id: u32, now: Instant) {
+        if let Some(replays) = self.replays {
+            // While the lobby keeps the match's report: whether the asker
+            // played it. A courtesy, not the line that keeps anything
+            // private (only made files are ever served).
+            let played = self
+                .results
+                .find(match_id)
+                .map(|report| report.player(who.account_id).is_some());
+            let revision = self.store.client_revision(who.session_id);
+            let status = replays.save_ask(who.account_id, match_id, revision, played, now);
+            log::info!(
+                "{} asked to save the replay of match {match_id:#x} (game revision {}): {}",
+                who.name,
+                revision.map_or_else(|| "unknown".to_owned(), |revision| revision.to_string()),
+                status.word()
+            );
+        }
+        self.save_poll(who, now);
+    }
+
+    /// `3B 00 <SAVE_START> <count>`: the asker's latest save answer, one
+    /// `R2` row. A `ready` one has a `9E` just before it:
+    /// `video_link(false, "replay <id> <token> <sha256> <size>")`, which the
+    /// game keeps hidden and patch revision 14 hands to the updater when the
+    /// movie calls `video_tutorial_link_clicked` (`client_patch.md` 3.27).
+    /// The packet log never shows a `9E` (`core`), and a log line six hex
+    /// digits of a token at most.
+    pub(super) fn save_poll(&mut self, who: &Who, now: Instant) {
+        let answer = match self.replays {
+            Some(replays) => replays.save_answer(who.account_id, now),
+            None => Answer {
+                status: Status::Off,
+                match_id: 0,
+                place: 0,
+                ready: None,
+                refusal: None,
+            },
+        };
+        if let Some(link) = answer.link() {
+            self.send(who.addr, lobby::video_link(false, &link));
+        }
+        let row = lobby::save_answer(answer.status.word(), answer.match_id, answer.figure());
         self.send_made(who.addr, row);
         if let Some(refusal) = answer.refusal {
             self.tell_refusal(who, answer.match_id, refusal);
