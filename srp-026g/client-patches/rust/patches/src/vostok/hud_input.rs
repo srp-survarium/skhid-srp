@@ -15,6 +15,7 @@ use core::marker::PhantomData;
 use super::context::Context;
 use super::hook::Thread;
 use super::lobby::Lobby;
+use super::world::NetworkClient;
 use super::ui::{Movie, TEXT_LIMIT, c_string, movie_of, string_argument};
 use crate::raw;
 
@@ -101,6 +102,20 @@ impl<'t> Hud<'t> {
     pub fn movie(&self) -> Option<Movie<'_>> {
         // SAFETY: the hud is alive for the hook, on its thread.
         unsafe { movie_of(self.this.hud_movie()) }
+    }
+
+    /// The player icons' movie (player_icons.swf), when the hud has it.
+    pub fn icons_movie(&self) -> Option<Movie<'_>> {
+        // SAFETY: the hud is alive for the hook, on its thread.
+        unsafe { movie_of(self.this.icons_movie()) }
+    }
+
+    /// The game's network client, on the hook's `thread`.
+    pub fn client<'a>(&self, thread: &'a Thread) -> Option<NetworkClient<'a>> {
+        // SAFETY: the hud's game world, its game and network client live as
+        // long as the hud, on its thread.
+        let client = unsafe { self.this.world()?.game()?.network_client()? };
+        Some(NetworkClient::of(client, thread))
     }
 
     /// The lobby the match's network client keeps (its messaging, the match's places).

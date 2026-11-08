@@ -183,6 +183,8 @@ global engine_discard_playing_order
 global engine_follow_player
 global engine_spectator_camera
 global engine_detach_player
+global engine_game_pause
+global engine_game_resume
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -250,6 +252,8 @@ engine_file_time_to_system_time equ 0x87022c   ; the IAT slot 0x87022c (an impor
 engine_discard_playing_order equ 0x2717e0   ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
 engine_follow_player equ 0x242b90   ; 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
 engine_detach_player equ 0x242cc0   ; 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
+engine_game_pause equ 0x1ed5c0   ; 0x1ed5c0 survarium::game::pause: game ECX; pops 0; thiscall, called directly
+engine_game_resume equ 0x1ed650   ; 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX

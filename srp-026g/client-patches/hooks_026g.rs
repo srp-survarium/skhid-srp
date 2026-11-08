@@ -1056,6 +1056,21 @@ pub extern "C" fn hook_spectator_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_viewer (patch 130) ----
+
+/// The entry `replay_viewer_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -3065,6 +3080,81 @@ pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_viewer (patch 130) ----
+
+/// The named exits of replay_viewer::on_server_note (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayViewerOnServerNoteExit { Done }
+/// The entry `replay_viewer_on_server_note` (0x27a4f4, on_match_packet_received's 0xF6 case (jump table 0x27A738 entry 19; cmp dword [esi+1F1C64h],2 / je 0x27A505): ESI the network client, EBX the message's reader {begin, cursor, size} at the payload (0xF6 is length-prefixed, transport.md); done sets the reader to its end and goes to the common exit (0x27A5AB, the snapshot upload's REQUEST_DONE)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_server_note(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_server_note` calls this, from the game's jump at 0x27a4f4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_server_note(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- tab_cursor (patch 86) ----
+
+/// The named exits of tab_cursor::on_key (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TabCursorOnKeyExit { Taken }
+/// The entry `tab_cursor_on_key` (0x25cd00, game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_tab_cursor_on_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `tab_cursor_on_key` calls this, from the game's jump at 0x25cd00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::tab_cursor::on_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- replay_viewer (patch 130) ----
+
+/// The named exits of replay_viewer::on_key (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayViewerOnKeyExit { Taken }
+/// The entry `replay_viewer_on_key` (0x25cd00, game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_key` calls this, from the game's jump at 0x25cd00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- replay_viewer (patch 130) ----
+
+/// The entry `replay_viewer_on_close` (0x27a7f3, close_current_match before its reason's jump (mov ebx,[ebp+8] / cmp ebx,5, then ja / jmp [table]): EDI the network client, past its guard (+1F1C60h 0 returns, 0x27A7A4; patch 120's played exit comes on to here); every reason then ends the world (0x1F96F0 at 0x27A947 or 0x27A80C; reason 4, a kick, by patch 119's reason 1 path)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_close` calls this, from the game's jump at 0x27a7f3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- scaleform_capture (patch 93) ----
 
 /// The named exits of scaleform_capture::on_next_capture (the order the shim's Flow code
@@ -3222,26 +3312,6 @@ pub unsafe extern "C" fn hook_suicide_key_on_spot(a0: Option<raw::PlayerInputHan
     let mut state = unsafe { Out::<u32>::new(&thread, a2) };
     let orig = OrigActionPresent;
     u32::from(crate::suicide_key::on_spot(&orig, &mut handler, action, &mut state))
-}
-
-// ---- tab_cursor (patch 86) ----
-
-/// The named exits of tab_cursor::on_key (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum TabCursorOnKeyExit { Taken }
-/// The entry `tab_cursor_on_key` (0x25cd00, game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_tab_cursor_on_key(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `tab_cursor_on_key` calls this, from the game's jump at 0x25cd00,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::tab_cursor::on_key(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
 }
 
 // ---- tab_cursor (patch 86) ----
@@ -3756,6 +3826,8 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_spectator_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_replay_viewer_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -3899,6 +3971,15 @@ pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_frame(frame);
     if flow != 0 { return flow; }
     let flow = hook_packet_recovery_on_frame(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_tab_cursor_on_key_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_tab_cursor_on_key(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_replay_viewer_on_key(frame);
     if flow != 0 { return flow; }
     0
 }

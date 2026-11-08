@@ -606,3 +606,11 @@ extern engine_spectator_camera
 ; 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_detach_player
+; void engine_game_pause(struct game *game)
+; 0x1ed5c0 survarium::game::pause: game ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_game_pause
+; void engine_game_resume(struct game *game)
+; 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_game_resume

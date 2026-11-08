@@ -1,0 +1,28 @@
+# Patch 130: a replay played in the running game as a spectated match
+# (replay_viewer.rs; docs/notes/replay-stream.md). Only the decisions: the
+# sites are sites_026g.tsv's, the logic replay_viewer.rs.
+name = "replay_viewer"
+patch = 130
+
+# An 0xF6: the server's playback and events notes (payload 'R'); the
+# snapshot upload's request goes on to the game's case.
+[[hook]]
+site = "match_packet.server_note"
+handler = "on_server_note"
+
+# A viewer's keys, after patch 86's Tab cursor.
+[[hook]]
+site = "tab_cursor.key"
+handler = "on_key"
+order = 1
+
+# close_current_match: the clock back to running at 1 before the world ends.
+[[hook]]
+site = "close_match.reason"
+handler = "on_close"
+
+# A new match's options (after patches 65, 86, 83 and 103): no replay yet.
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 4

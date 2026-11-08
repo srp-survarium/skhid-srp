@@ -2408,3 +2408,12 @@ va	name	source	ret_cleanup	result
 0x00242a70	survarium::base_network_client::followed_team	manual	0	EAX: the followed player's (+4) team (its profile +6B8h, +45ECh), or 2 with none
 0x001f8070	survarium::game_world::select_profile	manual	4	
 0x0026e000	survarium::base_local_network_client::switch_to_free_view	manual	4	
+0x001ed590	survarium::game::toggle_pause	manual	0	
+0x001ed5c0	survarium::game::pause	manual	0	
+0x001ed650	survarium::game::resume	manual	0	
+0x00146b60	vostok::timing::floating_timer::set_speed	manual	4	
+0x00147110	vostok::timing::floating_timer::get_time	manual	0	EDX:EAX the time in counter ticks; the counter it read at [EAX in]
+0x0023a660	survarium::game_world_ui::set_replay_position	manual	0	
+0x0023a6c0	survarium::game_world_ui::set_replay_play_state	manual	0	
+0x0023a9d0	survarium::game_world_ui::show_replay_controls	manual	4	
+0x00218bf0	survarium::replay_network_client::tick	manual	8	

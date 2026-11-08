@@ -1037,9 +1037,6 @@ va	status	ref_021d	name
 0x001ed1e0	inferred-high	0x00153fed	survarium::game::switch_to_lobby
 0x001ed260	inferred-high	0x0015400c	survarium::game::switch_to_login
 0x001ed470	inferred-medium	0x0015423d	survarium::game::draw_debug_window
-0x001ed590	inferred-high	0x001542a9	survarium::game::toggle_pause
-0x001ed5c0	inferred-high	0x001542db	survarium::game::pause
-0x001ed650	inferred-high	0x0015434c	survarium::game::resume
 0x001ed6e0	inferred-high	0x0015438a	survarium::game::set_network_client
 0x001ed880	inferred-medium	0x00154441	survarium::scaleform_movie_cook::scaleform_movie_cook
 0x001eda40	inferred-medium	0x00154551	survarium::scaleform_movie_cook::on_raw_data_loaded

@@ -66,6 +66,7 @@ pub mod system;
 pub mod voices;
 pub mod settings;
 pub mod spectate;
+pub mod replay_view;
 mod sync;
 pub mod trace;
 pub mod types;

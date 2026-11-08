@@ -129,6 +129,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `rust/patches/src/spectator.rs`, `src/spectator.toml`, `src/vostok/spectate.rs`, `check_spectator_026g.py` | Patch 121: a game whose 0xE4 names no place of its own (the rooms' queue) watches the match: its camera follows a player of any team (F6/F5 the next/previous; F2 lets go and flies free), it builds and sends no input, an 0xEA naming place 0xFF ends its match (no results), and the places the game asks for the missing local player go another way (lohooks at 0x27C116, 0x25CDBD, 0x208D77, 0x23B7B9, 0x27C72C); its check runs the five sites in both exes, players' and replays' unchanged (needs Unicorn) |
+| `rust/patches/src/replay_viewer.rs`, `src/replay_viewer.toml`, `src/vostok/replay_view.rs`, `../crates/replay-control`, `check_replay_viewer_026g.py` | Patch 130: a replay played in the running game as a spectated match: the match server's playback note (0xF6 `52 01`) pauses the game's clock (game::pause) and sets its speed (time_scale), its events note (`52 02`) gives the kills; Space, Left/Right, Shift+Left/Right, `[`/`]` ask the server (0xE0 `52 ..`), F11/H hide the interface, Esc leaves (lohooks at 0x27A4F4 and 0x27A7F3, a handler at 0x25CD00 after patch 86's, one at the static info's read); its check runs the sites in both exes, players' and live spectators' unchanged (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
@@ -4876,6 +4877,35 @@ for an open match never played:
 A played match (states 1-3, a resync's) and a closed one go as before (patch 119's path for a kick).
 Nothing a match computes. Checked with `check_unplayed_match_026g.py` (Unicorn) and the patch crate's
 tests. Not run in a game.
+
+## A replay played in the running game: pause, speed and keys (patch 130, unreleased)
+
+Path A of the replay plan (`../docs/notes/replay-stream.md`): the match
+server streams a recording to a game with no place of its own (patch 121)
+and runs its playback. A stock game cannot pause or change its pace in a
+match: its clock is the game's floating_timer, steered only by 0xE7 at 1 +-
+time_floating_factor, and toggle_pause refuses a network client
+(0x1ED59C). The Rust patch `replay_viewer` takes an 0xF6 whose payload
+starts with `52` (the `replay-control` crate; the snapshot upload's request
+`00` goes on to the game's case): the server's playback note (revision,
+paused, speed 0.25x to 8x, the replay's first and last time) makes the
+spectator's game a replay's viewer and is applied with the game's own
+controls, game::pause / game::resume (the timer frozen at its +18h, the
+render timer and the sound stand) and the console variable time_scale,
+which game::tick makes the timer's speed every frame (the replay controls'
+own update_play_speed); an older note (by its revision) is dropped; the
+events note gives the kills. A viewer's keys are taken before the game's
+and ask the server, an 0xE0 alone in its datagram (`52 seq op 00 value`):
+Space pause, Left/Right 10 s, Shift+Left/Right the previous/next kill (4 s
+before it), `[`/`]` slower/faster; F11 and H hide the hud and the player
+icons; Esc is the game's own leave, close_current_match(2). Every end of
+the match (past close_current_match's guard) runs the clock again at 1
+before the world ends.
+A player's game and a live match's spectator (no playback note) run the
+game's code at every site. Nothing a match computes: the clock's pace is
+the server's to keep (it paces the relays and 0xE5 by the same speed).
+Addresses: `client_patch.md` 3.76; checked with
+`check_replay_viewer_026g.py`; **not run in a game.**
 
 ## A game with no place of its own watches the match (patch 121, unreleased)
 

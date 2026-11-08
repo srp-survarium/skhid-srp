@@ -80,6 +80,11 @@ impl<'t> NetworkClient<'t> {
         NetworkClient { this, thread }
     }
 
+    /// The game's own client object, for the views of `vostok` beside this one.
+    pub(in crate::vostok) fn raw(&self) -> raw::NetworkClient {
+        self.this
+    }
+
     /// The match's places' count (0 without match options).
     pub fn places(&self) -> u32 {
         // SAFETY: the client, alive for the hook; match_options is its own.

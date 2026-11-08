@@ -30,6 +30,7 @@ struct di_command_queue;
 struct drawable_image_context;
 struct effect_presenter_holder;
 struct engine_cfg;
+struct game;
 struct game_allocator;
 struct game_effect;
 struct game_effect_list;
@@ -641,5 +642,11 @@ void engine_spectator_camera(struct game_world *world);
 
 /* 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_detach_player(struct network_client *client);
+
+/* 0x1ed5c0 survarium::game::pause: game ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_game_pause(struct game *game);
+
+/* 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_game_resume(struct game *game);
 
 #endif
