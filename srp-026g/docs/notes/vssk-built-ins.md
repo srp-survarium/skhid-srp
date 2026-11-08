@@ -10,7 +10,11 @@ at the same price. "One should have aiming speed on Vychlop, other should have r
   drop weight 4.096.
 - Dusk loses chambering -15 % (2054), aiming time -10 % (2074) and reliability -25 % (2094, wear
   only; wear is off).
-- Both stay at 165 000. Rarity is not touched (Dusk 3). Every other stat of the two guns is the same.
+- Both stay at 165 000. Every other stat of the two guns is the same.
+- Dusk's base rarity is 0, as the Vychlop's (the owner, 2026-11-08: "SV Dusk is considered golden and
+  cannot roll upgrades - it should be able to"). Stock it was 3, the golden copies' value: the
+  lobby's rank is `min(3, base_rarity_level + modifications)`, so it showed rank 3 and offered
+  no craft or roll, though srp allowed them.
 - Owned guns: a built-in belongs to the item's config, not the saved item, so every owned gun
   changes with the content patch, with no migration. The roll pool leaves out a type an item
   holds, built-ins included. So a Dusk can now roll chambering and aiming time but no longer
