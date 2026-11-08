@@ -696,6 +696,31 @@ enum Recorded {
     No,
 }
 
+/// What a list row says of a match's replay ([`Replays::state`]); its
+/// number on the wire is [`ReplayState::code`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ReplayState {
+    /// No recording kept: never recorded, or closed under the minimum of
+    /// players.
+    NotRecorded = 0,
+    /// The recording is kept (or still being written); its replay is made
+    /// when asked for.
+    Kept = 1,
+    /// The replay is made and plays in the asker's game.
+    Ready = 2,
+    /// The storage cap deleted the recording.
+    Gone = 3,
+    /// The asker's game cannot play it (`old_game`, or `incompatible`).
+    OldVersion = 4,
+}
+
+impl ReplayState {
+    pub fn code(self) -> u8 {
+        self as u8
+    }
+}
+
 /// Why `/replays/<token>` gets no download ([`Replays::take_download`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refused {
@@ -905,6 +930,34 @@ impl Replays {
         }
         let mut inner = self.inner.locked();
         self.recorded(&mut inner, match_id, now) == Recorded::Kept
+    }
+
+    /// What a list row says of the match's replay, for a game of
+    /// `revision` (`None`: not known, never [`ReplayState::OldVersion`]).
+    /// Nobody's ask is changed or kept, no conversion started; a kept
+    /// recording's revisions are not read, so an old version shows only
+    /// once its replay is made. A recording the cap deleted is
+    /// [`ReplayState::Gone`] only while this process remembers it.
+    pub fn state(&self, match_id: u32, revision: Option<u8>, now: Instant) -> ReplayState {
+        if self.settings.is_none() {
+            return ReplayState::NotRecorded;
+        }
+        let too_old = revision.is_some_and(|r| r < MIN_REVISION);
+        if let Some(sidecar) = self.made(match_id) {
+            let refused = revision.is_some_and(|r| sidecar.refusal(r, self.oldest).is_some());
+            return if too_old || refused {
+                ReplayState::OldVersion
+            } else {
+                ReplayState::Ready
+            };
+        }
+        let mut inner = self.inner.locked();
+        match self.recorded(&mut inner, match_id, now) {
+            Recorded::Kept | Recorded::Writing if too_old => ReplayState::OldVersion,
+            Recorded::Kept | Recorded::Writing => ReplayState::Kept,
+            Recorded::No if inner.deleted.contains(&match_id) => ReplayState::Gone,
+            Recorded::No => ReplayState::NotRecorded,
+        }
     }
 
     /// A player asks for a match's replay (`3D` with [`REPLAY_ASK`]).
@@ -1441,6 +1494,60 @@ mod tests {
     /// whatever revision the last simulation change was.
     fn current() -> u8 {
         oldest_replayable_here(0)
+    }
+
+    /// A list row's replay state, by what the folders hold and the asker's
+    /// game: nobody's ask kept, no conversion started.
+    #[test]
+    fn a_rows_replay_state_follows_the_recording_and_the_askers_game() {
+        let root = temp("state");
+        let replays = Replays::new(Some(settings(&root)), 6);
+        let now = Instant::now();
+        let state = |match_id, revision| replays.state(match_id, revision, now);
+        let record_dir = replays.settings().unwrap().record_dir.clone();
+        assert_eq!(state(MATCH, Some(current())), ReplayState::NotRecorded);
+        kept(&replays, MATCH);
+        assert_eq!(state(MATCH, Some(current())), ReplayState::Kept);
+        assert_eq!(
+            state(MATCH, Some(MIN_REVISION - 1)),
+            ReplayState::OldVersion
+        );
+        assert!(replays.jobs().is_empty());
+        made(&replays, vec![Some(current())]);
+        assert_eq!(state(MATCH, Some(current())), ReplayState::Ready);
+        assert_eq!(state(MATCH, None), ReplayState::Ready);
+        // Recorded by games newer than the asker's.
+        assert_eq!(state(MATCH, Some(current() - 1)), ReplayState::OldVersion);
+        assert!(replays.inner.locked().asks.is_empty());
+        // Deleted by the cap; one closed under the minimum was never kept.
+        std::fs::remove_file(
+            record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec")),
+        )
+        .unwrap();
+        replays.recording_deleted(MATCH);
+        assert_eq!(state(MATCH, Some(current())), ReplayState::Gone);
+        replays.recording_not_kept(7);
+        assert_eq!(state(7, Some(current())), ReplayState::NotRecorded);
+        // Still being written: kept.
+        std::fs::write(
+            record_dir.join("rec026g_20261015-120000_00000008.srprec.part"),
+            b"x",
+        )
+        .unwrap();
+        replays.recording_kept(8);
+        assert_eq!(state(8, None), ReplayState::Kept);
+        let off = Replays::new(None, 6);
+        assert_eq!(off.state(MATCH, None, now), ReplayState::NotRecorded);
+        let codes = [
+            ReplayState::NotRecorded,
+            ReplayState::Kept,
+            ReplayState::Ready,
+            ReplayState::Gone,
+            ReplayState::OldVersion,
+        ]
+        .map(ReplayState::code);
+        assert_eq!(codes, [0, 1, 2, 3, 4]);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
