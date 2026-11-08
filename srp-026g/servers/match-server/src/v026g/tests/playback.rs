@@ -33,6 +33,12 @@ use replay_control::{MatchMs, Op, Request, ServerNote, Speed};
 const RECORDING: &str = "tests/data/replay_level_01_tdm_2p.sur";
 /// Its places enter at 400 and 1 300 ms: the first key frame after.
 const FIRST_VIEW: u32 = 14_500;
+/// Its countdown ends at 20.4 s (its rules "in process" from then): where
+/// the replay opens, its bar's start.
+const OPENING: u32 = 20_400;
+/// Where a game opening it is put: from the key frame at 14.5 s, as far on as
+/// a player's inputs since let it.
+const OPENED_AT: u32 = 19_500;
 const WATCHER_ACCOUNT: u32 = 900;
 const WATCHER: u32 = session_for(WATCHER_ACCOUNT);
 const MODERATOR: u32 = 901;
@@ -243,28 +249,37 @@ fn relays_taken(client: &Client) -> usize {
         .len()
 }
 
-/// The first view has a player in it: the first key frame after the first
-/// entry (the asked place's, when one is asked), or a later time asked for,
-/// from the key frame at or before it.
+/// A replay opens where the action is, at the end of the countdown (as a
+/// seek puts a game there), not at its first world with a player in it; a
+/// place asked for that entered later, after its entry; a later time asked
+/// for, from the key frame at or before it. With no countdown's end, at the
+/// first view.
 #[test]
-fn a_session_starts_at_the_first_world_with_a_player_or_later_when_asked() {
+fn a_session_starts_at_the_countdowns_end_or_later_when_asked() {
     let recording = playable();
-    assert_eq!(recording.start_at(0, None), FIRST_VIEW);
-    // A place asked for that entered: after its entry; one that never
+    assert_eq!(recording.opening(), OPENING);
+    assert_eq!(recording.start_at(0, None), OPENED_AT);
+    // A place asked for that entered before: the same; one that never
     // entered: anyone's.
-    assert_eq!(recording.start_at(0, Some(0)), FIRST_VIEW);
-    assert_eq!(recording.start_at(0, Some(7)), FIRST_VIEW);
-    // Before the first view: the first view. Later: as a seek puts it (to
-    // 65 s, a player's inputs since the key frame stop it short).
-    assert_eq!(recording.start_at(5_000, None), FIRST_VIEW);
+    assert_eq!(recording.start_at(0, Some(0)), OPENED_AT);
+    assert_eq!(recording.start_at(0, Some(7)), OPENED_AT);
+    // Before the opening: the opening. Later: as a seek puts it (to 65 s, a
+    // player's inputs since the key frame stop it short).
+    assert_eq!(recording.start_at(5_000, None), OPENED_AT);
     assert_eq!(recording.start_at(65_000, None), 61_699);
-    // A place that enters later: after its entry, asked for.
+    // A place that enters after the countdown: after its entry, asked for.
     let mut later = playable();
-    later.move_entry(0, 20_000);
-    assert_eq!(later.start_at(0, None), FIRST_VIEW);
-    assert_eq!(later.start_at(0, Some(1)), FIRST_VIEW);
-    assert_eq!(later.start_at(0, Some(0)), 24_500);
+    later.move_entry(0, 30_000);
+    assert_eq!(later.start_at(0, None), OPENED_AT);
+    assert_eq!(later.start_at(0, Some(1)), OPENED_AT);
+    assert_eq!(later.start_at(0, Some(0)), 39_550);
     assert_eq!(later.start_at(40_000, Some(0)), 40_000);
+    // A recording with no countdown's end (no rules "in process" in it):
+    // its first view.
+    let mut no_countdown = playable();
+    no_countdown.forget_countdown();
+    assert_eq!(no_countdown.opening(), FIRST_VIEW);
+    assert_eq!(no_countdown.start_at(0, None), FIRST_VIEW);
 
     let (mut bench, replays) = bench();
     session_of_the_recording(&mut bench, &replays, 0);
@@ -275,7 +290,7 @@ fn a_session_starts_at_the_first_world_with_a_player_or_later_when_asked() {
     assert_eq!(
         replays.watches().stage(WATCHER_ACCOUNT),
         Some(Stage::Playing {
-            start_ms: FIRST_VIEW
+            start_ms: OPENED_AT
         })
     );
     bench.assert_no_faults();
@@ -289,7 +304,7 @@ fn a_watcher_gets_the_world_then_the_relays_in_recorded_order() {
     // Player 0's first input is at 51.85 s.
     bench.run_long(45_000);
     let now = position(&bench);
-    assert!((59_000..=61_000).contains(&now), "{now}");
+    assert!((63_500..=65_500).contains(&now), "{now}");
     let spectator = &bench.clients[at];
     let first = |pick: fn(&ServerMessage) -> bool| spectator.taken.iter().position(pick);
     assert!(
@@ -365,9 +380,9 @@ fn the_game_is_told_the_playback_after_its_world_each_change_and_each_seek() {
     let Some(ServerNote::Playback(note)) = first else {
         panic!("{first:?}");
     };
-    // The recording's range on the match clock, from its first view (the
-    // first world has nobody in it).
-    assert_eq!((note.start, note.end), (MatchMs(FIRST_VIEW), MatchMs(114_600)));
+    // The recording's range on the match clock, from the end of its
+    // countdown.
+    assert_eq!((note.start, note.end), (MatchMs(OPENING), MatchMs(114_600)));
     let events = ServerNote::parse(&bench.clients[at].replay_notes[1]);
     assert!(
         matches!(&events, Some(ServerNote::Events(note)) if note.events().count() == 0),
@@ -922,16 +937,16 @@ fn the_newest_recording_of_a_match_id_is_read() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
-/// A seek before the first view (the bar's 0) starts the game there, where
-/// its playback's range starts, not at the recording's first world.
+/// A seek before the opening (the bar's 0) starts the game there, where its
+/// playback's range starts, not at the recording's first world.
 #[test]
-fn a_seek_to_zero_starts_at_the_first_view() {
+fn a_seek_to_zero_starts_at_the_opening() {
     let (mut bench, replays) = bench();
     session_of_the_recording(&mut bench, &replays, 60_000);
     let at = watching(&mut bench, WATCHER);
     bench.run_long(2_000);
     control(&mut bench, at, 1, Op::Seek(MatchMs(0)));
     let at_seek = position(&bench);
-    assert!((FIRST_VIEW..FIRST_VIEW + 300).contains(&at_seek), "{at_seek}");
+    assert!((OPENED_AT..OPENED_AT + 300).contains(&at_seek), "{at_seek}");
     bench.assert_no_faults();
 }

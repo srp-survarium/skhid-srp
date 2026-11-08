@@ -138,7 +138,8 @@ pub struct Playback {
     pub revision: u8,
     pub paused: bool,
     pub speed: Speed,
-    /// The recording's first and last time: the replay's bar.
+    /// The replay's bar: where it opens (the end of the match's countdown)
+    /// and the recording's last time.
     pub start: MatchMs,
     pub end: MatchMs,
 }

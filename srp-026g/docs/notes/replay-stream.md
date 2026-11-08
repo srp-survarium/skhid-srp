@@ -14,7 +14,7 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
 
 1. The movie asks: `3D 00 <player> <match id>` with `player = 0xC000_0000 | place << 16 |
    seconds` (`lobby::ReplayWatchAsk`). `seconds` (u16) is the match time to start at, 0 for
-   the first view; `place` the roster place the movie wants in view first, 0xFF for anyone.
+   the opening (the end of the countdown); `place` the roster place the movie wants in view first, 0xFF for anyone.
    Or `player = 0xC100_0000` (`ReplayWatchAsk::MyDeaths`, the results screen's "Watch my
    deaths"): from the asker's first death (4 s before it), its own place in view; the server finds
    its place in the recording, its deaths in the match's events (the history, below): 4 s before
@@ -44,10 +44,15 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    0xFF, then 7 s of silence; patch 121 takes the game back to the lobby). The session is over
    once the match server forgets the game.
 
-**The start** (`Recording::start`): the first key frame after the asked place's first entry
-(anyone's if it never entered or none is asked), so the camera has somebody to follow: a world
-before any entry has nobody in it. A later time asked for starts from the key frame at or before
-it, put as far past it as the inputs since allow (as a seek, below).
+**The start** (`Recording::start`): the replay opens where the action is, at the end of the
+match's countdown (`Recording::opening`: the start of the time rule's "in process" in the first key
+frame that has it), put there as a seek puts a game (below); the playback note's `start`, the
+viewer's bar, starts there too and no seek goes before it. A recording with no countdown's end (no
+key frame in process: a bot's or a solo test's edge cases) opens at the first view, the first key
+frame after anyone's first entry: a world before any entry has nobody in it. A place asked for
+that entered after the opening starts at its own first view (the first key frame after its entry);
+a later time asked for starts from the key frame at or before it, put as far past it as the inputs
+since allow (as a seek, below).
 
 **The place to follow: the client picks.** Patch 121 follows the player it followed last, else
 the first living one; the server has no message to make a spectator's game follow a place (0xE4's
@@ -70,11 +75,11 @@ clock):
   u8) than the last taken: a resend or a late one is not.
   - op 1 pause: value 1 paused, 0 playing;
   - op 2 speed: percent, 25, 50, 100, 200, 400, 800;
-  - op 3 seek: the match time (never before the first view, the first key frame after anyone entered: the playback's start).
+  - op 3 seek: the match time (never before the opening, the end of the countdown: the playback's start).
 - **Server -> game**, notes in an 0xF6 (an 0xF6 `00` stays the upload request, never sent to a
   spectator):
   - the playback, `52 01 revision paused speed:u16 start:u32 end:u32` (start and end: the
-    recording's first key frame and last record), sent once the game is live (after its first
+    replay's opening and the recording's last record), sent once the game is live (after its first
     world), after each change and after each start again (a seek, a drift); the game takes one
     only when its revision is newer;
   - the events, `52 02 first:u16 total:u16` and up to 64 of `time:u32 kind:u8 actor:u8

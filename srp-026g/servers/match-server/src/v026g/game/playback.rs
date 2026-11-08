@@ -14,15 +14,16 @@
 //!
 //! A playback clock says how far the match has gone. What is due by it
 //! ([`RELAY_LEAD_MS`] ahead, as a live game gets an input a little before
-//! its tick) goes to the game as from a live match. It starts at the first
-//! key frame after an entry (the asked place's, else anyone's), or later
-//! when asked ([`Recording::start`]): the game has someone to follow from
-//! its first world. Pause stops the clock; speed scales it; a seek, and
-//! play after a pause, start the game again (0xE5 of its next generation,
-//! the world) from the key frame at or before the time, put as far past it
-//! as the game's input lists reach ([`Recording::reach`]). The end of the
-//! recording lets the game go (0xEA naming no place), as the end of a live
-//! match does. The controls come from the game (`replay_control::Request`), and the
+//! its tick) goes to the game as from a live match. It opens at the end of
+//! the match's countdown, where the action is (the first key frame after an
+//! entry when that is later: the game has someone to follow from its first
+//! world), at the asked place's first view when that entered later, or later
+//! when asked ([`Recording::start`]). Pause stops the clock; speed scales
+//! it; a seek, and play after a pause, start the game again (0xE5 of its
+//! next generation, the world) from the key frame at or before the time,
+//! put as far past it as the game's input lists reach ([`Recording::reach`]).
+//! The end of the recording lets the game go (0xEA naming no place), as
+//! the end of a live match does. The controls come from the game (`replay_control::Request`), and the
 //! game is told the playback (`replay_control::Playback`).
 
 use std::path::Path;
@@ -90,6 +91,9 @@ pub(crate) struct Recording {
     events: Vec<(u32, usize, bool)>,
     /// The time of its last record.
     end: u32,
+    /// When its countdown ended: the start of the time rule's "in process"
+    /// ([`countdown_end`]); `None` in a recording that has none.
+    countdown_end: Option<u32>,
 }
 
 impl Recording {
@@ -167,6 +171,7 @@ impl Recording {
         if worlds.is_empty() {
             return Err("no key frame".into());
         }
+        let countdown_end = countdown_end(&worlds, &options);
         Ok(Self {
             match_id,
             timeline: Vec::new(),
@@ -178,6 +183,7 @@ impl Recording {
             inputs,
             events,
             end,
+            countdown_end,
         })
     }
 
@@ -276,19 +282,25 @@ impl Recording {
         self.accounts.iter().flatten().copied().collect()
     }
 
-    /// Where a session asked for `at` with `place` in view starts: the first
-    /// key frame after the place's first entry (anyone's when it never
-    /// entered, or none is asked), or `at` when that is later (from the key
-    /// frame at or before it, [`Self::seek_to`]). A world before any entry
-    /// has nobody in it: the game would follow no one.
+    /// Where a session asked for `at` with `place` in view starts: the
+    /// replay's opening, or the place's first view when that is later (it
+    /// entered late), or `at` when that is later still; as a seek puts the
+    /// game there ([`Self::seek_to`]).
     pub(crate) fn start_at(&self, at: u32, place: Option<u8>) -> u32 {
+        self.seek_to(at.max(self.first_view(place)))
+    }
+
+    /// The first key frame after the place's first entry (anyone's when it
+    /// never entered, or none is asked). A world before any entry has nobody
+    /// in it: the game would follow no one.
+    fn first_view(&self, place: Option<u8>) -> u32 {
         let entry = |wanted: Option<usize>| {
             self.events
                 .iter()
                 .find(|&&(_, who, entered)| entered && wanted.is_none_or(|place| who == place))
                 .map(|&(time, _, _)| time)
         };
-        let first_view = entry(place.map(usize::from))
+        entry(place.map(usize::from))
             .or_else(|| entry(None))
             .map_or(self.worlds[0].time, |entered| {
                 self.worlds
@@ -296,26 +308,23 @@ impl Recording {
                     .find(|world| world.time > entered)
                     .unwrap_or_else(|| self.world_for(entered))
                     .time
-            });
-        if at > first_view {
-            self.seek_to(at)
-        } else {
-            first_view
-        }
+            })
     }
 
-    /// Where the replay starts for a viewer: the first view of anyone
-    /// ([`Self::start_at`] from 0). Its bar starts there, and no seek goes
-    /// before it (the worlds before have nobody in them).
-    pub(crate) fn first_view(&self) -> u32 {
-        self.start_at(0, None)
+    /// Where the replay opens for a viewer: the end of the countdown, where
+    /// the action is (the first view of anyone when that is later, or the
+    /// recording has no countdown end). Its bar starts there, and no seek
+    /// goes before it.
+    pub(crate) fn opening(&self) -> u32 {
+        let view = self.first_view(None);
+        self.countdown_end.map_or(view, |end| end.max(view))
     }
 
     /// Where a game sought to `time` is put: from the key frame at or before
-    /// it (never before [`Self::first_view`]), as far as [`Self::reach`]
-    /// lets it.
+    /// it (never before [`Self::opening`]), as far as [`Self::reach`] lets
+    /// it.
     fn seek_to(&self, time: u32) -> u32 {
-        let time = time.max(self.first_view());
+        let time = time.max(self.opening());
         let from = self.world_for(time).time;
         self.reach(from, time.min(self.end).max(from))
     }
@@ -360,6 +369,12 @@ impl Recording {
         self.events.sort_by_key(|event| event.0);
     }
 
+    /// A recording with no countdown's end.
+    #[cfg(test)]
+    pub(crate) fn forget_countdown(&mut self) {
+        self.countdown_end = None;
+    }
+
     /// How many of its inputs and roster changes are due by `time`.
     fn due(&self, time: u32) -> (usize, usize) {
         let horizon = time + RELAY_LEAD_MS;
@@ -368,6 +383,26 @@ impl Recording {
             self.events.partition_point(|(at, _, _)| *at <= horizon),
         )
     }
+}
+
+/// When the match's countdown ended: the start of the time rule's "in
+/// process" in the first key frame that is in it.
+fn countdown_end(worlds: &[Snapshot], options: &static_info::MatchOptions) -> Option<u32> {
+    let mode = options.map.mode().rules();
+    let batteries = options.map.map().victory_items_count as usize;
+    // A match that lets players in late writes 20 places' rules.
+    let rosters = [options.players.len(), sur::MAX_PLAYERS];
+    worlds.iter().find_map(|world| {
+        let timelimit = rosters
+            .iter()
+            .find_map(|&players| {
+                snapshot::decode(world.time, &world.body, players, mode, batteries)?.rules
+            })?
+            .timelimit;
+        (timelimit.state == rules::state::IN_PROCESS)
+            .then_some(timelimit.start)
+            .flatten()
+    })
 }
 
 /// Match ms in `elapsed` of the wall clock at `speed`.
@@ -646,7 +681,7 @@ impl Playback {
             revision: self.revision,
             paused,
             speed: self.speed,
-            start: MatchMs(self.recording.first_view()),
+            start: MatchMs(self.recording.opening()),
             end: MatchMs(self.recording.end),
         };
         self.spectator.note(&note.encode());
