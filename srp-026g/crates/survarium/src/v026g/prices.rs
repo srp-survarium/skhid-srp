@@ -935,7 +935,11 @@ mod tests {
         for n in 1..=7 {
             let name = format!("decals_1_{n}");
             assert_eq!(sold_by(&name), [(0, 0)], "{name}");
-            let price = if n == 1 { 50_000 } else { 1_000_000 };
+            let price = match n {
+                1 => 50_000,
+                2 => 10_000_000,
+                _ => 1_000_000,
+            };
             assert_eq!(cost(&name), price, "{name}");
         }
         assert_eq!(sold_by("decals_1_8"), [(0, 0)]);
