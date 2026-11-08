@@ -136,7 +136,7 @@ The default cave is now a new section, which keeps `on_hash_mismatch` intact; th
 Fixed or added in the review:
 1. **Never joined.** Each chunk packet gets `and byte [pkt+98h],0BFh` (§3.2).
 2. **Pool guard.** The upload is skipped unless `chunks + packets in use + 16 ≤ pool capacity` (§3.2).
-3. **Rebase safe.** The code has no absolute operands; the patcher disables the base relocation under the request hook (the draft only did so inside the overwritten function). The image has no ASLR flag (DLL characteristics 0x8000, file characteristics 0x122), so a rebase happens only if 0x10000 is taken.
+3. **Rebase safe.** The code has no absolute operands; the patcher disables the base relocation under the request hook (the draft only did so inside the overwritten function). The image has no ASLR flag (DLL characteristics 0x8000 in the original, 0x8100 with NX_COMPAT, file characteristics 0x122), so a rebase happens only if 0x10000 is taken.
 4. The 0xF6 request must carry **one payload byte** (§3.4); the draft said "any payload".
 
 Limits that stay: a world over 0x8000 bytes asserts in `mutable_buffer::resize` (0x7AB70, null allocator), exactly as the client's own `hash()` does every 100 ms, so the patch adds no new failure there. Since patch 98 (section 3.66) both buffers are 0xF000 bytes.
@@ -170,7 +170,17 @@ Every C→S id is fixed length (transport.md §4), so no id carries a length; 0x
 | SizeOfCode | 0x85E600 | 0x85E800 |
 | security directory (file offset, size) | 0xC4AA00, 0x1878 | **0xC4AC00**, 0x1878 |
 | CheckSum | 0xC5A7B2 | recomputed (imagehlp agrees) |
+| DllCharacteristics | 0x8000 | 0x8100 (+ NX_COMPAT, every build but `--cert-only`) |
 | file size | 12 894 840 | + 0x200 |
+
+- **NX_COMPAT** (2026-11-07). The exe opts in to DEP. On macOS, Wine maps a 32-bit
+  image without it as executable memory, and Metal then crawls: minutes before the
+  first frame on macOS 26+ (DXMT issue #161). With the flag, Windows enforces DEP for
+  the game and Wine does too: none of our patches allocates or writes executable memory
+  at run time (`.srp`/`.srpx` are executable sections of the image), and the Mac runs
+  (local matches against srp, lockstep held) used it. NX_COMPAT also turns off Windows'
+  ATL thunk emulation, which the game does not use as far as known. Before the release
+  that ships it: one run on Windows and one on Linux, and a line in its notes.
 
 - **The Authenticode blob.** The attribute certificate table is found by the **file offset** in the security data directory and is the last thing in the file (0xC4AA00 + 0x1878 = file size), right after `.reloc`'s raw data. The new section's raw data must follow `.reloc` (sections are contiguous in the file), so the blob moves 0x200 bytes towards the end and the directory's offset follows it; it stays 8-byte aligned and last, as the PE format asks. Its bytes are unchanged.
 - **Why it must stay readable.** At start `vostok::crypt::verify_sign` 0x13310 calls `CryptQueryObject(CERT_QUERY_OBJECT_FILE, own path, CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED_EMBED 0x400, CERT_QUERY_FORMAT_FLAG_BINARY 2, …, &store, &msg, …)` (0x13336..0x1335B), then looks up "survarium.com" in that store and uses the certificate's key on the resources.db file table (§0; the default build skips that check since revision 12, §0.1, but still opens the store and finds the certificate first: verify_sign returns 1, a failure, at 0x1342F when `CryptQueryObject` fails). Dropping the blob would stop every start.

@@ -960,10 +960,10 @@ battery_progress_on_carrier_tick_replay:
     db 0x8b, 0x4c, 0x24, 0x10, 0x57
     jmp 0x2daad8
 
-; 0x2fd19a inventory::setup_from_profile before its last loop (lea esi,[edi+10Ch] / mov ebp,17h; the jmp at 0x2FD196 and the fstp at 0x2FD198 join here, the x87 stack empty), which calls each held slot's vfn +38h (an artefact's on_taken 0x313470: its passive link reads [item+250h]+174h): EDI the inventory of the kit being spawned (spawn 0x316E70 -> base_player::initialize): lohook -> artefact_keeper_on_respawn_containers
-global artefact_keeper_on_respawn_containers
-extern hook_artefact_keeper_on_respawn_containers
-artefact_keeper_on_respawn_containers:
+; 0x2d2d5d game_world_core::deserialize's end (mov byte [ebp+18FE0h],0 after pop edi / pop esi; the je at 0x2D2CBB and the loop's end join at 0x2D2D5B): every place's current kit and its inventory loaded, every object (the anomalies, their artefacts with their inventory and slot) loaded, every active place put into the world; EBP the core world. Every world load passes here: a rollback's (move 0x2D2FF0, 0x2D357A), a joiner's or a resync's (0x2D0B70 -> 0x2D0FB9), a replay's seek: lohook -> artefact_keeper_on_world_loaded
+global artefact_keeper_on_world_loaded
+extern hook_artefact_keeper_on_world_loaded
+artefact_keeper_on_world_loaded:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -980,24 +980,24 @@ artefact_keeper_on_respawn_containers:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_keeper_on_respawn_containers
-    mov edx, artefact_keeper_on_respawn_containers_replay
+    call hook_artefact_keeper_on_world_loaded
+    mov edx, artefact_keeper_on_world_loaded_replay
     cmp eax, 0
-    je artefact_keeper_on_respawn_containers_go
-    mov edx, 0x2fd1a0
+    je artefact_keeper_on_world_loaded_go
+    mov edx, 0x2d2d64
     cmp eax, 1
-    je artefact_keeper_on_respawn_containers_go
+    je artefact_keeper_on_world_loaded_go
     ud2
-artefact_keeper_on_respawn_containers_go:
+artefact_keeper_on_world_loaded_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-artefact_keeper_on_respawn_containers_replay:
-    db 0x8d, 0xb7, 0x0c, 0x01, 0x00, 0x00
-    jmp 0x2fd1a0
+artefact_keeper_on_world_loaded_replay:
+    db 0xc6, 0x85, 0xe0, 0x8f, 0x01, 0x00, 0x00
+    jmp 0x2d2d64
 
 ; 0x31c810 artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845): lohook -> artefact_score_on_transfer
 global artefact_score_on_transfer

@@ -222,11 +222,11 @@ def check(data):
     g.word(query + 0xFC, 0)
     for name, initial, expected in (("forest_protection", 1, 20), ("forest_protection", 30, 30),
                                     ("artefact_lifebone", 1, 20), ("artefact_leg_onyx_3", 1, 20), ("forest_protection_x", 1, 1),
-                                    ("forest", 1, 1), ("artefact_onyx", 1, 1)):
+                                    ("forest", 1, 1), ("artefact_onyx", 1, 20), ("artefact_rattle", 1, 1)):
         g.emu.mem_write(fallback, name.encode() + b"\0")
         g.step(CAPACITY, 5, ebx=query, esi=initial)
         assert g.emu.reg_read(UC_X86_REG_ESI) == expected, (name, initial)
-    print("Forest glow: the cook gives forest_protection and each quarter 20 instances, Larkspur still 20, others their own: PASS")
+    print("Forest glow: the cook gives forest_protection and each quarter 20 instances, the shared activation glows still 20, others their own: PASS")
 
 
 def check_quarters(data):

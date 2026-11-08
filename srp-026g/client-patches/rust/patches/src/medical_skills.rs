@@ -359,7 +359,7 @@ pub fn on_heal(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 pub fn on_artefact(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    medical::share_larkspur(ctx);
+    medical::share_active(ctx);
     Flow::Continue
 }
 pub fn on_protection(ctx: &mut Context<'_>) -> Flow<crate::vostok::MedicalSkillsOnProtectionExit> {
@@ -379,10 +379,12 @@ pub fn on_pocket_count(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// Larkspur's effect: one activation reaches at most the 20 places of the
-/// roster, the source among them, each with an effect of its own.
+/// The shared activation glows (Cascade's, every kind): one activation reaches at most the 20
+/// places of the roster, the source among them, each with an effect of its own.
 pub fn on_effect_capacity(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    effect::effect_capacity(ctx, c"artefact_lifebone", 20);
+    for name in [c"artefact_spring", c"artefact_lifebone", c"artefact_onyx"] {
+        effect::effect_capacity(ctx, name, 20);
+    }
     Flow::Continue
 }
 

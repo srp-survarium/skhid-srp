@@ -72,6 +72,14 @@ impl Resistance {
     pub const ARMOUR: f32 = 0.05;
 }
 
+/// Resonance's reach (metres, between the feet): a carrier's passives to its teammates (the
+/// owner, 2026-11-07: 9 m, was 8 m).
+pub const RESONANCE_REACH: f32 = 9.0;
+
+/// Cascade's reach (metres): a carrier's actives to its teammates, Larkspur's heal too (patch 94's
+/// Medic, which only Cascade grants) (the owner, 2026-11-07: 6 m, was 5 m).
+pub const CASCADE_REACH: f32 = 6.0;
+
 /// The packed skills of a kit's modifier 40.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Skills {
@@ -160,11 +168,12 @@ impl Skills {
     }
 
     /// How far (squared metres) this carrier's artefacts give their `phase` to its teammates:
-    /// Resonance its passives within 8 m, Cascade its actives within 5 m.
+    /// Resonance its passives within [`RESONANCE_REACH`], Cascade its actives within
+    /// [`CASCADE_REACH`].
     pub fn reach(self, phase: Phase) -> Option<f32> {
         match phase {
-            Phase::Passive => self.resonance.then_some(8.0 * 8.0),
-            Phase::Active => self.cascade.then_some(5.0 * 5.0),
+            Phase::Passive => self.resonance.then_some(RESONANCE_REACH * RESONANCE_REACH),
+            Phase::Active => self.cascade.then_some(CASCADE_REACH * CASCADE_REACH),
         }
     }
 
@@ -609,7 +618,7 @@ mod tests {
     }
 
     #[test]
-    fn resonance_reaches_8_m_with_passives_and_cascade_5_m_with_actives() {
+    fn resonance_reaches_9_m_with_passives_and_cascade_6_m_with_actives() {
         let none = Skills::parse(0.0).unwrap();
         let resonance = Skills::parse(16.0).unwrap();
         let cascade = Skills::parse(256.0).unwrap();
@@ -617,9 +626,9 @@ mod tests {
         for phase in [Phase::Passive, Phase::Active] {
             assert_eq!(none.reach(phase), None);
         }
-        assert_eq!((resonance.reach(Phase::Passive), resonance.reach(Phase::Active)), (Some(64.0), None));
-        assert_eq!((cascade.reach(Phase::Passive), cascade.reach(Phase::Active)), (None, Some(25.0)));
-        assert_eq!((both.reach(Phase::Passive), both.reach(Phase::Active)), (Some(64.0), Some(25.0)));
+        assert_eq!((resonance.reach(Phase::Passive), resonance.reach(Phase::Active)), (Some(81.0), None));
+        assert_eq!((cascade.reach(Phase::Passive), cascade.reach(Phase::Active)), (None, Some(36.0)));
+        assert_eq!((both.reach(Phase::Passive), both.reach(Phase::Active)), (Some(81.0), Some(36.0)));
     }
 
     #[test]

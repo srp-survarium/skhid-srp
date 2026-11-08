@@ -16,7 +16,7 @@ hit_by_type's protectors' path (0x32A020 .. 0x32A058), each compared with the ga
 protect (0x312BF0) run on that Onyx; the shared Lifebone at body_part::regenerate's join
 (0x32A53F, with patch 94's handler after it) compared with the Lifebone's own regeneration
 callback (0x312590) on its record, and the whole regenerate (0x32A4B0) healing to full; the
-team, life, roster, reach (8 m passives, 5 m actives), state and cap (4 of a kind, own first)
+team, life, roster, reach (9 m passives, 6 m actives), state and cap (4 of a kind, own first)
 rules, a lobby (no match) and a kit that is not the player's current one. The cap of 4 copies of
 a kind with own copies (check_own_cap): five own Springs through the getters, five own Onyx
 through the game's protect, five own Lifebones through its regeneration callback act as four;
@@ -334,11 +334,11 @@ def check_resonance_springs(data):
     near = (3.0, 0.0, 0.0)
     cases = [
         ('one passive, Resonance at 3 m', [], [(1, 0, near, RESONANCE, True, [3])], True, True, (1, 0)),
-        ('the reach: 8 m passives, 5 m actives, team, life', [],
+        ('the reach: 9 m passives, 6 m actives, team, life', [],
          [(1, 0, near, RESONANCE, True, [3]), (2, 0, (0.0, 4.0, 0.0), CASCADE, True, [4]),
-          (3, 1, (1.0, 0.0, 0.0), RESONANCE + CASCADE, True, [4]), (4, 0, (8.5, 0.0, 0.0), RESONANCE + CASCADE, True, [4]),
-          (5, 0, (1.0, 0.0, 0.0), RESONANCE + CASCADE, False, [4]), (6, 0, (0.0, 0.0, 6.0), RESONANCE + CASCADE, True, [4]),
-          (7, 0, (0.0, 7.99, 0.0), RESONANCE, True, [3, 4]), (8, 0, (0.0, 0.0, -4.99), CASCADE, True, [3])],
+          (3, 1, (1.0, 0.0, 0.0), RESONANCE + CASCADE, True, [4]), (4, 0, (9.5, 0.0, 0.0), RESONANCE + CASCADE, True, [4]),
+          (5, 0, (1.0, 0.0, 0.0), RESONANCE + CASCADE, False, [4]), (6, 0, (0.0, 0.0, 6.5), RESONANCE + CASCADE, True, [4]),
+          (7, 0, (0.0, 8.99, 0.0), RESONANCE, True, [3, 4]), (8, 0, (0.0, 0.0, -5.99), CASCADE, True, [3])],
          True, True, (4, 1)),
         ('no skill, nothing', [], [(1, 0, near, 0, True, [3, 4])], True, True, (0, 0)),
         ('a cooling or collected Spring', [], [(1, 0, near, RESONANCE + CASCADE, True, [1, 5])], True, True, (0, 0)),
@@ -381,7 +381,7 @@ def check_resonance_springs(data):
     m.spring(at, 4)
     close(m.getter(13), 1.0)
     print("Resonance and Cascade, Spring: the game's getters (one index, the weighted sum) add a teammate's "
-          "Springs' passive nodes within 8 m with Resonance and active nodes within 5 m with Cascade on every "
+          "Springs' passive nodes within 9 m with Resonance and active nodes within 6 m with Cascade on every "
           "Spring list (Spring II's reload too), none for an enemy, a dead or distant carrier, a cooling or "
           "collected Spring, a dead recipient, the lobby or another kit; at most 4 of a kind with the own ones "
           "(two own and three near: two shared): PASS")
@@ -587,7 +587,7 @@ def check_resonance_onyx(data):
         ('another hit type', [], [(1, 0, near, RESONANCE + CASCADE, True, [3, 4])], 0, 'body', (0, 0)),
         ('a part it does not protect', [], [(1, 0, near, RESONANCE + CASCADE, True, [3, 4])], kind, 'left_leg', (0, 0)),
         ('enemy, dead, too far', [], [(1, 1, near, RESONANCE + CASCADE, True, [3, 4]), (2, 0, near, RESONANCE + CASCADE, False, [3, 4]),
-                                      (3, 0, (8.1, 0, 0), RESONANCE, True, [3]), (4, 0, (5.1, 0, 0), CASCADE, True, [4])],
+                                      (3, 0, (9.1, 0, 0), RESONANCE, True, [3]), (4, 0, (6.1, 0, 0), CASCADE, True, [4])],
          kind, 'body', (0, 0)),
         ('four own: none', [3, 3, 3, 3], [(1, 0, near, RESONANCE + CASCADE, True, [3, 4])], kind, 'body', (0, 0)),
     ]
@@ -610,8 +610,8 @@ def check_resonance_onyx(data):
             close(have[0], want[0])
             close(have[1], want[1])
             outcomes.append((what, damage, round(have[0], 4), round(have[1], 4)))
-    print("Resonance and Cascade, Onyx: before a part's protectors, each teammate's passive Onyx within 8 m "
-          "(Resonance) and one active Onyx within 5 m (Cascade, none while one of the own is active) do what "
+    print("Resonance and Cascade, Onyx: before a part's protectors, each teammate's passive Onyx within 9 m "
+          "(Resonance) and one active Onyx within 6 m (Cascade, none while one of the own is active) do what "
           "the game's own protect does with that Onyx; another hit type, an unprotected part, an active Onyx's "
           "passive, an enemy, a dead or distant carrier, four own: nothing: PASS")
     return outcomes
@@ -650,7 +650,7 @@ def check_resonance_lifebone(data):
         ('a part without its record', [], [(1, 0, near, RESONANCE, True, [3])], release, 'left_leg', 0),
         ('Cascade shares no passive; enemy, dead, far', [],
          [(1, 0, near, CASCADE, True, [3]), (2, 1, near, RESONANCE, True, [3]), (3, 0, near, RESONANCE, False, [3]),
-          (4, 0, (0, 8.1, 0), RESONANCE, True, [3])], release, 'body', 0),
+          (4, 0, (0, 9.1, 0), RESONANCE, True, [3])], release, 'body', 0),
     ]
     for what, own, carriers, record, part, shared in cases:
         m = Match(data)
@@ -697,7 +697,7 @@ def check_resonance_lifebone(data):
         g.word(body + 0xB0, 0)
         g.call(0x32A4B0, (now, now), edi=body)
         close(g.float(body + 0xA0), expected)
-    print("Resonance, Lifebone: at a part's regeneration tick each teammate's Lifebone within 8 m does to its "
+    print("Resonance, Lifebone: at a part's regeneration tick each teammate's Lifebone within 9 m does to its "
           "rate, delay and limit what the game's own Lifebone callback does with its record for the part, "
           "with patch 94's handler after it; the whole regenerate heals to full with one; three own leave one; "
           "a part without a record, Cascade alone, an enemy, a dead or distant carrier: nothing: PASS")
@@ -916,7 +916,7 @@ def check_active_cap(data):
         assert all(m.g.read(b + 0x2A0) == 4000 for b in five[:4])
         outcomes.append(('Lifebone', at))
 
-    # Cascade: three own Springs active and a carrier's two active within 5 m: one shared active
+    # Cascade: three own Springs active and a carrier's two active within 6 m: one shared active
     # (four in all, own first); four own active: none shared.
     for own, shared in [(3, 1), (4, 0), (2, 2)]:
         m, mine = springs_match([3] * own)
@@ -958,6 +958,136 @@ def check_active_cap(data):
     return outcomes
 
 
+def on_kit(m, at, kit, skills):
+    """Makes `at` its place's kit-`kit` object, as a match has it: each kit of a place is a player
+    object of its own (kit byte +115h), core_active_player gives the place entry's +0Ch kit's
+    (the entry's +0 a stale kit-0 object, dead), and srp writes the skills into every kit (Cascade,
+    542, sets Medic's bit 20 of modifier 43 too)."""
+    g = m.g
+    g.emu.mem_write(at + 0x115, bytes([kit]))
+    for k in range(3):
+        g.word(g.read(at + 0x6B8) + 0xF4 + k * 0x704 + RANKS * 4, bits(skills))
+        g.word(g.read(at + 0x6B8) + 0xF4 + k * 0x704 + 43 * 4, bits((1 << 20) if skills & CASCADE else 0))
+    place = g.emu.mem_read(at + 0x114, 1)[0]
+    stale = g.block(0xF500)
+    g.word(stale + 0x6B8, g.read(at + 0x6B8))
+    g.word(g.places + place * 0x30, stale)
+    g.word(g.places + place * 0x30 + 4 * kit, at)
+    g.emu.mem_write(g.places + place * 0x30 + 0xC, bytes([kit]))
+
+
+STAGGER = 0x2DBCD0      # base_player's stagger (eax the player; the time, ret 4): patch 54's list-42 factor
+
+
+def stagger(m, time=10000):
+    """The recipient's stagger after two recent hits (0.15 and 0.3 stopping power, at most 0.5): its
+    movement node's value (+300h), -0.45 unslowed, 0 while an active Spring's -1 applies (patch 54)."""
+    g = m.g
+    recent = g.block(24)
+    for i, (age, power) in enumerate([(100, 0.15), (200, 0.3)]):
+        g.emu.mem_write(recent + 8 * i, struct.pack("<If", time - age, power))
+    g.word(PLAYER + 0x2E8, recent)
+    g.word(PLAYER + 0x2EC, recent + 16)
+    g.emu.mem_write(PLAYER + 0x31C, struct.pack("<ff", 0.5, 0.5))
+    g.word(PLAYER + 0x2FC, 4)
+    g.call(STAGGER, (time,), eax=PLAYER)
+    return g.float(PLAYER + 0x300)
+
+
+def check_share_matrix(data):
+    """Every kind with each skill, a teammate carrying one copy (the owner's rev51 report: only
+    Larkspur's active was shared, and only its share made the teammates glow): Resonance shares a
+    Spring's, Lifebone's and Onyx's passive, Cascade every part of a Spring's and an Onyx's active
+    and the activation of each kind, each through the game's own code, with the carrier and the
+    recipient playing kit 1 (kit objects of their own, kit 0's stale in the roster entry):
+    - Spring: the getters on each of its lists (passive 4, 49; active 4, 3, 19, 49, 42), and the
+      stagger's slow (patch 54's list 42) taken away;
+    - Onyx: before the part's protectors, as the game's protect of that Onyx;
+    - Lifebone: its passive at the part's regeneration tick;
+    - the activation (artefact_base::action's hook 0x313333, Medic's path, every kind since the
+      owner's rev51 games): the recipient plays the kind's activation glow (the copy's
+      active_resource, the active's length, the timed clock) and a Lifebone's heals it (body, head,
+      pain full). On main only a Lifebone's did: a Spring's and an Onyx's played nothing.
+    Up to the reach and past it: Resonance 9 m, Cascade 6 m (the owner, 2026-11-07; were 8 m and
+    5 m, so 8.5 m and 5.5 m fail before it)."""
+    outcomes = []
+    container = KITS + 0xF4 + 0x704
+    release = {'body': (0.1, 1.0, 0.0, 1.0, 1.0, 1.0)}
+    for skill, phase, reach, edge in [(RESONANCE, 3, (7.5, 8.5, 8.99), 9.0), (CASCADE, 4, (4.5, 5.5, 5.99), 6.0)]:
+        for distance in reach + (edge + 0.01, 12.0):
+            shared = distance <= edge
+            # Spring: the getters on each of its lists, and the stagger's slow.
+            m = Match(data)
+            on_kit(m, PLAYER, 1, 0)
+            at = m.player(1, 0, (0.0, distance, 0.0))
+            on_kit(m, at, 1, skill)
+            m.spring(at, phase)
+            nodes = SPRING_PASSIVE if phase == 3 else SPRING_ACTIVE_NODES
+            for index, node in nodes.items():
+                want = max(0.0, 1 + node) if shared else 1.0
+                have = m.getter(index, container)
+                close(have, want)
+                close(m.weighted([(index, 1.0)], container), want)
+                outcomes.append(('Spring', skill, distance, index, round(have, 4)))
+            close(stagger(m), 0.0 if shared and phase == 4 else -0.45)
+            # Onyx: before the part's protectors, as the game's protect of that Onyx.
+            m = Match(data)
+            on_kit(m, PLAYER, 1, 0)
+            at = m.player(1, 0, (0.0, 0.0, distance))
+            on_kit(m, at, 1, skill)
+            stone = onyx(m, at, phase)
+            have = protected(m, 7, 'body', 100.0, 0.4)
+            want = native_protect(m, stone, phase, 7, 100.0, 0.4) if shared else (100.0, 0.4)
+            close(have[0], want[0])
+            close(have[1], want[1])
+            outcomes.append(('Onyx', skill, distance, round(have[0], 4)))
+            # Lifebone: its passive at the part's regeneration tick (Resonance's alone).
+            m = Match(data)
+            g = m.g
+            on_kit(m, PLAYER, 1, 0)
+            at = m.player(1, 0, (distance, 0.0, 0.0))
+            on_kit(m, at, 1, skill)
+            lifebone(m, at, phase, release)
+            stack = [0] * 12
+            stack[4], stack[5], stack[6] = bits(0.03), 8000, bits(0.5)
+            g.step(REGENERATE_JOIN, 6, stack=stack, eax=8000, edi=g.pools[PLAYER]['body'])
+            have = g.float(STACK - 0x100 + 0x10), g.float(STACK - 0x100 + 0x18)
+            want = (0.13, 1.5) if shared and skill == RESONANCE else (0.03, 0.5)
+            close(have[0], want[0])
+            close(have[1], want[1])
+            outcomes.append(('Lifebone', skill, distance, round(have[0], 4)))
+            # The activation: the kind's glow on the recipient for the active's length, a Lifebone's heal.
+            for kind, enable, left, length in [('Spring', SPRING_ACTIVE, 0x394, 10000), ('Lifebone', LIFEBONE_ACTIVE_, 0x494, 3000),
+                                               ('Onyx', ONYX_ACTIVE_, 0xF14, 4000)]:
+                m = Match(data)
+                g = m.g
+                on_kit(m, PLAYER, 1, 0)
+                at = m.player(1, 0, (0.0, distance, 0.0))
+                on_kit(m, at, 1, skill)
+                item = m.artefact(at, enable, 4)
+                g.word(item + 0x290, g.effect_resource())
+                g.word(item + left, length)
+                for name in ('body', 'head', 'pain'):
+                    g.word(g.pools[PLAYER][name] + 0xA0, bits(0.1))
+                g.effects.clear()
+                g.step(0x313333, 6, esi=item, edi=1234)
+                gets = shared and skill == CASCADE
+                assert g.effects == ([PLAYER] if gets else []), (kind, skill, distance, g.effects)
+                if gets:
+                    close(g.float(g.effect_instances[-1] + 0x24), length / 1000)
+                healed = gets and kind == 'Lifebone'
+                for name, maximum in (('body', 1.0), ('head', 0.4), ('pain', 1.0)):
+                    close(g.float(g.pools[PLAYER][name] + 0xA0), maximum if healed else 0.1)
+                outcomes.append((kind, 'activation', skill, distance, gets))
+    print("Resonance and Cascade, every kind: a teammate on kit 1 (kit objects of their own) gives a "
+          "recipient on kit 1 its Spring's passive (Resonance) or whole active (Cascade: every list through "
+          "the getters, the stagger's slow away), its Onyx's passive or active before the protectors, its "
+          "Lifebone's passive (Resonance) at the regeneration tick, and with Cascade every kind's activation: "
+          "the kind's glow for the active's length, a Lifebone's heal; up to 9 m (Resonance) and 6 m (Cascade), "
+          "nothing past them: PASS")
+    return outcomes
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
@@ -971,6 +1101,7 @@ def main():
     check_resonance_movement(patched)
     check_resonance_onyx(patched)
     check_resonance_lifebone(patched)
+    check_share_matrix(patched)
     check_own_cap(patched)
     check_active_cap(patched)
 

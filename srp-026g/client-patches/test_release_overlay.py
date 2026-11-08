@@ -95,15 +95,17 @@ class ReleaseTests(unittest.TestCase):
                 archive.addfile(info, io.BytesIO(data))
         self.dxvk_pins = dict(DXVK_SHA256=hashlib.sha256(self.dxvk.read_bytes()).hexdigest(),
                               DXVK_DLLS={name: hashlib.sha256(data).hexdigest() for name, data in self.dxvk_dlls.items()})
-        self.without_launcher = {'README.txt', 'LINUX.txt',
+        self.without_launcher = {'README.txt', 'LINUX.txt', 'MACOS.txt',
             'game/binaries/x86/survarium_skhid.exe', 'game/binaries/x86/bugtrap.dll',
             'game/binaries/x86/play_skhid.bat', 'game/binaries/x86/play_skhid.sh',
+            'game/binaries/x86/play_skhid_mac.sh',
             'game/resources/ssl/survarium_login_server.crt'}
         self.names = self.without_launcher | {
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
             'game/binaries/x86/7zr.exe',
             *(f'game/binaries/x86/dxvk/{name}' for name in ('d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll')),
             'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid-without-updater.bat', 'Skhid.sh',
+            'Skhid.command',
             'VPN.txt', 'Skhid-network-setup.cmd', 'Skhid-defender-setup.cmd', 'Skhid-collect-logs.cmd',
         } | {f'game/binaries/x86/launcher_skhid/index-{blank}{code}.html'
              for blank in ('', 'blank-') for code in ('en', 'ru', 'ua', 'de', 'pl')}
@@ -184,7 +186,7 @@ class ReleaseTests(unittest.TestCase):
             for name, path in paths.items():
                 self.assertEqual(z.read(name), path.read_bytes(), name)
                 info = z.getinfo(name)
-                expected = 0o755 if name.endswith('.sh') else 0o644
+                expected = 0o755 if name.endswith(('.sh', '.command')) else 0o644
                 self.assertEqual(stat.S_IMODE(info.external_attr >> 16), expected)
                 self.assertEqual(info.compress_type, zipfile.ZIP_DEFLATED)
         script = paths['game/binaries/x86/play_skhid.sh']
@@ -365,6 +367,7 @@ class ReleaseTests(unittest.TestCase):
                          '-server=release.example:2234 -mt_allocator=768 -minimum_resources_memory_size=768')
         with zipfile.ZipFile(archive) as z:
             self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid.sh'))
+            self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid_mac.sh'))
 
     def test_the_default_exe_has_the_late_join_and_can_be_built_without(self):
         code = Path(overlay.P.late_join_bin()).read_bytes()

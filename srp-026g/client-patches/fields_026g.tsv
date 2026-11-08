@@ -834,6 +834,7 @@ survarium::spring_reload_frame	spring	0x4	ptr<survarium::skill_spring>	artefact.
 survarium::artefact_fire_frame	artefact	0x4	ptr<survarium::artefact>	artefact.fire's first argument (by the site ESP, the return address at +0): a copy patch 54's press would fire (state 3, cooldown 0)
 survarium::artefact_fire_frame	fires	0x8	u32	its second: pushed 1; 0 written for a copy past the 4 of its kind that count for its holder (it does not fire and stays ready)
 survarium::skill_spring	item	0x0	obj<survarium::item>	the Spring's inventory item (its inventory +250h, holder +174h)
+survarium::skill_spring	active_left	0x394	u32	its active's milliseconds: enable_active 0x3118D0 writes trunc(+390h config x modifier 39) at 0x31193B, disable_active 0x311970 zeroes it; set when artefact_base::action's activation hook (0x313333) runs
 survarium::skill_spring	passive_reload	0x3E4	f32	Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
 survarium::skill_spring	active_reload	0x3F4	f32	Spring II's active reload node's value (patch 54's node at +3E8h, list 13)
 survarium::image	engine_world	0x1F1D310	obj<vostok::engine::engine_world_slot>	the engine world's global: set by the engine's run at 0x1881A (mov [1F1D310h],ebp), 0 again at 0x1898F; message_processor reads its game at 0x18359
@@ -852,6 +853,7 @@ survarium::modifier_node	next	0x4	ptr<survarium::modifier_node>	the next node of
 survarium::modifier_list	first	0x4	ptr<survarium::modifier_node>	a kit list's first node, 0 for none (apply_modifier 0x2D5B0C, apply_modifiers 0x2D5C46)
 survarium::modifier_list	size	0x14	size	one of a kit's 68 node lists, 14h each from its modifiers' +110h (0x2D5AF2 lea edi,[eax+ecx*4+110h], ecx index x 5)
 survarium::player_params_modifiers_container	lists	0x110	obj<survarium::modifier_list>	its node lists, the index's at +110h + index x 14h (the getters 0x2D5AE0, 0x2D5BC0; a Spring links its nodes there)
+survarium::skill_lifebone	active_left	0x494	u32	its active's milliseconds (medical_artefact's active_remaining, set by enable_active before the effect at 0x312362)
 survarium::skill_lifebone	regeneration	0x354	ptr<survarium::lifebone_regeneration>	its passive's records begin, one a part (enable_passive_effects 0x3121F0: each record's part found by its name, a node at +490h + i x 28h linked into the part's regeneration modifiers +2E8h)
 survarium::skill_lifebone	regeneration_end	0x358	ptr<survarium::lifebone_regeneration>	their end (34h a record, 0x3121BC)
 survarium::lifebone_regeneration	name	0x0	ptr<u8>	the part's name (enable_passive_effects 0x3121F6 finds the part by it)
@@ -866,6 +868,7 @@ survarium::skill_onyx	parts	0xC90	ptr<survarium::onyx_part>	its config's protect
 survarium::skill_onyx	parts_end	0xC94	ptr<survarium::onyx_part>	their end (1Ch a part, the constructor 0x31273C)
 survarium::onyx_part	name	0x0	ptr<u8>	the part's name (enable_passive_effects 0x31286A)
 survarium::onyx_part	size	0x1C	size	a part's record (0x312736..0x31274B: /1Ch)
+survarium::skill_onyx	active_left	0xF14	u32	its active's milliseconds left: enable_active 0x3128C0 writes trunc(+F10h x modifier 39), tick_impl 0x3127E0 counts it down; patch 54's fire_kind adds 1 s for each other Onyx fired after every activation of the press
 survarium::skill_onyx	hit_kind	0xEE8	u32	the hit type it protects against (protect 0x312BF0 compares the hit's +1Ch)
 survarium::skill_onyx	passive_damage_add	0xEEC	f32	its passive (state 3): damage = (damage + this) x passive_damage_mul (0x312C10)
 survarium::skill_onyx	passive_damage_mul	0xEF0	f32	the passive's damage factor

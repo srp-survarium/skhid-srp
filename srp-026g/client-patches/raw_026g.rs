@@ -16021,6 +16021,15 @@ impl SkillSpring {
         Item(unsafe { self.0.byte_add(0x0) })
     }
 
+    /// +0x394 (u32): its active's milliseconds: enable_active 0x3118D0 writes trunc(+390h config x modifier 39) at 0x31193B, disable_active 0x311970 zeroes it; set when artefact_base::action's activation hook (0x313333) runs
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x394).cast::<u32>().as_ptr() }
+    }
+
     /// +0x3e4 (f32): Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
     ///
     /// # Safety
@@ -16308,6 +16317,15 @@ impl SkillLifebone {
         self.0.as_ptr() as usize as u32
     }
 
+    /// +0x494 (u32): its active's milliseconds (medical_artefact's active_remaining, set by enable_active before the effect at 0x312362)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x494).cast::<u32>().as_ptr() }
+    }
+
     /// +0x354 (ptr<survarium::lifebone_regeneration>): its passive's records begin, one a part (enable_passive_effects 0x3121F0: each record's part found by its name, a node at +490h + i x 28h linked into the part's regeneration modifiers +2E8h)
     ///
     /// # Safety
@@ -16523,6 +16541,15 @@ impl SkillOnyx {
     #[inline(always)]
     pub unsafe fn set_parts_end(self, value: Option<OnyxPart>) {
         unsafe { self.0.byte_add(0xc94).cast::<Option<OnyxPart>>().write_volatile(value) }
+    }
+
+    /// +0xf14 (u32): its active's milliseconds left: enable_active 0x3128C0 writes trunc(+F10h x modifier 39), tick_impl 0x3127E0 counts it down; patch 54's fire_kind adds 1 s for each other Onyx fired after every activation of the press
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xf14).cast::<u32>().as_ptr() }
     }
 
     /// +0xee8 (u32): the hit type it protects against (protect 0x312BF0 compares the hit's +1Ch)
@@ -20806,21 +20833,6 @@ pub mod site {
         }
     }
 
-    /// keeper.respawn_containers (0x2fd19a): inventory::setup_from_profile before its last loop (lea esi,[edi+10Ch] / mov ebp,17h; the jmp at 0x2FD196 and the fstp at 0x2FD198 join here, the x87 stack empty), which calls each held slot's vfn +38h (an artefact's on_taken 0x313470: its passive link reads [item+250h]+174h): EDI the inventory of the kit being spawned (spawn 0x316E70 -> base_player::initialize)
-    pub mod keeper_respawn_containers {
-        #[allow(unused_imports)]
-        use super::*;
-
-        /// EDI: a survarium::inventory (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
-            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Inventory)
-        }
-    }
-
     /// keyboard.spectate (0x25cdbd): game_world::on_keyboard_action at a key down's action (mov esi,[ebx+53ACh]; EBX the game, EDI the binder's action for the key, 0x25CD64): next/prev player (17h/18h) call spectate_next/previous_player only with the client's +0Dh (0x25CEA1); taken is their return (xor al,al and the epilogue, 0x25CEAE)
     pub mod keyboard_spectate {
         #[allow(unused_imports)]
@@ -20905,6 +20917,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn place(machine: &impl Machine) -> u32 {
             machine.register(Register::Ebx)
+        }
+    }
+
+    /// keeper.world_loaded (0x2d2d5d): game_world_core::deserialize's end (mov byte [ebp+18FE0h],0 after pop edi / pop esi; the je at 0x2D2CBB and the loop's end join at 0x2D2D5B): every place's current kit and its inventory loaded, every object (the anomalies, their artefacts with their inventory and slot) loaded, every active place put into the world; EBP the core world. Every world load passes here: a rollback's (move 0x2D2FF0, 0x2D357A), a joiner's or a resync's (0x2D0B70 -> 0x2D0FB9), a replay's seek
+    pub mod keeper_world_loaded {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CoreWorld)
         }
     }
 }
