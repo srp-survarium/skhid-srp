@@ -70,7 +70,7 @@ pub const fn fixed_length(id: u8) -> Option<usize> {
         id::MOVE_PROFILE_INPUT => 2,
         id::DISCARD_PROFILE_INPUT => 1,
         // srp's 0xF6 is one byte the patch ignores (the client's length
-        // getter refuses an empty one).
+        // getter refuses an empty one), or a replay note ([`check`]).
         id::UPLOAD_REQUEST => 1,
         _ => return None,
     })
@@ -124,6 +124,11 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
     let len = payload.len();
     if matches!(message, id::INPUTS_RELAY | id::INPUTS_RELAY_PRECISE) {
         return Err(refuse(0, Reason::NeverSent));
+    }
+    // The other 0xF6: a replay's playback or events note to a spectator
+    // (patch 130, `replay-control`), taken whole by the patch's own parse.
+    if message == id::UPLOAD_REQUEST && replay_control::ServerNote::parse(payload).is_some() {
+        return Ok(());
     }
     if let Some(wanted) = fixed_length(message) {
         if len != wanted {
@@ -562,6 +567,16 @@ mod tests {
 
     fn reason(id: u8, payload: &[u8]) -> Option<Reason> {
         check(id, payload).err().map(|refusal| refusal.reason)
+    }
+
+    #[test]
+    fn an_0xf6_is_the_upload_request_or_a_replay_note() {
+        use replay_control::{MatchMs, Playback, Speed};
+        assert_eq!(check(id::UPLOAD_REQUEST, &[0]), Ok(()));
+        let note = Playback { revision: 1, paused: true, speed: Speed::Half, start: MatchMs(0), end: MatchMs(9) }.encode();
+        assert_eq!(check(id::UPLOAD_REQUEST, &note), Ok(()));
+        assert!(reason(id::UPLOAD_REQUEST, &note[..13]).is_some());
+        assert!(reason(id::UPLOAD_REQUEST, &[0, 0]).is_some());
     }
 
     #[test]
