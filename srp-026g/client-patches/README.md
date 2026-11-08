@@ -2822,12 +2822,13 @@ Round 9 (2026-11-08, a player in Discord: "the Benelli's buckshot sticks out of 
 - **Parked reload parts are not drawn at the bench.** The 3rd-view idle parks some guns' reload
   parts where the hand holds them (the Benelli's and the MP-153's shell beside the grip, the
   Winchester's cartridge at the wrist, the SKS's clip and rounds in its thumbhole stock, a second
-  magazine over the first on the vz. 58, VSS, Val and SR-3M); the bench draws the weapon without
+  magazine on the first on the vz. 58, VSS, Val and SR-3M); the bench draws the weapon without
   the hand. `hide_parked` zeroes rows 0..2 of those bones' matrices of the frame (PARKED: items_dict
   id and a bone mask, 12 entries, keyed as MIDDLES), so nothing of them is drawn; the hand keeps
-  them as before. 2 685 bytes.
+  them as before. Not while the character makes its player (a rebuild: the record may be
+  the next weapon's while the old one is drawn). 2 701 bytes.
 - **Checked:** `check_weapon_table_026g.py` 30 checks (the Benelli's shell bone, a mask bone past
-  the frame's count, a weapon not in the table). Not run in a game.
+  the frame's count, a weapon not in the table, no mask during a rebuild). Not run in a game.
 
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 

@@ -1199,8 +1199,9 @@ def main():
         parked = table_parked()
         assert parked[125] == 1 << 7 and parked[308] == 1 << 8 and 89 not in parked
 
-        def parked_case(name, dict_id, count):
+        def parked_case(name, dict_id, count, building=None):
             def setup(t):
+                t.lobby.word(t.state + READY, 1)       # shown: a rebuild keeps the bench (round 3)
                 middle = t.weapon(name)
                 copy = CHARACTER + 0x18 + 0x4634 * 1
                 t.emu.mem_write(copy + 0x1568 + 5 * 0xB4 + 4, struct.pack("<H", dict_id))
@@ -1208,7 +1209,7 @@ def main():
                     struct.pack("<16f", *[float(b * 100 + i + 1) for i in range(16)]) for b in range(2, count)))
                 t.lobby.word(FRAME - 0x18, count)
                 return middle
-            table, end, out, m, middle, regs = bench_case(setup)
+            table, end, out, m, middle, regs = bench_case(setup, building)
             assert end == DRAW_ITEM and all(out[r] == v for r, v in regs.items() if r != UC_X86_REG_EAX)
             return [struct.unpack("<16f", table.emu.mem_read(BONE_POSES + 64 * b, 64)) for b in range(count)]
 
@@ -1221,9 +1222,14 @@ def main():
             else:
                 assert bones[b] == before[b], b
         assert parked_case("VSS", 308, 2) == parked_case("VSS", 89, 2)
+        # a rebuild (+D2C4h a query, or +D2C8h a setup_profile waiting): the record may already be the next
+        # weapon's (the SKS's mask) while the old weapon is drawn: no mask applied to its bones
+        for building in ("query", "again"):
+            assert parked_case("PM", 109, 9, building) == before, building
         say(f"the parked parts{rebased}: the Benelli's (items_dict 125) bone 7 (`patron`, its shell) of the frame "
             "loses rows 0..2 (its vertices on one point: not drawn), its place and the other 8 bones kept; the VSS's mask bone 8 past the frame's 2 bones and the PM (not in "
-            "PARKED) write nothing; every register but eax kept")
+            "PARKED) write nothing; while the character makes its player (a query, a setup_profile waiting) no "
+            "mask is applied (the SKS's record, the old weapon's bones kept); every register but eax kept")
 
         # The left button at the bench.
         table = Table(patched, delta)

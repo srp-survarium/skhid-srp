@@ -871,14 +871,22 @@ held_id:
 ; gun (round 9, 2026-11-08): in the hand they are hidden by it, at the bench
 ; they showed (the Benelli's and the MP-153's shell beside the grip, the
 ; Winchester's cartridge at the wrist, the SKS's clip through its thumbhole,
-; the vz. 58's, VSS's, Val's and SR-3M's second magazine over the first).
+; the vz. 58's, VSS's, Val's and SR-3M's second magazine on the first).
 ; PARKED by the items_dict id of the record: a mask of the model's bones; each
 ; one of the frame's bones (below its count) loses rows 0..2, so its vertices
-; fall on one point and nothing of it is drawn. edi = the state, ebx = the
-; player, ebp = mt_draw's frame; after middle (bone 1 is never parked).
+; fall on one point and nothing of it is drawn. Not while the character
+; makes its player (a refresh, a window over a weapon's: the record may be
+; the next weapon's, the bones the old one's; its parts may show for those
+; frames). edi = the state, ebx = the player, ebp = mt_draw's frame; after
+; middle (bone 1 is never parked).
 ; Keeps every register.
 hide_parked:
     pushad
+    mov eax, [ebp+CHARACTER]        ; while the character makes its player the record may be the
+    cmp dword [eax+BUILDING], -1    ; next one's (+D2B5h at once, +D2B4h at on_player_ready) and the
+    jne .done                       ; weapon drawn the old one: no mask then (as middle's measure)
+    cmp byte [eax+BUILD_AGAIN], 0
+    jne .done
     mov esi, [ebx+HELD]
     test esi, esi
     jz .done
