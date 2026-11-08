@@ -8,15 +8,22 @@
 //! - both times the match level's `money_k` and `reputation_k`, the
 //!   reputation times `SRP_REPUTATION_RATE` too ([`pay::reputation_rate`],
 //!   read as the server reads it), and twice in a match of the daily bonus
-//!   ([`bonus::settings`]; [`session::v026g::quests::Scale`]).
+//!   ([`bonus::settings`]; [`session::v026g::quests::Scale`]);
+//! - the match levels shown stop at the highest a match can have
+//!   ([`matchmaking::highest_match_level`]).
+//!
+//! Laid out as the modifiers page is: a section a faction (its emblem, the
+//! quest window's), a row a goal (its quest-list icon, name and pay, the goal,
+//! and its targets by reputation level as short wrapping runs).
 
 use std::collections::BTreeSet;
 use std::fmt::Write;
 
-use session::v026g::{bonus, pay, quests::QUESTS_AT_ONCE};
+use session::v026g::{bonus, matchmaking, pay, quests::QUESTS_AT_ONCE};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::quests::{FACTIONS, Quest, Quests};
 
+use crate::icons::{self, IconSet};
 use crate::{Lang, equipment, escape, modifiers};
 
 /// The page's address.
@@ -85,113 +92,110 @@ fn levels(quest: &Quest, last: u8) -> std::ops::RangeInclusive<u8> {
     quest.min_level..=quest.max_level.min(last)
 }
 
-/// One faction's table: a row a goal, a column a reputation level, the
-/// target in the cell.
-fn faction_table(lang: Lang, out: &mut String, faction: u8) {
+/// A goal's targets by reputation level: each run of levels with one target,
+/// as the lobby prints it after the goal ("0–2: 5"), or the levels alone for
+/// a goal without a number. A level's target is its first quest's.
+fn targets(goal: &[&Quest], last: u8) -> Vec<String> {
+    let mut runs: Vec<(u8, u8, Option<&str>)> = Vec::new();
+    for level in 0..=last {
+        let Some(quest) = goal
+            .iter()
+            .find(|quest| levels(quest, last).contains(&level))
+        else {
+            continue;
+        };
+        let target = quest.target.as_deref();
+        match runs.last_mut() {
+            Some((_, end, run)) if *end + 1 == level && *run == target => *end = level,
+            _ => runs.push((level, level, target)),
+        }
+    }
+    runs.into_iter()
+        .map(|(first, end, target)| {
+            let span = if first == end {
+                first.to_string()
+            } else {
+                format!("{first}–{end}")
+            };
+            target.map_or_else(|| span.clone(), |target| format!("{span}: {target}"))
+        })
+        .collect()
+}
+
+/// One faction's section: a row a goal.
+fn faction_section(lang: Lang, out: &mut String, faction: u8) {
     let last = Dictionary::shared()
         .factions
         .iter()
         .find(|row| row.id == faction)
         .map_or(u8::MAX, |row| row.levels.len().saturating_sub(1) as u8);
-    let goals = goals(faction);
-    let columns: BTreeSet<u8> = goals
-        .iter()
-        .flatten()
-        .flat_map(|quest| levels(quest, last))
-        .collect();
+    let emblem = icons::url(IconSet::Faction, &faction.to_string())
+        .map_or_else(String::new, |url| {
+            format!("<img class=quest-emblem src=\"{}\" alt=\"\">", escape(&url))
+        });
     let _ = write!(
         out,
-        "<section class=quest-faction id=faction-{faction}><h2>{}</h2>\
-         <div class=table-scroll><table class=\"protection quests\"><thead>\
-         <tr><th rowspan=2>{}</th><th rowspan=2>{}</th><th colspan={}>{}</th><th rowspan=2>{}</th><th rowspan=2>{}</th></tr><tr>",
+        "<section class=\"modifiers quests\" id=faction-{faction}><h2>{emblem}{}</h2>",
         escape(&equipment::faction_name(lang, faction)),
-        lang.tr("Quest", "Завдання"),
-        lang.tr("Goal", "Мета"),
-        columns.len(),
-        lang.tr("At reputation level", "На рівні репутації"),
-        escape(&modifiers::text(lang, "st_regular_money")),
-        escape(&modifiers::text(lang, "st_reputation")),
     );
-    for level in &columns {
-        let _ = write!(out, "<th>{level}</th>");
-    }
-    out.push_str("</tr></thead><tbody>");
-    for goal in &goals {
+    let silver = modifiers::text(lang, "st_regular_money");
+    let reputation = modifiers::text(lang, "st_reputation");
+    for goal in goals(faction) {
         let first = goal[0];
         let objective = modifiers::text(lang, &first.objective);
-        let _ = write!(
-            out,
-            "<tr><th>{}</th><td class=quest-goal>{}</td>",
-            escape(&modifiers::text(lang, &first.name)),
-            escape(objective.trim_end_matches(':')),
-        );
-        for &level in &columns {
-            let targets: Vec<&str> = goal
-                .iter()
-                .filter(|quest| levels(quest, last).contains(&level))
-                .map(|quest| quest.target.as_deref().unwrap_or("✓"))
-                .collect();
-            let cell = if targets.is_empty() {
-                "—".to_owned()
-            } else {
-                targets.join(" / ")
-            };
-            let _ = write!(out, "<td>{}</td>", escape(&cell));
-        }
-        let reputation = goal.iter().flat_map(|quest| {
+        let paid = goal.iter().flat_map(|quest| {
             quest
                 .reputation
                 .iter()
                 .filter(|&&(to, _)| to == faction)
                 .map(|&(_, amount)| amount)
         });
+        let runs: String = targets(&goal, last)
+            .iter()
+            .map(|run| format!("<li>{}</li>", escape(run)))
+            .collect();
         let _ = write!(
             out,
-            "<td>{}</td><td>{}</td></tr>",
+            "<div class=\"modifier quest\"><div><h3>{}{}</h3><p class=quest-pay>{} {} · {} {}</p></div>\
+             <p class=quest-goal>{}</p><ol class=strengths>{runs}</ol></div>",
+            modifiers::glyph(IconSet::Quest, &first.icon.to_string()),
+            escape(&modifiers::text(lang, &first.name)),
+            escape(&silver),
             span(goal.iter().map(|quest| quest.money)),
-            span(reputation),
+            escape(&reputation),
+            span(paid),
+            escape(objective.trim_end_matches(':')),
         );
     }
-    out.push_str("</tbody></table></div></section>");
+    out.push_str("</section>");
 }
 
-/// What a match level makes of the tables' silver and reputation.
-fn level_table(lang: Lang, out: &mut String) {
+/// What each match level a match can have makes of the silver and
+/// reputation: a cell a level, wrapping.
+fn level_grid(lang: Lang, out: &mut String) {
     let rate = f64::from(pay::reputation_rate()) / 100.0;
-    let levels = &Dictionary::shared().match_levels;
+    let highest = usize::from(matchmaking::highest_match_level());
     let _ = write!(
         out,
-        "<div class=table-scroll><table class=\"protection quests quest-levels\"><thead><tr><th>{}</th>",
+        "<ol class=quest-levels><li class=quest-levels-key><b>{}</b><span>{}</span><span>{}</span></li>",
         escape(&modifiers::text(lang, "st_match_making_level")),
+        escape(&modifiers::text(lang, "st_regular_money")),
+        escape(&modifiers::text(lang, "st_reputation")),
     );
-    for level in 0..levels.len() {
-        let _ = write!(out, "<th>{level}</th>");
+    for (level, row) in Dictionary::shared()
+        .match_levels
+        .iter()
+        .enumerate()
+        .take(highest + 1)
+    {
+        let _ = write!(
+            out,
+            "<li><b>{level}</b><span>{}</span><span>{}</span></li>",
+            times(pay::multiplier(row.money_k)),
+            times(pay::multiplier(row.reputation_k) * rate),
+        );
     }
-    out.push_str("</tr></thead><tbody>");
-    let rows = [
-        (
-            "st_regular_money",
-            levels
-                .iter()
-                .map(|level| pay::multiplier(level.money_k))
-                .collect::<Vec<_>>(),
-        ),
-        (
-            "st_reputation",
-            levels
-                .iter()
-                .map(|level| pay::multiplier(level.reputation_k) * rate)
-                .collect(),
-        ),
-    ];
-    for (name, ks) in rows {
-        let _ = write!(out, "<tr><th>{}</th>", escape(&modifiers::text(lang, name)));
-        for k in ks {
-            let _ = write!(out, "<td>{}</td>", times(k));
-        }
-        out.push_str("</tr>");
-    }
-    out.push_str("</tbody></table></div>");
+    out.push_str("</ol>");
 }
 
 /// The page's body in `lang`, for the wiki's page.
@@ -202,21 +206,19 @@ pub(crate) fn body(lang: Lang) -> String {
     let rests = hours(quests.iter().map(|q| q.cooldown_minutes));
     let rate = times(f64::from(pay::reputation_rate()) / 100.0);
     let wins = bonus::settings().enabled.then_some(bonus::WINS_A_DAY);
-    let (no_experience, intro, scaled, doubled, uncounted) = match lang {
+    let (no_experience, intro, runs, scaled, doubled) = match lang {
         Lang::En => (
             "Quests give no experience: they pay silver and reputation.".to_owned(),
             format!(
                 "Choose a faction in the lobby: it gives you {QUESTS_AT_ONCE} of its quests at a time, \
                  for your reputation level with it. A quest lasts {lasts} h; one you complete comes back after {rests} h."
             ),
+            "Targets by reputation level: \u{201c}0–2: 5\u{201d} is 5 at levels 0 to 2.",
             format!(
-                "The silver and reputation above are multiplied by the level of the match the quest is \
-                 completed in; reputation includes Skhid's {rate}."
+                "Silver and reputation are multiplied by the level of the match the quest is completed in; \
+                 reputation includes Skhid's {rate}."
             ),
             wins.map(|wins| format!(" Reputation counts twice in the day's first {wins} wins.")),
-            "Matches in rooms with a PIN count for no quest. Grenade quests come once a shop \
-             sells you RGD-5, artefact quests once one sells you gear with an artefact container. \
-             Battery quests count only in battery modes.",
         ),
         Lang::Uk => (
             "Завдання не дають досвіду: за них платять срібло й репутацію.".to_owned(),
@@ -225,43 +227,38 @@ pub(crate) fn body(lang: Lang) -> String {
                  Завдання триває {lasts} год; виконане повертається за {rests} год.",
                 quests_word(lang, QUESTS_AT_ONCE),
             ),
+            "Мета за рівнем репутації: «0–2: 5» — це 5 на рівнях від 0 до 2.",
             format!(
-                "Срібло й репутацію з таблиць вище множать на рівень матчу, у якому завдання виконано; \
+                "Срібло й репутацію множать на рівень матчу, у якому завдання виконано; \
                  у репутації вже є множник Сходу {rate}."
             ),
             wins.map(|wins| format!(" У перших {wins} перемогах за день репутація подвоюється.")),
-            "Бої в кімнатах з PIN не зараховуються до завдань. Завдання на гранати з'являються, \
-             коли крамниця продає вам РГД-5, на артефакти — коли продає спорядження з контейнером для артефактів. \
-             Завдання на батареї зараховуються лише в режимах з батареями.",
         ),
     };
     let mut out = format!(
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
          <div class=wiki-heading><div><h1>{}</h1></div><span class=catalogue-count>{}</span></div>\
-         <p class=wiki-intro><strong>{}</strong> {}</p>",
+         <p class=wiki-intro><strong>{}</strong> {}</p><p class=wiki-note>{}</p>",
         lang.tr("Wiki", "Вікі"),
         lang.tr("Quests", "Завдання"),
         lang.tr("Quests", "Завдання"),
         quests_word(lang, quests.len()),
         escape(&no_experience),
         escape(&intro),
+        escape(runs),
     );
     for faction in FACTIONS {
-        faction_table(lang, &mut out, faction);
+        faction_section(lang, &mut out, faction);
     }
     let _ = write!(
         out,
-        "<section class=quest-faction id=match-level><h2>{}</h2><p class=wiki-note>{}{}</p>",
+        "<section class=\"modifiers quests\" id=match-level><h2>{}</h2><p class=wiki-note>{}{}</p>",
         lang.tr("Pay by match level", "Оплата за рівнем матчу"),
         escape(&scaled),
         escape(&doubled.unwrap_or_default()),
     );
-    level_table(lang, &mut out);
-    let _ = write!(
-        out,
-        "<p class=wiki-note>{}</p></section>",
-        escape(uncounted)
-    );
+    level_grid(lang, &mut out);
+    out.push_str("</section>");
     out
 }
 
@@ -270,7 +267,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_faction_quest_is_on_the_page_with_its_pay() {
+    fn every_faction_quest_is_on_the_page_with_its_icons_and_pay() {
         let quests = &Quests::shared().quests;
         for lang in [Lang::En, Lang::Uk] {
             let page = crate::wiki::page(PATH, "", lang, "site header", None).body;
@@ -283,27 +280,79 @@ mod tests {
                     "{faction}"
                 );
             }
-            // A row a goal of each faction, and every quest's target in one.
+            // A row a goal of each faction, every quest in one.
             let rows: usize = FACTIONS.iter().map(|&faction| goals(faction).len()).sum();
-            assert_eq!(page.matches("<td class=quest-goal>").count(), rows);
+            assert_eq!(page.matches("<div class=\"modifier quest\">").count(), rows);
             assert_eq!(
                 FACTIONS.into_iter().flat_map(goals).flatten().count(),
                 quests.len()
             );
-            // The pay as the server pays it: no experience, no gold, the
-            // reputation at its rate.
+            // No experience, no gold; the reputation at its rate; the match
+            // levels up to the highest a match can have.
             assert!(!page.to_lowercase().contains("gold") && !page.contains("золот"));
             let rate = times(f64::from(pay::reputation_rate()) / 100.0);
             assert!(page.contains(&format!(
-                "<th>{}</th><td>{rate}</td>",
-                modifiers::text(lang, "st_reputation")
+                "<li><b>0</b><span>×1</span><span>{rate}</span></li>"
             )));
+            let highest = matchmaking::highest_match_level();
+            assert!(page.contains(&format!("<li><b>{highest}</b>")));
+            assert!(!page.contains(&format!("<li><b>{}</b>", highest + 1)));
         }
         let en = body(Lang::En);
         assert!(en.contains("Quests give no experience"));
-        // Scavengers' first: defend the batteries, a goal without a number, 50 and 50.
-        assert!(en.contains("<tr><th>Possessions defence</th><td class=quest-goal>Win a match without losing batteries</td><td>✓</td>"));
-        assert!(en.contains("<td>50</td><td>50</td></tr>"));
+        // Scavengers' first: defend the batteries, levels 0 to 5, no number, 50 and 50.
+        assert!(en.contains(
+            "Possessions defence</h3><p class=quest-pay>Silver 50 · Reputation 50</p></div>\
+             <p class=quest-goal>Win a match without losing batteries</p><ol class=strengths><li>0–5</li></ol>"
+        ));
+        // Their kill/death ratio: a run a level.
+        assert!(en.contains("<li>0: 1</li><li>1: 1.1</li>"));
+    }
+
+    #[test]
+    fn every_icon_the_page_names_is_served() {
+        for quest in &Quests::shared().quests {
+            assert!(
+                icons::url(IconSet::Quest, &quest.icon.to_string()).is_some(),
+                "quest {}",
+                quest.id
+            );
+        }
+        let page = body(Lang::En);
+        let files: Vec<&str> = page
+            .match_indices("/wiki/icons/")
+            .map(|(at, _)| page[at..].split_once("?v=").unwrap().0)
+            .collect();
+        assert!(
+            files
+                .iter()
+                .any(|file| file.starts_with("/wiki/icons/quests/"))
+        );
+        assert_eq!(
+            files
+                .iter()
+                .filter(|file| file.starts_with("/wiki/icons/factions/"))
+                .count(),
+            FACTIONS.len()
+        );
+        for file in files {
+            let (content_type, bytes) = icons::file(file).unwrap_or_else(|| panic!("{file}"));
+            assert_eq!(content_type, "image/webp", "{file}");
+            assert!(!bytes.is_empty(), "{file}");
+        }
+    }
+
+    #[test]
+    fn targets_are_runs_of_levels() {
+        let goal: Vec<&Quest> = goals(1)
+            .into_iter()
+            .find(|goal| goal[0].kind == 12)
+            .unwrap();
+        // Scavengers' kills: 5, 6, 7, 8, 9, 9 at levels 0 to 5.
+        assert_eq!(
+            targets(&goal, 5),
+            ["0: 5", "1: 6", "2: 7", "3: 8", "4–5: 9"]
+        );
     }
 
     #[test]

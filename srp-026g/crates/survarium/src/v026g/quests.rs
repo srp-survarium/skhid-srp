@@ -144,6 +144,10 @@ pub struct Quest {
     /// (" 6", " 1.5", " 25%"), none for a goal without a number.
     pub objective: String,
     pub target: Option<String>,
+    /// `ui.icon`: the quest list draws frame `icon + 1` of its quest icon
+    /// (the exe's quest reader 0x321300 keeps it at descriptor + 0xB8, and
+    /// add_quest 0x28DE20 sends it to the lobby as `quest_icon`).
+    pub icon: u8,
 }
 
 /// What one match gave a player, as far as quests ask.
@@ -278,6 +282,7 @@ fn parse_quest(quest: &ConfigValue) -> Result<Quest, ConfigError> {
         money: 0,
         reputation: Vec::new(),
         name: ui.str_at("name")?.to_owned(),
+        icon: int(ui, "icon")?.clamp(0, i32::from(u8::MAX)) as u8,
         objective: objective.to_owned(),
         target: Some(target.trim())
             .filter(|target| !target.is_empty())
@@ -403,6 +408,7 @@ mod tests {
             (quest.objective.as_str(), quest.target.as_deref()),
             ("st_scavengers_defend_items_obj", None)
         );
+        assert_eq!(quest.icon, 3);
         // The lobby's target: an accuracy's in percent.
         assert_eq!(quests.quest(10113).unwrap().target.as_deref(), Some("15%"));
         assert!(quests.quest(1).is_none());
