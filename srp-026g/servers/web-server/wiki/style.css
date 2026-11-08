@@ -272,7 +272,6 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .levels-formula span { white-space:nowrap }
 .levels-graph { margin:0 }
 .levels-graph svg { display:block; width:100%; height:auto; overflow:visible }
-.levels-graph figcaption { font-size:.75rem; color:var(--ink-3); margin-top:6px }
 .levels-graph .grid { stroke:var(--rule); stroke-width:1 }
 .levels-graph .axis { fill:var(--ink-3); font:11px var(--data) }
 .levels-graph .axis-name { fill:var(--ink-3); font:700 11px var(--display); text-transform:uppercase; letter-spacing:.08em }

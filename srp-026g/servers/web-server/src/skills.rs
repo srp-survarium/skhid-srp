@@ -115,8 +115,8 @@ const BOTTOM: f64 = 262.0;
 /// The graph's experience lines, apart.
 const STEP: u32 = 250_000;
 
-/// The levels section: how much experience a level takes, the rule in
-/// words and as two formulas (a level from the one before, the total), a
+/// The levels section: what a level gives, how much experience it takes
+/// as two formulas (a level from the one before, the total), a
 /// table of some levels (with the matches and hours each is at what a match
 /// is now) and a graph of the total.
 fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
@@ -136,19 +136,8 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
         t => format!("{}k", t / 1000),
     };
     let rule = match lang {
-        Lang::En => format!(
-            "Experience gives levels, and every level gives one skill point. Level 1 takes {} \
-             experience; each next level takes {} more than the one before. The highest level \
-             is {MAX_LEVEL}.",
-            thousands(lang, first),
-            thousands(lang, step)
-        ),
-        Lang::Uk => format!(
-            "Досвід дає рівні, а кожен рівень — одне очко навичок. Перший рівень потребує {} \
-             досвіду, кожен наступний — на {} більше за попередній. Найвищий рівень — {MAX_LEVEL}.",
-            thousands(lang, first),
-            thousands(lang, step)
-        ),
+        Lang::En => "Experience gives levels, and every level gives one skill point.",
+        Lang::Uk => "Досвід дає рівні, а кожен рівень — одне очко навичок.",
     };
     let mut out = String::new();
     let _ = write!(
@@ -255,14 +244,7 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
             thousands(lang, level_start(level)),
         );
     }
-    let _ = write!(
-        out,
-        "</svg><figcaption>{}</figcaption></figure></div></section>",
-        lang.tr(
-            "Total experience by level. Point at the line to read a level.",
-            "Досвід усього за рівнем. Наведіть на лінію, щоб побачити рівень."
-        )
-    );
+    out.push_str("</svg></figure></div></section>");
     out
 }
 
