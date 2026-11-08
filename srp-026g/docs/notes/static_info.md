@@ -294,7 +294,9 @@ LZMA2 raw stream, to the end of the message, decoding to <= 0x578A0 bytes:
     20 x u8  squad_id           per roster place; 0 = no squad
     [srp's block]               "SRPX", then {u8 tag, u8 len, len bytes}... (srp): the stock
                                 reader stops at the squads; exe patch 65 reads tag 2, one byte
-                                1: Blackout (blackout.md; battery maps only);
+                                1: Blackout (blackout.md; battery maps only); the faces patch
+                                reads tag 3, a byte a place (N bytes): each place's face
+                                (face-choice.md; sent only when a face is not 0);
                                 tag 1 is kept for team damage (#370); sent only with an entry
 ```
 

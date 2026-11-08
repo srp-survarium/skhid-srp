@@ -19,13 +19,14 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
 
 ## Who has which face
 
-- One face an account, not a kit. Chosen in the lobby, free, any time. [pick] 0.69 charged the
-  rename price after the first login; we charge nothing.
+- One face an account, not a kit. Chosen in the lobby, free, any time out of a match (in one, or
+  on the way to one, it is refused, as a preset's choice). [pick] 0.69 charged the rename price
+  after the first login; we charge nothing.
 - New accounts: face 0. [pick]
 - srp keeps only a face the game data lists: a choice outside the list is refused, and a kept face
   the data no longer lists reads as face 0.
-- Bots: one face a bot, fixed for the match (drawn from its place in the match and the match id,
-  over all the faces). [pick]
+- Bots: one face a bot, fixed for the match (drawn over all the faces from the second the match
+  is made and the bot's number in it). [pick]
 
 ## What is drawn
 
