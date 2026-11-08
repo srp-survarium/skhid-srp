@@ -8,7 +8,7 @@ process, no `.sur` download).
 
 The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07: lobby -> replay
 -> lobby, a seek resynced with 0 mismatches, the end returned the game to the lobby. It needs
-#1285's patch 103 (no place of its own, the 0xEA naming 0xFF).
+#1285's patch 121 (no place of its own, the 0xEA naming 0xFF).
 
 ## Flow
 
@@ -40,7 +40,7 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    recording through #1285's spectator machine: 0xE3, 0xE4 naming 0xFF with every place of the
    recording, the key frame, then the relays and roster changes at their recorded times.
 6. It ends when the game leaves (0xE0, Esc), its link goes, or the recording ends (0xEA naming
-   0xFF, then 7 s of silence; patch 103 takes the game back to the lobby). The session is over
+   0xFF, then 7 s of silence; patch 121 takes the game back to the lobby). The session is over
    once the match server forgets the game.
 
 **The start** (`Recording::start`): the first key frame after the asked place's first entry
@@ -48,7 +48,7 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
 before any entry has nobody in it. A later time asked for starts from the key frame at or before
 it, put as far past it as the inputs since allow (as a seek, below).
 
-**The place to follow: the client picks.** Patch 103 follows the player it followed last, else
+**The place to follow: the client picks.** Patch 121 follows the player it followed last, else
 the first living one; the server has no message to make a spectator's game follow a place (0xE4's
 local place would make the game drive that player). The server honours the place only through the
 start (the first view after that place entered); the exe follows it (track B): the movie knows the
@@ -115,7 +115,7 @@ watching.
 
 ## How to try it with a real game
 
-The game needs #1285's patch 103. On the dev server, with recordings on and a match recorded
+The game needs #1285's patch 121. On the dev server, with recordings on and a match recorded
 with the same exe (`SRP_RECORD_DIR`, `SRP_RECORD_MIN_PLAYERS=1` for a solo match):
 
 ```sh

@@ -427,7 +427,7 @@ impl Server {
         };
         let Some(seat) = self.registry.seat(session_id) else {
             // A replay session's game (the lobby sent it to watch one): only
-            // a game that plays as a spectator (patch 103).
+            // a game that plays as a spectator (patch 121).
             if let Some(watch) = self.replay_watch.as_mut()
                 && survarium::v026g::match_msgs::late_join::has_connect_capability(debug)
             {
