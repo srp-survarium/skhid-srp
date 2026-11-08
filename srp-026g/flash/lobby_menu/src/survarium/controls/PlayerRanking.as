@@ -16,6 +16,7 @@ package survarium.controls
    import scaleform.gfx.MouseEventEx;
    import survarium.data.LocalizationData;
    import survarium.gsearch.MatchMakingSettings;
+   import survarium.messages.PlayerMatches;
    import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
    
@@ -139,6 +140,11 @@ package survarium.controls
             return;
          }
          if(BottomPanel.matchesTake(players))
+         {
+            return;
+         }
+         // The player pop-up's Matches tab (PlayerMatches).
+         if(PlayerMatches.take(players))
          {
             return;
          }

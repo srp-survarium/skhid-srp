@@ -24,6 +24,7 @@ package
    //   match with an id, left of the close button, labels fitting; none without an id; Watch my
    //   deaths asks through the History's prompt (its answer sets the History row's chip); the
 //   match's number after them;
+// - the player pop-up's Matches tab (PlayerMatches) with the server's P1/P2 rows;
 // - "watch by match number": the row's number (#1ce45cbe) and the box above the History that
 //   watches a number typed as rows show it.
    // Ruffle has no exe (ExternalInterface throws): the asks are seen through the answers taken.
@@ -84,6 +85,7 @@ package
                words.setData(HarnessText.DATA[language]);
                history(language);
                results(language);
+               playerMatches(language);
             }
          }
          catch(err:Error)
@@ -298,6 +300,58 @@ package
          screen.parent.removeChild(screen);
          list.parent.removeChild(list);
          trace("REPLAYBUTTONS " + language + ": results: Watch replay, Watch my deaths");
+      }
+
+      // The player pop-up's Matches tab (survarium.messages.PlayerMatches), fed the server's rows:
+      // another player's rows are left; a malformed row is dropped; Watch only where the replay is
+      // kept, asking from that player's place; every language's texts in the row's room.
+      private function playerMatches(language:String) : void
+      {
+         var PM:* = domain.getDefinition("survarium.messages.PlayerMatches");
+         var list:* = make("SrvNotificationListSC");
+         var row:DisplayObjectContainer = historyRow(list);
+         var panel:* = new PM("Ada",false,520,320,font.fontName);
+         Object(loader.content).addChild(panel);
+         panel.show();
+         expect(language + ": PlayerMatches.watchAsk(4) is " + uint(PM.watchAsk(4)).toString(16),PM.watchAsk(4) == 0xC0040000);
+         expect(language + ": P1 rows not taken",PM.take([{"nickname":"P1;1;Bob"},{"nickname":"P2;1ce45cbe;4;13;1;1;12;7;35;1"}]));
+         expect(language + ": another player's matches shown",find(panel,"srpPlayerMatch0") == null);
+         PM.take([{"nickname":"P1;3;Ada"},{"nickname":"P2;1ce45cbe;4;13;1;1;12;7;35;1"},{"nickname":"P2;broken;1"},
+            {"nickname":"P2;69f8c4bc;2;2;3;2;3;9;3000;0"}]);
+         var first:DisplayObjectContainer = find(panel,"srpPlayerMatch0") as DisplayObjectContainer;
+         var second:DisplayObjectContainer = find(panel,"srpPlayerMatch1") as DisplayObjectContainer;
+         expect(language + ": the matches shown are not the 2 good rows",first != null && second != null && find(panel,"srpPlayerMatch2") == null);
+         if(first == null || second == null)
+            return;
+         var watch:* = find(first,"srpPlayerMatchWatch");
+         expect(language + ": Watch on a match without its replay, or none with it",watch != null && find(second,"srpPlayerMatchWatch") == null);
+         for each(var line:DisplayObjectContainer in [first,second])
+         {
+            var right:Number = 0;
+            for(var i:int = 0; i < line.numChildren; i++)
+            {
+               var part:DisplayObject = line.getChildAt(i);
+               if(part is TextField)
+               {
+                  var field:TextField = part as TextField;
+                  expect(language + ": '" + field.text + "' overlaps the row's text before it",field.x >= right);
+                  right = field.x + Math.min(field.width,field.textWidth + 4);
+               }
+            }
+            expect(language + ": a match row's texts reach its Watch",watch == null || line != first || right <= watch.x);
+         }
+         if(watch != null)
+         {
+            fits(language + ": Matches tab Watch",watch);
+            watch.dispatchEvent(new Click(Click.CLICK));
+            answer("watching",MATCH,0);
+            expect(language + ": the Matches tab's Watch did not ask",chip(row) == words.getName("st_srp_replay_chip_ready"));
+         }
+         panel.hide();
+         expect(language + ": rows taken by a closed tab",PM.take([{"nickname":"P1;0;Ada"}]) && find(panel,"srpPlayerMatch0") != null);
+         panel.parent.removeChild(panel);
+         list.parent.removeChild(list);
+         trace("REPLAYBUTTONS " + language + ": player pop-up Matches tab");
       }
 
       private function finish(result:String) : void

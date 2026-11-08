@@ -2650,6 +2650,15 @@ st_srp_pierce_stone	Stein
 st_srp_pierce_tinplate	Blech
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	Im Trupp
+st_srp_player_equipment	Equipment
+st_srp_player_matches	Matches
+st_srp_player_matches_asking	Asking the server for this player's matches…
+st_srp_player_matches_days	%1$s d ago
+st_srp_player_matches_draw	Draw
+st_srp_player_matches_hours	%1$s h ago
+st_srp_player_matches_kd	K/D %1$s/%2$s
+st_srp_player_matches_minutes	%1$s min ago
+st_srp_player_matches_none	No public matches of this player are kept.
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
 st_srp_pvb_busy	%1$s (belegt)
