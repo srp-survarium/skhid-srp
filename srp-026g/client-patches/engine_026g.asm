@@ -177,6 +177,7 @@ global engine_mt_allocate
 global engine_mt_free
 global engine_allocate_save_descriptor
 global engine_context_unmap
+global engine_context_flush
 global engine_ray_callback
 global engine_ray_needs_collision
 global engine_ray_test_single
@@ -2222,6 +2223,23 @@ engine_context_unmap:
     mov eax, [esp]                   ; this
     mov eax, [eax]                   ; its vtable
     call [eax + 0x3c]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_context_flush:
+    ; COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; context -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x1bc]
     pop edi
     pop esi
     pop ebx

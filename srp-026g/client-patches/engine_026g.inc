@@ -580,6 +580,9 @@ extern engine_allocate_save_descriptor
 ; void engine_context_unmap(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource)
 ; COM ID3D11DeviceContext+0x3c (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12; pops 12
 extern engine_context_unmap
+; void engine_context_flush(struct immediate_context *context)
+; COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4
+extern engine_context_flush
 ; void engine_ray_callback(struct closest_ray_result_callback *callback, const float *from, const float *to, unsigned int group, unsigned int mask, struct bullet *requester)
 ; 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
 extern engine_ray_callback

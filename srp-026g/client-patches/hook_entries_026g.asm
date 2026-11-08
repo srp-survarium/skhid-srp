@@ -1585,6 +1585,48 @@ packet_recovery_on_loaded_replay:
     db 0x8b, 0x47, 0x04, 0x85, 0xc0
     jmp 0x27c11b
 
+; 0x12e909 on_textures_loaded with each of its checks passed, before the bake's draw (mov ebx,[ebp+1Ch] / mov eax,[ebx+38h]; then the model's +2Ch, backend::reset, the Flush 0x12E987, render_bake 0x131590, process_compression 0x12EA0D); postponed: the failed bake's end past its finish_query (0x12EB1C: the parameters' copy [esp+80h] destroyed, [ebp+0Ch]'s texture released, ret 18h), no finish; what the success path frees more ([esp+48h..54h] the targets, [esp+28h]) is set after the site: lohook -> bake_async_on_draw
+global bake_async_on_draw
+extern hook_bake_async_on_draw
+bake_async_on_draw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_draw
+    mov edx, bake_async_on_draw_replay
+    cmp eax, 0
+    je bake_async_on_draw_go
+    mov edx, 0x12e90f
+    cmp eax, 1
+    je bake_async_on_draw_go
+    mov edx, 0x12eb1c
+    cmp eax, 2
+    je bake_async_on_draw_go
+    ud2
+bake_async_on_draw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_draw_replay:
+    db 0x8b, 0x5d, 0x1c, 0x8b, 0x43, 0x38
+    jmp 0x12e90f
+
 ; 0x12eea7 process_compression with the bake's target of the type in [esp+1Ch], before the staging's create (mov esi,[esp+24h] / push 0); issued its epilogue 0x12F561 (releases [esp+10h] and [esp+1Ch], ret 28h): lohook -> bake_async_on_issue
 global bake_async_on_issue
 extern hook_bake_async_on_issue
@@ -1669,7 +1711,7 @@ bake_async_on_resume_replay:
     db 0x8b, 0xf0, 0x8d, 0x44, 0x24, 0x40
     jmp 0x12ec5d
 
-; 0x12f2d8 process_compression before make_save_descriptor (mov byte [esp+5F8h],2Fh; then mov [esp+2Ch],ebx, the bytes' data, EBX the DDS; then call 0x109ED0: ECX the physical path, EAX the virtual, [esp] the bytes; cdecl, add esp,4 after); made past the call, EAX the descriptor: lohook -> bake_async_on_save
+; 0x12f2d8 process_compression before make_save_descriptor (mov byte [esp+5F8h],2Fh; then mov [esp+2Ch],ebx, the bytes' data, EBX the DDS; then call 0x109ED0: ECX the physical path, EAX the virtual, [esp] the bytes; cdecl, add esp,4 after); made past the call, EAX the descriptor (0: none, the query's +0E0h 0 at 0x12F2FA, so finish_translated_query 0x109BD0 saves nothing): lohook -> bake_async_on_save
 global bake_async_on_save
 extern hook_bake_async_on_save
 bake_async_on_save:
@@ -1831,7 +1873,46 @@ bake_async_on_dispatched_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x1024ff
 
-; 0x1ec82b game::exit before its delete of user_data/streamed_textures (lea eax,[esp+358h]; the call after is patch 70's nop): lohook -> bake_async_on_exit
+; 0x13ca0 engine_world::tick's start (push ebp / mov ebp,esp / and esp,-8; ECX the engine world): the main loop's frame (engine_world::run calls it once a frame), before its dispatch_callbacks (0x13CE0) and the render world's tick ([esi+2C4h] +8, 0x13D31); apc's wait loops call dispatch_callbacks without it: lohook -> bake_async_on_frame
+global bake_async_on_frame
+extern hook_bake_async_on_frame
+bake_async_on_frame:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_frame
+    mov edx, bake_async_on_frame_replay
+    cmp eax, 0
+    je bake_async_on_frame_go
+    mov edx, 0x13ca6
+    cmp eax, 1
+    je bake_async_on_frame_go
+    ud2
+bake_async_on_frame_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_frame_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x13ca6
+
+; 0x1ec730 game::exit's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the game): every exit passes here, before the branches that skip its delete of user_data/streamed_textures (0x1EC7AE when 0x1051E0 fails, 0x1EC801 when 0x40F10 does; the delete 0x1EC832 is patch 70's nop): lohook -> bake_async_on_exit
 global bake_async_on_exit
 extern hook_bake_async_on_exit
 bake_async_on_exit:
@@ -1855,7 +1936,7 @@ bake_async_on_exit:
     mov edx, bake_async_on_exit_replay
     cmp eax, 0
     je bake_async_on_exit_go
-    mov edx, 0x1ec832
+    mov edx, 0x1ec736
     cmp eax, 1
     je bake_async_on_exit_go
     ud2
@@ -1867,8 +1948,8 @@ bake_async_on_exit_go:
     popfd
     ret
 bake_async_on_exit_replay:
-    db 0x8d, 0x84, 0x24, 0x58, 0x03, 0x00, 0x00
-    jmp 0x1ec832
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1ec736
 
 ; 0x1e944e game::game before its delete of user_data/streamed_textures (lea eax,[esp+470h] / call 0x1E8DA0: [esp+470h] the folder's physical path, a buffer_string); kept: past the delete's call (0x1E945A reads no register before it writes it): lohook -> bake_cache_on_game_start
 global bake_cache_on_game_start

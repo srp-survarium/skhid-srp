@@ -167,7 +167,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
 | `rust/patches/src/bake_cache.rs`, `src/bake_cache.toml`, `src/vostok/baker.rs`, `src/vostok/files.rs`, `src/vostok/crc32.rs`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again: seven `lohook`s (`sites_026g.tsv` bake.* and crc32.step); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
-| `rust/patches/src/bake_async.rs`, `src/bake_async.toml`, `src/vostok/bake_gpu.rs`, `check_bake_async_026g.py` | Patch 111: the camouflage/decal bake does not wait for the GPU: level 0 a GPU copy of the target, the compressed levels copied to stagings, polled each dispatch with the no-wait map, then process_compression's own tail frames later; the save owns the MT DDS (no copy); seven `lohook`s (`sites_026g.tsv` bake.issue, bake.resume, bake.save, bake.free, compress_mip.readback, resources.dispatched, game.exit_bakes); its check runs them in Unicorn on a made-up D3D11 context |
+| `rust/patches/src/bake_async.rs`, `src/bake_async.toml`, `src/vostok/bake_gpu.rs`, `check_bake_async_026g.py` | Patch 121: the camouflage/decal bake does not wait for the GPU: a bake with no place on the GPU put off before its draw and its query made again (requery) once one is free; level 0 a GPU copy of the target, the compressed levels copied to stagings and flushed, polled each dispatch with the no-wait map, the DDS allocated only then, and process_compression's own tail run, on a 6 ms budget a frame; the save owns the MT DDS (no copy); nine `lohook`s (`sites_026g.tsv` bake.draw, bake.issue, bake.resume, bake.save, bake.free, compress_mip.readback, resources.dispatched, engine.tick, game.exit_start); its check runs them in Unicorn on a made-up D3D11 context |
 | `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -3724,7 +3724,7 @@ site from the game's code on the game's own static baker:
 - any other query's finish goes straight through.
 **Not run:** a game.
 
-### 111. The camouflage/decal bake does not wait for the GPU
+### 121. The camouflage/decal bake does not wait for the GPU
 
 A player's report (2026-11-05): with `streamed_textures` emptied, every player joining a room or
 a match makes a hitch while their items bake. Stock, a bake reads its 2048x2048 target back
@@ -3732,41 +3732,67 @@ a match makes a hitch while their items bake. Stock, a bake reads its 2048x2048 
 compressed levels back, blocking each time (`client_patch.md` 3.57, "The bake's GPU round
 trips"). The rules: `../docs/notes/baked-textures.md`, "Bakes off the GPU's clock".
 
+The first version (2026-11-05..07: 8 in flight, 8 queued, past them the stock bake, 2 finished a
+dispatch) gave nothing in a match load (2026-11-08: 19 bots in live players' gear, ~800 bakes in
+9-12 s): frames over 100 ms 7.2 s against main's 7.7 s, the longest ~1.3 s in both. 474 of the
+768 bakes found no place and took the stock bake, which then waited behind the GPU work.
+
 **The patch** (the Rust patch `bake_async`, `rust/patches/src/bake_async.rs` and `.toml`, over
-`vostok::bake_gpu`; seven lohooks of `sites_026g.tsv`):
-- `bake.issue` 0x12EEA7: level 0 a GPU copy of the target (copy2D into a DEFAULT texture),
-  the compressor's levels drawn and copied to stagings (`compress_mip.readback` 0x11F754 keeps
-  each staging, no map), the job's frame copied, process_compression left by its epilogue
-  0x12F561, its query not finished. 8 in flight, 8 more queued (their level 0 kept), past them
-  the stock bake.
-- `resources.dispatched` 0x1024FA, each dispatch on the bakes' thread: the oldest bakes whose
-  last staging maps with the no-wait byte are read back into an MT DDS, then process_compression
-  is called again and `bake.resume` 0x12EC57 jumps to its tail 0x12F00B: the texture made from
-  the DDS, its slot, patch 70's sharing, the resource, the save, the CRC, the record, finish
-  and the "camouflage/decal cook" line. `bake.save` 0x12F2D8 gives the save a descriptor of
-  the game's that owns that DDS (no copy); `bake.free` 0x12F3F7 keeps it from the render
-  allocator's free. At most 2 done bakes are finished a dispatch; more done ones keep their place
-  and finish in the next frames, oldest first. A bake the GPU has had 1 s is read back waiting
-  (logged); one whose levels cannot be mapped fails its query (logged).
-- `game.exit_bakes` 0x1EC82B: every pending bake finished, waiting.
-- `engine_026g.py`'s call kind `com` calls ID3D11DeviceContext::Unmap (the exe only inlines it).
+`vostok::bake_gpu`; nine lohooks of `sites_026g.tsv`):
+- `bake.draw` 0x12E909 (on_textures_loaded about to draw): with no place on the GPU (8 bakes
+  on it, or another thread's), the bake is put off before its draw: exit `postponed` 0x12EB1C,
+  the failed bake's end without its finish (the parameters' copy destroyed, [ebp+0Ch] let go,
+  `ret 18h`), its query unfinished, its model held. Its query is made again once a place is
+  free: finish_query with result 4 (requery: 0x103140 pushes it as a new query, translate_query
+  runs again; patch 70 translates the owner's waiters again). Result 2 ("postponed") would end
+  a translate query unanswered (0xF0F59, 0x109BD0, 0x103140): nothing asks again.
+- `bake.issue` 0x12EEA7: level 0 a GPU copy of the target (copy2D into a DEFAULT texture), the
+  compressor's levels drawn and copied to stagings (`compress_mip.readback` 0x11F754 keeps each
+  staging, no map, no copy: the cursor counts places), the last copy flushed (ID3D11DeviceContext
+  ::Flush, as compress_mip flushes before each copy), the job's frame copied, process_compression
+  left by its epilogue 0x12F561, its query not finished. No DDS memory is held. A bake whose place
+  went since its draw, or whose level 0 found no texture, is put off as at the draw; one whose
+  compressor does not fit its DDS fails its query (logged). The stock bake only after
+  game::exit, or for a frame this does not read (logged).
+- `resources.dispatched` 0x1024FA, each dispatch: a pass on the bakes' thread (one at a time).
+  The oldest bakes whose last staging maps with the no-wait byte get their DDS (mt_allocate
+  then), are read back into it, and process_compression is called again: `bake.resume` 0x12EC57
+  jumps to its tail 0x12F00B: the texture made from the DDS, its slot, patch 70's sharing, the
+  resource, the save, the CRC, the record, finish and the "camouflage/decal cook" line.
+  `bake.save` 0x12F2D8 gives the save a descriptor of the game's that owns that DDS (no copy);
+  with no memory for one, EAX 0 (no save, logged; the game's make_save_descriptor would write
+  through 0). `bake.free` 0x12F3F7 keeps the DDS from the render allocator's free. Done bakes
+  finish while the frame's 6 ms last (one at least); the rest in the next frames, oldest first.
+  A bake the GPU has had 1 s is read back waiting (logged); one whose levels cannot be mapped, or
+  that finds no MT memory for its DDS, fails its query (logged). Then the put-off queries are
+  made again, oldest first, as many as the free places less those made again this frame.
+- `engine.tick` 0x13CA0 (engine_world::tick's start, once a frame): a new frame's budget. A
+  frame with no tick for 100 ms (apc's wait loops dispatch without one) counts as ended.
+- `game.exit_start` 0x1EC730 (game::exit's start, before every branch): every bake on the GPU
+  finished waiting and every put-off query made again, on its thread (now, or at its next
+  pass); later bakes are the stock ones.
+- `engine_026g.py`'s call kind `com` calls ID3D11DeviceContext::Unmap and Flush.
+- `vostok::log` writes a line at a time (the hooks log from several threads; lines came out cut
+  and mixed in the 2026-11-08 run), up to 512 bytes.
 
 Textures only; games with and without it play together. No base relocation under a site, no
-branch into one.
+branch into one (scanned in the original: rel8/rel32 jumps and calls).
 
-**Checked:** `selftest_026g.py` check 111 (the sites' original code and the joins its exits
-reach, the generated lohooks, no relocation or branch inside). `check_bake_async_026g.py`
-(Unicorn) runs process_compression from its entry, the compressor's functions, map2D, the
-dispatch's end and the tail for real on a made-up D3D11 context: the original maps 1 + the
-levels, blocking; the build issues with no Map (backend::reset once before make_mips, as 0x11F3F0),
-polls busy with one no-wait Map, then (the tail's compress ms the real timer's, 0x106A00 and 0x1B7B0 on
-a fake counter, the scale the resume writes) reads the
-levels into the DDS, makes the texture from it (its bytes the stagings' rows), fills the slot and
-patch 70's waiter's, finishes both, the save descriptor owning that DDS with no copy, the record
-listed; late after 1 s; the device lost (an error finish, the waiter made again, the DDS freed);
-8 in flight, 8 queued, the 17th the stock bake; 2 finished a dispatch (5 done at once: 2, 2, 1
-over three dispatches, oldest first; a done bake behind a busy one finishes after it);
-game::exit (every pending bake).
+**Checked:** `check_bake_async_026g.py` (Unicorn) runs on_textures_loaded from its draw,
+process_compression from its entry, the compressor's functions, map2D, the dispatch's end,
+engine_world::tick's start, game::exit from its start, finish_query and the tail for real on a
+made-up D3D11 context: the original maps 1 + the levels, blocking; the build issues with no Map
+and no MT memory (backend::reset once before make_mips, a Flush after the last copy), polls busy
+with one no-wait Map, then allocates the DDS, reads the levels into it, makes the texture from it,
+fills the slot and patch 70's waiter's, finishes both, the save descriptor owning that DDS; late
+after 1 s; the device lost, no MT memory, no save descriptor; a DDS too small (failed, no stock
+bake), no level 0 (put off, made again); 8 on the GPU, the 9th put off at its draw and a 12th at
+its issue, made again (4) once places are free, as many as there are places a frame, patch 70's
+waiter with its owner; another thread's bake put off and made again on its own thread; one
+finish a frame past the budget, the frame ended after 100 ms with no tick; a done bake behind a
+busy one; game::exit through 0x1051E0's failing branch (every pending bake finished, every
+put-off query made again), then the stock bake. `cargo test` covers the transitions, the places
+and the DDS offsets.
 **Not run:** a game.
 
 ## Not ported, not done

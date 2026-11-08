@@ -1,10 +1,15 @@
-# Patch 111: the camouflage/decal bake does not wait for the GPU. Only the
+# Patch 121: the camouflage/decal bake does not wait for the GPU. Only the
 # decisions: which sites, and the handlers. The sites (their VAs, spans,
 # exits and what their registers hold) are sites_026g.tsv's; the GPU work,
 # the frames and the save are vostok::bake_gpu's; the pending bakes are
 # bake_async.rs.
 name = "bake_async"
-patch = 111
+patch = 121
+
+# on_textures_loaded about to draw a bake: put off when the GPU has no place
+[[hook]]
+site = "bake.draw"
+handler = "on_draw"
 
 # process_compression with the bake's target: the bake handed to the GPU
 [[hook]]
@@ -31,12 +36,18 @@ handler = "on_free"
 site = "compress_mip.readback"
 handler = "on_readback"
 
-# each resources dispatch: the GPU asked, the bakes it has done finished
+# each resources dispatch: the bakes the GPU has done finished, the
+# postponed queries made again
 [[hook]]
 site = "resources.dispatched"
 handler = "on_dispatched"
 
-# game::exit: every pending bake finished
+# engine_world::tick: a new frame, a new budget for finishing bakes
 [[hook]]
-site = "game.exit_bakes"
+site = "engine.tick"
+handler = "on_frame"
+
+# game::exit's start: every pending bake finished
+[[hook]]
+site = "game.exit_start"
 handler = "on_exit"
