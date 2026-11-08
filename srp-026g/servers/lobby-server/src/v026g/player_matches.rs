@@ -11,6 +11,7 @@ use std::time::Instant;
 use session::LockExt;
 use session::v026g::persist::history::{MatchSummary, PlayerMatch, Winner};
 use session::v026g::replays;
+use survarium::v026g::lobby::friend_row;
 use survarium::v026g::lobby::player_matches::{
     Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, ReplayState, Whose, player_matches,
 };
@@ -66,14 +67,14 @@ impl Core<'_> {
         now: Instant,
     ) {
         let limit = usize::from(count).min(RECENT_MATCHES_ROWS);
+        let friends = self
+            .store
+            .account(who.account_id)
+            .map(|account| account.locked().friends.clone())
+            .unwrap_or_default();
         let found = match (self.accounts.history(), filter) {
             (Some(history), RecentFilter::All) if limit > 0 => history.matches(None, limit, None),
             (Some(history), RecentFilter::Friends) if limit > 0 => {
-                let friends = self
-                    .store
-                    .account(who.account_id)
-                    .map(|account| account.locked().friends.clone())
-                    .unwrap_or_default();
                 history.matches_with(&friends, limit)
             }
             _ => Ok(Vec::new()),
@@ -87,7 +88,37 @@ impl Core<'_> {
             .iter()
             .map(|summary| recent_row(summary, unix, self.replay_state(who, summary, now)))
             .collect();
-        self.send_made(who.addr, recent_matches(&rows));
+        let friend_rows = self.friends_in(who, &matches, &friends);
+        self.send_made(who.addr, recent_matches(&rows, &friend_rows));
+    }
+
+    /// The `F1` rows of `friends` in `matches`, in the matches' order.
+    fn friends_in(&self, who: &Who, matches: &[MatchSummary], friends: &[u32]) -> Vec<String> {
+        let Some(history) = self.accounts.history() else {
+            return Vec::new();
+        };
+        let ids: Vec<u64> = matches.iter().map(|summary| summary.id).collect();
+        let found = history
+            .players_among(&ids, friends)
+            .unwrap_or_else(|error| {
+                log::warn!(
+                    "{} asked for the recent matches' friends: {error}",
+                    who.name
+                );
+                Vec::new()
+            });
+        matches
+            .iter()
+            .flat_map(|summary| {
+                found
+                    .iter()
+                    .filter(move |(id, ..)| *id == summary.id)
+                    .filter_map(|&(_, account_id, team)| {
+                        let name = self.accounts.get(account_id)?.locked().name.clone();
+                        Some(friend_row(summary.replay_id.match_id(), None, team, &name))
+                    })
+            })
+            .collect()
     }
 
     /// What "Watch" on `summary`'s match would get for `who`'s game

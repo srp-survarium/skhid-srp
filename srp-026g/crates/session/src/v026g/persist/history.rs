@@ -505,7 +505,6 @@ pub struct MatchRecord {
     pub events: Vec<MatchEvent>,
 }
 
-
 /// Public matches added up.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Totals {
@@ -1391,6 +1390,32 @@ impl MatchHistory {
              ORDER BY m.id DESC LIMIT ?2"
         ))?;
         let rows = statement.query_map(params![ids, bounded(limit)], |row| summary_at(row, 0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Who of `accounts` played in the matches `ids` (the history's
+    /// numbers), and on which team: `(match, account, team)`, by match,
+    /// then team and place.
+    pub fn players_among(
+        &self,
+        ids: &[u64],
+        accounts: &[u32],
+    ) -> Result<Vec<(u64, u32, u8)>, PersistError> {
+        if ids.is_empty() || accounts.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ids = serde_json::to_string(ids).expect("ids serialize");
+        let accounts = serde_json::to_string(accounts).expect("ids serialize");
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(
+            "SELECT p.match_id, p.account_id, p.team FROM g26_match_players p
+             WHERE p.match_id IN (SELECT value FROM json_each(?1))
+               AND p.account_id IN (SELECT value FROM json_each(?2))
+             ORDER BY p.match_id, p.team, p.place",
+        )?;
+        let rows = statement.query_map(params![ids, accounts], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 

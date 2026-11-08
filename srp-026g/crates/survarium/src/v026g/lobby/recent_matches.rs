@@ -14,7 +14,10 @@
 //!     `M1;<match 8 hex>;<map id>;<mode>;<score a|->;<score b|->;<players>;<length s>;<minutes since end>;<replay>`.
 //!     `mode` is the mode's lobby number. The scores are the teams' points,
 //!     `-` when no trusted world said them. `players` counts the accounts
-//!     the history has of it. `replay` is [`ReplayState`].
+//!     the history has of it. `replay` is [`ReplayState`];
+//!   - then the asker's friends in the listed matches, a row each
+//!     ([`super::push::friend_row`], place 255: the history keeps no roster
+//!     place).
 
 use super::player_matches::ReplayState;
 use super::push::{Ranked, elo_rows};
@@ -63,8 +66,12 @@ pub struct RecentMatchRow {
     pub replay: ReplayState,
 }
 
-/// `91` with recent matches: at most [`RECENT_MATCHES_ROWS`].
-pub fn recent_matches(matches: &[RecentMatchRow]) -> Result<ServerMessage, WireError> {
+/// `91` with recent matches, at most [`RECENT_MATCHES_ROWS`], then the
+/// `friends` rows ([`super::push::friend_row`]).
+pub fn recent_matches(
+    matches: &[RecentMatchRow],
+    friends: &[String],
+) -> Result<ServerMessage, WireError> {
     let matches = &matches[..matches.len().min(RECENT_MATCHES_ROWS)];
     let mut names = vec![format!("M0;{}", matches.len())];
     names.extend(matches.iter().map(|row| {
@@ -83,6 +90,7 @@ pub fn recent_matches(matches: &[RecentMatchRow]) -> Result<ServerMessage, WireE
             row.replay as u8
         )
     }));
+    names.extend(friends.iter().cloned());
     let rows: Vec<Ranked> = names
         .into_iter()
         .map(|name| Ranked {
@@ -118,7 +126,7 @@ mod tests {
         };
         let longest = "M1;ffffffff;255;255;65535;65535;255;4294968;4294967295;4";
         assert!(longest.len() <= limits::NAME);
-        let message = recent_matches(&[row; 22]).unwrap();
+        let message = recent_matches(&[row; 22], &[]).unwrap();
         assert_eq!(message.body()[0], 1 + RECENT_MATCHES_ROWS as u8);
         assert_eq!(
             RecentFilter::of_start(RECENT_MATCHES_START + 1),

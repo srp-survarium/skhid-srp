@@ -102,17 +102,6 @@ fn phase_code(phase: LivePhase) -> u8 {
     }
 }
 
-/// `head` and the name last, cut to the row's room.
-fn named_row(head: String, name: &str) -> String {
-    let room = limits::NAME.saturating_sub(head.len());
-    let name: String = name.chars().take(room).collect();
-    let mut row = head + &name;
-    while row.len() > limits::NAME {
-        row.pop();
-    }
-    row
-}
-
 impl Core<'_> {
     /// The Live window's spectators of the match (the lobby's id).
     fn live_watchers(&self, match_id: u32) -> usize {
@@ -200,12 +189,12 @@ impl Core<'_> {
                     .session_account(session)
                     .is_some_and(|account| friends.contains(&account.locked().id));
                 if friend && live.present & (1 << place) != 0 {
-                    let head = format!(
-                        "F1;{:08x};{place};{};",
+                    friend_rows.push(lobby::friend_row(
                         running.ticket.match_id,
-                        team.min(1)
-                    );
-                    friend_rows.push(named_row(head, name));
+                        Some(place as u8),
+                        team,
+                        name,
+                    ));
                 }
             }
         }
@@ -252,7 +241,7 @@ impl Core<'_> {
                     running.ticket.match_id,
                     team.min(1)
                 );
-                rows.push(named_row(head, name));
+                rows.push(lobby::named_row(head, name));
             }
         }
         self.send_made(who.addr, lobby::live_rows(lobby::LIVE_ROSTER_START, &rows));

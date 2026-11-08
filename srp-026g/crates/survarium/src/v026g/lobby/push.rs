@@ -842,6 +842,33 @@ pub const LIVE_ROSTER_ROWS: u8 = 24;
 /// roster the next [`LIVE_ROSTER_START`] asks for.
 pub const LIVE_ROSTER_ASK: u32 = 0xFFFF_FF06;
 
+/// A row of the Live window's list and the Watch hub's Recent tab, after
+/// their match rows: `F1;<match 8 hex>;<place>;<team 0|1>;<name>`, a friend
+/// of the asker in a listed match. `place` 255 when not known (a recorded
+/// match: the history keeps no roster place). The name is cut to the
+/// row's room.
+pub fn friend_row(match_id: u32, place: Option<u8>, team: u8, name: &str) -> String {
+    named_row(
+        format!(
+            "F1;{match_id:08x};{};{};",
+            place.unwrap_or(0xFF),
+            team.min(1)
+        ),
+        name,
+    )
+}
+
+/// `head` and the name last, cut to a row's room ([`limits::NAME`]).
+pub fn named_row(head: String, name: &str) -> String {
+    let room = limits::NAME.saturating_sub(head.len());
+    let name: String = name.chars().take(room).collect();
+    let mut row = head + &name;
+    while row.len() > limits::NAME {
+        row.pop();
+    }
+    row
+}
+
 /// A Live window's answer: `91` with `rows` named in order, each at
 /// `start` and its index (the request's start: [`LIVE_START`] or
 /// [`LIVE_ROSTER_START`]).

@@ -297,8 +297,18 @@ fn the_recent_tab_lists_public_matches_all_or_the_friends() {
         .locked()
         .friends
         .push(BOB);
+    world.accounts.sign_up(BOB, "Bob");
     let friends = recent(&mut world, alice, 1, 20);
     assert_eq!(friends[0], "M0;13");
     assert!(friends[1].starts_with("M1;0000010e;"));
+    // After the M1 rows, Bob in each (of the history: no roster place),
+    // in the matches' order.
+    assert_eq!(friends.len(), 1 + 13 + 13, "{friends:?}");
+    assert_eq!(friends[14], "F1;0000010e;255;0;Bob");
+    assert_eq!(friends[15], "F1;0000010b;255;1;Bob");
+    // The whole list names him too; one who is no friend's has none.
+    assert_eq!(recent(&mut world, alice, 0, 20).len(), 1 + 13 + 13);
+    let carol = world.connect("Carol");
+    assert_eq!(recent(&mut world, carol, 0, 20).len(), 1 + 13);
     let _ = std::fs::remove_dir_all(&dir);
 }
