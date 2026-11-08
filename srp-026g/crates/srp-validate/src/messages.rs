@@ -417,7 +417,9 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     }
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
-    // Shipped patch 65 appends an SRPX block for Blackout matches.
+    // srp's block: patch 65's Blackout entry (tag 2, one byte 1) and the
+    // faces patch's (tag 3, a byte a place of the roster; any byte is a
+    // face to the exe, which draws one it does not know as face 0).
     // Keep this in sync with static_info::read_srp_block on the server.
     if !reader.is_done() {
         let at = reader.at();
@@ -435,12 +437,18 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         reader.skip(4).map_err(short)?;
         while !reader.is_done() {
             let at = reader.at();
-            let entry = reader.array::<3>().map_err(short)?;
-            if entry != [2, 1, 1] {
+            let [tag, len] = reader.array::<2>().map_err(short)?;
+            let entry = reader.take(usize::from(len)).map_err(short)?;
+            let known = match tag {
+                2 => entry == [1],
+                3 => len == roster,
+                _ => false,
+            };
+            if !known {
                 return Err(refuse(
                     at,
                     Reason::OptionsTrailing {
-                        len: reader.rest().len().saturating_add(3),
+                        len: reader.rest().len().saturating_add(2).saturating_add(entry.len()),
                     },
                 ));
             }

@@ -27,6 +27,7 @@ use std::fmt;
 use std::num::NonZeroU16;
 
 use super::super::dictionary::Dictionary;
+use super::super::faces::{Face, Faces};
 use super::super::lzma2;
 use super::super::modifications::Modifications;
 use super::super::prices::PriceItem;
@@ -228,6 +229,7 @@ pub enum Decoded {
     SquadMemberAccount {
         body: AccountBody,
         revision: u32,
+        face: Face,
     },
     Inventory {
         items: Vec<ItemDescr>,
@@ -448,6 +450,13 @@ impl<'a> Reader<'a> {
     }
     fn bad(&self, what: &'static str) -> ModelError {
         ModelError::Bad(self.id, what)
+    }
+    /// srp's face byte (`face-choice.md`): a face the data lists.
+    fn face(&mut self) -> Result<Face, ModelError> {
+        let index = self.u8()?;
+        Faces::shared()
+            .face(u32::from(index))
+            .ok_or_else(|| self.bad("a face the game data does not list"))
     }
 }
 
@@ -1613,6 +1622,7 @@ impl Client {
                     exp_total: r.u32()?,
                     exp_level_start: r.u32()?,
                     exp_next_level: r.u32()?,
+                    face: r.face()?,
                 };
                 // 0x270320: every item is copied from the inventory by id;
                 // a miss is a NULL source.
@@ -1635,6 +1645,7 @@ impl Client {
             ServerId::SquadMemberAccount => Decoded::SquadMemberAccount {
                 body: self.read_account_body(r)?,
                 revision: r.u32()?,
+                face: r.face()?,
             },
             ServerId::Inventory => {
                 let count = r.u32()? as usize;

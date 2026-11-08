@@ -620,6 +620,7 @@ mod tests {
                 ..MatchItem::default()
             }],
             squad: 0,
+            face: crate::v026g::faces::Face::DEFAULT,
         }
     }
 

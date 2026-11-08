@@ -662,7 +662,9 @@ impl Core<'_> {
     /// own "Watch replay" answer (`replay`), a presets start
     /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
     /// presets (`presets`), a lobby pick (`lobby::lobby_pick::LOBBY_PICK_BASE`
-    /// and its id: kept, shown back in `0xA1`); any other gets no answer.
+    /// and its id: kept, shown back in `0xA1`), a faces start
+    /// (`lobby::faces::FACES_FIRST` to `FACES_LAST`) with the face (`faces`);
+    /// any other gets no answer.
     /// Nothing of the ranking is read, sent or kept for them.
     fn reserved_ranking(&mut self, who: &Who, start: u32, count: u8, now: Instant) {
         if let Some(pick) = lobby::lobby_pick::LobbyPick::of_start(start) {
@@ -671,6 +673,12 @@ impl Core<'_> {
         }
         if let Some(request) = lobby::presets::preset_request(start) {
             self.preset_request(who, request);
+            return;
+        }
+        if let Some(request) =
+            lobby::faces::face_request(start, survarium::v026g::faces::Faces::shared())
+        {
+            self.face_request(who, request);
             return;
         }
         if let Some(request) = lobby::rooms::room_request(start, count) {

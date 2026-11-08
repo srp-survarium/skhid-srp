@@ -29,6 +29,7 @@ fn options(blackout: bool) -> info::MatchOptions {
                 ..info::MatchItem::default()
             }],
             squad: 0,
+            face: survarium::v026g::faces::Face::DEFAULT,
         }],
         // Blackout is its maps' mode (#1243): the options carry its SRPX entry.
         map: if blackout {
@@ -93,6 +94,36 @@ fn current_server_options_and_blackout_are_accepted() {
                 bad.extend(suffix);
                 assert!(messages::options(&bad, &data).is_err());
             }
+        }
+    }
+}
+
+#[test]
+fn the_faces_entry_is_accepted_for_the_roster_only() {
+    use survarium::v026g::faces::Faces;
+    let data = Data(Dictionary::shared());
+    for blackout in [false, true] {
+        let mut options = options(blackout);
+        let mut bob = options.players[0].clone();
+        bob.name = "bob".into();
+        bob.team = 1;
+        bob.face = Faces::shared().face(2).unwrap();
+        options.players.push(bob);
+        let bytes = info::options_bytes(&options, data.0).unwrap();
+        assert!(bytes.ends_with(b"\x03\x02\x00\x02"));
+        assert_eq!(messages::options(&bytes, &data), Ok(2));
+        // Any byte is a face to the exe; another length than the roster's
+        // is refused.
+        let native_len = bytes.len() - 8 - if blackout { 3 } else { 0 };
+        let native = &bytes[..native_len];
+        for (suffix, accepted) in [
+            (&b"SRPX\x03\x02\xFF\x07"[..], true),
+            (b"SRPX\x03\x01\x02", false),
+            (b"SRPX\x03\x03\x00\x02\x01", false),
+            (b"SRPX\x03\x02\x00", false),
+        ] {
+            let bad = [native, suffix].concat();
+            assert_eq!(messages::options(&bad, &data).is_ok(), accepted, "{suffix:?}");
         }
     }
 }

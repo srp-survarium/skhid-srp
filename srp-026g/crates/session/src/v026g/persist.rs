@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use super::account::{Account, Item, KIT_SLOTS, Kit, KitSlot, QuestInstance, Upgrade};
+use survarium::v026g::faces::Faces;
 use super::clans::Clan;
 use super::moderation::AdminAction;
 use crate::LockExt;
@@ -31,6 +32,7 @@ mod level_stats;
 mod map_plays;
 mod mode_intro;
 mod presets;
+mod faces;
 mod results;
 mod room_settings;
 
@@ -146,6 +148,8 @@ const MIGRATIONS: &[&str] = &[
     level_stats::MIGRATION,
     // 13: per-mode onboarding allowances.
     mode_intro::MIGRATION,
+    // 14: the face an account chose (`faces`).
+    faces::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -622,6 +626,7 @@ impl GameRepository for SqliteGameRepository {
                         drop_cards: Vec::new(),
                         presets: [None; super::presets::PRESETS],
                         active_preset: super::presets::FIRST_PRESET,
+                        face: Default::default(),
                     },
                 ))
             })?;
@@ -640,6 +645,7 @@ impl GameRepository for SqliteGameRepository {
             account.drop_cards = drop_cards::load(&transaction, account_id)?;
             account.presets = presets::load(&transaction, account_id)?;
             account.active_preset = presets::load_active(&transaction, account_id)?;
+            account.face = faces::load(&transaction, account_id, Faces::shared())?;
             {
                 let mut statement = transaction.prepare_cached(
                     "SELECT skill_id, points FROM g26_skills WHERE account_id = ?1 ORDER BY seq",
@@ -889,6 +895,7 @@ fn write_account(
     drop_cards::save(transaction, account_id, &account.drop_cards)?;
     presets::save(transaction, account_id, &account.presets)?;
     presets::save_active(transaction, account_id, account.active_preset)?;
+    faces::save(transaction, account_id, account.face)?;
     for (seq, &(skill_id, points)) in account.skills.iter().enumerate() {
         transaction.execute(
             "INSERT INTO g26_skills (account_id, seq, skill_id, points)

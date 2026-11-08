@@ -63,6 +63,7 @@ fn profile(name: &str, team: u8) -> MatchProfile {
         kits: vec![MatchKit::empty(1, "kit")],
         items: vec![MatchItem::default()],
         squad: 0,
+        face: survarium::v026g::faces::Face::DEFAULT,
     }
 }
 

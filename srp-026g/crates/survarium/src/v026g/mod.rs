@@ -4,6 +4,7 @@
 pub mod armour;
 pub mod awards;
 pub mod dictionary;
+pub mod faces;
 pub mod drops;
 pub mod game_data;
 pub mod golden;
