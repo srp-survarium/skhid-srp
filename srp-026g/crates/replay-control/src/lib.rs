@@ -18,18 +18,25 @@
 //!   - `52 02 first:u16 total:u16`, then up to [`EVENTS_PER_NOTE`] events of
 //!     7 bytes `time:u32 kind:u8 actor:u8 victim:u8` (a place, 0xFF none):
 //!     the [`EventsNote`], the events `first..` of the replay's `total`.
-//! - Game -> server, an 0xE0 alone in its datagram (reliable and plain: it is
-//!   resent every 500 ms until acked, and may come twice or late), a
-//!   [`Request`]: `52 seq op 00 value:u32` (8 bytes: a snapshot chunk has at
-//!   least 9, a leave none). The server takes a request only when its `seq`
-//!   is [`newer`] than the last one it took.
+//! - Game -> server, an 0xE0 (reliable and plain: it is resent every 500 ms
+//!   until acked, and may come twice or late), a [`Request`]:
+//!   [`REQUEST_HEAD`] then `seq op value:u32` (14 bytes). The game's
+//!   datagram may keep its multi flag, so the transport finds the 0xE0's end
+//!   by that head: as a snapshot chunk's header it is none (time 0xFFFFFFFF,
+//!   offset 0xFFFF), nor is it a resource ack's (`FF x6, 0|1, 0`). The server
+//!   takes a request only when its `seq` is [`newer`] than the last one it
+//!   took.
 //!
 //! `no_std`, no `alloc`, no `unsafe`; a read never panics.
 
 #![no_std]
 
-/// The first byte of every message here ('R').
+/// The first byte of every server note here ('R').
 pub const TAG: u8 = 0x52;
+
+/// A request's first bytes: no snapshot chunk's header and no resource
+/// ack's, so `udp-transport` can tell its length in a multi datagram.
+pub const REQUEST_HEAD: [u8; 8] = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, TAG, 0];
 
 /// A time on the match's clock, in ms (the clock an 0xE5 sets, the
 /// recording's own).
@@ -322,7 +329,7 @@ pub struct Request {
 
 impl Request {
     /// Its bytes after the message's id.
-    pub const LEN: usize = 8;
+    pub const LEN: usize = 14;
 
     pub fn encode(self) -> [u8; Request::LEN] {
         let (code, value) = match self.op {
@@ -330,14 +337,21 @@ impl Request {
             Op::Speed(speed) => (2, u32::from(speed.percent())),
             Op::Seek(time) => (3, time.0),
         };
-        let v = value.to_le_bytes();
-        [TAG, self.seq, code, 0, v[0], v[1], v[2], v[3]]
+        let mut out = [0; Request::LEN];
+        out[..8].copy_from_slice(&REQUEST_HEAD);
+        out[8] = self.seq;
+        out[9] = code;
+        out[10..].copy_from_slice(&value.to_le_bytes());
+        out
     }
 
     /// The request an 0xE0's payload is; `None` for anything else (a leave,
     /// a snapshot chunk, a malformed one).
     pub fn parse(payload: &[u8]) -> Option<Request> {
-        let [TAG, seq, code, 0, v0, v1, v2, v3] = *payload else { return None };
+        let [h0, h1, h2, h3, h4, h5, h6, h7, seq, code, v0, v1, v2, v3] = *payload else { return None };
+        if [h0, h1, h2, h3, h4, h5, h6, h7] != REQUEST_HEAD {
+            return None;
+        }
         let value = u32::from_le_bytes([v0, v1, v2, v3]);
         let op = match (code, value) {
             (1, 0) => Op::Pause(false),
@@ -419,12 +433,24 @@ mod tests {
             assert_eq!(bytes.len(), Request::LEN);
             assert_eq!(Request::parse(&bytes), Some(request));
         }
-        assert_eq!(Request { seq: 1, op: Op::Seek(MatchMs(0x01020304)) }.encode(), [0x52, 1, 3, 0, 4, 3, 2, 1]);
-        // A leave (empty), a chunk (9 bytes and more), other ops and values: no request.
-        for bad in [&[][..], &[0x52, 1, 1, 0, 2, 0, 0, 0][..], &[0x52, 1, 2, 0, 30, 0, 0, 0][..], &[0x52, 1, 4, 0, 0, 0, 0, 0][..],
-                    &[0x52, 1, 1, 1, 0, 0, 0, 0][..], &[0x52, 1, 3, 0, 0, 0, 0, 0, 0][..]] {
+        let with = |tail: [u8; 6]| {
+            let mut out = [0; Request::LEN];
+            out[..8].copy_from_slice(&REQUEST_HEAD);
+            out[8..].copy_from_slice(&tail);
+            out
+        };
+        assert_eq!(Request { seq: 1, op: Op::Seek(MatchMs(0x01020304)) }.encode(), with([1, 3, 4, 3, 2, 1]));
+        // Other ops and values, a byte more or less, a leave (empty), the old 8-byte form: no request.
+        for bad in [with([1, 1, 2, 0, 0, 0]), with([1, 2, 30, 0, 0, 0]), with([1, 4, 0, 0, 0, 0])] {
+            assert_eq!(Request::parse(&bad), None, "{bad:?}");
+        }
+        let good = with([1, 1, 1, 0, 0, 0]);
+        for bad in [&good[..13], &[][..], &[0x52, 1, 1, 0, 1, 0, 0, 0][..]] {
             assert_eq!(Request::parse(bad), None, "{bad:?}");
         }
+        let mut wrong = good;
+        wrong[7] = 1;
+        assert_eq!(Request::parse(&wrong), None);
     }
 
     #[test]

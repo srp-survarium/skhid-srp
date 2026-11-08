@@ -59,11 +59,14 @@ control message.
 ## Controls and notes (`crates/replay-control`)
 
 One encoding for the server and the exe's arena (track B's patch 130), the crate
-`replay-control`; both ways the payload starts `52`, times are the match clock (ms, the 0xE5
+`replay-control`; times are the match clock (ms, the 0xE5
 clock):
 
-- **Game -> server**, a request: 0xE0 alone in its datagram (as an upload chunk; resent every 500
-  ms until acked), 8 bytes `52 seq op 00 value:u32le`. Taken only when `seq` is newer (wrapping
+- **Game -> server**, a request: 0xE0 (as an upload chunk; resent every 500 ms until acked), 14
+  bytes `FF FF FF FF FF FF 52 00 seq op value:u32le`. The game's datagram may keep its multi flag
+  (seen live, a 0xDF joined after it), so `udp-transport` finds the 0xE0's end by that head, as it
+  does for the resource acks (`FF x6 0|1 00`); the first form, `52 seq op 00 value`, was parsed there
+  as an empty 0xE0 followed by an id 0x52, and the datagram dropped. Taken only when `seq` is newer (wrapping
   u8) than the last taken: a resend or a late one is not.
   - op 1 pause: value 1 paused, 0 playing;
   - op 2 speed: percent, 25, 50, 100, 200, 400, 800;
