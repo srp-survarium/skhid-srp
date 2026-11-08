@@ -2531,6 +2531,7 @@ st_srp_item_props_mps	m/s
 st_srp_language_option	Jazyk:
 st_srp_language_restart	Projeví se po restartu.
 st_srp_live_back	Back
+st_srp_live_over	over
 st_srp_live_pick	%1$s: pick whom to watch
 st_srp_live_players	Players
 st_srp_live_private	private
