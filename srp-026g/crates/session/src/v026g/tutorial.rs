@@ -472,15 +472,18 @@ mod tests {
         let [active, keeper] = [&grant.active, &grant.saved[0]];
         for kit in 0..KITS {
             assert_eq!(starter_ammo_bags(dictionary, active, kit), 3);
-            // Kit 1 of preset 2 on the test data: no Keeper of the Sun.
-            let bags = if kit == 0 { 3 } else { 5 };
-            assert_eq!(starter_ammo_bags(dictionary, keeper, kit), bags);
             assert_eq!(starter_slot_bags(dictionary, active, kit, 8), 3);
         }
-        // Kit 3 of preset 2 on the test data: its Remington 700's ammo and
-        // the Glock's, whose ammo the test data has.
-        assert_eq!(starter_slot_bags(dictionary, keeper, 2, 8), 4);
-        assert_eq!(starter_slot_bags(dictionary, keeper, 2, 11), 1);
+        // Preset 2 on the test data: kit 1 without the Keeper of the Sun,
+        // kit 3 wearing nothing, the player's three.
+        let bags: Vec<u32> = (0..KITS)
+            .map(|kit| starter_ammo_bags(dictionary, keeper, kit))
+            .collect();
+        assert_eq!(bags, [3, 5, 3]);
+        // Kit 1's AK-12 ammo and the Glock's, both of which the test data
+        // has: one bag for the Glock, the rest for the AK-12.
+        assert_eq!(starter_slot_bags(dictionary, keeper, 0, 8), 2);
+        assert_eq!(starter_slot_bags(dictionary, keeper, 0, 11), 1);
         let rounds =
             |ammo: &str, bags| full_rounds(dictionary.item_named(ammo).unwrap().dict_id, bags);
         assert_eq!(rounds("ammo_7.62x51", 3), 30);

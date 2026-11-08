@@ -42,22 +42,21 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
       modification; three pockets of three (a medkit's, bandages', antitoxins');
     - **preset 2**, kept with the account, put on when the player chooses it (the owner's of
       2026-11-08: "keeper of the sun + keeper set to all starting players + AK-12 in their
-      second loadout", "e2k1 is ak-12, e2k2 is saiga", every slot filled, a backpack with an
-      artefact slot, light): every kit the Keeper set, "Keeper" helmet (202), "Keeper" mask
+      second loadout", "e2k1 is ak-12, e2k2 is saiga", "no need for e2k3", every slot
+      filled, a backpack with an artefact slot, light): kits 1 and 2 the Keeper set, "Keeper" helmet (202), "Keeper" mask
       (200), Keeper's gloves (201) and boots (198), all level 14, the "Wanderer" container
       (199, level 14, 4 kg: an artefact slot and a pocket's unit), a Glock 17 (2283) in weapon
       slot 2 with 50 rounds of 9x19 7N31 (368), and three pockets of two (a medkit's,
       bandages', antitoxins'); kit 1 the Keeper Of The Sun Vest (977) and Pants (978) and the
       AK-12 (363, not the premium copy) with 120 of 6.5x39 (369); kit 2 Bulletproof vest
       "Keeper" (196) and "Keeper" pants (197) and the Saiga-12 (2227) with 80 of 12x70
-      buckshot (2205); kit 3 the same vest and pants and preset 1's Remington 700 with 40 of
-      7.62x51;
+      buckshot (2205); kit 3 nothing;
     - rounds: an ammo slot full, as the ammo window fills it, from the kit's bags (the
       player's 3, +1 from each Keeper vest's and pants' default 1050) shared by its ammo
       slots: one for weapon 2's, the rest for weapon 1's, a clip a bag;
     - pockets: a player's one pocket of one unit, preset 2's +1 pocket from the vest's 1030,
       +1 from the container's own 1030 and +1 unit from its 1170: three of two;
-    - carried (the -15 % counted): preset 2's kits 28.9, 29.6 and 26.6 kg, within the 30 kg
+    - carried (the -15 % counted): preset 2's kits 28.9 and 29.6 kg, within the 30 kg
       `max_carried_weight`; the Saiga's kit wears the plain vest and pants for theirs;
   - modifications of their own (the reroll's storage; the owner's of 2026-11-08, "-15%
     weight and +8 armor"), after those an item comes with (items.tsv `start`), at most 3 an
@@ -69,10 +68,10 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
     Preset 1's respirator 1183 and gloves 1133;
   - autobuy on (`premium.md` §3).
 - **The kits' levels** (`match_making_level`, the highest item's): preset 1's 7, 5 and 4;
-  preset 2's 15 (the AK-12), 14 and 14 (the Keeper set and the container).
+  preset 2's 15 (the AK-12) and 14 (the Keeper set and the container).
 - **srp refuses to start**, and `srp-check-game-data` refuses the release's data
   (`game_data::init`, `survarium::v026g::new_account`, naming each), on data without the
-  table or a key of it (preset 1 and every preset's `all_kits` and `pocket_units`), with a
+  table or a key of it (preset 1 and every preset's `pocket_units`), with a
   key it does not know, a preset after one missing, a faction whose quests the lobby does
   not show (only 1 to 4), an item, modification or faction level the data lacks, an item
   that does not fit its slot, a pocket the gear does not open (its items' modifications,
@@ -89,8 +88,7 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   passed pay nothing, their points are theirs to spend. They get no tutorial; steps they had
   not done are not paid. Preset 2's items (the owner's of 2026-11-08, "everyone"): given
   once by the release that ships them, the same way, into storage with the same
-  modifications of their own, a Remington 700 only to an account without one
-  (`private/release/keeper-ak12-once.sql`, its SQL in the PR); an account's preset 2, when
+  modifications of their own (`private/release/keeper-ak12-once.sql`, its SQL in the PR); an account's preset 2, when
   empty and not active, becomes the new account's, its stacks the account's own (a stack it
   lacks leaves its slot out); its kits and other presets stay as the player made them.
 - **No switch:** `SRP_TUTORIAL` is gone.

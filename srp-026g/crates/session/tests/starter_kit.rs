@@ -225,19 +225,20 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     // wears the Keeper Of The Sun Vest (977) and Pants (978), their own
     // experience and reputation +5 % (1240, 1280) and armour +8, with the
     // AK-12 (363); kit 2 the Keeper vest (196) and pants (197) with the
-    // Saiga-12 (2227) and its buckshot (2205); kit 3 the same with the
-    // Remington 700 (14), the one preset 1's kit 2 wears.
+    // Saiga-12 (2227) and its buckshot (2205); kit 3 nothing (the owner's:
+    // "no need for e2k3").
     assert_eq!(
         presets::choose(&mut account, 2, 0),
         Ok(presets::Applied { empty: 0 })
     );
     assert!(account.presets[0].is_some());
-    for kit in 0..3 {
+    for kit in 0..2 {
         assert_eq!(
             tutorial::starter_ammo_bags(dictionary, &grant.saved[0], kit),
             5
         );
     }
+    assert!(account.kits[2].slots.iter().all(Option::is_none));
     let both = || vec![(1004, false), (1064, false)];
     let sun = || vec![(1240, false), (1280, false), (1004, false)];
     // `(vest and pants, weapon, ammo, rounds, the kit's level)`: four bags
@@ -245,7 +246,6 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     let weapons = [
         ((977, 978, sun()), 363, 369, 120, 15),
         ((196, 197, both()), 2227, 2205, 80, 14),
-        ((196, 197, both()), 14, 51, 40, 14),
     ];
     for (kit, ((vest, pants, own), weapon, ammo, rounds, level)) in account.kits.iter().zip(weapons)
     {
@@ -285,8 +285,6 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
             kit.id
         );
     }
-    // The same Remington 700 in both presets.
-    assert_eq!(account.kits[2].slots[7].unwrap().item_id, rifle);
     // And back: preset 1 as it was.
     assert_eq!(
         presets::choose(&mut account, 1, 0),

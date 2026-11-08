@@ -1,8 +1,15 @@
 use super::*;
 
-/// A preset's kits as `(slot, item)`, kit by kit.
+/// A preset's kits as `(slot, item)`, kit by kit, by slot.
 fn kits(preset: &Preset) -> Vec<Vec<(u8, &str)>> {
-    (0..KITS).map(|kit| preset.kit(kit).collect()).collect()
+    (0..KITS)
+        .map(|kit| sorted(preset.kit(kit).collect()))
+        .collect()
+}
+
+fn sorted(mut worn: Vec<(u8, &str)>) -> Vec<(u8, &str)> {
+    worn.sort_unstable();
+    worn
 }
 
 /// The table as the game data has it (`new-account.tsv`): the owner's
@@ -49,7 +56,7 @@ fn the_grant_is_the_tables() {
         (14, "bandages"),
         (15, "antitoxin"),
     ];
-    let with = |more: [(u8, &'static str); 2]| [&gear[..], &more[..]].concat();
+    let with = |more: [(u8, &'static str); 2]| sorted([&gear[..], &more[..]].concat());
     assert_eq!(
         kits(&grant.active),
         [
@@ -72,7 +79,8 @@ fn the_grant_is_the_tables() {
         (14, "bandages"),
         (15, "antitoxin"),
     ];
-    let with = |more: [(u8, &'static str); 4]| [&gear[..], &more[..]].concat();
+    // Kit 3: nothing (the owner's: "no need for e2k3").
+    let with = |more: [(u8, &'static str); 4]| sorted([&gear[..], &more[..]].concat());
     assert_eq!(
         kits(&grant.saved[0]),
         [
@@ -88,12 +96,7 @@ fn the_grant_is_the_tables() {
                 (7, "saiga_12"),
                 (8, "ammo_12mm_buck2")
             ]),
-            with([
-                (2, "edge_torso_5"),
-                (4, "edge_legs_5"),
-                (7, "rem_700"),
-                (8, "ammo_7.62x51")
-            ]),
+            Vec::new(),
         ]
     );
     assert_eq!(grant.saved[0].pocket_units, 2);
@@ -250,14 +253,13 @@ fn a_pocket_a_modification_of_the_grant_opens_is_open() {
     let mut grant = on_the_test_data();
     grant.saved = shared().saved.clone();
     grant.modifications = shared().modifications.clone();
-    // Kits 2 and 3: the test data has the Keeper vest, the container and
-    // the Remington 700, not the Saiga-12 nor the Glock 17.
+    // Kit 2: the test data has the Keeper vest and the container, not the
+    // Saiga-12 nor the Glock 17 (nor kit 1's Keeper of the Sun).
     let lacks = |name: &str| Dictionary::shared().item_named(name).is_none();
     grant.modifications.retain(|(name, _)| !lacks(name));
     let preset = &mut grant.saved[0];
-    preset.all_kits.retain(|(_, name)| !lacks(name));
-    preset.kits[0] = preset.kits[2].clone();
-    preset.kits[1] = preset.kits[2].clone();
+    preset.kits[0].clear();
+    preset.kits[1].retain(|(_, name)| !lacks(name));
     assert_eq!(
         grant.check(Dictionary::shared(), table, SkillsTree::shared()),
         Vec::<String>::new()
@@ -266,10 +268,9 @@ fn a_pocket_a_modification_of_the_grant_opens_is_open() {
         .modifications
         .retain(|(name, id)| !(name == "edge_back_5" && *id == 1030));
     let wrong = grant.check(Dictionary::shared(), table, SkillsTree::shared());
-    assert_eq!(wrong.len(), 3, "{wrong:?}");
     assert_eq!(
-        wrong[0],
-        "preset 2 kit 1: slot 15: the gear opens 2 pockets of 2 units, 2 of `antitoxin` asked"
+        wrong,
+        ["preset 2 kit 2: slot 15: the gear opens 2 pockets of 2 units, 2 of `antitoxin` asked"]
     );
 }
 

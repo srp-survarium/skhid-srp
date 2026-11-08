@@ -51,7 +51,8 @@ impl TryFrom<u8> for QuestFaction {
 /// What a preset's three kits wear (`preset_<n>` of [`PATH`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Preset {
-    /// What each kit wears: one item, worn by all of them.
+    /// What each kit wears: one item, worn by all of them; none: nothing
+    /// every kit wears.
     pub all_kits: Vec<Worn>,
     /// What each kit wears more, kit by kit: its weapons and their ammo.
     pub kits: [Vec<Worn>; KITS],
@@ -155,7 +156,7 @@ impl NewAccount {
                 .collect()
         };
         let preset = |key: &str, value: &ConfigValue| -> Result<Preset, String> {
-            let mut all_kits = None;
+            let mut all_kits = Vec::new();
             let mut pocket_units = None;
             let mut kits: [Vec<Worn>; KITS] = Default::default();
             for (name, value) in table(key, value)? {
@@ -166,13 +167,13 @@ impl NewAccount {
                     .filter(|n| (1..=KITS).contains(n));
                 match (name.as_str(), kit) {
                     (_, Some(n)) => kits[n - 1] = worn(&at, value)?,
-                    ("all_kits", None) => all_kits = Some(worn(&at, value)?),
+                    ("all_kits", None) => all_kits = worn(&at, value)?,
                     ("pocket_units", None) => pocket_units = Some(number(&at, value)?),
                     _ => return Err(format!("{PATH}: `{at}` is no key of it")),
                 }
             }
             Ok(Preset {
-                all_kits: all_kits.ok_or_else(|| format!("{PATH}: no `{key}/all_kits`"))?,
+                all_kits,
                 kits,
                 pocket_units: pocket_units
                     .ok_or_else(|| format!("{PATH}: no `{key}/pocket_units`"))?,
