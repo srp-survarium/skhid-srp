@@ -7,6 +7,8 @@
 //! are built like them, from the released game, into a page of the wiki's.
 //! The quests ([`crate::quests`]) come from the server's game data and pay rules.
 
+use session::v026g::rewards::PerMatch;
+
 use crate::{
     ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, quests, skills,
 };
@@ -45,8 +47,15 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 }
 
 /// The wiki's page at `path` in `lang` under `header`; `query`: the
-/// request's text after `?` (the modifiers page's chosen item).
-pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Response {
+/// request's text after `?` (the modifiers page's chosen item);
+/// `per_match`: what a match is now, for the skills page.
+pub(crate) fn page(
+    path: &str,
+    query: &str,
+    lang: Lang,
+    header: &str,
+    per_match: Option<PerMatch>,
+) -> Response {
     let (title, body) = if path == WEAPONS {
         let body = match lang {
             Lang::En => include_str!("../wiki/weapons.en.html"),
@@ -54,7 +63,7 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
     } else if path == skills::PATH {
-        (lang.tr("Skills", "Навички"), skills::body(lang).to_owned())
+        (lang.tr("Skills", "Навички"), skills::body(lang, per_match))
     } else if path == quests::PATH {
         (lang.tr("Quests", "Завдання"), quests::body(lang))
     } else if path == EQUIPMENT {
@@ -95,8 +104,8 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
                     lang,
                     skills::PATH,
                     &lang.tr("Skills", "Навички"),
-                    &lang.tr("Every skill tree: thresholds, ranks and what each rank gives.",
-                        "Усі гілки навичок: пороги, ранги й що дає кожен ранг."),
+                    &lang.tr("Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.",
+                        "Рівні й скільки досвіду вони потребують; усі гілки навичок: пороги, ранги й що дає кожен ранг."),
                 ),
                 section(
                     lang,
@@ -159,7 +168,7 @@ mod tests {
     #[test]
     fn both_languages_have_weapon_stats_and_comparison() {
         for lang in [Lang::En, Lang::Uk] {
-            let page = page(WEAPONS, "", lang, "site header");
+            let page = page(WEAPONS, "", lang, "site header", None);
             assert!(page.body.contains("site header"));
             assert!(page.body.contains("id=\"wpn_ak_74m\""));
             assert!(page.body.contains("class=\"weapon-details\""));
@@ -173,7 +182,7 @@ mod tests {
     #[test]
     fn the_skills_page_names_only_files_it_serves() {
         for lang in [Lang::En, Lang::Uk] {
-            let page = page(skills::PATH, "", lang, "site header");
+            let page = page(skills::PATH, "", lang, "site header", None);
             assert!(page.body.contains("site header"));
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("class=\"skill-branch\""));

@@ -273,7 +273,7 @@ mod tests {
     fn every_faction_quest_is_on_the_page_with_its_pay() {
         let quests = &Quests::shared().quests;
         for lang in [Lang::En, Lang::Uk] {
-            let page = crate::wiki::page(PATH, "", lang, "site header").body;
+            let page = crate::wiki::page(PATH, "", lang, "site header", None).body;
             assert!(page.contains("site header"));
             assert!(page.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.contains(&quests_word(lang, quests.len())));

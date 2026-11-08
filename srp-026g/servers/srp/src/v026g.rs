@@ -665,6 +665,7 @@ impl Stack {
             )),
             min_patch_revision: self.min_patch_revision,
             replays: Some(self.replays.clone()),
+            results: self.results.clone(),
         }
     }
 
