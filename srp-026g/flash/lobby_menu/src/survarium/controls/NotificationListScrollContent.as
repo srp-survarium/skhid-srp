@@ -40,9 +40,10 @@ package survarium.controls
       // view first (0xFF anyone's) and the match time to start at. This one: from the start, anyone.
       public static const REPLAY_WATCH_ALL:uint = 0xC0FF0000;
 
-      // The asker's own deaths (the lobby server's REPLAY_WATCH_MY_DEATHS, no fields): it finds the
-      // asker's place in the recording and starts at the first death less 4 s.
-      public static const REPLAY_WATCH_MY_DEATHS:uint = 0xC1000000;
+      // Why a match's replay cannot be watched (dictionary keys; replayReason)
+      public static const REASON_OLD:String = "st_srp_watch_reason_old";
+
+      public static const REASON_GONE:String = "st_srp_watch_reason_gone";
       
       public static const REPLAY_POLLS:int = 30;
       
@@ -86,35 +87,30 @@ package survarium.controls
       
       private static const RP_KEY_STILL_PREPARING:String = "st_srp_replay_still_preparing";
       
-      // A History row's chip: what the last answer said of its match's replay, by the server's
-      // status (no chip before an answer, nor for one that says nothing of the replay).
-      private static const RP_CHIPS:Object = {
-         "watching":"st_srp_replay_chip_ready",
-         "preparing":"st_srp_replay_chip_preparing",
-         "incompatible":"st_srp_replay_chip_old",
-         "gone":"st_srp_replay_chip_gone"
+      // What an answer says of its match's replay (replayReason): it cannot play (a reason), or it
+      // may (null); the other answers say nothing of it (busy, failed, ...).
+      private static const RP_REASONS:Object = {
+         "watching":null,
+         "preparing":null,
+         "incompatible":REASON_OLD,
+         "gone":REASON_GONE
       };
-
-      // The chip's colour by its text: ready green, preparing amber, the others grey.
-      private static const RP_CHIP_COLOURS:Object = {
-         "st_srp_replay_chip_ready":0x5FA65A,
-         "st_srp_replay_chip_preparing":0xC8962E
-      };
-
-      private static const RP_CHIP_GREY:uint = 0x6E7378;
 
       // a row's match number (`#` and the 8 hex digits the server's rows and logs use), grey
       private static const RP_NUMBER_GREY:uint = 0x8A9096;
-
-      private static const RP_KEY_NUMBER_BAD:String = "st_srp_replay_number_bad";
       
       // meaning unknown: onShowQuestMessage shows the quest message only for a notification of this type
       private static const QUEST_MESSAGE_TYPE:int = 3;
       
       public static var replayHolder:NotificationListScrollContent;
 
-      // Told (match 8 hex, status) of each answer that sets a chip: the Watch window's cards follow.
-      public static var chipListener:Function;
+      // Told (match 8 hex, status) of each answer about the match asked for: the Watch window's
+      // cards follow.
+      public static var answerListener:Function;
+
+      // match id (8 hex) -> why its replay cannot be watched, by the last word about it (an answer,
+      // a Watch list's row); none: it may be (replayReason)
+      private static var _replayKnown:Object = {};
       
       public var matchCalback:Function;
 
@@ -143,9 +139,6 @@ package survarium.controls
       // the player of the ask (REPLAY_WATCH_*)
       protected var _rpAsk:uint;
 
-      // match id (8 hex) -> its chip's dictionary key (RP_CHIPS)
-      protected var _rpChips:Object;
-      
       protected var _rpPolls:int;
       
       protected var _rpTimer:Timer;
@@ -329,7 +322,6 @@ package survarium.controls
          var child:DisplayObject = null;
          NotificationListScrollContent.replayHolder = this;
          this._rpRows = new Dictionary(true);
-         this._rpChips = {};
          this._rpState = RP_IDLE;
          this._rpMatch = 0;
          this._rpAsk = NotificationListScrollContent.REPLAY_WATCH_ALL;
@@ -820,7 +812,7 @@ package survarium.controls
             }
             if(rec.watch)
             {
-               this.historyChip(row,rec,this._rpChips[this.rpHex(uint(data.match_id))] as String);
+               this.historyReason(row,rec,NotificationListScrollContent.replayReason(this.rpHex(uint(data.match_id))));
                this.historyNumber(row,rec,uint(data.match_id));
             }
          }
@@ -866,34 +858,8 @@ package survarium.controls
          return button;
       }
 
-      // A typed match number watched (the Watch window's box), or the prompt says what a number is.
-      public function replayTyped(text:String) : void
-      {
-         var id:uint = NotificationListScrollContent.matchNumber(text);
-         if(id == 0)
-         {
-            if(this._rpState != RP_ASKING)
-            {
-               this._rpState = RP_ENDED;
-               this.rpShow(RP_KEY_NUMBER_BAD);
-            }
-            return;
-         }
-         this.replayBegin(id,NotificationListScrollContent.REPLAY_WATCH_ALL);
-      }
-
-      // A typed match number: 1 to 8 hex digits, an optional `#` and spaces around; 0 if not one.
-      public static function matchNumber(text:String) : uint
-      {
-         var digits:String = text == null ? "" : text.replace(/^\s+|\s+$/g,"").replace(/^#/,"");
-         if(!/^[0-9a-fA-F]{1,8}$/.test(digits))
-         {
-            return 0;
-         }
-         return uint(parseInt(digits,16));
-      }
-
-      // A row's number, `#` and 8 hex digits, as the box takes it.
+      // A match's code, `#` and 8 hex digits (the server's rows and logs), as the Watch window's
+      // search box takes it.
       public static function matchNumberText(id:uint) : String
       {
          var text:String = id.toString(16).toLowerCase();
@@ -904,11 +870,12 @@ package survarium.controls
          return "#" + text;
       }
 
-      // The row's number, in the chip's line, right-aligned left of the chip (or of Watch's end).
+      // The row's number, right-aligned under Watch (or its reason).
       protected function historyNumber(row:MovieClip, rec:Object, id:uint) : void
       {
          var field:TextField = rec.number as TextField;
          var right:Number = Number(rec.watch.x) + Number(rec.watch.width);
+         var above:DisplayObject = rec.reason != null && rec.reason.visible ? rec.reason as DisplayObject : rec.watch as DisplayObject;
          if(!field)
          {
             field = new TextField();
@@ -923,100 +890,117 @@ package survarium.controls
             row.addChild(field);
             rec.number = field;
          }
-         if(rec.chip)
-         {
-            right = Number(rec.chip.x) - 6;
-         }
          field.x = int(right - field.width);
-         field.y = int(Number(rec.watch.y) + Number(rec.watch.height) + 4);
+         field.y = int(above.y + above.height + 3);
       }
 
-      // The row's chip (`key` a dictionary key of RP_CHIPS, null none), under its buttons, right-aligned.
-      protected function historyChip(row:MovieClip, rec:Object, key:String) : void
+      // The row's Watch, or in its place why the replay cannot be watched (`key`, null: Watch).
+      protected function historyReason(row:MovieClip, rec:Object, key:String) : void
       {
-         var chip:Sprite = rec.chip as Sprite;
-         var field:TextField = null;
-         var colour:uint = RP_CHIP_GREY;
-         if(rec.chipKey === key)
-         {
-            return;
-         }
-         rec.chipKey = key;
-         if(chip)
-         {
-            row.removeChild(chip);
-            rec.chip = null;
-         }
+         var field:TextField = rec.reason as TextField;
+         var right:Number = Number(rec.watch.x) + Number(rec.watch.width);
+         rec.watch.visible = key == null;
          if(key == null)
          {
+            if(field)
+            {
+               field.visible = false;
+            }
             return;
          }
-         if(RP_CHIP_COLOURS[key] != undefined)
+         if(!field)
          {
-            colour = uint(RP_CHIP_COLOURS[key]);
+            field = new TextField();
+            field.name = "srpReplayReason";
+            field.embedFonts = true;
+            field.selectable = false;
+            field.mouseEnabled = false;
+            field.multiline = true;
+            field.wordWrap = true;
+            field.width = 150;
+            field.defaultTextFormat = new TextFormat(Button(rec.watch).textField.getTextFormat().font,11,RP_NUMBER_GREY,true,null,null,null,null,"right");
+            row.addChild(field);
+            rec.reason = field;
          }
-         field = new TextField();
-         field.embedFonts = true;
-         field.selectable = false;
-         field.mouseEnabled = false;
-         field.autoSize = TextFieldAutoSize.LEFT;
-         field.wordWrap = false;
-         // the font of the Watch button's label
-         field.defaultTextFormat = new TextFormat(Button(rec.watch).textField.getTextFormat().font,11,colour,true);
+         field.visible = true;
          field.text = this.rpText(key);
-         field.x = 5;
-         field.y = 0;
-         chip = new Sprite();
-         chip.name = "srpReplayChip";
-         chip.mouseEnabled = false;
-         chip.mouseChildren = false;
-         chip.graphics.lineStyle(1,colour,0.9);
-         chip.graphics.beginFill(colour,0.15);
-         chip.graphics.drawRoundRect(0,0,int(field.width + 10),int(field.height),8,8);
-         chip.graphics.endFill();
-         chip.addChild(field);
-         chip.x = int(Number(rec.watch.x) + Number(rec.watch.width) - chip.width);
-         chip.y = int(Number(rec.watch.y) + Number(rec.watch.height) + 4);
-         row.addChild(chip);
-         rec.chip = chip;
+         field.height = field.textHeight + 5;
+         field.x = int(right - field.width);
+         field.y = Number(rec.watch.y);
       }
 
-      // The chip's dictionary key the last answer about match `hex` set (RP_CHIPS), null none.
-      public function chipOf(hex:String) : String
+      // The last watch asked for: its match and its player (REPLAY_WATCH_*'s layout: the place in
+      // view first).
+      public function get replayAsked() : Array
       {
-         return this._rpChips[hex] as String;
+         return [this._rpMatch,this._rpAsk];
       }
 
-      // A chip's colour by its dictionary key: ready green, preparing amber, the others grey.
-      public static function chipColour(key:String) : uint
+      // What is known of match `hex`'s replay: why it cannot be watched (REASON_*), null if it may
+      // be or nothing is known.
+      public static function replayReason(hex:String) : String
       {
-         return RP_CHIP_COLOURS[key] != undefined ? uint(RP_CHIP_COLOURS[key]) : RP_CHIP_GREY;
+         return _replayKnown[hex] as String;
       }
 
-      // The answer's word for the match's chip; the rows of that match drawn again.
-      protected function rpChip(hex:String, status:String) : void
+      // The Watch window's rows say what match `hex`'s replay is (`reason`, null: it may be
+      // watched): the History's rows of that match follow.
+      public static function noteReplay(hex:String, reason:String) : void
       {
-         var key:String = RP_CHIPS[status] as String;
-         var i:int = 0;
-         var row:MovieClip = null;
-         if(key == null)
+         if(replayReason(hex) == reason)
          {
             return;
          }
-         this._rpChips[hex] = key;
-         if(NotificationListScrollContent.chipListener != null)
+         if(reason == null)
          {
-            NotificationListScrollContent.chipListener(hex,status);
+            delete _replayKnown[hex];
          }
-         i = 0;
-         while(i < this._renderers.length)
+         else
          {
-            row = this._renderers[i] as MovieClip;
+            _replayKnown[hex] = reason;
+         }
+         if(replayHolder != null)
+         {
+            replayHolder.historyRedraw(hex);
+         }
+      }
+
+      // The History's name of match `id`'s map (its row's), null when no row has it.
+      public static function mapNameOf(id:uint) : String
+      {
+         var holder:NotificationListScrollContent = replayHolder;
+         for each(var row:Object in holder != null ? holder._renderers : [])
+         {
+            if(row && row.data && uint(row.data.match_id) == id && row.data.map_name)
+            {
+               return String(row.data.map_name);
+            }
+         }
+         return null;
+      }
+
+      // The rows of match `hex` drawn again.
+      protected function historyRedraw(hex:String) : void
+      {
+         for each(var row:MovieClip in this._renderers)
+         {
             if(row && row.data && this.rpHex(uint(row.data.match_id)) == hex)
             {
                this.historyDecorate(row);
             }
-            i++;
+         }
+      }
+
+      // An answer about match `hex`: what it says of the replay; the Watch window told.
+      protected function rpNote(hex:String, status:String) : void
+      {
+         if(status in RP_REASONS)
+         {
+            NotificationListScrollContent.noteReplay(hex,RP_REASONS[status] as String);
+         }
+         if(NotificationListScrollContent.answerListener != null)
+         {
+            NotificationListScrollContent.answerListener(hex,status);
          }
       }
 
@@ -1181,7 +1165,7 @@ package survarium.controls
          {
             return;
          }
-         this.rpChip(hex,status);
+         this.rpNote(hex,status);
          if(status == "watching")
          {
             this.rpStop();

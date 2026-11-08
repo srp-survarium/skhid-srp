@@ -9,6 +9,7 @@ package survarium.controls
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
+   import flash.utils.getDefinitionByName;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ToolTip;
    import scaleform.clik.events.ButtonEvent;
@@ -136,13 +137,14 @@ package survarium.controls
       
       protected var _foundRenderers:Array = [];
 
-      // srp's replay buttons, on the bottom bar left of the close button: the match from the start,
-      // and the player's own deaths (NotificationListScrollContent's replay prompt asks and polls).
+      // srp's Watch replay, red, left of the close button ("To lobby"): the match from the start
+      // (NotificationListScrollContent's replay prompt asks and polls); in its place why the
+      // replay cannot be watched, once that is known.
       protected var _watchAll:Button;
 
-      protected var _watchDeaths:Button;
+      protected var _watchReason:TextField;
 
-      // the match's number after them, as History's box takes it (`#` and 8 hex digits)
+      // the match's number left of them, as the Watch window's search takes it (`#` and 8 hex digits)
       protected var _matchNumber:TextField;
       
       protected var _maxMatchResult:uint = 0;
@@ -246,8 +248,7 @@ package survarium.controls
          this.onLocal();
          LocalizationData.addCallback(this.onLocal,"item_drop_chance_label");
          this.btn_close.addEventListener(ButtonEvent.CLICK,this.closeWindow);
-         this._watchAll = this.replayButton("srpWatchReplay","st_srp_replay_title",NotificationListScrollContent.REPLAY_WATCH_ALL);
-         this._watchDeaths = this.replayButton("srpWatchDeaths","st_srp_replay_my_deaths",NotificationListScrollContent.REPLAY_WATCH_MY_DEATHS);
+         this._watchAll = this.replayButton();
          this.players_list.autoSizeLists = true;
          this.premium_button.addEventListener(ButtonEvent.CLICK,this.showPremiumMessage);
          this.treasureCount.mouseEnabled = false;
@@ -270,53 +271,100 @@ package survarium.controls
          this.droppedItem.addEventListener(MouseEvent.ROLL_OUT,this.hideItemHint);
       }
       
-      // A button like the close button, for asking to watch this match's replay with `ask`.
-      protected function replayButton(name:String, key:String, ask:uint) : Button
+      // The red button for watching this match's replay, as high as the close button.
+      protected function replayButton() : Button
       {
-         var button:Button = new (Object(this.btn_close).constructor as Class)() as Button;
-         button.name = name;
+         var button:Button = null;
+         try
+         {
+            button = new (getDefinitionByName("SrvButtonSkinnedRed") as Class)() as Button;
+         }
+         catch(e:Error)
+         {
+         }
+         if(button == null || button.textField == null)
+         {
+            button = new (Object(this.btn_close).constructor as Class)() as Button;
+         }
+         button.name = "srpWatchReplay";
          button.visible = false;
-         button.y = this.btn_close.y;
          button.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
          {
             var history:NotificationListScrollContent = NotificationListScrollContent.replayHolder;
             if(_match_id != 0 && history != null)
             {
-               history.replayBegin(_match_id,ask);
+               history.replayBegin(_match_id,NotificationListScrollContent.REPLAY_WATCH_ALL);
             }
          });
-         LocalizationData.addButton(button,key);
+         LocalizationData.addButton(button,"st_srp_replay_title");
          addChild(button);
          return button;
       }
 
-      // The replay buttons and the match's number, shown for a match with an id, the buttons sized
-      // to their labels (the language's).
+      // Watch replay (or why it cannot be watched) left of the close button, and the match's
+      // number left of it, for a match with an id; sized to the language's label.
       protected function placeReplayButtons() : void
       {
-         var x:Number = 15;
-         for each(var button:Button in [this._watchAll,this._watchDeaths])
+         var reason:String = this._match_id != 0 ? NotificationListScrollContent.replayReason(NotificationListScrollContent.matchNumberText(this._match_id).substr(1)) : null;
+         var font:String = this.btn_close.textField.getTextFormat().font;
+         this._watchAll.visible = this._match_id != 0 && reason == null;
+         this._watchAll.label = LocalizationData.getName("st_srp_replay_title");
+         try
          {
-            button.visible = this._match_id != 0;
-            button.width = Math.max(this.btn_close.width,int(button.label.length * 8 + 30));
-            button.x = x;
-            x += button.width + 8;
+            this._watchAll.setSize(Math.max(this.btn_close.width,this.labelWidth(this._watchAll.label,font) + 40),this.btn_close.height);
+         }
+         catch(e:Error)
+         {
+            this._watchAll.width = Math.max(this.btn_close.width,this.labelWidth(this._watchAll.label,font) + 40);
+         }
+         this._watchAll.validateNow();
+         this._watchAll.x = int(this.btn_close.x - 10 - this._watchAll.width);
+         this._watchAll.y = this.btn_close.y;
+         var left:Number = this._watchAll.x;
+         if(!this._watchReason)
+         {
+            this._watchReason = this.screenText("srpWatchReason",0xA0A8AE,14);
+         }
+         this._watchReason.visible = this._match_id != 0 && reason != null;
+         this._watchReason.text = reason != null ? LocalizationData.getName(reason) : "";
+         if(this._watchReason.visible)
+         {
+            this._watchReason.x = int(this.btn_close.x - 14 - this._watchReason.width);
+            this._watchReason.y = int(this.btn_close.y + (this.btn_close.height - this._watchReason.height) / 2);
+            left = this._watchReason.x;
          }
          if(!this._matchNumber)
          {
-            this._matchNumber = new TextField();
-            this._matchNumber.name = "srpMatchNumber";
-            this._matchNumber.embedFonts = true;
+            this._matchNumber = this.screenText("srpMatchNumber",0x8A9096,13);
             this._matchNumber.selectable = true;
-            this._matchNumber.autoSize = TextFieldAutoSize.LEFT;
-            this._matchNumber.wordWrap = false;
-            this._matchNumber.defaultTextFormat = new TextFormat(this._watchAll.textField.getTextFormat().font,13,0x8A9096,true);
-            addChild(this._matchNumber);
          }
          this._matchNumber.visible = this._match_id != 0;
          this._matchNumber.text = NotificationListScrollContent.matchNumberText(this._match_id);
-         this._matchNumber.x = int(x + 4);
+         this._matchNumber.x = int(left - 14 - this._matchNumber.width);
          this._matchNumber.y = int(this.btn_close.y + (this.btn_close.height - this._matchNumber.height) / 2);
+      }
+
+      private function screenText(name:String, colour:uint, size:int) : TextField
+      {
+         var field:TextField = new TextField();
+         field.name = name;
+         field.embedFonts = true;
+         field.selectable = false;
+         field.autoSize = TextFieldAutoSize.LEFT;
+         field.wordWrap = false;
+         field.defaultTextFormat = new TextFormat(this.btn_close.textField.getTextFormat().font,size,colour,true);
+         addChild(field);
+         return field;
+      }
+
+      private function labelWidth(label:String, font:String) : Number
+      {
+         var field:TextField = new TextField();
+         field.embedFonts = true;
+         field.autoSize = TextFieldAutoSize.LEFT;
+         field.defaultTextFormat = new TextFormat(font,Number(this._watchAll.textField.getTextFormat().size),0,true);
+         field.text = label;
+         return field.textWidth;
       }
 
       override public function get width() : Number
@@ -826,10 +874,10 @@ package survarium.controls
          this.percentSprite.visible = false;
          this.premium_button.visible = false;
          this._watchAll.visible = false;
-         this._watchDeaths.visible = false;
          if(this._matchNumber)
          {
             this._matchNumber.visible = false;
+            this._watchReason.visible = false;
          }
          this.btnShare.label = "";
          this.btnShare.enabled = false;

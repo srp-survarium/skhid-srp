@@ -6,8 +6,7 @@ package survarium.watch
    // `;` between its fields (docs/notes/replay_watch.md). A row that is not one gives null.
    // - Live: `L0;<n>[;<delay s>]`, then n `L1` rows, then `F1` rows;
    //   `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch>`
-   //   (phase 0 made, 1 countdown, 2 in play, 3 over; watch 1 may, 0 full, 2 not watchable live);
-   //   the roster: `L2;<match 8 hex>;<place>;<team 0|1>;<kills>;<deaths>;<name>`.
+   //   (phase 0 made, 1 countdown, 2 in play, 3 over; watch 1 may, 0 full, 2 not watchable live).
    // - Recent: `M0;<n>`, then n `M1` rows, then `F1` rows;
    //   `M1;<match 8 hex>;<map id>;<mode>;<score a|->;<score b|->;<players>;<length s>;<minutes since its end>;<replay>`.
    // - A player's matches: `P1;<n>;<nickname>`, then n of
@@ -37,6 +36,9 @@ package survarium.watch
       public static const WATCH_MAY:int = 1;
 
       public static const WATCH_PRIVATE:int = 2;
+
+      // a place no player has: anyone's view (a friend row's place of a recorded match)
+      public static const PLACE_ANY:int = 0xFF;
 
       public function WatchRows()
       {
@@ -167,16 +169,15 @@ package survarium.watch
          };
       }
 
-      // An `L2` (roster) or `F1` (friend) row: {match, place, team, kills, deaths, name}.
-      public static function player(text:String, tag:String) : Object
+      // An `F1` (friend) row: {match, place (PLACE_ANY: not known), team, name}.
+      public static function friend(text:String) : Object
       {
          var f:Array = text.split(";");
-         var named:int = tag == "L2" ? 6 : 4;
-         if(f.length <= named || f[0] != tag || !hex(f[1]) || !counts(f,tag == "L2" ? [2,3,4,5] : [2,3]))
+         if(f.length <= 4 || f[0] != "F1" || !hex(f[1]) || !counts(f,[2,3]))
          {
             return null;
          }
-         if(count(f[2]) > 0xFE || count(f[3]) > 1)
+         if(count(f[2]) > PLACE_ANY || count(f[3]) > 1)
          {
             return null;
          }
@@ -184,13 +185,12 @@ package survarium.watch
             "match":uint(parseInt(f[1],16)),
             "place":count(f[2]),
             "team":count(f[3]),
-            "kills":tag == "L2" ? count(f[4]) : 0,
-            "deaths":tag == "L2" ? count(f[5]) : 0,
-            "name":f.slice(named).join(";")
+            "name":f.slice(4).join(";")
          };
       }
 
-      // A replay session from `place`'s view, from the start (REPLAY_WATCH_ALL's layout).
+      // A watch from `place`'s view (PLACE_ANY: the server's pick), from the start
+      // (REPLAY_WATCH_ALL's layout).
       public static function watchAsk(place:int) : uint
       {
          return (NotificationListScrollContent.REPLAY_WATCH_ALL & 0xFF000000) | uint(place) << 16;

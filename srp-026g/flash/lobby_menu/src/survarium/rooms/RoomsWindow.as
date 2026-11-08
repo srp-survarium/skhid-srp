@@ -1117,7 +1117,9 @@ package survarium.rooms
             return false;
         }
 
-        internal function entry(id:int):Object
+        // The pool's entry of map `id` (its level and weather; the Watch window's cards too), null
+        // for a map the pool does not have.
+        public function entry(id:int):Object
         {
             for (var i:int = 0; i < _pool.length; i++)
                 if (_pool[i].map == id)

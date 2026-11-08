@@ -1,11 +1,7 @@
 package survarium.controls
 {
-   import flash.display.DisplayObject;
-   import flash.display.DisplayObjectContainer;
-   import flash.display.Shape;
    import flash.display.Sprite;
    import flash.events.Event;
-   import flash.utils.getDefinitionByName;
    import scaleform.clik.constants.ConstrainMode;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.Button;
@@ -14,7 +10,6 @@ package survarium.controls
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.utils.Constraints;
    import survarium.buttons.ButtonFriends;
-   import survarium.data.LocalizationData;
    import survarium.rooms.RoomsWindow;
    import survarium.watch.WatchWindow;
    import survarium.constants.ChatTab;
@@ -22,8 +17,6 @@ package survarium.controls
    public class BottomPanel extends UIComponent
    {
       
-      public static var matchesHolder:BottomPanel;
-
       public var tabsBar:ButtonBarBottom;
       
       public var btnFriends:ButtonFriends;
@@ -42,8 +35,6 @@ package survarium.controls
       
       public var debugLine:Sprite;
       
-      public var matchesTab:Button;
-      
       protected var _tabs:Array = [];
       
       protected var _invites:Array = [];
@@ -52,7 +43,6 @@ package survarium.controls
       {
          super();
          this.debugLine.visible = false;
-         BottomPanel.matchesHolder = this;
       }
       
       public function addIvite(data:Object) : void
@@ -182,7 +172,7 @@ package survarium.controls
          this.barInvites.width = 400;
          addChild(this.tabsBar);
          this.barInvites.addEventListener(ButtonEvent.CLICK,this.onInviteItemClick);
-         this.createMatchesTab();
+         this.makeWindows();
       }
       
       protected function onInviteItemClick(e:Event) : void
@@ -210,13 +200,8 @@ package survarium.controls
          this.debugLine.x = this.background.width * 0.75;
          this.barInvites.setMaxSize(this.background.width / 3.2);
          room = this.barInvites.x - this.tabsBar.x;
-         if(this.matchesTab)
-         {
-            room -= 150;
-         }
          this.tabsBar.setMaxSize(room);
          this.tabsBar.invalidate(InvalidationType.RENDERERS);
-         this.placeMatchesTab();
          if(RoomsWindow.me != null)
          {
             RoomsWindow.me.layout();
@@ -243,46 +228,10 @@ package survarium.controls
          }
       }
       
-      protected function onMatchesLocal(value:String) : void
+      // The rooms window and the Watch window (srp's, in the lobby over this bar; the top menu
+      // opens them), made with it.
+      protected function makeWindows() : void
       {
-         if(this.matchesTab)
-         {
-            this.matchesTab.data = {
-               "id":-1,
-               "name":LocalizationData.getName("st_srp_watch_title")
-            };
-            this.matchesTab.label = LocalizationData.getName("st_srp_watch_title");
-         }
-      }
-
-      // The Watch tab (survarium.watch): a chat tab's look, an eye of our own on it.
-      protected function createMatchesTab() : void
-      {
-         var icon:Shape = null;
-         var tabClass:Class = getDefinitionByName("ButtonChatTabBottom") as Class;
-         this.matchesTab = new tabClass() as Button;
-         this.matchesTab.name = "matchesTab";
-         this.matchesTab.data = {
-            "id":-1,
-            "name":LocalizationData.getName("st_srp_watch_title")
-         };
-         this.matchesTab.label = LocalizationData.getName("st_srp_watch_title");
-         this.matchesTab.y = 1;
-         addChild(this.matchesTab);
-         icon = new Shape();
-         icon.graphics.lineStyle(1.6,10266277);
-         icon.graphics.moveTo(0,6.5);
-         icon.graphics.curveTo(6.5,-1.5,13,6.5);
-         icon.graphics.curveTo(6.5,14.5,0,6.5);
-         icon.graphics.drawCircle(6.5,6.5,2.4);
-         icon.x = 11;
-         icon.y = 8;
-         this.matchesTab.addChild(icon);
-         this.matchesTab.addEventListener(ButtonEvent.CLICK,this.onMatchesTabClick);
-         this.matchesTab.addEventListener(Event.ENTER_FRAME,this.onMatchesTabFrame);
-         LocalizationData.addCallback(this.onMatchesLocal,"st_srp_watch_title");
-         this.placeMatchesTab();
-         // the rooms window and the Watch window (in the lobby, over this bar) are made with it
          this.makeRoomsWindow();
          try
          {
@@ -296,56 +245,7 @@ package survarium.controls
          }
       }
 
-      // the chat tab's own icon off (the tab is a chat tab's look)
-      protected function onMatchesTabFrame(e:Event) : void
-      {
-         var chatIcon:DisplayObject = null;
-         var back:DisplayObjectContainer = this.matchesTab["background"] as DisplayObjectContainer;
-         if(back)
-         {
-            chatIcon = back.getChildByName("icon");
-            if(chatIcon && chatIcon.visible)
-            {
-               chatIcon.visible = false;
-            }
-         }
-      }
-
-      protected function placeMatchesTab() : void
-      {
-         var used:Number = NaN;
-         if(!this.matchesTab || !this.tabsBar || !this.tabsBar.container)
-         {
-            return;
-         }
-         used = this.tabsBar.container.width / this.tabsBar.container.scaleX;
-         this.matchesTab.x = this.tabsBar.x + int(used);
-         // The rooms window follows the bar.
-         if(RoomsWindow.me != null)
-         {
-            RoomsWindow.me.layout();
-         }
-      }
-
-      protected function onMatchesTabClick(e:Event) : void
-      {
-         if(WatchWindow.me != null)
-         {
-            WatchWindow.me.show(!WatchWindow.me.shown);
-         }
-      }
-
-      // The Watch window opened or closed: its tab follows.
-      public function watchShown(value:Boolean) : void
-      {
-         if(this.matchesTab)
-         {
-            this.matchesTab.selected = value;
-         }
-      }
-
-      // The rooms window, made once, with the Matches tab: in the lobby, over
-      // this bar (survarium.rooms).
+      // The rooms window, made once: in the lobby, over this bar (survarium.rooms).
       private function makeRoomsWindow() : void
       {
          try
