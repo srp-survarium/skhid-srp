@@ -88,7 +88,9 @@ SITES = {
     "frame": (0x23B200, bytes.fromhex("53555657 8bf8".replace(" ", "")), 0x23B206, None),
     "raw": (0x27C10A, bytes.fromhex("81c1f8010000"), 0x27C110, None),
 }
-SHOW_CONTROLS, DETACH = 0x23A9D0, 0x242CC0
+SHOW_CONTROLS, DETACH, HANDLE_EVENT = 0x23A9D0, 0x242CC0, 0x513580
+CURSOR_HOLDER, CURSOR_VIEW, CURSOR_MOVIE = OBJECTS + 0x71000, OBJECTS + 0x72000, OBJECTS + 0x73000
+MOUSE_BUTTONS = 0x1204                      # MovieImpl: mouse 0's buttons held
 WORLD_UI = GAME + 0x18 + 0x1FC              # the game world's hud (game_world+1FCh)
 REPLAY_HOLDER, REPLAY_VIEW, REPLAY_MOVIE = OBJECTS + 0x6C000, OBJECTS + 0x6D000, OBJECTS + 0x6E000
 CALL_NAME, CALL_ARGS = OBJECTS + 0x6F000, OBJECTS + 0x6F100
@@ -124,7 +126,8 @@ class Game:
         for va, how in ((PAUSE, self.pause), (RESUME, self.resume), (NEW_PACKET, self.new_packet),
                         (WRITE, self.write), (ENQUEUE, self.enqueue), (CLOSE, self.close),
                         (INVOKE, self.invoke), (SHOW_CURSOR, self.show_cursor),
-                        (SHOW_CONTROLS, self.show_controls), (DETACH, self.detach), (TRANSLATE, self.translate)):
+                        (SHOW_CONTROLS, self.show_controls), (DETACH, self.detach), (TRANSLATE, self.translate),
+                        (HANDLE_EVENT, self.handle_event)):
             emu.hook_add(UC_HOOK_CODE, how, begin=va, end=va)
 
     def word(self, at, value, size=4):
@@ -188,6 +191,12 @@ class Game:
         self.calls.append(("show_replay_controls", emu.reg_read(UC_X86_REG_EDI), self.arg(1)))
         self.ret(4)
 
+    def handle_event(self, emu, *_):
+        kind, modifiers, x, y, scroll, button, index = struct.unpack("<IIfffII", emu.mem_read(self.arg(1), 0x1C))
+        self.calls.append(("handle_event", emu.reg_read(UC_X86_REG_ECX), kind, x, y, button, index))
+        emu.reg_write(UC_X86_REG_EAX, 3)
+        self.ret(4)
+
     def detach(self, emu, *_):
         self.calls.append(("detach_from_player", emu.reg_read(UC_X86_REG_ECX)))
         self.word(emu.reg_read(UC_X86_REG_ECX) + 4, 0)
@@ -239,6 +248,9 @@ class Game:
         self.word(WORLD_UI + 0x18, GAME + 0x18)                      # the hud's game world
         self.word(REPLAY_HOLDER + 0x108, REPLAY_VIEW)
         self.word(REPLAY_VIEW + 4, REPLAY_MOVIE)
+        self.word(WORLD_UI + 0xC, CURSOR_HOLDER)
+        self.word(CURSOR_HOLDER + 0x108, CURSOR_VIEW)
+        self.word(CURSOR_VIEW + 4, CURSOR_MOVIE)
         self.calls = []
 
     def run(self, site, regs, stack=b""):
@@ -463,9 +475,34 @@ def main():
 
     ours.run("note", note_regs(ours, playback(7, 1, 100)))
     state, _, calls = close(ours, 4)
-    check(state[UC_X86_REG_EIP] == SITES["close"][2] and state[UC_X86_REG_EDI] == NC and calls == [("resume", GAME)]
+    check(state[UC_X86_REG_EIP] == SITES["close"][2] and state[UC_X86_REG_EDI] == NC
+          and [c[2] if c[0] == "invoke" else c[0] for c in calls] == ["resume", "root.set_cursor_shown", "show_replay_controls"]
           and ours.time_scale() == 1.0,
-          "close, a viewer, reason 4 (a kick, reason 1's end since patch 119): game::resume, time_scale 1, on as the original")
+          "close, a viewer, reason 4 (a kick, reason 1's end since patch 119): game::resume, the controls hidden, time_scale 1, "
+          "on as the original")
+
+    def released(calls):
+        return [c[1:] for c in calls if c[0] == "handle_event"]
+
+    def up(movie, button):
+        return (movie, 3, -1.0, -1.0, button, 0)
+
+    def ended_with(controls, cursor):
+        ours.run("note", note_regs(ours, playback(8, 1, 100)))
+        ours.word(REPLAY_MOVIE + MOUSE_BUTTONS, controls)
+        ours.word(CURSOR_MOVIE + MOUSE_BUTTONS, cursor)
+        return released(close(ours, 0)[2])
+
+    check(ended_with(1, 1) == [up(REPLAY_MOVIE, 0), up(CURSOR_MOVIE, 0)],
+          "close, a viewer, the left button held by both movies: each let go once, off the stage")
+    check(not released(close(ours, 0)[2]), "close again, no viewer any more: nothing let go")
+    check(ended_with(0, 0) == [], "close, a viewer, no button held: nothing sent to the movies")
+    check(ended_with(1, 0) == [up(REPLAY_MOVIE, 0)], "close, a viewer, only the controls hold the left button: only they let go")
+    check(ended_with(0b101, 2) == [up(REPLAY_MOVIE, 0), up(REPLAY_MOVIE, 2), up(CURSOR_MOVIE, 1)],
+          "close, a viewer, several buttons held: each one let go")
+    ours.word(CURSOR_HOLDER + 0x108, 0)
+    check(ended_with(1, 1) == [up(REPLAY_MOVIE, 0)], "close, a viewer, the cursor's movie not there: the controls still let go")
+    ours.word(CURSOR_HOLDER + 0x108, CURSOR_VIEW)
     state, _, calls = key(ours, SPACE)
     check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls, "key, after the end: Space goes to the game again")
 

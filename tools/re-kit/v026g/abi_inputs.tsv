@@ -4504,6 +4504,8 @@ va	name	location	role	basis
 0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+8	result value or 0	observed
 0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+12	the arguments, GFx values of 18h bytes (+4 type: 4 uint, 5 number; +8 value)	observed
 0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+16	the count	observed
+0x00513580	Scaleform::GFx::MovieImpl::HandleEvent	ECX	the movie	observed
+0x00513580	Scaleform::GFx::MovieImpl::HandleEvent	entry ESP+4	the event (+0 type: 1 move, 2 down, 3 up, 4 wheel; a mouse's +8 x, +0Ch y, +14h button, +18h mouse)	observed
 0x002375c0	survarium::game_world_ui::show_parametrized_message	ECX	the localization key	observed
 0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+4	game_world_ui	observed
 0x000725e0	vostok::math::create_rotation	EDI	float3 angles	observed

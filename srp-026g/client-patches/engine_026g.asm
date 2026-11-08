@@ -16,6 +16,7 @@ global engine_write_u32
 global engine_statistics_notify
 global engine_register_cook
 global engine_movie_invoke
+global engine_movie_handle_event
 global engine_show_message
 global engine_find_pool
 global engine_increase_health
@@ -459,6 +460,22 @@ engine_movie_invoke:
     mov ecx, [esp + 36]   ; movie
     call 0x511600
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_movie_handle_event:
+    ; 0x513580 Scaleform::GFx::MovieImpl::HandleEvent: movie ECX, event ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; event -> 4
+    mov ecx, [esp + 24]   ; movie
+    call 0x513580
     pop edi
     pop esi
     pop ebx

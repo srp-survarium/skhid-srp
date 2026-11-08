@@ -279,3 +279,79 @@ impl Movie<'_> {
         self.invoke(method, &mut arguments[..count])
     }
 }
+
+/// The mouse buttons the game hands a movie: 0x2AF610's callers map codes 151h.. to 0..2 (patch 102
+/// takes the others away).
+const MOUSE_BUTTONS: u32 = 3;
+
+/// The buttons of a movie's held mask (MovieImpl's CurButtonsState) that the game could have pressed.
+fn held_buttons(mask: u32) -> impl Iterator<Item = u32> {
+    (0..MOUSE_BUTTONS).filter(move |button| mask >> button & 1 != 0)
+}
+
+/// GFx::MouseEvent, as 0x2AF610 fills it for HandleEvent.
+#[repr(C)]
+struct MouseEvent {
+    kind: u32,
+    modifiers: u32,
+    x: f32,
+    y: f32,
+    scroll: f32,
+    button: u32,
+    mouse: u32,
+}
+
+impl MouseEvent {
+    /// Event::MouseUp.
+    const UP: u32 = 3;
+
+    /// A button let go off the stage: over no control, so a press in progress ends (MOUSE_UP on the
+    /// stage, release outside on what was pressed) and nothing is clicked.
+    fn release_off_stage(button: u32) -> MouseEvent {
+        MouseEvent { kind: Self::UP, modifiers: 0, x: -1.0, y: -1.0, scroll: 0.0, button, mouse: 0 }
+    }
+}
+
+impl Movie<'_> {
+    /// Lets go of every button the movie still holds. A movie makes a press of a button's change only
+    /// (GenerateMouseEvents), so one that never saw a release takes the next press as no press at all.
+    /// HandleEvent queues it for the movie's next Advance, as it does every mouse event.
+    pub fn release_held_buttons(&self) {
+        // SAFETY: a live movie on the hook's thread; its first MouseState's buttons, a plain dword.
+        let mask = unsafe { self.this.mouse_buttons().read() };
+        for button in held_buttons(mask) {
+            let event = MouseEvent::release_off_stage(button);
+            // SAFETY: a live movie on its thread; the event outlives the call, which copies what it needs.
+            unsafe { raw::engine_movie_handle_event(Some(self.this), (&raw const event).cast()) };
+        }
+    }
+}
+
+#[cfg(test)]
+mod mouse_release_tests {
+    use super::*;
+
+    fn held(mask: u32) -> [Option<u32>; 3] {
+        let mut buttons = held_buttons(mask);
+        [buttons.next(), buttons.next(), buttons.next()]
+    }
+
+    #[test]
+    fn only_the_buttons_held_are_let_go() {
+        assert_eq!(held(0), [None, None, None]);
+        assert_eq!(held(1), [Some(0), None, None]);
+        assert_eq!(held(0b10), [Some(1), None, None]);
+        assert_eq!(held(0b101), [Some(0), Some(2), None]);
+        // Bits the game never presses.
+        assert_eq!(held(0xFFFF_FFF8), [None, None, None]);
+    }
+
+    #[test]
+    fn the_event_is_the_one_the_game_builds() {
+        assert_eq!(core::mem::size_of::<MouseEvent>(), 0x1C);
+        let event = MouseEvent::release_off_stage(2);
+        // SAFETY: a repr(C) struct of 7 dwords, no padding.
+        let words: [u32; 7] = unsafe { core::mem::transmute(event) };
+        assert_eq!(words, [3, 0, (-1.0f32).to_bits(), (-1.0f32).to_bits(), 0, 2, 0]);
+    }
+}

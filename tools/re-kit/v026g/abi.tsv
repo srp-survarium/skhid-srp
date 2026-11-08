@@ -1927,6 +1927,7 @@ va	name	source	ret_cleanup	result
 0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value
 0x000f6c00	vostok::configs::binary_config_value::value_exists	manual	0	AL: 1 when the key is there
 0x00511600	Scaleform::GFx::Movie::Invoke	manual	16	AL: invoked
+0x00513580	Scaleform::GFx::MovieImpl::HandleEvent	manual	4	EAX: HE_NotHandled 0, HE_Completed 3 (a mouse event queued for the next Advance)
 0x002375c0	survarium::game_world_ui::show_parametrized_message	manual	16	
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
 0x002d2770	survarium::game_world_core::deserialize	manual	12	none; places that left the mask: current player removed (vtable+24h, 0x2D284A); places already in it: removed with the kit-changed byte (0x2D2A68) before their deserialize (vtable+3Ch, 0x2D2AA0); at the end every place of the mask has its current player inserted (vtable+20h, player::insert 0x1F2720, link = newly in the mask or kit changed; 0x2D2CB3..0x2D2D55): a loaded world (0x2D0B70 calls this at 0x2D0FB9) has every player in the world (+33Fh)

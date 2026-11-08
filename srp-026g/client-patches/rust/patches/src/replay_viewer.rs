@@ -521,6 +521,7 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
         // The movie outlives the match: a viewer left by Back, whose world the server's farewell
         // ends, would otherwise keep its controls and cursor over the next real match.
         if let Some(overlay) = Overlay::of(&close.client) {
+            overlay.release_held_buttons();
             overlay.set_cursor_shown(false);
             overlay.keep_cursor(false);
             overlay.show(false);

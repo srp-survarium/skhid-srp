@@ -295,6 +295,17 @@ impl<'t> Overlay<'t> {
         }
     }
 
+    /// The controls and the cursor's movie let go of every button they still hold. Both get a viewer's
+    /// presses, and neither its release once the viewer has ended: the mouse goes back to the lobby's
+    /// movie, and these two outlive the match.
+    pub fn release_held_buttons(&self) {
+        self.movie.release_held_buttons();
+        // SAFETY: the hud's own slot; its movie, alive with the hud on its thread.
+        if let Some(cursor) = unsafe { super::ui::movie_of(self.ui.cursor_movie().holder()) } {
+            cursor.release_held_buttons();
+        }
+    }
+
     /// The hud's cursor as the viewer wants it (show_cursor 0x23A930, when the
     /// hud's +2DCh says otherwise): the kits show it before the start, and a
     /// viewer has none to pick. While the Tab list is up, patch 86's cursor

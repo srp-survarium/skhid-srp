@@ -41,6 +41,8 @@ unsafe extern "C" {
     pub fn engine_register_cook(cook: *mut c_void);
     /// 0x511600 Scaleform::GFx::Movie::Invoke: movie ECX, method ESP+4, result ESP+8, args ESP+12, count ESP+16; pops 16; AL
     pub fn engine_movie_invoke(movie: Option<GfxMovie>, method: *const u8, result: Option<GfxValue>, args: Option<GfxValue>, count: u32) -> u32;
+    /// 0x513580 Scaleform::GFx::MovieImpl::HandleEvent: movie ECX, event ESP+4; pops 4; EAX
+    pub fn engine_movie_handle_event(movie: Option<GfxMovie>, event: *const c_void) -> u32;
     /// 0x2375c0 survarium::game_world_ui::show_parametrized_message: key ECX, ui ESP+4, first ESP+8, second ESP+12, third ESP+16; pops 16
     pub fn engine_show_message(key: *const u8, ui: *mut c_void, first: u32, second: u32, third: u32);
     /// 0x2e58b0 (unnamed): pools EAX, name ECX; pops 0; EAX
@@ -17305,6 +17307,30 @@ impl CoreLoadRawArgs {
     }
 }
 
+/// A scaleform::gfx_movie (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GfxMovie(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GfxMovie {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1204 (u32): MovieImpl: mouse 0's buttons held (CurButtonsState; Movie::GetMouseState 0x513BA0, ProcessInput 0x51D76E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mouse_buttons(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1204).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -17358,21 +17384,6 @@ pub struct SceneRenderer(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl SceneRenderer {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A scaleform::gfx_movie (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GfxMovie(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl GfxMovie {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {

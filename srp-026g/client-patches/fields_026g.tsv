@@ -931,3 +931,4 @@ survarium::game_world_ui	replay_shown	0x2DD	u8	the replay controls shown: show_r
 scaleform::gfx_value	value_high	0xC	u32	a Number's (type 5) high dword: its double is +8..+0Fh (update_play_speed's movsd [ecx+8], 0x233E4D)
 survarium::core_load_args	mode	0x8	u32	game_world_core::deserialize's mode as the 0xE8 handler pushed it for an unpacked world (push 1 at 0x27C0C3; by the site's ESP at 0x27C0D0: the core, the world's reader, the mode, 8): 1 a network world, nothing cleared; 0 the replay's user seek (0x1EE377), which first clears the core's pending lists (0x2D53C0 on +12280h, 0x2D3DF0 on +0, both teams' input lists)
 survarium::core_load_raw_args	mode	0x4	u32	as core_load_args, for a raw world (push 1 at 0x27C107; by the site's ESP at 0x27C10A: the reader, the mode, 8)
+scaleform::gfx_movie	mouse_buttons	0x1204	u32	MovieImpl: mouse 0's buttons held (CurButtonsState; Movie::GetMouseState 0x513BA0, ProcessInput 0x51D76E)

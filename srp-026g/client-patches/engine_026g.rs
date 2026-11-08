@@ -35,6 +35,8 @@ unsafe extern "C" {
     pub fn engine_register_cook(cook: *mut c_void);
     /// 0x511600 Scaleform::GFx::Movie::Invoke: movie ECX, method ESP+4, result ESP+8, args ESP+12, count ESP+16; pops 16; AL
     pub fn engine_movie_invoke(movie: *mut c_void, method: *const u8, result: *mut c_void, args: *const c_void, count: u32) -> u32;
+    /// 0x513580 Scaleform::GFx::MovieImpl::HandleEvent: movie ECX, event ESP+4; pops 4; EAX
+    pub fn engine_movie_handle_event(movie: *mut c_void, event: *const c_void) -> u32;
     /// 0x2375c0 survarium::game_world_ui::show_parametrized_message: key ECX, ui ESP+4, first ESP+8, second ESP+12, third ESP+16; pops 16
     pub fn engine_show_message(key: *const u8, ui: *mut c_void, first: u32, second: u32, third: u32);
     /// 0x2e58b0 (unnamed): pools EAX, name ECX; pops 0; EAX
