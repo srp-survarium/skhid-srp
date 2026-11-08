@@ -25,6 +25,7 @@ package
    //   deaths asks through the History's prompt (its answer sets the History row's chip); the
 //   match's number after them;
 // - the player pop-up's Matches tab (PlayerMatches) with the server's P1/P2 rows;
+// - the bottom bar's Matches tab (LiveWindow) with the server's L0/L1/L2 rows;
 // - "watch by match number": the row's number (#1ce45cbe) and the box above the History that
 //   watches a number typed as rows show it.
    // Ruffle has no exe (ExternalInterface throws): the asks are seen through the answers taken.
@@ -86,6 +87,7 @@ package
                history(language);
                results(language);
                playerMatches(language);
+               live(language);
             }
          }
          catch(err:Error)
@@ -352,6 +354,79 @@ package
          panel.parent.removeChild(panel);
          list.parent.removeChild(list);
          trace("REPLAYBUTTONS " + language + ": player pop-up Matches tab");
+      }
+
+      // The bottom bar's Matches tab (survarium.live.LiveWindow), fed the server's rows: the good L1
+      // rows listed, Watch only where one may watch, the word for a full or private match; Watch and
+      // a player of Players ask; Back to the list; every language's texts in their room.
+      private function live(language:String) : void
+      {
+         var LW:* = domain.getDefinition("survarium.live.LiveWindow");
+         var list:* = make("SrvNotificationListSC");
+         var row:DisplayObjectContainer = historyRow(list);
+         var win:* = new LW(font.fontName);
+         Object(loader.content).addChild(win);
+         win.show();
+         var hex:String = "1ce45cbe";
+         expect(language + ": L0 rows not taken",LW.take([{"nickname":"L0;4"},{"nickname":"L1;" + hex + ";13;1;2;8;7;12;9;421;2;1"},
+            {"nickname":"L1;69f8c4bc;2;2;2;10;10;100;98;1300;0;0"},{"nickname":"L1;bad"},
+            {"nickname":"L1;00000004;1;3;0;3;2;-;-;0;0;2"}]));
+         var lines:Array = [find(win,"srpLiveMatch0"),find(win,"srpLiveMatch1"),find(win,"srpLiveMatch2")];
+         expect(language + ": the running matches are not the 3 good rows",lines[0] != null && lines[1] != null && lines[2] != null
+            && find(win,"srpLiveMatch3") == null);
+         if(lines[2] == null)
+            return;
+         var mays:Array = [true,false,false];
+         for(var i:int = 0; i < 3; i++)
+         {
+            var line:DisplayObjectContainer = lines[i] as DisplayObjectContainer;
+            var watch:* = find(line,"srpLiveWatch");
+            var players:* = find(line,"srpLivePlayers");
+            expect(language + ": match " + i + " Watch " + (watch.enabled ? "on" : "off"),watch.enabled == mays[i]);
+            fits(language + ": Matches tab Watch",watch);
+            fits(language + ": Matches tab Players",players);
+            for(var j:int = 0; j < line.numChildren; j++)
+            {
+               var field:TextField = line.getChildAt(j) as TextField;
+               if(field != null && field.x > 60)
+                  expect(language + ": '" + field.text + "' reaches Players",field.x + Math.min(field.width,field.textWidth + 4) <= players.x);
+            }
+         }
+         var words:Array = [this.words.getName("st_srp_matches_full"),this.words.getName("st_srp_live_private")];
+         for(i = 1; i < 3; i++)
+         {
+            var said:Boolean = false;
+            line = lines[i] as DisplayObjectContainer;
+            for(j = 0; j < line.numChildren; j++)
+               if(line.getChildAt(j) is TextField && TextField(line.getChildAt(j)).text == words[i - 1])
+                  said = true;
+            expect(language + ": match " + i + " does not say '" + words[i - 1] + "'",said);
+         }
+         find(lines[0],"srpLiveWatch").dispatchEvent(new Click(Click.CLICK));
+         answer("watching",MATCH,0);
+         expect(language + ": the Matches tab's Watch did not ask",chip(row) == this.words.getName("st_srp_replay_chip_ready"));
+         find(lines[0],"srpLivePlayers").dispatchEvent(new Click(Click.CLICK));
+         expect(language + ": the picker's rows not taken",LW.take([{"nickname":"L2;69f8c4bc;1;0;0;0;Eve"},{"nickname":"L2;" + hex + ";4;0;5;2;Ada"},
+            {"nickname":"L2;" + hex + ";9;1;1;3;Bob;the;Builder"}]));
+         var ada:* = find(win,"srpLivePlayer4");
+         var bob:* = find(win,"srpLivePlayer9");
+         expect(language + ": the picker is not Ada and Bob in their teams",ada != null && bob != null && find(win,"srpLivePlayer1") == null
+            && bob.x > ada.x && bob.label.indexOf("Bob;the;Builder") == 0);
+         if(ada != null)
+         {
+            fits(language + ": the picker's player",ada);
+            ada.dispatchEvent(new Click(Click.CLICK));
+            answer("preparing",MATCH,1);
+            expect(language + ": the picker's player did not ask",chip(row) == this.words.getName("st_srp_replay_chip_preparing"));
+            answer("failed",MATCH);
+         }
+         find(win,"srpLiveBack").dispatchEvent(new Click(Click.CLICK));
+         expect(language + ": Back did not list the matches again",find(win,"srpLiveMatch0") != null && find(win,"srpLivePlayer4") == null);
+         win.hide();
+         expect(language + ": rows not taken with the window closed",LW.take([{"nickname":"L0;0"}]) && find(win,"srpLiveMatch0") != null);
+         win.parent.removeChild(win);
+         list.parent.removeChild(list);
+         trace("REPLAYBUTTONS " + language + ": Matches tab: running matches, Watch, Players");
       }
 
       private function finish(result:String) : void

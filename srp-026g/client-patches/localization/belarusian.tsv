@@ -2530,6 +2530,11 @@ st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.
+st_srp_live_back	Back
+st_srp_live_pick	%1$s: pick whom to watch
+st_srp_live_players	Players
+st_srp_live_private	private
+st_srp_live_spectators	%1$s watching
 st_srp_loadout_block_ammo	Мала патронаў да зброі
 st_srp_loadout_block_locked	Гэты профіль закрыты
 st_srp_loadout_block_maintenance	Хутка тэхнічныя работы: праз %1$s хв

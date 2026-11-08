@@ -39,6 +39,16 @@ In the running game instead (no download, no second process): a replay session, 
   `P2;<match 8 hex>;<place>;<map id>;<mode>;<result 0 defeat|1 victory|2 draw>;<kills>;<deaths>;<minutes since its end>;<replay kept 1|0>`.
   Rows for another nickname than the pop-up's are left; Watch only where the replay is kept. Watching
   another player's match needs the server to let the asker (today: its players and moderators).
+- **The bottom bar's Matches tab** (`survarium/live/LiveWindow.as`, in place of the "matches now"
+  window and its JOIN, gone with the queue): the running matches, each with **Watch** (anyone in view)
+  and **Players**, both teams as buttons that watch from that player's place. Both send the session ask
+  above with the running match's id; for a running match the server is to take the game in as a live
+  spectator (with its delay) instead of a recording. **The lobby server does not answer it yet**; the
+  rows the movie takes, polled every 5 s while open (the roster once a second until it comes):
+  - `3B 00 <2 240 000 000> <20>`: `L0;<n>`, then n of
+    `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch 1 may|0 full|2 not public>`;
+  - `3D 00 <0xFFFF_FF06> <match>` chooses the match for the roster, then `3B 00 <2 241 000 000> <24>`:
+    rows `L2;<match 8 hex>;<place>;<team 0|1>;<kills>;<deaths>;<name>` (others' rows are left).
 - `srp-026g/scripts/replay-buttons/check.sh <lobby_menu.swf>` checks them in Ruffle, every language.
 
 ## 2. Wire
