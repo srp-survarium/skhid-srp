@@ -249,9 +249,20 @@ impl<'t> Overlay<'t> {
         self.movie.invoke_uints(c"root.set_position", &[ms]);
     }
 
-    /// The play button's state (root.set_play_state: true playing).
-    pub fn set_playing(&self, playing: bool) {
-        self.movie.invoke_bool(c"root.set_play_state", playing);
+    /// The play button's state (root.set_play_state: true paused, as the
+    /// replay client's tick gives it the paused flag, 0x218C1E).
+    pub fn set_paused(&self, paused: bool) {
+        self.movie.invoke_bool(c"root.set_play_state", paused);
+    }
+
+    /// The hud's kit chooser hidden (root.show_profiles_selector(false)): a
+    /// viewer picks no kit, and the game shows it before the start and on a
+    /// death screen, over the controls' bar.
+    pub fn hide_kits(&self) {
+        // SAFETY: the hud's own movie, alive with the hud on its thread.
+        if let Some(hud) = unsafe { super::ui::movie_of(self.ui.hud_movie()) } {
+            hud.invoke_bool(c"root.show_profiles_selector", false);
+        }
     }
 
     /// The bar's length, ms (root.set_match_time).

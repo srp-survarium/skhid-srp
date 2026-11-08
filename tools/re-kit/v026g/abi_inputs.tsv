@@ -5769,7 +5769,7 @@ va	name	location	role	basis
 0x0023a660	survarium::game_world_ui::set_replay_position	EDX	the hud plus 214h (the replay client's tick passes [client+14h]+214h): its +14h the replay controls' holder, root.set_position	observed
 0x0023a660	survarium::game_world_ui::set_replay_position	EAX	the position in ms from the replay's start (a GFx uint)	observed
 0x0023a6c0	survarium::game_world_ui::set_replay_play_state	EDX	as set_replay_position: root.set_play_state	observed
-0x0023a6c0	survarium::game_world_ui::set_replay_play_state	AL	playing (a GFx bool)	observed
+0x0023a6c0	survarium::game_world_ui::set_replay_play_state	AL	paused (a GFx bool: the replay client's tick passes its second argument, the paused flag, 0x218C1E; the button is selected while paused)	observed
 0x0023a9d0	survarium::game_world_ui::show_replay_controls	EDI	the hud: +14h the replay controls' holder, +18h the scene (show_movie 0x23DC00 / hide_movie 0x23DC70), +2DDh shown	observed
 0x0023a9d0	survarium::game_world_ui::show_replay_controls	entry ESP+4	shown (a bool)	observed
 0x00218bf0	survarium::replay_network_client::tick	ECX	the replay client: the controls' position (now - the reader's start +688h) and play state every frame (0x218C16, 0x218C27), then the key frames' seek	observed

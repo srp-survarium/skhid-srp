@@ -434,7 +434,7 @@ static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
 /// The controls of a viewer's game, brought to the session: shown or hidden
 /// with the interface, the bar's length and markers when they changed, its
 /// position and play button every frame (as the replay client's tick does,
-/// 0x218C16 / 0x218C27).
+/// 0x218C16 / 0x218C27), and the hud's kit chooser kept hidden.
 fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) -> Fed {
     let Some(overlay) = Overlay::of(client) else { return fed };
     let Playback { revision, paused, start, end, .. } = viewer.playback;
@@ -451,7 +451,8 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) 
     if let Some(now) = client.clock() {
         overlay.set_position(now.within(start, end).0 - start.0);
     }
-    overlay.set_playing(!paused);
+    overlay.set_paused(paused);
+    overlay.hide_kits();
     Fed { revision: Some(revision), events: Some(events.version), ui: Some(viewer.ui) }
 }
 

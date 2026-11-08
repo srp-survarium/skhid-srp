@@ -30,7 +30,7 @@ and show_cursor (0x23A930).
   older one changes nothing; a newer one (running, 2x) resumes it at 2; an
   events note and a malformed one of ours are taken with nothing called;
   Space, Right, Shift+Right, `]`, `[` each send one 0xE0 alone in its
-  datagram with the request's 8 bytes; H hides the hud and the icons
+  datagram with the request's 14 bytes; H hides the hud and the icons
   (root.hide_interface true), H again shows them; Esc is
   close_current_match(2); a key held is taken with nothing done; a match's
   end (reason 4, a kick) resumes a paused game and sets time_scale 1, after
@@ -307,7 +307,7 @@ def playback(revision, paused, percent, start=10_000, end=600_000):
 
 
 def request(seq, op, value):
-    return struct.pack("<4BI", 0x52, seq, op, 0, value)
+    return b"\xff" * 6 + struct.pack("<4BI", 0x52, 0, seq, op, value)   # replay_control::REQUEST_HEAD, seq, op, value
 
 
 def events(first, total, items):
@@ -461,7 +461,7 @@ def main():
     names = [(c[2], c[4]) for c in calls if c[0] == "invoke"]
     check(state[UC_X86_REG_EIP] == SITES["frame"][2] and ("show_replay_controls", WORLD_UI, 1) in calls
           and ("root.set_match_time", (4, 590_000)) in names and ("root.set_markers_text", (6, "60000:1:1'00")) in names
-          and ("root.set_position", (4, CLOCK - 10_000)) in names and ("root.set_play_state", (2, 1)) in names,
+          and ("root.set_position", (4, CLOCK - 10_000)) in names and ("root.set_play_state", (2, 0)) in names,
           "frame, a viewer: the controls shown, the bar's length, the markers, its position and the play button")
     state, _, calls = frame(ours)
     names = [c[2] for c in calls if c[0] == "invoke"]
