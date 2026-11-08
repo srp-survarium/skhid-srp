@@ -184,7 +184,7 @@ fn the_own_ask_lists_the_askers_matches() {
 }
 
 #[test]
-fn a_match_whose_replay_is_kept_says_so() {
+fn each_row_says_its_replays_state_for_the_askers_game() {
     let dir = temp("replay");
     let mut world = world(&dir.join("db"), BOB);
     let settings = ReplaySettings {
@@ -197,19 +197,22 @@ fn a_match_whose_replay_is_kept_says_so() {
     .checked()
     .unwrap();
     let replays: &'static Replays = Box::leak(Box::new(Replays::new(Some(settings), 6)));
-    // Match 11's replay is made, for Bob's game only; match 10's recording
-    // is kept. Who may watch hides no row: Alice, who played neither, is
-    // told both can be asked for.
-    std::fs::write(replays.sur_path(0x10B).unwrap(), b"0123456789ab").unwrap();
-    let sidecar = Sidecar {
-        match_id: 0x10B,
-        size: 12,
-        sha256: "cd".repeat(32),
-        revisions: vec![None],
-        account_ids: vec![BOB],
-        made_at: 0,
-    };
-    std::fs::write(replays.json_path(0x10B).unwrap(), sidecar.to_json()).unwrap();
+    // Match 11's replay is made by games of Alice's revision, match 9's by
+    // games of no known revision; match 10's recording is kept. Who may
+    // watch hides no row: Alice played none of them, Bob's game alone made
+    // match 11's.
+    for (match_id, revision) in [(0x10B, Some(PATCH_REVISION)), (0x109, None)] {
+        std::fs::write(replays.sur_path(match_id).unwrap(), b"0123456789ab").unwrap();
+        let sidecar = Sidecar {
+            match_id,
+            size: 12,
+            sha256: "cd".repeat(32),
+            revisions: vec![revision],
+            account_ids: vec![BOB],
+            made_at: 0,
+        };
+        std::fs::write(replays.json_path(match_id).unwrap(), sidecar.to_json()).unwrap();
+    }
     std::fs::write(
         dir.join("recordings")
             .join("rec026g_19700102-100000_0000010a.srprec"),
@@ -223,12 +226,26 @@ fn a_match_whose_replay_is_kept_says_so() {
     world.ask(alice, request::ranking(0, 100));
     world.take(alice);
     world.ask(alice, request::player_details(GEAR_BY_PLACE, 1));
-    let rows = matches(&mut world, alice, 3);
+    let rows = matches(&mut world, alice, 4);
     let replay: Vec<&str> = rows[1..]
         .iter()
         .map(|row| row.rsplit(';').next().unwrap())
         .collect();
-    assert_eq!(replay, ["1", "1", "0"]);
+    // Ready, kept, old version, not recorded.
+    assert_eq!(replay, ["2", "1", "4", "0"]);
+    // The Recent tab's rows say the same.
+    let recent = rows_at(
+        &mut world,
+        alice,
+        RECENT_MATCHES_START,
+        4,
+        RECENT_MATCHES_START,
+    );
+    let replay: Vec<&str> = recent[1..]
+        .iter()
+        .map(|row| row.rsplit(';').next().unwrap())
+        .collect();
+    assert_eq!(replay, ["2", "1", "4", "0"]);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

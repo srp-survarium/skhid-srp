@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use session::LockExt;
 use session::v026g::persist::history::{MatchSummary, PlayerMatch, Winner};
+use session::v026g::replays;
 use survarium::v026g::lobby::player_matches::{
     Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, ReplayState, Whose, player_matches,
 };
@@ -89,16 +90,19 @@ impl Core<'_> {
         self.send_made(who.addr, recent_matches(&rows));
     }
 
-    /// What "Watch" on `summary`'s match would get for `who`'s game.
-    fn replay_state(&self, _who: &Who, summary: &MatchSummary, now: Instant) -> ReplayState {
-        let match_id = summary.replay_id.match_id();
-        if self
-            .replays
-            .is_some_and(|replays| replays.kept(match_id, now))
-        {
-            ReplayState::Kept
-        } else {
-            ReplayState::NotRecorded
+    /// What "Watch" on `summary`'s match would get for `who`'s game
+    /// (`Replays::state`).
+    fn replay_state(&self, who: &Who, summary: &MatchSummary, now: Instant) -> ReplayState {
+        let Some(held) = self.replays else {
+            return ReplayState::NotRecorded;
+        };
+        let revision = self.store.client_revision(who.session_id);
+        match held.state(summary.replay_id.match_id(), revision, now) {
+            replays::ReplayState::NotRecorded => ReplayState::NotRecorded,
+            replays::ReplayState::Kept => ReplayState::Kept,
+            replays::ReplayState::Ready => ReplayState::Ready,
+            replays::ReplayState::Gone => ReplayState::Gone,
+            replays::ReplayState::OldVersion => ReplayState::OldVersion,
         }
     }
 }
