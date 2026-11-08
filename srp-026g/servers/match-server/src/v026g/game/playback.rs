@@ -304,9 +304,18 @@ impl Recording {
         }
     }
 
+    /// Where the replay starts for a viewer: the first view of anyone
+    /// ([`Self::start_at`] from 0). Its bar starts there, and no seek goes
+    /// before it (the worlds before have nobody in them).
+    pub(crate) fn first_view(&self) -> u32 {
+        self.start_at(0, None)
+    }
+
     /// Where a game sought to `time` is put: from the key frame at or before
-    /// it, as far as [`Self::reach`] lets it.
+    /// it (never before [`Self::first_view`]), as far as [`Self::reach`]
+    /// lets it.
     fn seek_to(&self, time: u32) -> u32 {
+        let time = time.max(self.first_view());
         let from = self.world_for(time).time;
         self.reach(from, time.min(self.end).max(from))
     }
@@ -637,7 +646,7 @@ impl Playback {
             revision: self.revision,
             paused,
             speed: self.speed,
-            start: MatchMs(self.recording.worlds[0].time),
+            start: MatchMs(self.recording.first_view()),
             end: MatchMs(self.recording.end),
         };
         self.spectator.note(&note.encode());

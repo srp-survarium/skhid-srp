@@ -365,8 +365,9 @@ fn the_game_is_told_the_playback_after_its_world_each_change_and_each_seek() {
     let Some(ServerNote::Playback(note)) = first else {
         panic!("{first:?}");
     };
-    // The recording's range on the match clock.
-    assert_eq!((note.start, note.end), (MatchMs(50), MatchMs(114_600)));
+    // The recording's range on the match clock, from its first view (the
+    // first world has nobody in it).
+    assert_eq!((note.start, note.end), (MatchMs(FIRST_VIEW), MatchMs(114_600)));
     let events = ServerNote::parse(&bench.clients[at].replay_notes[1]);
     assert!(
         matches!(&events, Some(ServerNote::Events(note)) if note.events().count() == 0),
@@ -919,4 +920,18 @@ fn the_newest_recording_of_a_match_id_is_read() {
         Some(dir.join("rec026g_20261108-010203_00001234.srprec"))
     );
     std::fs::remove_dir_all(dir).unwrap();
+}
+
+/// A seek before the first view (the bar's 0) starts the game there, where
+/// its playback's range starts, not at the recording's first world.
+#[test]
+fn a_seek_to_zero_starts_at_the_first_view() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 60_000);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(2_000);
+    control(&mut bench, at, 1, Op::Seek(MatchMs(0)));
+    let at_seek = position(&bench);
+    assert!((FIRST_VIEW..FIRST_VIEW + 300).contains(&at_seek), "{at_seek}");
+    bench.assert_no_faults();
 }

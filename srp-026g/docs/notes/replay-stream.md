@@ -70,7 +70,7 @@ clock):
   u8) than the last taken: a resend or a late one is not.
   - op 1 pause: value 1 paused, 0 playing;
   - op 2 speed: percent, 25, 50, 100, 200, 400, 800;
-  - op 3 seek: the match time.
+  - op 3 seek: the match time (never before the first view, the first key frame after anyone entered: the playback's start).
 - **Server -> game**, notes in an 0xF6 (an 0xF6 `00` stays the upload request, never sent to a
   spectator):
   - the playback, `52 01 revision paused speed:u16 start:u32 end:u32` (start and end: the
