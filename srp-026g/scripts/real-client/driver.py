@@ -20,6 +20,7 @@ Needs numpy.
 """
 from __future__ import annotations
 
+import atexit
 import ctypes
 import json
 import os
@@ -35,6 +36,7 @@ HERE = Path(__file__).resolve().parent
 ULONG_PTR = ctypes.c_size_t
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
+kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 # The game is not DPI aware: Windows scales its window. Unaware too, this process sees the window in the game's own
 # pixels; aware, the picture is the scaled size with the game in one corner of it.
 user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-1))
@@ -60,8 +62,22 @@ user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
 user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
 user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
 user32.IsWindowVisible.argtypes = [wintypes.HWND]
+user32.IsHungAppWindow.argtypes = [wintypes.HWND]
+user32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
+user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, ctypes.c_size_t, ctypes.c_size_t, wintypes.UINT,
+                                       wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+user32.SendMessageTimeoutW.restype = ctypes.c_size_t
+user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+user32.ClipCursor.argtypes = [ctypes.POINTER(wintypes.RECT)]
+user32.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+user32.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
+user32.WindowFromPoint.argtypes = [wintypes.POINT]
+user32.WindowFromPoint.restype = wintypes.HWND
+user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+user32.GetAncestor.restype = wintypes.HWND
+atexit.register(user32.ClipCursor, None)  # the owner's cursor is theirs again, however a run ends
 
-MOVE, LEFT_DOWN, LEFT_UP = 0x0001, 0x0002, 0x0004
+MOVE, LEFT_DOWN, LEFT_UP, RIGHT_DOWN, RIGHT_UP = 0x0001, 0x0002, 0x0004, 0x0008, 0x0010
 KEY_UP, SCANCODE, EXTENDED = 0x0002, 0x0008, 0x0001
 VK = {"enter": 0x0D, "esc": 0x1B, "tab": 0x09, "space": 0x20, "left": 0x25, "right": 0x27, "up": 0x26, "down": 0x28,
       "ctrl": 0x11, "shift": 0x10, "m": 0x4D, "h": 0x48, "c": 0x43, "1": 0x31, "2": 0x32, "3": 0x33}
@@ -69,10 +85,15 @@ ARROWS = ("left", "right", "up", "down")
 # The top left corner of the client area: the cursor parked there is looked for only when it is nowhere else.
 CORNER = (27, 34)
 GAIN = 0.9  # game pixels moved per mouse count, near enough for the correction loop to converge
+MOVE_STEP = 300  # the longest move between looks: one jump across the window lands too far off a small button
 
 
 class Stop(Exception):
     """A step did not do what it had to."""
+
+
+class InputLost(Stop):
+    """A game in front and responding that no longer reads the mouse: only a new game has it again."""
 
 
 class MOUSEINPUT(ctypes.Structure):
@@ -240,6 +261,14 @@ class Log:
         return self.text()[mark:]
 
 
+def room_released(log: str, room: str) -> bool:
+    """Whether the server's log says no one is left in a room."""
+    if re.search(rf"left room {room} with its session", log):
+        return True
+    sent_back = re.search(rf"Room {room}: its match \S+ is over; back in the room", log)
+    return not sent_back and re.search(rf"and with it room {room}\b", log) is not None
+
+
 class Game:
     def __init__(self, run: "Run", account: str, process: subprocess.Popen) -> None:
         self.run, self.account, self.process = run, account, process
@@ -268,14 +297,52 @@ class Game:
     def focus(self) -> None:
         window = self.window
         if user32.GetForegroundWindow() != window:
-            send(scan(0x38), scan(0x38, KEY_UP))  # Alt, which lets a process take the foreground
-            user32.ShowWindow(window, 9)
-            user32.SetForegroundWindow(window)
+            # Allowed to change the foreground by sharing the input queue of the thread that has it. Not by a tap of Alt,
+            # the usual trick: that lands on the game in front and puts its window in menu mode.
+            own, front = kernel32.GetCurrentThreadId(), user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), None)
+            user32.AttachThreadInput(own, front, True)
+            try:
+                user32.ShowWindow(window, 9)
+                user32.SetForegroundWindow(window)
+            finally:
+                user32.AttachThreadInput(own, front, False)
             end = time.time() + 2
             while user32.GetForegroundWindow() != window:
                 if time.time() > end:
                     raise self.fail("could not take the foreground")
                 time.sleep(0.02)
+            # Input sent now would be lost: the game takes its mouse and keyboard back when it has handled the activation.
+            # A message to its window returns once its thread has got that far, and a frame or two later it reads input.
+            answer = ctypes.c_size_t()
+            if not user32.SendMessageTimeoutW(window, 0, 0, 0, 2, 5000, ctypes.byref(answer)):  # WM_NULL, SMTO_ABORTIFHUNG
+                raise self.fail("the game did not handle being brought to the front")
+            time.sleep(0.25)
+        self._confine(window)
+
+    def _confine(self, window: int) -> None:
+        """Keeps the Windows cursor inside this game. Input moves it as well as the game's own cursor, and a press lands
+        on whatever window is under it: on another game, that takes the focus and its mouse is lost for good."""
+        area, origin = wintypes.RECT(), wintypes.POINT(0, 0)
+        user32.GetClientRect(window, ctypes.byref(area))
+        user32.ClientToScreen(window, ctypes.byref(origin))
+        clip = wintypes.RECT(origin.x, origin.y, origin.x + area.right, origin.y + area.bottom)
+        if not user32.ClipCursor(ctypes.byref(clip)):
+            raise OSError(ctypes.get_last_error(), "ClipCursor")
+
+    def _aim_windows_cursor(self, x: int, y: int) -> None:
+        """The game draws its cursor from relative input, and the Windows cursor is elsewhere: a press must find both on
+        the target. Then checks that it lands on this game and no other window."""
+        window = self.window
+        at = wintypes.POINT(x, y)
+        user32.ClientToScreen(window, ctypes.byref(at))
+        if not user32.SetCursorPos(at.x, at.y):
+            raise OSError(ctypes.get_last_error(), "SetCursorPos")
+        time.sleep(0.05)
+        now = wintypes.POINT()
+        user32.GetCursorPos(ctypes.byref(now))
+        under = user32.GetAncestor(user32.WindowFromPoint(now), 2)  # GA_ROOT
+        if under != window or (now.x, now.y) != (at.x, at.y):
+            raise self.fail(f"a press at ({now.x}, {now.y}), wanted ({at.x}, {at.y}), would not land on this game")
 
     def _steps(self, dx: int, dy: int, size: int = 3) -> None:
         count = max(abs(dx), abs(dy)) // size + 1
@@ -287,7 +354,12 @@ class Game:
             time.sleep(0.002)
 
     def picture(self) -> np.ndarray:
-        image, (left, top) = capture(self.window)
+        # PrintWindow now and then hands back an all-black frame of a game that is drawing normally: taken again.
+        for _ in range(30):
+            image, (left, top) = capture(self.window)
+            if image.max() > 0:
+                break
+            time.sleep(0.03)
         return image[top:, left:]
 
     def cursor(self, near: tuple[int, int, int] | None = None) -> tuple[int, int] | None:
@@ -309,15 +381,37 @@ class Game:
     def move(self, x: int, y: int, tolerance: int = 14) -> None:
         self.focus()
         last = window = None
-        for _ in range(14):
+        stalls = 0
+        for _ in range(24):
             position = self.steady_cursor(window)
             if position is None and window is not None:
                 position = self.cursor()
-                # Not where the correction aimed, and nowhere else: over a control the cursor changes shape.
-                if position is None and max(abs(x - last[0]), abs(y - last[1])) <= 500:
-                    print(f"    {self.account}: over a control at ({x}, {y})", flush=True)
-                    return
+                # One look without the arrow proves nothing: the game can throw its cursor back to the corner, and the
+                # next frame shows it there. Only an arrow that stays away has changed shape over a control.
+                for _ in range(5):
+                    if position is not None:
+                        break
+                    time.sleep(0.15)
+                    position = self.cursor()
+                if position is None and window[:2] != (x, y):  # a short step lands where it aimed
+                    position = window[:2]
+                elif position is None:
+                    if self._arrow_returns_near(x, y):
+                        print(f"    {self.account}: over a control at ({x}, {y})", flush=True)
+                        return
+                    # No arrow on the target or beside it: the cursor is lost, and a press now would hit nothing.
+                    print(f"    {self.account}: cursor lost at ({x}, {y})", flush=True)
+                    last = window = None
+                    continue
             print(f"    {self.account}: cursor at {position}, want ({x}, {y})", flush=True)
+            if position is not None and position == last:
+                window_now = self.window
+                in_front = user32.GetForegroundWindow() == window_now
+                print(f"    {self.account}: cursor did not move; foreground={in_front}"
+                      f" hung={bool(user32.IsHungAppWindow(window_now))} process_alive={self.process.poll() is None}", flush=True)
+                stalls += 1
+                if stalls == 2:
+                    raise InputLost(f"{self.account}: the game no longer reads the mouse (in front: {in_front})")
             if position is None or position == last:  # lost, or it did not move: park it where it is known
                 self._steps(-5000, -5000, 200)
                 last = window = None
@@ -325,16 +419,41 @@ class Game:
             dx, dy = x - position[0], y - position[1]
             if abs(dx) <= tolerance and abs(dy) <= tolerance:
                 return
-            self._steps(int(dx / GAIN), int(dy / GAIN))
-            last, window = position, (x, y, max(60, int(0.4 * max(abs(dx), abs(dy)))))
+            step_x, step_y = max(-MOVE_STEP, min(MOVE_STEP, dx)), max(-MOVE_STEP, min(MOVE_STEP, dy))
+            self._steps(int(step_x / GAIN), int(step_y / GAIN))
+            aimed = (position[0] + step_x, position[1] + step_y)
+            last, window = position, (*aimed, max(60, int(0.4 * max(abs(step_x), abs(step_y)))))
         raise self.fail(f"could not bring the cursor to ({x}, {y}), last at {last}")
 
     def click(self, x: int, y: int, tolerance: int = 14) -> None:
         self.move(x, y, tolerance)
         self.focus()
+        self._aim_windows_cursor(x, y)
+        time.sleep(0.15)  # the movie must have drawn the hover, or the press does not reach the button
         send(mouse(flags=LEFT_DOWN))
         time.sleep(0.06)
         send(mouse(flags=LEFT_UP))
+        time.sleep(0.05)
+
+    def _arrow_returns_near(self, x: int, y: int) -> bool:
+        """A step off (x, y) and back: true when the arrow shows beside it, so it was there, its shape changed by a control."""
+        for dx, dy in ((0, -60), (60, 0), (-60, 0), (0, 60)):  # up first: beside a button in a bar is another button
+            self._steps(int(dx / GAIN), int(dy / GAIN))
+            seen = self.steady_cursor((x + dx, y + dy, 45))
+            self._steps(int(-dx / GAIN), int(-dy / GAIN))
+            time.sleep(0.08)
+            if seen is not None:
+                return True
+        return False
+
+    def right_click(self, x: int, y: int, tolerance: int = 14) -> None:
+        self.move(x, y, tolerance)
+        self.focus()
+        self._aim_windows_cursor(x, y)
+        time.sleep(0.15)
+        send(mouse(flags=RIGHT_DOWN))
+        time.sleep(0.06)
+        send(mouse(flags=RIGHT_UP))
         time.sleep(0.05)
 
     def key(self, name: str) -> None:
@@ -382,12 +501,22 @@ class Game:
             shot = self.shot(f"FAILED-{self.account}-{int(time.time())}")
         except Exception as error:
             shot = f"(no shot: {error})"
-        return Stop(f"{self.account}: {why}; screen in {shot}")
+        crashes = self.run.new_crashes()
+        crashed = f"; THE GAME CRASHED: {', '.join(crashes)}" if crashes else ""
+        return Stop(f"{self.account}: {why}; screen in {shot}{crashed}")
 
-    def wait_screen(self, test, what: str, seconds: float = 15) -> None:
-        """Until `test(picture)` holds; the game's windows open only when the server has answered."""
+    def wait_screen(self, test, what: str, seconds: float = 15, steady: float = 0) -> None:
+        """Until `test(picture)` holds, for `steady` seconds if given (a window can show for a frame while the game
+        changes screens); the game's windows open only when the server has answered."""
         end = time.time() + seconds
-        while not test(self.picture()):
+        held_since = None
+        while True:
+            if test(self.picture()):
+                held_since = held_since or time.time()
+                if time.time() - held_since >= steady:
+                    return
+            else:
+                held_since = None
             if time.time() > end:
                 raise self.fail(f"not on screen within {seconds} s: {what}")
             time.sleep(0.1)
@@ -423,15 +552,37 @@ class Run:
         self.shots.mkdir(parents=True, exist_ok=True)
         self.documents = Path(os.path.expanduser("~")) / "Documents" / "Survarium"
         self.games: list[Game] = []
+        self.known_crashes = set(self.game_dir.glob("SRP-crash-*"))
+        self.began = self.server.mark()
+
+    def new_crashes(self) -> list[str]:
+        """The crash files written since this run began."""
+        return sorted(path.name for path in set(self.game_dir.glob("SRP-crash-*")) - self.known_crashes)
 
     def __enter__(self) -> "Run":
         return self
 
     def __exit__(self, *_) -> None:
+        user32.ClipCursor(None)
         for name in ("ctrl", "shift"):
             send(scan(key_scan(name), KEY_UP))
+        mark = self.server.mark()
         for game in self.games:
             game.close()
+        # A killed game's account keeps its lobby session until the server times it out, and a room with someone sent back
+        # to it stays a minute longer; PLAY in the next run would join that room. The run is over when both are gone.
+        accounts = {game.account for game in self.games}
+        end = time.time() + 150
+        while True:
+            since_kill, whole = self.server.since(mark), self.server.since(self.began)
+            held = {a for a in accounts if not re.search(rf"{re.escape(a)} \(account \d+\) left the lobby", since_kill)}
+            rooms = {room for room in re.findall(r"made room (\d+)", whole) if not room_released(whole, room)}
+            if not held and not rooms:
+                return
+            if time.time() > end:
+                print(f"=== teardown: FAILED: after 150 s the server still holds {sorted(held)}, rooms {sorted(rooms)}", flush=True)
+                return
+            time.sleep(0.25)
 
     def game_log(self) -> Log:
         logs = list(self.documents.glob("Survarium*.log"))

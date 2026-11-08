@@ -55,6 +55,19 @@ class FindingTheCursor(unittest.TestCase):
         self.assertIsNone(driver.ARROW.find(image, skip_corner=True))
 
 
+class Rooms(unittest.TestCase):
+    def test_a_room_everyone_left_with_their_match_is_released(self):
+        self.assertTrue(driver.room_released("A: left match 0x1 by its own word, and with it room 7\n", "7"))
+
+    def test_a_room_someone_was_sent_back_to_is_held_until_its_session_ends(self):
+        log = "A: left match 0x1 by its own word, and with it room 7\nRoom 7: its match 0x1 is over; back in the room\n"
+        self.assertFalse(driver.room_released(log, "7"))
+        self.assertTrue(driver.room_released(log + "Account 3 left room 7 with its session\n", "7"))
+
+    def test_another_room_says_nothing(self):
+        self.assertFalse(driver.room_released("A: left match 0x1 by its own word, and with it room 77\n", "7"))
+
+
 class Waiting(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
