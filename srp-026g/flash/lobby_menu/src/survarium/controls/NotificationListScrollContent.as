@@ -48,8 +48,8 @@ package survarium.controls
       // view first (0xFF anyone's) and the match time to start at. This one: from the start, anyone.
       public static const REPLAY_WATCH_ALL:uint = 0xC0FF0000;
 
-      // PLACEHOLDER, not taken by the lobby server yet: the asker's own deaths, from the first one
-      // less 4 s, the asker in view (the movie knows neither its place nor when it died).
+      // The asker's own deaths (the lobby server's REPLAY_WATCH_MY_DEATHS, no fields): it finds the
+      // asker's place in the recording and starts at the first death less 4 s.
       public static const REPLAY_WATCH_MY_DEATHS:uint = 0xC1000000;
       
       public static const REPLAY_POLLS:int = 30;
@@ -81,6 +81,9 @@ package survarium.controls
       private static const RP_KEY_DOWNLOAD_BUTTON:String = "st_srp_replay_download_button";
 
       private static const RP_KEY_WATCHING:String = "st_srp_replay_watching";
+
+      // a session's `preparing` (the match server reads the recording; its number is no place in line)
+      private static const RP_KEY_OPENING:String = "st_srp_replay_opening";
       
       private static const RP_KEY_DOWNLOAD:String = "st_srp_replay_download";
       
@@ -1236,7 +1239,7 @@ package survarium.controls
          if(status == "preparing")
          {
             this._rpPrepSeen = true;
-            this._rpPlace = int(Math.min(size,RP_PLACE_MAX));
+            this._rpPlace = this._rpAsk == NotificationListScrollContent.REPLAY_ASK ? int(Math.min(size,RP_PLACE_MAX)) : 0;
             this.rpShowPreparing();
             return;
          }
@@ -1287,7 +1290,7 @@ package survarium.controls
          {
             line = LocalizationData.format("st_srp_replay_waiting",seconds);
          }
-         return LocalizationData.format(RP_KEY_BEING_MADE,line);
+         return LocalizationData.format(this._rpAsk == NotificationListScrollContent.REPLAY_ASK ? RP_KEY_BEING_MADE : RP_KEY_OPENING,line);
       }
       
       protected function rpShowPreparing() : void

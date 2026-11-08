@@ -2698,6 +2698,7 @@ st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 play
 st_srp_replay_not_yours	You can watch replays only of matches you played in.
 st_srp_replay_off	Replays are switched off on this server.
 st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
+st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s
 st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
 st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
 st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.

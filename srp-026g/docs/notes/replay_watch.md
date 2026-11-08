@@ -18,10 +18,11 @@ In the running game instead (no download, no second process): a replay session, 
   **Watch my deaths** on its bottom bar, left of the close button (`VictoryScreen.as`).
 - Watch and Watch replay ask for a replay session (`replay-stream.md`): `3D 00 <0xC0FF0000> <match id>`
   (`REPLAY_WATCH_BASE | 0xFF << 16 | 0`: from the start, anyone in view). Watch my deaths asks with
-  `0xC1000000`, a **placeholder** the lobby server does not take yet: the asker's own deaths from the
-  first one less 4 s (the movie knows neither the asker's place nor the deaths' times).
+  `0xC1000000` (`REPLAY_WATCH_MY_DEATHS`, no fields: the server finds the asker's place and deaths,
+  the movie knows neither).
 - All of them go through the History's prompt (`NotificationListScrollContent.replayBegin(id, ask)`):
-  the same polls and `R1` answers; `watching` closes it with "The replay opens in this game window".
+  the same polls and `R1` answers. A session's `preparing` (1 reading, 2 waiting: no place in line)
+  says the match server is opening it; `watching` closes it with "The replay opens in this game window".
 - Each answer sets the match's chip on its History rows, under Watch: `ready`/`watching` Ready,
   `preparing` Preparing, `incompatible` Old version, `not_recorded` Not recorded, `gone` Expired; no
   chip before an answer, nor for one about the asker or the server (`busy`, `old_game`, ...).
