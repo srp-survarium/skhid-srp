@@ -99,18 +99,21 @@ the silver upgrade's 67.5 % chance to lose a modification too harsh).
   window's top where it was; the result view is as before.
 - Code: `items_rules::craft`, `wire::craft_tables`, `MessageCraftItem.removeFailureRow`.
 
-## Success chances
+## Success chances and prices
 
 The owner's rule: 2026-11-08 ("the combining modification changes drop too fast 100% on the same
-level, 50 and 25% for levels lower"; "it should be 100, 95, 90").
+level, 50 and 25% for levels lower"; "it should be 100, 95, 90"; "and the same price for silver and
+gold (make silver be gold converted to silver)").
 
 - **Success:** 100 % when the item has as many modifications as its donor, 95 % with one more,
   90 % with two more. Before: 100 / 50 / 25 % in gold, 50 / 25 / 12.5 % in silver.
 - **Silver and gold:** the same chances.
 - **Otherwise:** nothing happens (see above); no failure chance is left in the data.
-- **Prices:** unchanged.
-- Data: `craft.options` (`scripts/content-edit/craft-chances-1.json`); the server reads it, the
-  window shows what 0x9B sends.
+- **Price:** the silver price is the gold one at the game's 100 silver a gold: 200 silver at item
+  levels 0-1 up to 10,000 at level 15, half of the old 400 .. 20,000. Gold prices are unchanged
+  (2 .. 100).
+- Data: `craft.options` (`scripts/content-edit/craft-1.json`); the server reads it, the window
+  shows what 0x9B sends.
 
 ## Buy from the slots
 

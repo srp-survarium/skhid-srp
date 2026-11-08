@@ -1,0 +1,29 @@
+{
+ "_about": "Upgrade (craft) chances and prices (the owner, 2026-11-08: \"right now the combining modification changes drop too fast 100% on the same level, 50 and 25% for levels lower\", \"it should be 100, 95, 90\"; \"and the same price for silver and gold (make silver be gold converted to silver)\"). gameplay/items/craft/craft.options, read only by the server (items_rules::craft, 0x9B to the lobby's upgrade window). Chances: craft_probabilities_<general|premium>[d] = [success %, failure %] for an item with d = 0, 1, 2 more modifications than its donor; success 100/95/90 in both tables (premium was 100/50/25, general 50/25/12.5). Failure 0 everywhere: srp never takes a modification away (the owner's rule of 2026-10-23, docs/notes/craft-menu.md) and 0x9B already sends it as 0; without it the rows' success and failure would add up past 100. Prices: craft_price_general[level] = craft_price_premium[level] x 100, the game's 100 silver a gold (PREMIUM_EXCHANGE_RATE): 200 .. 10000 silver, half of the stock 400 .. 20000; the gold prices unchanged.",
+ "set": [
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_general[0][0]", "from": 50, "to": 100},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_general[1][0]", "from": 25, "to": 95},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_general[1][1]", "from": 25, "to": 0},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_general[2][0]", "from": 12.5, "to": 90},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_general[2][1]", "from": 67.5, "to": 0},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_premium[1][0]", "from": 50, "to": 95},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_premium[2][0]", "from": 25, "to": 90},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_premium[2][1]", "from": 25, "to": 0},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[0]", "from": 400, "to": 200},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[1]", "from": 400, "to": 200},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[2]", "from": 800, "to": 400},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[3]", "from": 1600, "to": 800},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[4]", "from": 2400, "to": 1200},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[5]", "from": 3400, "to": 1700},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[6]", "from": 4400, "to": 2200},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[7]", "from": 5400, "to": 2700},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[8]", "from": 6600, "to": 3300},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[9]", "from": 8000, "to": 4000},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[10]", "from": 10000, "to": 5000},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[11]", "from": 12000, "to": 6000},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[12]", "from": 14000, "to": 7000},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[13]", "from": 16000, "to": 8000},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[14]", "from": 18000, "to": 9000},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_price_general[15]", "from": 20000, "to": 10000}
+ ]
+}
