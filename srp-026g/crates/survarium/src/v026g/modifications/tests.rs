@@ -726,20 +726,29 @@ fn the_premium_bonuses_are_the_most_their_property_gives() {
         .expect("the lobby's BONUS_UI");
     let rows = &source[start..];
     let rows = &rows[rows.find('\n').unwrap() + 1..rows.find("\n      ];").unwrap()];
-    // `[<id>,<icon>,<prop id>,"<value>"], // <name>` a line.
+    // Its values: modifications.tsv's, as the movie reads them
+    // (`ItemFactory.bonusValue`, the build's ModificationValues).
+    let table = include_str!("../../../../../scripts/content-edit/modifications.tsv");
+    let value_of = |id: &str| -> f64 {
+        table
+            .lines()
+            .find_map(|line| {
+                let cells: Vec<&str> = line.split('\t').collect();
+                (cells[0] == id).then(|| cells[2].parse().unwrap())
+            })
+            .unwrap_or_else(|| panic!("modifications.tsv: no {id}"))
+    };
+    // `[<id>,<icon>,<prop id>], // <name>` a line.
     let premium: BTreeMap<u32, f64> = rows
         .lines()
         .map(|line| {
             let row = line.split("//").next().unwrap().trim();
             let row = row.trim_end_matches(',').trim_start_matches('[');
             let fields: Vec<&str> = row.trim_end_matches(']').split(',').collect();
-            let [_, _, prop_id, value] = fields[..] else {
+            let [id, _, prop_id] = fields[..] else {
                 panic!("a BONUS_UI row: {line}")
             };
-            (
-                prop_id.trim().parse().unwrap(),
-                value.trim().trim_matches('"').parse().unwrap(),
-            )
+            (prop_id.trim().parse().unwrap(), value_of(id.trim()))
         })
         .collect();
     // Silver, experience and the four factions' reputation.

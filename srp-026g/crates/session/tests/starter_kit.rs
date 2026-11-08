@@ -310,10 +310,16 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     // those types of bonuses"): experience +20 % (1240), reputation +50 %
     // with each faction (1250 to 1280); 0.05 each in 0.26g.
     let table = Modifications::shared();
+    // What the lobby shows of each follows its value (content_edit's
+    // shown_value: one place, modifications.tsv).
     let value = |id: u32| {
         let row = table.modification(id).unwrap();
         assert_eq!(row.modifiers.len(), 1, "{id}");
-        (row.modifiers[0].path.as_str(), row.modifiers[0].value)
+        let value = row.modifiers[0].value;
+        assert_eq!(row.shown.value, value, "{id}: its card line");
+        assert_eq!(row.lobby_info.len(), 1, "{id}");
+        assert_eq!(row.lobby_info[0].1, value, "{id}: its lobby_info");
+        (row.modifiers[0].path.as_str(), value)
     };
     assert_eq!(value(1240), ("parameters/experience_bonus", 0.2));
     for id in [1250, 1260, 1270, 1280] {

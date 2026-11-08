@@ -83,7 +83,7 @@ package survarium.item
          var row:Array;
          for each(row in ItemFactory.BONUS_UI)
          {
-            if(uint(row[2]) == propId && reaches(value,Number(row[3])))
+            if(uint(row[2]) == propId && reaches(value,Number(ItemFactory.bonusValue(row))))
             {
                return true;
             }
