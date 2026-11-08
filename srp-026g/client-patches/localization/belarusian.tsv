@@ -2573,26 +2573,10 @@ st_srp_map_vector	Лабараторыя "Вектар"
 st_srp_map_vostok	РЛС "Восток"
 st_srp_map_vostok_v011	РЛС "Восток" (v0.11)
 st_srp_map_vostok_v021	РЛС "Восток" (v0.21)
-st_srp_matches_another_joining	Іншы гулец ужо далучаецца
-st_srp_matches_balanced	Матч ужо збалансаваны
-st_srp_matches_cannot_join	Зараз далучыцца нельга
-st_srp_matches_closed	Гэты матч ужо закрыты
-st_srp_matches_ends_soon	Матч хутка скончыцца
 st_srp_matches_full	У матчы няма вольных месцаў
-st_srp_matches_in_match	Вы ўжо ў матчы
-st_srp_matches_in_squad	Спачатку пакіньце атрад
-st_srp_matches_joining	уваход…
-st_srp_matches_maintenance	Скончыцца пасля пачатку абслугоўвання
 st_srp_matches_no_answer	Няма адказу, паспрабуйце яшчэ
-st_srp_matches_no_late_join	Матч не прымае новых гульцоў
-st_srp_matches_no_place	У матчы няма вольных месцаў
 st_srp_matches_none	Зараз матчаў няма
-st_srp_matches_not_in_play	Матч яшчэ не пачаўся
-st_srp_matches_outdated	Абнавіце гульню
-st_srp_matches_played_before	Вы ўжо гулялі ў гэтым матчы
-st_srp_matches_queued	Спачатку скасуйце пошук
 st_srp_matches_starting	старт
-st_srp_matches_title	Матчы
 st_srp_matches_versus	на
 st_srp_matches_waiting	чаканне
 st_srp_medical_301_description	Дадаецца да абароны ад болю і працягласці дзеяння абязбольвальнага:
@@ -2646,9 +2630,7 @@ st_srp_pierce_stone	Камень
 st_srp_pierce_tinplate	Бляха
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	У атрадзе
-st_srp_player_equipment	Equipment
 st_srp_player_matches	Matches
-st_srp_player_matches_asking	Asking the server for this player's matches…
 st_srp_player_matches_days	%1$s d ago
 st_srp_player_matches_draw	Draw
 st_srp_player_matches_hours	%1$s h ago

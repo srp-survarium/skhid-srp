@@ -2573,26 +2573,10 @@ st_srp_map_vector	Laboratorija Vektor
 st_srp_map_vostok	Radarska stanica Vostok
 st_srp_map_vostok_v011	Radarska stanica Vostok (v0.11)
 st_srp_map_vostok_v021	Radarska stanica Vostok (v0.21)
-st_srp_matches_another_joining	Drugi igrač se pridružuje
-st_srp_matches_balanced	Meč je već uravnotežen
-st_srp_matches_cannot_join	Trenutno ne možeš da se pridružiš
-st_srp_matches_closed	Ovaj meč je zatvoren
-st_srp_matches_ends_soon	Meč se uskoro završava
 st_srp_matches_full	Nema slobodnog mesta u ovom meču
-st_srp_matches_in_match	Već si u meču
-st_srp_matches_in_squad	Prvo napusti odred
-st_srp_matches_joining	pridruživanje…
-st_srp_matches_maintenance	Završava se nakon početka održavanja
 st_srp_matches_no_answer	Nema odgovora, pokušaj ponovo
-st_srp_matches_no_late_join	Meč ne prima nove igrače
-st_srp_matches_no_place	Nema slobodnog mesta u ovom meču
 st_srp_matches_none	Trenutno nema mečeva
-st_srp_matches_not_in_play	Meč još nije počeo
-st_srp_matches_outdated	Ažuriraj igru
-st_srp_matches_played_before	Već si igrao u ovom meču
-st_srp_matches_queued	Prvo prekini pretragu
 st_srp_matches_starting	početak
-st_srp_matches_title	Mečevi
 st_srp_matches_versus	na
 st_srp_matches_waiting	čekanje
 st_srp_medical_301_description	Dodaje se zaštiti od bola i trajanju analgetika:
@@ -2646,9 +2630,7 @@ st_srp_pierce_stone	Kamen
 st_srp_pierce_tinplate	Lim
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	U odredu
-st_srp_player_equipment	Equipment
 st_srp_player_matches	Matches
-st_srp_player_matches_asking	Asking the server for this player's matches…
 st_srp_player_matches_days	%1$s d ago
 st_srp_player_matches_draw	Draw
 st_srp_player_matches_hours	%1$s h ago
