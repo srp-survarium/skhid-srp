@@ -16,8 +16,9 @@ patch_026g.py puts into the exe, late_join_026g.section.bin.
         passes the login by and connects to -server as that session
 
 Requires NASM, a C compiler for x86 and GNU ld; CC and LD name others than
-`cc` and `ld`. The C code another compiler makes is other bytes that do the
-same: the checked-in .bin is the one the players' exe has, and the .json
+`cc` and `ld` (CROSS_COMPILE, when set, their prefix instead: link_026g.py).
+The C code another compiler makes is other bytes that do the same: the
+checked-in .bin is the one the players' exe has, and the .json
 names what made it. Sources and existing outputs are never changed, except
 the two files by --write-bin.
 
@@ -43,6 +44,9 @@ PATCH_REVISION = base.REVISION
 HERE = Path(__file__).resolve().parent
 BIN = HERE / "late_join_026g.section.bin"
 SYMBOLS = HERE / "late_join_026g.section.json"
+CROSS = os.environ.get("CROSS_COMPILE")
+CC = CROSS + "gcc" if CROSS else os.environ.get("CC", "cc")
+LD = CROSS + "ld" if CROSS else os.environ.get("LD", "ld")
 C_SOURCES = ("late_join_validate_026g", "late_join_runtime_026g", "late_join_install_026g")
 # The C functions the assembly calls, by the name of its -D.
 ENTRIES = {
@@ -75,13 +79,13 @@ SECTIONS {
     for name in C_SOURCES:
         source = HERE / (name + ".c")
         obj = directory / (name + ".o")
-        subprocess.run([os.environ.get("CC", "cc"), "-m32", "-Os", "-std=c11",
+        subprocess.run([CC, "-m32", "-Os", "-std=c11",
                         "-ffreestanding", "-fPIC", "-fvisibility=hidden", "-fno-builtin",
                         "-fno-stack-protector", "-mno-sse", "-mno-sse2", "-mno-mmx",
                         "-fno-asynchronous-unwind-tables", "-fno-unwind-tables",
                         "-Wall", "-Wextra", "-Werror", "-c", str(source), "-o", str(obj)], check=True)
         objects.append(str(obj))
-    subprocess.run([os.environ.get("LD", "ld"), "-m", "elf_i386", "-T", str(script),
+    subprocess.run([LD, "-m", "elf_i386", "-T", str(script),
                     "--oformat=binary", "-Map", str(link_map), *objects, "-o", str(binary)], check=True)
     symbols = {name: int(address, 16) for address, name in re.findall(
         r"^\s+(0x[0-9a-f]+)\s+(lj_\w+|late_join_validate_profile)\s*$",
@@ -148,8 +152,8 @@ def tool_versions(nasm):
             return subprocess.run(command, capture_output=True, text=True, check=True).stdout.splitlines()[0].strip()
         except (OSError, subprocess.CalledProcessError, IndexError):
             return "unknown"
-    return {"cc": first_line([os.environ.get("CC", "cc"), "--version"]),
-            "ld": first_line([os.environ.get("LD", "ld"), "--version"]),
+    return {"cc": first_line([CC, "--version"]),
+            "ld": first_line([LD, "--version"]),
             "nasm": first_line([nasm, "-v"])}
 
 

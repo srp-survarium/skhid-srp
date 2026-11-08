@@ -429,11 +429,20 @@ fn positive(value: f32) -> f32 {
     if value > 0.0 { value } else { 0.0 }
 }
 
-/// The square root as the first build took it: `sqrtss`.
+/// The square root as the first build took it: `sqrtss`. (On an arm dev
+/// host `fsqrt`: IEEE's correctly rounded root too, the same bits.)
 fn root(value: f32) -> f32 {
     let mut out = value;
     // SAFETY: sqrtss on a register: no memory, no flags.
-    unsafe { core::arch::asm!("sqrtss {0}, {0}", inout(xmm_reg) out, options(pure, nomem, nostack)) };
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    unsafe {
+        core::arch::asm!("sqrtss {0}, {0}", inout(xmm_reg) out, options(pure, nomem, nostack))
+    };
+    // SAFETY: fsqrt on a register: no memory, no flags.
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        core::arch::asm!("fsqrt {0:s}, {0:s}", inout(vreg) out, options(pure, nomem, nostack))
+    };
     out
 }
 

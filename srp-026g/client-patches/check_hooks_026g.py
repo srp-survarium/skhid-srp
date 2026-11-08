@@ -13,9 +13,10 @@ stub shim that forwards to the game's own function.
 
     python check_hooks_026g.py <original survarium.exe>
 
-Requires Python `unicorn`, NASM (the dev shell) and the entry macros
-(rust_hook_026g.inc).
+Requires Python `unicorn`, NASM, GNU binutils for i386 (the dev shell; with
+CROSS_COMPILE, its prefix) and the entry macros (rust_hook_026g.inc).
 """
+import os
 import struct
 import subprocess
 import sys
@@ -30,6 +31,7 @@ import patch_026g as base
 import hooks_026g
 
 HERE = Path(__file__).resolve().parent
+CROSS = os.environ.get("CROSS_COMPILE", "")
 TEST_VA = 0xB000000                 # where the assembled entry + stub is mapped
 STACK = 0x40000000
 GP = {"eax": UC_X86_REG_EAX, "ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX, "ebx": UC_X86_REG_EBX,
@@ -74,12 +76,12 @@ def assemble(entry_src, stub_src):
         for name in ("entry", "stub"):
             subprocess.run(["nasm", "-f", "elf32", "-I", str(HERE) + "/", f(name + ".asm"), "-o", f(name + ".o")],
                            check=True)
-        subprocess.run(["ld", "-m", "elf_i386", "-Ttext", hex(TEST_VA), "-e", "entry", "--no-warn-rwx-segments",
+        subprocess.run([CROSS + "ld", "-m", "elf_i386", "-Ttext", hex(TEST_VA), "-e", "entry", "--no-warn-rwx-segments",
                         "-o", f("t.elf"), f("entry.o"), f("stub.o")], check=True, capture_output=True)
-        subprocess.run(["objcopy", "-O", "binary", "-j", ".text", f("t.elf"), f("t.bin")], check=True)
+        subprocess.run([CROSS + "objcopy", "-O", "binary", "-j", ".text", f("t.elf"), f("t.bin")], check=True)
         code = Path(f("t.bin")).read_bytes()
         labels = {}
-        for line in subprocess.run(["nm", f("t.elf")], capture_output=True, text=True).stdout.splitlines():
+        for line in subprocess.run([CROSS + "nm", f("t.elf")], capture_output=True, text=True).stdout.splitlines():
             parts = line.split()
             if len(parts) == 3:
                 labels[parts[2]] = int(parts[0], 16)
@@ -242,12 +244,12 @@ def test_code():
         f = lambda n: str(Path(folder) / n)
         Path(f("c.asm")).write_text(cave)
         subprocess.run(["nasm", "-f", "elf32", f("c.asm"), "-o", f("c.o")], check=True)
-        subprocess.run(["ld", "-m", "elf_i386", "-Ttext", hex(TEST_VA), "-e", "cave", "--no-warn-rwx-segments",
+        subprocess.run([CROSS + "ld", "-m", "elf_i386", "-Ttext", hex(TEST_VA), "-e", "cave", "--no-warn-rwx-segments",
                         "-o", f("c.elf"), f("c.o")], check=True, capture_output=True)
-        subprocess.run(["objcopy", "-O", "binary", "-j", ".text", f("c.elf"), f("c.bin")], check=True)
+        subprocess.run([CROSS + "objcopy", "-O", "binary", "-j", ".text", f("c.elf"), f("c.bin")], check=True)
         blob = Path(f("c.bin")).read_bytes()
         labels = {}
-        for line in subprocess.run(["nm", f("c.elf")], capture_output=True, text=True).stdout.splitlines():
+        for line in subprocess.run([CROSS + "nm", f("c.elf")], capture_output=True, text=True).stdout.splitlines():
             p = line.split()
             if len(p) == 3:
                 labels[p[2]] = int(p[0], 16)

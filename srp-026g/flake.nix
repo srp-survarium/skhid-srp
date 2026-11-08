@@ -10,10 +10,12 @@
     };
   };
 
-  outputs = { self, nixpkgs, rust-overlay }:
+  # x86_64-linux, and aarch64-linux (an arm Mac's Linux VM) where the
+  # tools for the game's i686 are cross tools and its test binaries run in
+  # qemu-i386 (Rosetta for Linux runs no 32-bit code).
+  outputs = { self, nixpkgs, rust-overlay }: {
+    devShells = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-linux" ] (system:
     let
-      system = "x86_64-linux";
-
       pkgs = import nixpkgs {
         inherit system;
         overlays = [ rust-overlay.overlays.default ];
@@ -75,9 +77,15 @@
         };
         patches = [ ];
       });
+
+      # Off x86_64, the arena's gcc and binutils and the tests' linker are
+      # i686 cross tools: the same GCC and binutils versions, so the same
+      # bytes as `gcc -m32` and `ld -m elf_i386`.
+      i686 = pkgs.pkgsCross.gnu32.stdenv.cc;
+      x86 = system == "x86_64-linux";
     in
     {
-      devShells.${system}.default = pkgs.mkShell {
+      default = pkgs.mkShell {
         name = "srp";
 
         nativeBuildInputs = [
@@ -109,8 +117,15 @@
           SKHID_MSVC_LIB = "${msvcLibs}/lib/x86";
           # `cargo test --target i686-unknown-linux-gnu` in client-patches/rust
           # links its test binaries against 32-bit glibc with this.
-          CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER = "${pkgs.pkgsi686Linux.stdenv.cc}/bin/cc";
+          CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER =
+            if x86 then "${pkgs.pkgsi686Linux.stdenv.cc}/bin/cc" else "${i686}/bin/${i686.targetPrefix}cc";
+        } // nixpkgs.lib.optionalAttrs (!x86) {
+          # The i686 gcc and binutils (link_026g.py, check_hooks_026g.py;
+          # cc-rs for the i686 target): CC and LD stay the host's.
+          CROSS_COMPILE = "${i686}/bin/${i686.targetPrefix}";
+          CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_RUNNER = "${pkgs.qemu-user}/bin/qemu-i386";
         };
       };
-    };
+    });
+  };
 }

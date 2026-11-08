@@ -37,7 +37,9 @@ block takes; a relocation other than R_386_32 and R_386_PC32 (no GOT, PLT or
 16-bit address: the code is not position-independent); a symbol no source
 defines or one defined twice (ld); a block with nothing in it; an arena past
 its limit. CC, LD and NASM (or NASM_DIR, the folder of nasm) name other tools
-than `cc`, `ld` and `nasm`; `nix develop ./srp-026g` has them.
+than `cc`, `ld` and `nasm`; CROSS_COMPILE, when set, is the prefix of an i686
+gcc and ld instead of CC and LD (the aarch64 dev shell's: there CC is the
+host's); `nix develop ./srp-026g` has them.
 
 The lock: the arena is built from source by every build (the self-test's,
 the release's), and the bytes must be the lock's: a change of a source is
@@ -111,7 +113,9 @@ def matches(name, patterns):
 def toolchain(**override):
     """{cc, ld, nasm}: each a runnable path, NASM 2.16; else LinkError."""
     nasm = os.path.join(os.environ["NASM_DIR"], "nasm") if os.environ.get("NASM_DIR") else "nasm"
-    tools = {"cc": os.environ.get("CC", "cc"), "ld": os.environ.get("LD", "ld"), "nasm": os.environ.get("NASM", nasm)}
+    cross = os.environ.get("CROSS_COMPILE")
+    tools = {"cc": cross + "gcc" if cross else os.environ.get("CC", "cc"),
+             "ld": cross + "ld" if cross else os.environ.get("LD", "ld"), "nasm": os.environ.get("NASM", nasm)}
     tools.update(override)
     what = {"cc": "a C compiler for x86 (gcc: -m32)", "ld": "GNU ld", "nasm": f"NASM {NASM_VERSION}"}
     for key, tool in tools.items():

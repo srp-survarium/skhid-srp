@@ -35,6 +35,12 @@ the 0.26g servers. The hosted 0.21d server is built from `srp-021d`.
 
 A recent Rust toolchain and OpenSSL (`flake.nix` gives a dev shell with both).
 
+The dev shell is for x86_64-linux and aarch64-linux (on an Apple silicon Mac, an
+arm64 Linux VM: native Rust, no Rosetta). On aarch64 the game's i686 gcc and
+binutils are cross tools (`CROSS_COMPILE`: the same versions, the same arena
+bytes) and the i686 test binaries run in qemu-i386. The tests under Wine
+(`client/bugtrap/tests`, `tools/wine`) need an x86_64 host.
+
 ```bash
 cargo run -p srp
 cargo test --workspace
