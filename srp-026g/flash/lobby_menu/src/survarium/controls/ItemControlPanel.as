@@ -130,7 +130,6 @@ package survarium.controls
          this.btn_item_buy.label = LocalizationData.getName("buy");
          this.btn_item_fix.label = LocalizationData.getName("fix");
          this.btn_show_r.label = LocalizationData.getName("sell");
-         this.btn_show_use.label = LocalizationData.getName("btn_use_item");
          this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label");
          this.btn_item_craft.label = LocalizationData.getName("btn_craft_label");
       }
@@ -146,7 +145,6 @@ package survarium.controls
          this.btn_item_reroll.addEventListener(ButtonEvent.CLICK,this._itemCard.upgradeItem);
          this.btn_item_craft.addEventListener(ButtonEvent.CLICK,this.craftItem);
          this.btn_show_r.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick2);
-         this.btn_show_use.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick3);
          this.btn_show_l.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick1);
       }
       
@@ -299,16 +297,6 @@ package survarium.controls
          {
             this.checkButtonEnabled();
          }
-         if(this._data.usable)
-         {
-            this.btn_show_use.enabled = true;
-            this.btn_show_use.visible = true;
-         }
-         else
-         {
-            this.btn_show_use.enabled = false;
-            this.btn_show_use.visible = false;
-         }
          this.sortButton();
       }
       
@@ -426,22 +414,12 @@ package survarium.controls
       
       private function sortButton() : void
       {
-         var offset:uint;
+         // Two buttons, centred: no item is used any more (the vouchers that were are gone, the owner
+         // 2026-11-08), so the stock Use button (btn_show_use) stays hidden.
+         var offset:uint = this.backgroundWidth / 2;
          this.btnSellBig.x = (this.backgroundWidth - 140) / 2;
-         if(this.btn_show_use.visible)
-         {
-            offset = 140;
-            this.btn_show_l.x = int((width - offset * 3) / 2);
-            this.btn_show_r.x = int(this.btn_show_l.x + offset + 10);
-            this.btn_show_use.x = int(this.btn_show_r.x + offset + 10);
-            this.btn_show_use.y = this.btn_show_l.y;
-         }
-         else
-         {
-            offset = this.backgroundWidth / 2;
-            this.btn_show_r.x = int(offset + 5);
-            this.btn_show_l.x = int(offset - 5 - this.btn_show_l.width);
-         }
+         this.btn_show_r.x = int(offset + 5);
+         this.btn_show_l.x = int(offset - 5 - this.btn_show_l.width);
       }
    }
 }

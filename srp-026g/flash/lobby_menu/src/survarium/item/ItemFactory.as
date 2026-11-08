@@ -23,7 +23,6 @@ package survarium.item
    import survarium.constants.ModifierType;
    import survarium.constants.QuickSlotSize;
    import survarium.constants.SuperCategory;
-   import survarium.constants.VoucherType;
    
    public class ItemFactory implements IItemFactory
    {
@@ -411,7 +410,6 @@ package survarium.item
          {
             item.clipsInBag = 1 / description.required_bags;
          }
-         item.usable = item.category == ItemCategory.VOUCHERS && (item.type == VoucherType.PREMIUM || item.type == VoucherType.RENAME);
          var ammoList:String = "";
          var ammoIds:Array;
          var unusedText:String;
@@ -478,7 +476,7 @@ package survarium.item
          }
          item.sellerIcon = sellerIcon;
          item.factionId = factionId;
-         trace("IL::create_item::",item.name,item.category,item.usable,item.type,item.category == ItemCategory.VOUCHERS,description.descr);
+         trace("IL::create_item::",item.name,item.category,item.type,item.category == ItemCategory.VOUCHERS,description.descr);
          return item;
       }
       
@@ -706,8 +704,7 @@ package survarium.item
                   icon:modifierIcon,
                   state:modifiers[i].state,
                   fix_time_general:modifiers[i].fix_time_general,
-                  fix_cost_general:modifiers[i].fix_cost_general,
-                  fix_cost_gold:modifiers[i].fix_cost_gold
+                  fix_cost_general:modifiers[i].fix_cost_general
                });
             }
             i++;

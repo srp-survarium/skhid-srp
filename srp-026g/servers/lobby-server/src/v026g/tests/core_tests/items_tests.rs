@@ -1071,10 +1071,8 @@ fn defects_are_repaired_in_time_or_at_once() {
     let alice = world.connect("Alice");
     let rifle = give(&mut world, alice, "ak_74m", &[]);
     let spare = give(&mut world, alice, "ak_74m", &[]);
-    let mut kits = 0;
     world.change(alice, |account| {
         account.generic_money = 1_000_000;
-        kits = account.add_item(dict("repair_voucher"), 2);
         for item_id in [rifle, spare] {
             let item = account.item_mut(item_id).unwrap();
             item.condition_or_stack = 500_000;
@@ -1136,34 +1134,21 @@ fn defects_are_repaired_in_time_or_at_once() {
             .any(|message| matches!(message, Decoded::Important { kind: 6, .. }))
     );
 
-    // With a repair kit: at once, one a defect.
-    world.ask(alice, ask::repair_with_kit(spare, kits));
-    let decoded = world.take(alice);
-    assert_eq!(
-        decoded[0],
-        Decoded::Permitted(Permitted::Repaired {
-            item_id: spare,
-            repaired: survarium::v026g::lobby::Repaired::WithKit {
-                kit_item_id: kits,
-                used: 1
-            }
-        })
-    );
-    assert_eq!(
-        world.account(alice).item(kits).unwrap().condition_or_stack,
-        1
-    );
-    assert_same_items(&mut world, alice);
-    // No kit for an item with no defect; nothing to repair in silver either.
-    world.ask(alice, ask::repair_with_kit(spare, kits));
+    // A repair kit (an old window's kind 2): no kits (the owner,
+    // 2026-11-08), refused; the stock window's gold (1) is silver.
+    world.ask(alice, ask::repair_with_kit(spare, 77));
     assert_eq!(
         denial(&world.take(alice), 0x47).as_deref(),
         Some("st_cannot_repair_item")
     );
     world.ask(alice, request::repair(spare, 1));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_repair_item")
-    );
+    assert!(matches!(
+        world.take(alice)[0],
+        Decoded::Permitted(Permitted::Repaired {
+            repaired: survarium::v026g::lobby::Repaired::Timed { repair_time: 360 },
+            ..
+        })
+    ));
+    assert_same_items(&mut world, alice);
     world.assert_clean();
 }

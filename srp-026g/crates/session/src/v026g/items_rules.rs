@@ -114,9 +114,9 @@
 //!   owner, 2026-11-08] Gold is gone, and the silver repair is the game's
 //!   gold one ("quick repair"): the live data has each defect's
 //!   `fix_cost_gold` in silver as its `fix_cost_general` and no time
-//!   (`scripts/content-edit/defects.tsv`). With repair kits (the voucher
-//!   `repair_voucher`): one a defect, at once. The client offers kits only
-//!   for an item with defects. Every repair makes the item whole (the client sets its
+//!   (`scripts/content-edit/defects.tsv`). Silver is the only payment: the
+//!   repair kits (the voucher `repair_voucher`) are gone (the owner,
+//!   2026-11-08). Every repair makes the item whole (the client sets its
 //!   condition to full on the answer) and [srp] takes its defects off at
 //!   once: the wait only locks the item in the lobby. When it ends the
 //!   client is told (`#ir[<item>]`, an important message of type 6).
@@ -165,8 +165,6 @@ pub enum ItemError {
     NotEnoughMoney,
     /// Nothing to repair, or not that way; why, for the log.
     Repair(&'static str),
-    /// Fewer repair kits than defects.
-    NoRepairKit,
     NotEnoughMoneyForRepair,
 }
 
@@ -179,7 +177,6 @@ impl ItemError {
             Self::RerollBroken => "st_reroll_message_broken_item",
             Self::NotEnoughMoney => "st_not_enougth_money",
             Self::Repair(_) => "st_cannot_repair_item",
-            Self::NoRepairKit => "st_you_have_no_voucher_for_repair",
             Self::NotEnoughMoneyForRepair => "st_not_enought_money_for_repair",
         }
     }
@@ -891,7 +888,7 @@ pub fn repair_quote(item: &Item) -> (u32, u32, usize) {
     )
 }
 
-/// `47 03 <item> <kind> [<kit item>]`: repair an item whole. Returns what
+/// `47 03 <item> <kind>`: repair an item whole, in silver. Returns what
 /// `83 47 03` carries.
 pub fn repair(
     account: &mut Account,
@@ -925,33 +922,6 @@ pub fn repair(
                 Repaired::Timed {
                     repair_time: seconds,
                 }
-            }
-        }
-        // Kits mend defects: the window offers none without.
-        RepairPayment::Kit { kit_item_id } => {
-            if broken == 0 {
-                return Err(ItemError::Repair("no defects to use a kit on"));
-            }
-            let used = broken as u32;
-            let index = account
-                .inventory
-                .iter()
-                .position(|kit| {
-                    kit.item_id == kit_item_id
-                        && item_params(kit.dict_id).is_some_and(|params| params.kind == "vch_fixr")
-                })
-                .ok_or(ItemError::NoRepairKit)?;
-            let kit = &mut account.inventory[index];
-            if kit.condition_or_stack < used {
-                return Err(ItemError::NoRepairKit);
-            }
-            kit.condition_or_stack -= used;
-            if kit.condition_or_stack == 0 {
-                account.inventory.remove(index);
-            }
-            Repaired::WithKit {
-                kit_item_id,
-                used: used as u8,
             }
         }
         RepairPayment::Other(_) => return Err(ItemError::Repair("no such payment")),

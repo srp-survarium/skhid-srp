@@ -4,10 +4,8 @@ package survarium.constants
    public class RepairPayment
    {
       
+      // silver, the one way left (no gold, no repair kit: the owner, 2026-11-08)
       public static const REGULAR:int = 0;
-      
-      // a repair voucher
-      public static const VOUCHER:int = 2;
       
       public function RepairPayment()
       {

@@ -92,7 +92,7 @@ package survarium.controls
             isMoney = _data.superCategory == SuperCategory.UPGRADES;
             this.textCount.text = (isMoney ? "" : "x") + _data.value;
             this.textCount.y = 42 + (isMoney ? 0 : 5);
-            this.textCount.textColor = isMoney ? (_data.category == ItemCategory.PREMIUM_MONEY ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
+            this.textCount.textColor = isMoney ? Colors.REGULAR : Colors.SILVER;
          }
       }
    }

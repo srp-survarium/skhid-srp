@@ -1345,23 +1345,13 @@ fn a_repair_mends_the_wear_and_the_defects() {
     let dictionary = Dictionary::shared();
     let mut account = rich();
     let rifle = give(&mut account, "ak_74m", &[2000]);
-    let kits = account.add_item(dict("repair_voucher"), 3);
+    let ammo = account.add_item(dict("ammo_5.45x39_7n6m"), 30);
     account.item_mut(rifle).unwrap().condition_or_stack = 400_000;
     let wear = prices::repair_cost(dictionary, dict("ak_74m"), 40);
     assert!(wear > 0);
 
-    // Wear alone: silver, at once; kits are for defects.
+    // Wear alone: silver, at once.
     assert_eq!(repair_quote(account.item(rifle).unwrap()), (wear, 0, 0));
-    // The stock window's gold is silver (`RepairPayment`).
-    assert_eq!(
-        repair(
-            &mut account.clone(),
-            rifle,
-            RepairPayment::Kit { kit_item_id: kits },
-            NOW
-        ),
-        Err(ItemError::Repair("no defects to use a kit on"))
-    );
     let mut whole = account.clone();
     let mut client = client_of(&whole);
     assert_eq!(
@@ -1386,8 +1376,7 @@ fn a_repair_mends_the_wear_and_the_defects() {
 
     // Two defects: each its `fix_cost_general` and `fix_time_general` on
     // top (100 silver and six minutes in the stock data of the tests; the
-    // live data has the gold repair's 5,000 and none, `defects.tsv`), or a
-    // kit each.
+    // live data has the gold repair's 5,000 and none, `defects.tsv`).
     let item = account.item_mut(rifle).unwrap();
     item.modifications.extend([(3000, true), (3010, true)]);
     assert_eq!(
@@ -1438,61 +1427,6 @@ fn a_repair_mends_the_wear_and_the_defects() {
     assert!(finish_repairs(&mut slow, NOW + 721).is_empty());
     assert_eq!(repaired_notice(rifle), (6, format!("#ir[{rifle}]")));
 
-    // Kits: one a defect.
-    let mut kitted = account.clone();
-    let mut client = client_of(&kitted);
-    let repaired = repair(
-        &mut kitted,
-        rifle,
-        RepairPayment::Kit { kit_item_id: kits },
-        NOW,
-    )
-    .unwrap();
-    assert_eq!(
-        repaired,
-        Repaired::WithKit {
-            kit_item_id: kits,
-            used: 2
-        }
-    );
-    assert_eq!(kitted.item(kits).unwrap().condition_or_stack, 1);
-    assert_eq!(kitted.generic_money, 1_000_000);
-    assert!(defects(kitted.item(rifle).unwrap()).is_empty());
-    let message = lobby::permitted_repaired(rifle, repaired).unwrap();
-    let mut expected = vec![0x83, 0x47, 0x03];
-    expected.extend(rifle.to_le_bytes());
-    expected.extend([0, 0, 0, 0]);
-    expected.extend(kits.to_le_bytes());
-    expected.push(2);
-    assert_eq!(bytes(&message), expected);
-    client.receive(&message).unwrap();
-    let push = wire::after_change(&kitted, NOW).unwrap();
-    takes(&mut client, &push[0], &kitted);
-    // One kit left for two defects, an item that is no kit, and no item.
-    kitted
-        .item_mut(rifle)
-        .unwrap()
-        .modifications
-        .extend([(3000, true), (3010, true)]);
-    for kit_item_id in [kits, rifle, 0, 999] {
-        assert_eq!(
-            repair(&mut kitted, rifle, RepairPayment::Kit { kit_item_id }, NOW),
-            Err(ItemError::NoRepairKit)
-        );
-    }
-    // The last kit used up is gone from the inventory.
-    kitted.item_mut(rifle).unwrap().modifications.pop();
-    assert!(
-        repair(
-            &mut kitted,
-            rifle,
-            RepairPayment::Kit { kit_item_id: kits },
-            NOW
-        )
-        .is_ok()
-    );
-    assert!(kitted.item(kits).is_none());
-
     // No silver, a stack, nothing, another kind.
     let mut poor = account.clone();
     poor.generic_money = wear + 199;
@@ -1501,12 +1435,11 @@ fn a_repair_mends_the_wear_and_the_defects() {
         Err(ItemError::NotEnoughMoneyForRepair)
     );
     assert_eq!(poor.item(rifle), account.item(rifle));
-    assert!(repair(&mut account, kits, RepairPayment::Silver, NOW).is_err());
+    assert!(repair(&mut account, ammo, RepairPayment::Silver, NOW).is_err());
     assert!(repair(&mut account, 999, RepairPayment::Silver, NOW).is_err());
     assert!(repair(&mut account, rifle, RepairPayment::Other(7), NOW).is_err());
     for (error, key) in [
         (ItemError::Repair(""), "st_cannot_repair_item"),
-        (ItemError::NoRepairKit, "st_you_have_no_voucher_for_repair"),
         (
             ItemError::NotEnoughMoneyForRepair,
             "st_not_enought_money_for_repair",

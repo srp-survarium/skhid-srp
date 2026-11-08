@@ -37,7 +37,7 @@ pub(super) fn load(connection: &Connection, account_id: u32) -> Result<Extras, P
     let extras = connection
         .query_row(
             "SELECT auto_repair, tutorial_flags, bonus_day, bonus_last_day, bonus_wins,
-                    bonus_reward_dict, bonus_reward_count, bonus_completed, bonus_shown_day
+                    bonus_completed, bonus_shown_day
              FROM g26_extras WHERE account_id = ?1",
             [account_id],
             |row| {
@@ -48,10 +48,8 @@ pub(super) fn load(connection: &Connection, account_id: u32) -> Result<Extras, P
                         day: row.get(2)?,
                         last_day: row.get::<_, i64>(3)?.max(0) as u64,
                         wins: DailyBonus::unpack_wins(row.get(4)?),
-                        reward_dict: row.get(5)?,
-                        reward_count: row.get(6)?,
-                        completed: row.get(7)?,
-                        shown_day: row.get::<_, i64>(8)?.max(0) as u64,
+                        completed: row.get(5)?,
+                        shown_day: row.get::<_, i64>(6)?.max(0) as u64,
                     },
                 })
             },
@@ -66,16 +64,18 @@ pub(super) fn save(
     extras: &Extras,
 ) -> Result<(), PersistError> {
     let day = |day: u64| day.min(i64::MAX as u64) as i64;
+    // `bonus_reward_dict` and `bonus_reward_count` (the seventh day's reward,
+    // gone with gold, the owner's of 2026-11-08) stay in the table, unused:
+    // a new row takes their default, 0.
     connection.execute(
         "INSERT INTO g26_extras (
             account_id, auto_repair, tutorial_flags, bonus_day, bonus_last_day, bonus_wins,
-            bonus_reward_dict, bonus_reward_count, bonus_completed, bonus_shown_day
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            bonus_completed, bonus_shown_day
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT(account_id) DO UPDATE SET
             auto_repair = excluded.auto_repair, tutorial_flags = excluded.tutorial_flags,
             bonus_day = excluded.bonus_day, bonus_last_day = excluded.bonus_last_day,
-            bonus_wins = excluded.bonus_wins, bonus_reward_dict = excluded.bonus_reward_dict,
-            bonus_reward_count = excluded.bonus_reward_count,
+            bonus_wins = excluded.bonus_wins,
             bonus_completed = excluded.bonus_completed,
             bonus_shown_day = excluded.bonus_shown_day",
         params![
@@ -85,8 +85,6 @@ pub(super) fn save(
             extras.bonus.day,
             day(extras.bonus.last_day),
             extras.bonus.packed_wins(),
-            extras.bonus.reward_dict,
-            extras.bonus.reward_count,
             extras.bonus.completed,
             day(extras.bonus.shown_day),
         ],
@@ -127,8 +125,6 @@ mod tests {
                 day: 4,
                 last_day: 20_371,
                 wins: [3, 0, 2, 1, 0, 0, 0],
-                reward_dict: 215,
-                reward_count: 50,
                 completed: false,
                 shown_day: 20_371,
             },
@@ -201,8 +197,7 @@ mod tests {
         let alice = &loaded[0].1;
         assert_eq!(
             (alice.name.as_str(), alice.generic_money),
-            // Its 12 gold is silver since step 14.
-            ("Alice", 777 + 1_200)
+            ("Alice", 777)
         );
         assert!(alice.autobuy);
         let flags: Vec<u32> = loaded

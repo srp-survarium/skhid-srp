@@ -83,6 +83,9 @@ decals_5_4/not_sold	the coat of arms of Belarus
 vss/not_sold	a weapon of no faction, not on sale
 sr3m/not_sold	a weapon of no faction, not on sale
 socom16/not_sold	a weapon of no faction, not on sale
+repair_voucher/not_sold	the repair kit: vouchers but the drop card are gone (2026-11-08)
+rename_account_voucher/not_sold	the rename voucher: a rename is paid in silver (2026-11-08)
+premium_voucher_1d/not_sold	the one-day premium voucher: gone (2026-11-08)
 neostead_2/not_sold	a weapon of no faction, not on sale
 decals_2_1/scav	1
 decals_2_2/scav	5

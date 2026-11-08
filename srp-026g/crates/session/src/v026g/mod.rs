@@ -290,6 +290,9 @@ impl GameAccounts {
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {
+                if let Some(paid) = repository.pay_back_once()? {
+                    log_paid_back(&paid);
+                }
                 let mend = !pay::item_wear() && repository.first_time(persist::GEAR_MENDED)?;
                 let store = Self::with_repository(Box::new(repository))?;
                 store.give_golden_silver_once()?;
@@ -974,6 +977,38 @@ impl GameAccounts {
     }
 }
 
+/// The release log of [`persist::SqliteGameRepository::pay_back_once`]: a
+/// line for each account it paid, and the totals.
+fn log_paid_back(paid: &[persist::PaidBack]) {
+    let (mut gold, mut silver, mut vouchers) = (0_u64, 0_u64, [0_u64; 3]);
+    for account in paid {
+        log::info!(
+            "Paid back {} (account {}): {} gold, {} repair kits, {} rename vouchers, {} \
+             premium-day vouchers: +{} silver",
+            account.name,
+            account.account_id,
+            account.gold,
+            account.vouchers[0],
+            account.vouchers[1],
+            account.vouchers[2],
+            account.silver()
+        );
+        gold += account.gold;
+        silver += account.silver();
+        for (total, count) in vouchers.iter_mut().zip(account.vouchers) {
+            *total += count;
+        }
+    }
+    log::info!(
+        "Gold and the vouchers but the drop card are gone, paid back once: {} accounts, {gold} \
+         gold, {} repair kits, {} rename vouchers, {} premium-day vouchers, {silver} silver given",
+        paid.len(),
+        vouchers[0],
+        vouchers[1],
+        vouchers[2]
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1415,7 +1450,7 @@ mod tests {
         let mut alice = Account::new("Alice");
         let lost = alice.add_item(9999, 100);
         alice.inventory[0].modifications.push((987_654, false));
-        alice.extras.bonus.reward_dict = 9998;
+        let lost_too = alice.add_item(9998, 1);
         repository.save(5, &alice).unwrap();
         let mut bob = Account::new("Bob");
         bob.add_item(9999, 100);
@@ -1444,9 +1479,10 @@ mod tests {
         assert!(repository.get(5).unwrap().item(lost).is_some());
 
         // The data has them again (here: they are taken out): it loads.
-        alice.inventory.retain(|item| item.item_id != lost);
+        alice
+            .inventory
+            .retain(|item| item.item_id != lost && item.item_id != lost_too);
         alice.inventory[0].modifications.pop();
-        alice.extras.bonus.reward_dict = 0;
         repository.save(5, &alice).unwrap();
         bob.inventory.retain(|item| item.dict_id != 9999);
         bob.quest_cooldowns.clear();

@@ -174,8 +174,7 @@ mod tests {
         );
         assert_eq!(
             (account.generic_money, account.exp_total, account.rating),
-            // Its 5 gold is silver since step 14.
-            (4321 + 500, 900, 118)
+            (4321, 900, 118)
         );
         assert_eq!(account.inventory.len(), 1);
         assert_eq!(account.inventory[0].dict_id, 18);

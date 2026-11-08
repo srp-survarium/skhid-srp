@@ -20,6 +20,7 @@ package survarium.messages
    import survarium.controls.ItemRendererBase;
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
+   import survarium.controls.SilverPrice;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.LocalizationData;
@@ -64,6 +65,9 @@ package survarium.messages
       public var checkBoxRegularCost:CheckBoxValue;
       
       public var checkBoxPremiumCost:CheckBoxValue;
+
+      // The price, in place of the silver checkbox (SilverPrice): made with the window's data.
+      private var _price:SilverPrice;
       
       public var iconSlot:IconRenderer;
       
@@ -171,11 +175,9 @@ package survarium.messages
             // (items_rules: Reroll, the owner's rule of 2026-10-22)
             this.decriptionTimerLabel.text = "";
             this.labelChooseModifier2.text = LocalizationData.getName("choose_modifier");
-            // A change is paid in silver only: the game has no gold (the owner, 2026-11-08).
-            this.checkBoxRegularCost.selected = true;
-            this.checkBoxRegularCost.money_type = MoneyType.REGULAR;
-            this.checkBoxRegularCost.toggle = false;
-            this.checkBoxRegularCost.value = 0;
+            // A change is paid in silver only: the game has no gold (the owner, 2026-11-08). Its
+            // price, centred, in place of the silver checkbox (SilverPrice).
+            this._price = new SilverPrice(this.checkBoxRegularCost,this.background.x + this.background.width / 2);
             this.checkBoxPremiumCost.visible = false;
             this.labelChooseModifier2.visible = this.modifiersList2.visible = false;
             _rerollTimer = _data.rerollTime;
@@ -270,7 +272,10 @@ package survarium.messages
          var option:Object;
          this.lockWindow(false);
          _rerollCost = rerollData.regular_cost;
-         this.checkBoxRegularCost.value = this._rerollCost;
+         if(this._price)
+         {
+            this._price.cost = this._rerollCost;
+         }
          if(modifiers)
          {
             // The card's item: its modifications as the server has them now (after a choice
@@ -358,7 +363,7 @@ package survarium.messages
          this.modifiersList2.selectedIndex = -1;
          this.modifiersList2.visible = choosing;
          this.decriptionLabel.visible = !choosing;
-         this.checkBoxRegularCost.visible = !choosing;
+         this._price.visible = !choosing;
          this.modifiersList.enabled = !choosing;
          this.decriptionTimerLabel.visible = !choosing;
          this.background.height = !choosing ? 392 : 337;

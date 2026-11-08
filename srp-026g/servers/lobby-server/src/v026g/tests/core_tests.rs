@@ -712,7 +712,9 @@ fn what_srp_does_not_have_is_refused_never_ignored() {
         (0x46, u32s(2, &[1], &[]), "st_cannot_relocate_item"),
         // A drop card, an item used.
         (0x46, u32s(3, &[5, 6], &[]), "st_cannot_use_drop_card"),
-        (0x46, u32s(4, &[5], &[]), "st_error_while_using_premium_access_voucher"),
+        // `46 04`, using an item: no usable items (the one-day premium
+        // voucher is gone), not read.
+        (0x46, u32s(4, &[5], &[]), "st_cannot_relocate_item"),
         // The reroll window of no item, a reroll of a modification the
         // pistol has not, a choice with nothing offered. (A craft that
         // can not be is answered `83 46 09 FE`: `items_tests`.)
@@ -2835,7 +2837,8 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
             _ => None,
         })
         .expect("the daily bonus");
-    assert_eq!(bonus, (vec![0], 214, 5_000, false, true));
+    // No reward (its gold is gone, the owner's of 2026-11-08): silver, 0.
+    assert_eq!(bonus, (vec![0], 214, 0, false, true));
     // No discount is set: none is offered.
     assert!(
         !decoded
@@ -2983,18 +2986,21 @@ fn a_bundle_and_a_premium_item_are_bought_for_silver() {
     assert!(owned.contains(&(id("ak_74n_premium"), FULL_CONDITION)));
     assert!(owned.contains(&(id("ammo_5.45x39_7n6m"), 3_000)));
 
-    // Two repair kits from the shop's list: their 50 gold in silver each.
-    world.ask(
-        alice,
-        request::buy(id("repair_voucher"), 2, 0, INVENTORY_SLOT, 1),
-    );
+    // Two drop cards from the shop's list: their 100 gold in silver each.
+    world.ask(alice, request::buy(id("drop_card"), 2, 0, INVENTORY_SLOT, 1));
     let decoded = world.take(alice);
     assert!(matches!(
         &decoded[0],
         Decoded::Permitted(Permitted::Bought(bought))
-            if bought.len() == 1 && bought[0].dict_id == id("repair_voucher") && bought[0].value == 2
+            if bought.len() == 1 && bought[0].dict_id == id("drop_card") && bought[0].value == 2
     ));
-    assert_eq!(told_money(&decoded), Some((40_000, 0)));
+    assert_eq!(told_money(&decoded), Some((30_000, 0)));
+    // A removed voucher is sold no more (the owner, 2026-11-08).
+    world.ask(
+        alice,
+        request::buy(id("repair_voucher"), 1, 0, INVENTORY_SLOT, 1),
+    );
+    assert!(denial(&world.take(alice), 0x47).is_some());
     // Not the silver for the AK-74N (its 1500 gold): the game's text for it.
     world.change(alice, |account| account.generic_money = 1_000);
     world.take(alice);
@@ -3077,59 +3083,6 @@ fn the_excluded_flags_and_emblems_are_not_sold() {
     ));
     assert!(world.account(alice).item(item_id).is_none());
     assert!(world.account(alice).generic_money > silver);
-    world.assert_clean();
-}
-
-#[test]
-fn the_premium_voucher_is_used_from_the_inventory() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    world.take(alice);
-    let voucher = Dictionary::shared()
-        .item_named(premium::PREMIUM_VOUCHER)
-        .unwrap()
-        .dict_id;
-    let mut item_id = 0;
-    world.change(alice, |account| item_id = account.add_item(voucher, 2));
-
-    world.ask(
-        alice,
-        (0x46, [vec![4], item_id.to_le_bytes().to_vec()].concat()),
-    );
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::ItemUsed { item_id: used }) if used == item_id
-    ));
-    assert_eq!(told_premium(&decoded), Some(Some(24)));
-    // One left, in the client's inventory too.
-    let left = |world: &World| {
-        world.clients[alice]
-            .1
-            .model
-            .inventory()
-            .iter()
-            .find(|item| item.item_id == item_id)
-            .map(|item| item.condition_or_stack)
-    };
-    assert_eq!(left(&world), Some(1));
-    world.ask(
-        alice,
-        (0x46, [vec![4], item_id.to_le_bytes().to_vec()].concat()),
-    );
-    assert_eq!(told_premium(&world.take(alice)), Some(Some(48)));
-    assert_eq!(left(&world), None);
-    // Used up; and the pistol is no voucher.
-    for item in [item_id, 1] {
-        world.ask(
-            alice,
-            (0x46, [vec![4], item.to_le_bytes().to_vec()].concat()),
-        );
-        assert_eq!(
-            denial(&world.take(alice), 0x46).as_deref(),
-            Some("st_error_while_using_premium_access_voucher")
-        );
-    }
     world.assert_clean();
 }
 
@@ -3387,21 +3340,15 @@ fn a_nickname_is_checked_and_changed() {
     // And she signs in as before.
     assert_eq!(world.store.account_id_by_name("Alice"), Some(alice_id));
 
-    // With a rename voucher: one is taken, no silver.
-    let voucher = Dictionary::shared()
-        .item_named(premium::RENAME_VOUCHER)
-        .unwrap()
-        .dict_id;
-    let mut item_id = 0;
-    world.change(alice, |account| item_id = account.add_item(voucher, 1));
-    world.ask(alice, rename("Alina", item_id));
+    // A voucher's id from an old window is not kept: no vouchers, silver
+    // pays (the owner, 2026-11-08), and no voucher is taken.
+    world.ask(alice, rename("Alina", 77));
     let decoded = world.take(alice);
     assert!(matches!(
         decoded[0],
-        Decoded::Permitted(Permitted::NicknameChanged { ticket_item_id }) if ticket_item_id == item_id
+        Decoded::Permitted(Permitted::NicknameChanged { ticket_item_id: 0 })
     ));
-    assert_eq!(told_money(&decoded), Some((silver - 25_000, 0)));
-    assert!(world.account(alice).item(item_id).is_none());
+    assert_eq!(told_money(&decoded), Some((silver - 50_000, 0)));
     assert_eq!(world.account(alice).name, "Alina");
     world.assert_clean();
 }

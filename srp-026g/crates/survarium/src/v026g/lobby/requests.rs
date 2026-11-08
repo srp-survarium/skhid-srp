@@ -77,9 +77,8 @@ pub enum RepairPayment {
     /// is gone (the owner, 2026-11-08), and the silver repair is the gold
     /// one of before, at its price in silver.
     Silver,
-    /// Kind 2: a repair kit (voucher), by its item id.
-    Kit { kit_item_id: u32 },
-    /// Another kind byte.
+    /// Another kind byte: kind 2 was a repair kit (voucher), which is gone
+    /// (the owner, 2026-11-08); its kit item id is left unread.
     Other(u8),
 }
 
@@ -241,8 +240,6 @@ pub enum ClientMessage {
     /// Flash `use_drop_card(match id, voucher id)`, written in that order
     /// by 0x288D00 -> 0x270AE0).
     UseDropCard { a0: u32, a1: u32 },
-    /// `46 04`.
-    UseItem { item_id: u32 },
     /// `46 05`: the decal editor's value for a cosmetic on an item:
     /// `item_id` the host, `a` the cosmetic's item id (PROVEN, `items.md`
     /// §3).
@@ -322,11 +319,10 @@ pub enum ClientMessage {
     SetActiveKit { kit_id: u32 },
     /// `49 03`.
     CheckNickname { nickname: String },
-    /// `49 04`: the u32 is LIKELY the rename ticket's item id.
-    ChangeNickname {
-        nickname: String,
-        ticket_item_id: u32,
-    },
+    /// `49 04`: a new nickname, paid in silver. Its u32, the rename
+    /// voucher's item id (0 for money: `MessageEnterName`), is read and not
+    /// kept: the vouchers are gone (the owner, 2026-11-08).
+    ChangeNickname { nickname: String },
     /// `49 05`: GUESS a report or praise of a player.
     CommentAboutUser { nickname: String, a: u8, b: u8 },
     SetChatMute {
@@ -674,7 +670,6 @@ fn parse_inventory(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             a0: r.u32()?,
             a1: r.u32()?,
         },
-        0x04 => M::UseItem { item_id: r.u32()? },
         0x05 => M::ApplyDecal {
             kit_id: r.u32()?,
             item_id: r.u32()?,
@@ -735,10 +730,6 @@ fn parse_shop(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             let item_id = r.u32()?;
             let payment = match r.u8()? {
                 0 | 1 => RepairPayment::Silver,
-                // Only this kind carries the kit's id.
-                2 => RepairPayment::Kit {
-                    kit_item_id: r.u32()?,
-                },
                 other => RepairPayment::Other(other),
             };
             M::Repair { item_id, payment }
@@ -781,10 +772,9 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             return Ok(M::CheckNickname { nickname: r.str()? });
         }
         0x04 => {
-            return Ok(M::ChangeNickname {
-                nickname: r.str()?,
-                ticket_item_id: r.u32()?,
-            });
+            let nickname = r.str()?;
+            r.u32()?;
+            return Ok(M::ChangeNickname { nickname });
         }
         0x05 => {
             let nickname = r.str()?;

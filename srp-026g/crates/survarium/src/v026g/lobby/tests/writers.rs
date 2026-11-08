@@ -815,7 +815,6 @@ fn inventory_action_answers() {
         &permitted_upgrade_detached(9, 4),
         "83 46 02 09000000 04000000",
     );
-    assert_bytes(&permitted_item_used(9), "83 46 04 09000000");
     assert_bytes(
         &permitted_reroll_window(1, 2, 3, None),
         "83 46 06 01000000 02000000 03000000 00",
@@ -924,28 +923,7 @@ fn shop_answers() {
         &permitted_repaired(1, Repaired::AtOnce).unwrap(),
         "83 47 03 01000000 00000000 00000000",
     );
-    assert_bytes(
-        &permitted_repaired(
-            1,
-            Repaired::WithKit {
-                kit_item_id: 4,
-                used: 1,
-            },
-        )
-        .unwrap(),
-        "83 47 03 01000000 00000000 04000000 01",
-    );
     assert!(permitted_repaired(1, Repaired::Timed { repair_time: 0 }).is_err());
-    assert!(
-        permitted_repaired(
-            1,
-            Repaired::WithKit {
-                kit_item_id: 0,
-                used: 1
-            }
-        )
-        .is_err()
-    );
     assert_bytes(&permitted_shop_event(4).unwrap(), "83 47 04");
     assert_bytes(&permitted_shop_event(5).unwrap(), "83 47 05");
     assert!(permitted_shop_event(0).is_err());
@@ -969,8 +947,7 @@ fn kit_and_account_answers() {
         &permitted_nickname_check("A b", Some(NameRefusal::Pattern)),
         "83 49 03 'A b' 00 05",
     );
-    assert_bytes(&permitted_nickname_changed(0), "83 49 04 00000000");
-    assert_bytes(&permitted_nickname_changed(77), "83 49 04 4D000000");
+    assert_bytes(&permitted_nickname_changed(), "83 49 04 00000000");
 }
 
 #[test]

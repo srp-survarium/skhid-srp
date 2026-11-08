@@ -6,7 +6,7 @@
 #   level                     the level it starts at, one point short of the next (its first
 #                             match reaches it)
 #   skills/<id>               the points of a skill (skills_tree.options' id), within the level
-#   silver, gold              its money: all silver, the gold given at 100 silver a gold (gold is gone)
+#   silver                    its money (gold is gone, 2026-11-08)
 #   premium_days              premium from its making
 #   rounds                    the rounds it owns of every ammo
 #   faction                   the faction it takes quests from (1: the Scavengers), at
@@ -26,7 +26,6 @@ skills/301	1
 skills/302	2
 skills/311	5
 silver	30000
-gold	0
 premium_days	30
 rounds	1000
 faction	1

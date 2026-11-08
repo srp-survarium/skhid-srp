@@ -24,7 +24,6 @@ package survarium.controls
    import survarium.constants.ModifierType;
    import survarium.constants.ProfileSlot;
    import survarium.item.ModificationRolls;
-   import survarium.constants.VoucherType;
    
    public class ItemCard extends MovieClip
    {
@@ -191,35 +190,6 @@ package survarium.controls
          }
       }
       
-      protected function onItemUse(event:* = null) : void
-      {
-         ExternalInterface.call("item_use",this._data.itemId);
-      }
-      
-      public function onBtnClick3() : void
-      {
-         var messageData:Object;
-         if(this._data.usable)
-         {
-            trace("useElement::",this._data.type,parent);
-            if(this._data.type == VoucherType.RENAME)
-            {
-               if(parent)
-               {
-                  parent["statusPanel"].showChangeNameMessage();
-               }
-               return;
-            }
-            messageData = {
-               text:LocalizationData.getName("use_item_message"),
-               onYes:this.onItemUse,
-               label_ok:LocalizationData.getName("btn_use_item"),
-               label_cancel:LocalizationData.getName("no")
-            };
-            Message.showMessage("apply",messageData);
-         }
-      }
-      
       public function onBtnClick2() : void
       {
          if(!this._data)
@@ -363,8 +333,7 @@ package survarium.controls
                   icon:modifierIcon,
                   state:allModifiers[i].state,
                   fix_time_general:allModifiers[i].fix_time_general,
-                  fix_cost_general:allModifiers[i].fix_cost_general,
-                  fix_cost_gold:allModifiers[i].fix_cost_gold
+                  fix_cost_general:allModifiers[i].fix_cost_general
                });
             }
             i++;

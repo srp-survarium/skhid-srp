@@ -15,7 +15,6 @@ use super::game_data;
 use super::loadouts::{self, Loadout, POCKET_SLOTS};
 use super::lobby::limits::{KIT_SLOTS, KITS};
 use super::modifications::{self, Modifications};
-use super::prices::GOLD_IN_SILVER;
 use super::quests::FACTIONS;
 use super::skills::SkillsTree;
 
@@ -58,8 +57,7 @@ pub struct NewAccount {
     /// `(skill id, points)`, each with points; the tree allows them at
     /// [`Self::level`] ([`Self::check`]).
     pub skills: Vec<(u16, u8)>,
-    /// Its money, all silver: the table's `gold` is given in silver,
-    /// [`GOLD_IN_SILVER`] a gold (gold is gone, the owner's of 2026-11-08).
+    /// Its money, silver (gold is gone, the owner's of 2026-11-08).
     pub silver: u32,
     /// Premium from the account's making, added as every premium is.
     pub premium_days: u32,
@@ -144,7 +142,7 @@ impl NewAccount {
             match (key.as_str(), kit) {
                 (_, Some(n)) => kits[n - 1] = worn(key, value)?,
                 (
-                    "level" | "skills" | "silver" | "gold" | "premium_days" | "rounds" | "faction"
+                    "level" | "skills" | "silver" | "premium_days" | "rounds" | "faction"
                     | "reputation_level" | "own" | "all_kits" | "pocket_units"
                     | "own_modifications",
                     None,
@@ -170,12 +168,7 @@ impl NewAccount {
         Ok(Self {
             level: byte("level")?,
             skills,
-            silver: {
-                let (silver, gold) = (num("silver")?, num("gold")?);
-                gold.checked_mul(GOLD_IN_SILVER)
-                    .and_then(|gold| gold.checked_add(silver))
-                    .ok_or_else(|| format!("{PATH}: `silver` and `gold` are over a u32 of silver"))?
-            },
+            silver: num("silver")?,
             premium_days: num("premium_days")?,
             rounds: num("rounds")?,
             faction: QuestFaction::try_from(byte("faction")?).map_err(|id| {

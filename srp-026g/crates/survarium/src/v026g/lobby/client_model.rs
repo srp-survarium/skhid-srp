@@ -763,10 +763,6 @@ impl Client {
                         _ => 0,
                     };
                 }
-                if let Repaired::WithKit { kit_item_id, used } = repaired {
-                    let used = u32::from(*used);
-                    self.take_from(*kit_item_id, |_| Some(used));
-                }
             }
             Decoded::Drop {
                 item,
@@ -1177,17 +1173,13 @@ impl Client {
                         let repaired = if repair_time != 0 {
                             Repaired::Timed { repair_time }
                         } else {
+                            // A repair kit's id: srp has none (the owner,
+                            // 2026-11-08), so a kit is one no inventory holds.
                             let kit_item_id = r.u32()?;
-                            if kit_item_id == 0 {
-                                Repaired::AtOnce
-                            } else if self.find(kit_item_id).is_some() {
-                                Repaired::WithKit {
-                                    kit_item_id,
-                                    used: r.u8()?,
-                                }
-                            } else {
+                            if kit_item_id != 0 {
                                 return Err(ModelError::NotInInventory(kit_item_id));
                             }
+                            Repaired::AtOnce
                         };
                         Permitted::Repaired { item_id, repaired }
                     }

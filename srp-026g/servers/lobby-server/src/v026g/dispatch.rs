@@ -252,7 +252,6 @@ impl Core<'_> {
                 item_id, a, value, ..
             } => self.place_upgrade(who, item_id, a, value),
             M::UseDropCard { a0, a1 } => self.use_drop_card(who, a0, a1),
-            M::UseItem { item_id } => self.use_item(who, item_id),
             M::OpenReroll { item_id } => self.open_reroll(who, item_id),
             M::RerollModifier {
                 item_id,
@@ -396,10 +395,7 @@ impl Core<'_> {
                 let refusal = self.nickname_refusal(&nickname, who.account_id);
                 self.send(addr, lobby::permitted_nickname_check(&nickname, refusal));
             }
-            M::ChangeNickname {
-                nickname,
-                ticket_item_id,
-            } => self.change_nickname(who, &nickname, ticket_item_id),
+            M::ChangeNickname { nickname } => self.change_nickname(who, &nickname),
             // Not kept, and the player is told so.
             M::CommentAboutUser { .. } => self.deny(addr, id::PROFILE, text::COMMENT),
             M::SetChatMute { nickname, mode } => self.set_chat_mute(who, &nickname, mode, now),

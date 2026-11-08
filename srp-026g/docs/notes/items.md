@@ -171,6 +171,9 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   defect's `fix_cost_general`, and takes the defects' `fix_time_general`
   together; gold ("quick repair") = the defects' `fix_cost_gold`; kits = one
   `repair_voucher` a defect. Gold and kits are offered only with defects.
+  [srp, 2026-11-08] Silver only: the live data has the gold repair's price
+  and no time as `fix_cost_general` / `fix_time_general`, and the kits are
+  gone (silver-only.md).
 
 srp's reading of what only the server knew:
 

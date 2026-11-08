@@ -1730,20 +1730,6 @@ package
          this.item_control.fillItemRerollOptions(value);
       }
       
-      private function test_craft_data() : void
-      {
-         var testObject:Object = {
-            craft_time:90 * 60,
-            regular_cost:12,
-            premium_cost:22,
-            success_chance_regular:12,
-            fail_chance_regular:88,
-            success_chance_gold:50,
-            fail_chance_gold:50
-         };
-         this.fill_craft_data(testObject);
-      }
-      
       public function fill_craft_data(value:Object) : void
       {
          _craftData = value;
@@ -4145,16 +4131,13 @@ package
          var itemsArray:Array = [];
          newData.data = itemsArray;
          newData.current_day = this._dailyBonusData.current_day;
-         newData.reward = this._dailyBonusData.reward;
          var messData:Array = this._dailyBonusData.data as Array;
          trace("messData::",messData.length);
          for(var i:uint = 0; i < messData.length; i++)
          {
-            var itemData:ItemData;
             var dropItem:Object;
             var dayData:Object;
             var dayIndex:int;
-            var rank:int;
             dropItem = messData[i];
             dayData = new Object();
             if(!dropItem)
@@ -4176,33 +4159,9 @@ package
             itemsArray.push(dayData);
          }
          newData.completed = this._dailyBonusData.completed;
-         trace("dailyBonusData.reward_item.dict_id",this._dailyBonusData.reward_item.dict_id);
-         if((this._dailyBonusData.reward_item.dict_id))
-         {
-            itemData = this.inventory_list.createItem(this._dailyBonusData.reward_item.dict_id);
-            if((this._dailyBonusData.reward_item.modifiers))
-            {
-               itemData.modifiers = (this._dailyBonusData.reward_item.modifiers as Array).concat(itemData.modifiersDefault);
-            }
-            itemData.value = this._dailyBonusData.reward_item.condition_or_stack;
-            rank = (this._dailyBonusData.reward_item.rarity_level);
-            itemData.rank = rank;
-            itemData.clipSize = 1;
-            this.inventory_list.fillModifiersDescription(itemData);
-            if((itemData.itemDescription && itemData.superCategory == SuperCategory.UPGRADES) && (itemData.category != ItemCategory.GENERIC_MONEY) && itemData.category != ItemCategory.PREMIUM_MONEY)
-            {
-               itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.itemDescription;
-            }
-            else
-            {
-               itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.modifiersDescription;
-            }
-         }
-         else
-         {
-            itemData = null;
-         }
-         newData.itemData = itemData;
+         // The run's 7th-day reward is gone (the owner, 2026-11-08: "I know there are also gold rewards
+         // after 7 consequtive days, I would just remove that part"): the server sends an empty one
+         // (silver x 0, which the exe needs), and the window shows no reward.
          Message.showMessage("daily_reward",newData);
       }
       
@@ -4371,6 +4330,7 @@ package
          MessageCraftItem.setCraftRegularCost([cost]);
       }
       
+      // The upgrade's gold price, which the game still hands over: there is no gold.
       public function set_craft_premium_cost(cost:uint) : void
       {
       }
@@ -4737,14 +4697,16 @@ package
             value.label = Util.styledChar(LocalizationData.getName("level") + " " + value.skill_level + " ","highlight") + LocalizationData.getName("achieved");
             value.hideTimer = 15000;
             value.notificationType = NotificationType.PLAYER_RANK;
-            value.reward = [{
+            // Silver, when the level pays any (no gold: MessagePlayerRank), and the skill point.
+            value.reward = value.reward_amount > 0 ? [{
                type:Reward.MONEY,
                amount:value.reward_amount,
-               param:value.reward_id
-            },{
+               param:MoneyType.REGULAR
+            }] : [];
+            value.reward.push({
                type:Reward.POINT,
                amount:1
-            }];
+            });
             this.add_notification(value);
             mess = Message.showMessage("message_unlock_level",value,false);
             mess.addEventListener(Event.OPEN,this.openCharItem,false,0,true);
@@ -6007,28 +5969,6 @@ package
          {
             play.dispatchEvent(new ButtonEvent(ButtonEvent.CLICK));
          }
-      }
-      
-      private function test_bandle_data() : void
-      {
-         var arr:Array = [];
-         arr.push({
-            bundle_id:666,
-            bundle_name:"666",
-            bundle_descr:"descr 666 is 666",
-            cost:666,
-            currency_type:MoneyType.PREMIUM,
-            bundle_icon:1
-         });
-         arr.push({
-            bundle_id:555,
-            bundle_name:"555",
-            bundle_descr:"descr 555 is 555",
-            cost:555,
-            currency_type:MoneyType.REGULAR,
-            bundle_icon:0
-         });
-         this.setup_bundle_data(arr);
       }
       
       private function testTRewards() : void

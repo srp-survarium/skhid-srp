@@ -127,8 +127,6 @@ fn spent_day() -> crate::v026g::extras::DailyBonus {
         day: 1,
         last_day: crate::v026g::bonus::day_of(NOW),
         wins: [3, 0, 0, 0, 0, 0, 0],
-        reward_dict: GENERIC_MONEY,
-        reward_count: 5_000,
         ..Default::default()
     }
 }
@@ -823,30 +821,31 @@ fn experience_reaches_levels_and_they_pay() {
         .settle(&result(players), &store, &terms(), &mut Rng::new(1))
         .unwrap();
     let reward = &report.players[0].reward;
-    // 400 + 132 is past the 500 of level 1, which pays 100 gold, in silver.
+    // 400 + 132 is past the 500 of level 1, which paid 100 gold: nothing
+    // now, but its skill point.
     assert_eq!(reward.levels, [1]);
-    assert_eq!(reward.level_money, 10_000);
+    assert_eq!(reward.level_money, 0);
     let after = account(&store, 10);
     assert_eq!(after.level(), 1);
     assert_eq!(after.free_skill_points(), 1);
     let silver = dropped_money(reward);
     assert_eq!(
         after.generic_money,
-        before.generic_money + 167 + 10_000 + silver
+        before.generic_money + 167 + silver
     );
     // Bob reached none.
     assert!(report.players[1].reward.levels.is_empty());
     // Level 2 pays silver.
     let mut account = Account::new("Eve");
-    assert_eq!(pay_levels(&mut account, 1250), (vec![1, 2], 10_500));
-    // The last level is the hundredth, and pays 250 gold, in silver.
+    assert_eq!(pay_levels(&mut account, 1250), (vec![1, 2], 500));
+    // The last level is the hundredth; it paid 250 gold: nothing now.
     let mut account = Account::new("Eve");
     account.exp_total = 1_287_499;
     assert_eq!(account.level(), 99);
     let silver = account.generic_money;
-    assert_eq!(pay_levels(&mut account, 1), (vec![100], 25_000));
+    assert_eq!(pay_levels(&mut account, 1), (vec![100], 0));
     assert_eq!(pay_levels(&mut account, 1_000_000), (vec![], 0));
-    assert_eq!(account.generic_money, silver + 25_000);
+    assert_eq!(account.generic_money, silver);
 }
 
 #[test]
@@ -2191,7 +2190,7 @@ fn the_days_first_three_victories_pay_double() {
 }
 
 #[test]
-fn the_third_victory_of_the_seventh_day_gives_the_weeks_reward() {
+fn the_third_victory_of_the_seventh_day_completes_the_week() {
     let players = alice_and_bob();
     let store = accounts(&players);
     {
@@ -2203,26 +2202,16 @@ fn the_third_victory_of_the_seventh_day_gives_the_weeks_reward() {
         // Past level 1, far from level 2: the match pays no level's silver.
         alice.exp_total = 600;
     }
-    let before = account(&store, 10);
     let results = Results::new();
     let report = results
         .settle(&result(players.clone()), &store, &terms(), &mut Rng::new(1))
         .unwrap();
     let alice = &report.players[0];
     assert!(alice.reward.daily_bonus);
-    assert_eq!(
-        alice.reward.daily_reward,
-        Some(crate::v026g::bonus::Given {
-            dict_id: GENERIC_MONEY,
-            count: 5_000,
-            item_id: 0
-        })
-    );
+    // No reward comes with it (its gold is gone, the owner's of 2026-11-08).
     let after = account(&store, 10);
-    assert!(after.generic_money >= before.generic_money + 5_000);
     assert!(after.extras.bonus.completed);
-    // The window's message says so: seven days, each made, the reward
-    // given.
+    // The window's message says so: seven days, each made, complete.
     let message = crate::v026g::bonus::message(&after, false)
         .unwrap()
         .unwrap();
@@ -2241,7 +2230,6 @@ fn the_third_victory_of_the_seventh_day_gives_the_weeks_reward() {
     let report = results
         .settle(&next, &store, &terms(), &mut Rng::new(1))
         .unwrap();
-    assert_eq!(report.players[0].reward.daily_reward, None);
     assert!(!report.players[0].reward.daily_bonus);
 }
 
@@ -2249,19 +2237,19 @@ fn the_third_victory_of_the_seventh_day_gives_the_weeks_reward() {
 fn a_level_reached_is_told_with_its_reward() {
     let players = alice_and_bob();
     let store = accounts(&players);
-    // One point short of level 1.
-    store.get(10).unwrap().locked().exp_total = 499;
+    // One point short of level 2 (level 1 paid gold, nothing now).
+    store.get(10).unwrap().locked().exp_total = crate::v026g::account::level_start(2) - 1;
     let silver = account(&store, 10).generic_money;
     let report = Results::new()
         .settle(&result(players), &store, &terms(), &mut Rng::new(1))
         .unwrap();
     let alice = &report.players[0];
-    assert_eq!(alice.reward.levels, [1]);
-    assert_eq!(alice.reward.level_money, 10_000);
+    assert_eq!(alice.reward.levels, [2]);
+    assert_eq!(alice.reward.level_money, 500);
     // Important message type 14: the level, the money's kind twice (silver)
     // and the amount.
-    assert!(alice.notices.contains(&(14, "[1][0][0][10000]".to_owned())));
-    assert!(account(&store, 10).generic_money >= silver + 10_000);
+    assert!(alice.notices.contains(&(14, "[2][0][0][500]".to_owned())));
+    assert!(account(&store, 10).generic_money >= silver + 500);
     // Bob reached none.
     assert!(
         report.players[1]
@@ -2518,7 +2506,6 @@ fn a_match_against_bots_pays_half_and_counts_no_quest() {
         .unwrap();
     let alice = &report.players[0];
     assert!(alice.reward.won && !alice.reward.daily_bonus);
-    assert_eq!(alice.reward.daily_reward, None);
     assert_eq!(alice.reward.quest_money, 0);
     assert!(alice.reward.quest_reputation.is_empty());
     assert_eq!(alice.full.quest_money, 0);
@@ -2661,7 +2648,7 @@ fn a_private_rooms_match_pays_nobody_anything() {
         assert!(reward.quest_reputation.is_empty() && reward.levels.is_empty());
         assert_eq!(reward.level_money, 0);
         assert_eq!((reward.drop, reward.drop_chance), (None, 0.0));
-        assert!(!reward.daily_bonus && reward.daily_reward.is_none());
+        assert!(!reward.daily_bonus);
         assert_eq!(reward.rating_after, reward.rating_before);
         assert!(reward.worn.is_empty() && reward.defects.is_empty());
         assert!(reward.supplies_used.is_empty());
@@ -2787,7 +2774,6 @@ fn a_match_with_a_test_bot_moves_no_rating_and_pays_the_bot_no_daily_bonus() {
         .unwrap();
     let (alice, bob) = (&report.players[0], &report.players[1]);
     assert!(bob.reward.won && !bob.reward.daily_bonus);
-    assert_eq!(bob.reward.daily_reward, None);
     assert_eq!(account(&store, 11).extras.bonus, Default::default());
     assert!(bob.reward.experience > 0 && bob.reward.money > 0);
     assert!(bob.reward.experience < plain.players[1].reward.experience);

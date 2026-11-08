@@ -146,19 +146,10 @@ const MIGRATIONS: &[&str] = &[
     level_stats::MIGRATION,
     // 13: per-mode onboarding allowances.
     mode_intro::MIGRATION,
-    // 14: gold is gone (the owner, 2026-11-08: silver is the one currency):
-    // every balance becomes silver at the game's rate, 100 silver a gold
-    // (`survarium::v026g::prices::GOLD_IN_SILVER`), once, and so does a daily
-    // bonus's reward waiting in gold (dict id 215; silver is 214). The
-    // column stays, always 0.
-    "
-    UPDATE g26_accounts
-    SET generic_money = MIN(generic_money + premium_money * 100, 4294967295), premium_money = 0
-    WHERE premium_money != 0;
-    UPDATE g26_extras
-    SET bonus_reward_dict = 214, bonus_reward_count = MIN(bonus_reward_count * 100, 4294967295)
-    WHERE bonus_reward_dict = 215;
-    ",
+    // 14: none. It was the gold-to-silver conversion of #1523, which never
+    // shipped; that is the one-off pay-back at the release's first start now
+    // ([`SqliteGameRepository::pay_back_once`]). The number stays.
+    "",
 ];
 
 /// The child tables of an account, children of children first.
@@ -474,6 +465,124 @@ impl SqliteGameRepository {
             [key],
         )?;
         Ok(written == 1)
+    }
+
+    /// The one-off pay-back of the release that removed gold and the
+    /// vouchers but the drop card (the owner, 2026-11-08: "we should have
+    /// release script which will give players silver back for gold they
+    /// had", "remove them completely and for players just give back them in
+    /// silver"), once in the database's life ([`PAID_BACK`]), at the first
+    /// start of that release: after srp's own copy of srp.db, which a
+    /// rollback puts back, and before the accounts are loaded. In one
+    /// transaction with its mark:
+    ///
+    /// - a gold balance is silver at 100 a gold
+    ///   (`survarium::v026g::prices::GOLD_IN_SILVER`) and the gold column 0,
+    ///   which nothing reads or writes after it (kept in the schema, unused:
+    ///   the owner's of 2026-11-08);
+    /// - each repair kit, rename voucher and one-day premium voucher held
+    ///   ([`PAID_BACK_VOUCHERS`]) is its shop price in silver, and is taken
+    ///   out of the inventory, the kits and the presets.
+    ///
+    /// A balance stops at the most silver holds. Returns what each account
+    /// was given; `None` when it was done before.
+    /// `scripts/silver-only/preview.py` shows it for a copy of the file.
+    pub fn pay_back_once(&mut self) -> Result<Option<Vec<PaidBack>>, PersistError> {
+        let transaction = self.connection.transaction()?;
+        let done: bool = transaction.query_row(
+            "SELECT EXISTS (SELECT 1 FROM g26_meta WHERE key = ?1)",
+            [PAID_BACK],
+            |row| row.get(0),
+        )?;
+        if done {
+            return Ok(None);
+        }
+        let held = |dict_id: u16| {
+            format!(
+                "COALESCE((SELECT SUM(condition_or_stack) FROM g26_items i \
+                 WHERE i.account_id = a.account_id AND i.dict_id = {dict_id}), 0)"
+            )
+        };
+        let [kit, rename, premium] = PAID_BACK_VOUCHERS.map(|(dict_id, _)| held(dict_id));
+        let mut paid = Vec::new();
+        {
+            let mut rows = transaction.prepare(&format!(
+                "SELECT a.account_id, a.name, a.premium_money, {kit}, {rename}, {premium}
+                 FROM g26_accounts a ORDER BY a.account_id"
+            ))?;
+            let found = rows.query_map([], |row| {
+                Ok(PaidBack {
+                    account_id: row.get(0)?,
+                    name: row.get(1)?,
+                    gold: row.get(2)?,
+                    vouchers: [row.get(3)?, row.get(4)?, row.get(5)?],
+                })
+            })?;
+            for account in found {
+                let account = account?;
+                if account.gold != 0 || account.vouchers != [0; 3] {
+                    paid.push(account);
+                }
+            }
+        }
+        for account in &paid {
+            transaction.execute(
+                "UPDATE g26_accounts SET generic_money = MIN(generic_money + ?2, 4294967295),
+                    premium_money = 0
+                 WHERE account_id = ?1",
+                params![account.account_id, account.silver().min(i64::MAX as u64) as i64],
+            )?;
+        }
+        let ids = PAID_BACK_VOUCHERS.map(|(dict_id, _)| dict_id.to_string()).join(", ");
+        transaction.execute_batch(&format!(
+            "DELETE FROM g26_kit_slots WHERE EXISTS (
+                SELECT 1 FROM g26_items i WHERE i.account_id = g26_kit_slots.account_id
+                    AND i.item_id = g26_kit_slots.item_id AND i.dict_id IN ({ids}));
+             DELETE FROM g26_preset_slots WHERE EXISTS (
+                SELECT 1 FROM g26_items i WHERE i.account_id = g26_preset_slots.account_id
+                    AND i.item_id = g26_preset_slots.item_id AND i.dict_id IN ({ids}));
+             DELETE FROM g26_items WHERE dict_id IN ({ids});"
+        ))?;
+        transaction.execute(
+            "INSERT INTO g26_meta (key, value) VALUES (?1, 1)",
+            [PAID_BACK],
+        )?;
+        transaction.commit()?;
+        Ok(Some(paid))
+    }
+}
+
+/// The vouchers [`SqliteGameRepository::pay_back_once`] takes away, by dict
+/// id, with the silver each is worth: its shop price, its gold price times
+/// 100 (`scripts/content-edit/items.tsv`). The repair kit, the rename
+/// voucher, the one-day premium voucher.
+pub const PAID_BACK_VOUCHERS: [(u16, u64); 3] = [(151, 5_000), (152, 25_000), (213, 5_000)];
+
+/// The `g26_meta` key that says the gold and the removed vouchers were paid
+/// back in silver ([`SqliteGameRepository::pay_back_once`]).
+pub const PAID_BACK: &str = "silver_only_paid_back";
+
+/// What [`SqliteGameRepository::pay_back_once`] found of an account.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PaidBack {
+    pub account_id: u32,
+    pub name: String,
+    /// Its gold balance.
+    pub gold: u64,
+    /// How many of each of [`PAID_BACK_VOUCHERS`] it held.
+    pub vouchers: [u64; 3],
+}
+
+impl PaidBack {
+    /// The silver its balance gains (before the balance's cap).
+    pub fn silver(&self) -> u64 {
+        let vouchers: u64 = self
+            .vouchers
+            .iter()
+            .zip(PAID_BACK_VOUCHERS)
+            .map(|(&count, (_, each))| count.saturating_mul(each))
+            .sum();
+        self.gold.saturating_mul(100).saturating_add(vouchers)
     }
 }
 
@@ -866,7 +975,7 @@ fn write_account(
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
          ON CONFLICT(account_id) DO UPDATE SET
             name = excluded.name, clan_tag = excluded.clan_tag,
-            generic_money = excluded.generic_money, premium_money = 0,
+            generic_money = excluded.generic_money,
             premium_until = excluded.premium_until, exp_total = excluded.exp_total,
             quest_faction = excluded.quest_faction, rating = excluded.rating,
             rating_before = excluded.rating_before, active_kit = excluded.active_kit,
@@ -878,7 +987,8 @@ fn write_account(
             account.name,
             account.clan_tag,
             account.generic_money,
-            // The gold column (migration 14): always 0.
+            // The gold column: kept in the schema and unused (the owner,
+            // 2026-11-08); a new row needs a value.
             0,
             account.premium_until.min(i64::MAX as u64) as i64,
             account.exp_total,
@@ -1057,8 +1167,6 @@ mod tests {
         account.extras.bonus.day = 3;
         account.extras.bonus.last_day = 20_373;
         account.extras.bonus.wins = [3, 3, 1, 0, 0, 0, 0];
-        account.extras.bonus.reward_dict = 77;
-        account.extras.bonus.reward_count = 50;
         account.extras.bonus.completed = true;
         account.extras.bonus.shown_day = 20_373;
         account.room_settings = Some(crate::v026g::room_settings::RoomSettings {
@@ -1193,76 +1301,77 @@ mod tests {
         ));
     }
 
-    /// Migration 14: the gold of a file of before is silver at 100 a gold,
-    /// once; a balance past what silver holds stops at its most.
+    /// The pay-back: gold is silver at 100 a gold, each removed voucher is
+    /// its price in silver and is gone; the drop card and the rest stay; a
+    /// balance stops at its most; a second start pays nothing.
     #[test]
-    fn gold_of_before_is_silver_once() {
-        let temp = TempDb::new("gold");
-        {
-            let connection = Connection::open(temp.path()).unwrap();
-            connection
-                .execute_batch(
-                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
-                )
-                .unwrap();
-            let before = MIGRATIONS.len() - 1;
-            for step in &MIGRATIONS[..before] {
-                connection.execute_batch(step).unwrap();
-            }
-            connection
-                .execute(
-                    "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
-                    [before as i64],
-                )
-                .unwrap();
-            connection
-                .execute_batch(
-                    "INSERT INTO g26_accounts (
-                        account_id, name, clan_tag, generic_money, premium_money,
-                        premium_until, exp_total, quest_faction, rating, rating_before,
-                        active_kit, autobuy, next_item_id, next_quest_instance,
-                        tutorial_step, tutorial_done
-                     ) VALUES
-                     (5, 'Carol', '', 4321, 150, 0, 900, 2, 118, 100, 1, 0, 3, 1, 0, 1),
-                     (6, 'Dave', '', 4294967000, 10, 0, 900, 2, 118, 100, 1, 0, 3, 1, 0, 1),
-                     (7, 'Erin', '', 70, 0, 0, 900, 2, 118, 100, 1, 0, 3, 1, 0, 1);
-                     INSERT INTO g26_extras (account_id, bonus_reward_dict, bonus_reward_count)
-                     VALUES (5, 215, 50), (7, 214, 3000);",
-                )
-                .unwrap();
-        }
-        let silver = |repository: &mut SqliteGameRepository| {
+    fn gold_and_the_removed_vouchers_are_paid_back_once() {
+        let temp = TempDb::new("pay-back");
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        repository
+            .connection
+            .execute_batch(
+                "INSERT INTO g26_accounts (
+                    account_id, name, clan_tag, generic_money, premium_money,
+                    premium_until, exp_total, quest_faction, rating, rating_before,
+                    active_kit, autobuy, next_item_id, next_quest_instance,
+                    tutorial_step, tutorial_done
+                 ) VALUES
+                 (5, 'Carol', '', 1000, 150, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1),
+                 (6, 'Dave', '', 4294967000, 10, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1),
+                 (7, 'Erin', '', 70, 0, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1);
+                 INSERT INTO g26_items (
+                    account_id, item_id, seq, dict_id, condition_or_stack,
+                    repair_time, reroll_time, modifications, upgrades
+                 ) VALUES
+                 (5, 1, 0, 151, 3, 0, 0, '', ''),
+                 (5, 2, 1, 152, 2, 0, 0, '', ''),
+                 (5, 3, 2, 213, 1, 0, 0, '', ''),
+                 (5, 4, 3, 153, 4, 0, 0, '', ''),
+                 (6, 1, 0, 152, 1, 0, 0, '', ''),
+                 (7, 1, 0, 153, 1, 0, 0, '', '');",
+            )
+            .unwrap();
+        let paid = repository.pay_back_once().unwrap().unwrap();
+        let silver: Vec<_> = paid.iter().map(|account| (account.account_id, account.silver())).collect();
+        // Carol: 150 gold, 3 kits and a premium day at 5,000, 2 rename
+        // vouchers at 25,000. Dave: 10 gold and a rename voucher. Erin: none.
+        assert_eq!(silver, [(5, 15_000 + 4 * 5_000 + 2 * 25_000), (6, 1_000 + 25_000)]);
+        assert_eq!((paid[0].gold, paid[0].vouchers), (150, [3, 2, 1]));
+        let state = |repository: &mut SqliteGameRepository| {
             repository
                 .load_all()
                 .unwrap()
                 .into_iter()
-                .map(|(id, account)| (id, account.generic_money))
+                .map(|(id, account)| {
+                    let owned: Vec<_> = account
+                        .inventory
+                        .iter()
+                        .map(|item| (item.dict_id, item.condition_or_stack))
+                        .collect();
+                    (id, account.generic_money, owned)
+                })
                 .collect::<Vec<_>>()
         };
-        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        let expected = [(5, 4321 + 15_000), (6, u32::MAX), (7, 70)];
-        assert_eq!(silver(&mut repository), expected);
-        // A daily bonus waiting in gold waits in silver; one in silver stays.
-        let rewards: Vec<_> = repository
-            .load_all()
-            .unwrap()
-            .into_iter()
-            .map(|(_, account)| (account.extras.bonus.reward_dict, account.extras.bonus.reward_count))
-            .collect();
-        assert_eq!(rewards, [(214, 5_000), (0, 0), (214, 3000)]);
+        let expected = vec![
+            (5, 1000 + 85_000, vec![(153, 4)]),
+            (6, u32::MAX, vec![]),
+            (7, 70, vec![(153, 1)]),
+        ];
+        assert_eq!(state(&mut repository), expected);
+        let gold: i64 = repository
+            .connection
+            .query_row("SELECT SUM(premium_money) FROM g26_accounts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(gold, 0);
+        // Saving an account leaves the gold column alone.
         let (_, carol) = repository.load_all().unwrap().remove(0);
         repository.save(5, &carol).unwrap();
         drop(repository);
-        // Opened again: nothing is converted twice, and no gold is left.
+        // A second start: nothing is paid twice.
         let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert_eq!(silver(&mut repository), expected);
-        let gold: u32 = repository
-            .connection
-            .query_row("SELECT SUM(premium_money) FROM g26_accounts", [], |row| {
-                row.get(0)
-            })
-            .unwrap();
-        assert_eq!(gold, 0);
+        assert_eq!(repository.pay_back_once().unwrap(), None);
+        assert_eq!(state(&mut repository), expected);
     }
 
     #[test]

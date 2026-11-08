@@ -54,13 +54,13 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 | `47 02 <id> <match> 0.0` | `accept_premium_victory_screen(id, matchId)`: the results screen's button | the same, then the match's premium half (`rewards::Results::claim_premium`): `89 87 8B 8C 8E` and notices |
 | `47 05 <id> <f32 discount> <money> <exp> <rep> <u8 faction>` | `accept_premium_with_bonuses` (`MessagePostPremium`), the answer to `A8` | `83 47 05`, then as above. The amounts are the client's echo; the server gives its own |
 | `47 06 <id> <f32 discount>` | `accept_premium_with_discount` (`MessagePremiumDiscount`), the answer to `A9`; closing the window sends id −1, discount −1 | `83 47 02` and the pushes; nothing for −1 |
-| `46 04 <item>` | `item_use`: sent only for a voucher of type 3 (`usable = category == 27 && (type == 3 \|\| type == 0)`; type 0, the rename voucher, opens the rename window instead) | `83 46 04 <item>` (the client takes one off its copy), `94`, `89`, `87`, `8B` |
+| `46 04 <item>` | `item_use`: sent only for a voucher of type 3 (`usable = category == 27 && (type == 3 \|\| type == 0)`; type 0, the rename voucher, opens the rename window instead). [srp] Not read since the vouchers but the drop card are gone (silver-only.md): refused | (was `83 46 04 <item>`: the client takes one off its copy) |
 
 - `83 47 02` and `83 47 04` read nothing; `83 47 05` shows the lobby's "premium activated" notice with the three amounts of the last `A8` (`LobbyMenu.add_important_message`, its type 7). After none of them does the client ask for anything, so `94` is pushed.
 - **`A8`** (0x274FF8 → 0x28A400, PROVEN; corrects social.md §5): `u32 premium seconds` (÷ 3600 → `hours`, which the window does not use), `u32 money`, `u32 experience`, `u32 reputation`, `u32 time left` (seconds, counted down on the premium button), `f32 discount`. The client lists every kind-0 record at `floor(price * (1 - discount) + 0.5)` (`root.set_premium_discount_store`) and opens `root.show_premium_post_reward(money, exp, rep, hours, timeLeft, discount, faction)`. The window preselects the fourth entry.
 - **`A9`** (0x274FBA → 0x28AB20): `f32 discount`; the same list, and `value_old = floor(value / (1 - discount))` in the lobby: a discount of 1 divides by zero.
 - When the original server sent `A8` / `A9` is not known. **[srp]**: only when the operator sets `SRP_PREMIUM_DISCOUNT` (percent, 0..90, default 0): `A9` after the sign-in of an account without premium, `A8` with the results of a match whose premium half was not paid, standing for `SRP_PREMIUM_OFFER_SECONDS` (3600).
-- The one-day voucher's time is its config's `ttl_in_hours: 24`.
+- The one-day voucher's time was its config's `ttl_in_hours: 24` (the voucher is gone, silver-only.md).
 
 ## 3. The two boxes: autobuy and auto-repair (corrects lobby.md §2.7, lobby_requests.md `49 01`)
 
@@ -97,9 +97,9 @@ What a match used: `session::v026g::autobuy` (the player's block of the last tru
 
 ## 4. The daily bonus (`99`, adds to results.md §4.1)
 
-The game's own texts: "Play everyday and get x2 experience and reputation for the first three victories", "On 7th day you will get" the reward, "Complete". The window shows 7 days with a progress of 3 each; a day before the current one is shown done (`LobbyMenu.show_daily_reward_window`); the status bar shows the current day's progress. PROVEN. The reward comes from the data's `daily_bonus_drop` table (always 50 gold).
+The game's own texts: "Play everyday and get x2 experience and reputation for the first three victories", "On 7th day you will get" the reward, "Complete". The window shows 7 days with a progress of 3 each; a day before the current one is shown done (`LobbyMenu.show_daily_reward_window`); the status bar shows the current day's progress. PROVEN. The reward came from the data's `daily_bonus_drop` table (always 50 gold); [srp, the owner's of 2026-11-08] there is none now: `99` carries silver x 0, the run of days and the doubled victories stay (silver-only.md, `session::v026g::bonus`).
 
-[srp]: a day is a UTC day; the run grows by one on the first day after the last day the account was seen (sign-in or a finished match), a missed day or the day after the seventh starts a new run; the reward is rolled at the run's start and given when the run reaches day 7; a victory counts when the team won and the player stayed; the first three of a day pay the match's experience and reputation once more (the results screen's "daily" block, bytes 100 = "+100%"). `99` goes out at every sign-in (its window opened once a day), after a match's results, and for `43 00`.
+[srp]: a day is a UTC day; the run grows by one on the first day after the last day the account was seen (sign-in or a finished match), a missed day or the day after the seventh starts a new run; the run is complete with the seventh day's third victory (no reward); a victory counts when the team won and the player stayed; the first three of a day pay the match's experience and reputation once more (the results screen's "daily" block, bytes 100 = "+100%"). `99` goes out at every sign-in (its window opened once a day), after a match's results, and for `43 00`.
 
 ## 5. The tutorial (`9D`, corrects lobby.md §2.21)
 
@@ -144,7 +144,7 @@ PROVEN: the state becomes `state_choose_faction` when the account has no quest f
 
 `49 03 <name>` → `83 49 03 <name> <ok> [reason]`. `49 04 <name> <u32>`: the u32 is the rename voucher's item id, or 0 to pay gold (`MessageEnterName`: `radioButtonPremium.selected ? 0 : voucherId`; PROVEN). The gold price is 0x8D's fourth value. Answer `83 49 04 <voucher or 0>`, then `8F` with the new name.
 
-[srp]: an account signs in with its login and is shown by its name; a rename changes the name only. A new name must pass the name rules, be shown by no other account and be no other account's login. Price `SRP_RENAME_COST`, default the voucher's 250 gold. (Two accounts registered as `a@x` and `a@y` are both shown as `a`, as in 0.21d: only a rename is checked.)
+[srp]: an account signs in with its login and is shown by its name; a rename changes the name only. A new name must pass the name rules, be shown by no other account and be no other account's login. Paid in silver only (the rename voucher is gone; the u32 is not kept, the answer says 0): `SRP_RENAME_COST`, default 25,000 (the voucher's 250 gold in silver). (Two accounts registered as `a@x` and `a@y` are both shown as `a`, as in 0.21d: only a rename is checked.)
 
 ## 7. The level notice: important message type 14 (corrects social.md §1.4)
 
@@ -157,7 +157,7 @@ PROVEN: the state becomes `state_choose_faction` when the account has no quest f
 | `SRP_PREMIUM_PRICES` | `100,200,400,1000,2500,4500,8000` (90 days sourced, the rest the owner's choice 2026-10-12) | gold for a day, 3 days, a week, a month, 3, 6 months, a year |
 | `SRP_PREMIUM_DISCOUNT` | 0 | percent off premium time, offered by `A9` / `A8`; 0 offers none |
 | `SRP_PREMIUM_OFFER_SECONDS` | 3600 | how long the offer after a match stands |
-| `SRP_RENAME_COST` | 250 | gold for a nickname change |
+| `SRP_RENAME_COST` | 25000 | silver for a nickname change |
 | `SRP_AMMO_USE` | on | `off`: a match takes nothing off the stacks |
 
 ## 9. Open

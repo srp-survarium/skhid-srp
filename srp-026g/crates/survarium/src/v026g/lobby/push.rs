@@ -1194,14 +1194,6 @@ pub fn permitted_upgrade_detached(upgrade_item_id: u32, host_item_id: u32) -> Se
         .done(ServerId::Permitted)
 }
 
-/// `83 46 04`: one of a usable item was used; the client takes one off its
-/// count and drops the item at 0.
-pub fn permitted_item_used(item_id: u32) -> ServerMessage {
-    permitted_event(INVENTORY, 4)
-        .u32(item_id)
-        .done(ServerId::Permitted)
-}
-
 /// `83 46 06`: the reroll window of an item: what the next change costs
 /// in silver (`a`) and in gold (`b`), and, once one of its modifications
 /// was changed, `more`: that modification's id (`was_rerolled_before`,
@@ -1370,13 +1362,12 @@ pub enum Repaired {
     Timed { repair_time: u32 },
     /// At once, with nothing taken from the inventory.
     AtOnce,
-    /// At once with a repair kit: `used` of the kit item are taken.
-    WithKit { kit_item_id: u32, used: u8 },
 }
 
 /// `83 47 03`: repaired. The client sets the item's condition to full and
 /// its `repair_time`; **only for a `repair_time` of 0** it reads a kit item
-/// id, and for a kit it has, how many were used.
+/// id, and for a kit it has, how many were used. srp has no repair kits
+/// (the owner, 2026-11-08): the id is always 0.
 pub fn permitted_repaired(item_id: u32, repaired: Repaired) -> Result<ServerMessage, WireError> {
     let mut writer = permitted_event(SHOP, 3);
     writer.u32(item_id);
@@ -1389,12 +1380,6 @@ pub fn permitted_repaired(item_id: u32, repaired: Repaired) -> Result<ServerMess
         }
         Repaired::AtOnce => {
             writer.u32(0).u32(0);
-        }
-        Repaired::WithKit { kit_item_id, used } => {
-            if kit_item_id == 0 {
-                return Err(WireError::BadValue("a repair kit with no id"));
-            }
-            writer.u32(0).u32(kit_item_id).u8(used);
         }
     }
     Ok(writer.done(ServerId::Permitted))
@@ -1470,10 +1455,9 @@ pub fn permitted_nickname_check(nickname: &str, refusal: Option<NameRefusal>) ->
     writer.done(ServerId::Permitted)
 }
 
-/// `83 49 04`: the nickname was changed; one of the ticket item is taken
-/// (0 for none).
-pub fn permitted_nickname_changed(ticket_item_id: u32) -> ServerMessage {
-    permitted_event(PROFILE, 4)
-        .u32(ticket_item_id)
-        .done(ServerId::Permitted)
+/// `83 49 04`: the nickname was changed. Its u32 is the rename voucher one
+/// was taken of, which the client takes off its copy: always 0, the vouchers
+/// are gone (the owner, 2026-11-08) and a rename is paid in silver.
+pub fn permitted_nickname_changed() -> ServerMessage {
+    permitted_event(PROFILE, 4).u32(0).done(ServerId::Permitted)
 }

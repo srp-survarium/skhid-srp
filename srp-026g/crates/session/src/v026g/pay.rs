@@ -18,7 +18,6 @@
 //! multiplier (`match_levels_dict`), rounded down after multiplying
 //! (PROVEN by SHOT2: every cell of its kills and help rows comes out).
 
-use survarium::v026g::prices::GOLD_IN_SILVER;
 
 /// What one event, or one point of score, pays before the match level's
 /// multipliers: silver, experience, reputation.
@@ -233,22 +232,21 @@ pub const START_RATING: u16 = 100;
 pub const RATING_STEP: f64 = 4.0;
 pub const RATING_SPREAD: f64 = 40.0;
 
-/// The gold of the last level (the wiki's table of February 2015).
-pub const LAST_LEVEL_GOLD: u32 = 250;
-
 /// The silver for reaching `level` (counted from 0, as a 0.26g account's
-/// is): 0.21d's table, which is the wiki's (100 gold at level 1 and every
-/// fifth, silver between: 500 rising by 250 each five levels to 5,000),
-/// and 250 gold at the last level, 100. Gold is gone (the owner, 2026-11-08):
-/// a level that paid gold pays its silver, [`GOLD_IN_SILVER`] a gold.
+/// is): 0.21d's table, which is the wiki's (silver at most levels: 500
+/// rising by 250 each five levels to 5,000). The levels that paid gold (100
+/// at level 1 and every fifth, 250 at the last, 100) pay nothing: gold is
+/// gone and its rewards with it (the owner, 2026-11-08: "there is also gold
+/// given for levels, I would remove that too"). A level still gives its
+/// skill point.
 pub fn level_reward(level: u8) -> u32 {
     use survarium::v021d::results::{LevelReward as Old, level_reward};
     if level >= super::account::MAX_LEVEL {
-        return LAST_LEVEL_GOLD * GOLD_IN_SILVER;
+        return 0;
     }
     match level_reward(level.saturating_add(1)) {
         Old::Money(amount) => amount,
-        Old::Premium(amount) => amount.saturating_mul(GOLD_IN_SILVER),
+        Old::Premium(_) => 0,
     }
 }
 
@@ -360,14 +358,15 @@ mod tests {
     }
 
     #[test]
-    fn the_levels_gold_is_paid_in_silver() {
-        // 100 gold at the wiki's level 1 and every fifth, 250 at the last.
-        assert_eq!(level_reward(1), 10_000);
+    fn the_levels_that_paid_gold_pay_nothing() {
+        // 100 gold at the wiki's level 1 and every fifth, 250 at the last:
+        // none of it now; the silver levels as they were.
+        assert_eq!(level_reward(1), 0);
         assert_eq!(level_reward(2), 500);
-        assert_eq!(level_reward(5), 10_000);
+        assert_eq!(level_reward(5), 0);
         assert_eq!(level_reward(6), 750);
-        assert_eq!(level_reward(95), 10_000);
+        assert_eq!(level_reward(95), 0);
         assert_eq!(level_reward(99), 5_000);
-        assert_eq!(level_reward(100), 25_000);
+        assert_eq!(level_reward(100), 0);
     }
 }

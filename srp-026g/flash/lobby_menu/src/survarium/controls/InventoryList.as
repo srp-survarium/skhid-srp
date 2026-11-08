@@ -100,7 +100,6 @@ package survarium.controls
       
       private var _ignoreNextAttach:int = 0;
       
-      private var _useItemId:uint;
       
       private var _activeItems:int = InventoryTab.INVENTORY;
       
@@ -829,7 +828,6 @@ package survarium.controls
          {
             item_data.clipsInBag = 1 / descrData.required_bags;
          }
-         item_data.usable = item_data.category == ItemCategory.VOUCHERS && (item_data.type == VoucherType.PREMIUM || item_data.type == VoucherType.RENAME);
          var str:String = "";
          var ammoItems:Array;
          var ammoStr:String;
@@ -895,7 +893,7 @@ package survarium.controls
          item_data.sellerIcon = seller_icon;
          item_data.factionId = factionId;
          item_data.price = GangShop.getInstance().getItemPrice(dictId);
-         trace("IL::create_item::",item_data.name,item_data.category,item_data.usable,item_data.type,item_data.category == ItemCategory.VOUCHERS,descrData.descr);
+         trace("IL::create_item::",item_data.name,item_data.category,item_data.type,item_data.category == ItemCategory.VOUCHERS,descrData.descr);
          return item_data;
       }
       
@@ -1318,9 +1316,7 @@ package survarium.controls
       {
          trace("setupInventoryData",p.length);
          _inventoryItems = p;
-         PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(VoucherType.RENAME),0,VoucherType.RENAME,0);
          PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(VoucherType.DROP_CARD),0,VoucherType.DROP_CARD,0);
-         PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(VoucherType.REPAIR),0,VoucherType.REPAIR,0);
          this.addFakeItems(this._inventoryItems);
          if((this._ammoItems))
          {
@@ -1961,8 +1957,7 @@ package survarium.controls
                   icon:icon,
                   state:modifiers[j].state,
                   fix_time_general:modifiers[j].fix_time_general,
-                  fix_cost_general:modifiers[j].fix_cost_general,
-                  fix_cost_gold:modifiers[j].fix_cost_gold
+                  fix_cost_general:modifiers[j].fix_cost_general
                });
             }
          }
@@ -2136,11 +2131,6 @@ package survarium.controls
          Message.showMessage("asks",_obj,true);
       }
       
-      protected function onItemUse() : void
-      {
-         ExternalInterface.call("item_use",this._useItemId);
-      }
-      
       protected function upgradeElelemnt(event:Event = null) : void
       {
          if(this.menuItem() == null)
@@ -2153,30 +2143,6 @@ package survarium.controls
       private function openModifiersWindow() : void
       {
          dispatchEvent(new Event(Events.OPEN_MODIFIERS));
-      }
-      
-      protected function useElement(event:Event = null) : void
-      {
-         var position:Number = itemsTileList.getActualScrollPosition();
-         var item:* = itemsTileList.getRendererAt(itemsTileList.selectedIndex,position);
-         if(!item || !item.data || !item.data.enabled)
-         {
-            return;
-         }
-         trace("useElement::",item.data.type);
-         if(item.data.type == VoucherType.RENAME)
-         {
-            parent["statusPanel"].showChangeNameMessage();
-            return;
-         }
-         var object:Object = {
-            text:LocalizationData.getName("use_item_message"),
-            onYes:this.onItemUse,
-            label_ok:LocalizationData.getName("btn_use_item"),
-            label_cancel:LocalizationData.getName("no")
-         };
-         Message.showMessage("apply",object);
-         _useItemId = item.data.itemId;
       }
       
       protected function craftElement(event:Event = null) : void
@@ -3335,11 +3301,7 @@ package survarium.controls
             {
                return;
             }
-            if((item) && item.usable)
-            {
-               this.useElement();
-            }
-            else if((item) && item.isStack == false)
+            if((item) && item.isStack == false)
             {
                this.wearElement(item);
             }
@@ -3471,13 +3433,6 @@ package survarium.controls
             owned = this.owns(itemData.itemId);
             if(itemAvailable)
             {
-               if(itemData.usable)
-               {
-                  options.push({
-                     name:LocalizationData.getName("btn_use_item"),
-                     click_function:this.useElement
-                  });
-               }
                if(!itemData.isStack && itemData.enabled)
                {
                   if(!itemData.equipped && itemData.superCategory != SuperCategory.UPGRADES)

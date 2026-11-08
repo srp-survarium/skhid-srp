@@ -452,8 +452,6 @@ pub struct Reward {
     /// The match was one of the day's first three victories: its
     /// experience and reputation were paid once more ([`super::bonus`]).
     pub daily_bonus: bool,
-    /// The seven days' reward, given by this victory.
-    pub daily_reward: Option<super::bonus::Given>,
     /// `(dict id, units)` of ammo and other stacks the match is known to
     /// have used ([`super::autobuy`]).
     pub supplies_used: Vec<(u16, u32)>,
@@ -1988,11 +1986,9 @@ impl<'a> Shared<'a> {
         // stayed for may be one of the day's first three. A match against
         // the server's bots counts for none of it.
         if standing == Standing::Finished && !bot && !vs_bots {
-            super::bonus::visit(account, now, rng);
+            super::bonus::visit(account, now);
             if reward.won {
-                let win = super::bonus::count_win(account);
-                reward.daily_bonus = win.doubled;
-                reward.daily_reward = win.given;
+                reward.daily_bonus = super::bonus::count_win(account);
             }
         }
         let mut daily_pay = (0_u32, 0_u32);

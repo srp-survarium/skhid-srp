@@ -19,6 +19,7 @@ package survarium.messages
    import survarium.controls.InventoryList;
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
+   import survarium.controls.SilverPrice;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
    import survarium.item.ItemFactory;
@@ -35,6 +36,9 @@ package survarium.messages
       protected static var _regularCostArray:Array = [];
       
       protected static var _regularCost:uint;
+
+      // The price, in place of the silver checkbox (SilverPrice): made with the window's data.
+      private var _price:SilverPrice;
       
       public var background:MovieClip;
       
@@ -178,6 +182,7 @@ package survarium.messages
          if(_data)
          {
             trace("in:data::",this.newModiferRenderer,this.labelNewModifier);
+            this._price = new SilverPrice(this.checkBoxRegularCost,this.background.x + this.background.width / 2);
             this.lockWindow(false);
             this.craftTimer.visible = false;
             this.newModiferRenderer.visible = false;
@@ -220,10 +225,7 @@ package survarium.messages
             this.dragItemSlot1.dispatchEvent(new Event(Events.DROPED_IN));
             this.dragItemSlot3.dragEnabled = false;
             this.dragItemSlot3.visible = false;
-            this.checkBoxRegularCost.selected = true;
-            this.checkBoxRegularCost.money_type = MoneyType.REGULAR;
-            this.checkBoxRegularCost.toggle = false;
-            this.checkBoxRegularCost.value = _regularCost;
+            this._price.cost = _regularCost;
          }
          this.updateCraftChance();
          this.checkAcceptButton();
@@ -358,9 +360,10 @@ package survarium.messages
          {
             _regularCost = 0;
          }
-         this.checkBoxRegularCost.value = _regularCost;
-         this.checkBoxRegularCost.invalidateState();
-         this.checkBoxRegularCost.validateNow();
+         if(this._price)
+         {
+            this._price.cost = _regularCost;
+         }
       }
       
       public function onDrag(event:DragEvent) : void
@@ -441,7 +444,7 @@ package survarium.messages
          this.labelRegularMoney.visible = false;
          this.successChanceRegular.visible = false;
          this.failChanceRegular.visible = false;
-         this.checkBoxRegularCost.visible = false;
+         this._price.visible = false;
          this.craftTimer.visible = false;
          btnCancel.visible = false;
          btnAccept.x = (width - btnAccept.width) / 2;

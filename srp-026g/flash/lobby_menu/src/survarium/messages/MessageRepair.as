@@ -15,11 +15,10 @@ package survarium.messages
    import survarium.controls.ItemRendererBase;
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
+   import survarium.controls.SilverPrice;
    import survarium.data.LocalizationData;
    import survarium.constants.ItemCondition;
-   import survarium.constants.MoneyType;
    import survarium.constants.RepairPayment;
-   import survarium.constants.VoucherType;
    
    public class MessageRepair extends MessageAccept
    {
@@ -55,6 +54,9 @@ package survarium.messages
       public var textFieldVoucher:TextField;
       
       public var timeToRepair:MovieClip;
+
+      // The price, centred, in place of the pay choices (SilverPrice).
+      private var _price:SilverPrice;
       
       public var icon:MovieClip;
       
@@ -111,17 +113,13 @@ package survarium.messages
             // No quick fix: it was paid in gold, and the game has no gold (the owner, 2026-11-08).
             this.textFieldPremium.visible = false;
             this.checkBox_2.visible = this.checkBox_2.enabled = false;
-            this.textFieldVoucher.text = LocalizationData.getName("use_fix_voucher");
+            // No repair kit either (the owner, 2026-11-08: "premium ticket and repair kit should be
+            // removed too"): a repair is paid in silver, its price centred where the choices were
+            // ("it should just be the price in the middle in silver"); no choice, so no label for one.
+            this.textFieldVoucher.visible = false;
+            this.checkBox_3.visible = this.checkBox_3.enabled = false;
+            this.textFieldRegular.visible = false;
             this.textFieldLabel.text = LocalizationData.getName("repair_window_label");
-            this.textFieldRegular.mouseEnabled = this.textFieldPremium.mouseEnabled = this.textFieldVoucher.mouseEnabled = false;
-            this.checkBox_1.selected = true;
-            this.checkBox_3.selected = false;
-            this.checkBox_1.money_type = MoneyType.REGULAR;
-            this.checkBox_3.money_type = CheckBoxValue.REPAIR_VOUCHER_ICON;
-            this.checkBox_1.toggle = false;
-            this.checkBox_3.toggle = false;
-            this.checkBox_1.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
-            this.checkBox_3.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
             this.itemSlot.data = _data;
             this.redGlow.visible = _data.modifiers.length > 0;
             this.redGlowBottom.visible = this.redGlow.visible;
@@ -138,11 +136,8 @@ package survarium.messages
             this.timeToRepair.visible = this.repairTimeGeneral > 0;
             repairCost = (1 - _data.value / ItemCondition.FULL) * (_data.repairCostRatio * _data.cost) + this.repairCostGeneral;
             trace("MR::init",this.repairCost,_data.value / ItemCondition.FULL,"repairCostGeneral:",this.repairCostGeneral,_data.modifiers,"cost::",_data.cost,_data.repairCostRatio,_data.value);
-            this.checkBox_1.textFieldValue.textColor = 14933471;
-            this.checkBox_3.textFieldValue.textColor = 14933471;
             this.checkBox_1.value = this.repairCost;
             this.checkBox_1.validateNow();
-            this.checkBox_3.value = (_data.modifiers as Array).length;
             this.timeToRepair.x = this.checkBox_1.x + this.checkBox_1.textFieldValue.x + this.checkBox_1.textFieldValue.textWidth + 10;
             this.textFieldDamage.text = _data.value + "%";
             modifiersContainer = new Sprite();
@@ -180,68 +175,25 @@ package survarium.messages
             hasModifiers = (_data.modifiers as Array).length > 0;
             trace("hasModifiers",hasModifiers,(_data.modifiers as Array).length);
             this.background.height = hasModifiers ? 413 : 413 - 25;
-            if(this.checkBox_3.enabled)
-            {
-               this.checkBox_3.enabled = hasModifiers;
-            }
             this.textFieldCritical.visible = this.modifiersList.visible = hasModifiers;
             offset = hasModifiers ? -8 : 25;
             this.checkBox_1.y -= offset;
-            this.checkBox_3.y -= offset;
             this.timeToRepair.y -= offset;
-            this.textFieldRegular.y -= offset;
-            this.textFieldVoucher.y -= offset;
             bbHeight = 48;
             bbPos = this.background.height - 3;
             btnAccept.y = bbPos + 5 - bbHeight;
             btnCancel.y = btnAccept.y;
-            this.checkBox_1.enabled = this.repairCost <= PlayerInfo.genericMoney;
-            if(this.checkBox_3.enabled)
-            {
-               this.checkBox_3.enabled = hasModifiers && PlayerInfo.getVoucherCount(VoucherType.REPAIR) >= Math.max(l,1);
-            }
-            this.checkBox_1.alpha = this.checkBox_1.enabled ? 1 : 0.5;
-            this.checkBox_3.alpha = this.checkBox_3.enabled ? 1 : 0.5;
-            TextFieldEx.setVerticalAlign(this.textFieldVoucher,TextFieldEx.VALIGN_CENTER);
+            this._price = new SilverPrice(this.checkBox_1,this.background.x + this.background.width / 2);
+            this._price.cost = this.repairCost;
+            this._price.alpha = this.repairCost <= PlayerInfo.genericMoney ? 1 : 0.5;
             this.timeToRepair.x = 160 - this.timeToRepair.textField.x - this.timeToRepair.textField.textWidth - 1;
-            this.textFieldRegular.x = this.timeToRepair.visible ? this.timeToRepair.x - this.textFieldRegular.width - 3 : 10;
          }
-         this.checkAcceptButton();
-      }
-      
-      private function unBtnClicked(e:Event) : void
-      {
-         this.checkBox_1.selected = e.target == this.checkBox_1;
-         this.checkBox_3.selected = e.target == this.checkBox_3;
          this.checkAcceptButton();
       }
       
       protected function checkAcceptButton() : void
       {
-         var modifiers:uint = (_data.modifiers as Array).length;
-         var selectedPaymentType:uint = this.getSelectedIndex();
-         if(selectedPaymentType == RepairPayment.REGULAR)
-         {
-            btnAccept.enabled = this.repairCost <= PlayerInfo.genericMoney;
-         }
-         else
-         {
-            btnAccept.enabled = PlayerInfo.getVoucherCount(VoucherType.REPAIR) >= Math.max(modifiers,1);
-         }
-      }
-      
-      protected function getSelectedIndex() : uint
-      {
-         var index:uint;
-         if(this.checkBox_1.selected)
-         {
-            index = RepairPayment.REGULAR;
-         }
-         else
-         {
-            index = RepairPayment.VOUCHER;
-         }
-         return index;
+         btnAccept.enabled = this.repairCost <= PlayerInfo.genericMoney;
       }
       
       override protected function onMessageAccept(event:ButtonEvent = null) : void
@@ -250,19 +202,8 @@ package survarium.messages
          {
             return;
          }
-         var selectedPaymentType:uint = this.getSelectedIndex();
-         var voucherId:uint;
          super.onMessageAccept();
-         trace("repair_item",uint(_data.itemId),uint(selectedPaymentType));
-         if(selectedPaymentType == RepairPayment.VOUCHER)
-         {
-            voucherId = PlayerInfo.getVoucherId(VoucherType.REPAIR);
-            ExternalInterface.call("repair_item",uint(_data.itemId),uint(selectedPaymentType),voucherId);
-         }
-         else
-         {
-            ExternalInterface.call("repair_item",uint(_data.itemId),uint(selectedPaymentType));
-         }
+         ExternalInterface.call("repair_item",uint(_data.itemId),uint(RepairPayment.REGULAR));
       }
    }
 }

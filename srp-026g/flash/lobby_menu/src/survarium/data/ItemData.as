@@ -80,7 +80,6 @@ package survarium.data
       
       public var isWeapon:Boolean = false;
       
-      public var usable:Boolean = false;
       
       public var showed:Boolean = false;
       
@@ -219,7 +218,6 @@ package survarium.data
          itemData.decalAvailable = origin.decalAvailable;
          itemData.upgradesAvailable = origin.upgradesAvailable;
          itemData.isWeapon = origin.isWeapon;
-         itemData.usable = origin.usable;
          itemData.showed = origin.showed;
          itemData.isNew = origin.isNew;
          itemData.enabled = origin.enabled;

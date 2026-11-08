@@ -21,9 +21,9 @@
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::item_params::{covered_slots, item_params, shop_unit};
-use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation, RepairPayment, SHOP_SLOT};
+use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation, SHOP_SLOT};
 use survarium::v026g::lobby::{
-    Bought, CONDITION_UNIT, FULL_CONDITION, Repaired, ServicePrices, limits,
+    Bought, CONDITION_UNIT, FULL_CONDITION, ServicePrices, limits,
 };
 use survarium::v026g::prices;
 use survarium::v026g::quests::FACTIONS;
@@ -83,12 +83,6 @@ pub enum ActionError {
     SkillsLowered,
     /// A reset of a branch that is none, or with a payment that is none.
     BadReset,
-    /// The item is a stack or is not worn: nothing to repair.
-    NothingToRepair,
-    /// A repair paid with a kit: kits fix defects, and srp's
-    /// items have none yet.
-    NoDefects,
-    NotEnoughMoneyForRepair,
     /// Not one of the lobby's factions.
     BadFaction,
     /// The kit has no weapon.
@@ -124,8 +118,6 @@ impl ActionError {
             }
             Self::Skills(_) | Self::SkillsLowered => "st_player_skills_check_failed",
             Self::BadReset => "st_cannot_reroll_skills",
-            Self::NothingToRepair | Self::NoDefects => "st_cannot_repair_item",
-            Self::NotEnoughMoneyForRepair => "st_not_enought_money_for_repair",
             Self::NoWeapon => "st_profile_check_failed_weapon",
             Self::NoAmmo => "st_profile_check_failed_weapon_ammo",
         }
@@ -599,43 +591,6 @@ pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, Act
     })
 }
 
-/// `47 03`: repair an item to full. Paid in silver it costs what the
-/// repair window shows ([`prices::repair_cost`]) and is done at once: the
-/// window's time and its kit payment are for an item's defects,
-/// which srp's items do not have yet. Returns what `83 47 03` carries.
-pub fn repair(
-    account: &mut Account,
-    item_id: u32,
-    payment: RepairPayment,
-) -> Result<Repaired, ActionError> {
-    let dictionary = Dictionary::shared();
-    let owned = account.item(item_id).ok_or(ActionError::NoSuchItem)?;
-    let is_stack = dictionary
-        .item(owned.dict_id)
-        .ok_or(ActionError::NoSuchItem)?
-        .is_stack;
-    if is_stack || owned.condition_or_stack >= FULL_CONDITION {
-        return Err(ActionError::NothingToRepair);
-    }
-    if payment != RepairPayment::Silver {
-        return Err(ActionError::NoDefects);
-    }
-    let cost = prices::repair_cost(
-        dictionary,
-        owned.dict_id,
-        shown_condition(owned.condition_or_stack),
-    );
-    if cost > account.generic_money {
-        return Err(ActionError::NotEnoughMoneyForRepair);
-    }
-    account.generic_money -= cost;
-    if let Some(item) = account.item_mut(item_id) {
-        item.condition_or_stack = FULL_CONDITION;
-        item.repair_time = 0;
-    }
-    Ok(Repaired::AtOnce)
-}
-
 /// Wears an item that is no stack by `fraction` of its full condition (the
 /// item configs' `degrade_per_match` and the like): for the results of a
 /// match. Returns the new condition.
@@ -1014,8 +969,6 @@ mod tests {
             "st_wrong_skill_points_count",
             "st_player_skills_check_failed",
             "st_cannot_reroll_skills",
-            "st_cannot_repair_item",
-            "st_not_enought_money_for_repair",
             "st_profile_check_failed_weapon",
             "st_profile_check_failed_weapon_ammo",
         ];
@@ -1033,9 +986,6 @@ mod tests {
             ActionError::Skills(SkillError::OverLevel { spent: 2, level: 1 }),
             ActionError::SkillsLowered,
             ActionError::BadReset,
-            ActionError::NothingToRepair,
-            ActionError::NoDefects,
-            ActionError::NotEnoughMoneyForRepair,
             ActionError::BadFaction,
             ActionError::NoWeapon,
             ActionError::NoAmmo,
@@ -2370,7 +2320,7 @@ mod tests {
     }
 
     #[test]
-    fn a_worn_item_sells_for_less_and_repairs_for_silver() {
+    fn a_worn_item_sells_for_less() {
         let dictionary = Dictionary::shared();
         let record = prices::price_list()
             .iter()
@@ -2381,50 +2331,13 @@ mod tests {
             .unwrap();
         let mut account = rich(1_000_000);
         let item_id = account.add_item(record.dict_id, FULL_CONDITION);
-        // Nothing to repair on a whole item, or on a stack.
-        assert_eq!(
-            repair(&mut account, item_id, RepairPayment::Silver),
-            Err(ActionError::NothingToRepair)
-        );
         let ammo = account.inventory[1].item_id;
-        assert_eq!(
-            repair(&mut account, ammo, RepairPayment::Silver),
-            Err(ActionError::NothingToRepair)
-        );
-        assert_eq!(
-            repair(&mut account, 999, RepairPayment::Silver),
-            Err(ActionError::NoSuchItem)
-        );
         // A match's wear, a few times over.
         let per_match = wear_per_match(record.dict_id);
         assert!(per_match > 0.0);
         assert_eq!(wear(&mut account, item_id, 0.5), Some(FULL_CONDITION / 2));
         assert_eq!(shown_condition(FULL_CONDITION / 2), 50);
-        let cost = prices::repair_cost(dictionary, record.dict_id, 50);
-        assert!(cost > 0);
-        // Kits fix defects, which no item has.
-        assert_eq!(
-            repair(&mut account, item_id, RepairPayment::Kit { kit_item_id: 5 }),
-            Err(ActionError::NoDefects)
-        );
-        let mut poor = account.clone();
-        poor.generic_money = cost - 1;
-        assert_eq!(
-            repair(&mut poor, item_id, RepairPayment::Silver),
-            Err(ActionError::NotEnoughMoneyForRepair)
-        );
-        let money = account.generic_money;
-        assert_eq!(
-            repair(&mut account, item_id, RepairPayment::Silver),
-            Ok(Repaired::AtOnce)
-        );
-        assert_eq!(account.generic_money, money - cost);
-        assert_eq!(
-            account.item(item_id).unwrap().condition_or_stack,
-            FULL_CONDITION
-        );
         // Sold at half its condition: half of a quarter.
-        wear(&mut account, item_id, 0.5);
         let sold = sell(&mut account, item_id, 1).unwrap();
         assert_eq!(sold.money, record.cost / 4 * 50 / 100);
         // Wear stops at nothing left, and leaves a stack alone.

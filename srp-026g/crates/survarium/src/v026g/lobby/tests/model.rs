@@ -406,29 +406,23 @@ fn repairs_and_drops_change_the_inventory() {
     let mut client = Client::signed_in();
     let mut worn = pistol(1);
     worn.condition_or_stack = 400_000;
-    // The repair kit: any stack serves the model.
     client
         .receive(&inventory(&[worn, ammo(4, 2)]).unwrap())
         .unwrap();
-    let repaired = permitted_repaired(
-        1,
-        Repaired::WithKit {
-            kit_item_id: 4,
-            used: 1,
-        },
-    )
-    .unwrap();
+    let repaired = permitted_repaired(1, Repaired::AtOnce).unwrap();
     assert_eq!(
         client.receive(&repaired),
         Ok(Decoded::Permitted(Permitted::Repaired {
             item_id: 1,
-            repaired: Repaired::WithKit {
-                kit_item_id: 4,
-                used: 1
-            }
+            repaired: Repaired::AtOnce
         }))
     );
-    assert_eq!(client.inventory(), [pistol(1), ammo(4, 1)]);
+    assert_eq!(client.inventory(), [pistol(1), ammo(4, 2)]);
+    // A kit's id (srp has no kits): the model refuses it.
+    assert_eq!(
+        client.receive_raw(0x83, &h("47 03 01000000 00000000 04000000 01")),
+        Err(ModelError::NotInInventory(4))
+    );
     // A repair of an item the client lacks is read no further.
     assert_eq!(
         client.receive(&permitted_repaired(9, Repaired::AtOnce).unwrap()),
@@ -445,9 +439,6 @@ fn repairs_and_drops_change_the_inventory() {
     client.receive(&drop(&pistol(7), 4, 0, 2).unwrap()).unwrap();
     assert_eq!(client.inventory().len(), 3);
     assert_eq!(client.inventory()[1].condition_or_stack, 0);
-    // One of a usable item used.
-    client.receive(&permitted_item_used(4)).unwrap();
-    assert_eq!(client.inventory().len(), 2);
     // A drop with dict id 0: the UI dereferences its dictionary entry.
     assert_eq!(
         client.receive_raw(0x98, &h("01000000 0000 00000000 00000000 00")),

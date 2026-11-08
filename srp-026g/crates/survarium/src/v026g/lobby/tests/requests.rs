@@ -182,7 +182,11 @@ fn inventory_actions() {
         read("46 03 05000000 23010000"),
         M::UseDropCard { a0: 5, a1: 0x123 }
     );
-    assert_eq!(read("46 04 05000000"), M::UseItem { item_id: 5 });
+    // No usable items: the one-day premium voucher is gone.
+    assert_eq!(
+        parse(0x46, &h("04 05000000")),
+        Err(ParseError::UnknownSubType { id: 0x46, sub: 4 })
+    );
     assert_eq!(
         read("46 05 01000000 05000000 02000000 0807060504030201"),
         M::ApplyDecal {
@@ -261,13 +265,14 @@ fn shop_actions() {
             payment: RepairPayment::Silver
         }
     );
-    assert_eq!(
-        read("47 03 09000000 02 0C000000"),
-        M::Repair {
+    // No repair kits: kind 2 is no payment, its kit id too many bytes.
+    assert!(matches!(
+        parse(0x47, &h("03 09000000 02 0C000000")),
+        Err(ParseError::Trailing { message, extra: 4 }) if *message == M::Repair {
             item_id: 9,
-            payment: RepairPayment::Kit { kit_item_id: 12 }
+            payment: RepairPayment::Other(2)
         }
-    );
+    ));
     // No exchange: gold is gone.
     assert_eq!(
         parse(0x47, &h("04 64000000")),
@@ -355,8 +360,7 @@ fn kit_and_account_actions() {
     assert_eq!(
         read("49 04 'Alice' 4D000000"),
         M::ChangeNickname {
-            nickname: "Alice".into(),
-            ticket_item_id: 77
+            nickname: "Alice".into()
         }
     );
     assert_eq!(

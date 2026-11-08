@@ -245,8 +245,7 @@ mod tests {
         let (id, mut account) = repository.load_all().unwrap().into_iter().next().unwrap();
         assert_eq!(
             (id, account.generic_money, &account.room_settings),
-            // Its 5 gold is silver since step 14.
-            (5, 4321 + 500, &None)
+            (5, 4321, &None)
         );
         // And it keeps them from then on.
         account.room_settings = Some(settings());
