@@ -3,8 +3,9 @@
 # dict_id: 0.26g's (the next free after 1823, then after 1883; 0.69d's own ids clash with the scopes,
 # 2001-2468).
 # kind: flag (premium, 300 gold, as 0.26g's 4_x flags), holiday (premium, 300 gold; a 0.69d event
-# or premium decal, prm_decl), drop (dropped, 1,000 silver, as 0.26g's 3_x decals; 0.69d's
-# achievement awards, unl_decl), camo (premium camouflage, 300 gold).
+# or premium decal, prm_decl), drop (dropped, 1,000 silver, as 0.26g's 3_x decals), badge (sold for
+# 50,000 silver by seller 0 at no rank, never dropped, as 0.26g's unl_decl badges; 0.69d's
+# achievement awards, unl_decl there too), camo (premium camouflage, 300 gold).
 # icon: [row, col] of the lobby's atlas (decals: LobbyMenu_DecalsIcons, 82x82, cells free in
 # revision 27's movie, then in the live one, patch 51's; the camouflage: [2, 7] of
 # LobbyMenu_CamoIcons and LobbyMenu_CamoIconsBig).
@@ -55,6 +56,6 @@
 1888	2163	char_decal_7_31	holiday	1	16	Victory
 1889	2193	char_decal_7_35	holiday	1	17	Bloody Hand
 1890	2195	char_decal_7_37	holiday	1	18	The Keeper
-1891	762	char_decal_1_9	drop	3	23	Musician
-1892	903	char_decal_1_10	drop	3	24	Boar hunter
-1893	904	char_decal_1_11	drop	3	25	Deer hunter
+1891	762	char_decal_1_9	badge	3	23	Musician
+1892	903	char_decal_1_10	badge	3	24	Boar hunter
+1893	904	char_decal_1_11	badge	3	25	Deer hunter

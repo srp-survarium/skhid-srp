@@ -14,9 +14,10 @@ drop weight from the dictionary and the config; each item has its row in
 
 - **Items.** Category 26 decals and one category 25 camouflage, each a 0.26g config made from a
   native one of its kind (only the modification id, texture, name key and icon cell differ):
-  flags and holiday decals from `char_decal_4_41` (`prm_decl`, level 4, drop 0), Jarilo and the
-  other achievement decals (0.69d's `unl_decl`) from `char_decal_3_4` (`drp_decl`, level 3, drop
-  160), Steam camo from `camo_new_year` (as camos-069).
+  flags and holiday decals from `char_decal_4_41` (`prm_decl`, level 4, drop 0), Jarilo from
+  `char_decal_3_4` (`drp_decl`, level 3, drop 160), the badges Musician, Boar hunter and Deer
+  hunter (0.69d's `unl_decl` achievement awards) from 0.26g's badge `char_decal_1_1` (`unl_decl`,
+  level 1, drop 0), Steam camo from `camo_new_year` (as camos-069).
 - **Names kept from 0.69d**: config `char_decal_<r>_<c>`, texture `character/human/decal/<r>_<c>`,
   dictionary name `decals_<r>_<c>`, modification `200000 + 100 r + c`, name key
   `st_character_decals_<r>_<c>_name`; the description is 0.26g's generic one. None is taken in
@@ -37,18 +38,19 @@ drop weight from the dictionary and the config; each item has its row in
 - **Icons**: 0.69d's, scaled to the decal atlas's 82x82 cells, in cells empty in revision 27's
   movie (the atlas keeps its 3444x410 size): the flags in row 2, columns 9 to 42; the holiday
   decals [1, 9..11]; Jarilo [3, 22]. Version 2, in cells empty in the live movie (patch 51's): the
-  seven premium decals [1, 12..18] beside the holiday decals, the three achievement decals
-  [3, 23..25] beside Jarilo. Musician, Boar hunter and Deer hunter are not square in 0.69d
-  (82x77, 62x80, 66x80): centred on a transparent square first. Free after them: [1, 19..42],
-  [3, 26..42], [4, 42]. Steam camo: [2, 7] of both camouflage atlases (72x72 and
+  seven premium decals [1, 12..18] beside the holiday decals, the three badges [3, 23..25] beside
+  Jarilo. Musician, Boar hunter and Deer hunter are not square in 0.69d (82x77, 62x80, 66x80):
+  centred on a transparent square first. Free after them: [1, 19..42], [3, 26..42], [4, 42].
+  Steam camo: [2, 7] of both camouflage atlases (72x72 and
   140x140, its 0.69d icons). The big camouflage atlas is a JPEG; the porter now writes it back
   lossless: the lobby movie grows by about 2.5 MB (40.3 to 42.9 MB).
 
 ## The list and the prices (proposed; the owner's call)
 
 Flags sell like 0.26g's 77 flags and coats of arms: premium, 300 gold, seller 0 (the gold list,
-`shop_offers::premium_price_list`), never dropped. srp never sells a decal for silver (`prices.rs`:
-"decals ... not listed"), so a silver decal can only drop.
+`shop_offers::premium_price_list`), never dropped. srp sells no decal for silver but the badges
+(`prices::is_badge`: `unl_decl`, not premium; since 2026-11-07), so another silver decal can only
+drop.
 
 | id | item | 0.69d | kind | price | drop | icon |
 |---|---|---|---|---|---|---|
@@ -70,22 +72,25 @@ Flags sell like 0.26g's 77 flags and coats of arms: premium, 300 gold, seller 0 
 | 1888 | Victory | 2163 `char_decal_7_31` | holiday (0.69d premium) | 300 gold | 0 | [1, 16] |
 | 1889 | Bloody Hand | 2193 `char_decal_7_35` | holiday (0.69d premium) | 300 gold | 0 | [1, 17] |
 | 1890 | The Keeper | 2195 `char_decal_7_37` | holiday (0.69d premium) | 300 gold | 0 | [1, 18] |
-| 1891 | Musician | 762 `char_decal_1_9` | drop (0.69d: an achievement award) | 1,000 silver (sells back 250) | 160 | [3, 23] |
-| 1892 | Boar hunter | 903 `char_decal_1_10` | drop (0.69d: an achievement award) | 1,000 silver (sells back 250) | 160 | [3, 24] |
-| 1893 | Deer hunter | 904 `char_decal_1_11` | drop (0.69d: an achievement award) | 1,000 silver (sells back 250) | 160 | [3, 25] |
+| 1891 | Musician | 762 `char_decal_1_9` | badge (0.69d: an achievement award) | 50,000 silver, seller 0, no rank (sells back 12,500) | 0 | [3, 23] |
+| 1892 | Boar hunter | 903 `char_decal_1_10` | badge (0.69d: an achievement award) | 50,000 silver, seller 0, no rank (sells back 12,500) | 0 | [3, 24] |
+| 1893 | Deer hunter | 904 `char_decal_1_11` | badge (0.69d: an achievement award) | 50,000 silver, seller 0, no rank (sells back 12,500) | 0 | [3, 25] |
 
 - 0.69d's prices: flags 50 gold, Herbs 10,000 silver, Clover ornament and Horseshoe 100,000
   silver, Jarilo 1,000 silver, Steam camo free; version 2's: Matchsticks 10,000 silver, the other
   six premium decals 100,000 silver (`prm_decl`), Musician, Boar hunter and Deer hunter 1,000
   silver (`unl_decl`, achievement awards).
 - Version 2 (the owner, 2026-11-08): the seven `prm_decl` decals are holiday decals as Herbs,
-  Clover ornament and Horseshoe; the three achievement decals drop as Jarilo (the same 0.69d
-  series, `char_decal_1_x`). "300 gold" is main's today; "Silver only" (#1523, open) turns every
+  Clover ornament and Horseshoe; Musician, Boar hunter and Deer hunter are badges, sold for 50,000
+  silver: `unl_decl` and not premium, so `prices::is_badge` sells them as gear for their
+  `base_cost`, by seller 0 at no rank (no faction, no ShopRules row), and with drop weight 0
+  nothing drops them (`drops::droppable`). "300 gold" is main's today; "Silver only" (#1523, open) turns every
   premium price into its gold price x 100 in silver (30,000) by its rows of `content-edit/items.tsv`.
 - Event rewards in 0.69d: Herbs (Summer 2019), Clover ornament and Horseshoe (St Patrick's Day
   2021), Jarilo (an achievement, likely), Steam camo (a promotion). Here all are sold or dropped.
-- Jarilo: the gallery's proposal was 1,000 silver from seller 0; selling a decal for silver needs
-  an srp change, so it drops instead, as 0.26g's 21 drop decals (1,000 silver, weight 160).
+- Jarilo: the gallery's proposal was 1,000 silver from seller 0; selling a decal for silver needed
+  an srp change then (2026-10-22), so it drops instead, as 0.26g's 21 drop decals (1,000 silver,
+  weight 160).
 
 ## Open for the owner
 
@@ -113,7 +118,11 @@ Flags sell like 0.26g's 77 flags and coats of arms: premium, 300 gold, seller 0 
   list up to patch 53): 103 files differ from what players have, all of them this version's: its
   90 new files (10 item configs, 80 textures), the dictionary, the 11 localizations (the ten
   languages' catalog and `original`) and the lobby movie, where only the decal atlas changed and
-  only in its ten new cells (the icons read back); the dictionary's rows 1884-1893 as listed, no
-  id twice. The names in the five languages 0.69d lacks (Serbian, Czech, Hungarian, Finnish,
-  Belarusian) are ours, in `client-patches/localization/`.
+  only in its ten new cells (the icons read back). The dictionary differs from the live one only
+  in the rows 1884-1893 (new, as listed) and 221 Literator's price (50,000, the same PR's
+  `items.tsv`, `badges-shop.md`); no id twice. The names in the five languages 0.69d lacks (Serbian, Czech, Hungarian, Finnish,
+  Belarusian) are ours, in `client-patches/localization/`. The badges on that build's server game
+  data: `drops::tests::the_069d_badges_are_sold_by_seller_0_and_never_dropped` (ignored; run with
+  `SRP_GAME_DATA`): `prices::price_list` lists each once, 50,000 by seller 0 at level 0, and no
+  drop table's pool at any level has them.
 - Not seen in a game.

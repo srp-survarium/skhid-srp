@@ -7,7 +7,7 @@ usage: python3 -I make_pack.py --stock <folder> --donor <folder> --out <packs fo
 
 --stock  0.26g's templates, at their game paths or flattened as dbgrab writes them
          (gameplay__items__...), from the stock resources.db (no Skhid patch carries them):
-         gameplay/items/upgrades/decals/char_decal_{4_41,3_4}.options,
+         gameplay/items/upgrades/decals/char_decal_{4_41,3_4,1_1}.options,
          gameplay/items/upgrades/camouflages/premium/camo_new_year.options,
          textures/character/human/decal/4_41{,_fmap,_nmap,_smap}.options,
          textures/character/human/camo/premium/new_year{,_nmap,_smap}.options.
@@ -20,8 +20,9 @@ Every input is checked against its sha256 (STOCK below, donor.sha256). What the 
 - each decal's item config, made from a 0.26g decal of its kind by content_edit.py's edits: the
   modification id (200000 + 100 x row + column of its 0.69d name), the texture its modifier names,
   the name key and the icon's cell; read back, nothing else differs. A flag or a holiday decal
-  from 0.26g's flag char_decal_4_41 (prm_decl, level 4, no drop); Jarilo and 0.69d's other
-  achievement decals from 0.26g's drop decal char_decal_3_4 (drp_decl, level 3, drop weight 160).
+  from 0.26g's flag char_decal_4_41 (prm_decl, level 4, no drop); Jarilo from 0.26g's drop decal
+  char_decal_3_4 (drp_decl, level 3, drop weight 160); a badge (0.69d's achievement decals Musician,
+  Boar hunter, Deer hunter) from 0.26g's badge char_decal_1_1 (unl_decl, level 1, no drop).
   The camouflage from 0.26g's New Year 2015 (as camos-069 did). 0.69d's own configs are of a later
   format 0.26g cannot read.
 - the textures as 0.69d has them (the formats of 0.26g's decals: DXT5 512^2 diffuse and normal
@@ -62,6 +63,9 @@ TEMPLATES = {
     'drop': {'config': DECAL_CONFIGS + 'char_decal_3_4.options', 'modification': 200304,
              'texture': 'character/human/decal/3_4', 'key': 'st_character_decals_3_4_name',
              'icon': (3, 4)},
+    'badge': {'config': DECAL_CONFIGS + 'char_decal_1_1.options', 'modification': 200101,
+              'texture': 'character/human/decal/1_1', 'key': 'st_character_decals_1_1_name',
+              'icon': (1, 1)},
     'camo': {'config': CAMO_CONFIGS + 'camo_new_year.options', 'modification': 130015,
              'texture': 'character/human/camo/premium/new_year', 'key': 'st_camo_new_year',
              'icon': (1, 7)},
@@ -71,6 +75,7 @@ TEMPLATES['holiday'] = TEMPLATES['flag']
 STOCK = {
     DECAL_CONFIGS + 'char_decal_4_41.options': '3d73d0d0ea24c2908a4b01ea81352645c0e5768f4cef9907c414ed07303f0156',
     DECAL_CONFIGS + 'char_decal_3_4.options': '63c36d452727f00d3c7731c8df23fea4eb87571300c4e4da6fc76ad34a2107e9',
+    DECAL_CONFIGS + 'char_decal_1_1.options': 'b31721144d8b3b2c27f774815862649ac6cd49e798d6f461836931c05c4d194f',
     CAMO_CONFIGS + 'camo_new_year.options': '6f4c32c193669ffb97c3b1ddaaf0bf260df5dfbb0463033ba46bb238b935c86c',
     DECAL_TEXTURES + '4_41.options': 'df379225eac9eec632cf33389c4f62250ec2314f76b002cca18c4170297ceb90',
     DECAL_TEXTURES + '4_41_fmap.options': '4a360f03fe2638a7b41aa4f0af1d590600ae74504fb7d99b65a7e744e9004d2d',
@@ -83,8 +88,11 @@ STOCK = {
 
 # Prices (the owner's call; docs/notes/decals-069d.md): `base_cost` and `is_premium` of the
 # dictionary row. srp sells a premium item for its gold `base_cost` (shop_offers::
-# premium_price_list); a decal that is not premium is never sold (prices.rs) but drops.
-PRICES = {'flag': (300, True), 'holiday': (300, True), 'drop': (1000, False), 'camo': (300, True)}
+# premium_price_list); a badge (unl_decl, not premium: prices::is_badge) as gear for its silver
+# `base_cost`, by seller 0 at no rank (the owner, 2026-11-08: 50,000); another decal that is not
+# premium is never sold (prices.rs) but drops.
+PRICES = {'flag': (300, True), 'holiday': (300, True), 'drop': (1000, False), 'badge': (50000, False),
+          'camo': (300, True)}
 
 DECAL_ICON = 82
 ATLAS = 'flash_movies/lobby_menu.swf'
@@ -284,7 +292,7 @@ def main():
         'notes': [
             'made by srp-026g/scripts/decals-069d/make_pack.py from items.tsv, texts.tsv and donor.sha256',
             'donor: Survarium 0.69d0 (the volumes 069d-vs-026-items/work/latest.tsv names)',
-            'item configs: 0.26g char_decal_4_41 (flags, holiday decals), char_decal_3_4 (Jarilo, the achievement decals), '
+            'item configs: 0.26g char_decal_4_41 (flags, holiday decals), char_decal_3_4 (Jarilo), char_decal_1_1 (the badges), '
             'camo_new_year (Steam camo) with the modification id, texture, icon cell and name key',
         ] + [f'{item["dict_id"]} {item["name"]}: 0.69d {item["donor_id"]} {item["donor"]} ({item["english"]})'
              for item in items],
