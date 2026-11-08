@@ -2775,9 +2775,11 @@ st_srp_rooms_pool_hint	Ezek közül 3 kerül szavazásra.
 st_srp_rooms_private_room	Privát szoba: max. 20 játékos; te osztod a csapatokat és indítasz.
 st_srp_rooms_queue	Sor
 st_srp_rooms_queue_room	Sorba állás
+st_srp_rooms_queue_spectate	Sorba állás és nézés
 st_srp_rooms_room	Szoba
 st_srp_rooms_room_chat	Szobachat
 st_srp_rooms_servers	Szobák
+st_srp_rooms_spectators	Nézők:
 st_srp_rooms_start_hint	Ha mindenki bent van, nyomd meg az Indítás gombot.
 st_srp_rooms_start_match	Indítás
 st_srp_rooms_starts	A meccs kezdéséig
@@ -2816,6 +2818,17 @@ st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_viewer_back	Vissza
+st_srp_viewer_cap_ctrl	Ctrl
+st_srp_viewer_cap_space	Space
+st_srp_viewer_cursor	Kurzor
+st_srp_viewer_filter	Szűrő
+st_srp_viewer_hide	Elrejtés
+st_srp_viewer_moments	Pillanatok
+st_srp_viewer_moments_all	Mind
+st_srp_viewer_moments_followed	Követett
+st_srp_viewer_moments_mine	Saját
+st_srp_viewer_pause	Szünet
 st_srp_vulkan_dedicated_gpu	Dedikált GPU előnyben
 st_srp_vulkan_dedicated_gpu_hint	Laptopokon az erősebb videokártyát választja.\n+ Jobb teljesítmény laptopokon\n- Több akkut fogyaszt
 st_srp_vulkan_frame_limit	FPS-korlát

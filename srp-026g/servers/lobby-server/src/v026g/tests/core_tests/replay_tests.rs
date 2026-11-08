@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use session::v026g::replays::{ReplaySettings, Replays, Sidecar, oldest_replayable_here};
+use session::v026g::replays::{ReplaySettings, Replays, Sidecar, Status, oldest_replayable_here};
 use survarium::v026g::lobby::{REPLAY_ASK, REPLAY_START};
 
 use super::*;
@@ -127,12 +127,12 @@ fn a_player_of_the_match_gets_the_link_before_a_ready_row() {
         Ok(MATCH)
     );
 
-    // Bob did not play it: `not_yours`, no link; his polls are his own.
+    // Bob did not play it: anyone may watch (`SRP_REPLAY_WATCH=all`, the
+    // default), so he gets a link of his own.
     world.ask(bob, request::player_details(REPLAY_ASK, MATCH));
-    assert_eq!(
-        poll(&mut world, bob),
-        (None, "R1;not_yours;1f07c8fb;0".into())
-    );
+    let (link, row) = poll(&mut world, bob);
+    assert_eq!(row, "R1;ready;1f07c8fb;12");
+    assert_ne!(link.expect("Bob's link").split(' ').nth(2), Some(token));
     // Carol played it with revision 12 (the patches' mount, no
     // replay link): her game cannot start a replay.
     world.ask(carol, request::player_details(REPLAY_ASK, MATCH));
@@ -361,4 +361,193 @@ fn every_refusal_fits_the_message_box_in_every_language() {
     }
     // 14 has no tag: the release of that revision, unnamed.
     assert!(!refusal_text(refusals[2], None).contains("026g-rev"));
+}
+
+/// From two who can play to their room's match: the vote's 15 s, the wait
+/// of `rooms_tests::spec` (15 s), and a little more.
+const ROOM_TO_MATCH: Duration = Duration::from_secs(32);
+
+/// Replays with sessions on (anyone may watch).
+fn sessions() -> &'static Replays {
+    use session::v026g::replay_watch::WatchSettings;
+    Box::leak(Box::new(
+        Replays::new(None, 6).with_watch(WatchSettings::default()),
+    ))
+}
+
+/// The movie's request to watch `MATCH`'s replay from `seconds`, `place`
+/// first: its `R1` row at once.
+fn ask_to_watch(world: &mut World, index: usize, seconds: u16, place: Option<u8>) -> String {
+    use survarium::v026g::lobby::ReplayWatchAsk;
+    world.take(index);
+    let ask = ReplayWatchAsk::At { seconds, place };
+    world.ask(index, request::player_details(ask.player_id(), MATCH));
+    r1(&world.take(index))
+}
+
+/// The one `R1` row of what came (a room's pushes may come with it).
+fn r1(decoded: &[Decoded]) -> String {
+    let rows: Vec<&String> = decoded
+        .iter()
+        .filter_map(|message| match message {
+            Decoded::EloList(rows) => Some(rows),
+            _ => None,
+        })
+        .flatten()
+        .filter(|(name, place, _, _)| *place == REPLAY_START && name.starts_with("R1;"))
+        .map(|(name, ..)| name)
+        .collect();
+    let [row] = rows[..] else {
+        panic!("not one R1 row: {decoded:?}");
+    };
+    row.clone()
+}
+
+/// The movie's poll in a room: its `R1` row.
+fn poll_in_room(world: &mut World, index: usize) -> String {
+    world.take(index);
+    world.ask(index, request::ranking(REPLAY_START, 1));
+    r1(&world.take(index))
+}
+
+/// A replay session: `preparing` while the match server reads the
+/// recording, then the game is sent to it as a spectator is (to the match
+/// server, under the recorded match, no team) and the polls say `watching`
+/// and where it starts. Its player is in none of its room's matches until
+/// the session is over; nothing of the queue or the matches is touched.
+#[test]
+fn a_replay_session_sends_the_game_to_watch_and_holds_its_room_until_it_ends() {
+    use session::v026g::replay_watch::WatchFrom;
+    use super::rooms_tests::{create, rows, spec};
+    use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let alice = player(&mut world, "Alice", current());
+    let bob = player(&mut world, "Bob", current());
+    let carol = player(&mut world, "Carol", current());
+    let key = create(&mut world, alice, spec(6), None);
+    for index in [bob, carol] {
+        rows(&mut world, index, ROOM_JOIN_BASE + key, 1);
+    }
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let (account, session) = world.ids[carol];
+    let watches = desk.watches();
+    assert!(watches.holds(account));
+    // The match server reads it (`match-server`'s `game/playback.rs`).
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert_eq!(
+        (request.account_id, request.session_id, request.match_id),
+        (account, session, MATCH)
+    );
+    assert_eq!(
+        request.from,
+        WatchFrom::At {
+            ms: 75_000,
+            place: Some(3)
+        }
+    );
+    assert_eq!(poll_in_room(&mut world, carol), "R1;preparing;1f07c8fb;1");
+    // The room's match starts without her.
+    world.advance(ROOM_TO_MATCH);
+    assert!(sent_to_match(&world.take(alice)).is_some(), "Alice plays");
+    assert!(sent_to_match(&world.take(bob)).is_some(), "Bob plays");
+    assert_eq!(sent_to_match(&world.take(carol)), None);
+    // Read: her game is sent.
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((MATCH, 0)));
+    assert!(watches.in_replay(session));
+    assert_eq!(
+        watches.connected(session, world.now),
+        Some((request, 74_500))
+    );
+    assert_eq!(
+        poll_in_room(&mut world, carol),
+        "R1;watching;1f07c8fb;74500"
+    );
+    // Not put into her room's match late meanwhile, nor told it is over.
+    world.advance(Duration::from_secs(20));
+    let decoded = world.take(carol);
+    assert_eq!(sent_to_match(&decoded), None);
+    assert!(
+        !decoded
+            .iter()
+            .any(|message| matches!(message, Decoded::ClientState { .. })),
+        "{decoded:?}"
+    );
+    // Over: free again; the queue never had her.
+    watches.ended(&request);
+    assert!(!watches.holds(account));
+    assert!(world.store.matchmaking().watched(session).is_none());
+    assert!(world.host.made.locked().iter().all(|(_, setup)| {
+        setup
+            .players
+            .iter()
+            .all(|player| player.account_id != account)
+    }));
+}
+
+/// Refused by the match server: the poll says why, with the box for
+/// another epoch's recording; a player not free in the lobby gets `busy`,
+/// and a server without sessions `off`.
+#[test]
+fn a_refused_replay_session_says_why_and_a_busy_player_gets_none() {
+    use session::v026g::replays::Refusal;
+    let desk = sessions();
+    let mut world = World::new();
+    let taras = player(&mut world, "Taras", 17);
+    world.ask(taras, subscribe(1));
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;off;1f07c8fb;0"
+    );
+    world.core.replays = Some(desk);
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let request = desk.watches().next_job(world.now).unwrap();
+    let why = Refusal::Older {
+        from: 16,
+        to: 16,
+        oldest: 17,
+    };
+    desk.watches()
+        .refuse(&request, Status::Incompatible, Some(why), world.now);
+    let (row, said) = poll_refused(&mut world, taras);
+    assert_eq!(row, "R1;incompatible;1f07c8fb;0");
+    assert!(
+        said.unwrap()
+            .starts_with("Этот повтор записан старой версией игры")
+    );
+    // A refusal holds nothing; a session not over: `busy`.
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;preparing;1f07c8fb;2"
+    );
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;busy;1f07c8fb;0"
+    );
+}
+
+/// The results screen's "Watch my deaths" (`0xC1000000`): a session from
+/// the asker's deaths, which the match server finds.
+#[test]
+fn watch_my_deaths_asks_for_a_session_from_the_askers_deaths() {
+    use session::v026g::replay_watch::WatchFrom;
+    use survarium::v026g::lobby::REPLAY_WATCH_MY_DEATHS;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let taras = player(&mut world, "Taras", current());
+    world.take(taras);
+    world.ask(taras, request::player_details(REPLAY_WATCH_MY_DEATHS, MATCH));
+    assert_eq!(r1(&world.take(taras)), "R1;preparing;1f07c8fb;2");
+    let request = desk.watches().next_job(world.now).unwrap();
+    assert_eq!(request.from, WatchFrom::MyDeaths);
 }

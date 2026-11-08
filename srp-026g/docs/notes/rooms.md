@@ -299,6 +299,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     "Leave queue", enabled even if the kit cannot play. Cancellation restores the usual
     Join/Queue action. Above the list there is only the queue position and room name,
     with no second Leave queue button.
+  - **Queue and spectate** (the owner's of 2026-11-05): a second button beside Queue that
+    also watches the room's running match while the player waits, and plays it when a place
+    frees; the plain Queue stays in the lobby: [queue-spectate.md](queue-spectate.md).
 - **Maintenance:** within 30 min of one, no vote or match starts and no room is made; a room
   not playing is disbanded at once, one playing after its match (code 9 to its members and
   queue).

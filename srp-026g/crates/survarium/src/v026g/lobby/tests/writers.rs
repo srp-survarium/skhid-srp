@@ -607,6 +607,31 @@ fn a_replay_poll_is_answered_with_one_row_at_the_replay_start() {
     assert_eq!(rows[0].0, longest);
 }
 
+/// A replay session's ask: `3D`'s `player` is `0xC0 <place> <seconds u16>`,
+/// 0xFF for any place, or `0xC1000000` for the asker's deaths; no account
+/// id or other srp `player` reads as one.
+#[test]
+fn a_replay_watch_ask_carries_the_time_and_the_place() {
+    let ask = ReplayWatchAsk::At {
+        seconds: 75,
+        place: Some(3),
+    };
+    assert_eq!(ask.player_id(), 0xC003_004B);
+    assert_eq!(ReplayWatchAsk::of(0xC003_004B), Some(ask));
+    assert_eq!(
+        ReplayWatchAsk::of(0xC0FF_0000),
+        Some(ReplayWatchAsk::At {
+            seconds: 0,
+            place: None
+        })
+    );
+    assert_eq!(ReplayWatchAsk::of(0xC100_0000), Some(ReplayWatchAsk::MyDeaths));
+    assert_eq!(ReplayWatchAsk::MyDeaths.player_id(), 0xC100_0000);
+    for other in [REPLAY_ASK, GEAR_BY_PLACE, GEAR_IN_ROOM, 0x7FFF_FFFF, 1, 0xC100_0001] {
+        assert_eq!(ReplayWatchAsk::of(other), None);
+    }
+}
+
 /// "Player vs Bots": the status (`B1` and a row a map, from 2 050 000 000)
 /// and a choice's answer (`B2`, at the start it was asked with), as the
 /// client reads them; every name within the 63 bytes, every start above

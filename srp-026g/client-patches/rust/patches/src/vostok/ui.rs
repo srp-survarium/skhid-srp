@@ -73,6 +73,11 @@ pub struct GameWorldUi<'t> {
 }
 
 impl<'t> GameWorldUi<'t> {
+    /// The hud a sibling module holds (alive with its match on the game's thread).
+    pub(super) fn of(this: raw::GameWorldUi) -> GameWorldUi<'t> {
+        GameWorldUi { this, thread: PhantomData }
+    }
+
     /// At `player_icons.update_start`.
     pub fn at_update_icons(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
         // SAFETY: the context is this site's: update_player_icons' frame, its

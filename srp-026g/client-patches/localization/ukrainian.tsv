@@ -2775,9 +2775,11 @@ st_srp_rooms_pool_hint	Голосування бере 3 картки з них.
 st_srp_rooms_private_room	Приватна кімната: до 20 гравців; команди й старт за вами.
 st_srp_rooms_queue	Черга
 st_srp_rooms_queue_room	Черга в кімнату
+st_srp_rooms_queue_spectate	У чергу й дивитися
 st_srp_rooms_room	Кімната
 st_srp_rooms_room_chat	Чат кімнати
 st_srp_rooms_servers	Кімнати
+st_srp_rooms_spectators	Глядачі:
 st_srp_rooms_start_hint	Натисніть «Почати», коли всі зайдуть.
 st_srp_rooms_start_match	Почати
 st_srp_rooms_starts	Матч почнеться через
@@ -2816,6 +2818,17 @@ st_srp_unit_mps	%1$s м/с
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_viewer_back	Назад
+st_srp_viewer_cap_ctrl	Ctrl
+st_srp_viewer_cap_space	Space
+st_srp_viewer_cursor	Курсор
+st_srp_viewer_filter	Фільтр
+st_srp_viewer_hide	Сховати
+st_srp_viewer_moments	Моменти
+st_srp_viewer_moments_all	Усі
+st_srp_viewer_moments_followed	Відстежуваний
+st_srp_viewer_moments_mine	Мої
+st_srp_viewer_pause	Пауза
 st_srp_vulkan_dedicated_gpu	Пріоритет дискретної GPU
 st_srp_vulkan_dedicated_gpu_hint	Вибирає потужнішу відеокарту на ноутбуках.\n+ Краща продуктивність на ноутбуках\n- Витрачає більше батареї
 st_srp_vulkan_frame_limit	Обмеження FPS

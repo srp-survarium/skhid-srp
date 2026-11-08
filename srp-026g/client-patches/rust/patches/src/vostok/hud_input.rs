@@ -15,7 +15,14 @@ use core::marker::PhantomData;
 use super::context::Context;
 use super::hook::Thread;
 use super::lobby::Lobby;
+use super::world::NetworkClient;
 use super::ui::{Movie, TEXT_LIMIT, c_string, movie_of, string_argument};
+
+/// GFx value types (Scaleform::GFx::Value): bool, int, uint, Number.
+const GFX_BOOL_TYPE: u32 = 2;
+const GFX_INT: u32 = 3;
+const GFX_UINT_TYPE: u32 = 4;
+const GFX_NUMBER: u32 = 5;
 use crate::raw;
 
 /// What the hud shows, as the game keeps it.
@@ -101,6 +108,20 @@ impl<'t> Hud<'t> {
     pub fn movie(&self) -> Option<Movie<'_>> {
         // SAFETY: the hud is alive for the hook, on its thread.
         unsafe { movie_of(self.this.hud_movie()) }
+    }
+
+    /// The player icons' movie (player_icons.swf), when the hud has it.
+    pub fn icons_movie(&self) -> Option<Movie<'_>> {
+        // SAFETY: the hud is alive for the hook, on its thread.
+        unsafe { movie_of(self.this.icons_movie()) }
+    }
+
+    /// The game's network client, on the hook's `thread`.
+    pub fn client<'a>(&self, thread: &'a Thread) -> Option<NetworkClient<'a>> {
+        // SAFETY: the hud's game world, its game and network client live as
+        // long as the hud, on its thread.
+        let client = unsafe { self.this.world()?.game()?.network_client()? };
+        Some(NetworkClient::of(client, thread))
     }
 
     /// The lobby the match's network client keeps (its messaging, the match's places).
@@ -223,6 +244,26 @@ impl<'c> HudCall<'c> {
 
     pub fn thread(&self) -> &Thread {
         self.thread
+    }
+
+    /// The call's argument `index` when it is a number (an int, a uint or a
+    /// Number, GFx types 3, 4 and 5) or a bool (2: 0 or 1).
+    pub fn number_argument(&self, index: u32) -> Option<f64> {
+        // SAFETY: the callback's arguments and their count, alive for the call.
+        unsafe {
+            if index >= *self.frame.count() {
+                return None;
+            }
+            let value = self.frame.arguments()?.at(index as usize);
+            let low = *value.value();
+            match *value.kind() & 0x3F {
+                GFX_BOOL_TYPE => Some(f64::from(low & 0xFF != 0)),
+                GFX_INT => Some(f64::from(low as i32)),
+                GFX_UINT_TYPE => Some(f64::from(low)),
+                GFX_NUMBER => Some(f64::from_bits(u64::from(*value.value_high()) << 32 | u64::from(low))),
+                _ => None,
+            }
+        }
     }
 
     /// Answers the hud movie: invokes its `method` with plain unsigned values

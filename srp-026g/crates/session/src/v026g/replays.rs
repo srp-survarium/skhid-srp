@@ -17,9 +17,10 @@
 //!   the file of the token's match, by a path built here from that match
 //!   id alone ([`Replays::sur_path`]).
 //!
-//! What is checked of the asker (the account played the match) is a
-//! courtesy (owner, 2026-10-15: a replay of a match one did not play is
-//! fine); the line that must hold is that nothing but a converter-made
+//! Who may have a match's replay follows `SRP_REPLAY_WATCH` (anyone by
+//! default, the owner's of 2026-11-08; `match`: its players and the
+//! moderators), as for a replay session (`WatchSettings::may_watch`);
+//! the line that must hold is that nothing but a converter-made
 //! `.sur` is ever served. Tokens are kept in memory only: a restart ends
 //! them all.
 //!
@@ -37,6 +38,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use password_hash::rand_core::{OsRng, RngCore};
 
+use super::replay_watch::{WatchSettings, Watches};
 use crate::LockExt;
 
 /// The `player` of a `3D` that is a replay ask, not a row of a results
@@ -200,6 +202,9 @@ pub enum Status {
     Failed,
     /// Replays are switched off on this server.
     Off,
+    /// A replay session ([`super::replay_watch`]): its game was sent to
+    /// watch the match in the running client.
+    Watching,
 }
 
 impl Status {
@@ -217,6 +222,7 @@ impl Status {
             Self::Busy => "busy",
             Self::Failed => "failed",
             Self::Off => "off",
+            Self::Watching => "watching",
         }
     }
 }
@@ -346,6 +352,78 @@ pub fn match_of_name(name: &str, suffix: &str) -> Option<u32> {
     u32::from_str_radix(stem, 16).ok()
 }
 
+/// A match for good: the stem of its recording's file,
+/// `rec026g_<UTC YYYYMMDD-HHMMSS it was made>_<match id:08x>`, whether it
+/// was recorded or not. The match server's id alone comes again after a
+/// restart (it is random from each start); with the second it was made it
+/// does not.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ReplayId {
+    match_id: u32,
+    stem: String,
+}
+
+impl ReplayId {
+    const PREFIX: &str = "rec026g_";
+
+    /// The match `match_id`, made at `made`.
+    pub fn new(match_id: u32, made: SystemTime) -> Self {
+        Self {
+            match_id,
+            stem: format!("{}{}_{match_id:08x}", Self::PREFIX, utc_stamp(made)),
+        }
+    }
+
+    /// `rec026g_<8 digits>-<6 digits>_<8 lower hex>`, and nothing else.
+    pub fn parse(text: &str) -> Option<Self> {
+        let rest = text.strip_prefix(Self::PREFIX)?;
+        let (stamp, id) = rest.split_once('_')?;
+        let digits =
+            |part: &str, len: usize| part.len() == len && part.bytes().all(|c| c.is_ascii_digit());
+        let (date, time) = stamp.split_once('-')?;
+        if !digits(date, 8) || !digits(time, 6) {
+            return None;
+        }
+        Some(Self {
+            match_id: match_of_name(id, "")?,
+            stem: text.to_owned(),
+        })
+    }
+
+    /// The match server's id.
+    pub fn match_id(&self) -> u32 {
+        self.match_id
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.stem
+    }
+}
+
+/// `YYYYMMDD-HHMMSS`, UTC.
+fn utc_stamp(time: SystemTime) -> String {
+    let secs = time
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs());
+    let (days, rest) = (secs / 86_400, secs % 86_400);
+    // Days since 1970-01-01 to a civil date (H. Hinnant's algorithm).
+    let z = days as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}{month:02}{day:02}-{:02}{:02}{:02}",
+        rest / 3_600,
+        rest % 3_600 / 60,
+        rest % 60
+    )
+}
+
 /// What the sidecar `<id>.json` says of a replay ([`Sidecar::to_json`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sidecar {
@@ -415,23 +493,30 @@ impl Sidecar {
     /// is not played (the owner, 2026-10-17: its games' revision is not
     /// guessed).
     pub fn refusal(&self, revision: u8, oldest: u8) -> Option<Refusal> {
-        let known = || {
-            self.revisions
-                .iter()
-                .flatten()
-                .copied()
-                .filter(|&known| known != 0)
-        };
-        let (Some(from), Some(to)) = (known().min(), known().max()) else {
-            return Some(Refusal::Unknown);
-        };
-        if from < oldest {
-            Some(Refusal::Older { from, to, oldest })
-        } else if to > revision {
-            Some(Refusal::Newer { from, to })
-        } else {
-            None
-        }
+        refusal_of(&self.revisions, revision, oldest)
+    }
+}
+
+/// [`Sidecar::refusal`] of a recording made by games of `revisions` (by
+/// place), for a game of `revision`: also a replay session's
+/// ([`super::replay_watch`]).
+pub fn refusal_of(revisions: &[Option<u8>], revision: u8, oldest: u8) -> Option<Refusal> {
+    let known = || {
+        revisions
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|&known| known != 0)
+    };
+    let (Some(from), Some(to)) = (known().min(), known().max()) else {
+        return Some(Refusal::Unknown);
+    };
+    if from < oldest {
+        Some(Refusal::Older { from, to, oldest })
+    } else if to > revision {
+        Some(Refusal::Newer { from, to })
+    } else {
+        None
     }
 }
 
@@ -624,6 +709,31 @@ enum Recorded {
     No,
 }
 
+/// What a list row says of a match's replay ([`Replays::state`]); its
+/// number on the wire is [`ReplayState::code`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ReplayState {
+    /// No recording kept: never recorded, or closed under the minimum of
+    /// players.
+    NotRecorded = 0,
+    /// The recording is kept (or still being written); its replay is made
+    /// when asked for.
+    Kept = 1,
+    /// The replay is made and plays in the asker's game.
+    Ready = 2,
+    /// The storage cap deleted the recording.
+    Gone = 3,
+    /// The asker's game cannot play it (`old_game`, or `incompatible`).
+    OldVersion = 4,
+}
+
+impl ReplayState {
+    pub fn code(self) -> u8 {
+        self as u8
+    }
+}
+
 /// Why `/replays/<token>` gets no download ([`Replays::take_download`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refused {
@@ -669,6 +779,8 @@ pub struct Replays {
     oldest: u8,
     inner: Mutex<Inner>,
     work: Condvar,
+    /// The replay sessions ([`super::replay_watch`]).
+    watches: Watches,
 }
 
 /// The first six hex digits of a token: all a log line ever shows of one.
@@ -745,7 +857,25 @@ impl Replays {
             oldest: oldest_replayable_here(0),
             inner: Mutex::new(Inner::default()),
             work: Condvar::new(),
+            watches: Watches::new(None),
         }
+    }
+
+    /// Replay sessions on, with these settings (they need the recordings,
+    /// not the `.sur` files: `SRP_RECORD_DIR`).
+    pub fn with_watch(mut self, settings: WatchSettings) -> Self {
+        self.watches = Watches::new(Some(settings));
+        self
+    }
+
+    /// The replay sessions.
+    pub fn watches(&self) -> &Watches {
+        &self.watches
+    }
+
+    /// The oldest patch revision whose recordings are given.
+    pub fn oldest(&self) -> u8 {
+        self.oldest
     }
 
     /// The oldest patch revision whose recordings are given: the server's
@@ -823,6 +953,34 @@ impl Replays {
     }
 
     // ------------------------------------------------------- the lobby
+
+    /// What a list row says of the match's replay, for a game of
+    /// `revision` (`None`: not known, never [`ReplayState::OldVersion`]).
+    /// Nobody's ask is changed or kept, no conversion started; a kept
+    /// recording's revisions are not read, so an old version shows only
+    /// once its replay is made. A recording the cap deleted is
+    /// [`ReplayState::Gone`] only while this process remembers it.
+    pub fn state(&self, match_id: u32, revision: Option<u8>, now: Instant) -> ReplayState {
+        if self.settings.is_none() {
+            return ReplayState::NotRecorded;
+        }
+        let too_old = revision.is_some_and(|r| r < MIN_REVISION);
+        if let Some(sidecar) = self.made(match_id) {
+            let refused = revision.is_some_and(|r| sidecar.refusal(r, self.oldest).is_some());
+            return if too_old || refused {
+                ReplayState::OldVersion
+            } else {
+                ReplayState::Ready
+            };
+        }
+        let mut inner = self.inner.locked();
+        match self.recorded(&mut inner, match_id, now) {
+            Recorded::Kept | Recorded::Writing if too_old => ReplayState::OldVersion,
+            Recorded::Kept | Recorded::Writing => ReplayState::Kept,
+            Recorded::No if inner.deleted.contains(&match_id) => ReplayState::Gone,
+            Recorded::No => ReplayState::NotRecorded,
+        }
+    }
 
     /// A player asks for a match's replay (`3D` with [`REPLAY_ASK`]).
     /// `revision`: its game's patch revision, if known; `known`: what the
@@ -979,11 +1137,20 @@ impl Replays {
         if revision < MIN_REVISION {
             return Ok((Status::OldGame, None));
         }
-        if known.is_some_and(|known| !known.played) {
+        // Who may (`SRP_REPLAY_WATCH`, anyone by default), as for a replay
+        // session.
+        let may_watch = |played: bool| {
+            self.watches
+                .settings()
+                .is_none_or(|settings| settings.may_watch(account_id, played))
+        };
+        if known.is_some_and(|known| !known.played) && !may_watch(false) {
             return Ok((Status::NotYours, None));
         }
         if let Some(sidecar) = self.made(match_id) {
-            if !sidecar.account_ids.is_empty() && !sidecar.account_ids.contains(&account_id) {
+            let played =
+                sidecar.account_ids.is_empty() || sidecar.account_ids.contains(&account_id);
+            if !may_watch(played) {
                 return Ok((Status::NotYours, None));
             }
             if let Some(refusal) = sidecar.refusal(revision, self.oldest) {
@@ -1249,6 +1416,27 @@ impl Replays {
 mod tests {
     use super::*;
 
+    #[test]
+    fn a_replay_id_is_the_recordings_stem_and_parses_back() {
+        assert_eq!(utc_stamp(UNIX_EPOCH), "19700101-000000");
+        let time = UNIX_EPOCH + Duration::from_secs(1_791_945_296);
+        assert_eq!(utc_stamp(time), "20261014-023456");
+        let leap = UNIX_EPOCH + Duration::from_secs(951_782_400 + 3_661);
+        assert_eq!(utc_stamp(leap), "20000229-010101");
+        let id = ReplayId::new(0xAB, time);
+        assert_eq!(id.as_str(), "rec026g_20261014-023456_000000ab");
+        assert_eq!(ReplayId::parse(id.as_str()), Some(id));
+        for bad in [
+            "rec026g_20261014-023456_000000AB",
+            "rec026g_20261014-02345_000000ab",
+            "rec026g_20261014023456_000000ab",
+            "rec026g_20261014-023456_000000ab.srprec",
+            "20261014-023456_000000ab",
+        ] {
+            assert_eq!(ReplayId::parse(bad), None, "{bad}");
+        }
+    }
+
     fn temp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "srp-replays-{name}-{}-{}",
@@ -1339,6 +1527,60 @@ mod tests {
         oldest_replayable_here(0)
     }
 
+    /// A list row's replay state, by what the folders hold and the asker's
+    /// game: nobody's ask kept, no conversion started.
+    #[test]
+    fn a_rows_replay_state_follows_the_recording_and_the_askers_game() {
+        let root = temp("state");
+        let replays = Replays::new(Some(settings(&root)), 6);
+        let now = Instant::now();
+        let state = |match_id, revision| replays.state(match_id, revision, now);
+        let record_dir = replays.settings().unwrap().record_dir.clone();
+        assert_eq!(state(MATCH, Some(current())), ReplayState::NotRecorded);
+        kept(&replays, MATCH);
+        assert_eq!(state(MATCH, Some(current())), ReplayState::Kept);
+        assert_eq!(
+            state(MATCH, Some(MIN_REVISION - 1)),
+            ReplayState::OldVersion
+        );
+        assert!(replays.jobs().is_empty());
+        made(&replays, vec![Some(current())]);
+        assert_eq!(state(MATCH, Some(current())), ReplayState::Ready);
+        assert_eq!(state(MATCH, None), ReplayState::Ready);
+        // Recorded by games newer than the asker's.
+        assert_eq!(state(MATCH, Some(current() - 1)), ReplayState::OldVersion);
+        assert!(replays.inner.locked().asks.is_empty());
+        // Deleted by the cap; one closed under the minimum was never kept.
+        std::fs::remove_file(
+            record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec")),
+        )
+        .unwrap();
+        replays.recording_deleted(MATCH);
+        assert_eq!(state(MATCH, Some(current())), ReplayState::Gone);
+        replays.recording_not_kept(7);
+        assert_eq!(state(7, Some(current())), ReplayState::NotRecorded);
+        // Still being written: kept.
+        std::fs::write(
+            record_dir.join("rec026g_20261015-120000_00000008.srprec.part"),
+            b"x",
+        )
+        .unwrap();
+        replays.recording_kept(8);
+        assert_eq!(state(8, None), ReplayState::Kept);
+        let off = Replays::new(None, 6);
+        assert_eq!(off.state(MATCH, None, now), ReplayState::NotRecorded);
+        let codes = [
+            ReplayState::NotRecorded,
+            ReplayState::Kept,
+            ReplayState::Ready,
+            ReplayState::Gone,
+            ReplayState::OldVersion,
+        ]
+        .map(ReplayState::code);
+        assert_eq!(codes, [0, 1, 2, 3, 4]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn status_words_are_the_contracts() {
         let all = [
@@ -1353,6 +1595,7 @@ mod tests {
             (Status::Busy, "busy"),
             (Status::Failed, "failed"),
             (Status::Off, "off"),
+            (Status::Watching, "watching"),
         ];
         for (status, word) in all {
             assert_eq!(status.word(), word);
@@ -1543,7 +1786,10 @@ mod tests {
     #[test]
     fn an_ask_is_refused_for_an_old_game_another_players_match_and_other_revisions() {
         let root = temp("refused");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = Replays::new(Some(settings(&root)), 6).with_watch(WatchSettings {
+            access: super::super::replay_watch::Access::Match,
+            ..WatchSettings::default()
+        });
         let now_revision = current();
         let newer = now_revision + 1;
         made(&replays, vec![Some(now_revision), Some(newer)]);
@@ -1571,6 +1817,10 @@ mod tests {
             Status::NotYours
         );
         assert_eq!(ask(BOB, Some(newer), None), Status::NotYours);
+        // Anyone may by default: Bob gets it.
+        let open = Replays::new(Some(settings(&root)), 6).with_watch(WatchSettings::default());
+        let at = Instant::now();
+        assert_eq!(open.ask(BOB, MATCH, Some(newer), None, at), Status::Ready);
         // Made by a newer game too: not for the current one.
         assert_eq!(
             ask(ALICE, Some(now_revision), played()),

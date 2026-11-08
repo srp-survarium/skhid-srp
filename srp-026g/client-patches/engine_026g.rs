@@ -233,6 +233,10 @@ unsafe extern "C" {
     pub fn engine_show_scene_movie(scene: *mut c_void, movie: *mut c_void);
     /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
     pub fn engine_hide_scene_movie(movie: *mut c_void, scene: *mut c_void);
+    /// 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0
+    pub fn engine_spectator_camera(world: *mut c_void);
+    /// 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
+    pub fn engine_show_replay_controls(hud: *mut c_void, shown: u32);
 }
 
 #[allow(dead_code)]
@@ -309,6 +313,14 @@ unsafe extern "thiscall" {
     pub fn engine_translate_query(cook: *mut c_void, query: *mut c_void);
     /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
     pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
+    /// 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
+    pub fn engine_follow_player(client: *mut c_void, player: *mut c_void);
+    /// 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
+    pub fn engine_detach_player(client: *mut c_void);
+    /// 0x1ed5c0 survarium::game::pause: game ECX; pops 0; thiscall, called directly
+    pub fn engine_game_pause(game: *mut c_void);
+    /// 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
+    pub fn engine_game_resume(game: *mut c_void);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

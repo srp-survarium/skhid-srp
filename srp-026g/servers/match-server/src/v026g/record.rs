@@ -10,7 +10,8 @@
 //! decoded here; the datagrams are the transport's own (`udp-transport`),
 //! as `SRP_PACKET_LOG` has them, with no address.
 //!
-//! The file, `rec026g_<UTC start>_<match id>.srprec`:
+//! The file, `<replay id>.srprec` (`session::v026g::replays::ReplayId`:
+//! `rec026g_<UTC time the match was made>_<match id>`):
 //!
 //! ```text
 //! "SRPREC01"                         8 bytes, once
@@ -51,7 +52,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use session::v026g::replays::Replays;
+use session::v026g::replays::{ReplayId, Replays};
 use survarium::v026g::lzma2;
 use survarium::v026g::match_msgs::PlayerInput;
 
@@ -192,16 +193,18 @@ impl Recorder {
         Ok(Self { jobs, min_players })
     }
 
-    /// The recording of a new match: its header note goes first.
+    /// The recording of a new match, named by its replay id: its header
+    /// note goes first.
     pub fn open(
         &self,
-        match_id: u32,
+        replay: &ReplayId,
         vs_bots: bool,
         header: serde_json::Value,
         now: Instant,
     ) -> Recording {
         let started = SystemTime::now();
-        let name = format!("rec026g_{}_{match_id:08x}", utc_stamp(started));
+        let match_id = replay.match_id();
+        let name = replay.as_str().to_owned();
         let mut recording = Recording {
             recorder: self.clone(),
             min_players: if vs_bots { 1 } else { self.min_players },
@@ -711,33 +714,13 @@ fn unix_ms(time: SystemTime) -> u64 {
         .map_or(0, |since| since.as_millis() as u64)
 }
 
-/// `YYYYMMDD-HHMMSS` in UTC.
-fn utc_stamp(time: SystemTime) -> String {
-    let secs = time
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs());
-    let (days, rest) = (secs / 86_400, secs % 86_400);
-    // Days since 1970-01-01 to a civil date (H. Hinnant's algorithm).
-    let z = days as i64 + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!(
-        "{year:04}{month:02}{day:02}-{:02}{:02}{:02}",
-        rest / 3_600,
-        rest % 3_600 / 60,
-        rest % 60
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn id(match_id: u32) -> ReplayId {
+        ReplayId::new(match_id, SystemTime::now())
+    }
 
     fn settings(dir: &Path, min_players: usize) -> RecordSettings {
         RecordSettings {
@@ -803,12 +786,12 @@ mod tests {
         settings.replays = Some(Desk(replays.clone()));
         let recorder = Recorder::start(settings).unwrap();
         let now = Instant::now();
-        let empty = recorder.open(1, true, serde_json::json!({}), now);
+        let empty = recorder.open(&id(1), true, serde_json::json!({}), now);
         drop(empty);
-        let mut pvp = recorder.open(2, false, serde_json::json!({}), now);
+        let mut pvp = recorder.open(&id(2), false, serde_json::json!({}), now);
         pvp.entered(0);
         drop(pvp);
-        let mut pve = recorder.open(3, true, serde_json::json!({}), now);
+        let mut pve = recorder.open(&id(3), true, serde_json::json!({}), now);
         pve.entered(0);
         drop(pve);
         let names = settle(&dir, |names| {
@@ -843,21 +826,16 @@ mod tests {
     }
 
     #[test]
-    fn utc_stamps() {
-        assert_eq!(utc_stamp(UNIX_EPOCH), "19700101-000000");
-        let time = UNIX_EPOCH + Duration::from_secs(1_791_945_296);
-        assert_eq!(utc_stamp(time), "20261014-023456");
-        let leap = UNIX_EPOCH + Duration::from_secs(951_782_400 + 3_661);
-        assert_eq!(utc_stamp(leap), "20000229-010101");
-    }
-
-    #[test]
     fn a_match_that_reaches_the_minimum_is_kept_with_every_record() {
         let dir = temp_dir("kept");
         let recorder = Recorder::start(settings(&dir, 2)).unwrap();
         let now = Instant::now();
-        let mut recording =
-            recorder.open(0xAB, false, serde_json::json!({"match_id": "0xab"}), now);
+        let mut recording = recorder.open(
+            &id(0xAB),
+            false,
+            serde_json::json!({"match_id": "0xab"}),
+            now,
+        );
         recording.datagram_in(0, &[1, 2, 3], now);
         recording.entered(0);
         // A late joiner makes the second.
@@ -912,7 +890,7 @@ mod tests {
         let dir = temp_dir("small");
         let recorder = Recorder::start(settings(&dir, 6)).unwrap();
         let now = Instant::now();
-        let mut recording = recorder.open(0xCD, false, serde_json::json!({}), now);
+        let mut recording = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
         for place in 0..5 {
             recording.entered(place);
             recording.datagram_in(place, &[place as u8], now);
@@ -959,7 +937,7 @@ mod tests {
         // The new file is small: only it fits with neither old one.
         settings.max_bytes = 700;
         let recorder = Recorder::start(settings).unwrap();
-        let mut recording = recorder.open(3, false, serde_json::json!({}), Instant::now());
+        let mut recording = recorder.open(&id(3), false, serde_json::json!({}), Instant::now());
         recording.entered(0);
         drop(recording);
         let names = settle(&dir, |names| names.len() == 1);
@@ -1001,11 +979,11 @@ mod tests {
         settings.replays = Some(Desk(replays.clone()));
         let recorder = Recorder::start(settings).unwrap();
         let now = Instant::now();
-        let mut kept = recorder.open(0xAB, false, serde_json::json!({}), now);
+        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
         kept.entered(0);
         kept.entered(1);
         drop(kept);
-        let mut small = recorder.open(0xCD, false, serde_json::json!({}), now);
+        let mut small = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
         small.entered(0);
         drop(small);
         // The writer works on its own thread: wait for both closes.
@@ -1060,7 +1038,7 @@ mod tests {
         let dir = temp_dir("blocks");
         let recorder = Recorder::start(settings(&dir, 1)).unwrap();
         let now = Instant::now();
-        let mut recording = recorder.open(4, false, serde_json::json!({}), now);
+        let mut recording = recorder.open(&id(4), false, serde_json::json!({}), now);
         recording.entered(0);
         // 3 MB of datagrams: three blocks or more.
         let datagram: Vec<u8> = (0..500u32).map(|i| (i * 7 % 251) as u8).collect();

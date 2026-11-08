@@ -17,6 +17,7 @@ use super::*;
 use crate::v026g::LiveView;
 
 mod scaling;
+mod spectate;
 mod squads;
 
 /// Fields of the state's header (`S1;R;<key>;<level>;<max level>;<size>;
@@ -1524,6 +1525,7 @@ fn leave_and_come_back(
             kills: [0, 0],
             played: Some(Duration::from_secs(60)),
             time_left: Some(Duration::from_secs(600)),
+            ..LiveView::default()
         },
     );
     world.host.admitting.locked().insert(ticket);
@@ -2599,7 +2601,7 @@ fn the_teams_are_the_owners_to_move_and_kept_across_matches() {
 }
 
 /// Two accounts made friends, both ways, as an accepted request does.
-fn befriend(world: &mut World, a: usize, b: usize) {
+pub(super) fn befriend(world: &mut World, a: usize, b: usize) {
     let (a, b) = (world.ids[a].0, world.ids[b].0);
     world.store.account(a).unwrap().locked().friends.push(b);
     world.store.account(b).unwrap().locked().friends.push(a);

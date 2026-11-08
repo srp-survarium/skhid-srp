@@ -7,10 +7,12 @@ patch = 86
 [[hook]]
 site = "tab_cursor.key"
 handler = "on_key"
+order = 0
 
 [[hook]]
 site = "hud.callback"
 handler = "on_hud_call"
+order = 0
 
 # A match's (or a replay's) options read, after Blackout's: the cursor of the
 # match before is forgotten.

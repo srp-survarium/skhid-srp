@@ -73,5 +73,8 @@ impl Core<'_> {
         };
         let gear = wire::player_gear(&account.locked(), id, quests::now());
         self.send_made(who.addr, gear);
+        if let Some(player) = self.player_mut(who.addr) {
+            player.shown_kits_of = Some(account_id);
+        }
     }
 }

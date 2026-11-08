@@ -12,6 +12,8 @@ log = { workspace = true }
 openssl = { workspace = true }
 # The URLs the players' updater takes (`server::is_url`), for `mirrors.tsv`.
 resources-db = { workspace = true }
+# The stats API's answers (`history`).
+serde_json = { workspace = true }
 
 session = { workspace = true }
 survarium = { workspace = true }

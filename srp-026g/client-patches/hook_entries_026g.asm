@@ -1546,7 +1546,7 @@ artefact_skills_on_own_lifebone_replay:
     db 0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x54, 0x24, 0x04
     jmp 0x312598
 
-; 0x27c116 process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here: lohook -> packet_recovery_on_loaded
+; 0x27c116 process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here; then the camera back to the local place (get_player(+1F1C44h), set_followed_player, the warmup or player camera), patch 121 its exit done, the join 0x27C1B9 after it (a skip, 0x27C0E3, 0x27C0E7, 0x27C0FD, jumps here too): lohook -> packet_recovery_on_loaded
 global packet_recovery_on_loaded
 extern hook_packet_recovery_on_loaded_chain
 packet_recovery_on_loaded:
@@ -1572,6 +1572,9 @@ packet_recovery_on_loaded:
     je packet_recovery_on_loaded_go
     mov edx, 0x27c11b
     cmp eax, 1
+    je packet_recovery_on_loaded_go
+    mov edx, 0x27c1b9
+    cmp eax, 2
     je packet_recovery_on_loaded_go
     ud2
 packet_recovery_on_loaded_go:
@@ -5795,6 +5798,375 @@ ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
 
+; 0x27a4f4 on_match_packet_received's 0xF6 case (jump table 0x27A738 entry 19; cmp dword [esi+1F1C64h],2 / je 0x27A505): ESI the network client, EBX the message's reader {begin, cursor, size} at the payload (0xF6 is length-prefixed, transport.md); done sets the reader to its end and goes to the common exit (0x27A5AB, the snapshot upload's REQUEST_DONE): lohook -> replay_viewer_on_server_note
+global replay_viewer_on_server_note
+extern hook_replay_viewer_on_server_note
+replay_viewer_on_server_note:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_server_note
+    mov edx, replay_viewer_on_server_note_replay
+    cmp eax, 0
+    je replay_viewer_on_server_note_go
+    mov edx, 0x27a4fb
+    cmp eax, 1
+    je replay_viewer_on_server_note_go
+    mov edx, 0x27a5ab
+    cmp eax, 2
+    je replay_viewer_on_server_note_go
+    ud2
+replay_viewer_on_server_note_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_server_note_replay:
+    db 0x83, 0xbe, 0x64, 0x1c, 0x1f, 0x00, 0x02
+    jmp 0x27a4fb
+
+; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
+global tab_cursor_on_key
+extern hook_tab_cursor_on_key_chain
+tab_cursor_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tab_cursor_on_key_chain
+    mov edx, tab_cursor_on_key_replay
+    cmp eax, 0
+    je tab_cursor_on_key_go
+    mov edx, 0x25cd09
+    cmp eax, 1
+    je tab_cursor_on_key_go
+    mov edx, 0x25cf15
+    cmp eax, 2
+    je tab_cursor_on_key_go
+    ud2
+tab_cursor_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tab_cursor_on_key_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
+    jmp 0x25cd09
+
+; 0x27a7f3 close_current_match before its reason's jump (mov ebx,[ebp+8] / cmp ebx,5, then ja / jmp [table]): EDI the network client, past its guard (+1F1C60h 0 returns, 0x27A7A4; patch 120's played exit comes on to here); every reason then ends the world (0x1F96F0 at 0x27A947 or 0x27A80C; reason 4, a kick, by patch 119's reason 1 path): lohook -> replay_viewer_on_close
+global replay_viewer_on_close
+extern hook_replay_viewer_on_close
+replay_viewer_on_close:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_close
+    mov edx, replay_viewer_on_close_replay
+    cmp eax, 0
+    je replay_viewer_on_close_go
+    mov edx, 0x27a7f9
+    cmp eax, 1
+    je replay_viewer_on_close_go
+    ud2
+replay_viewer_on_close_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_close_replay:
+    db 0x8b, 0x5d, 0x08, 0x83, 0xfb, 0x05
+    jmp 0x27a7f9
+
+; 0x1f8f9e game_world::load's query of the replay controls' movie (cmp [ecx+53C8h],edi / je 0x1F8FD6: only with a replay reader); load is the query's push of replay_player.swf (0x1F8FA6). ECX the game: lohook -> replay_viewer_on_movie_query
+global replay_viewer_on_movie_query
+extern hook_replay_viewer_on_movie_query
+replay_viewer_on_movie_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_movie_query
+    mov edx, replay_viewer_on_movie_query_replay
+    cmp eax, 0
+    je replay_viewer_on_movie_query_go
+    mov edx, 0x1f8fa4
+    cmp eax, 1
+    je replay_viewer_on_movie_query_go
+    mov edx, 0x1f8fa6
+    cmp eax, 2
+    je replay_viewer_on_movie_query_go
+    ud2
+replay_viewer_on_movie_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_movie_query_replay:
+    db 0x39, 0xb9, 0xc8, 0x53, 0x00, 0x00
+    jmp 0x1f8fa4
+
+; 0x1f88cc the movies' query-done callback (0x1F8650) taking the replay controls' result (cmp [eax+53C8h],ecx / je 0x1F8909: only with a replay reader, the test of the query again); take is its read of that result (0x1F88D4). EAX the game: lohook -> replay_viewer_on_movie_take
+global replay_viewer_on_movie_take
+extern hook_replay_viewer_on_movie_take
+replay_viewer_on_movie_take:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_movie_take
+    mov edx, replay_viewer_on_movie_take_replay
+    cmp eax, 0
+    je replay_viewer_on_movie_take_go
+    mov edx, 0x1f88d2
+    cmp eax, 1
+    je replay_viewer_on_movie_take_go
+    mov edx, 0x1f88d4
+    cmp eax, 2
+    je replay_viewer_on_movie_take_go
+    ud2
+replay_viewer_on_movie_take_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_movie_take_replay:
+    db 0x39, 0x88, 0xc8, 0x53, 0x00, 0x00
+    jmp 0x1f88d2
+
+; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
+global tab_cursor_on_hud_call
+extern hook_tab_cursor_on_hud_call_chain
+tab_cursor_on_hud_call:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tab_cursor_on_hud_call_chain
+    mov edx, tab_cursor_on_hud_call_replay
+    cmp eax, 0
+    je tab_cursor_on_hud_call_go
+    mov edx, 0x233d36
+    cmp eax, 1
+    je tab_cursor_on_hud_call_go
+    mov edx, 0x233d73
+    cmp eax, 2
+    je tab_cursor_on_hud_call_go
+    ud2
+tab_cursor_on_hud_call_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tab_cursor_on_hud_call_replay:
+    db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
+    jmp 0x233d36
+
+; 0x23b200 game_world_ui::update_ui's start (push ebx / push ebp / push esi / push edi / mov edi,eax; EAX the hud), every frame the game world shows its interface (game_world::tick 0x1F8023, with the game world's +0A0h): lohook -> replay_viewer_on_frame
+global replay_viewer_on_frame
+extern hook_replay_viewer_on_frame
+replay_viewer_on_frame:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_frame
+    mov edx, replay_viewer_on_frame_replay
+    cmp eax, 0
+    je replay_viewer_on_frame_go
+    mov edx, 0x23b206
+    cmp eax, 1
+    je replay_viewer_on_frame_go
+    ud2
+replay_viewer_on_frame_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_frame_replay:
+    db 0x53, 0x55, 0x56, 0x57, 0x8b, 0xf8
+    jmp 0x23b206
+
+; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> replay_viewer_on_world_unpacked
+global replay_viewer_on_world_unpacked
+extern hook_replay_viewer_on_world_unpacked_chain
+replay_viewer_on_world_unpacked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_world_unpacked_chain
+    mov edx, replay_viewer_on_world_unpacked_replay
+    cmp eax, 0
+    je replay_viewer_on_world_unpacked_go
+    mov edx, 0x27c0d9
+    cmp eax, 1
+    je replay_viewer_on_world_unpacked_go
+    mov edx, 0x27c1e0
+    cmp eax, 2
+    je replay_viewer_on_world_unpacked_go
+    ud2
+replay_viewer_on_world_unpacked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_world_unpacked_replay:
+    db 0x89, 0x75, 0xec, 0x89, 0x75, 0xf0, 0x89, 0x55, 0xf4
+    jmp 0x27c0d9
+
+; 0x27c10a process_dynamic_match_info's raw world load with its arguments pushed (add ecx,1F8h after push 8 / push 1 / push esi, then the load call 0x2D0B70 at 0x27C111): EDI the network client, at ESP the reader then the mode (1): lohook -> replay_viewer_on_world_raw
+global replay_viewer_on_world_raw
+extern hook_replay_viewer_on_world_raw
+replay_viewer_on_world_raw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_world_raw
+    mov edx, replay_viewer_on_world_raw_replay
+    cmp eax, 0
+    je replay_viewer_on_world_raw_go
+    mov edx, 0x27c110
+    cmp eax, 1
+    je replay_viewer_on_world_raw_go
+    ud2
+replay_viewer_on_world_raw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_world_raw_replay:
+    db 0x81, 0xc1, 0xf8, 0x01, 0x00, 0x00
+    jmp 0x27c110
+
 ; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
 global scaleform_capture_on_next_capture
 extern hook_scaleform_capture_on_next_capture
@@ -5915,94 +6287,175 @@ sound_voices_on_voice_made_replay:
     db 0x89, 0x46, 0x04, 0x85, 0xc0
     jmp 0x5cab5
 
+; 0x25cdbd game_world::on_keyboard_action at a key down's action (mov esi,[ebx+53ACh]; EBX the game, EDI the binder's action for the key, 0x25CD64): next/prev player (17h/18h) call spectate_next/previous_player only with the client's +0Dh (0x25CEA1); taken is their return (xor al,al and the epilogue, 0x25CEAE): lohook -> spectator_on_key
+global spectator_on_key
+extern hook_spectator_on_key
+spectator_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spectator_on_key
+    mov edx, spectator_on_key_replay
+    cmp eax, 0
+    je spectator_on_key_go
+    mov edx, 0x25cdc3
+    cmp eax, 1
+    je spectator_on_key_go
+    mov edx, 0x25ceae
+    cmp eax, 2
+    je spectator_on_key_go
+    ud2
+spectator_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spectator_on_key_replay:
+    db 0x8b, 0xb3, 0xac, 0x53, 0x00, 0x00
+    jmp 0x25cdc3
+
+; 0x208d77 chat_handler::add_message, a match line in a match, before it asks for the local place's player (movzx eax,byte [esi+1F1C44h]; ESI the game's network client, EDI the sender's team): plain is the line of one's own team or of no team (0x208DE2), which releases [esp+48h] when not 0: lohook -> spectator_on_match_line
+global spectator_on_match_line
+extern hook_spectator_on_match_line
+spectator_on_match_line:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spectator_on_match_line
+    mov edx, spectator_on_match_line_replay
+    cmp eax, 0
+    je spectator_on_match_line_go
+    mov edx, 0x208d7e
+    cmp eax, 1
+    je spectator_on_match_line_go
+    mov edx, 0x208de2
+    cmp eax, 2
+    je spectator_on_match_line_go
+    ud2
+spectator_on_match_line_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spectator_on_match_line_replay:
+    db 0x0f, 0xb6, 0x86, 0x44, 0x1c, 0x1f, 0x00
+    jmp 0x208d7e
+
+; 0x23b7b9 update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7): lohook -> spectator_on_followed_alive
+global spectator_on_followed_alive
+extern hook_spectator_on_followed_alive
+spectator_on_followed_alive:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spectator_on_followed_alive
+    mov edx, spectator_on_followed_alive_replay
+    cmp eax, 0
+    je spectator_on_followed_alive_go
+    mov edx, 0x23b7bf
+    cmp eax, 1
+    je spectator_on_followed_alive_go
+    ud2
+spectator_on_followed_alive_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spectator_on_followed_alive_replay:
+    db 0x8a, 0x85, 0x3c, 0x03, 0x00, 0x00
+    jmp 0x23b7bf
+
+; 0x27c72c process_player_left_match (0xEA) after leave_match (0x27C720) and its count (0x27C727): mov al,[esi+1F1C44h] / cmp al,0FFh, then je 0x27C79F (no local place: nothing), the local place's own end (0x27C73A: `31 <order> FF` to the lobby, close_current_match(3), the results screen) or a followed player's leave (0x27C776); done is the handler's epilogue (0x27C79F, `ret 4`). ESI the network client, BL the place that left: lohook -> spectator_on_player_left
+global spectator_on_player_left
+extern hook_spectator_on_player_left
+spectator_on_player_left:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spectator_on_player_left
+    mov edx, spectator_on_player_left_replay
+    cmp eax, 0
+    je spectator_on_player_left_go
+    mov edx, 0x27c734
+    cmp eax, 1
+    je spectator_on_player_left_go
+    mov edx, 0x27c79f
+    cmp eax, 2
+    je spectator_on_player_left_go
+    ud2
+spectator_on_player_left_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spectator_on_player_left_replay:
+    db 0x8a, 0x86, 0x44, 0x1c, 0x1f, 0x00, 0x3c, 0xff
+    jmp 0x27c734
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
-
-; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
-global tab_cursor_on_key
-extern hook_tab_cursor_on_key
-tab_cursor_on_key:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_tab_cursor_on_key
-    mov edx, tab_cursor_on_key_replay
-    cmp eax, 0
-    je tab_cursor_on_key_go
-    mov edx, 0x25cd09
-    cmp eax, 1
-    je tab_cursor_on_key_go
-    mov edx, 0x25cf15
-    cmp eax, 2
-    je tab_cursor_on_key_go
-    ud2
-tab_cursor_on_key_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-tab_cursor_on_key_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
-    jmp 0x25cd09
-
-; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
-global tab_cursor_on_hud_call
-extern hook_tab_cursor_on_hud_call
-tab_cursor_on_hud_call:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_tab_cursor_on_hud_call
-    mov edx, tab_cursor_on_hud_call_replay
-    cmp eax, 0
-    je tab_cursor_on_hud_call_go
-    mov edx, 0x233d36
-    cmp eax, 1
-    je tab_cursor_on_hud_call_go
-    mov edx, 0x233d73
-    cmp eax, 2
-    je tab_cursor_on_hud_call_go
-    ud2
-tab_cursor_on_hud_call_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-tab_cursor_on_hud_call_replay:
-    db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
-    jmp 0x233d36
 
 ; 0x79d369 AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated: lohook -> text_input_on_char
 global text_input_on_char
@@ -6956,48 +7409,6 @@ weapon_pickup_on_load_ordinal_go:
 weapon_pickup_on_load_ordinal_replay:
     db 0x8b, 0x47, 0x0c, 0x85, 0xc0
     jmp 0x32bdbf
-
-; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
-global world_check_on_unpacked
-extern hook_world_check_on_unpacked
-world_check_on_unpacked:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_world_check_on_unpacked
-    mov edx, world_check_on_unpacked_replay
-    cmp eax, 0
-    je world_check_on_unpacked_go
-    mov edx, 0x27c0d9
-    cmp eax, 1
-    je world_check_on_unpacked_go
-    mov edx, 0x27c1e0
-    cmp eax, 2
-    je world_check_on_unpacked_go
-    ud2
-world_check_on_unpacked_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-world_check_on_unpacked_replay:
-    db 0x89, 0x75, 0xec, 0x89, 0x75, 0xf0, 0x89, 0x55, 0xf4
-    jmp 0x27c0d9
 
 ; 0x27c0ff process_dynamic_match_info before it loads a raw world (mov ecx,[edi+1F1C40h], the je of 0x27C053 lands here; the load call 0x2D0B70 at 0x27C111): EDI the network client, ESI the packet's reader at the world (its time, then the body); refused is the handler's epilogue: lohook -> world_check_on_raw
 global world_check_on_raw

@@ -11,6 +11,8 @@
 3. When the answer is `ready`, a `9E` goes just before that `91`: `video_link(false, "replay <id> <token> <sha256> <size>")`. The game keeps it hidden; "Download and watch" calls `video_tutorial_link_clicked`, which patch revision 14 turns into `updater_skhid.exe replay <id> <token> <sha256> <size>`.
 4. The updater downloads `GET /replays/<token>` from the server's web page, checks the size and the SHA-256, and starts the game with `-match_replay`.
 
+In the running game instead (no download, no second process): a replay session, `replay-stream.md`.
+
 ## 2. Wire
 
 | message | bytes |

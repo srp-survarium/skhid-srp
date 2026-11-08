@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::v026g::registry::{Live, LivePhase};
+use survarium::v026g::match_msgs::MAX_PLAYERS;
 
 impl Game {
     /// How far the match is now.
@@ -40,10 +41,18 @@ impl Game {
             }
         }
         let mut kills = [0_u16; 2];
+        let mut kills_deaths = [(0, 0); MAX_PLAYERS];
         if let Some(rules) = self.state.as_ref().and_then(|state| state.rules.as_ref()) {
-            for (place, record) in self.formed.places.iter().zip(&rules.kills_deaths) {
+            for ((place, record), kd) in self
+                .formed
+                .places
+                .iter()
+                .zip(&rules.kills_deaths)
+                .zip(&mut kills_deaths)
+            {
                 let team = &mut kills[usize::from(place.team.min(1))];
                 *team = team.saturating_add(record.kills);
+                *kd = (record.kills, record.deaths);
             }
         }
         let clock = self.clock(now);
@@ -54,6 +63,7 @@ impl Game {
             players,
             present,
             kills,
+            kills_deaths,
             played: self
                 .rule
                 .match_started_at()

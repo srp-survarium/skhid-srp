@@ -25,3 +25,5 @@ weapon-pickup = { path = "../../../crates/weapon-pickup" }
 # patch 68's weapon kit: srp's servers pack it, the client reads the same crate
 weapon-kit = { path = "../../../crates/weapon-kit" }
 srp-validate = { path = "../../../crates/srp-validate" }
+# the replay viewer's control messages (patch 130): the match server encodes the same
+replay-control = { path = "../../../crates/replay-control" }

@@ -1,0 +1,12 @@
+[package]
+name = "replay-control"
+version.workspace = true
+edition.workspace = true
+description = "The replay viewer's control messages between a spectator's game and the match server (a recording played as a spectated match); shared by the match server and the client's arena (no_std, no alloc)"
+
+[lints]
+workspace = true
+
+# No dependencies, and no path dev-dependency: link_026g.py builds every
+# crate this manifest names by path into the game's arena.
+[dependencies]

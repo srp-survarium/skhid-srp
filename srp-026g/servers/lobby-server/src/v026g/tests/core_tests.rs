@@ -50,8 +50,13 @@ impl World {
     }
 
     fn with_settings(settings: Settings) -> Self {
+        Self::with_accounts(settings, GameAccounts::new())
+    }
+
+    /// With `accounts` (one on a repository: srp.db's history).
+    fn with_accounts(settings: Settings, accounts: GameAccounts) -> Self {
         let store: &'static SessionStore = Box::leak(Box::new(SessionStore::new()));
-        let accounts: &'static GameAccounts = Box::leak(Box::new(GameAccounts::new()));
+        let accounts: &'static GameAccounts = Box::leak(Box::new(accounts));
         // The tests are written against the stock first kit (the TT-33) and
         // no premium: a new account has neither starter kit nor starter
         // premium unless a test turns them on.
@@ -2201,6 +2206,7 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: setup.map.map().id,
             mode: setup.map.mode(),
             match_level: setup.match_level,
@@ -2214,6 +2220,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            events: Vec::new(),
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2271,6 +2278,7 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: setup.map.map().id,
             mode: setup.map.mode(),
             match_level: setup.match_level,
@@ -2284,6 +2292,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            events: Vec::new(),
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2778,8 +2787,10 @@ mod clan_tests;
 mod feedback_tests;
 mod gear_tests;
 mod items_tests;
+mod live_tests;
 mod mode_intro_tests;
 mod patch_check_tests;
+mod player_matches_tests;
 mod presets_tests;
 mod pvb_tests;
 mod reconnect_tests;

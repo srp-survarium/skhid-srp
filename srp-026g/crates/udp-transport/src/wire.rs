@@ -39,6 +39,8 @@ pub const MULTIPART: u8 = 0xFF;
 /// The match's client→server leave, which a patched client also sends with
 /// a payload: a chunk of its world (client_patch.md §3.4).
 pub const UPLOAD_CARRIER: u8 = 0xE0;
+/// A replay viewer's request on it (`replay_control::Request::LEN`).
+const REPLAY_REQUEST: usize = 14;
 
 /// The low-level ids (transport.md §3.4): one byte, last in the datagram.
 pub mod low_level {
@@ -326,6 +328,10 @@ fn carrier_len(bytes: &[u8]) -> Option<usize> {
     if matches!(head, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0 | 1, 0]) {
         return (bytes.len() >= 20).then_some(20);
     }
+    // A replay viewer's request (`replay_control::REQUEST_HEAD`, 14 bytes).
+    if head == [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x52, 0] {
+        return (bytes.len() >= REPLAY_REQUEST).then_some(REPLAY_REQUEST);
+    }
     let time = u32::from_le_bytes([head[0], head[1], head[2], head[3]]);
     let offset = usize::from(u16::from_le_bytes([head[4], head[5]]));
     let total = usize::from(u16::from_le_bytes([head[6], head[7]]));
@@ -488,6 +494,22 @@ mod tests {
         // never sends such a thing.
         assert!(parse_match(Direction::ToServer, &[9, 3, 0x00, 0xDA, 1]).is_err());
         assert!(parse_match(Direction::ToClient, &[9, 3, 0x00, 0xE0, 1]).is_err());
+    }
+
+    #[test]
+    fn a_replay_request_in_a_multi_datagram_has_its_length() {
+        // As the viewer's game sends it (seen live: the multi flag kept,
+        // another message joined after it).
+        let request = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x52, 0, 4, 1, 1, 0, 0, 0];
+        let mut datagram = vec![7, 3, 0x01, 0xE0];
+        datagram.extend(request);
+        datagram.push(0xDA);
+        let parsed = parse_match(Direction::ToServer, &datagram).unwrap();
+        let ids: Vec<u8> = parsed.messages.iter().map(|message| message.id).collect();
+        assert_eq!(ids, [0xE0, 0xDA]);
+        assert_eq!(parsed.messages[0].payload, request);
+        datagram.truncate(4 + 13);
+        assert!(parse_match(Direction::ToServer, &datagram).is_err());
     }
 
     #[test]

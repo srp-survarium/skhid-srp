@@ -36,6 +36,9 @@ package replay_player_fla
    import scaleform.clik.layout.LayoutData;
    import scaleform.gfx.Extensions;
    import survarium.constants.TeamSide;
+   import survarium.replay.MarkerTicks;
+   import survarium.replay.ReplayText;
+   import survarium.replay.ViewerControls;
    
    public dynamic class MainTimeline extends MovieClip
    {
@@ -88,6 +91,15 @@ package replay_player_fla
       public var temp_options:Array;
       
       public var inDrag:Boolean;
+
+      // srp's: the markers as ticks on the bar (made at the first use: markerTicks())
+      public var _ticks:MarkerTicks;
+
+      // srp's: a replay viewer's Back, Moments switch and key hint (start_viewer), null for a .sur's
+      public var viewer:ViewerControls;
+
+      // srp's: the playback's speed in percent (set_replay_speed, or the stepper's own steps).
+      public var speedPercent:int = 100;
       
       public function MainTimeline()
       {
@@ -165,12 +177,24 @@ package replay_player_fla
          this.layout.reflow();
          this.freeViewButton.x = stage.stageWidth / this.scaleFactor - this.freeViewButton.width - 10;
          this.freeViewButton.y = this.playersBar.y + this.playersBar.height + 4;
+         this.markerTicks().draw();
+      }
+
+      // srp's: the bar's ticks, one a marker (survarium.replay.MarkerTicks), in the font of the controls.
+      public function markerTicks() : MarkerTicks
+      {
+         if(this._ticks == null)
+         {
+            this._ticks = new MarkerTicks(this.bottomPanel.slider,this.freeViewButton.textField.getTextFormat().font);
+         }
+         return this._ticks;
       }
       
       public function onStepperUpdate(e:Event) : void
       {
          var value:Number = this.stepper.value;
          trace("onStepperUpdate::",value);
+         this.speedPercent = Math.round(value * 100);
          ExternalInterface.call("update_play_speed",value);
          this.updateSpeedStepper();
       }
@@ -205,6 +229,48 @@ package replay_player_fla
          this.selectActiveLabel();
       }
       
+      // srp's: the playback's speed from the exe (each Playback note), in percent, 25 to 800 (outside:
+      // the nearest end). The stepper shows it as 0.25x, 0.5x, 1x, 2x, 4x, 8x; nothing goes back to the
+      // exe (update_play_speed is the stepper's own steps).
+      public function set_replay_speed(percent:int) : void
+      {
+         this.speedPercent = Math.max(25,Math.min(800,percent));
+         this.showSpeed();
+      }
+
+      // The stepper's value and label from speedPercent, sending nothing. The bottom panel's frames
+      // set the stepper's art values again (bottom_staff_1): shown again after each (show_buttons),
+      // and the stepper's steps go to the exe again from then.
+      public function showSpeed() : void
+      {
+         this.stepper.removeEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
+         this.stepper.labelFunction = this.speedLabel;
+         if(this.stepper.maximum < 8)
+         {
+            this.stepper.maximum = 10;
+         }
+         this.stepper.minimum = Math.min(this.stepper.minimum,0.25);
+         this.stepper.stepSize = 0.01;
+         this.stepper.value = this.speedPercent / 100;
+         this.updateSpeedStepper();
+         this.stepper.validateNow();
+         // its own updateLabel leaves a field with a selection as it is
+         this.stepper.textField.text = this.speedLabel(this.stepper.value);
+         this.stepper.addEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
+      }
+
+      // A speed as the stepper shows it: 0.25x, 1x, 8x.
+      public function speedLabel(value:Number) : String
+      {
+         return String(Math.round(value * 100) / 100) + "x";
+      }
+
+      public function onShowButtonsFrame(e:Event) : void
+      {
+         removeEventListener(Event.EXIT_FRAME,this.onShowButtonsFrame);
+         this.showSpeed();
+      }
+
       public function setData(value:Object) : void
       {
          trace("setData");
@@ -219,7 +285,10 @@ package replay_player_fla
          this.stepper.minimum = 0.01;
          this.stepper.maximum = 10;
          this.stepper.value = 1;
+         this.speedPercent = 100;
+         this.showSpeed();
          this.layout.reflow();
+         this.markerTicks().draw();
       }
       
       public function updateSpeedStepper() : void
@@ -343,6 +412,7 @@ package replay_player_fla
       public function set_match_time(value:uint) : void
       {
          this.slider.maximum = value;
+         this.markerTicks().draw();
       }
       
       public function set_play_state(value:Boolean) : void
@@ -372,23 +442,77 @@ package replay_player_fla
       
       public function show_buttons(value:Boolean) : void
       {
+         // the frame's script sets the stepper's art values (0): not a speed of the player's
+         this.stepper.removeEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
          this.bottomPanel.gotoAndStop(value ? 1 : 2);
          this.checkLabelButtons();
          this.checkFrameButtons();
          this.bottomPanel.layoutData.offsetV = value ? -10 : 25;
          this.layout.reflow();
+         // the speed over them once the frame's script has run
+         addEventListener(Event.EXIT_FRAME,this.onShowButtonsFrame);
       }
       
+      // The markers: ticks on the bar (srp's, MarkerTicks), and the list the previous/next label buttons
+      // step through, kept hidden (the ticks show what it showed, at their place in time).
       public function set_markers_list(value:Array) : void
       {
          var labels:Array = value;
          this.labelsBar.height = 25 * labels.length + 2;
          this.labelsBar.dataProvider = new DataProvider(labels);
-         this.labelsBar.visible = labels.length > 0;
+         this.labelsBar.visible = false;
          this.layout.reflow();
          this.selectActiveLabel();
+         this.markerTicks().draw(labels);
       }
       
+      // srp's: the markers as one string from the exe, `time_ms:kind:whose:label;...` (ReplayText.markers).
+      public function set_markers_text(value:String) : void
+      {
+         this.set_markers_list(ReplayText.markers(value));
+      }
+
+      // srp's: the controls a replay viewer's (the exe, once): its Back button, Moments switch and key
+      // hint (ViewerControls), with their texts in the running language: Back, the switch's label and
+      // its choices All, Mine, Followed, the hint's actions Cursor, Pause, Filter, Hide and its Ctrl and
+      // Space caps.
+      public function start_viewer(back:String, moments:String, all:String, mine:String, followed:String, cursor:String, pause:String, filter:String, hide:String, ctrl:String, space:String) : void
+      {
+         if(this.viewer != null)
+         {
+            return;
+         }
+         this.viewer = new ViewerControls(this.bottomPanel,this.freeViewButton.textField.getTextFormat().font,[back,moments,all,mine,followed,cursor,pause,filter,hide,ctrl,space]);
+         addChild(this.viewer);
+         this.viewer.place();
+      }
+
+      // srp's: the Moments switch's choice (0 All, 1 Mine, 2 Followed; Mine offered when `mine` is not
+      // 0), shown on the switch and by the ticks (the others faded).
+      public function set_moments(choice:int, mine:int) : void
+      {
+         this.markerTicks().moments = choice;
+         if(this.viewer != null)
+         {
+            this.viewer.setMoments(choice,mine != 0);
+         }
+      }
+
+      // srp's: the hud's cursor shown (Ctrl): the key hint shows with it.
+      public function set_cursor_shown(shown:Boolean) : void
+      {
+         if(this.viewer != null)
+         {
+            this.viewer.setCursor(shown);
+         }
+      }
+
+      // srp's: the players as one string from the exe, `place:team:name;...` (ReplayText.players).
+      public function set_players_text(value:String) : void
+      {
+         this.set_players_list(ReplayText.players(value));
+      }
+
       public function set_players_list(value:Array) : void
       {
          trace("set_players_list::",value ? value.length : null);
@@ -404,7 +528,8 @@ package replay_player_fla
          this.playersBar.visible = players.length > 0;
          this.layout.reflow();
          this.freeViewButton.x = stage.stageWidth / this.scaleFactor - this.freeViewButton.width - 10;
-         this.freeViewButton.y = this.playersBar.y + 25 * players.length - 30;
+         // under the last player (it was over it), as onStageResize places it
+         this.freeViewButton.y = this.playersBar.y + this.playersBar.height + 4;
       }
       
       public function show_scene_options(value:Boolean) : void
@@ -594,6 +719,7 @@ package replay_player_fla
          stage.addEventListener(Event.RESIZE,this.onStageResize);
          this.onStageResize();
          this.btn_play.selected = true;
+         this.stepper.labelFunction = this.speedLabel;
          this.stepper.addEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
          this.btn_play.addEventListener(ButtonEvent.CLICK,this.onPlayClicked);
          this.slider.addEventListener(SliderEvent.VALUE_CHANGE,this.onSliderUpdate);

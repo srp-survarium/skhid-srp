@@ -1015,7 +1015,7 @@ package survarium.rooms
                     "wait": int(head[6]), "phase": int(head[7]), "secs": int(head[8]), "owner": head[9] == "1",
                     "pool": int(head[10]), "serial": int(head[12]), "pin": head[13] == "1", "next": int(head[14]), "min": int(head[15]),
                     "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE, "teams": null,
-                    "bots": false};
+                    "bots": false, "spectators": []};
                 var squads:String = "";
                 _roomAt = getTimer();
                 // A new vote (another room, or after its match): its alert
@@ -1051,6 +1051,9 @@ package survarium.rooms
                         squads = String(r[1]);
                     else if (r[0] == "L")
                         _room.last = int(r[1]);
+                    // A spectator of its match (Queue and spectate), in queue order.
+                    else if (r[0] == "V")
+                        _room.spectators.push(r.slice(1).join(";"));
                 }
                 // Why a join from the All rooms tab (or a room made) left us
                 // here, said once; our own word (a PIN not of 4 digits) stays
@@ -1151,7 +1154,10 @@ package survarium.rooms
                 return;
             var list:Array = [];
             var sig:String = "";
-            for (var i:int = 1; i + 1 < rows.length; i += 2)
+            // The members' two rows each (a whole name may read as any row),
+            // then a row `V;<name>` a spectator.
+            var count:int = Math.min(int(head[3]), int((rows.length - 1) / 2));
+            for (var i:int = 1; i < 1 + 2 * count; i += 2)
             {
                 var f:Array = RoomsWire.fields(rows[i]);
                 if (f[0] != "P" || f.length < 10 || rows[i + 1] == null)
@@ -1162,9 +1168,18 @@ package survarium.rooms
                     "fit": int(f[6]), "away": f[7] == "1", "side": int(f[8]), "account": uint(f[9]),
                     "squad": f.length > 10 ? int(f[10]) : 0, "name": name});
             }
+            var spectators:Array = [];
+            for (var v:int = 1 + 2 * count; v < rows.length; v++)
+            {
+                var sf:Array = RoomsWire.fields(rows[v]);
+                if (sf[0] != "V")
+                    continue;
+                spectators.push(sf.slice(1).join(";"));
+                sig += String(rows[v].nickname) + "|";
+            }
             if (_seen != null && _seen.key == key && _seen.sig == sig)
                 return;
-            _seen = {"key": key, "sig": sig, "members": list};
+            _seen = {"key": key, "sig": sig, "members": list, "spectators": spectators};
             listView.drawMembers();
         }
 

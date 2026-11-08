@@ -180,6 +180,12 @@ global engine_get_system_time_as_file_time
 global engine_file_time_to_local_file_time
 global engine_file_time_to_system_time
 global engine_discard_playing_order
+global engine_follow_player
+global engine_spectator_camera
+global engine_detach_player
+global engine_game_pause
+global engine_game_resume
+global engine_show_replay_controls
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -245,6 +251,10 @@ engine_get_system_time_as_file_time equ 0x870244   ; the IAT slot 0x870244 (an i
 engine_file_time_to_local_file_time equ 0x870230   ; the IAT slot 0x870230 (an import, stdcall)
 engine_file_time_to_system_time equ 0x87022c   ; the IAT slot 0x87022c (an import, stdcall)
 engine_discard_playing_order equ 0x2717e0   ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+engine_follow_player equ 0x242b90   ; 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
+engine_detach_player equ 0x242cc0   ; 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
+engine_game_pause equ 0x1ed5c0   ; 0x1ed5c0 survarium::game::pause: game ECX; pops 0; thiscall, called directly
+engine_game_resume equ 0x1ed650   ; 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -2130,6 +2140,37 @@ engine_hide_scene_movie:
     mov eax, [esp + 20]   ; movie
     mov edx, [esp + 24]   ; scene
     call 0x23dc70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_spectator_camera:
+    ; 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edx, [esp + 20]   ; world
+    call 0x1f8360
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_replay_controls:
+    ; 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; shown -> 4
+    mov edi, [esp + 24]   ; hud
+    call 0x23a9d0
     pop edi
     pop esi
     pop ebx

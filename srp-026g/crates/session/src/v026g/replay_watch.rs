@@ -1,0 +1,634 @@
+//! Replay sessions: a recorded match played to its watcher's own game, in
+//! the running client, as a spectated match (path A of
+//! `research/replay-plan.md`; `docs/notes/replay-stream.md`). What the lobby
+//! and the match server share of them, in memory: one [`Watches`] for the
+//! srp process, in its [`super::replays::Replays`].
+//!
+//! - The lobby starts a session on the movie's request (`3D 00
+//!   <REPLAY_WATCH | place << 16 | seconds> <match>`, [`Watches::start`]).
+//! - The match server reads the match's recording on a thread of its own
+//!   ([`Watches::next_job`]), judges the watcher against it
+//!   ([`Watches::judge`]: the players of the match and the moderators, or
+//!   anyone, `SRP_REPLAY_WATCH`; and the simulation epoch) and says where
+//!   it starts ([`Watches::loaded`]) or why not ([`Watches::refuse`]).
+//! - The lobby sends the game to the match server as it sends a spectator
+//!   ([`Watches::to_send`], [`Watches::sent`]); the match server plays the
+//!   recording to it ([`Watches::connected`]) until it leaves or the
+//!   recording ends ([`Watches::ended`]).
+//!
+//! A session never has a seat, a match of the queue, a result or a reward.
+//! While it is not over its player is in none of its room's matches
+//! ([`Watches::holds`]). The movie's polls get its answer
+//! ([`Watches::answer`]): `preparing`, `watching` with the time it starts
+//! at, or why it was refused (an `incompatible` one told once why).
+
+use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+use super::replays::{MIN_REVISION, Refusal, Status, refusal_of};
+use crate::LockExt;
+
+/// `SRP_REPLAY_WATCH_MAX` when unset: sessions at once (loading, on their
+/// way or playing). Each costs about a player's traffic and its recording
+/// in memory (a few MB to a few tens); the host has one CPU and 512 MB.
+pub const DEFAULT_MAX_SESSIONS: usize = 4;
+/// A session whose recording is not read within this is refused `failed`.
+pub const LOAD_WITHIN: Duration = Duration::from_secs(2 * 60);
+/// A session made ready whose game does not reach the match server within
+/// this is over (the lobby's link went, or the game never connected).
+pub const CONNECT_WITHIN: Duration = Duration::from_secs(90);
+/// A refusal the movie never polled for is forgotten after this.
+const REFUSAL_KEPT: Duration = Duration::from_secs(15 * 60);
+
+/// Who may watch a match's replay (`SRP_REPLAY_WATCH`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Access {
+    /// `match`: its players and the moderators.
+    Match,
+    /// `all` (the default): every signed-in player.
+    All,
+}
+
+/// `SRP_REPLAY_WATCH`, `SRP_REPLAY_MODERATORS`, `SRP_REPLAY_WATCH_MAX`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WatchSettings {
+    pub access: Access,
+    /// Accounts that may watch any match's replay
+    /// (`SRP_REPLAY_MODERATORS`: account ids, comma-separated).
+    pub moderators: HashSet<u32>,
+    pub max_sessions: usize,
+}
+
+impl Default for WatchSettings {
+    fn default() -> Self {
+        Self {
+            access: Access::All,
+            moderators: HashSet::new(),
+            max_sessions: DEFAULT_MAX_SESSIONS,
+        }
+    }
+}
+
+impl WatchSettings {
+    /// Whether `account_id` may watch a match's replay, having `played` it
+    /// or not: a replay session's rule, and History's download's.
+    pub fn may_watch(&self, account_id: u32, played: bool) -> bool {
+        match self.access {
+            Access::All => true,
+            Access::Match => played || self.moderators.contains(&account_id),
+        }
+    }
+
+    pub fn from_env() -> Self {
+        let var = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
+        let access = match var("SRP_REPLAY_WATCH").as_deref().map(str::trim) {
+            None | Some("all") => Access::All,
+            Some("match") => Access::Match,
+            Some(other) => {
+                log::warn!("SRP_REPLAY_WATCH={other:?} is neither `match` nor `all`: `match`");
+                Access::Match
+            }
+        };
+        let moderators = var("SRP_REPLAY_MODERATORS")
+            .map(|list| {
+                list.split(',')
+                    .filter_map(|id| {
+                        let parsed = id.trim().parse().ok();
+                        if parsed.is_none() {
+                            log::warn!("SRP_REPLAY_MODERATORS: {id:?} is no account id");
+                        }
+                        parsed
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let max_sessions = var("SRP_REPLAY_WATCH_MAX")
+            .and_then(|max| max.trim().parse().ok())
+            .unwrap_or(DEFAULT_MAX_SESSIONS);
+        Self {
+            access,
+            moderators,
+            max_sessions,
+        }
+    }
+}
+
+/// A player's request to watch a match's replay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WatchRequest {
+    pub account_id: u32,
+    pub session_id: u32,
+    pub match_id: u32,
+    pub from: WatchFrom,
+    /// Its game's patch revision (0: not known).
+    pub revision: u8,
+}
+
+/// Where a session starts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WatchFrom {
+    /// At `ms` of the match (snapped to a key frame at or before it, and
+    /// never before the first view with a player in it), `place` first in
+    /// view (the start waits for its first entry; `None`: anyone's).
+    At { ms: u32, place: Option<u8> },
+    /// At the asker's first death (4 s before it), its own place in view.
+    MyDeaths,
+}
+
+/// Where a session is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stage {
+    /// Waiting for the match server's reader.
+    Queued,
+    /// Its recording is being read.
+    Loading,
+    /// Read: the lobby sends its game, which starts at `start_ms`.
+    Ready { start_ms: u32 },
+    /// Its game was sent to the match server.
+    Sent { start_ms: u32 },
+    /// Its game watches.
+    Playing { start_ms: u32 },
+    /// Not given, until the movie is told.
+    Refused {
+        status: Status,
+        refusal: Option<Refusal>,
+    },
+}
+
+impl Stage {
+    /// Not refused: a session that counts, and holds its player out of its
+    /// room's matches.
+    fn is_open(self) -> bool {
+        !matches!(self, Self::Refused { .. })
+    }
+}
+
+/// What the movie's poll gets of a session ([`Watches::answer`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WatchAnswer {
+    pub status: Status,
+    pub match_id: u32,
+    /// With [`Status::Watching`], the match time it starts at; with
+    /// [`Status::Preparing`], 1 being read now, 2 waiting; else 0.
+    pub figure: u32,
+    /// With [`Status::Incompatible`], why: once.
+    pub refusal: Option<Refusal>,
+}
+
+struct Session {
+    request: WatchRequest,
+    stage: Stage,
+    /// When it came to its stage.
+    since: Instant,
+}
+
+/// The replay sessions (the module's doc). `None` settings: off (no
+/// recordings, `SRP_RECORD_DIR`), every request answered `off`.
+pub struct Watches {
+    settings: Option<WatchSettings>,
+    /// By account: one session each.
+    sessions: Mutex<HashMap<u32, Session>>,
+}
+
+impl Watches {
+    pub fn new(settings: Option<WatchSettings>) -> Self {
+        Self {
+            settings,
+            sessions: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn settings(&self) -> Option<&WatchSettings> {
+        self.settings.as_ref()
+    }
+
+    // ------------------------------------------------------- the lobby
+
+    /// A player asks to watch a match: `preparing` (its recording is read
+    /// next), or why not at once. A player with a session not over gets
+    /// `busy`, as does one past [`WatchSettings::max_sessions`].
+    pub fn start(&self, request: WatchRequest, now: Instant) -> Status {
+        let Some(settings) = &self.settings else {
+            return Status::Off;
+        };
+        if request.revision < MIN_REVISION {
+            return Status::OldGame;
+        }
+        let mut sessions = self.sessions.locked();
+        if sessions
+            .get(&request.account_id)
+            .is_some_and(|session| session.stage.is_open())
+        {
+            return Status::Busy;
+        }
+        let open = sessions.values().filter(|s| s.stage.is_open()).count();
+        if open >= settings.max_sessions {
+            log::info!(
+                "Replay sessions: account {} may not watch match {:#x}: {open} sessions run",
+                request.account_id,
+                request.match_id
+            );
+            return Status::Busy;
+        }
+        log::info!(
+            "Replay sessions: account {} asks to watch match {:#x} from {:?}",
+            request.account_id,
+            request.match_id,
+            request.from
+        );
+        sessions.insert(
+            request.account_id,
+            Session {
+                request,
+                stage: Stage::Queued,
+                since: now,
+            },
+        );
+        Status::Preparing
+    }
+
+    /// The answer for the movie's poll while the account has a session or
+    /// a refusal not told yet (told now, and forgotten).
+    pub fn answer(&self, account_id: u32) -> Option<WatchAnswer> {
+        let mut sessions = self.sessions.locked();
+        let session = sessions.get(&account_id)?;
+        let match_id = session.request.match_id;
+        let (status, figure, refusal) = match session.stage {
+            Stage::Queued => (Status::Preparing, 2, None),
+            Stage::Loading => (Status::Preparing, 1, None),
+            Stage::Ready { start_ms } | Stage::Sent { start_ms } | Stage::Playing { start_ms } => {
+                (Status::Watching, start_ms, None)
+            }
+            Stage::Refused { status, refusal } => {
+                sessions.remove(&account_id);
+                (status, 0, refusal)
+            }
+        };
+        Some(WatchAnswer {
+            status,
+            match_id,
+            figure,
+            refusal,
+        })
+    }
+
+    /// Whether the account's session is not over: its player is in none of
+    /// its room's matches meanwhile.
+    pub fn holds(&self, account_id: u32) -> bool {
+        self.sessions
+            .locked()
+            .get(&account_id)
+            .is_some_and(|session| session.stage.is_open())
+    }
+
+    /// Whether the session's game is on its way to the match server or
+    /// watches there: its lobby link may be quiet while it loads.
+    pub fn in_replay(&self, session_id: u32) -> bool {
+        self.sessions.locked().values().any(|session| {
+            session.request.session_id == session_id
+                && matches!(session.stage, Stage::Sent { .. } | Stage::Playing { .. })
+        })
+    }
+
+    /// Whether the request's session is read and its game not here yet
+    /// (ready, or sent): the match server keeps its recording meanwhile.
+    pub fn waits_for_game(&self, request: &WatchRequest) -> bool {
+        self.sessions
+            .locked()
+            .get(&request.account_id)
+            .is_some_and(|session| {
+                session.request == *request
+                    && matches!(session.stage, Stage::Ready { .. } | Stage::Sent { .. })
+            })
+    }
+
+    /// The sessions read and ready, whose games the lobby sends now
+    /// ([`Self::sent`]), or turns down ([`Self::refuse`]).
+    pub fn to_send(&self) -> Vec<(WatchRequest, u32)> {
+        self.sessions
+            .locked()
+            .values()
+            .filter_map(|session| match session.stage {
+                Stage::Ready { start_ms } => Some((session.request, start_ms)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The lobby sent the session's game to the match server.
+    pub fn sent(&self, account_id: u32, now: Instant) {
+        if let Some(session) = self.sessions.locked().get_mut(&account_id)
+            && let Stage::Ready { start_ms } = session.stage
+        {
+            session.stage = Stage::Sent { start_ms };
+            session.since = now;
+        }
+    }
+
+    /// Sessions that waited too long: not read within [`LOAD_WITHIN`]
+    /// (`failed`), or whose game did not come within [`CONNECT_WITHIN`]
+    /// (over); refusals nobody polled for.
+    pub fn expire(&self, now: Instant) {
+        self.sessions.locked().retain(|account_id, session| {
+            let waited = now.saturating_duration_since(session.since);
+            match session.stage {
+                Stage::Queued | Stage::Loading if waited >= LOAD_WITHIN => {
+                    log::warn!(
+                        "Replay sessions: match {:#x} for account {account_id} was not read in \
+                         time",
+                        session.request.match_id
+                    );
+                    session.stage = Stage::Refused {
+                        status: Status::Failed,
+                        refusal: None,
+                    };
+                    session.since = now;
+                    true
+                }
+                Stage::Ready { .. } | Stage::Sent { .. } if waited >= CONNECT_WITHIN => {
+                    log::info!(
+                        "Replay sessions: account {account_id}'s game never came to watch match \
+                         {:#x}",
+                        session.request.match_id
+                    );
+                    false
+                }
+                Stage::Refused { .. } => waited < REFUSAL_KEPT,
+                _ => true,
+            }
+        });
+    }
+
+    // ------------------------------------------------ the match server
+
+    /// The next session to read the recording of (oldest first), now
+    /// [`Stage::Loading`].
+    pub fn next_job(&self, now: Instant) -> Option<WatchRequest> {
+        let mut sessions = self.sessions.locked();
+        let session = sessions
+            .values_mut()
+            .filter(|session| session.stage == Stage::Queued)
+            .min_by_key(|session| session.since)?;
+        session.stage = Stage::Loading;
+        session.since = now;
+        Some(session.request)
+    }
+
+    /// Whether the request's player may watch a recording of `players`
+    /// (every place's account) made by games of `revisions` (by place):
+    /// `not_yours` for one who did not play it and is no moderator (unless
+    /// anyone may), `incompatible` for another simulation epoch than the
+    /// player's game (`replays::refusal_of`, `oldest` the oldest
+    /// replayable revision).
+    pub fn judge(
+        &self,
+        request: &WatchRequest,
+        players: &[u32],
+        revisions: &[Option<u8>],
+        oldest: u8,
+    ) -> Result<(), (Status, Option<Refusal>)> {
+        let settings = self.settings.as_ref().ok_or((Status::Off, None))?;
+        if !settings.may_watch(request.account_id, players.contains(&request.account_id)) {
+            return Err((Status::NotYours, None));
+        }
+        match refusal_of(revisions, request.revision, oldest) {
+            Some(refusal) => Err((Status::Incompatible, Some(refusal))),
+            None => Ok(()),
+        }
+    }
+
+    /// The session's recording is read: it starts at `start_ms`. False when
+    /// the session is gone meanwhile.
+    pub fn loaded(&self, request: &WatchRequest, start_ms: u32, now: Instant) -> bool {
+        self.update(
+            request,
+            |stage| match stage {
+                Stage::Loading => Some(Stage::Ready { start_ms }),
+                _ => None,
+            },
+            now,
+        )
+    }
+
+    /// The session is not given (its recording, its player, the epoch).
+    pub fn refuse(
+        &self,
+        request: &WatchRequest,
+        status: Status,
+        refusal: Option<Refusal>,
+        now: Instant,
+    ) {
+        log::info!(
+            "Replay sessions: account {} is not shown match {:#x}: {}{}",
+            request.account_id,
+            request.match_id,
+            status.word(),
+            refusal.map_or_else(String::new, |refusal| format!(" ({refusal:?})"))
+        );
+        self.update(request, |_| Some(Stage::Refused { status, refusal }), now);
+    }
+
+    /// A game of `session_id` connects to the match server: its session's
+    /// request and start, now [`Stage::Playing`], if it was sent to watch.
+    pub fn connected(&self, session_id: u32, now: Instant) -> Option<(WatchRequest, u32)> {
+        let mut sessions = self.sessions.locked();
+        let session = sessions
+            .values_mut()
+            .find(|session| session.request.session_id == session_id)?;
+        let start_ms = match session.stage {
+            Stage::Sent { start_ms } | Stage::Playing { start_ms } => start_ms,
+            _ => return None,
+        };
+        session.stage = Stage::Playing { start_ms };
+        session.since = now;
+        Some((session.request, start_ms))
+    }
+
+    /// The session is over (its game left, its recording ended, or its game
+    /// never came): its player is free again.
+    pub fn ended(&self, request: &WatchRequest) {
+        let mut sessions = self.sessions.locked();
+        if sessions
+            .get(&request.account_id)
+            .is_some_and(|session| session.request == *request && session.stage.is_open())
+        {
+            sessions.remove(&request.account_id);
+            log::info!(
+                "Replay sessions: account {}'s session of match {:#x} is over",
+                request.account_id,
+                request.match_id
+            );
+        }
+    }
+
+    /// The account's session moved by `step` (`None`: unchanged), if it is
+    /// still this request's.
+    fn update(
+        &self,
+        request: &WatchRequest,
+        step: impl FnOnce(Stage) -> Option<Stage>,
+        now: Instant,
+    ) -> bool {
+        let mut sessions = self.sessions.locked();
+        let Some(session) = sessions
+            .get_mut(&request.account_id)
+            .filter(|session| session.request == *request)
+        else {
+            return false;
+        };
+        let Some(stage) = step(session.stage) else {
+            return false;
+        };
+        session.stage = stage;
+        session.since = now;
+        true
+    }
+
+    /// The account's session's stage, if it has one.
+    pub fn stage(&self, account_id: u32) -> Option<Stage> {
+        self.sessions
+            .locked()
+            .get(&account_id)
+            .map(|session| session.stage)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ALICE: u32 = 0x1_0001;
+    const MOD: u32 = 0x1_0009;
+
+    fn request(account_id: u32) -> WatchRequest {
+        WatchRequest {
+            account_id,
+            session_id: account_id + 0x100,
+            match_id: 0x1F07_C8FB,
+            from: WatchFrom::At { ms: 0, place: None },
+            revision: 40,
+        }
+    }
+
+    fn watches(access: Access, max_sessions: usize) -> Watches {
+        Watches::new(Some(WatchSettings {
+            access,
+            moderators: HashSet::from([MOD]),
+            max_sessions,
+        }))
+    }
+
+    #[test]
+    fn anyone_watches_by_default_and_match_keeps_it_to_players_and_moderators() {
+        let players = [ALICE];
+        let revisions = [Some(40)];
+        let open = Watches::new(Some(WatchSettings::default()));
+        assert_eq!(
+            open.judge(&request(0x2_0000), &players, &revisions, 30),
+            Ok(())
+        );
+        let watches = watches(Access::Match, 4);
+        assert_eq!(
+            watches.judge(&request(ALICE), &players, &revisions, 30),
+            Ok(())
+        );
+        assert_eq!(
+            watches.judge(&request(MOD), &players, &revisions, 30),
+            Ok(())
+        );
+        assert_eq!(
+            watches.judge(&request(0x2_0000), &players, &revisions, 30),
+            Err((Status::NotYours, None))
+        );
+        // Another epoch: refused with why, for a player of it too.
+        assert_eq!(
+            watches.judge(&request(ALICE), &players, &[Some(20)], 30),
+            Err((
+                Status::Incompatible,
+                Some(Refusal::Older {
+                    from: 20,
+                    to: 20,
+                    oldest: 30
+                })
+            ))
+        );
+    }
+
+    #[test]
+    fn a_session_goes_from_its_request_to_its_end_and_counts_against_the_cap() {
+        let now = Instant::now();
+        let watches = watches(Access::Match, 1);
+        let alice = request(ALICE);
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        assert!(watches.holds(ALICE));
+        // One session at a time: the cap, and the same player again.
+        assert_eq!(watches.start(request(MOD), now), Status::Busy);
+        assert_eq!(watches.start(alice, now), Status::Busy);
+        assert_eq!(watches.next_job(now), Some(alice));
+        assert_eq!(watches.next_job(now), None);
+        assert_eq!(watches.answer(ALICE).unwrap().status, Status::Preparing);
+        assert!(watches.loaded(&alice, 14_500, now));
+        assert_eq!(watches.to_send(), [(alice, 14_500)]);
+        assert!(!watches.in_replay(alice.session_id));
+        watches.sent(ALICE, now);
+        assert!(watches.in_replay(alice.session_id));
+        assert_eq!(
+            watches.connected(alice.session_id, now),
+            Some((alice, 14_500))
+        );
+        let answer = watches.answer(ALICE).unwrap();
+        assert_eq!((answer.status, answer.figure), (Status::Watching, 14_500));
+        watches.ended(&alice);
+        assert!(!watches.holds(ALICE));
+        assert_eq!(watches.answer(ALICE), None);
+        assert_eq!(watches.start(request(MOD), now), Status::Preparing);
+    }
+
+    #[test]
+    fn a_refusal_is_told_once_and_holds_nothing() {
+        let now = Instant::now();
+        let watches = watches(Access::Match, 1);
+        let alice = request(ALICE);
+        watches.start(alice, now);
+        watches.next_job(now);
+        let why = Refusal::Older {
+            from: 20,
+            to: 20,
+            oldest: 30,
+        };
+        watches.refuse(&alice, Status::Incompatible, Some(why), now);
+        assert!(!watches.holds(ALICE));
+        assert_eq!(watches.start(request(MOD), now), Status::Preparing);
+        let answer = watches.answer(ALICE).unwrap();
+        assert_eq!(
+            (answer.status, answer.refusal),
+            (Status::Incompatible, Some(why))
+        );
+        assert_eq!(watches.answer(ALICE), None);
+    }
+
+    #[test]
+    fn stuck_sessions_end_and_off_or_old_games_get_nothing() {
+        let now = Instant::now();
+        let watches = watches(Access::Match, 4);
+        let (alice, other) = (request(ALICE), request(MOD));
+        watches.start(alice, now);
+        watches.start(other, now);
+        watches.next_job(now);
+        watches.next_job(now);
+        assert!(watches.loaded(&other, 50, now));
+        watches.sent(MOD, now);
+        watches.expire(now + CONNECT_WITHIN);
+        assert!(!watches.holds(MOD));
+        assert!(watches.holds(ALICE));
+        watches.expire(now + LOAD_WITHIN);
+        assert_eq!(watches.answer(ALICE).unwrap().status, Status::Failed);
+        let old = WatchRequest {
+            revision: MIN_REVISION - 1,
+            ..alice
+        };
+        assert_eq!(watches.start(old, now), Status::OldGame);
+        assert_eq!(Watches::new(None).start(alice, now), Status::Off);
+    }
+}

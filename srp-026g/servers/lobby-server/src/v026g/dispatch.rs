@@ -142,6 +142,22 @@ impl Core<'_> {
                 player_id: lobby::REPLAY_ASK,
                 match_id,
             } => self.replay_ask(who, match_id, now),
+            // `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match>`:
+            // watch the match's replay in this game (`replay`).
+            M::QueryPlayerDetails {
+                player_id: player_id @ lobby::REPLAY_WATCH_BASE..=lobby::REPLAY_WATCH_LAST,
+                match_id,
+            } => {
+                if let Some(ask) = lobby::ReplayWatchAsk::of(player_id) {
+                    self.replay_watch(who, match_id, ask, now);
+                }
+            }
+            // `3D 00 <LIVE_ROSTER_ASK> <match>`: the Live window's roster
+            // of that match comes next (`live`).
+            M::QueryPlayerDetails {
+                player_id: lobby::LIVE_ROSTER_ASK,
+                match_id,
+            } => self.live_roster_ask(who, match_id),
             // `3D 00 <GEAR_BY_PLACE> <place>`: the kits of a row of the
             // Rankings window (`gear`), any player's.
             M::QueryPlayerDetails {
@@ -170,9 +186,20 @@ impl Core<'_> {
                     .results
                     .find(match_id)
                     .filter(|report| report.player(who.account_id).is_some())
-                    .and_then(|report| report.player_details(player_id));
+                    .and_then(|report| {
+                        let shown = report
+                            .players
+                            .iter()
+                            .find(|player| player.player_id == player_id)?;
+                        Some((shown.account_id, report.player_details(player_id)?))
+                    });
                 match details {
-                    Some(details) => self.send_made(addr, details),
+                    Some((account_id, details)) => {
+                        self.send_made(addr, details);
+                        if let Some(player) = self.player_mut(addr) {
+                            player.shown_kits_of = Some(account_id);
+                        }
+                    }
                     // Not from an open results screen: the report of a
                     // screen a client may have open is kept
                     // (`Results`, `SHOWN_FOR_SECONDS`), and the client has
@@ -659,7 +686,12 @@ impl Core<'_> {
     /// match against bots (`pvb`), a rooms' start (`lobby::rooms::ROOMS_FIRST`
     /// to `ROOMS_LAST`) with a room request (`rooms`),
     /// [`lobby::REPLAY_START`] with the asker's
-    /// own "Watch replay" answer (`replay`), a presets start
+    /// own "Watch replay" answer (`replay`),
+    /// `lobby::player_matches::PLAYER_MATCHES_START` and `OWN_MATCHES_START`
+    /// with the matches of the player whose kits the asker was shown last,
+    /// or its own (`player_matches`), `lobby::recent_matches::RECENT_MATCHES_START`
+    /// and the next with the latest public matches, all or the asker's
+    /// friends' (`recent_matches`), a presets start
     /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
     /// presets (`presets`), a lobby pick (`lobby::lobby_pick::LOBBY_PICK_BASE`
     /// and its id: kept, shown back in `0xA1`); any other gets no answer.
@@ -687,6 +719,22 @@ impl Core<'_> {
         }
         if start == lobby::REPLAY_START {
             self.replay_poll(who, now);
+            return;
+        }
+        if let Some(whose) = lobby::player_matches::Whose::of_start(start) {
+            self.player_matches(who, whose, count, now);
+            return;
+        }
+        if let Some(filter) = lobby::recent_matches::RecentFilter::of_start(start) {
+            self.recent_matches(who, filter, count, now);
+            return;
+        }
+        if start == lobby::LIVE_START {
+            self.live_list(who, count, now);
+            return;
+        }
+        if start == lobby::LIVE_ROSTER_START {
+            self.live_roster(who, count, now);
             return;
         }
         log::debug!(

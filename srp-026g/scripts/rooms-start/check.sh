@@ -7,7 +7,9 @@
 # max level for a private room (its info line, its list row, the facts beside the list); the create
 # window's sliders hidden once a PIN is typed, Max level too; squads' icons (docs/notes/squads.md)
 # after their names in the room and the list's side panel, ours green, the names not moved; a
-# squad soldier's greyed Join, New room and "IN SQUAD" Play. Then in
+# squad soldier's greyed Join, New room and "IN SQUAD" Play; a playing room's spectators (`V` rows,
+# queue-spectate.md) on one dim line, in the room's footer and under the list's side panel, the
+# members not moved by them, and a full room's Queue and spectate (one Leave queue once queued). Then in
 # every language (the dictionaries' texts): the list (a room's queue ours too), a room in each phase
 # and hint (with squads too), the create window and the preset offer's buttons, no text or button
 # label cut by its field and no two on one line meeting (a "ROOMS OVERLAP" line each); and the top

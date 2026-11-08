@@ -215,6 +215,13 @@ impl MatchHost for RegistryHost {
             } else {
                 live.time_left
             },
+            phase: match live.phase {
+                matches::LivePhase::Gathering => lobby::LivePhase::Gathering,
+                matches::LivePhase::Countdown => lobby::LivePhase::Countdown,
+                matches::LivePhase::Playing => lobby::LivePhase::Playing,
+                matches::LivePhase::Over => lobby::LivePhase::Over,
+            },
+            kills_deaths: live.kills_deaths,
         })
     }
 
@@ -225,12 +232,22 @@ impl MatchHost for RegistryHost {
     fn reseat(&self, match_id: u32, account_id: u32, session_id: u32) -> bool {
         self.0.reseat(match_id, account_id, session_id).is_some()
     }
+
+    fn replay_ticket(&self, match_id: u32) -> Option<lobby::MatchTicket> {
+        let ticket = self.0.replay_ticket(match_id);
+        Some(lobby::MatchTicket {
+            match_id: ticket.match_id,
+            host: ticket.host,
+            port: ticket.port,
+        })
+    }
 }
 
 /// The match server's result as the rewards take it: the same fields.
 pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
     rewards::MatchResult {
         match_id: result.match_id,
+        replay_id: result.replay_id,
         map_id: result.map_id,
         mode: result.mode,
         match_level: result.match_level,
@@ -249,6 +266,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         trusted_by: result.trusted_by,
         vs_bots: result.vs_bots,
         private: result.private,
+        events: result.events,
         players: result
             .players
             .into_iter()
@@ -596,6 +614,7 @@ impl Stack {
                     move |result| settler.match_ended(result),
                     &flag,
                     Some(replays.clone()),
+                    Some(accounts.clone()),
                 )
             }));
         }

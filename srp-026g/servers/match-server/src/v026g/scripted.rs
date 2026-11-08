@@ -25,6 +25,7 @@ use survarium::v026g::match_msgs::snapshot::{
     self, Battery, Container, Gather, KillsDeaths, PlayerStatistics, Research, ResearchUnit,
     Respawn, Rules, Sections, Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
 };
+use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
 use survarium::v026g::match_msgs::{
     PlayerInput, ServerMessage, TICK_MS, WireTime, id, tick_byte, upload,
 };
@@ -612,6 +613,8 @@ pub struct Client {
     /// (the client's +0x1F1C50): 0 after every 0xE5, so the first pass
     /// after one fires, and with 100 ms that pass sets its phase.
     pub hash_last_sent: u32,
+    /// A replay viewer's notes taken (0xF6 `52 ..`, `replay_control`).
+    pub replay_notes: Vec<Vec<u8>>,
     last_hashed: u32,
     next_keep_alive_ms: u64,
 }
@@ -665,6 +668,7 @@ impl Client {
             lose: None,
             hash_interval_ms: 50,
             hash_last_sent: 0,
+            replay_notes: Vec::new(),
             last_hashed: 0,
             next_keep_alive_ms: 0,
         }
@@ -1085,7 +1089,26 @@ impl Client {
             self.send_receipt(&receipt.encode());
             return;
         }
-        if self.model.growing_roster && id == id::STATIC_INFO && payload.first() == Some(&0xff) {
+        // A spectator's game (no place of its own) takes an 0xEA naming no
+        // place as its end: the exe's spectator patch, ahead of
+        // `leave_match` (`game/spectate.rs`).
+        if id == id::PLAYER_LEFT
+            && self.model.options.is_some()
+            && self.model.local_index.is_none()
+            && payload.get(1) == Some(&NO_LOCAL_PLACE)
+        {
+            self.told_to_leave = true;
+            self.closed = true;
+            return;
+        }
+        // A prepare comes once the game has its static info (the patched
+        // 0xE4 case goes by the connection state, `prepare_hook`): before,
+        // a first byte 0xFF is a spectator's static info.
+        if self.model.growing_roster
+            && id == id::STATIC_INFO
+            && payload.first() == Some(&0xff)
+            && self.model.options.is_some()
+        {
             match Prepare::decode(payload, Dictionary::shared()) {
                 Ok(prepare) => {
                     self.prepares_received += 1;
@@ -1098,6 +1121,10 @@ impl Client {
                 }
                 Err(error) => self.faults.push(format!("prepare: {error:?}")),
             }
+            return;
+        }
+        if id == id::UPLOAD_REQUEST && replay_control::ServerNote::is_ours(payload) {
+            self.replay_notes.push(payload.to_vec());
             return;
         }
         let taken = match self.model.receive(id, payload, Dictionary::shared()) {

@@ -42,7 +42,8 @@ pub mod v026g;
 pub use bans::{Ban, IpBan, Net};
 pub use matchmaking::{
     DEFAULT_GATHER_WINDOW, FormedMatch, Level, MAX_PLAYERS_PER_MATCH, Matchmaking, Player,
-    QueuePool, QueueState, Seat, Strength, fill_from_env, gather_window_from_env, quiet_from_env,
+    QueuePool, QueueState, Seat, Strength, WatchKind, Watcher, fill_from_env, gather_window_from_env,
+    quiet_from_env,
 };
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};

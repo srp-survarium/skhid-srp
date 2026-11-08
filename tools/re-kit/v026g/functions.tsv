@@ -2192,7 +2192,6 @@ va	status	ref_021d	name
 0x003422f0	reviewed	0x0020cf4f	survarium::short_jump_landing_state::serialize
 0x002ab6e0	reviewed	0x001afe7d	boost::random::detail::new_uniform_01<float>::operator()<boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647> >
 0x002ddad0	observed		survarium::game_effect_player::serialize
-0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
 0x00334310	observed		survarium::composite_game_effect::serialize
 0x0026d660	reviewed	0x0019bf64	survarium::base_local_network_client::get_player
 0x00397040	reviewed	0x0024df70	vostok::animation::mixing::n_ary_tree_serializer::save_floats
@@ -2211,3 +2210,24 @@ va	status	ref_021d	name
 0x002717e0	verified	0x0019e562	survarium::lobby_client::discard_playing_order
 0x001ed170	observed		survarium::game::switch_to_game_world
 0x002203a0	observed		survarium::lobby_menu::show_loading_screen
+0x001f8360	reviewed		survarium::game_world::switch_to_spectator_camera
+0x00242d50	reviewed		survarium::base_network_client::spectate_next_player
+0x00242f00	reviewed		survarium::base_network_client::spectate_previous_player
+0x00242ae0	reviewed		survarium::base_network_client::attach_to_player
+0x00242b90	reviewed		survarium::base_network_client::set_followed_player
+0x00242cc0	reviewed		survarium::base_network_client::detach_from_player
+0x002430f0	reviewed		survarium::base_network_client::may_spectate
+0x00242a70	reviewed		survarium::base_network_client::followed_team
+0x001f8070	reviewed		survarium::game_world::select_profile
+0x0026e000	reviewed		survarium::base_local_network_client::switch_to_free_view
+0x001ed590	reviewed	0x001542a9	survarium::game::toggle_pause
+0x001ed5c0	reviewed	0x001542db	survarium::game::pause
+0x001ed650	reviewed	0x0015434c	survarium::game::resume
+0x00146b60	observed		vostok::timing::floating_timer::set_speed
+0x00147110	observed		vostok::timing::floating_timer::get_time
+0x0023a660	observed		survarium::game_world_ui::set_replay_position
+0x0023a6c0	observed		survarium::game_world_ui::set_replay_play_state
+0x0023a9d0	observed		survarium::game_world_ui::show_replay_controls
+0x00218bf0	observed		survarium::replay_network_client::tick
+0x002d53c0	observed		survarium::game_world_core::clear_pending_masks
+0x002d3df0	observed		survarium::game_world_core::clear_pending_entries

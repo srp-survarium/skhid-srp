@@ -1,0 +1,182 @@
+//! The lists of matches from the match history: the player pop-up's
+//! Matches tab (`survarium::v026g::lobby::player_matches`), the latest
+//! public matches of the player whose kits the asker was shown last, or of
+//! the asker itself; and the Watch hub's Recent tab
+//! (`survarium::v026g::lobby::recent_matches`), the latest public matches,
+//! or those of the asker's friends. Private rooms' matches and matches
+//! against bots are never listed.
+
+use std::time::Instant;
+
+use session::LockExt;
+use session::v026g::persist::history::{MatchSummary, PlayerMatch, Winner};
+use session::v026g::replays;
+use survarium::v026g::lobby::friend_row;
+use survarium::v026g::lobby::player_matches::{
+    Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, ReplayState, Whose, player_matches,
+};
+use survarium::v026g::lobby::recent_matches::{
+    RECENT_MATCHES_ROWS, RecentFilter, RecentMatchRow, recent_matches,
+};
+
+use super::core::{Core, Who};
+
+impl Core<'_> {
+    /// `3B 00 <PLAYER_MATCHES_START | OWN_MATCHES_START> <count>`: at most
+    /// `count` (and [`PLAYER_MATCHES_ROWS`]) matches of the account of the
+    /// asker's last `93`, or of the asker. Asked before any `93`, or for an
+    /// account with no public match, the answer lists none.
+    pub(super) fn player_matches(&mut self, who: &Who, whose: Whose, count: u8, now: Instant) {
+        let subject = match whose {
+            Whose::Shown => self
+                .player(who.addr)
+                .and_then(|player| player.shown_kits_of),
+            Whose::Own => Some(who.account_id),
+        };
+        let nickname = subject
+            .and_then(|account_id| self.accounts.get(account_id))
+            .map(|account| account.locked().name.clone())
+            .unwrap_or_default();
+        let limit = usize::from(count).min(PLAYER_MATCHES_ROWS);
+        let found = match (subject, self.accounts.history()) {
+            (Some(account_id), Some(history)) if limit > 0 => {
+                history.player_matches(account_id, None, limit)
+            }
+            _ => Ok(Vec::new()),
+        };
+        let matches = found.unwrap_or_else(|error| {
+            log::warn!("{} asked for {nickname}'s matches: {error}", who.name);
+            Vec::new()
+        });
+        let unix = session::v026g::quests::now();
+        let rows: Vec<PlayerMatchRow> = matches
+            .iter()
+            .map(|played| player_row(played, unix, self.replay_state(who, &played.summary, now)))
+            .collect();
+        self.send_made(who.addr, player_matches(&nickname, &rows));
+    }
+
+    /// `3B 00 <RECENT_MATCHES_START + f> <count>`: at most `count` (and
+    /// [`RECENT_MATCHES_ROWS`]) of the newest public matches, or of those a
+    /// friend of the asker played in.
+    pub(super) fn recent_matches(
+        &mut self,
+        who: &Who,
+        filter: RecentFilter,
+        count: u8,
+        now: Instant,
+    ) {
+        let limit = usize::from(count).min(RECENT_MATCHES_ROWS);
+        let friends = self
+            .store
+            .account(who.account_id)
+            .map(|account| account.locked().friends.clone())
+            .unwrap_or_default();
+        let found = match (self.accounts.history(), filter) {
+            (Some(history), RecentFilter::All) if limit > 0 => history.matches(None, limit, None),
+            (Some(history), RecentFilter::Friends) if limit > 0 => {
+                history.matches_with(&friends, limit)
+            }
+            _ => Ok(Vec::new()),
+        };
+        let matches = found.unwrap_or_else(|error| {
+            log::warn!("{} asked for the recent matches: {error}", who.name);
+            Vec::new()
+        });
+        let unix = session::v026g::quests::now();
+        let rows: Vec<RecentMatchRow> = matches
+            .iter()
+            .map(|summary| recent_row(summary, unix, self.replay_state(who, summary, now)))
+            .collect();
+        let friend_rows = self.friends_in(who, &matches, &friends);
+        self.send_made(who.addr, recent_matches(&rows, &friend_rows));
+    }
+
+    /// The `F1` rows of `friends` in `matches`, in the matches' order.
+    fn friends_in(&self, who: &Who, matches: &[MatchSummary], friends: &[u32]) -> Vec<String> {
+        let Some(history) = self.accounts.history() else {
+            return Vec::new();
+        };
+        let ids: Vec<u64> = matches.iter().map(|summary| summary.id).collect();
+        let found = history
+            .players_among(&ids, friends)
+            .unwrap_or_else(|error| {
+                log::warn!(
+                    "{} asked for the recent matches' friends: {error}",
+                    who.name
+                );
+                Vec::new()
+            });
+        matches
+            .iter()
+            .flat_map(|summary| {
+                found
+                    .iter()
+                    .filter(move |(id, ..)| *id == summary.id)
+                    .filter_map(|&(_, account_id, team)| {
+                        let name = self.accounts.get(account_id)?.locked().name.clone();
+                        Some(friend_row(summary.replay_id.match_id(), None, team, &name))
+                    })
+            })
+            .collect()
+    }
+
+    /// What "Watch" on `summary`'s match would get for `who`'s game
+    /// (`Replays::state`).
+    fn replay_state(&self, who: &Who, summary: &MatchSummary, now: Instant) -> ReplayState {
+        let Some(held) = self.replays else {
+            return ReplayState::NotRecorded;
+        };
+        let revision = self.store.client_revision(who.session_id);
+        match held.state(summary.replay_id.match_id(), revision, now) {
+            replays::ReplayState::NotRecorded => ReplayState::NotRecorded,
+            replays::ReplayState::Kept => ReplayState::Kept,
+            replays::ReplayState::Ready => ReplayState::Ready,
+            replays::ReplayState::Gone => ReplayState::Gone,
+            replays::ReplayState::OldVersion => ReplayState::OldVersion,
+        }
+    }
+}
+
+/// Minutes from the end `ended_at` to `unix`.
+fn minutes_since(ended_at: u64, unix: u64) -> u32 {
+    (unix.saturating_sub(ended_at) / 60).min(u64::from(u32::MAX)) as u32
+}
+
+/// A recent match's row: `unix` is now.
+fn recent_row(summary: &MatchSummary, unix: u64, replay: ReplayState) -> RecentMatchRow {
+    let info = &summary.info;
+    RecentMatchRow {
+        match_id: summary.replay_id.match_id(),
+        map_id: info.map_id,
+        mode: info.game_mode.lobby_number(),
+        // No trusted world said the standing: no points either.
+        score: (info.winner != Winner::Unknown).then_some(info.team_points),
+        players: u8::try_from(summary.players).unwrap_or(u8::MAX),
+        length_ms: info.duration_ms,
+        minutes_since_end: minutes_since(info.ended_at, unix),
+        replay,
+    }
+}
+
+/// A player's match's row: `unix` is now.
+fn player_row(played: &PlayerMatch, unix: u64, replay: ReplayState) -> PlayerMatchRow {
+    let info = &played.summary.info;
+    let line = &played.line;
+    let outcome = match info.winner {
+        Winner::Draw | Winner::Unknown => Outcome::Draw,
+        winner if winner.team() == Some(line.team) => Outcome::Victory,
+        _ => Outcome::Defeat,
+    };
+    PlayerMatchRow {
+        match_id: played.summary.replay_id.match_id(),
+        place: line.place,
+        map_id: info.map_id,
+        mode: info.game_mode.lobby_number(),
+        outcome,
+        kills: line.kills.min(u64::from(u16::MAX)) as u16,
+        deaths: line.deaths.min(u64::from(u16::MAX)) as u16,
+        minutes_since_end: minutes_since(info.ended_at, unix),
+        replay,
+    }
+}

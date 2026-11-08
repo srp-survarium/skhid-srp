@@ -595,3 +595,25 @@ extern engine_file_time_to_system_time
 ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_discard_playing_order
+; void engine_follow_player(struct network_client *client, struct player *player)
+; 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_follow_player
+; void engine_spectator_camera(struct game_world *world)
+; 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0
+extern engine_spectator_camera
+; void engine_detach_player(struct network_client *client)
+; 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_detach_player
+; void engine_game_pause(struct game *game)
+; 0x1ed5c0 survarium::game::pause: game ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_game_pause
+; void engine_game_resume(struct game *game)
+; 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_game_resume
+; void engine_show_replay_controls(struct game_world_ui *hud, unsigned int shown)
+; 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
+extern engine_show_replay_controls

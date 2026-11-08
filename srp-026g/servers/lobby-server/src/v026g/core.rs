@@ -97,6 +97,9 @@ pub(super) struct Player<'a> {
     /// its place, which resolves to what the page (or a cached tab of it)
     /// showed there (`gear`). The last `gear::PAGES_KEPT` only.
     pub ranked_shown: Vec<(u32, Vec<u32>)>,
+    /// The account whose kits it was last shown (its last `93`): what the
+    /// player pop-up's Matches tab asks about (`player_matches`).
+    pub shown_kits_of: Option<u32>,
     /// The online counts the client was last sent, and when (`None`: only
     /// with the sign-in's pushes).
     pub online_sent: (u32, u32, u32),
@@ -239,14 +242,32 @@ pub(super) struct Core<'a> {
     /// with its next room state (`rooms`).
     pub room_codes: HashMap<u32, survarium::v026g::lobby::rooms::RoomCode>,
     /// When a member who came while its room's match is played goes into
-    /// it (`RoomRules::late_join_wait` after it came, or at once on its ask).
-    pub room_join_at: HashMap<u32, Instant>,
+    /// it ([`JoinAt`]); kept while it waits so (`rooms::room_tick`).
+    pub room_join_at: HashMap<u32, JoinAt>,
     /// Each member's room at the last tick: who came and went is said in
     /// the room's chat (`room_chat`).
     pub room_seen: HashMap<u32, u32>,
     /// A member (or one queued) whose game started anew, until its new
     /// game is told the room: by then, or it loses the place (`rooms`).
     pub room_unseen: HashMap<u32, Instant>,
+    /// `Settings::dev_aid`: games signed in, and when it is done for them
+    /// (`replay`).
+    pub dev_due: HashMap<SocketAddr, Instant>,
+    /// The match each account's Live window asked the roster of (`live`).
+    pub live_roster: HashMap<u32, u32>,
+}
+
+/// When a member waiting in its room while the room's match is played goes
+/// into it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JoinAt {
+    /// At this time: `RoomRules::late_join_wait` after it came, or at once
+    /// on its ask.
+    At(Instant),
+    /// A spectator given a place in the match it watched (Queue and
+    /// spectate): at once, as soon as its game, back in the lobby, asks for
+    /// its room (`rooms::room_shown`).
+    Shown,
 }
 
 impl<'a> Core<'a> {
@@ -299,6 +320,8 @@ impl<'a> Core<'a> {
             room_join_at: HashMap::new(),
             room_seen: HashMap::new(),
             room_unseen: HashMap::new(),
+            dev_due: HashMap::new(),
+            live_roster: HashMap::new(),
         }
     }
 
@@ -683,6 +706,7 @@ impl<'a> Core<'a> {
             money_sent: balance,
             ranked_sent: ranking.len() as u32,
             ranked_shown: Vec::new(),
+            shown_kits_of: None,
             online_sent: online,
             online_at: None,
             friends_sent: Vec::new(),
@@ -727,6 +751,11 @@ impl<'a> Core<'a> {
             self.send_made(from, flush);
         }
         log::info!("{name} (account {account_id}) signed in to the lobby from {from}");
+        if self.settings.dev_aid.is_some() {
+            // Its lobby movie loaded first.
+            self.dev_due
+                .insert(from, now + std::time::Duration::from_secs(10));
+        }
 
         // What needs other accounts: the friend and ignore lists, which the
         // client never asks for, friend requests that waited, the squad.
@@ -849,6 +878,7 @@ impl<'a> Core<'a> {
 
         let (timeout, match_timeout) =
             (self.settings.link_timeout, self.settings.match_link_timeout);
+        let replays = self.replays;
         let mut datagrams = Vec::new();
         let mut gone = Vec::new();
         let mut silent = Vec::new();
@@ -899,12 +929,16 @@ impl<'a> Core<'a> {
             if link.transport.state() == State::Closed {
                 gone.push((*addr, "its link closed", true));
             } else {
-                // A player in a match that runs has longer: its client may
-                // be loading its level (`away`).
+                // A player in a match that runs, or watching a replay in
+                // its game, has longer: its client may be loading its level
+                // (`away`).
                 let in_match = matches!(
                     &link.stage,
                     Stage::Player(player)
                         if player.in_match.is_some_and(|id| self.matches.contains_key(&id))
+                            || replays.is_some_and(|replays| {
+                                replays.watches().in_replay(player.session_id)
+                            })
                 );
                 let timeout = if in_match { match_timeout } else { timeout };
                 if link.transport.is_gone_after(now, timeout) {
@@ -938,6 +972,7 @@ impl<'a> Core<'a> {
         }
 
         self.check_matches(now);
+        self.replay_sessions(now);
         self.log_predictions(now);
         self.collect_away(now);
         self.clan_matches(now);
