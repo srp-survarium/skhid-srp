@@ -51,8 +51,8 @@ use updater_logic::zip;
 use windows_sys::Win32::System::Environment::GetCommandLineW;
 use windows_sys::Win32::System::Threading::ExitProcess;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL, MB_SETFOREGROUND, MB_TOPMOST,
-    MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW,
+    IDRETRY, MB_ICONERROR, MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL,
+    MB_SETFOREGROUND, MB_TOPMOST, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW,
 };
 
 use crate::http::HttpError;
@@ -281,6 +281,11 @@ fn show_box(caption: &str, message: &str, style: MESSAGEBOX_STYLE) -> MESSAGEBOX
 
 fn message_box(message: &str) {
     show_box(text::TITLE, message, MB_OK | MB_ICONERROR);
+}
+
+/// A box that tells, with no problem in it (a replay saved): OK.
+fn info_box(message: &str) {
+    show_box(text::TITLE, message, MB_OK | MB_ICONINFORMATION);
 }
 
 /// A box of `updater_logic::problem` that needs no answer: OK.
@@ -909,7 +914,7 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
 }
 
 fn run() -> u32 {
-    // "Watch replay": started by the patched game with a replay link
+    // "Save replay": started by the patched game with a replay link
     // (`replay.rs`). Exactly this word, as the game's patch sends it.
     let arguments = arguments();
     if let Some((replay_arguments, quiet)) = updater_logic::replay::command(&arguments) {

@@ -595,32 +595,6 @@ pub fn lock(folder: &str, name: &str) -> Result<InstallLock, Code> {
     .map(InstallLock)
 }
 
-/// The files in `folder` that match `pattern`, each with the time it was
-/// last written (100 ns since 1601).
-pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
-    let mut out = Vec::new();
-    let mut found: WIN32_FIND_DATAW = unsafe { core::mem::zeroed() };
-    let query = alloc::format!("{folder}\\{pattern}");
-    let handle = unsafe { FindFirstFileW(wide(&query).as_ptr(), &mut found) };
-    if handle == INVALID_HANDLE_VALUE {
-        return out;
-    }
-    loop {
-        if found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
-            let time = u64::from(found.ftLastWriteTime.dwHighDateTime) << 32
-                | u64::from(found.ftLastWriteTime.dwLowDateTime);
-            out.push((from_wide(&found.cFileName), time));
-        }
-        if unsafe { FindNextFileW(handle, &mut found) } == 0 {
-            break;
-        }
-    }
-    unsafe {
-        FindClose(handle);
-    }
-    out
-}
-
 /// The game's language, which its Settings and the launcher's menu keep
 /// (`localization` of `<Documents>\survarium\user.cfg`, the folder the game
 /// takes: CSIDL_PERSONAL), as a number of `replay::LANGUAGES`; read only.
@@ -637,52 +611,26 @@ pub fn game_language() -> Option<u32> {
     updater_logic::replay::language_of_user_cfg(&read_file(&path, 1 << 16).ok()?)
 }
 
-/// Whether the game, which reads its command line as ANSI text
-/// (`GetCommandLineA`), gets `text` back as it is, and in how many bytes.
-fn ansi_length(text: &str) -> Option<usize> {
-    use windows_sys::Win32::Globalization::{CP_ACP, CP_UTF8, GetACP, WC_NO_BEST_FIT_CHARS, WideCharToMultiByte};
-    let units: Vec<u16> = text.encode_utf16().collect();
-    if units.is_empty() {
-        return Some(0);
-    }
-    if unsafe { GetACP() } == CP_UTF8 {
-        // The system's ANSI code page is UTF-8: every character is kept.
-        return Some(text.len());
-    }
-    let mut lost = 0;
-    let length = unsafe {
-        WideCharToMultiByte(
-            CP_ACP,
-            WC_NO_BEST_FIT_CHARS,
-            units.as_ptr(),
-            units.len() as i32,
-            null_mut(),
-            0,
-            null(),
-            &mut lost,
-        )
+/// A moment in Unix seconds (UTC) as this computer's local date and time,
+/// with the time zone's daylight saving of that day.
+pub fn local_stamp(unix: u64) -> Option<updater_logic::replay::Stamp> {
+    use windows_sys::Win32::System::Time::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime};
+    // 100 ns since 1601.
+    let ticks = unix.checked_add(11_644_473_600)?.checked_mul(10_000_000)?;
+    let file_time = FILETIME { dwLowDateTime: ticks as u32, dwHighDateTime: (ticks >> 32) as u32 };
+    let mut utc: SYSTEMTIME = unsafe { core::mem::zeroed() };
+    let mut local: SYSTEMTIME = unsafe { core::mem::zeroed() };
+    let ok = unsafe {
+        FileTimeToSystemTime(&file_time, &mut utc) != 0
+            && SystemTimeToTzSpecificLocalTime(null(), &utc, &mut local) != 0
     };
-    (length > 0 && lost == 0).then_some(length as usize)
-}
-
-/// The path of a file as the game can be given it on its command line: the
-/// path itself when the ANSI code page holds every character of it and it
-/// is at most `limit` bytes so, else its short (8.3) form when that is.
-pub fn game_path(path: &str, limit: usize) -> Option<String> {
-    use windows_sys::Win32::Storage::FileSystem::GetShortPathNameW;
-    if ansi_length(path).is_some_and(|length| length <= limit) {
-        return Some(path.into());
-    }
-    let mut buffer = alloc::vec![0_u16; 1024];
-    let length = unsafe { GetShortPathNameW(wide(path).as_ptr(), buffer.as_mut_ptr(), buffer.len() as u32) }
-        as usize;
-    if length == 0 || length >= buffer.len() {
-        return None;
-    }
-    let short = from_wide(&buffer[..length]);
-    ansi_length(&short)
-        .is_some_and(|length| length <= limit)
-        .then_some(short)
+    ok.then_some(updater_logic::replay::Stamp {
+        year: local.wYear,
+        month: local.wMonth,
+        day: local.wDay,
+        hour: local.wHour,
+        minute: local.wMinute,
+    })
 }
 
 pub fn file_size(path: &str) -> Result<u64, Code> {
