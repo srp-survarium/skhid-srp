@@ -536,8 +536,10 @@ package survarium.controls
          this._watchBadge.visible = live > 0;
          field.text = String(live);
          var w:int = Math.max(18,int(field.textWidth + 10));
-         field.x = int((w - field.width) / 2);
-         field.y = int((18 - field.height) / 2);
+         // On the text itself: a TextField has a 2 px gutter on each side, and a narrow digit
+         // centred by the field's own box sits off the middle of the circle.
+         field.x = Math.round((w - field.textWidth) / 2) - 2;
+         field.y = Math.round((18 - field.textHeight) / 2) - 2;
          this._watchBadge.graphics.clear();
          this._watchBadge.graphics.beginFill(0xC62B22,1);
          this._watchBadge.graphics.drawRoundRect(0,0,w,18,18,18);
