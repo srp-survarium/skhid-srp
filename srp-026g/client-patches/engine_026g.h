@@ -32,6 +32,7 @@ struct critical_section;
 struct dds_cursor;
 struct di_command_queue;
 struct drawable_image_context;
+struct effect_presenter_holder;
 struct engine_cfg;
 struct game_allocator;
 struct game_effect;
@@ -42,6 +43,7 @@ struct game_effect_slot;
 struct game_material_manager;
 struct game_project_resource;
 struct game_scene;
+struct game_world;
 struct game_world_ui;
 struct gfx_movie;
 struct gfx_object;
@@ -60,12 +62,15 @@ struct lobby_character;
 struct lobby_client;
 struct lobby_menu;
 struct match_options;
+struct match_options_holder;
+struct match_packet;
 struct material_pair;
 struct medical_effect_resource;
 struct medical_pool;
 struct medical_pools;
 struct medkit;
 struct messaging_client;
+struct movie_slot;
 struct mt_allocator;
 struct network_client;
 struct new_sound_propagator;
@@ -331,6 +336,12 @@ void engine_effects_stop(struct game_effect_list *effects);
 
 /* 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
 void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener);
+
+/* 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0 */
+void engine_set_effect_presenter(struct player *player, struct effect_presenter_holder *holder);
+
+/* 0x2de560 survarium::game_effect_player::represent: player ESP+4; pops 4 */
+void engine_effect_player_represent(struct game_effect_player *player);
 
 /* virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX */
 struct game_effect_slot *engine_emitter_emit(struct pure_game_effect_emitter *emitter, struct game_effect_slot *out, float first, float second);
@@ -643,5 +654,35 @@ extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const
 
 /* 0x11b740 vostok::render::backend::reset: backend EDI; pops 0 */
 void engine_backend_reset(struct backend *backend);
+
+/* virtual survarium::match_client+0x18 (1 vtables of vtables.tsv: 0x279fe0): client ECX, id ESP+4; pops 4; EAX */
+struct match_packet *engine_match_packet_begin(struct match_options_holder *client, unsigned int id);
+
+/* virtual survarium::match_client+0x1c (1 vtables of vtables.tsv: 0x27a2a0): client ECX, packet ESP+4; pops 4 */
+void engine_match_packet_send(struct match_options_holder *client, struct match_packet *packet);
+
+/* 0x7ac10 vostok::network_core::buffer_writer::w: buffer_writer ESP+4, source_bytes ESP+8, byte_count EDI; pops 8 */
+void engine_append_packet_bytes(struct buffer_writer *buffer_writer, const unsigned char *source_bytes, unsigned int byte_count);
+
+/* the IAT slot 0x87029c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_set_environment_variable_a)(const char * name, const char * value);
+
+/* 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0 */
+void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie);
+
+/* 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0 */
+void engine_hide_scene_movie(struct movie_slot *movie, struct game_world *scene);
+
+/* the IAT slot 0x870244 (an import, stdcall) */
+extern void (__attribute__((stdcall)) *const engine_get_system_time_as_file_time)(unsigned int * file_time);
+
+/* the IAT slot 0x870230 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_local_file_time)(const unsigned int * file_time, unsigned int * local);
+
+/* the IAT slot 0x87022c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_system_time)(const unsigned int * file_time, unsigned int * system_time);
+
+/* 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly */
+void __attribute__((stdcall)) engine_discard_playing_order(struct lobby_client *client, unsigned int left);
 
 #endif

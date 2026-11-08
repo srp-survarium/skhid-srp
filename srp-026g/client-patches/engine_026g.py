@@ -195,6 +195,9 @@ def rows_of(va, abi=None, inputs=None):
     for row in inputs:
         if int(row["va"], 16) == va:
             out["names"].add(row["name"])
+            if " at 0x" in row["location"]:
+                continue                     # a register inside the function (a site's), no input
+
             out["locations"].add(location(row["location"]))
             out["roles"].setdefault(location(row["location"]), []).append(row["role"])
     out["names"].discard("")

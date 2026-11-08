@@ -728,9 +728,7 @@ pub fn set_skills(account: &mut Account, skills: &[(u16, u8)]) -> Result<(), Act
         .collect();
     kept.sort_unstable();
     if kept != account.skills {
-        account.skills = kept;
-        // The kits carry the skills' modifiers.
-        account.bump_kits();
+        account.change_skills(kept, tree);
     }
     Ok(())
 }
@@ -788,8 +786,13 @@ fn reset_skills_in_tree(
         }
         _ => return Err(ActionError::BadReset),
     }
-    account.skills.retain(|&(id, _)| !in_branch(id));
-    account.bump_kits();
+    let kept = account
+        .skills
+        .iter()
+        .copied()
+        .filter(|&(id, _)| !in_branch(id))
+        .collect();
+    account.change_skills(kept, tree);
     Ok(freed)
 }
 
@@ -2446,6 +2449,8 @@ mod tests {
         let record = prices::price_list()
             .iter()
             .filter(|record| !dictionary.is_stack(record.dict_id))
+            // Of what wears: a badge, dearer, has no wear.
+            .filter(|record| wear_per_match(record.dict_id) > 0.0)
             .max_by_key(|record| record.cost)
             .unwrap();
         let mut account = rich(1_000_000);
@@ -2661,6 +2666,109 @@ mod tests {
             Err(ActionError::NotEnoughPremiumMoney)
         );
         assert_eq!(account.skills, before.skills);
+    }
+
+    /// What a skill opened (a pocket, a second double-handed weapon, an
+    /// extra medicine) leaves every kit and preset with the skill; taking
+    /// Deep Pockets takes the second weapon off. The inventory keeps all.
+    #[test]
+    fn a_skill_taken_back_takes_off_what_it_opened() {
+        use crate::v026g::presets::{Preset, PresetSlot};
+        use survarium::v026g::item_params::item_params;
+        use survarium::v026g::skills::slot_modifier;
+        let put = |account: &mut Account, kit: usize, slot: usize, item_id: u32, count: u32| {
+            account.kits[kit].slots[slot] = Some(KitSlot { item_id, count });
+        };
+        let mut account = rich(10 * REROLL_COST);
+        let medkit = account.add_item(dict("medkit"), 5);
+        let grenade = account.add_item(dict("rgd-5"), 4);
+        let ak = account.add_item(dict("ak_74u"), FULL_CONDITION);
+        let mosin = account.add_item(dict("mosin_nagant"), FULL_CONDITION);
+        let pistol = account.add_item(dict("tt_33"), FULL_CONDITION);
+        for (name, double) in [("ak_74u", true), ("mosin_nagant", true), ("tt_33", false)] {
+            assert_eq!(item_params(dict(name)).unwrap().double_handed, double);
+        }
+        // A torso with defect 4030: a pocket less (of the defects' table).
+        let row = survarium::v026g::modifications::Modifications::shared()
+            .defect(4030)
+            .unwrap();
+        assert_eq!(row.modifiers[0].path, "parameters/pocket_slots_modifier");
+        assert_eq!(row.modifiers[0].value, -1.0);
+        let torso = account.add_item(dict("edge_torso_5"), FULL_CONDITION);
+        account.item_mut(torso).unwrap().modifications = vec![(4030, true)];
+        let inventory = account.inventory.clone();
+
+        // Deep Pockets (113): a second pocket, and no second weapon. The
+        // torso's own pocket is taken by its defect: its kit keeps one.
+        account.skills = vec![(113, 1)];
+        put(&mut account, 0, 7, ak, 1);
+        put(&mut account, 0, 13, medkit, 1);
+        put(&mut account, 0, 14, grenade, 1);
+        put(&mut account, 2, 2, torso, 1);
+        put(&mut account, 2, 13, medkit, 1);
+        put(&mut account, 2, 14, grenade, 1);
+        let saved = |item_id, dict_id| {
+            Some(PresetSlot {
+                item_id,
+                dict_id,
+                count: 1,
+            })
+        };
+        let mut preset = Preset {
+            kits: [[None; KIT_SLOTS]; 3],
+        };
+        preset.kits[2][13] = saved(medkit, dict("medkit"));
+        preset.kits[2][14] = saved(grenade, dict("rgd-5"));
+        account.presets[1] = Some(preset);
+        let revision = account.kits[1].revision;
+        assert_eq!(reset_skills(&mut account, 0, reset_payment::SILVER), Ok(1));
+        assert_eq!(account.kits[0].slots[13].unwrap().item_id, medkit);
+        assert_eq!(account.kits[0].slots[14], None);
+        assert_eq!(account.kits[2].slots[13].unwrap().item_id, medkit);
+        assert_eq!(account.kits[2].slots[14], None);
+        assert_eq!(account.kits[2].slots[2].unwrap().item_id, torso);
+        let preset = account.presets[1].unwrap();
+        assert_eq!(preset.kits[2][13], saved(medkit, dict("medkit")));
+        assert_eq!(preset.kits[2][14], None);
+        // The kits carry other modifiers.
+        assert_eq!(account.kits[1].revision, revision + 1);
+
+        // Terminator (111): two double-handed weapons, one kept beside a
+        // one-handed one.
+        account.skills = vec![(111, 1)];
+        put(&mut account, 0, 10, mosin, 1);
+        put(&mut account, 1, 7, ak, 1);
+        put(&mut account, 1, 10, pistol, 1);
+        assert_eq!(reset_skills(&mut account, 0, reset_payment::SILVER), Ok(1));
+        assert_eq!(account.kits[0].slots[7].unwrap().item_id, ak);
+        assert_eq!(account.kits[0].slots[10], None);
+        assert_eq!(account.kits[1].slots[10].unwrap().item_id, pistol);
+
+        // Taking Deep Pockets takes the second weapon off.
+        account.change_skills(vec![(113, 1)], SkillsTree::shared());
+        assert_eq!(account.kits[1].slots[10], None);
+        assert_eq!(account.kits[1].slots[7].unwrap().item_id, ak);
+
+        // Additional Medicine (322, its bit of the medical ranks): one more
+        // medicine a pocket; a grenade's pocket is as it was.
+        let mut tree = SkillsTree::shared().clone();
+        let mut additional = tree.skill(101).unwrap().clone();
+        additional.id = 322;
+        additional.levels = vec![vec![(
+            slot_modifier::MEDICAL_RANKS,
+            (1 << slot_modifier::ADDITIONAL_MEDICINE_BIT) as f32,
+        )]];
+        tree.skills.push(additional);
+        account.skills = vec![(322, 1)];
+        put(&mut account, 0, 13, medkit, 2);
+        put(&mut account, 1, 13, grenade, 1);
+        assert_eq!(
+            reset_skills_in_tree(&mut account, 2, reset_payment::SILVER, &tree),
+            Ok(1)
+        );
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+        assert_eq!(account.kits[1].slots[13].unwrap().count, 1);
+        assert_eq!(account.inventory, inventory);
     }
 
     #[test]

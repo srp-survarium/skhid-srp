@@ -59,7 +59,11 @@ Edits (edits.json):
                     declare source .b-spline and .bones_names dependencies in _inputs.
   "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
                     append a new indexed record, refusing stale counts and duplicate identities;
-                    arrays in the new value are indexed tables, leaving existing records intact
+                    arrays in the new value are indexed tables, leaving existing records intact;
+                    "files" and "expected_counts" (two lists, a count a file) in place of
+                    "file" and "expected_count" append the same record to each file; with
+                    "vectors": true a list of 2 to 4 numbers is a native vector (a position)
+                    and [] an empty indexed table, as the game's own objects have them
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
@@ -507,10 +511,16 @@ def add_key(buf, table, key, text):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
+class EmptyList:
+    """An empty indexed table (an empty dict is an empty named one)."""
+
+
 def value_record(buf, name_off, key, value):
     """A 24-byte record of `value` named `key` (its name at `name_off`); a table's children and
     texts are appended."""
     crc = zlib.crc32(key.encode()) & 0xffffffff
+    if isinstance(value, EmptyList):
+        return REC.pack(0, name_off, crc, T_INDEXED, 0)
     if isinstance(value, dict) and value and all(isinstance(k, int) for k in value):
         if sorted(value) != list(range(len(value))):
             raise ValueError('%s: items %s, not 0 to %d' % (key, sorted(value), len(value) - 1))
@@ -554,11 +564,12 @@ def insert_value(buf, toff, key, value):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
-def append_entry(buf, path, expected_count, unique_key, value):
+def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     """Append a new record, refusing stale counts and duplicate identities.
 
-    New JSON lists are indexed tables. This operation never replaces an
-    existing value, so existing native vectors and scalar types stay intact.
+    New JSON lists are indexed tables; with `vectors`, a list of 2 to 4 numbers is a native vector
+    and an empty list an empty indexed table. This operation never replaces an existing value, so
+    existing native vectors and scalar types stay intact.
     """
     off = find(buf, path)
     _, name, crc, kind, count = rec(buf, off)
@@ -571,6 +582,11 @@ def append_entry(buf, path, expected_count, unique_key, value):
         raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
     records = [bytes(buf[entry:entry + 24]) for entry in entries]
     def indexed(value):
+        if vectors and isinstance(value, list):
+            if not value:
+                return EmptyList()
+            if 2 <= len(value) <= 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in value):
+                return value
         if isinstance(value, list):
             return {i: indexed(item) for i, item in enumerate(value)}
         if isinstance(value, dict):
@@ -1111,7 +1127,9 @@ STATS = {
             'aim_bonus': default_modification(207), 'recoil_bonus': default_modification(208),
             'reliability_bonus': default_modification(209),
         },
-        'add': {'reload_empty'},
+        # a bonus cell of a gun with no built-in list makes its default_modifications
+        'add': {'reload_empty', 'silver_bonus', 'damage_bonus', 'spread_bonus', 'rpm_bonus', 'reload_bonus',
+                'chamber_bonus', 'aim_bonus', 'recoil_bonus', 'reliability_bonus'},
         'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_empty', 'reload_start', 'reload_end', 'chamber',
                   'aim_time', 'show_time', 'hide_time', 'weight', 'movement', 'stopping', 'stamina_damage',
                   'near_m', 'far_m', 'far_damage', 'spread', 'shot_spread', 'max_spread', 'spread_growth',
@@ -1258,10 +1276,12 @@ STATS = {
             'experience': default_modification(124),
             'rep_scav': default_modification(125),
             'rep_bm': default_modification(126),
+            # scope sway (breath vibration), the NVD's alone among the gear (the aiming booster has 1210)
+            'sway': default_modification(121),
         },
         'match': {'armor', 'ano', 'arms', 'back', 'weight', 'oxygen_s', 'pockets', 'artefact_slots', 'ammo_bags',
                   'accuracy', 'aim', 'max_weight', 'health_regen', 'stamina_regen', 'movement', 'artefact_search',
-                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size'},
+                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'sway'},
         'cards': armour_card,
     },
     'medicines': {
@@ -1556,6 +1576,12 @@ def stats_write(category, columns, rows, data, table):
             root = dict(zip(value_offsets(b), (q for q, _, _ in walk(b))))[off]  # the entry's own path
             for column, key, cell, have in stats_differences(b, off, columns, rows[row], row, present):
                 if isinstance(key, Derived):
+                    if cell and not resolve(b, key, off) and column in category.get('add', ()):
+                        # a built-in list the config lacks (an `add` bonus column): made with this one
+                        insert_value(b, off, key, {0: int(cell)})
+                        written.setdefault(p, []).extend([root + '/' + key, root + '/' + key + '[0]'])
+                        print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
+                        continue
                     for at, o in resolve(b, key, off):
                         changed, taken = key.write(b, o, cell)
                         written.setdefault(p, []).extend(root + at + q for q in changed)
@@ -2400,13 +2426,19 @@ def main():
             grown[p][lst] += 1
         print('entry %s after %s: %d files' % (e['list'], e['after'], n))
     for e in edits.get('append_entry', []):
-        p = e['file']
-        at = append_entry(buf(p), e['list'], e['expected_count'], e['unique_key'], e['value'])
-        table = '/' + e['list']
-        added.setdefault(p, []).append('%s[%d]' % (table, at))
-        grown.setdefault(p, {}).setdefault(table, 0)
-        grown[p][table] += 1
-        print('append %s[%d]' % (e['list'], at))
+        if 'files' in e:
+            if len(e['files']) != len(e['expected_counts']):
+                raise ValueError('append_entry: %d files, %d expected counts' % (len(e['files']), len(e['expected_counts'])))
+            targets = list(zip(e['files'], e['expected_counts']))
+        else:
+            targets = [(e['file'], e['expected_count'])]
+        for p, expected in targets:
+            at = append_entry(buf(p), e['list'], expected, e['unique_key'], e['value'], e.get('vectors', False))
+            table = '/' + e['list']
+            added.setdefault(p, []).append('%s[%d]' % (table, at))
+            grown.setdefault(p, {}).setdefault(table, 0)
+            grown[p][table] += 1
+            print('append %s %s[%d]' % (p, e['list'], at))
     for e in edits.get('add_key', []):
         add_key(buf(e['file']), e['table'], e['key'], e['text'])
         added.setdefault(e['file'], []).append('/%s/%s' % (e['table'], e['key']))

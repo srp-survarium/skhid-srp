@@ -15,8 +15,16 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
 ## Every artefact
 
 - Passive from pickup to death, as before; each copy's passive adds up with the others'.
+  A death keeps the artefacts in that kit's containers (passive off while dead); a respawn in
+  that kit switches their passives on again, a respawn in another kit leaves them in the first
+  kit's containers until a spawn in it again (each kit its own object). A take with every
+  container held replaces the first container's (it is gone, dormant).
 - A press of an artefact's key fires every artefact of that kind in the slots that is ready
   (its passive, its cooldown 0): one key, all of a kind, their actives added up.
+- At most 4 copies of a kind count (the owner, 2026-11-07; artefact-skills.md "At most 4 copies
+  of a kind"): a press fires only the ready ones among the first 4 of the kind in the containers
+  (in their passive or active, container order); a fifth (Artifact Container) is never fired and
+  stays ready, so its active adds nothing (and it gives no passive).
 - A copy on its cooldown or already active does nothing on that press; it is not fired later.
 - The key of a copy that is not ready still fires the ready ones of its kind.
 - Different kinds have their own keys and cooldowns: Onyx, Spring and Lifebone fire on their own.
@@ -53,7 +61,8 @@ active")
 - Active: -75 % damage and piercing (`active/damage_mul` and `armor_piercing_mul` 0.1 -> 0.25) for
   3 s, cooldown 60 s as before.
 - Its key fires every ready Onyx; n fired together are each active 3 s + (n - 1) s (1 Onyx 3 s, 2
-  Onyx 4 s, 3 Onyx 5 s) and end and cool down together. A cooling Onyx adds no time.
+  Onyx 4 s, 3 Onyx 5 s) and end and cool down together. A cooling Onyx adds no time, nor a fifth
+  (not fired: five ready Onyx are 6 s, as four).
 - Several active Onyx reduce a hit once (-75 %): only the first active Onyx of the slots takes its
   share; the others leave the hit as it is (before: x0.1 per active Onyx, all 3 s).
 - An Onyx in its passive (on its cooldown) beside an active one still gives its -5 %.
@@ -98,6 +107,27 @@ down) when you use artifact? Note that your vision should still be clear")
     kept, as the owner asked.
   - The end: the effect's time calculator is the artefact's (`artefact_base::effect_calculator`
     0x313640): finished when the artefact leaves its active state (4); both children with it.
+- Version 5 of the pack adds Forest Protection's grey leg glow (artefact-skills.md, "Forest
+  Protection"): the same files of the three kinds, and effect_forest_protection with its own
+  particle system and grey materials.
+- Version 6 adds the leg quarters (artefact-skills.md, "Leg quarters"):
+  effect_artefact_leg_<kind>_<1..4>, each kind's stock glow on one quarter of the legs (without
+  its point light until version 8).
+- Version 7: the quarters' emitters at the stock glow's density on their parts (Rate and
+  MaxParticles times the kept share of each stock emitter's parts).
+- Version 8: the point light's emitter (up_light) back in every quarter, at the same share.
+- Version 9: Forest Protection's glow on the forearms and hands, made as a quarter is.
+- Version 10: Forest Protection's glow the legs' system of 5..8 moved to the arms; it and the leg quarters composites with a
+  first-person twin (view 0) without the point light and the haze, as the kinds' own glows are.
+- Version 11: Forest Protection's puffs, strokes and haze out of the arm on every side (their
+  animated domain's Scale outward on all three axes), the puffs twice as large; the twin 10's.
+- Version 12: Forest Protection's glow a dark-grey smoke around the arms: the stock Onyx glow on
+  the arms at full rate with its `up` puffs and `body` strokes moved onto them, no light, the
+  smoke drawn with `fx/artifacts/smoke_dark_grey` (a copy of the alpha-blended
+  `explosions/dark_smoke`); in the carrier's own view its rays only.
+- Version 13: the leg quarters one particle effect of view 2 each, without the point light and the
+  haze (what the carrier saw is what everyone sees), no first-person twin; Forest Protection's smoke
+  emitters' Rate and MaxParticles x1.5.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

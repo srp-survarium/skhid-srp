@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use ban_reason::{BanEnd, BanReason, BanTold};
 use lobby_server::v026g::test_client::TestClient;
 use session::v026g::GameAccounts;
 use session::{LockExt, SessionStore};
@@ -231,9 +232,15 @@ impl Game {
         self.lobby.decoded.clear();
     }
 
-    fn assert_clean(&self) {
+    /// No faults, and nothing left out of order once what is in flight has
+    /// arrived: the last pump may have caught a message before an earlier one.
+    fn assert_clean(&mut self) {
+        if self.lobby.waiting_in_order() > 0 {
+            self.until("its messages in order", |game| {
+                game.lobby.waiting_in_order() == 0
+            });
+        }
         assert_eq!(self.lobby.faults, Vec::<String>::new(), "{}", self.name);
-        assert_eq!(self.lobby.waiting_in_order(), 0, "{}", self.name);
         assert_eq!(self.lobby.order_drops, 0, "{}", self.name);
     }
 }
@@ -277,14 +284,14 @@ fn the_page_changes_an_account_and_its_open_game_is_told() {
             ("tab", "account"),
             ("acc_user", "WebAlice"),
             ("premium_hours", "+24"),
-            ("level", "2"),
+            ("level", "20"),
             ("faction", "1"),
             ("reputation", "+40"),
         ],
     );
-    assert!(changed.contains("level 2"), "{changed}");
+    assert!(changed.contains("level 20"), "{changed}");
     alice.until("the account again", |game| {
-        game.has(|message| matches!(message, Decoded::Skills { level: 2, .. }))
+        game.has(|message| matches!(message, Decoded::Skills { level: 20, .. }))
             && game.has(|message| {
                 // A new account's 3000 with the Scavengers and the 40.
                 matches!(message, Decoded::Reputations { reputations, .. }
@@ -467,7 +474,7 @@ fn the_operators_text_and_a_ban_reach_the_026g_lobby() {
         });
     }
     // Who signs in while it stands is shown it too.
-    let carol = Game::signed_in(&stack, "WebCarol", "carol-password-1");
+    let mut carol = Game::signed_in(&stack, "WebCarol", "carol-password-1");
     assert!(carol.has(|message| matches!(message, Decoded::AdminText(..))));
     let cleared = admin(web, &[("tab", "text"), ("clear_text", "1")]);
     assert!(cleared.contains("The text is cleared"), "{cleared}");
@@ -495,7 +502,10 @@ fn the_operators_text_and_a_ban_reach_the_026g_lobby() {
         game.has(|message| matches!(message, Decoded::SignedOut)) && game.lobby.disconnected
     });
     let refused = sign_in(stack.login_addr, "WebCheater", "cheater-password-1");
-    assert_eq!(refused, [0x1C], "{refused:02X?}");
+    assert_eq!(refused[0], 0x1C, "{refused:02X?}");
+    let told = BanTold::decode(&refused[1..]).expect("the ban told");
+    assert_eq!(told.reason, BanReason::Administration);
+    assert!(matches!(told.end, BanEnd::In(3590..=3600)), "{told:?}");
     // Bob plays on.
     let counts = bob.lobby.online.len();
     bob.until("the online counts", |game| game.lobby.online.len() > counts);
@@ -504,7 +514,7 @@ fn the_operators_text_and_a_ban_reach_the_026g_lobby() {
     // Lifted: it signs in again.
     let lifted = admin(web, &[("tab", "unban"), ("unban_user", "WebCheater")]);
     assert!(lifted.contains("WebCheater unbanned"), "{lifted}");
-    let again = Game::signed_in(&stack, "WebCheater", "cheater-password-1");
+    let mut again = Game::signed_in(&stack, "WebCheater", "cheater-password-1");
 
     alice.assert_clean();
     bob.assert_clean();
@@ -552,7 +562,7 @@ fn a_password_reset_signs_the_game_out_and_the_next_sign_in_sets_it() {
     assert!(!bob.lobby.disconnected);
 
     // Any password is taken, then it alone.
-    let again = Game::signed_in(&stack, "WebForgetful", "new-password-2");
+    let mut again = Game::signed_in(&stack, "WebForgetful", "new-password-2");
     let refused = sign_in(stack.login_addr, "WebForgetful", "old-password-1");
     let wrong = sign_in(stack.login_addr, "WebBob", "not-bobs-password");
     assert_eq!(refused.len(), 1, "{refused:02X?}");
@@ -589,7 +599,7 @@ fn a_password_reset_signs_the_game_out_and_the_next_sign_in_sets_it() {
         refused.starts_with("HTTP/1.0 403 Forbidden\r\n"),
         "{refused}"
     );
-    let bob_again = Game::signed_in(&stack, "WebBob", "bob-password-2");
+    let mut bob_again = Game::signed_in(&stack, "WebBob", "bob-password-2");
 
     alice.assert_clean();
     bob.assert_clean();

@@ -99,6 +99,20 @@ pub fn match_level(levels: &[u8]) -> u16 {
     mean.min(last) as u16
 }
 
+/// The highest level a match can have: [`match_level`] of players all at
+/// the highest level (step 4's highest `item_level_min`).
+pub fn highest_match_level() -> u16 {
+    let highest = Dictionary::shared()
+        .match_maker
+        .items_levels_modifiers
+        .iter()
+        .map(|row| row.item_level_min)
+        .max()
+        .unwrap_or(0)
+        .min(u32::from(u8::MAX)) as u8;
+    match_level(&[highest])
+}
+
 /// How many matches the account was put in on the map `level`
 /// (`maps::MapMode::level`, a number of the game data's).
 pub fn map_plays(account: &Account, level: u8) -> u32 {
@@ -236,6 +250,8 @@ mod tests {
         assert_eq!(match_level(&[15; 16]), 15);
         // Never past the multipliers' last row.
         assert_eq!(match_level(&[200, 200]), 20);
+        // The highest gear (15) is the highest level, whatever the rating.
+        assert_eq!(highest_match_level(), 15);
         assert!(
             Dictionary::shared()
                 .match_level(usize::from(match_level(&[15, 15])))

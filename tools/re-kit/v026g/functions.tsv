@@ -178,6 +178,7 @@ va	status	ref_021d	name
 0x000e06d0	reviewed	0x000ae250	vostok::resources::resource_children::unlink_child_resource
 0x000e07b0	reviewed	0x000ae30e	vostok::resources::resource_children::unlink_from_children
 0x000e07e0	reviewed	0x000ae337	vostok::resources::resource_children::unlink_from_parents
+0x000e48e0	reviewed	0x000b01a5	__delayLoadHelper2
 0x000e4f40	reviewed	0x000b079e	vostok::memory::doug_lea_allocator::initialize_impl
 0x000e4f80	reviewed	0x000b07ce	vostok::memory::doug_lea_allocator::finalize_impl
 0x000e4f90	reviewed	0x000b07fc	vostok::memory::doug_lea_allocator::malloc_impl
@@ -2169,3 +2170,44 @@ va	status	ref_021d	name
 0x000f66d0	reviewed		vostok::math::half_to_float
 0x003b9c00	verified	0x00265b8a	vostok::input::platform::keyboard::get_dik_name
 0x003b8d20	verified	0x00265091	vostok::input::platform::keyboard::execute
+0x0027a070	observed		survarium::match_client::match_client
+0x00317d40	reviewed		vostok::popcount
+0x003a8980	reviewed		anim_decode_read_bits
+0x003a9580	reviewed		decode_times_in_ms_impl
+0x003a9720	reviewed		decode_floats_impl
+0x003a98c0	reviewed		decode_floats
+0x003a9900	reviewed		decode_data
+0x003a99c0	reviewed		anim_state_deserialize
+0x002614e0	observed	0x00196bf4	survarium::options_item_float::initialize
+0x002616e0	observed	0x00196cdf	survarium::options_item_float::apply
+0x002d1070	reviewed	0x001dcbe6	survarium::game_world_core::is_there_event_horizon_item
+0x0085adf0	observed		survarium::`dynamic initializer for 'uro_fov''
+0x002fbbb0	observed		survarium::weapon_user_animations_selector::serialize
+0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
+0x003402c0	observed		survarium::hit_player_game_effect_presenter::serialize
+0x00331ff0	observed		survarium::recoil_calculator::serialize
+0x0032b720	reviewed	0x00200d54	stlp_std::for_each<stlp_std::pair<enum survarium::hit_affects_type_enum,unsigned int> const *,survarium::serialize_affect_functor>
+0x00300d30	reviewed	0x001e76d9	survarium::victory_item_core::taken_from_container
+0x00337280	reviewed	0x00206cd3	survarium::player_logic_stand_jump_state::initialize_weight_for_on_site_animation
+0x003422f0	reviewed	0x0020cf4f	survarium::short_jump_landing_state::serialize
+0x002ab6e0	reviewed	0x001afe7d	boost::random::detail::new_uniform_01<float>::operator()<boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647> >
+0x002ddad0	observed		survarium::game_effect_player::serialize
+0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
+0x00334310	observed		survarium::composite_game_effect::serialize
+0x0026d660	reviewed	0x0019bf64	survarium::base_local_network_client::get_player
+0x00397040	reviewed	0x0024df70	vostok::animation::mixing::n_ary_tree_serializer::save_floats
+0x00397810	reviewed		stlp_std::unique<float *>
+0x00397880	reviewed		stlp_std::find<float *,float>
+0x002a9e70	observed		survarium::sound_game_effect_presenter::clear
+0x002a9ef0	observed		survarium::sound_game_effect_presenter::on_event
+0x002ac400	observed		survarium::particle_game_effect_presenter::on_event
+0x002de350	observed		survarium::game_effect_player::stop
+0x0031a210	observed		survarium::damage_zone_core::stop_effect
+0x0021beb0	observed		survarium::network_client::connect_to_match
+0x0027b880	observed		survarium::network_client::process_static_match_info
+0x0027aa20	verified	0x001a25cc	survarium::network_client::on_match_ready
+0x0027aed0	verified	0x001a27c4	survarium::network_client::query_players
+0x0027b110	verified	0x001a2962	survarium::network_client::disconnect
+0x002717e0	verified	0x0019e562	survarium::lobby_client::discard_playing_order
+0x001ed170	observed		survarium::game::switch_to_game_world
+0x002203a0	observed		survarium::lobby_menu::show_loading_screen

@@ -28,6 +28,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -196,13 +197,77 @@ def tables(movie_dir):
     return out
 
 
-def assemble(original_data, code, added=()):
+@dataclass(frozen=True)
+class Placement:
+    """A row of placements.tsv: in sprite `sprite`'s frame `frame` (from 1), the PlaceObject2 at `depth`
+    places `to` where the original places `old`."""
+    sprite: int
+    frame: int
+    depth: int
+    old: int
+    to: int
+
+
+def placements(movie_dir):
+    """[Placement] of the tree's placements.tsv (`sprite frame depth from to`, tab-separated; `#` lines
+    and a trailing `# why` are comments): characters the original places wrongly, put right."""
+    path = movie_dir / 'placements.tsv'
+    if not path.is_file():
+        return []
+    out = []
+    for n, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+        row = line.split('#', 1)[0].strip()
+        if not row:
+            continue
+        cells = row.split('\t')
+        if len(cells) != 5 or not all(c.strip().isdigit() for c in cells):
+            raise ValueError(f'{path}:{n}: sprite, frame, depth, from and to, five numbers')
+        out.append(Placement(*(int(c) for c in cells)))
+    return out
+
+
+def placed_right(tags, fixes):
+    """`tags` with each of `fixes` applied: every one must match exactly one PlaceObject2 of its sprite,
+    frame and depth that places its `old` character, and `to` must be a character the movie defines."""
+    left = {(f.sprite, f.frame, f.depth): f for f in fixes}
+    defined = swf.character_ids(tags)
+    for f in fixes:
+        if f.to not in defined:
+            raise ValueError(f'placements.tsv: character {f.to} is not defined')
+    out = []
+    for kind, raw in tags:
+        if kind == swf.DEFINE_SPRITE and left:
+            body = swf.payload(raw)
+            sprite, = struct.unpack_from('<H', body)
+            mine = {key: fix for key, fix in left.items() if key[0] == sprite}
+            if mine:
+                frame, inner = 1, []
+                for sub_kind, sub in swf.tags_of(body[4:]):
+                    if sub_kind == swf.SHOW_FRAME:
+                        frame += 1
+                    elif sub_kind == swf.PLACE_OBJECT2:
+                        depth, cid = swf.placed(sub)
+                        fix = mine.get((sprite, frame, depth))
+                        if fix and cid == fix.old:
+                            sub = swf.with_character(sub, fix.to)
+                            del left[(sprite, frame, depth)]
+                    inner.append(sub)
+                raw = swf.tag(kind, body[:4] + b''.join(inner))
+        out.append((kind, raw))
+    if left:
+        f = next(iter(left.values()))
+        raise ValueError(f'placements.tsv: sprite {f.sprite} frame {f.frame} depth {f.depth} places no {f.old}')
+    return out
+
+
+def assemble(original_data, code, added=(), fixes=()):
     """The original movie with `code` (DoABC tags) in place of all of its code, where its code began.
 
     `added` (bitmaps()) are new bitmaps: each a DefineBitsLossless2 or a DefineBitsJPEG2 of a new
     character id before the code, bound to its class (a BitmapData of the tree) by one SymbolClass
-    after it."""
+    after it. `fixes` (placements()) put right characters the original places wrongly."""
     header, tags = swf.split(original_data)
+    tags = placed_right(tags, fixes)
     first = next(i for i, (kind, _) in enumerate(tags) if kind in (swf.DO_ABC, swf.DO_ABC_OLD))
     taken = swf.character_ids(tags)
     if {name for _, name in swf.symbol_classes(tags)} & {b.name for b in added}:
@@ -258,9 +323,10 @@ def build(movie_dir, original_swf, tools, report=print):
         finally:
             shutil.rmtree(place / 'src')
     added = bitmaps(movie_dir)
-    movie = assemble(data, code, added)
+    fixes = placements(movie_dir)
+    movie = assemble(data, code, added, fixes)
     report(f'{movie_dir.name}: {check(movie)} classes in {len(code)} ABC blocks over the original\'s graphics'
-           + (f', {len(added)} bitmaps added' if added else ''))
+           + (f', {len(added)} bitmaps added' if added else '') + (f', {len(fixes)} placements put right' if fixes else ''))
     return movie
 
 

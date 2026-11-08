@@ -346,6 +346,10 @@ pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength 
 /// has a dead player with an empty kit as its next (three matches lost
 /// that day). Until then every kit of an account went as usable, the
 /// empty ones too.
+///
+/// A kit's pockets go packed ([`MatchKit::new`]): an empty pocket before a
+/// held one put the game's artefact slots over the held one, and the next
+/// read of that player's state ended the game (match 0x55809714).
 pub fn match_profile(account: &Account, team: u8, squad: u8, now: u64) -> MatchProfile {
     let body = wire::account_body(account, now);
     MatchProfile {
@@ -356,18 +360,18 @@ pub fn match_profile(account: &Account, team: u8, squad: u8, now: u64) -> MatchP
         kits: body
             .kits
             .into_iter()
-            .map(|kit| MatchKit {
-                state: if rules::check_play(account, kit.id, now).is_ok() {
+            .map(|kit| {
+                let state = if rules::check_play(account, kit.id, now).is_ok() {
                     kit.state
                 } else {
                     KIT_NOT_LOADED
-                },
-                id: kit.id,
-                name: kit.name,
-                slots: kit
+                };
+                let slots = kit
                     .slots
-                    .map(|slot| slot.map(|slot| (slot.item_index, slot.count))),
-                modifiers: kit.modifiers,
+                    .map(|slot| slot.map(|slot| (slot.item_index, slot.count)));
+                // An empty pocket before a held one is the lobby's to show,
+                // never the match's: its pockets go packed.
+                MatchKit::new(state, kit.id, kit.name, slots, kit.modifiers)
             })
             .collect(),
         items: body

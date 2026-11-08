@@ -8,8 +8,22 @@ import re
 import struct
 
 from make_pack import (bcw, cell, atlas, catalog, e029, movie_metadata, shipped_switches, shipped_textures, specs,
-                       sound_file,
+                       sound_file, farthest_hits, surface_mesh, NATIVE_HEAD,
                        text_keys, FLASH_MAPPING, HIT_TYPES, LANGUAGES, LATER_STAGE_KEYS, PHYSICAL, SURFACE_CHUNKS)
+
+
+def head_shows_through(surface, head_raw):
+    """How many native skull vertices lie more than 1 mm beyond a mask's outermost surface (seen through it)."""
+    import numpy as np
+    positions, triangles, _ = surface_mesh(surface)
+    head, _, _ = surface_mesh(head_raw)
+    lo, hi = head.min(0), head.max(0)
+    centre = np.array([(lo[0] + hi[0]) / 2, lo[1] + 0.62 * (hi[1] - lo[1]), (lo[2] + hi[2]) / 2])
+    skull = head[head[:, 1] > lo[1] + 0.09]
+    d = skull - centre
+    r = np.linalg.norm(d, axis=1)
+    far, _, _ = farthest_hits(centre, d / r[:, None], positions, triangles)
+    return int((np.isfinite(far) & (r > far + 0.001)).sum())  # 1 mm: rims resting on the skin
 
 MODIFICATIONS = 'gameplay/items/modifications/modifications.options'
 WEAR = ('parameters/degrade_per_death', 'parameters/degrade_per_match', 'parameters/degrade_per_use')
@@ -78,7 +92,7 @@ def check(pack, base):
     manifest = json.loads((pack / 'pack.json').read_text())
     operations = manifest['operations']
     entries = next(op['entries'] for op in operations if op['op'] == 'dictionary_add')
-    assert len(entries) == len(rows) == 35
+    assert len(entries) == len(rows) == 39
     assert sum(row['is_premium'] for row in entries) == sum(1 for r in rows if r['plain_id']) == 1
     native = bcw.loads((base / 'gameplay/db_static_dictionaries').read_bytes())['items_dict']
     by_id = {row['dict_id']: row for row in native + entries}
@@ -128,6 +142,15 @@ def check(pack, base):
                 assert part['part_name'] in surfaces[part['base_model']], (ident, part)
             assert 'damage_protection' not in item[key], ident
         assert item['data'].get('remove_head_model', False) == bool(spec['covers_head']), (ident, 'head')
+        # Over the native head, no stand-in head of the donor's (the Veles mask's).
+        assert spec['covers_head'] or not any(part['base_model'].endswith('_head')
+                                              for part in item['data'].get('additional_models', [])), (ident, 'head')
+        # A mask over the native head: the head shows through none of its surfaces.
+        if params['type'] == 'arm_mask' and not spec['covers_head']:
+            data = item['data']
+            surface = pack / 'files' / f"models/{data['base_model']}.skinned_model/render/{data['part_name']}/converted_model"
+            if surface.exists():
+                assert not head_shows_through(surface.read_bytes(), (base / NATIVE_HEAD).read_bytes()), (ident, 'head')
         assert not any('remove_head_model' in item[k] for k in item if k.startswith('data_')), ident
         assert item['ui_desc']['text_descriptions'] == text_keys(spec)
         for sound in item.get('sounds', []):

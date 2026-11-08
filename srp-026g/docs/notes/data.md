@@ -395,6 +395,11 @@ Removed keys:
   srp-021d `quests.rs::kind` constants must change.
 - Ids run from 10101 to 41113. Factions: 63/64/121/121 quests.
 - The localization objective keys lost their per-level suffix: `st_*_obj_N` became `st_*_obj`.
+- `ui.icon` is the quest list's icon (PROVEN): the quest reader 0x321310 keeps it at descriptor
+  + 0xB8 (`faction` at + 0x1C), `lobby_menu::add_quest` 0x28DE20 sends it as `quest_icon`, and
+  `QuestListRender` draws frame `quest_icon + 1` of its `questIcon` (SrvQuestSideRenderer's child;
+  15 frames). A faction's emblem in the quest window is frame `faction_id` of SrvQuestFactionTab's
+  `icon` (ButtonQuestFaction). The wiki's quests page shows both (`scripts/wiki/build_icons.py`).
 
 ### static_game_parameters (dump `static_game_parameters.txt`): PROVEN
 - Same structure. `ui_properties` grows from 46 to 57 (props 123–133 added).

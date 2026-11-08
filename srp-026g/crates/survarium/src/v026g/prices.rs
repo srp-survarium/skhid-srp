@@ -78,12 +78,16 @@
 //! - the factions' own camouflages ([`is_shop_camo`]): the faction whose
 //!   folder the config is in ([`CAMO_SHOPS`]), at level 0, for `base_cost`
 //!   [the owner's choice, 2026-10-17];
+//! - the badges ([`is_badge`]: the decals of `type` [`BADGE`], which the
+//!   game unlocked and no drop or shop gives): as gear, by
+//!   [`ShopRules`] (the faction badges, each by its faction at the rank it
+//!   is named after) or else by seller 0 at no rank (the rank badges), for
+//!   `base_cost` [the owner's choice, 2026-11-07: vanity, so dear];
 //! - not listed: anything else with `base_cost` 0 (their ammo is listed at
 //!   no cost, see [`sellers_of_in`]; artefacts, money, the New Year 2015 camouflage), premium
 //!   items (their cost is gold; they belong to the premium shop, 0x95, or
 //!   are sold one by one for gold, `shop_offers`), artefacts (as 0.21d), vouchers,
-//!   decals and the drop camouflages (the wiki lists decals at ranks; not
-//!   applied);
+//!   the other decals and the drop camouflages;
 //! - not sold at all, neither for silver nor for gold ([`ShopRule::NotSold`]): the
 //!   Russian and Belarusian flags and coats of arms, the flag of the USSR
 //!   and the red star [the owner's choice, 2026-10-18]. srp does not touch
@@ -112,6 +116,20 @@ const SUPPLIES: [u8; 8] = [9, 10, 11, 18, 19, 20, 21, 24];
 const GEAR: [u8; 13] = [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17];
 /// Camouflages.
 const CAMOUFLAGE: u8 = 25;
+/// Decals.
+const DECAL: u8 = 26;
+
+/// The `type` of a badge: a decal the game unlocked by a player's rank or
+/// a faction's (`char_decal_1_*`, `char_decal_2_*`), sold as gear
+/// ([`is_badge`]). The others are `drp_decl` (drops) and `prm_decl`
+/// (premium, for gold).
+pub const BADGE: &str = "unl_decl";
+
+/// Whether `item` is a badge: a decal of `type` [`BADGE`] that is not
+/// premium.
+pub fn is_badge(item: &Item, params: &ItemParams) -> bool {
+    item.category == DECAL && params.kind == BADGE && !item.is_premium
+}
 
 /// The `type` of a faction's own camouflage: a "stock" camouflage, sold for
 /// silver. The others are `drp_camo` (drops, `base_cost` 1) and `prm_camo`
@@ -340,7 +358,7 @@ pub fn sellers_of_in(
             Vec::new()
         };
     }
-    let gear = GEAR.contains(&item.category);
+    let gear = GEAR.contains(&item.category) || is_badge(item, params);
     let supply = SUPPLIES.contains(&item.category) && item.is_stack;
     if item.base_cost == 0 {
         // A free supply (the starting weapons' ammo) is listed at no cost by
@@ -883,21 +901,62 @@ mod tests {
         assert!(!sold("vss") && !sold("sr3m") && !sold("socom16"));
         assert!(!sold("scope_leupold") && !sold("artefact_onyx"));
         assert!(!sold("generic_money") && !sold("premium_money"));
-        // No decals, vouchers, drop camouflages or the free New Year one:
-        // of the cosmetics, only the shop camouflages.
+        // No other decals, vouchers, drop camouflages or the free New Year
+        // one: of the cosmetics, only the shop camouflages and the badges.
         for record in price_list() {
             let item = dictionary.item(record.dict_id).unwrap();
             if item.category >= 25 {
+                let params = item_params(item.dict_id).unwrap();
                 assert!(
-                    is_shop_camo(item, item_params(item.dict_id).unwrap()),
+                    is_shop_camo(item, params) || is_badge(item, params),
                     "{}",
                     item.name
                 );
             }
         }
+        assert!(!sold("decals_3_4") && !sold("decals_4_3"));
         assert!(!sold("camo_black_leather_01") && !sold("camo_khaki_fabric_03"));
         assert!(!sold("camo_new_year"));
         assert_eq!(buy_cost(214, 1), None);
+    }
+
+    /// The badges (owner, 2026-11-07): every rank badge to everyone at no
+    /// rank, a million each but the Flying Hussars; each faction badge by
+    /// its faction at the rank it is named after.
+    #[test]
+    fn the_badges_are_sold_dear() {
+        let dictionary = Dictionary::shared();
+        let cost = |name: &str| {
+            price(dictionary.item_named(name).unwrap().dict_id)
+                .unwrap()
+                .cost
+        };
+        for n in 1..=7 {
+            let name = format!("decals_1_{n}");
+            assert_eq!(sold_by(&name), [(0, 0)], "{name}");
+            assert_eq!(cost(&name), 1_000_000, "{name}");
+        }
+        assert_eq!(sold_by("decals_1_8"), [(0, 0)]);
+        assert_eq!(cost("decals_1_8"), 20_000);
+        let (scav, bm, ren, edge) = (
+            faction::SCAVENGERS,
+            faction::BLACK_MARKET,
+            faction::RENAISSANCE,
+            faction::EDGE,
+        );
+        for (name, seller, rank, price) in [
+            ("decals_2_1", scav, 1, 50_000),   // Scavengers rookie
+            ("decals_2_2", scav, 5, 100_000),  // Scavengers veteran
+            ("decals_2_3", bm, 1, 50_000),     // Black Market Recruit
+            ("decals_2_4", bm, 5, 100_000),    // Black Market Elite
+            ("decals_2_5", ren, 1, 50_000),    // Renaissance Army Soldier
+            ("decals_2_6", ren, 10, 100_000),  // Renaissance Army Colonel
+            ("decals_2_7", edge, 1, 50_000),   // Fringe Settlers Hunter
+            ("decals_2_8", edge, 10, 100_000), // Fringe Settlers Magister
+        ] {
+            assert_eq!(sold_by(name), [(seller, rank)], "{name}");
+            assert_eq!(cost(name), price, "{name}");
+        }
     }
 
     /// The decals no shop sells ([`ShopRule::NotSold`]), as reviewed

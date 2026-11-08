@@ -1613,6 +1613,7 @@ fn a_member_who_cannot_go_into_the_match_is_told_why() {
         (Closed::LastSeconds, "J;-1;3"),
         (Closed::Full, "J;-1;4"),
         (Closed::Ending, "J;-1;6"),
+        (Closed::NoWorld, "J;-1;8"),
     ];
     world.host.closed.locked().insert(ticket, Closed::Loading);
     let joined = rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);

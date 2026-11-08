@@ -260,7 +260,7 @@ is played as soon as the server runs on data with it.
   is the 72 ids of §3; with London 75 (181, 182, 183); with the Research
   pack 25 more (mode 5; a mode-5 id also needs its `resources_count`).
 - **From the project** (`server_objects` of `client_project`, which the server
-  data keeps of every project: `resources_db::server::server_objects_of`):
+  data keeps of every project: `resources_db::server::objects_of`):
   `MapMode::respawn_points`, every entry of `respawn_points` (§2's table, the
   number of pairs the respawn rule writes, snapshot_rules.md §2.3), and in
   modes 2 and 3 `MapMode::container_teams`, `victory_items_containers[..].team`

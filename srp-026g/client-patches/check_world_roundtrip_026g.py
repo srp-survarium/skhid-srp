@@ -109,6 +109,17 @@ OWN_CHECKS = {
                    "does not read/write serialized bytes; check_medical_skills_026g.py executes start, tick "
                    "and restore with identical config duration for ranks 0..5 and two client memory layouts",
 
+    (0x27C116, 5): "world_load.loaded: application receipt, exercised by check_packet_recovery_026g.py",
+    (0x2D2D5D, 7): "keeper.world_loaded (patch 109): after the load, every kit's slots made to hold the registered "
+                   "artefacts the world has in them; writes no byte a save writes: of the current kit's "
+                   "inventory a save writes +180h/+184h, never touched here, and the saved range's slots, which "
+                   "the load just wrote from the same records this compares with (it empties only slots outside "
+                   "that range, fills only the slot an artefact's own record names), and the artefacts' records "
+                   "it never writes; check_artefact_keeper_026g.py runs it after the game's own "
+                   "inventory::deserialize and asserts a mended current kit keeps its loaded +180h/+184h",
+    (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
+    (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
+    (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x27C0FF, 6): "world_load.raw: the same preparation as world_load.unpacked (world_check.rs `check`), for a "
                    "world sent raw; check_world_check_026g.py",
     (0x27C059, 5): "WORLD_UNPACK (patch 98): the 0xE8 handler's stack buffer for a packed world, 0x8000 -> 0xF000 "
@@ -500,7 +511,13 @@ def main():
     parser.add_argument("worlds", nargs="*", default=[WORLDS], help="dumps, or folders of them")
     parser.add_argument("--exe", dest="built", help="a built exe to run instead of this tree's build")
     parser.add_argument("--show", type=int, default=10, help="failures shown per game (default 10)")
+    parser.add_argument("--contexts", help="srp-validate drift_dump TSV for a corpus other than the historical TDM fixtures")
     args = parser.parse_args()
+    contexts = {}
+    if args.contexts:
+        for row in open(args.contexts):
+            file,now,mode,batteries,points,_ = row.rstrip().split('\t')
+            contexts[os.path.basename(file)] = tuple(map(int,(mode,batteries,points)))
     started = time.time()
     original = open(args.exe, "rb").read()
     if args.built:
@@ -527,6 +544,8 @@ def main():
         failures = []
         for name, now, body in loaded:
             game = resync if what == "resync" else games[what]()
+            if args.contexts:
+                game.validation_context = contexts[name]
             failures += round_trip(game, name, now, body)
         for _, _, _, line in failures[:args.show]:
             print(f"  FAIL  {what}: {line}")

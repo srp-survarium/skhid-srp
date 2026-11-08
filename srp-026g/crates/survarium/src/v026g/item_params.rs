@@ -9,6 +9,7 @@
 //! `required_bags`), and `item_level` came here from the dictionary.
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
+use srp_validate::world::{Artefact, Chamber, GunState};
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
@@ -66,6 +67,161 @@ pub struct ItemParams {
     /// The localization key of its name (`ui_desc.text_descriptions.name`),
     /// if it has one.
     pub name_key: Option<&'static str>,
+    /// What the game makes of it in a kit (`data.type`, [`ItemClass`]).
+    pub class: ItemClass,
+    /// A weapon's state machine ([`GunStates`]); `None` for an item with
+    /// no `states`.
+    pub gun: Option<GunStates>,
+}
+
+/// A weapon's state machine as its cook makes it (0x30B9A0 into
+/// 0x2DF780): the classes of its `states.<name>.state_type` in the order
+/// show, hide, idle, reload, fire, `chamber_a_round` if it has one,
+/// throw grenade, melee.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GunStates {
+    pub states: &'static [GunState],
+    /// [`Chamber::Saved`] when it has a `chamber_a_round` state.
+    pub chamber: Chamber,
+}
+
+impl GunStates {
+    const ORDER: [&'static str; 8] = [
+        "show",
+        "hide",
+        "idle",
+        "reload",
+        "fire",
+        "chamber_a_round",
+        "throw_grenade",
+        "melee",
+    ];
+
+    /// The machine of an item's config, if it has `states`. Every state but
+    /// the chamber's must be there, each of a class the game has.
+    pub fn from_config(config: &ConfigValue) -> Result<Option<Self>, ConfigError> {
+        let Some(table) = config.get("states") else {
+            return Ok(None);
+        };
+        let chamber = match table.get("chamber_a_round") {
+            Some(_) => Chamber::Saved,
+            None => Chamber::NotSaved,
+        };
+        let mut states = Vec::new();
+        for name in Self::ORDER {
+            let Some(state) = table.get(name) else {
+                if name == "chamber_a_round" {
+                    continue;
+                }
+                return Err(ConfigError(format!("`states` has no `{name}`")));
+            };
+            let kind = state.i32_at("state_type")?;
+            let class = u32::try_from(kind)
+                .ok()
+                .and_then(GunState::of_type)
+                .ok_or_else(|| ConfigError(format!("`states.{name}.state_type` {kind} is no class")))?;
+            states.push(class);
+        }
+        Ok(Some(Self {
+            states: Box::leak(states.into_boxed_slice()),
+            chamber,
+        }))
+    }
+}
+
+/// The damage model's body parts: the entries of
+/// `gameplay/hit_params/human_hit_params.options`, the `hit_params` every
+/// character config names (0x138948..0x138994). A player state saves each.
+pub fn body_parts() -> usize {
+    static PARTS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *PARTS.get_or_init(|| {
+        body_parts_of(super::game_data::file(HIT_PARAMS))
+            .expect("the hit params read (checked at start, `tables::check`)")
+    })
+}
+
+/// [`body_parts`] of the file's bytes: data with none stops srp at start, as
+/// every player state of its worlds would be read wrong.
+pub fn body_parts_of(bytes: &[u8]) -> Result<usize, ConfigError> {
+    let config = ConfigValue::parse(bytes)?;
+    match config.get("hit_params").map(|parts| parts.children().len()) {
+        Some(parts) if parts > 0 => Ok(parts),
+        _ => Err(ConfigError("no `hit_params` body part".into())),
+    }
+}
+
+/// Where [`body_parts`] are.
+pub const HIT_PARAMS: &str = "gameplay/hit_params/human_hit_params.options";
+
+/// An item's `data.type`: the object the game's inventory cook makes of it
+/// in a kit (`inventory_cook::on_subresources_loaded` 0x2C75B0, the items
+/// cook's switch 0x31F660). PROVEN.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemClass {
+    /// No `data.type`: a weapon (by its slot), a cosmetic, money.
+    Untyped,
+    /// 0: a medkit; its `data.influences` count is how many floats an
+    /// active one saves.
+    Medkit { influences: u8 },
+    /// 1.
+    OxygenTank,
+    /// 2: `booby_trap_set_core`: one trap object of a world's game objects
+    /// for each of the kit slot's count.
+    TrapSet,
+    /// 3, 6, 7: the core an anomaly's artefact of it has.
+    Artefact(Artefact),
+    /// 4.
+    Armor,
+    /// 5.
+    Scope,
+    /// 9: `grenade_set_core`: one grenade object of a world's game objects
+    /// for each of the kit slot's count.
+    GrenadeSet,
+    /// 10.
+    Ammunition,
+    /// 11.
+    Booster,
+}
+
+impl ItemClass {
+    /// The class of an item's config: its `data.type`. A type the game's
+    /// cook does not know stops the data: srp would read its worlds wrong.
+    pub fn from_config(config: &ConfigValue) -> Result<Self, ConfigError> {
+        let data = config.get("data");
+        let Some(kind) = data.and_then(|data| data.get("type")) else {
+            return Ok(Self::Untyped);
+        };
+        let kind = kind
+            .as_i32()
+            .ok_or_else(|| ConfigError("`data.type` is not a number".into()))?;
+        Ok(match kind {
+            0 => {
+                let influences = data
+                    .and_then(|data| data.get("influences"))
+                    .map_or(0, |list| list.children().len());
+                Self::Medkit {
+                    influences: u8::try_from(influences).map_err(|_| {
+                        ConfigError(format!("{influences} `data.influences`"))
+                    })?,
+                }
+            }
+            1 => Self::OxygenTank,
+            2 => Self::TrapSet,
+            3 => Self::Artefact(Artefact::Lifebone),
+            6 => Self::Artefact(Artefact::Spring),
+            7 => Self::Artefact(Artefact::Onyx),
+            4 => Self::Armor,
+            5 => Self::Scope,
+            9 => Self::GrenadeSet,
+            10 => Self::Ammunition,
+            11 => Self::Booster,
+            other => {
+                return Err(ConfigError(format!(
+                    "`data.type` {other} is no class the game's cook makes"
+                )));
+            }
+        })
+    }
 }
 
 /// What one unit of a pocket item takes of its pocket; a pocket of `size`
@@ -332,6 +488,8 @@ impl ItemParams {
             magazine_capacity: int(p, "magazine_capacity")?,
             double_handed: flag(p, "double_handed")?,
             pocket_share: PocketShare::from_config(p)?,
+            class: ItemClass::from_config(config)?,
+            gun: GunStates::from_config(config)?,
             modification: int(p, "modification")?,
             default_modifications: leak(default_modifications),
             covered_slots: leak(covered_slots_of(config)?),

@@ -81,7 +81,9 @@ Unflinching or Concentration); a full build 32.
   (the hit's coefficient minus 0.01 a rank, never below 0: 0.9 -> 0.89, 0.88,
   0.87, so 10% -> 13%) and +1.5 s, replacing the relative +8% a rank. The
   descriptions say it adds to the painkiller's protection; the lobby's Alt
-  medicine card uses the same rule.
+  medicine card uses the same rule. Held Alt, the medicine cards also show Numb
+  Legs, Unflinching and Concentration (a painkiller) and Take Cover (a medicine
+  that heals) as lines of their own, "100 -> current %" (alt-weapon-stats.md).
 - Icons: Numb Legs shows Potent Painkiller's `survival/1.png` (the same
   embedded bitmap, MedicalSkill069301; its own MedicalSkill069303 is gone). Take
   Cover shows retail 0.69d0 `skills/physical/15.png` (234 "Mobility", a crouched
@@ -109,8 +111,11 @@ Unflinching or Concentration); a full build 32.
 - Potent Painkiller shows both values per rank and in the final result.
 - Medic (341) leaves the tree; it returns later in an anomalous tree. Its native
   code (activation sharing, the Larkspur 20-instance pool, the length clock) and
-  its transport bit 20 stay as they are: the bit is 0 because no skill sets it.
-  The sections below about Medic describe that retained code.
+  its transport bit 20 stay as they are. It returned in the artefact tree:
+  Cascade (542) sets bit 20 (artefact-skills.md), so a Larkspur's
+  activation heals the teammates within 6 m (Cascade's reach) with its glow; since the owner's
+  rev51 games every kind's activation (Spring, Lifebone, Onyx) plays its glow on them, a
+  Lifebone's also heals (`share_active`). The sections below about Medic describe that code.
 - Supply Pocket and Additional Medicine move to tier 5 and exclude each other,
   symmetrically; Supply Pocket keeps its exclusion of 111 and 113.
 - Saved skills are settled when an account loads (`Account::repair`,
@@ -142,7 +147,7 @@ the native medicine category, excluding whole-pocket items (the boosters).
 Whole-pocket items remain one; the server applies the same cap to moves, preset
 fills and account repair without deleting inventory stock. The menu uses committed skills, never an unsaved preview. Server reset
 validation obtains available branches from the loaded tree instead of assuming
-two tabs. The stock movie contains only two icon sets; `MedicalSkillIcon.as`
+two tabs. The stock movie contains only two icon sets; `SkillIcon069.as`
 displays original 0.69d survival PNGs for branch 3 within the existing
 skill renderer. Their bytes are unchanged in `flash/lobby_menu/bitmaps/`;
 `scripts/medical-skills/icons-069.tsv` records the donor paths, mapping and SHA-256.
@@ -161,7 +166,7 @@ leaves the player with no medical skill at all.
 - Slot 43 `armored_trap`, 24 bits, the layout it shipped with: bit offsets 0
   (Potent Painkiller, 0..3), 3 (Fast Bandaging, 0..2), 6 (Metabolism, 0..5),
   9 (Medical Training, 0..3), 12 (Adrenalin, 0..3), 15 (Additional Medicine),
-  16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained, 0 now) and
+  16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained: set by the artefact tree's Cascade) and
   21 (Brothers in Arms, 0..2). Ranked fields keep three bits; unlocks use one.
 - Slot 45 `can_defuse_traps`, 10 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
   0..2), Take Cover at 2 (2 bits, 4.0, 0..2), Unflinching at 4 (3 bits, 16.0,
@@ -220,7 +225,8 @@ time), after native enable/effect and before the activation timestamp/state
 assignment. It obtains the source from item+250h / inventory+174h, reads its
 simulation core, then visits active places in order. The visual effect helper is
 also invoked by deserialize and must never perform this gameplay healing.
-It excludes self, enemies, dead/inactive players and targets outside 5 m.
+It excludes self, enemies, dead/inactive players and targets outside Cascade's reach (6 m;
+5 m before the owner's 2026-11-07 change).
 Each successful native lookup is an owned reference released on every exit.
 For recipients it removes the Larkspur config's affects, fills body/head/pain
 like patch 54, and adds a native effect instance with the recipient's calculator.
@@ -352,8 +358,8 @@ The broader `selftest_026g.py` passed arena, engine ABI, hook/call-shape and
 cert-only structural checks before stopping at its Windows-only certificate
 check: Linux Python has no `ctypes.WinDLL`. It did not complete its remaining
 variants; this is not reported as a full self-test pass. The new lobby source
-movie is `eb2ba8b7c606f5978095225a8784585d015d8d5df5edfc110a45c8501aeea0d9`,
-not `RESULT_SHA256`; its latest-main changes still need an owner gameplay check
+movie is `eb2ba8b7c606f5978095225a8784585d015d8d5df5edfc110a45c8501aeea0d9`;
+its latest-main changes still need an owner gameplay check
 before publishing. No release has been made.
 
 

@@ -78,6 +78,8 @@ global engine_collision_insert
 global engine_collision_remove
 global engine_effects_stop
 global engine_effect_play
+global engine_set_effect_presenter
+global engine_effect_player_represent
 global engine_emitter_emit
 global engine_emitter_destroy
 global engine_release_resource
@@ -182,6 +184,16 @@ global engine_key_name
 global engine_activate_keyboard_layout
 global engine_get_module_handle_a
 global engine_backend_reset
+global engine_match_packet_begin
+global engine_match_packet_send
+global engine_append_packet_bytes
+global engine_set_environment_variable_a
+global engine_show_scene_movie
+global engine_hide_scene_movie
+global engine_get_system_time_as_file_time
+global engine_file_time_to_local_file_time
+global engine_file_time_to_system_time
+global engine_discard_playing_order
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -245,6 +257,11 @@ engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: 
 engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
 engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (an import, stdcall)
+engine_set_environment_variable_a equ 0x87029c   ; the IAT slot 0x87029c (an import, stdcall)
+engine_get_system_time_as_file_time equ 0x870244   ; the IAT slot 0x870244 (an import, stdcall)
+engine_file_time_to_local_file_time equ 0x870230   ; the IAT slot 0x870230 (an import, stdcall)
+engine_file_time_to_system_time equ 0x87022c   ; the IAT slot 0x87022c (an import, stdcall)
+engine_discard_playing_order equ 0x2717e0   ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1151,6 +1168,37 @@ engine_effect_play:
     push dword [esp + 40]   ; effect -> 4
     mov edi, [esp + 40]   ; player
     call 0x2de090
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_effect_presenter:
+    ; 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; player
+    mov edi, [esp + 24]   ; holder
+    call 0x1f3740
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_effect_player_represent:
+    ; 0x2de560 survarium::game_effect_player::represent: player ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; player -> 4
+    call 0x2de560
     pop edi
     pop esi
     pop ebx
@@ -2226,6 +2274,89 @@ engine_backend_reset:
     push edi
     mov edi, [esp + 20]   ; backend
     call 0x11b740
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_match_packet_begin:
+    ; virtual survarium::match_client+0x18 (1 vtables of vtables.tsv: 0x279fe0): client ECX, id ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; id -> 4
+    mov ecx, [esp + 24]   ; client
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x18]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_match_packet_send:
+    ; virtual survarium::match_client+0x1c (1 vtables of vtables.tsv: 0x27a2a0): client ECX, packet ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; packet -> 4
+    mov ecx, [esp + 24]   ; client
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x1c]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_append_packet_bytes:
+    ; 0x7ac10 vostok::network_core::buffer_writer::w: buffer_writer ESP+4, source_bytes ESP+8, byte_count EDI; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; source_bytes -> 8
+    push dword [esp + 24]   ; buffer_writer -> 4
+    mov edi, [esp + 36]   ; byte_count
+    call 0x7ac10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_scene_movie:
+    ; 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; scene
+    mov esi, [esp + 24]   ; movie
+    call 0x23dc00
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_hide_scene_movie:
+    ; 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; movie
+    mov edx, [esp + 24]   ; scene
+    call 0x23dc70
     pop edi
     pop esi
     pop ebx
