@@ -131,7 +131,6 @@ impl Core<'_> {
         match held.state(summary.replay_id.match_id(), revision, now) {
             replays::ReplayState::NotRecorded => ReplayState::NotRecorded,
             replays::ReplayState::Kept => ReplayState::Kept,
-            replays::ReplayState::Ready => ReplayState::Ready,
             replays::ReplayState::Gone => ReplayState::Gone,
             replays::ReplayState::OldVersion => ReplayState::OldVersion,
         }

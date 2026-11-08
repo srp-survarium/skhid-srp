@@ -579,15 +579,14 @@ fn money_skills_and_the_small_pushes() {
 }
 
 /// The answer to a replay poll: one ranking row at the replay start
-/// (2 200 000 000 is 0x83215600) whose name is the
-/// asker's status, the match in 8 lower-case hex digits and the size.
+/// (2 200 000 000 is 0x83215600) whose name is the asker's status, the
+/// match in 8 lower-case hex digits and a figure.
 #[test]
 fn a_replay_poll_is_answered_with_one_row_at_the_replay_start() {
     assert_eq!(REPLAY_START, 2_200_000_000);
-    assert_eq!(REPLAY_ASK, 0xFFFF_FF01);
     assert_bytes(
-        &replay_answer("ready", 0x1F07_C8FB, 1_166_938).unwrap(),
-        "91 01 'R1;ready;1f07c8fb;1166938' 00562183 0000 0000",
+        &replay_answer("watching", 0x1F07_C8FB, 14_500).unwrap(),
+        "91 01 'R1;watching;1f07c8fb;14500' 00562183 0000 0000",
     );
     let mut client = Client::signed_in();
     let message = replay_answer("none", 0, 0).unwrap();
@@ -595,11 +594,11 @@ fn a_replay_poll_is_answered_with_one_row_at_the_replay_start() {
         client.receive(&message).unwrap(),
         Decoded::EloList(vec![("R1;none;00000000;0".into(), 2_200_000_000, 0, 0)])
     );
-    // The longest word with the largest size: within the 63 bytes.
-    let longest = format!("R1;not_recorded;ffffffff;{}", u64::MAX);
+    // The longest word with the largest figure: within the 63 bytes.
+    let longest = format!("R1;incompatible;ffffffff;{}", u64::MAX);
     assert_eq!(longest.len(), 45);
     let Decoded::EloList(rows) = client
-        .receive(&replay_answer("not_recorded", u32::MAX, u64::MAX).unwrap())
+        .receive(&replay_answer("incompatible", u32::MAX, u64::MAX).unwrap())
         .unwrap()
     else {
         panic!("not a ranking list");
@@ -627,7 +626,7 @@ fn a_replay_watch_ask_carries_the_time_and_the_place() {
     );
     assert_eq!(ReplayWatchAsk::of(0xC100_0000), Some(ReplayWatchAsk::MyDeaths));
     assert_eq!(ReplayWatchAsk::MyDeaths.player_id(), 0xC100_0000);
-    for other in [REPLAY_ASK, GEAR_BY_PLACE, GEAR_IN_ROOM, 0x7FFF_FFFF, 1, 0xC100_0001] {
+    for other in [GEAR_BY_PLACE, GEAR_IN_ROOM, 0x7FFF_FFFF, 1, 0xC100_0001] {
         assert_eq!(ReplayWatchAsk::of(other), None);
     }
 }

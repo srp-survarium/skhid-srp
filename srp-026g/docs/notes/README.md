@@ -49,7 +49,7 @@ given), LIKELY or GUESS.
 | [client_patch.md](client_patch.md) | Porting the srp client patch, the function map |
 | [rust_patches.md](rust_patches.md) | Writing an exe patch in Rust: the workspace, the hook ABI, the engine bindings, typed game memory, panics and the log, testing, the equivalence gate a port must pass, the size budget |
 | [replay_sur.md](replay_sur.md) | The client's own replay file (`.sur`, `-match_replay`): its layout, and `srp-recording-to-sur`, which makes one from a match recording |
-| [replay_watch.md](replay_watch.md) | "Watch replay" from the lobby's History, the server side: conversion at match end, the lobby's `R1` answers and `9E` link, the download tokens, `/replays/<token>`, what is and is not reachable over HTTP |
+| [replay_watch.md](replay_watch.md) | Watching replays from the lobby: the movie's asks, the `R1` answers, who may watch what, what a replay holds, what is and is not reachable over HTTP |
 | [password-reset.md](password-reset.md) | The admin's password reset while srp runs: the page's Password tab (confirm step), a script's one POST and its answers, the curl from the jump host, the owner's rule (2026-10-18) |
 | [account-moderation.md](account-moderation.md) | The admin's Money and Take items tabs (the owner, 2026-10-20): the account's live silver, gold and items changed while srp runs, preview and confirm, never below 0, kits kept valid, the audit trail `g26_admin_actions` |
 | [admin-chat-mute.md](admin-chat-mute.md) | The admin's chat mute (2026-11-01): an account's lines on every chat channel reach nobody, for some hours or for good; it is told `muted for <reason>` instead; kept with the account, each mute in `g26_admin_actions` |

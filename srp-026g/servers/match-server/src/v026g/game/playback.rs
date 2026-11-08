@@ -35,8 +35,8 @@ use session::v026g::GameAccounts;
 use session::v026g::persist::match_events::{self, MatchEvent, Timing};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use session::v026g::replay_watch::{WatchFrom, WatchRequest};
-use session::v026g::replays::{DEFAULT_MAX_RECORDING_MB, Refusal, ReplayId, Replays, Status};
+use session::v026g::replay_watch::{DEFAULT_MAX_RECORDING_MB, WatchFrom, WatchRequest};
+use session::v026g::replays::{Refusal, ReplayId, Replays, Status};
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::static_info::{self, NO_LOCAL_PLACE, StaticInfo};
 use survarium::v026g::match_msgs::{
@@ -872,6 +872,7 @@ impl ReplayWatch {
         now: Instant,
     ) -> Self {
         let max_recording_bytes = replays
+            .watches()
             .settings()
             .map_or(DEFAULT_MAX_RECORDING_MB << 20, |settings| {
                 settings.max_recording_bytes

@@ -14,9 +14,9 @@
 //!   (the owner's of 2026-10-17), and Play goes into one;
 //! - `pvb`: "Player vs Bots": one player against the match server's own
 //!   bots, chosen in srp's changed lobby movie;
-//! - `replay`: the "Watch replay" of the movie's History: the ask, the
-//!   polls, the download link (`SRP_REPLAY_DIR`, set where srp starts the
-//!   lobby: [`Lobby::with_replays`]);
+//! - `replay`: watching a replay in the running game (the movie's Watch,
+//!   Watch replay, Watch my deaths): the ask and the polls (srp's replays,
+//!   [`Lobby::with_replays`]);
 //! - `social`: chat, friends, important messages, squads;
 //! - `clans`: clans, clan chat and clan-team Play.
 //!
@@ -511,7 +511,7 @@ pub struct Lobby {
     inbox: Arc<Inbox>,
     settings: Settings,
     /// "Watch replay" (`replay`): srp's replays, shared with the match
-    /// server and the web page; none, every ask is answered `off`.
+    /// server; none, every ask is answered `off`.
     replays: Option<Arc<Replays>>,
 }
 
@@ -541,7 +541,7 @@ impl Lobby {
         })
     }
 
-    /// The replays the History's "Watch replay" asks for (`replay`).
+    /// The replays the movie's Watch asks for (`replay`).
     pub fn with_replays(mut self, replays: Arc<Replays>) -> Self {
         self.replays = Some(replays);
         self

@@ -33,6 +33,10 @@ use crate::LockExt;
 /// way or playing). Each costs about a player's traffic and its recording
 /// in memory (a few MB to a few tens); the host has one CPU and 512 MB.
 pub const DEFAULT_MAX_SESSIONS: usize = 4;
+/// `SRP_REPLAY_MAX_RECORDING_MB` when unset: a larger recording is not
+/// read (`failed`). Reading one keeps it in memory with what is made of it
+/// (`docs/notes/replay-stream.md`); the container has 512 MB for everything.
+pub const DEFAULT_MAX_RECORDING_MB: u64 = 24;
 /// A session whose recording is not read within this is refused `failed`.
 pub const LOAD_WITHIN: Duration = Duration::from_secs(2 * 60);
 /// A session made ready whose game does not reach the match server within
@@ -50,7 +54,8 @@ pub enum Access {
     All,
 }
 
-/// `SRP_REPLAY_WATCH`, `SRP_REPLAY_MODERATORS`, `SRP_REPLAY_WATCH_MAX`.
+/// `SRP_REPLAY_WATCH`, `SRP_REPLAY_MODERATORS`, `SRP_REPLAY_WATCH_MAX`,
+/// `SRP_REPLAY_MAX_RECORDING_MB`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WatchSettings {
     pub access: Access,
@@ -58,6 +63,8 @@ pub struct WatchSettings {
     /// (`SRP_REPLAY_MODERATORS`: account ids, comma-separated).
     pub moderators: HashSet<u32>,
     pub max_sessions: usize,
+    /// A larger recording is not read.
+    pub max_recording_bytes: u64,
 }
 
 impl Default for WatchSettings {
@@ -66,13 +73,14 @@ impl Default for WatchSettings {
             access: Access::All,
             moderators: HashSet::new(),
             max_sessions: DEFAULT_MAX_SESSIONS,
+            max_recording_bytes: DEFAULT_MAX_RECORDING_MB << 20,
         }
     }
 }
 
 impl WatchSettings {
     /// Whether `account_id` may watch a match's replay, having `played` it
-    /// or not: a replay session's rule, and History's download's.
+    /// or not.
     pub fn may_watch(&self, account_id: u32, played: bool) -> bool {
         match self.access {
             Access::All => true,
@@ -106,10 +114,26 @@ impl WatchSettings {
         let max_sessions = var("SRP_REPLAY_WATCH_MAX")
             .and_then(|max| max.trim().parse().ok())
             .unwrap_or(DEFAULT_MAX_SESSIONS);
+        let max_recording_mb = match var("SRP_REPLAY_MAX_RECORDING_MB") {
+            None => DEFAULT_MAX_RECORDING_MB,
+            Some(value) => value
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .filter(|&mb| mb <= u64::MAX >> 20)
+                .unwrap_or_else(|| {
+                    log::error!(
+                        "SRP_REPLAY_MAX_RECORDING_MB is `{value}`; it must be a number. Using \
+                         {DEFAULT_MAX_RECORDING_MB}"
+                    );
+                    DEFAULT_MAX_RECORDING_MB
+                }),
+        };
         Self {
             access,
             moderators,
             max_sessions,
+            max_recording_bytes: max_recording_mb << 20,
         }
     }
 }
@@ -516,6 +540,7 @@ mod tests {
             access,
             moderators: HashSet::from([MOD]),
             max_sessions,
+            ..WatchSettings::default()
         }))
     }
 
