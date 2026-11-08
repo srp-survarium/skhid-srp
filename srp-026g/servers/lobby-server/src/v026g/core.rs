@@ -253,6 +253,8 @@ pub(super) struct Core<'a> {
     /// `Settings::dev_aid`: games signed in, and when it is done for them
     /// (`replay`).
     pub dev_due: HashMap<SocketAddr, Instant>,
+    /// The match each account's Live window asked the roster of (`live`).
+    pub live_roster: HashMap<u32, u32>,
 }
 
 /// When a member waiting in its room while the room's match is played goes
@@ -319,6 +321,7 @@ impl<'a> Core<'a> {
             room_seen: HashMap::new(),
             room_unseen: HashMap::new(),
             dev_due: HashMap::new(),
+            live_roster: HashMap::new(),
         }
     }
 

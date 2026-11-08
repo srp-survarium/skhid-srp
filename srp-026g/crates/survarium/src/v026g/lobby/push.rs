@@ -827,6 +827,41 @@ impl ReplayWatchAsk {
         }
     }
 }
+/// The `start` of a `3B 00 <LIVE_START> <count>` that asks for the
+/// matches being played, for the Live window ([`live_rows`]): **srp's
+/// own** ([`RESERVED_START`]). At most [`LIVE_ROWS`] matches.
+pub const LIVE_START: u32 = 2_240_000_000;
+/// The matches a [`LIVE_START`] answer lists at most.
+pub const LIVE_ROWS: u8 = 20;
+/// The `start` of a `3B 00 <LIVE_ROSTER_START> <count>` that asks for the
+/// roster of the match a [`LIVE_ROSTER_ASK`] chose ([`live_rows`]).
+pub const LIVE_ROSTER_START: u32 = 2_241_000_000;
+/// The places a [`LIVE_ROSTER_START`] answer lists at most.
+pub const LIVE_ROSTER_ROWS: u8 = 24;
+/// The `player` of a `3D 00 <player> <match>` that chooses the match whose
+/// roster the next [`LIVE_ROSTER_START`] asks for.
+pub const LIVE_ROSTER_ASK: u32 = 0xFFFF_FF06;
+
+/// A Live window's answer: `91` with `rows` named in order, each at
+/// `start` and its index (the request's start: [`LIVE_START`] or
+/// [`LIVE_ROSTER_START`]).
+pub fn live_rows(start: u32, rows: &[String]) -> Result<ServerMessage, WireError> {
+    let rows: Vec<Ranked> = rows
+        .iter()
+        .map(|name| Ranked {
+            name: name.clone(),
+            rating: 0,
+            rating_before: 0,
+        })
+        .collect();
+    let placed: Vec<(u32, &Ranked)> = rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| (start + index as u32, row))
+        .collect();
+    elo_rows(&placed)
+}
+
 /// The first field of the row of [`replay_answer`].
 pub const REPLAY_ANSWER_VERSION: &str = "R1";
 

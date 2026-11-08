@@ -3656,6 +3656,7 @@ fn the_registry_says_how_a_match_stands_while_it_runs() {
             players: [2, 1],
             present: 0b111,
             kills: [0, 0],
+            kills_deaths: [(0, 0); survarium::v026g::match_msgs::MAX_PLAYERS],
             played: None,
             time_left: None,
             standing: None,

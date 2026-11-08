@@ -100,6 +100,7 @@ mod core;
 mod dispatch;
 mod gear;
 mod items;
+mod live;
 /// A match's events on the side channel, for the replay's timeline and the
 /// History's rows.
 pub mod match_events;
@@ -140,7 +141,9 @@ use survarium::v026g::maps;
 use udp_transport::PacketLog;
 
 pub use patch_check::{check_min_patch_revision, min_patch_revision_from_env};
-pub use play::{LiveView, MatchHost, MatchPlayer, MatchSetup, MatchTicket, match_profile};
+pub use play::{
+    LivePhase, LiveView, MatchHost, MatchPlayer, MatchSetup, MatchTicket, match_profile,
+};
 
 /// The modes played when `SRP_MATCH_MODES` is unset: all the client has.
 const DEFAULT_MODES: [maps::GameMode; maps::GameMode::ALL.len()] = maps::GameMode::ALL;
@@ -202,6 +205,8 @@ pub struct Settings {
     pub pvb: pvb::Config,
     /// Rooms (`RoomRules::rooms_most`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
     pub rooms: rooms::Config,
+    /// The Live window's watching (`SRP_LIVE_WATCH_*`; `live`).
+    pub live: live::Config,
     /// A dev aid for tests that cannot click the lobby: what each game
     /// that signs in does ten seconds later (`replay::DevAid`).
     pub dev_aid: Option<replay::DevAid>,
@@ -305,6 +310,7 @@ impl Settings {
         );
         Self {
             pvb: pvb::Config::from_env(),
+            live: live::Config::from_env(),
             rooms: rooms::Config::from_env(),
             dev_aid: replay::DevAid::from_env(),
             balance,
@@ -335,6 +341,7 @@ impl Settings {
             min_patch_revision: 0,
             balance: Weights::default(),
             pvb: pvb::Config::default(),
+            live: live::Config::default(),
             rooms: rooms::Config::default(),
             dev_aid: None,
         }

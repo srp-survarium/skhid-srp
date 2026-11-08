@@ -215,6 +215,13 @@ impl MatchHost for RegistryHost {
             } else {
                 live.time_left
             },
+            phase: match live.phase {
+                matches::LivePhase::Gathering => lobby::LivePhase::Gathering,
+                matches::LivePhase::Countdown => lobby::LivePhase::Countdown,
+                matches::LivePhase::Playing => lobby::LivePhase::Playing,
+                matches::LivePhase::Over => lobby::LivePhase::Over,
+            },
+            kills_deaths: live.kills_deaths,
         })
     }
 

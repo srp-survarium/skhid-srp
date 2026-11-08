@@ -14,8 +14,8 @@ use std::time::{Duration, Instant};
 use session::matchmaking_policy::Closed;
 use session::v026g::persist::match_events::MatchEvent;
 use session::v026g::replays::ReplayId;
-use survarium::v026g::keeper;
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::keeper;
 use survarium::v026g::maps::{self, GameMode, MatchMap};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
@@ -244,6 +244,8 @@ pub(crate) struct Live {
     pub present: u32,
     /// Each team's kills in the newest trusted snapshot.
     pub kills: [u16; 2],
+    /// Each place's kills and deaths in it.
+    pub kills_deaths: [(u16, u16); MAX_PLAYERS],
     /// Since play began.
     pub played: Option<Duration>,
     /// Until the time limit, known from the countdown on.
@@ -281,6 +283,8 @@ pub struct LiveMatch {
     pub present: u32,
     /// Each team's kills in the newest trusted snapshot.
     pub kills: [u16; 2],
+    /// Each place's kills and deaths in it.
+    pub kills_deaths: [(u16, u16); MAX_PLAYERS],
     /// Since play began.
     pub played: Option<Duration>,
     /// Until the time limit ends it, known from the countdown on. The
@@ -841,6 +845,7 @@ impl MatchRegistry {
                 players,
                 present: (1_u32 << formed.places.len().min(31)) - 1,
                 kills: [0; 2],
+                kills_deaths: [(0, 0); MAX_PLAYERS],
                 played: None,
                 time_left: None,
                 standing: None,
@@ -854,6 +859,7 @@ impl MatchRegistry {
             players: live.players,
             present: live.present,
             kills: live.kills,
+            kills_deaths: live.kills_deaths,
             played: live.played.map(|played| played + since),
             time_left: live.time_left.map(|left| left.saturating_sub(since)),
             standing: live.standing.map(|(standing, age)| LiveStanding {

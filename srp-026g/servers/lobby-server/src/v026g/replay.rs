@@ -89,10 +89,16 @@ impl Core<'_> {
         let free = self.player(who.addr).is_some_and(|player| {
             player.in_match.is_none() && player.connect.is_none() && player.queued_since.is_none()
         });
-        let status = match self.replays {
-            None => Status::Off,
-            Some(_) if !free => Status::Busy,
-            Some(replays) => replays.watches().start(
+        // A match still being played is watched as it is (`live`).
+        let live = match ask {
+            ReplayWatchAsk::At { .. } if free => self.live_watch(who, match_id, now),
+            _ => None,
+        };
+        let status = match (live, self.replays) {
+            (Some(status), _) => status,
+            (None, None) => Status::Off,
+            (None, Some(_)) if !free => Status::Busy,
+            (None, Some(replays)) => replays.watches().start(
                 WatchRequest {
                     account_id: who.account_id,
                     session_id: who.session_id,

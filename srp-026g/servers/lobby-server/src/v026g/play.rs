@@ -118,6 +118,22 @@ pub struct LiveView {
     /// Until the time limit ends it, known from the countdown on; zero
     /// once the match is over.
     pub time_left: Option<Duration>,
+    pub phase: LivePhase,
+    /// Each place's kills and deaths in that world.
+    pub kills_deaths: [(u16, u16); session::MAX_PLAYERS_PER_MATCH],
+}
+
+/// Where a match is ([`LiveView::phase`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LivePhase {
+    /// Made: its players load the level.
+    #[default]
+    Gathering,
+    /// The countdown.
+    Countdown,
+    Playing,
+    /// It has its result.
+    Over,
 }
 
 /// One roster place: the index in [`MatchSetup::players`] is the player's
@@ -301,6 +317,8 @@ pub(super) struct Running {
     /// The server's bots play in it (against bots, or a room's with bots):
     /// one of `pvb::Config::max_matches`.
     pub server_bots: bool,
+    /// A private room's: not in the Live window (`live`).
+    pub private: bool,
 }
 
 /// One player as the log's "sides" and "late join" lines have it: what it
@@ -1301,6 +1319,7 @@ impl Core<'_> {
         let compatible = self
             .pool_for_sessions(formed.seats.iter().map(|seat| seat.player.session_id))
             == Some(formed.pool);
+        let private = room.is_some_and(|room| room.kind == RoomKind::Private);
         let made = match (players.filter(|_| compatible), maps::MatchMap::of(chosen)) {
             (Some(players), Some(map)) => self
                 .host
@@ -1310,7 +1329,7 @@ impl Core<'_> {
                     match_level,
                     players,
                     vs_bots,
-                    private: room.is_some_and(|room| room.kind == RoomKind::Private),
+                    private,
                     room_minimum: room.map(|room| room.minimum),
                 })
                 .map(|ticket| (ticket, map)),
@@ -1414,6 +1433,7 @@ impl Core<'_> {
                             .collect(),
                         predicted_at: None,
                         server_bots: !bot_teams.is_empty(),
+                        private,
                     },
                 );
                 true

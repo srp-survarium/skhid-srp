@@ -109,6 +109,35 @@ nor put into one late (`rooms::room_free`): this replaces PR #1496's 20-minute h
 in-client path. Its lobby link has the match's longer timeout while its game is on its way or
 watching.
 
+## Live: the matches being played (the Live window)
+
+Track C's Live window (the "Matches now" tab revived), `lobby-server/src/v026g/live.rs`. Each row
+is a `91` row at the request's start plus its index.
+
+- **List**: `3B 00 <LIVE_START = 2 240 000 000> <count <= 20>` (polled every 5 s): `L0;<n>`, then
+  `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;
+  <played s>;<spectators>;<watch>`; `phase` 0 made, 1 countdown, 2 in play, 3 over; `watch` 1 may,
+  0 full, 2 not watchable (fixed rosters, which take no spectator). A private room's match is not
+  listed. The match id is the match server's (the replay's).
+- **Roster**: `3D 00 <LIVE_ROSTER_ASK = 0xFFFF_FF06> <match>` chooses the match, then
+  `3B 00 <LIVE_ROSTER_START = 2 241 000 000> <count <= 24>`: `L2;<match 8 hex>;<place>;<team>;
+  <kills>;<deaths>;<name>` for each place in the match (kills and deaths of its newest trusted
+  world).
+- **Watch**: the replay session's ask (`0xC0000000 | place << 16 | seconds`) for a match still
+  being played (countdown or in play) sends the game to it as #1285's spectators are sent, but
+  `SRP_LIVE_WATCH_DELAY_S` (default 30) behind, so nobody calls a friend the positions: answered
+  `R1;watching;<match>;0`, `busy` when full (`SRP_LIVE_WATCH_PER_MATCH`, default 4;
+  `SRP_LIVE_WATCH_MAX`, default 8, of all matches) or not begun, `not_yours` when not watchable.
+  A match no longer played gets its recording, as above.
+- **Behind the match** (`game/spectate.rs`, `WatchKind::Live`): the match keeps its trusted worlds
+  of the last 60 s (as its inputs); a delayed spectator starts from the newest at least 250 ms
+  behind its clock (and fresh enough for the inputs since, 1.5 s) and gets the relays and roster
+  changes from the match's lists as its clock reaches them, never as they are played. Queue and
+  spectate's spectators stay immediate (the owner's rule), and a room's queue never ends a Live
+  one. Not yet: a delayed spectator is let go at the match's end with the players, so the last
+  delay of the match is not shown; a late joiner who entered within the delay has a place in its
+  0xE4 before the world shows it (as a replay's late install).
+
 ## Settings
 
 | setting | |

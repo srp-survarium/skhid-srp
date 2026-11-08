@@ -152,6 +152,12 @@ impl Core<'_> {
                     self.replay_watch(who, match_id, ask, now);
                 }
             }
+            // `3D 00 <LIVE_ROSTER_ASK> <match>`: the Live window's roster
+            // of that match comes next (`live`).
+            M::QueryPlayerDetails {
+                player_id: lobby::LIVE_ROSTER_ASK,
+                match_id,
+            } => self.live_roster_ask(who, match_id),
             // `3D 00 <GEAR_BY_PLACE> <place>`: the kits of a row of the
             // Rankings window (`gear`), any player's.
             M::QueryPlayerDetails {
@@ -721,6 +727,14 @@ impl Core<'_> {
         }
         if let Some(filter) = lobby::recent_matches::RecentFilter::of_start(start) {
             self.recent_matches(who, filter, count, now);
+            return;
+        }
+        if start == lobby::LIVE_START {
+            self.live_list(who, count, now);
+            return;
+        }
+        if start == lobby::LIVE_ROSTER_START {
+            self.live_roster(who, count, now);
             return;
         }
         log::debug!(

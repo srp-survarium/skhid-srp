@@ -1525,6 +1525,7 @@ fn leave_and_come_back(
             kills: [0, 0],
             played: Some(Duration::from_secs(60)),
             time_left: Some(Duration::from_secs(600)),
+            ..LiveView::default()
         },
     );
     world.host.admitting.locked().insert(ticket);

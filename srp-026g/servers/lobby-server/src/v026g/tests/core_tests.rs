@@ -2787,6 +2787,7 @@ mod clan_tests;
 mod feedback_tests;
 mod gear_tests;
 mod items_tests;
+mod live_tests;
 mod mode_intro_tests;
 mod patch_check_tests;
 mod player_matches_tests;
