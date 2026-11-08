@@ -158,14 +158,17 @@ mod tests {
     }
 
     #[test]
-    fn the_test_data_has_todays_head_alone() {
+    fn the_test_data_has_the_test_faces() {
+        // The archive's own file has today's head; the test data lays
+        // `heads` over it (`game_data::with_faces`).
         let data = super::super::game_data::shared();
         let root = ConfigValue::parse(data.file(PATH).expect("the bodyparts")).unwrap();
         assert!(root.req("body_parts").unwrap().get("head").is_some());
         let faces = Faces::of_data(data).unwrap();
-        assert_eq!(faces.count(), 1);
+        let count = super::super::game_data::TEST_FACES;
+        assert_eq!(usize::from(faces.count()), count);
         assert_eq!(faces.face(0), Some(Face::DEFAULT));
-        assert_eq!(faces.face(1), None);
+        assert_eq!(faces.face(count as u32), None);
     }
 
     #[test]

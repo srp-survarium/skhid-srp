@@ -5,6 +5,7 @@
 use std::num::NonZeroU16;
 
 use super::super::dictionary::Dictionary;
+use super::super::faces::Face;
 use super::super::lzma2;
 use super::super::modifications::Modifications;
 use super::super::prices::PriceItem;
@@ -294,6 +295,9 @@ pub struct OwnAccount {
     pub exp_total: u32,
     pub exp_level_start: u32,
     pub exp_next_level: u32,
+    /// srp's byte after the rest: the account's face, which the exe
+    /// draws the lobby's character by (`face-choice.md`).
+    pub face: Face,
 }
 
 /// `80`: the lobby has signed the client in (`lobby.md` §2.1). The client
@@ -453,16 +457,21 @@ pub fn own_account(account: &OwnAccount) -> Result<ServerMessage, WireError> {
         .u8(account.level)
         .u32(account.exp_total)
         .u32(account.exp_level_start)
-        .u32(account.exp_next_level);
+        .u32(account.exp_next_level)
+        .u8(account.face.index());
     Ok(writer.done(ServerId::Account))
 }
 
 /// `88`: a squad mate's account, the answer to `34 00 <account> <kit>`
-/// (`lobby.md` §2.8).
-pub fn squad_member_account(body: &AccountBody, revision: u32) -> Result<ServerMessage, WireError> {
+/// (`lobby.md` §2.8), then srp's byte: the mate's face (`face-choice.md`).
+pub fn squad_member_account(
+    body: &AccountBody,
+    revision: u32,
+    face: Face,
+) -> Result<ServerMessage, WireError> {
     let mut writer = Writer::new();
     write_account_body(&mut writer, body)?;
-    writer.u32(revision);
+    writer.u32(revision).u8(face.index());
     Ok(writer.done(ServerId::SquadMemberAccount))
 }
 

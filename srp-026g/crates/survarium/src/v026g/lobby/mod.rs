@@ -40,6 +40,7 @@ use std::fmt;
 
 pub mod client_model;
 pub mod client_rules;
+pub mod faces;
 pub mod lobby_pick;
 pub mod presets;
 pub mod push;

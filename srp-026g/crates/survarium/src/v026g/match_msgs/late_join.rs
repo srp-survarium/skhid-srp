@@ -173,6 +173,7 @@ mod tests {
                 kits: vec![MatchKit::empty(1, "kit")],
                 items: vec![],
                 squad: 7,
+                face: crate::v026g::faces::Face::DEFAULT,
             },
         }
     }
