@@ -2,33 +2,45 @@
 
 The owner's pick of 2026-10-22 from the 0.69d gallery
 (`069d-vs-026-items/camo-decal-gallery.html`): 38 decals and the Steam camouflage
-("no need for ILS"). Made by `scripts/decals-069d/make_pack.py` from `items.tsv` (the list, ids,
-kinds, icon cells), `texts.tsv` (names) and `donor.sha256` (0.69d's files); the pack is
-`decals-069d@1` of `release/content.tsv`. srp needs no code: it reads each item's kind, price and
-drop weight from the dictionary and the config.
+("no need for ILS"), version 1; and ten more decals picked 2026-11-08, version 2 (seven of 0.69d's
+premium decals and three of its achievement awards). Made by `scripts/decals-069d/make_pack.py`
+from `items.tsv` (the list, ids, kinds, icon cells), `texts.tsv` (names) and `donor.sha256`
+(0.69d's files); the pack is `decals-069d@2` of `release/content.tsv` (version 1's 39 items as
+they were, byte for byte, and the ten). srp needs no code: it reads each item's kind, price and
+drop weight from the dictionary and the config; each item has its row in
+`content-edit/items.tsv` (name, price, premium).
 
 ## Rules
 
 - **Items.** Category 26 decals and one category 25 camouflage, each a 0.26g config made from a
   native one of its kind (only the modification id, texture, name key and icon cell differ):
-  flags and holiday decals from `char_decal_4_41` (`prm_decl`, level 4, drop 0), Jarilo from
-  `char_decal_3_4` (`drp_decl`, level 3, drop 160), Steam camo from `camo_new_year` (as camos-069).
+  flags and holiday decals from `char_decal_4_41` (`prm_decl`, level 4, drop 0), Jarilo and the
+  other achievement decals (0.69d's `unl_decl`) from `char_decal_3_4` (`drp_decl`, level 3, drop
+  160), Steam camo from `camo_new_year` (as camos-069).
 - **Names kept from 0.69d**: config `char_decal_<r>_<c>`, texture `character/human/decal/<r>_<c>`,
   dictionary name `decals_<r>_<c>`, modification `200000 + 100 r + c`, name key
   `st_character_decals_<r>_<c>_name`; the description is 0.26g's generic one. None is taken in
   0.26g or the released patches (checked: dictionary, modification ids of every item config).
 - **Ids**: 1824 to 1862, the next free after 1823 (1817, 1818 stay reserved for the unshipped
-  masks). 0.69d's own ids (896 to 2158) clash with the scopes (2001 to 2468).
+  masks); version 2's 1884 to 1893, the next free after 1883 on main and in the released patches
+  (`content-edit/items.tsv`, a row per dictionary entry; 1877 stays the parked mountain rucksack's,
+  1901 on are the scope fits). 0.69d's own ids (762 to 2195) clash with the scopes (2001 to 2468).
 - **Textures**: 0.69d's DDS as they are (the formats of 0.26g's decals: DXT5 diffuse and normal
   map, DXT1 fmap and smap; 0.26g's fmaps are 512² or 16²), each with 0.26g's `.options` of the same role (0.69d's
-  hold the same values in its newer format).
+  hold the same values in its newer format). Boar hunter and Deer hunter (1_10, 1_11) have a 128²
+  normal map and 256² fmap and smap in 0.69d, kept so (every 0.26g normal map is 512²; the bake
+  samples each layer on its own).
 - **Where they go**: as any decal: two on a vest or trousers, one on a weapon (#273); Steam camo
   on any vest, trousers and weapon.
 - **Texts**: 0.69d's in the six languages. Fixed: English "Clover оrnament" (a Cyrillic o),
   "Flag Of …" → "Flag of …", Polish "Flaga Nigeri" → "Flaga Nigerii".
 - **Icons**: 0.69d's, scaled to the decal atlas's 82x82 cells, in cells empty in revision 27's
   movie (the atlas keeps its 3444x410 size): the flags in row 2, columns 9 to 42; the holiday
-  decals [1, 9..11]; Jarilo [3, 22]. Steam camo: [2, 7] of both camouflage atlases (72x72 and
+  decals [1, 9..11]; Jarilo [3, 22]. Version 2, in cells empty in the live movie (patch 51's): the
+  seven premium decals [1, 12..18] beside the holiday decals, the three achievement decals
+  [3, 23..25] beside Jarilo. Musician, Boar hunter and Deer hunter are not square in 0.69d
+  (82x77, 62x80, 66x80): centred on a transparent square first. Free after them: [1, 19..42],
+  [3, 26..42], [4, 42]. Steam camo: [2, 7] of both camouflage atlases (72x72 and
   140x140, its 0.69d icons). The big camouflage atlas is a JPEG; the porter now writes it back
   lossless: the lobby movie grows by about 2.5 MB (40.3 to 42.9 MB).
 
@@ -51,9 +63,25 @@ Flags sell like 0.26g's 77 flags and coats of arms: premium, 300 gold, seller 0 
 | 1860 | Flag of Wales | 2070 `char_decal_4_75` | flag | 300 gold | 0 | [2, 41] |
 | 1861 | Flag of South Africa | 2069 `char_decal_4_74` | flag | 300 gold | 0 | [2, 42] |
 | 1862 | Steam camo | 840 `camo_steam` | premium camouflage (0.69d: the Steam release's, free) | 300 gold | 0 | [2, 7] |
+| 1884 | Matchsticks | 2042 `char_decal_7_10` | holiday (0.69d premium) | 300 gold | 0 | [1, 12] |
+| 1885 | Heart | 2114 `char_decal_7_23` | holiday (0.69d premium) | 300 gold | 0 | [1, 13] |
+| 1886 | Frightening Pumpkin | 2115 `char_decal_7_24` | holiday (0.69d premium) | 300 gold | 0 | [1, 14] |
+| 1887 | Homing pigeon | 2162 `char_decal_7_30` | holiday (0.69d premium) | 300 gold | 0 | [1, 15] |
+| 1888 | Victory | 2163 `char_decal_7_31` | holiday (0.69d premium) | 300 gold | 0 | [1, 16] |
+| 1889 | Bloody Hand | 2193 `char_decal_7_35` | holiday (0.69d premium) | 300 gold | 0 | [1, 17] |
+| 1890 | The Keeper | 2195 `char_decal_7_37` | holiday (0.69d premium) | 300 gold | 0 | [1, 18] |
+| 1891 | Musician | 762 `char_decal_1_9` | drop (0.69d: an achievement award) | 1,000 silver (sells back 250) | 160 | [3, 23] |
+| 1892 | Boar hunter | 903 `char_decal_1_10` | drop (0.69d: an achievement award) | 1,000 silver (sells back 250) | 160 | [3, 24] |
+| 1893 | Deer hunter | 904 `char_decal_1_11` | drop (0.69d: an achievement award) | 1,000 silver (sells back 250) | 160 | [3, 25] |
 
 - 0.69d's prices: flags 50 gold, Herbs 10,000 silver, Clover ornament and Horseshoe 100,000
-  silver, Jarilo 1,000 silver, Steam camo free.
+  silver, Jarilo 1,000 silver, Steam camo free; version 2's: Matchsticks 10,000 silver, the other
+  six premium decals 100,000 silver (`prm_decl`), Musician, Boar hunter and Deer hunter 1,000
+  silver (`unl_decl`, achievement awards).
+- Version 2 (the owner, 2026-11-08): the seven `prm_decl` decals are holiday decals as Herbs,
+  Clover ornament and Horseshoe; the three achievement decals drop as Jarilo (the same 0.69d
+  series, `char_decal_1_x`). "300 gold" is main's today; "Silver only" (#1523, open) turns every
+  premium price into its gold price x 100 in silver (30,000) by its rows of `content-edit/items.tsv`.
 - Event rewards in 0.69d: Herbs (Summer 2019), Clover ornament and Horseshoe (St Patrick's Day
   2021), Jarilo (an achievement, likely), Steam camo (a promotion). Here all are sold or dropped.
 - Jarilo: the gallery's proposal was 1,000 silver from seller 0; selling a decal for silver needs
@@ -65,9 +93,9 @@ Flags sell like 0.26g's 77 flags and coats of arms: premium, 300 gold, seller 0 
 2. Steam camo is also in the unmerged `feat/camos-069` pack (with Christmas Raid 2016, id 840,
    no icons). Shipping both would add `camo_steam` twice (the composition stops); that pack
    should drop Steam camo or be closed.
-3. The release PC's `vostok-port` (`private/release-tools`) is resource-porter 090a322, which
-   draws only the equipment atlas: build-content stops on this pack ("82x82, expected 171x83")
-   until it is rebuilt from resource-porter `feat/decals-069d`.
+3. The release PC's `vostok-port` (`private/release-tools`) is resource-porter
+   `feat/decals-069d` 4beb92f since 2026-10-22 (it draws the decal atlas); that branch is not in
+   resource-porter's `v0.10b` yet.
 
 ## Checked (offline, no game)
 
@@ -79,4 +107,13 @@ Flags sell like 0.26g's 77 flags and coats of arms: premium, 300 gold, seller 0 
   read back from the movie in their cells.
 - Renders of six decals on a vest (15 cm) and on the AK-74N (6 cm) with the porter's
   `scripts/render-decal-026-preview.py` (a box projection, not the game's bake).
+- Version 2 (2026-11-08): `make_pack.py` twice gives the same pack (439 files, 50 icons); version
+  1's files and icons in it byte for byte; `vostok-port pack check` over the stock db and the base
+  rows' patches (12 to 24): ok. A quick `release/build-content 99` (a throwaway revision, over the
+  list up to patch 53): 103 files differ from what players have, all of them this version's: its
+  90 new files (10 item configs, 80 textures), the dictionary, the 11 localizations (the ten
+  languages' catalog and `original`) and the lobby movie, where only the decal atlas changed and
+  only in its ten new cells (the icons read back); the dictionary's rows 1884-1893 as listed, no
+  id twice. The names in the five languages 0.69d lacks (Serbian, Czech, Hungarian, Finnish,
+  Belarusian) are ours, in `client-patches/localization/`.
 - Not seen in a game.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """make_pack.py: the content pack of the 0.69d decals and the camouflage the owner picked
-(2026-10-22; srp-026g/docs/notes/decals-069d.md).
+(2026-10-22, ten more decals 2026-11-08; srp-026g/docs/notes/decals-069d.md).
 
 usage: python3 -I make_pack.py --stock <folder> --donor <folder> --out <packs folder>/decals-069d-<version>
        (needs Pillow for the icons: nix-shell -p 'python3.withPackages(p: [p.pillow])')
@@ -20,11 +20,13 @@ Every input is checked against its sha256 (STOCK below, donor.sha256). What the 
 - each decal's item config, made from a 0.26g decal of its kind by content_edit.py's edits: the
   modification id (200000 + 100 x row + column of its 0.69d name), the texture its modifier names,
   the name key and the icon's cell; read back, nothing else differs. A flag or a holiday decal
-  from 0.26g's flag char_decal_4_41 (prm_decl, level 4, no drop); Jarilo from 0.26g's drop decal
-  char_decal_3_4 (drp_decl, level 3, drop weight 160). The camouflage from 0.26g's New Year 2015
-  (as camos-069 did). 0.69d's own configs are of a later format 0.26g cannot read.
+  from 0.26g's flag char_decal_4_41 (prm_decl, level 4, no drop); Jarilo and 0.69d's other
+  achievement decals from 0.26g's drop decal char_decal_3_4 (drp_decl, level 3, drop weight 160).
+  The camouflage from 0.26g's New Year 2015 (as camos-069 did). 0.69d's own configs are of a later
+  format 0.26g cannot read.
 - the textures as 0.69d has them (the formats of 0.26g's decals: DXT5 512^2 diffuse and normal
-  map, DXT1 512^2 fmap and smap, 8 mips; the camouflage's DXT1 / DXT5 / DXT1), each with the
+  map, DXT1 512^2 fmap and smap, 8 mips; 1_10 and 1_11 have a 128^2 normal map and 256^2 fmap and
+  smap, as in 0.69d; the camouflage's DXT1 / DXT5 / DXT1), each with the
   .options of 0.26g's texture of the same role (0.69d's carry the same values, in its format).
 - the dictionary rows, the names in 0.26g's six languages (0.69d's own texts, texts.tsv; the
   description is 0.26g's st_character_decals_generic_desc / st_camo_generic_desc), and the icons:
@@ -42,7 +44,7 @@ sys.path.insert(0, str(HERE.parent / 'content-edit'))
 import content_edit as ce  # noqa: E402
 
 PACK_ID = 'decals-069d'
-VERSION = '1'
+VERSION = '2'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 
 DECAL_CONFIGS = 'gameplay/items/upgrades/decals/'
@@ -191,12 +193,16 @@ def item_config(template, item):
 
 def icon_png(data, size, out):
     """0.69d's icon as a size x size RGBA PNG: scaled whole (its own margins kept), the alpha
-    premultiplied while scaling (Pillow's RGBA resize)."""
+    premultiplied while scaling (Pillow's RGBA resize). An icon that is not square (0.69d's
+    achievement decals 1_9, 1_10, 1_11) is first centred on a transparent square of its longer side."""
     import io
     from PIL import Image
     image = Image.open(io.BytesIO(data)).convert('RGBA')
     if image.width != image.height:
-        sys.exit(f'{out}: 0.69d icon is {image.width}x{image.height}, not square')
+        side = max(image.size)
+        square = Image.new('RGBA', (side, side), (0, 0, 0, 0))
+        square.paste(image, ((side - image.width) // 2, (side - image.height) // 2))
+        image = square
     if image.size != (size, size):
         image = image.resize((size, size), Image.Resampling.LANCZOS)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -271,14 +277,14 @@ def main():
         'id': PACK_ID,
         'version': VERSION,
         'target_build': '0.26g',
-        'description': f'the owner\'s pick of 0.69d (2026-10-22): {len(items) - 1} decals and the Steam '
+        'description': f'the owner\'s picks of 0.69d (2026-10-22, 2026-11-08): {len(items) - 1} decals and the Steam '
                        'camouflage (srp-026g/docs/notes/decals-069d.md)',
         'operations': operations,
         'server': {'items': [{'dict_id': item['dict_id']} for item in items]},
         'notes': [
             'made by srp-026g/scripts/decals-069d/make_pack.py from items.tsv, texts.tsv and donor.sha256',
             'donor: Survarium 0.69d0 (the volumes 069d-vs-026-items/work/latest.tsv names)',
-            'item configs: 0.26g char_decal_4_41 (flags, holiday decals), char_decal_3_4 (Jarilo), '
+            'item configs: 0.26g char_decal_4_41 (flags, holiday decals), char_decal_3_4 (Jarilo, the achievement decals), '
             'camo_new_year (Steam camo) with the modification id, texture, icon cell and name key',
         ] + [f'{item["dict_id"]} {item["name"]}: 0.69d {item["donor_id"]} {item["donor"]} ({item["english"]})'
              for item in items],
