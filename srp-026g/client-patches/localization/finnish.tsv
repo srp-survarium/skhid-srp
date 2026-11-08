@@ -2702,7 +2702,6 @@ st_srp_replay_demo_quest	Osuus voitosta
 st_srp_replay_demo_rank	«%1$s»: arvo 3 saavutettu. Kaupassa on uusia esineitä.
 st_srp_replay_demo_seller	Haaskaajat
 st_srp_replay_download	LATAA JA KATSO
-st_srp_replay_download_button	Download
 st_srp_replay_failed	Palvelin ei saanut ottelun tallennetta valmiiksi.
 st_srp_replay_gone	Ottelun tallenne ei ole enää palvelimella.
 st_srp_replay_incompatible	Tallenne tehtiin peliversiolla, jota oma versiosi ei tue.

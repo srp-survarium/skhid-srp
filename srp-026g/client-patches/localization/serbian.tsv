@@ -2702,7 +2702,6 @@ st_srp_replay_demo_quest	Doprinos pobedi
 st_srp_replay_demo_rank	«%1$s»: dostignut rang 3. Novi predmeti su dostupni u prodavnici.
 st_srp_replay_demo_seller	Sakupljači
 st_srp_replay_download	PREUZMI I GLEDAJ
-st_srp_replay_download_button	Download
 st_srp_replay_failed	Server nije uspeo da pripremi snimak ovog meča.
 st_srp_replay_gone	Snimak ovog meča više se ne čuva na serveru.
 st_srp_replay_incompatible	Ovaj snimak je napravljen verzijom igre koju tvoja igra ne može da reprodukuje.

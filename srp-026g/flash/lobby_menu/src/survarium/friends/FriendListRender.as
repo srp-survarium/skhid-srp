@@ -16,6 +16,7 @@ package survarium.friends
    import survarium.controls.SrvContextMenu;
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsWindow;
+   import survarium.watch.WatchWindow;
    import survarium.player.LocalPlayerProfile;
    import survarium.constants.ClaimReason;
    import survarium.constants.CommentKind;
@@ -289,6 +290,14 @@ package survarium.friends
                   click_function:this.sendMessage
                });
             }
+            // a friend in a match: watch it (the Watch window's Live, that match's roster)
+            if(_data.status == FriendStatus.IN_GAME)
+            {
+               menuItems.push({
+                  name:LocalizationData.getName("st_srp_watch_spectate"),
+                  click_function:this.spectate
+               });
+            }
             if(inFriendList)
             {
                menuItems.push({
@@ -464,6 +473,11 @@ package survarium.friends
             });
             return;
          }
+      }
+
+      private function spectate() : void
+      {
+         WatchWindow.spectate(String(data.name));
       }
 
       private function joinFriendRoom() : void

@@ -2702,7 +2702,6 @@ st_srp_replay_demo_quest	Унёсак у перамогу
 st_srp_replay_demo_rank	«%1$s»: дасягнуты ранг 3. У краме з'явіліся новыя прадметы.
 st_srp_replay_demo_seller	Бадзягі
 st_srp_replay_download	СПАМПАВАЦЬ І ГЛЯДЗЕЦЬ
-st_srp_replay_download_button	Download
 st_srp_replay_failed	Серверу не ўдалося падрыхтаваць паўтор гэтага матча.
 st_srp_replay_gone	Паўтор гэтага матча больш не захоўваецца на серверы.
 st_srp_replay_incompatible	Гэты паўтор запісаны версіяй гульні, якую ваша гульня не можа прайграць.

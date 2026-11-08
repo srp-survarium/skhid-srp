@@ -2702,7 +2702,6 @@ st_srp_replay_demo_quest	Přínos k vítězství
 st_srp_replay_demo_rank	«%1$s»: dosažena 3. hodnost. V obchodě jsou nové předměty.
 st_srp_replay_demo_seller	Mrchožrouti
 st_srp_replay_download	STÁHNOUT A PŘEHRÁT
-st_srp_replay_download_button	Download
 st_srp_replay_failed	Server nedokázal připravit záznam tohoto zápasu.
 st_srp_replay_gone	Záznam tohoto zápasu už na serveru není.
 st_srp_replay_incompatible	Záznam pochází z verze hry, se kterou tvoje verze není kompatibilní.

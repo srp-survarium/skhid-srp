@@ -2702,7 +2702,6 @@ st_srp_replay_demo_quest	Внесок у перемогу
 st_srp_replay_demo_rank	«%1$s»: досягнуто ранг 3. У крамниці з'явилися нові предмети.
 st_srp_replay_demo_seller	Бродяги
 st_srp_replay_download	ЗАВАНТАЖИТИ Й ДИВИТИСЯ
-st_srp_replay_download_button	Download
 st_srp_replay_failed	Серверу не вдалося підготувати повтор цього матчу.
 st_srp_replay_gone	Повтор цього матчу більше не зберігається на сервері.
 st_srp_replay_incompatible	Цей повтор записала версія гри, яку ваша гра не може відтворити.
