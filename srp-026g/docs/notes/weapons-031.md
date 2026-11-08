@@ -134,8 +134,8 @@ balance is the manifest's `set` (resource-porter `ports/weapons-031a2-batch1.jso
 - **SCAR-H:** the heavy round: damage and pierce as the SOCOM 16 on the same 7.62x51 (0.6 and 0.4:
   one round, one penetration, the owner, 2026-11-01), automatic at 625 with 20 rounds; the donor put it two levels over its M4A1, so the top
   level (15) beside the AK-12 and the PKP, drops 40 as the level-15 rifles.
-  Retune (the owner, 2026-11-08: nerf): damage 0.59 -> 0.55 and spread 0.1 -> 0.15. With its AP
-  against armour 60 the torso takes 3 hits at 10 m (was 2, 96 ms), 6 at 50 m against armour 80 (was 5).
+  Retune (the owner, 2026-11-08: nerf, damage 49): damage 0.59 -> 0.49 and spread 0.1 -> 0.15. With its AP
+  the torso takes 3 hits at 10 m against armour 60 (was 2, 96 ms) and 4 against armour 80 (was 3), 6 at 50 m (was 5).
 - **VHS-2:** a 5.56 rifle at the HK416's rate and pierce with less damage (0.5 against 0.55) and a
   tighter spread (0.1 against 0.15): the HK416's level (14), just under its price; drops 60.
 - **Minimi:** the light machine gun of the 5.56: more rounds a minute than the PKP (800 against 650),
