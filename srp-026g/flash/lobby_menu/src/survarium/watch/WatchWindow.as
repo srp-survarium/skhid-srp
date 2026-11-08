@@ -17,6 +17,7 @@ package survarium.watch
    import flash.utils.getTimer;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.gfx.FocusManager;
+   import scaleform.gfx.MouseEventEx;
    import survarium.constants.MatchPhase;
    import survarium.controls.BottomPanel;
    import survarium.controls.Modals;
@@ -109,6 +110,9 @@ package survarium.watch
       // a copy's code field this long
       private static const COPIED_MS:int = 15000;
 
+      // A press whose release never came (the game left the lobby under it) keeps the list no longer.
+      private static const PRESS_MOST_MS:int = 5000;
+
       // the lobby's windows that hide ours as they open (the rooms window's list)
       private static const WINDOWS:Array = ["inventory_list","shop_list","ranking","charWindow","clanWindow","questWindow","modifierWindow"];
 
@@ -172,6 +176,11 @@ package survarium.watch
 
       private var _timer:Timer;
 
+      // The left button pressed in the window, to the frame after its release; null none. {at, stage,
+      // up: let go, owed: a drawing waits for it}. A drawing makes every button anew, and a CLIK button
+      // clicks only when the release finds the object the press found.
+      private var _press:Object = null;
+
       private var _box:TextField;
 
       private var _boxText:String = "";
@@ -217,6 +226,7 @@ package survarium.watch
          content.addEventListener(MouseEvent.MOUSE_DOWN,this.look.onContentDown);
          addEventListener(MouseEvent.MOUSE_WHEEL,this.look.onWheel,false,0,true);
          addEventListener(Event.ENTER_FRAME,this.onFrame,false,0,true);
+         addEventListener(MouseEvent.MOUSE_DOWN,this.onWindowPress,true,0,true);
          NotificationListScrollContent.answerListener = this.answered;
          ReplaySave.listen(this.render);
          var now:int = getTimer();
@@ -488,6 +498,7 @@ package survarium.watch
 
       private function onFrame(e:Event) : void
       {
+         this.settlePress();
          if(topMenu != null)
          {
             topMenu.paintWatchTab(this.liveCount);
@@ -986,7 +997,7 @@ package survarium.watch
             "hex":hex,
             "at":getTimer()
          };
-         this.render();
+         this.draw();
          if(this._codeField != null && stage != null)
          {
             stage.focus = this._codeField;
@@ -1122,7 +1133,61 @@ package survarium.watch
 
       // ---- drawing ----
 
+      private static function isLeft(e:MouseEvent) : Boolean
+      {
+         var ex:MouseEventEx = e as MouseEventEx;
+         return ex == null || ex.buttonIdx == MouseEventEx.LEFT_BUTTON;
+      }
+
+      private function onWindowPress(e:MouseEvent) : void
+      {
+         if(!isLeft(e) || stage == null)
+         {
+            return;
+         }
+         this._press = {"at":getTimer(),"stage":stage,"up":false,"owed":this._press != null && this._press.owed};
+         // on the stage's both phases: a release over the stage itself has no capture phase
+         stage.addEventListener(MouseEvent.MOUSE_UP,this.onWindowRelease,true);
+         stage.addEventListener(MouseEvent.MOUSE_UP,this.onWindowRelease);
+      }
+
+      private function onWindowRelease(e:MouseEvent) : void
+      {
+         if(isLeft(e) && this._press != null)
+         {
+            this._press.up = true;
+         }
+      }
+
+      // At a frame, so after the release's CLICK, which comes after its MOUSE_UP.
+      private function settlePress() : void
+      {
+         var press:Object = this._press;
+         if(press == null || !press.up && getTimer() - int(press.at) < PRESS_MOST_MS)
+         {
+            return;
+         }
+         this._press = null;
+         press.stage.removeEventListener(MouseEvent.MOUSE_UP,this.onWindowRelease,true);
+         press.stage.removeEventListener(MouseEvent.MOUSE_UP,this.onWindowRelease);
+         if(press.owed)
+         {
+            this.draw();
+         }
+      }
+
+      // A drawing, once no press is on the buttons it would make anew.
       private function render() : void
+      {
+         if(this._press != null && !this._press.up)
+         {
+            this._press.owed = true;
+            return;
+         }
+         this.draw();
+      }
+
+      private function draw() : void
       {
          if(!this._shown)
          {

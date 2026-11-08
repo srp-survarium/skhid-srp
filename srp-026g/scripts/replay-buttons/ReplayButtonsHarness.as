@@ -119,6 +119,7 @@ package
                search(language);
                live(language);
                copying(language);
+               pressing(language);
                saving(language);
                history(language);
                results(language);
@@ -552,6 +553,50 @@ package
             && textOf(cards()[1],"srpWatchCopyKeys") == words.getName("st_srp_watch_copy_keys"));
          cardFits(language + ": the copied card",cards()[1],cards()[1].width);
          trace("REPLAYBUTTONS " + language + ": the copy icon, its code field and the keys");
+      }
+
+      // An answer while the left button is down in the window: the cards stay until the frame after
+      // the release, over the window or off it; the answer is drawn then. With no press, at once.
+      private function pressing(language:String) : void
+      {
+         press(win,"srpWatchTab_replays");
+         press(win,"srpWatchChip_everyone");
+         var frame:Function = function():void
+         {
+            win.dispatchEvent(new Event(Event.ENTER_FRAME));
+         };
+         var held:Function = function(release:Function, where:String):void
+         {
+            lobby.take(WatchFake.RECENT);
+            var before:Array = cards();
+            var watch:* = find(before[1],"srpWatchWatch");
+            expect(language + ": no Watch to press",watch != null);
+            if(watch == null)
+               return;
+            watch.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN,true));
+            lobby.take(WatchFake.FRIENDS);
+            expect(language + ": an answer under a press made the cards anew",cards().length == before.length && cards()[1] === before[1]
+               && watch.stage != null);
+            frame();
+            expect(language + ": a frame under a press made the cards anew",cards()[1] === before[1]);
+            release(watch);
+            expect(language + ": the release itself (" + where + ") made the cards anew, before its click",cards()[1] === before[1]);
+            frame();
+            expect(language + ": the answer was lost after a release " + where,cards().length == 1);
+         };
+         held(function(watch:*):void
+         {
+            watch.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
+         },"on the button");
+         held(function(watch:*):void
+         {
+            win.stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
+         },"off the window");
+         lobby.take(WatchFake.RECENT);
+         var shown:Array = cards();
+         lobby.take(WatchFake.FRIENDS);
+         expect(language + ": an answer with no press was not drawn at once",cards().length == 1 && shown.length != 1);
+         trace("REPLAYBUTTONS " + language + ": an answer under a press waits for the release");
       }
 
       // ---- Save replay ----

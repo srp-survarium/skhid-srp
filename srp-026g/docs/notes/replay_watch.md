@@ -144,3 +144,5 @@ files remain readable.
 Tests cover solo retention versus empty/PvP matches, accepted and rejected actions, kit choices,
 deduplication and conversion from a simulated solo PvE match. In-game playback of the new recording
 path still needs a playtest; no client was launched for these checks.
+
+**A drawing under a press.** The window draws its cards anew on every answer, and a CLIK button clicks only when the release finds the object the press found. While the left button is down in the window `render` only notes that a drawing is owed, and the frame after the release draws it (`WatchWindow._press`; after 5 s without a release, in case it never comes). The frame after and not the release: MOUSE_UP comes before CLICK.
