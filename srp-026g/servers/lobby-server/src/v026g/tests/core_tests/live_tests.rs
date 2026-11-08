@@ -86,11 +86,12 @@ fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     assert_eq!(alice[4..], ["3", "1", "Alice"]);
     assert!(roster[1].ends_with(";1;3;Bob"), "{}", roster[1]);
 
-    // Watching: sent to the match as a spectator, 30 s behind.
+    // Watching: sent to the match as a spectator, 30 s behind, Bob (place
+    // 1) in view first.
     world.take(carol);
     let ask = ReplayWatchAsk::At {
         seconds: 0,
-        place: None,
+        place: Some(1),
     };
     world.ask(carol, request::player_details(ask.player_id(), ticket));
     world.advance(Duration::from_secs(1));
@@ -105,7 +106,8 @@ fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     assert_eq!(
         watcher.kind,
         session::WatchKind::Live {
-            delay: Duration::from_secs(30)
+            delay: Duration::from_secs(30),
+            view: Some(1),
         }
     );
     // No room's queue keeps it, and none ends it.

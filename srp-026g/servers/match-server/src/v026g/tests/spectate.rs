@@ -459,16 +459,23 @@ fn a_place_whose_newcomer_failed_keeps_no_spectator_waiting() {
 
 /// The Live window's spectator of a public match watches it 10 s behind:
 /// its game's clock and world are that far back, its relays come as its
-/// clock reaches them, and the players see nothing of it.
+/// clock reaches them, and the players see nothing of it. The place its
+/// watcher asked to see is told its game once, when it watches.
 #[test]
 fn a_live_windows_spectator_watches_behind_the_match() {
     let mut bench = running();
     let delay = Duration::from_secs(10);
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay });
+    let view = Some(1);
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view });
     assert!(
         bench.until(8_000, |b| b.clients[at].model.is_synced()),
         "{:?}",
         bench.clients[at].faults
+    );
+    bench.run(200);
+    assert_eq!(
+        bench.clients[at].replay_notes,
+        [replay_control::ServerNote::view(1).to_vec()]
     );
     let behind = |bench: &Bench| i64::from(bench.clients[0].clock()) - i64::from(bench.clients[at].clock());
     assert!((9_000..=11_000).contains(&behind(&bench)), "{}", behind(&bench));
@@ -491,5 +498,6 @@ fn a_live_windows_spectator_watches_behind_the_match() {
     assert_eq!(late(&bench), 15);
     assert!((9_000..=11_000).contains(&behind(&bench)), "{}", behind(&bench));
     assert_eq!(bench.clients[at].snapshots().len(), 1, "never started again");
+    assert_eq!(bench.clients[at].replay_notes.len(), 1, "told once");
     bench.assert_no_faults();
 }

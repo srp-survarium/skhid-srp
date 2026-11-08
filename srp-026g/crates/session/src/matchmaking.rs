@@ -271,8 +271,9 @@ pub enum WatchKind {
     /// comes or it leaves the queue (`docs/notes/queue-spectate.md`).
     Queued,
     /// From the lobby's Live window: `delay` behind the match (a public
-    /// match's, so nobody calls positions to a friend), until it leaves.
-    Live { delay: Duration },
+    /// match's, so nobody calls positions to a friend), until it leaves;
+    /// `view` the place its game is to follow first (`None`: its own pick).
+    Live { delay: Duration, view: Option<u8> },
 }
 
 pub struct Matchmaking {

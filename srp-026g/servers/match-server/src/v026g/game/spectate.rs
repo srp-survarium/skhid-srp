@@ -150,6 +150,9 @@ pub(crate) struct Spectator {
     /// When it was started anew for drifting, the latest
     /// [`RESYNCS_PER_MINUTE`].
     restarts: VecDeque<Instant>,
+    /// The place its watcher asked to see, still to be told: in a view note
+    /// (`replay_control::ServerNote::View`) once it first watches.
+    view: Option<u8>,
 }
 
 /// What a spectator's machine is shown of what it watches, as of `clock`: a
@@ -201,6 +204,7 @@ impl Game {
         session_id: u32,
         transport: Transport,
         delay: Option<Duration>,
+        view: Option<u8>,
     ) -> Result<(), Box<Transport>> {
         if self.finished_at.is_some() || !self.growing_roster() {
             return Err(Box::new(transport));
@@ -219,6 +223,7 @@ impl Game {
             transport,
             self.snapshot_players() as u8,
             self.port,
+            view,
         );
         spectator.delay = delay.map(|delay| Delay {
             ms: delay.as_millis() as u32,
@@ -691,13 +696,15 @@ impl Game {
 }
 
 impl Spectator {
-    /// A game that connects to watch: told the ports (0xE3).
+    /// A game that connects to watch: told the ports (0xE3); `view` the
+    /// place it is to follow first, when one was asked.
     pub(super) fn connect(
         addr: SocketAddr,
         session_id: u32,
         mut transport: Transport,
         roster_size: u8,
         port: u16,
+        view: Option<u8>,
     ) -> Self {
         transport.set_roster_size(roster_size);
         let ports = ServerMessage::Ports {
@@ -716,6 +723,7 @@ impl Spectator {
             installing: None,
             reports: VecDeque::new(),
             restarts: VecDeque::new(),
+            view,
         }
     }
 
@@ -1082,6 +1090,11 @@ impl Spectator {
                         watched.id,
                         self.session_id
                     );
+                    // Its camera is on someone now (patch 121, the world's
+                    // load): the asked place instead, once.
+                    if let Some(place) = self.view.take() {
+                        self.note(&replay_control::ServerNote::view(place));
+                    }
                 } else if now.saturating_duration_since(since) >= WORLD_WAIT {
                     self.wait_again();
                 }

@@ -187,6 +187,16 @@ fn session_with_events(
     events: Vec<MatchEvent>,
 ) -> WatchRequest {
     let request = request(WATCHER_ACCOUNT, 0x1234, at_ms, None);
+    prepared(bench, replays, request, events)
+}
+
+/// `request`, read and sent.
+fn prepared(
+    bench: &mut Bench,
+    replays: &Replays,
+    request: WatchRequest,
+    events: Vec<MatchEvent>,
+) -> WatchRequest {
     let now = bench.now();
     assert_eq!(replays.watches().start(request, now), Status::Preparing);
     assert_eq!(replays.watches().next_job(now), Some(request));
@@ -238,7 +248,7 @@ fn notes(client: &Client) -> Vec<(u8, bool, Speed)> {
         .iter()
         .filter_map(|payload| match ServerNote::parse(payload)? {
             ServerNote::Playback(note) => Some((note.revision, note.paused, note.speed)),
-            ServerNote::Events(_) => None,
+            ServerNote::Events(_) | ServerNote::View(_) => None,
         })
         .collect()
 }
@@ -833,7 +843,7 @@ fn events_noted(client: &Client) -> Vec<(u16, u16, Vec<replay_control::Event>)> 
                 note.total,
                 note.events().filter_map(|(_, event)| event).collect(),
             )),
-            ServerNote::Playback(_) => None,
+            ServerNote::Playback(_) | ServerNote::View(_) => None,
         })
         .collect()
 }
@@ -935,6 +945,45 @@ fn the_newest_recording_of_a_match_id_is_read() {
         Some(dir.join("rec026g_20261108-010203_00001234.srprec"))
     );
     std::fs::remove_dir_all(dir).unwrap();
+}
+
+/// The place asked to be in view is told the game once it watches (a view
+/// note, as a live match's spectator gets it), and not again after a seek;
+/// with none asked, none.
+#[test]
+fn the_place_asked_for_is_told_once_its_game_watches() {
+    let (mut bench, replays) = bench();
+    prepared(
+        &mut bench,
+        &replays,
+        request(WATCHER_ACCOUNT, 0x1234, 0, Some(1)),
+        Vec::new(),
+    );
+    let at = watching(&mut bench, WATCHER);
+    bench.run(200);
+    let views = |client: &Client| {
+        client
+            .replay_notes
+            .iter()
+            .filter(|payload| matches!(ServerNote::parse(payload), Some(ServerNote::View(_))))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(views(&bench.clients[at]), [ServerNote::view(1).to_vec()]);
+    let worlds = bench.clients[at].snapshots().len();
+    control(&mut bench, at, 1, Op::Seek(MatchMs(60_000)));
+    assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
+    bench.run(500);
+    assert_eq!(views(&bench.clients[at]).len(), 1);
+
+    bench.assert_no_faults();
+
+    let (mut none, replays) = self::bench();
+    session_of_the_recording(&mut none, &replays, 0);
+    let at = watching(&mut none, WATCHER);
+    none.run(200);
+    assert!(views(&none.clients[at]).is_empty());
+    none.assert_no_faults();
 }
 
 /// A seek before the opening (the bar's 0) starts the game there, where its

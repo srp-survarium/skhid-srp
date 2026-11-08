@@ -516,13 +516,13 @@ impl Server {
         now: Instant,
     ) {
         let ticket = watcher.ticket;
-        let delay = match watcher.kind {
-            session::WatchKind::Queued => None,
-            session::WatchKind::Live { delay } => Some(delay),
+        let (delay, view) = match watcher.kind {
+            session::WatchKind::Queued => (None, None),
+            session::WatchKind::Live { delay, view } => (Some(delay), view),
         };
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
         let watched = match self.games.get_mut(&ticket) {
-            Some(game) if growing => game.watch(addr, session_id, transport, delay),
+            Some(game) if growing => game.watch(addr, session_id, transport, delay, view),
             _ => Err(Box::new(transport)),
         };
         match watched {

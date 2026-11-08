@@ -249,8 +249,15 @@ impl Core<'_> {
 
     /// The replay session's ask for `match_id` (the match server's id) when
     /// it is still being played: the game goes to watch it, the delay
-    /// behind. `None`: the match is not being played (the recording, then).
-    pub(super) fn live_watch(&mut self, who: &Who, match_id: u32, now: Instant) -> Option<Status> {
+    /// behind, `view` in view first (as a replay's ask has it). `None`: the
+    /// match is not being played (the recording, then).
+    pub(super) fn live_watch(
+        &mut self,
+        who: &Who,
+        match_id: u32,
+        view: Option<u8>,
+        now: Instant,
+    ) -> Option<Status> {
         let (id, running) = self
             .matches
             .iter()
@@ -272,6 +279,7 @@ impl Core<'_> {
                     account_id: who.account_id,
                     kind: WatchKind::Live {
                         delay: self.settings.live.delay,
+                        view,
                     },
                 };
                 if self.store.matchmaking().watch(who.session_id, watcher) {

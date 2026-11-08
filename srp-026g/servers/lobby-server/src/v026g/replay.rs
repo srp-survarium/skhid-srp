@@ -92,7 +92,7 @@ impl Core<'_> {
         });
         // A match still being played is watched as it is (`live`).
         let live = match ask {
-            ReplayWatchAsk::At { .. } if free => self.live_watch(who, match_id, now),
+            ReplayWatchAsk::At { place, .. } if free => self.live_watch(who, match_id, place, now),
             _ => None,
         };
         let status = match (live, self.replays) {

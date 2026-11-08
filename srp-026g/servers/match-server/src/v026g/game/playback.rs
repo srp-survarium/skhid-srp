@@ -984,12 +984,19 @@ impl ReplayWatch {
             request.account_id,
             request.match_id
         );
+        // The place asked to be in view (the camera follows it), as a live
+        // match's spectator is told it.
+        let view = match request.from {
+            WatchFrom::At { place, .. } => place,
+            WatchFrom::MyDeaths => prepared.recording.place_of(request.account_id),
+        };
         let spectator = Spectator::connect(
             addr,
             session_id,
             transport,
             sur::MAX_PLAYERS as u8,
             self.port,
+            view,
         );
         let playback = Playback::new(
             prepared.recording,

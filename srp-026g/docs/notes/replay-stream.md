@@ -54,12 +54,14 @@ that entered after the opening starts at its own first view (the first key frame
 a later time asked for starts from the key frame at or before it, put as far past it as the inputs
 since allow (as a seek, below).
 
-**The place to follow: the client picks.** Patch 121 follows the player it followed last, else
-the first living one; the server has no message to make a spectator's game follow a place (0xE4's
-local place would make the game drive that player). The server honours the place only through the
-start (the first view after that place entered); the exe follows it (track B): the movie knows the
-place it asked for. Following later (F5/F6, F2, a player list click) is the exe's own too: no
-control message.
+**The place to follow: the asked one, then the client's.** The server tells the game the place
+asked for (a replay's `place`, "my deaths"'s own place, a live watch's `place`: the same ask) once,
+in a view note (`52 03 place`, `ServerNote::View`) as soon as the game watches (its first world is
+in, so patch 121's camera has picked someone); patch 130 then follows that place, as a player list
+click does. None asked (0xFF): no note, patch 121 follows the player it followed last, else the
+first living one. A later start (a seek) sends none: the camera keeps whom it follows. The place
+also moves a replay's start (the first view after that place entered). Following later (F5/F6, F2,
+a player list click) is the exe's own: no control message.
 
 ## Controls and notes (`crates/replay-control`)
 
@@ -84,7 +86,9 @@ clock):
     only when its revision is newer;
   - the events, `52 02 first:u16 total:u16` and up to 64 of `time:u32 kind:u8 actor:u8
     victim:u8` (kind 1 kill, 2 objective; 0xFF no place), as many notes as it takes, once live
-    (an empty one for none).
+    (an empty one for none);
+  - the view, `52 03 place`: the place asked to be in view, once live (a live match's spectator
+    gets it too, from the Live window's or a friend's ask), only when one was asked.
 
 **The events** are the match history's (`persist::match_events`, `docs/notes/match_history.md`),
 read by the match server with the recording (`MatchHistory::events_of_replay` of its file stem,

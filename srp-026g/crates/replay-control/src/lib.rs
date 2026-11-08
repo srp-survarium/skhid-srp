@@ -17,7 +17,10 @@
 //!     replay's viewer;
 //!   - `52 02 first:u16 total:u16`, then up to [`EVENTS_PER_NOTE`] events of
 //!     7 bytes `time:u32 kind:u8 actor:u8 victim:u8` (a place, 0xFF none):
-//!     the [`EventsNote`], the events `first..` of the replay's `total`.
+//!     the [`EventsNote`], the events `first..` of the replay's `total`;
+//!   - `52 03 place`, [`ServerNote::View`]: the place the watcher asked to
+//!     see, once its game has its first world (a replay's or a live match's
+//!     spectator); the game follows it.
 //! - Game -> server, an 0xE0 (reliable and plain: it is resent every 500 ms
 //!   until acked, and may come twice or late), a [`Request`]:
 //!   [`REQUEST_HEAD`] then `seq op value:u32` (14 bytes). The game's
@@ -146,6 +149,7 @@ pub struct Playback {
 
 const PLAYBACK: u8 = 1;
 const EVENTS: u8 = 2;
+const VIEW: u8 = 3;
 
 impl Playback {
     /// Its bytes after the message's id.
@@ -291,6 +295,8 @@ impl<'a> EventsNote<'a> {
 pub enum ServerNote<'a> {
     Playback(Playback),
     Events(EventsNote<'a>),
+    /// The place to follow (a roster place; the game checks it is one).
+    View(u8),
 }
 
 impl<'a> ServerNote<'a> {
@@ -306,8 +312,14 @@ impl<'a> ServerNote<'a> {
         match payload {
             [TAG, PLAYBACK, body @ ..] => Playback::parse(body).map(ServerNote::Playback),
             [TAG, EVENTS, body @ ..] => EventsNote::parse(body).map(ServerNote::Events),
+            [TAG, VIEW, place] => Some(ServerNote::View(*place)),
             _ => None,
         }
+    }
+
+    /// The view note's bytes for `place`.
+    pub fn view(place: u8) -> [u8; 3] {
+        [TAG, VIEW, place]
     }
 }
 
@@ -376,6 +388,15 @@ mod tests {
         assert_eq!(bytes[..6], [0x52, 1, 7, 1, 0x90, 1]);
         assert_eq!(ServerNote::parse(&bytes), Some(ServerNote::Playback(playback)));
         assert!(ServerNote::is_ours(&bytes));
+    }
+
+    #[test]
+    fn a_view_goes_and_comes_back() {
+        let bytes = ServerNote::view(7);
+        assert_eq!(bytes, [0x52, 3, 7]);
+        assert_eq!(ServerNote::parse(&bytes), Some(ServerNote::View(7)));
+        assert_eq!(ServerNote::parse(&[0x52, 3]), None);
+        assert_eq!(ServerNote::parse(&[0x52, 3, 7, 0]), None);
     }
 
     #[test]
