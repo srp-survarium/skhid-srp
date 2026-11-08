@@ -83,8 +83,15 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
 
 ## Lobby
 
-- A face picker by the Character panel's paper doll: the faces in turn, the preview the lobby's
-  own character. [pick] Short text in the dictionaries.
+- The picker is in the Character panel, left of the helmet's slot: "Face" over "< 3/11 >"
+  (`st_srp_face`, every dictionary). A press on its left half: the face before; the right half:
+  the face after, round the list. [pick] (`survarium/face/FacePicker`.)
+- Hidden until srp answers, and when the data has one face.
+- A pick shows at once. One choice is asked at a time, and the last pick wins: when an answer
+  comes and the player went on meanwhile, the next is asked. A refusal brings srp's face back.
+  No answer in 5 s: srp's face, and the state asked again.
+- The preview is the lobby's own character: the exe redraws it when srp's `87` comes.
+- Checked in Ruffle: `scripts/face-picker/check.sh <lobby_menu.swf>`.
 
 ## Release
 

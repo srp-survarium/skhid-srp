@@ -139,6 +139,10 @@ rows made again; and Blackout (the list kept hidden): none on screen.
 
 `srp-026g/scripts/weapon-kit/check.sh <lobby_menu.swf> [work dir]` checks the lobby's weapon upgrade window with the weapon kit (two decal slots, the kit's records, a drop shown at once, every language's texts fitting) and prints `WEAPONKIT RESULT pass` or `WEAPONKIT RESULT fail: ...`.
 
+### Face picker
+
+`srp-026g/scripts/face-picker/check.sh <lobby_menu.swf> [work dir]` checks the Character panel's face picker (`docs/notes/face-choice.md`: hidden until srp answers and with one face, its place beside the helmet's slot under the ammo window, picks shown at once with the last one kept while a choice is asked, a refusal, the round, every language's word fitting) and prints `FACE RESULT pass` or `FACE RESULT fail: ...`.
+
 ### Item search
 
 `srp-026g/scripts/item-search/check.sh <lobby_menu.swf> [work dir]` checks the item lists' search (`docs/notes/item-search.md`: the "+" words in the inventory and the shop, every language's hint on one line in the box and its and the tip's examples finding what they name, the tip on the empty box only) and prints `ITEMSEARCH RESULT pass` or `ITEMSEARCH RESULT fail: ...`.
