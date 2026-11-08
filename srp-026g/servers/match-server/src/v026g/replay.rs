@@ -4,7 +4,6 @@
 //! places' accounts and game revisions.
 
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 
 use session::v026g::replay_watch::{Access, WatchSettings};
@@ -80,7 +79,7 @@ pub(crate) fn lowest_priority() {
         if set != 0 {
             log::warn!(
                 "Replays: a reader's priority is not lowered: {}",
-                io::Error::last_os_error()
+                std::io::Error::last_os_error()
             );
         }
     }
