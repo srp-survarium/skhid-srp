@@ -36,6 +36,7 @@ package replay_player_fla
    import scaleform.clik.layout.LayoutData;
    import scaleform.gfx.Extensions;
    import survarium.constants.TeamSide;
+   import survarium.replay.MarkerTicks;
    import survarium.replay.ReplayText;
    
    public dynamic class MainTimeline extends MovieClip
@@ -89,6 +90,9 @@ package replay_player_fla
       public var temp_options:Array;
       
       public var inDrag:Boolean;
+
+      // srp's: the markers as ticks on the bar (made at the first use: markerTicks())
+      public var _ticks:MarkerTicks;
 
       // srp's: the playback's speed in percent (set_replay_speed, or the stepper's own steps).
       public var speedPercent:int = 100;
@@ -169,6 +173,17 @@ package replay_player_fla
          this.layout.reflow();
          this.freeViewButton.x = stage.stageWidth / this.scaleFactor - this.freeViewButton.width - 10;
          this.freeViewButton.y = this.playersBar.y + this.playersBar.height + 4;
+         this.markerTicks().draw();
+      }
+
+      // srp's: the bar's ticks, one a marker (survarium.replay.MarkerTicks), in the font of the controls.
+      public function markerTicks() : MarkerTicks
+      {
+         if(this._ticks == null)
+         {
+            this._ticks = new MarkerTicks(this.bottomPanel.slider,this.freeViewButton.textField.getTextFormat().font);
+         }
+         return this._ticks;
       }
       
       public function onStepperUpdate(e:Event) : void
@@ -269,6 +284,7 @@ package replay_player_fla
          this.speedPercent = 100;
          this.showSpeed();
          this.layout.reflow();
+         this.markerTicks().draw();
       }
       
       public function updateSpeedStepper() : void
@@ -392,6 +408,7 @@ package replay_player_fla
       public function set_match_time(value:uint) : void
       {
          this.slider.maximum = value;
+         this.markerTicks().draw();
       }
       
       public function set_play_state(value:Boolean) : void
@@ -432,14 +449,17 @@ package replay_player_fla
          addEventListener(Event.EXIT_FRAME,this.onShowButtonsFrame);
       }
       
+      // The markers: ticks on the bar (srp's, MarkerTicks), and the list the previous/next label buttons
+      // step through, kept hidden (the ticks show what it showed, at their place in time).
       public function set_markers_list(value:Array) : void
       {
          var labels:Array = value;
          this.labelsBar.height = 25 * labels.length + 2;
          this.labelsBar.dataProvider = new DataProvider(labels);
-         this.labelsBar.visible = labels.length > 0;
+         this.labelsBar.visible = false;
          this.layout.reflow();
          this.selectActiveLabel();
+         this.markerTicks().draw(labels);
       }
       
       // srp's: the markers as one string from the exe, `time_ms:kind:label;...` (ReplayText.markers).

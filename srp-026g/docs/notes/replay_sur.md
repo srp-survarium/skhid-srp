@@ -21,8 +21,13 @@ The 0.26g exe has a replay player the 0.21d exe only began (0.21d: `replay_match
     `set_markers_list`, whose previous/next buttons then step from one to the next) and
     `set_players_text("place:team:name;...")` (place 0..19, team the match's 0 or 1 shown as ally or
     enemy, into `set_players_list`). The last field may hold `:`, no field `;`; a malformed entry is
-    left out; an empty string empties the bar. The markers bar is a column of 25 px buttons: send
-    kills only, or a few. `scripts/replay-markers/check.sh <replay_player.swf>` checks both in Ruffle.
+    left out; an empty string empties the bar. Since 2026-11-08 the markers are ticks on the seek
+    bar (`survarium.replay.MarkerTicks`) at their times, coloured by kind (1 kill red, 2 objective
+    gold, 3 a death white, any other grey); over one, a label above it: its time (m'ss), its kind's
+    word and its label when that says more than the time (so the label may carry names, `Ada > Bob`);
+    a press seeks to 4 s before it, as a press on the bar seeks (the slider's value, sent as
+    `update_position`). The left column of markers is kept hidden: the previous/next label buttons
+    still step through it. `scripts/replay-markers/check.sh <replay_player.swf>` checks both in Ruffle.
   - `set_replay_speed(percent:int)` (25 to 800, the nearest end outside) shows the playback's speed in
     the speed stepper as 0.25x, 0.5x, 1x, 2x, 4x, 8x, sending nothing back (`update_play_speed` is
     the stepper's own steps); the bottom panel's frames reset the stepper's art values, and the speed
