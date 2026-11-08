@@ -2,60 +2,67 @@ package
 {
    // The lobby server's rows the Watch window takes (survarium.watch.WatchRows), made up for the
    // harness (ReplayButtonsHarness) and the screenshots (WatchShots): PlayerRanking's row objects.
+   // Maps by their maps_dict ids, as the server sends them; POOL is the rooms' pool that names them
+   // (RoomsWindow.entry: level and weather), 99 a map it no longer has.
    public class WatchFake
    {
       public static const MATCH:uint = 0x1CE45CBE;
 
       public static const OTHER:uint = 0x69F8C4BC;
 
-      // Live: 5 good matches (a friend's second in the server's order, one full, one private, one
-      // counting down) and a broken row, 30 s behind; the friends Petro (place 3) and Olha in 1ce45cbe.
-      public static const LIVE:Array = ["L0;6;30",
-         "L1;69f8c4bc;2;2;2;10;10;100;98;1300;0;1",
-         "L1;1ce45cbe;13;1;2;8;7;12;9;421;2;1",
-         "L1;00000004;1;3;2;3;2;4;1;610;0;0",
+      // the rooms' pool page (`S1;M;<n>;<page>`, then `<index>;<map>;<level>;<weather>;<mode>;<extra>`)
+      public static const POOL:Array = ["S1;M;5;0","0;117;1;1;4;0","1;61;3;3;5;0","2;62;4;1;4;0","3;63;2;2;2;0","4;64;13;1;5;1"];
+
+      public static const POOL_START:uint = 2060000010;
+
+      // Live: 6 good matches, 30 s behind (Rudnya in play with the friends Petro (place 3) and Olha;
+      // Vostok in play; Chemical plant counting down; one full, one closed to spectators, one over)
+      // and a broken row.
+      public static const LIVE:Array = ["L0;7;30",
+         "L1;69f8c4bc;61;5;2;8;8;2;1;422;0;1",
+         "L1;1ce45cbe;117;4;2;10;10;87;64;760;2;1",
+         "L1;00000004;62;4;1;5;4;-;-;0;0;1",
          "L1;bad",
-         "L1;00000005;4;4;2;5;5;10;7;1800;1;2",
-         "L1;00000006;6;1;1;5;4;-;-;0;0;1",
+         "L1;00000005;63;2;2;10;10;1;0;610;8;0",
+         "L1;00000006;64;5;2;4;4;0;1;300;0;2",
+         "L1;00000007;117;4;3;6;6;100;80;1400;0;1",
          "F1;1ce45cbe;3;0;Petro",
          "F1;1ce45cbe;9;1;Olha_Kovalenko"];
 
-      // the roster of 1ce45cbe (Eve's row is another match's)
-      public static const ROSTER:Array = ["L2;69f8c4bc;1;0;0;0;Eve",
-         "L2;1ce45cbe;3;0;5;2;Petro",
-         "L2;1ce45cbe;4;0;7;1;Ada",
-         "L2;1ce45cbe;5;0;2;3;Сергій_Коваленко",
-         "L2;1ce45cbe;9;1;1;3;Olha_Kovalenko",
-         "L2;1ce45cbe;10;1;4;4;Bob;the;Builder",
-         "L2;1ce45cbe;11;1;0;2;xX_Very_Long_Nickname_Here_Xx"];
-
       // Recent: each replay state once (0 not recorded .. 4 old version), the friend Petro in the
-      // second; a broken row
+      // second (a recorded match: no place); a broken row
       public static const RECENT:Array = ["M0;5",
-         "M1;00000011;3;1;100;98;16;912;12;0",
-         "M1;69f8c4bc;2;2;3;1;20;1260;25;1",
-         "M1;00000013;13;1;12;9;15;840;70;2",
-         "M1;00000014;9;4;-;-;8;300;2000;3",
-         "M1;00000015;5;5;2;2;12;600;4400;4",
+         "M1;00000011;117;4;100;87;20;720;12;1",
+         "M1;69f8c4bc;61;5;3;1;16;1080;25;1",
+         "M1;00000013;99;2;12;9;15;840;70;0",
+         "M1;00000014;62;4;-;-;8;300;2000;3",
+         "M1;00000015;63;2;1;3;20;1260;4400;4",
          "M1;broken",
-         "F1;69f8c4bc;6;1;Petro"];
+         "F1;69f8c4bc;255;1;Petro"];
 
-      // A player's matches (P1 names the player): a victory, a defeat, a draw; a broken row.
+      // Recent with a friend: the friend's match only.
+      public static const FRIENDS:Array = ["M0;1",
+         "M1;69f8c4bc;61;5;3;1;16;1080;25;1",
+         "F1;69f8c4bc;255;1;Petro"];
+
+      // A player's matches (P1 names the player): a defeat, a victory, a draw with an old
+      // version's replay, one not kept; a broken row.
       public static function played(nickname:String) : Array
       {
-         return ["P1;3;" + nickname,
-            "P2;1ce45cbe;4;13;1;1;12;7;35;2",
-            "P2;69f8c4bc;2;2;3;0;3;9;180;1",
+         return ["P1;4;" + nickname,
+            "P2;1ce45cbe;4;117;4;0;4;7;35;1",
+            "P2;69f8c4bc;2;61;5;1;9;2;180;1",
             "P2;broken;1",
-            "P2;00000021;7;9;4;2;5;5;3000;3"];
+            "P2;00000021;7;62;4;2;11;6;1500;4",
+            "P2;00000022;3;63;2;0;6;8;5000;3"];
       }
 
-      public static function rows(names:Array) : Array
+      public static function rows(names:Array, first:uint = 0) : Array
       {
          var list:Array = [];
-         for each(var name:String in names)
+         for(var i:int = 0; i < names.length; i++)
          {
-            list.push({"nickname":name,"place":0,"ranking":0,"ranking_diff":0});
+            list.push({"nickname":names[i],"place":first + i,"ranking":0,"ranking_diff":0});
          }
          return list;
       }
