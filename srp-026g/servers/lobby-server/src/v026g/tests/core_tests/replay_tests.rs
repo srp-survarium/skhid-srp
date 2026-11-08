@@ -468,7 +468,7 @@ fn a_save_of_games_before_the_last_simulation_change_is_refused_and_said_why() {
     world.ask(taras, subscribe(2));
     let (link, row, said) = save(&mut world, taras, MATCH);
     assert_eq!((link, row.as_str()), (None, "R2;incompatible;1f07c8fb;0"));
-    assert!(said.expect("a message box").contains("(ревізія 16)"));
+    assert!(said.expect("a message box").contains("записано до оновлення гри"));
     assert_eq!(
         save_poll(&mut world, taras),
         (None, "R2;incompatible;1f07c8fb;0".into(), None)
