@@ -982,7 +982,7 @@ impl Web {
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
                     | skills::PATH) => {
-                        return wiki_page(path, &request.target, request.lang);
+                        return wiki_page(path, &request.target, request.lang, game);
                     }
                     path if path.starts_with(launcher::FRESH) => {
                         return launcher::fresh(
@@ -1629,13 +1629,16 @@ fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, &lang.tr("Maps", "Мапи")))
 }
 
-fn wiki_page(path: &str, target: &str, lang: Lang) -> Response {
+fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
     let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
     let query = target.split_once('?').map_or("", |(_, query)| query);
-    wiki::page(path, query, lang, &format!("{header}{notice}"))
+    let per_match = (path == skills::PATH)
+        .then(|| game.results.experience_per_match())
+        .flatten();
+    wiki::page(path, query, lang, &format!("{header}{notice}"), per_match)
 }
 
 /// The site's header over a wiki page of its own look (the calculator's, the

@@ -1391,6 +1391,45 @@ fn premium_adds_half_and_can_be_claimed_from_the_screen() {
         results.claim_premium(MATCH + 1, 11, &mut bob_account, NOW),
         None
     );
+    // A match gives, premium included: Alice's 198, Bob's 64 and the 32
+    // premium would add.
+    assert_eq!(
+        results.experience_per_match(),
+        Some(ExperiencePerMatch {
+            average: NonZeroU32::new((198 + 64 + 32) / 2).unwrap(),
+            results: 2
+        })
+    );
+}
+
+#[test]
+fn what_a_match_gives_counts_only_finished_paid_matches_against_players() {
+    let players = alice_and_bob();
+    let store = accounts(&players);
+    let results = Results::new();
+    let mut room = result(players.clone());
+    room.private = true;
+    results.settle(&room, &store, &terms(), &mut Rng::new(1));
+    let mut bots = result(players.clone());
+    (bots.match_id, bots.vs_bots) = (MATCH + 1, true);
+    results.settle(&bots, &store, &terms(), &mut Rng::new(1));
+    assert_eq!(results.experience_per_match(), None);
+
+    let mut paid = result(players);
+    paid.match_id = MATCH + 2;
+    (paid.players[1].left, paid.players[1].present_at_end) = (true, false);
+    let report = results
+        .settle(&paid, &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    let alice = &report.players[0].reward;
+    assert_eq!(report.players[1].reward.standing, Standing::Left);
+    assert_eq!(
+        results.experience_per_match(),
+        Some(ExperiencePerMatch {
+            average: NonZeroU32::new(alice.experience + alice.premium_bonus.1).unwrap(),
+            results: 1
+        })
+    );
 }
 
 #[test]
