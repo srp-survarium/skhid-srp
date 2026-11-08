@@ -12,9 +12,8 @@ Every game belongs to one `Game`, by its own process id. Before any input the ga
 the foreground one, or the step stops. A wait reads only what was logged after it began, and stops on a
 timeout with a screenshot. On leaving `Run`, held keys are let go and only this run's games are closed.
 
-The game reads raw mouse deltas and scan codes (DirectInput): a cursor position cannot be set, and a virtual
-key never arrives. So the cursor is found by its picture in the window, moved by relative steps and corrected
-until it is on the target.
+The game draws its arrow where the Windows cursor is, and takes keys as scan codes (DirectInput; a virtual key
+never arrives). So the Windows cursor is placed on the target and the arrow checked by its picture.
 
 Needs numpy.
 """
@@ -26,6 +25,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
 from ctypes import wintypes
 from pathlib import Path
@@ -84,16 +84,10 @@ VK = {"enter": 0x0D, "esc": 0x1B, "tab": 0x09, "space": 0x20, "left": 0x25, "rig
 ARROWS = ("left", "right", "up", "down")
 # The top left corner of the client area: the cursor parked there is looked for only when it is nowhere else.
 CORNER = (27, 34)
-GAIN = 0.9  # game pixels moved per mouse count, near enough for the correction loop to converge
-MOVE_STEP = 300  # the longest move between looks: one jump across the window lands too far off a small button
 
 
 class Stop(Exception):
     """A step did not do what it had to."""
-
-
-class InputLost(Stop):
-    """A game in front and responding that no longer reads the mouse: only a new game has it again."""
 
 
 class MOUSEINPUT(ctypes.Structure):
@@ -344,15 +338,6 @@ class Game:
         if under != window or (now.x, now.y) != (at.x, at.y):
             raise self.fail(f"a press at ({now.x}, {now.y}), wanted ({at.x}, {at.y}), would not land on this game")
 
-    def _steps(self, dx: int, dy: int, size: int = 3) -> None:
-        count = max(abs(dx), abs(dy)) // size + 1
-        done_x = done_y = 0
-        for i in range(1, count + 1):
-            to_x, to_y = dx * i // count, dy * i // count
-            send(mouse(to_x - done_x, to_y - done_y, MOVE))
-            done_x, done_y = to_x, to_y
-            time.sleep(0.002)
-
     def picture(self) -> np.ndarray:
         # PrintWindow now and then hands back an all-black frame of a game that is drawing normally: taken again.
         for _ in range(30):
@@ -378,73 +363,53 @@ class Game:
             seen = again
         return seen
 
+    def _place(self, x: int, y: int) -> None:
+        """The Windows cursor on (x, y), and a one-count wiggle: the game redraws its arrow when the mouse reports motion."""
+        self._aim_windows_cursor(x, y)
+        send(mouse(1, 0, MOVE))
+        time.sleep(0.03)
+        send(mouse(-1, 0, MOVE))
+
     def move(self, x: int, y: int, tolerance: int = 14) -> None:
+        """The game's arrow is the Windows cursor, seen from the window: placed there, then checked by its picture."""
         self.focus()
-        last = window = None
-        stalls = 0
-        for _ in range(24):
-            position = self.steady_cursor(window)
-            if position is None and window is not None:
-                position = self.cursor()
-                # One look without the arrow proves nothing: the game can throw its cursor back to the corner, and the
-                # next frame shows it there. Only an arrow that stays away has changed shape over a control.
-                for _ in range(5):
-                    if position is not None:
-                        break
-                    time.sleep(0.15)
-                    position = self.cursor()
-                if position is None and window[:2] != (x, y):  # a short step lands where it aimed
-                    position = window[:2]
-                elif position is None:
-                    if self._arrow_returns_near(x, y):
-                        print(f"    {self.account}: over a control at ({x}, {y})", flush=True)
-                        return
-                    # No arrow on the target or beside it: the cursor is lost, and a press now would hit nothing.
-                    print(f"    {self.account}: cursor lost at ({x}, {y})", flush=True)
-                    last = window = None
-                    continue
-            print(f"    {self.account}: cursor at {position}, want ({x}, {y})", flush=True)
-            if position is not None and position == last:
-                window_now = self.window
-                in_front = user32.GetForegroundWindow() == window_now
-                print(f"    {self.account}: cursor did not move; foreground={in_front}"
-                      f" hung={bool(user32.IsHungAppWindow(window_now))} process_alive={self.process.poll() is None}", flush=True)
-                stalls += 1
-                if stalls == 2:
-                    raise InputLost(f"{self.account}: the game no longer reads the mouse (in front: {in_front})")
-            if position is None or position == last:  # lost, or it did not move: park it where it is known
-                self._steps(-5000, -5000, 200)
-                last = window = None
-                continue
-            dx, dy = x - position[0], y - position[1]
-            if abs(dx) <= tolerance and abs(dy) <= tolerance:
+        self._place(x, y)
+        end = time.time() + 2
+        while time.time() < end:
+            seen = self.steady_cursor((x, y, tolerance))
+            if seen is not None:
+                print(f"    {self.account}: cursor at {seen}, want ({x}, {y})", flush=True)
                 return
-            step_x, step_y = max(-MOVE_STEP, min(MOVE_STEP, dx)), max(-MOVE_STEP, min(MOVE_STEP, dy))
-            self._steps(int(step_x / GAIN), int(step_y / GAIN))
-            aimed = (position[0] + step_x, position[1] + step_y)
-            last, window = position, (*aimed, max(60, int(0.4 * max(abs(step_x), abs(step_y)))))
-        raise self.fail(f"could not bring the cursor to ({x}, {y}), last at {last}")
+        if self._arrow_returns_near(x, y):
+            print(f"    {self.account}: over a control at ({x}, {y})", flush=True)
+            return
+        raise self.fail(f"no arrow at ({x}, {y}) or beside it")
 
     def click(self, x: int, y: int, tolerance: int = 14) -> None:
         self.move(x, y, tolerance)
         self.focus()
         self._aim_windows_cursor(x, y)
         time.sleep(0.15)  # the movie must have drawn the hover, or the press does not reach the button
+        self.run.note(f"{self.account} press at ({x},{y}) down")
         send(mouse(flags=LEFT_DOWN))
         time.sleep(0.06)
         send(mouse(flags=LEFT_UP))
+        self.run.note(f"{self.account} press up")
         time.sleep(0.05)
 
     def _arrow_returns_near(self, x: int, y: int) -> bool:
-        """A step off (x, y) and back: true when the arrow shows beside it, so it was there, its shape changed by a control."""
-        for dx, dy in ((0, -60), (60, 0), (-60, 0), (0, 60)):  # up first: beside a button in a bar is another button
-            self._steps(int(dx / GAIN), int(dy / GAIN))
-            seen = self.steady_cursor((x + dx, y + dy, 45))
-            self._steps(int(-dx / GAIN), int(-dy / GAIN))
-            time.sleep(0.08)
-            if seen is not None:
-                return True
-        return False
+        """Beside (x, y) and back: true when the arrow shows there, so a control had changed its shape on (x, y)."""
+        area = wintypes.RECT()
+        user32.GetClientRect(self.window, ctypes.byref(area))
+        try:
+            for dx, dy in ((0, -60), (60, 0), (-60, 0), (0, 60)):  # up first: beside a button in a bar is another button
+                if 0 <= x + dx < area.right and 0 <= y + dy < area.bottom:
+                    self._place(x + dx, y + dy)
+                    if self.steady_cursor((x + dx, y + dy, 20)) is not None:
+                        return True
+            return False
+        finally:
+            self._place(x, y)
 
     def right_click(self, x: int, y: int, tolerance: int = 14) -> None:
         self.move(x, y, tolerance)
@@ -559,10 +524,31 @@ class Run:
         """The crash files written since this run began."""
         return sorted(path.name for path in set(self.game_dir.glob("SRP-crash-*")) - self.known_crashes)
 
+    def note(self, text: str) -> None:
+        """One line on the run's timeline, on the same clock as the samples."""
+        with self.timeline_lock, (self.shots.parent / "timeline.log").open("a", encoding="utf-8") as out:
+            out.write(f"{time.time():.3f} {text}\n")
+
+    def _sample(self) -> None:
+        """Ten times a second, per game: its arrow, the Windows cursor and who has the foreground."""
+        while not self.sampling_over.wait(0.1):
+            for game in list(self.games):
+                try:
+                    window = game.window
+                    at, front = wintypes.POINT(), user32.GetForegroundWindow() == window
+                    user32.GetCursorPos(ctypes.byref(at))
+                    self.note(f"{game.account} arrow={game.cursor()} windows=({at.x},{at.y}) front={front}")
+                except (Stop, OSError, ValueError) as error:
+                    self.note(f"{game.account} sample failed: {error}")
+
     def __enter__(self) -> "Run":
+        self.timeline_lock, self.sampling_over = threading.Lock(), threading.Event()
+        self.note(f"===== run begins")
+        threading.Thread(target=self._sample, daemon=True).start()
         return self
 
     def __exit__(self, *_) -> None:
+        self.sampling_over.set()
         user32.ClipCursor(None)
         for name in ("ctrl", "shift"):
             send(scan(key_scan(name), KEY_UP))
@@ -591,8 +577,12 @@ class Run:
     def launch(self, account: str, password: str) -> Game:
         arguments = [str(self.game_dir / "survarium_skhid.exe"), f"-server={self.host}:1234", f"-account_name={account}",
                      f"-account_password={password}", "-localization=english", "-mt_allocator=768",
-                     "-minimum_resources_memory_size=768"]
-        game = Game(self, account, subprocess.Popen(arguments, cwd=self.game_dir, creationflags=subprocess.DETACHED_PROCESS))
+                     "-minimum_resources_memory_size=768", "-log_to_stdout"]
+        # Every game of a Windows user writes the same log file, the last one started over the others: each has its own here.
+        output = (self.shots.parent / f"client-{account}.log").open("ab", buffering=0)
+        output.write(f"\n===== launched at {time.time():.3f}\n".encode())
+        game = Game(self, account, subprocess.Popen(arguments, cwd=self.game_dir, stdout=output, stderr=subprocess.STDOUT,
+                                                    creationflags=subprocess.DETACHED_PROCESS))
         self.games.append(game)
         end = time.time() + 30
         while True:
