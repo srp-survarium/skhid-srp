@@ -14,6 +14,7 @@ use super::dictionary::Dictionary;
 use super::game_data;
 use super::loadouts::{self, Loadout, POCKET_SLOTS};
 use super::lobby::limits::{KIT_SLOTS, KITS};
+use super::lobby::rooms::PRESET_COUNT;
 use super::modifications::{self, MAX_RANK, Modifications};
 use super::quests::FACTIONS;
 use super::skills::SkillsTree;
@@ -47,6 +48,32 @@ impl TryFrom<u8> for QuestFaction {
     }
 }
 
+/// What a preset's three kits wear (`preset_<n>` of [`PATH`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Preset {
+    /// What each kit wears: one item, worn by all of them.
+    pub all_kits: Vec<Worn>,
+    /// What each kit wears more, kit by kit: its weapons and their ammo.
+    pub kits: [Vec<Worn>; KITS],
+    /// The units of each pocket's item.
+    pub pocket_units: u32,
+}
+
+impl Preset {
+    /// What kit `kit` (0 on) wears: [`Self::all_kits`], then its own.
+    pub fn kit(&self, kit: usize) -> impl Iterator<Item = (u8, &str)> {
+        self.all_kits
+            .iter()
+            .chain(&self.kits[kit])
+            .map(|(slot, name)| (*slot, name.as_str()))
+    }
+
+    /// What its kits wear, kit by kit.
+    fn worn(&self) -> impl Iterator<Item = &str> {
+        (0..KITS).flat_map(|kit| self.kit(kit).map(|(_, name)| name))
+    }
+}
+
 /// What a new account is given ([`PATH`]): [`shared`]. Its items are
 /// names; that the game data has each, that it fits its slot and that the
 /// pockets take what they are given is [`Self::check`]'s, at start.
@@ -70,12 +97,11 @@ pub struct NewAccount {
     /// else that many items. The kits' pockets take theirs from these
     /// stacks.
     pub own: Vec<(String, u32)>,
-    /// What each kit wears: one item, worn by all of them.
-    pub all_kits: Vec<Worn>,
-    /// What each kit wears more, kit by kit: its weapon and its ammo.
-    pub kits: [Vec<Worn>; KITS],
-    /// The units of each pocket's item.
-    pub pocket_units: u32,
+    /// Preset 1 (`preset_1`): the kits, the active preset.
+    pub active: Preset,
+    /// Presets 2 on (`preset_2`, ...), in order: kept with the account,
+    /// put on when the player chooses one (`session::v026g::presets`).
+    pub saved: Vec<Preset>,
     /// Modifications of their own the items it is given have, worn or
     /// owned, `(item, modification)`: an item of several, a row each.
     pub modifications: Vec<(String, u32)>,
@@ -83,8 +109,8 @@ pub struct NewAccount {
 
 impl NewAccount {
     /// The grant of `config` ([`PATH`]); a key missing or unknown, a value
-    /// that is not of its key, or a faction whose quests the lobby does not
-    /// show, is an error naming it.
+    /// that is not of its key, a preset after one missing, or a faction
+    /// whose quests the lobby does not show, is an error naming it.
     pub fn parse(config: &[u8]) -> Result<Self, String> {
         let root = ConfigValue::parse(config).map_err(|cause| format!("{PATH}: {}", cause.0))?;
         let ConfigValue::Named(entries) = &root else {
@@ -128,29 +154,55 @@ impl NewAccount {
                 })
                 .collect()
         };
-        let by_item = |key: &str| -> Result<Vec<(String, u32)>, String> {
-            table(key, at(key)?)?
-                .iter()
-                .map(|(item, value)| Ok((item.clone(), number(&format!("{key}/{item}"), value)?)))
-                .collect()
+        let preset = |key: &str, value: &ConfigValue| -> Result<Preset, String> {
+            let mut all_kits = None;
+            let mut pocket_units = None;
+            let mut kits: [Vec<Worn>; KITS] = Default::default();
+            for (name, value) in table(key, value)? {
+                let at = format!("{key}/{name}");
+                let kit = name
+                    .strip_prefix("kit_")
+                    .and_then(|n| n.parse::<usize>().ok())
+                    .filter(|n| (1..=KITS).contains(n));
+                match (name.as_str(), kit) {
+                    (_, Some(n)) => kits[n - 1] = worn(&at, value)?,
+                    ("all_kits", None) => all_kits = Some(worn(&at, value)?),
+                    ("pocket_units", None) => pocket_units = Some(number(&at, value)?),
+                    _ => return Err(format!("{PATH}: `{at}` is no key of it")),
+                }
+            }
+            Ok(Preset {
+                all_kits: all_kits.ok_or_else(|| format!("{PATH}: no `{key}/all_kits`"))?,
+                kits,
+                pocket_units: pocket_units
+                    .ok_or_else(|| format!("{PATH}: no `{key}/pocket_units`"))?,
+            })
         };
-        let mut kits: [Vec<Worn>; KITS] = Default::default();
+        // `preset_<n>`, 1 to PRESET_COUNT.
+        let mut presets: Vec<(u8, Preset)> = Vec::new();
         for (key, value) in entries {
-            let kit = key
-                .strip_prefix("kit_")
-                .and_then(|n| n.parse::<usize>().ok())
-                .filter(|n| (1..=KITS).contains(n));
-            match (key.as_str(), kit) {
-                (_, Some(n)) => kits[n - 1] = worn(key, value)?,
+            let number = key
+                .strip_prefix("preset_")
+                .and_then(|n| n.parse::<u8>().ok())
+                .filter(|n| (1..=PRESET_COUNT).contains(n));
+            match (key.as_str(), number) {
+                (_, Some(n)) => presets.push((n, preset(key, value)?)),
                 (
                     "level" | "skills" | "silver" | "gold" | "premium_days" | "rounds" | "faction"
-                    | "reputation_level" | "own" | "all_kits" | "pocket_units"
-                    | "own_modifications",
+                    | "reputation_level" | "own" | "own_modifications",
                     None,
                 ) => {}
                 _ => return Err(format!("{PATH}: `{key}` is no key of it")),
             }
         }
+        presets.sort_by_key(|(n, _)| *n);
+        if let Some(gap) = (1..).zip(&presets).find(|(n, (at, _))| n != at) {
+            return Err(format!("{PATH}: no `preset_{}`", gap.0));
+        }
+        let mut presets = presets.into_iter().map(|(_, preset)| preset);
+        let active = presets
+            .next()
+            .ok_or_else(|| format!("{PATH}: no `preset_1`"))?;
         let num = |key: &str| at(key).and_then(|value| number::<u32>(key, value));
         let byte = |key: &str| at(key).and_then(|value| number::<u8>(key, value));
         let skills = table("skills", at("skills")?)?
@@ -166,6 +218,12 @@ impl NewAccount {
                 }
             })
             .collect::<Result<_, String>>()?;
+        let by_item = |key: &str| -> Result<Vec<(String, u32)>, String> {
+            table(key, at(key)?)?
+                .iter()
+                .map(|(item, value)| Ok((item.clone(), number(&format!("{key}/{item}"), value)?)))
+                .collect()
+        };
         Ok(Self {
             level: byte("level")?,
             skills,
@@ -180,9 +238,8 @@ impl NewAccount {
             })?,
             reputation_level: byte("reputation_level")?,
             own: by_item("own")?,
-            all_kits: worn("all_kits", at("all_kits")?)?,
-            kits,
-            pocket_units: num("pocket_units")?,
+            active,
+            saved: presets.collect(),
             modifications: table("own_modifications", at("own_modifications")?)?
                 .iter()
                 .map(|(item, ids)| {
@@ -200,21 +257,27 @@ impl NewAccount {
         })
     }
 
-    /// What kit `kit` (0 on) wears: [`Self::all_kits`], then its own.
-    pub fn kit(&self, kit: usize) -> impl Iterator<Item = (u8, &str)> {
-        self.all_kits
+    /// Its presets, preset 1 (the active one) first.
+    pub fn presets(&self) -> impl Iterator<Item = &Preset> {
+        std::iter::once(&self.active).chain(&self.saved)
+    }
+
+    /// The modifications of its own the grant gives `name`.
+    pub fn modifications_of<'a>(&'a self, name: &'a str) -> impl Iterator<Item = u32> + 'a {
+        self.modifications
             .iter()
-            .chain(&self.kits[kit])
-            .map(|(slot, name)| (*slot, name.as_str()))
+            .filter(move |(item, _)| item == name)
+            .map(|&(_, id)| id)
     }
 
     /// What of the grant `dictionary`, `modifications` and `skills` lack or
     /// do not take, each in a line: skills the tree does not allow at the
     /// level; an item; a slot it does not fit; a pocket the kit does not
-    /// open, that takes fewer units, or whose item is not owned with as
-    /// many; a modification, of a type its item does not take, on a stack
-    /// or on an item it is not given (worn or owned), or more than
-    /// [`MAX_RANK`] on an item with those it comes with; the faction's level.
+    /// open (its worn items' modifications, their defaults and the grant's),
+    /// that takes fewer units, or whose item is not owned with as many; a
+    /// modification, of a type its item does not take, on a stack or on an
+    /// item it is not given (worn or owned), or more than [`MAX_RANK`] on an
+    /// item with those it comes with; the faction's level.
     pub fn check(
         &self,
         dictionary: &Dictionary,
@@ -222,9 +285,8 @@ impl NewAccount {
         skills: &SkillsTree,
     ) -> Vec<String> {
         let mut wrong: Vec<String> = Vec::new();
-        let worn = (0..KITS).flat_map(|kit| self.kit(kit).map(|(_, name)| name));
         let mut names: Vec<&str> = self.own.iter().map(|(name, _)| name.as_str()).collect();
-        names.extend(worn);
+        names.extend(self.presets().flat_map(Preset::worn));
         names.extend(self.modifications.iter().map(|(name, _)| name.as_str()));
         for name in names {
             let line = format!("no item `{name}`");
@@ -235,46 +297,50 @@ impl NewAccount {
         if !wrong.is_empty() {
             return wrong;
         }
-        for kit in 0..KITS {
-            let loadout = match Loadout::from_names(dictionary, self.kit(kit)) {
-                Ok(loadout) => loadout,
-                Err(why) => {
-                    wrong.push(format!("kit {}: {}", kit + 1, why.0));
-                    continue;
-                }
-            };
-            let (count, size) = loadouts::pockets(&loadout);
-            for item in loadout
-                .items
-                .iter()
-                .filter(|item| POCKET_SLOTS.contains(&item.slot))
-            {
-                let name = dictionary
-                    .item(item.dict_id)
-                    .map_or("?", |item| item.name.as_str());
-                let open = POCKET_SLOTS[..count as usize].contains(&item.slot);
-                let takes = loadouts::pocket_share(item.dict_id).units_in(size);
-                if !open || self.pocket_units > takes {
-                    wrong.push(format!(
-                        "kit {}: slot {}: the gear opens {count} pockets of {size} units, \
-                         {} of `{name}` asked",
-                        kit + 1,
-                        item.slot,
-                        self.pocket_units,
-                    ));
-                }
-                let owned = self
-                    .own
+        for (number, preset) in (1..).zip(self.presets()) {
+            for kit in 0..KITS {
+                let at = format!("preset {number} kit {}", kit + 1);
+                let loadout = match Loadout::from_names(dictionary, preset.kit(kit)) {
+                    Ok(loadout) => loadout,
+                    Err(why) => {
+                        wrong.push(format!("{at}: {}", why.0));
+                        continue;
+                    }
+                };
+                let own: Vec<(u32, bool)> = preset
+                    .kit(kit)
+                    .flat_map(|(_, name)| self.modifications_of(name))
+                    .map(|id| (id, false))
+                    .collect();
+                let (count, size) = loadouts::pockets_with(&loadout, &own);
+                for item in loadout
+                    .items
                     .iter()
-                    .find(|(own, _)| own == name)
-                    .map_or(0, |&(_, units)| units);
-                if owned < self.pocket_units {
-                    wrong.push(format!(
-                        "kit {}: slot {}: {} of `{name}` asked, {owned} owned (`own/{name}`)",
-                        kit + 1,
-                        item.slot,
-                        self.pocket_units
-                    ));
+                    .filter(|item| POCKET_SLOTS.contains(&item.slot))
+                {
+                    let name = dictionary
+                        .item(item.dict_id)
+                        .map_or("?", |item| item.name.as_str());
+                    let open = POCKET_SLOTS[..count as usize].contains(&item.slot);
+                    let takes = loadouts::pocket_share(item.dict_id).units_in(size);
+                    if !open || preset.pocket_units > takes {
+                        wrong.push(format!(
+                            "{at}: slot {}: the gear opens {count} pockets of {size} units, \
+                             {} of `{name}` asked",
+                            item.slot, preset.pocket_units,
+                        ));
+                    }
+                    let owned = self
+                        .own
+                        .iter()
+                        .find(|(own, _)| own == name)
+                        .map_or(0, |&(_, units)| units);
+                    if owned < preset.pocket_units {
+                        wrong.push(format!(
+                            "{at}: slot {}: {} of `{name}` asked, {owned} owned (`own/{name}`)",
+                            item.slot, preset.pocket_units
+                        ));
+                    }
                 }
             }
         }
@@ -292,7 +358,10 @@ impl NewAccount {
                 wrong.push(format!("modification {id} is none `{name}` takes"));
             }
             let given = self.own.iter().any(|(own, _)| own == name)
-                || (0..KITS).any(|kit| self.kit(kit).any(|(_, worn)| worn == name));
+                || self
+                    .presets()
+                    .flat_map(Preset::worn)
+                    .any(|worn| worn == name);
             if !given {
                 wrong.push(format!(
                     "modification {id} of `{name}`, which it is not given"
@@ -305,7 +374,7 @@ impl NewAccount {
         named.dedup();
         for name in named {
             let item = dictionary.item_named(name).expect("checked above");
-            let own = self.modifications.iter().filter(|(n, _)| n == name).count();
+            let own = self.modifications_of(name).count();
             if item.start.len() + own > MAX_RANK {
                 wrong.push(format!(
                     "`{name}`: {own} modifications of its own and the {} it comes with, more \
@@ -344,8 +413,8 @@ pub fn shared() -> &'static NewAccount {
 
 /// [`NewAccount::check`] of the grant of this process's data, as
 /// [`super::game_data::init`] runs it; an error names each problem. Not in
-/// [`super::tables::check`]: the test data predates the Keeper of the Sun and the
-/// Novice's backpack the grant names.
+/// [`super::tables::check`]: the test data predates items the grant names
+/// (the Keeper of the Sun, the Novice's backpack, the Saiga-12...).
 pub fn check_data(data: &game_data::GameData) -> Result<(), game_data::GameDataError> {
     let wrong = shared().check(
         Dictionary::shared(),
