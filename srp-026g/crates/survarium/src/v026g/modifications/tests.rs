@@ -674,22 +674,34 @@ fn the_lobby_knows_the_values_each_bonus_rolls() {
     let start = source.find("ROLLS:Object = {").expect("the lobby's ROLLS");
     let rows = &source[start + "ROLLS:Object = {".len()..];
     let rows = &rows[..rows.find("};").expect("the end of ROLLS")];
-    // `<prop id>:[<values>], // <name>` a line.
+    // `<prop id>:[<first id>,<scale>], // <name>` a line; the movie reads
+    // the five ids' values from modifications.tsv (ModificationValues),
+    // each times the scale (`ModificationRolls.rollsOf`).
+    let tsv = include_str!("../../../../../scripts/content-edit/modifications.tsv");
+    let value_of = |id: u32| -> f64 {
+        tsv.lines()
+            .find_map(|line| {
+                let cells: Vec<&str> = line.split('\t').collect();
+                (cells[0] == id.to_string()).then(|| cells[2].parse().unwrap())
+            })
+            .unwrap_or_else(|| panic!("modifications.tsv: no {id}"))
+    };
     let lobby: BTreeMap<u32, Vec<f64>> = rows
         .lines()
         .map(|line| line.split("//").next().unwrap().trim())
         .filter(|line| !line.is_empty())
         .map(|line| {
-            let (id, values) = line.split_once(':').expect("<prop id>:[values]");
-            let values = values.trim().trim_end_matches(',');
-            let values = values.trim_start_matches('[').trim_end_matches(']');
-            (
-                id.trim().parse().unwrap(),
-                values
-                    .split(',')
-                    .map(|v| v.trim().parse().unwrap())
-                    .collect(),
-            )
+            let (prop, row) = line.split_once(':').expect("<prop id>:[first id,scale]");
+            let row = row.trim().trim_end_matches(',');
+            let row = row.trim_start_matches('[').trim_end_matches(']');
+            let [first, scale] = row.split(',').map(str::trim).collect::<Vec<_>>()[..] else {
+                panic!("a ROLLS row: {line}")
+            };
+            let (first, scale): (u32, f64) = (first.parse().unwrap(), scale.parse().unwrap());
+            let values = (first..first + 5)
+                .map(|id| (value_of(id) * scale * 1e6).round() / 1e6)
+                .collect();
+            (prop.trim().parse().unwrap(), values)
         })
         .collect();
     let same = lobby.len() == expected.len()
@@ -707,7 +719,7 @@ fn the_lobby_knows_the_values_each_bonus_rolls() {
     let table = table.join(",\n");
     assert!(
         same,
-        "ModificationRolls.ROLLS should be, by this data:\n{table}"
+        "ModificationRolls.ROLLS (its runs of ids, their modifications.tsv values times the scale) should give, by this data:\n{table}"
     );
 }
 
@@ -1003,13 +1015,19 @@ fn rollable_types(data: &Modifications, mask: u64, defaults: &[u32]) -> u32 {
 /// The masks of `armor.tsv` (its `mods` column), by config.
 fn table_masks() -> std::collections::BTreeMap<String, String> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let text = std::fs::read_to_string(root.join("srp-026g/scripts/content-edit/armor.tsv")).unwrap();
+    let text =
+        std::fs::read_to_string(root.join("srp-026g/scripts/content-edit/armor.tsv")).unwrap();
     let mut lines = text.lines().filter(|line| !line.starts_with('#'));
     let head: Vec<&str> = lines.next().unwrap().split('\t').collect();
     let mods = head.iter().position(|column| *column == "mods").unwrap();
     lines
         .map(|line| line.split('\t').collect::<Vec<_>>())
-        .map(|row| (format!("gameplay/items/armour/{}.options", row[0]), row[mods].to_owned()))
+        .map(|row| {
+            (
+                format!("gameplay/items/armour/{}.options", row[0]),
+                row[mods].to_owned(),
+            )
+        })
         .collect()
 }
 
@@ -1039,7 +1057,9 @@ fn every_item_rolls_three_types_with_the_tables_masks() {
         let Some(item) = item_mods(entry.dict_id) else {
             continue;
         };
-        let mask = masks.get(&entry.cfg_name).map_or(item.modifications, |mask| bits(mask));
+        let mask = masks
+            .get(&entry.cfg_name)
+            .map_or(item.modifications, |mask| bits(mask));
         let types = rollable_types(data, mask, defaults_of(&entry.cfg_name));
         assert!(
             types == 0 || types >= 3,

@@ -65,10 +65,12 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   - modifications of their own (the reroll's storage; the owner's of 2026-11-08, "-15%
     weight and +8 armor"), after those an item comes with (items.tsv `start`), at most 3 an
     item (`MAX_RANK`): the Keeper helmet, gloves and boots armour +8 (1004, the strongest
-    armour row) and weight -15 % (1064, the strongest weight row); the mask, which rolls no
+    armour row) and weight -15 % (1064, the strongest weight row), the gloves aim time -10 %
+    too (1084; the owner's, "-10% aiming speed"); the mask, which rolls no
     armour (weight, isolation and reliability only): weight -15 % alone; the container
     weight -15 % and carried weight +5 kg (1124, the strongest; "weight -15% and +5kg");
-    the AK-12 and the Saiga-12 weight -15 % (2064, the weapons' strongest weight row); the
+    the AK-12 and the Saiga-12 weight -15 % (2064, the weapons' strongest weight row),
+    recoil -10 % (2084) and aim time -10 % (2074; "+10% aiming speed"); the
     Keeper of the Sun pieces come with experience +20 % (1240) and reputation +50 % (1280),
     so only armour +8 is added. Preset 1's respirator 1183 and gloves 1133;
   - autobuy on (`premium.md` §3).

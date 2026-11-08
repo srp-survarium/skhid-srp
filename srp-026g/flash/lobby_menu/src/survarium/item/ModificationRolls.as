@@ -5,6 +5,7 @@ package survarium.item
    import survarium.constants.PropertyDirection;
    import survarium.constants.QuickSlotSize;
    import survarium.data.ItemData;
+   import survarium.data.ModificationValues;
    import survarium.data.PropertiesDescriptor;
 
    // A bonus at the best value its modifications roll shows gold, not green; the reroll window shows
@@ -12,35 +13,55 @@ package survarium.item
    public class ModificationRolls
    {
 
-      // By prop_id: the values the modifications that roll give the property, weakest first, as
-      // gameplay/items/modifications/modifications.options has them (ui_desc/props_list; the types
-      // with a drop weight that some item takes). The movie gets no modification id, only
-      // {prop_id, prop_value}; the types that share a property roll the same values. srp's
+      // By prop_id: the modifications that roll the property, [the first of its five ids, the card's
+      // scale], the values (rolls) the game's own (ModificationValues, made by the build from
+      // scripts/content-edit/modifications.tsv, the one place they are written), each times the
+      // scale, as its card line shows it (ui_desc/props_list: armour x100, a reload or a reliability
+      // of a weapon the opposite sign). The movie gets no modification id, only {prop_id,
+      // prop_value}; the types that share a property (weight, aim time, reliability, recoil, reload,
+      // anomaly armour) roll the same values, so one run of ids stands for them. srp's
       // modifications::tests::the_lobby_knows_the_values_each_bonus_rolls checks it against the
       // data and prints the table when it differs.
       private static const ROLLS:Object = {
-         1:[0.01,0.02,0.03,0.04,0.05], // damage (2000..2004)
-         2:[-0.02,-0.04,-0.06,-0.08,-0.1], // dispersion (2020..)
-         3:[0.01,0.02,0.03,0.04,0.05], // armour piercing (2110..)
-         4:[0.02,0.04,0.06,0.08,0.1], // rate of fire (2030..)
-         6:[2,3,4,5,8], // armour (1000..1004)
-         8:[5,10,15,20,25], // anomaly armour, the mask's filters (1020.., 1180..)
-         11:[5,10,15,20,25], // oxygen (1190..)
-         15:[-0.05,-0.08,-0.1,-0.12,-0.15], // weight (1060.., 2060..)
-         24:[0.05,0.1,0.15,0.2,0.25], // damage distance (2010..)
-         101:[-0.02,-0.04,-0.06,-0.08,-0.1], // accuracy (1070..)
-         102:[-0.02,-0.04,-0.06,-0.08,-0.1], // aim time (1080.., 2070..)
-         103:[0.05,0.08,0.1,0.12,0.15], // health regeneration (1090..)
-         104:[0.02,0.04,0.06,0.08,0.1], // stamina regeneration (1100..)
-         105:[0.01,0.02,0.03,0.04,0.05], // movement speed (1110..)
-         106:[1,2,3,4,5], // carried weight (1120..)
-         108:[-0.05,-0.1,-0.15,-0.2,-0.25], // artefact search (1130..)
-         114:[0.05,0.08,0.1,0.12,0.15], // reload (1140.., 2040..)
-         115:[-0.02,-0.04,-0.06,-0.08,-0.1], // recoil (1150.., 2080..)
-         116:[-0.02,-0.04,-0.06,-0.08,-0.1], // stamina spending (1160..)
-         119:[-0.05,-0.08,-0.1,-0.12,-0.15], // chamber a round (2050..)
-         123:[0.05,0.1,0.15,0.2,0.25] // reliability (1200.., 2090..)
+         1:[2000,1], // damage
+         2:[2020,1], // dispersion
+         3:[2110,1], // armour piercing
+         4:[2030,1], // rate of fire
+         6:[1000,100], // armour
+         8:[1020,100], // anomaly armour, the mask's filters (1180..)
+         11:[1190,1], // oxygen
+         15:[1060,1], // weight (2060..)
+         24:[2010,1], // damage distance
+         101:[1070,1], // accuracy
+         102:[1080,1], // aim time (2070..)
+         103:[1090,1], // health regeneration
+         104:[1100,1], // stamina regeneration
+         105:[1110,1], // movement speed
+         106:[1120,1], // carried weight
+         108:[1130,1], // artefact search
+         114:[1140,1], // reload (2040.., the opposite sign)
+         115:[1150,1], // recoil (2080..)
+         116:[1160,1], // stamina spending
+         119:[2050,1], // chamber a round
+         123:[1200,-1] // reliability (2090..)
       };
+
+      // The values a property rolls, weakest first (ROLLS); null for a property that does not roll.
+      private static function rollsOf(propId:uint) : Array
+      {
+         var row:Array = ROLLS[propId] as Array;
+         if(!row)
+         {
+            return null;
+         }
+         var values:Array = [];
+         for(var i:int = 0; i < 5; i++)
+         {
+            // Rounded: 0.15 x 100 is 15.000000000000002.
+            values.push(Math.round(Number(ModificationValues.value[String(int(row[0]) + i)]) * Number(row[1]) * 1000000) / 1000000);
+         }
+         return values;
+      }
 
       private static const EPSILON:Number = 0.000001;
 
@@ -65,7 +86,7 @@ package survarium.item
       // slots, ammo bags).
       public static function isBest(propId:uint, value:Number) : Boolean
       {
-         var rolls:Array = ROLLS[propId] as Array;
+         var rolls:Array = rollsOf(propId);
          if(!rolls)
          {
             return isPremium(propId,value);
@@ -172,7 +193,7 @@ package survarium.item
          var text:String;
          for each(prop in modifier.props)
          {
-            rolls = ROLLS[prop.prop_id] as Array;
+            rolls = rollsOf(uint(prop.prop_id));
             if(!rolls)
             {
                continue;

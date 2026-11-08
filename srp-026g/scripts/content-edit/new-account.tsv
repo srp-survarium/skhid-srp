@@ -98,6 +98,7 @@ own_modifications/edge_helmet_5[1]	1064
 own_modifications/edge_mask_5[0]	1064
 own_modifications/edge_gloves_5[0]	1004
 own_modifications/edge_gloves_5[1]	1064
+own_modifications/edge_gloves_5[2]	1084
 own_modifications/edge_boots_5[0]	1004
 own_modifications/edge_boots_5[1]	1064
 own_modifications/edge_back_5[0]	1064
@@ -105,4 +106,8 @@ own_modifications/edge_back_5[1]	1124
 own_modifications/edge_torso_5_special[0]	1004
 own_modifications/edge_legs_5_special[0]	1004
 own_modifications/ak_12[0]	2064
+own_modifications/ak_12[1]	2084
+own_modifications/ak_12[2]	2074
 own_modifications/saiga_12[0]	2064
+own_modifications/saiga_12[1]	2084
+own_modifications/saiga_12[2]	2074

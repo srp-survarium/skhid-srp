@@ -120,6 +120,7 @@ fn the_grant_is_the_tables() {
             ("edge_mask_5", 1064),
             ("edge_gloves_5", 1004),
             ("edge_gloves_5", 1064),
+            ("edge_gloves_5", 1084),
             ("edge_boots_5", 1004),
             ("edge_boots_5", 1064),
             ("edge_back_5", 1064),
@@ -127,7 +128,11 @@ fn the_grant_is_the_tables() {
             ("edge_torso_5_special", 1004),
             ("edge_legs_5_special", 1004),
             ("ak_12", 2064),
-            ("saiga_12", 2064)
+            ("ak_12", 2084),
+            ("ak_12", 2074),
+            ("saiga_12", 2064),
+            ("saiga_12", 2084),
+            ("saiga_12", 2074)
         ]
     );
     let own: Vec<(&str, u32)> = grant

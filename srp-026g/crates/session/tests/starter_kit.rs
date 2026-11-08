@@ -148,8 +148,7 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     }
     // One of each item the presets wear, new.
     for dict_id in [
-        1821, 43, 325, 1869, 46, 42, 38, 306, 14, 110, 202, 200, 977, 978, 201, 198, 199,
-        363, 2227,
+        1821, 43, 325, 1869, 46, 42, 38, 306, 14, 110, 202, 200, 977, 978, 201, 198, 199, 363, 2227,
     ] {
         assert_eq!(stacks(dict_id), [FULL_CONDITION], "{dict_id}");
     }
@@ -248,7 +247,8 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     let both = || vec![(1004, false), (1064, false)];
     let sun = || vec![(1240, false), (1280, false), (1004, false)];
     // `(vest and pants, weapon, ammo, rounds, the kit's level)`: five bags
-    // of one clip; each weapon with its own weight -15 % (2064).
+    // of one clip; each weapon with its own weight -15 % (2064), recoil -10 %
+    // (2084) and aim time -10 % (2074).
     let weapons = [
         ((977, 978, sun()), 363, 369, 150, 15),
         ((977, 978, sun()), 2227, 2205, 100, 14),
@@ -263,9 +263,14 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
                 (2, vest, 1, own.clone()),
                 (3, 199, 1, vec![(1064, false), (1124, false)]),
                 (4, pants, 1, own),
-                (5, 201, 1, both()),
+                (5, 201, 1, vec![(1004, false), (1064, false), (1084, false)]),
                 (6, 198, 1, both()),
-                (7, weapon, 1, vec![(2064, false)]),
+                (
+                    7,
+                    weapon,
+                    1,
+                    vec![(2064, false), (2084, false), (2074, false)]
+                ),
                 (8, ammo, rounds, vec![]),
                 (13, 67, 2, vec![]),
                 (14, 340, 1, vec![]),
