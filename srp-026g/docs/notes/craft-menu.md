@@ -116,3 +116,16 @@ upgradable item and press buy").
 - **A drag** of the donor out of its slot (the press moved) gives no menu. Once the result shows,
   the slots are hidden: nothing.
 - Code: `MessageCraftItem.onSlotDown`, `onSlotClick`; `InventoryList.showCraftSlotMenu`.
+
+## Success chances
+
+The owner's rule: 2026-11-08 ("the combining modification changes drop too fast 100% on the same
+level, 50 and 25% for levels lower"; "it should be 100, 95, 90").
+
+- **Success:** 100 % when the item has as many modifications as its donor, 95 % with one more,
+  90 % with two more. Before: 100 / 50 / 25 % (the gold upgrade's, which silver-only.md made the
+  one upgrade).
+- **Otherwise:** nothing happens (see above); no failure chance is left in the data.
+- **Price:** unchanged (the gold price in silver, silver-only.md).
+- Data: `craft_probabilities_premium` of `craft.options` (`scripts/content-edit/craft-chances-1.json`);
+  the server reads it, the window shows what 0x9B sends.

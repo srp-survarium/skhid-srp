@@ -31,9 +31,6 @@ use survarium::v026g::skills::{SkillError, SkillsTree};
 
 use super::account::{Account, KIT_SLOTS, KitSlot, cap_name, doubled_pockets};
 
-/// What a skills reset costs in silver: 0.21d's value, which is also what
-/// its gold price (1) was at the game's rate ([`prices::GOLD_IN_SILVER`]).
-pub const REROLL_COST: u32 = 100;
 /// Most items one purchase of an item that is no stack makes [choice,
 /// 0.21d's].
 pub const MAX_BOUGHT_AT_ONCE: u32 = 8;
@@ -41,12 +38,13 @@ pub const MAX_BOUGHT_AT_ONCE: u32 = 8;
 /// The six prices the lobby is told (0x8D). The kit's price is 0: a kit
 /// can not be bought in 0.26g at all (the lobby's `setProfileCost` does
 /// nothing). A nickname change costs `premium::Settings::rename_cost`
-/// silver (`names`); the clan's price is `clans`'. Nothing is paid in gold
-/// (the owner, 2026-11-08): the reset's gold price and the exchange rate
-/// are 0.
+/// silver (`names`); the clan's price is `clans`'. A skills reset is free
+/// (the owner, 2026-11-08: "let's make skill reset free"; it was 100
+/// silver or 1 gold): its prices are 0. Nothing is paid in gold (the owner,
+/// 2026-11-08): the exchange rate is 0.
 pub fn service_prices() -> ServicePrices {
     ServicePrices {
-        reroll: REROLL_COST,
+        reroll: 0,
         reroll_premium: 0,
         profile: 0,
         change_name: super::premium::settings().rename_cost,
@@ -85,8 +83,6 @@ pub enum ActionError {
     SkillsLowered,
     /// A reset of a branch that is none, or with a payment that is none.
     BadReset,
-    /// The account has no silver for the reset.
-    NotEnoughMoneyForReset,
     /// The item is a stack or is not worn: nothing to repair.
     NothingToRepair,
     /// A repair paid with a kit: kits fix defects, and srp's
@@ -128,7 +124,6 @@ impl ActionError {
             }
             Self::Skills(_) | Self::SkillsLowered => "st_player_skills_check_failed",
             Self::BadReset => "st_cannot_reroll_skills",
-            Self::NotEnoughMoneyForReset => "st_not_enougth_money_for_reroll",
             Self::NothingToRepair | Self::NoDefects => "st_cannot_repair_item",
             Self::NotEnoughMoneyForRepair => "st_not_enought_money_for_repair",
             Self::NoWeapon => "st_profile_check_failed_weapon",
@@ -692,8 +687,8 @@ pub fn set_skills(account: &mut Account, skills: &[(u16, u8)]) -> Result<(), Act
 }
 
 /// `48 01`: take back the points of one branch of the tree (`branch` is
-/// the skills window's tab: 0 for skills 101.., 1 for 201..), for
-/// [`REROLL_COST`] silver. Returns the points freed.
+/// the skills window's tab: 0 for skills 101.., 1 for 201..), free of
+/// charge (the owner, 2026-11-08). Returns the points freed.
 pub fn reset_skills(account: &mut Account, branch: u8) -> Result<u32, ActionError> {
     reset_skills_in_tree(account, branch, SkillsTree::shared())
 }
@@ -721,10 +716,6 @@ fn reset_skills_in_tree(
     if freed == 0 {
         return Err(ActionError::BadReset);
     }
-    if account.generic_money < REROLL_COST {
-        return Err(ActionError::NotEnoughMoneyForReset);
-    }
-    account.generic_money -= REROLL_COST;
     let kept = account
         .skills
         .iter()
@@ -1023,7 +1014,6 @@ mod tests {
             "st_wrong_skill_points_count",
             "st_player_skills_check_failed",
             "st_cannot_reroll_skills",
-            "st_not_enougth_money_for_reroll",
             "st_cannot_repair_item",
             "st_not_enought_money_for_repair",
             "st_profile_check_failed_weapon",
@@ -1043,7 +1033,6 @@ mod tests {
             ActionError::Skills(SkillError::OverLevel { spent: 2, level: 1 }),
             ActionError::SkillsLowered,
             ActionError::BadReset,
-            ActionError::NotEnoughMoneyForReset,
             ActionError::NothingToRepair,
             ActionError::NoDefects,
             ActionError::NotEnoughMoneyForRepair,
@@ -2448,7 +2437,8 @@ mod tests {
     #[test]
     fn nothing_is_paid_in_gold() {
         let prices = service_prices();
-        assert_eq!((prices.reroll, prices.reroll_premium), (REROLL_COST, 0));
+        // A skills reset is free, in either currency.
+        assert_eq!((prices.reroll, prices.reroll_premium), (0, 0));
         assert_eq!(prices.premium_exchange_rate, 0);
     }
 
@@ -2506,13 +2496,11 @@ mod tests {
         tree.skills.push(medical);
         let mut account = account();
         account.skills = vec![(101, 2), (301, 3)];
-        account.generic_money = REROLL_COST;
         assert_eq!(
             reset_skills_in_tree(&mut account, 2, &tree),
             Ok(3)
         );
         assert_eq!(account.skills, [(101, 2)]);
-        assert_eq!(account.generic_money, 0);
         assert_eq!(
             reset_skills_in_tree(&mut account, 3, &tree),
             Err(ActionError::BadReset)
@@ -2520,37 +2508,30 @@ mod tests {
     }
 
     #[test]
-    fn a_reset_frees_one_branch_for_its_price() {
+    fn a_reset_frees_one_branch_for_nothing() {
         let mut account = account();
         account.add_experience(100_000);
-        // A new account has no money.
-        account.generic_money = 2_000;
+        // A new account has no money, and needs none for a reset.
+        assert_eq!(account.generic_money, 0);
         set_skills(&mut account, &[(101, 2), (102, 3), (201, 1)]).unwrap();
-        let money = account.generic_money;
         // The second tab: skills 201 and on.
         assert_eq!(reset_skills(&mut account, 1), Ok(1));
         assert_eq!(account.skills, [(101, 2), (102, 3)]);
-        assert_eq!(account.generic_money, money - REROLL_COST);
         // Nothing left in it to reset.
         assert_eq!(
             reset_skills(&mut account, 1),
             Err(ActionError::BadReset)
         );
-        // The first tab, for silver again.
+        // The first tab.
         assert_eq!(reset_skills(&mut account, 0), Ok(5));
         assert!(account.skills.is_empty());
-        assert_eq!(account.generic_money, money - 2 * REROLL_COST);
+        assert_eq!(account.generic_money, 0);
 
         set_skills(&mut account, &[(101, 1)]).unwrap();
         let before = account.clone();
         assert_eq!(
             reset_skills(&mut account, 2),
             Err(ActionError::BadReset)
-        );
-        account.generic_money = REROLL_COST - 1;
-        assert_eq!(
-            reset_skills(&mut account, 0),
-            Err(ActionError::NotEnoughMoneyForReset)
         );
         assert_eq!(account.skills, before.skills);
     }
@@ -2566,7 +2547,7 @@ mod tests {
         let put = |account: &mut Account, kit: usize, slot: usize, item_id: u32, count: u32| {
             account.kits[kit].slots[slot] = Some(KitSlot { item_id, count });
         };
-        let mut account = rich(10 * REROLL_COST);
+        let mut account = account();
         let medkit = account.add_item(dict("medkit"), 5);
         let grenade = account.add_item(dict("rgd-5"), 4);
         let ak = account.add_item(dict("ak_74u"), FULL_CONDITION);

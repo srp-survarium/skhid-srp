@@ -1148,7 +1148,6 @@ package
          Message.registerMessage("premium_discount",SrvMessagePremiumDiscount);
          Message.registerMessage("asks",MessageAskSell);
          Message.registerMessage("debug",MessageBox);
-         Message.registerMessage("reroll",SrvMessageRerollSkills);
          Message.registerMessage("anno",MessageAnnounce);
          Message.registerMessage("apply",MessageApply);
          Message.registerMessage("ask_system_message",MessageApplyExternal);
@@ -4928,10 +4927,10 @@ package
          this.charWindow.setData(value);
       }
       
-      // value_prem: the reset's gold price, which the game still hands over (0): there is no gold.
+      // The skills reset's silver and gold prices, which the game still hands over (0x8D): both 0, a
+      // reset is free and asks nothing (the owner, 2026-11-08), so nothing reads them.
       public function set_reroll_cost(value:uint, value_prem:uint = 0) : void
       {
-         this.charWindow.reroll_cost = value;
       }
       
       public function set_change_name_properties(delay:uint, failed_delay:uint) : void

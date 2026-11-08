@@ -16,11 +16,16 @@ in silver will also get cheaper".
   - premium time and the seven bundles (`shop_offers`): their gold prices times 100, offered in
     silver (money type 0); `SRP_PREMIUM_PRICES` is silver;
   - a nickname change: the rename voucher's price, 25,000 (`SRP_RENAME_COST` is silver);
-  - a skills reset: 100 (its 1 gold; the silver price was 100 too);
+  - a skills reset: free and without a question (the owner, 2026-11-08: "let's make skill reset
+    free", "user presses reset and it resets by itself immediately", "there should be no
+    confirmation at all"; it was 100 silver or 1 gold, after a dialog): the skills window's Reset
+    button sends `48 01` (the open tab, payment 0) at once, `CharWindow.rerollChanges`; 0x8D's
+    two reset prices are 0 and nothing reads them; the stock dialog's code is gone
+    (`SrvMessageRerollSkills` is a bare symbol class);
   - a modification change (reroll): `reroll_price_premium` times 100, half the old silver price;
   - an upgrade (craft): `craft_price_premium` times 100, half the old silver price, at the gold
-    chances (`craft_probabilities_premium`: 100 / 50 / 25 % for a difference of 0 / 1 / 2, against
-    50 / 25 / 12.5 %);
+    chances table (`craft_probabilities_premium`; silver's was 50 / 25 / 12.5 %), which srp sets to
+    100 / 95 / 90 % for a difference of 0 / 1 / 2 (`craft-menu.md`, "Success chances");
   - a repair of defects: the gold repair ("quick repair"), at once, 5,000 a defect (its 50 gold;
     the silver repair was 100 and six minutes a defect): `defects.tsv` `fix_cost` 5,000,
     `fix_time` 0, `fix_gold` 0. Wear is repaired as before, by the item's `repair_cost_ratio`.

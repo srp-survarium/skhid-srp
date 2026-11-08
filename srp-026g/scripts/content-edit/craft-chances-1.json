@@ -1,0 +1,8 @@
+{
+ "_about": "Upgrade (craft) success chances (the owner, 2026-11-08: \"right now the combining modification changes drop too fast 100% on the same level, 50 and 25% for levels lower\", \"it should be 100, 95, 90\"). gameplay/items/craft/craft.options, read only by the server: craft_probabilities_premium[d] = [success %, failure %] for an item with d = 0, 1, 2 more modifications than its donor, the one chance table srp reads (silver only, docs/notes/silver-only.md: the game's gold upgrade, in silver; craft_probabilities_general is not read). Success 100/50/25 -> 100/95/90. Failure 25 -> 0 in the last row: srp never takes a modification away (the owner's rule of 2026-10-23, docs/notes/craft-menu.md) and 0x9B sends it as 0; without it the row would add up past 100.",
+ "set": [
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_premium[1][0]", "from": 50, "to": 95},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_premium[2][0]", "from": 25, "to": 90},
+  {"file": "gameplay/items/craft/craft.options", "path": "parameters/craft_probabilities_premium[2][1]", "from": 25, "to": 0}
+ ]
+}

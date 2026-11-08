@@ -617,7 +617,7 @@ fn skills_are_answered_with_the_skills_and_the_kits_that_carry_them() {
         Some("st_player_skills_check_failed")
     );
 
-    // A reset of the branch, in silver.
+    // A reset of the branch, free.
     let silver = world.account(alice).generic_money;
     world.ask(alice, request::reset_skills(0, 0));
     let decoded = world.take(alice);
@@ -627,7 +627,7 @@ fn skills_are_answered_with_the_skills_and_the_kits_that_carry_them() {
     ));
     assert!(decoded.iter().any(|message| matches!(
         message,
-        Decoded::Money { generic, .. } if *generic == silver - rules::REROLL_COST
+        Decoded::Money { generic, .. } if *generic == silver
     )));
     world.assert_clean();
 }
