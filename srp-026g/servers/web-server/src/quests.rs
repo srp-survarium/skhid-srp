@@ -214,7 +214,7 @@ pub(crate) fn body(lang: Lang) -> String {
                  completed in; reputation includes Skhid's {rate}."
             ),
             wins.map(|wins| format!(" Reputation counts twice in the day's first {wins} wins.")),
-            "Matches against bots and rooms with a PIN count for no quest. Grenade quests come once a shop \
+            "Matches in rooms with a PIN count for no quest. Grenade quests come once a shop \
              sells you RGD-5, artefact quests once one sells you gear with an artefact container. \
              Battery quests count only in battery modes.",
         ),
@@ -230,7 +230,7 @@ pub(crate) fn body(lang: Lang) -> String {
                  у репутації вже є множник Сходу {rate}."
             ),
             wins.map(|wins| format!(" У перших {wins} перемогах за день репутація подвоюється.")),
-            "Бої проти ботів і кімнати з PIN не зараховуються до завдань. Завдання на гранати з'являються, \
+            "Бої в кімнатах з PIN не зараховуються до завдань. Завдання на гранати з'являються, \
              коли крамниця продає вам РГД-5, на артефакти — коли продає спорядження з контейнером для артефактів. \
              Завдання на батареї зараховуються лише в режимах з батареями.",
         ),
