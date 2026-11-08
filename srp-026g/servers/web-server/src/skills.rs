@@ -120,7 +120,7 @@ fn levels(lang: Lang) -> String {
     let _ = write!(
         out,
         "<section class=levels><h2>{}</h2><div class=levels-body><div class=levels-text>\
-         <p>{rule}</p><p class=levels-formula>{} = {} × L + {} × L × (L − 1)</p>\
+         <p>{rule}</p><p class=levels-formula>{} <span>= {} × L + {} × L × (L − 1)</span></p>\
          <div class=table-scroll><table class=protection><thead><tr><th>{}</th><th>{}</th>\
          <th>{}</th></tr></thead><tbody>",
         lang.tr("Levels", "Рівні"),
