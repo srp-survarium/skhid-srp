@@ -126,13 +126,12 @@ pub(crate) fn page(
             "<!doctype html><html lang=\"{}\"><meta charset=utf-8>\
              <meta name=viewport content=\"width=device-width,initial-scale=1\">\
              <title>{} · {}</title><style>{}{}{STYLE}</style>{header}\
-             <main class=wiki>{body}</main>{}</html>",
+             <main class=wiki>{body}</main></html>",
             lang.code(),
             escape(&title),
             lang.tr("Skhid wiki", "Вікі Сходу"),
             damage::font_faces(),
             crate::STYLE,
-            crate::footer(lang),
         ),
     }
 }
@@ -173,7 +172,6 @@ mod tests {
         for lang in [Lang::En, Lang::Uk] {
             let page = page(skills::PATH, "", lang, "site header", None);
             assert!(page.body.contains("site header"));
-            assert!(page.body.contains(&crate::footer(lang)));
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("class=\"skill-branch\""));
             assert!(page.body.contains("data-skill=\"101\""));
