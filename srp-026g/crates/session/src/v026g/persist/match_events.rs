@@ -262,6 +262,21 @@ pub(super) fn of_game_match(
     let text: String = row.get(0)?;
     let replay_id =
         ReplayId::parse(&text).ok_or_else(|| super::history::bad("replay id", &text))?;
+    of_replay(connection, &replay_id)
+}
+
+/// The events of the match `replay_id` (its recording's name): `None` for
+/// no such match kept. Of any kind of match, as [`of_game_match`].
+pub(super) fn of_replay(
+    connection: &Connection,
+    replay_id: &ReplayId,
+) -> rusqlite::Result<Option<MatchEvents>> {
+    let kept = connection
+        .prepare_cached("SELECT 1 FROM g26_matches WHERE replay_id = ?1")?
+        .exists([replay_id.as_str()])?;
+    if !kept {
+        return Ok(None);
+    }
     let mut select = connection.prepare_cached(
         "SELECT at_ms, after_ms, kind, actor, actor_account, victim, victim_account, team, unit,
              points0, points1
@@ -270,7 +285,10 @@ pub(super) fn of_game_match(
     let events = select
         .query_map([replay_id.as_str()], event_at)?
         .collect::<rusqlite::Result<_>>()?;
-    Ok(Some(MatchEvents { replay_id, events }))
+    Ok(Some(MatchEvents {
+        replay_id: replay_id.clone(),
+        events,
+    }))
 }
 
 fn event_at(row: &Row) -> rusqlite::Result<MatchEvent> {

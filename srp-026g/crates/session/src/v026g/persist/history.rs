@@ -1258,6 +1258,15 @@ impl MatchHistory {
         Ok(match_events::of_game_match(&self.reader(), game_match_id)?)
     }
 
+    /// The events of the match `replay_id` (its recording's file stem):
+    /// `None` for no such match kept. Of any kind, as [`Self::events`].
+    pub fn events_of_replay(
+        &self,
+        replay_id: &ReplayId,
+    ) -> Result<Option<MatchEvents>, PersistError> {
+        Ok(match_events::of_replay(&self.reader(), replay_id)?)
+    }
+
     /// The account with this in-game name (Latin letters in any case), of
     /// those with a public match: a name is most often still the login, so
     /// no other account is ever found.
@@ -2069,6 +2078,16 @@ mod tests {
         expected.swap(0, 1);
         assert_eq!(kept.events, expected);
         assert_eq!(history.events(0x5EED).unwrap(), None);
+        assert_eq!(
+            history.events_of_replay(&played.replay_id).unwrap(),
+            Some(kept.clone())
+        );
+        assert_eq!(
+            history
+                .events_of_replay(&ReplayId::new(0x5EED, std::time::UNIX_EPOCH))
+                .unwrap(),
+            None
+        );
         // The same match server id after a restart: the newest match.
         let again = MatchRecord {
             replay_id: ReplayId::new(
