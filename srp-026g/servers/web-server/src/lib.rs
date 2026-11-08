@@ -1736,6 +1736,12 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
         Form::Home(stats) => home(lang, stats),
         Form::None | Form::None26 => String::new(),
     };
+    let disclaimer = lang.tr(
+        "Community server, unofficial. Not affiliated with or endorsed by Vostok Games. \
+         Survarium is a trademark of its owners.",
+        "Неофіційний ком'юніті сервер. Не пов'язаний із Vostok Games і не схвалений ними. \
+         Survarium є торговельною маркою її власників.",
+    );
     Response {
         status: "200 OK",
         content_type: ContentType::Html,
@@ -1744,23 +1750,13 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
              <meta name=viewport content=\"width=device-width,initial-scale=1\">\
              <title>{}</title><style>{}{STYLE}</style>\
              {header}\
-             <main>{test_notice}{notice}{body}</main>{}</html>",
+             <main>{test_notice}{notice}{body}</main>\
+             <footer>{}</footer></html>",
             escape(&page_title(lang, version, test)),
             damage::font_faces(),
-            footer(lang),
+            escape(&disclaimer),
         ),
     }
-}
-
-/// The site's footer, on the home page and the wiki's: what the server is not.
-pub(crate) fn footer(lang: Lang) -> String {
-    let disclaimer = lang.tr(
-        "Community server, unofficial. Not affiliated with or endorsed by Vostok Games. \
-         Survarium is a trademark of its owners.",
-        "Неофіційний ком'юніті сервер. Не пов'язаний із Vostok Games і не схвалений ними. \
-         Survarium є торговельною маркою її власників.",
-    );
-    format!("<footer>{}</footer>", escape(&disclaimer))
 }
 
 /// The site's look: the damage calculator's (paper and ink, PT Sans, PT Sans

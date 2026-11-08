@@ -282,4 +282,3 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .levels-graph .lv circle { fill:var(--accent); stroke:var(--panel); stroke-width:2 }
 .levels-graph .lv text { fill:var(--ink); font:700 12px var(--data); paint-order:stroke; stroke:var(--panel); stroke-width:4px }
 .levels-graph .lv:hover :is(line,circle,text) { visibility:visible }
-main.wiki+footer { max-width:1160px }
