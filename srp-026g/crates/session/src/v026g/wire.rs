@@ -167,6 +167,7 @@ pub fn own_account(account: &Account, now: u64) -> Result<ServerMessage, WireErr
         exp_total: account.exp_total.max(start),
         exp_level_start: start,
         exp_next_level: next,
+        face: account.face,
     })
 }
 
@@ -174,7 +175,7 @@ pub fn own_account(account: &Account, now: u64) -> Result<ServerMessage, WireErr
 /// it plays.
 pub fn squad_member_account(account: &Account, now: u64) -> Result<ServerMessage, WireError> {
     let revision = account.active().map_or(0, |kit| kit.revision);
-    lobby::squad_member_account(&account_body(account, now), revision)
+    lobby::squad_member_account(&account_body(account, now), revision, account.face)
 }
 
 /// `93`: the account's kits as a results screen's row shows them (the
@@ -428,6 +429,7 @@ mod tests {
             1,                                      // autobuy: on for a new account
             0,                                      // level
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
+            0,                                      // srp: the face, 0 for a new account
         ]);
         assert_eq!(bytes(&own_account(&account, NOW).unwrap()), expected);
         // The stock account has no money.

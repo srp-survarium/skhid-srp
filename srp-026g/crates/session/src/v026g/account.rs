@@ -11,6 +11,7 @@
 
 use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::faces::Face;
 use survarium::v026g::golden;
 use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
@@ -200,6 +201,9 @@ pub struct Account {
     pub presets: [Option<super::presets::Preset>; super::presets::PRESETS],
     /// The preset the kits are, 1 to 5.
     pub active_preset: u8,
+    /// The face it is drawn with, one an account (`face-choice.md`): 0 until
+    /// it chooses one in the lobby.
+    pub face: Face,
 }
 
 /// The pockets of a kit's `slots` ([`POCKET_SLOTS`]) holding an item type
@@ -336,6 +340,7 @@ impl Account {
             drop_cards: Vec::new(),
             presets: [None; super::presets::PRESETS],
             active_preset: super::presets::FIRST_PRESET,
+            face: Face::DEFAULT,
         };
         for worn in &loadout.items {
             let Some(entry) = dictionary.item(worn.dict_id) else {
@@ -555,6 +560,20 @@ impl Account {
         }
         off.sort_unstable();
         off
+    }
+
+    /// The account drawn with `face` from now on (`face-choice.md`): every
+    /// kit's revision bumped, so the lobby draws its characters again.
+    /// Whether it was another face.
+    pub fn choose_face(&mut self, face: Face) -> bool {
+        if self.face == face {
+            return false;
+        }
+        self.face = face;
+        for kit in &mut self.kits {
+            kit.revision = kit.revision.wrapping_add(1);
+        }
+        true
     }
 
     /// Takes off, to the inventory, every item [`Self::covered_items`]
@@ -984,6 +1003,20 @@ mod tests {
         // What the wire's u16 holds.
         account.add_reputation(3, u32::MAX);
         assert_eq!(account.reputation(3), 65535);
+    }
+
+    #[test]
+    fn a_face_chosen_redraws_every_kit() {
+        let mut account = Account::new("Alice");
+        let face = survarium::v026g::faces::Faces::shared().face(1).unwrap();
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(account.choose_face(face));
+        assert_eq!(account.face, face);
+        let bumped: Vec<u32> = revisions.iter().map(|revision| revision + 1).collect();
+        assert_eq!(account.kits.iter().map(|kit| kit.revision).collect::<Vec<_>>(), bumped);
+        // The same face again: nothing to draw.
+        assert!(!account.choose_face(face));
+        assert_eq!(account.kits.iter().map(|kit| kit.revision).collect::<Vec<_>>(), bumped);
     }
 
     #[test]

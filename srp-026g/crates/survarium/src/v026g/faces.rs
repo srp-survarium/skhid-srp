@@ -114,12 +114,6 @@ impl Faces {
             .map(Face)
     }
 
-    /// The face kept at `index` (the database's): face 0 when the data no
-    /// longer lists it.
-    pub fn kept(self, index: u32) -> Face {
-        self.face(index).unwrap_or(Face::DEFAULT)
-    }
-
     /// A server bot's face: one of all the faces, fixed for its match by
     /// the match's `salt` and the bot's `number` in it, so bots of a match
     /// look apart and the same bot looks otherwise in another match.
@@ -183,8 +177,6 @@ mod tests {
         assert_eq!(faces.face(2).map(Face::index), Some(2));
         assert_eq!(faces.face(3), None);
         assert_eq!(faces.face(256 + 1), None);
-        assert_eq!(faces.kept(7), Face::DEFAULT);
-        assert_eq!(faces.kept(1).index(), 1);
         assert_eq!(Faces::parse(&file(None)).unwrap().count(), 1);
     }
 
