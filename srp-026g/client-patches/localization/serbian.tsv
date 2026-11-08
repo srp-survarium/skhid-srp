@@ -2504,6 +2504,7 @@ st_srp_exchange_receive	Primi
 st_srp_exchange_short_gold	Nema dovoljno zlata
 st_srp_exchange_short_silver	Nema dovoljno srebra
 st_srp_exchange_title	Razmeni
+st_srp_face	Lice
 st_srp_hide_hit_markers_option	Sakrij oznake pogodaka
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij poene igrača

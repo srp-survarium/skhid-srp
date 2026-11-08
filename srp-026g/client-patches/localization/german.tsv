@@ -2504,6 +2504,7 @@ st_srp_exchange_receive	Sie erhalten
 st_srp_exchange_short_gold	Nicht genug Gold
 st_srp_exchange_short_silver	Nicht genug Silber
 st_srp_exchange_title	Tausch
+st_srp_face	Gesicht
 st_srp_hide_hit_markers_option	Trefferanzeige ausblenden
 st_srp_hide_quests_option	Aufgaben ausblenden
 st_srp_hide_scores_option	Spielerpunkte ausblenden

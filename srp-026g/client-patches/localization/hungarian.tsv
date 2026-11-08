@@ -2504,6 +2504,7 @@ st_srp_exchange_receive	Kapsz
 st_srp_exchange_short_gold	Nincs elég arany
 st_srp_exchange_short_silver	Nincs elég ezüst
 st_srp_exchange_title	Átváltás
+st_srp_face	Arc
 st_srp_hide_hit_markers_option	Találatjelzők elrejtése
 st_srp_hide_quests_option	Feladatok elrejtése
 st_srp_hide_scores_option	Pontszámok elrejtése

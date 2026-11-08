@@ -2504,6 +2504,7 @@ st_srp_exchange_receive	Saat
 st_srp_exchange_short_gold	Ei tarpeeksi kultaa
 st_srp_exchange_short_silver	Ei tarpeeksi hopeaa
 st_srp_exchange_title	Vaihda
+st_srp_face	Kasvot
 st_srp_hide_hit_markers_option	Piilota osumamerkit
 st_srp_hide_quests_option	Piilota tehtävät
 st_srp_hide_scores_option	Piilota pelaajien pisteet
