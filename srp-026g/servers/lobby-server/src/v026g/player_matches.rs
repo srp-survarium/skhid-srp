@@ -9,7 +9,7 @@
 use std::time::Instant;
 
 use session::LockExt;
-use session::v026g::persist::history::{MatchSummary, PlayerMatch, Winner};
+use session::v026g::persist::history::{MatchSummary, PlayerMatch, Presence, Winner};
 use session::v026g::replays;
 use survarium::v026g::lobby::friend_row;
 use survarium::v026g::lobby::player_matches::{
@@ -158,15 +158,22 @@ fn recent_row(summary: &MatchSummary, unix: u64, replay: ReplayState) -> RecentM
     }
 }
 
+/// What a player's row says of its match, as the results screen does (`rewards::won`): the screen
+/// has only a victory and a defeat, so one who walked out of a match nobody won lost it there, as
+/// in the rating; a draw is for those still in the match at its end.
+fn outcome_of(winner: Winner, team: u8, presence: Presence) -> Outcome {
+    match (winner, presence) {
+        (winner, _) if winner.team() == Some(team) => Outcome::Victory,
+        (Winner::Draw | Winner::Unknown, Presence::Finished) => Outcome::Draw,
+        _ => Outcome::Defeat,
+    }
+}
+
 /// A player's match's row: `unix` is now.
 fn player_row(played: &PlayerMatch, unix: u64, replay: ReplayState) -> PlayerMatchRow {
     let info = &played.summary.info;
     let line = &played.line;
-    let outcome = match info.winner {
-        Winner::Draw | Winner::Unknown => Outcome::Draw,
-        winner if winner.team() == Some(line.team) => Outcome::Victory,
-        _ => Outcome::Defeat,
-    };
+    let outcome = outcome_of(info.winner, line.team, line.presence);
     PlayerMatchRow {
         match_id: played.summary.replay_id.match_id(),
         place: line.place,
@@ -177,5 +184,33 @@ fn player_row(played: &PlayerMatch, unix: u64, replay: ReplayState) -> PlayerMat
         deaths: line.deaths.min(u64::from(u16::MAX)) as u16,
         minutes_since_end: minutes_since(info.ended_at, unix),
         replay,
+    }
+}
+
+#[cfg(test)]
+mod outcome_tests {
+    use super::*;
+
+    #[test]
+    fn a_winners_team_won_even_for_one_who_left() {
+        assert!(matches!(outcome_of(Winner::FirstTeam, 0, Presence::Finished), Outcome::Victory));
+        assert!(matches!(outcome_of(Winner::FirstTeam, 0, Presence::Left), Outcome::Victory));
+    }
+
+    #[test]
+    fn the_other_team_lost() {
+        assert!(matches!(outcome_of(Winner::SecondTeam, 0, Presence::Finished), Outcome::Defeat));
+    }
+
+    #[test]
+    fn nobody_won_a_draw_for_those_who_stayed() {
+        assert!(matches!(outcome_of(Winner::Draw, 0, Presence::Finished), Outcome::Draw));
+        assert!(matches!(outcome_of(Winner::Unknown, 1, Presence::Finished), Outcome::Draw));
+    }
+
+    #[test]
+    fn nobody_won_a_defeat_for_one_who_left_as_on_the_results_screen() {
+        assert!(matches!(outcome_of(Winner::Draw, 0, Presence::Left), Outcome::Defeat));
+        assert!(matches!(outcome_of(Winner::Unknown, 1, Presence::Left), Outcome::Defeat));
     }
 }
