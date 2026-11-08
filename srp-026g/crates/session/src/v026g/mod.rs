@@ -20,7 +20,9 @@
 //! - [`matches_now`]: which of the matches being played the launcher's page
 //!   lists, and which score it tells.
 //! - [`replays`]: the replays' desk: what a list row says of a match's
-//!   recording, and the replay sessions ([`replay_watch`]).
+//!   recording, the replay sessions ([`replay_watch`]), and Save's files:
+//!   the asks, the files waiting to be made, the download tokens the
+//!   lobby gives and the web page takes.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
