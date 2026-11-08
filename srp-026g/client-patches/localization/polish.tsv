@@ -594,6 +594,8 @@ st_change_quest_label	Zmiana zadania
 st_change_weapon_speed_description	Szybkość zmiany broni:
 st_change_weapon_speed_name	Zręczne dłonie
 st_character	Umiejętności
+st_character_decals_1_10_name	Łowca dzików
+st_character_decals_1_11_name	Łowca jeleni
 st_character_decals_1_12_name	Jaryło
 st_character_decals_1_1_name	Literat
 st_character_decals_1_2_name	Brygada "Alfa"
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Weteran
 st_character_decals_1_6_name	Mistrz
 st_character_decals_1_7_name	Legenda
 st_character_decals_1_8_name	Latające Huzary
+st_character_decals_1_9_name	Muzyk
 st_character_decals_2_1_name	Nowicjusz włóczęgów
 st_character_decals_2_2_name	Weteran włóczęgów
 st_character_decals_2_3_name	Rekrut Czarnego Rynku
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Herb Łotwy
 st_character_decals_5_7_name	Godło Litwy
 st_character_decals_5_8_name	Godło Estonii
 st_character_decals_5_9_name	Herb Mołdawii
+st_character_decals_7_10_name	Zapałki
+st_character_decals_7_23_name	Serce
+st_character_decals_7_24_name	Przerażająca dynia
 st_character_decals_7_27_name	Ozdobna koniczyna
 st_character_decals_7_28_name	Podkowa
+st_character_decals_7_30_name	Gołąb pocztowy
+st_character_decals_7_31_name	Zwycięstwo
+st_character_decals_7_35_name	Krwawa ręka
+st_character_decals_7_37_name	Strażnik
 st_character_decals_7_9_name	Zioła
 st_character_decals_generic_desc	Aby zmienić wygląd kamizelki lub spodni, umieść naszywki w oknach ich ulepszeń.
 st_characteristics_label	Statystyki gracza
