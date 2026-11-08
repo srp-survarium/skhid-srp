@@ -126,10 +126,11 @@ fn distinct(inputs: impl IntoIterator<Item = PlayerInput>) -> Vec<PlayerInput> {
 /// The process's replays, with sessions on: the match's players and
 /// [`MODERATOR`], or anyone.
 fn replays(access: Access) -> Arc<Replays> {
-    Arc::new(Replays::new(None, 2).with_watch(WatchSettings {
+    Arc::new(Replays::new(None).with_watch(WatchSettings {
         access,
         moderators: HashSet::from([MODERATOR]),
         max_sessions: 4,
+        ..WatchSettings::default()
     }))
 }
 

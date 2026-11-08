@@ -739,18 +739,12 @@ pub fn ranking_flush(top: &[Ranked]) -> Option<Result<ServerMessage, WireError>>
 /// its JOIN, at 2 000 000 000 and from 2 100 000 000, went with the queue:
 /// the owner's of 2026-10-17).
 pub const RESERVED_START: u32 = 2_000_000_000;
-/// The `start` of a `3B` that polls for the asker's "Watch replay" answer
-/// ([`replay_answer`]).
+/// The `start` of a `3B` that polls for the answer to the asker's replay
+/// session ([`replay_answer`]).
 pub const REPLAY_START: u32 = 2_200_000_000;
-/// The `player` of a `3D 00 <player> <match>` (`victory_screen_request_
-/// player_data`) that asks for the match's replay, from the History of
-/// srp's changed lobby movie: `0xFFFF_FF01` as the movie's `uint`. No
-/// account id is that high (they are below 2^31), so no row of a results
-/// screen asks for it.
-pub const REPLAY_ASK: u32 = 0xFFFF_FF01;
-/// The `player` of a `3D 00 <player> <place>` that asks for the equipment
-/// of the player at that place of the ranking (1 the first), as
-/// [`REPLAY_ASK`] asks for a replay: "Show player's information" in the
+/// The `player` of a `3D 00 <player> <place>` (`victory_screen_request_
+/// player_data`) that asks for the equipment of the player at that place
+/// of the ranking (1 the first): "Show player's information" in the
 /// right-click menu of a row of the Rankings window of srp's changed lobby
 /// movie (since 2026-10-20). Answered with `93` as a results screen's row is
 /// ([`player_details`]), from the account as it is now. A results screen's
@@ -1082,19 +1076,18 @@ pub fn pvb_choose_no(
 /// `91` as the answer to a replay poll (`3B 00 <REPLAY_START> <count>`):
 /// one row, `name = "R1;<status>;<match id 8 lower hex>;<n>"`,
 /// `place = REPLAY_START`, rating and change 0 (`CONTRACT-R1`). `status`
-/// is the word of the asker's latest ask (`session::v026g::replays::
-/// Status::word`), the match the one it asked for (0 before any), the last
-/// field the replay file's size when it is ready, its place in the
-/// conversion line while preparing (1 being made now, 0 not known), else
-/// 0. The movie's
+/// is the word of the asker's replay session (`session::v026g::replays::
+/// Status::word`), the match the one it asked for (0 with none), the last
+/// field the match time it starts at with `watching`, 1 being read or 2
+/// waiting with `preparing`, else 0. The movie's
 /// `PlayerRanking.fillPlayers` routes an `R1;` header to the History, as
 /// `M2;` and `J1;` go to the matches' window. **srp's own**, as safe for
 /// the client as [`join_answer`]: 45 bytes at the most (the longest word is
 /// 12 letters, a u64 20 digits), the place a u32 the movie tells apart from
 /// a ranking row.
-pub fn replay_answer(status: &str, match_id: u32, size: u64) -> Result<ServerMessage, WireError> {
+pub fn replay_answer(status: &str, match_id: u32, figure: u64) -> Result<ServerMessage, WireError> {
     let row = Ranked {
-        name: format!("{REPLAY_ANSWER_VERSION};{status};{match_id:08x};{size}"),
+        name: format!("{REPLAY_ANSWER_VERSION};{status};{match_id:08x};{figure}"),
         rating: 0,
         rating_before: 0,
     };

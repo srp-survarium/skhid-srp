@@ -12,8 +12,6 @@ log = { workspace = true }
 serde = { workspace = true }
 # The maps the server's bots path on (`v026g::bots::maps`).
 mapdata = { path = "../../crates/mapdata" }
-# SHA-256 of a replay file (`v026g::replay`): its sidecar, the updater's check.
-openssl = { workspace = true }
 serde_json = { workspace = true }
 
 # The replay viewer's notes and requests (`v026g::game::playback`), one
@@ -30,7 +28,7 @@ srp-validate = { workspace = true }
 # Client patch 85's pickup command, checked as the clients check it.
 weapon-pickup = { path = "../../crates/weapon-pickup" }
 
-# The replay conversion thread runs at nice 19 (`v026g::replay`).
+# A replay session's recording is read at nice 19 (`v026g::replay`).
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = { workspace = true }
 

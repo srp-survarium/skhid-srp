@@ -1,49 +1,35 @@
-//! "Watch replay" from the History of srp's changed lobby movie
-//! (`docs/notes/replay_watch.md`, `session::v026g::replays`).
+//! Watching a replay in the running game, asked from srp's changed lobby
+//! movie (History's Watch, the results screen, the Watch window): a replay
+//! session (`session::v026g::replay_watch`, `docs/notes/replay-stream.md`).
 //!
-//! - The ask: `3D 00 <REPLAY_ASK> <match>` (`victory_screen_request_player_
-//!   data` with a player no account has). Not answered at once: the answer
-//!   is kept as the asker's latest, for its polls.
+//! - The ask: `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match>`
+//!   (`victory_screen_request_player_data` with a player no account has),
+//!   to watch the match in this game from that time (0: the first view
+//!   with a player in it) with that place in view first (0xFF: anyone), or
+//!   `REPLAY_WATCH_MY_DEATHS`. Answered at once with one `R1` row
+//!   (`lobby::replay_answer`).
 //! - The polls: `3B 00 <REPLAY_START> <count>`, every second while the
-//!   dialog waits. Each is answered with the asker's own latest answer, one
-//!   `91` row `R1;<status>;<match id 8 hex>;<n>` (`lobby::replay_answer`;
-//!   `<n>` the size when `ready`, the place in the conversion line while
-//!   `preparing`). A `ready` answer has a `9E` just before it:
-//!   `video_link(false, "replay <id> <token> <sha256> <size>")`, which the
-//!   game keeps hidden and patch revision 14 hands to the updater when the
-//!   player presses "Download and watch" (`video_tutorial_link_clicked`).
-//!
+//!   prompt waits, each answered with the asker's own session's `R1` row:
+//!   `preparing` while the match server reads the recording, `watching`
+//!   with the match time it starts at (ms) once its game is sent, or why
+//!   not (`not_yours` under `SRP_REPLAY_WATCH=match`, `incompatible`,
+//!   `gone`, `failed`, `busy`, `old_game`, `off`).
 //! - A replay refused for its recording's games (`incompatible`: older
 //!   than the last change of what a match computes, of no known revision,
-//!   or newer than the asker's game) is never linked. The movie says "This
-//!   replay was recorded by a game version that yours cannot play."; the
-//!   first answer of each such ask also opens the game's message box
-//!   (`84 49 00 <text>`, `social.md` §9.1) saying why in the game's
-//!   language, with the revisions and the release to watch it with
-//!   ([`refusal_text`]).
+//!   or newer than the asker's game): the first answer also opens the
+//!   game's message box (`84 49 00 <text>`, `social.md` §9.1) saying why in
+//!   the game's language, with the revisions and the release to watch it
+//!   with ([`refusal_text`]).
 //!
-//! - A replay session (`session::v026g::replay_watch`,
-//!   `docs/notes/replay-stream.md`): `3D 00 <REPLAY_WATCH_BASE | place << 16
-//!   | seconds> <match>` asks to watch the match in this game, from that
-//!   time (0: the first view with a player in it) with that place in view
-//!   first (0xFF: anyone). Answered at once with one `R1` row, then at each
-//!   poll as an ask is: `preparing` while the match server reads the
-//!   recording, `watching` with the match time it starts at (ms) once its
-//!   game is sent, or why not (`not_yours` under `SRP_REPLAY_WATCH=match`,
-//!   `incompatible` with the box, `gone`, `failed`, `busy`, `old_game`,
-//!   `off`). No `9E`, no download.
-//!   The game goes to the match server as a spectator does (`85` "found",
-//!   then `82` with its session) and is shown the replay there; its player
-//!   is in none of its room's matches until the session is over.
-//!
-//! Only the asker's own answer is ever sent (a poll names no account), and
-//! the token is never logged whole (its first six hex digits are; the
-//! packet log redacts every `9E`, `core`).
+//! The game goes to the match server as a spectator does (`85` "found",
+//! then `82` with its session) and is shown the replay there; its player
+//! is in none of its room's matches until the session is over. Only the
+//! asker's own answer is ever sent (a poll names no account).
 
 use std::time::Instant;
 
 use session::v026g::replay_watch::{WatchFrom, WatchRequest};
-use session::v026g::replays::{Answer, Known, Refusal, Status, release_tag};
+use session::v026g::replays::{Refusal, Status, release_tag};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::ReplayWatchAsk;
 use survarium::v026g::lobby::requests::id;
@@ -51,32 +37,6 @@ use survarium::v026g::lobby::requests::id;
 use super::core::{Core, Who};
 
 impl Core<'_> {
-    /// `3D 00 <REPLAY_ASK> <match_id>`: the asker wants that match's replay.
-    pub(super) fn replay_ask(&mut self, who: &Who, match_id: u32, now: Instant) {
-        let Some(replays) = self.replays else {
-            log::info!(
-                "{} asked for the replay of match {match_id:#x}: replays are off",
-                who.name
-            );
-            return;
-        };
-        // While the lobby keeps the match's report: whether the asker played
-        // it, and its places. A courtesy, not the line that keeps anything
-        // private (only replays are ever served).
-        let known = self.results.find(match_id).map(|report| Known {
-            played: report.player(who.account_id).is_some(),
-            places: report.players.len(),
-        });
-        let revision = self.store.client_revision(who.session_id);
-        let status = replays.ask(who.account_id, match_id, revision, known, now);
-        log::info!(
-            "{} asked for the replay of match {match_id:#x} (game revision {}): {}",
-            who.name,
-            revision.map_or_else(|| "unknown".to_owned(), |revision| revision.to_string()),
-            status.word()
-        );
-    }
-
     /// `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match_id>`: the
     /// asker wants to watch that match's replay in this game. Its player
     /// must be free in the lobby (in no match, not queued).
@@ -185,42 +145,25 @@ impl Core<'_> {
         }
     }
 
-    /// `3B 00 <REPLAY_START> <count>`: the asker's latest answer, with the
-    /// link before it when the replay is ready; a replay session's while
-    /// it has one.
-    pub(super) fn replay_poll(&mut self, who: &Who, now: Instant) {
-        if let Some(answer) = self
+    /// `3B 00 <REPLAY_START> <count>`: the asker's replay session's
+    /// answer; `none` (match 0) without one, `off` with replays off.
+    pub(super) fn replay_poll(&mut self, who: &Who) {
+        let Some(answer) = self
             .replays
             .and_then(|replays| replays.watches().answer(who.account_id))
-        {
-            let row = lobby::replay_answer(
-                answer.status.word(),
-                answer.match_id,
-                u64::from(answer.figure),
-            );
-            self.send_made(who.addr, row);
-            if let Some(refusal) = answer.refusal {
-                self.tell_refusal(who, answer.match_id, refusal);
-            }
+        else {
+            let on = self
+                .replays
+                .is_some_and(|replays| replays.watches().settings().is_some());
+            let status = if on { Status::None } else { Status::Off };
+            self.send_made(who.addr, lobby::replay_answer(status.word(), 0, 0));
             return;
-        }
-        let answer = match self.replays {
-            Some(replays) => replays.answer(who.account_id, now),
-            None => Answer {
-                status: Status::Off,
-                match_id: 0,
-                size: 0,
-                place: 0,
-                ready: None,
-                refusal: None,
-            },
         };
-        if let Some(link) = answer.link() {
-            self.send(who.addr, lobby::video_link(false, &link));
-        }
-        // The size when `ready`, the place in the conversion line while
-        // `preparing`.
-        let row = lobby::replay_answer(answer.status.word(), answer.match_id, answer.figure());
+        let row = lobby::replay_answer(
+            answer.status.word(),
+            answer.match_id,
+            u64::from(answer.figure),
+        );
         self.send_made(who.addr, row);
         if let Some(refusal) = answer.refusal {
             self.tell_refusal(who, answer.match_id, refusal);

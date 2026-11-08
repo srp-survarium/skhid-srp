@@ -87,10 +87,9 @@ pub(crate) struct RecordSettings {
     pub min_players: usize,
     /// Kept files over this many bytes together: the oldest go.
     pub max_bytes: u64,
-    /// "Watch replay" (`SRP_REPLAY_DIR`): told of every file kept (its
-    /// replay is made when first asked for, [`super::replay`]), closed
-    /// under the minimum, or deleted by the cap (its replay goes too). Set
-    /// by [`super::run_on_with_replays`]; `None` from the environment alone.
+    /// The replays' desk (the lobby's list rows): told of every file kept,
+    /// closed under the minimum, or deleted by the cap. Set by
+    /// [`super::run_on_with_replays`]; `None` from the environment alone.
     pub replays: Option<Desk>,
 }
 
@@ -487,8 +486,7 @@ impl Writer {
             "Match {match_id:#x}: recording {} kept ({size} bytes)",
             open.path.display()
         );
-        // Closed and whole: its replay can be made from it now. (A file cut
-        // short is converted only if someone asks: what it has may do.)
+        // Closed and whole: the lists show its replay from now on.
         if written {
             self.settings
                 .tell(|replays| replays.recording_kept(match_id));
@@ -603,8 +601,8 @@ impl Record {
 const MAX_BLOCK_RAW: usize = 64 << 20;
 
 /// Every record of a recording file, in order, one block in memory at a
-/// time: what the server's own replay conversion reads with, so a match
-/// of a million datagrams is never held whole (`replay`). A file cut
+/// time: what a replay session's reading uses, so a match of a million
+/// datagrams is never held whole (`sur_convert`). A file cut
 /// short (its server stopped) gives what its whole blocks hold.
 pub fn read_each(path: &Path, mut each: impl FnMut(RecordRef<'_>)) -> io::Result<()> {
     read_while(path, |record| {
@@ -694,10 +692,9 @@ pub fn read_notes(path: &Path) -> io::Result<Vec<Record>> {
 }
 
 /// The first note of a recording file, its header (the writer puts it
-/// first, [`Recorder::open`]), so from the first block alone: what the
-/// replay conversion checks (the map, so the mode's file) before it unpacks
-/// the whole file. Reading stops at the first note; `None` for a file of
-/// none.
+/// first, [`Recorder::open`]), so from the first block alone, without
+/// unpacking the whole file. Reading stops at the first note; `None` for a
+/// file of none.
 pub fn read_header(path: &Path) -> io::Result<Option<Record>> {
     let mut header = None;
     read_while(path, |record| {
@@ -765,23 +762,10 @@ mod tests {
 
     #[test]
     fn a_bot_match_is_kept_after_one_human_but_empty_and_small_pvp_matches_are_not() {
-        use session::v026g::replays::{Known, ReplaySettings, Status};
+        use session::v026g::replays::ReplayState;
         let root = temp_dir("solo-bots");
         let dir = root.join("recordings");
-        let replays = Arc::new(Replays::new(
-            Some(
-                ReplaySettings {
-                    replay_dir: root.join("replays"),
-                    record_dir: dir.clone(),
-                    modes_dir: root.join("modes"),
-                    max_recording_bytes: 1 << 20,
-                    max_replay_bytes: 1 << 20,
-                }
-                .checked()
-                .unwrap(),
-            ),
-            6,
-        ));
+        let replays = Arc::new(Replays::new(Some(dir.clone())));
         let mut settings = settings(&dir, 6);
         settings.replays = Some(Desk(replays.clone()));
         let recorder = Recorder::start(settings).unwrap();
@@ -804,24 +788,9 @@ mod tests {
         let header = read_header(&dir.join(&names[0])).unwrap().unwrap();
         let header: serde_json::Value = serde_json::from_slice(&header.bytes).unwrap();
         assert_eq!(header["min_players"], 1);
-        assert!(
-            replays.jobs().is_empty(),
-            "conversion waits for a watch request"
-        );
-        assert_eq!(
-            replays.ask(
-                1,
-                3,
-                Some(14),
-                Some(Known {
-                    played: true,
-                    places: 1
-                }),
-                now + Duration::from_secs(10)
-            ),
-            Status::Preparing
-        );
-        assert_eq!(replays.jobs(), [3]);
+        let later = now + Duration::from_secs(10);
+        assert_eq!(replays.state(3, Some(14), later), ReplayState::Kept);
+        assert_eq!(replays.state(2, Some(14), later), ReplayState::NotRecorded);
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -948,32 +917,17 @@ mod tests {
 
     #[test]
     fn the_replays_hear_of_each_file_kept_dropped_or_deleted() {
-        use session::v026g::replays::{Known, ReplaySettings, Status};
+        use session::v026g::replays::ReplayState;
         let root = temp_dir("desk");
         let dir = root.join("recordings");
         fs::create_dir_all(&dir).unwrap();
-        // An old file the cap deletes, with its replay.
+        // An old file the cap deletes.
         fs::write(
             dir.join("rec026g_20261001-000000_00000001.srprec"),
             [0; 600],
         )
         .unwrap();
-        let replays = Arc::new(Replays::new(
-            Some(
-                ReplaySettings {
-                    replay_dir: root.join("replays"),
-                    record_dir: dir.clone(),
-                    modes_dir: root.join("modes"),
-                    max_recording_bytes: 1 << 20,
-                    max_replay_bytes: 1 << 20,
-                }
-                .checked()
-                .unwrap(),
-            ),
-            2,
-        ));
-        let old_replay = replays.sur_path(1).unwrap();
-        fs::write(&old_replay, b"x").unwrap();
+        let replays = Arc::new(Replays::new(Some(dir.clone())));
         let mut settings = settings(&dir, 2);
         settings.max_bytes = 700;
         settings.replays = Some(Desk(replays.clone()));
@@ -987,35 +941,23 @@ mod tests {
         small.entered(0);
         drop(small);
         // The writer works on its own thread: wait for both closes.
+        let old = dir.join("rec026g_20261001-000000_00000001.srprec");
         let mut waited = false;
         for _ in 0..300 {
             let names = files(&dir);
             let parts = names.iter().any(|name| name.ends_with(".part"));
             let kept = names.iter().any(|name| name.ends_with("_000000ab.srprec"));
-            if !old_replay.exists() && kept && !parts {
+            if !old.exists() && kept && !parts {
                 waited = true;
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
         assert!(waited, "{:?}", files(&dir));
-        // Kept, but converted only when someone asks for it.
-        assert!(replays.jobs().is_empty());
-        let known = Some(Known {
-            played: true,
-            places: 10,
-        });
         let later = now + Duration::from_secs(10);
-        assert_eq!(
-            replays.ask(1, 0xCD, Some(14), known, later),
-            Status::NotRecorded
-        );
-        assert_eq!(replays.ask(2, 1, Some(14), known, later), Status::Gone);
-        assert_eq!(
-            replays.ask(3, 0xAB, Some(14), known, later),
-            Status::Preparing
-        );
-        assert_eq!(replays.jobs(), [0xAB]);
+        assert_eq!(replays.state(0xCD, Some(14), later), ReplayState::NotRecorded);
+        assert_eq!(replays.state(1, Some(14), later), ReplayState::Gone);
+        assert_eq!(replays.state(0xAB, Some(14), later), ReplayState::Kept);
         let _ = fs::remove_dir_all(&root);
     }
 

@@ -136,12 +136,6 @@ impl Core<'_> {
                     ),
                 }
             }
-            // `3D 00 <REPLAY_ASK> <match>`: the History's "Watch replay"
-            // (`replay`); no row of a results screen has that player.
-            M::QueryPlayerDetails {
-                player_id: lobby::REPLAY_ASK,
-                match_id,
-            } => self.replay_ask(who, match_id, now),
             // `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match>`:
             // watch the match's replay in this game (`replay`).
             M::QueryPlayerDetails {
@@ -718,7 +712,7 @@ impl Core<'_> {
             return;
         }
         if start == lobby::REPLAY_START {
-            self.replay_poll(who, now);
+            self.replay_poll(who);
             return;
         }
         if let Some(whose) = lobby::player_matches::Whose::of_start(start) {

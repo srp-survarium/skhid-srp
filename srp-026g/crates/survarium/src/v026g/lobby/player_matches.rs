@@ -55,14 +55,12 @@ impl Whose {
 pub enum ReplayState {
     /// Too few players, or recordings were off.
     NotRecorded = 0,
-    /// Its recording is kept: the replay is made when asked for.
+    /// Its recording is kept: Watch plays it. (2, a replay file made for
+    /// the download, is no longer sent.)
     Kept = 1,
-    /// Its replay is made, for this game.
-    Ready = 2,
-    /// Its recording and replay were deleted (the storage caps).
+    /// Its recording was deleted (the storage cap).
     Gone = 3,
-    /// Recorded by games whose matches play out otherwise than the
-    /// asker's.
+    /// The asker's game is too old to watch replays.
     OldVersion = 4,
 }
 

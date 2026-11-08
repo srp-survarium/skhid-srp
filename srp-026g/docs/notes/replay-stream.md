@@ -20,8 +20,7 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    its place in the recording, its deaths in the match's events (the history, below): 4 s before
    the earliest its first death can have been (a death known within a window, the window's
    start); with no death kept, it starts where the asker's place is first in view.
-2. The lobby answers at once with one `R1` row (`91`, as History's ask is answered,
-   `replay_watch.md` section 2): `R1;preparing;<id 8 hex>;2`, or why not: `off` (no recordings),
+2. The lobby answers at once with one `R1` row (`91`, `replay_watch.md` section 2): `R1;preparing;<id 8 hex>;2`, or why not: `off` (no recordings),
    `old_game` (revision below 14), `busy` (the player is in a match or queued, has a session
    already, or `SRP_REPLAY_WATCH_MAX` sessions run).
 3. The match server reads the match's newest `.srprec` from `SRP_RECORD_DIR` on a thread of its own
@@ -30,7 +29,7 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    default: the owner's decision, every player may watch any replay), or only the players of the
    match and the moderators (`match`); the recording's games of the asker's simulation epoch
    (the `incompatible` rule and refusals of `replay_watch.md`). The conversion is `sur_convert`'s, in memory: no `.sur` file, no token.
-4. The movie polls as for History (`3B 00 <REPLAY_START> 01`): `R1;preparing;<id>;1` while it
+4. The movie polls (`3B 00 <REPLAY_START> 01`): `R1;preparing;<id>;1` while it
    is read (2 while waiting), then `R1;watching;<id>;<start ms>`, or the refusal: `not_yours`
    (`match` only), `incompatible` (with the game's message box saying why, once), `gone` (no
    recording), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2
@@ -163,10 +162,10 @@ is a `91` row at the request's start plus its index.
 | setting | |
 |---|---|
 | `SRP_RECORD_DIR` | the recordings; sessions are off without it |
-| `SRP_REPLAY_WATCH` | `all` (default: anyone) or `match` (the match's players and the moderators); another value is `match`. History's download follows it too |
+| `SRP_REPLAY_WATCH` | `all` (default: anyone) or `match` (the match's players and the moderators); another value is `match` |
 | `SRP_REPLAY_MODERATORS` | account ids, comma-separated, that may watch any match |
 | `SRP_REPLAY_WATCH_MAX` | sessions at once (default 4: the host has 1 vCPU and 512 MB; each costs about one player's traffic and its recording in memory, a few MB to a few tens) |
-| `SRP_REPLAY_MAX_RECORDING_MB` | as for History (default 24) |
+| `SRP_REPLAY_MAX_RECORDING_MB` | a larger recording is not read (`failed`; default 24): reading one keeps it in memory with what is made of it |
 | `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]`, or `<match hex>,deaths` | dev aid: each game that signs in asks for that replay 10 s later, as the movie would |
 | `SRP_DEV_PLAY_SOLO=1` | dev aid: each game that signs in is seated alone in a match of its own 10 s later (no room, no bots), played and recorded as any (with `SRP_RECORD_MIN_PLAYERS=1`); it ends when the game leaves the match or closes: a fresh recording made with the exe being tested |
 | `SRP_DEV_REPLAY_CONTROL=<file>` | dev aid: lines `pause`, `play`, `speed 0.25|0.5|1|2|4|8`, `seek <seconds>` to every playback, read every 250 ms and removed |

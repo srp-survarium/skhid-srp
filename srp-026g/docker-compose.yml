@@ -80,23 +80,9 @@ services:
       - SRP_RECORD_DIR=${SRP_RECORD_DIR:-/srv/srp/data/recordings}
       - SRP_RECORD_MIN_PLAYERS
       - SRP_RECORD_MAX_MB
-      # "Watch replay" of the lobby's History (docs/notes/replay_watch.md):
-      # a kept recording is made into the game's replay file in
-      # SRP_REPLAY_DIR (a folder of its own, never inside the recordings')
-      # when a player first asks for it, at the lowest CPU priority, and
-      # handed out only at /replays/<token> of the web page. On by default:
-      # SRP_GAME_MODES_DIR is a folder of the data volume holding the game's
-      # gameplay/game_modes/*.options files (game data, copied there by
-      # hand, those of every patch included); `off` or empty switches replays
-      # off. Behind the caddy26 proxy set
-      # SRP_WEB_TRUST_PROXY=on: failed /replays/ lookups are limited per
-      # address.
-      - SRP_REPLAY_DIR=${SRP_REPLAY_DIR:-/srv/srp/data/replays}
-      - SRP_GAME_MODES_DIR=${SRP_GAME_MODES_DIR-/srv/srp/data/game_modes}
+      # Replay sessions (docs/notes/replay-stream.md) read the recordings;
+      # a larger one than this many MB is not read (default 24).
       - SRP_REPLAY_MAX_RECORDING_MB
-      # Replays (.sur and .json) over this many MB together: the oldest go
-      # (default 1000; apart from SRP_RECORD_MAX_MB).
-      - SRP_REPLAY_MAX_MB
       # The server's log, <server>.log for each of login, lobby, match, web
       # and srp, in the data volume: it outlives the container, which an
       # update makes anew (the container's own output, `docker compose logs`,

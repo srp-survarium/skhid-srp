@@ -231,7 +231,6 @@ fn world(name: &str) -> World {
         matches: Arc::new(Nothing),
         downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
         min_patch_revision: 0,
-        replays: None,
         results: Arc::new(session::v026g::rewards::Results::new()),
     };
     World {

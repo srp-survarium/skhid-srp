@@ -9,7 +9,7 @@ use session::v026g::persist::history::{
     Winner,
 };
 use session::v026g::persist::{GameRepository, SqliteGameRepository};
-use session::v026g::replays::{ReplayId, ReplaySettings, Replays, Sidecar};
+use session::v026g::replays::{ReplayId, Replays};
 use survarium::v026g::lobby::GEAR_BY_PLACE;
 use survarium::v026g::lobby::player_matches::{OWN_MATCHES_START, PLAYER_MATCHES_START};
 use survarium::v026g::lobby::recent_matches::RECENT_MATCHES_START;
@@ -23,7 +23,10 @@ fn temp(name: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!(
         "srp-lobby-matches-{name}-{}-{}",
         std::process::id(),
-        Replays::now_unix()
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     ));
     let _ = std::fs::remove_dir_all(&dir);
     dir
@@ -187,38 +190,19 @@ fn the_own_ask_lists_the_askers_matches() {
 fn each_row_says_its_replays_state_for_the_askers_game() {
     let dir = temp("replay");
     let mut world = world(&dir.join("db"), BOB);
-    let settings = ReplaySettings {
-        replay_dir: dir.join("replays"),
-        record_dir: dir.join("recordings"),
-        modes_dir: dir.join("modes"),
-        max_recording_bytes: 1 << 20,
-        max_replay_bytes: 1 << 20,
+    let recordings = dir.join("recordings");
+    std::fs::create_dir_all(&recordings).unwrap();
+    let replays: &'static Replays = Box::leak(Box::new(Replays::new(Some(recordings.clone()))));
+    // Match 11's recording is kept, match 10's still being written, match
+    // 9's deleted by the cap, match 8's never kept. Who may watch hides no
+    // row: Alice played none of them.
+    for name in [
+        "rec026g_19700102-100000_0000010b.srprec",
+        "rec026g_19700102-100000_0000010a.srprec.part",
+    ] {
+        std::fs::write(recordings.join(name), b"SRPREC01").unwrap();
     }
-    .checked()
-    .unwrap();
-    let replays: &'static Replays = Box::leak(Box::new(Replays::new(Some(settings), 6)));
-    // Match 11's replay is made by games of Alice's revision, match 9's by
-    // games of no known revision; match 10's recording is kept. Who may
-    // watch hides no row: Alice played none of them, Bob's game alone made
-    // match 11's.
-    for (match_id, revision) in [(0x10B, Some(PATCH_REVISION)), (0x109, None)] {
-        std::fs::write(replays.sur_path(match_id).unwrap(), b"0123456789ab").unwrap();
-        let sidecar = Sidecar {
-            match_id,
-            size: 12,
-            sha256: "cd".repeat(32),
-            revisions: vec![revision],
-            account_ids: vec![BOB],
-            made_at: 0,
-        };
-        std::fs::write(replays.json_path(match_id).unwrap(), sidecar.to_json()).unwrap();
-    }
-    std::fs::write(
-        dir.join("recordings")
-            .join("rec026g_19700102-100000_0000010a.srprec"),
-        b"SRPREC01",
-    )
-    .unwrap();
+    replays.recording_deleted(0x109);
     world.core.replays = Some(replays);
     let (bob, _) = world.accounts.sign_up(BOB, "Bob");
     bob.locked().rating = 5000;
@@ -231,8 +215,8 @@ fn each_row_says_its_replays_state_for_the_askers_game() {
         .iter()
         .map(|row| row.rsplit(';').next().unwrap())
         .collect();
-    // Ready, kept, old version, not recorded.
-    assert_eq!(replay, ["2", "1", "4", "0"]);
+    // Kept, kept, gone, not recorded.
+    assert_eq!(replay, ["1", "1", "3", "0"]);
     // The Recent tab's rows say the same.
     let recent = rows_at(
         &mut world,
@@ -245,7 +229,7 @@ fn each_row_says_its_replays_state_for_the_askers_game() {
         .iter()
         .map(|row| row.rsplit(';').next().unwrap())
         .collect();
-    assert_eq!(replay, ["2", "1", "4", "0"]);
+    assert_eq!(replay, ["1", "1", "3", "0"]);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

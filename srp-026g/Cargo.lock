@@ -516,7 +516,6 @@ dependencies = [
  "libc",
  "log",
  "mapdata",
- "openssl",
  "replay-control",
  "serde",
  "serde_json",
