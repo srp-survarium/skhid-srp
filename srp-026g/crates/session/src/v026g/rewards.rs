@@ -144,6 +144,7 @@
 //! equipment block what the kit's items add (`items_rules::kit_bonuses`).
 
 use std::collections::{HashMap, VecDeque};
+use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 
 use survarium::v021d;
@@ -478,6 +479,16 @@ pub struct PlayerReport {
     /// Important messages for its client: `(type, text)`. The lobby gives
     /// each its message id.
     pub notices: Vec<Notice>,
+}
+
+/// What a match is now ([`Results::per_match`]): the means of its finished
+/// results.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PerMatch {
+    /// The experience, premium included.
+    pub experience: NonZeroU32,
+    /// The seconds played.
+    pub seconds: NonZeroU32,
 }
 
 /// A finished match as the lobby shows it.
@@ -1253,6 +1264,47 @@ impl Results {
     /// A kept report, for `41 00 <match id>` and `3D 00 <player> <match>`.
     pub fn find(&self, match_id: u32) -> Option<Arc<MatchReport>> {
         self.inner.locked().find(match_id)
+    }
+
+    /// What a match is now, of the kept reports (the newest [`KEPT`]): the
+    /// means of every player who finished a paid match against players (no
+    /// room with a PIN, no match against bots), its experience premium
+    /// included (what [`Results::claim_premium`] would add to one who had
+    /// none) and its seconds played. `None` with no such result, or none
+    /// that gave experience or was played.
+    pub fn per_match(&self) -> Option<PerMatch> {
+        let inner = self.inner.locked();
+        let finished = inner
+            .reports
+            .iter()
+            .filter(|report| !report.private && !report.vs_bots)
+            .flat_map(|report| &report.players)
+            .filter(|player| player.reward.standing == Standing::Finished);
+        let (mut experience, mut seconds, mut results) = (0_u64, 0_u64, 0_u64);
+        for player in finished {
+            let reward = &player.reward;
+            let bonus = if reward.premium {
+                0
+            } else {
+                reward.premium_bonus.1
+            };
+            experience += u64::from(reward.experience.saturating_add(bonus));
+            seconds += player
+                .full
+                .play_seconds
+                .iter()
+                .map(|&s| u64::from(s))
+                .sum::<u64>();
+            results += 1;
+        }
+        let mean = |total: u64| {
+            let mean = total.checked_div(results)?;
+            NonZeroU32::new(u32::try_from(mean).unwrap_or(u32::MAX))
+        };
+        Some(PerMatch {
+            experience: mean(experience)?,
+            seconds: mean(seconds)?,
+        })
     }
 
     /// The account bought premium from a match's results screen
