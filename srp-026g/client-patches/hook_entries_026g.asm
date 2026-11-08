@@ -6086,6 +6086,87 @@ replay_viewer_on_frame_replay:
     db 0x53, 0x55, 0x56, 0x57, 0x8b, 0xf8
     jmp 0x23b206
 
+; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> replay_viewer_on_world_unpacked
+global replay_viewer_on_world_unpacked
+extern hook_replay_viewer_on_world_unpacked_chain
+replay_viewer_on_world_unpacked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_world_unpacked_chain
+    mov edx, replay_viewer_on_world_unpacked_replay
+    cmp eax, 0
+    je replay_viewer_on_world_unpacked_go
+    mov edx, 0x27c0d9
+    cmp eax, 1
+    je replay_viewer_on_world_unpacked_go
+    mov edx, 0x27c1e0
+    cmp eax, 2
+    je replay_viewer_on_world_unpacked_go
+    ud2
+replay_viewer_on_world_unpacked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_world_unpacked_replay:
+    db 0x89, 0x75, 0xec, 0x89, 0x75, 0xf0, 0x89, 0x55, 0xf4
+    jmp 0x27c0d9
+
+; 0x27c10a process_dynamic_match_info's raw world load with its arguments pushed (add ecx,1F8h after push 8 / push 1 / push esi, then the load call 0x2D0B70 at 0x27C111): EDI the network client, at ESP the reader then the mode (1): lohook -> replay_viewer_on_world_raw
+global replay_viewer_on_world_raw
+extern hook_replay_viewer_on_world_raw
+replay_viewer_on_world_raw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_world_raw
+    mov edx, replay_viewer_on_world_raw_replay
+    cmp eax, 0
+    je replay_viewer_on_world_raw_go
+    mov edx, 0x27c110
+    cmp eax, 1
+    je replay_viewer_on_world_raw_go
+    ud2
+replay_viewer_on_world_raw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_world_raw_replay:
+    db 0x81, 0xc1, 0xf8, 0x01, 0x00, 0x00
+    jmp 0x27c110
+
 ; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
 global scaleform_capture_on_next_capture
 extern hook_scaleform_capture_on_next_capture
@@ -7328,48 +7409,6 @@ weapon_pickup_on_load_ordinal_go:
 weapon_pickup_on_load_ordinal_replay:
     db 0x8b, 0x47, 0x0c, 0x85, 0xc0
     jmp 0x32bdbf
-
-; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
-global world_check_on_unpacked
-extern hook_world_check_on_unpacked
-world_check_on_unpacked:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_world_check_on_unpacked
-    mov edx, world_check_on_unpacked_replay
-    cmp eax, 0
-    je world_check_on_unpacked_go
-    mov edx, 0x27c0d9
-    cmp eax, 1
-    je world_check_on_unpacked_go
-    mov edx, 0x27c1e0
-    cmp eax, 2
-    je world_check_on_unpacked_go
-    ud2
-world_check_on_unpacked_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-world_check_on_unpacked_replay:
-    db 0x89, 0x75, 0xec, 0x89, 0x75, 0xf0, 0x89, 0x55, 0xf4
-    jmp 0x27c0d9
 
 ; 0x27c0ff process_dynamic_match_info before it loads a raw world (mov ecx,[edi+1F1C40h], the je of 0x27C053 lands here; the load call 0x2D0B70 at 0x27C111): EDI the network client, ESI the packet's reader at the world (its time, then the body); refused is the handler's epilogue: lohook -> world_check_on_raw
 global world_check_on_raw

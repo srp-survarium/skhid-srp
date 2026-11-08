@@ -77,6 +77,7 @@ SITES = {
     "take": (0x1F88CC, bytes.fromhex("3988c8530000"), 0x1F88D2, 0x1F88D4),
     "call": (0x233D30, bytes.fromhex("53568b742410"), 0x233D36, 0x233D73),
     "frame": (0x23B200, bytes.fromhex("53555657 8bf8".replace(" ", "")), 0x23B206, None),
+    "raw": (0x27C10A, bytes.fromhex("81c1f8010000"), 0x27C110, None),
 }
 SHOW_CONTROLS, DETACH = 0x23A9D0, 0x242CC0
 WORLD_UI = GAME + 0x18 + 0x1FC              # the game world's hud (game_world+1FCh)
@@ -302,6 +303,16 @@ def frame(game):
     return game.run("frame", regs, bytes(0x20))
 
 
+def world_load(game, site):
+    """A world's load with its arguments pushed: the mode slot after it ran."""
+    regs = dict(STEADY)
+    regs[UC_X86_REG_EDI] = NC
+    regs[UC_X86_REG_EBP] = FRAME
+    state, _, calls = game.run(site, regs, struct.pack("<3I", READER, 1, 8))
+    mode = game.read(SP + 4)
+    return state, mode, calls
+
+
 def playback(revision, paused, percent, start=10_000, end=600_000):
     return struct.pack("<4BH2I", 0x52, 1, revision, paused, percent, start, end)
 
@@ -430,6 +441,14 @@ def main():
     check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls, "key, after the end: Space goes to the game again")
 
 
+    # (The unpacked load's site runs patch 87's check after ours, which a
+    # made-up world does not pass; the game's own test runs it.)
+    stock.setup(2)
+    ours.setup(2)
+    state, mode, calls = world_load(ours, "raw")
+    check(mode == 1 and not calls and world_load(stock, "raw")[0] == state,
+          "raw, a player's game: its world loads as a network one (mode 1), as the original")
+
     # The replay controls (patch 130's second part).
     for local, who, to in ((2, "a player's", "past"), (0xFF, "a spectator's (no place local)", "exit")):
         for site, name in (("query", "the query"), ("take", "the callback's take")):
@@ -467,6 +486,9 @@ def main():
     names = [c[2] for c in calls if c[0] == "invoke"]
     check(names == ["root.set_position", "root.set_play_state"] and not [c for c in calls if c[0] != "invoke"],
           "frame, a viewer, the next frame: only the position and the play button")
+    state, mode, calls = world_load(ours, "raw")
+    check(mode == 0 and state[UC_X86_REG_EIP] == SITES["raw"][2] and not calls,
+          "raw, a viewer: its world loads as the replay's own seek (mode 0, its pending inputs cleared)")
     key(ours, H)
     state, _, calls = frame(ours)
     check(("show_replay_controls", WORLD_UI, 0) in calls, "frame, after H: the controls hidden with the interface")

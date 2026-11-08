@@ -17257,6 +17257,54 @@ impl InputWorld {
     }
 }
 
+/// A survarium::core_load_args (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CoreLoadArgs(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CoreLoadArgs {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): game_world_core::deserialize's mode as the 0xE8 handler pushed it for an unpacked world (push 1 at 0x27C0C3; by the site's ESP at 0x27C0D0: the core, the world's reader, the mode, 8): 1 a network world, nothing cleared; 0 the replay's user seek (0x1EE377), which first clears the core's pending lists (0x2D53C0 on +12280h, 0x2D3DF0 on +0, both teams' input lists)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mode(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::core_load_raw_args (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CoreLoadRawArgs(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CoreLoadRawArgs {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): as core_load_args, for a raw world (push 1 at 0x27C107; by the site's ESP at 0x27C10A: the reader, the mode, 8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mode(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -19065,6 +19113,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<DynamicInfoFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(DynamicInfoFrame)
+        }
+
+        /// the site's ESP: a survarium::core_load_args (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn args(machine: &impl Machine) -> Option<CoreLoadArgs> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CoreLoadArgs)
         }
     }
 
@@ -21201,6 +21258,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn ui(machine: &impl Machine) -> Option<GameWorldUi> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(GameWorldUi)
+        }
+    }
+
+    /// world_load.raw_args (0x27c10a): process_dynamic_match_info's raw world load with its arguments pushed (add ecx,1F8h after push 8 / push 1 / push esi, then the load call 0x2D0B70 at 0x27C111): EDI the network client, at ESP the reader then the mode (1)
+    pub mod world_load_raw_args {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
+        }
+
+        /// the site's ESP: a survarium::core_load_raw_args (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn args(machine: &impl Machine) -> Option<CoreLoadRawArgs> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CoreLoadRawArgs)
         }
     }
 }

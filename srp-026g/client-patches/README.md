@@ -4905,7 +4905,11 @@ controls (`replay_player.swf`, which the game asks for only with a replay
 reader), hidden; a viewer's are shown with the interface and fed each
 frame (the bar's length, its position, the play button, the kills as
 markers); their play button, bar and speed ask the server as the keys do,
-their player list and free view move patch 121's camera.
+their player list and free view move patch 121's camera. A viewer's
+worlds (each a start again from the recording, often older than its
+clock) load as the replay's own seek loads them (game_world_core::
+deserialize's mode 0, its pending inputs cleared): loaded as network
+worlds, an older one crashed the game (0x2D0DA4).
 A player's game and a live match's spectator (no playback note) run the
 game's code at every site; a live spectator's controls stay hidden and
 their calls do nothing. Nothing a match computes: the clock's pace is

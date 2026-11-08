@@ -2229,3 +2229,5 @@ va	status	ref_021d	name
 0x0023a6c0	observed		survarium::game_world_ui::set_replay_play_state
 0x0023a9d0	observed		survarium::game_world_ui::show_replay_controls
 0x00218bf0	observed		survarium::replay_network_client::tick
+0x002d53c0	observed		survarium::game_world_core::clear_pending_masks
+0x002d3df0	observed		survarium::game_world_core::clear_pending_entries

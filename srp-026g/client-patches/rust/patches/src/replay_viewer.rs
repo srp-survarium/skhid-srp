@@ -24,7 +24,7 @@ use replay_control::{newer, Event, EventKind, EventsNote, MatchMs, Op, Playback,
 use core::ffi::CStr;
 
 use crate::spectator;
-use crate::vostok::replay_view::{query_spectator, take_spectator, GameClock, HudFrame, MatchClose, Overlay, ServerNoteSite};
+use crate::vostok::replay_view::{query_spectator, take_spectator, CoreLoad, GameClock, HudFrame, MatchClose, Overlay, ServerNoteSite};
 use crate::vostok::world::{NetworkClient, Role};
 use crate::vostok::{
     Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, NoExit, ReplayViewerOnHudCallExit,
@@ -432,17 +432,18 @@ impl Fed {
 static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
 
 /// The controls of a viewer's game, brought to the session: shown or hidden
-/// with the interface, the bar's length and markers when they changed, its
+/// with the interface, the bar's length and the speed stepper at each playback, the markers when they changed, its
 /// position and play button every frame (as the replay client's tick does,
-/// 0x218C16 / 0x218C27), and the hud's kit chooser kept hidden.
+/// 0x218C16 / 0x218C27), and the hud's kit chooser and quick slots kept hidden.
 fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) -> Fed {
     let Some(overlay) = Overlay::of(client) else { return fed };
-    let Playback { revision, paused, start, end, .. } = viewer.playback;
+    let Playback { revision, paused, speed, start, end } = viewer.playback;
     if fed.ui != Some(viewer.ui) {
         overlay.show(viewer.ui == Ui::Shown);
     }
     if fed.revision != Some(revision) {
         overlay.set_length(end.0.saturating_sub(start.0));
+        overlay.set_speed(speed.percent());
     }
     if fed.events != Some(events.version) || fed.revision.is_none() {
         let mut room = [0; MARKERS_ROOM];
@@ -452,7 +453,7 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) 
         overlay.set_position(now.within(start, end).0 - start.0);
     }
     overlay.set_paused(paused);
-    overlay.hide_kits();
+    overlay.hide_player_panels();
     Fed { revision: Some(revision), events: Some(events.version), ui: Some(viewer.ui) }
 }
 
@@ -464,6 +465,27 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(client) = HudFrame::at(ctx).and_then(|hud| hud.client(thread)) else { return Flow::Continue };
     let fed = feed(&client, &viewer, &EVENTS.get(thread), FED.get(thread));
     FED.set(thread, fed);
+    Flow::Continue
+}
+
+/// `world_load.unpacked` and `world_load.raw_args`: every world a viewer
+/// is sent is the server starting it again from the recording (a seek, a
+/// speed's or a drift's restart), so it is loaded as the replay's own seek
+/// loads one, its pending inputs and masks cleared; an older world loaded as
+/// a network one crashed the game (0x2D0DA4). A live game's go on as its own.
+fn load_as_seek(load: Option<CoreLoad>, thread: &crate::vostok::Thread) {
+    if let (Session::Replay(_), Some(load)) = (SESSION.get(thread), load) {
+        load.as_seek();
+    }
+}
+
+pub fn on_world_unpacked(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    load_as_seek(CoreLoad::at_unpacked(ctx), ctx.thread());
+    Flow::Continue
+}
+
+pub fn on_world_raw(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    load_as_seek(CoreLoad::at_raw(ctx), ctx.thread());
     Flow::Continue
 }
 

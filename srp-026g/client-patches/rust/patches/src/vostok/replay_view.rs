@@ -255,14 +255,23 @@ impl<'t> Overlay<'t> {
         self.movie.invoke_bool(c"root.set_play_state", paused);
     }
 
-    /// The hud's kit chooser hidden (root.show_profiles_selector(false)): a
-    /// viewer picks no kit, and the game shows it before the start and on a
-    /// death screen, over the controls' bar.
-    pub fn hide_kits(&self) {
+    /// The hud's kit chooser and quick slots hidden
+    /// (root.show_profiles_selector(false), root.show_slots(false)): a viewer
+    /// picks no kit and uses no slot, and the game shows both over the
+    /// controls' bar (the kits before the start and on a death screen, the
+    /// slots of the player followed, 0x239C8D).
+    pub fn hide_player_panels(&self) {
         // SAFETY: the hud's own movie, alive with the hud on its thread.
         if let Some(hud) = unsafe { super::ui::movie_of(self.ui.hud_movie()) } {
             hud.invoke_bool(c"root.show_profiles_selector", false);
+            hud.invoke_bool(c"root.show_slots", false);
         }
+    }
+
+    /// The speed stepper's value, as a percent (root.set_replay_speed: 25 to
+    /// 800, the movie answers nothing).
+    pub fn set_speed(&self, percent: u16) {
+        self.movie.invoke_uints(c"root.set_replay_speed", &[u32::from(percent)]);
     }
 
     /// The bar's length, ms (root.set_match_time).
@@ -295,3 +304,38 @@ impl HudFrame {
         Some(NetworkClient::of(client, thread))
     }
 }
+
+/// A world the 0xE8 handler is about to load (game_world_core::deserialize
+/// 0x2D0B70), its arguments pushed: the mode it loads with.
+pub struct CoreLoad {
+    args: *mut u32,
+}
+
+impl CoreLoad {
+    /// At `world_load.unpacked`.
+    pub fn at_unpacked(ctx: &Context<'_>) -> Option<CoreLoad> {
+        // SAFETY: the context is this site's: at ESP the load's arguments
+        // (the core, the reader, the mode, 8), pushed at 0x27C0B5..0x27C0CF.
+        Some(CoreLoad { args: unsafe { raw::site::world_load_unpacked::args(ctx)?.mode() } })
+    }
+
+    /// At `world_load.raw_args`.
+    pub fn at_raw(ctx: &Context<'_>) -> Option<CoreLoad> {
+        // SAFETY: the context is this site's: at ESP the reader, the mode, 8
+        // (pushed at 0x27C105..0x27C109).
+        Some(CoreLoad { args: unsafe { raw::site::world_load_raw_args::args(ctx)?.mode() } })
+    }
+
+    /// Loads it as the replay's own seek does (mode 0, 0x1EE377): the core's
+    /// pending masks, timed entries and inputs are cleared first. A network
+    /// world (mode 1) keeps them, and those of a later timeline make the
+    /// load read a null entry (0x2D0DA4) when the world is older.
+    pub fn as_seek(self) {
+        // SAFETY: the pushed argument, the game's own stack slot, read by
+        // the call that follows the site.
+        unsafe { self.args.write(SEEK_MODE) }
+    }
+}
+
+/// game_world_core::deserialize's mode of a user seek (0x1EE359..0x1EE36A).
+const SEEK_MODE: u32 = 0;

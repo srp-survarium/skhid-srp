@@ -2417,3 +2417,5 @@ va	name	source	ret_cleanup	result
 0x0023a6c0	survarium::game_world_ui::set_replay_play_state	manual	0	
 0x0023a9d0	survarium::game_world_ui::show_replay_controls	manual	4	
 0x00218bf0	survarium::replay_network_client::tick	manual	8	
+0x002d53c0	survarium::game_world_core::clear_pending_masks	manual	0	
+0x002d3df0	survarium::game_world_core::clear_pending_entries	manual	0	

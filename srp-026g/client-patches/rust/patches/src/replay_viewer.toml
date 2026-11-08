@@ -48,3 +48,14 @@ order = 1
 [[hook]]
 site = "hud.update"
 handler = "on_frame"
+
+# A viewer's worlds load as the replay's own seek's (their pending inputs
+# cleared): an older one loaded as a network world crashed the game.
+[[hook]]
+site = "world_load.unpacked"
+handler = "on_world_unpacked"
+order = 0
+
+[[hook]]
+site = "world_load.raw_args"
+handler = "on_world_raw"

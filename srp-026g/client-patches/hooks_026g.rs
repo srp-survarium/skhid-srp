@@ -3250,6 +3250,61 @@ pub extern "C" fn hook_replay_viewer_on_frame(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_viewer (patch 130) ----
+
+/// The named exits of replay_viewer::on_world_unpacked (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayViewerOnWorldUnpackedExit { Refused }
+/// The entry `replay_viewer_on_world_unpacked` (0x27c0d0, process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h])) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_world_unpacked(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_world_unpacked` calls this, from the game's jump at 0x27c0d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_world_unpacked(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- world_check (patch 87) ----
+
+/// The named exits of world_check::on_unpacked (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WorldCheckOnUnpackedExit { Refused }
+/// The entry `world_check_on_unpacked` (0x27c0d0, process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h])) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_world_check_on_unpacked(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `world_check_on_unpacked` calls this, from the game's jump at 0x27c0d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::world_check::on_unpacked(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- replay_viewer (patch 130) ----
+
+/// The entry `replay_viewer_on_world_raw` (0x27c10a, process_dynamic_match_info's raw world load with its arguments pushed (add ecx,1F8h after push 8 / push 1 / push esi, then the load call 0x2D0B70 at 0x27C111): EDI the network client, at ESP the reader then the mode (1)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_world_raw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_world_raw` calls this, from the game's jump at 0x27c10a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_world_raw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- scaleform_capture (patch 93) ----
 
 /// The named exits of scaleform_capture::on_next_capture (the order the shim's Flow code
@@ -3811,26 +3866,6 @@ pub extern "C" fn hook_weapon_pickup_on_load_ordinal(frame: &mut Frame) -> u32 {
 
 // ---- world_check (patch 87) ----
 
-/// The named exits of world_check::on_unpacked (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum WorldCheckOnUnpackedExit { Refused }
-/// The entry `world_check_on_unpacked` (0x27c0d0, process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h])) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_world_check_on_unpacked(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `world_check_on_unpacked` calls this, from the game's jump at 0x27c0d0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::world_check::on_unpacked(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- world_check (patch 87) ----
-
 /// The named exits of world_check::on_raw (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -4064,6 +4099,15 @@ pub extern "C" fn hook_tab_cursor_on_hud_call_chain(frame: &mut Frame) -> u32 {
     let flow = hook_tab_cursor_on_hud_call(frame);
     if flow != 0 { return flow; }
     let flow = hook_replay_viewer_on_hud_call(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_world_unpacked_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_replay_viewer_on_world_unpacked(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_world_check_on_unpacked(frame);
     if flow != 0 { return flow; }
     0
 }
