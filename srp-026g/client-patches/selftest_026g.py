@@ -429,8 +429,10 @@ def test_pe(original, image, mode):
               "code | execute | read")
     characteristics = struct.unpack_from("<H", data, headers.pe + 22)[0]
     dll = struct.unpack_from("<H", data, headers.optional + 70)[0]
-    check(characteristics == 0x122 and dll == 0x8000,
-          "file characteristics 0x122, DLL characteristics 0x8000 (no ASLR flag), as the original")
+    nx = 0 if mode == "cert-only" else P.IMAGE_DLLCHARACTERISTICS_NX_COMPAT
+    check(characteristics == 0x122 and dll == 0x8000 | nx,
+          f"file characteristics 0x122, DLL characteristics {0x8000 | nx:#x} (the original's 0x8000, no ASLR "
+          "flag; NX_COMPAT except in cert-only)")
 
 
 def test_code(original, image, mode, cave):
@@ -825,10 +827,12 @@ def changed_runs(original, write):
 def bookkeeping(headers):
     """The file offsets of the PE header's counters the section adders keep
     (not a patch's write): the count, SizeOfCode, SizeOfUninitializedData,
-    SizeOfImage, the checksum, the certificate directory."""
+    SizeOfImage, the checksum, the certificate directory, and DllCharacteristics
+    (its NX_COMPAT bit, set by every full build)."""
     out = set()
     for at, size in ((headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
-                     (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 8)):
+                     (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 8),
+                     (headers.dll_characteristics_at, 2)):
         out.update(range(at, at + size))
     return out
 
