@@ -732,7 +732,8 @@ pub fn ranking_flush(top: &[Ranked]) -> Option<Result<ServerMessage, WireError>>
 /// never sends one. Only "Player vs Bots" ([`PVB_STATUS_START`],
 /// [`PVB_CHOOSE_BASE`]), the rooms (`rooms::ROOMS_FIRST` to
 /// `rooms::ROOMS_LAST`), the kit presets (`presets::PRESETS_FIRST` to
-/// `presets::PRESETS_LAST`), the replay poll ([`REPLAY_START`]) and the
+/// `presets::PRESETS_LAST`), the replay and save polls ([`REPLAY_START`],
+/// [`SAVE_START`]) and the
 /// player pop-up's matches (`player_matches::PLAYER_MATCHES_START`) are
 /// answered (a lobby pick, `lobby_pick::LOBBY_PICK_BASE` + id, is kept and
 /// shown back in `0xA1`, not answered); every other one gets no answer (the "matches now" list and
@@ -742,6 +743,16 @@ pub const RESERVED_START: u32 = 2_000_000_000;
 /// The `start` of a `3B` that polls for the answer to the asker's replay
 /// session ([`replay_answer`]).
 pub const REPLAY_START: u32 = 2_200_000_000;
+/// The `player` of a `3D 00 <player> <match>` (`victory_screen_request_
+/// player_data`) that asks to save the match's replay to a file (the
+/// Watch window's save icon, the results screen's Save replay):
+/// `0xFFFF_FF01` as the movie's `uint`. No account id is that high, so no
+/// row of a results screen asks for it. (The value of the removed
+/// download's ask, which it revives.)
+pub const SAVE_ASK: u32 = 0xFFFF_FF01;
+/// The `start` of a `3B` that polls for the answer to the asker's save
+/// ([`save_answer`]).
+pub const SAVE_START: u32 = 2_210_000_000;
 /// The `player` of a `3D 00 <player> <place>` (`victory_screen_request_
 /// player_data`) that asks for the equipment of the player at that place
 /// of the ranking (1 the first): "Show player's information" in the
@@ -1092,6 +1103,23 @@ pub fn replay_answer(status: &str, match_id: u32, figure: u64) -> Result<ServerM
         rating_before: 0,
     };
     elo_rows(&[(REPLAY_START, &row)])
+}
+
+/// The first field of [`save_answer`]'s row.
+pub const SAVE_ANSWER_VERSION: &str = "R2";
+
+/// `91` as the answer to a save poll (`3B 00 <SAVE_START> <count>`), and
+/// to the save's ask at once: one row `R2;<status>;<match id 8 lower
+/// hex>;<n>` at `SAVE_START`, as [`replay_answer`]'s (`<n>` the file's
+/// size with `ready`, its place in the line while `preparing`, else 0). A
+/// row of its own, not `R1`: a save and a replay session may run at once.
+pub fn save_answer(status: &str, match_id: u32, figure: u64) -> Result<ServerMessage, WireError> {
+    let row = Ranked {
+        name: format!("{SAVE_ANSWER_VERSION};{status};{match_id:08x};{figure}"),
+        rating: 0,
+        rating_before: 0,
+    };
+    elo_rows(&[(SAVE_START, &row)])
 }
 
 /// One 20-byte `quest_instance` of 0x92.

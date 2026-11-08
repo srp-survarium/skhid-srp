@@ -606,6 +606,20 @@ fn a_replay_poll_is_answered_with_one_row_at_the_replay_start() {
     assert_eq!(rows[0].0, longest);
 }
 
+/// The answer to a save: one `R2` row at the save start (2 210 000 000 is
+/// 0x83B9EC80), its last field the file's size when ready.
+#[test]
+fn a_save_poll_is_answered_with_one_row_at_the_save_start() {
+    assert_eq!((SAVE_ASK, SAVE_START), (0xFFFF_FF01, 2_210_000_000));
+    assert_bytes(
+        &save_answer("ready", 0x1F07_C8FB, 1_166_938).unwrap(),
+        "91 01 'R2;ready;1f07c8fb;1166938' 80ECB983 0000 0000",
+    );
+    for other in [GEAR_BY_PLACE, GEAR_BY_ACCOUNT, GEAR_IN_ROOM, LIVE_ROSTER_ASK] {
+        assert_ne!(other, SAVE_ASK);
+    }
+}
+
 /// A replay session's ask: `3D`'s `player` is `0xC0 <place> <seconds u16>`,
 /// 0xFF for any place, or `0xC1000000` for the asker's deaths; no account
 /// id or other srp `player` reads as one.
@@ -626,7 +640,7 @@ fn a_replay_watch_ask_carries_the_time_and_the_place() {
     );
     assert_eq!(ReplayWatchAsk::of(0xC100_0000), Some(ReplayWatchAsk::MyDeaths));
     assert_eq!(ReplayWatchAsk::MyDeaths.player_id(), 0xC100_0000);
-    for other in [GEAR_BY_PLACE, GEAR_IN_ROOM, 0x7FFF_FFFF, 1, 0xC100_0001] {
+    for other in [SAVE_ASK, GEAR_BY_PLACE, GEAR_IN_ROOM, 0x7FFF_FFFF, 1, 0xC100_0001] {
         assert_eq!(ReplayWatchAsk::of(other), None);
     }
 }
