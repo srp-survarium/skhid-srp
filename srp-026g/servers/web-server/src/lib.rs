@@ -1636,7 +1636,7 @@ fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
     let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
     let query = target.split_once('?').map_or("", |(_, query)| query);
     let per_match = (path == skills::PATH)
-        .then(|| game.results.experience_per_match())
+        .then(|| game.results.per_match())
         .flatten();
     wiki::page(path, query, lang, &format!("{header}{notice}"), per_match)
 }

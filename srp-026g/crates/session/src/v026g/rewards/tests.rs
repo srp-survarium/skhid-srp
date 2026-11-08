@@ -1394,12 +1394,22 @@ fn premium_adds_half_and_can_be_claimed_from_the_screen() {
     // A match gives, premium included: Alice's 198, Bob's 64 and the 32
     // premium would add.
     assert_eq!(
-        results.experience_per_match(),
-        Some(ExperiencePerMatch {
-            average: NonZeroU32::new((198 + 64 + 32) / 2).unwrap(),
-            results: 2
+        results.per_match(),
+        Some(PerMatch {
+            experience: NonZeroU32::new((198 + 64 + 32) / 2).unwrap(),
+            seconds: NonZeroU32::new((played(&report, 0) + played(&report, 1)) / 2).unwrap(),
         })
     );
+}
+
+/// The seconds the player of roster place `place` played in `report`.
+fn played(report: &MatchReport, place: usize) -> u32 {
+    report.players[place]
+        .full
+        .play_seconds
+        .iter()
+        .map(|&s| u32::from(s))
+        .sum()
 }
 
 #[test]
@@ -1413,7 +1423,7 @@ fn what_a_match_gives_counts_only_finished_paid_matches_against_players() {
     let mut bots = result(players.clone());
     (bots.match_id, bots.vs_bots) = (MATCH + 1, true);
     results.settle(&bots, &store, &terms(), &mut Rng::new(1));
-    assert_eq!(results.experience_per_match(), None);
+    assert_eq!(results.per_match(), None);
 
     let mut paid = result(players);
     paid.match_id = MATCH + 2;
@@ -1424,10 +1434,10 @@ fn what_a_match_gives_counts_only_finished_paid_matches_against_players() {
     let alice = &report.players[0].reward;
     assert_eq!(report.players[1].reward.standing, Standing::Left);
     assert_eq!(
-        results.experience_per_match(),
-        Some(ExperiencePerMatch {
-            average: NonZeroU32::new(alice.experience + alice.premium_bonus.1).unwrap(),
-            results: 1
+        results.per_match(),
+        Some(PerMatch {
+            experience: NonZeroU32::new(alice.experience + alice.premium_bonus.1).unwrap(),
+            seconds: NonZeroU32::new(played(&report, 0)).unwrap(),
         })
     );
 }

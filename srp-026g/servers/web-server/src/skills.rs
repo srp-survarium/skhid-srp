@@ -6,13 +6,15 @@
 //! lists the icons, written by the same build, at their `/skills/` addresses.
 //! Above the trees, the levels that give the points ([`levels`]): drawn from the
 //! server's own table (`session::v026g::account::level_start`), not the build,
-//! with what a match gives now (`Results::experience_per_match`) and so how many
-//! matches a level is.
+//! with what a match is now (`Results::per_match`) and so how many matches and
+//! hours of play a level is.
 
 use std::fmt::Write;
+#[cfg(test)]
+use std::num::NonZeroU32;
 
 use session::v026g::account::{MAX_LEVEL, level_start};
-use session::v026g::rewards::ExperiencePerMatch;
+use session::v026g::rewards::PerMatch;
 
 use crate::Lang;
 
@@ -46,7 +48,7 @@ const TREES: &str = "<div class=\"skill-trees\"";
 
 /// The page's body in `lang`, for the wiki's page; `per_match`: what a
 /// match gives now (`None`: no match to go by yet, and no number of matches).
-pub(crate) fn body(lang: Lang, per_match: Option<ExperiencePerMatch>) -> String {
+pub(crate) fn body(lang: Lang, per_match: Option<PerMatch>) -> String {
     let built = match lang {
         Lang::En => include_str!("../skills/skills.en.html"),
         Lang::Uk => include_str!("../skills/skills.uk.html"),
@@ -79,6 +81,22 @@ fn thousands(lang: Lang, n: u32) -> String {
     out
 }
 
+/// The hours of play `experience` takes at what a match is now: tenths
+/// under ten hours, whole hours from there.
+fn hours(lang: Lang, experience: u32, per_match: PerMatch) -> String {
+    let tenths = (u64::from(experience) * u64::from(per_match.seconds.get()) * 10)
+        .div_ceil(u64::from(per_match.experience.get()) * 3600);
+    if tenths < 100 {
+        let point = match lang {
+            Lang::En => '.',
+            Lang::Uk => ',',
+        };
+        format!("{}{point}{}", tenths / 10, tenths % 10)
+    } else {
+        thousands(lang, u32::try_from(tenths.div_ceil(10)).unwrap_or(u32::MAX))
+    }
+}
+
 /// The experience level `level` (1 or more) takes on its own: from the one below to it.
 fn cost(level: u8) -> u32 {
     level_start(level) - level_start(level - 1)
@@ -98,10 +116,16 @@ const BOTTOM: f64 = 262.0;
 const STEP: u32 = 250_000;
 
 /// The levels section: how much experience a level takes, the rule in
-/// words and as a formula, what a match gives now, a table of some levels
-/// (and the matches each is) and a graph of the total.
-fn levels(lang: Lang, per_match: Option<ExperiencePerMatch>) -> String {
+/// words and as two formulas (a level from the one before, the total), a
+/// table of some levels (with the matches and hours each is at what a match
+/// is now) and a graph of the total.
+fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
     let (first, step) = (cost(1), cost(2) - cost(1));
+    // The formulas' names: a level's own experience, and the total to it.
+    let (exp, total) = match lang {
+        Lang::En => ("Exp", "Total"),
+        Lang::Uk => ("Досвід", "Усього"),
+    };
     let lines = level_start(MAX_LEVEL).div_ceil(STEP);
     let y_max = f64::from(lines * STEP);
     let x = |level: u8| LEFT + (RIGHT - LEFT) * f64::from(level) / f64::from(MAX_LEVEL);
@@ -126,49 +150,40 @@ fn levels(lang: Lang, per_match: Option<ExperiencePerMatch>) -> String {
             thousands(lang, step)
         ),
     };
-    // What a match gives now, and so how many matches a level is.
-    let now = per_match.map(|per_match| {
-        let average = thousands(lang, per_match.average.get());
-        let line = match lang {
-            Lang::En => format!(
-                "A match gives about <b>{average}</b> experience now, premium included \
-                 (the mean of the last {} results).",
-                per_match.results
-            ),
-            Lang::Uk => format!(
-                "Матч зараз дає в середньому <b>{average}</b> досвіду з преміумом \
-                 (середнє з останніх результатів: {}).",
-                per_match.results
-            ),
-        };
-        (line, per_match.average)
-    });
     let mut out = String::new();
     let _ = write!(
         out,
         "<section class=levels><h2>{}</h2><div class=levels-body><div class=levels-text>\
-         <p>{rule}</p><p class=levels-formula>{} <span>= {} × L + {} × L × (L − 1)</span></p>\
-         {}<div class=table-scroll><table class=protection><thead><tr><th>{}</th><th>{}</th>\
+         <p>{rule}</p>\
+         <p class=levels-formula>{exp}<sub>L</sub> <span>= {exp}<sub>L−1</sub> + {}, \
+         {exp}<sub>1</sub> = {}</span></p>\
+         <p class=levels-formula>{total}<sub>L</sub> <span>= {} × L + {} × L × (L − 1)</span></p>\
+         <div class=table-scroll><table class=protection><thead><tr><th>{}</th><th>{}</th>\
          <th>{}</th>{}</tr></thead><tbody>",
         lang.tr("Levels", "Рівні"),
-        lang.tr("Experience for level L", "Досвід до рівня L"),
+        thousands(lang, step),
+        thousands(lang, first),
         thousands(lang, first),
         thousands(lang, step / 2),
-        now.as_ref()
-            .map_or(String::new(), |(line, _)| format!("<p>{line}</p>")),
         lang.tr("Level", "Рівень"),
         lang.tr("This level", "Цей рівень"),
         lang.tr("Total", "Усього"),
-        if now.is_some() {
-            format!("<th>{}</th>", lang.tr("Matches", "Матчів"))
-        } else {
-            String::new()
-        },
+        per_match.map_or(String::new(), |_| format!(
+            "<th>{}</th><th>{}</th>",
+            lang.tr("Matches", "Матчів"),
+            lang.tr("Hours", "Годин")
+        )),
     );
     for level in LISTED {
-        let matches = now.as_ref().map_or(String::new(), |&(_, average)| {
-            let matches = level_start(level).div_ceil(average.get());
-            format!("<td>≈ {}</td>", thousands(lang, matches))
+        // How many matches and hours of play the level is at what a match is now.
+        let matches = per_match.map_or(String::new(), |per_match| {
+            let total = level_start(level);
+            let matches = total.div_ceil(per_match.experience.get());
+            format!(
+                "<td>≈ {}</td><td>≈ {}</td>",
+                thousands(lang, matches),
+                hours(lang, total, per_match)
+            )
         });
         let _ = write!(
             out,
@@ -259,6 +274,9 @@ mod tests {
     fn the_formula_is_the_servers_table() {
         let (first, step) = (cost(1), cost(2) - cost(1));
         assert!(step.is_multiple_of(2), "the formula halves the step");
+        for level in 2..=MAX_LEVEL {
+            assert_eq!(cost(level), cost(level - 1) + step, "level {level}");
+        }
         for level in 0..=MAX_LEVEL {
             let l = u32::from(level);
             let formula = first * l + step / 2 * l * l.saturating_sub(1);
@@ -275,16 +293,16 @@ mod tests {
             assert!(page.contains(&thousands(lang, level_start(MAX_LEVEL))));
             assert!(!page.contains("≈"), "no matches without a match to go by");
         }
-        // At 1,000 a match: level 100 is 1,288 matches, level 1 one.
-        let per_match = ExperiencePerMatch {
-            average: std::num::NonZeroU32::new(1000).unwrap(),
-            results: 248,
+        // At 1,000 in 12 minutes a match: level 100 is 1,288 matches and
+        // 258 hours (257.5), level 1 one match and 0.1 h.
+        let per_match = PerMatch {
+            experience: NonZeroU32::new(1000).unwrap(),
+            seconds: NonZeroU32::new(720).unwrap(),
         };
         let page = body(Lang::En, Some(per_match));
-        assert!(page.contains("<b>1,000</b> experience now"));
-        assert!(page.contains("the last 248 results"));
-        assert!(page.contains("<th>100</th><td>25,250</td><td>1,287,500</td><td>≈ 1,288</td>"));
-        assert!(page.contains("<th>1</th><td>500</td><td>500</td><td>≈ 1</td>"));
+        assert!(page.contains("<td>1,287,500</td><td>≈ 1,288</td><td>≈ 258</td>"));
+        assert!(page.contains("<th>1</th><td>500</td><td>500</td><td>≈ 1</td><td>≈ 0.1</td>"));
+        assert_eq!(hours(Lang::Uk, 25_000, per_match), "5,0");
         assert_eq!(thousands(Lang::En, 1_287_500), "1,287,500");
         assert_eq!(thousands(Lang::Uk, 830_000), "830\u{a0}000");
         assert_eq!(thousands(Lang::En, 500), "500");

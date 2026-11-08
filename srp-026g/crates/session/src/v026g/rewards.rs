@@ -480,14 +480,14 @@ pub struct PlayerReport {
     pub notices: Vec<Notice>,
 }
 
-/// The experience a match gives now ([`Results::experience_per_match`]).
+/// What a match is now ([`Results::per_match`]): the means of its finished
+/// results.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ExperiencePerMatch {
-    /// The mean of the results, premium included (none is 0: a mean of 0
-    /// is no number to go by).
-    pub average: NonZeroU32,
-    /// How many results it is the mean of (one or more).
-    pub results: u32,
+pub struct PerMatch {
+    /// The experience, premium included.
+    pub experience: NonZeroU32,
+    /// The seconds played.
+    pub seconds: NonZeroU32,
 }
 
 /// A finished match as the lobby shows it.
@@ -1240,33 +1240,45 @@ impl Results {
         self.inner.locked().find(match_id)
     }
 
-    /// What a match gives now, of the kept reports (the newest [`KEPT`]):
-    /// the experience of every player who finished a paid match against
-    /// players (no room with a PIN, no match against bots), premium
+    /// What a match is now, of the kept reports (the newest [`KEPT`]): the
+    /// means of every player who finished a paid match against players (no
+    /// room with a PIN, no match against bots), its experience premium
     /// included (what [`Results::claim_premium`] would add to one who had
-    /// none). `None` with no such result, or none that gave any.
-    pub fn experience_per_match(&self) -> Option<ExperiencePerMatch> {
+    /// none) and its seconds played. `None` with no such result, or none
+    /// that gave experience or was played.
+    pub fn per_match(&self) -> Option<PerMatch> {
         let inner = self.inner.locked();
-        let paid = inner
+        let finished = inner
             .reports
             .iter()
             .filter(|report| !report.private && !report.vs_bots)
             .flat_map(|report| &report.players)
-            .map(|player| &player.reward)
-            .filter(|reward| reward.standing == Standing::Finished);
-        let (mut total, mut results) = (0_u64, 0_u32);
-        for reward in paid {
+            .filter(|player| player.reward.standing == Standing::Finished);
+        let (mut experience, mut seconds, mut results) = (0_u64, 0_u64, 0_u64);
+        for player in finished {
+            let reward = &player.reward;
             let bonus = if reward.premium {
                 0
             } else {
                 reward.premium_bonus.1
             };
-            total += u64::from(reward.experience.saturating_add(bonus));
+            experience += u64::from(reward.experience.saturating_add(bonus));
+            seconds += player
+                .full
+                .play_seconds
+                .iter()
+                .map(|&s| u64::from(s))
+                .sum::<u64>();
             results += 1;
         }
-        let mean = total.checked_div(u64::from(results))?;
-        let average = NonZeroU32::new(u32::try_from(mean).unwrap_or(u32::MAX))?;
-        Some(ExperiencePerMatch { average, results })
+        let mean = |total: u64| {
+            let mean = total.checked_div(results)?;
+            NonZeroU32::new(u32::try_from(mean).unwrap_or(u32::MAX))
+        };
+        Some(PerMatch {
+            experience: mean(experience)?,
+            seconds: mean(seconds)?,
+        })
     }
 
     /// The account bought premium from a match's results screen

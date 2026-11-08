@@ -6,8 +6,9 @@
 //! sections too, each a page of its own look; the skills ([`crate::skills`])
 //! are built like them, from the released game, into a page of the wiki's.
 
+use session::v026g::rewards::PerMatch;
+
 use crate::{ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, skills};
-use session::v026g::rewards::ExperiencePerMatch;
 
 pub(crate) const PATH: &str = "/wiki";
 pub(crate) const WEAPONS: &str = "/wiki/weapons";
@@ -44,13 +45,13 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 
 /// The wiki's page at `path` in `lang` under `header`; `query`: the
 /// request's text after `?` (the modifiers page's chosen item);
-/// `per_match`: what a match gives now, for the skills page.
+/// `per_match`: what a match is now, for the skills page.
 pub(crate) fn page(
     path: &str,
     query: &str,
     lang: Lang,
     header: &str,
-    per_match: Option<ExperiencePerMatch>,
+    per_match: Option<PerMatch>,
 ) -> Response {
     let (title, body) = if path == WEAPONS {
         let body = match lang {
