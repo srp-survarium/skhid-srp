@@ -31,6 +31,14 @@ In the running game instead (no download, no second process): a replay session, 
   History takes a number typed as shown (any case, `#` optional) and watches it (Watch or Enter); anything
   else opens the prompt saying what a number is, and asks nothing. The server's rules on who may watch
   which match apply as for any ask.
+- **The player pop-up's Matches tab** (`survarium/messages/PlayerMatches.as`, a button left of Close in
+  `MessagePlayerInfo`): the shown player's recent public matches, each with Watch from that player's
+  place (`0xC0000000 | place << 16`). **The lobby server does not answer it yet**; the rows the movie
+  takes: `3B 00 <2 230 000 000> <10>` about the player of the asker's last `93` (`+ 1`: the asker's
+  own pop-up, which has no `93`), answered with `91` rows `P1;<n>;<nickname>` then n of
+  `P2;<match 8 hex>;<place>;<map id>;<mode>;<result 0 defeat|1 victory|2 draw>;<kills>;<deaths>;<minutes since its end>;<replay kept 1|0>`.
+  Rows for another nickname than the pop-up's are left; Watch only where the replay is kept. Watching
+  another player's match needs the server to let the asker (today: its players and moderators).
 - `srp-026g/scripts/replay-buttons/check.sh <lobby_menu.swf>` checks them in Ruffle, every language.
 
 ## 2. Wire
