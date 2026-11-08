@@ -7,6 +7,7 @@
 //! - The ask: `3B 00 <PLAYER_MATCHES_START> <count>`. It is about the
 //!   player the asker was last shown the kits of (its last `93`): the
 //!   pop-up has only the nickname, so the lobby keeps who that was.
+//!   `3B 00 <OWN_MATCHES_START> <count>` is about the asker itself.
 //! - The answer, one `91`. Row `i` is at place `PLAYER_MATCHES_START + i`,
 //!   rating and change 0, and its name is ASCII fields with `;` between them
 //!   (the nickname as it is):
@@ -21,10 +22,32 @@
 use super::push::{Ranked, elo_rows};
 use super::{ServerMessage, WireError, cut, limits};
 
-/// The `start` of the ask.
+/// The `start` of the ask about the player of the asker's last `93`.
 pub const PLAYER_MATCHES_START: u32 = 2_230_000_000;
+/// The `start` of the ask about the asker itself.
+pub const OWN_MATCHES_START: u32 = 2_230_000_001;
 /// The most matches one answer lists.
 pub const PLAYER_MATCHES_ROWS: usize = 10;
+
+/// Whose matches an ask is about.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Whose {
+    /// The player the asker was last shown the kits of (its last `93`).
+    Shown,
+    /// The asker.
+    Own,
+}
+
+impl Whose {
+    /// The ask at ranking start `start`, if it is one.
+    pub fn of_start(start: u32) -> Option<Self> {
+        match start {
+            PLAYER_MATCHES_START => Some(Self::Shown),
+            OWN_MATCHES_START => Some(Self::Own),
+            _ => None,
+        }
+    }
+}
 
 /// How a match ended for the player.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -1,27 +1,30 @@
 //! The player pop-up's Matches tab (`survarium::v026g::lobby::
 //! player_matches`): the latest public matches of the player whose kits
-//! the asker was shown last, from the match history. Private matches and
-//! matches against bots are never listed.
+//! the asker was shown last, or of the asker itself, from the match
+//! history. Private matches and matches against bots are never listed.
 
 use std::time::Instant;
 
 use session::LockExt;
 use session::v026g::persist::history::{PlayerMatch, Winner};
 use survarium::v026g::lobby::player_matches::{
-    Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, player_matches,
+    Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, Whose, player_matches,
 };
 
 use super::core::{Core, Who};
 
 impl Core<'_> {
-    /// `3B 00 <PLAYER_MATCHES_START> <count>`: at most `count` (and
-    /// [`PLAYER_MATCHES_ROWS`]) matches of the account of the asker's last
-    /// `93`. Asked before any `93`, or for an account with no public match,
-    /// the answer lists none.
-    pub(super) fn player_matches(&mut self, who: &Who, count: u8, now: Instant) {
-        let subject = self
-            .player(who.addr)
-            .and_then(|player| player.shown_kits_of);
+    /// `3B 00 <PLAYER_MATCHES_START | OWN_MATCHES_START> <count>`: at most
+    /// `count` (and [`PLAYER_MATCHES_ROWS`]) matches of the account of the
+    /// asker's last `93`, or of the asker. Asked before any `93`, or for an
+    /// account with no public match, the answer lists none.
+    pub(super) fn player_matches(&mut self, who: &Who, whose: Whose, count: u8, now: Instant) {
+        let subject = match whose {
+            Whose::Shown => self
+                .player(who.addr)
+                .and_then(|player| player.shown_kits_of),
+            Whose::Own => Some(who.account_id),
+        };
         let nickname = subject
             .and_then(|account_id| self.accounts.get(account_id))
             .map(|account| account.locked().name.clone())

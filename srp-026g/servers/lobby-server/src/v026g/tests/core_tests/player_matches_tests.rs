@@ -1,6 +1,7 @@
 //! The player pop-up's Matches tab (`player_matches`): `3B` at
-//! `PLAYER_MATCHES_START`, about the account of the asker's last `93`,
-//! answered from srp.db's history with its public matches only.
+//! `PLAYER_MATCHES_START`, about the account of the asker's last `93`, or
+//! at `OWN_MATCHES_START`, about the asker, answered from srp.db's history
+//! with its public matches only.
 
 use session::v026g::persist::history::{
     Counters, Eligibility, MatchInfo, MatchKind, MatchRecord, PlayerLine, PlayerRecord, Presence,
@@ -9,7 +10,7 @@ use session::v026g::persist::history::{
 use session::v026g::persist::{GameRepository, SqliteGameRepository};
 use session::v026g::replays::{ReplayId, ReplaySettings, Replays, Sidecar};
 use survarium::v026g::lobby::GEAR_BY_PLACE;
-use survarium::v026g::lobby::player_matches::PLAYER_MATCHES_START;
+use survarium::v026g::lobby::player_matches::{OWN_MATCHES_START, PLAYER_MATCHES_START};
 use survarium::v026g::maps::GameMode;
 
 use super::*;
@@ -26,9 +27,9 @@ fn temp(name: &str) -> std::path::PathBuf {
     dir
 }
 
-/// Bob's match `n` (match id `0x100 + n`), ended `n` hours after the
-/// epoch's first day: he is on team `n % 2`, team 0 wins.
-fn bobs_match(n: u32, kind: MatchKind) -> MatchRecord {
+/// Bob's (account `bob`) match `n` (match id `0x100 + n`), ended `n` hours
+/// after the epoch's first day: he is on team `n % 2`, team 0 wins.
+fn bobs_match(bob: u32, n: u32, kind: MatchKind) -> MatchRecord {
     let ended_at = 86_400 + u64::from(n) * 3_600;
     MatchRecord {
         replay_id: ReplayId::new(
@@ -46,7 +47,7 @@ fn bobs_match(n: u32, kind: MatchKind) -> MatchRecord {
             team_points: [5, 2],
         },
         players: vec![PlayerRecord {
-            account_id: BOB,
+            account_id: bob,
             clan_id: None,
             line: PlayerLine {
                 team: (n % 2) as u8,
@@ -64,20 +65,20 @@ fn bobs_match(n: u32, kind: MatchKind) -> MatchRecord {
     }
 }
 
-/// A world on srp.db in `dir` with Bob's 12 public matches (0 to 11), then
-/// a private one and one against bots, newer than all.
-fn world(dir: &std::path::Path) -> World {
+/// A world on srp.db in `dir` with Bob's (account `bob`) 12 public matches
+/// (0 to 11), then a private one and one against bots, newer than all.
+fn world(dir: &std::path::Path, bob: u32) -> World {
     {
         let mut repository = SqliteGameRepository::open_in(dir).unwrap();
         for n in 0..12 {
-            let record = bobs_match(n, MatchKind::Public(Eligibility::Counted));
+            let record = bobs_match(bob, n, MatchKind::Public(Eligibility::Counted));
             repository.record_match(&record).unwrap();
         }
         repository
-            .record_match(&bobs_match(12, MatchKind::Private))
+            .record_match(&bobs_match(bob, 12, MatchKind::Private))
             .unwrap();
         repository
-            .record_match(&bobs_match(13, MatchKind::VsBots))
+            .record_match(&bobs_match(bob, 13, MatchKind::VsBots))
             .unwrap();
     }
     let repository = SqliteGameRepository::open_in(dir).unwrap();
@@ -88,8 +89,13 @@ fn world(dir: &std::path::Path) -> World {
 
 /// The rows of the answer to the tab's ask for `count`.
 fn matches(world: &mut World, index: usize, count: u8) -> Vec<String> {
+    matches_at(world, index, PLAYER_MATCHES_START, count)
+}
+
+/// The rows of the answer to the ask at `start` for `count`.
+fn matches_at(world: &mut World, index: usize, start: u32, count: u8) -> Vec<String> {
     world.take(index);
-    world.ask(index, request::ranking(PLAYER_MATCHES_START, count));
+    world.ask(index, request::ranking(start, count));
     let decoded = world.take(index);
     let [Decoded::EloList(rows)] = &decoded[..] else {
         panic!("not one 91: {decoded:?}");
@@ -110,7 +116,7 @@ fn matches(world: &mut World, index: usize, count: u8) -> Vec<String> {
 #[test]
 fn the_tab_lists_the_shown_players_public_matches_newest_first() {
     let dir = temp("public");
-    let mut world = world(&dir);
+    let mut world = world(&dir, BOB);
     let (bob, _) = world.accounts.sign_up(BOB, "Bob");
     bob.locked().rating = 5000;
     let alice = world.connect("Alice");
@@ -145,9 +151,37 @@ fn the_tab_lists_the_shown_players_public_matches_newest_first() {
 }
 
 #[test]
+fn the_own_ask_lists_the_askers_matches() {
+    let dir = temp("own");
+    // Bob signs in first: account 1.
+    let mut world = world(&dir, 1);
+    let bob = world.connect("Bob");
+    assert_eq!(world.ids[bob].0, 1);
+    world.accounts.get(1).unwrap().locked().rating = 5000;
+    let alice = world.connect("Alice");
+
+    // Whoever Bob was shown last, its own ask is about Bob: the rows
+    // Alice gets about him.
+    let own = matches_at(&mut world, bob, OWN_MATCHES_START, 10);
+    assert_eq!(own.len(), 11);
+    assert_eq!(own[0], "P1;10;Bob");
+    assert!(own[1].starts_with("P2;0000010b;"));
+    world.ask(alice, request::ranking(0, 100));
+    world.take(alice);
+    world.ask(alice, request::player_details(GEAR_BY_PLACE, 1));
+    assert_eq!(matches(&mut world, alice, 10), own);
+    // Alice played none.
+    assert_eq!(
+        matches_at(&mut world, alice, OWN_MATCHES_START, 10),
+        ["P1;0;Alice"]
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_match_whose_replay_is_kept_says_so() {
     let dir = temp("replay");
-    let mut world = world(&dir.join("db"));
+    let mut world = world(&dir.join("db"), BOB);
     let settings = ReplaySettings {
         replay_dir: dir.join("replays"),
         record_dir: dir.join("recordings"),
