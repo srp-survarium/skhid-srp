@@ -36,6 +36,7 @@ package replay_player_fla
    import scaleform.clik.layout.LayoutData;
    import scaleform.gfx.Extensions;
    import survarium.constants.TeamSide;
+   import survarium.replay.ReplayText;
    
    public dynamic class MainTimeline extends MovieClip
    {
@@ -389,6 +390,18 @@ package replay_player_fla
          this.selectActiveLabel();
       }
       
+      // srp's: the markers as one string from the exe, `time_ms:kind:label;...` (ReplayText.markers).
+      public function set_markers_text(value:String) : void
+      {
+         this.set_markers_list(ReplayText.markers(value));
+      }
+
+      // srp's: the players as one string from the exe, `place:team:name;...` (ReplayText.players).
+      public function set_players_text(value:String) : void
+      {
+         this.set_players_list(ReplayText.players(value));
+      }
+
       public function set_players_list(value:Array) : void
       {
          trace("set_players_list::",value ? value.length : null);

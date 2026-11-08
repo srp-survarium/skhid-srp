@@ -15,6 +15,14 @@ The 0.26g exe has a replay player the 0.21d exe only began (0.21d: `replay_match
 - the command-line key `-match_replay=<name>` (description "replay match"; key object 0xA9C9B0, read with `is_set_as_string` in `game::on_base_resources_created` at 0x1EB099, after `-spectator`);
 - a file reader, `replay_match_reader` (0x694 bytes, constructor 0x1F03D0), with **key frames** (`key_frame_type`, at most 128), seeking (`game::enqueue_replay_seek_to` 0x1EE3C0 -> 0x1EE2E0) and the check "Replay of other engine version is used" (0x1F067A);
 - a replay UI, `resources/flash_movies/replay_player.swf`: play/pause, speed 0.01 to 10, a seek bar over the match's length, one-frame steps, a player list (`select_player(id, 0|1)`, first or third person), a free view, `smooth_replay_camera`, `toggle_replay_ui`;
+  - since 2026-11-08 its root also takes the markers and the players as one string each, which GFx's
+    Invoke passes more easily than an Array of objects (`survarium.replay.ReplayText`):
+    `set_markers_text("time_ms:kind:label;...")` (kind 1 a kill, 2 an objective; sorted by time, into
+    `set_markers_list`, whose previous/next buttons then step from one to the next) and
+    `set_players_text("place:team:name;...")` (place 0..19, team the match's 0 or 1 shown as ally or
+    enemy, into `set_players_list`). The last field may hold `:`, no field `;`; a malformed entry is
+    left out; an empty string empties the bar. The markers bar is a column of 25 px buttons: send
+    kills only, or a few. `scripts/replay-markers/check.sh <replay_player.swf>` checks both in Ruffle.
 - no lobby list of replays, and **no writer**: the strings "replays" and ".sur" each have one reader, nothing in the exe opens a `.sur` for writing, and `key_frame_type::push_back` is called only by the reader (LIKELY: no writer path found). The game's own recorder is the journal (`-record_journal`), which is off since patch revision 4 and is another thing (it holds the packets one client got and its device input, and plays only with `-replay_journal`).
 
 ## 2. Where the file is
