@@ -100,8 +100,9 @@
 //!   ([`give_golden_silver`]); from then on it rerolls, crafts and counts
 //!   for the rank as any modification.
 //! - **Premium armour** ([`golden::armour_bonuses`], the owner's rule of
-//!   2026-10-22): the same, with its two premium bonuses (+5 % experience,
-//!   +5 % reputation with its faction) as its own first modifications,
+//!   2026-10-22): the same, with its two premium bonuses (+20 % experience,
+//!   +50 % reputation with its faction; +5 % each in 0.26g, the owner's
+//!   of 2026-11-08) as its own first modifications,
 //!   given once to those owned before ([`give_premium_armour_bonuses`]);
 //!   its plain piece and it are donors for each other as a golden weapon
 //!   and its plain weapon are.
