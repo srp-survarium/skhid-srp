@@ -2696,6 +2696,8 @@ st_srp_replay_my_deaths	Watch my deaths
 st_srp_replay_no_answer	The server did not answer. Try again later.
 st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
 st_srp_replay_not_yours	You can watch replays only of matches you played in.
+st_srp_replay_number_bad	Type a match's number as History shows it: # and 8 letters and digits, such as #1ce45cbe.
+st_srp_replay_number_hint	Match number
 st_srp_replay_off	Replays are switched off on this server.
 st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
 st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s

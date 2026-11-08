@@ -2696,6 +2696,8 @@ st_srp_replay_my_deaths	Watch my deaths
 st_srp_replay_no_answer	Server neodpověděl. Zkus to později.
 st_srp_replay_not_recorded	Tento zápas se nenahrával: měl méně než 6 hráčů nebo bylo nahrávání vypnuté.
 st_srp_replay_not_yours	Přehrávat můžeš jen zápasy, kterých ses zúčastnil.
+st_srp_replay_number_bad	Type a match's number as History shows it: # and 8 letters and digits, such as #1ce45cbe.
+st_srp_replay_number_hint	Match number
 st_srp_replay_off	Záznamy jsou na tomto serveru vypnuté.
 st_srp_replay_old_game	Tvoje verze hry neumí přehrávat záznamy. Aktualizuj hru opětovným spuštěním přes launcher.
 st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s

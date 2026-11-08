@@ -2696,6 +2696,8 @@ st_srp_replay_my_deaths	Watch my deaths
 st_srp_replay_no_answer	Palvelin ei vastannut. Yritä myöhemmin uudelleen.
 st_srp_replay_not_recorded	Ottelua ei tallennettu: pelaajia oli alle 6 tai tallennus oli pois käytöstä.
 st_srp_replay_not_yours	Voit katsoa vain niiden otteluiden tallenteita, joissa itse pelasit.
+st_srp_replay_number_bad	Type a match's number as History shows it: # and 8 letters and digits, such as #1ce45cbe.
+st_srp_replay_number_hint	Match number
 st_srp_replay_off	Tallenteet ovat pois käytöstä tällä palvelimella.
 st_srp_replay_old_game	Peliversiosi ei tue tallenteita. Päivitä peli käynnistämällä se uudelleen käynnistimestä.
 st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s

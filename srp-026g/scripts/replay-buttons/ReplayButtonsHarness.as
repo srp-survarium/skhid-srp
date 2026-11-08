@@ -22,7 +22,10 @@ package
    //   and an answer for another match leave it; the chip fits the row;
    // - the results screen (SrvVictoryScreenReskin) shows Watch replay and Watch my deaths for a
    //   match with an id, left of the close button, labels fitting; none without an id; Watch my
-   //   deaths asks through the History's prompt (its answer sets the History row's chip).
+   //   deaths asks through the History's prompt (its answer sets the History row's chip); the
+//   match's number after them;
+// - "watch by match number": the row's number (#1ce45cbe) and the box above the History that
+//   watches a number typed as rows show it.
    // Ruffle has no exe (ExternalInterface throws): the asks are seen through the answers taken.
    // Prints "REPLAYBUTTONS ..." lines and ends with "REPLAYBUTTONS RESULT pass" or "... fail: ...".
    public class ReplayButtonsHarness extends Sprite
@@ -199,8 +202,45 @@ package
          answer("gone",OTHER);
          expect(language + ": another match's answer changed the chip",chip(row) == words.getName("st_srp_replay_chip_ready"));
          answer("failed",MATCH);
+         numbers(language,list,row,map);
          list.parent.removeChild(list);
-         trace("REPLAYBUTTONS " + language + ": History row: Download, Watch and its chips");
+         trace("REPLAYBUTTONS " + language + ": History row: Download, Watch, its chips and number");
+      }
+
+      // The row's number (under Download, left of the chip) and the box above the list: a number
+      // typed as the row shows it (any case, `#` or none) is watched; anything else is not asked.
+      private function numbers(language:String, list:*, row:DisplayObjectContainer, map:TextField) : void
+      {
+         var number:TextField = find(row,"srpReplayNumberText") as TextField;
+         var box:* = find(list,"srpReplayNumberBox");
+         var watch:* = find(list,"srpReplayNumberWatch");
+         var chipBox:DisplayObject = find(row,"srpReplayChip");
+         expect(language + ": the row's number is '" + (number ? number.text : null) + "'",number != null && number.text == "#1ce45cbe");
+         if(number == null || box == null || watch == null)
+         {
+            failures.push(language + ": no number box");
+            return;
+         }
+         expect(language + ": the row's number overlaps the map name or the chip",number.x >= map.x + map.width
+            && (chipBox == null || number.x + number.width <= chipBox.x));
+         fits(language + ": the number box's Watch",watch);
+         expect(language + ": the number box overlaps its Watch",box.x + box.width <= watch.x);
+         for each(var typed:String in ["#1CE45CBE","1ce45cbe"," #1ce45cbe "])
+         {
+            answer("gone",OTHER);
+            box.text = typed;
+            watch.dispatchEvent(new Click(Click.CLICK));
+            answer("preparing",MATCH,2);
+            expect(language + ": '" + typed + "' was not asked for",chip(row) == words.getName("st_srp_replay_chip_preparing"));
+            answer("failed",MATCH);
+         }
+         for each(var bad:String in ["","1ce45cbe0","zz","#"])
+         {
+            box.text = bad;
+            watch.dispatchEvent(new Click(Click.CLICK));
+            answer("gone",MATCH);
+            expect(language + ": '" + bad + "' was asked for",chip(row) == words.getName("st_srp_replay_chip_preparing"));
+         }
       }
 
       private function report(match:uint) : Object
@@ -247,7 +287,10 @@ package
          fits(language + ": results Watch replay",buttons[0]);
          fits(language + ": results Watch my deaths",buttons[1]);
          expect(language + ": results buttons overlap",buttons[0].x + buttons[0].width <= buttons[1].x);
-         expect(language + ": results buttons reach the close button",buttons[1].x + buttons[1].width <= close.x);
+         var number:TextField = find(screen,"srpMatchNumber") as TextField;
+         expect(language + ": the results' number is '" + (number ? number.text : null) + "'",number != null && number.visible && number.text == "#1ce45cbe");
+         expect(language + ": the results' number reaches the close button",number != null && buttons[1].x + buttons[1].width <= number.x
+            && number.x + number.width <= close.x);
          buttons[1].dispatchEvent(new Click(Click.CLICK));
          answer("watching",MATCH,4000);
          expect(language + ": Watch my deaths did not ask (no chip on the History row)",row != null
