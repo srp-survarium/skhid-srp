@@ -51,7 +51,7 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
     } else if path == skills::PATH {
-        (lang.tr("Skills", "Навички"), skills::body(lang).to_owned())
+        (lang.tr("Skills", "Навички"), skills::body(lang))
     } else if path == EQUIPMENT {
         (lang.tr("Equipment", "Спорядження"), equipment::body(lang))
     } else if path == MODIFIERS {
@@ -90,8 +90,8 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
                     lang,
                     skills::PATH,
                     &lang.tr("Skills", "Навички"),
-                    &lang.tr("Every skill tree: thresholds, ranks and what each rank gives.",
-                        "Усі гілки навичок: пороги, ранги й що дає кожен ранг."),
+                    &lang.tr("Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.",
+                        "Рівні й скільки досвіду вони потребують; усі гілки навичок: пороги, ранги й що дає кожен ранг."),
                 ),
                 section(
                     lang,
