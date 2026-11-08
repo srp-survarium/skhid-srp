@@ -29,8 +29,9 @@
 //!   first (0xFF: anyone). Answered at once with one `R1` row, then at each
 //!   poll as an ask is: `preparing` while the match server reads the
 //!   recording, `watching` with the match time it starts at (ms) once its
-//!   game is sent, or why not (`not_yours`, `incompatible` with the box,
-//!   `gone`, `failed`, `busy`, `old_game`, `off`). No `9E`, no download.
+//!   game is sent, or why not (`not_yours` under `SRP_REPLAY_WATCH=match`,
+//!   `incompatible` with the box, `gone`, `failed`, `busy`, `old_game`,
+//!   `off`). No `9E`, no download.
 //!   The game goes to the match server as a spectator does (`85` "found",
 //!   then `82` with its session) and is shown the replay there; its player
 //!   is in none of its room's matches until the session is over.

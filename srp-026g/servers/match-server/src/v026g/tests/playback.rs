@@ -609,9 +609,10 @@ fn read_for(bench: &mut Bench, replays: &Replays, account: u32) -> Stage {
 }
 
 /// The real flow: the recording read from the recordings' folder, judged
-/// for each asker, shared by the sessions of its match. A player of the
-/// match and a moderator watch it; anyone else, or a game of another
-/// epoch, is refused with the lobby's words; `all` lets anyone. What the
+/// for each asker, shared by the sessions of its match. With `match`, a
+/// player of the match and a moderator watch it and anyone else is
+/// refused; a game of another epoch is refused with the lobby's words;
+/// `all` (the default) lets anyone. What the
 /// game gets before it loads is what the recorded game got, byte for byte,
 /// but its 0xE4 makes no place its own.
 #[test]

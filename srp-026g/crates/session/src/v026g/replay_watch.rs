@@ -44,9 +44,9 @@ const REFUSAL_KEPT: Duration = Duration::from_secs(15 * 60);
 /// Who may watch a match's replay (`SRP_REPLAY_WATCH`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Access {
-    /// `match` (the default): its players and the moderators.
+    /// `match`: its players and the moderators.
     Match,
-    /// `all`: every signed-in player.
+    /// `all` (the default): every signed-in player.
     All,
 }
 
@@ -63,7 +63,7 @@ pub struct WatchSettings {
 impl Default for WatchSettings {
     fn default() -> Self {
         Self {
-            access: Access::Match,
+            access: Access::All,
             moderators: HashSet::new(),
             max_sessions: DEFAULT_MAX_SESSIONS,
         }
@@ -74,8 +74,8 @@ impl WatchSettings {
     pub fn from_env() -> Self {
         let var = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
         let access = match var("SRP_REPLAY_WATCH").as_deref().map(str::trim) {
-            None | Some("match") => Access::Match,
-            Some("all") => Access::All,
+            None | Some("all") => Access::All,
+            Some("match") => Access::Match,
             Some(other) => {
                 log::warn!("SRP_REPLAY_WATCH={other:?} is neither `match` nor `all`: `match`");
                 Access::Match
@@ -518,10 +518,15 @@ mod tests {
     }
 
     #[test]
-    fn players_and_moderators_watch_a_match_and_all_lets_anyone() {
-        let watches = watches(Access::Match, 4);
+    fn anyone_watches_by_default_and_match_keeps_it_to_players_and_moderators() {
         let players = [ALICE];
         let revisions = [Some(40)];
+        let open = Watches::new(Some(WatchSettings::default()));
+        assert_eq!(
+            open.judge(&request(0x2_0000), &players, &revisions, 30),
+            Ok(())
+        );
+        let watches = watches(Access::Match, 4);
         assert_eq!(
             watches.judge(&request(ALICE), &players, &revisions, 30),
             Ok(())
@@ -533,11 +538,6 @@ mod tests {
         assert_eq!(
             watches.judge(&request(0x2_0000), &players, &revisions, 30),
             Err((Status::NotYours, None))
-        );
-        let all = self::watches(Access::All, 4);
-        assert_eq!(
-            all.judge(&request(0x2_0000), &players, &revisions, 30),
-            Ok(())
         );
         // Another epoch: refused with why, for a player of it too.
         assert_eq!(

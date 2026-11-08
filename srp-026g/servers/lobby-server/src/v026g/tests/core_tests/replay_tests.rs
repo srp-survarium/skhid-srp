@@ -367,7 +367,7 @@ fn every_refusal_fits_the_message_box_in_every_language() {
 /// of `rooms_tests::spec` (15 s), and a little more.
 const ROOM_TO_MATCH: Duration = Duration::from_secs(32);
 
-/// Replays with sessions on (the match's players and moderators).
+/// Replays with sessions on (anyone may watch).
 fn sessions() -> &'static Replays {
     use session::v026g::replay_watch::WatchSettings;
     Box::leak(Box::new(

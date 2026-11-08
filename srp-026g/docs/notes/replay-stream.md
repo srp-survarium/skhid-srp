@@ -26,15 +26,15 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    already, or `SRP_REPLAY_WATCH_MAX` sessions run).
 3. The match server reads the match's newest `.srprec` from `SRP_RECORD_DIR` on a thread of its own
    (nice 19, one at a time; a recording already loaded for another session of that match is
-   shared), and judges the asker before converting it: the players of the match and the
-   moderators (`SRP_REPLAY_WATCH=match`, the default) or anyone (`all`); the recording's
-   games of the asker's simulation epoch (the `incompatible` rule and refusals of
-   `replay_watch.md`). The conversion is `sur_convert`'s, in memory: no `.sur` file, no token.
+   shared), and judges the asker before converting it: anyone (`SRP_REPLAY_WATCH=all`, the
+   default: the owner's decision, every player may watch any replay), or only the players of the
+   match and the moderators (`match`); the recording's games of the asker's simulation epoch
+   (the `incompatible` rule and refusals of `replay_watch.md`). The conversion is `sur_convert`'s, in memory: no `.sur` file, no token.
 4. The movie polls as for History (`3B 00 <REPLAY_START> 01`): `R1;preparing;<id>;1` while it
-   is read (2 while waiting), then `R1;watching;<id>;<start ms>`, or the refusal: `not_yours`,
-   `incompatible` (with the game's message box saying why, once), `gone` (no recording),
-   `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes),
-   `busy`.
+   is read (2 while waiting), then `R1;watching;<id>;<start ms>`, or the refusal: `not_yours`
+   (`match` only), `incompatible` (with the game's message box saying why, once), `gone` (no
+   recording), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2
+   minutes), `busy`.
 5. Read: the lobby sends the game to the match server as a spectator is sent: `85` "found",
    then `82` (match id = the recorded match, team 0, its session). The match server takes its
    0xD8 as the session's (a game with the late-join capability only) and plays it the
@@ -143,7 +143,7 @@ is a `91` row at the request's start plus its index.
 | setting | |
 |---|---|
 | `SRP_RECORD_DIR` | the recordings; sessions are off without it |
-| `SRP_REPLAY_WATCH` | `match` (default: the match's players and the moderators) or `all` |
+| `SRP_REPLAY_WATCH` | `all` (default: anyone) or `match` (the match's players and the moderators); another value is `match` |
 | `SRP_REPLAY_MODERATORS` | account ids, comma-separated, that may watch any match |
 | `SRP_REPLAY_WATCH_MAX` | sessions at once (default 4: the host has 1 vCPU and 512 MB; each costs about one player's traffic and its recording in memory, a few MB to a few tens) |
 | `SRP_REPLAY_MAX_RECORDING_MB` | as for History (default 24) |
@@ -158,7 +158,7 @@ with the same exe (`SRP_RECORD_DIR`, `SRP_RECORD_MIN_PLAYERS=1` for a solo match
 
 ```sh
 # with the dev server's usual settings (SRP_GAME_DATA, SRP_DATA_DIR, ...):
-SRP_RECORD_DIR=/tmp/srp-local/recordings SRP_REPLAY_WATCH=all \
+SRP_RECORD_DIR=/tmp/srp-local/recordings \
 SRP_DEV_REPLAY_WATCH=<match id hex> SRP_DEV_REPLAY_CONTROL=/tmp/srp-local/replay.control \
   ./target/release/srp
 ```
