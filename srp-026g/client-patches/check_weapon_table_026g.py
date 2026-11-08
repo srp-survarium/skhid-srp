@@ -131,6 +131,15 @@ def table_middles():
 
 TABLE_MIDDLES = table_middles()
 
+
+# weapon_table_026g.asm's PARKED (items_dict id: the mask of the bones it does not draw at the bench)
+def table_parked():
+    import os
+    import re
+    text = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_table_026g.asm")).read()
+    rows = re.findall(r"^(?:parked:)?\s+PARK (\d+), (0x[0-9A-Fa-f]+)", text[text.index("parked:"):], re.M)
+    return {int(d): int(m, 16) for d, m in rows}
+
 # weapon_table_026g.asm's constants and state; the classic lobby's spot (its project's srp_lobby, the
 # content edit lobby-scenes-1)
 BENCH = (4.25, 1.30, 3.05)
@@ -1182,6 +1191,39 @@ def main():
             assert table.flag(STAMP) == 1
             say(f"{name}{rebased}: its middle ({', '.join(f'{c:.4f}' for c in middle)}) of the model is drawn at "
                 "the bench, READY 1, every register but eax kept; the transform at the state's +50h, its stamp +1")
+
+        # Round 9: the parts the 3rd-view idle parks where the hand holds the gun (the Benelli's shell beside
+        # its grip) are not drawn at the bench: PARKED's bones of the frame lose rows 0..2, row 3 and every
+        # other bone kept; a mask bone past the frame's count (the VSS's 8 of 2) and a weapon not in PARKED
+        # (the PM) write nothing.
+        parked = table_parked()
+        assert parked[125] == 1 << 7 and parked[308] == 1 << 8 and 89 not in parked
+
+        def parked_case(name, dict_id, count):
+            def setup(t):
+                middle = t.weapon(name)
+                copy = CHARACTER + 0x18 + 0x4634 * 1
+                t.emu.mem_write(copy + 0x1568 + 5 * 0xB4 + 4, struct.pack("<H", dict_id))
+                t.emu.mem_write(BONE_POSES + 128, b"".join(
+                    struct.pack("<16f", *[float(b * 100 + i + 1) for i in range(16)]) for b in range(2, count)))
+                t.lobby.word(FRAME - 0x18, count)
+                return middle
+            table, end, out, m, middle, regs = bench_case(setup)
+            assert end == DRAW_ITEM and all(out[r] == v for r, v in regs.items() if r != UC_X86_REG_EAX)
+            return [struct.unpack("<16f", table.emu.mem_read(BONE_POSES + 64 * b, 64)) for b in range(count)]
+
+        before = parked_case("PM", 89, 9)
+        mask = parked[125]
+        bones = parked_case("PM", 125, 9)
+        for b in range(9):
+            if mask >> b & 1:
+                assert bones[b][:12] == (0.0,) * 12 and bones[b][12:] == before[b][12:], (b, bones[b])
+            else:
+                assert bones[b] == before[b], b
+        assert parked_case("VSS", 308, 2) == parked_case("VSS", 89, 2)
+        say(f"the parked parts{rebased}: the Benelli's (items_dict 125) bone 7 (`patron`, its shell) of the frame "
+            "loses rows 0..2 (its vertices on one point: not drawn), its place and the other 8 bones kept; the VSS's mask bone 8 past the frame's 2 bones and the PM (not in "
+            "PARKED) write nothing; every register but eax kept")
 
         # The left button at the bench.
         table = Table(patched, delta)

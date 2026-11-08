@@ -2817,6 +2817,18 @@ Round 7 (2026-10-30, the lobby audit; `../docs/notes/lobby-scenes.md`, "The came
   characters the account's own (`squad`), the scene without anyone in it (`empty`: the lobby's
   three characters drop their players, 0x284AA0), for static captures of every lobby.
 
+Round 9 (2026-11-08, a player in Discord: "the Benelli's buckshot sticks out of its grip"; the owner:
+"this affects many weapons, SKS I think"; client_patch.md section 3.42).
+- **Parked reload parts are not drawn at the bench.** The 3rd-view idle parks some guns' reload
+  parts where the hand holds them (the Benelli's and the MP-153's shell beside the grip, the
+  Winchester's cartridge at the wrist, the SKS's clip and rounds in its thumbhole stock, a second
+  magazine over the first on the vz. 58, VSS, Val and SR-3M); the bench draws the weapon without
+  the hand. `hide_parked` zeroes rows 0..2 of those bones' matrices of the frame (PARKED: items_dict
+  id and a bone mask, 12 entries, keyed as MIDDLES), so nothing of them is drawn; the hand keeps
+  them as before. 2 685 bytes.
+- **Checked:** `check_weapon_table_026g.py` 30 checks (the Benelli's shell bone, a mask bone past
+  the frame's count, a weapon not in the table). Not run in a game.
+
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
 The owner (2026-10-21): "when player dies they can still move camera
