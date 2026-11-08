@@ -24,10 +24,9 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - `g26_matches`: one row a finished match: its own number (`id`, counting up; the match server's id
   is kept beside it, it is random and repeats across restarts), its `replay_id` (that id with the
   UTC second the match was made, `rec026g_20261014-023456_000000ab`: its recording's file stem
-  whether it was recorded or not, so a match stays told apart across restarts and a backfill from
-  recordings finds the rows it already has), when it ended (Unix seconds), how
-  long it lasted, map, mode, match level, the kind (`public`, `private`, `vs_bots`), the winner
-  (`team0`, `team1`, `draw`, `unknown`) and the two teams' points.
+  whether it was recorded or not, so a match stays told apart across restarts), when it ended
+  (Unix seconds), how long it lasted, map, mode, match level, the kind (`public`, `private`,
+  `vs_bots`), the winner (`team0`, `team1`, `draw`, `unknown`) and the two teams' points.
 - A public match's eligibility, set when it is written (`history::Eligibility`): `counted`, or why
   not: `with_bots` (a bot played; it moved no rating either), `few_players` (fewer than 6 accounts
   in it, leavers and late joiners counted: `SRP_RECORD_MIN_PLAYERS`' default and a default room's
@@ -35,8 +34,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   served; only counted ones go into totals, favourites, days, top lists and best scores. A player
   whose public matches all did not count is still named, with totals of zeros.
 - `g26_match_players`: one row a player who was in the match (finished or left): team, place in
-  its team by score (from 1), rating after the match (none for a match kept from its recording),
-  clan at the time, score, kills, deaths and the counters below.
+  its team by score (from 1), rating after the match, clan at the time, score, kills, deaths and
+  the counters below.
 - `g26_player_totals`, `g26_clan_totals`: the counted public matches added up, at record time. A public
   match counts once for a clan if at least one member played in it (its clan at the time), and is a
   win if at least one of them was on the winning team (members on both teams: a win). Score,
@@ -73,10 +72,11 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 
 `g26_match_events` (`persist/match_events.rs`): what happened in a match, keyed by its `replay_id`
 and written in the same transaction as the match. The match server makes the list
-(`match-server/src/v026g/events.rs`) from the worlds it reads: live, the trusted ones (one asked
-for every 5 s, `Timing::refresh`; more apart where one was not trusted); offline, every time's
-upload most clients agree on. No message names a kill, a battery or a capture
-(`kill_weapon.md` 1), so each event is what changed between two worlds' shared statistics and rules.
+(`match-server/src/v026g/events.rs`) from the trusted worlds it reads (one asked for every 5 s,
+`Timing::refresh`; more apart where one was not trusted). History and events start with the first
+match after they shipped: older matches are not added from their recordings. No message names a
+kill, a battery or a capture (`kill_weapon.md` 1), so each event is what changed between two
+worlds' shared statistics and rules.
 
 | kind | from | actor | victim | other |
 |---|---|---|---|---|
@@ -107,18 +107,6 @@ upload most clients agree on. No message names a kill, a battery or a capture
   `lobby-server/src/v026g/match_events.rs` (`match_events_page`): a head
   `E1;<ok|none|error>;<match id 8 hex>;<events>;<page>`, then 254 events a page, one a row,
   `<K|D|F|B|C|S|E>;<at>;<after>;...` (the module's table).
-
-### Backfill from recordings
-
-`srp-recording-to-history --data <server-game-data.db> <srp.db> <file.srprec | dir>...` keeps the
-matches of kept recordings with their events (`match-server/src/v026g/backfill.rs`); a replay id
-kept already (live, or by an earlier run) is left as it is, so a second run changes nothing. Run it
-with srp stopped. From the recording: the header and the result note (map, level, places,
-standing, presence, score, kills, deaths), and the last world's counters and kits used (items from
-the match options). Not in it: the rating after (stored as none) and the clan then (none). A
-recording made before the header said `private` is kept as private (never served, never counted):
-it cannot say its room had no PIN. Matches nobody came to, called off, or whose recording has no
-result (the server stopped) are skipped.
 
 ## The API
 

@@ -235,11 +235,10 @@ pub trait GameRepository: Send {
     fn mark_done(&mut self, _key: &str) -> Result<(), PersistError> {
         Ok(())
     }
-    /// Keeps a finished match in the history ([`history`]), unless its
-    /// replay id is there already: whether it was written. (A repository
+    /// Keeps a finished match in the history ([`history`]). (A repository
     /// that keeps no history: nothing.)
-    fn record_match(&mut self, _record: &history::MatchRecord) -> Result<bool, PersistError> {
-        Ok(false)
+    fn record_match(&mut self, _record: &history::MatchRecord) -> Result<(), PersistError> {
+        Ok(())
     }
     /// A reader of the history for the site, on a connection of its own.
     /// (A repository that keeps no history: `None`.)
@@ -849,7 +848,7 @@ impl GameRepository for SqliteGameRepository {
         admin_actions::load(&self.connection, account_id, limit)
     }
 
-    fn record_match(&mut self, record: &history::MatchRecord) -> Result<bool, PersistError> {
+    fn record_match(&mut self, record: &history::MatchRecord) -> Result<(), PersistError> {
         history::record(&mut self.connection, record)
     }
 

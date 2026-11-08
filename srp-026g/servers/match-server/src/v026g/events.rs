@@ -1,8 +1,7 @@
 //! A match's events (`session::v026g::persist::match_events`,
 //! `docs/notes/match_history.md`, "Events") from the worlds the server
-//! reads: live, the trusted ones as [`super::game::Game`] observes them
-//! (about one every 5 s, `Timing::refresh`); offline, a recording's uploads
-//! (`srp-recording-to-history`). The same [`Extractor`] does both.
+//! reads: the trusted ones as [`super::game::Game`] observes them (about
+//! one every 5 s, `Timing::refresh`).
 //!
 //! No message names a kill, a battery or a capture (`kill_weapon.md` 1):
 //! each event is what changed between two worlds' shared statistics and

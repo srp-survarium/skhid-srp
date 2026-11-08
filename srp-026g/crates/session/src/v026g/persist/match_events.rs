@@ -2,8 +2,8 @@
 //! "Events"): the kills, the deaths, the batteries, the captures and the
 //! score, each with its match time and how exact that time is. The match
 //! server makes the list from the worlds it reads (`match-server`'s
-//! `v026g::events`), live or from a recording, and it is written with its
-//! match ([`super::history::record`]), keyed by the match's replay id.
+//! `v026g::events`), and it is written with its match
+//! ([`super::history::record`]), keyed by the match's replay id.
 
 use rusqlite::{Connection, Row, Transaction, params};
 
@@ -11,7 +11,7 @@ use crate::persist::PersistError;
 use crate::v026g::replays::ReplayId;
 
 /// The schema step after the history's: the events, and one match a
-/// replay id (a match kept live is not kept again from its recording).
+/// replay id (the events' key).
 pub(super) const MIGRATION: &str = "
     CREATE UNIQUE INDEX g26_matches_by_replay ON g26_matches (replay_id);
     -- The lobby names a match by the match server's id.

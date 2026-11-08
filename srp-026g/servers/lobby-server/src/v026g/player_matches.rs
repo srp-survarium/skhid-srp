@@ -1,9 +1,7 @@
 //! The player pop-up's Matches tab (`survarium::v026g::lobby::
 //! player_matches`): the latest public matches of the player whose kits
 //! the asker was shown last, from the match history. Private matches and
-//! matches against bots are never listed, nor a match kept from a
-//! recording that cannot say it was public (the history keeps those as
-//! private).
+//! matches against bots are never listed.
 
 use std::time::Instant;
 

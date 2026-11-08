@@ -1678,7 +1678,12 @@ impl<'a> Shared<'a> {
         used.into_iter()
             .map(|index| history::KitLine {
                 kit: index as u8,
-                counts: history::KitCounts::of(&events, index),
+                counts: history::KitCounts {
+                    kills: u64::from(events[event::KILL][index]),
+                    headshots: u64::from(events[event::HEADSHOT_KILL][index]),
+                    shots: u64::from(events[event::BULLET_FIRE][index]),
+                    hits: u64::from(events[event::BULLET_HIT][index]),
+                },
                 items: account.kits[index]
                     .slots
                     .iter()
@@ -1720,6 +1725,7 @@ impl<'a> Shared<'a> {
                 continue;
             }
             let events = self.events(player);
+            let count = |event| u64::from(total(&events, event));
             players.push(history::PlayerRecord {
                 account_id: player.account_id,
                 clan_id: accounts
@@ -1731,11 +1737,34 @@ impl<'a> Shared<'a> {
                     team: player.team,
                     place: 0,
                     presence,
-                    rating: Some(report.reward.rating_after),
+                    rating: report.reward.rating_after,
                     score: u64::from(player.score),
                     kills: u64::from(player.kills),
                     deaths: u64::from(player.deaths),
-                    counters: history::Counters::of(&events, research),
+                    counters: history::Counters {
+                        assists: count(event::ASSIST),
+                        headshots: count(event::HEADSHOT_KILL),
+                        grenade_kills: count(event::GRENADE_KILL),
+                        melee_kills: count(event::MELEE_KILL),
+                        // Research counts its captures where a battery
+                        // mode counts a delivery's share (`event`).
+                        batteries: if research {
+                            0
+                        } else {
+                            count(event::PUT_VICTORY_ITEM_IN_CONTAINER)
+                        },
+                        capture_hundredths: if research {
+                            count(event::RESEARCH_CAPTURE)
+                        } else {
+                            0
+                        },
+                        // Every artefact taken from an anomaly, the
+                        // results' explorer count; not patch 80's
+                        // empty-slot bonus (event 16).
+                        artefacts: count(event::ARTEFACT),
+                        shots: count(event::BULLET_FIRE),
+                        hits: count(event::BULLET_HIT),
+                    },
                 },
                 kits,
             });
@@ -1743,7 +1772,22 @@ impl<'a> Shared<'a> {
         if players.is_empty() {
             return None;
         }
-        history::rank_places(&mut players);
+        // The place in its team by score; a tie goes to the roster's order.
+        let places: Vec<u8> = players
+            .iter()
+            .enumerate()
+            .map(|(index, me)| {
+                let ahead = players.iter().enumerate().filter(|&(other, them)| {
+                    them.line.team == me.line.team
+                        && (them.line.score > me.line.score
+                            || (them.line.score == me.line.score && other < index))
+                });
+                u8::try_from(ahead.count() + 1).unwrap_or(u8::MAX)
+            })
+            .collect();
+        for (player, place) in players.iter_mut().zip(places) {
+            player.line.place = place;
+        }
         let kind = if result.private {
             MatchKind::Private
         } else if result.vs_bots {

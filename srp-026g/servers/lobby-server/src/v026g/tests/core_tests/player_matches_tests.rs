@@ -52,7 +52,7 @@ fn bobs_match(n: u32, kind: MatchKind) -> MatchRecord {
                 team: (n % 2) as u8,
                 place: 2,
                 presence: Presence::Finished,
-                rating: Some(100),
+                rating: 100,
                 score: 100,
                 kills: u64::from(n),
                 deaths: 3,
@@ -71,7 +71,7 @@ fn world(dir: &std::path::Path) -> World {
         let mut repository = SqliteGameRepository::open_in(dir).unwrap();
         for n in 0..12 {
             let record = bobs_match(n, MatchKind::Public(Eligibility::Counted));
-            assert!(repository.record_match(&record).unwrap());
+            repository.record_match(&record).unwrap();
         }
         repository
             .record_match(&bobs_match(12, MatchKind::Private))

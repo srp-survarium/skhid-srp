@@ -3843,7 +3843,7 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
         (0, 1, history::Presence::Finished)
     );
     assert_eq!((alice.kills, alice.deaths), (3, 1));
-    assert_eq!(alice.rating, Some(report.players[0].reward.rating_after));
+    assert_eq!(alice.rating, report.players[0].reward.rating_after);
     assert_eq!(
         alice.counters,
         history::Counters {

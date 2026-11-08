@@ -12,7 +12,6 @@ use std::sync::{Mutex, MutexGuard, TryLockError};
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, Transaction, params};
 use survarium::v026g::maps::GameMode;
-use survarium::v026g::match_msgs::snapshot::{EVENTS, KITS, event};
 
 use crate::LockExt;
 use crate::persist::PersistError;
@@ -62,9 +61,7 @@ pub(super) const MIGRATION: &str = "
         -- In its team by score, from 1.
         place         INTEGER NOT NULL,
         presence      TEXT NOT NULL CHECK (presence IN ('finished', 'left')),
-        -- The visible rating after the match; none for a match kept from
-        -- its recording (`srp-recording-to-history`), which does not say.
-        rating        INTEGER,
+        rating        INTEGER NOT NULL,
         score         INTEGER NOT NULL,
         kills         INTEGER NOT NULL,
         deaths        INTEGER NOT NULL,
@@ -359,36 +356,6 @@ pub struct Counters {
     pub hits: u64,
 }
 
-impl Counters {
-    /// A player's counters of one match from its statistics' events
-    /// (`events[event][kit]`; a match's Research counts its captures where a
-    /// battery mode counts a delivery's share).
-    pub fn of(events: &[[u16; KITS]; EVENTS], research: bool) -> Self {
-        let count = |event: usize| -> u64 { events[event].iter().map(|&n| u64::from(n)).sum() };
-        Self {
-            assists: count(event::ASSIST),
-            headshots: count(event::HEADSHOT_KILL),
-            grenade_kills: count(event::GRENADE_KILL),
-            melee_kills: count(event::MELEE_KILL),
-            batteries: if research {
-                0
-            } else {
-                count(event::PUT_VICTORY_ITEM_IN_CONTAINER)
-            },
-            capture_hundredths: if research {
-                count(event::RESEARCH_CAPTURE)
-            } else {
-                0
-            },
-            // Every artefact taken from an anomaly, the results' explorer
-            // count; not patch 80's empty-slot bonus (event 16).
-            artefacts: count(event::ARTEFACT),
-            shots: count(event::BULLET_FIRE),
-            hits: count(event::BULLET_HIT),
-        }
-    }
-}
-
 /// The fewest shots a player's totals need for the accuracy top list, so
 /// that a handful of lucky ones does not top it (`g26_player_totals_accuracy`
 /// is the same number).
@@ -404,16 +371,6 @@ pub struct KitCounts {
 }
 
 impl KitCounts {
-    /// Kit `kit`'s own counters in a player's statistics' events.
-    pub fn of(events: &[[u16; KITS]; EVENTS], kit: usize) -> Self {
-        Self {
-            kills: u64::from(events[event::KILL][kit]),
-            headshots: u64::from(events[event::HEADSHOT_KILL][kit]),
-            shots: u64::from(events[event::BULLET_FIRE][kit]),
-            hits: u64::from(events[event::BULLET_HIT][kit]),
-        }
-    }
-
     fn plus(self, more: Self) -> Self {
         Self {
             kills: self.kills + more.kills,
@@ -503,9 +460,8 @@ pub struct PlayerLine {
     /// In its team by score, from 1.
     pub place: u8,
     pub presence: Presence,
-    /// The visible rating after the match; `None` for a match kept from
-    /// its recording, which does not say.
-    pub rating: Option<u16>,
+    /// The visible rating after the match.
+    pub rating: u16,
     pub score: u64,
     pub kills: u64,
     pub deaths: u64,
@@ -549,25 +505,6 @@ pub struct MatchRecord {
     pub events: Vec<MatchEvent>,
 }
 
-/// Sets each player's place in its team by score, from 1; a tie goes to
-/// the roster's order (`players`' own).
-pub fn rank_places(players: &mut [PlayerRecord]) {
-    let places: Vec<u8> = players
-        .iter()
-        .enumerate()
-        .map(|(index, me)| {
-            let ahead = players.iter().enumerate().filter(|&(other, them)| {
-                them.line.team == me.line.team
-                    && (them.line.score > me.line.score
-                        || (them.line.score == me.line.score && other < index))
-            });
-            u8::try_from(ahead.count() + 1).unwrap_or(u8::MAX)
-        })
-        .collect();
-    for (player, place) in players.iter_mut().zip(places) {
-        player.line.place = place;
-    }
-}
 
 /// Public matches added up.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -737,12 +674,12 @@ pub enum ClanKey<'a> {
 }
 
 /// Writes a match with its events and adds a public one to the totals, in
-/// one transaction, unless a match of its replay id is kept already (from
-/// its recording, or live): whether it was written.
+/// one transaction. A match of a replay id kept already is not written
+/// again: the id is unique, and a failed write is retried.
 pub(super) fn record(
     connection: &mut Connection,
     record: &MatchRecord,
-) -> Result<bool, PersistError> {
+) -> Result<(), PersistError> {
     let transaction = connection.transaction()?;
     let kept = transaction
         .query_row(
@@ -753,7 +690,7 @@ pub(super) fn record(
         .optional()?
         .is_some();
     if kept {
-        return Ok(false);
+        return Ok(());
     }
     let info = &record.info;
     transaction.execute(
@@ -848,7 +785,7 @@ pub(super) fn record(
     }
     match_events::record(&transaction, &record.replay_id, &record.events)?;
     transaction.commit()?;
-    Ok(true)
+    Ok(())
 }
 
 impl Totals {
@@ -1715,7 +1652,7 @@ mod tests {
             team,
             place,
             presence: Presence::Finished,
-            rating: Some(100),
+            rating: 100,
             score,
             kills,
             deaths,
@@ -2068,7 +2005,7 @@ mod tests {
                 kind: EventKind::End { points: [5, 3] },
             },
         ];
-        assert!(repository.record_match(&played).unwrap());
+        repository.record_match(&played).unwrap();
         let kept = history
             .events(played.replay_id.match_id())
             .unwrap()
@@ -2097,7 +2034,7 @@ mod tests {
             events: Vec::new(),
             ..played.clone()
         };
-        assert!(repository.record_match(&again).unwrap());
+        repository.record_match(&again).unwrap();
         let newest = history
             .events(played.replay_id.match_id())
             .unwrap()
@@ -2132,16 +2069,14 @@ mod tests {
                 .collect()
         };
         assert!(top(&history).is_empty(), "900 shots are not enough");
-        assert!(repository.record_match(&played).unwrap());
-        assert!(
-            !repository.record_match(&played).unwrap(),
-            "a match is kept once"
-        );
+        repository.record_match(&played).unwrap();
+        repository.record_match(&played).unwrap();
         assert_eq!(top(&history), ["Alice", "Bob"]);
         let accurate = history
             .top(PlayerRanking::Accuracy, 1, &|id| id != 10)
             .unwrap();
         assert_eq!(accurate[0].player.name, "Bob");
+        assert_eq!(accurate[0].totals.matches, 10, "a match is kept once");
     }
 
     #[test]

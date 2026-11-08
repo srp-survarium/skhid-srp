@@ -203,7 +203,7 @@ mod tests {
             players: Vec::new(),
             events,
         };
-        assert!(repository.record_match(&record).unwrap());
+        repository.record_match(&record).unwrap();
         let history = repository.history().unwrap();
         let page = |page| match_events_page(history.as_ref(), 0xAB, page);
         let first = page(0);
