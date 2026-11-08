@@ -517,6 +517,15 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let (Act::Restore, Some(clock)) = (act, GameClock::of(&close.client)) {
         clock.restore();
     }
+    if act == Act::Restore {
+        // The movie outlives the match: a viewer left by Back, whose world the server's farewell
+        // ends, would otherwise keep its controls and cursor over the next real match.
+        if let Some(overlay) = Overlay::of(&close.client) {
+            overlay.set_cursor_shown(false);
+            overlay.keep_cursor(false);
+            overlay.show(false);
+        }
+    }
     Flow::Continue
 }
 
