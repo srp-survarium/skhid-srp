@@ -13,15 +13,17 @@ package
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
 
-   // The Watch window as the lobby draws it, for a screenshot (shots.sh): the lobby movie's own
-   // bottom bar and WatchWindow on a stage of the game's size, told WatchFake's rows. Parameters:
-   // movie, view (live, roster, recent, recent-answered, mine, player, empty, history). Traces
-   // "SHOT ready" once drawn.
+   // The Watch window as the lobby draws it, for a screenshot (shots.sh): the lobby movie's own top
+   // bar, bottom bar, History and WatchWindow (WatchLobby) on a stage of the game's size, told
+   // WatchFake's rows. Parameters: movie, language, view (lobby, mine, friends, search, live, reasons,
+   // copied, results, history). Traces "SHOT ready" once drawn.
    public class WatchShots extends Sprite
    {
       private var loader:Loader = new Loader();
 
       private var domain:ApplicationDomain;
+
+      private var lobby:WatchLobby;
 
       public function WatchShots()
       {
@@ -35,121 +37,83 @@ package
          loader.load(new URLRequest(loaderInfo.parameters.movie || "lobby_menu.swf"),new LoaderContext(false,new ApplicationDomain()));
       }
 
-      private static function find(box:DisplayObjectContainer, name:String) : DisplayObject
-      {
-         for(var i:int = 0; i < box.numChildren; i++)
-         {
-            var child:DisplayObject = box.getChildAt(i);
-            if(child.name == name)
-               return child;
-            if(child is DisplayObjectContainer)
-            {
-               var deeper:DisplayObject = find(child as DisplayObjectContainer,name);
-               if(deeper != null)
-                  return deeper;
-            }
-         }
-         return null;
-      }
-
-      private function take(names:Array) : void
-      {
-         domain.getDefinition("survarium.watch.WatchWindow").take(WatchFake.rows(names));
-      }
-
-      // `button` pressed, then the server's answer about `hex`.
-      private function asked(button:DisplayObject, status:String, hex:String) : void
+      private function click(box:DisplayObjectContainer, name:String) : void
       {
          var Click:* = domain.getDefinition("scaleform.clik.events.ButtonEvent");
-         if(button != null)
-            button.dispatchEvent(new Click(Click.CLICK));
-         answer(status,hex);
-         answer("failed",hex);
+         var b:DisplayObject = WatchLobby.find(box,name);
+         if(b != null)
+            b.dispatchEvent(new Click(Click.CLICK));
       }
 
-      private function answer(status:String, hex:String) : void
+      private function press(box:DisplayObjectContainer, name:String) : void
       {
-         domain.getDefinition("survarium.controls.NotificationListScrollContent").replayTake(
-            [{"nickname":"R1;" + status + ";" + hex + ";0","place":0,"ranking":0,"ranking_diff":0}]);
+         var b:DisplayObject = WatchLobby.find(box,name);
+         if(b != null)
+            b.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
       }
 
       private function loaded(e:Event) : void
       {
-         var view:String = loaderInfo.parameters.view || "live";
-         var shown:DisplayObject = null;
+         var view:String = loaderInfo.parameters.view || "lobby";
          try
          {
             domain = loader.contentLoaderInfo.applicationDomain;
-            domain.getDefinition("survarium.data.LocalizationData").setData(HarnessText.DATA.english);
-            var Scene:* = domain.getDefinition("MainScene");
-            Scene.stage = this;
-            Scene.layout = new (domain.getDefinition("scaleform.clik.layout.Layout") as Class)();
-            // the History, the prompt's home (and the History shot)
-            var list:* = new (domain.getDefinition("SrvNotificationListSC") as Class)();
-            var types:* = domain.getDefinition("survarium.constants.NotificationType");
-            list.registerRenderer(types.MATCH,domain.getDefinition("NotificationMatchRenderer"));
-            addChild(list);
-            list.x = stage.stageWidth - 420;
-            list.y = 120;
-            list.addNotification({"notificationType":types.MATCH,"label":"","match_id":WatchFake.MATCH,"map_name":"Vostok Radar Station",
-               "time":"19:05","result":"100:98","match_result":1,"reward":null});
-            list.addNotification({"notificationType":types.MATCH,"label":"","match_id":WatchFake.OTHER,"map_name":"Rudnya",
-               "time":"18:31","result":"3:1","match_result":0,"reward":null});
-            var panel:* = new (domain.getDefinition("SrvBottomPanel") as Class)();
-            panel.y = stage.stageHeight - panel.height + 13;
-            addChild(panel);
-            var W:* = domain.getDefinition("survarium.watch.WatchWindow");
-            if(W.me == null)
-               W.me = new W(panel);
-            addChild(W.me);
-            W.me.layout();
-            if(view == "history")
+            lobby = new WatchLobby(domain,this,WatchLobby.texts(loaderInfo.parameters.language || "english"));
+            var W:* = lobby.W;
+            lobby.take(WatchFake.LIVE);
+            lobby.take(WatchFake.played("PocketTest1"));
+            lobby.history.visible = view == "history";
+            // (Ruffle stops drawing the top menu's own icons once the History's rows are made)
+            lobby.top.visible = view != "history" && view != "results";
+            if(view == "history" || view == "results")
             {
-               var watches:Array = [];
-               for(var i:int = 0; i < list.numChildren * 4; i++)
-               {
-                  var w:DisplayObject = find(list,"srpReplayWatch");
-                  if(w == null || watches.indexOf(w) >= 0)
-                     break;
-                  watches.push(w);
-                  w.name = "seen";
-               }
-               asked(watches.length > 0 ? watches[0] : null,"watching","1ce45cbe");
-               asked(watches.length > 1 ? watches[1] : null,"gone","69f8c4bc");
-               shown = list;
+               lobby.historyRow(WatchFake.MATCH,"Rudnya","87:64",0);
+               lobby.historyRow(0x22,"School","1:3",0);
+               lobby.historyRow(0x21,"Chemical Plant","100:64",1);
             }
-            else
+            if(view == "results")
             {
-               list.visible = false;
-               shown = W.me;
-               if(view == "live" || view == "roster" || view == "empty")
+               var screen:* = lobby.make("SrvVictoryScreenReskin");
+               screen.x = int((1920 - 1199) / 2);
+               screen.y = int((1080 - 730) / 2);
+               lobby.holder.addChild(screen);
+               try
                {
-                  W.open("live");
-                  take(view == "empty" ? ["L0;0"] : WatchFake.LIVE);
-                  if(view == "roster")
-                  {
-                     W.spectate("Petro");
-                     take(WatchFake.ROSTER);
-                  }
+                  screen.setData({match_id:WatchFake.OTHER,score_components:[],statistics_rating:{},statistics_exp:{},statistics_money:{},
+                     statistics_reputation:{faction_id:1},team1_score:3,team2_score:1,allow_drop_card:false,dropped_item:null,players:[]});
                }
-               else if(view == "recent" || view == "recent-answered")
+               catch(err:Error)
                {
-                  W.open("recent");
-                  take(WatchFake.RECENT);
-                  if(view == "recent-answered")
-                  {
-                     asked(find(find(W.me,"srpWatchCard1") as DisplayObjectContainer,"srpWatchWatch"),"preparing","69f8c4bc");
-                  }
                }
-               else if(view == "mine")
+            }
+            else if(view != "lobby" && view != "history")
+            {
+               // the top menu's Watch tab, as a player opens it
+               lobby.top.selectActiveWindow(lobby.top.WATCH_INDEX);
+               if(view == "mine" || view == "copied")
                {
-                  W.open("mine");
-                  take(WatchFake.played("PocketTest1"));
+                  press(W.me,"srpWatchTab_replays");
+                  lobby.take(WatchFake.played("PocketTest1"));
+                  if(view == "copied")
+                     press(WatchLobby.find(W.me,"srpWatchCard1") as DisplayObjectContainer,"srpWatchCopy");
                }
-               else if(view == "player")
+               else if(view == "friends")
                {
-                  W.open("player","Ada");
-                  take(WatchFake.played("Ada"));
+                  press(W.me,"srpWatchTab_replays");
+                  press(W.me,"srpWatchChip_friends");
+                  lobby.take(WatchFake.FRIENDS);
+               }
+               else if(view == "reasons")
+               {
+                  press(W.me,"srpWatchTab_replays");
+                  press(W.me,"srpWatchChip_everyone");
+                  lobby.take(WatchFake.RECENT);
+               }
+               else if(view == "search")
+               {
+                  W.openPlayer("ada");
+                  W.found([{"id":5,"name":"Ada"},{"id":6,"name":"Adam_K"}]);
+                  lobby.take(WatchFake.played("Ada"));
                }
             }
          }
@@ -161,10 +125,10 @@ package
          var frames:int = 0;
          addEventListener(Event.ENTER_FRAME,function wait(f:Event):void
          {
-            if(++frames == 20)
+            if(++frames == 40)
             {
                removeEventListener(Event.ENTER_FRAME,wait);
-               trace("SHOT ready " + stage.stageWidth + "x" + stage.stageHeight + " " + view + " scale " + shown.scaleX);
+               trace("SHOT ready " + stage.stageWidth + "x" + stage.stageHeight + " " + view);
             }
          });
       }

@@ -16,9 +16,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
 from localization_026g import CATALOG, LANGUAGES, flash_rows, read_translations  # noqa: E402
 
 # The stock texts a harness lays out: beside the weight and speed in the inventory's profile (the
-# weight-ui harness); the shop's foot: Buy, the compare box (the shop-owned-mark harness).
+# weight-ui harness); the shop's foot: Buy, the compare box (the shop-owned-mark harness); the top
+# menu's tabs, a match's result and the results screen's close (the replay-buttons harness).
 STOCK_KEYS = {'equipment_weight': 'st_equipment_weight', 'autobuy_button_label': 'st_autobuy_button_label',
-              'buy': 'st_buy', 'checkbox_compare_items': 'st_checkbox_compare_items'}
+              'buy': 'st_buy', 'checkbox_compare_items': 'st_checkbox_compare_items',
+              'character': 'st_character', 'inventrory': 'st_inventrory', 'shop': 'st_shop', 'clan': 'st_clan',
+              'ranking': 'st_ranking', 'missions': 'st_missions', 'victory': 'st_victory', 'defeat': 'st_defeat',
+              'close': 'st_close'}
 
 
 def main():
