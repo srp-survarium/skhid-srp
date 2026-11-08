@@ -15,7 +15,8 @@
 //!     `P2;<match id 8 hex>;<place>;<map id>;<mode>;<result>;<kills>;<deaths>;<minutes since its end>;<replay>`.
 //!     `place` is the player's place in its team by score, from 1.
 //!     `mode` is the mode's lobby number. `result` is [`Outcome`].
-//!     `replay` is 1 while the match's recording or replay is kept, else 0.
+//!     `replay` is 1 while the match's recording or replay is kept, else 0,
+//!     whoever asks: no row is left out by who may watch it.
 
 use super::push::{Ranked, elo_rows};
 use super::{ServerMessage, WireError, cut, limits};

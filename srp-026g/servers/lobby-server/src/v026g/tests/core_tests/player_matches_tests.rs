@@ -158,7 +158,9 @@ fn a_match_whose_replay_is_kept_says_so() {
     .checked()
     .unwrap();
     let replays: &'static Replays = Box::leak(Box::new(Replays::new(Some(settings), 6)));
-    // Match 11's replay is made; match 10's recording is kept.
+    // Match 11's replay is made, for Bob's game only; match 10's recording
+    // is kept. Who may watch hides no row: Alice, who played neither, is
+    // told both can be asked for.
     std::fs::write(replays.sur_path(0x10B).unwrap(), b"0123456789ab").unwrap();
     let sidecar = Sidecar {
         match_id: 0x10B,
