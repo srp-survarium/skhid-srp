@@ -80,8 +80,6 @@ package survarium.controls
       
       private static const RP_KEY_WATCH:String = "st_srp_replay_watch";
 
-      private static const RP_KEY_DOWNLOAD_BUTTON:String = "st_srp_replay_download_button";
-
       private static const RP_KEY_WATCHING:String = "st_srp_replay_watching";
 
       // a session's `preparing` (the match server reads the recording; its number is no place in line)
@@ -908,11 +906,11 @@ package survarium.controls
             }
             this.historyPlaceRing(rec);
             this.historyFit(rec,String(data.result != undefined ? data.result : result.text));
-            if(!rec.button && rec.popup != true && (uint(data.match_id) != 0 || data.srpDemo == true || NotificationListScrollContent.REPLAY_DEMO))
+            if(!rec.watch && rec.popup != true && (uint(data.match_id) != 0 || data.srpDemo == true || NotificationListScrollContent.REPLAY_DEMO))
             {
-               this.historyAddButtons(row,rec);
+               this.historyAddWatch(row,rec);
             }
-            if(rec.button)
+            if(rec.watch)
             {
                this.historyChip(row,rec,this._rpChips[this.rpHex(uint(data.match_id))] as String);
                this.historyNumber(row,rec,uint(data.match_id));
@@ -923,9 +921,8 @@ package survarium.controls
          }
       }
       
-      // A match row's buttons, at its top right: Watch (in this game) and Download (the replay
-      // file, a second game window).
-      protected function historyAddButtons(row:MovieClip, rec:Object) : void
+      // A match row's Watch (in this game), at its top right.
+      protected function historyAddWatch(row:MovieClip, rec:Object) : void
       {
          var right:Number = 286 + NotificationListScrollContent.HISTORY_EXTRA;
          var map:TextField = null;
@@ -934,11 +931,10 @@ package survarium.controls
             right = Number(rec.back);
          }
          rec.watch = this.historyButton(row,"srpReplayWatch",this.rpText(RP_KEY_WATCH),right - 6,this.onRpWatchClick);
-         rec.button = this.historyButton(row,"srpReplay",this.rpText(RP_KEY_DOWNLOAD_BUTTON),rec.watch.x - 4,this.onRpButtonClick);
          map = row["textFieldLabel"] as TextField;
-         if(map && map.x + map.width > rec.button.x - 4)
+         if(map && map.x + map.width > rec.watch.x - 4)
          {
-            map.width = rec.button.x - 4 - map.x;
+            map.width = rec.watch.x - 4 - map.x;
          }
       }
 
@@ -1194,16 +1190,6 @@ package survarium.controls
          {
          }
          return id;
-      }
-
-      protected function onRpButtonClick(e:Event) : void
-      {
-         var id:uint = this.rpRowMatch(e);
-         e.stopPropagation();
-         if(id != 0)
-         {
-            this.replayBegin(id,NotificationListScrollContent.REPLAY_ASK);
-         }
       }
 
       protected function onRpWatchClick(e:Event) : void

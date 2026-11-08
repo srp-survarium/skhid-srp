@@ -2692,7 +2692,6 @@ st_srp_replay_demo_quest	Victory contribution
 st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the shop.
 st_srp_replay_demo_seller	Scavengers
 st_srp_replay_download	DOWNLOAD AND WATCH
-st_srp_replay_download_button	Download
 st_srp_replay_failed	The server could not prepare the replay of this match.
 st_srp_replay_gone	The replay of this match is no longer kept on the server.
 st_srp_replay_incompatible	This replay was recorded by a game version that yours cannot play.

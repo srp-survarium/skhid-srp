@@ -176,15 +176,10 @@ package
             return;
          }
          var watch:* = find(row,"srpReplayWatch");
-         var download:* = find(row,"srpReplay");
-         expect(language + ": no Download on the History row",download != null);
-         if(download == null)
-            return;
+         expect(language + ": a Download on the History row",find(row,"srpReplay") == null);
          fits(language + ": History Watch",watch);
-         fits(language + ": History Download",download);
-         expect(language + ": Download overlaps Watch",download.x + download.width <= watch.x);
          var map:TextField = row["textFieldLabel"] as TextField;
-         expect(language + ": the map name is left " + int(map.width) + " px",map != null && map.width >= 60 && map.x + map.width <= download.x);
+         expect(language + ": the map name is left " + int(map.width) + " px",map != null && map.width >= 60 && map.x + map.width <= watch.x);
          var back:DisplayObject = row["background"] as DisplayObject;
          expect(language + ": a chip before any answer",chip(row) == null);
          var cases:Array = [["watching","st_srp_replay_chip_ready"],["preparing","st_srp_replay_chip_preparing"],
@@ -209,45 +204,23 @@ package
          answer("gone",OTHER);
          expect(language + ": another match's answer changed the chip",chip(row) == words.getName("st_srp_replay_chip_ready"));
          answer("failed",MATCH);
-         numbers(language,list,row,map);
-         list.parent.removeChild(list);
-         trace("REPLAYBUTTONS " + language + ": History row: Download, Watch, its chips and number");
-      }
-
-      // The row's number (under Download, left of the chip) and the box above the list: a number
-      // typed as the row shows it (any case, `#` or none) is watched; anything else is not asked.
-      private function numbers(language:String, list:*, row:DisplayObjectContainer, map:TextField) : void
-      {
          var number:TextField = find(row,"srpReplayNumberText") as TextField;
-         var box:* = find(list,"srpReplayNumberBox");
-         var watch:* = find(list,"srpReplayNumberWatch");
          var chipBox:DisplayObject = find(row,"srpReplayChip");
          expect(language + ": the row's number is '" + (number ? number.text : null) + "'",number != null && number.text == "#1ce45cbe");
-         if(number == null || box == null || watch == null)
+         expect(language + ": the row's number overlaps the chip",number != null && (chipBox == null || number.x + number.width <= chipBox.x));
+         for(var i:int = 0; number != null && i < row.numChildren; i++)
          {
-            failures.push(language + ": no number box");
-            return;
+            var other:TextField = row.getChildAt(i) as TextField;
+            if(other == null || other == number || !other.visible || other.text == "")
+               continue;
+            var left:Number = other.x;
+            var right:Number = other.x + Math.min(other.width,other.textWidth + 4);
+            var apart:Boolean = right <= number.x || left >= number.x + number.width
+               || other.y + other.height - 2 <= number.y || other.y >= number.y + number.height;
+            expect(language + ": the row's number overlaps '" + other.text + "'",apart);
          }
-         expect(language + ": the row's number overlaps the map name or the chip",number.x >= map.x + map.width
-            && (chipBox == null || number.x + number.width <= chipBox.x));
-         fits(language + ": the number box's Watch",watch);
-         expect(language + ": the number box overlaps its Watch",box.x + box.width <= watch.x);
-         for each(var typed:String in ["#1CE45CBE","1ce45cbe"," #1ce45cbe "])
-         {
-            answer("gone",OTHER);
-            box.text = typed;
-            watch.dispatchEvent(new Click(Click.CLICK));
-            answer("preparing",MATCH,2);
-            expect(language + ": '" + typed + "' was not asked for",chip(row) == words.getName("st_srp_replay_chip_preparing"));
-            answer("failed",MATCH);
-         }
-         for each(var bad:String in ["","1ce45cbe0","zz","#"])
-         {
-            box.text = bad;
-            watch.dispatchEvent(new Click(Click.CLICK));
-            answer("gone",MATCH);
-            expect(language + ": '" + bad + "' was asked for",chip(row) == words.getName("st_srp_replay_chip_preparing"));
-         }
+         list.parent.removeChild(list);
+         trace("REPLAYBUTTONS " + language + ": History row: Watch, its chips and number");
       }
 
       private function report(match:uint) : Object

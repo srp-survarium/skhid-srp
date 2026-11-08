@@ -2692,7 +2692,6 @@ st_srp_replay_demo_quest	Hozzájárulás a győzelemhez
 st_srp_replay_demo_rank	«%1$s»: elérted a 3. rangot. Új tárgyak kaphatók a boltban.
 st_srp_replay_demo_seller	Guberálók
 st_srp_replay_download	LETÖLTÉS ÉS LEJÁTSZÁS
-st_srp_replay_download_button	Download
 st_srp_replay_failed	A szerver nem tudta előkészíteni a meccs felvételét.
 st_srp_replay_gone	A szerver már nem tárolja ennek a meccsnek a felvételét.
 st_srp_replay_incompatible	Ez a felvétel a játék egy nem kompatibilis verziójával készült.

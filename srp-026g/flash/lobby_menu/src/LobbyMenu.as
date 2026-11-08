@@ -151,6 +151,7 @@ package
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
+   import survarium.watch.WatchWindow;
    import survarium.upgrade.UpgradeWindow;
    
    public class LobbyMenu extends MovieClip
@@ -5165,6 +5166,8 @@ package
          stage.focus = null;
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
+         // a watch asked from the Watch window loads: its tab again after (WatchWindow.back)
+         WatchWindow.away();
          // the match loads: the transient windows close (the loading screen is under their layer),
          // the message up goes (closed, not answered as Esc would), else the top modal closes
          Transient.closeAll();
@@ -5204,6 +5207,7 @@ package
             {
                trace("_top_container::stage");
                this._top_container.visible = true;
+               WatchWindow.back();
             }
             this.dragRegion.mouseEnabled = true;
             this.topMenu.lockInventory(false);
