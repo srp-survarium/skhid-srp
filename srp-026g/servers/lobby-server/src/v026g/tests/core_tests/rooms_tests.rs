@@ -2601,7 +2601,7 @@ fn the_teams_are_the_owners_to_move_and_kept_across_matches() {
 }
 
 /// Two accounts made friends, both ways, as an accepted request does.
-fn befriend(world: &mut World, a: usize, b: usize) {
+pub(super) fn befriend(world: &mut World, a: usize, b: usize) {
     let (a, b) = (world.ids[a].0, world.ids[b].0);
     world.store.account(a).unwrap().locked().friends.push(b);
     world.store.account(b).unwrap().locked().friends.push(a);

@@ -116,11 +116,14 @@ watching.
 Track C's Live window (the "Matches now" tab revived), `lobby-server/src/v026g/live.rs`. Each row
 is a `91` row at the request's start plus its index.
 
-- **List**: `3B 00 <LIVE_START = 2 240 000 000> <count <= 20>` (polled every 5 s): `L0;<n>`, then
+- **List**: `3B 00 <LIVE_START = 2 240 000 000> <count <= 20>` (polled every 5 s): `L0;<n>;<delay s>`
+  (`SRP_LIVE_WATCH_DELAY_S`, so a card can say how far behind a watch is), then
   `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;
   <played s>;<spectators>;<watch>`; `phase` 0 made, 1 countdown, 2 in play, 3 over; `watch` 1 may,
   0 full, 2 not watchable (fixed rosters, which take no spectator). A private room's match is not
-  listed. The match id is the match server's (the replay's).
+  listed. The match id is the match server's (the replay's). After the `L1` rows,
+  `F1;<match 8 hex>;<place>;<team 0|1>;<name>` for each friend of the asker present in a listed
+  match (the Watch hub's pinned cards, the friends list's Spectate; `research/watch-hub-proposal.md`).
 - **Roster**: `3D 00 <LIVE_ROSTER_ASK = 0xFFFF_FF06> <match>` chooses the match, then
   `3B 00 <LIVE_ROSTER_START = 2 241 000 000> <count <= 24>`: `L2;<match 8 hex>;<place>;<team>;
   <kills>;<deaths>;<name>` for each place in the match (kills and deaths of its newest trusted

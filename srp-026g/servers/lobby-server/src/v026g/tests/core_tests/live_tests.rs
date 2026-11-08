@@ -6,7 +6,7 @@ use survarium::v026g::lobby::{
     LIVE_ROSTER_ASK, LIVE_ROSTER_START, LIVE_START, REPLAY_START, ReplayWatchAsk,
 };
 
-use super::rooms_tests::{create, rows, spec};
+use super::rooms_tests::{befriend, create, rows, spec};
 use super::*;
 use crate::v026g::{LivePhase, LiveView};
 
@@ -69,7 +69,7 @@ fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     let carol = world.connect("Carol");
     let list = rows(&mut world, carol, LIVE_START, 20);
     assert_eq!(list.len(), 2, "{list:?}");
-    assert_eq!(list[0], "L0;1");
+    assert_eq!(list[0], "L0;1;30");
     let fields: Vec<&str> = list[1].split(';').collect();
     assert_eq!(fields[0], "L1");
     assert_eq!(fields[1], format!("{ticket:08x}"));
@@ -113,6 +113,28 @@ fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     assert!(world.store.matchmaking().watched(session).is_some());
     let list = rows(&mut world, carol, LIVE_START, 20);
     assert!(list[1].ends_with(";1;1"), "{}", list[1]);
+}
+
+/// The asker's friends in a listed match, after the `L1` rows: those
+/// present in it, by place and team.
+#[test]
+fn the_live_list_names_the_askers_friends_in_each_match() {
+    let mut world = World::new();
+    let (ticket, [alice, bob]) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    befriend(&mut world, carol, bob);
+    let list = rows(&mut world, carol, LIVE_START, 20);
+    assert_eq!(list.len(), 3, "{list:?}");
+    assert!(list[1].starts_with("L1;"));
+    assert_eq!(list[2], format!("F1;{ticket:08x};1;1;Bob"));
+    // Alice too; Bob gone from the match: Alice alone.
+    befriend(&mut world, carol, alice);
+    world.host.live.locked().get_mut(&ticket).unwrap().present = 0b01;
+    let list = rows(&mut world, carol, LIVE_START, 20);
+    assert_eq!(list[2..], [format!("F1;{ticket:08x};0;0;Alice")]);
+    // Nobody's friend: no F1 row.
+    let dave = world.connect("Dave");
+    assert_eq!(rows(&mut world, dave, LIVE_START, 20).len(), 2);
 }
 
 /// Caps: one Live spectator a match here; past it, `busy` and the list

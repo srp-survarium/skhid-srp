@@ -3,12 +3,15 @@
 //! as it is played (`docs/notes/replay-stream.md`, "Live").
 //!
 //! - The list: `3B 00 <LIVE_START> <count>` (the movie polls every 5 s), at
-//!   most [`lobby::LIVE_ROWS`] matches: `L0;<n>`, then a row a match,
-//!   `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;
-//!   <score a|->;<score b|->;<played s>;<spectators>;<watch>`. `phase` 0
-//!   made, 1 countdown, 2 in play, 3 over; `watch` 1 may, 0 full, 2 not
-//!   watchable (a private room's, or one of fixed rosters, which takes no
-//!   spectator). A private room's match is not listed.
+//!   most [`lobby::LIVE_ROWS`] matches: `L0;<n>;<delay s>` (how far behind
+//!   a watch is), then a row a match, `L1;<match 8 hex>;<map id>;<mode>;
+//!   <phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;
+//!   <spectators>;<watch>`. `phase` 0 made, 1 countdown, 2 in play, 3 over;
+//!   `watch` 1 may, 0 full, 2 not watchable (a private room's, or one of
+//!   fixed rosters, which takes no spectator). A private room's match is
+//!   not listed. After the `L1` rows, `F1;<match 8 hex>;<place>;<team>;
+//!   <name>` for each friend of the asker in a listed match (the Watch
+//!   hub's pinned cards and the friends list's Spectate).
 //! - The roster: `3D 00 <LIVE_ROSTER_ASK> <match>` chooses the match, then
 //!   `3B 00 <LIVE_ROSTER_START> <count>` gets a row a place in it, at most
 //!   [`lobby::LIVE_ROSTER_ROWS`]: `L2;<match 8 hex>;<place>;<team>;<kills>;
@@ -21,10 +24,11 @@
 //!
 //! Each row's place in the `91` is the request's start and its index.
 
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use session::v026g::replays::Status;
-use session::{QueuePool, WatchKind, Watcher};
+use session::{LockExt, QueuePool, WatchKind, Watcher};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::limits;
 
@@ -98,6 +102,17 @@ fn phase_code(phase: LivePhase) -> u8 {
     }
 }
 
+/// `head` and the name last, cut to the row's room.
+fn named_row(head: String, name: &str) -> String {
+    let room = limits::NAME.saturating_sub(head.len());
+    let name: String = name.chars().take(room).collect();
+    let mut row = head + &name;
+    while row.len() > limits::NAME {
+        row.pop();
+    }
+    row
+}
+
 impl Core<'_> {
     /// The Live window's spectators of the match (the lobby's id).
     fn live_watchers(&self, match_id: u32) -> usize {
@@ -138,7 +153,13 @@ impl Core<'_> {
     /// `3B 00 <LIVE_START> <count>`: the matches being played.
     pub(super) fn live_list(&mut self, who: &Who, count: u8, now: Instant) {
         let count = usize::from(count.min(lobby::LIVE_ROWS));
+        let friends: HashSet<u32> = self
+            .store
+            .account(who.account_id)
+            .map(|account| account.locked().friends.iter().copied().collect())
+            .unwrap_or_default();
         let mut rows: Vec<String> = Vec::new();
+        let mut friend_rows: Vec<String> = Vec::new();
         for (id, running) in self.listed().into_iter().take(count) {
             let live = self
                 .host
@@ -168,8 +189,31 @@ impl Core<'_> {
                 self.store.matchmaking().watchers_of(id).len(),
                 self.watchable(id, running).code(),
             ));
+            if friends.is_empty() {
+                continue;
+            }
+            for (place, (&(session, team), name)) in
+                running.seats.iter().zip(&running.names).enumerate()
+            {
+                let friend = self
+                    .store
+                    .session_account(session)
+                    .is_some_and(|account| friends.contains(&account.locked().id));
+                if friend && live.present & (1 << place) != 0 {
+                    let head = format!(
+                        "F1;{:08x};{place};{};",
+                        running.ticket.match_id,
+                        team.min(1)
+                    );
+                    friend_rows.push(named_row(head, name));
+                }
+            }
         }
-        rows.insert(0, format!("L0;{}", rows.len()));
+        rows.insert(
+            0,
+            format!("L0;{};{}", rows.len(), self.settings.live.delay.as_secs()),
+        );
+        rows.extend(friend_rows);
         debug_assert!(rows.iter().all(|row| row.len() <= limits::NAME));
         self.send_made(who.addr, lobby::live_rows(lobby::LIVE_START, &rows));
     }
@@ -208,14 +252,7 @@ impl Core<'_> {
                     running.ticket.match_id,
                     team.min(1)
                 );
-                // The name last, cut to the row's room.
-                let room = limits::NAME.saturating_sub(head.len());
-                let name: String = name.chars().take(room).collect();
-                let mut row = head + &name;
-                while row.len() > limits::NAME {
-                    row.pop();
-                }
-                rows.push(row);
+                rows.push(named_row(head, name));
             }
         }
         self.send_made(who.addr, lobby::live_rows(lobby::LIVE_ROSTER_START, &rows));
