@@ -3195,6 +3195,46 @@ pub extern "C" fn hook_replay_viewer_on_movie_take(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_viewer (patch 130) ----
+
+/// The named exits of replay_viewer::on_mouse_button (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayViewerOnMouseButtonExit { Hud }
+/// The entry `replay_viewer_on_mouse_button` (0x25cff3, game_world::on_mouse_key_action with a hud that has the replay controls (its +14h, tested at 0x25CFE4), at its test of the cursor (cmp byte [esi+2E0h],0): the button goes to the cursor and the controls (0x25D034, 0x25D058) instead of the hud movie; hud is the hud movie's path (0x25D066), as a hud without them. ESI the game world's input handler) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_mouse_button(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_mouse_button` calls this, from the game's jump at 0x25cff3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_mouse_button(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- replay_viewer (patch 130) ----
+
+/// The named exits of replay_viewer::on_mouse_pointer (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayViewerOnMousePointerExit { Hud }
+/// The entry `replay_viewer_on_mouse_pointer` (0x25d1e6, game_world::set_pointer with a hud that has the replay controls (game_world+210h, tested at 0x25D1D9): the pointer goes to them (mov esi,[eax+108h]) instead of the hud movie; hud is the hud movie's (0x25D1EE). EDI the game world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_mouse_pointer(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_mouse_pointer` calls this, from the game's jump at 0x25d1e6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_mouse_pointer(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- tab_cursor (patch 86) ----
 
 /// The named exits of tab_cursor::on_hud_call (the order the shim's Flow code

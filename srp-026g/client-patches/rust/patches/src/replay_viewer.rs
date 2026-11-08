@@ -30,11 +30,12 @@ use replay_control::{newer, Event, EventKind, EventsNote, MatchMs, Op, Playback,
 use core::ffi::CStr;
 
 use crate::spectator;
-use crate::vostok::replay_view::{query_spectator, take_spectator, CoreLoad, GameClock, HudFrame, MatchClose, Names, Overlay, ServerNoteSite};
+use crate::vostok::replay_view::{button_client, pointer_client, query_network, take_network, CoreLoad, GameClock, HudFrame, MatchClose, Names, Overlay, ServerNoteSite};
 use crate::vostok::world::{NetworkClient, Role};
 use crate::vostok::{
     Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, NoExit, ReplayViewerOnHudCallExit,
-    ReplayViewerOnKeyExit, ReplayViewerOnMovieQueryExit, ReplayViewerOnMovieTakeExit, ReplayViewerOnServerNoteExit,
+    ReplayViewerOnKeyExit, ReplayViewerOnMouseButtonExit, ReplayViewerOnMousePointerExit, ReplayViewerOnMovieQueryExit,
+    ReplayViewerOnMovieTakeExit, ReplayViewerOnServerNoteExit,
 };
 
 /// What a replay's viewer asks for, by a key or the replay controls.
@@ -714,15 +715,33 @@ pub fn on_world_raw(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// `replay_movie.query`: a spectator's world queries the replay controls'
-/// movie too (hidden until a replay's viewer shows it).
+/// `replay_movie.query`: a network game's first world queries the replay
+/// controls' movie too (hidden until a replay's viewer shows it).
 pub fn on_movie_query(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMovieQueryExit> {
-    if query_spectator(ctx) { Flow::Exit(ReplayViewerOnMovieQueryExit::Load) } else { Flow::Continue }
+    if query_network(ctx) { Flow::Exit(ReplayViewerOnMovieQueryExit::Load) } else { Flow::Continue }
 }
 
 /// `replay_movie.take`: and takes it from the query's results.
 pub fn on_movie_take(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMovieTakeExit> {
-    if take_spectator(ctx) { Flow::Exit(ReplayViewerOnMovieTakeExit::Take) } else { Flow::Continue }
+    if take_network(ctx) { Flow::Exit(ReplayViewerOnMovieTakeExit::Take) } else { Flow::Continue }
+}
+
+/// A hud with the replay controls gives them the mouse (its buttons and
+/// pointer) instead of the hud movie: a network game's only while it is a
+/// viewer's, so a player's kits and a live spectator's hud keep it. The
+/// game's own replay client goes on as the game's.
+fn mouse_to_hud(client: Option<NetworkClient<'_>>, thread: &crate::vostok::Thread) -> bool {
+    client.is_some() && !matches!(SESSION.get(thread), Session::Replay(_))
+}
+
+/// `hud_mouse.replay_button`.
+pub fn on_mouse_button(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMouseButtonExit> {
+    if mouse_to_hud(button_client(ctx), ctx.thread()) { Flow::Exit(ReplayViewerOnMouseButtonExit::Hud) } else { Flow::Continue }
+}
+
+/// `hud_mouse.replay_pointer`.
+pub fn on_mouse_pointer(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMousePointerExit> {
+    if mouse_to_hud(pointer_client(ctx), ctx.thread()) { Flow::Exit(ReplayViewerOnMousePointerExit::Hud) } else { Flow::Continue }
 }
 
 /// The replay controls' calls a network game takes from its hud's

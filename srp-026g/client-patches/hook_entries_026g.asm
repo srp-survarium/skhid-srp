@@ -6005,6 +6005,90 @@ replay_viewer_on_movie_take_replay:
     db 0x39, 0x88, 0xc8, 0x53, 0x00, 0x00
     jmp 0x1f88d2
 
+; 0x25cff3 game_world::on_mouse_key_action with a hud that has the replay controls (its +14h, tested at 0x25CFE4), at its test of the cursor (cmp byte [esi+2E0h],0): the button goes to the cursor and the controls (0x25D034, 0x25D058) instead of the hud movie; hud is the hud movie's path (0x25D066), as a hud without them. ESI the game world's input handler: lohook -> replay_viewer_on_mouse_button
+global replay_viewer_on_mouse_button
+extern hook_replay_viewer_on_mouse_button
+replay_viewer_on_mouse_button:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_mouse_button
+    mov edx, replay_viewer_on_mouse_button_replay
+    cmp eax, 0
+    je replay_viewer_on_mouse_button_go
+    mov edx, 0x25cffa
+    cmp eax, 1
+    je replay_viewer_on_mouse_button_go
+    mov edx, 0x25d066
+    cmp eax, 2
+    je replay_viewer_on_mouse_button_go
+    ud2
+replay_viewer_on_mouse_button_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_mouse_button_replay:
+    db 0x80, 0xbe, 0xe0, 0x02, 0x00, 0x00, 0x00
+    jmp 0x25cffa
+
+; 0x25d1e6 game_world::set_pointer with a hud that has the replay controls (game_world+210h, tested at 0x25D1D9): the pointer goes to them (mov esi,[eax+108h]) instead of the hud movie; hud is the hud movie's (0x25D1EE). EDI the game world: lohook -> replay_viewer_on_mouse_pointer
+global replay_viewer_on_mouse_pointer
+extern hook_replay_viewer_on_mouse_pointer
+replay_viewer_on_mouse_pointer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_mouse_pointer
+    mov edx, replay_viewer_on_mouse_pointer_replay
+    cmp eax, 0
+    je replay_viewer_on_mouse_pointer_go
+    mov edx, 0x25d1ec
+    cmp eax, 1
+    je replay_viewer_on_mouse_pointer_go
+    mov edx, 0x25d1ee
+    cmp eax, 2
+    je replay_viewer_on_mouse_pointer_go
+    ud2
+replay_viewer_on_mouse_pointer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_mouse_pointer_replay:
+    db 0x8b, 0xb0, 0x08, 0x01, 0x00, 0x00
+    jmp 0x25d1ec
+
 ; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
 global tab_cursor_on_hud_call
 extern hook_tab_cursor_on_hud_call_chain

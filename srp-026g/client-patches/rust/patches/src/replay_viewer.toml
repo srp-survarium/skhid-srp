@@ -28,8 +28,8 @@ site = "static_info.options_read"
 handler = "on_static_info"
 order = 4
 
-# A spectator's world loads the replay controls' movie too (the game asks
-# for it only with a replay reader), hidden until a viewer shows it.
+# Every network game's first world loads the replay controls' movie too (the
+# game asks for it only with a replay reader), hidden until a viewer shows it.
 [[hook]]
 site = "replay_movie.query"
 handler = "on_movie_query"
@@ -37,6 +37,16 @@ handler = "on_movie_query"
 [[hook]]
 site = "replay_movie.take"
 handler = "on_movie_take"
+
+# The mouse of a hud with the replay controls goes to them only in a viewer's
+# game; every other network game's to its hud movie.
+[[hook]]
+site = "hud_mouse.replay_button"
+handler = "on_mouse_button"
+
+[[hook]]
+site = "hud_mouse.replay_pointer"
+handler = "on_mouse_pointer"
 
 # The replay controls' calls in a network game, after patch 86's.
 [[hook]]

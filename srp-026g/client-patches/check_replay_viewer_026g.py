@@ -37,6 +37,11 @@ itself as the text).
   close_current_match(2); a key held is taken with nothing done; a match's
   end (reason 4, a kick) resumes a paused game and sets time_scale 1, after
   which Space goes to the game again.
+- The replay controls: a player's and a spectator's world both query and take
+  replay_player.swf (a game queries its movies at its first world only); a
+  hud with them gives a button (0x25CFF3) and the pointer (0x25D1E6) to its
+  hud movie in a player's and a live spectator's game, to the controls (as the
+  original) in a viewer's, and to the hud movie again after its match's end.
 """
 import os
 import struct
@@ -77,6 +82,8 @@ SITES = {
     "close": (0x27A7F3, bytes.fromhex("8b5d0883fb05"), 0x27A7F9, None),
     "query": (0x1F8F9E, bytes.fromhex("39b9c8530000"), 0x1F8FA4, 0x1F8FA6),
     "take": (0x1F88CC, bytes.fromhex("3988c8530000"), 0x1F88D2, 0x1F88D4),
+    "button": (0x25CFF3, bytes.fromhex("80bee002000000"), 0x25CFFA, 0x25D066),
+    "pointer": (0x25D1E6, bytes.fromhex("8bb008010000"), 0x25D1EC, 0x25D1EE),
     "call": (0x233D30, bytes.fromhex("53568b742410"), 0x233D36, 0x233D73),
     "frame": (0x23B200, bytes.fromhex("53555657 8bf8".replace(" ", "")), 0x23B206, None),
     "raw": (0x27C10A, bytes.fromhex("81c1f8010000"), 0x27C110, None),
@@ -297,6 +304,14 @@ def load(game, site):
     return game.run(site, regs)
 
 
+def mouse(game, site):
+    """The game world's mouse at a hud with the replay controls: a button (ESI its input
+    handler) or the pointer (EDI the game world)."""
+    regs = dict(STEADY)
+    regs[UC_X86_REG_ESI if site == "button" else UC_X86_REG_EDI] = INPUT if site == "button" else GAME + 0x18
+    return game.run(site, regs)
+
+
 def control(game, method, *args):
     """The replay controls' ExternalInterface call: (type, low, high) GFx values."""
     game.emu.mem_write(CALL_NAME, method.encode() + b"\0")
@@ -463,15 +478,20 @@ def main():
     check(mode == 1 and not calls and world_load(stock, "raw")[0] == state,
           "raw, a player's game: its world loads as a network one (mode 1), as the original")
 
-    # The replay controls (patch 130's second part).
-    for local, who, to in ((2, "a player's", "past"), (0xFF, "a spectator's (no place local)", "exit")):
+    # The replay controls (patch 130's second part): every network game's first world loads
+    # them, and their hud gives them the mouse only in a viewer's game.
+    for local, who in ((2, "a player's"), (0xFF, "a spectator's (no place local)")):
         for site, name in (("query", "the query"), ("take", "the callback's take")):
             stock.setup(local)
             ours.setup(local)
-            s, o = load(stock, site), load(ours, site)
-            want = SITES[site][2] if to == "past" else SITES[site][3]
-            check(o[0][UC_X86_REG_EIP] == want and not o[2] and (to == "exit" or s == o),
-                  f"{site}, {who} world: {name} of replay_player.swf " + ("as the original (none)" if to == "past" else f"made ({want:#x})"))
+            o = load(ours, site)
+            want = SITES[site][3]
+            check(o[0][UC_X86_REG_EIP] == want and not o[2], f"{site}, {who} world: {name} of replay_player.swf made ({want:#x})")
+        for site, name in (("button", "a button"), ("pointer", "the pointer")):
+            ours.setup(local)
+            o = mouse(ours, site)
+            check(o[0][UC_X86_REG_EIP] == SITES[site][3] and not o[2],
+                  f"{site}, {who} game: {name} to the hud movie ({SITES[site][3]:#x}), not the hidden controls")
     ours.setup(0xFF)
     state, _, calls = control(ours, "update_position", (4, 5000, 0))
     check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls,
@@ -479,6 +499,11 @@ def main():
     state, _, calls = control(ours, "profile_changed", (4, 1, 0))
     check(state[UC_X86_REG_EIP] == SITES["call"][2], "call, a live spectator, profile_changed (the hud's own): on as the game's")
     ours.run("note", note_regs(ours, playback(1, 0, 100)))
+    for site, name in (("button", "a button"), ("pointer", "the pointer")):
+        stock.setup(0xFF)
+        s, o = mouse(stock, site), mouse(ours, site)
+        check(o[0][UC_X86_REG_EIP] == SITES[site][2] and s[0] == o[0] and not o[2],
+              f"{site}, a viewer: {name} to the controls, as the original")
     state, _, calls = control(ours, "update_position", (4, 5000, 0))
     check(state[UC_X86_REG_EIP] == SITES["call"][3] and sent(calls, request(0, 3, 15_000)),
           "call, a viewer, update_position(5000): a seek to the start + 5 s")
@@ -526,6 +551,8 @@ def main():
     close(ours, 0)
     state, _, calls = frame(ours)
     check(not calls, "frame, after the match's end: nothing fed")
+    state, _, calls = mouse(ours, "button")
+    check(state[UC_X86_REG_EIP] == SITES["button"][3] and not calls, "button, after the match's end: to the hud movie again")
 
     print("all checks passed" if not failed else f"{failed} check(s) FAILED")
     sys.exit(1 if failed else 0)

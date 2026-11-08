@@ -21246,6 +21246,36 @@ pub mod site {
         }
     }
 
+    /// hud_mouse.replay_button (0x25cff3): game_world::on_mouse_key_action with a hud that has the replay controls (its +14h, tested at 0x25CFE4), at its test of the cursor (cmp byte [esi+2E0h],0): the button goes to the cursor and the controls (0x25D034, 0x25D058) instead of the hud movie; hud is the hud movie's path (0x25D066), as a hud without them. ESI the game world's input handler
+    pub mod hud_mouse_replay_button {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::game_world_input (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn input(machine: &impl Machine) -> Option<GameWorldInput> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameWorldInput)
+        }
+    }
+
+    /// hud_mouse.replay_pointer (0x25d1e6): game_world::set_pointer with a hud that has the replay controls (game_world+210h, tested at 0x25D1D9): the pointer goes to them (mov esi,[eax+108h]) instead of the hud movie; hud is the hud movie's (0x25D1EE). EDI the game world
+    pub mod hud_mouse_replay_pointer {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::game_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<GameWorld> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(GameWorld)
+        }
+    }
+
     /// hud.update (0x23b200): game_world_ui::update_ui's start (push ebx / push ebp / push esi / push edi / mov edi,eax; EAX the hud), every frame the game world shows its interface (game_world::tick 0x1F8023, with the game world's +0A0h)
     pub mod hud_update {
         #[allow(unused_imports)]

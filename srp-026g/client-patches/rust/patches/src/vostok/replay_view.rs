@@ -196,28 +196,54 @@ const POOL_RESERVE: u32 = 16;
 
 /// The game world's load at `replay_movie.query` and its callback at
 /// `replay_movie.take`, where the game asks for the replay controls' movie
-/// only with a replay reader: whether this game is a spectator's (its 0xE4
-/// made no place local, patch 121), whose world gets the movie too, kept
-/// hidden until it is a replay's viewer. Both sites answer alike for one
+/// only with a replay reader: whether this game is a network game, whose
+/// world gets the movie too, kept hidden until it is a replay's viewer. The
+/// game queries its movies at its first world only (game_world::load skips
+/// them once its +4 is set, 0x1F8D5E), so a game that played before it
+/// watches has them from its first match. Both sites answer alike for one
 /// game, so the query and its results stay in step.
-pub fn spectator_load(game: Option<raw::Game>, thread: &Thread) -> bool {
+pub fn network_load(game: Option<raw::Game>, thread: &Thread) -> bool {
     // SAFETY: the game of the site's register, alive while it loads its
     // world on the game's thread; its client likewise.
     let Some(client) = game.and_then(|game| unsafe { game.network_client() }) else { return false };
-    let client = NetworkClient::of(client, thread);
-    client.role().is_some() && client.places() > 0 && client.local_profile().is_none()
+    NetworkClient::of(client, thread).role().is_some()
 }
 
 /// At `replay_movie.query`.
-pub fn query_spectator(ctx: &Context<'_>) -> bool {
+pub fn query_network(ctx: &Context<'_>) -> bool {
     // SAFETY: the context is this site's: ECX the game.
-    spectator_load(unsafe { raw::site::replay_movie_query::game(ctx) }, ctx.thread())
+    network_load(unsafe { raw::site::replay_movie_query::game(ctx) }, ctx.thread())
 }
 
 /// At `replay_movie.take`.
-pub fn take_spectator(ctx: &Context<'_>) -> bool {
+pub fn take_network(ctx: &Context<'_>) -> bool {
     // SAFETY: the context is this site's: EAX the game.
-    spectator_load(unsafe { raw::site::replay_movie_take::game(ctx) }, ctx.thread())
+    network_load(unsafe { raw::site::replay_movie_take::game(ctx) }, ctx.thread())
+}
+
+/// The network client of the game whose hud's mouse is at
+/// `hud_mouse.replay_button` or `hud_mouse.replay_pointer` (its hud has
+/// the replay controls); none for the game's own replay client.
+fn mouse_client<'t>(world: Option<raw::GameWorld>, thread: &'t Thread) -> Option<NetworkClient<'t>> {
+    // SAFETY: the game world of the site's register, its game and client,
+    // alive while the input world dispatches the mouse on the game's thread.
+    let client = unsafe { world?.game()?.network_client() }?;
+    let client = NetworkClient::of(client, thread);
+    client.role().is_some().then_some(client)
+}
+
+/// At `hud_mouse.replay_button`.
+pub fn button_client<'t>(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>> {
+    // SAFETY: the context is this site's: ESI the game world's input
+    // handler, the hud inside it, the hud's game world.
+    let world = unsafe { raw::site::hud_mouse_replay_button::input(ctx).and_then(|input| input.ui().world()) };
+    mouse_client(world, ctx.thread())
+}
+
+/// At `hud_mouse.replay_pointer`.
+pub fn pointer_client<'t>(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>> {
+    // SAFETY: the context is this site's: EDI the game world.
+    mouse_client(unsafe { raw::site::hud_mouse_replay_pointer::world(ctx) }, ctx.thread())
 }
 
 /// The replay controls (replay_player.swf) over a viewer's hud.
