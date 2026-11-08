@@ -155,7 +155,9 @@ package
       private function fits(what:String, button:*) : void
       {
          // The button's own field, in the game's font: a field made here does not see the movie's
-         // fonts under Ruffle and measures a wider fallback font.
+         // fonts under Ruffle and measures a wider fallback font. A button draws its label when it
+         // validates, so it is made to.
+         button.validateNow();
          var want:Number = button.textField.textWidth + 8;
          expect(what + " shows its label ('" + button.textField.text + "', '" + button.label + "')",button.textField.text == button.label);
          expect(what + " '" + button.label + "' needs " + int(want) + " px, has " + int(button.width),want <= button.width);
