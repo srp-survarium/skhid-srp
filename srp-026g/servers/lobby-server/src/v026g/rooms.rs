@@ -1851,6 +1851,10 @@ impl Core<'_> {
         let matchmaking = self.store.matchmaking();
         for &match_id in self.matches.keys() {
             for (session_id, watcher) in matchmaking.watchers_of(match_id) {
+                // The Live window's: no room's (`live`).
+                if matches!(watcher.kind, session::WatchKind::Live { .. }) {
+                    continue;
+                }
                 let current = self
                     .by_account
                     .get(&watcher.account_id)
@@ -1898,6 +1902,7 @@ impl Core<'_> {
                 match_id,
                 ticket,
                 account_id,
+                kind: session::WatchKind::Queued,
             };
             if matchmaking.watch(session_id, watcher) {
                 log::info!(

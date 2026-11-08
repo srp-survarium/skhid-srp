@@ -443,7 +443,7 @@ impl Server {
                 }
             }
             if let Some(watcher) = self.store.matchmaking().watched(session_id) {
-                self.connect_spectator(addr, session_id, watcher.ticket, debug, transport, now);
+                self.connect_spectator(addr, session_id, watcher, debug, transport, now);
                 return;
             }
             log::warn!("{addr} connected for session {session_id:#x}, which has no match seat");
@@ -501,23 +501,28 @@ impl Server {
         self.store.seen_in_match(session_id);
     }
 
-    /// A client's 0xD8 for a session that watches the match `ticket` from a
-    /// room's queue (Queue and spectate): a spectator of it, if this server
-    /// runs it (a match no player has reached is not made for one) in the
-    /// dialect the client speaks. Else turned away, as a client with no
-    /// seat is.
+    /// A client's 0xD8 for a session that watches the match `watcher.ticket`
+    /// from a room's queue (Queue and spectate) or the Live window (its
+    /// delay behind): a spectator of it, if this server runs it (a match no
+    /// player has reached is not made for one) in the dialect the client
+    /// speaks. Else turned away, as a client with no seat is.
     fn connect_spectator(
         &mut self,
         addr: SocketAddr,
         session_id: u32,
-        ticket: u32,
+        watcher: session::Watcher,
         debug: u8,
         transport: Transport,
         now: Instant,
     ) {
+        let ticket = watcher.ticket;
+        let delay = match watcher.kind {
+            session::WatchKind::Queued => None,
+            session::WatchKind::Live { delay } => Some(delay),
+        };
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
         let watched = match self.games.get_mut(&ticket) {
-            Some(game) if growing => game.watch(addr, session_id, transport),
+            Some(game) if growing => game.watch(addr, session_id, transport, delay),
             _ => Err(Box::new(transport)),
         };
         match watched {

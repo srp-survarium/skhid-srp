@@ -108,6 +108,15 @@ enum Watch {
     Leaving { quiet_from: Instant, until: Instant },
 }
 
+/// A Live window's spectator, `ms` behind the match: its relays and roster
+/// changes come from the match's lists as its clock reaches them, not as
+/// they are played; those up to `fed` have gone to it.
+#[derive(Clone, Copy, Debug)]
+struct Delay {
+    ms: u32,
+    fed: u32,
+}
+
 /// What a spectator at an address is to the server's routing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SpectatorAt {
@@ -127,6 +136,8 @@ struct Installing {
 pub(crate) struct Spectator {
     addr: SocketAddr,
     session_id: u32,
+    /// A Live window's: behind the match (`None`: as it is played).
+    delay: Option<Delay>,
     transport: Transport,
     stage: Watch,
     generation: Generation,
@@ -163,6 +174,9 @@ pub(super) struct Watched<'a> {
     pub(super) inputs: &'a [(u32, usize, Relayed)],
     /// The roster changes so far: time, place, entered (else left).
     pub(super) events: &'a [(u32, usize, bool)],
+    /// Of those, what is due: up to this time (a delayed spectator's
+    /// clock and the horizon; the rest come later).
+    pub(super) until: u32,
     pub(super) compress: bool,
     pub(super) entry_state: Duration,
 }
@@ -186,6 +200,7 @@ impl Game {
         addr: SocketAddr,
         session_id: u32,
         transport: Transport,
+        delay: Option<Duration>,
     ) -> Result<(), Box<Transport>> {
         if self.finished_at.is_some() || !self.growing_roster() {
             return Err(Box::new(transport));
@@ -194,17 +209,67 @@ impl Game {
         self.spectators
             .retain(|spectator| spectator.addr != addr && spectator.session_id != session_id);
         log::info!(
-            "Match {:#x}: a spectator (session {session_id:#x}) connected from {addr}",
-            self.id
+            "Match {:#x}: a spectator (session {session_id:#x}) connected from {addr}{}",
+            self.id,
+            delay.map_or_else(String::new, |delay| format!(", {} s behind", delay.as_secs()))
         );
-        self.spectators.push(Spectator::connect(
+        let mut spectator = Spectator::connect(
             addr,
             session_id,
             transport,
             self.snapshot_players() as u8,
             self.port,
-        ));
+        );
+        spectator.delay = delay.map(|delay| Delay {
+            ms: delay.as_millis() as u32,
+            fed: 0,
+        });
+        self.spectators.push(spectator);
         Ok(())
+    }
+
+    /// A trusted world, kept for a delayed spectator to start from: the
+    /// last [`INPUTS_KEPT_MS`] (its inputs since are kept as long).
+    pub(super) fn keep_past(&mut self, world: &Snapshot) {
+        if self.past.back().is_some_and(|last| last.time >= world.time) {
+            return;
+        }
+        self.past.push_back(world.clone());
+        let keep_from = world.time.saturating_sub(INPUTS_KEPT_MS);
+        while self.past.front().is_some_and(|old| old.time < keep_from) {
+            self.past.pop_front();
+        }
+    }
+
+    /// What a delayed spectator at `clock` (behind the match's) is shown:
+    /// the worlds at or before it, the relays and roster changes due by it.
+    fn watched_delayed(&self, clock: u32) -> Watched<'_> {
+        Watched {
+            worlds: self.past.iter().filter(|world| world.time <= clock).collect(),
+            until: clock + HORIZON_MS,
+            ..self.watched(clock)
+        }
+    }
+
+    /// The world a delayed spectator at `clock` starts from: the newest
+    /// trusted one far enough behind it, and fresh enough that the inputs
+    /// since are read right.
+    fn delayed_start(&self, clock: u32) -> Option<Snapshot> {
+        self.past
+            .iter()
+            .filter(|world| world.time + HORIZON_MS <= clock)
+            .filter(|world| clock - world.time <= FRESH_SNAPSHOT_MS)
+            .max_by_key(|world| world.time)
+            .cloned()
+    }
+
+    /// The view of the spectator `at` (behind the match or not), at the
+    /// match clock `clock`.
+    fn view_of(&self, delay: Option<Delay>, clock: u32) -> Watched<'_> {
+        match delay {
+            Some(delay) => self.watched_delayed(clock.saturating_sub(delay.ms)),
+            None => self.watched(clock),
+        }
     }
 
     /// What its spectators are shown, at `clock`.
@@ -222,6 +287,7 @@ impl Game {
                 .collect(),
             inputs: &self.inputs,
             events: &self.events,
+            until: u32::MAX,
             compress: self.settings.compress_state,
             entry_state: self.settings.timing.entry_state,
         }
@@ -294,7 +360,8 @@ impl Game {
     fn spectator_message(&mut self, at: usize, message_id: u8, payload: &[u8], now: Instant) {
         let clock = self.clock(now);
         let mut spectators = std::mem::take(&mut self.spectators);
-        let heard = spectators[at].hear(&self.watched(clock), message_id, payload, now);
+        let view = self.view_of(spectators[at].delay, clock);
+        let heard = spectators[at].hear(&view, message_id, payload, now);
         self.spectators = spectators;
         match heard {
             Heard::Nothing => {}
@@ -407,7 +474,8 @@ impl Game {
         now: Instant,
     ) {
         let clock = self.clock(now);
-        for spectator in &mut self.spectators {
+        // A delayed one gets it from the list when its clock is there.
+        for spectator in self.spectators.iter_mut().filter(|s| s.delay.is_none()) {
             spectator.relay(from, message, time, clock, now);
         }
     }
@@ -421,7 +489,7 @@ impl Game {
         at: u32,
         message: &ServerMessage,
     ) {
-        for spectator in &mut self.spectators {
+        for spectator in self.spectators.iter_mut().filter(|s| s.delay.is_none()) {
             spectator.roster_change(index, entered, at, message);
         }
     }
@@ -456,7 +524,13 @@ impl Game {
         let mut starts = Vec::with_capacity(self.spectators.len());
         for at in 0..self.spectators.len() {
             self.prepare_for_spectator(at, now);
-            let start = if self.spectators[at].waits_for_world(roster) && self.clock_start.is_some()
+            let start = if let Some(delay) = self.spectators[at].delay {
+                self.spectators[at]
+                    .waits_for_world(roster)
+                    .then(|| self.delayed_start(clock.saturating_sub(delay.ms)))
+                    .flatten()
+                    .map(|world| world.time)
+            } else if self.spectators[at].waits_for_world(roster) && self.clock_start.is_some()
             {
                 let start = self.spectator_start(clock);
                 if start.is_none() && !self.installing() {
@@ -470,9 +544,10 @@ impl Game {
         }
         let echo = self.mono(now) as u16;
         let mut spectators = std::mem::take(&mut self.spectators);
-        let watched = self.watched(clock);
         for (spectator, start) in spectators.iter_mut().zip(starts) {
-            spectator.step(&watched, start, echo, now);
+            let view = self.view_of(spectator.delay, clock);
+            spectator.feed(&view, now);
+            spectator.step(&view, start, echo, now);
         }
         self.spectators = spectators;
         let mut datagrams = Vec::new();
@@ -633,6 +708,7 @@ impl Spectator {
         Self {
             addr,
             session_id,
+            delay: None,
             transport,
             stage: Watch::Connecting,
             generation: Generation::AT_READY,
@@ -781,13 +857,16 @@ impl Spectator {
         let replay: Vec<ServerMessage> = watched
             .inputs
             .iter()
-            .filter(|(at, _, _)| *at > time)
+            .filter(|(at, _, _)| *at > time && *at <= watched.until)
             .map(|(_, from, what)| relay(*from, what))
             .collect();
+        if let Some(delay) = self.delay.as_mut() {
+            delay.fed = watched.until;
+        }
         let entries: Vec<ServerMessage> = watched
             .events
             .iter()
-            .filter(|(at, _, entered)| *entered && *at > time)
+            .filter(|(at, _, entered)| *entered && *at > time && *at <= watched.until)
             .map(|&(at, who, _)| ServerMessage::PlayerEntered {
                 tick: tick_byte(at),
                 player: who as u8,
@@ -828,6 +907,42 @@ impl Spectator {
                 };
             }
             Err(_) => self.stage = Watch::Waiting,
+        }
+    }
+
+    /// A delayed spectator's turn: the relays and roster changes its clock
+    /// reached since the last, from the match's lists.
+    fn feed(&mut self, view: &Watched<'_>, now: Instant) {
+        let Some(delay) = self.delay else {
+            return;
+        };
+        let (from, until) = (delay.fed, view.until);
+        if until <= from {
+            return;
+        }
+        for &(time, place, entered) in view.events {
+            if time > from && time <= until {
+                let message = if entered {
+                    ServerMessage::PlayerEntered {
+                        tick: tick_byte(time),
+                        player: place as u8,
+                    }
+                } else {
+                    ServerMessage::PlayerLeft {
+                        tick: tick_byte(time),
+                        player: place as u8,
+                    }
+                };
+                self.roster_change(place, entered, time, &message);
+            }
+        }
+        for (time, place, what) in view.inputs {
+            if *time > from && *time <= until {
+                self.relay(*place, &relay(*place, what), *time, view.clock, now);
+            }
+        }
+        if let Some(delay) = self.delay.as_mut() {
+            delay.fed = until;
         }
     }
 

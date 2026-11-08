@@ -2,7 +2,7 @@
 //! match from a room's queue, with no place.
 
 use super::*;
-use session::{Player, Watcher};
+use session::{Player, WatchKind, Watcher};
 use survarium::v026g::match_msgs::ServerMessage;
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
@@ -19,8 +19,8 @@ fn running() -> Bench {
 }
 
 /// The lobby's side of a watch: a match of its own seats (players not of
-/// the bench) and the session watching the bench's match.
-pub(super) fn watch(bench: &Bench, session: u32) {
+/// the bench) and the session watching the bench's match as `kind` does.
+fn watch_as(bench: &Bench, session: u32, kind: WatchKind) {
     let seated = |id: u32| Player {
         session_id: 0x7_0000 + 2 * (session & 0xff) + id,
         account_id: 700 + 2 * (session & 0xff) + id,
@@ -36,13 +36,19 @@ pub(super) fn watch(bench: &Bench, session: u32) {
             match_id: lobby_match,
             ticket: bench.match_id,
             account_id: SPECTATOR_ACCOUNT,
+            kind,
         },
     ));
 }
 
 /// A spectator's game connected and loaded: its client's index.
 fn spectate(bench: &mut Bench, session: u32) -> usize {
-    watch(bench, session);
+    spectate_as(bench, session, WatchKind::Queued)
+}
+
+/// [`spectate`], as `kind` watches (`watch_as`).
+fn spectate_as(bench: &mut Bench, session: u32, kind: WatchKind) -> usize {
+    watch_as(bench, session, kind);
     let at = bench.clients.len();
     let players = bench.game().roster_size();
     bench
@@ -301,6 +307,7 @@ fn a_spectator_of_no_match_here_is_turned_away() {
             match_id: lobby_match,
             ticket: bench.match_id + 1,
             account_id: SPECTATOR_ACCOUNT,
+            kind: WatchKind::Queued,
         },
     ));
     let at = bench.clients.len();
@@ -448,4 +455,41 @@ fn a_place_whose_newcomer_failed_keeps_no_spectator_waiting() {
         "{:?}",
         bench.clients[at].faults
     );
+}
+
+/// The Live window's spectator of a public match watches it 10 s behind:
+/// its game's clock and world are that far back, its relays come as its
+/// clock reaches them, and the players see nothing of it.
+#[test]
+fn a_live_windows_spectator_watches_behind_the_match() {
+    let mut bench = running();
+    let delay = Duration::from_secs(10);
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay });
+    assert!(
+        bench.until(8_000, |b| b.clients[at].model.is_synced()),
+        "{:?}",
+        bench.clients[at].faults
+    );
+    let behind = |bench: &Bench| i64::from(bench.clients[0].clock()) - i64::from(bench.clients[at].clock());
+    assert!((9_000..=11_000).contains(&behind(&bench)), "{}", behind(&bench));
+    let world = bench.clients[at].snapshots()[0].1;
+    assert!(bench.clients[0].clock() - world >= 10_000, "{world}");
+    // Player 0's inputs: at once to player 1, 10 s later to it.
+    for _ in 0..20 {
+        bench.clients[0].input(50, 0x21);
+        bench.run(50);
+    }
+    bench.run(500);
+    let sent = bench.clients[1].relays_of(0);
+    assert!(sent.len() >= 20);
+    let late = |bench: &Bench| {
+        let got = bench.clients[at].relays_of(0);
+        sent.iter().rev().take(15).filter(|input| got.contains(input)).count()
+    };
+    assert_eq!(late(&bench), 0, "not yet");
+    bench.run_long(10_000);
+    assert_eq!(late(&bench), 15);
+    assert!((9_000..=11_000).contains(&behind(&bench)), "{}", behind(&bench));
+    assert_eq!(bench.clients[at].snapshots().len(), 1, "never started again");
+    bench.assert_no_faults();
 }

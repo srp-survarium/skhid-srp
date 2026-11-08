@@ -261,6 +261,18 @@ pub struct Watcher {
     /// a connecting spectator is let into.
     pub ticket: u32,
     pub account_id: u32,
+    pub kind: WatchKind,
+}
+
+/// How a session came to watch a match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WatchKind {
+    /// From its room's queue (Queue and spectate): at once, until a place
+    /// comes or it leaves the queue (`docs/notes/queue-spectate.md`).
+    Queued,
+    /// From the lobby's Live window: `delay` behind the match (a public
+    /// match's, so nobody calls positions to a friend), until it leaves.
+    Live { delay: Duration },
 }
 
 pub struct Matchmaking {
@@ -1110,6 +1122,7 @@ mod tests {
             match_id: id,
             ticket: 0xA000,
             account_id,
+            kind: WatchKind::Queued,
         };
         assert!(!mm.watch(1, watcher(1001)), "a seated session watches none");
         assert!(!mm.watch(

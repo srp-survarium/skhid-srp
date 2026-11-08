@@ -980,6 +980,9 @@ pub(crate) struct Game {
     snapshot: Option<Snapshot>,
     /// The newest upload no majority contradicts, checked or not.
     recent: Option<Snapshot>,
+    /// The trusted worlds of the last [`INPUTS_KEPT_MS`], oldest first: where
+    /// a Live window's spectator, behind the match, starts (`spectate`).
+    past: VecDeque<Snapshot>,
     requested_at: Option<Instant>,
     candidates: Vec<Candidate>,
     /// Everything relayed: its time, whose it is, what.
@@ -1079,6 +1082,7 @@ impl Game {
             clock_start: None,
             snapshot: None,
             recent: None,
+            past: VecDeque::new(),
             requested_at: None,
             candidates: Vec::new(),
             inputs: Vec::new(),
@@ -4153,6 +4157,7 @@ impl Game {
         self.rule.on_match_ready(snapshot.time);
         self.dump(&snapshot, index, "initial");
         self.observe(&snapshot, 1);
+        self.keep_past(&snapshot);
         self.snapshot = Some(snapshot);
         Verdict::Passed
     }
@@ -4516,6 +4521,7 @@ impl Game {
                             candidate.snapshot.time
                         );
                     }
+                    self.keep_past(&candidate.snapshot);
                     self.snapshot = Some(candidate.snapshot);
                     self.requested_at = None;
                 }

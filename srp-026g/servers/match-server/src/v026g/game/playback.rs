@@ -483,6 +483,7 @@ impl Playback {
             worlds: recording.worlds.iter().collect(),
             inputs: &recording.inputs[..self.inputs],
             events: &recording.events[..self.events],
+            until: u32::MAX,
             compress: self.settings.compress_state,
             entry_state: self.settings.timing.entry_state,
         }
