@@ -19,9 +19,9 @@ package survarium.watch
 
    // One match of the Watch window's lists (WatchWindow), research/watch-redesign.html's card: the
    // map's render, then three lines (its name and mode; the score or the player's result; its age,
-   // its code with a copy icon and the friends in it) and at the right one Watch, or why it cannot
-   // be watched. The row (WatchRows' object, `kind` live, recent or played) and what Watch and the
-   // copy icon do come from the window.
+   // its code with a copy icon, a save icon (ReplaySave) when it may be watched, and the friends in
+   // it) and at the right one Watch, or why it cannot be watched. The row (WatchRows' object,
+   // `kind` live, recent or played) and what Watch and the copy icon do come from the window.
    public class MatchCard extends Sprite
    {
       public static const H:int = 66;
@@ -113,7 +113,7 @@ package survarium.watch
          // line 2: the score or result
          this.secondLine(row,right);
          // line 3: age or watchers, the code and its copy icon, the friends
-         this.thirdLine(row,right,copied,copy);
+         this.thirdLine(row,right,copied,copy,reason == null);
       }
 
       private function modeLine(row:Object) : String
@@ -159,7 +159,7 @@ package survarium.watch
          this.field(RoomsText.clock(int(row.length)),x,27,right - x,13,RoomsLook.GREY,"srpWatchLength");
       }
 
-      private function thirdLine(row:Object, right:Number, copied:Object, copy:Function) : void
+      private function thirdLine(row:Object, right:Number, copied:Object, copy:Function, saves:Boolean) : void
       {
          var x:Number = TEXT_X;
          if(row.kind == "live")
@@ -176,6 +176,10 @@ package survarium.watch
             var code:String = NotificationListScrollContent.matchNumberText(uint(row.match));
             x = this.next(this.field(code,x,45,right - x,12,RoomsLook.GREY,"srpWatchNumber")) - 4;
             x = this.copyIcon(x,46,copy) + 6;
+            if(saves)
+            {
+               x = this.saveIcon(uint(row.match),x + 4,46,right) + 6;
+            }
             if(copied != null)
             {
                x = this.copiedNote(code,x,right);
@@ -225,6 +229,54 @@ package survarium.watch
          addChild(icon);
          this.presses.push(icon);
          return x + 12;
+      }
+
+      // An arrow into a tray: a press saves the replay (ReplaySave). Saving: dim, with its word;
+      // saved: gold, filled, with its word. Its x end.
+      private function saveIcon(match:uint, x:Number, y:Number, right:Number) : Number
+      {
+         var state:String = ReplaySave.stateOf(match);
+         var colour:uint = state == ReplaySave.SAVING ? RoomsLook.DIM : state == ReplaySave.SAVED ? 0x17130A : RoomsLook.GREY;
+         var icon:Sprite = new Sprite();
+         icon.name = "srpWatchSave";
+         icon.x = x;
+         icon.y = y;
+         icon.graphics.beginFill(0x000000,0.01);
+         icon.graphics.drawRect(-3,-3,18,18);
+         icon.graphics.endFill();
+         if(state == ReplaySave.SAVED)
+         {
+            icon.graphics.beginFill(RoomsLook.GOLD,1);
+            icon.graphics.drawRoundRect(-2,-2,16,16,4,4);
+            icon.graphics.endFill();
+         }
+         icon.graphics.lineStyle(1,colour);
+         icon.graphics.moveTo(6,0);
+         icon.graphics.lineTo(6,7);
+         icon.graphics.moveTo(3,4);
+         icon.graphics.lineTo(6,7);
+         icon.graphics.lineTo(9,4);
+         icon.graphics.moveTo(1,8);
+         icon.graphics.lineTo(1,11);
+         icon.graphics.lineTo(11,11);
+         icon.graphics.lineTo(11,8);
+         icon.buttonMode = state == ReplaySave.SAVE;
+         icon.mouseChildren = false;
+         var press:Function = function(e:Event):void
+         {
+            ReplaySave.save(match);
+         };
+         icon.addEventListener(MouseEvent.CLICK,press);
+         icon.addEventListener(ButtonEvent.CLICK,press);
+         addChild(icon);
+         this.presses.push(icon);
+         if(state == ReplaySave.SAVE)
+         {
+            return x + 12;
+         }
+         var word:TextField = this.field(LocalizationData.getName(state == ReplaySave.SAVING ? "st_srp_replay_saving" : "st_srp_replay_saved"),x + 18,45,
+            Math.max(10,right - x - 18),12,state == ReplaySave.SAVING ? RoomsLook.DIM : RoomsLook.GOLD,"srpWatchSaveState");
+         return this.next(word) - 10;
       }
 
       // After a copy: the code in a field selected for Ctrl+C and the keys to press. Its x end.

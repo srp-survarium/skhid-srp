@@ -26,6 +26,7 @@ package survarium.controls
    import survarium.data.ItemData;
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
+   import survarium.watch.ReplaySave;
    import survarium.constants.ClaimReason;
    import survarium.constants.CommentKind;
    import survarium.constants.Compliment;
@@ -142,6 +143,10 @@ package survarium.controls
       // replay cannot be watched, once that is known.
       protected var _watchAll:Button;
 
+      // srp's Save replay, between Watch replay and the close button (ReplaySave: Save replay,
+      // Saving..., Saved)
+      protected var _save:Button;
+
       protected var _watchReason:TextField;
 
       // the match's number left of them, as the Watch window's search takes it (`#` and 8 hex digits)
@@ -249,6 +254,7 @@ package survarium.controls
          LocalizationData.addCallback(this.onLocal,"item_drop_chance_label");
          this.btn_close.addEventListener(ButtonEvent.CLICK,this.closeWindow);
          this._watchAll = this.replayButton();
+         this._save = this.saveButton();
          this.players_list.autoSizeLists = true;
          this.premium_button.addEventListener(ButtonEvent.CLICK,this.showPremiumMessage);
          this.treasureCount.mouseEnabled = false;
@@ -301,25 +307,57 @@ package survarium.controls
          return button;
       }
 
-      // Watch replay (or why it cannot be watched) left of the close button, and the match's
-      // number left of it, for a match with an id; sized to the language's label.
+      // The button that saves this match's replay (ReplaySave), as the close button.
+      protected function saveButton() : Button
+      {
+         var button:Button = new (Object(this.btn_close).constructor as Class)() as Button;
+         button.name = "srpSaveReplay";
+         button.visible = false;
+         button.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
+         {
+            ReplaySave.save(_match_id);
+         });
+         ReplaySave.listen(function():void
+         {
+            if(parent != null)
+            {
+               placeReplayButtons();
+            }
+         });
+         addChild(button);
+         return button;
+      }
+
+      // A button of the row left of the close button: its label, sized to it, `right` its right edge.
+      private function placeButton(button:Button, label:String, right:Number, font:String) : void
+      {
+         button.label = label;
+         try
+         {
+            button.setSize(Math.max(this.btn_close.width,this.labelWidth(label,font) + 40),this.btn_close.height);
+         }
+         catch(e:Error)
+         {
+            button.width = Math.max(this.btn_close.width,this.labelWidth(label,font) + 40);
+         }
+         button.validateNow();
+         button.x = int(right - button.width);
+         button.y = this.btn_close.y;
+      }
+
+      // Watch replay and Save replay (or why it cannot be watched) left of the close button, and
+      // the match's number left of them, for a match with an id; sized to the language's labels.
       protected function placeReplayButtons() : void
       {
          var reason:String = this._match_id != 0 ? NotificationListScrollContent.replayReason(NotificationListScrollContent.matchNumberText(this._match_id).substr(1)) : null;
          var font:String = this.btn_close.textField.getTextFormat().font;
+         var state:String = ReplaySave.stateOf(this._match_id);
          this._watchAll.visible = this._match_id != 0 && reason == null;
-         this._watchAll.label = LocalizationData.getName("st_srp_replay_title");
-         try
-         {
-            this._watchAll.setSize(Math.max(this.btn_close.width,this.labelWidth(this._watchAll.label,font) + 40),this.btn_close.height);
-         }
-         catch(e:Error)
-         {
-            this._watchAll.width = Math.max(this.btn_close.width,this.labelWidth(this._watchAll.label,font) + 40);
-         }
-         this._watchAll.validateNow();
-         this._watchAll.x = int(this.btn_close.x - 10 - this._watchAll.width);
-         this._watchAll.y = this.btn_close.y;
+         this._save.visible = this._watchAll.visible;
+         this.placeButton(this._save,LocalizationData.getName(state == ReplaySave.SAVING ? "st_srp_replay_saving"
+            : state == ReplaySave.SAVED ? "st_srp_replay_saved" : "st_srp_replay_save"),this.btn_close.x - 10,font);
+         this._save.enabled = state == ReplaySave.SAVE;
+         this.placeButton(this._watchAll,LocalizationData.getName("st_srp_replay_title"),this._save.x - 10,font);
          var left:Number = this._watchAll.x;
          if(!this._watchReason)
          {

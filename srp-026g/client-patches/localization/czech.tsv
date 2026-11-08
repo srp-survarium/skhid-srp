@@ -2703,6 +2703,9 @@ st_srp_replay_opening	Server zápasů otevírá záznam tohoto zápasu.\n\n%1$s
 st_srp_replay_place_in_line	Místo ve frontě: %1$s. Čekání: %2$s s.
 st_srp_replay_ready	Záznam tohoto zápasu je připraven.\n\nStáhne se ze serveru, který uchovává původní záznam zápasu. Otevře se druhé okno hry a přehraje ho; lobby zůstane otevřené.\n\nV záznamu stiskni F11 pro ovládání: hráči, kamera, posun, rychlost.
 st_srp_replay_ready_size	Záznam tohoto zápasu: %1$s.\n\nStáhne se ze serveru, který uchovává původní záznam zápasu. Otevře se druhé okno hry a přehraje ho; lobby zůstane otevřené.\n\nV záznamu stiskni F11 pro ovládání: hráči, kamera, posun, rychlost.
+st_srp_replay_save	Uložit záznam
+st_srp_replay_saved	Uloženo
+st_srp_replay_saving	Ukládám...
 st_srp_replay_size	%1$s,%2$s MB
 st_srp_replay_starting	Spouštím záznam: otevře se druhé okno hry, lobby zůstane otevřené. Pokud se něco pokazí, aktualizační program ukáže příčinu.\n\nV záznamu stiskni F11 pro ovládání.
 st_srp_replay_still_preparing	Záznam se ještě připravuje na serveru. Za minutu znovu otevři Přehrát záznam.

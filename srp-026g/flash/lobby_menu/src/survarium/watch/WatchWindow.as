@@ -218,6 +218,7 @@ package survarium.watch
          addEventListener(MouseEvent.MOUSE_WHEEL,this.look.onWheel,false,0,true);
          addEventListener(Event.ENTER_FRAME,this.onFrame,false,0,true);
          NotificationListScrollContent.answerListener = this.answered;
+         ReplaySave.listen(this.render);
          var now:int = getTimer();
          this._askedAt[LIVE] = now - BADGE_EVERY + FIRST_ASK_MS;
          this._mineDue = now + FIRST_ASK_MS;
@@ -231,10 +232,14 @@ package survarium.watch
          this.layout();
       }
 
-      // The lobby server's rows for the window: taken (true) when they are these rows, whether or
-      // not it is shown (PlayerRanking's rows).
+      // The lobby server's rows for the window, and a save's answer (ReplaySave): taken (true) when
+      // they are these rows, whether or not it is shown (PlayerRanking's rows).
       public static function take(rows:Array) : Boolean
       {
+         if(ReplaySave.take(rows))
+         {
+            return true;
+         }
          var first:String = null;
          try
          {

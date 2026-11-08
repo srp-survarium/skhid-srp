@@ -36,8 +36,14 @@ package
    //   selected in a field with the keys to press;
    // - Live's Watch asks at once from the place of the friend in the match (or anyone's), no
    //   roster; a friend's Spectate watches the friend's match from the friend's place;
-   // - the results screen: a red Watch replay left of the close button, its label whole, the
-   //   match's number left of it; why not in its place once known; no Watch my deaths;
+   // - Save replay (ReplaySave): a save icon right of the copy icon on the cards that may be
+   //   watched (none on live cards or ones that cannot be watched); a press asks `3D 00 FFFFFF01
+   //   <match>` and polls 2210000000; `R2;preparing` keeps it saving, `R2;ready` hands the link to the
+   //   exe once (video_tutorial_link_clicked, no argument) and shows it saved; a refusal, or no
+   //   answer, says why and it may be saved again; the saving and saved words fit the card;
+   // - the results screen: a red Watch replay, then Save replay (Save replay, Saving..., Saved),
+   //   left of the close button, their labels whole, the match's number left of them; why not in
+   //   their place once known; no Watch my deaths;
    // - a History row: Watch, or why not, and the match's number under it, inside the row.
    // Ruffle has no exe (ExternalInterface throws): asks are seen in the History's prompt
    // (replayAsked) and the server's answers are told to the movie as the exe would.
@@ -59,6 +65,13 @@ package
       private var Prompt:*;
 
       private var Click:*;
+
+      private var Save:*;
+
+      // the exe's callbacks ReplaySave made ([name, args]) and the texts it told
+      private var exeCalls:Array = [];
+
+      private var told:Array = [];
 
       private var font:Font;
 
@@ -89,6 +102,15 @@ package
             words = domain.getDefinition("survarium.data.LocalizationData");
             Prompt = domain.getDefinition("survarium.controls.NotificationListScrollContent");
             Click = domain.getDefinition("scaleform.clik.events.ButtonEvent");
+            Save = domain.getDefinition("survarium.watch.ReplaySave");
+            Save.call = function(name:String, args:Array):void
+            {
+               exeCalls.push([name,args.concat()]);
+            };
+            Save.tell = function(key:String):void
+            {
+               told.push(key);
+            };
             font = new (domain.getDefinition("Fonts_CB_Bold") as Class)() as Font;
             lobby = new WatchLobby(domain,this,WatchLobby.texts("english"));
             for each(var language:String in HarnessText.LANGUAGES)
@@ -101,6 +123,7 @@ package
                search(language);
                live(language);
                copying(language);
+               saving(language);
                history(language);
                results(language);
                lobby.win.show(false);
@@ -543,6 +566,88 @@ package
          trace("REPLAYBUTTONS " + language + ": the copy icon, its code field and the keys");
       }
 
+      // ---- Save replay ----
+
+      private function calls(name:String) : Array
+      {
+         return exeCalls.filter(function(c:Array, i:int, all:Array):Boolean
+         {
+            return c[0] == name;
+         });
+      }
+
+      private function saveAnswer(status:String, match:uint, n:int = 0) : void
+      {
+         expect("an R2 row not taken",lobby.take(["R2;" + status + ";" + hex(match) + ";" + n]));
+      }
+
+      private function saveState(card:DisplayObjectContainer) : String
+      {
+         return textOf(card,"srpWatchSaveState");
+      }
+
+      private function saving(language:String) : void
+      {
+         var first:Boolean = language == HarnessText.LANGUAGES[0];
+         var savingWord:String = words.getName("st_srp_replay_saving");
+         var savedWord:String = words.getName("st_srp_replay_saved");
+         press(win,"srpWatchTab_live");
+         lobby.take(WatchFake.LIVE);
+         for each(var c:DisplayObjectContainer in cards())
+            expect(language + ": a save icon on a live card",find(c,"srpWatchSave") == null);
+         press(win,"srpWatchTab_replays");
+         press(win,"srpWatchChip_mine");
+         lobby.take(WatchFake.played("PocketTest1"));
+         var list:Array = cards();
+         for(var i:int = 0; i < list.length; i++)
+            expect(language + ": my match " + i + "'s save icon",(find(list[i],"srpWatchSave") != null) == (i < 2)
+               && (i >= 2 || find(list[i],"srpWatchSave").x > find(list[i],"srpWatchCopy").x));
+         exeCalls = [];
+         told = [];
+         if(first)
+         {
+            // saved: asked, polled, the link handed to the exe once
+            expect(language + ": a save before any press",saveState(list[0]) == null);
+            click(list[0],"srpWatchSave");
+            expect(language + ": the save asked " + exeCalls,exeCalls.length == 1 && exeCalls[0][0] == "victory_screen_request_player_data"
+               && exeCalls[0][1][0] == 0xFFFFFF01 && exeCalls[0][1][1] == MATCH);
+            expect(language + ": the card does not say saving",saveState(cards()[0]) == savingWord);
+            cardFits(language + ": the saving card",cards()[0],cards()[0].width);
+            click(cards()[1],"srpWatchSave");
+            expect(language + ": a second save while one is under way",calls("victory_screen_request_player_data").length == 1);
+            Save.poll();
+            var polls:Array = calls("request_players_range");
+            expect(language + ": the save did not poll " + polls,polls.length == 1 && polls[0][1][0] == 2210000000 && polls[0][1][1] == 1);
+            saveAnswer("preparing",MATCH,2);
+            saveAnswer("ready",OTHER,1000);
+            expect(language + ": preparing or another match's ready ended the save",Save.stateOf(MATCH) == "saving" && calls("video_tutorial_link_clicked").length == 0);
+            saveAnswer("ready",MATCH,4404019);
+            saveAnswer("ready",MATCH,4404019);
+            var links:Array = calls("video_tutorial_link_clicked");
+            expect(language + ": the link not handed to the exe once with no argument " + links,links.length == 1 && links[0][1].length == 0);
+            expect(language + ": the card does not say saved",saveState(cards()[0]) == savedWord && told.length == 0);
+            Save.poll();
+            expect(language + ": polled after the save",calls("request_players_range").length == 1);
+            exeCalls = [];
+            click(cards()[0],"srpWatchSave");
+            expect(language + ": a saved replay asked again",exeCalls.length == 0);
+         }
+         expect(language + ": the saved card says '" + saveState(cards()[0]) + "'",saveState(cards()[0]) == savedWord);
+         cardFits(language + ": the saved card",cards()[0],cards()[0].width);
+         // refused: why, and it may be saved again; no answer: the same
+         click(cards()[1],"srpWatchSave");
+         expect(language + ": the other card does not say saving",saveState(cards()[1]) == savingWord);
+         cardFits(language + ": the saving card",cards()[1],cards()[1].width);
+         saveAnswer("gone",OTHER);
+         expect(language + ": a refusal told " + told,told.length == 1 && told[0] == "st_srp_replay_gone" && saveState(cards()[1]) == null);
+         click(cards()[1],"srpWatchSave");
+         for(var p:int = 0; p <= 30; p++)
+            Save.poll();
+         expect(language + ": no answer told " + told,told.length == 2 && told[1] == "st_srp_replay_no_answer" && Save.stateOf(OTHER) == "save");
+         expect(language + ": the save asked twice",calls("victory_screen_request_player_data").length == 2 && calls("video_tutorial_link_clicked").length == 0);
+         trace("REPLAYBUTTONS " + language + ": Save: the icon, asked, polled, the link once, saved, refused, no answer");
+      }
+
       // ---- History and the results screen ----
 
       private function history(language:String) : void
@@ -626,9 +731,10 @@ package
          var screen:* = lobby.make("SrvVictoryScreenReskin");
          lobby.holder.addChild(screen);
          var button:* = find(screen,"srpWatchReplay");
+         var save:* = find(screen,"srpSaveReplay");
          var number:TextField = find(screen,"srpMatchNumber") as TextField;
          show(screen,0);
-         expect(language + ": Watch replay without a match id",!button.visible);
+         expect(language + ": Watch or Save replay without a match id",!button.visible && !save.visible);
          fresh();
          show(screen,MATCH);
          number = find(screen,"srpMatchNumber") as TextField;
@@ -636,7 +742,27 @@ package
          expect(language + ": Watch replay hidden",button.visible);
          expect(language + ": Watch replay is not red: " + getQualifiedClassName(button),getQualifiedClassName(button) == "SrvButtonSkinnedRed");
          fits(language + ": results Watch replay",button);
-         expect(language + ": Watch replay is not just left of the close button",button.x + button.width <= close.x && close.x - (button.x + button.width) <= 20);
+         expect(language + ": Save replay hidden",save.visible);
+         expect(language + ": Save replay is red",getQualifiedClassName(save) != "SrvButtonSkinnedRed");
+         expect(language + ": Save replay is not just left of the close button",save.x + save.width <= close.x && close.x - (save.x + save.width) <= 20);
+         expect(language + ": Watch replay is not just left of Save replay",button.x + button.width <= save.x && save.x - (button.x + button.width) <= 20);
+         // MATCH is saved (saving); OTHER may be: Save replay, Saving..., back
+         expect(language + ": the saved match's button says '" + save.label + "'",save.label == words.getName("st_srp_replay_saved"));
+         fits(language + ": results Saved",save);
+         show(screen,OTHER);
+         expect(language + ": Save replay says '" + save.label + "'",save.label == words.getName("st_srp_replay_save"));
+         fits(language + ": results Save replay",save);
+         expect(language + ": Watch replay is not just left of Save replay",button.x + button.width <= save.x && save.x - (button.x + button.width) <= 20);
+         exeCalls = [];
+         told = [];
+         save.dispatchEvent(new Click(Click.CLICK));
+         expect(language + ": Save replay did not ask " + exeCalls,exeCalls.length == 1 && exeCalls[0][1][0] == 0xFFFFFF01 && exeCalls[0][1][1] == OTHER
+            && save.label == words.getName("st_srp_replay_saving"));
+         fits(language + ": results Saving",save);
+         expect(language + ": Watch replay is not just left of Saving",button.x + button.width <= save.x);
+         saveAnswer("busy",OTHER);
+         expect(language + ": Save replay not back after busy",save.label == words.getName("st_srp_replay_save") && told[0] == "st_srp_replay_busy");
+         show(screen,MATCH);
          expect(language + ": a Watch my deaths",find(screen,"srpWatchDeaths") == null);
          expect(language + ": the results' number is '" + (number ? number.text : null) + "'",number != null && number.visible && number.text == "#1ce45cbe"
             && number.x + number.width <= button.x);
@@ -646,7 +772,7 @@ package
          lobby.answer("gone",MATCH);
          show(screen,MATCH);
          var why:TextField = find(screen,"srpWatchReason") as TextField;
-         expect(language + ": a replay not kept shows '" + (why && why.visible ? why.text : null) + "' and Watch replay",!button.visible && why != null && why.visible
+         expect(language + ": a replay not kept shows '" + (why && why.visible ? why.text : null) + "' and Watch or Save replay",!button.visible && !save.visible && why != null && why.visible
             && why.text == words.getName("st_srp_watch_reason_gone") && why.x + why.width <= close.x && number.x + number.width <= why.x);
          Prompt.noteReplay(hex(MATCH),null);
          screen.parent.removeChild(screen);
