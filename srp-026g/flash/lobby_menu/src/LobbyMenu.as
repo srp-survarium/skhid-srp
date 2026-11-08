@@ -374,7 +374,6 @@ package
       
       private var _wheelsMC:MovieClip = new LoadingWheelsShared();
       
-      private var _craftData:Object;
       
       protected var _ignoreMM:Boolean = false;
       
@@ -1726,13 +1725,10 @@ package
          this.item_control.fillItemRerollOptions(value);
       }
       
+      // The upgrade's wait and cost, which the exe still hands over: an upgrade has no wait and its price
+      // comes from 0x9B (MessageCraftItem), so nothing reads them.
       public function fill_craft_data(value:Object) : void
       {
-         _craftData = value;
-         if((this.craftWindow))
-         {
-            this.craftWindow.fillCraftData(value);
-         }
       }
       
       public function fill_crafted_item(value:Object) : void
@@ -2137,10 +2133,6 @@ package
          var itemData:ItemData = this.item_control.getItemData().clone();
          craftWindow = new SrvMessageCraftItemSkinned();
          this.craftWindow.setMessageData(0,itemData);
-         if((this._craftData))
-         {
-            this.craftWindow.fillCraftData(this._craftData);
-         }
          this.craftWindow.setMatchState(MainScene.activeMatchMaking ? MatchMakingState.SEARCHING : MatchMakingState.IDLE);
          this.craftWindow.x = (MainScene.stageWidth - this.craftWindow.width) / 2;
          this.craftWindow.y = (MainScene.stageHeight - this.craftWindow.height) / 2;

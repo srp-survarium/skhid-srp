@@ -706,8 +706,9 @@ fn item_actions_change_the_inventory() {
     client.receive(&permitted_upgrade_detached(3, 1)).unwrap();
     assert!(client.inventory()[0].upgrades.is_empty());
 
-    // Crafting: the donor goes, and a modification comes or goes.
-    let crafted = |crafted| permitted_crafted(1, crafted).unwrap();
+    // Crafting: the donor goes, and a modification comes. The game's "nothing
+    // happened" (0) and "one fewer" (others) are never sent.
+    let crafted = |crafted| permitted_crafted(1, crafted);
     assert_eq!(
         client.receive(&crafted(Crafted::Added {
             consumed_item_id: 2,
@@ -716,11 +717,18 @@ fn item_actions_change_the_inventory() {
         Err(ModelError::UnknownModification(7))
     );
     assert_eq!(
-        client.receive(&crafted(Crafted::Nothing {
-            consumed_item_id: 9
+        client.receive(&crafted(Crafted::Added {
+            consumed_item_id: 9,
+            modification: 2040,
         })),
         Err(ModelError::NotInInventory(9))
     );
+    for mode in ["00", "02"] {
+        assert!(matches!(
+            client.receive_raw(0x83, &h(&format!("46 09 {mode} 01000000 02000000 03000000"))),
+            Err(ModelError::Bad(ServerId::Permitted, _))
+        ));
+    }
     client
         .receive(&crafted(Crafted::Added {
             consumed_item_id: 2,
@@ -730,13 +738,11 @@ fn item_actions_change_the_inventory() {
     assert_eq!(ids(&client), [2030, 2010, 2040]);
     assert_eq!(client.inventory().len(), 2);
     client
-        .receive(&crafted(Crafted::Removed {
-            mode: 2,
+        .receive(&crafted(Crafted::Added {
             consumed_item_id: 3,
-            modification: 2010,
+            modification: 2050,
         }))
         .unwrap();
-    assert_eq!(ids(&client), [2030, 2040]);
     assert_eq!(client.inventory().len(), 1);
     // A refused craft: the item and nothing else.
     assert_eq!(

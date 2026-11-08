@@ -1042,11 +1042,9 @@ fn every_change_costs_the_first_ones_price() {
 #[test]
 fn an_item_is_upgraded_with_a_donor() {
     let table = Modifications::shared();
-    let (mut added, mut nothing) = (0, 0);
-    // An item with one modification and a donor with none: half gain one
-    // (the game's gold chances, in silver: the owner's rule of 2026-11-08);
-    // the rest keep what they had (the owner's rule of 2026-10-23).
-    for seed in 0..400 {
+    // An item with one modification and a donor with none: always one more
+    // (the owner, 2026-11-08: "make it 100% always").
+    for seed in 0..40 {
         let mut account = rich();
         let rifle = give(&mut account, "ak_74m", &[2000]);
         let donor = give(&mut account, "ak_74m", &[]);
@@ -1057,28 +1055,19 @@ fn an_item_is_upgraded_with_a_donor() {
         assert_eq!(account.generic_money, 1_000_000 - 5_000);
         assert!(account.item(donor).is_none());
         let held = own_modifications(account.item(rifle).unwrap());
-        match crafted {
-            Crafted::Added {
-                consumed_item_id,
-                modification,
-            } => {
-                added += 1;
-                assert_eq!(consumed_item_id, donor);
-                assert_eq!(held, [2000, modification]);
-                assert!(table.fits(dict("ak_74m"), &[2000], modification));
-            }
-            Crafted::Nothing { consumed_item_id } => {
-                nothing += 1;
-                assert_eq!(consumed_item_id, donor);
-                assert_eq!(held, [2000]);
-            }
-            other => panic!("{other:?}"),
-        }
-        let message = lobby::permitted_crafted(rifle, crafted).unwrap();
+        let Crafted::Added {
+            consumed_item_id,
+            modification,
+        } = crafted
+        else {
+            panic!("{crafted:?}");
+        };
+        assert_eq!(consumed_item_id, donor);
+        assert_eq!(held, [2000, modification]);
+        assert!(table.fits(dict("ak_74m"), &[2000], modification));
+        let message = lobby::permitted_crafted(rifle, crafted);
         takes(&mut client, &message, &account);
     }
-    assert!((160..240).contains(&added), "{added} gained");
-    assert_eq!(added + nothing, 400);
 
     // With as many modifications as the donor: always one more.
     let mut account = rich();
@@ -1096,19 +1085,18 @@ fn an_item_is_upgraded_with_a_donor() {
     expected.extend(donor.to_le_bytes());
     expected.extend(modification.to_le_bytes());
     assert_eq!(
-        bytes(&lobby::permitted_crafted(rifle, crafted).unwrap()),
+        bytes(&lobby::permitted_crafted(rifle, crafted)),
         expected
     );
 }
 
-/// The owner's rule of 2026-10-23 ("remove chance for bonus removal during
-/// combination"): an upgrade never takes a modification away. Whatever the
-/// item holds (one or two, reliability, a golden weapon's silver bonus,
-/// premium armour's bonuses), the donor and the price go, exactly, and the
-/// item keeps every modification it had: one more on a success, as before
-/// (the data's success chances), and none fewer.
+/// The owner's rules of 2026-10-23 ("remove chance for bonus removal during
+/// combination") and 2026-11-08 ("make it 100% always"): whatever the item
+/// holds (one or two, reliability, a golden weapon's silver bonus, premium
+/// armour's bonuses) and the donor's difference, the donor and the price go,
+/// exactly, and the item keeps every modification it had and gains one.
 #[test]
-fn an_upgrade_never_takes_a_modification_away() {
+fn an_upgrade_always_adds_a_modification_and_takes_none() {
     let table = Modifications::shared();
     let (golden_rifle, premium_legs) = (dict("ak_74n_premium"), dict("bm_legs_4_premium"));
     // (item, its modifications, the donor's): the item's own ones are
@@ -1127,8 +1115,7 @@ fn an_upgrade_never_takes_a_modification_away() {
     ];
     for (dict_id, own, donor_held) in cases {
         {
-            let (mut added, mut nothing) = (0_u32, 0_u32);
-            for seed in 0..300 {
+            for seed in 0..20 {
                 let mut account = rich();
                 let item_id = account.add_item(dict_id, FULL_CONDITION);
                 account
@@ -1170,50 +1157,22 @@ fn an_upgrade_never_takes_a_modification_away() {
                 let held = own_modifications(item);
                 assert_eq!(held[..held_before.len()], held_before[..]);
                 let mut expected = item_before.clone();
-                match crafted {
-                    Crafted::Added {
-                        consumed_item_id,
-                        modification,
-                    } => {
-                        added += 1;
-                        assert_eq!(consumed_item_id, donor);
-                        assert!(!held_before.contains(&modification));
-                        expected.modifications.push((modification, false));
-                    }
-                    Crafted::Nothing { consumed_item_id } => {
-                        nothing += 1;
-                        assert_eq!(consumed_item_id, donor);
-                    }
-                    other => panic!("{other:?}"),
-                }
+                let Crafted::Added {
+                    consumed_item_id,
+                    modification,
+                } = crafted
+                else {
+                    panic!("{dict_id} {own:?} {donor_held:?}: {crafted:?}");
+                };
+                assert_eq!(consumed_item_id, donor);
+                assert!(!held_before.contains(&modification));
+                expected.modifications.push((modification, false));
                 assert_eq!(item, &expected);
-                let message = lobby::permitted_crafted(item_id, crafted).unwrap();
+                let message = lobby::permitted_crafted(item_id, crafted);
                 takes(&mut client, &message, &account);
-            }
-            // The success chance is the data's, as before; the rest leave
-            // the item as it was.
-            let difference = held_before_len(dict_id, own) - donor_held.len();
-            let (success, failure) = table.craft.chances(difference).unwrap();
-            let expected = 300.0 * success / 100.0;
-            let slack = 4.0 * (300.0 * success / 100.0 * (1.0 - success / 100.0)).sqrt() + 1.0;
-            assert!(
-                (f64::from(added) - f64::from(expected)).abs() <= f64::from(slack),
-                "{dict_id} {own:?} {donor_held:?}: {added} of 300, {success} %"
-            );
-            assert_eq!(added + nothing, 300);
-            if failure > 0.0 {
-                assert!(nothing > 0);
             }
         }
     }
-}
-
-/// How many modifications an item of `dict_id` holds with `own` given
-/// after the bonuses it is made with.
-fn held_before_len(dict_id: u16, own: &[u32]) -> usize {
-    let mut account = rich();
-    let item_id = account.add_item(dict_id, FULL_CONDITION);
-    own_modifications(account.item(item_id).unwrap()).len() + own.len()
 }
 
 #[test]
@@ -1316,7 +1275,7 @@ fn a_craft_the_lobby_would_not_offer_is_refused() {
     assert_eq!(account.kits[1].slots[usize::from(slot)], None);
 
     // The client is told with mode 0xFE: the item and nothing else.
-    let message = lobby::permitted_crafted(rifle, Crafted::Failed).unwrap();
+    let message = lobby::permitted_crafted(rifle, Crafted::Failed);
     let mut expected = vec![0x83, 0x46, 0x09, 0xFE];
     expected.extend(rifle.to_le_bytes());
     assert_eq!(bytes(&message), expected);
@@ -1478,7 +1437,7 @@ fn an_upgrade_never_gains_reliability() {
     let mut client = client_of(&account);
     takes(
         &mut client,
-        &lobby::permitted_crafted(backpack, Crafted::Failed).unwrap(),
+        &lobby::permitted_crafted(backpack, Crafted::Failed),
         &account,
     );
     // One with reliability from before still takes its other type.
@@ -1677,10 +1636,9 @@ fn a_golden_weapon_is_upgraded_like_its_plain_weapon() {
     // The plain weapon's price: the same item level.
     assert_eq!(item_level(golden_rifle), item_level(plain_rifle));
     let price = table.craft.price(item_level(plain_rifle));
-    let (mut added, mut nothing) = (0, 0);
     // The golden rifle (the silver bonus: rank 1) with a plain one as the
-    // donor (rank 0).
-    for seed in 0..400 {
+    // donor (rank 0): always one more, the silver bonus kept.
+    for seed in 0..40 {
         let mut account = rich();
         let rifle = account.add_item(golden_rifle, FULL_CONDITION);
         let donor = account.add_item(plain_rifle, FULL_CONDITION);
@@ -1693,27 +1651,14 @@ fn a_golden_weapon_is_upgraded_like_its_plain_weapon() {
         let item = account.item(rifle).unwrap();
         assert_eq!(item.dict_id, golden_rifle);
         let held = own_modifications(item);
-        match crafted {
-            Crafted::Added { modification, .. } => {
-                added += 1;
-                assert_eq!(held, [SILVER, modification]);
-                assert!(table.fits(plain_rifle, &[], modification));
-            }
-            // A failure keeps the silver bonus, as any modification (the
-            // owner's rule of 2026-10-23).
-            Crafted::Nothing { .. } => {
-                nothing += 1;
-                assert_eq!(held, [SILVER]);
-            }
-            other => panic!("{other:?}"),
-        }
-        let message = lobby::permitted_crafted(rifle, crafted).unwrap();
+        let Crafted::Added { modification, .. } = crafted else {
+            panic!("{crafted:?}");
+        };
+        assert_eq!(held, [SILVER, modification]);
+        assert!(table.fits(plain_rifle, &[], modification));
+        let message = lobby::permitted_crafted(rifle, crafted);
         takes(&mut client, &message, &account);
     }
-    // The chances of a plain rifle with one modification and a plain donor:
-    // the game's gold ones, half.
-    assert!((160..240).contains(&added), "{added} gained");
-    assert_eq!(added + nothing, 400);
 
     let mut rng = Rng::new(9);
     let mut account = rich();

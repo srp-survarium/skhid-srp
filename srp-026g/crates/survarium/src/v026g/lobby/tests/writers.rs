@@ -825,18 +825,8 @@ fn inventory_action_answers() {
         &permitted_modifier_chosen(1, 2, 3, [4, 5, 6]),
         "83 46 08 01000000 02000000 03000000 04000000 05000000 06000000",
     );
-    // `u8 mode, u32 item`; the consumed item unless mode 0xFE; the
-    // modification unless mode 0.
-    assert_bytes(
-        &permitted_crafted(
-            1,
-            Crafted::Nothing {
-                consumed_item_id: 2,
-            },
-        )
-        .unwrap(),
-        "83 46 09 00 01000000 02000000",
-    );
+    // `u8 mode, u32 item`, then for mode 1 the consumed item and the
+    // modification added.
     assert_bytes(
         &permitted_crafted(
             1,
@@ -844,37 +834,13 @@ fn inventory_action_answers() {
                 consumed_item_id: 2,
                 modification: 3,
             },
-        )
-        .unwrap(),
+        ),
         "83 46 09 01 01000000 02000000 03000000",
-    );
-    assert_bytes(
-        &permitted_crafted(
-            1,
-            Crafted::Removed {
-                mode: 2,
-                consumed_item_id: 2,
-                modification: 3,
-            },
-        )
-        .unwrap(),
-        "83 46 09 02 01000000 02000000 03000000",
     );
     // Mode 0xFE: the item and nothing more.
     assert_bytes(
-        &permitted_crafted(1, Crafted::Failed).unwrap(),
+        &permitted_crafted(1, Crafted::Failed),
         "83 46 09 FE 01000000",
-    );
-    assert!(
-        permitted_crafted(
-            1,
-            Crafted::Removed {
-                mode: 0xFE,
-                consumed_item_id: 2,
-                modification: 3
-            }
-        )
-        .is_err()
     );
 }
 

@@ -705,7 +705,6 @@ impl Client {
                     .iter_mut()
                     .find(|item| item.item_id == *item_id);
                 let consumed = match (*crafted, item) {
-                    (Crafted::Nothing { consumed_item_id }, _) => consumed_item_id,
                     (
                         Crafted::Added {
                             consumed_item_id,
@@ -718,20 +717,6 @@ impl Client {
                                 id: modification,
                                 state: false,
                             });
-                        }
-                        consumed_item_id
-                    }
-                    (
-                        Crafted::Removed {
-                            consumed_item_id,
-                            modification,
-                            ..
-                        },
-                        item,
-                    ) => {
-                        if let Some(item) = item {
-                            item.modifications
-                                .retain(|held| held.id != modification || held.state);
                         }
                         consumed_item_id
                     }
@@ -1075,36 +1060,34 @@ impl Client {
                         if self.find(item_id).is_none() {
                             return Err(ModelError::NotInInventory(item_id));
                         }
-                        // Mode 0xFE ends here (0x275A31).
-                        let consumed_item_id = if mode != 0xFE { r.u32()? } else { 0 };
-                        let modification = if !matches!(mode, 0 | 0xFE) {
-                            r.u32()?
-                        } else {
-                            0
-                        };
-                        // The window shows the consumed item's dictionary
-                        // entry as the crafted one's, and the modification
-                        // from its table.
-                        if mode != 0xFE && self.find(consumed_item_id).is_none() {
-                            return Err(ModelError::NotInInventory(consumed_item_id));
-                        }
-                        if !matches!(mode, 0 | 0xFE)
-                            && !Modifications::shared().is_known(modification, false)
-                        {
-                            return Err(ModelError::UnknownModification(modification));
-                        }
                         let crafted = match mode {
-                            0 => Crafted::Nothing { consumed_item_id },
-                            1 => Crafted::Added {
-                                consumed_item_id,
-                                modification,
-                            },
+                            // Mode 0xFE ends here (0x275A31).
                             0xFE => Crafted::Failed,
-                            mode => Crafted::Removed {
-                                mode,
-                                consumed_item_id,
-                                modification,
-                            },
+                            1 => {
+                                let consumed_item_id = r.u32()?;
+                                let modification = r.u32()?;
+                                // The window shows the consumed item's
+                                // dictionary entry as the crafted one's, and
+                                // the modification from its table.
+                                if self.find(consumed_item_id).is_none() {
+                                    return Err(ModelError::NotInInventory(consumed_item_id));
+                                }
+                                if !Modifications::shared().is_known(modification, false) {
+                                    return Err(ModelError::UnknownModification(modification));
+                                }
+                                Crafted::Added {
+                                    consumed_item_id,
+                                    modification,
+                                }
+                            }
+                            // The game's "nothing happened" (0) and "one
+                            // fewer" (others): an upgrade always adds one.
+                            _ => {
+                                return Err(ModelError::Bad(
+                                    ServerId::Permitted,
+                                    "a craft result but added or refused",
+                                ));
+                            }
                         };
                         Permitted::Crafted { item_id, crafted }
                     }

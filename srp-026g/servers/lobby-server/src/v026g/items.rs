@@ -273,12 +273,12 @@ impl Core<'_> {
         match crafted {
             Ok(crafted) => {
                 log::info!("{} upgraded item {item_id} with {donor}: {crafted:?}", who.name);
-                self.send_made(who.addr, lobby::permitted_crafted(item_id, crafted));
+                self.send(who.addr, lobby::permitted_crafted(item_id, crafted));
                 self.item_changed(who);
             }
             Err(why) => {
                 log::info!("{}: an upgrade of item {item_id} refused: {why}", who.name);
-                self.send_made(who.addr, lobby::permitted_crafted(item_id, Crafted::Failed));
+                self.send(who.addr, lobby::permitted_crafted(item_id, Crafted::Failed));
             }
         }
     }

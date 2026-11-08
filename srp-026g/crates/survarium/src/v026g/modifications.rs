@@ -6,8 +6,8 @@
 //!
 //! - `gameplay/items/modifications/modifications.options`: 158
 //!   `modifications`, 20 `defects` and 3 `defect_slots`;
-//! - `gameplay/items/craft/craft.options`: prices by item level and the
-//!   chances by the difference in modifications;
+//! - `gameplay/items/craft/craft.options`: prices by item level (its
+//!   chances are not read: an upgrade always succeeds);
 //! - `gameplay/items/reroll/reroll.options`: prices by item level (its
 //!   multiplier is not used: every change costs the same);
 //!
@@ -249,28 +249,13 @@ impl DefectSlot {
 
 /// `craft.options`, in silver: gold is gone [the owner, 2026-11-08], and the
 /// one upgrade left is the game's gold one (`craft_price_premium` times
-/// [`GOLD_IN_SILVER`], `craft_probabilities_premium`). The silver tables of
-/// the file (`*_general`) are not read.
+/// [`GOLD_IN_SILVER`]; the silver table, `craft_price_general`, is not read).
+/// [the owner, 2026-11-08: "make it 100% always"] An upgrade always adds a
+/// modification, so the file's chances are not read either.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Craft {
     /// Silver by the item's level.
     pub price: [u16; PRICE_LEVELS],
-    /// By how many more modifications the item has than its donor (0, 1,
-    /// 2): `(success %, failure %)`; the rest is "nothing happened".
-    pub chances: [(f32, f32); 3],
-}
-
-/// What an upgrade ("craft") does.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CraftOutcome {
-    /// One more modification.
-    Success,
-    /// Nothing but the donor and the price are lost.
-    Neutral,
-    /// One modification less, in the game's data; srp takes none away
-    /// (the owner's rule of 2026-10-23, `docs/notes/craft-menu.md`): the
-    /// session does what [`CraftOutcome::Neutral`] does.
-    Failure,
 }
 
 impl Craft {
@@ -280,36 +265,16 @@ impl Craft {
         u32::from(self.price[usize::from(item_level).min(PRICE_LEVELS - 1)])
     }
 
-    /// `(success %, failure %)` for an item with `difference` more
-    /// modifications than its donor; `None` past the table (the lobby
-    /// refuses a donor with more than the item, and 3 is the most).
-    pub fn chances(&self, difference: usize) -> Option<(f32, f32)> {
-        self.chances.get(difference).copied()
-    }
-
-    /// The outcome for a point `at` of 0..100 (success first, then
-    /// failure, then nothing).
-    pub fn outcome_at(&self, difference: usize, at: f32) -> Option<CraftOutcome> {
-        let (success, failure) = self.chances(difference)?;
-        Some(if at < success {
-            CraftOutcome::Success
-        } else if at < success + failure {
-            CraftOutcome::Failure
-        } else {
-            CraftOutcome::Neutral
-        })
-    }
-
     /// What 0x9B carries: the twelve chances as the lobby indexes them
     /// (`MessageCraftItem.updateCraftChance`: row = the difference in
     /// rank, then success and failure in silver, success and failure in
-    /// gold), and the silver and gold price tables. Everything is in the
-    /// silver places; the gold ones are 0.
+    /// gold), and the silver and gold price tables. The exe still reads
+    /// the chances (the lobby movie no longer shows them): 100 % success in
+    /// silver for every row, the rest 0; the gold prices are 0.
     pub fn tables(&self) -> ([f32; 12], [u16; PRICE_LEVELS], [u16; PRICE_LEVELS]) {
         let mut chances = [0.0; 12];
         for row in 0..3 {
-            chances[row * 4] = self.chances[row].0;
-            chances[row * 4 + 1] = self.chances[row].1;
+            chances[row * 4] = 100.0;
         }
         (chances, self.price, [0; PRICE_LEVELS])
     }
@@ -445,20 +410,6 @@ fn silver_prices(root: &ConfigValue, key: &str) -> Result<[u16; PRICE_LEVELS], C
         .collect::<Result<_, _>>()?;
     list.try_into()
         .map_err(|_| ConfigError(format!("`{key}` has not {PRICE_LEVELS} prices")))
-}
-
-fn chances(root: &ConfigValue, key: &str) -> Result<[(f32, f32); 3], ConfigError> {
-    let list: Vec<(f32, f32)> = root
-        .req(key)?
-        .children()
-        .into_iter()
-        .map(|row| match row.children()[..] {
-            [success, failure] => Ok((float(success)?, float(failure)?)),
-            _ => Err(ConfigError(format!("a row of `{key}` is not a pair"))),
-        })
-        .collect::<Result<_, _>>()?;
-    list.try_into()
-        .map_err(|_| ConfigError(format!("`{key}` has not 3 rows")))
 }
 
 fn pair(row: &ConfigValue, key: &str) -> Result<(f32, f32), ConfigError> {
@@ -750,7 +701,6 @@ impl Modifications {
             defect_slots,
             craft: Craft {
                 price: silver_prices(craft, "craft_price_premium")?,
-                chances: chances(craft, "craft_probabilities_premium")?,
             },
             reroll: Reroll {
                 price: silver_prices(reroll, "reroll_price_premium")?,

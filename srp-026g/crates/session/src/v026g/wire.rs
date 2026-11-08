@@ -230,20 +230,13 @@ pub fn player_elo(account: &Account, place: u32) -> ServerMessage {
     lobby::player_elo(place, account.rating, account.rating_before)
 }
 
-/// `9B`: the chances and prices of an item's upgrade ("craft"), from the
-/// game's `craft.options`. The lobby's upgrade window shows them and works
-/// its price out from them (`MessageCraftItem.updateCraftChance`).
-/// [srp, the owner's rule of 2026-10-23] An upgrade never takes a
-/// modification away ([`items_rules::craft`]): every failure ("-1 mod.")
-/// chance is sent as 0. [the owner, 2026-11-08] In silver only: the game's
-/// gold chances at its gold prices in silver; the gold half of each row and
-/// the gold prices are 0 (`Craft::tables`).
+/// `9B`: the chances and prices of an item's upgrade ("craft"). The lobby's
+/// upgrade window works its price out from them (`MessageCraftItem`). An
+/// upgrade always succeeds, in silver ([`Craft::tables`]).
+///
+/// [`Craft::tables`]: survarium::v026g::modifications::Craft::tables
 pub fn craft_tables() -> ServerMessage {
-    let (mut chances, general, premium) = Modifications::shared().craft.tables();
-    // Each row: success and failure in silver, success and failure in gold.
-    for failure in chances.iter_mut().skip(1).step_by(2) {
-        *failure = 0.0;
-    }
+    let (chances, general, premium) = Modifications::shared().craft.tables();
     lobby::craft_tables(&chances, &general, &premium)
 }
 
@@ -455,15 +448,15 @@ mod tests {
         );
         // The craft tables, byte for byte: the twelve chances (for an
         // item with 0, 1 and 2 more modifications than its donor: success
-        // and failure in silver, then in gold; every failure 0, the owner's
-        // rule of 2026-10-23), the sixteen prices in silver and the sixteen
-        // in gold. In silver the game's gold chances and prices; no gold.
+        // and failure in silver, then in gold; always 100 % success in
+        // silver), the sixteen prices in silver (the game's gold prices)
+        // and the sixteen in gold (none).
         #[rustfmt::skip]
         let mut tables: Vec<u8> = vec![
             0x9B,
             0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-            0, 0, 0x48, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-            0, 0, 0xC8, 0x41,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
         ];
         for price in [
             200_u16, 200, 400, 800, 1200, 1700, 2200, 2700, 3300, 4000, 5000, 6000, 7000, 8000,

@@ -132,5 +132,5 @@ it 100% always", "remove the text completely", "it is just two weapons, silver a
   result text ("item upgraded successfully": always so, the owner, 2026-11-08) and no panel for it
   (`fillCraftedItem`).
 - **Price:** unchanged (the gold price in silver, silver-only.md).
-- Data: `craft_probabilities_premium` of `craft.options` (`scripts/content-edit/craft-chances-1.json`);
-  the server rolls on it (always a success now); 0x9B still carries it, and the window ignores it.
+- Code: `items_rules::craft` adds the modification it rolls; `craft.options`' chances are not read.
+  0x9B (the exe reads it) says 100 % in every row (`Craft::tables`); the window ignores it.

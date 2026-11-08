@@ -11,7 +11,6 @@ package survarium.messages
    import scaleform.clik.events.ListEvent;
    import scaleform.clik.interfaces.IListItemRenderer;
    import scaleform.gfx.TextFieldEx;
-   import survarium.Util;
    import survarium.buttons.CheckBoxValue;
    import survarium.buttons.ModificatorListRenderer;
    import survarium.constants.Colors;
@@ -238,7 +237,6 @@ package survarium.messages
          this.labelFailChance.visible = this.failChanceRegular.visible = false;
          this.labelRegularMoney.visible = false;
          this.checkBoxRegularCost.y -= up;
-         this.craftTimer.y -= up;
       }
       
       private function updateLayout() : void
@@ -385,12 +383,6 @@ package survarium.messages
          btnAccept.enabled = this._craftAvailable && canCraft;
       }
       
-      public function fillCraftData(craftData:Object) : void
-      {
-         this.craftTimer.setTime(Util.getTimeStringMinutes(int(craftData.craft_time / 60)));
-         trace("fillCraftData::",craftData.regular_cost);
-      }
-      
       // The result view. An upgrade always adds a modification (the owner, 2026-11-08: "item upgrade
       // successfully after combining two items is unnecessary text", "since it is always succesful"): the
       // upgraded item and its new modification, no result text and no panel for one; the modification's
@@ -406,7 +398,6 @@ package survarium.messages
          this.newModiferRenderer.visible = newModifier != null;
          this.labelNewModifier.visible = true;
          this._price.visible = false;
-         this.craftTimer.visible = false;
          btnCancel.visible = false;
          btnAccept.x = (width - btnAccept.width) / 2;
          btnAccept.label = LocalizationData.getName("btn_craft_accept");
@@ -484,16 +475,6 @@ package survarium.messages
             this.lockWindow(true);
             return;
          }
-      }
-      
-      private function testResult() : void
-      {
-         parent["fill_crafted_item"]({
-            dict_id:this.dragItemSlot1.data.dictId,
-            new_modifier:null,
-            rarity_level:1,
-            result:CraftResult.FAILED
-         });
       }
       
       // The result had one button, "Ready", which closed the window. It has

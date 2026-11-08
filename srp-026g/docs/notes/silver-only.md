@@ -24,9 +24,8 @@ in silver will also get cheaper".
     two reset prices are 0 and nothing reads them; the stock dialog's code is gone
     (`SrvMessageRerollSkills` is a bare symbol class);
   - a modification change (reroll): `reroll_price_premium` times 100, half the old silver price;
-  - an upgrade (craft): `craft_price_premium` times 100, half the old silver price, at the gold
-    chances table (`craft_probabilities_premium`; silver's was 50 / 25 / 12.5 %), which srp sets to
-    100 % for any difference (`craft-menu.md`, "Always a success; the window");
+  - an upgrade (craft): `craft_price_premium` times 100, half the old silver price; it always
+    succeeds, so the file's chances are not read (`craft-menu.md`, "Always a success; the window");
   - no repair at all (the owner, 2026-11-08: "we don't have repair in the game at all", "so the
     whole repair path can go"): `47 03` is no request, the lobby has no Fix button, menu entry,
     repair window, auto-repair or "Repair cost" row (items.md §4).

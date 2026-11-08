@@ -74,18 +74,14 @@
 //!   chosen; until the choice the item keeps the old one, and an offer not
 //!   answered (the client went away, a restart: it is saved) is kept and
 //!   shown again, with nothing more to pay.
-//! - **Craft.** The item and a donor: neither damaged, the
-//!   item with fewer than three modifications and no fewer than the donor
-//!   (`MessageCraftItem`). The price is `craft.options`' by the item's
-//!   level; the chances by how many more modifications the item has than
-//!   the donor, [the owner, 2026-11-08] the game's gold ones, paid in
-//!   silver at the gold price in silver: one more modification
-//!   (`st_item_craft_success_label`), one fewer
-//!   (`st_item_craft_fail_label`), or nothing. [srp, the owner's rule of
-//!   2026-10-23] Never one fewer: a failure is a "nothing", the item keeps
-//!   its modifications, 0x9B says 0 % (`wire::craft_tables`) and the
-//!   window shows no failure row. The donor is used up and the price paid
-//!   whatever happens (the answer names it, and the client drops it).
+//! - **Craft.** The item and a donor: the item with fewer than three
+//!   modifications and no fewer than the donor (`MessageCraftItem`). The
+//!   price is `craft.options`' by the item's level, [the owner, 2026-11-08]
+//!   the game's gold price in silver. [the owner, 2026-11-08: "make it 100%
+//!   always"] It always adds a modification (`st_item_craft_success_label`);
+//!   the game's chances, one fewer and "nothing happened" are gone. The
+//!   donor is used up and the price paid (the answer names it, and the
+//!   client drops it).
 //!   [LIKELY] The donor is another of the same item: the client's result
 //!   window shows the *donor's* dictionary entry as the upgraded item
 //!   (0x275B84 → 0x29F770 `dict_id`). [srp, the owner's rule of
@@ -129,7 +125,7 @@ use survarium::v026g::golden;
 use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::requests::KEEP_OLD_MODIFICATION;
 use survarium::v026g::lobby::{Crafted, FULL_CONDITION, limits};
-use survarium::v026g::modifications::{self, Bonuses, CraftOutcome, MAX_RANK, Modifications};
+use survarium::v026g::modifications::{self, Bonuses, MAX_RANK, Modifications};
 use survarium::v026g::scopes::ScopeFits;
 use survarium::v026g::weapon_kit;
 
@@ -776,50 +772,30 @@ pub fn craft(
     }
     let table = Modifications::shared();
     let dict_id = item.dict_id;
-    // [srp, 2026-10-23] Nothing left that may roll (every type besides
-    // reliability held; none on live data, `armor.tsv`'s masks): an upgrade
-    // could gain nothing, so none is made and nothing is taken.
-    if table.candidates(dict_id, &held).is_empty() {
-        return Err("nothing left to roll for the item");
-    }
     let price = table.craft.price(item_level(dict_id));
     if price > account.generic_money {
         return Err("not enough money");
     }
-    let at = rng.below(100_000) as f32 / 1000.0;
-    let outcome = table
-        .craft
-        .outcome_at(held.len() - donor_rank, at)
-        .ok_or("no chances for that difference")?;
-    // The modification gained, before anything changes. [srp, the owner's
-    // rule of 2026-10-23] An upgrade never takes one away: the data's
-    // failure ("-1 mod.") does what "nothing happened" does, the price and
-    // the donor spent and the item as it was (`docs/notes/craft-menu.md`).
-    let gained = match outcome {
-        CraftOutcome::Success => table.roll(dict_id, &held, rng),
-        CraftOutcome::Failure | CraftOutcome::Neutral => None,
-    };
+    // [the owner, 2026-11-08: "make it 100% always"] An upgrade always adds
+    // a modification: the one rolled here. [srp, 2026-10-23] With nothing
+    // left that may roll (every type besides reliability held; none on live
+    // data, `armor.tsv`'s masks) no upgrade is made and nothing is taken.
+    let modification = table
+        .roll(dict_id, &held, rng)
+        .ok_or("nothing left to roll for the item")?;
 
     account.generic_money -= price;
     account
         .inventory
         .retain(|item| item.item_id != donor_item_id);
     let item = account.item_mut(item_id).expect("the item was found above");
-    let crafted = match gained {
-        Some(modification) => {
-            item.modifications.push((modification, false));
-            Crafted::Added {
-                consumed_item_id: donor_item_id,
-                modification,
-            }
-        }
-        None => Crafted::Nothing {
-            consumed_item_id: donor_item_id,
-        },
-    };
+    item.modifications.push((modification, false));
     bump_kits_wearing(account, item_id);
     account.sync_kits();
-    Ok(crafted)
+    Ok(Crafted::Added {
+        consumed_item_id: donor_item_id,
+        modification,
+    })
 }
 
 /// Makes every weapon and armour piece of the account whole: full

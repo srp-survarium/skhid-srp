@@ -110,16 +110,12 @@ fn the_three_files_parse_to_what_the_dump_shows() {
         ]
     );
 
-    // In silver, the game's gold prices and chances (the owner, 2026-11-08):
-    // its silver ones, half the chances at twice the price, are not read.
+    // In silver, the game's gold prices (the owner, 2026-11-08): its silver
+    // ones, twice the price, are not read; nor are its chances.
     #[rustfmt::skip]
     assert_eq!(
         data.craft.price,
         [200, 200, 400, 800, 1200, 1700, 2200, 2700, 3300, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
-    );
-    assert_eq!(
-        data.craft.chances,
-        [(100.0, 0.0), (50.0, 0.0), (25.0, 25.0)]
     );
     #[rustfmt::skip]
     assert_eq!(
@@ -490,25 +486,13 @@ fn craft_and_reroll_go_by_the_tables() {
     assert_eq!(data.craft.price(10), 5_000);
     // Level 16 (the highest an item has) costs the table's last.
     assert_eq!(data.craft.price(16), 10_000);
-    assert_eq!(data.craft.chances(0), Some((100.0, 0.0)));
-    assert_eq!(data.craft.chances(2), Some((25.0, 25.0)));
-    assert_eq!(data.craft.chances(3), None);
-    use CraftOutcome::{Failure, Neutral, Success};
-    assert_eq!(data.craft.outcome_at(0, 99.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(1, 49.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(1, 50.0), Some(Neutral));
-    assert_eq!(data.craft.outcome_at(2, 24.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(2, 25.0), Some(Failure));
-    assert_eq!(data.craft.outcome_at(2, 49.9), Some(Failure));
-    assert_eq!(data.craft.outcome_at(2, 50.0), Some(Neutral));
-    assert_eq!(data.craft.outcome_at(3, 0.0), None);
     // The lobby's rows: silver success and failure, gold success and
-    // failure, for a difference of 0, 1 and 2; nothing in gold.
+    // failure, for a difference of 0, 1 and 2: always a success, in silver.
     let (chances, silver, gold) = data.craft.tables();
     #[rustfmt::skip]
     assert_eq!(
         chances,
-        [100.0, 0.0, 0.0, 0.0,  50.0, 0.0, 0.0, 0.0,  25.0, 25.0, 0.0, 0.0]
+        [100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0]
     );
     assert_eq!((silver[2], gold), (400, [0; 16]));
 

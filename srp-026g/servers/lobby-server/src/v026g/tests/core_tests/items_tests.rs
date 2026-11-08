@@ -151,15 +151,12 @@ fn a_sign_in_brings_the_craft_tables() {
     let (chances, general, premium) = tables.expect("0x9B at sign-in");
     let craft = &Modifications::shared().craft;
     let (data, data_general, data_premium) = craft.tables();
-    assert_eq!((general, premium), (data_general, data_premium));
-    // The successes are the data's; every failure ("-1 mod.") is 0: an
-    // upgrade never takes a modification away (the owner's rule of
-    // 2026-10-23), so the window shows no such chance.
-    for (index, (&sent, &data)) in chances.iter().zip(&data).enumerate() {
-        let failure = index % 2 == 1;
-        assert_eq!(sent, if failure { 0.0 } else { data }, "{index}");
+    assert_eq!((chances, general, premium), (data, data_general, data_premium));
+    // An upgrade always succeeds (the owner, 2026-11-08): 100 % in silver in
+    // every row, nothing else.
+    for (index, &sent) in chances.iter().enumerate() {
+        assert_eq!(sent, if index % 4 == 0 { 100.0 } else { 0.0 }, "{index}");
     }
-    assert!(data.iter().skip(1).step_by(2).any(|&chance| chance > 0.0));
     world.assert_clean();
 }
 

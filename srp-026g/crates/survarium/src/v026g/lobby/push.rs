@@ -1246,20 +1246,14 @@ pub fn permitted_modifier_chosen(
     writer.done(ServerId::Permitted)
 }
 
-/// What a craft did to the item (`83 46 09`).
+/// What a craft did to the item (`83 46 09`). The game's other modes, 0
+/// ("nothing happened") and the rest ("one fewer"), are never sent: an
+/// upgrade always adds a modification (the owner, 2026-11-08).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Crafted {
-    /// Mode 0: nothing changed; `consumed_item_id` is taken from the
-    /// inventory.
-    Nothing { consumed_item_id: u32 },
-    /// Mode 1: the modification was added.
+    /// Mode 1: the modification was added; `consumed_item_id` is taken from
+    /// the inventory.
     Added {
-        consumed_item_id: u32,
-        modification: u32,
-    },
-    /// Another non-zero mode but 0xFE: the modification was removed.
-    Removed {
-        mode: u8,
         consumed_item_id: u32,
         modification: u32,
     },
@@ -1270,12 +1264,9 @@ pub enum Crafted {
 
 /// `83 46 09`: the result of a craft. The item's `dict_id` must be one the
 /// client knows (it is looked up with no check).
-pub fn permitted_crafted(item_id: u32, crafted: Crafted) -> Result<ServerMessage, WireError> {
+pub fn permitted_crafted(item_id: u32, crafted: Crafted) -> ServerMessage {
     let mut writer = permitted_event(INVENTORY, 9);
     match crafted {
-        Crafted::Nothing { consumed_item_id } => {
-            writer.u8(0).u32(item_id).u32(consumed_item_id);
-        }
         Crafted::Added {
             consumed_item_id,
             modification,
@@ -1286,25 +1277,11 @@ pub fn permitted_crafted(item_id: u32, crafted: Crafted) -> Result<ServerMessage
                 .u32(consumed_item_id)
                 .u32(modification);
         }
-        Crafted::Removed {
-            mode,
-            consumed_item_id,
-            modification,
-        } => {
-            if matches!(mode, 0 | 1 | 0xFE) {
-                return Err(WireError::BadValue("a remove mode that means another"));
-            }
-            writer
-                .u8(mode)
-                .u32(item_id)
-                .u32(consumed_item_id)
-                .u32(modification);
-        }
         Crafted::Failed => {
             writer.u8(0xFE).u32(item_id);
         }
     }
-    Ok(writer.done(ServerId::Permitted))
+    writer.done(ServerId::Permitted)
 }
 
 // ---- 83 47: the shop (`process_shop_action`) ----
