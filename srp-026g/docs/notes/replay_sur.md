@@ -23,6 +23,13 @@ The 0.26g exe has a replay player the 0.21d exe only began (0.21d: `replay_match
     enemy, into `set_players_list`). The last field may hold `:`, no field `;`; a malformed entry is
     left out; an empty string empties the bar. The markers bar is a column of 25 px buttons: send
     kills only, or a few. `scripts/replay-markers/check.sh <replay_player.swf>` checks both in Ruffle.
+  - `set_replay_speed(percent:int)` (25 to 800, the nearest end outside) shows the playback's speed in
+    the speed stepper as 0.25x, 0.5x, 1x, 2x, 4x, 8x, sending nothing back (`update_play_speed` is
+    the stepper's own steps); the bottom panel's frames reset the stepper's art values, and the speed
+    is shown again over them. A player's name is shrunk (to size 8 at least) until it fits its row:
+    16 characters do; one too wide even then ends with "…". Free view sits under the last player
+    (it was over it). The same check covers them;
+    `scripts/replay-markers/shot.sh <replay_player.swf> <out.png>` takes a screenshot.
 - no lobby list of replays, and **no writer**: the strings "replays" and ".sur" each have one reader, nothing in the exe opens a `.sur` for writing, and `key_frame_type::push_back` is called only by the reader (LIKELY: no writer path found). The game's own recorder is the journal (`-record_journal`), which is off since patch revision 4 and is another thing (it holds the packets one client got and its device input, and plays only with `-replay_journal`).
 
 ## 2. Where the file is

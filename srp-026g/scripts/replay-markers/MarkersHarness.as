@@ -11,8 +11,11 @@ package
    // The replay player's one-string lists from the exe (survarium.replay.ReplayText, the root's
    // set_markers_text and set_players_text): the markers bar and the players bar show the good
    // entries (in time order, a label holding ":"), the prev/next label buttons step through them,
-   // an empty string empties the bar. Prints "MARKERS ..." lines and ends with
-   // "MARKERS RESULT pass" or "MARKERS RESULT fail: ...".
+   // an empty string empties the bar; set_replay_speed(percent) shows 0.25x .. 8x in the speed
+   // stepper (25 to 800, the nearest end outside), kept over the bottom panel's frames; a player's
+   // name of 16 characters (Latin, the 10 languages' letters, wide ones) fits its row whole.
+   // Parameter shot=1: the player set for a screenshot (shot.sh), "SHOT ready" once drawn.
+   // Prints "MARKERS ..." lines and ends with "MARKERS RESULT pass" or "MARKERS RESULT fail: ...".
    public class MarkersHarness extends Sprite
    {
       private var loader:Loader = new Loader();
@@ -46,19 +49,113 @@ package
          addEventListener(Event.ENTER_FRAME,this.check);
       }
 
+      // 16 characters each, in the 10 languages' letters
+      private static const NAMES:Array = ["ReplayTesterLong","Maksym_Shevchuk1","Сергій_Коваленко","Łukasz_Żółkiewsk",
+         "Ўладзімір_Шчэрба","Árvíztűrő_Tükör1","Jiří_Řehořovský1","Đorđe_Šćekić_Ćir","Äijälä_Öhrström1","Jürgen_Größmann1"];
+
+      private var frames:int = 0;
+
       private function check(e:Event) : void
       {
          removeEventListener(Event.ENTER_FRAME,this.check);
+         var root:* = loader.content;
+         if(loaderInfo.parameters.shot == "1")
+         {
+            shot(root);
+            return;
+         }
          try
          {
-            markers(loader.content);
-            players(loader.content);
+            markers(root);
+            players(root);
+            speed(root);
+            root.show_buttons(false);
+            root.show_buttons(true);
+            longNames(root);
          }
          catch(err:Error)
          {
             failures.push("the player: " + err.getStackTrace());
          }
-         finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+         // the bottom panel's frame scripts, then the renderers drawn
+         addEventListener(Event.ENTER_FRAME,function later(f:Event):void
+         {
+            if(++frames < 5)
+               return;
+            removeEventListener(Event.ENTER_FRAME,later);
+            try
+            {
+               expect("the speed after the bottom panel's frames reads '" + root.stepper.textField.text + "'",root.stepper.textField.text == "2x");
+               expect("the bottom panel's frames set the speed to " + root.speedPercent + " %",root.speedPercent == 200);
+               namesFit(root);
+            }
+            catch(err:Error)
+            {
+               failures.push("the player: " + err.getStackTrace());
+            }
+            finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+         });
+      }
+
+      private function speed(root:*) : void
+      {
+         var cases:Array = [[25,"0.25x"],[50,"0.5x"],[100,"1x"],[400,"4x"],[800,"8x"],[10,"0.25x"],[2000,"8x"],[200,"2x"]];
+         for each(var c:Array in cases)
+         {
+            root.set_replay_speed(c[0]);
+            var field:* = root.stepper.textField;
+            expect("set_replay_speed(" + c[0] + ") reads '" + field.text + "', not '" + c[1] + "'",field.text == c[1]);
+            expect("'" + c[1] + "' leaves the stepper's field",field.textWidth <= field.width);
+         }
+         expect("the speed is " + root.speedPercent + " %",root.speedPercent == 200);
+         trace("MARKERS speed: set_replay_speed shows 0.25x .. 8x, the ends outside");
+      }
+
+      private function longNames(root:*) : void
+      {
+         var text:Array = [];
+         for(var i:int = 0; i < NAMES.length; i++)
+            text.push(i + ":" + i % 2 + ":" + NAMES[i]);
+         root.set_players_text(text.join(";"));
+      }
+
+      private function namesFit(root:*) : void
+      {
+         var seen:int = 0;
+         for(var i:int = 0; i < NAMES.length; i++)
+         {
+            var b:* = root.playersBar.getButtonAt(i);
+            if(b == null)
+               continue;
+            seen++;
+            var field:* = b.textField;
+            var size:Number = Number(field.getTextFormat().size);
+            expect("the name '" + field.text + "' is not whole",NAMES.indexOf(field.text) >= 0);
+            expect("'" + field.text + "' needs " + int(field.textWidth) + " px, has " + int(field.width - 4) + ", scrolls " + field.maxScrollH + " (size " + size + ")",
+               field.textWidth <= field.width - 4 && field.maxScrollH == 0);
+            expect("'" + field.text + "' shrunk to " + size,size >= 8);
+            expect("'" + field.text + "' overlaps the view buttons",field.x + field.textWidth <= b.btnFirstView.x);
+         }
+         expect("the players bar shows " + seen + " of " + NAMES.length,seen == NAMES.length);
+         var last:* = root.playersBar.getButtonAt(NAMES.length - 1);
+         var below:Number = last == null ? 0 : last.getBounds(root).bottom;
+         expect("free view covers the last player (" + root.freeViewButton.y + " < " + below + ")",root.freeViewButton.y >= below - 1);
+         trace("MARKERS names: 16 characters fit their row whole");
+      }
+
+      private function shot(root:*) : void
+      {
+         root.set_match_time(600000);
+         root.set_markers_text("30000:1:;61000:2:Battery;125000:1:2:05");
+         longNames(root);
+         root.set_replay_speed(200);
+         addEventListener(Event.ENTER_FRAME,function later(f:Event):void
+         {
+            if(++frames < 20)
+               return;
+            removeEventListener(Event.ENTER_FRAME,later);
+            trace("SHOT ready");
+         });
       }
 
       private function labels(root:*) : Array

@@ -89,6 +89,9 @@ package replay_player_fla
       public var temp_options:Array;
       
       public var inDrag:Boolean;
+
+      // srp's: the playback's speed in percent (set_replay_speed, or the stepper's own steps).
+      public var speedPercent:int = 100;
       
       public function MainTimeline()
       {
@@ -172,6 +175,7 @@ package replay_player_fla
       {
          var value:Number = this.stepper.value;
          trace("onStepperUpdate::",value);
+         this.speedPercent = Math.round(value * 100);
          ExternalInterface.call("update_play_speed",value);
          this.updateSpeedStepper();
       }
@@ -206,6 +210,48 @@ package replay_player_fla
          this.selectActiveLabel();
       }
       
+      // srp's: the playback's speed from the exe (each Playback note), in percent, 25 to 800 (outside:
+      // the nearest end). The stepper shows it as 0.25x, 0.5x, 1x, 2x, 4x, 8x; nothing goes back to the
+      // exe (update_play_speed is the stepper's own steps).
+      public function set_replay_speed(percent:int) : void
+      {
+         this.speedPercent = Math.max(25,Math.min(800,percent));
+         this.showSpeed();
+      }
+
+      // The stepper's value and label from speedPercent, sending nothing. The bottom panel's frames
+      // set the stepper's art values again (bottom_staff_1): shown again after each (show_buttons),
+      // and the stepper's steps go to the exe again from then.
+      public function showSpeed() : void
+      {
+         this.stepper.removeEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
+         this.stepper.labelFunction = this.speedLabel;
+         if(this.stepper.maximum < 8)
+         {
+            this.stepper.maximum = 10;
+         }
+         this.stepper.minimum = Math.min(this.stepper.minimum,0.25);
+         this.stepper.stepSize = 0.01;
+         this.stepper.value = this.speedPercent / 100;
+         this.updateSpeedStepper();
+         this.stepper.validateNow();
+         // its own updateLabel leaves a field with a selection as it is
+         this.stepper.textField.text = this.speedLabel(this.stepper.value);
+         this.stepper.addEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
+      }
+
+      // A speed as the stepper shows it: 0.25x, 1x, 8x.
+      public function speedLabel(value:Number) : String
+      {
+         return String(Math.round(value * 100) / 100) + "x";
+      }
+
+      public function onShowButtonsFrame(e:Event) : void
+      {
+         removeEventListener(Event.EXIT_FRAME,this.onShowButtonsFrame);
+         this.showSpeed();
+      }
+
       public function setData(value:Object) : void
       {
          trace("setData");
@@ -220,6 +266,8 @@ package replay_player_fla
          this.stepper.minimum = 0.01;
          this.stepper.maximum = 10;
          this.stepper.value = 1;
+         this.speedPercent = 100;
+         this.showSpeed();
          this.layout.reflow();
       }
       
@@ -373,11 +421,15 @@ package replay_player_fla
       
       public function show_buttons(value:Boolean) : void
       {
+         // the frame's script sets the stepper's art values (0): not a speed of the player's
+         this.stepper.removeEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
          this.bottomPanel.gotoAndStop(value ? 1 : 2);
          this.checkLabelButtons();
          this.checkFrameButtons();
          this.bottomPanel.layoutData.offsetV = value ? -10 : 25;
          this.layout.reflow();
+         // the speed over them once the frame's script has run
+         addEventListener(Event.EXIT_FRAME,this.onShowButtonsFrame);
       }
       
       public function set_markers_list(value:Array) : void
@@ -417,7 +469,8 @@ package replay_player_fla
          this.playersBar.visible = players.length > 0;
          this.layout.reflow();
          this.freeViewButton.x = stage.stageWidth / this.scaleFactor - this.freeViewButton.width - 10;
-         this.freeViewButton.y = this.playersBar.y + 25 * players.length - 30;
+         // under the last player (it was over it), as onStageResize places it
+         this.freeViewButton.y = this.playersBar.y + this.playersBar.height + 4;
       }
       
       public function show_scene_options(value:Boolean) : void
@@ -607,6 +660,7 @@ package replay_player_fla
          stage.addEventListener(Event.RESIZE,this.onStageResize);
          this.onStageResize();
          this.btn_play.selected = true;
+         this.stepper.labelFunction = this.speedLabel;
          this.stepper.addEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
          this.btn_play.addEventListener(ButtonEvent.CLICK,this.onPlayClicked);
          this.slider.addEventListener(SliderEvent.VALUE_CHANGE,this.onSliderUpdate);
