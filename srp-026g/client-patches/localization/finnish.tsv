@@ -2868,7 +2868,7 @@ st_srp_watch_none_friends	Ei viimeaikaisia otteluita kavereiden kanssa.
 st_srp_watch_none_live_friends	Kukaan kavereistasi ei pelaa nyt.
 st_srp_watch_none_mine	Tästä lähtien ottelusi näkyvät täällä.
 st_srp_watch_none_recent	Tallennettuja otteluita ei vielä ole.
-st_srp_watch_players	%1$s pelaajaa
+st_srp_watch_players	Pelaajia: %1$s
 st_srp_watch_reason_full	Katsojapaikat täynnä
 st_srp_watch_reason_gone	Tallennetta ei säilytetty
 st_srp_watch_reason_old	Tallennettu ennen pelin päivitystä
