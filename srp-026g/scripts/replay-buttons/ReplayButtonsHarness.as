@@ -32,8 +32,8 @@ package
    //   found says so; the asker's own is Mine); the player pop-up's Matches (WatchWindow.openPlayer)
    //   searches the name; every label and hint whole, the chips clear of the box;
    // - the cards: one Watch, or why not (not kept, old version; live: counting down, full, closed,
-   //   over; an answer's word), the texts apart and clear of it; the copy icon puts the code on the
-   //   clipboard ("Copied"), or, refused, shows it in a field with the keys to press;
+   //   over; an answer's word), the texts apart and clear of it; the copy icon shows the code
+   //   selected in a field with the keys to press;
    // - Live's Watch asks at once from the place of the friend in the match (or anyone's), no
    //   roster; a friend's Spectate watches the friend's match from the friend's place;
    // - the results screen: a red Watch replay left of the close button, its label whole, the
@@ -412,9 +412,9 @@ package
             idle();
             click(list[1],"srpWatchWatch");
             expect(language + ": Everyone's Watch asked " + asked(),asked()[0] == OTHER && asked()[1] == 0xC0FF0000);
-            lobby.answer("watching",OTHER);
-            // back on Everyone after the replay
+            // the game loads the replay, then the lobby says `watching`; back on Everyone after it
             W.away();
+            lobby.answer("watching",OTHER);
             win.show(false);
             W.back();
             expect(language + ": not back on Replays, Everyone after the replay",win.shown && win.tab == "replays" && win.chip == "everyone");
@@ -535,26 +535,12 @@ package
          press(win,"srpWatchTab_replays");
          press(win,"srpWatchChip_mine");
          lobby.take(WatchFake.played("PocketTest1"));
-         var copied:String = null;
-         var real:Function = W.clipboard;
-         W.clipboard = function(text:String):void
-         {
-            copied = text;
-         };
+         // the code shown selected in a field, and the keys (the game's System.setClipboard takes nothing)
          click(cards()[1],"srpWatchCopy");
-         expect(language + ": the copy icon copied '" + copied + "'",copied == "#69f8c4bc" && textOf(cards()[1],"srpWatchCopied") == words.getName("st_srp_watch_copied"));
+         expect(language + ": the copy icon shows no code field",textOf(cards()[1],"srpWatchCodeField") == "#69f8c4bc"
+            && textOf(cards()[1],"srpWatchCopyKeys") == words.getName("st_srp_watch_copy_keys"));
          cardFits(language + ": the copied card",cards()[1],cards()[1].width);
-         // the game's clipboard refused it: the code shown in a field, and the keys
-         W.clipboard = function(text:String):void
-         {
-            throw new Error("no clipboard");
-         };
-         click(cards()[0],"srpWatchCopy");
-         expect(language + ": a refused copy shows no code field",textOf(cards()[0],"srpWatchCodeField") == "#1ce45cbe"
-            && textOf(cards()[0],"srpWatchCopyKeys") == words.getName("st_srp_watch_copy_keys"));
-         cardFits(language + ": the refused copy's card",cards()[0],cards()[0].width);
-         W.clipboard = real;
-         trace("REPLAYBUTTONS " + language + ": the copy icon, and its field when the clipboard refuses");
+         trace("REPLAYBUTTONS " + language + ": the copy icon, its code field and the keys");
       }
 
       // ---- History and the results screen ----

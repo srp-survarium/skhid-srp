@@ -2709,7 +2709,6 @@ st_srp_replay_still_preparing	Паўтор яшчэ рыхтуецца. Серв
 st_srp_replay_title	Глядзець паўтор
 st_srp_replay_waiting	Чаканне: %1$s с.
 st_srp_replay_watch	Глядзець
-st_srp_replay_watching	Паўтор адкрыецца ў гэтым акне гульні. Калі ён скончыцца або вы выйдзеце з яго, вы вернецеся ў лобі.
 st_srp_reroll_description	Можна змяніць любы мадыфікатар прадмета, колькі заўгодна разоў. Потым выберыце адзін з трох выпадковых мадыфікатараў.
 st_srp_rooms_all	Усе
 st_srp_rooms_all_rooms	Усе пакоі
@@ -2858,7 +2857,6 @@ st_srp_vulkan_tear_free_hint	Карцінка не рвецца пры выкл�
 st_srp_watch_chip_everyone	Усе
 st_srp_watch_chip_friends	Сябры
 st_srp_watch_chip_mine	Мае
-st_srp_watch_copied	Скапіравана
 st_srp_watch_copy_keys	Ctrl+C - скапіраваць
 st_srp_watch_delay	затрымка %1$s с
 st_srp_watch_friends	Сябры: %1$s

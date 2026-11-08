@@ -2709,7 +2709,6 @@ st_srp_replay_still_preparing	Snimak se još priprema. Server nastavlja izradu; 
 st_srp_replay_title	Gledaj snimak
 st_srp_replay_waiting	Čekanje: %1$s s.
 st_srp_replay_watch	Gledaj
-st_srp_replay_watching	Snimak se otvara u ovom prozoru igre. Kad se završi ili ga napustiš, vraćaš se u lobi.
 st_srp_reroll_description	Možeš promeniti bilo koji modifikator predmeta neograničen broj puta. Zatim biraš jedan od tri nasumična modifikatora.
 st_srp_rooms_all	Sve
 st_srp_rooms_all_rooms	Sve sobe
@@ -2858,7 +2857,6 @@ st_srp_vulkan_tear_free_hint	Slika ostaje cela kada je vertikalna sinhronizacija
 st_srp_watch_chip_everyone	Svi
 st_srp_watch_chip_friends	Prijatelji
 st_srp_watch_chip_mine	Moji
-st_srp_watch_copied	Kopirano
 st_srp_watch_copy_keys	Ctrl+C za kopiranje
 st_srp_watch_delay	kašnjenje %1$s s
 st_srp_watch_friends	Prijatelji: %1$s

@@ -8,7 +8,6 @@ package survarium.watch
    import flash.events.MouseEvent;
    import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
-   import flash.system.System;
    import flash.text.TextField;
    import flash.text.TextFieldType;
    import flash.text.TextFormat;
@@ -101,14 +100,14 @@ package survarium.watch
 
       private static const BACK_ASK_MS:int = 2000;
 
-      // a watch answered `watching` this long before the game loads a match: back on its view after
+      // a watch asked this long before the game loads a match: back on its view after
       private static const RESUME_MS:int = 120000;
 
       // a friend's Spectate waits this long for its match to be listed in play
       private static const SPECTATE_MS:int = 60000;
 
-      // a copy's note this long
-      private static const COPIED_MS:int = 4000;
+      // a copy's code field this long
+      private static const COPIED_MS:int = 15000;
 
       // the lobby's windows that hide ours as they open (the rooms window's list)
       private static const WINDOWS:Array = ["inventory_list","shop_list","ranking","charWindow","clanWindow","questWindow","modifierWindow"];
@@ -127,12 +126,6 @@ package survarium.watch
 
       // The top menu, whose Watch tab is ours (TopMenu).
       public static var topMenu:TopMenu;
-
-      // The game's clipboard: the copy icon's (a harness may stand in for it).
-      public static var clipboard:Function = function(text:String):void
-      {
-         System.setClipboard(text);
-      };
 
       public var look:RoomsLook;
 
@@ -185,23 +178,20 @@ package survarium.watch
 
       private var _clocks:Array = [];
 
-      // the copy icon's last press ({hex, ok, at}), and the code's field it showed (the clipboard
-      // refused)
+      // the copy icon's last press ({hex, at}), and the code's field it showed
       private var _copied:Object = null;
 
       private var _codeField:TextField;
 
-      // the last watch asked from here (its match and view), the view to come back to once it
-      // plays, and whether the game is away in it
+      // the last watch asked from here (its match, view and time), and the view to come back to
+      // while the game is away in it
       private var _pendingMatch:uint = 0;
 
       private var _pendingView:Object = null;
 
+      private var _pendingAt:int = 0;
+
       private var _resume:Object = null;
-
-      private var _resumeAt:int = 0;
-
-      private var _away:Boolean = false;
 
       private var _windowsSeen:Object = {};
 
@@ -313,13 +303,19 @@ package survarium.watch
       }
 
       // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here playing?
+      // Its `watching` comes only once the game is in it, after the load began.
       public static function away() : void
       {
          var win:WatchWindow = WatchWindow.me;
-         if(win != null && win._resume != null && getTimer() - win._resumeAt < RESUME_MS)
+         if(win == null)
          {
-            win._away = true;
+            return;
          }
+         if(win._pendingView != null && getTimer() - win._pendingAt < RESUME_MS)
+         {
+            win._resume = win._pendingView;
+         }
+         win._pendingView = null;
       }
 
       // Back in the lobby (LobbyMenu.show_match_making(false)): the asker's matches asked again
@@ -332,12 +328,11 @@ package survarium.watch
             return;
          }
          win._mineDue = getTimer() + BACK_ASK_MS;
-         if(!win._away)
+         var view:Object = win._resume;
+         if(view == null)
          {
             return;
          }
-         win._away = false;
-         var view:Object = win._resume;
          win._resume = null;
          win._liveChip = view.liveChip;
          win._replaysChip = view.replaysChip;
@@ -934,6 +929,7 @@ package survarium.watch
       {
          var history:NotificationListScrollContent = NotificationListScrollContent.replayHolder;
          this._pendingMatch = match;
+         this._pendingAt = getTimer();
          this._pendingView = {
             "tab":this._tab,
             "liveChip":this._liveChip,
@@ -962,14 +958,13 @@ package survarium.watch
          this.watch(uint(row.match),WatchRows.watchAsk(place));
       }
 
-      // An answer about the match asked for (NotificationListScrollContent): `watching` for the
-      // one asked from here is the view to come back to; the cards drawn again.
+      // An answer about the match asked for (NotificationListScrollContent): a refusal of the
+      // one asked from here plays nothing to come back from; the cards drawn again.
       private function answered(hex:String, status:String) : void
       {
-         if(status == "watching" && this._pendingView != null && hex == WatchWindow.hex(this._pendingMatch))
+         if(status != "preparing" && status != "watching" && hex == WatchWindow.hex(this._pendingMatch))
          {
-            this._resume = this._pendingView;
-            this._resumeAt = getTimer();
+            this._pendingView = null;
          }
          if(this._shown)
          {
@@ -977,25 +972,17 @@ package survarium.watch
          }
       }
 
-      // The copy icon: the code on the game's clipboard, or, refused, shown selected for Ctrl+C.
+      // The copy icon: the code shown selected in a field for Ctrl+C. The game's
+      // System.setClipboard takes nothing (run in a game: the system's clipboard kept what it
+      // had), while a text field's own Ctrl+C reaches it.
       private function copy(hex:String) : void
       {
-         var ok:Boolean = true;
-         try
-         {
-            WatchWindow.clipboard("#" + hex);
-         }
-         catch(e:Error)
-         {
-            ok = false;
-         }
          this._copied = {
             "hex":hex,
-            "ok":ok,
             "at":getTimer()
          };
          this.render();
-         if(!ok && this._codeField != null && stage != null)
+         if(this._codeField != null && stage != null)
          {
             stage.focus = this._codeField;
             this._codeField.setSelection(0,this._codeField.length);

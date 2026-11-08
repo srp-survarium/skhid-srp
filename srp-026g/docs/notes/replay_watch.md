@@ -35,8 +35,9 @@ Watch button wherever a match is mentioned.
 - **Cards** (`MatchCard`): the map's render and name by the rooms' pool (`RoomsWindow.entry`: the
   map id's level and weather; a map the pool lacks: its History row's name, else "Retired map", its
   mode's colour), mode and teams or players; the score or the player's result and K/D; the age, the
-  code with a copy icon (`System.setClipboard`: "Copied"; refused, the code in a field selected for
-  Ctrl+C and the keys to press) and the friends in it; then one **Watch**, or why it cannot be
+  code with a copy icon (the code in a field selected for Ctrl+C and the keys to press: the game's
+  `System.setClipboard` takes nothing, run in a game on 2026-11-08, while a field's own Ctrl+C reaches
+  the system's clipboard) and the friends in it; then one **Watch**, or why it cannot be
   watched: "Recorded before a game update" (replay 4, or an `incompatible` answer), "Replay not
   kept" (0, 3, or a `gone` answer); live: "Opens when the match starts" (made or counting down),
   "Match just ended", "No spectator places left" (full), "Not open to spectators". A History row and

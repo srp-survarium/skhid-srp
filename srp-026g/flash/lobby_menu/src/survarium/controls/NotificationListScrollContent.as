@@ -63,8 +63,6 @@ package survarium.controls
       
       private static const RP_KEY_WATCH:String = "st_srp_replay_watch";
 
-      private static const RP_KEY_WATCHING:String = "st_srp_replay_watching";
-
       // a session's `preparing` (the match server reads the recording)
       private static const RP_KEY_OPENING:String = "st_srp_replay_opening";
       
@@ -1169,8 +1167,8 @@ package survarium.controls
          if(status == "watching")
          {
             this.rpStop();
+            // the game is in it already (the answer comes once it connected): no box over it
             this._rpState = RP_ENDED;
-            this.rpShow(RP_KEY_WATCHING);
             return;
          }
          if(status == "preparing")

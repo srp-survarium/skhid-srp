@@ -2709,7 +2709,6 @@ st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc m�
 st_srp_replay_title	Visszajátszás
 st_srp_replay_waiting	Várakozás: %1$s mp.
 st_srp_replay_watch	Nézd meg
-st_srp_replay_watching	A visszajátszás ebben a játékablakban nyílik meg. Ha véget ér, vagy kilépsz belőle, visszakerülsz a lobbiba.
 st_srp_reroll_description	Egy tárgy bármelyik bónuszát akárhányszor lecserélheted. Ezután három véletlenszerű bónusz közül választhatsz.
 st_srp_rooms_all	Összes
 st_srp_rooms_all_rooms	Összes szoba
@@ -2858,7 +2857,6 @@ st_srp_vulkan_tear_free_hint	Egészben tartja a képet, ha a függőleges szinkr
 st_srp_watch_chip_everyone	Mindenki
 st_srp_watch_chip_friends	Barátok
 st_srp_watch_chip_mine	Saját
-st_srp_watch_copied	Másolva
 st_srp_watch_copy_keys	Ctrl+C a másoláshoz
 st_srp_watch_delay	%1$s mp késleltetés
 st_srp_watch_friends	Barátok: %1$s

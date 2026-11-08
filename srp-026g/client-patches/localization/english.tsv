@@ -2709,7 +2709,6 @@ st_srp_replay_still_preparing	Still being prepared. It keeps being made on the s
 st_srp_replay_title	Watch replay
 st_srp_replay_waiting	Waiting: %1$s s.
 st_srp_replay_watch	Watch
-st_srp_replay_watching	The replay opens in this game window. When it ends, or when you leave it, you are back in the lobby.
 st_srp_reroll_description	You can change any modifier of an item, any number of times. You then choose one of three random modifiers.
 st_srp_rooms_all	All
 st_srp_rooms_all_rooms	All rooms
@@ -2858,7 +2857,6 @@ st_srp_vulkan_tear_free_hint	Keeps the picture whole when vertical sync is off.\
 st_srp_watch_chip_everyone	Everyone
 st_srp_watch_chip_friends	Friends
 st_srp_watch_chip_mine	Mine
-st_srp_watch_copied	Copied
 st_srp_watch_copy_keys	Ctrl+C to copy
 st_srp_watch_delay	%1$s s behind live
 st_srp_watch_friends	Friends: %1$s

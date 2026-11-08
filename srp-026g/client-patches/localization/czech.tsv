@@ -2709,7 +2709,6 @@ st_srp_replay_still_preparing	Záznam se ještě připravuje na serveru. Za minu
 st_srp_replay_title	Přehrát záznam
 st_srp_replay_waiting	Čekání: %1$s s.
 st_srp_replay_watch	Sledovat
-st_srp_replay_watching	Záznam se otevře v tomto okně hry. Až skončí nebo ho opustíte, vrátíte se do lobby.
 st_srp_reroll_description	Kterýkoli bonus předmětu můžeš změnit, kolikrát chceš. Potom si vybereš jeden ze tří náhodných bonusů.
 st_srp_rooms_all	Všechny
 st_srp_rooms_all_rooms	Všechny místnosti
@@ -2858,7 +2857,6 @@ st_srp_vulkan_tear_free_hint	Obraz se netrhá, když je vertikální synchroniza
 st_srp_watch_chip_everyone	Všichni
 st_srp_watch_chip_friends	Přátelé
 st_srp_watch_chip_mine	Moje
-st_srp_watch_copied	Zkopírováno
 st_srp_watch_copy_keys	Ctrl+C pro kopírování
 st_srp_watch_delay	zpoždění %1$s s
 st_srp_watch_friends	Přátelé: %1$s

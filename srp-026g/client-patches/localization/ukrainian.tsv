@@ -2709,7 +2709,6 @@ st_srp_replay_still_preparing	Повтор ще готується. Сервер
 st_srp_replay_title	Дивитися повтор
 st_srp_replay_waiting	Очікування: %1$s с.
 st_srp_replay_watch	Дивитися
-st_srp_replay_watching	Повтор відкриється в цьому вікні гри. Коли він закінчиться або ви вийдете з нього, ви повернетеся в лобі.
 st_srp_reroll_description	Можна змінити будь-який модифікатор предмета, скільки завгодно разів. Потім оберіть один із трьох випадкових модифікаторів.
 st_srp_rooms_all	Усі
 st_srp_rooms_all_rooms	Усі кімнати
@@ -2858,7 +2857,6 @@ st_srp_vulkan_tear_free_hint	Картинка не рветься при вим�
 st_srp_watch_chip_everyone	Усі
 st_srp_watch_chip_friends	Друзі
 st_srp_watch_chip_mine	Мої
-st_srp_watch_copied	Скопійовано
 st_srp_watch_copy_keys	Ctrl+C - копіювати
 st_srp_watch_delay	затримка %1$s с
 st_srp_watch_friends	Друзі: %1$s

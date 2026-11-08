@@ -52,11 +52,11 @@ package survarium.watch
       // the clock's field of a live match being played, ticked by the window
       public var clock:TextField;
 
-      // the code's field shown selected when the game's clipboard refused it (WatchWindow.copied)
+      // the code's field shown selected after a press of the copy icon (WatchWindow.copy)
       public var codeField:TextField;
 
       // `reason`: why it cannot be watched (a dictionary key), null: Watch. `copied`: the copy
-      // icon's last press on this card, null none ({ok}).
+      // icon's last press on this card, null none.
       public function MatchCard(look:RoomsLook, row:Object, w:Number, reason:String, copied:Object, watch:Function, copy:Function)
       {
          super();
@@ -178,7 +178,7 @@ package survarium.watch
             x = this.copyIcon(x,46,copy) + 6;
             if(copied != null)
             {
-               x = this.copiedNote(code,copied.ok,x,right);
+               x = this.copiedNote(code,x,right);
             }
          }
          if(row.friends.length > 0)
@@ -227,14 +227,9 @@ package survarium.watch
          return x + 12;
       }
 
-      // After a copy: "Copied", or, when the game's clipboard took nothing, the code in a field
-      // selected for Ctrl+C and the keys to press. Its x end.
-      private function copiedNote(code:String, ok:Boolean, x:Number, right:Number) : Number
+      // After a copy: the code in a field selected for Ctrl+C and the keys to press. Its x end.
+      private function copiedNote(code:String, x:Number, right:Number) : Number
       {
-         if(ok)
-         {
-            return this.next(this.field(LocalizationData.getName("st_srp_watch_copied"),x,45,right - x,12,GREEN,"srpWatchCopied"));
-         }
          var tf:TextField = this._look.text(this,code,x,43,82,12,RoomsLook.GOLD);
          tf.name = "srpWatchCodeField";
          tf.height = 18;
