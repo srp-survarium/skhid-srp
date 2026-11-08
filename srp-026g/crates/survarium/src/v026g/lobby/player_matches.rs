@@ -6,7 +6,10 @@
 //!
 //! - The ask: `3B 00 <PLAYER_MATCHES_START> <count>`. It is about the
 //!   player the asker was last shown the kits of (its last `93`): the
-//!   pop-up has only the nickname, so the lobby keeps who that was.
+//!   pop-up has only the nickname, so the lobby keeps who that was. The
+//!   Watch window's search by name chooses that player itself: it finds the
+//!   account by the game's own player search (`find_players`), then sends
+//!   `3D 00 <PLAYER_MATCHES_ASK> <account>`.
 //!   `3B 00 <OWN_MATCHES_START> <count>` is about the asker itself.
 //! - The answer, one `91`. Row `i` is at place `PLAYER_MATCHES_START + i`,
 //!   rating and change 0, and its name is ASCII fields with `;` between them
@@ -28,11 +31,17 @@ pub const PLAYER_MATCHES_START: u32 = 2_230_000_000;
 pub const OWN_MATCHES_START: u32 = 2_230_000_001;
 /// The most matches one answer lists.
 pub const PLAYER_MATCHES_ROWS: usize = 10;
+/// The `player` of a `3D 00 <player> <account>` that chooses the account
+/// the next [`PLAYER_MATCHES_START`] ask is about, as a `93` does. Its
+/// public matches are anyone's to list (the pop-up's Matches lists them for
+/// any player shown), so any account may be chosen.
+pub const PLAYER_MATCHES_ASK: u32 = 0xFFFF_FF07;
 
 /// Whose matches an ask is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Whose {
-    /// The player the asker was last shown the kits of (its last `93`).
+    /// The player the asker was last shown the kits of (its last `93`), or
+    /// chose by [`PLAYER_MATCHES_ASK`].
     Shown,
     /// The asker.
     Own,

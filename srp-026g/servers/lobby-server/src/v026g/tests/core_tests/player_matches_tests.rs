@@ -11,7 +11,9 @@ use session::v026g::persist::history::{
 use session::v026g::persist::{GameRepository, SqliteGameRepository};
 use session::v026g::replays::{ReplayId, Replays};
 use survarium::v026g::lobby::GEAR_BY_PLACE;
-use survarium::v026g::lobby::player_matches::{OWN_MATCHES_START, PLAYER_MATCHES_START};
+use survarium::v026g::lobby::player_matches::{
+    OWN_MATCHES_START, PLAYER_MATCHES_ASK, PLAYER_MATCHES_START,
+};
 use survarium::v026g::lobby::recent_matches::RECENT_MATCHES_START;
 use survarium::v026g::maps::GameMode;
 
@@ -187,6 +189,24 @@ fn the_own_ask_lists_the_askers_matches() {
 }
 
 #[test]
+fn the_search_chooses_whose_matches_are_listed() {
+    let dir = temp("search");
+    let mut world = world(&dir, BOB);
+    let _ = world.accounts.sign_up(BOB, "Bob");
+    let alice = world.connect("Alice");
+
+    // The Watch window's search found Bob (find_players): his matches.
+    world.ask(alice, request::player_details(PLAYER_MATCHES_ASK, BOB));
+    let rows = matches(&mut world, alice, 10);
+    assert_eq!(rows.len(), 11);
+    assert_eq!(rows[0], "P1;10;Bob");
+    // An account there is not chooses nobody new: still Bob's.
+    world.ask(alice, request::player_details(PLAYER_MATCHES_ASK, 777_777));
+    assert_eq!(matches(&mut world, alice, 10), rows);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn each_row_says_its_replays_state_for_the_askers_game() {
     let dir = temp("replay");
     let mut world = world(&dir.join("db"), BOB);
@@ -281,7 +301,7 @@ fn the_recent_tab_lists_public_matches_all_or_the_friends() {
         .locked()
         .friends
         .push(BOB);
-    world.accounts.sign_up(BOB, "Bob");
+    let _ = world.accounts.sign_up(BOB, "Bob");
     let friends = recent(&mut world, alice, 1, 20);
     assert_eq!(friends[0], "M0;13");
     assert!(friends[1].starts_with("M1;0000010e;"));
