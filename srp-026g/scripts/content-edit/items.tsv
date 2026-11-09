@@ -1,8 +1,9 @@
 # The items: a row per entry of the dictionary (gameplay/db_static_dictionaries items_dict), by dict_id.
-# gold: bought for gold (is_premium). like: the plain item a golden or premium copy is (srp_like);
+# premium: a premium item (is_premium): sold one by one or in a bundle, never by a faction, and
+# priced in silver as every item (gold is gone, 2026-11-08: its gold price times 100). like: the plain item a golden or premium copy is (srp_like);
 # a copy has its plain item's level and defaults and no base rarity. start: the modifications of its
 # own a new item comes with (srp_start), never one of its defaults. srp reads them from its game data.
-items	name	base_cost	gold	like	start
+items	name	base_cost	premium	like	start
 3	ak_74m	47500	false		
 5	rgd-5	30	false		
 7	ammo_5.45x39_7n6m	30	false		
@@ -123,12 +124,12 @@ items	name	base_cost	gold	like	start
 147	ammo_7.62x39_m	75	false		
 148	ammo_7.62x54_7n1	110	false		
 149	sv_98	63000	false		
-151	repair_voucher	50	true		
-152	rename_account_voucher	250	true		
-153	drop_card	100	true		
+151	repair_voucher	5000	true		
+152	rename_account_voucher	25000	true		
+153	drop_card	10000	true		
 154	camo_black_leather	8000	false		
 155	camo_black_leather_01	1	false		
-156	camo_blue_leather	150	true		
+156	camo_blue_leather	15000	true		
 157	camo_brown_leather	1	false		
 158	camo_brown_leather_01	1	false		
 159	camo_brown_leather_02	1	false		
@@ -137,23 +138,23 @@ items	name	base_cost	gold	like	start
 162	camo_brown_leather_05	3000	false		
 163	camo_denim	1000	false		
 164	camo_denim_01	1	false		
-165	camo_green_leather	150	true		
-166	camo_red_leather	150	true		
+165	camo_green_leather	15000	true		
+166	camo_red_leather	15000	true		
 167	camo_suede_leather	1	false		
-168	camo_yellow_leather	150	true		
+168	camo_yellow_leather	15000	true		
 169	camo_camouflage_green	10000	false		
 170	camo_camouflage_green_01	10000	false		
 171	camo_chemical_fabric_01	1	false		
 172	camo_chemical_fabric_02	1	false		
 173	camo_chemical_fabric_02	1	false		
-174	camo_khaki_fabric_01	150	true		
-175	camo_khaki_fabric_02	150	true		
-176	camo_khaki_fabric_03	1	true		
+174	camo_khaki_fabric_01	15000	true		
+175	camo_khaki_fabric_02	15000	true		
+176	camo_khaki_fabric_03	100	true		
 177	camo_fabric_brown	1	false		
 178	camo_fabric_brown_01	1	false		
 179	camo_fabric_brown_02	1	false		
 180	camo_fabric_brown_03	1	false		
-181	camo_fabric_camouflage	150	true		
+181	camo_fabric_camouflage	15000	true		
 182	camo_fabric_green	1	false		
 183	camo_fabric_green_01	1	false		
 184	camo_fabric_grey	8000	false		
@@ -161,12 +162,12 @@ items	name	base_cost	gold	like	start
 186	camo_rubber_green	1	false		
 187	camo_rubber_green_01	3000	false		
 188	camo_rubber_green_02	1	false		
-190	camo_city	300	true		
-191	camo_cyfra_01_camo	300	true		
-192	camo_cyfra_02_camo	300	true		
-193	camo_desert	300	true		
-194	flecktarn_01_camo	300	true		
-195	flecktarn_02_camo	300	true		
+190	camo_city	30000	true		
+191	camo_cyfra_01_camo	30000	true		
+192	camo_cyfra_02_camo	30000	true		
+193	camo_desert	30000	true		
+194	flecktarn_01_camo	30000	true		
+195	flecktarn_02_camo	30000	true		
 196	edge_torso_5	85500	false		
 197	edge_legs_5	42750	false		
 198	edge_boots_5	21380	false		
@@ -184,7 +185,7 @@ items	name	base_cost	gold	like	start
 210	ren_legs_4	36750	false		
 211	ren_boots_4	18380	false		
 212	ren_gloves_4	18380	false		
-213	premium_voucher_1d	50	true		
+213	premium_voucher_1d	5000	true		
 214	generic_money	0	false		
 215	premium_money	0	false		
 216	vepr	52500	false		
@@ -192,17 +193,17 @@ items	name	base_cost	gold	like	start
 218	ammo_7.62x39_7n23	40	false		
 219	rdg-m	50	false		
 220	a_545	85500	false		
-221	decals_1_1	1000000	false		
+221	decals_1_1	50000	false		
 222	rpk	69300	false		
-223	camo_cyfra_03_camo	1000	true		
-224	camo_izlom	500	true		
-225	camo_multicam	500	true		
-226	camo_spekrt_01	1500	true		
-227	camo_spekrt_02	1500	true		
-228	camo_spekrt_03	1500	true		
-229	camo_ucp	1000	true		
-230	camo_vsr	500	true		
-231	decals_1_2	1000000	false		
+223	camo_cyfra_03_camo	100000	true		
+224	camo_izlom	50000	true		
+225	camo_multicam	50000	true		
+226	camo_spekrt_01	150000	true		
+227	camo_spekrt_02	150000	true		
+228	camo_spekrt_03	150000	true		
+229	camo_ucp	100000	true		
+230	camo_vsr	50000	true		
+231	decals_1_2	10000000	false		
 232	decals_1_3	1000000	false		
 233	decals_1_4	1000000	false		
 234	decals_1_5	1000000	false		
@@ -237,47 +238,47 @@ items	name	base_cost	gold	like	start
 263	decals_3_19	1000	false		
 264	decals_3_20	1000	false		
 265	decals_3_21	1000	false		
-266	decals_4_1	300	true		
-267	decals_4_2	300	true		
-268	decals_4_3	300	true		
-269	decals_4_4	300	true		
-270	decals_4_5	300	true		
-271	decals_4_6	300	true		
-272	decals_4_7	300	true		
-273	decals_4_8	300	true		
-274	decals_4_9	300	true		
-275	decals_4_10	300	true		
-276	decals_4_11	300	true		
-277	decals_4_12	300	true		
-278	decals_4_13	300	true		
-279	decals_4_14	300	true		
-280	decals_4_15	300	true		
-281	decals_4_16	300	true		
-282	decals_5_1	300	true		
-283	decals_5_2	300	true		
-284	decals_5_3	300	true		
-285	decals_5_4	300	true		
-286	decals_5_5	300	true		
-287	decals_5_6	300	true		
-288	decals_5_7	300	true		
-289	decals_5_8	300	true		
-290	decals_5_9	300	true		
-291	decals_5_10	300	true		
-292	decals_5_11	300	true		
-293	decals_5_12	300	true		
-294	decals_5_13	300	true		
-295	decals_5_14	300	true		
-296	decals_5_15	300	true		
-297	decals_5_16	300	true		
-298	decals_5_17	300	true		
-299	decals_5_18	300	true		
+266	decals_4_1	30000	true		
+267	decals_4_2	30000	true		
+268	decals_4_3	30000	true		
+269	decals_4_4	30000	true		
+270	decals_4_5	30000	true		
+271	decals_4_6	30000	true		
+272	decals_4_7	30000	true		
+273	decals_4_8	30000	true		
+274	decals_4_9	30000	true		
+275	decals_4_10	30000	true		
+276	decals_4_11	30000	true		
+277	decals_4_12	30000	true		
+278	decals_4_13	30000	true		
+279	decals_4_14	30000	true		
+280	decals_4_15	30000	true		
+281	decals_4_16	30000	true		
+282	decals_5_1	30000	true		
+283	decals_5_2	30000	true		
+284	decals_5_3	30000	true		
+285	decals_5_4	30000	true		
+286	decals_5_5	30000	true		
+287	decals_5_6	30000	true		
+288	decals_5_7	30000	true		
+289	decals_5_8	30000	true		
+290	decals_5_9	30000	true		
+291	decals_5_10	30000	true		
+292	decals_5_11	30000	true		
+293	decals_5_12	30000	true		
+294	decals_5_13	30000	true		
+295	decals_5_14	30000	true		
+296	decals_5_15	30000	true		
+297	decals_5_16	30000	true		
+298	decals_5_17	30000	true		
+299	decals_5_18	30000	true		
 300	ammo_pab9	50	false		
 301	ammo_sp5	60	false		
 302	ammo_sp6	60	false		
 303	a9_91	84000	false		
 304	scope_pso1	20000	false		
 305	vsk_94	113400	false		
-306	ak_74n	1500	true		
+306	ak_74n	150000	true		
 307	val	76000	false		
 308	vss	112000	false		
 309	sr3m	120000	false		
@@ -296,36 +297,36 @@ items	name	base_cost	gold	like	start
 322	ammo_9x21	30	false		
 323	ammo_45acp	30	false		
 324	ump45	27720	false		
-325	scav_torso_4	4750	true		
-326	scav_legs_4	2380	true		
+325	scav_torso_4	475000	true		
+326	scav_legs_4	238000	true		
 327	scav_gloves_5	4040	false		
 328	scav_torso_5	16150	false		
 329	scav_legs_5	8080	false		
 330	scav_helmet_5	8080	false		
 331	ammo_5.45x39_7n22	60	false		
-332	kiparis_premium	500	true	kiparis	1230
-333	uzi_premium	500	true	uzi	1230
-334	vityaz_premium	1000	true	vityaz	1230
-335	vss_premium	2500	true	vss	1230
-336	sr3m_premium	2500	true	sr3m	1230
-337	izh_27_lancaster_premium	500	true	izh_27_lancaster	1230
-338	ak_74n_premium	1200	true	ak_74n	1230
+332	kiparis_premium	50000	true	kiparis	1230
+333	uzi_premium	50000	true	uzi	1230
+334	vityaz_premium	100000	true	vityaz	1230
+335	vss_premium	250000	true	vss	1230
+336	sr3m_premium	250000	true	sr3m	1230
+337	izh_27_lancaster_premium	50000	true	izh_27_lancaster	1230
+338	ak_74n_premium	120000	true	ak_74n	1230
 339	weight_booster	1500	false		
 340	speed_booster	1500	false		
 341	regeneration_booster	1500	false		
 342	respawn_booster	1500	false		
 343	aiming_booster	1500	false		
 344	artefact_booster	1500	false		
-345	scav_torso_4_premium	500	true	scav_torso_4	1240 1250
-346	scav_legs_4_premium	500	true	scav_legs_4	1240 1250
+345	scav_torso_4_premium	50000	true	scav_torso_4	1240 1250
+346	scav_legs_4_premium	50000	true	scav_legs_4	1240 1250
 347	bm_torso_5	13650	false		
 348	bm_helmet_5	9210	false		
 349	bm_legs_5	6830	false		
 350	bm_mask_1	4460	false		
 351	bm_torso_4	9450	false		
-352	bm_torso_4_premium	500	true	bm_torso_4	1240 1260
+352	bm_torso_4_premium	50000	true	bm_torso_4	1240 1260
 353	bm_legs_4	4730	false		
-354	bm_legs_4_premium	500	true	bm_legs_4	1240 1260
+354	bm_legs_4_premium	50000	true	bm_legs_4	1240 1260
 355	bm_back_1	6650	false		
 362	scope_giperon	0	false		
 363	ak_12	115000	false		
@@ -341,55 +342,55 @@ items	name	base_cost	gold	like	start
 390	military_medkit	40	false		
 391	science_medkit	40	false		
 682	decals_1_8	20000	false		
-683	decals_4_17	300	true		
-684	decals_4_18	300	true		
-685	decals_4_19	300	true		
-686	decals_4_20	300	true		
-687	decals_4_21	300	true		
-688	decals_4_22	300	true		
-689	decals_4_23	300	true		
-690	decals_4_24	300	true		
-691	decals_4_25	300	true		
-692	decals_4_26	300	true		
-693	decals_4_27	300	true		
-694	decals_4_28	300	true		
-695	decals_4_29	300	true		
-696	decals_4_30	300	true		
-697	decals_4_31	300	true		
-698	decals_4_32	300	true		
-699	decals_4_33	300	true		
-700	decals_4_34	300	true		
-701	decals_4_35	300	true		
-702	decals_4_36	300	true		
-703	decals_4_37	300	true		
-704	decals_4_38	300	true		
-705	decals_4_39	300	true		
-706	decals_4_40	300	true		
-707	decals_4_41	300	true		
-708	decals_5_19	300	true		
-709	decals_5_20	300	true		
-710	decals_5_21	300	true		
-711	decals_5_22	300	true		
-712	decals_5_23	300	true		
-713	decals_5_24	300	true		
-714	decals_5_25	300	true		
-715	decals_5_26	300	true		
-716	decals_5_27	300	true		
-717	decals_5_28	300	true		
-718	decals_5_29	300	true		
-719	decals_5_30	300	true		
-720	decals_5_31	300	true		
-721	decals_5_32	300	true		
-722	decals_5_33	300	true		
-723	decals_5_34	300	true		
-724	decals_5_35	300	true		
-725	decals_5_36	300	true		
-726	decals_5_37	300	true		
-727	decals_5_38	300	true		
-728	decals_5_39	300	true		
-729	decals_5_40	300	true		
-730	decals_5_41	300	true		
-731	decals_5_42	300	true		
+683	decals_4_17	30000	true		
+684	decals_4_18	30000	true		
+685	decals_4_19	30000	true		
+686	decals_4_20	30000	true		
+687	decals_4_21	30000	true		
+688	decals_4_22	30000	true		
+689	decals_4_23	30000	true		
+690	decals_4_24	30000	true		
+691	decals_4_25	30000	true		
+692	decals_4_26	30000	true		
+693	decals_4_27	30000	true		
+694	decals_4_28	30000	true		
+695	decals_4_29	30000	true		
+696	decals_4_30	30000	true		
+697	decals_4_31	30000	true		
+698	decals_4_32	30000	true		
+699	decals_4_33	30000	true		
+700	decals_4_34	30000	true		
+701	decals_4_35	30000	true		
+702	decals_4_36	30000	true		
+703	decals_4_37	30000	true		
+704	decals_4_38	30000	true		
+705	decals_4_39	30000	true		
+706	decals_4_40	30000	true		
+707	decals_4_41	30000	true		
+708	decals_5_19	30000	true		
+709	decals_5_20	30000	true		
+710	decals_5_21	30000	true		
+711	decals_5_22	30000	true		
+712	decals_5_23	30000	true		
+713	decals_5_24	30000	true		
+714	decals_5_25	30000	true		
+715	decals_5_26	30000	true		
+716	decals_5_27	30000	true		
+717	decals_5_28	30000	true		
+718	decals_5_29	30000	true		
+719	decals_5_30	30000	true		
+720	decals_5_31	30000	true		
+721	decals_5_32	30000	true		
+722	decals_5_33	30000	true		
+723	decals_5_34	30000	true		
+724	decals_5_35	30000	true		
+725	decals_5_36	30000	true		
+726	decals_5_37	30000	true		
+727	decals_5_38	30000	true		
+728	decals_5_39	30000	true		
+729	decals_5_40	30000	true		
+730	decals_5_41	30000	true		
+731	decals_5_42	30000	true		
 737	camo_new_year	0	false		
 742	edge_torso_7	47500	false		
 743	edge_legs_7	23750	false		
@@ -429,26 +430,26 @@ items	name	base_cost	gold	like	start
 892	scav_helmet_3	5900	false		
 893	scav_back_7	35000	false		
 894	scav_gloves_7	13130	false		
-905	scav_torso_6_premium	1000	true	scav_torso_6	1240 1250
-906	scav_legs_6_premium	750	true	scav_legs_6	1240 1250
-907	bm_torso_5_premium	900	true	bm_torso_5	1240 1260
-908	bm_legs_5_premium	680	true	bm_legs_5	1240 1260
-909	bm_torso_8_premium	1700	true	bm_torso_8	1240 1260
-910	bm_legs_8_premium	1280	true	bm_legs_8	1240 1260
-911	ren_torso_8_premium	1100	true	ren_torso_8	1240 1270
-912	ren_legs_8_premium	820	true	ren_legs_8	1240 1270
-913	ren_torso_3_premium	1300	true	ren_torso_3	1240 1270
-914	ren_legs_3_premium	980	true	ren_legs_3	1240 1270
-915	ren_torso_4_premium	1700	true	ren_torso_4	1240 1270
-916	ren_legs_4_premium	1280	true	ren_legs_4	1240 1270
-917	edge_torso_1_premium	1100	true	edge_hunter_torso_1	1240 1280
-918	edge_legs_1_premium	820	true	edge_hunter_legs_1	1240 1280
-919	edge_torso_4_premium	1700	true	edge_torso_4	1240 1280
-920	edge_legs_4_premium	1280	true	edge_legs_4	1240 1280
-921	edge_torso_7_premium	1400	true	edge_torso_7	1240 1280
-922	edge_legs_7_premium	1050	true	edge_legs_7	1240 1280
+905	scav_torso_6_premium	100000	true	scav_torso_6	1240 1250
+906	scav_legs_6_premium	75000	true	scav_legs_6	1240 1250
+907	bm_torso_5_premium	90000	true	bm_torso_5	1240 1260
+908	bm_legs_5_premium	68000	true	bm_legs_5	1240 1260
+909	bm_torso_8_premium	170000	true	bm_torso_8	1240 1260
+910	bm_legs_8_premium	128000	true	bm_legs_8	1240 1260
+911	ren_torso_8_premium	110000	true	ren_torso_8	1240 1270
+912	ren_legs_8_premium	82000	true	ren_legs_8	1240 1270
+913	ren_torso_3_premium	130000	true	ren_torso_3	1240 1270
+914	ren_legs_3_premium	98000	true	ren_legs_3	1240 1270
+915	ren_torso_4_premium	170000	true	ren_torso_4	1240 1270
+916	ren_legs_4_premium	128000	true	ren_legs_4	1240 1270
+917	edge_torso_1_premium	110000	true	edge_hunter_torso_1	1240 1280
+918	edge_legs_1_premium	82000	true	edge_hunter_legs_1	1240 1280
+919	edge_torso_4_premium	170000	true	edge_torso_4	1240 1280
+920	edge_legs_4_premium	128000	true	edge_legs_4	1240 1280
+921	edge_torso_7_premium	140000	true	edge_torso_7	1240 1280
+922	edge_legs_7_premium	105000	true	edge_legs_7	1240 1280
 927	scav_toro_8	73500	false		
-928	scav_toro_8_premium	1700	true	scav_toro_8	1240 1250
+928	scav_toro_8_premium	170000	true	scav_toro_8	1240 1250
 929	scav_toro_9	94500	false		
 930	scav_back_8	42970	false		
 931	scav_oxygen_2	47250	false		
@@ -459,7 +460,7 @@ items	name	base_cost	gold	like	start
 936	scav_helmet_8	54250	false		
 937	scav_helmet_9	47250	false		
 938	scav_legs_8	36750	false		
-939	scav_legs_8_premium	1280	true	scav_legs_8	1240 1250
+939	scav_legs_8_premium	128000	true	scav_legs_8	1240 1250
 940	scav_legs_9	47250	false		
 941	scav_mask_9	23630	false		
 942	bm_torso_9	85500	false		
@@ -473,8 +474,8 @@ items	name	base_cost	gold	like	start
 955	scav_legs_10	47500	false		
 956	scav_torso_10	95000	false		
 957	scav_helmet_10	47500	false		
-977	edge_torso_5_special	1900	true	edge_torso_5	1240 1280
-978	edge_legs_5_special	1420	true	edge_legs_5	1240 1280
+977	edge_torso_5_special	190000	true	edge_torso_5	1240 1280
+978	edge_legs_5_special	142000	true	edge_legs_5	1240 1280
 988	eq046_renesanse_boots_3	1190	false		
 989	eq046_renesanse_gloves_3	1190	false		
 990	eq046_renesanse_legs_3	4730	false		
@@ -531,46 +532,46 @@ items	name	base_cost	gold	like	start
 1821	novice_026_helmet	2000	false		
 1822	stk2_novice_026_torso	12350	false		
 1823	army_026_mask	5230	false		
-1824	decals_7_9	300	true		
-1825	decals_7_27	300	true		
-1826	decals_7_28	300	true		
-1827	decals_4_42	300	true		
-1828	decals_4_43	300	true		
-1829	decals_4_44	300	true		
-1830	decals_4_45	300	true		
-1831	decals_4_46	300	true		
-1832	decals_4_47	300	true		
-1833	decals_4_48	300	true		
-1834	decals_4_49	300	true		
-1835	decals_4_50	300	true		
-1836	decals_4_51	300	true		
-1837	decals_4_52	300	true		
-1838	decals_4_53	300	true		
-1839	decals_4_54	300	true		
+1824	decals_7_9	30000	true		
+1825	decals_7_27	30000	true		
+1826	decals_7_28	30000	true		
+1827	decals_4_42	30000	true		
+1828	decals_4_43	30000	true		
+1829	decals_4_44	30000	true		
+1830	decals_4_45	30000	true		
+1831	decals_4_46	30000	true		
+1832	decals_4_47	30000	true		
+1833	decals_4_48	30000	true		
+1834	decals_4_49	30000	true		
+1835	decals_4_50	30000	true		
+1836	decals_4_51	30000	true		
+1837	decals_4_52	30000	true		
+1838	decals_4_53	30000	true		
+1839	decals_4_54	30000	true		
 1840	decals_1_12	1000	false		
-1841	decals_4_55	300	true		
-1842	decals_4_56	300	true		
-1843	decals_4_57	300	true		
-1844	decals_4_58	300	true		
-1845	decals_4_59	300	true		
-1846	decals_4_60	300	true		
-1847	decals_4_61	300	true		
-1848	decals_4_62	300	true		
-1849	decals_4_63	300	true		
-1850	decals_4_64	300	true		
-1851	decals_4_65	300	true		
-1852	decals_4_66	300	true		
-1853	decals_4_67	300	true		
-1854	decals_4_68	300	true		
-1855	decals_4_69	300	true		
-1856	decals_4_70	300	true		
-1857	decals_4_71	300	true		
-1858	decals_4_72	300	true		
-1859	decals_4_73	300	true		
-1860	decals_4_75	300	true		
-1861	decals_4_74	300	true		
-1862	camo_steam	300	true		
-1863	eq046_blackmarket_torso_2_premium	500	true	bm_torso_4	1240 1260
+1841	decals_4_55	30000	true		
+1842	decals_4_56	30000	true		
+1843	decals_4_57	30000	true		
+1844	decals_4_58	30000	true		
+1845	decals_4_59	30000	true		
+1846	decals_4_60	30000	true		
+1847	decals_4_61	30000	true		
+1848	decals_4_62	30000	true		
+1849	decals_4_63	30000	true		
+1850	decals_4_64	30000	true		
+1851	decals_4_65	30000	true		
+1852	decals_4_66	30000	true		
+1853	decals_4_67	30000	true		
+1854	decals_4_68	30000	true		
+1855	decals_4_69	30000	true		
+1856	decals_4_70	30000	true		
+1857	decals_4_71	30000	true		
+1858	decals_4_72	30000	true		
+1859	decals_4_73	30000	true		
+1860	decals_4_75	30000	true		
+1861	decals_4_74	30000	true		
+1862	camo_steam	30000	true		
+1863	eq046_blackmarket_torso_2_premium	50000	true	bm_torso_4	1240 1260
 1864	stk2_bandit_026_torso	20900	false		
 1865	stk2_bandit_026_legs	10450	false		
 1866	stk2_bandit_026_boots	5230	false		
@@ -590,6 +591,16 @@ items	name	base_cost	gold	like	start
 1881	eq069_snow_20_boots_7	16630	false		
 1882	eq069_league_shadow_mask	23630	false		
 1883	eq069_snow_20_helmet_7	39080	false		
+1884	decals_7_10	30000	true		
+1885	decals_7_23	30000	true		
+1886	decals_7_24	30000	true		
+1887	decals_7_30	30000	true		
+1888	decals_7_31	30000	true		
+1889	decals_7_35	30000	true		
+1890	decals_7_37	30000	true		
+1891	decals_1_9	50000	false		
+1892	decals_1_10	50000	false		
+1893	decals_1_11	50000	false		
 1901	fit_pso1_gip	0	false		
 1902	fit_pso1_rem	0	false		
 1903	fit_pso1_mosin	0	false		
@@ -724,28 +735,28 @@ items	name	base_cost	gold	like	start
 2219	msbs_carbine	75000	false		
 2220	mp7	75000	false		
 2221	mp7_silencer	75000	false		
-2222	wpn_mp7_silencer_special	2000	true	mp7_silencer	1230
+2222	wpn_mp7_silencer_special	200000	true	mp7_silencer	1230
 2223	kriss_vector	113400	false		
 2224	fn_p90	113400	false		
 2225	vepr_12	75000	false		
-2226	vepr_12_premium	2000	true	vepr_12	1230
+2226	vepr_12_premium	200000	true	vepr_12	1230
 2227	saiga_12	75000	false		
-2228	saiga_12_premium	2000	true	saiga_12	1230
+2228	saiga_12_premium	200000	true	saiga_12	1230
 2229	pkp_pecheneg	125000	false		
 2230	neostead_2	2500	false		
-2231	neostead	500	true	neostead_2	1230
-2241	akmn_premium	1000	true	akmn	1230
-2242	akmn_premium_2	1000	true	akmn	1230
-2243	ak_74u_premium	1000	true	ak_74u	1230
-2244	vepr_premium	2000	true	vepr	1230
-2245	ak_12_premium	2500	true	ak_12	1230
-2246	sks_premium	1000	true	sks	1230
-2247	sks_premium_2	1000	true	sks	1230
-2248	vsk_94_premium	2500	true	vsk_94	1230
-2249	rem_700_premium	1000	true	rem_700	1230
+2231	neostead	50000	true	neostead_2	1230
+2241	akmn_premium	100000	true	akmn	1230
+2242	akmn_premium_2	100000	true	akmn	1230
+2243	ak_74u_premium	100000	true	ak_74u	1230
+2244	vepr_premium	200000	true	vepr	1230
+2245	ak_12_premium	250000	true	ak_12	1230
+2246	sks_premium	100000	true	sks	1230
+2247	sks_premium_2	100000	true	sks	1230
+2248	vsk_94_premium	250000	true	vsk_94	1230
+2249	rem_700_premium	100000	true	rem_700	1230
 2250	vssk_camo	165000	false		
-2251	izh_27_lancaster_premium_2	500	true	izh_27_lancaster	1230
-2252	uzi_premium_2	500	true	uzi	1230
+2251	izh_27_lancaster_premium_2	50000	true	izh_27_lancaster	1230
+2252	uzi_premium_2	50000	true	uzi	1230
 2253	ammo_23mm_r	10	false		
 2254	ammo_7.62x51_20	150	false		
 2261	ots14	80000	false		

@@ -151,7 +151,7 @@ package top_fla
          this.btn_add_premium_money.selected = false;
          this.btn_add_premium_money.tooltipRendererName = "";
          this.btn_add_premium_money.toggle = false;
-         this.btn_add_premium_money.visible = true;
+         this.btn_add_premium_money.visible = false; // no gold (the owner, 2026-11-08)
          try
          {
             this.btn_add_premium_money["componentInspectorSetting"] = false;

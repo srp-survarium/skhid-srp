@@ -1,8 +1,9 @@
 //! Keeper of the Artifacts' kinds (docs/notes/artefact-skills.md "Keeper of the Artifacts"):
 //! the one table srp draws a match's kind from and the game takes it by.
 //!
-//! - srp draws one [`Kind`] a match, uniformly over [`KINDS`], and writes its [`Kind::draw`]
-//!   into modifier 40 bits 9..11 of every kit of the match (exe patch 109 parses it).
+//! - srp draws one [`Kind`] a match, each kind for its [`SHARES`] of the matches, and writes its
+//!   [`Kind::draw`] into modifier 40 bits 9..11 of every kit of the match (exe patch 109 parses
+//!   it).
 //! - Every map has the hidden Keeper anomaly (content edit list `artefact-keeper-1.json`): no
 //!   container, a pool of [`POOL`] dormant artefacts of each kind, by [`Kind::dict_id`].
 //! - A Keeper takes its place's one of the match's kind from that pool into its first empty
@@ -18,6 +19,10 @@ pub enum Kind {
 
 /// Every kind, in draw order (draw 1 is the first).
 pub const KINDS: [Kind; 3] = [Kind::Larkspur, Kind::Onyx, Kind::Spring];
+
+/// Each kind's share of the matches, in percent, in [`KINDS`] order (the owner, 2026-11-07: Onyx
+/// rare, "they should still happen, but not always"; 2026-11-09: 4 %).
+pub const SHARES: [(Kind, u32); 3] = [(Kind::Larkspur, 48), (Kind::Onyx, 4), (Kind::Spring, 48)];
 
 /// Dormant artefacts of each kind in the hidden pool: one a place (20 places, one gift a place a
 /// match; once given it is an artefact as any found one, kept through a death, never given again).
@@ -82,5 +87,12 @@ mod tests {
         let mut ids = KINDS.map(Kind::dict_id);
         ids.sort();
         assert!(ids.windows(2).all(|w| w[0] != w[1]));
+    }
+
+    #[test]
+    fn the_shares_name_each_kind_once_and_sum_to_100() {
+        assert_eq!(SHARES.map(|(kind, _)| kind), KINDS);
+        assert_eq!(SHARES.iter().map(|&(_, share)| share).sum::<u32>(), 100);
+        assert!(SHARES.iter().all(|&(_, share)| share > 0));
     }
 }

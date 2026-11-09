@@ -169,6 +169,8 @@ global engine_ray_needs_collision
 global engine_ray_test_single
 global engine_key_name
 global engine_activate_keyboard_layout
+global engine_get_window_long_a
+global engine_set_window_long_a
 global engine_get_module_handle_a
 global engine_match_packet_begin
 global engine_match_packet_send
@@ -180,6 +182,7 @@ global engine_get_system_time_as_file_time
 global engine_file_time_to_local_file_time
 global engine_file_time_to_system_time
 global engine_discard_playing_order
+global engine_finish_key_binding
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -239,6 +242,8 @@ engine_find_close equ 0x870228   ; the IAT slot 0x870228 (an import, stdcall)
 engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
 engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
+engine_get_window_long_a equ 0xaefe8c   ; the IAT slot 0xaefe8c (an import, stdcall)
+engine_set_window_long_a equ 0xaeff44   ; the IAT slot 0xaeff44 (an import, stdcall)
 engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (an import, stdcall)
 engine_set_environment_variable_a equ 0x87029c   ; the IAT slot 0x87029c (an import, stdcall)
 engine_get_system_time_as_file_time equ 0x870244   ; the IAT slot 0x870244 (an import, stdcall)
@@ -2130,6 +2135,21 @@ engine_hide_scene_movie:
     mov eax, [esp + 20]   ; movie
     mov edx, [esp + 24]   ; scene
     call 0x23dc70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_finish_key_binding:
+    ; 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edi, [esp + 20]   ; options
+    call 0x2015a0
     pop edi
     pop esi
     pop ebx

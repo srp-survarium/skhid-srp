@@ -19,7 +19,7 @@ Matches: MATCH-SYNC-026G.md.
 |---|---|---|
 | Build | "0.26g0" (string 0x9DAE98), build 2777, compiled 2015-01-14 | README.md |
 | File | `downloads/v026g/extracted/Survarium/game/binaries/x86/survarium.exe`, 12 894 840 bytes, sha256 `ac33d993…f153` (full value in `patch_026g.py`) | client_patch.md "Exes used" |
-| Layout | image base 0x10000, 7 sections, no ASLR flag (DLL characteristics 0x8000). Only 0x5D zero bytes after `.text` (0x86F5A3–0x86F5FF) | client_patch.md §3, §3.1, §3.3 |
+| Layout | image base 0x10000, 7 sections, no ASLR flag (DLL characteristics 0x8000; the patched exe 0x8100, NX_COMPAT added, client_patch.md §3.3). Only 0x5D zero bytes after `.text` (0x86F5A3–0x86F5FF) | client_patch.md §3, §3.1, §3.3 |
 | Symbols | **No PDB** (none for any public build after 0.21d) | README.md, RE-TOOLKIT.md |
 | `resources.db` | 2015-01-17, 6 285 533 906 bytes, 78 961 entries, CRC 0x4A01F332 | data.md, client_patch.md §0 |
 | OpenSSL | 1.0.1h (string 0x8B3F90) | login_chat.md §3 |

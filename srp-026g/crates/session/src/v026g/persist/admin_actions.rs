@@ -105,8 +105,8 @@ mod tests {
             kind: "money".into(),
             change: change.into(),
             reason: "farmed".into(),
-            before: "10 silver, 0 gold".into(),
-            after: "0 silver, 0 gold".into(),
+            before: "10 silver".into(),
+            after: "0 silver".into(),
         }
     }
 

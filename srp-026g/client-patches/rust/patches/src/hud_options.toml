@@ -20,6 +20,13 @@ order = 2
 site = "memory.allocate_arenas"
 handler = "on_process_start"
 
+# every Present of the game's swap chain, right before it: with DXVK, a window
+# DXGI's flip model refuses (topmost, no frame style: DXVK's fullscreen) made a
+# popup (docs/notes/dxvk-option.md, "The fullscreen window")
+[[hook]]
+site = "render_output.present"
+handler = "on_present"
+
 [[hook]]
 site = "options.callback"
 handler = "on_options_call"
