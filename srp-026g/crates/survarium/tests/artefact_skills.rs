@@ -5,7 +5,7 @@ use survarium::v026g::skills::{SkillError, SkillsTree, modifier_index};
 /// `(id, ranks, branch_points, column, row)`.
 #[rustfmt::skip]
 const TREE: [(u16, u8, u32, u8, u8); 12] = [
-    (501, 4, 0, 2, 1), (502, 5, 0, 3, 1),
+    (501, 3, 0, 2, 1), (502, 5, 0, 3, 1),
     (512, 5, 5, 3, 2), (513, 1, 5, 4, 2),
     (521, 1, 10, 2, 3), (522, 1, 10, 3, 3), (523, 4, 10, 1, 3),
     (531, 1, 15, 1, 4), (532, 1, 15, 2, 4), (533, 1, 15, 3, 4),
@@ -70,21 +70,21 @@ fn artefact_tree_progression_and_modifiers() {
     }
     // Keeper and Forest Protection go together; Resonance and Cascade: either alone is fine,
     // both are refused.
-    tree.validate(100, &[(501, 4), (502, 1), (512, 5), (KEEPER, 1), (FOREST, 4)]).unwrap();
+    tree.validate(100, &[(501, 3), (502, 2), (512, 5), (KEEPER, 1), (FOREST, 4)]).unwrap();
     let mut both = build(5, RESONANCE);
     both.push((CASCADE, 1));
     assert!(exclusive(&tree, &both), "Resonance and Cascade");
-    // The stock rows, 0/5/10/15/20: row I holds 9, rows I-III 21, rows I-IV 24 (a full build
-    // is 25).
-    assert_eq!(points(&build(1, RESONANCE)), 9);
-    assert_eq!(points(&build(3, RESONANCE)), 21);
-    assert_eq!(points(&build(4, RESONANCE)), 24);
+    // The stock rows, 0/5/10/15/20: row I holds 8, rows I-III 20, rows I-IV 23 (a full build
+    // is 24).
+    assert_eq!(points(&build(1, RESONANCE)), 8);
+    assert_eq!(points(&build(3, RESONANCE)), 20);
+    assert_eq!(points(&build(4, RESONANCE)), 23);
     for row5 in [RESONANCE, CASCADE] {
         let all = build(5, row5);
-        assert_eq!(points(&all), 25, "{row5}");
+        assert_eq!(points(&all), 24, "{row5}");
         tree.validate(100, &all).unwrap();
-        tree.validate(25, &all).unwrap();
-        assert!(matches!(tree.validate(24, &all), Err(SkillError::OverLevel { .. })));
+        tree.validate(24, &all).unwrap();
+        assert!(matches!(tree.validate(23, &all), Err(SkillError::OverLevel { .. })));
     }
     // Each row opens at its threshold: exactly that many points in the rows above it (the spare
     // ones taken from the nearest row first), and a point less locks it.
@@ -131,9 +131,9 @@ fn artefact_tree_progression_and_modifiers() {
     assert_eq!(tree.modifiers(&[(CASCADE, 1)])[armored], 1_048_576.0);
     assert_eq!(tree.modifiers(&build(5, CASCADE))[armored], 1_048_576.0);
     assert_eq!(at("armored_trap"), 0.0);
-    let only_data = tree.modifiers(&[(501, 4), (512, 5), (522, 1), (FOREST, 4)]);
+    let only_data = tree.modifiers(&[(501, 3), (512, 5), (522, 1), (FOREST, 4)]);
     assert_eq!(only_data[power], 0.0);
     // A saved set past its levels or below its rows is settled (refunded), never more.
-    assert_eq!(tree.settle(100, &[(501, 9)]), vec![(501, 4)]);
+    assert_eq!(tree.settle(100, &[(501, 9)]), vec![(501, 3)]);
     assert_eq!(tree.settle(100, &[(501, 2), (531, 1)]), vec![(501, 2)]);
 }
