@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import signal
 import socket
+import struct
 import subprocess
 import sys
 import time
@@ -247,6 +248,50 @@ def preflight(config: Config, with_server: bool) -> None:
             sock.bind(("127.0.0.1", port))
 
 
+# Where client-patches/patch_026g.py writes the patch revision the game signs in with
+# (REVISION_VA, revision_site: `mov byte [esp+27h], <revision>` / `nop`), and the original's bytes.
+REVISION_VA = 0x380862
+REVISION_ORIGINAL = bytes.fromhex("8a0d9eae9d00")
+
+
+def exe_revision(exe: Path) -> int | None:
+    """The patch revision a 0.26g game exe signs in with; None for the unpatched original."""
+    data = exe.read_bytes()
+    pe = struct.unpack_from("<I", data, 0x3C)[0]
+    if data[pe:pe + 4] != b"PE\0\0":
+        raise ValueError(f"{exe}: not a PE executable")
+    sections, optional_size = struct.unpack_from("<H", data, pe + 6)[0], struct.unpack_from("<H", data, pe + 20)[0]
+    image_base = struct.unpack_from("<I", data, pe + 24 + 28)[0]
+    rva = REVISION_VA - image_base
+    for at in range(pe + 24 + optional_size, pe + 24 + optional_size + 40 * sections, 40):
+        virtual_size, virtual_address, raw_size, raw_offset = struct.unpack_from("<IIII", data, at + 8)
+        if virtual_address <= rva < virtual_address + max(virtual_size, raw_size):
+            site = data[raw_offset + rva - virtual_address:][:6]
+            if site == REVISION_ORIGINAL:
+                return None
+            if site[:4] == bytes.fromhex("c6442427") and site[5] == 0x90:
+                return site[4]
+            raise ValueError(f"{exe}: no 0.26g sign-in revision at {REVISION_VA:#x}: another build?")
+    raise ValueError(f"{exe}: {REVISION_VA:#x} is in no section")
+
+
+def check_revisions(config: Config, count: int) -> list[tuple[Account, int | None]]:
+    """Each client's exe and revision; refused before anything starts when one is older than the
+    server's SRP_MIN_PATCH_REVISION (the login server would turn it away only at its sign-in, after
+    the owner clicked Enter: a configuration whose accounts point at another test's exe)."""
+    raw = (config.server or {}).get("env", {}).get("SRP_MIN_PATCH_REVISION")
+    least = int(raw) if raw is not None else None
+    found = [(account, exe_revision(config.game / "binaries/x86" / account.executable))
+             for account in config.accounts[:count]]
+    stale = [f"{account.name} plays {account.executable} (patch revision {revision})"
+             for account, revision in found if least is not None and (revision or 0) < least]
+    if stale:
+        raise ValueError("the server takes patch revision " + str(least) + " and later, but "
+                         + "; ".join(stale) + ": point each account's executable at a revision "
+                         + str(least) + " build")
+    return found
+
+
 def stop(config: Config, state: dict) -> None:
     for key in list(state["clients"]):
         index = int(key)
@@ -281,6 +326,7 @@ def start(config: Config, state: dict, count: int, clients_only: bool) -> None:
     if state["clients"] or state.get("server"):
         raise ValueError("a run is already recorded; use restart or stop first")
     preflight(config, not clients_only)
+    revisions = check_revisions(config, count)
     for index in range(count):
         prepare_prefix(config, index)
     try:
@@ -320,7 +366,9 @@ def start(config: Config, state: dict, count: int, clients_only: bool) -> None:
             state["clients"][str(index)] = launch(config.client_command(index), config.game / "binaries/x86",
                                                  config.client_environment(index), config.runtime / f"client-{index + 1}.log")
             write_json(state_path(config), state)
-            print(f"Client {index + 1}: {config.accounts[index].name} (login prefilled)")
+            account, revision = revisions[index]
+            print(f"Client {index + 1}: {account.name} (login prefilled), {account.executable}, "
+                  + (f"patch revision {revision}" if revision is not None else "the unpatched original"))
         time.sleep(1)
         if any(not alive(record) for record in state["clients"].values()):
             raise RuntimeError("a client launcher exited early; see runtime/client-N.log")

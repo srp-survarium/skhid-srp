@@ -19,7 +19,7 @@
 //! - a non-zero search step in 0x85, LZMA2 payloads of the exact size.
 //!
 //! It keeps what the client keeps where a later message depends on it: the
-//! inventory (changed by 0x89, purchases, sales, uses, repairs and drops),
+//! inventory (changed by 0x89, purchases, sales, uses and drops),
 //! the friend count (0xA3 09) and the important messages waiting for an
 //! answer.
 
@@ -33,7 +33,7 @@ use super::super::prices::PriceItem;
 use super::super::skills::MODIFIERS;
 use super::push::{
     AccountBody, Bought, ClientState, Crafted, FULL_CONDITION, ItemDescr, Kit, KitSlot,
-    Modification, NameRefusal, OwnAccount, QuestRecord, Repaired, ServicePrices, ShopRecord,
+    Modification, NameRefusal, OwnAccount, QuestRecord, ServicePrices, ShopRecord,
     ShopRecordItem, SpentMoney, Upgrade,
 };
 use super::requests::id as client_id;
@@ -147,16 +147,9 @@ pub enum Permitted {
         amount: u32,
     },
     OfferBought,
-    Repaired {
-        item_id: u32,
-        repaired: Repaired,
-    },
-    /// `83 49 01` with auto-repair off: the autobuy box.
+    /// `83 49 01`: the autobuy box (bit 1, the stock auto-repair, is not
+    /// kept: srp has no repair).
     Autobuy(bool),
-    /// `83 49 01` with auto-repair on.
-    AutoRepair {
-        autobuy: bool,
-    },
     ActiveKit(u32),
     NicknameCheck {
         nickname: String,
@@ -712,7 +705,6 @@ impl Client {
                     .iter_mut()
                     .find(|item| item.item_id == *item_id);
                 let consumed = match (*crafted, item) {
-                    (Crafted::Nothing { consumed_item_id }, _) => consumed_item_id,
                     (
                         Crafted::Added {
                             consumed_item_id,
@@ -728,20 +720,6 @@ impl Client {
                         }
                         consumed_item_id
                     }
-                    (
-                        Crafted::Removed {
-                            consumed_item_id,
-                            modification,
-                            ..
-                        },
-                        item,
-                    ) => {
-                        if let Some(item) = item {
-                            item.modifications
-                                .retain(|held| held.id != modification || held.state);
-                        }
-                        consumed_item_id
-                    }
                     (Crafted::Failed, _) => 0,
                 };
                 self.inventory.retain(|item| item.item_id != consumed);
@@ -750,23 +728,6 @@ impl Client {
                 if *ticket_item_id != 0 =>
             {
                 self.take_from(*ticket_item_id, |_| Some(1));
-            }
-            Decoded::Permitted(Permitted::Repaired { item_id, repaired }) => {
-                if let Some(item) = self
-                    .inventory
-                    .iter_mut()
-                    .find(|item| item.item_id == *item_id)
-                {
-                    item.condition_or_stack = FULL_CONDITION;
-                    item.repair_time = match repaired {
-                        Repaired::Timed { repair_time } => *repair_time,
-                        _ => 0,
-                    };
-                }
-                if let Repaired::WithKit { kit_item_id, used } = repaired {
-                    let used = u32::from(*used);
-                    self.take_from(*kit_item_id, |_| Some(used));
-                }
             }
             Decoded::Drop {
                 item,
@@ -863,10 +824,11 @@ impl Client {
         lobby_form: bool,
     ) -> Result<ItemDescr, ModelError> {
         let condition_or_stack = r.u32()?;
-        let (mut repair_time, mut reroll_time) = (0, 0);
+        let mut reroll_time = 0;
         if !is_stack {
             if lobby_form {
-                repair_time = r.u32()?;
+                // repair_time: srp has no repair, and writes 0.
+                r.u32()?;
             }
             reroll_time = r.u32()?;
         }
@@ -898,7 +860,6 @@ impl Client {
             item_id,
             dict_id,
             condition_or_stack,
-            repair_time,
             reroll_time,
             modifications,
             upgrades,
@@ -1099,36 +1060,34 @@ impl Client {
                         if self.find(item_id).is_none() {
                             return Err(ModelError::NotInInventory(item_id));
                         }
-                        // Mode 0xFE ends here (0x275A31).
-                        let consumed_item_id = if mode != 0xFE { r.u32()? } else { 0 };
-                        let modification = if !matches!(mode, 0 | 0xFE) {
-                            r.u32()?
-                        } else {
-                            0
-                        };
-                        // The window shows the consumed item's dictionary
-                        // entry as the crafted one's, and the modification
-                        // from its table.
-                        if mode != 0xFE && self.find(consumed_item_id).is_none() {
-                            return Err(ModelError::NotInInventory(consumed_item_id));
-                        }
-                        if !matches!(mode, 0 | 0xFE)
-                            && !Modifications::shared().is_known(modification, false)
-                        {
-                            return Err(ModelError::UnknownModification(modification));
-                        }
                         let crafted = match mode {
-                            0 => Crafted::Nothing { consumed_item_id },
-                            1 => Crafted::Added {
-                                consumed_item_id,
-                                modification,
-                            },
+                            // Mode 0xFE ends here (0x275A31).
                             0xFE => Crafted::Failed,
-                            mode => Crafted::Removed {
-                                mode,
-                                consumed_item_id,
-                                modification,
-                            },
+                            1 => {
+                                let consumed_item_id = r.u32()?;
+                                let modification = r.u32()?;
+                                // The window shows the consumed item's
+                                // dictionary entry as the crafted one's, and
+                                // the modification from its table.
+                                if self.find(consumed_item_id).is_none() {
+                                    return Err(ModelError::NotInInventory(consumed_item_id));
+                                }
+                                if !Modifications::shared().is_known(modification, false) {
+                                    return Err(ModelError::UnknownModification(modification));
+                                }
+                                Crafted::Added {
+                                    consumed_item_id,
+                                    modification,
+                                }
+                            }
+                            // The game's "nothing happened" (0) and "one
+                            // fewer" (others): an upgrade always adds one.
+                            _ => {
+                                return Err(ModelError::Bad(
+                                    ServerId::Permitted,
+                                    "a craft result but added or refused",
+                                ));
+                            }
                         };
                         Permitted::Crafted { item_id, crafted }
                     }
@@ -1167,30 +1126,6 @@ impl Client {
                         Permitted::Sold { item_id, amount }
                     }
                     2 => Permitted::OfferBought,
-                    3 => {
-                        let item_id = r.u32()?;
-                        // Nothing more is read for an item it lacks.
-                        if self.find(item_id).is_none() {
-                            return Err(ModelError::NotInInventory(item_id));
-                        }
-                        let repair_time = r.u32()?;
-                        let repaired = if repair_time != 0 {
-                            Repaired::Timed { repair_time }
-                        } else {
-                            let kit_item_id = r.u32()?;
-                            if kit_item_id == 0 {
-                                Repaired::AtOnce
-                            } else if self.find(kit_item_id).is_some() {
-                                Repaired::WithKit {
-                                    kit_item_id,
-                                    used: r.u8()?,
-                                }
-                            } else {
-                                return Err(ModelError::NotInInventory(kit_item_id));
-                            }
-                        };
-                        Permitted::Repaired { item_id, repaired }
-                    }
                     event => Permitted::NoEffect {
                         op,
                         event: Some(event),
@@ -1200,12 +1135,7 @@ impl Client {
             client_id::PROFILE => {
                 let event = r.u8()?;
                 match event {
-                    0x01 => match r.auto_state()? {
-                        state if state & 2 == 0 => Permitted::Autobuy(state & 1 != 0),
-                        state => Permitted::AutoRepair {
-                            autobuy: state & 1 != 0,
-                        },
-                    },
+                    0x01 => Permitted::Autobuy(r.auto_state()? & 1 != 0),
                     0x02 => Permitted::ActiveKit(r.u32()?),
                     0x03 => {
                         let (nickname, refusal) = self.read_name_check(r, 6)?;
@@ -1608,7 +1538,6 @@ impl Client {
                     revisions,
                     active_kit,
                     autobuy: auto_state & 1 != 0,
-                    auto_repair: auto_state & 2 != 0,
                     level: r.u8()?,
                     exp_total: r.u32()?,
                     exp_level_start: r.u32()?,
@@ -1650,11 +1579,13 @@ impl Client {
                 // 0x26EF40: three lists of {u32, u16}, each into a stack
                 // buffer; a count past the buffer is a fatal assert.
                 let mut spent = SpentMoney::default();
+                // The repair list: srp writes it empty (it has no repair).
+                let mut repair = Vec::new();
                 let limits = spent.lists().map(|(_, _, most)| most);
                 for (list, most) in [
                     &mut spent.autobuy_ammo,
                     &mut spent.autobuy_consumables,
-                    &mut spent.repair,
+                    &mut repair,
                 ]
                 .into_iter()
                 .zip(limits)

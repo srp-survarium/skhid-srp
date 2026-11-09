@@ -2504,6 +2504,7 @@ va	name	location	role	basis
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+12	one-byte read/acknowledgment action	inferred
 0x0026cb80	survarium::lobby_menu::on_keyboard_action	ECX	the lobby menu (+9Ch the game, +690h the movie holder: [+108h]+4 the invoke's ECX)	observed
 0x0026cb80	survarium::lobby_menu::on_keyboard_action	entry ESP+8	the key (DIK code; 1 Esc: with [this+313Ah] set and has_active_window true, root.close_active_window)	observed
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	entry ESP+0Ch	the key's state (1: a press, then Esc as abi.tsv says; any other value goes to the movie through 0x1FDD70 at 0x26CDF8 after has_active_window was asked)	observed
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	ECX	lobby input-handler subobject receiver	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+8	raw mouse button	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+12	mouse button action	inferred
@@ -5711,6 +5712,9 @@ va	name	location	role	basis
 0x0007b7f0	vostok::physics::round_up	ESI	the float rounded in place	observed
 0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	EAX	the controller (+20h the walk, +2C710h the supporting normal)	observed
 0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	entry ESP+4	the float3 written (returned in EAX)	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	entry ESP+4	the buffer_vector (begin, end, max_end; scene_view +1DD30h from world::hide_movie 0x119014)	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	entry ESP+8	pointer to the first iterator	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	entry ESP+12	pointer to the last iterator (first + 4 from world::hide_movie)	observed
 0x002a9e70	survarium::sound_game_effect_presenter::clear	ECX	the sound presenter	observed
 0x002a9ef0	survarium::sound_game_effect_presenter::on_event	entry ESP+4	the sound presenter (EBX): +4h the world, +0Ch its player, +10h its random seed (minstd x 48271, 0x2AB6E0), +14h 1.0f, +18h..+20h its entries {begin, end, capacity}, 14h each ({+0 a loose pointer to the effect: [+0]-4 the effect, +4 its count; +4 the effect's +10h; +8 its +2Ch; +0Ch the volume; +10h the sound, its count +28h}), sixteen inline from +24h	observed
 0x002a9ef0	survarium::sound_game_effect_presenter::on_event	entry ESP+8	the sound_game_effect (vtable 0xA0D4CC; its accept, vtable +3Ch 0x2AE450, calls the presenter's +28h with it)	observed
@@ -5735,3 +5739,24 @@ va	name	location	role	basis
 0x001ed170	survarium::game::switch_to_game_world	EAX	the game	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	AL	the flag: 1 shown, 0 hidden	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	EDX	the lobby menu	observed
+0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	ESI	render-output receiver	observed
+0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	entry ESP+4 low byte	apply even without the focus (resize passes 1)	observed
+0x003cfe20	vostok::render::res_render_output::goto_fullscreen	ESI	render-output receiver	observed
+0x003cfe80	vostok::render::res_render_output::minimize	ESI	render-output receiver	observed
+0x001ed430	survarium::game::on_fullscreen_alttab	ECX	game receiver (+53B0h its render output window)	observed
+0x001ed450	survarium::game::on_alttab	ECX	game receiver (+53B0h its render output window)	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EAX	first	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	ESI	last	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EDI	pointer to the value (a resource_ptr: its pointer compared)	observed
+0x002010e0	survarium::game_options::process_key_input	EDX	the key: a DIK code (1 Esc), 151h..153h a mouse button, 159h/15Ah the wheel	observed
+0x002010e0	survarium::game_options::process_key_input	entry ESP+4	the main menu (game_options): +3Ch the action awaited	observed
+0x002015a0	survarium::game_options::finish_binding	EDI	the main menu (game_options) whose key wait ends: the options' +0Ch menu movie, +10h cursor movie, +30h scene, +3Ch awaited action	observed
+0x002015e0	survarium::game_options::on_keyboard_action	ECX	the main menu (game_options)	observed
+0x002015e0	survarium::game_options::on_keyboard_action	entry ESP+4	the keyboard (passed on to swf_input_translator::process_keyboard 0x1FDD70)	inferred
+0x002015e0	survarium::game_options::on_keyboard_action	entry ESP+8	the key (DIK code)	observed
+0x002015e0	survarium::game_options::on_keyboard_action	entry ESP+12	the key's action: 1 a press	observed
+0x002016d0	survarium::game_options::on_mouse_key_action	ECX	the main menu (game_options)	observed
+0x002016d0	survarium::game_options::on_mouse_key_action	entry ESP+8	the button's key (151h..153h)	observed
+0x002016d0	survarium::game_options::on_mouse_key_action	entry ESP+12	the button's action: 0 a press	observed
+0x002017a0	survarium::game_options::on_mouse_move	ECX	the main menu (game_options)	observed
+0x002017a0	survarium::game_options::on_mouse_move	entry ESP+16	the wheel's turn: 0 none, above 0 up (159h), else down (15Ah)	observed

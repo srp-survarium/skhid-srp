@@ -69,6 +69,13 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         Winetricks and launches with the same server and language as the batch file.
     <output>/LINUX.txt
         Linux setup and troubleshooting instructions.
+    <output>/game/binaries/x86/play_skhid_mac.sh
+        the macOS (Apple silicon) launcher: downloads a pinned Wine (athei's
+        build of CrossOver 26.3's sources, DXMT inside) and the raw-mouse Mac
+        driver once, creates a local Wine prefix and launches with the same
+        server as the batch file.
+    <output>/MACOS.txt
+        macOS setup and troubleshooting instructions.
     <output>/game/resources/ssl/survarium_login_server.crt
         srp's login certificate (beside this script; the same file as in ../certs): the client accepts the
         login server only with this very file.
@@ -105,8 +112,12 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         (Skhid-without-updater.bat here, with the files of --downloads
         written in at its end: `#skhid-file <name> <sha256> <size> <url>...`).
     <output>/Skhid.sh
-        the same for Linux (Skhid.sh beside this script): `bash Skhid.sh`
-        runs play_skhid.sh from wherever it is called, with its arguments.
+        the same for Linux and macOS (Skhid.sh beside this script): `bash Skhid.sh`
+        runs play_skhid.sh (play_skhid_mac.sh on macOS) from wherever it is
+        called, with its arguments.
+    <output>/Skhid.command
+        for macOS: double-clicked in Finder, it opens Terminal and runs
+        `bash Skhid.sh launcher` (Skhid.command here).
     <output>/VPN.txt
         for a player whose provider blocks the server (Russia): which
         programs to put in a VPN's split tunnelling, how in the usual VPN
@@ -209,8 +220,11 @@ STARTER = "Skhid.bat"
 WITHOUT_UPDATER = "Skhid-without-updater.bat"
 CERT_REL = os.path.join("resources", "ssl", "survarium_login_server.crt")
 LINUX_LAUNCHER = os.path.join("game", EXE_DIR, "play_skhid.sh")
-# The same for Linux, run as `bash Skhid.sh` beside the `game` folder.
+MAC_LAUNCHER = os.path.join("game", EXE_DIR, "play_skhid_mac.sh")
+# The same for Linux and macOS, run as `bash Skhid.sh` beside the `game` folder.
 LINUX_STARTER = "Skhid.sh"
+# The launcher's starter for a double-click in macOS's Finder.
+MAC_STARTER = "Skhid.command"
 # For a player who cannot reach the server: what to put in a VPN's split
 # tunnelling, and the firewall rules (beside Skhid.bat).
 VPN_HELP = "VPN.txt"
@@ -221,8 +235,8 @@ DEFENDER_SETUP = "Skhid-defender-setup.cmd"
 # For a player for whom nothing works: the logs and the folder's state in one
 # ZIP to send (beside Skhid.bat).
 COLLECT_LOGS = "Skhid-collect-logs.cmd"
-# What a Linux unpacker makes executable.
-SCRIPTS = (LINUX_LAUNCHER, LINUX_STARTER)
+# What a Linux or macOS unpacker makes executable.
+SCRIPTS = (LINUX_LAUNCHER, MAC_LAUNCHER, LINUX_STARTER, MAC_STARTER)
 
 
 def sha256(data):
@@ -453,8 +467,8 @@ def russian_script(name):
     return script
 
 
-def sh(server, embedded=False):
-    with open(os.path.join(HERE, "play_skhid.sh"), "rb") as source:
+def sh(server, embedded=False, name="play_skhid.sh"):
+    with open(os.path.join(HERE, name), "rb") as source:
         # Windows checkouts may use CRLF; Bash and the substitutions need LF.
         script = source.read().replace(b"\r\n", b"\n")
     return script.replace(
@@ -505,6 +519,8 @@ def readme(server, description, files, embedded=False, site=None):
             "   which downloads a missing game and looks for updates first). For a new",
             "   installation, use the launcher first. See LINUX.txt for setup and",
             "   troubleshooting.",
+            f"   macOS (Apple silicon): double-click {MAC_STARTER} (or the same commands",
+            "   in Terminal); the first start downloads Wine for macOS. See MACOS.txt.",
             "3. Sign in with any user name and password. A new name is registered on its",
             "   first sign-in; remember the password.",
             "",
@@ -525,11 +541,13 @@ def readme(server, description, files, embedded=False, site=None):
             f"{STARTER} beside the `game` folder: it starts the launcher, nothing else.",
             f"{WITHOUT_UPDATER} beside it: installs, updates and starts the game without",
             "the launcher and the updater.",
-            f"{LINUX_STARTER} beside it, for Linux: it runs play_skhid.sh, nothing else.",
+            f"{LINUX_STARTER} beside it, for Linux and macOS: it runs play_skhid.sh",
+            f"(play_skhid_mac.sh on macOS), nothing else; {MAC_STARTER} runs it from Finder.",
             "In game\\binaries\\x86: survarium_skhid.exe (the game for this server),",
             "launcher_skhid.exe, updater_skhid.exe with updater_skhid.url, the folder",
-            "launcher_skhid (the launcher's own pages), and play_skhid.bat and",
-            "play_skhid.sh, which start the game alone, without looking for updates.",
+            "launcher_skhid (the launcher's own pages), and play_skhid.bat,",
+            "play_skhid.sh and play_skhid_mac.sh, which start the game alone, without",
+            "looking for updates.",
             "7zr.exe is the standalone extractor of 7-Zip, unchanged: the updater",
             "unpacks the original game with it, and runs it only if it is exactly that",
             "file. 7-Zip Copyright (C) 1999-2025 Igor Pavlov. It is free software under",
@@ -566,6 +584,8 @@ def readme(server, description, files, embedded=False, site=None):
             "3. Windows: double-click game\\binaries\\x86\\play_skhid.bat.",
             "   Linux: install Wine and Winetricks, then run bash play_skhid.sh",
             "   from game/binaries/x86. See LINUX.txt for setup and troubleshooting.",
+            "   macOS (Apple silicon): run bash play_skhid_mac.sh from",
+            "   game/binaries/x86. See MACOS.txt.",
             "   These launchers supply the options the game needs.",
             "4. Sign in with any user name and password. A new name is registered on its",
             "   first sign-in; remember the password.",
@@ -684,8 +704,10 @@ def main():
         (os.path.join("game", EXE_DIR, "bugtrap.dll"), bugtrap),
         (os.path.join("game", EXE_DIR, "play_skhid.bat"), bat(server, embedded)),
         (LINUX_LAUNCHER, sh(server, embedded)),
+        (MAC_LAUNCHER, sh(server, embedded, "play_skhid_mac.sh")),
         (os.path.join("game", CERT_REL), srp_cert),
         ("LINUX.txt", Path(HERE, "LINUX.txt").read_bytes()),
+        ("MACOS.txt", Path(HERE, "MACOS.txt").read_bytes()),
     ]
     launcher_description = None
     if launcher:
@@ -708,6 +730,7 @@ def main():
             (WITHOUT_UPDATER, without_updater(downloads)),
             # Windows checkouts may use CRLF; Bash needs LF.
             (LINUX_STARTER, Path(HERE, LINUX_STARTER).read_bytes().replace(b"\r\n", b"\n")),
+            (MAC_STARTER, Path(HERE, MAC_STARTER).read_bytes().replace(b"\r\n", b"\n")),
             (VPN_HELP, vpn_help()),
             (NETWORK_SETUP, russian_script(NETWORK_SETUP)),
             (DEFENDER_SETUP, russian_script(DEFENDER_SETUP)),

@@ -755,7 +755,7 @@ class OtherTables(unittest.TestCase):
     def test_an_items_row_gives_a_copy_its_plain_item_and_starting_ids(self):
         dictionary = config({'items_dict': [{'dict_id': 1, 'name': 'jacket', 'base_cost': 900, 'is_premium': 0},
                                             {'dict_id': 2, 'name': 'jacket_premium', 'base_cost': 500, 'is_premium': 1}]})
-        text = 'items\tname\tbase_cost\tgold\tlike\tstart\n1\tjacket\t900\t0\t\t\n2\tjacket_premium\t500\t1\tjacket\t1240 1250\n'
+        text = 'items\tname\tbase_cost\tpremium\tlike\tstart\n1\tjacket\t900\t0\t\t\n2\tjacket_premium\t500\t1\tjacket\t1240 1250\n'
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / 'live/gameplay').mkdir(parents=True)
