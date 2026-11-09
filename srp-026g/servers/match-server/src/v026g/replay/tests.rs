@@ -379,3 +379,18 @@ fn files_of_gone_recordings_and_parts_are_deleted_and_nothing_else() {
     );
     let _ = fs::remove_dir_all(&root);
 }
+
+/// A note's revision 0 is a session the server did not know: `None`, which
+/// a replay's check does not count, not a game of revision 0.
+#[test]
+fn a_note_of_revision_zero_is_not_known() {
+    let note = |place: u8, revision: u8| record::Record {
+        kind: NOTE,
+        place: 0,
+        at_ms: 0,
+        bytes: format!(r#"{{"note":"revision","place":{place},"revision":{revision}}}"#)
+            .into_bytes(),
+    };
+    let (_, revisions) = by_place(&[note(0, 0), note(1, 40)]);
+    assert_eq!(revisions, [None, Some(40)]);
+}

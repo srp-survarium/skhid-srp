@@ -662,7 +662,23 @@ struct Changes {
     /// Reports no longer kept.
     deleted: Vec<u32>,
     /// Matches for the history ([`history`]), not written yet.
-    history: Vec<MatchRecord>,
+    history: Vec<PendingRecord>,
+}
+
+/// How many saves in a row may fail to write a match to the history before
+/// it is dropped (at [`crate::SAVE_INTERVAL`], 5 minutes: longer than a
+/// database stays locked). A match and its events are one transaction under
+/// strict CHECKs, so a row that breaks one would fail for ever: it would
+/// keep the match out, log an error at every save and keep the changes from
+/// ever being empty.
+pub(crate) const RECORD_TRIES: u16 = 150;
+
+/// A match on its way to the history.
+#[derive(Clone)]
+struct PendingRecord {
+    record: MatchRecord,
+    /// Saves that failed to write it so far.
+    failures: u16,
 }
 
 impl Changes {
@@ -942,7 +958,8 @@ impl Results {
     /// transaction), the reports no longer kept are deleted, the new ones
     /// written, then the state that lists them. Each row is its own write:
     /// srp ending between two leaves rows [`Results::restored`] puts right.
-    /// A write that fails is tried again at the next call.
+    /// A write that fails is tried again at the next call; a match that
+    /// cannot be written in [`RECORD_TRIES`] calls is dropped, said loudly.
     pub fn save_changes(&self, repository: &mut dyn GameRepository) {
         let (state, saved, deleted, matches) = {
             let mut inner = self.inner.locked();
@@ -962,13 +979,23 @@ impl Results {
             (state, saved, changes.deleted, changes.history)
         };
         let mut again = Changes::default();
-        for record in matches {
-            if let Err(error) = repository.record_match(&record) {
+        for mut pending in matches {
+            let Err(error) = repository.record_match(&pending.record) else {
+                continue;
+            };
+            pending.failures += 1;
+            let replay_id = pending.record.replay_id.as_str();
+            if pending.failures >= RECORD_TRIES {
                 log::error!(
-                    "Match {} not kept in the history: {error}; retrying",
-                    record.replay_id.as_str()
+                    "Match {replay_id} dropped from the history: {RECORD_TRIES} saves could not \
+                     write it, the last with {error}"
                 );
-                again.history.push(record);
+            } else {
+                // Once, not at every save.
+                if pending.failures == 1 {
+                    log::error!("Match {replay_id} not kept in the history: {error}; retrying");
+                }
+                again.history.push(pending);
             }
         }
         for match_id in deleted {
@@ -1187,7 +1214,10 @@ impl Results {
         inner.reports.push_back(report.clone());
         inner.changes.state = true;
         inner.changes.saved.push(report.match_id);
-        inner.changes.history.extend(record);
+        inner
+            .changes
+            .history
+            .extend(record.map(|record| PendingRecord { record, failures: 0 }));
         Some(report)
     }
 

@@ -298,7 +298,6 @@ pub struct LiveMatch {
 struct Inner {
     matches: HashMap<u32, std::sync::Arc<Formed>>,
     seats: HashMap<u32, Seat>,
-    last_id: u32,
     /// A growing roster's admission as the match last said it.
     admitting: HashMap<u32, Admitting>,
     live: HashMap<u32, Live>,
@@ -356,7 +355,6 @@ impl MatchRegistry {
             host: host.to_owned(),
             port,
             inner: Mutex::new(Inner {
-                last_id: random() | 1,
                 ..Inner::default()
             }),
         }
@@ -448,18 +446,14 @@ impl MatchRegistry {
                 });
             }
         }
-        let mut match_id = inner.last_id;
-        loop {
-            // Never 0, never one in use, never a [`static_id`].
-            match_id = match_id.wrapping_mul(0x9E37_79B1).wrapping_add(0x7F4A_7C15);
-            if match_id != 0
-                && match_id & STATIC_ID_BIT == 0
-                && !inner.matches.contains_key(&match_id)
-            {
-                break;
+        // Never 0 and never a [`static_id`] (`random_match_id`), never one in
+        // use.
+        let match_id = loop {
+            let match_id = session::random_match_id();
+            if !inner.matches.contains_key(&match_id) {
+                break match_id;
             }
-        }
-        inner.last_id = match_id;
+        };
         let score_weights = setup
             .score_weights
             .unwrap_or_else(|| static_info_weights(map.mode.rules()));

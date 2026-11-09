@@ -10,6 +10,29 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode, MatchMap};
 use survarium::v026g::match_msgs::static_info::parse_options;
 
+/// A match's id is the code its replay is watched by, a private room's too:
+/// no id may be worked out from another. The ids used to be steps of one
+/// multiplicative sequence, whose whole state was the last id given.
+#[test]
+fn a_match_id_says_nothing_of_the_others() {
+    let old_step = |id: u32| id.wrapping_mul(0x9E37_79B1).wrapping_add(0x7F4A_7C15);
+    let registry = MatchRegistry::new("srp.example.com", 1236);
+    let mut ids = Vec::new();
+    for _ in 0..8 {
+        let ticket = registry.create(setup(1, MAP_BATTERIES)).unwrap();
+        assert!(ticket.match_id != 0 && ticket.match_id < 0x8000_0000);
+        ids.push(ticket.match_id);
+        assert!(registry.release(session_of(0)).is_some());
+    }
+    for &id in &ids {
+        let mut next = id;
+        for _ in 0..64 {
+            next = old_step(next);
+            assert!(next == id || !ids.contains(&next), "{ids:x?}");
+        }
+    }
+}
+
 #[test]
 fn a_made_match_seats_its_players_until_it_is_over() {
     let registry = MatchRegistry::new("srp.example.com", 1236);

@@ -126,12 +126,7 @@ fn phase_code(phase: LivePhase) -> u8 {
 impl Core<'_> {
     /// The Live window's spectators of the match (the lobby's id).
     fn live_watchers(&self, match_id: u32) -> usize {
-        self.store
-            .matchmaking()
-            .watchers_of(match_id)
-            .iter()
-            .filter(|(_, watcher)| matches!(watcher.kind, WatchKind::Live { .. }))
-            .count()
+        self.store.matchmaking().live_watchers_of(match_id).len()
     }
 
     /// A player seated in the match keeps its matches from being watched
@@ -353,6 +348,24 @@ impl Core<'_> {
 #[cfg(test)]
 mod delay_tests {
     use super::*;
+
+    /// Compose passes its environment by name: a setting it does not list
+    /// never reaches the server on the live host.
+    #[test]
+    fn compose_passes_the_watch_settings_on() {
+        let compose = include_str!("../../../../docker-compose.yml");
+        for name in [
+            "SRP_REPLAY_WATCH",
+            "SRP_REPLAY_MODERATORS",
+            "SRP_REPLAY_WATCH_MAX",
+            "SRP_LIVE_WATCH_DELAY_S",
+            "SRP_LIVE_WATCH_PER_MATCH",
+            "SRP_LIVE_WATCH_MAX",
+        ] {
+            let line = format!("- {name}");
+            assert!(compose.lines().any(|l| l.trim() == line), "{name}");
+        }
+    }
 
     #[test]
     fn a_delay_up_to_the_longest_a_match_can_serve_is_taken() {

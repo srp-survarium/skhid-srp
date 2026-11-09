@@ -92,6 +92,17 @@ fn random_session_id() -> u32 {
     OsRng.next_u32() % 0x7FFE_0000 + 0x1_0000
 }
 
+/// A new match id: random, from the operating system's secure generator,
+/// from 1 to 0x7FFF_FFFF (the top bit is the static info's, `static_id` in
+/// the match server). A match's id is also the code its replay is watched
+/// and saved by, a private room's too, so one id must say nothing of any
+/// other (they used to be steps of one sequence, so that any public match's
+/// id gave its neighbours').
+pub fn random_match_id() -> u32 {
+    use password_hash::rand_core::{OsRng, RngCore};
+    OsRng.next_u32() % 0x7FFF_FFFF + 1
+}
+
 /// The wall clock, Unix seconds.
 fn unix_now() -> u64 {
     SystemTime::now()
@@ -1199,6 +1210,7 @@ impl SessionStore {
             .collect();
         for other in before {
             self.matchmaking.leave_queue(other);
+            self.matchmaking.stop_watching(other);
         }
         self.sessions_made(&[session_id]);
         Some(session_id)
@@ -1295,6 +1307,7 @@ impl SessionStore {
         };
         self.sessions_ended(&[(session_id, account_id)]);
         self.matchmaking.leave_queue(session_id);
+        self.matchmaking.stop_watching(session_id);
         if !self.plays_on_elsewhere(account_id, session_id, Instant::now()) {
             self.leave_squad(account_id, "its session ended (signed out)");
         }
@@ -2056,6 +2069,38 @@ mod tests {
         let session = store.create_session(id);
         let account = store.account_for_session(session).unwrap();
         assert_eq!(account.locked().name, format!("player_{id:08x}"));
+    }
+
+    /// A new sign-in is a new game: what the game before it watched is over,
+    /// or its place among a match's few spectators would stay taken.
+    #[test]
+    fn a_new_sign_in_ends_what_the_game_before_it_watched() {
+        let store = SessionStore::new();
+        let player = |n: u32| Player {
+            session_id: n,
+            account_id: 1000 + n,
+            profile_id: 1,
+        };
+        let id = store
+            .matchmaking()
+            .seat_sides_in_pool(
+                [&[player(1)], &[player(2)]],
+                Instant::now(),
+                QueuePool::GrowingRoster,
+                &|_| 0,
+            )
+            .expect("1 v 1");
+        let account = 7;
+        let old = store.create_session_with_revision(account, 40);
+        let watcher = Watcher {
+            match_id: id,
+            ticket: 0xA000,
+            account_id: account,
+            kind: WatchKind::Queued,
+        };
+        assert!(store.matchmaking().watch(old, watcher));
+        let _new = store.create_session_with_revision(account, 40);
+        assert_eq!(store.matchmaking().watched(old), None);
     }
 
     #[test]

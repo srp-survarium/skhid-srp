@@ -44,7 +44,7 @@ fn a_match_in_play(world: &mut World) -> (u32, [usize; 2]) {
 /// The movie's ask to watch `match_id` (a replay session's): its `R1` row.
 fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> String {
     world.take(index);
-    let ask = ReplayWatchAsk::At {
+    let ask = ReplayWatchAsk {
         seconds: 0,
         place: None,
     };
@@ -61,6 +61,80 @@ fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> String {
         })
         .next()
         .expect("an R1 row")
+}
+
+/// A Live spectator whose game never reaches the match server, or which
+/// signs in anew, gives its place back when its lobby link or session goes:
+/// not only when the match ends.
+#[test]
+fn a_live_watcher_gives_its_place_back_when_its_link_goes() {
+    let mut world = World::new();
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    let session = world.ids[carol].1;
+    let matchmaking = |world: &World| world.store.matchmaking().watched(session);
+    assert!(matchmaking(&world).is_some());
+    // Its game crashed while loading: nothing more comes from it.
+    drop(std::mem::replace(&mut world.clients[carol].1, TestClient::new()));
+    world.advance(world.core.settings.match_link_timeout + Duration::from_secs(1));
+    assert_eq!(matchmaking(&world), None);
+}
+
+/// The session's end is enough on its own, whichever way it comes.
+#[test]
+fn a_live_watcher_watches_no_more_when_its_session_ends() {
+    let mut world = World::new();
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    let session = world.ids[carol].1;
+    assert!(world.store.end_session(session));
+    assert_eq!(world.store.matchmaking().watched(session), None);
+}
+
+/// A player with a replay session on (its recording still being read, so
+/// its game is free in the lobby) does not also become a spectator.
+#[test]
+fn a_replay_session_keeps_its_player_from_watching_a_match_too() {
+    use session::v026g::replay_watch::WatchSettings;
+    use session::v026g::replays::Replays;
+    let desk: &'static Replays =
+        Box::leak(Box::new(Replays::new(None).with_watch(WatchSettings::default())));
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    assert!(ask_to_watch(&mut world, carol, 0x1F07_C8FB).starts_with("R1;preparing;"));
+    assert_eq!(
+        ask_to_watch(&mut world, carol, ticket),
+        format!("R1;busy;{ticket:08x};0")
+    );
+    assert_eq!(world.store.matchmaking().watched(world.ids[carol].1), None);
+}
+
+/// Past the limit of lookups of unknown matches, an ask says nothing of a
+/// match being played either: asking was how to tell a running private
+/// match from no match at all.
+#[test]
+fn past_the_guessing_limit_a_running_match_is_not_told_apart() {
+    use session::v026g::replay_watch::{MISSES_ALLOWED, WatchSettings};
+    use session::v026g::replays::Replays;
+    let desk: &'static Replays =
+        Box::leak(Box::new(Replays::new(None).with_watch(WatchSettings::default())));
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    let account = world.ids[carol].0;
+    for n in 0..MISSES_ALLOWED {
+        desk.watches().missed(account, 0x2000 + n, world.now);
+    }
+    assert_eq!(
+        ask_to_watch(&mut world, carol, ticket),
+        format!("R1;busy;{ticket:08x};0")
+    );
+    assert_eq!(world.store.matchmaking().watched(world.ids[carol].1), None);
 }
 
 #[test]
@@ -90,7 +164,7 @@ fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     // Watching: sent to the match as a spectator, 30 s behind, Bob (place
     // 1) in view first.
     world.take(carol);
-    let ask = ReplayWatchAsk::At {
+    let ask = ReplayWatchAsk {
         seconds: 0,
         place: Some(1),
     };

@@ -31,17 +31,23 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    (the `incompatible` rule and refusals of `replay_watch.md`). The conversion is `sur_convert`'s, in memory: no `.sur` file, no token.
 4. The movie polls (`3B 00 <REPLAY_START> 01`): `R1;preparing;<id>;1` while it
    is read (2 while waiting), then `R1;watching;<id>;<start ms>`, or the refusal: `not_yours`
-   (`match` only), `incompatible` (with the game's message box saying why, once), `gone` (no
-   recording), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2
-   minutes), `busy`.
+   (`match` only), `incompatible` (the movie says it, in the game's language, from the
+   localization tables), `gone` (no recording), `failed` (unreadable, over
+   `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `busy`. An account that looked up
+   12 matches with no recording in an hour (watching and Save together,
+   `replay_watch::MISSES_ALLOWED`) gets `busy` for every match until its hour ends, a running
+   or kept one too, so that the answer says nothing of it: a match's id is random (31 bits, from
+   the operating system's generator, `session::random_match_id`) and is all that keeps a
+   private room's replay to those who were given it.
 5. Read: the lobby sends the game to the match server as a spectator is sent: `85` "found",
    then `82` (match id = the recorded match, team 0, its session). The match server takes its
    0xD8 as the session's (a game with the late-join capability only) and plays it the
    recording through #1285's spectator machine: 0xE3, 0xE4 naming 0xFF with every place of the
    recording, the key frame, then the relays and roster changes at their recorded times.
-6. It ends when the game leaves (0xE0, Esc), its link goes, or the recording ends (0xEA naming
-   0xFF, then 7 s of silence; patch 121 takes the game back to the lobby). The session is over
-   once the match server forgets the game.
+6. It ends when the game leaves (0xE0, Esc), its link goes, the recording ends, or it has been
+   paused for 5 minutes (`playback::PAUSED_MOST`; the sessions are few). The last two go the same
+   way: 0xEA naming 0xFF, then 7 s of silence, and patch 121 takes the game back to the lobby. The
+   session is over once the match server forgets the game.
 
 **The start** (`Recording::start`): the replay opens where the action is, at the end of the
 match's countdown (`Recording::opening`: the start of the time rule's "in process" in the first key
@@ -54,7 +60,7 @@ a later time asked for starts from the key frame at or before it, put as far pas
 since allow (as a seek, below).
 
 **The place to follow: the asked one, then the client's.** The server tells the game the place
-asked for (a replay's `place`, "my deaths"'s own place, a live watch's `place`: the same ask) once,
+asked for (a replay's `place`, a live watch's `place`: the same ask) once,
 in a view note (`52 03 place`, `ServerNote::View`) as soon as the game watches (its first world is
 in, so patch 121's camera has picked someone); patch 130 then follows that place, as a player list
 click does. None asked (0xFF): no note, patch 121 follows the player it followed last, else the
@@ -101,7 +107,7 @@ the replay id; srp hands the match server its accounts): a kill (kind 1, killer 
 death no kill was paired with (kind 1, no actor), a battery found or delivered (kind 2, its
 player); captures, scores and the end are not shown. A match is in the history a moment after its
 result; there is no backfill (the owner's decision): matches played before the history shipped
-have no events, so their replays get an empty events note and "my deaths" starts where the asker's
+have no events, so their replays get an empty events note and a watch starts where the asker's
 place is first in view. The session plays the newest recording of the match id.
 
 What the server does:

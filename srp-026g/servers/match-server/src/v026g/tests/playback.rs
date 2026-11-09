@@ -17,8 +17,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU32;
 
 use session::v026g::persist::match_events::{self, MatchEvent, Player, Timing};
-use session::v026g::replay_watch::{Access, Stage, WatchFrom, WatchRequest, WatchSettings};
-use session::v026g::replays::{Refusal, ReplayId, Replays, Status};
+use session::v026g::replay_watch::{
+    Access, Stage, WatchFrom, WatchRefusal, WatchRequest, WatchSettings,
+};
+use session::v026g::replays::{Refusal, Replays, Status};
 use survarium::v026g::maps::MatchMap;
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
 use survarium::v026g::match_msgs::static_info::{MatchOptions, SCORE_WEIGHTS, StaticInfo};
@@ -162,8 +164,8 @@ fn request(account_id: u32, match_id: u32, at_ms: u32, place: Option<u8>) -> Wat
         account_id,
         session_id: session_for(account_id),
         match_id,
-        from: WatchFrom::At { ms: at_ms, place },
-        revision: revision(),
+        from: WatchFrom { ms: at_ms, place },
+        revision: Some(revision()),
     }
 }
 
@@ -414,6 +416,27 @@ fn the_game_is_told_the_playback_after_its_world_each_change_and_each_seek() {
             (4, true, Speed::Octuple),
         ]
     );
+    bench.assert_no_faults();
+}
+
+/// A paused replay does not hold its session for as long as the game stays
+/// open: after [`PAUSED_MOST`] it is shown the end, as at the recording's,
+/// and the session goes (the sessions are few).
+#[test]
+fn a_replay_paused_too_long_ends_and_frees_its_session() {
+    use crate::v026g::game::playback::PAUSED_MOST;
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(2_000);
+    control(&mut bench, at, 1, Op::Pause(true));
+    bench.run_long(PAUSED_MOST.as_millis() as u64 - 1_000);
+    assert!(!bench.clients[at].told_to_leave, "still within its pause");
+    assert!(bench.until(2_000, |b| b.clients[at].told_to_leave));
+    assert!(replays.watches().holds(WATCHER_ACCOUNT), "not yet gone");
+    // The session is over once the farewell had its time.
+    bench.run_long(10_000);
+    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
     bench.assert_no_faults();
 }
 
@@ -675,7 +698,7 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
     let watches = replays.watches();
     let ask = |bench: &mut Bench, account: u32, revision: u8| {
         let request = WatchRequest {
-            revision,
+            revision: Some(revision),
             ..request(account, match_id, 0, None)
         };
         assert_eq!(watches.start(request, bench.now()), Status::Preparing);
@@ -684,18 +707,12 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
     // Not a player.
     assert_eq!(
         ask(&mut bench, 555, revision()),
-        Stage::Refused {
-            status: Status::NotYours,
-            refusal: None
-        }
+        Stage::Refused(WatchRefusal::NotYours)
     );
     // A player, with a game older than the recording's.
     assert!(matches!(
         ask(&mut bench, 100, revision() - 1),
-        Stage::Refused {
-            status: Status::Incompatible,
-            refusal: Some(Refusal::Newer { .. })
-        }
+        Stage::Refused(WatchRefusal::Incompatible(Refusal::Newer { .. }))
     ));
     watches.answer(100);
     // A player, then a moderator (the recording shared: read once).
@@ -712,56 +729,10 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
     let mut anyone = Bench::growing(2, MAP_TDM, settings(&dir, &open));
     let request = request(555, match_id, 0, Some(1));
     open.watches().start(request, anyone.now());
-    let Stage::Ready { start_ms } = read_for(&mut anyone, &open, 555) else {
-        panic!("anyone may watch");
-    };
-    // "My deaths" of place 1's player with no deaths kept: from where its
-    // place is in view.
-    let deaths = WatchRequest {
-        from: WatchFrom::MyDeaths,
-        ..self::request(101, match_id, 0, None)
-    };
-    open.watches().start(deaths, anyone.now());
-    assert_eq!(read_for(&mut anyone, &open, 101), Stage::Ready { start_ms });
-    // From 6 s, place 1 in view: what "my deaths" starts at with place 1
-    // dead between 10 and 14 s (4 s before the earliest it can have been).
-    let at_six = self::request(556, match_id, 6_000, Some(1));
-    open.watches().start(at_six, anyone.now());
-    let Stage::Ready { start_ms } = read_for(&mut anyone, &open, 556) else {
-        panic!("anyone may watch");
-    };
-    let replay_id = path
-        .file_stem()
-        .and_then(|stem| ReplayId::parse(stem.to_str()?))
-        .expect("a recording named by its replay id");
-    let died = MatchEvent {
-        timing: Timing::Between {
-            after: 10_000,
-            by: 14_000,
-        },
-        kind: match_events::EventKind::Death {
-            victim: Player {
-                place: 1,
-                account_id: 101,
-            },
-        },
-    };
-    let kept = self::replays(Access::All);
-    let mut with_history = Bench::growing(
-        2,
-        MAP_TDM,
-        Settings {
-            accounts: Some(history(&dir.join("history"), replay_id, vec![died])),
-            ..settings(&dir, &kept)
-        },
+    assert!(
+        matches!(read_for(&mut anyone, &open, 555), Stage::Ready { .. }),
+        "anyone may watch"
     );
-    kept.watches().start(deaths, with_history.now());
-    assert_eq!(
-        read_for(&mut with_history, &kept, 101),
-        Stage::Ready { start_ms }
-    );
-    assert!(start_ms > 0);
-    drop(with_history);
     drop(anyone);
 
     // Player 100's game is sent and connects.
@@ -793,10 +764,7 @@ fn a_match_without_a_recording_is_gone() {
     replays.watches().start(request, bench.now());
     assert_eq!(
         read_for(&mut bench, &replays, WATCHER_ACCOUNT),
-        Stage::Refused {
-            status: Status::Gone,
-            refusal: None
-        }
+        Stage::Refused(WatchRefusal::Gone)
     );
 }
 
@@ -924,36 +892,6 @@ fn the_game_is_told_the_matchs_events_in_notes_of_64() {
         (MatchMs(95_000), None, Some(1))
     );
     bench.assert_no_faults();
-}
-
-/// The srp process's accounts with a match history holding `events` of
-/// the match `replay_id`.
-fn history(dir: &Path, replay_id: ReplayId, events: Vec<MatchEvent>) -> crate::v026g::Accounts {
-    use session::v026g::GameAccounts;
-    use session::v026g::persist::history::{
-        Eligibility, MatchInfo, MatchKind, MatchRecord, Winner,
-    };
-    use session::v026g::persist::{GameRepository, SqliteGameRepository};
-    let _ = std::fs::remove_dir_all(dir);
-    let mut repository = SqliteGameRepository::open_in(dir).unwrap();
-    let record = MatchRecord {
-        replay_id,
-        kind: MatchKind::Public(Eligibility::Counted),
-        info: MatchInfo {
-            ended_at: 1,
-            duration_ms: 12_000,
-            map_id: MAP_TDM,
-            game_mode: survarium::v026g::maps::GameMode::TeamDeathmatch,
-            match_level: 3,
-            winner: Winner::Unknown,
-            team_points: [0, 0],
-        },
-        players: Vec::new(),
-        events,
-    };
-    repository.record_match(&record).unwrap();
-    let accounts = GameAccounts::with_repository(Box::new(repository)).unwrap();
-    crate::v026g::Accounts(Arc::new(accounts))
 }
 
 /// A match id comes again after a restart: the session plays the newest

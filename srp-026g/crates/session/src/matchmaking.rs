@@ -695,6 +695,20 @@ impl Matchmaking {
             .collect()
     }
 
+    /// The sessions watching the match from its room's queue.
+    pub fn queue_watchers_of(&self, match_id: u32) -> Vec<(u32, Watcher)> {
+        let mut watchers = self.watchers_of(match_id);
+        watchers.retain(|(_, watcher)| matches!(watcher.kind, WatchKind::Queued));
+        watchers
+    }
+
+    /// The sessions watching the match from the Live window.
+    pub fn live_watchers_of(&self, match_id: u32) -> Vec<(u32, Watcher)> {
+        let mut watchers = self.watchers_of(match_id);
+        watchers.retain(|(_, watcher)| matches!(watcher.kind, WatchKind::Live { .. }));
+        watchers
+    }
+
     /// The lobby: the session watches no more (it got a place, left the
     /// queue, or the match is over). The match server closes its link.
     pub fn stop_watching(&self, session_id: u32) -> Option<Watcher> {

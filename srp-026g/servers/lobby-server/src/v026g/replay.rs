@@ -5,22 +5,22 @@
 //! - The ask: `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match>`
 //!   (`victory_screen_request_player_data` with a player no account has),
 //!   to watch the match in this game from that time (0: the first view
-//!   with a player in it) with that place in view first (0xFF: anyone), or
-//!   `REPLAY_WATCH_MY_DEATHS`. Answered at once with one `R1` row
+//!   with a player in it) with that place in view first (0xFF: anyone).
+//!   Answered at once with one `R1` row
 //!   (`lobby::replay_answer`).
 //! - The polls: `3B 00 <REPLAY_START> <count>`, every second while the
 //!   prompt waits, each answered with the asker's own session's `R1` row:
 //!   `preparing` while the match server reads the recording, `watching`
 //!   with the match time it starts at (ms) once its game is sent, or why
 //!   not (`not_yours` under `SRP_REPLAY_WATCH=match`, `incompatible`,
-//!   `gone`, `failed`, `busy`, `old_game`, `off`).
-//! - A replay refused for its recording's games (`incompatible`: older
-//!   than the last change of what a match computes, of no known revision,
-//!   or newer than the asker's game): the first answer also opens the
-//!   game's message box (`84 49 00 <text>`, `social.md` §9.1) saying why in
-//!   the game's language ([`refusal_text`]): recorded before a game update,
-//!   which no game plays yet; or recorded by a newer game, with its
-//!   revisions, and to update.
+//!   `gone`, `failed`, `busy`, `old_game`, `off`). An account that looked up
+//!   too many matches with no recording gets `busy` for every match for a
+//!   while (`replay_watch::MISSES_ALLOWED`, shared with Save): a match's id
+//!   is all that keeps a private room's replay to those who were given it.
+//! - A replay refused for its recording's games (`incompatible`) is said by
+//!   the movie, in the game's language, from the localization tables: the
+//!   prompt's `st_srp_replay_incompatible`, the card's
+//!   `st_srp_watch_reason_old`. The server only logs why.
 //!
 //! The game goes to the match server as a spectator does (`85` "found",
 //! then `82` with its session) and is shown the replay there; its player
@@ -37,11 +37,10 @@
 
 use std::time::Instant;
 
-use session::v026g::replay_watch::{WatchFrom, WatchRequest};
-use session::v026g::replays::{Answer, Refusal, Status};
+use session::v026g::replay_watch::{WatchFrom, WatchRefusal, WatchRequest};
+use session::v026g::replays::{Answer, Status};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::ReplayWatchAsk;
-use survarium::v026g::lobby::requests::id;
 
 use super::core::{Core, Who};
 
@@ -59,28 +58,35 @@ impl Core<'_> {
         let free = self.player(who.addr).is_some_and(|player| {
             player.in_match.is_none() && player.connect.is_none() && player.queued_since.is_none()
         });
+        // Past the limit of lookups of unknown matches: `busy`, before
+        // anything says whether this match exists or is being played.
+        let limited = self
+            .replays
+            .is_some_and(|replays| replays.watches().limited(who.account_id, now));
+        // One thing at a time: with a replay session on, `start` says `busy`.
+        let in_session = self
+            .replays
+            .is_some_and(|replays| replays.watches().holds(who.account_id));
         // A match still being played is watched as it is (`live`).
-        let live = match ask {
-            ReplayWatchAsk::At { place, .. } if free => self.live_watch(who, match_id, place, now),
-            _ => None,
+        let live = if free && !limited && !in_session {
+            self.live_watch(who, match_id, ask.place, now)
+        } else {
+            None
         };
         let status = match (live, self.replays) {
             (Some(status), _) => status,
             (None, None) => Status::Off,
-            (None, Some(_)) if !free => Status::Busy,
+            (None, Some(_)) if !free || limited => Status::Busy,
             (None, Some(replays)) => replays.watches().start(
                 WatchRequest {
                     account_id: who.account_id,
                     session_id: who.session_id,
                     match_id,
-                    from: match ask {
-                        ReplayWatchAsk::At { seconds, place } => WatchFrom::At {
-                            ms: u32::from(seconds) * 1000,
-                            place,
-                        },
-                        ReplayWatchAsk::MyDeaths => WatchFrom::MyDeaths,
+                    from: WatchFrom {
+                        ms: u32::from(ask.seconds) * 1000,
+                        place: ask.place,
                     },
-                    revision: self.store.client_revision(who.session_id).unwrap_or(0),
+                    revision: self.store.client_revision(who.session_id),
                 },
                 now,
             ),
@@ -124,7 +130,7 @@ impl Core<'_> {
                     watches.sent(request.account_id, now);
                     self.send_to_replay(addr, &ticket);
                 }
-                None => watches.refuse(&request, Status::Busy, None, now),
+                None => watches.refuse(&request, WatchRefusal::Busy, now),
             }
         }
     }
@@ -149,9 +155,6 @@ impl Core<'_> {
             u64::from(answer.figure),
         );
         self.send_made(who.addr, row);
-        if let Some(refusal) = answer.refusal {
-            self.tell_refusal(who, answer.match_id, refusal);
-        }
     }
 
     /// `3D 00 <SAVE_ASK> <match_id>`: the asker wants that match's replay
@@ -193,7 +196,6 @@ impl Core<'_> {
                 match_id: 0,
                 place: 0,
                 ready: None,
-                refusal: None,
             },
         };
         if let Some(link) = answer.link() {
@@ -201,58 +203,5 @@ impl Core<'_> {
         }
         let row = lobby::save_answer(answer.status.word(), answer.match_id, answer.figure());
         self.send_made(who.addr, row);
-        if let Some(refusal) = answer.refusal {
-            self.tell_refusal(who, answer.match_id, refusal);
-        }
-    }
-
-    /// The game's message box says why a replay is not given.
-    fn tell_refusal(&mut self, who: &Who, match_id: u32, refusal: Refusal) {
-        let language = self.player(who.addr).and_then(|player| player.language);
-        log::info!(
-            "{} is told why the replay of match {match_id:#x} is not given: {refusal:?}",
-            who.name
-        );
-        // 0x49: the message box and nothing else, whatever the client is
-        // doing.
-        self.deny(who.addr, id::PROFILE, &refusal_text(refusal, language));
-    }
-}
-
-/// `a` or `a-b`: the revisions of a recording's games.
-fn span(from: u8, to: u8) -> String {
-    if from == to {
-        from.to_string()
-    } else {
-        format!("{from}-{to}")
-    }
-}
-
-/// What the message box says of a refused replay, in the game's language
-/// (`4F`'s byte: 0 English, 1 Russian, 2 Ukrainian, 3 German, 4 Polish;
-/// English for any other, or none yet): at most 255 bytes (`84`'s string).
-pub(super) fn refusal_text(refusal: Refusal, language: Option<u8>) -> String {
-    let language = language.filter(|&n| n < 5).unwrap_or(0);
-    match refusal {
-        // No game a player has plays it (nothing installs an older one).
-        // No date of the update: the server has none
-        // (`simulation_changes.tsv` keeps revisions only).
-        Refusal::Older { .. } | Refusal::Unknown => match language {
-            1 => "Этот повтор записан до обновления игры; повторы из старых версий пока нельзя воспроизвести.".into(),
-            2 => "Цей повтор записано до оновлення гри; повтори зі старих версій поки не можна відтворити.".into(),
-            3 => "Diese Wiederholung wurde vor einem Spielupdate aufgenommen; Wiederholungen älterer Versionen lassen sich noch nicht abspielen.".into(),
-            4 => "Ta powtórka została nagrana przed aktualizacją gry; powtórek ze starszych wersji nie można jeszcze odtworzyć.".into(),
-            _ => "This replay was recorded before a game update; replays from older versions can't be played yet.".into(),
-        },
-        Refusal::Newer { from, to } => {
-            let revisions = span(from, to);
-            match language {
-                1 => format!("Этот повтор записан более новой версией игры (ревизия {revisions}). Обновите игру: запустите её снова через лаунчер."),
-                2 => format!("Цей повтор записано новішою версією гри (ревізія {revisions}). Оновіть гру: запустіть її знову через лаунчер."),
-                3 => format!("Diese Wiederholung wurde mit einer neueren Spielversion (Revision {revisions}) aufgenommen. Aktualisiere das Spiel: Starte es erneut über den Launcher."),
-                4 => format!("Ta powtórka została nagrana nowszą wersją gry (rewizja {revisions}). Zaktualizuj grę: uruchom ją ponownie przez launcher."),
-                _ => format!("This replay was recorded with a newer version of the game (revision {revisions}). Update the game: start it again through the launcher."),
-            }
-        }
     }
 }

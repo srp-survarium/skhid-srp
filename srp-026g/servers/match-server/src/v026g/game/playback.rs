@@ -33,11 +33,13 @@ use replay_control::{KitsNote,
     Request, Speed,
 };
 use session::v026g::GameAccounts;
-use session::v026g::persist::match_events::{self, MatchEvent, Timing};
+use session::v026g::persist::match_events::{self, MatchEvent};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use session::v026g::replay_watch::{DEFAULT_MAX_RECORDING_MB, WatchFrom, WatchRequest};
-use session::v026g::replays::{Refusal, ReplayId, Replays, Status};
+use session::v026g::replay_watch::{
+    DEFAULT_MAX_RECORDING_MB, WatchFrom, WatchRefusal, WatchRequest,
+};
+use session::v026g::replays::{ReplayId, Replays};
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::static_info::{self, NO_LOCAL_PLACE, StaticInfo};
 use survarium::v026g::match_msgs::{
@@ -56,11 +58,15 @@ use crate::v026g::{record, replay, sur_convert};
 /// gets a player's input about this much before its tick (the server's
 /// event horizon, [`HORIZON_MS`]).
 const RELAY_LEAD_MS: u32 = HORIZON_MS;
-/// "My deaths" starts this long before the death.
-const DEATH_LEAD_MS: u32 = 4_000;
 /// A paused game is pinged this often: nothing else goes to it, and a game
 /// ends a match link silent for 5 s.
 const PAUSED_PING_EVERY: Duration = Duration::from_secs(1);
+/// A game paused this long is shown the recording's end: its session is one
+/// of a few ([`DEFAULT_MAX_SESSIONS`]) and nobody at the keyboard would keep
+/// the others' out for as long as the game stays open.
+///
+/// [`DEFAULT_MAX_SESSIONS`]: session::v026g::replay_watch::DEFAULT_MAX_SESSIONS
+pub(crate) const PAUSED_MOST: Duration = Duration::from_secs(5 * 60);
 /// A game whose reported world is this far from where the playback has it
 /// ([`DRIFT_REPORTS`] in a row) is started again from a world: the
 /// fallback for a game that did not freeze or scale its clock as told.
@@ -73,13 +79,9 @@ pub(crate) struct Recording {
     /// The history's events of it, the viewer's timeline (none without a
     /// history, for a match not kept in it, or the tests' `.sur`).
     timeline: Vec<TimelineEvent>,
-    /// Each death in the history's events: the victim's place and the
-    /// earliest it can have been, by time.
-    deaths: Vec<(u8, u32)>,
     info: StaticInfo,
     /// Each place's account, and each place's game's patch revision (the
-    /// recording's notes): who may watch it, which games play it, and
-    /// whose deaths a player's are.
+    /// recording's notes): who may watch it and which games play it.
     accounts: Vec<Option<u32>>,
     revisions: Vec<Option<u8>>,
     /// Every place's playable kits, for the viewer's kit view.
@@ -172,7 +174,6 @@ impl Recording {
             match_id,
             kits,
             timeline: Vec::new(),
-            deaths: Vec::new(),
             info,
             accounts: Vec::new(),
             revisions: Vec::new(),
@@ -191,60 +192,15 @@ impl Recording {
         &self.worlds[after.saturating_sub(1)]
     }
 
-    /// Where a session of `account_id` asked from `from` starts.
-    ///
-    /// "My deaths": [`DEATH_LEAD_MS`] before the earliest its place's first
-    /// death can have been (a death known within a window, the window's
-    /// start), its place in view; with none known, from where its place is
-    /// first in view.
-    pub(crate) fn start(&self, from: WatchFrom, account_id: u32) -> u32 {
-        match from {
-            WatchFrom::At { ms, place } => self.start_at(ms, place),
-            WatchFrom::MyDeaths => {
-                let place = self.place_of(account_id);
-                let death = self
-                    .deaths
-                    .iter()
-                    .find(|(victim, _)| Some(*victim) == place)
-                    .map(|(_, earliest)| *earliest);
-                let at = death.map_or(0, |earliest| earliest.saturating_sub(DEATH_LEAD_MS));
-                self.start_at(at, place)
-            }
-        }
+    /// Where a session asked from `from` starts.
+    pub(crate) fn start(&self, from: WatchFrom) -> u32 {
+        self.start_at(from.ms, from.place)
     }
 
     /// The history's events of this recording's match (`events_of_replay`
-    /// of its replay id) taken as its timeline ([`timeline_of`]), and each
-    /// death's earliest time, for "my deaths".
+    /// of its replay id) taken as its timeline ([`timeline_of`]).
     pub(crate) fn take_events(&mut self, events: &[MatchEvent]) {
         self.timeline = timeline_of(events);
-        let earliest = |timing: Timing| match timing {
-            Timing::Exact(at) => at,
-            Timing::Between { after, .. } => after,
-        };
-        self.deaths = events
-            .iter()
-            .filter_map(|event| match event.kind {
-                match_events::EventKind::Kill {
-                    victim: Some(victim),
-                    ..
-                }
-                | match_events::EventKind::Death { victim } => {
-                    Some((victim.place, earliest(event.timing)))
-                }
-                _ => None,
-            })
-            .collect();
-        self.deaths.sort_by_key(|(_, at)| *at);
-    }
-
-    /// The account's place (its first, if it had two).
-    fn place_of(&self, account_id: u32) -> Option<u8> {
-        let place = self
-            .accounts
-            .iter()
-            .position(|account| *account == Some(account_id))?;
-        u8::try_from(place).ok()
     }
 
     /// Every place's account.
@@ -393,7 +349,8 @@ enum Clock {
         at: u32,
     },
     /// Stopped at `at`; its game pinged next at `ping`.
-    Paused { at: u32, ping: Instant },
+    /// `since`: when it paused, or last sought.
+    Paused { at: u32, ping: Instant, since: Instant },
 }
 
 /// What became of a playback.
@@ -546,6 +503,7 @@ impl Playback {
                     self.clock = Clock::Paused {
                         at,
                         ping: now + PAUSED_PING_EVERY,
+                        since: now,
                     };
                 }
             }
@@ -605,7 +563,7 @@ impl Playback {
         self.clock = match self.clock {
             Clock::Loading { .. } => Clock::Loading { at },
             Clock::Playing { .. } => Clock::Playing { since: now, at },
-            Clock::Paused { ping, .. } => Clock::Paused { at, ping },
+            Clock::Paused { ping, .. } => Clock::Paused { at, ping, since: now },
         };
         (self.inputs, self.events) = self.recording.due(at);
         self.spectator.wait_again();
@@ -678,19 +636,31 @@ impl Playback {
             Clock::Loading { at } if self.spectator.has_loaded() => {
                 self.clock = Clock::Playing { since: now, at };
             }
-            Clock::Paused { at, ping } if now >= ping => {
+            Clock::Paused { at, ping, since } if now >= ping => {
                 self.spectator.ping();
                 self.clock = Clock::Paused {
                     at,
                     ping: now + PAUSED_PING_EVERY,
+                    since,
                 };
             }
             _ => {}
         }
         let at = self.position(now);
         let mut ended = None;
-        if at >= self.recording.end && !self.spectator.is_leaving() {
-            log::info!("Replay {session_id:#x}: the recording is over");
+        let paused_out = matches!(
+            self.clock,
+            Clock::Paused { since, .. } if now.saturating_duration_since(since) >= PAUSED_MOST
+        );
+        if (at >= self.recording.end || paused_out) && !self.spectator.is_leaving() {
+            log::info!(
+                "Replay {session_id:#x}: {}",
+                if paused_out {
+                    "paused too long, its session goes to someone else"
+                } else {
+                    "the recording is over"
+                }
+            );
             self.spectator.farewell(at, now);
             ended = Some(Ended::Over);
         }
@@ -812,9 +782,6 @@ pub(crate) fn timeline_of(events: &[MatchEvent]) -> Vec<TimelineEvent> {
         .collect()
 }
 
-/// Why a session's recording is not shown: its answer to the lobby.
-type Refused = (Status, Option<Refusal>);
-
 /// A match's recording read for a session ([`ReplayWatch`]'s reader): not
 /// found (`gone`), over `SRP_REPLAY_MAX_RECORDING_MB` or unreadable
 /// (`failed`), or not for this player ([`Watches::judge`], before it is
@@ -827,12 +794,12 @@ fn read(
     record_dir: &Path,
     max_bytes: u64,
     request: &WatchRequest,
-) -> Result<Recording, Refused> {
+) -> Result<Recording, WatchRefusal> {
     let match_id = request.match_id;
-    let path = replay::recording_in(record_dir, match_id).ok_or((Status::Gone, None))?;
+    let path = replay::recording_in(record_dir, match_id).ok_or(WatchRefusal::Gone)?;
     let failed = |why: String| {
         log::warn!("Replay sessions: the recording of match {match_id:#x}: {why}");
-        (Status::Failed, None)
+        WatchRefusal::Failed
     };
     let size = std::fs::metadata(&path)
         .map_err(|error| failed(error.to_string()))?
@@ -876,7 +843,7 @@ struct Prepared {
 /// A recording being read on its own thread, for a session.
 struct Reading {
     request: WatchRequest,
-    answer: Receiver<Result<Recording, Refused>>,
+    answer: Receiver<Result<Recording, WatchRefusal>>,
 }
 
 /// The replay sessions this match server plays (the module's doc): their
@@ -975,10 +942,7 @@ impl ReplayWatch {
         );
         // The place asked to be in view (the camera follows it), as a live
         // match's spectator is told it.
-        let view = match request.from {
-            WatchFrom::At { place, .. } => place,
-            WatchFrom::MyDeaths => prepared.recording.place_of(request.account_id),
-        };
+        let view = request.from.place;
         let spectator = Spectator::connect(
             addr,
             session_id,
@@ -1048,24 +1012,20 @@ impl ReplayWatch {
         let read = match reading.answer.try_recv() {
             Ok(read) => read,
             Err(TryRecvError::Empty) => return,
-            Err(TryRecvError::Disconnected) => Err((Status::Failed, None)),
+            Err(TryRecvError::Disconnected) => Err(WatchRefusal::Failed),
         };
         let request = reading.request;
         self.reading = None;
         match read {
             Ok(recording) => self.prepare(request, Arc::new(recording), now),
-            Err((status, refusal)) => {
-                self.replays
-                    .watches()
-                    .refuse(&request, status, refusal, now);
-            }
+            Err(refusal) => self.replays.watches().refuse(&request, refusal, now),
         }
     }
 
     /// The recording read for the session: where it starts, told to the
     /// lobby, which sends its game.
     fn prepare(&mut self, request: WatchRequest, recording: Arc<Recording>, now: Instant) {
-        let start = recording.start(request.from, request.account_id);
+        let start = recording.start(request.from);
         if self.replays.watches().loaded(&request, start, now) {
             log::info!(
                 "Replay sessions: match {:#x} ready for account {}: from {start} ms of {} ms, {} \
@@ -1105,11 +1065,7 @@ impl ReplayWatch {
                 self.replays.oldest(),
             ) {
                 Ok(()) => self.prepare(request, recording, now),
-                Err((status, refusal)) => {
-                    self.replays
-                        .watches()
-                        .refuse(&request, status, refusal, now);
-                }
+                Err(refusal) => self.replays.watches().refuse(&request, refusal, now),
             }
             return;
         }
@@ -1140,7 +1096,7 @@ impl ReplayWatch {
                 log::error!("Replay sessions: no thread to read a recording: {error}");
                 self.replays
                     .watches()
-                    .refuse(&request, Status::Failed, None, now);
+                    .refuse(&request, WatchRefusal::Failed, now);
             }
         }
     }

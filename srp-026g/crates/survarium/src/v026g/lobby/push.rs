@@ -781,42 +781,29 @@ pub const GEAR_IN_ROOM: u32 = 0xFFFF_FF04;
 /// seconds` ([`ReplayWatchAsk::At`]). No account id is that high (they are
 /// below 2^31), nor any other srp `player` (0xFFFF_FFxx).
 pub const REPLAY_WATCH_BASE: u32 = 0xC000_0000;
-/// The `player` of a `3D 00 <player> <match>` that asks to watch the
-/// match's replay from the asker's first death ([`ReplayWatchAsk::MyDeaths`]:
-/// the results screen's "Watch my deaths"): the server finds the asker's
-/// place and its deaths.
-pub const REPLAY_WATCH_MY_DEATHS: u32 = 0xC100_0000;
 /// The last `player` of a replay session's ask.
-pub const REPLAY_WATCH_LAST: u32 = REPLAY_WATCH_MY_DEATHS;
+pub const REPLAY_WATCH_LAST: u32 = REPLAY_WATCH_BASE | 0x00FF_FFFF;
 
 /// What a `3D` with a replay session's `player` asks for, besides the
 /// match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ReplayWatchAsk {
-    /// From a time, with a place in view first.
-    At {
-        /// Match time to start at, in seconds (snapped to a key frame at or
-        /// before it, and never before the first view with a player).
-        seconds: u16,
-        /// The place the movie wants in view first: the start waits for its
-        /// first entry. `None` (0xFF on the wire): anyone's.
-        place: Option<u8>,
-    },
-    /// From the asker's first death, the asker's own place in view.
-    MyDeaths,
+pub struct ReplayWatchAsk {
+    /// Match time to start at, in seconds (snapped to a key frame at or
+    /// before it, and never before the first view with a player).
+    pub seconds: u16,
+    /// The place the movie wants in view first: the start waits for its
+    /// first entry. `None` (0xFF on the wire): anyone's.
+    pub place: Option<u8>,
 }
 
 impl ReplayWatchAsk {
     /// The ask a `3D`'s `player` makes, if it is one.
     pub fn of(player_id: u32) -> Option<Self> {
-        if player_id == REPLAY_WATCH_MY_DEATHS {
-            return Some(Self::MyDeaths);
-        }
         if player_id & 0xFF00_0000 != REPLAY_WATCH_BASE {
             return None;
         }
         let place = (player_id >> 16) as u8;
-        Some(Self::At {
+        Some(Self {
             seconds: player_id as u16,
             place: (place != 0xFF).then_some(place),
         })
@@ -824,12 +811,7 @@ impl ReplayWatchAsk {
 
     /// The `player` the movie sends for it.
     pub fn player_id(self) -> u32 {
-        match self {
-            Self::At { seconds, place } => {
-                REPLAY_WATCH_BASE | u32::from(place.unwrap_or(0xFF)) << 16 | u32::from(seconds)
-            }
-            Self::MyDeaths => REPLAY_WATCH_MY_DEATHS,
-        }
+        REPLAY_WATCH_BASE | u32::from(self.place.unwrap_or(0xFF)) << 16 | u32::from(self.seconds)
     }
 }
 /// The `start` of a `3B 00 <LIVE_START> <count>` that asks for the

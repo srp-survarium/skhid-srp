@@ -1850,11 +1850,7 @@ impl Core<'_> {
             .collect();
         let matchmaking = self.store.matchmaking();
         for &match_id in self.matches.keys() {
-            for (session_id, watcher) in matchmaking.watchers_of(match_id) {
-                // The Live window's: no room's (`live`).
-                if matches!(watcher.kind, session::WatchKind::Live { .. }) {
-                    continue;
-                }
+            for (session_id, watcher) in matchmaking.queue_watchers_of(match_id) {
                 let current = self
                     .by_account
                     .get(&watcher.account_id)
