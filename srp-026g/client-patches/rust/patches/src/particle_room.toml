@@ -1,0 +1,20 @@
+# Room for 32 particle effects in each of the game world's presenters, where
+# the game keeps six (README "Room for a presenter's particle effects").
+name = "particle_room"
+patch = 122
+
+[[hook]]
+site = "game_world.first_person_presenter_made"
+handler = "on_first_person_made"
+
+[[hook]]
+site = "game_world.third_person_presenter_made"
+handler = "on_third_person_made"
+
+[[hook]]
+site = "effect_presenter.particle_read_room"
+handler = "on_read_room"
+
+[[hook]]
+site = "effect_presenter.particle_swap"
+handler = "on_swap"

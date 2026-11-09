@@ -1783,7 +1783,6 @@ va	status	ref_021d	name
 0x002a9900	inferred-medium		survarium::hud_game_effect_presenter::serialize
 0x002aa270	inferred-medium		survarium::sound_game_effect_presenter::serialize
 0x002aa8f0	inferred-medium		vostok::network_core::buffer_writer::w<class boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647>>
-0x002ac720	inferred-medium		survarium::particle_game_effect_presenter::serialize
 0x002ae150	inferred-medium	0x001b4201	survarium::hud_game_effect::hud_game_effect
 0x002ae6f0	inferred-medium	0x001b4512	survarium::text_clipboard::OnTextStore
 0x002ae750	inferred-medium	0x001b458e	survarium::flash_factory::flash_factory
@@ -3400,3 +3399,6 @@ va	status	ref_021d	name
 0x002ffc40	inferred-high		survarium::inventory_item::degrade_per_death
 0x002ffc80	inferred-medium		survarium::inventory_item::degrade_per_use
 0x002da790	inferred-medium		survarium::base_player::unload
+0x002ac870	inferred-high		survarium::particle_game_effect_presenter::deserialize
+0x002acd00	inferred-medium		vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::swap
+0x002ad360	inferred-medium		vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::assign
