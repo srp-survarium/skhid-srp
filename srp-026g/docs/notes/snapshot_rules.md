@@ -228,7 +228,7 @@ u16  longest_killstreak
 - Which event number is which: 0.21d's `match_stats_events_dict_enum` had 24; 6, 17, 18 are still two-byte (the hundredths events), and 22, 23 (bullet fire / hit in 0.21d) are two-byte as before, which fits the old numbering being kept. 24..27 are new (26 is two-byte). **Settled (2026-10-12, results.md §9 and below):** 0, 3, 4, 8, 9, 10, 13, 15 are PROVEN the 0.21d events (the kill handler 0x2F4EB0 counts them by those numbers), 11 and 12 too (`finish_match` 0x2F4CF0); **25 is a grenade kill, 27 the end-of-match event of a player whose protection value is 0**.
 - **Events 24 and 26** (PROVEN, the victory item event function 0x334AC0, on "put into a container" by player P; the names are srp's, the game has none). Per battery the statistics keep `owner_team` (+0xF8; 3 = never delivered), `first_finder` (+0xFC) and the last player who took it out of a container (+0xFD, set at 0x334B4D):
   - **24, "solo delivery"** (0x334C46): +1 when 0x334D00 is true: the battery was fresh and P its first finder, or its owner was the enemy team; and no other player of P's team has a carried distance > 0 on it. The quest type 6 `bring_x_items` ("Find and bring batteries") counts it, not event 20: `game_quest_progress_calculator::refresh_quest_ui_data` 0x2A2FD0, case 0x2A30A3 (PROVEN). In 0.21d that quest counted event 20.
-  - **26, "stolen and brought home"** (0x334C7F): +1 when `owner_team` is the enemy team and the last one to take it out is P. That last one is the one byte of the record no world carries (§3.2): a game that started after the taking out does not count it (match.md §28). Two bytes on the wire, but counted by ones and weighed × 1.0 (only 6, 17 and 18 are × 0.01: 0x26DBA2, 0x26DC86). The quest type 7 `steal_box` ("Steal a battery from the enemy base and bring it to your base") counts it: `refresh_quest_ui_data` 0x2A2FD0, case 0x2A30F6 (PROVEN; the whole table of what each quest type counts is in `crates/survarium/src/v026g/quests.rs`).
+  - **26, "stolen and brought home"** (0x334C7F): +1 when `owner_team` is the enemy team and the last one to take it out is P. The native codec omits that last taker (§3.2): a game that started after the taking out does not count it (match.md §28). The pending battery snapshot fix carries it in patch 92's extension (battery_taker.md). Two bytes on the wire, but counted by ones and weighed × 1.0 (only 6, 17 and 18 are × 0.01: 0x26DBA2, 0x26DC86). The quest type 7 `steal_box` ("Steal a battery from the enemy base and bring it to your base") counts it: `refresh_quest_ui_data` 0x2A2FD0, case 0x2A30F6 (PROVEN; the whole table of what each quest type counts is in `crates/survarium/src/v026g/quests.rs`).
   - In the same code: 19 = first pick-up of a battery (0x334B2C); 20 = put into a container (0x334B5E); at a delivery 6 (never owned), 17 (the owner was the enemy) or 18 (own team) is shared out by carried distance (0x335110). Elsewhere: 22 = bullets fired, added by value (0x2F5519); 23 = a bullet hit on an enemy (0x2F54A3); 5 = artefact (0x2F5606); 7 at 0x2F57F5; 21 at 0x2F598C. A player's score adds the three presets of an event (0x26DC9D). So 0..13, 15 and 17..23 are PROVEN by where they are counted; 14 and 16 have no counting site left (LIKELY dead).
 - Everything is self-describing, so a player record can be walked forward without knowing its length.
 
@@ -245,13 +245,16 @@ f32  item_status.nearest_positions[ team_2 ]
 u8   item_status.owner_team
 u8   item_status.first_finder
 u8 x 2 progress[team_1], [team_2]      exe patch 92 (its own state, not the record's): 0 untouched in the life, else 10 m steps + 1
-u8   held count                        exe patch 92: the carriers holding steps toward their own team's container
+u8   held count                        exe patch 92: low 7 bits count carriers (0..60); bit 7 marks the last-taker extension
+if bit 7: u8 last_taker                pending fix: 0..19 roster place, FF nobody; absent in legacy snapshots
 per held: u8 cell, u8 steps            cell = place x 3 + kit, < 60, rising; steps >= 1; paid at the delivery
 ```
 
+The pending fix uses the existing battery.save/load hooks to save native +FD with each life, without a second live copy. Legacy counts have no high bit and remain byte-for-byte round-trippable by the server. The new client loads them with no taker rather than keeping its own stale byte; old recordings are excluded by the simulation-change revision gate. See [battery_taker.md](battery_taker.md) for the regression and limits.
+
 Mode 4 has no such records. The class is `victory_item_event_manager` (its strings, 0xA19D68; the object is `shared_statistics`+0x2760, the ten records from its +0x20, 0x100 bytes each). The reader is 0x334FB0.
 
-- **Not saved: who took the battery out of a container last** (PROVEN, 2026-10-14). The record's byte +0xFD is the roster place of the player whose "taken out of a container" event came last (event type 1, written at 0x334B4D), and event 26 is counted only when it is the player who puts the battery in (0x334C74). The writer ends with `first_finder` (+0xFC, 0x334F5A) and the reader with the same byte (0x3350CA): a load leaves +0xFD as that game had it. Nothing else of the record is left out (+0xF0 bytes of distances, the two positions, `owner_team` as a dword at +0xF8, `first_finder`; +0xFE and +0xFF are never used by the game; exe patch 92 saves its own state of the battery after `first_finder`), and of a player's record only the word at +0x1F4, which nothing reads.
+- **Omitted by the native codec; saved by the pending fix: who took the battery out of a container last** (PROVEN, 2026-10-14). The record's byte +0xFD is the roster place of the player whose "taken out of a container" event came last (event type 1, written at 0x334B4D), and event 26 is counted only when it is the player who puts the battery in (0x334C74). The writer ends with `first_finder` (+0xFC, 0x334F5A) and the reader with the same byte (0x3350CA): a load leaves +0xFD as that game had it. Nothing else of the record is left out (+0xF0 bytes of distances, the two positions, `owner_team` as a dword at +0xF8, `first_finder`; +0xFE and +0xFF are never used by the game; exe patch 92 saves its own state of the battery after `first_finder`), and of a player's record only the word at +0x1F4, which nothing reads.
 - **`first_finder` and +0xFD are set to 0xFF by the record's constructor and by nothing else** (PROVEN, 2026-10-14). The constructor is 0x3347F0, given to the array constructor at 0x2F4B7C in `shared_statistics`'s constructor 0x2F4B40. The reset between matches (0x2F4C20, called by the handler's 0x26D880 when a match's connection ends, 0x27B4C9) calls 0x3348A0, which zeroes the distances and sets `owner_team` to 3 and writes neither byte. The handler is a member of the network client, not of a match (+0x1EE8D8; the client's constructor 0x2199A0 makes it at 0x219AB0, and `game::create_network_client` 0x1EBFC0 makes the client). So a game that goes from one battery match to the next with the same network client keeps both bytes of the last one; seen (match.md §28). When the lobby makes a new client was not traced (`lobby_menu::on_render_scenes_ready` does it only with a byte at +0x5869 of the object it has at +0x9C set, 0x221C1D). `first_finder` is saved, so every game of a match takes the bytes of the game that gave the first world.
 
 ### 3.3 The tail — 11 bytes, PROVEN (0x2F5B08..0x2F5BCB; reader 0x2F5C22..0x2F5C84)
@@ -296,7 +299,10 @@ Mode 4 has no such records. The class is `victory_item_event_manager` (its strin
 - Settled 2026-10-12: the rule order (§2.1), P (§2.3), the battery and container states (§2.4), the tail's writers and first values (§3.3), events 24 and 26 (§3.1), the player block's envelope and head (§7).
 - A carried battery's own state (inside its carrier's player block), and victory item event types 2 and 3.
 - Whether the position is where §2.4 puts it in `m_transform`.
-- The bullet manager, game objects, physics and effects blobs (not needed for results).
+- The game objects and physics blobs (not needed for results). The bullet
+  manager's and the effects' fields are named since 2026-11-07, from the names
+  their writers pass as text (`crates/srp-validate/src/world/bullets.rs`,
+  `effects.rs`).
 - Of a player's state: the effects after the head, a weapon after its magazine, the damage model's records (§7).
 
 ## 6. Code (added 2026-10-12)
@@ -362,6 +368,145 @@ pad to a byte
 ```
 
 `width(n) = max(1, bit_length(n))` (0x3A961E, 0x396120). The reader moves the outer stream on by exactly these bytes right after the two tables (0x3A9988..0x3A999A), before it reads the tree, so the length needs no tree decoding. The same routines are in 0.21d (by PDB name): this walk lands on the sections of all 1222 snapshots of `srp-021d/logs/snapshots`.
+
+#### 7.2.1 The full decode and its unbounded reads (`anim_state_deserialize` 0x3A99C0)
+
+The length above (`decode_data` 0x3A9900) is all the server needs to split a
+body: it reads `T`, skips the tree, and decodes only the two tables to advance
+the cursor. The CLIENT does more. `anim_state_deserialize` 0x3A99C0 (reached
+from a player block, 0x33FE31 -> 0x395CA0 -> 0x397250 -> 0x3A99C0) calls
+`decode_data` for the tables and the byte length, then re-reads the T-bit TREE
+part structurally -- the part the length walk skips -- and that is where the
+unbounded reads are. The tree decode IGNORES `T`: it reads until its own
+structure ends, so a stream whose structural tree is not exactly `T` bits long
+desyncs the client's cursor from the framing.
+
+Tree part, from the bit right after the 16-bit `T` field, in read order:
+
+```
+read(6)            nodes      node count 0..63
+read(1) + 1        matrices   1 or 2
+popcount(read(4))  channels   0..4   (0x317D40 is popcount; 0x3A8A00 builds a
+                                      channels-entry array from the 4-bit mask)
+per node (anim_read_node_base_tracks 0x3A8C10):
+    read(1), read(1), read(1), read(1)          + pop 2 floats
+    anim_read_node_time_track 0x3A8AF0:
+        read(6) = t
+        if t != 0:  read(1), read(8), read(4)   + pop 1 time, 1 float
+    anim_read_node_flag_track 0x3A8BA0:
+        read(1), read(1)                        + (if set) pop 1 time
+anim_init_node_matrices 0x3A8D60:               pop 12 floats, no bits
+per node (anim_read_node_record 0x3A8F40):
+    read(4), read(1)
+    M = read(1)+1;  M x (read(10), read(1))
+    read(1)
+    channel pick x2 (0 / 1 / 2 bits, see pick below)
+    read(1), read(5), read(2), read(1), read(3), read(3),
+    read(2), read(1), read(1), read(2) = exprs   per-node expression count 0..3
+per node (anim_build_node 0x3A9250): exprs expression trees, each
+    anim_read_expression 0x3A90C0 (RECURSIVE):
+        read(2) = op
+        channel pick (0 / 1 / 2 bits)
+        op 0: pop 2 floats           leaf
+        op 1: pop 1 float            leaf
+        op 2: pop 1 time, 2 child expressions
+        op 3: pop 1 time, 2 child expressions
+pad to a byte
+```
+
+Channel pick (`anim_pick_channel_value` 0x3A8EF0, also inline in 0x3A8F40 and
+0x3A90C0): channels==1 reads 0 bits (channels[0]); ==2 reads read(1); >=3
+reads read(2). The pops come off the time vector (+0x8) and the float vector
+(+0x1014), both filled by `decode_data` before the tree is read.
+
+Five values are read as a count or index with NO bound against what they
+index; the server must refuse a stream that breaks any of them, or a native
+client over-reads or crashes. (Counts read in a fixed bit width -- nodes<=63,
+matrices and M in {1,2}, channels<=4, exprs<=3, the table counts N<=1023 and
+U<=1023 -- are self-bounded and are not in this list.)
+
+```
+1  times index (0x3A96F2):  read(width(U)) per time indexes the U-entry stack
+   dict. width(U) can hold index >= U -> OOB read. Bound: every index < U.
+2  floats index (0x3A9895): the same for the floats dict. Bound: every index
+   < U (U itself is what a revision-50 game wrote for a NaN, below; exe patch
+   118 leaves no NaN to write).
+3  channel pick (0x3A8EF0 etc.): channels==3 lets read(2) give 3 -> channels[3],
+   one past the channels-entry array. Bound: channel index < channels.
+4  expression recursion (0x3A90C0): ops 2 and 3 recurse twice with no depth
+   cap, and the arena-null check is AFTER the recursive calls, so an exhausted
+   arena does not stop it. A stream of all-internal ops recurses until the
+   thread stack overflows or the (unbounded) bit reader walks off the buffer
+   -> crash. Bound: a maximum total expression-node count / depth, and the
+   tree must end within T bits.
+5  table under-run: a tree that pops more than N_times times or N_floats floats
+   reads before the vector start -> OOB read. Bound: times popped <= N_times,
+   floats popped <= N_floats.
+6  a floats-table value that is infinity or NaN: the native decoder feeds the
+   floats to bone transforms a ragdoll/bounding box then read (state corruption,
+   not an index). Bound: every float that reaches a bone is finite (the
+   `finite` bit test, exponent not all ones): each plain one, and each entry
+   of an indexed table (a revision-50 game left NaN entries no index named,
+   below; with exe patch 118 every entry is a value's, and a number).
+```
+
+`animation_len` (crate `world-frame`) covers the length only. `animation_validate`
+beside it seals 1-6: it decodes the tree as above (the base tracks in two
+passes over the nodes, not one), requires it to end exactly at `T`, the pops
+to stay within the table counts, and every floats-table value to be finite,
+and `Frame::parse` refuses the block otherwise (`Refusal::Animation`). Proven on the kept worlds: all 177,672
+animated blocks of the 20,668 worlds in `private/live-worlds-*` pass, none near
+the expression-node cap (which is above the 32768 a `T` <= 65535 tree can
+hold, so a valid stream is never refused for it).
+
+**A revision-50 game wrote a floats index of U (2026-11-07; refused again
+since the release after exe patch 118's, below).** 174 uploads of
+`rec026g_20261106-211841_03439962` (place 12's block, in place 0's uploads from
+540 200 to 725 450 ms) were refused for a floats index equal to U (U = 25, three
+indices 25). The game wrote them. The encoder, `save_floats` 0x397040 (0.21d
+0x24DF70, the same code), copies the floats to the stack, sorts them, keeps the
+unique ones (`stlp_std::unique<float *>` 0x397810) and writes each value's
+position as `stlp_std::find<float *,float>` 0x397880 gives it. Both compare with
+`ucomiss`, under which a NaN equals nothing: unique keeps every NaN, and find
+never matches one and returns the end, so each NaN float is written as index U.
+That stream's table holds three NaNs (entries 0, 23, 24, which no index names)
+and three indices 25. The reader takes `table[U]` with no bound. Its table is an
+`_alloca_probe_16` block (0x3A97D1), so `table[U]` is the dword right after it:
+16-byte alignment padding, or the EDI that `decode_floats_impl` pushed in its own
+prologue. Either way it is in the reader's own frame: a defined read, whose value
+replaces the writer's NaN. An index above U is not something the game writes, and
+it reads further up the stack. Times are u32 values and are always found
+(`save_times_in_ms` 0x396D40), so a times index is below U. A floats index is
+below U too once no game saves a NaN (exe patch 118).
+
+The NaNs come from a player whose state the game itself made NaN: place 12's
+state in the same worlds also has NaN in `m_linear_horizontal_speed`
+(+334h, read at 0x2DB844), in the character controller's `m_last_pos` (+50h,
+0x7FB31..0x7FB65), and in two bullets he fired, their segment origin (+28h).
+Correction (2026-11-07): the NaN is not a 0 ms step, which never reaches the
+speed (`tick_events` skips a 0 ms tick, 0x2D22DE). It starts in the character
+controller's position (+0B0h): the body went NaN in one step around 539 850 ms,
+just after the player (a server bot) stood up from a crouch and walked, and the
+speed (a positive NaN, 0x7FC00000, so not an x87 0/0) and the rest follow from
+it. The exact instruction is not pinned (`get_corrected_walk_vector`'s unguarded
+normalisation, 0x7B97C..0x7B983, is not it: its NaN takes the `comiss`'s unordered
+branch, 0x7B9DD). Board ticket T117; patch 118 puts a non-finite position back to
+m_last_pos at the step's end (`client_patch.md` 3.71). The game only
+computes with these three values and compares them. A NaN speed goes through
+comparisons, the curve 0x25F30 and the animation selector, none of which uses it
+as a count or index, and the player's next step writes it again. `m_last_pos`
+feeds updateAction's moved test (0x7B773..0x7B7A7), where a NaN counts as moved,
+and player_step writes it anew (0x7BE84). The body's position comes from the
+player's transform (0x2DB934). A NaN bullet origin is outside the level for
+update_bullet_position's bounds test (`comiss`/`jb`, 0x32EECB..0x32EF0C), so the
+bullet is removed at its first step. In the recording each one is in one world
+only. Its ray tests are Bullet's ray-AABB tests, and those are false for NaN
+(read from the library's source, not traced in the exe). `srp-validate` read
+these fields as any f32 (`MaybeNan`) and a floats index of U while revision-50
+games played. Exe patch 118 (`client_patch.md` 3.71) keeps the controller's
+position finite, so with it a game writes none of these: they are `Finite` again,
+a floats index is below U and every floats-table entry a number, and the NaN
+uploads of 03439962 are refused (174 of the live corpus's, the only ones).
 
 ### 7.3 The state's head — `game_world_core_client::serialize` 0x3218E0, `base_player::serialize` 0x2DAF60 (reader 0x2DB490)
 

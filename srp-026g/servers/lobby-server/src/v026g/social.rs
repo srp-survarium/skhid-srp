@@ -11,6 +11,8 @@
 //!   the server knows itself, so the channel id a client sends is not
 //!   trusted. Hidden senders produce no line; placeholder mutes receive
 //!   only the sender's name and `<muted>`, never the original body. A
+//!   player the admin muted (`admin-chat-mute.md`) reaches nobody on any
+//!   channel, and is sent the mute's notice on that channel instead. A
 //!   player may send [`CHAT_BURST`] lines at once and one a second after
 //!   [choice: 0.21d had no limit; one flooding client must not fill the
 //!   others' links].
@@ -322,6 +324,32 @@ impl Core<'_> {
         }
         player.chat_allowance -= 1.0;
         let (in_match, session_id) = (player.in_match, player.session_id);
+        // Private HUD control over the existing room channel, never a room chat line.
+        if channel == channel::ROOM && body.starts_with("#mode-intro:") {
+            self.mode_introduction(who, body);
+            return;
+        }
+        // The admin's chat mute: on every channel, nobody gets the line; the
+        // sender gets the mute's notice instead, said by itself.
+        if let Some(ban) = self.store.chat_ban(who.account_id) {
+            log::info!(
+                "{} is muted: a line on channel {channel} was dropped",
+                who.name
+            );
+            let tag = self.clan_tag_of(who.account_id);
+            self.send(
+                who.addr,
+                lobby::chat_text(
+                    sender::ACCOUNT,
+                    who.account_id,
+                    &who.name,
+                    &tag,
+                    channel,
+                    &ban.chat_notice(),
+                ),
+            );
+            return;
+        }
         // A room's own channel: its members (`room_chat`).
         if channel == channel::ROOM {
             self.room_say(who, body);
@@ -1033,5 +1061,71 @@ impl Core<'_> {
                 }
             }
         }
+    }
+}
+
+impl Core<'_> {
+    fn mode_introduction(&mut self, who: &Who, body: &str) {
+        let Some((key, nonce)) = body
+            .strip_prefix("#mode-intro:")
+            .and_then(|rest| rest.split_once(':'))
+        else {
+            return;
+        };
+        let Some(mode) = session::v026g::mode_intro::Mode::parse(key) else {
+            return;
+        };
+        if nonce.is_empty() || nonce.len() > 32 || !nonce.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return;
+        }
+        let Some(match_id) = self.player_mut(who.addr).and_then(|player| player.in_match) else {
+            return;
+        };
+        let Some(running) = self.matches.get_mut(&match_id) else {
+            return;
+        };
+        let eligible = match mode {
+            session::v026g::mode_intro::Mode::Blackout => {
+                running.map.mode() == survarium::v026g::maps::GameMode::Blackout
+            }
+        };
+        if !eligible
+            || !running
+                .seats
+                .iter()
+                .any(|(session, _)| *session == who.session_id)
+        {
+            return;
+        }
+        let show =
+            if let Some((first_nonce, show)) = running.mode_introductions.get(&who.account_id) {
+                first_nonce == nonce && *show
+            } else {
+                let Some(account) = self.accounts.get(who.account_id) else {
+                    return;
+                };
+                let show = account.locked().mode_introductions.take(mode);
+                if show {
+                    self.accounts.mark_dirty(who.account_id);
+                }
+                running
+                    .mode_introductions
+                    .insert(who.account_id, (nonce.to_owned(), show));
+                show
+            };
+        self.send(
+            who.addr,
+            lobby::chat_text(
+                sender::ACCOUNT,
+                0,
+                "System",
+                "",
+                channel::ROOM,
+                &format!(
+                    "#mode-intro:{key}:{nonce}:{}",
+                    if show { "show" } else { "done" }
+                ),
+            ),
+        );
     }
 }

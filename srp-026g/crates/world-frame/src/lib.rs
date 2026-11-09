@@ -22,14 +22,19 @@
 //!
 //! A game reads it with no check of its own (0x324D80), so [`Frame::parse`]
 //! takes only a body that:
+//! - is at most [`MAX_BODY`] bytes: the game hashes every world it holds
+//!   (`game_state_history_item::hash` 0x325150) in a buffer of that size;
 //! - walks from the front to exactly its end: a length past the body reads
 //!   past the game's buffer;
 //! - has no mask bit at or past the match's [`Places`]: bit k goes into
 //!   slot k with no bound, and the history item has 20;
-//! - has no section over its buffer ([`Section::cap`]) and no player state
-//!   over [`PLAYER_STATE_CAP`]: a longer one reaches
-//!   `mutable_buffer::reallocate` 0x7AB70, which has no allocator (the fatal
-//!   "mutable buffer overflow", then a call through null).
+//! - has no player state over [`PLAYER_STATE_CAP`]: a longer one reaches
+//!   `mutable_buffer::reallocate` 0x7AB70, which has no allocator for it
+//!   (the fatal "mutable buffer overflow", then a call through null).
+//!
+//! The six sections have no buffer of their own to fit: patch 98 gives each
+//! the game's multithreaded allocator, so they grow (a section is under
+//! [`MAX_BODY`] with the body).
 //!
 //! Each is a length or a bit against a hard limit of the game's, so a world
 //! a game made can never be refused: it serializes into the same buffers.
@@ -61,6 +66,12 @@ use core::fmt;
 /// match has at most this many places.
 pub const MAX_PLAYERS: u8 = 20;
 
+/// The bytes of a body: `game_state_history_item::hash` (0x325150)
+/// serializes the world into a stack buffer of this size, with no allocator
+/// (0x8000 in the original exe; patch 98's 0xF000, which the snapshot
+/// upload's u16 total holds). A longer world asserts there.
+pub const MAX_BODY: usize = 0xF000;
+
 /// The buffer of a player's state (`player_history_item` 0x3247D0, read by
 /// 0x33FD80). Real states have at most 0x3A8 bytes.
 pub const PLAYER_STATE_CAP: usize = 0x1000;
@@ -86,20 +97,6 @@ impl Section {
         Section::Rules,
         Section::Effects,
     ];
-
-    /// The bytes after its u16 length that its buffer in a game's history
-    /// item holds (0x324523..0x324680, 0x3246D0). Real worlds have at most
-    /// 0x230, 0x45C, 0x3EC, 0, 0x76B and 0x57.
-    pub const fn cap(self) -> usize {
-        match self {
-            Section::Bullets => 0x2400,
-            Section::Statistics => 0xC00,
-            Section::Objects => 0x2000,
-            Section::Physics => 0x4000,
-            Section::Rules => 0x800,
-            Section::Effects => 0xC00,
-        }
-    }
 
     pub const fn name(self) -> &'static str {
         match self {
@@ -173,7 +170,7 @@ impl Slots {
     }
 }
 
-/// A section of a body that fits its buffer.
+/// A section of a body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SectionBytes<'a> {
     /// Where its bytes start in the body (after the u16 length).
@@ -181,22 +178,30 @@ pub struct SectionBytes<'a> {
     pub bytes: &'a [u8],
 }
 
-/// A body a game can load: its slots and its six sections.
+/// A body a game can load: its slots, their player states and its six
+/// sections.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Frame<'a> {
     slots: Slots,
+    /// Each slot's state (`base_player::serialize`'s bytes), by slot index;
+    /// empty for a slot the mask does not have.
+    states: [&'a [u8]; MAX_PLAYERS as usize],
     sections: [SectionBytes<'a>; 6],
 }
 
 impl<'a> Frame<'a> {
     /// `body` (from the mask on) read from the front.
     pub fn parse(body: &'a [u8], places: Places) -> Result<Frame<'a>, Refusal> {
+        if body.len() > MAX_BODY {
+            return Err(Refusal::OverBuffer { len: body.len() });
+        }
         let mut reader = Reader::new(body);
         let mask = reader.u32().ok_or(Refusal::Short {
             part: Part::Mask,
             at: 0,
         })?;
         let slots = Slots::parse(mask, places)?;
+        let mut states: [&'a [u8]; MAX_PLAYERS as usize] = [&[]; MAX_PLAYERS as usize];
         for slot in slots.iter() {
             let short = |at| Refusal::Short {
                 part: Part::Player(slot),
@@ -210,10 +215,16 @@ impl<'a> Frame<'a> {
                     len,
                 });
             }
-            reader.take(len).ok_or(short(reader.at))?;
+            let state = reader.take(len).ok_or(short(reader.at))?;
+            if let Some(room) = states.get_mut(usize::from(slot.0)) {
+                *room = state;
+            }
             if reader.u8().ok_or(short(reader.at))? != 0 {
-                let len = animation_len(reader.rest()).ok_or(short(reader.at))?;
-                reader.take(len).ok_or(short(reader.at))?;
+                let at = reader.at;
+                let len = animation_len(reader.rest()).ok_or(short(at))?;
+                animation_validate(reader.rest())
+                    .map_err(|fault| Refusal::Animation { slot, at, fault })?;
+                reader.take(len).ok_or(short(at))?;
             }
         }
         let mut sections = [SectionBytes { at: 0, bytes: &[] }; 6];
@@ -224,14 +235,11 @@ impl<'a> Frame<'a> {
             };
             let len = usize::from(reader.u16().ok_or(short(reader.at))?);
             let at = reader.at;
-            if len > section.cap() {
-                return Err(Refusal::SectionOverCap { section, at, len });
-            }
             let bytes = reader.take(len).ok_or(short(at))?;
             *place = SectionBytes { at, bytes };
         }
         match reader.rest().len() {
-            0 => Ok(Frame { slots, sections }),
+            0 => Ok(Frame { slots, states, sections }),
             len => Err(Refusal::Trailing { at: reader.at, len }),
         }
     }
@@ -245,6 +253,14 @@ impl<'a> Frame<'a> {
 
     pub fn slots(&self) -> Slots {
         self.slots
+    }
+
+    /// Each slot's player state, ascending (the order of the player
+    /// blocks): what `base_player::serialize` wrote.
+    pub fn states(&self) -> impl Iterator<Item = (Slot, &'a [u8])> + '_ {
+        self.slots
+            .iter()
+            .filter_map(|slot| Some((slot, *self.states.get(usize::from(slot.0))?)))
     }
 
     pub fn section(&self, section: Section) -> SectionBytes<'a> {
@@ -263,6 +279,8 @@ impl<'a> Frame<'a> {
 /// Where in a body a refusal is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
+    /// The body as a whole.
+    Body,
     /// The world's time, before the body (a game's state only).
     Time,
     Mask,
@@ -276,6 +294,7 @@ impl Part {
     /// Its words, without a player's slot.
     pub const fn name(self) -> &'static str {
         match self {
+            Part::Body => "body",
             Part::Time => "time",
             Part::Mask => "mask",
             Part::Player(_) => "player",
@@ -299,42 +318,42 @@ impl fmt::Display for Part {
 pub enum Refusal {
     /// The state is shorter than the world's time.
     NoTime,
+    /// A body of `len` bytes, over [`MAX_BODY`].
+    OverBuffer { len: usize },
     /// The bytes end inside `part`, at `at`.
     Short { part: Part, at: usize },
     /// The mask has bit `bit`, at or past the places.
     SlotPastPlaces { bit: u8, places: Places },
     /// A player state of `len` bytes, over [`PLAYER_STATE_CAP`].
     StateOverCap { slot: Slot, at: usize, len: usize },
-    /// A section of `len` bytes, over its [`Section::cap`].
-    SectionOverCap {
-        section: Section,
-        at: usize,
-        len: usize,
-    },
     /// `len` bytes after the effects.
     Trailing { at: usize, len: usize },
+    /// A player's animation state at `at` is malformed in a way a native
+    /// client over-reads on (`animation_validate`).
+    Animation { slot: Slot, at: usize, fault: AnimFault },
 }
 
 impl Refusal {
     pub const fn part(self) -> Part {
         match self {
             Refusal::NoTime => Part::Time,
+            Refusal::OverBuffer { .. } => Part::Body,
             Refusal::Short { part, .. } => part,
             Refusal::SlotPastPlaces { .. } => Part::Mask,
             Refusal::StateOverCap { slot, .. } => Part::Player(slot),
-            Refusal::SectionOverCap { section, .. } => Part::Section(section),
             Refusal::Trailing { .. } => Part::End,
+            Refusal::Animation { slot, .. } => Part::Player(slot),
         }
     }
 
     /// Its offset in the body.
     pub const fn at(self) -> usize {
         match self {
-            Refusal::NoTime | Refusal::SlotPastPlaces { .. } => 0,
+            Refusal::NoTime | Refusal::OverBuffer { .. } | Refusal::SlotPastPlaces { .. } => 0,
             Refusal::Short { at, .. }
             | Refusal::StateOverCap { at, .. }
-            | Refusal::SectionOverCap { at, .. }
-            | Refusal::Trailing { at, .. } => at,
+            | Refusal::Trailing { at, .. }
+            | Refusal::Animation { at, .. } => at,
         }
     }
 
@@ -342,11 +361,12 @@ impl Refusal {
     pub const fn reason(self) -> &'static str {
         match self {
             Refusal::NoTime => "shorter than a time",
+            Refusal::OverBuffer { .. } => "over the game's world buffer",
             Refusal::Short { .. } => "the bytes end inside it",
             Refusal::SlotPastPlaces { .. } => "a player past the places",
             Refusal::StateOverCap { .. } => "a state over its buffer",
-            Refusal::SectionOverCap { .. } => "over its buffer",
             Refusal::Trailing { .. } => "bytes after the effects",
+            Refusal::Animation { .. } => "an animation a client over-reads",
         }
     }
 }
@@ -364,9 +384,7 @@ impl fmt::Display for Refusal {
             Refusal::StateOverCap { len, .. } => {
                 write!(f, "a state of {len:#x} bytes, over {PLAYER_STATE_CAP:#x}")
             }
-            Refusal::SectionOverCap { section, len, .. } => {
-                write!(f, "{len:#x} bytes, over {:#x}", section.cap())
-            }
+            Refusal::OverBuffer { len } => write!(f, "{len:#x} bytes, over {MAX_BODY:#x}"),
             Refusal::Trailing { len, .. } => write!(f, "{len} bytes after the effects"),
             refusal => f.write_str(refusal.reason()),
         }
@@ -427,12 +445,20 @@ impl Bits<'_> {
         if bits > 32 || end > self.bytes.len().checked_mul(8)? {
             return None;
         }
+        // A byte's run of bits at a time, most significant first: at most
+        // five steps for 32 bits (one bit a step made the floats table's
+        // checks the bulk of a world check's instructions).
         let mut value = 0u64;
         while self.at < end {
             let byte = *self.bytes.get(self.at / 8)?;
-            let bit = byte.checked_shr(7 ^ (self.at % 8) as u32)? & 1;
-            value = value.checked_shl(1)? | u64::from(bit);
-            self.at = self.at.checked_add(1)?;
+            let left = 8usize.checked_sub(self.at % 8)?;
+            let take = left.min(end.checked_sub(self.at)?);
+            let below = u32::try_from(left.checked_sub(take)?).ok()?;
+            let width = u32::try_from(take).ok()?;
+            let mask = u8::MAX.checked_shr(8u32.checked_sub(width)?)?;
+            let run = byte.checked_shr(below)? & mask;
+            value = value.checked_shl(width)? | u64::from(run);
+            self.at = self.at.checked_add(take)?;
         }
         Some(value as u32)
     }
@@ -484,4 +510,234 @@ pub fn animation_len(bytes: &[u8]) -> Option<usize> {
         bits.skip((count as usize).checked_mul(32)?)?;
     }
     Some(bits.at.div_ceil(8))
+}
+
+/// Why the animation state is refused: a value a native client reads as a
+/// count or index without bounding it (`snapshot_rules.md` 7.2.1). The length
+/// walk ([`animation_len`]) does not catch these; [`animation_validate`] does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AnimFault {
+    /// The bytes end inside the state.
+    Short,
+    /// A times-table index is at or past the table's unique count (0x3A96F2).
+    TimesIndex,
+    /// A floats-table index is at or past the table's unique count (0x3A9895).
+    FloatsIndex,
+    /// A channel pick is at or past the channel count (0x3A8EF0).
+    ChannelIndex,
+    /// The expression trees exceed the node cap (0x3A90C0 recurses unbounded).
+    Recursion,
+    /// The structural tree does not end exactly at the `T`-bit mark.
+    TreeLength,
+    /// The tree pops more times or floats than the two tables hold.
+    TableUnderrun,
+    /// A floats-table value is infinity or NaN: a plain one, or an indexed
+    /// table's entry. The native decoder feeds the floats to bone transforms
+    /// that a ragdoll and a bounding box then read.
+    FloatNotNumber,
+}
+
+/// A native client decodes far more of the animation state than the length
+/// walk: the whole `T`-bit tree part (`anim_state_deserialize` 0x3A99C0). It
+/// reads several values as a count or index against a sized buffer without a
+/// bound, so a crafted stream over-reads or (the expression recursion) runs
+/// the thread stack out. Decode the tree the way the client does, with a node
+/// cap and the bounds of `snapshot_rules.md` 7.2.1, and refuse on any breach.
+/// `Ok(())` means a native client decodes it within its buffers.
+///
+/// The expression forest is a binary tree the client reads pre-order; a
+/// pending-node counter reproduces that read order exactly and caps the depth
+/// without recursing, so validating cannot itself overflow the stack.
+pub fn animation_validate(bytes: &[u8]) -> Result<(), AnimFault> {
+    use AnimFault::Short;
+    /// The whole tree is `T` <= 65535 bits and each expression node costs at
+    /// least 2 bits, so a valid forest holds under 32768 nodes; more than this
+    /// is malformed. The counter below is O(1) memory, so the cap only bounds
+    /// work and gives a clear reason -- above 32768 it never refuses a real
+    /// stream (none of the 177,672 animated blocks of the kept worlds is close).
+    const MAX_EXPR_NODES: u32 = 1 << 16;
+
+    let mut b = Bits { bytes, at: 0 };
+    let tree = b.read(16).ok_or(Short)? as usize;
+    let tree_end = 16usize.checked_add(tree).ok_or(Short)?;
+
+    let mut pops_times: u64 = 0;
+    let mut pops_floats: u64 = 0;
+
+    // Tree header (0x3A99C0): node count, matrix count bit, channel mask.
+    let nodes = b.read(6).ok_or(Short)?;
+    b.read(1).ok_or(Short)?; // the matrix count (1 or 2); not needed here
+    let channels = b.read(4).ok_or(Short)?.count_ones();
+
+    // Base tracks (anim_read_node_base_tracks 0x3A8C10): two passes over the
+    // nodes, not one interleaved pass. First pass: four bits and two popped
+    // floats a node.
+    for _ in 0..nodes {
+        for _ in 0..4 {
+            b.read(1).ok_or(Short)?;
+        }
+        pops_floats = pops_floats.saturating_add(2);
+    }
+    // Second pass: a time track (0x3A8AF0) and a flag track (0x3A8BA0) a node.
+    for _ in 0..nodes {
+        // Time track: a 6-bit count, then a record when it is set.
+        if b.read(6).ok_or(Short)? != 0 {
+            b.read(1).ok_or(Short)?;
+            b.read(8).ok_or(Short)?;
+            b.read(4).ok_or(Short)?;
+            pops_times = pops_times.saturating_add(1);
+            pops_floats = pops_floats.saturating_add(1);
+        }
+        // Flag track: two bits, a time when either is set.
+        let f0 = b.read(1).ok_or(Short)?;
+        let f1 = b.read(1).ok_or(Short)?;
+        if f0 != 0 || f1 != 0 {
+            pops_times = pops_times.saturating_add(1);
+        }
+    }
+
+    // Matrix init (0x3A8D60): the first matrix's 12 affine floats, no bits.
+    pops_floats = pops_floats.saturating_add(12);
+
+    // Node records (anim_read_node_record 0x3A8F40); sum the expression roots.
+    let mut roots: u64 = 0;
+    for _ in 0..nodes {
+        b.read(4).ok_or(Short)?;
+        b.read(1).ok_or(Short)?;
+        // The M entry count is this bit plus one, so 0..=bit is M entries.
+        let m = b.read(1).ok_or(Short)?;
+        for _ in 0..=m {
+            b.read(10).ok_or(Short)?;
+            b.read(1).ok_or(Short)?;
+        }
+        b.read(1).ok_or(Short)?;
+        channel_pick(&mut b, channels)?;
+        channel_pick(&mut b, channels)?;
+        for width in [1usize, 5, 2, 1, 3, 3, 2, 1, 1] {
+            b.read(width).ok_or(Short)?;
+        }
+        roots = roots.saturating_add(u64::from(b.read(2).ok_or(Short)?));
+    }
+
+    // Expression forest (anim_build_node 0x3A9250 -> anim_read_expression
+    // 0x3A90C0), pre-order with a node cap in place of the native recursion.
+    let mut pending = roots;
+    let mut budget = MAX_EXPR_NODES;
+    while pending > 0 {
+        budget = budget.checked_sub(1).ok_or(AnimFault::Recursion)?;
+        pending = pending.saturating_sub(1);
+        let op = b.read(2).ok_or(Short)?;
+        channel_pick(&mut b, channels)?;
+        match op {
+            0 => pops_floats = pops_floats.saturating_add(2),
+            1 => pops_floats = pops_floats.saturating_add(1),
+            // Ops 2 and 3 take two child expressions.
+            _ => {
+                pops_times = pops_times.saturating_add(1);
+                pending = pending.saturating_add(2);
+            }
+        }
+    }
+
+    // The client decodes the tree structurally and ignores `T`; a stream whose
+    // structure is not exactly `T` bits desyncs its cursor from the framing.
+    if b.at != tree_end {
+        return Err(AnimFault::TreeLength);
+    }
+
+    let times = table_count(&mut b, true)?;
+    let floats = table_count(&mut b, false)?;
+    if pops_times > times || pops_floats > floats {
+        return Err(AnimFault::TableUnderrun);
+    }
+    Ok(())
+}
+
+/// A channel pick (`anim_pick_channel_value` 0x3A8EF0): the index into the
+/// `channels`-entry array, in as many bits as the native code reads. The
+/// native code does not bound it, so refuse an index that is not there.
+fn channel_pick(b: &mut Bits<'_>, channels: u32) -> Result<(), AnimFault> {
+    let index = match channels {
+        0 => return Err(AnimFault::ChannelIndex),
+        1 => 0,
+        2 => b.read(1).ok_or(AnimFault::Short)?,
+        _ => b.read(2).ok_or(AnimFault::Short)?,
+    };
+    if index >= channels {
+        return Err(AnimFault::ChannelIndex);
+    }
+    Ok(())
+}
+
+/// One 32-bit float of the floats table: refuse infinity and NaN with the
+/// same bit test as `srp-validate`'s `finite` (the exponent not all ones), so
+/// a crafted stream cannot put a non-number into a bone transform.
+fn finite_float(b: &mut Bits<'_>) -> Result<(), AnimFault> {
+    if b.read(32).ok_or(AnimFault::Short)? & 0x7F80_0000 != 0x7F80_0000 {
+        Ok(())
+    } else {
+        Err(AnimFault::FloatNotNumber)
+    }
+}
+
+/// One table: `decode_times_in_ms_impl` 0x3A9580 when `times`, else
+/// `decode_floats_impl` 0x3A9720. Read it as the length walk does but bound
+/// each index to the indexes the game's encoder writes, and return how many
+/// values it pushes (what the tree may pop). The two order their count and
+/// mode bit differently.
+///
+/// The encoders (`save_times_in_ms` 0x396D40, `save_floats` 0x397040) sort
+/// the values into a stack copy, keep the unique ones (`unique` 0x397810 for
+/// the floats: `ucomiss` equality) and write for each value the position
+/// `find` (0x397880, linear, the same equality) gives it, so every index is
+/// below the unique count and every entry is some value's. Only a NaN is not
+/// found (it equals nothing: its index would be the count, `table[unique]`
+/// the dword past the reader's `_alloca_probe_16` table, 0x3A97D1), and a
+/// game with exe patch 117 has no NaN to save (`snapshot_rules.md` 7.2.1): a
+/// floats table holds numbers only and its indexes are below the count, as a
+/// times table's are.
+fn table_count(b: &mut Bits<'_>, times: bool) -> Result<u64, AnimFault> {
+    use AnimFault::Short;
+    if times {
+        let count = b.read(10).ok_or(Short)?;
+        if count != 0 {
+            let indexed = b.read(1).ok_or(Short)? != 0;
+            b.read(32).ok_or(Short)?;
+            if count > 1 {
+                let each = b.read(5).ok_or(Short)? as usize;
+                if indexed {
+                    let unique = b.read(width(count)).ok_or(Short)?;
+                    b.skip((unique.saturating_sub(1) as usize).checked_mul(each).ok_or(Short)?)
+                        .ok_or(Short)?;
+                    for _ in 0..count {
+                        if b.read(width(unique)).ok_or(Short)? >= unique {
+                            return Err(AnimFault::TimesIndex);
+                        }
+                    }
+                } else {
+                    b.skip((count as usize).checked_mul(each).ok_or(Short)?).ok_or(Short)?;
+                }
+            }
+        }
+        Ok(u64::from(count))
+    } else {
+        let indexed = b.read(1).ok_or(Short)? != 0;
+        let count = b.read(10).ok_or(Short)?;
+        if indexed {
+            let unique = b.read(width(count)).ok_or(Short)?;
+            for _ in 0..unique {
+                finite_float(b)?;
+            }
+            for _ in 0..count {
+                if b.read(width(unique)).ok_or(Short)? >= unique {
+                    return Err(AnimFault::FloatsIndex);
+                }
+            }
+        } else {
+            for _ in 0..count {
+                finite_float(b)?;
+            }
+        }
+        Ok(u64::from(count))
+    }
 }

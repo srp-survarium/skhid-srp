@@ -12,8 +12,9 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
+use survarium::v026g::keeper;
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::{self, MapMode};
+use survarium::v026g::maps::{self, GameMode, MatchMap};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
@@ -73,9 +74,9 @@ pub struct MatchPlayer {
 /// A match the lobby formed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchSetup {
-    /// A playable `maps_dict` id: the map, the mode and its timings
+    /// The map, the mode and its timings
     /// (`survarium::v026g::maps`).
-    pub map_id: u8,
+    pub map: MatchMap,
     /// Logged by the client only.
     pub match_level: u16,
     /// The players who will really come: the roster's size is the N of the
@@ -102,9 +103,6 @@ pub struct MatchSetup {
     /// ([`MatchEnd::NotMade`]; `docs/notes/match.md` section 34). `None`
     /// (clan matches, against bots): the clients' rule alone.
     pub room_minimum: Option<u8>,
-    /// A Blackout match (the lobby's rooms, `docs/notes/blackout.md`): the
-    /// static info's flag (exe patch 65), on a battery map only.
-    pub blackout: bool,
 }
 
 /// Where the players of a made match connect.
@@ -189,16 +187,14 @@ pub(crate) struct Place {
 #[derive(Clone)]
 pub(crate) struct Formed {
     pub match_id: u32,
-    pub map: &'static MapMode,
+    /// The map and the mode.
+    pub played: MatchMap,
     pub match_level: u16,
     pub places: Vec<Place>,
     /// The profiles the clients were given, by place: what a snapshot's
     /// player blocks are read against.
     pub profiles: Vec<MatchProfile>,
     pub score_weights: [f32; SCORE_EVENTS],
-    /// Whether the static info says Blackout (exe patch 65), the same for a
-    /// late joiner's.
-    pub blackout: bool,
     pub info: StaticInfo,
     pub formed_at: Instant,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
@@ -211,6 +207,9 @@ pub(crate) struct Formed {
     pub private: bool,
     /// [`MatchSetup::room_minimum`].
     pub room_minimum: Option<u8>,
+    /// Keeper of the Artifacts' kind, drawn once when the match is made and written into every
+    /// kit of every profile, a late joiner's too (`survarium::v026g::keeper`).
+    pub keeper: keeper::Kind,
 }
 
 /// How far a match is.
@@ -291,10 +290,20 @@ struct Inner {
     matches: HashMap<u32, std::sync::Arc<Formed>>,
     seats: HashMap<u32, Seat>,
     last_id: u32,
-    /// A growing roster's admission as the match last said it: until when
-    /// it takes a joiner, or why it takes none.
-    admitting: HashMap<u32, Result<Instant, Closed>>,
+    /// A growing roster's admission as the match last said it.
+    admitting: HashMap<u32, Admitting>,
     live: HashMap<u32, Live>,
+}
+
+/// A growing roster's admission as the match loop last said it
+/// ([`MatchRegistry::set_admitting`]), and the phase it was in when it said
+/// so: one record, so a join reads both from the same word.
+#[derive(Clone, Copy, Debug)]
+struct Admitting {
+    /// Until when it takes a joiner, or why it takes none.
+    admission: Result<Instant, Closed>,
+    /// Keeper of the Artifacts' late joiner is one taken in this phase.
+    phase: LivePhase,
 }
 
 /// A new account could not be appended to a running match. Appended slots
@@ -395,12 +404,11 @@ impl MatchRegistry {
         if setup.players.is_empty() || setup.players.len() > MAX_PLAYERS {
             return Err(CreateError::Roster(setup.players.len()));
         }
-        let map = maps::map_mode(setup.map_id)
-            .filter(|map| map.is_playable())
-            .ok_or(CreateError::Map(setup.map_id))?;
+        let played = setup.map;
+        let map = played.map();
         // The server's bots play modes 2 to 4 (`bots`): none in Research.
-        if map.mode == maps::mode::RESEARCH && setup.players.iter().any(|player| player.driven) {
-            return Err(CreateError::Map(setup.map_id));
+        if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
+            return Err(CreateError::Map(map.id));
         }
         let mut inner = self.inner();
         for (place, player) in setup.players.iter().enumerate() {
@@ -435,7 +443,7 @@ impl MatchRegistry {
         inner.last_id = match_id;
         let score_weights = setup
             .score_weights
-            .unwrap_or_else(|| static_info_weights(map.mode));
+            .unwrap_or_else(|| static_info_weights(map.mode.rules()));
         let places = setup
             .players
             .iter()
@@ -454,18 +462,21 @@ impl MatchRegistry {
             .iter()
             .map(|player| (!player.driven).then_some(player.session_id))
             .collect();
-        let blackout = setup.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode);
+        let keeper = keeper::draw(random());
         let options = MatchOptions {
             players: setup
                 .players
                 .into_iter()
-                .map(|player| player.profile)
+                .map(|player| {
+                    let mut profile = player.profile;
+                    keeper::give(&mut profile, keeper);
+                    profile
+                })
                 .collect(),
-            map_id: setup.map_id,
+            map: played,
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
-            blackout,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -486,12 +497,11 @@ impl MatchRegistry {
             match_id,
             std::sync::Arc::new(Formed {
                 match_id,
-                map,
+                played,
                 match_level: setup.match_level,
                 places,
                 profiles,
                 score_weights,
-                blackout: options.blackout,
                 info,
                 formed_at: now,
                 growing_roster,
@@ -499,6 +509,7 @@ impl MatchRegistry {
                 vs_bots: setup.vs_bots,
                 private: setup.private,
                 room_minimum: setup.room_minimum,
+                keeper,
             }),
         );
         let count = |which: fn(&Place) -> bool| {
@@ -513,7 +524,7 @@ impl MatchRegistry {
             "Match {match_id:#x} made: map {} ({}, mode {}), {} players{}{}{}",
             map.id,
             map.name,
-            map.mode,
+            map.mode.lobby_number(),
             options.players.len(),
             if setup.vs_bots {
                 ", one player against the server's bots"
@@ -531,6 +542,7 @@ impl MatchRegistry {
                 format!(", {driven} of them the server's own bots (SRP_SERVER_BOTS)")
             }
         );
+        log::info!("Match {match_id:#x} keeper draw: {}", keeper.name());
         Ok(MatchTicket {
             match_id,
             host: self.host.clone(),
@@ -572,9 +584,14 @@ impl MatchRegistry {
         if players.len() > MAX_PLAYERS - formed.places.len() {
             return Err(JoinError::Full);
         }
-        if !open_at(inner.admitting.get(&match_id), Instant::now()) {
+        let Some(admitting) = inner
+            .admitting
+            .get(&match_id)
+            .copied()
+            .filter(|admitting| open_at(Some(admitting), Instant::now()))
+        else {
             return Err(JoinError::Unavailable);
-        }
+        };
         // An account whose place in this match has no seat any more (it
         // left by its own word) comes as a new place, its old one gone for
         // good (the owner's of 2026-10-19); one with a seat anywhere, never.
@@ -595,18 +612,28 @@ impl MatchRegistry {
                 return Err(JoinError::AlreadyPlaying);
             }
         }
+        // Keeper of the Artifacts (artefact-skills.md): a joiner taken before the match is in
+        // process still chooses its kit, so it gets the gift at the start as everyone; one taken
+        // after it is late (its gift after its first death). The phase is the one the match was
+        // in when it opened this admission, from the same record.
+        let gift: fn(&mut MatchProfile, keeper::Kind) = match admitting.phase {
+            LivePhase::Gathering | LivePhase::Countdown => keeper::give,
+            LivePhase::Playing | LivePhase::Over => keeper::give_late,
+        };
         let mut next = (**formed).clone();
         let first = next.places.len();
-        next.profiles
-            .extend(players.iter().map(|player| player.profile.clone()));
+        next.profiles.extend(players.iter().map(|player| {
+            let mut profile = player.profile.clone();
+            gift(&mut profile, next.keeper);
+            profile
+        }));
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),
-                map_id: next.map.id,
+                map: next.played,
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
-                blackout: next.blackout,
             },
             Dictionary::shared(),
         )
@@ -631,7 +658,9 @@ impl MatchRegistry {
         let count = next.places.len() - first;
         inner.matches.insert(match_id, std::sync::Arc::new(next));
         // Closed until the match says otherwise of the grown roster.
-        inner.admitting.insert(match_id, Err(Closed::Joining));
+        if let Some(admitting) = inner.admitting.get_mut(&match_id) {
+            admitting.admission = Err(Closed::Joining);
+        }
         log::info!(
             "Match {match_id:#x}: reserved {count} new places from {first}; waiting for resource preparation"
         );
@@ -645,12 +674,14 @@ impl MatchRegistry {
     /// Do not let an observation of an older roster reopen admission after
     /// the lobby has concurrently reserved the next place.
     /// `admission`: until when it takes a joiner, or why it takes none
-    /// (`Game::admission`).
+    /// (`Game::admission`); `phase`: how far the match is as it says so
+    /// (`Game::live_phase`), which decides a joiner's Keeper gift.
     pub(crate) fn set_admitting(
         &self,
         match_id: u32,
         roster: usize,
         admission: Result<Instant, Closed>,
+        phase: LivePhase,
     ) {
         let mut inner = self.inner();
         if inner
@@ -658,7 +689,7 @@ impl MatchRegistry {
             .get(&match_id)
             .is_some_and(|m| m.growing_roster && m.places.len() == roster)
         {
-            inner.admitting.insert(match_id, admission);
+            inner.admitting.insert(match_id, Admitting { admission, phase });
         }
     }
 
@@ -672,10 +703,10 @@ impl MatchRegistry {
     /// past its deadline, [`Closed::LastSeconds`]. `None`: it takes one, or
     /// it has said nothing (not a growing roster, not polled yet, or over).
     pub fn closed(&self, match_id: u32, now: Instant) -> Option<Closed> {
-        match self.inner().admitting.get(&match_id)? {
-            Ok(deadline) if now < *deadline => None,
+        match self.inner().admitting.get(&match_id)?.admission {
+            Ok(deadline) if now < deadline => None,
             Ok(_) => Some(Closed::LastSeconds),
-            Err(closed) => Some(*closed),
+            Err(closed) => Some(closed),
         }
     }
 
@@ -735,8 +766,8 @@ impl MatchRegistry {
     /// while it lingers for its clients to hear the end.
     pub(crate) fn free_seats(&self, match_id: u32) {
         let mut inner = self.inner();
-        if inner.admitting.contains_key(&match_id) {
-            inner.admitting.insert(match_id, Err(Closed::Ending));
+        if let Some(admitting) = inner.admitting.get_mut(&match_id) {
+            admitting.admission = Err(Closed::Ending);
         }
         inner.seats.retain(|_, seat| seat.match_id != match_id);
     }
@@ -790,7 +821,7 @@ impl MatchRegistry {
             }
             return LiveMatch {
                 match_id: formed.match_id,
-                map_id: formed.map.id,
+                map_id: formed.played.map().id,
                 phase: LivePhase::Gathering,
                 players,
                 present: (1_u32 << formed.places.len().min(31)) - 1,
@@ -803,7 +834,7 @@ impl MatchRegistry {
         let since = now.saturating_duration_since(live.at);
         LiveMatch {
             match_id: formed.match_id,
-            map_id: formed.map.id,
+            map_id: formed.played.map().id,
             phase: live.phase,
             players: live.players,
             present: live.present,
@@ -838,11 +869,13 @@ impl MatchRegistry {
 }
 
 /// Whether an admission as the match said it takes a joiner at `now`.
-fn open_at(admission: Option<&Result<Instant, Closed>>, now: Instant) -> bool {
-    matches!(admission, Some(Ok(deadline)) if now < *deadline)
+fn open_at(admitting: Option<&Admitting>, now: Instant) -> bool {
+    matches!(admitting, Some(Admitting { admission: Ok(deadline), .. }) if now < *deadline)
 }
 
-/// A number that differs from run to run, for the first match id.
+/// A number that differs from run to run and call to call, for the first match id and each
+/// match's Keeper draw: SipHash of the clock's nanoseconds under a fresh `RandomState` (keys
+/// from the OS once a thread, the first one stepped at each call).
 fn random() -> u32 {
     use std::hash::{BuildHasher, Hasher};
     let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
@@ -935,8 +968,8 @@ pub struct PlayerResult {
 pub struct MatchResult {
     pub match_id: u32,
     pub map_id: u8,
-    /// `survarium::v026g::maps::mode`.
-    pub game_mode: u8,
+    /// [`Formed::played`]'s: Blackout's scores pay twice.
+    pub mode: GameMode,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a
@@ -967,8 +1000,6 @@ pub struct MatchResult {
     pub vs_bots: bool,
     /// [`MatchSetup::private`].
     pub private: bool,
-    /// A Blackout match ([`Formed::blackout`]): its scores pay twice.
-    pub blackout: bool,
 }
 
 /// Where finished matches go: the lobby's results and rewards code.
@@ -1007,5 +1038,27 @@ impl ResultsSink for std::sync::mpsc::Sender<MatchResult> {
 impl<F: FnMut(MatchResult) + Send> ResultsSink for F {
     fn match_ended(&mut self, result: MatchResult) {
         self(result);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The draws of matches made one after another, from the registry's own random numbers:
+    /// each kind near its share (Onyx 4 %: now and then, not every match).
+    #[test]
+    fn keeper_draws_of_successive_matches_land_near_their_shares() {
+        const MATCHES: u32 = 20_000;
+        let mut seen = [0u32; 3];
+        for _ in 0..MATCHES {
+            seen[usize::from(keeper::draw(random()).draw() - 1)] += 1;
+        }
+        for (n, &(kind, share)) in keeper::SHARES.iter().enumerate() {
+            let (name, percent) = (kind.name(), f64::from(seen[n]) * 100.0 / f64::from(MATCHES));
+            // The largest standard deviation over 20 000 matches (Larkspur, Spring) is 0.35 points.
+            let near = (percent - f64::from(share)).abs() < 2.0;
+            assert!(near, "{name}: {percent} %");
+        }
     }
 }

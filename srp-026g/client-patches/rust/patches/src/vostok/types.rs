@@ -37,6 +37,12 @@ impl GameTime {
         self.0.wrapping_sub(earlier.0)
     }
 
+    /// Whether this time is at or before `later`: one of a match's times
+    /// against another (they are less than half the wrap apart).
+    pub fn not_after(self, later: GameTime) -> bool {
+        later.since(self) < 1 << 31
+    }
+
     /// The tick this time is in.
     pub fn tick(self) -> Tick {
         Tick(self.0 / Tick::MS)
@@ -106,6 +112,9 @@ mod tests {
         assert_eq!(GameTime::to_raw(None), u32::MAX);
         assert_eq!(GameTime(u32::MAX - 9).after(20), GameTime(10));
         assert_eq!(GameTime(10).since(GameTime(u32::MAX - 9)), 20);
+        assert!(GameTime(10).not_after(GameTime(10)) && GameTime(10).not_after(GameTime(11)));
+        assert!(!GameTime(11).not_after(GameTime(10)));
+        assert!(GameTime(u32::MAX - 9).not_after(GameTime(10)), "across the wrap");
         assert_eq!(GameTime(149).tick(), Tick(2));
         assert_eq!(Tick(3).start(), GameTime(150));
     }

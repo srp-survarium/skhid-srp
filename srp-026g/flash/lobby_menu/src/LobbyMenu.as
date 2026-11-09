@@ -17,6 +17,7 @@ package
    import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
    import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.text.Font;
    import flash.text.StyleSheet;
    import flash.text.TextField;
@@ -59,6 +60,7 @@ package
    import survarium.chat.LobbyChat;
    import survarium.clan.ClanWindow;
    import survarium.clan.TournamentWindow;
+   import survarium.constants.BuyOrigin;
    import survarium.constants.ChatChannel;
    import survarium.constants.ClanState;
    import survarium.constants.ClanTeamRole;
@@ -141,9 +143,11 @@ package
    import survarium.messages.MessageNoClose;
    import survarium.messages.MessagePostPremium;
    import survarium.messages.MessageQuestInfo;
+   import survarium.messages.MessageRerollItem;
    import survarium.paperdoll.PaperDollBase;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.WeightEffects;
+   import survarium.player.KitModifiers;
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
@@ -201,31 +205,13 @@ package
       // as an admin text; the exe never calls it.
       private static const ADMIN_MESSAGE_WARNING:int = 0;
 
-      // set_autobuy's value: bit 0 the autobuy box, bit 1 the auto-repair box (gone: an account
-      // that had it ticked still sends 3).
+      // set_autobuy's value: bit 0 the autobuy box; bit 1, the stock auto-repair box, is never set (srp
+      // has no repair).
       private static const AUTO_BUY:int = 1;
-
-      private static const AUTO_BUY_AND_REPAIR:int = 3;
 
       // meaning unknown: the progress show_daily_reward_window takes a day's reward to need.
       private static const DAILY_REWARD_PROGRESS_REQUIRED:int = 3;
 
-      // ui_properties prop_id (gameplay/static_game_parameters) the test items use: st_inv_arp and
-      // st_inv_item_weight.
-      private static const PROP_ARMOR_PIERCING:int = 3;
-
-      private static const PROP_ITEM_WEIGHT:int = 15;
-
-      // Ids of the test functions' messages and chat tabs (no meaning beyond the tests).
-      private static const TEST_INVITE_ID:int = 23;
-
-      // FriendListRender does not answer a message of this id to the exe.
-      public static const TEST_IMPORTANT_MESSAGE_ID:int = 666;
-
-      private static const TEST_CHAT_TAB_ID:int = 900;
-
-      // the tab test_chat_messsage_second adds (TEST_CHAT_TAB_ID + 4)
-      private static const TEST_CHAT_TAB_SECOND:int = 904;
 
       // The ask in flight: its name and when it was sent. One at a time: a
       // `93` carries nothing of the player it is about, so an answer is ours
@@ -359,13 +345,19 @@ package
       
       private var _inventoryHighlight:Boolean = false;
       
+      // The item card's owner: the list row it shows (_pdTarget, followed as the list scrolls) or
+      // the kit slot (_hintSlot), at most one of them; neither for a craft slot's card. A change of
+      // the kit shows the slot's item as it is then (updateHintItem), never the slot an item's
+      // slotId names: only the kit's own items carry their slot, an inventory item and the copy a
+      // drop puts in a slot until the server answers carry 0, the helmet's.
       private var _pdTarget:MovieClip;
+      
+      private var _hintSlot:IPaperDollSlot;
       
       private var _wheelBack:MovieClip = new FadeBackground();
       
       private var _wheelsMC:MovieClip = new LoadingWheelsShared();
       
-      private var _craftData:Object;
       
       protected var _ignoreMM:Boolean = false;
       
@@ -1016,6 +1008,7 @@ package
          victory_screen = new SrvVictoryScreenReskin();
          this.victory_screen.registerHintRenderer(new InventoryItemHint());
          this.victory_screen.addEventListener("try_buy_maps",this.onBuyMaps);
+         this.victory_screen.addEventListener("try_buy_map_to_use",this.onBuyMapToUse);
          this.victory_screen.addEventListener(Events.SHOW_PLAYER_INFO,this.onVSPlayerInfo);
          friendsMenu = new SrvFriendsMenuReskin();
          clanWindow = new SrvClanWindow();
@@ -1071,6 +1064,12 @@ package
          this.player_profile.profileItems.addEventListener(Events.OPEN_MODIFIERS,this.openModifierWindow);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showPdItemHint);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
+         // The kit's ammo list: a round's card, the inventory's.
+         this.player_profile.addEventListener(AmmoShareElement.SHOW_CARD,this.showAmmoItemHint);
+         this.player_profile.addEventListener(AmmoShareElement.HIDE_CARD,this.hideItemHint);
+         // The modification window's item (a message): its card, the inventory's.
+         this._top_container.addEventListener(MessageRerollItem.SHOW_CARD,this.showRerollItemHint);
+         this._top_container.addEventListener(MessageRerollItem.HIDE_CARD,this.hideItemHint);
          this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.updateHintItem);
          shop_list = new SrvGangShop();
          this.shop_list.name = "inventory_list";
@@ -1123,14 +1122,12 @@ package
          SrvContextMenu.setPatternt(new ContextPattern());
          DragManager.init(this.stage,this._overlay);
          Message.registerMessage("ask",MessageAsk);
-         Message.registerMessage("repair",SrvMessageRepairSkinned);
          Message.registerMessage("askr",MessageAskRelocate);
          Message.registerMessage("premium",SrvMessagePremium);
          Message.registerMessage("post_premium",SrvMessagePremiumLost);
          Message.registerMessage("premium_discount",SrvMessagePremiumDiscount);
          Message.registerMessage("asks",MessageAskSell);
          Message.registerMessage("debug",MessageBox);
-         Message.registerMessage("reroll",SrvMessageRerollSkills);
          Message.registerMessage("anno",MessageAnnounce);
          Message.registerMessage("apply",MessageApply);
          Message.registerMessage("ask_system_message",MessageApplyExternal);
@@ -1138,7 +1135,6 @@ package
          Message.registerMessage("ok",MessageBox);
          Message.registerMessage("char",MessageCreateChar);
          Message.registerMessage("no_faction",MessageNoFactionSelected);
-         Message.registerMessage("exchange",SrvMessageExchangeSkinned);
          Message.registerMessage("craft",SrvMessageCraftItemSkinned);
          Message.registerMessage("rename",SrvMessageEnterName);
          Message.registerBackground(BackBlack);
@@ -1224,6 +1220,7 @@ package
          stage.addEventListener(MouseEvent.MOUSE_WHEEL,this.onMouseFnx);
          stage.addEventListener(MouseEvent.MOUSE_UP,this.onMouseStageClick);
          stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onMouseStageClick);
+         stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onPressHidePopups,true);
          this.bottom_panel.btnShowLogList.enabled = false;
          this.inventory_list.item_control = this.item_control;
          AmmoShareLite.setItemCard(this.item_control);
@@ -1344,14 +1341,56 @@ package
          {
             return;
          }
+         // the card is this slot's now: no list row's card or comparison left over
+         this.hideItemHint(null);
+         _hintSlot = e.itemRenderer as IPaperDollSlot;
+         this.showKitCard(e.itemData,this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3,this.player_profile.y + e.itemRenderer.y - 5);
+      }
+
+      // A round of the kit's ammo list: its card beside the list's row, as a kit slot's.
+      private function showAmmoItemHint(e:Event) : void
+      {
+         var element:AmmoShareElement = e.target as AmmoShareElement;
+         if(element == null || element.cardItem == null)
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var at:Point = this._cards.globalToLocal(element.localToGlobal(new Point(element.width + 3,-5)));
+         this.showKitCard(element.cardItem,at.x,at.y);
+      }
+
+      // The modification window's item: its card beside the window at its top, left of it as the
+      // craft window's, right of it when the left has no room.
+      private function showRerollItemHint(e:Event) : void
+      {
+         var reroll:MessageRerollItem = e.target as MessageRerollItem;
+         if(reroll == null || reroll.cardItem == null)
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var bounds:Rectangle = reroll.background.getBounds(this._cards);
+         this.showKitCard(reroll.cardItem,bounds.left,bounds.top);
+         this.itemHintRenderer.x = bounds.left - this.itemHintRenderer.width - 3;
+         if(this.itemHintRenderer.x < 0)
+         {
+            this.itemHintRenderer.x = bounds.right + 3;
+         }
+      }
+
+      // The item card (the inventory's) of a kit's item at (x, y) of the cards' layer, uncompared,
+      // kept on the stage and faded in.
+      private function showKitCard(item:Object, x:Number, y:Number) : void
+      {
          this.itemHintRenderer.displayOrange(true);
          this.itemHintRenderer.displaylabel(false);
          this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
          this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
-         this.itemHintRenderer.x = this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3;
-         this.itemHintRenderer.y = this.player_profile.y + e.itemRenderer.y - 5;
+         this.itemHintRenderer.x = x;
+         this.itemHintRenderer.y = y;
          this._cards.addChild(this.itemHintRenderer);
-         this.itemHintRenderer.data = e.itemData;
+         this.itemHintRenderer.data = item;
          this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
          var maxPox:int = this.itemHintRenderer.y + this.itemHintRenderer.height;
          if(maxPox > MainScene.stageHeight - 2)
@@ -1370,44 +1409,42 @@ package
          }
       }
       
+      // The kit changed: a kit slot's card shows the slot's item now (none: the card goes); a list
+      // row's card compared with the kit's item of its kind (showItemHint) is compared with that
+      // item as the kit has it now. The craft window's comparison is its own.
       private function updateHintItem(e:Event) : void
       {
-         trace("updateHintItem",this.itemHintRendererSec.data);
-         var hintTarget:ItemInfoRenderer = (this.itemHintRendererSec.parent) ? this.itemHintRendererSec : this.itemHintRenderer;
-         var oldData:ItemData;
-         var curerrentSlot:IPaperDollSlot;
-         var newData:ItemData;
-         if(hintTarget == this.itemHintRendererSec && this.craftOpen())
+         if(this.itemHintRenderer.parent == null)
          {
-            // The craft window's item, not an equipped one: the paper doll does not change it.
             return;
          }
-         if((hintTarget.parent) && (hintTarget.data))
+         if(this._hintSlot != null)
          {
-            oldData = hintTarget.data as ItemData;
-            curerrentSlot = this.player_profile.profileItems.getSlotAt(oldData.slotId);
-            newData = curerrentSlot.data as ItemData;
-            trace("newData",newData);
-            if(!newData)
+            var held:ItemData = this._hintSlot.data as ItemData;
+            if(held == null)
             {
-               hintTarget.data = null;
-               if(hintTarget == this.itemHintRendererSec)
-               {
-                  this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
-               }
-               removeChild(hintTarget);
+               this.hideItemHint(null);
                return;
             }
-            trace("CompareData::",oldData.name,newData.name,newData.slotId,oldData.slotId,newData.descriptor,oldData.descriptor,newData.tipText);
-            if(oldData.slotId == newData.slotId)
-            {
-               hintTarget.data = newData;
-               if(hintTarget == this.itemHintRendererSec)
-               {
-                  this.itemHintRenderer.itemCompare.setSecondaryWeapon(newData);
-               }
-            }
+            this.itemHintRenderer.data = held;
+            return;
          }
+         if(this.itemHintRendererSec.parent == null || this.craftOpen())
+         {
+            return;
+         }
+         var equipped:Object = this.player_profile.getRelativeData(this.itemHintRenderer.data);
+         if(equipped == null)
+         {
+            this._cards.removeChild(this.itemHintRendererSec);
+            this.itemHintRenderer.displaylabel(false);
+            this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
+            this.itemHintRenderer.alignComparisonHeader(null);
+            return;
+         }
+         this.itemHintRendererSec.data = equipped;
+         this.itemHintRendererSec.itemCompare.setSecondaryWeapon(this.itemHintRenderer.data);
+         this.itemHintRenderer.itemCompare.setSecondaryWeapon(equipped);
       }
       
       // Whether the craft (Upgrade) window is open.
@@ -1433,6 +1470,7 @@ package
             _pdTarget = null;
          }
          _pdTarget = e.itemRenderer as MovieClip;
+         _hintSlot = null;
          this._pdTarget.addEventListener(Event.RENDER,this.onHintTargetRender);
          this._cards.addChild(this.itemHintRenderer);
          if(e.target is ScrollingList)
@@ -1596,6 +1634,7 @@ package
             this._pdTarget.removeEventListener(Event.RENDER,this.onHintTargetRender);
             _pdTarget = null;
          }
+         _hintSlot = null;
          trace("hideItemHint");
          if(this._cards.contains(this.itemHintRenderer))
          {
@@ -1612,11 +1651,10 @@ package
          ExternalInterface.call("show_match_result",e.match_id);
          var reportData:Object = e;
          this.show_victory_screen();
-         this.victory_screen.setData(reportData,true);
+         this.victory_screen.setData(reportData);
          if((reportData) && (reportData.statistics_money))
          {
-            trace("showFullReaport::",reportData.statistics_money.autobuy_money,reportData.statistics_money.autorepair_money);
-            this.victory_screen.setSpendMoneyDetailed(reportData.statistics_money.autobuy_money_ammo_arr,reportData.statistics_money.autobuy_money_consulables_arr,reportData.statistics_money.autorepair_money_arr);
+            this.victory_screen.setSpendMoneyDetailed(reportData.statistics_money.autobuy_money_ammo_arr,reportData.statistics_money.autobuy_money_consulables_arr);
          }
       }
       
@@ -1671,27 +1709,10 @@ package
          this.item_control.fillItemRerollOptions(value);
       }
       
-      private function test_craft_data() : void
-      {
-         var testObject:Object = {
-            craft_time:90 * 60,
-            regular_cost:12,
-            premium_cost:22,
-            success_chance_regular:12,
-            fail_chance_regular:88,
-            success_chance_gold:50,
-            fail_chance_gold:50
-         };
-         this.fill_craft_data(testObject);
-      }
-      
+      // The upgrade's wait and cost, which the exe still hands over: an upgrade has no wait and its price
+      // comes from 0x9B (MessageCraftItem), so nothing reads them.
       public function fill_craft_data(value:Object) : void
       {
-         _craftData = value;
-         if((this.craftWindow))
-         {
-            this.craftWindow.fillCraftData(value);
-         }
       }
       
       public function fill_crafted_item(value:Object) : void
@@ -1731,18 +1752,18 @@ package
          this.victory_screen.setBonus(mathId,bonus);
       }
       
+      // `repair`, the exe's third list, is always empty: srp has no repair (the owner, 2026-11-08).
       public function fill_victory_screen_spend_money_detailed(autobuy_ammo:Array, autobuy_consulables:Array, repair:Array) : void
       {
-         trace("fill_victory_screen_spend_money_detailed",autobuy_ammo,autobuy_consulables);
-         this.victory_screen.setSpendMoneyDetailed(autobuy_ammo,autobuy_consulables,repair);
+         this.victory_screen.setSpendMoneyDetailed(autobuy_ammo,autobuy_consulables);
          this.updateReport(this.victory_screen.getData());
          this.set_log_list(this._reports);
       }
       
+      // `repair` is always 0: srp has no repair.
       public function fill_victory_screen_spend_money(autobuy:int, repair:int) : void
       {
-         trace("fill_victory_screen_spend_money",autobuy,repair);
-         this.victory_screen.setSpendMoney(autobuy,repair);
+         this.victory_screen.setSpendMoney(autobuy);
          this.updateReport(this.victory_screen.getData());
          this.set_log_list(this._reports);
       }
@@ -1754,11 +1775,23 @@ package
       
       private function onBuyMaps(e:Event) : void
       {
+         this.buyMap(null);
+      }
+
+      // The results screen's card slot clicked with no card: the buy
+      // dialog, and on its yes the screen uses the card once it comes.
+      private function onBuyMapToUse(e:Event) : void
+      {
+         this.buyMap(this.victory_screen.cardBought);
+      }
+
+      private function buyMap(onComplete:Function) : void
+      {
          var pp:IPlayerProfile = this.player_profile;
          var dict:uint = PlayerInfo.getVoucherDictId(VoucherType.DROP_CARD);
          var id:uint = PlayerInfo.getVoucherId(VoucherType.DROP_CARD);
-         trace("onBuyMaps::",pp.profileId,id,dict);
-         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),Faction.ANY);
+         trace("buyMap::",pp.profileId,id,dict,onComplete != null);
+         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),BuyOrigin.SHOP,Faction.ANY,onComplete);
       }
       
       public function show_choose_faction_message() : void
@@ -1822,46 +1855,6 @@ package
          var selectedFaction:int = this.questWindow.getSelectedFaction() + 1;
          trace("showFactionInShop::",selectedFaction);
          this.inventory_list.sellersTabPage.selectedIndex = selectedFaction;
-      }
-      
-      private function test_active_quest() : void
-      {
-         trace("update_inventory_item");
-         var temp_object:Object = {
-            id:8910,
-            condition_or_stack:75
-         };
-         this.update_inventory_item(temp_object);
-      }
-      
-      private function test_fin_matchmaking() : void
-      {
-         var testProperties:Array = [99,10,10,10,99,99,10,10,10,99,99,10,10,10,99,99];
-         this.statusPanel.lobbyGameSearch.setSearchProperties(testProperties);
-         this.statusPanel.lobbyGameSearch.setSearchRange(1,15);
-      }
-      
-      private function test_matchmaking() : void
-      {
-         var getSearchProp:Function = function():Object
-         {
-            ++level;
-            return {
-               value:1,
-               level:level
-            };
-         };
-         var level:int;
-         trace("test_matchmaking");
-         level = -1;
-         var sp:Array = [];
-         for(var i:uint = 0; i < 30; i++)
-         {
-            sp.push(getSearchProp());
-         }
-         this.show_match_making(true);
-         this.statusPanel.lobbyGameSearch.setSearchProperties(sp);
-         this.statusPanel.lobbyGameSearch.setSearchRange(3,18);
       }
       
       public function set_quest_active_faction(value:uint) : void
@@ -1952,28 +1945,6 @@ package
          this.inventory_list.toggleUpgradeMode();
       }
       
-      private function test_tournament_data() : void
-      {
-         var arr:Array = [];
-         arr.push({
-            name:"ilya@vostok.com",
-            status:ClanTeamRole.COMMANDER
-         });
-         arr.push({
-            name:"ilya10@vostok.com",
-            status:ClanTeamRole.SOLDIER
-         });
-         for(var i:uint = 0; i < 9; i++)
-         {
-            arr.push({
-               name:"ilia" + i.toString(),
-               status:int(i / 3) + 1,
-               ready:true
-            });
-         }
-         this.fill_clan_team(arr);
-      }
-      
       public function fill_clan_team(value:Array) : void
       {
          this._tournament.setPlayersData(value);
@@ -2034,11 +2005,6 @@ package
          this.checkbox_tournament_match_clicked(true);
       }
       
-      private function testRank() : void
-      {
-         this.checkbox_tournament_match_clicked(false);
-      }
-      
       private function openTournamentWindow(e:Event = null) : void
       {
          trace("openTournamentWindow");
@@ -2084,10 +2050,6 @@ package
          var itemData:ItemData = this.item_control.getItemData().clone();
          craftWindow = new SrvMessageCraftItemSkinned();
          this.craftWindow.setMessageData(0,itemData);
-         if((this._craftData))
-         {
-            this.craftWindow.fillCraftData(this._craftData);
-         }
          this.craftWindow.setMatchState(MainScene.activeMatchMaking ? MatchMakingState.SEARCHING : MatchMakingState.IDLE);
          this.craftWindow.x = (MainScene.stageWidth - this.craftWindow.width) / 2;
          this.craftWindow.y = (MainScene.stageHeight - this.craftWindow.height) / 2;
@@ -2254,9 +2216,10 @@ package
          }
       }
       
+      // The game still hands the lobby a premium exchange rate (0x8D's fifth price, 0 now): there is
+      // no gold to exchange (the owner, 2026-11-08).
       public function set_premium_exchange_rate(value:uint) : void
       {
-         PlayerInfo.premiumExchangeRate = value;
       }
       
       public function set_item_props_data(value:Array) : void
@@ -2319,240 +2282,16 @@ package
          this.statusPanel.setNewItems(value);
       }
       
-      private function test_update_invenory_item() : void
-      {
-         var modifier:Object = {
-            name:"sdf",
-            props:[{
-               prop_id:PROP_ITEM_WEIGHT,
-               prop_value:-0.8,
-               modifier_type:ModifierType.MULTIPLY
-            },{
-               prop_id:PROP_ARMOR_PIERCING,
-               prop_value:10,
-               modifier_type:ModifierType.ADD
-            }]
-         };
-         var data:Object = {
-            id:8994,
-            condition_or_stack:95,
-            modifiers:[modifier]
-         };
-         this.update_inventory_item(data);
-      }
-      
-      private function test_clan_window() : void
-      {
-         this.handle_clan_name_validation(true,"dadada","tetete");
-      }
-      
-      private function test_sync_screen() : void
-      {
-         this.show_match_making(true);
-      }
-      
-      private function test_sync_screen1() : void
-      {
-         this.set_mm_sync_state("AAAA",0);
-      }
-      
-      private function test_sync_screen2() : void
-      {
-         this.set_mm_sync_state("BBBB");
-      }
-      
-      private function testUnclokedFactionRank() : void
-      {
-         trace("testUnclokedFaction");
-         var data:Object = {
-            faction_id:Faction.BORDER,
-            label:"Рептилоиды",
-            message_body:"Вы открыли путь к солнцу",
-            type:ImportantMessageType.REPUTATION_LEVEL
-         };
-         this.add_important_message(data);
-         this.setup_player_progress(Faction.BORDER,2,222);
-      }
-      
-      private function testUnclokedFaction() : void
-      {
-         trace("testUnclokedFaction");
-         var data:Object = {
-            faction_id:Faction.BORDER,
-            label:"Рептилоиды",
-            message_body:"Вы открыли путь к солнцу",
-            type:ImportantMessageType.REPUTATION_LEVEL
-         };
-         this.add_important_message(data);
-      }
-      
-      private function testUnclokedFaction2() : void
-      {
-         trace("testUnclokedFaction");
-         var data:Object = {
-            faction_id:Faction.SCAVENGERS,
-            label:"Доктор Сринтус",
-            message_body:"Мантра очищена",
-            type:ImportantMessageType.REPUTATION_LEVEL
-         };
-         this.add_important_message(data);
-      }
-      
-      private function testInviteToSquad() : void
-      {
-         trace("testInviteToSquad");
-         var data:Object = {
-            id:TEST_INVITE_ID + this._invitesTemp,
-            sender_name:"123456789123456789" + this._invitesTemp,
-            message_body:"сквадиеще",
-            type:ImportantMessageType.CLAN_TEAM_INVITE
-         };
-         this.add_important_message(data);
-         ++this._invitesTemp;
-         if(this._invitesTemp < 7)
-         {
-         }
-      }
-      
-      private function testInviteToSquad2() : void
-      {
-         trace("testInviteToSquad2");
-         var data:Object = {
-            id:2,
-            sender_name:"Timka2",
-            message_body:"Vazzap2",
-            type:ImportantMessageType.SQUAD_INVITE
-         };
-         this.remove_important_message(TEST_INVITE_ID);
-      }
-      
       public function add_squad_invite(value:Object) : void
       {
          trace("add_squad_invite");
          this.bottom_panel.addIvite(value);
       }
       
-      private function testPremiumSettings() : void
-      {
-         this.set_premium_state(PremiumState.ACTIVE,"458д");
-      }
-      
       private function onRequestPlayers(e:Event) : void
       {
          trace("onRequstPlayers",e.target);
          _playerRequestTarget = e.target as MovieClip;
-      }
-      
-      private function testIMChange(e:Event) : void
-      {
-         this.test_important_messsage2();
-      }
-      
-      private function testRewardItems() : void
-      {
-         var test:Array = [];
-         for(var i:uint = 0; i < 6; i++)
-         {
-            test.push({
-               time:"01:22",
-               label:"supra_level",
-               result:"1:2",
-               match_result:3 * (i % 2),
-               reward:[{
-                  type:Reward.EXPERIENCE,
-                  amount:6500
-               },{
-                  type:Reward.REPUTATION,
-                  amount:50,
-                  param:Faction.SCAVENGERS
-               },{
-                  type:Reward.MONEY,
-                  amount:50,
-                  param:2
-               }]
-            });
-         }
-         this.set_log_list(test);
-      }
-      
-      private function testQuestChange(e:Event) : void
-      {
-         trace("testQuestChange::",e);
-         var array:Array = [];
-         array.push({
-            faction_id:Faction.SCAVENGERS,
-            quest_icon:0,
-            quest_label:"ex1TraQuestRRR",
-            text:"1Sil\'veple la mue de cuartassone vi sonne juperne \nel cracasson si\nnme fur majleminto.",
-            reward:[{
-               type:Reward.EXPERIENCE,
-               amount:6500
-            },{
-               type:Reward.REPUTATION,
-               amount:50,
-               param:Faction.SCAVENGERS
-            },{
-               type:Reward.MONEY,
-               amount:50,
-               param:2
-            },{
-               type:Reward.ITEM,
-               amount:50,
-               param:82
-            }],
-            task:{
-               text:"*KILL BIL/n\nL1",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            },
-            tasks:[{
-               text:"*KILL BIL/n\nL1",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            time_limit:50
-         });
-         array.push({
-            faction_id:Faction.SCAVENGERS,
-            quest_icon:1,
-            quest_label:"ex2TraQuestRRR",
-            text:"2Sil\'veple la mue de cuartassone vi sonne jup\nerne el cracasson sinme fur majleminto.",
-            reward:[{
-               type:Reward.ITEM,
-               amount:40,
-               param:68
-            },{
-               type:Reward.REPUTATION,
-               amount:40,
-               param:Faction.SCAVENGERS
-            },{
-               type:Reward.EXPERIENCE,
-               amount:40
-            },{
-               type:Reward.MONEY,
-               amount:40,
-               param:2
-            }],
-            task:{
-               text:"*KILL BILL2",
-               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
-               progress:0,
-               amount:1
-            },
-            tasks:[{
-               text:"*KILL BIL/n\nL1",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            time_limit:60 * 120
-         });
-         trace("testQuestChange::",array.length);
-         this.show_quest_selector(array);
       }
       
       public function set_premium_state(state:uint, label:String) : void
@@ -2654,122 +2393,6 @@ package
          }
       }
       
-      private function onQuestTxClick(e:MouseEvent) : void
-      {
-         this.clear_quests();
-         this.test_quest_messsage();
-      }
-      
-      protected function test_victory_screenData2() : void
-      {
-         this.fill_victory_screen_drop_item({
-            dict_id:ItemDictId.AMMO_9X18_MAKAROV,
-            condition_or_stack:101,
-            value:45,
-            item_id:12534,
-            rarity_level:5
-         });
-      }
-      
-      protected function test_victory_screenData() : void
-      {
-         var modifiers:Array = [{
-            name:"sdf",
-            props:[{
-               prop_id:PROP_ITEM_WEIGHT,
-               prop_value:-0.8,
-               modifier_type:ModifierType.MULTIPLY
-            },{
-               prop_id:PROP_ARMOR_PIERCING,
-               prop_value:10,
-               modifier_type:ModifierType.ADD
-            }]
-         },{
-            name:"asdasd",
-            props:[{
-               prop_id:PROP_ITEM_WEIGHT,
-               prop_value:-0.8,
-               modifier_type:ModifierType.MULTIPLY
-            },{
-               prop_id:PROP_ARMOR_PIERCING,
-               prop_value:10,
-               modifier_type:ModifierType.ADD
-            }]
-         }];
-         var scoreData:Object = {
-            name:"score_name",
-            profile_name:"name",
-            profile_play_time:"123c",
-            amount:100,
-            money:100,
-            experience:100,
-            reputation:100
-         };
-         var data:Object = {
-            score_components:[scoreData,scoreData,scoreData],
-            statistics_rating:new Object(),
-            statistics_exp:{
-               match_exp:33,
-               daily_exp:200,
-               daily_bonus_exp:100,
-               daily_exp:50,
-               quest_exp:50
-            },
-            statistics_money:new Object(),
-            statistics_reputation:{
-               faction_id:Faction.SCAVENGERS,
-               quest_rep:50
-            },
-            title_1_player:"Cibbie&Huide4",
-            title_1_value_0:22,
-            title_0_player:"Where\'sYourWaterDude",
-            title_0_value_0:22,
-            title_2_player:"Krepish1998",
-            title_2_value_0:22,
-            title_3_player:"Cibbie&Huide",
-            title_3_value_0:22,
-            team1_score:0,
-            team2_score:0,
-            allow_drop_card:true,
-            dropped_item:{value:80.5}
-         };
-         data.dropped_item = {
-            dict_id:46,
-            condition_or_stack:101,
-            value:0.333336,
-            item_id:12534,
-            rarity_level:5
-         };
-         this.set_drop_items_properties([1000,5000,9000],15000);
-         if(!data.players)
-         {
-            data.players = this.get_temp_players();
-         }
-         data.game_mode = GameMode.TEAM_DEATHMATCH;
-         data.team_1_players_count = 7;
-         data.team1_param = 2;
-         data.team_2_players_count = 10;
-         data.team2_param = 5;
-         data.map_name = "someMapName";
-         this.fill_victory_screen(data);
-         var data2:Array = [{
-            faction_id:Faction.SCAVENGERS,
-            bonus:22
-         }];
-         this.set_faction_bonus(data2);
-         var detailedArrmo:Array = [{
-            dict_id:243,
-            value:100
-         },{
-            dict_id:46,
-            value:20
-         },{
-            dict_id:ItemDictId.AMMO_9X18_MAKAROV,
-            value:3
-         }];
-         this.fill_victory_screen_spend_money_detailed(detailedArrmo,[],[]);
-      }
-      
       private function get_temp_players() : Array
       {
          var temp_players:Array = [{
@@ -2848,132 +2471,9 @@ package
          return temp_players;
       }
       
-      protected function test_victory_screen() : void
-      {
-         PlayerInfo.nickname = "Where\'sYourWaterDude";
-         this.inventory_list.visible = true;
-         this.update_profile_slots_count(2,1);
-         this.show_victory_screen();
-         setTimeout(this.test_victory_screenData,1000);
-      }
-      
-      protected function test_squad_messsage4() : void
-      {
-      }
-      
-      protected function test_squad_messsage() : void
-      {
-         trace("test_squad_messsage");
-         this.squadList.visible = true;
-         this.set_squad_commander_mode(true);
-         this.set_squad_player(0,"ilya@vostok.com",22,false);
-         this.set_squad_player(1,"leha2",22,true);
-         this.set_squad_player_type(0,6,149);
-         this.set_squad_player_type(1,7,77);
-         this.set_squad_player_type(2,8,14);
-         var data:Object = {
-            id:2,
-            sender_name:"Timka2",
-            message_body:"Vazzap2",
-            type:SquadInviteList.SQUAD_INVITE
-         };
-         this.add_important_message(data);
-      }
-      
-      protected function test_squad_messsage2() : void
-      {
-         this.remove_squad_player(0);
-         this.remove_squad_player(1);
-         this.remove_squad_player(2);
-         this.set_squad_commander_mode(false);
-         trace("test_squad_messsage2");
-         stage.addEventListener(FocusEvent.FOCUS_IN,this.logFocud);
-         this.remove_tab(TEST_CHAT_TAB_SECOND);
-      }
-      
       private function logFocud(e:FocusEvent) : void
       {
          trace("newFF::",e.target);
-      }
-      
-      protected function test_squad_messsage3() : void
-      {
-         this.set_squad_player(2,"mexanikyu",22,false);
-      }
-      
-      protected function test_someMessage(def:int = 400) : void
-      {
-         testF = function():void
-         {
-            show_system_message(0,"quest_message",value2,true);
-         };
-         trace("test_someMessage");
-         var value:Object = {
-            faction_id:Faction.SCAVENGERS,
-            quest_icon:5,
-            quest_label:"ex1TraQuestRRR",
-            text:"1Sil\'veple la mue de cfd\nsfsdf sdf sdfsd fsdf sdf sdf sdf sdf sdf sdf suartassone\n  vi sonne juperne \nel cracasson sinme fur majleminto.",
-            reward:[{
-               type:Reward.EXPERIENCE,
-               amount:6500
-            },{
-               type:Reward.REPUTATION,
-               amount:50,
-               param:Faction.SCAVENGERS
-            },{
-               type:Reward.MONEY,
-               amount:50,
-               param:2
-            }],
-            tasks:[{
-               text:"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
-               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
-               progress:0,
-               amount:2
-            },{
-               text:"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
-               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            status:QuestStatus.COMPLETED
-         };
-         var value2:Object;
-         var testF:Function;
-         value2 = {
-            faction_id:Faction.BLACK_MARKET,
-            quest_icon:6,
-            quest_label:"ex1TraQuestRRR",
-            text:"1Sil\'veple la mue de cfd\nsfsdf sdf sdfsd fsdf sdf sdf sdf sdf sdf sdf suartassone\n  vi sonne juperne \nel cracasson sinme fur majleminto.",
-            reward:[{
-               type:Reward.EXPERIENCE,
-               amount:7500
-            },{
-               type:Reward.REPUTATION,
-               amount:150,
-               param:Faction.SCAVENGERS
-            },{
-               type:Reward.MONEY,
-               amount:150,
-               param:2
-            }],
-            tasks:[{
-               text:"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
-               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
-               progress:0,
-               amount:2
-            },{
-               text:"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
-               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            status:QuestStatus.FAILED
-         };
-         this.show_system_message(0,"quest_message",value,true);
-         setTimeout(testF,def);
       }
       
       protected function onMouseStageClick(e:Event) : void
@@ -2989,6 +2489,23 @@ package
          }
       }
       
+      // The notifications that come up by themselves (notificationListTemp) go at a press
+      // anywhere but on them, once a match's results are closed: while the results are up they
+      // wait under them, the results first (the owner's of 2026-11-07).
+      private function onPressHidePopups(e:MouseEvent) : void
+      {
+         if(this.victory_screen != null && this.victory_screen.stage != null)
+         {
+            return;
+         }
+         var target:DisplayObject = e.target as DisplayObject;
+         if(target != null && this.notificationListTemp.contains(target))
+         {
+            return;
+         }
+         this.notificationListTemp.hideAll();
+      }
+      
       protected function getItemTopParent(value:DisplayObject) : DisplayObject
       {
          var target:DisplayObject = value;
@@ -3001,305 +2518,6 @@ package
             target = target.parent;
          }
          return target;
-      }
-      
-      protected function test_important_messsage() : void
-      {
-         trace("test_important_messsage");
-         for(var i:int = 0; i < 1; i++)
-         {
-            var value:Object;
-            value = new Object();
-            value.id = TEST_IMPORTANT_MESSAGE_ID;
-            value.request = true;
-            value.sender_name = "VikgNickName";
-            value.message_body = "\'МнеПлеватЙожики\'";
-            value.type = ImportantMessageType.CLAN_INVITE;
-            this.add_important_message(value);
-         }
-      }
-      
-      protected function test_important_messsage2() : void
-      {
-         this.remove_important_message(TEST_IMPORTANT_MESSAGE_ID);
-      }
-      
-      protected function test_quest_messsage(e:Event = null) : void
-      {
-         this.clear_quests();
-         trace("test_quest_messsage");
-         this.add_quest({
-            status:QuestStatus.OFFERED,
-            faction_id:Faction.SCAVENGERS,
-            quest_icon:0,
-            quest_label:"ex1TraQuestRRR",
-            text:"1Sil\'veple la mue de cuartassone vi sonne juperne \nel cracasson si\nnme fur majleminto.",
-            reward:[{
-               type:Reward.EXPERIENCE,
-               amount:1800
-            },{
-               type:Reward.REPUTATION,
-               amount:140,
-               param:Faction.SCAVENGERS
-            },{
-               type:Reward.MONEY,
-               amount:50,
-               param:2
-            }],
-            task:{
-               text:"Убить за бой 5 представителей бродяг",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            },
-            tasks:[{
-               text:"Вы должны быт одеты в экипировку Черного Рынка",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            time_limit:50
-         });
-         this.add_quest({
-            status:QuestStatus.OFFERED,
-            faction_id:Faction.BLACK_MARKET,
-            quest_icon:1,
-            quest_label:"Охота за головами",
-            text:"Нельзя сказать, что бродяги наши злейшие враги. Но, время от времени, их нужно ставить на место. Лучше всего это сделать на наглядном примере.",
-            reward:[{
-               type:Reward.REPUTATION,
-               amount:40,
-               param:Faction.SCAVENGERS
-            },{
-               type:Reward.EXPERIENCE,
-               amount:40
-            },{
-               type:Reward.MONEY,
-               amount:40,
-               param:2
-            }],
-            task:{
-               text:"Убить за бой 5 представителей бродяг",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            },
-            tasks:[{
-               text:"Убить за бой 5 представителей бродяг",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            },{
-               text:"Вы должны быт одеты в экипировку Черного Рынка",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            time_limit:60 * 120
-         });
-         this.add_quest({
-            status:QuestStatus.OFFERED,
-            faction_id:Faction.RENAISSANCE,
-            quest_icon:2,
-            quest_label:"ex3TraQuestRRR",
-            text:"sinme fur majleminto.",
-            reward:[{
-               type:Reward.EXPERIENCE,
-               amount:30
-            },{
-               type:Reward.REPUTATION,
-               amount:30,
-               param:Faction.SCAVENGERS
-            },{
-               type:Reward.MONEY,
-               amount:30,
-               param:2
-            }],
-            task:{
-               text:"*KILL BILL3",
-               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
-               progress:0,
-               amount:1
-            },
-            tasks:[{
-               text:"*aaaa bbbb fg df dfg dfg dfg fdg fdg dfg fg dfg dfgdf gd dfg dfgdf gdfg dfg dfg dfg d121 123 12312312",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            },{
-               text:"*vvvvv",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            time_limit:15
-         });
-         this.add_quest({
-            status:QuestStatus.OFFERED,
-            faction_id:Faction.RENAISSANCE,
-            quest_icon:3,
-            quest_label:"ex4TraQuestRRR%%%",
-            text:"4Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
-            reward:[{
-               type:Reward.EXPERIENCE,
-               amount:20,
-               param:0
-            },{
-               type:Reward.REPUTATION,
-               amount:20,
-               param:Faction.BLACK_MARKET
-            },{
-               type:Reward.MONEY,
-               amount:20,
-               param:2
-            }],
-            task:{
-               text:"*KILL BILL4",
-               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
-               progress:0,
-               amount:1
-            },
-            tasks:[{
-               text:"*KILL SRERE",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            time_limit:20
-         });
-         this.add_quest({
-            status:QuestStatus.OFFERED,
-            faction_id:Faction.RENAISSANCE,
-            quest_icon:4,
-            quest_label:"ex5TraQuestRRR",
-            text:"5Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
-            reward:[{
-               type:Reward.EXPERIENCE,
-               amount:10
-            },{
-               type:Reward.REPUTATION,
-               amount:10,
-               param:Faction.BLACK_MARKET
-            },{
-               type:Reward.MONEY,
-               amount:10,
-               param:2
-            },{
-               type:Reward.EXPERIENCE,
-               amount:10,
-               param:66
-            }],
-            task:{
-               text:"*KILL BILL5",
-               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
-               progress:0,
-               amount:1
-            },
-            tasks:[{
-               text:"*KILL BILL5",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            time_limit:30
-         });
-         this.add_quest({
-            status:QuestStatus.STATUS_1,
-            faction_id:Faction.BLACK_MARKET,
-            quest_icon:4,
-            quest_label:"ex5TraQuestRRR",
-            text:"5Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
-            reward:[{
-               type:Reward.EXPERIENCE,
-               amount:10
-            },{
-               type:Reward.REPUTATION,
-               amount:10,
-               param:Faction.BLACK_MARKET
-            },{
-               type:Reward.MONEY,
-               amount:10,
-               param:2
-            },{
-               type:Reward.EXPERIENCE,
-               amount:10,
-               param:66
-            }],
-            task:{
-               text:"*KILL BILL5",
-               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
-               progress:0,
-               amount:1
-            },
-            tasks:[{
-               text:"*KILL BILL5",
-               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
-               progress:0,
-               amount:2
-            }],
-            info:"WarningText",
-            time_limit:30
-         });
-      }
-      
-      protected function test_chat_messsage_add(e:Event = null) : void
-      {
-         this.add_chat_message({
-            type:ChatChannel.GENERAL,
-            text:"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
-            name:"leha",
-            color:"Blue"
-         });
-         this.add_chat_message({
-            type:ChatChannel.GENERAL,
-            text:"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
-            name:"[VG]leha"
-         });
-         this.add_chat_message({
-            type:ChatChannel.GENERAL,
-            text:"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
-            name:"[admin]leha"
-         });
-      }
-      
-      protected function test_chat_messsage_add_stop() : void
-      {
-         if(this.messageTimeOut != -1)
-         {
-            clearTimeout(this.messageTimeOut);
-            messageTimeOut = -1;
-         }
-      }
-      
-      protected function test_chat_messsage_second(e:Event = null) : void
-      {
-         var i:int = 4;
-         this.add_tab({
-            id:i + TEST_CHAT_TAB_ID,
-            name:"newOne" + i,
-            channel_to_send:ChatChannel.MATCH,
-            closable:false,
-            channels:[ChatChannel.MATCH,ChatChannel.TEAM_1,ChatChannel.TEAM_2]
-         });
-      }
-      
-      protected function test_chat_messsage(e:Event = null) : void
-      {
-         for(var i:uint = 0; i < 3; i++)
-         {
-            this.add_tab({
-               id:TEST_CHAT_TAB_ID,
-               name:"leha" + i,
-               channel_to_send:ChatChannel.MATCH,
-               closable:(i == 2 ? false : true),
-               channels:[ChatChannel.MATCH,ChatChannel.TEAM_1,ChatChannel.TEAM_2]
-            });
-         }
       }
       
       public function set_vouchers_data(value:Array) : void
@@ -3327,12 +2545,12 @@ package
       public function set_autobuy(value:uint) : void
       {
          trace("set_auto_buy::",value);
-         this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
+         this.player_profile.checkbox_autobuy.selected = (value & AUTO_BUY) != 0;
       }
       
-      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null, ownItemMenu:Boolean = false) : Boolean
+      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, origin:BuyOrigin, seller:int = -1, onComplete:Function = null) : Boolean
       {
-         trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " seller:" + seller);
+         trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " origin:" + origin + " seller:" + seller);
          var _obj:Object = new Object();
          var _descr:Object = this._itemDescriptor.getItemDescription(dict_uid);
          if(sourceSlot == ItemPlace.BUNDLE)
@@ -3342,8 +2560,7 @@ package
                icon:itemData.iconId,
                is_stack:itemData.isStack,
                sellers:itemData.sellers,
-               name:itemData.name,
-               is_premium:itemData.isPremium
+               name:itemData.name
             };
          }
          if(count != -1)
@@ -3352,11 +2569,10 @@ package
          }
          else
          {
-            _obj.count = int(((_descr.is_premium) ? PlayerInfo.premiumMoney : PlayerInfo.genericMoney) / price);
+            _obj.count = int(PlayerInfo.genericMoney / price);
          }
-         var lockedPremiumCost:uint = this.shop_list.getItemLockedCost(dict_uid);
          var icons:IconContainer;
-         _obj.price = (lockedPremiumCost) ? lockedPremiumCost : price;
+         _obj.price = price;
          _obj.seller = seller != Faction.ANY ? seller : this.shop_list.getItemSeller(dict_uid);
          _obj.faction = _obj.seller;
          _obj.sellers = _descr.sellers;
@@ -3370,7 +2586,8 @@ package
          {
             _obj.clip_size = _descr.clip_size;
          }
-         _obj.quick_slot_item_size = (_descr.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         _obj.quick_slot_item_size = QuickSlotSize.of(_descr);
+         _obj.pocket_units = PlayerInfo.pocketUnits(_descr.category,_obj.quick_slot_item_size);
          _obj.currentCount = this.inventory_list.getItemCount(dict_uid);
          var category:int = ItemFactory.getCategory(_descr.category);
          if(sourceSlot == ItemPlace.BUNDLE)
@@ -3422,7 +2639,6 @@ package
          _obj.icon = icon;
          _obj.sourceSlot = sourceSlot;
          _obj.targetSlot = targetSlot;
-         _obj.isPremium = lockedPremiumCost || _descr.is_premium;
          if(targetSlot != ItemPlace.INVENTORY)
          {
             _obj.onYes = this.relocate_to_paperdoll;
@@ -3432,12 +2648,11 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction). An item owned already,
-         // not a stack, is asked first (the shop, the card's Buy, a drop, the craft and attachment
-         // windows), but for Buy from the right-click menu of an item the player owns (ownItemMenu:
-         // ItemCard.buyFromOwnMenu), a wish for another. A bundle's id is no item's
-         // (docs/notes/items.md §6).
-         if(!ownItemMenu && !_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
+         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction), told where it was
+         // started. Only a buy started in the shop asks first about an item owned already, not a
+         // stack; one from the player's own items or the craft and attachment windows is a wish for
+         // another. A bundle's id is no item's (docs/notes/items.md §6).
+         if(origin == BuyOrigin.SHOP && !_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;
@@ -3481,7 +2696,7 @@ package
                   // move_items), the pocket as many of them as it takes; the rest stays in the
                   // inventory (docs/notes/items.md §8).
                   new_data.count = uint(relocate_object.condition_or_stack) + count;
-                  new_data.value = int(Math.min(new_data.count,value.quick_slot_item_size == QuickSlotSize.WHOLE ? 1 : PlayerInfo.pocketSize));
+                  new_data.value = int(Math.min(new_data.count,PlayerInfo.pocketUnits(new_data.category,value.quick_slot_item_size)));
                }
                else
                {
@@ -3624,6 +2839,13 @@ package
          this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms,base,limitSkills,packrat,spending19,spending67));
       }
       
+      // The selected kit's own player modifiers (the skills' sums), sent before each weight
+      // callback (client-patches/weight_ui_026g.c); a weapon card's Alt view adds them.
+      public function set_kit_modifiers(... values) : void
+      {
+         this.player_profile.setKitModifiers(KitModifiers.parse(values));
+      }
+      
       public function set_minimum_ammo(value1:uint, value2:uint) : void
       {
       }
@@ -3636,7 +2858,7 @@ package
       
       public function set_quick_slot_size(value:uint) : void
       {
-         PlayerInfo.pocketSize = value;
+         PlayerInfo.pocketSize = Math.min(PlayerInfo.MAX_POCKET_UNITS,value);
          this.player_profile.updatePocketSize(value);
       }
       
@@ -3644,7 +2866,8 @@ package
       {
          trace("fill_auto_buy_items::",value);
          this.player_profile.fillAutoBuyItems(value);
-         this.player_profile.checkbox_autobuy.selected = value.length != 0;
+         // The account setting comes from set_autobuy. An empty refill
+         // list must not untick it after the player enables autobuy again.
       }
       
       public function set_account_name(value:String) : void
@@ -3665,8 +2888,7 @@ package
       public function set_account_money(value:Object) : void
       {
          PlayerInfo.genericMoney = value.generic_money;
-         PlayerInfo.premiumMoney = value.premium_money;
-         this.statusPanel.setMoneyData(value.generic_money,value.premium_money);
+         this.statusPanel.setMoneyData(value.generic_money);
          this.inventory_list.onPlayerMoneyUpdate();
          this.clanWindow.createClanRenderer.updateClanCreationEnabled();
       }
@@ -3675,8 +2897,7 @@ package
       {
          PlayerInfo.nickname = value.nickname;
          PlayerInfo.genericMoney = value.generic_money;
-         PlayerInfo.premiumMoney = value.premium_money;
-         this.statusPanel.setMoneyData(value.generic_money,value.premium_money);
+         this.statusPanel.setMoneyData(value.generic_money);
          this.statusPanel.setPlayerName(value.nickname);
          this.inventory_list.onPlayerMoneyUpdate();
       }
@@ -3830,11 +3051,13 @@ package
       }
 
       // The one Esc handler (docs/notes/esc.md), from the exe and from handleInput, the same press
-      // handled once (_escapeHandled: handleInput takes the press's own key events). Esc first
-      // closes the top transient window (History, the match settings, a dropdown's list), then
-      // takes the keys from a text box (unless the right-click menu is open), then closes the
-      // topmost modal only: every modal (windows, popups, the Upgrade window, the rooms window,
-      // messages, the right-click menu...) enters Modals as it opens and leaves it as it closes.
+      // handled once (_escapeHandled: handleInput takes the press's own key events; the exe's next
+      // has_active_window, at the key's release, clears it). An Esc press only: nothing else calls
+      // it (the loading closes the top modal with Modals.escape). Esc first closes the top
+      // transient window (History, the match settings, a dropdown's list), then takes the keys from
+      // a text box (unless the right-click menu is open), then closes the topmost modal only: every
+      // modal (windows, popups, the Upgrade window, the rooms window, messages, the right-click
+      // menu...) enters Modals as it opens and leaves it as it closes.
       public function close_active_window() : void
       {
          _escapeHandled = true;
@@ -4000,30 +3223,6 @@ package
          }
       }
       
-      public function test_daily_reward_window() : void
-      {
-         var getDayRewardData:Function = function(value:int):Object
-         {
-            var dropData:Object = {
-               dict_id:(value == 2 ? 18 : 185),
-               condition_or_stack:100,
-               rarity_level:0
-            };
-            dropData.progress = value;
-            return dropData;
-         };
-         var tempDailyRewardData:Object = {
-            current_day:4,
-            reward:4,
-            reward_item:{
-               dict_id:46,
-               condition_or_stack:12
-            },
-            data:[getDayRewardData(1),getDayRewardData(2),getDayRewardData(3),getDayRewardData(2),getDayRewardData(0),getDayRewardData(0),getDayRewardData(2)]
-         };
-         this.set_daily_bonus_data(tempDailyRewardData);
-      }
-      
       public function set_daily_bonus_data(value:Object) : void
       {
          var progress:int;
@@ -4053,16 +3252,13 @@ package
          var itemsArray:Array = [];
          newData.data = itemsArray;
          newData.current_day = this._dailyBonusData.current_day;
-         newData.reward = this._dailyBonusData.reward;
          var messData:Array = this._dailyBonusData.data as Array;
          trace("messData::",messData.length);
          for(var i:uint = 0; i < messData.length; i++)
          {
-            var itemData:ItemData;
             var dropItem:Object;
             var dayData:Object;
             var dayIndex:int;
-            var rank:int;
             dropItem = messData[i];
             dayData = new Object();
             if(!dropItem)
@@ -4084,33 +3280,9 @@ package
             itemsArray.push(dayData);
          }
          newData.completed = this._dailyBonusData.completed;
-         trace("dailyBonusData.reward_item.dict_id",this._dailyBonusData.reward_item.dict_id);
-         if((this._dailyBonusData.reward_item.dict_id))
-         {
-            itemData = this.inventory_list.createItem(this._dailyBonusData.reward_item.dict_id);
-            if((this._dailyBonusData.reward_item.modifiers))
-            {
-               itemData.modifiers = (this._dailyBonusData.reward_item.modifiers as Array).concat(itemData.modifiersDefault);
-            }
-            itemData.value = this._dailyBonusData.reward_item.condition_or_stack;
-            rank = (this._dailyBonusData.reward_item.rarity_level);
-            itemData.rank = rank;
-            itemData.clipSize = 1;
-            this.inventory_list.fillModifiersDescription(itemData);
-            if((itemData.itemDescription && itemData.superCategory == SuperCategory.UPGRADES) && (itemData.category != ItemCategory.GENERIC_MONEY) && itemData.category != ItemCategory.PREMIUM_MONEY)
-            {
-               itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.itemDescription;
-            }
-            else
-            {
-               itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.modifiersDescription;
-            }
-         }
-         else
-         {
-            itemData = null;
-         }
-         newData.itemData = itemData;
+         // The run's 7th-day reward is gone (the owner, 2026-11-08: "I know there are also gold rewards
+         // after 7 consequtive days, I would just remove that part"): the server sends an empty one
+         // (silver x 0, which the exe needs), and the window shows no reward.
          Message.showMessage("daily_reward",newData);
       }
       
@@ -4263,10 +3435,9 @@ package
          }
       }
       
+      // The game still hands the lobby the upgrade's gold prices (0x9B, all 0): there is no gold.
       public function setup_item_craft_prices_premium(value:Array) : void
       {
-         trace("setup_item_craft_prices_premium",value);
-         MessageCraftItem.setCraftPremiumCost(value);
       }
       
       public function setup_item_craft_prices_general(value:Array) : void
@@ -4280,15 +3451,16 @@ package
          MessageCraftItem.setCraftRegularCost([cost]);
       }
       
+      // The upgrade's gold price, which the game still hands over: there is no gold.
       public function set_craft_premium_cost(cost:uint) : void
       {
-         MessageCraftItem.setCraftPremiumCost([cost]);
       }
       
+      // The upgrade's chances (0x9B), which the exe still hands over: an upgrade always succeeds and its
+      // window shows no chances (the owner, 2026-11-08: "make it 100% always", "remove the text
+      // completely"), so nothing reads them.
       public function setup_item_craft_chances(value:Array) : void
       {
-         trace("setup_item_craft_chances",value);
-         MessageCraftItem.setCraftChances(value);
       }
       
       public function update_inventory_item(value:Object) : void
@@ -4501,11 +3673,6 @@ package
       {
       }
       
-      private function test_clan_widow() : void
-      {
-         this.set_clan_progress(500,2500,517,10,2);
-      }
-      
       public function set_clan_name(name:String, abb:String) : void
       {
          this.clanWindow.setClanName(name,abb);
@@ -4647,14 +3814,16 @@ package
             value.label = Util.styledChar(LocalizationData.getName("level") + " " + value.skill_level + " ","highlight") + LocalizationData.getName("achieved");
             value.hideTimer = 15000;
             value.notificationType = NotificationType.PLAYER_RANK;
-            value.reward = [{
+            // Silver, when the level pays any (no gold: MessagePlayerRank), and the skill point.
+            value.reward = value.reward_amount > 0 ? [{
                type:Reward.MONEY,
                amount:value.reward_amount,
-               param:value.reward_id
-            },{
+               param:MoneyType.REGULAR
+            }] : [];
+            value.reward.push({
                type:Reward.POINT,
                amount:1
-            }];
+            });
             this.add_notification(value);
             mess = Message.showMessage("message_unlock_level",value,false);
             mess.addEventListener(Event.OPEN,this.openCharItem,false,0,true);
@@ -4772,11 +3941,6 @@ package
          this.friendsMenu.setPlayers(value,false);
       }
       
-      protected function test_friends_list() : void
-      {
-         this.set_friends_list(this._friends);
-      }
-      
       public function set_friends_list(value:Array) : void
       {
          _friends = value;
@@ -4799,7 +3963,9 @@ package
       public function fill_skills(value:Array) : void
       {
          trace("root.fill_skills");
+         PlayerInfo.medicalSkills(value);
          this.charWindow.fillSkills(value);
+         this.player_profile.updatePocketSize(PlayerInfo.pocketSize);
       }
       
       public function set_achievements(value:Array) : void
@@ -4835,10 +4001,10 @@ package
          this.charWindow.setData(value);
       }
       
+      // The skills reset's silver and gold prices, which the game still hands over (0x8D): both 0, a
+      // reset is free and asks nothing (the owner, 2026-11-08), so nothing reads them.
       public function set_reroll_cost(value:uint, value_prem:uint = 0) : void
       {
-         this.charWindow.reroll_cost = value;
-         this.charWindow.reroll_cost_premium = value_prem;
       }
       
       public function set_change_name_properties(delay:uint, failed_delay:uint) : void
@@ -4849,7 +4015,7 @@ package
       
       public function set_change_name_cost(value:uint) : void
       {
-         this.statusPanel.changeNameCostPremium = value;
+         this.statusPanel.changeNameCost = value;
       }
       
       public function show_quest_selector(value:Array) : void
@@ -5066,7 +4232,10 @@ package
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
          // the match loads: the transient windows close (the loading screen is under their layer),
-         // the message up goes (closed, not answered as Esc would), else the top modal closes
+         // the message up goes (closed, not answered as Esc would), else the top modal closes. Not
+         // through close_active_window: that is an Esc press, and its _escapeHandled would outlive
+         // the match (the exe asks has_active_window only in the lobby) and answer the first Esc
+         // back in the lobby with false, opening the game's menu over the results.
          Transient.closeAll();
          if(Message.isAnyMessage() != -1)
          {
@@ -5074,7 +4243,7 @@ package
          }
          else
          {
-            this.close_active_window();
+            Modals.escape();
          }
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
       }
@@ -5702,45 +4871,6 @@ package
          Modals.leave(this._lobbyWindow);
       }
 
-      private function test_clan_mamngment() : void
-      {
-         var createPermission:Function = function(value:String = null):Object
-         {
-            var object:Object = {
-               name:value,
-               invite_permission:true,
-               kick_permission:true,
-               change_rank_permission:false,
-               daily_message_permission:true
-            };
-            return object;
-         };
-         this.clanWindow.setState(ClanState.OVERVIEW);
-         this.set_clan_daily_message("some Very Awful Daily Message\nsecond line text");
-         this.set_clan_ranks([createPermission("RankZero"),createPermission("Rank2"),createPermission("Rank3"),createPermission("Rank4")]);
-         this.set_clan_manage_permissions(createPermission());
-         this.set_clan_name("superClanName","SCN");
-         var players:Array = [];
-         players.push({
-            name:"Гиганский кролик",
-            label:"Status",
-            status:0,
-            rank:"Рядовой",
-            level:23
-         });
-         for(var i:uint = 0; i < 10; i++)
-         {
-            players.push({
-               name:"Member" + i.toString(),
-               label:"Status",
-               status:0,
-               rank:"Рядовой",
-               level:1
-            });
-         }
-         this.set_clan_players_list(players);
-      }
-      
       private function toggleFriends(e:Event) : void
       {
          trace("toggleFriends::",e.target);
@@ -5860,6 +4990,10 @@ package
          {
             MainScene.isCtrl = true;
          }
+         if(e.keyCode == KeyCode.LEFT_ALT || e.keyCode == KeyCode.RIGHT_ALT)
+         {
+            MainScene.isAlt = true;
+         }
          if(e.keyCode == Keyboard.R || e.keyCode == Keyboard.ENTER)
          {
             this.lobbyKey(e);
@@ -5911,63 +5045,6 @@ package
          {
             play.dispatchEvent(new ButtonEvent(ButtonEvent.CLICK));
          }
-      }
-      
-      private function test_bandle_data() : void
-      {
-         var arr:Array = [];
-         arr.push({
-            bundle_id:666,
-            bundle_name:"666",
-            bundle_descr:"descr 666 is 666",
-            cost:666,
-            currency_type:MoneyType.PREMIUM,
-            bundle_icon:1
-         });
-         arr.push({
-            bundle_id:555,
-            bundle_name:"555",
-            bundle_descr:"descr 555 is 555",
-            cost:555,
-            currency_type:MoneyType.REGULAR,
-            bundle_icon:0
-         });
-         this.setup_bundle_data(arr);
-      }
-      
-      private function testTRewards() : void
-      {
-         this.set_tutorial_rewards([{
-            name:"tutorial_completed",
-            reward:[{
-               type:Reward.ITEM,
-               param:ItemDictId.GENERIC_MONEY,
-               amount:100
-            },{
-               type:Reward.EXPERIENCE,
-               amount:5
-            }]
-         },{
-            name:"survival_item_notes_completed",
-            reward:[{
-               type:Reward.ITEM,
-               param:ItemDictId.GENERIC_MONEY,
-               amount:200
-            },{
-               type:Reward.EXPERIENCE,
-               amount:5
-            }]
-         },{
-            name:"survival_prepare_to_battle_notes_completed",
-            reward:[{
-               type:Reward.ITEM,
-               param:ItemDictId.GENERIC_MONEY,
-               amount:300
-            },{
-               type:Reward.EXPERIENCE,
-               amount:5
-            }]
-         }]);
       }
       
       public function show_premium_discount(dataObject:Object) : void
@@ -6058,6 +5135,10 @@ package
          {
             MainScene.isCtrl = false;
          }
+         if(e.keyCode == KeyCode.LEFT_ALT || e.keyCode == KeyCode.RIGHT_ALT)
+         {
+            MainScene.isAlt = false;
+         }
          if(e.keyCode == this._lobbyKeyDown)
          {
             _lobbyKeyDown = 0;
@@ -6091,6 +5172,7 @@ package
       {
          MainScene.isShift = false;
          MainScene.isCtrl = false;
+         MainScene.isAlt = false;
       }
       
       public function allow_use_two_double_handed_weapons(boolean:Boolean) : void
@@ -6302,7 +5384,9 @@ package
       
       // The rooms window while open: over the side panels (the lobby adds
       // them again over it, and their hidden areas then take its clicks);
-      // the chat stays over it (the owner's of 2026-10-19).
+      // the chat stays over it (the owner's of 2026-10-19), and so do the
+      // notifications that come up by themselves (notificationListTemp: a
+      // match's report after the results, the owner's of 2026-11-07).
       public function layerRoomsWindow(window:DisplayObject) : void
       {
          survarium.rooms.RoomLayers.belowResults(window,this.victory_screen,this._back_back);
@@ -6317,9 +5401,14 @@ package
                setChildIndex(panel,getChildIndex(window));
             }
          }
-         if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))
+         var above:Array = [this.chat,this.notificationListTemp];
+         for(i = 0; i < above.length; i++)
          {
-            setChildIndex(this.chat,getChildIndex(window));
+            var over:DisplayObject = above[i] as DisplayObject;
+            if(over != null && over.parent == this && getChildIndex(over) < getChildIndex(window))
+            {
+               setChildIndex(over,getChildIndex(window));
+            }
          }
       }
       

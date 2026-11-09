@@ -88,8 +88,8 @@ pub(super) struct Player<'a> {
     /// The squad info (0xA1 body) the client has, and its send.
     pub squad_sent: Option<Vec<u8>>,
     pub squad_serial: Option<u64>,
-    /// The balance the client has.
-    pub money_sent: (u32, u32),
+    /// The silver the client has.
+    pub money_sent: u32,
     /// The count of ranked players the client's ranking page has.
     pub ranked_sent: u32,
     /// The ranking pages it was sent, newest last, as (the index of the
@@ -232,15 +232,14 @@ pub(super) struct Core<'a> {
     pub replays: Option<&'a Replays>,
     /// The rooms (`rooms`).
     pub rooms: session::v026g::rooms::Rooms,
-    /// The room matches being made, by the queue's match id: the map their
-    /// vote chose, the room's minimum of players and whether the room has a
-    /// PIN (its match pays nothing) (`rooms`, `play::launch`).
-    pub room_launching: HashMap<u32, (u8, u8, bool)>,
+    /// The room matches being made, by the queue's match id (`rooms`,
+    /// `play::launch`).
+    pub room_launching: HashMap<u32, super::rooms::RoomLaunch>,
     /// Why a request or a Play left the account outside a room, said once
     /// with its next room state (`rooms`).
     pub room_codes: HashMap<u32, survarium::v026g::lobby::rooms::RoomCode>,
     /// When a member who came while its room's match is played goes into
-    /// it (`rooms::LATE_JOIN_WAIT` after it came, or at once on its ask).
+    /// it (`RoomRules::late_join_wait` after it came, or at once on its ask).
     pub room_join_at: HashMap<u32, Instant>,
     /// Each member's room at the last tick: who came and went is said in
     /// the room's chat (`room_chat`).
@@ -397,7 +396,7 @@ impl<'a> Core<'a> {
             let account = who.account.locked();
             (
                 wire::after_change(&account, quests::now()),
-                (account.generic_money, account.premium_money),
+                account.generic_money,
             )
         };
         self.accounts.mark_dirty(who.account_id);
@@ -609,7 +608,7 @@ impl<'a> Core<'a> {
             // The account is seen today: its run of days for the daily
             // bonus is brought up to the day before the pushes.
             if !bot {
-                bonus::visit(&mut game, unix, &mut self.rng);
+                bonus::visit(&mut game, unix);
             }
             let notices = quests::refresh(&mut game, unix, &mut self.rng);
             // A new account's first quests are part of its start: in its
@@ -638,7 +637,7 @@ impl<'a> Core<'a> {
             };
             (
                 wire::sign_in_push(&game, &info),
-                (game.generic_money, game.premium_money),
+                game.generic_money,
             )
         };
         let mut push = match push {
@@ -955,10 +954,7 @@ impl<'a> Core<'a> {
             let Some(player) = self.player(addr) else {
                 continue;
             };
-            let balance = {
-                let account = player.account.locked();
-                (account.generic_money, account.premium_money)
-            };
+            let balance = player.account.locked().generic_money;
             // Somebody registered: the ranking page asks for rows by the
             // count it has, so it is told the new one before it is opened
             // (`8F` stores it, the `9D` after it hands it to the page;
@@ -986,7 +982,7 @@ impl<'a> Core<'a> {
                 .is_none_or(|at| now.saturating_duration_since(at) >= ONLINE_STATS_EVERY);
             // The web page, or a match's rewards, changed the balance.
             if balance != money_sent {
-                self.send(addr, lobby::money(balance.0, balance.1));
+                self.send(addr, lobby::money(balance));
             }
             if online != online_sent || stats_due {
                 self.send(addr, lobby::online_stats(online.0, online.1, online.2));
@@ -999,10 +995,6 @@ impl<'a> Core<'a> {
                 }
             }
             self.friend_statuses(addr);
-            // A repair that is over (`items`).
-            if let Some(who) = self.who(addr) {
-                self.item_timers(&who);
-            }
             // A match that ended after its player had left it.
             let in_lobby = self
                 .player(addr)

@@ -33,6 +33,7 @@ survarium::inventory	slots	0x10C	obj<survarium::inventory_slot>	its 23 slots' it
 survarium::item	weight	0x218	f32	its weight a piece, kg (update_weight 0x2FC740)
 survarium::item	entry	0x25C	ptr<survarium::item_entry>	its dictionary entry (update_weight 0x2FC71C)
 survarium::item	count	0x260	u16	a stack's count (update_weight 0x2FC72B)
+survarium::item	condition	0x260	f32	a non-stack item's condition, 0..1 (weapon_core::serialize's item header m_condition; inventory::unload_to_profile 0x2FD375 reads it as weapon+270h): where a stack has its count
 survarium::item_entry	stack	0x22A	u8	set: the item is a stack (update_weight 0x2FC722)
 survarium::bullet	id	0x4	u32	its id (add_shootmark's key; the ctor 0x32BA6F)
 survarium::bullet	shooter	0x8	ptr<survarium::bullet_owner>	its shooter (0: none; +4 the place; process_front_face_piercing 0x32E547)
@@ -67,6 +68,7 @@ survarium::inventory	slots_end	0x168	obj<survarium::inventory_slot>	the slots' e
 survarium::inventory_slot	item	0x0	ptr<survarium::item>	the slot's item (0: empty; inventory::update_weight 0x2FC6E0)
 survarium::inventory_slot	size	0x4	size	a slot is the item's pointer: update_weight's loop steps 4 (0x2FC6E0)
 survarium::ammo_data	muzzle_speed	0x3C	f32	the ammo config's data.muzzle_speed, m/s (ammo_data::load 0x332440): with the mass, the ammo's identity in the trace
+survarium::ammo_data	damage_type	0x4C	u32	the ammo config's data.damage_type, hit_type_enum (ammo_data::load 0x332725, 0 ranged when absent: every round); a weapon's melee/data says blunt (1), the bullet of a gun-stock hit
 survarium::player	game_world	0xF474	ptr<survarium::game_world>	its game world (mt_draw 0x2477E8: +9Ch its game, for the renderer)
 survarium::game	renderer	0x5360	ptr<vostok::render::game::renderer>	the game's vostok::render::game::renderer (mt_draw 0x2477FE)
 vostok::render::game::renderer	scene_renderer	0x200064	ptr<vostok::render::scene_renderer>	its scene renderer (the ctor 0x1F310 writes it at 0x1F3CE; update_skeleton's EDI at mt_draw 0x247804)
@@ -209,6 +211,9 @@ survarium::weapon	model	0x1810	ptr<survarium::scene_model>	client weapon render 
 survarium::weapon	world	0x180C	ptr<survarium::game_world>	client world, on_hide 0x243FB6
 survarium::weapon	transform	0x660	f32	world model matrix, scope scene add 0x244BA9
 survarium::weapon_hide_frame	was_visible	0x4	u8	weapon on_hide entry boolean; false performs no scene operation
+survarium::weapon	scope_locator	0x744	obj<survarium::weapon_locator>	the scope's locator (calculate_locator's first argument for the scope: weapon::draw 0x244E87, its result kept at +660h, the scope's model placed there 0x244FEF..0x245012)
+survarium::weapon_locator	bone	0x60	u16	the bone it hangs on (the bones' index; FFFFh none), calculate_locator 0x243C01
+survarium::weapon_locator	offset	0x20	f32	its place on that bone, a row-vector 4x4 (calculate_locator 0x243C25)
 survarium::weapon	optics	0x1808	ptr<survarium::weapon_optics>	optional optics object, mt_draw 0x244F66
 survarium::weapon_optics	model	0x108	ptr<survarium::scene_model>	normal optics model holder, 0x244FF7
 survarium::weapon_optics	aim_model	0x10C	ptr<survarium::scene_model>	aimed optics model holder, 0x244FE1
@@ -262,11 +267,15 @@ vostok::float4x4	value	0x0	f32	the first of its 16 f32, a row-vector 4x4 (a worl
 vostok::float4x4	size	0x40	size	16 f32
 survarium::scene_model	references	0xD0	u32	a model holder the scene renderer takes (weapons, optics, artefacts, the held flower): unmanaged resource reference count
 survarium::scene_model	render_instance	0x108	obj<vostok::render::scene_model_ref>	its render reference, what add/update/remove_model take (0x244EDB)
+survarium::scene_model	skinned	0x108	obj<vostok::render::render_model_instance>	the same reference as update_skeleton takes it (weapon::draw 0x244F4E..0x244F5A: &[weapon+1810h]+108h)
 vostok::render::scene_model_ref	instance	0x0	ptr<vostok::render::model_instance>	the retained render model instance
 vostok::render::model_instance	in_scene	0x10D	u8	renderer add/remove bookkeeping, 0x244EE7
+vostok::render::model_instance	foreground	0x114	u8	drawn in the first-person pass, after the world and over it (weapon::set_foreground 0x243D40 for the gun, its optic's two models; weapon::on_show 0x243F63 sets it to [user+0F4E1h] == 0); 0: a world model
+vostok::render::model_instance	movable	0x115	u8	a movable model (weapon::set_movable_static 0x243CB0, 1 at every on_show 0x243F6A)
 vostok::render::model_instance	static_model	0x0	obj<vostok::static_model_instance>	only for the artefact cooks' and the held flower's models, which are static (native artefact cooks)
 survarium::artefact_container_core	world_core	0x54	ptr<survarium::core_world>	its world's core: use_execute 0x31C838 reads the statistics handler from it
 survarium::core_world	statistics	0x18FA8	ptr<survarium::base_game_statistics_handler>	the statistics handler, set by its start_match (0x26D8E7), 0 before and after; use_execute counts a taken artefact through it (0x31C83B)
+survarium::core_world	time_state	0x18FE4	u32	the time rule's state: 1 waiting, 2 the countdown, 3 in process (written at each change, 0x317EFC / 0x318291 / 0x31816B, and by deserialize 0x318025)
 survarium::base_game_statistics_handler	shared	0x8	obj<survarium::shared_statistics>	its shared statistics, what the world holds (the slot +10h thunk 0x26DAC0: lea edx,[ecx+8])
 survarium::shared_statistics	players	0x0	obj<survarium::player_shared_statistics>	the 20 places' records (finish_match 0x2F4D25: place x 1F8h)
 survarium::player_shared_statistics	events	0x0	obj<survarium::event_count>	events[28][3]: an event's three kits' counts, kit k of event e the (3e + k)th (0x2F5606: event 5 at +1Eh + kit x 2)
@@ -357,7 +366,7 @@ vostok::input::key_state	size	0x4	size	a key's state is a u32 (is_key_down 0x3B8
 survarium::image	keyboard_vtable	0xA25478	u32	vostok::input::platform::keyboard's vtable (its ctor 0x3B8BDC writes it; slot 0 is_key_down 0x3B8D00)
 vostok::mutable_buffer	begin	0x4	ptr<u8>	a growable buffer of bytes {allocator, begin, capacity, size} (mutable_buffer::resize 0x7AB30 reads +8h, writes +0Ch; with a null allocator reallocate 0x7AB70 asserts): the first byte
 vostok::mutable_buffer	size	0xC	u32	the bytes used, from begin
-survarium::dynamic_info_frame	unpacked	-0x24	obj<vostok::mutable_buffer>	process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0x8000 stack bytes it takes at 0x27C05E, its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
+survarium::dynamic_info_frame	unpacked	-0x24	obj<vostok::mutable_buffer>	process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0xF000 stack bytes it takes at 0x27C05E (0x8000 in the original exe; patch 98), its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
 survarium::translate_query_frame	upgrades	0x40	ptr<survarium::upgrade_records>	item_config_cook::translate_query's [ebp+40h]: the item's upgrades' buffer_vector (0x2F2060 copies the query's +10h there), read at 0x2F1799 (the records' count) and 0x2F18D0 (each record) only
 survarium::translate_query_frame	dictionary	0x44	ptr<survarium::items_dictionary>	[ebp+44h]: the items dictionary each record's dict id is looked up in (0x2F18E0, item_by_id 0x1F0090; a null entry is read at 0x2F18ED)
 survarium::items_dictionary	entries	0x130	ptr<survarium::item_entry>	the entries, 3A0h bytes each (item_by_id 0x1F0090; +0 the u16 dict id, 0x1F00D4)
@@ -427,7 +436,7 @@ vostok::resources::queries_result	emitter	0x12C	ptr<vostok::sound::sound_emitter
 survarium::image	scene_params_helper	0x9FC7C0	u32	concrete_type_helper<sound_scene_creation_params>'s vtable (its copy_helper 0x1FA690), the variant helper of a sound scene's request (lobby_menu::query_resources 0x21E559)
 survarium::image	game_allocator	0x1F1D9C4	obj<survarium::allocator_slot>	the game's allocator's slot (the lobby's query 0x21E5D6, the late join's)
 survarium::image	ai_allocator	0x1F1DA44	obj<survarium::allocator_slot>	the ai arena's slot (patch 36's 4 MiB arena "ai", the static initializer 0x1E8B50 registers it with 0xE21C0)
-survarium::image	render_allocator	0x1F1D960	u32	the render's allocator global (set at 0x13C61; read by the render's resource code 0x1F00B..0x1F3C3)
+survarium::image	render_allocator	0x1F1D960	obj<survarium::allocator_slot>	the render's allocator's slot (set at 0x13C61; read by the render's resource code 0x1F00B..0x1F3C3; a baked texture resource's 108h bytes come from it, mov esi,[0x1F1D960] before 0xE4F90, 0x12F184 and 0x12DDA9)
 survarium::allocator_slot	allocator	0x0	ptr<vostok::memory::game_allocator>	the allocator (a doug_lea_allocator: query_resources' allocator, the late join's)
 vostok::engine_cfg	text	0x0	ptr<u8>	a text node's (type 5) string, its offset relocated to an address by the loader as a table's children (the count +16h its bytes with the zero)
 vostok::sound::sound_instance_proxy	references	0x28	u32	its references, not atomic (single_threading_policy: intrusive_ptr::dec 0x56807; at 0 free_object 0x5B390)
@@ -436,22 +445,24 @@ vostok::console_commands::cc_float	vtable	0x0	u32	its vtable: CC_FLOAT_VTABLE, w
 vostok::console_commands::cc_float	least	0x44	f32	the least value its setter (0xECB70, vtable slot 1) stores; a value out of range or not a float stores this
 vostok::console_commands::cc_float	most	0x48	f32	the most value its setter stores
 vostok::console_commands::image	cc_float_vtable	0x9E7C6C	u32	cc_float's vtable (s_general_volume 0x84D48D, uro_fov; its setter 0xECB70: sscanf "%f", stored within [+44h, +48h])
+vostok::console_commands::cc_float	value	0x40	ptr<f32>	the value's address (the registration's; uro_fov's 0xA6FA28)
+vostok::console_commands::image	uro_fov	0xAA6510	obj<vostok::console_commands::cc_float>	uro_fov's console variable, saved in user.cfg (its static initializer 0x85ADF0: the value 0xA6FA28, 65.0; the least 50.0 by patch 22, the most 100): patch 22's projection reads the value, patch 83's Gameplay slider sets it
 vostok::resources::query_user_data	variant	0x0	ptr<vostok::sound::scene_params_variant>	a request's user data: its variant, or 0 (query_resources' third stack argument, one pointer a request: the lobby's array at its [ebp-40h], on_mounted_resources' 0x14846)
 vostok::resources::query_user_data	size	0x4	size	one request's user data pointer
 vostok::sound::sound_scene	listener_set	0x2FA	u8	its listener's position is set (set_listener_properties 0x587E0): only then its tick (0x57C9C) lets notify_listener 0x5C280 give its sounds voices
 survarium::hit_info	kind	0x1C	u32	the hit type, hit_type_enum (survarium::hit_type 0x304370 indexes the names at 0x9257E0: 0 ranged, 1 blunt, 2 slash, 3 explosive, 4 toxic, 5 radiation, 6 fire, 7 shock); hit_info::hit_info 0x32BA0E; a bullet's is its ammo_data +4Ch (damage_type, 0 when the config has none: ammo_data::load 0x332725), try_pierce 0x32D9FD
 survarium::hit_info	time	0x3C	u32	the hit's simulation milliseconds (hit_info::hit_info 0x32BA4F, a bullet's +60h from try_pierce 0x32DA33; generate_killed_event's time 0x2D9F0E)
 survarium::medkit	influences	0x288	u8	data/influences' count, the pools it heals (medkit::tick's loop 0x33D8BB; 0 for the painkiller, which only protects)
-survarium::inventory_recipe	profile	0x0	u32	the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
+survarium::inventory_recipe	profile	0x0	ptr<survarium::player_profile>	the profile the inventory is cooked from (translate_query 0x2C72F3 reads its kit's slots)
 survarium::inventory_recipe	kit	0x4	u8	the kit (0x2C72E3)
-survarium::inventory_recipe	dictionary	0x8	u32	the items dictionary (0x202866)
-survarium::inventory_recipe	physics_world	0xC	u32	the physics world (0x20286F; armour items only, 0x2C7102)
-survarium::inventory_recipe	game_world	0x10	u32	the game world (0x202878; the weapon recipes' world, 0x2C735C)
+survarium::inventory_recipe	dictionary	0x8	ptr<survarium::items_dictionary>	the items dictionary (0x202866)
+survarium::inventory_recipe	physics_world	0xC	ptr<survarium::spatial_tree>	the physics world (0x20286F; armour items only, 0x2C7102)
+survarium::inventory_recipe	game_world	0x10	ptr<survarium::game_world>	the game world (0x202878; the weapon recipes' world, 0x2C735C)
 survarium::inventory_recipe	match_seed	0x14	u32	the match seed, options+577B0h (0x2028A6)
 survarium::inventory_recipe	flag	0x18	u8	the stage's +B1h (0x202882)
 survarium::inventory_recipe	size	0x1C	size	1Ch bytes (the allocation at 0x20281C)
-survarium::inventory_variant	recipe	0x8	u32	the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
-survarium::inventory_variant	this	0x28	u32	the variant's own address (0x2028CE; the query copies the user data by it)
+survarium::inventory_variant	recipe	0x8	ptr<survarium::inventory_recipe>	the recipe (0x2028DA; translate_query 0x2C7273 reads the user data, then its +8)
+survarium::inventory_variant	this	0x28	ptr<survarium::inventory_variant>	the variant's own address (0x2028CE; the query copies the user data by it)
 survarium::inventory_variant	size	0x30	size	30h bytes, vtable 0x9FD808 at +0 (destroy +4 a bare ret 4, 0x75AF0: it owns nothing)
 vostok::resources::queries_result	results	0x12C	obj<vostok::query_result>	the first result; the player cook reads results 0..4 at +12Ch, +40Ch, +6ECh, +9CCh, +0CACh, nine more from +0F8Ch (0x2030C8..0x20318F) and with +B1h one at +296Ch: never one past those
 vostok::query_result	inventory	0x0	ptr<survarium::inventory>	the result's resource, here an inventory (class 41h; late join's query_completed reads players the same way, 0x2E0 apart)
@@ -467,11 +478,13 @@ survarium::player_profile	size	0x4634	size	a profile: player_profile::player_pro
 survarium::inventory_variant	vtable	0x0	u32	its vtable, 0x9FD808 (0x2028E0)
 survarium::inventory_variant	type_id	0x2C	u32	the recipe type's variant id, type_to_int<inventory_cooker_data *> 0x205C60 (0x2028BA)
 survarium::item	inventory_item	0x10	obj<survarium::item>	an active object's inventory item: a weapon's inventory slot holds the held item (+128h, the active object) + 10h (weapon_pickup.md)
-survarium::game	dictionary	0x53A4	u32	the items dictionary (the player cook's recipe +8: 0x2025F1..0x202866; late join's query_context passes it)
+survarium::game	dictionary	0x53A4	ptr<survarium::items_dictionary>	the items dictionary (the player cook's recipe +8: 0x2025F1..0x202866; late join's query_context passes it)
 survarium::game_world	pvp_match	0x4D4C	ptr<survarium::pvp_match>	the match's core wrapper (game_world::tick 0x1F789D; its +1F8h the world core game_world_core::move is given, 0x1F7C2F)
-survarium::pvp_match	spatial_tree	0x130	u32	the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
+survarium::pvp_match	spatial_tree	0x130	ptr<survarium::spatial_tree>	the spatial tree, the player cook's recipe +0Ch (late join's query_context; its constructor 0x2D567B)
 survarium::pvp_match	core	0x1F8	obj<survarium::core_world>	the world core (game_world_core::move's argument, 0x1F7C2F; network_client::on_idle 0x27D084)
 survarium::match_options	seed	0x577B0	u32	the match seed: the inventory recipe's +14h (0x20289E)
+survarium::match_options	map	0x577B4	u8	the match's maps_dict id (its map and mode): match_options::deserialize 0x1F0EAD, the byte after the 20 profiles
+survarium::match_options	level	0x577B6	u16	the match's level: match_options::deserialize 0x1F0EDC, after the seed
 survarium::image	inventory_request	0x9FD55C	u32	"inventory", the path of the player cook's inventory request (class 41h, 0x2028ED)
 survarium::image	inventory_variant_vtable	0x9FD808	u32	the inventory request's user data vtable (0x2028E0; destroy +4 a bare ret 4)
 vostok::query_callback	size	0x20	size	a boost::function<void (queries_result &)>: +0 its manager | 1, +8 the functor {member, adjustment, object, padding} (0x27D280); late join keeps 20h for one
@@ -479,11 +492,28 @@ survarium::player	pending_item	0x12C	ptr<survarium::item>	the active object to s
 survarium::player	animation	0x750	u32	its animation player (forget_active_object's EAX, the switch 0x2D76E5)
 survarium::core_world	objects	0x18B4C	ptr<survarium::inventory_slot>	the active objects by registry id (a buffer_vector's begin: bind_to_game_core 0x2E3102 appends; base_player::deserialize resolves held 0x2DB644)
 survarium::core_world	objects_end	0x18B50	ptr<survarium::inventory_slot>	the registry's end (a buffer_vector's: bind_to_game_core 0x2E3112 and the victory items' 0x313F90 append there; capacity +18B54h = begin+3FCh, 255 ids; the constructor 0x2CFFFA, the destructor's reset 0x2D0336)
+survarium::core_world	places	0x18458	ptr<survarium::core_place>	the match's places (a vector's begin, 30h a place: core_active_player 0x2D0AED; the late join's install appends one, late_join_install_026g.c)
+survarium::core_world	places_end	0x1845C	ptr<survarium::core_place>	the places' end (core_active_player 0x2D0AB0 bounds the place by it)
+survarium::core_world	active_places	0x18FD8	u32	the places in the world, a bit each (core_active_player 0x2D0AD4 refuses a place without it: a departed one)
+survarium::core_place	kit0	0x0	ptr<survarium::player>	the place's kit 0 player (core_active_player reads [place + kit x 4], kit +0Ch); kept when the place's player leaves
+survarium::core_place	kit1	0x4	ptr<survarium::player>	the place's kit 1 player
+survarium::core_place	kit2	0x8	ptr<survarium::player>	the place's kit 2 player
+survarium::core_place	size	0x30	size	a place's entry: 30h bytes (core_active_player 0x2D0AE7)
 survarium::item	active_object	-0x10	obj<survarium::item>	a weapon's inventory item's active object (a weapon slot holds active+10h): only for an item known to be a weapon's
 survarium::weapon	core	0x4	ptr<survarium::core_world>	the bound world core (bind_to_game_core 0x2E3117); a cooked gun has none
 survarium::weapon	registry_id	0xC	u8	its index in core+18B4Ch (bind_to_game_core 0x2E311F; the held/pending ids serialized 0x2DB626)
 survarium::weapon	retained_ammo	0x538	ptr<survarium::item>	the retained ammunition stack (initialize 2E2A99..2E2ABA; load_magazine 2E17D0)
-survarium::weapon	bullet_manager	0x5A0	u32	the bullet manager (set by 0x2D7570 for roster weapons; instant_fire passes it to emit_bullet 0x322830)
+survarium::weapon	bullet_manager	0x5A0	ptr<survarium::bullet_manager>	the bullet manager (set by 0x2D7570 for roster weapons; instant_fire passes it to emit_bullet 0x322830)
+survarium::weapon	last_tick	0x5A4	u32	m_last_tick_time_in_ms, -1 at every spawn (patch_026g.py KIT_STATE_TICK_FIELD; serialized 0x2E3130)
+survarium::weapon	ammo_switch_time	0x5A8	u32	m_ammo_switch_time_in_ms, -1 at a spawn into another kit (KIT_STATE_FIELDS)
+survarium::weapon	next_ammo	0x5B2	u8	m_next_ammo_id, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+survarium::weapon	random_state	0x5BC	u32	the spread's minstd_rand (constructor 0x2DF429 stores 1; client_patch.md 3.18, set at each spawn from place, kit, slot and time)
+survarium::weapon	fire_queue	0x5E6	u8	m_fire_queue_type, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+survarium::weapon	aimed	0x5E8	u8	m_aimed, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+survarium::weapon	state_5ec	0x5EC	u32	6 at a spawn into another kit (KIT_STATE_FIELDS; serialized as a byte)
+survarium::weapon	auto_reload	0x5F5	u8	m_need_to_auto_reload, 0 at a spawn into another kit (KIT_STATE_FIELDS)
+survarium::weapon	recoil	0x5FC	f32	the recoil's four floats (+5FCh..+608h, serialized by 0x32FEE0), 0.0 at a spawn into another kit (KIT_STATE_FIELDS)
+survarium::weapon	state_60c	0x60C	u32	-1 at a spawn into another kit (KIT_STATE_FIELDS)
 survarium::weapon	ammo_slots	0x5AC	ptr<survarium::ammo_slot>	its compatible ammunition's inventory slot indices (cook 0x2C7855..0x2C79E5; initialize 2E2A99)
 survarium::weapon	ammo_count	0x5B0	u8	their count (2E41E5)
 survarium::weapon	ammo_selected	0x5B1	u8	the selected one's ordinal (2E2AA3; 2FDCFB)
@@ -513,6 +543,373 @@ survarium::victory_item_event_manager	rule	0xA38	ptr<survarium::gather_victory_i
 survarium::victory_item_event_manager	options	0xA3C	ptr<survarium::match_options>	the match's options (start_match 0x334914): a place's team at +45ECh + place x 45FCh (on_event 0x334AD9..0x334AE3)
 survarium::victory_item_event_manager	statistics	-0x2760	obj<survarium::shared_statistics>	the shared statistics it is part of: the only manager is their +2760h (shared_statistics::on_victory_item_event 0x2F55D6: lea esi,[eax+2760h])
 survarium::victory_item_status	size	0x100	size	a battery's record (on_event 0x334B11: shl ecx,8)
+survarium::victory_item_status	last_taker	0xFD	u8	last player to take it from a container, FF nobody (on_event 0x334B4D writes; 0x334C74 compares for event 26); native save/load omit it, battery.save/load preserve it
 survarium::gather_victory_items_rule_core	items_begin	0x110	ptr<survarium::inventory_slot>	its batteries, a vector of item pointers (on_event's search 0x334AF4; serialize 0x313D76)
 survarium::gather_victory_items_rule_core	items_end	0x114	ptr<survarium::inventory_slot>	the vector's end (0x313D70)
 survarium::match_place	team	0x45EC	u32	the place's team, 0 or 1 (on_event 0x334AE3, is_solo_delivery 0x334D28)
+survarium::match_place	is_local	0x45F0	u8	nonzero for the local player's place: process_static_match_info sets it by the message's local index (0x27BE5F, abi_inputs.tsv)
+scaleform::drawable_image_capture_notify	context	-0x8	obj<scaleform::drawable_image_context>	the DrawableImageContext this ContextCaptureNotify base is part of (context+8: OnNextCapture 0x572660's ECX, kept in ESI)
+scaleform::drawable_image_context	queue_lock	0x24	obj<windows::critical_section>	the lock of its queues' list (a Scaleform::Lock): Add/RemoveCaptureNotify (0x5726B0, 0x5726F0) hold it for their link writes alone; the stock OnNextCapture (0x572660) and OnCapture (0x5744E0) walk the list without it
+scaleform::drawable_image_context	queues	0x40	obj<scaleform::di_queue_link>	its queues' list's end (the sentinel): its next (+4Ch) the first queue, its prev (+48h) the last (AddCaptureNotify 0x5726B0 appends there)
+scaleform::di_queue_link	next	0xC	ptr<scaleform::di_queue_link>	the next queue's link or the context's end (a list node's next; RemoveCaptureNotify 0x5726F0 zeroes a removed queue's)
+scaleform::di_queue_link	queue	0x0	obj<scaleform::di_command_queue>	the queue this link is (a DICommandQueue is its own list node, its prev at +8, next at +0Ch); not when the link is its context's end
+scaleform::di_command_queue	references	0x4	u32	its reference count (RefCountImpl: AddRef/Release 0x505CA0/0x505CB0 by InterlockedExchangeAdd; at 0 Release destroys it; the destructor 0x5ED1E0 then writes 2, later 0)
+scaleform::di_command_queue	context	0x34	ptr<scaleform::drawable_image_context>	its context, a counted reference (the constructor 0x5ED650 adds a reference and the queue to its list, 0x5ED72D; the destructor removes it, 0x5ED1F4, then releases it, 0x5ED213)
+scaleform::render_notify	vtable	0x0	u32	a render-thread capture's notify (RTHandle::NextCapture 0x50FEC0 passes it to OnNextCapture 0x572660): only passed back to the queues' OnNextCapture (0x5EE080)
+scaleform::di_command_queue	link	0x0	obj<scaleform::di_queue_link>	itself as its context's list's link (Scaleform::ListNode, prev +8, next +0Ch: AddCaptureNotify 0x5726B0 writes them)
+survarium::player	damage_model	0x2E0	ptr<survarium::medical_damage>	damage model; owner bound at 0x2D7064
+survarium::player	refresh_selection	0x33E	u8	native movement/item selection invalidation
+survarium::player	effects	0x358	obj<survarium::game_effect_player>	embedded game_effect_player
+survarium::player	effect_calculator	0x394	obj<survarium::game_effect_listener>	default player effect calculator used at 0x32A37A
+survarium::player	feet	0x43C	f32	translation of the simulated transform
+survarium::inventory	holder	0x174	ptr<survarium::inventory_holder>	inventory_holder interface; owner at virtual slot 0xC
+survarium::inventory_holder	player	-0x108	obj<survarium::player>	base_player inventory_holder subobject (0x1F17A0)
+survarium::medkit	item	0x0	obj<survarium::item>	Medical hook typed object boundary; medical-skills.md
+survarium::medkit	protection	0x294	ptr<survarium::medical_protection>	configured protection records
+survarium::medkit	protection_count	0x298	u8	number of protection records
+survarium::medical_protection	name	0x70	u8	inline body part name (16 bytes)
+survarium::medical_protection	hit_kind	0x80	u32	hit type discriminator
+survarium::medical_protection	coefficient	0x84	f32	damage coefficient
+survarium::medical_protection	threshold	0x88	f32	damage threshold
+survarium::medical_protection	size	0x90	size	Medical hook typed object boundary; medical-skills.md
+survarium::player_params_modifiers_container	medical_ranks	0xAC	f32	Medical hook typed object boundary; medical-skills.md
+survarium::medical_hit	name	0x0	ptr<u8>	hit body part name
+survarium::medical_hit	kind	0x1C	u32	hit type
+survarium::medical_hit	owner	0x20	ptr<survarium::medical_owner>	hit owner reference
+survarium::medical_hit	attacker	0x44	u8	the attacker's place, 0FFh none (hit_info::hit_info's stack+8, 0x32BA52; hit_impl passes it to generate_killed_event, 0x2D9F09)
+survarium::medical_owner	place	0x4	u32	owner place
+survarium::medical_damage	owner	0x3B0	ptr<survarium::player>	owning player
+survarium::medical_damage	pools	0x108	obj<survarium::medical_pools>	body part lookup list
+survarium::medical_pools	first	0x0	ptr<survarium::medical_pool>	Medical hook typed object boundary; medical-skills.md
+survarium::medical_pool	model	0x7C	ptr<survarium::medical_damage>	owning damage model
+survarium::medical_pool	maximum	0x9C	f32	maximum health
+survarium::medical_pool	health	0xA0	f32	current health
+survarium::medical_pool	delay	0xAC	u32	regeneration delay milliseconds
+survarium::medical_pool	previous_health	0xB4	f32	health at last hit
+survarium::medical_protect_frame	hit	0x4	ptr<survarium::medical_hit>	hit_info argument at entry
+survarium::medical_protect_frame	damage	0x8	ptr<f32>	damage output argument at entry
+survarium::medical_damage_frame	amount	0x8	f32	local invulnerability adjusted damage at 0x2E50C7
+survarium::regeneration_frame	rate	0x10	f32	body_part::regenerate's rate after kit modifier 2 and the pool's own regeneration modifiers (the site's ESP+10h at 0x32A53F)
+survarium::regeneration_frame	limit	0x18	f32	its limit, the fraction of the maximum regeneration stops at (ESP+18h, read at 0x32A573)
+survarium::medical_artefact	vtable	0x0	ptr<survarium::medical_vtable>	Medical hook typed object boundary; medical-skills.md
+survarium::medical_artefact	removes	0x360	ptr<survarium::medical_remove>	configured removed-affect records begin
+survarium::medical_artefact	removes_end	0x364	ptr<survarium::medical_remove>	configured removed-affect records end
+survarium::medical_remove	name	0x0	ptr<u8>	body part name
+survarium::medical_remove	affect	0x1C	u32	affect kind
+survarium::medical_remove	size	0x20	size	Medical hook typed object boundary; medical-skills.md
+survarium::medical_vtable	enable_active	0x80	u32	artefact active callback
+survarium::image	lifebone_active	0x312250	u32	Lifebone active callback (RTTI confirmed class)
+survarium::medical_artefact	active_resource	0x290	ptr<survarium::medical_effect_resource>	active effect resource; native 0x313359 passes it to 0x329050 for each activation
+survarium::medical_effect_query	requested	0xF8	ptr<u8>	named effect request fallback; native 0x2EC838..0x2EC867
+survarium::medical_effect_query	resolved	0xFC	ptr<u8>	named effect request preferred pointer; native 0x2EC838..0x2EC867
+survarium::medical_artefact	active_remaining	0x494	u32	Lifebone active milliseconds, set before effect playback at 0x312362
+survarium::image	default_effect_clock_vtable	0xA11398	u32	default effect clock methods: 0x2E5D80 and two no-op codec methods
+survarium::game_effect	length	0x24	f32	native serialized effect length in seconds
+survarium::medical_timed_clock	vtable	0	u32	native time calculator methods
+survarium::medical_timed_clock	registry_index	4	u32	native boundary: FFFFFFFF means local pointer codec
+survarium::medical_timed_clock	listener	0	obj<survarium::game_effect_listener>	time-calculator interface
+survarium::medical_timed_clock	size	8	size	stateless native time calculator
+survarium::medical_clock_frame	result	4	ptr<survarium::medical_clock_result>	out interval/time/ended
+survarium::medical_clock_frame	node	8	ptr<survarium::medical_effect_node>	playing effect
+survarium::medical_clock_frame	now	0x10	u32	current simulation milliseconds
+survarium::medical_effect_node	effect	0	ptr<survarium::game_effect>	retained effect
+survarium::medical_effect_node	start	0x18	u32	serialized activation time
+survarium::medical_clock_result	interval	0	u32	interval zero while holding
+survarium::medical_clock_result	time	4	f32	hold at zero like native artefact clock
+survarium::medical_clock_result	ended	8	u8	end when activation duration elapses
+survarium::medical_artefact	item	0	obj<survarium::item>	owned inventory item at activation
+survarium::player_params_modifiers_container	combo_ranks	0xB4	f32	modifier 45 can_defuse_traps (no getter call, no code name reference, no retail config): the medical combo skills' packed ranks; medical-skills.md
+survarium::player_stamina	player	-0x6C0	obj<survarium::player>	its player: base_player embeds player_stamina at +6C0h (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
+survarium::player	character_controller	0x494	ptr<vostok::physics::bt_character_controller>	its character controller wrapper, made at 0x2D6EF1 by 0x3569D0 (8 bytes; jump 0x2D7925, tick_animations 0x2D8F09)
+vostok::physics::bt_character_controller	controller	0x0	ptr<vostok::physics::bullet_character_controller>	the Bullet controller (0x2C790 bytes, ctor 0x356A40)
+vostok::physics::bullet_character_controller	effective_crouch	0x201	u8	effective crouch: set by the crouch states (0x337810), cleared only when it can stand (+202h, 0x337830) or on jump (0x2D793E); serialized (0x7FBA0); player_step 0x7BDAE shapes the capsule from it
+survarium::medical_stopping_frame	player	0x4	ptr<survarium::player>	medical.stopping's first argument (by the site ESP, the return address at +0): the staggered player
+survarium::medical_stopping_frame	sum	0x8	f32	its second: the recent hits' stopping power after Spring's list 42, written back
+vostok::animation::registry_key	first	0x0	ptr<vostok::resources::managed_resource>	an animation pair's first resource, the registry's key (the 1st-view clip; animations_registry::register_animation 0x2EF130 keeps it at the entry's +0, the lookup 0x2D6590 compares it first)
+vostok::animation::registry_key	second	0x4	ptr<vostok::resources::managed_resource>	the pair's second resource (the 3rd-view clip, the one an id resolves to: 0x1F18B0 returns the entry's +4; the same resource as first for most pairs)
+survarium::animation_id_frame	registry	0x10	ptr<survarium::animations_registry>	ESP+10h at animations.id_missing: the lookup's registry argument (0x2D6590 pushed EBX, ESI, EDI after its return address)
+survarium::animation_id_resolver_frame	return_address	0x4	u32	the return address into the resolver's caller (EBP+4 of 0x2D7B90's push ebp / mov ebp,esp)
+survarium::animation_id_resolver_frame	above_0	0x14	u32	the stack word at EBP+14h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_1	0x18	u32	the stack word at EBP+18h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_2	0x1C	u32	the stack word at EBP+1Ch, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_3	0x20	u32	the stack word at EBP+20h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_4	0x24	u32	the stack word at EBP+24h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_5	0x28	u32	the stack word at EBP+28h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animations_registry	ids_begin	0xE044	u32	the ids' vector, an entry pointer per id (actualize 0x2EF280 sorts and numbers it; the id resolver 0x1F18B0 indexes it unchecked)
+survarium::animations_registry	ids_end	0xE048	u32	the ids' vector's end
+survarium::animations_registry	actualized	0x10050	u8	1 once actualize (0x2EF280) numbered the entries: the world load's, once (0x2CBFD7); 0 again at ~game_world (0x1F7153)
+vostok::resources::managed_resource	name_entry	0xB0	ptr<vostok::resources::name_registry_entry>	its name registry entry (resource_base::m_name_registry_entry; 0.10b resources_resource_base.h; every one of 221 registered animations of the 2026-11-03 full dump has one, its +4 the resource)
+vostok::resources::name_registry_entry	name	0x8	ptr<u8>	the resource's name, a C string (name_registry_entry::name, 0.10b resources_name_registry_entry.h: class_id, associated, name)
+survarium::change_input_frame	rotation	0x8	u32	game_world_core::change_input<player_input>'s input at its start (0x1FAB50, by the site's ESP): its rotation, math::half2 as it came (+8 the yaw's half, +0Ah the pitch's)
+survarium::change_input_frame	time	0x10	u32	the input's time (ms)
+survarium::change_input_frame	player	0x14	u8	the place whose input it is (0..19)
+survarium::core_world	maximum_time	0x18FC4	u32	the newest simulation time played once (prediction core; set to an item's time after its move 0x2D0FCB, 50 by clear 0x2D0776): a tick at or before it is a re-simulation (the time rule's 0x267AD2, the step guard 0x2A6488)
+survarium::player_equipment_sound_effect	player	0x3C	ptr<survarium::player>	its player (on_player_sound_event 0x2A6472; the player's +884h)
+survarium::player_equipment_sound_effect	feet	0x44	u8	the feet's positions are read (1 by 0x2A645A from the toe bones, 0 when the bone indices are taken again 0x2A63B3); on_player_sound_event plays no step without it
+vostok::animation::animation_callback_params	object	0x0	u32	the animated object (on_player_sound_event plays only for its own player, 0x2A6495): an address, compared only
+vostok::animation::animation_callback_params	time	0x10	u32	the event's simulation milliseconds (compared with core_world maximum_time at 0x2A6488)
+vostok::animation::animation_callback_params	domain	0x20	u8	the event channel's domain value: 0 and 1 a step of one foot or the other, 2..4 the rustles (on_player_sound_event's switch 0x2A64A2)
+vostok::sound::sound_instance_proxy	user	0x64	ptr<vostok::sound::world_user>	its world user (detach_voice 0x5CBBD, calculate_hdr_audio_frame 0x5CA9F)
+vostok::sound::sound_instance_proxy	scene	0x68	ptr<vostok::sound::sound_scene>	its scene (detach_voice 0x5CBBA, calculate_hdr_audio_frame 0x5CA9C)
+vostok::sound::world_user	world	0x118	ptr<vostok::sound::sound_world>	its sound world (detach_voice 0x5CBC3, calculate_hdr_audio_frame 0x5CAA2)
+vostok::sound::new_sound_propagator	voice	0x4	u32	its sound voice, 0 while it has none (create_sound_voice's result stored at 0x5CAB0; detach_voice 0x5CBF2 clears it)
+vostok::sound::new_sound_propagator	proxy	0x8	ptr<vostok::sound::sound_instance_proxy>	the proxy it plays for (the constructor 0x5CB10)
+vostok::sound::new_sound_propagator	emitter	0xC	ptr<vostok::sound::sound_propagator_emitter>	its propagator emitter, passed to create_sound_voice (0x5CA99; vtable +8 its sound's options: +11h can_be_displaced, 0x5CACD)
+vostok::sound::new_sound_propagator	master	0x14	ptr<vostok::sound::new_sound_propagator>	the propagator whose gain it takes, if any (amplitude 0x5C1C0 follows the chain to the last)
+vostok::sound::new_sound_propagator	reach	0x1C	u32	the ms the sound takes to reach the listener: audible from then (calculate_hdr_audio_frame 0x5C81D, 0x5C9BA, 0x5CA65)
+vostok::sound::new_sound_propagator	elapsed	0x24	u32	the ms since it was emitted (the proxy's tick 0x5B526)
+vostok::sound::new_sound_propagator	level	0x44	f32	its sample's amplitude at its playing offset this frame, 0.01 to 1 (0x5CD40, stored at 0x5C850)
+vostok::sound::new_sound_propagator	hold	0x48	u32	ms, set to 2000 when the HDR cull takes its voice (0x5CAD9), counted down by the proxy's tick (0x5B529)
+vostok::sound::new_sound_propagator	gain	0x4C	f32	its gain by distance this frame, 0 to 1 (calculate_hdr_audio_frame 0x5CA37); a voice is given above 0.01 (0x5CA87)
+vostok::sound::hdr_frame	propagators	0xC	ptr<vostok::sound::propagator_list>	calculate_hdr_audio_frame's second argument ([ebp+0Ch], 0x5C9A4): the scene's propagators this tick, notify_listener2's vector
+vostok::sound::propagator_list	begin	0x0	ptr<vostok::sound::propagator_slot>	the first (0x5CA4E)
+vostok::sound::propagator_list	end	0x4	ptr<vostok::sound::propagator_slot>	past the last (0x5C7F8)
+vostok::sound::propagator_slot	propagator	0x0	ptr<vostok::sound::new_sound_propagator>	one of the scene's propagators (0x5CA60)
+vostok::sound::propagator_slot	size	0x4	size	a pointer
+vostok::sound::sound_propagator_emitter	options	0x8	obj<vostok::sound::sound_options>	its sound's options, inline (vtable slot 2 0x38990 returns this + 8; calculate_hdr_audio_frame asks the slot, 0x5CAC3)
+vostok::sound::sound_options	can_be_displaced	0x11	u8	the HDR cull may take its voice (0x5CACD); single_sound_cook's default 1 (0x6129F), raw_options can_be_displaced false makes it 0
+survarium::bullet	now	0x60	u32	the time it was last ticked to (bullet::tick 0x32C18E writes its EAX): at its check_collision, the end of the world's step
+survarium::bullet_owner	world_core	0x10	ptr<survarium::core_world>	the shooter's world core: a bullet's owner is its player's +110h (weapon_core::set_user 0x2E299D, the other emit 0x33AB8C; +4 the place is the player's +114h), so +10h is the player's +120h
+survarium::check_collision_frame	start	0x9C	ptr<f32>	the ray's start time (entry ESP+10h: s since the segment's origin; bullet::tick's +64h)
+survarium::check_collision_frame	end	0xA0	ptr<f32>	the piece's end time (entry ESP+14h): the ray ends where the bullet is then; a hit's time is start + (end - start) x distance / length (0x32D7D6)
+survarium::check_collision_frame	step_end	0xA4	ptr<f32>	the step's end time (entry ESP+18h): the world's time the bullet is ticked to, s since the segment's origin
+vostok::physics::ray_result	fraction	0xC	f32	the hit's fraction of the ray, 0..1 (its callback's m_closestHitFraction; 0 on a miss)
+vostok::physics::ray_result	part	0x20	u32	the hit's shape part (the callback's +60h: a compound child's or a triangle's index, 0 a bare primitive, -1 none)
+vostok::physics::ray_result	part_kind	0x24	u8	the callback's +68h (1 a bare primitive)
+vostok::physics::bt_animated_rigid_body	object	0x30	ptr<vostok::physics::bt_collision_object>	its Bullet collision object (the ctor 0x70E70: its +0F8h points back here)
+vostok::physics::bt_collision_object	transform	0x10	obj<vostok::physics::bt_transform>	m_worldTransform (Bullet frame: z negated, from_vostok 0x74470)
+vostok::physics::bt_collision_object	broadphase	0xC8	ptr<vostok::physics::bt_broadphase_proxy>	m_broadphaseHandle: 0 when it is not in a physics world
+vostok::physics::bt_collision_object	shape	0xCC	ptr<vostok::physics::bt_collision_shape>	m_collisionShape (process 0xA3356)
+vostok::physics::bt_collision_object	user	0xF8	ptr<vostok::physics::hit_object>	m_userObjectPointer: the game's object (what a ray_result names, 0x75FFD)
+vostok::physics::bt_transform	basis	0x0	f32	its 16 f32: three basis rows of four, then the origin (btMatrix3x3 m_basis, btVector3 m_origin)
+vostok::physics::bt_transform	origin	0x30	f32	its origin, a float4 (w 0)
+vostok::physics::bt_transform	size	0x40	size	a btTransform: 40h bytes
+vostok::physics::closest_ray_result_callback	fraction	0x4	f32	m_closestHitFraction: the cutoff a hit must be under, then the hit's (the ctor 0x75B40: 1.0)
+vostok::physics::closest_ray_result_callback	object	0x8	ptr<vostok::physics::bt_collision_object>	m_collisionObject: the object hit (0: none)
+vostok::physics::closest_ray_result_callback	flags	0x10	u32	m_flags (ray_test 0x75F2E sets bit 2, unflipped, for its last argument)
+vostok::physics::closest_ray_result_callback	normal	0x40	f32	m_hitNormalWorld, a float4 (Bullet frame)
+vostok::physics::closest_ray_result_callback	point	0x50	f32	m_hitPointWorld, a float4 (Bullet frame)
+vostok::physics::closest_ray_result_callback	part	0x60	u32	the hit's shape part (addSingleResult 0x75CA0)
+vostok::physics::closest_ray_result_callback	part_kind	0x68	u8	the hit's part kind (addSingleResult 0x75CA9)
+vostok::physics::closest_ray_result_callback	single_pass	0x6A	u8	set: needsCollision lets a hit model through when its delegate posed it (ray_test's second pass, 0x75F6A)
+vostok::physics::closest_ray_result_callback	size	0x70	size	the callback: 6Bh bytes used (ray_test keeps it at ESP+40h of its frame)
+survarium::player	controller	0x494	ptr<survarium::player_controller>	its character controller's holder (assign_physics_transform 0x2D942A: [[+494h]] the controller)
+survarium::player_controller	controller	0x0	ptr<vostok::physics::bullet_character_controller>	the controller (get_transform 0x7F5C0's ESI)
+vostok::physics::bullet_character_controller	last_position	0x50	f32	m_last_pos, a float3, Bullet frame (z the game's -z; the capsule's offset above the feet, along y, as +0B0h): the position its last step started from (player_step 0x7BE84; serialized 0x7F7F0)
+vostok::physics::bullet_character_controller	position	0xB0	f32	its position, a float3, Bullet frame (the translation of its matrix +80h: z the game's -z, set_transform 0x7F6D0 adds the capsule's offset along y (0xA7DC00), get_transform 0x7F5C0 takes it off for from_bullet 0x74620; player_step copies it to m_last_pos)
+vostok::physics::bt_broadphase_proxy	group	0x4	u16	m_collisionFilterGroup (needsCollision 0x75BD8; 40h a hit model)
+vostok::physics::bt_collision_shape	shape_type	0x4	u32	m_shapeType (8 a sphere, 31 a compound; rayTestSingle 0xA02EB)
+vostok::sound::sound_instance_proxy	source	0x8C	u32	patch 94's tag of what it plays (vostok::sound::Source: 0 untagged, 1 the environment, 2 an opponent's): the tail padding of its 144-byte pool record (new_*_sound_instance_proxy: the count x 90h; the constructors 0x5A6B0, 0x5A840, 0x5A9C0 write up to +88h; the sound code 0x55000..0x67000 has no +8Ch access of a proxy, its one +8Ch is world_user::initialize's own 0x56089), cleared at each allocation (sound_proxy.allocated, 0x65484)
+vostok::sound::proxy_slot	proxy	0x0	ptr<vostok::sound::sound_instance_proxy>	an intrusive_ptr<sound_instance_proxy> an emit fills: the new proxy with one reference, or 0 (emit_point_sound 0x65670, new_hud_sound_instance_proxy 0x65100)
+vostok::sound::emit_once_frame	caller	0x4	u32	emit_and_play_once's return address (push ebp / mov ebp,esp at 0x657C0: [ebp+4]): the call it plays for
+survarium::weapon_play_sound_frame	effect	0x24	ptr<survarium::weapon_sound_effect>	play_sound_callback's effect (its ECX, kept at [esp+24h] by 0x297E32; at 0x297F7E both paths' pushes are popped by their callees, the same ESP)
+survarium::weapon_sound_effect	weapon	0x30	ptr<survarium::weapon_core>	its weapon (on_sound_event 0x297C60, play_sound_callback 0x297E47: +594h its user's place)
+survarium::weapon_sound_effect	core_fire_handler	-0x150	u32	the word 150h before it: when the effect is weapon_sound_events_handler_state<weapon_core_fire_state>'s (its +168h, initialize 0x2517AE), that state's +18h vtable 0xA04F10 (its ctor 0x254FA7). Every effect is a handler state's member at +158h..+170h (initialize 0x25081E, 0x2513AE, 0x2537C3, 0x2522FE), so the word is inside its own state
+survarium::weapon_sound_effect	sidearm_fire_handler	-0x158	u32	the word 158h before it: for the pistol and double-barrelled fire states' effects (+170h, initialize 0x253423, 0x252A33), their state's +18h vtable 0xA05274 (ctor 0x255307) or 0xA0517C (0x255227); inside its own state, as above
+survarium::weapon_core	user	0x594	ptr<survarium::weapon_user>	its user: the holder's player + 110h (instant_fire calls its slot +4, 0x2E258D; on_sound_event and play_sound_callback read its place, 0x297C69, 0x297E50); deactivate leaves it (0x2E2EA4)
+survarium::weapon_user	place	0x4	u8	its player's place (player + 114h)
+survarium::image	core_fire_sound_handler	0xA04F10	u32	weapon_sound_events_handler_state<weapon_core_fire_state>'s +18h vtable (RTTI TD 0xAD2478; its ctor writes it at 0x254FA7, the primary 0xA04EE4 at 0x254FA1)
+survarium::image	pistol_fire_sound_handler	0xA05274	u32	weapon_sound_events_handler_state<pistol_weapon_core_fire_state>'s +18h vtable (TD 0xAD1498; ctor 0x255307)
+survarium::image	double_fire_sound_handler	0xA0517C	u32	weapon_sound_events_handler_state<double_barreled_weapon_core_fire_state>'s +18h vtable (TD 0xAD1920; ctor 0x255227)
+survarium::image	zone_sound_once_a	0x298DEE	u8	a code address (u8: a return address has no alignment), the return address of a damage_zone fx's one-shot sound (emit_and_play_once at 0x298DE9, in 0x298D80; 0.21d's emit_sound_once, inlined)
+survarium::image	zone_sound_once_b	0x298F1E	u8	the same, emit_and_play_once at 0x298F19 (in 0x298EB0)
+survarium::image	zone_sound_once_c	0x299269	u8	the same, emit_and_play_once at 0x299264 (in 0x2991A0)
+vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE
+survarium::player_input_handler	fov_factor	0x94	f32	the look's factor of the aimed weapon's zoom, on both axes (on_mouse_move 0x24025A, 0x24026C: x the option sensitivity x 0.1 is the yaw's step s)
+survarium::mouse_move_frame	handler	0x18	ptr<survarium::player_input_handler>	on_mouse_move's local [esp+18h] (0x24021C): the handler (by the site's ESP at mouse.pitch_step, the window-size calls popped)
+survarium::mouse_move_frame	horizontal	0x28	f32	its local [esp+28h] (0x240289): the yaw's step s, the handler's +94h x the option sensitivity 0xA74AEC x 0.1
+survarium::player_input_handler	mode	0x358	u32	its input mode: 0 first person (the turn is the player's input), 3 the warmup camera before the start (process_warmup_mode 0x242200 adds the turn to its own yaw and pitch +34Ch/+350h, radians), 4 a spectator (on_mouse_move 0x240214 turns nothing)
+survarium::player_input_handler	game_world	0x334	ptr<survarium::game_world>	its game world (on_mouse_move 0x2402B2, process_first_person_mode 0x2410F8)
+survarium::player	look_pitch	0x48C	f32	the look pitch, -1 (down) to 1 (up): weapon_core::look_pitch 0x2E0F60 adds the kick and scrubs the look clips at (pitch + 1) / 2 (0x2FBF90); bone Item turns 67.5 deg a unit below 0, 60 above (on_site_camera_look)
+vostok::buffer_string	end	0x4	ptr<u8>	past the text's last byte (its NUL there)
+survarium::game_start_frame	folder	0x470	obj<vostok::buffer_string>	game::game's local at [esp+470h] by its ESP at 0x1E944E: user_data/streamed_textures' physical path (converted by 0x12780 at 0x1E9449), the buffer_string its delete 0x1E8DA0 gets in EAX
+survarium::image	baker	0xA264E80	obj<vostok::render::camouflage_decal_texture_type_baker_cook>	the camouflage/decal baker, camouflage_decal_texture_type_baker_cook, a static (set up by 0x12CCE0; translate_query's ECX, the look-up's EAX at 0x12D4C5)
+vostok::render::camouflage_decal_texture_type_baker_cook	list_begin	0x230	ptr<vostok::render::baked_texture_data>	its list of saved textures, a buffer_vector<baked_texture_data> (0x12CD39..0x12CDA6 set it up; find_baked_texture 0x131ED0 walks it): begin
+vostok::render::camouflage_decal_texture_type_baker_cook	list_end	0x234	ptr<vostok::render::baked_texture_data>	the list's end (push_back 0x132640 moves it one record on)
+vostok::render::camouflage_decal_texture_type_baker_cook	list_capacity	0x238	ptr<vostok::render::baked_texture_data>	the list's capacity end (1024 records, storage at +23Ch)
+vostok::render::camouflage_decal_texture_type_baker_cook	list_bytes	0x4923C	u32	the bytes of its records' files (push_back adds a record's, remove_unwanted_files 0x131F90 keeps it under 1 GiB)
+vostok::render::baked_texture_data	path_begin	0x0	ptr<u8>	a record of the baker's list (0x131ED0): its path, a buffer_string whose text is the record's own (begin)
+vostok::render::baked_texture_data	path_end	0x4	ptr<u8>	its path's end (at its NUL)
+vostok::render::baked_texture_data	path_capacity	0x8	ptr<u8>	its path's capacity end (the text + 104h)
+vostok::render::baked_texture_data	text	0xC	u8	its path's text, 104h bytes NUL-ended (user_data/streamed_textures/<name>.dds)
+vostok::render::baked_texture_data	separator	0x110	u8	'/' after the text (0x132640's push_back writes it)
+vostok::render::baked_texture_data	crc	0x114	u32	the CRC of the file's bytes (check_loaded_baked_texture's cmp eax,[edi+114h], 0x131C90)
+vostok::render::baked_texture_data	file_bytes	0x118	u32	the file's bytes (the list's +4923Ch sums them)
+vostok::render::baked_texture_data	age	0x11C	u32	its age (the counter 0x2260920's at its push; check_loaded renews it)
+vostok::render::baked_texture_data	loading	0x120	u8	a load of it under way (0x131ED0 sets it for the record it finds)
+vostok::render::baked_texture_data	size	0x124	size	a record's bytes (0x131F5F add esi,124h)
+survarium::image	baker_ages	0x2260920	obj<vostok::render::bake_ages>	the counter of the baker's records' ages (push_back 0x132640: ++ for each record)
+vostok::render::bake_ages	last	0x0	u32	the last age a record took
+survarium::image	patch_revision	0x380864	obj<skhid::revision_byte>	the dword (aligned) around the patch revision byte in .text: patch 7's `mov byte [esp+27h],REVISION` (0x380862), its immediate at 0x380866
+skhid::revision_byte	revision	0x2	u8	the exe's patch revision, the immediate (README's revision table)
+survarium::image	render_resources	0x226047C	obj<vostok::render::resource_manager_slot>	the render's resource manager's global (push dword [0x226047C] / call 0x3BEE00: a texture released, 0x12F178)
+vostok::render::resource_manager_slot	manager	0x0	ptr<vostok::render::resource_manager>	the resource manager a texture is released to (0x3BEE00's stack argument)
+survarium::image	baked_resource_name	0xAC3334	u32	the object whose +8 names a baked texture resource's allocation (mov ecx,0AC3334h / call 0x420789, 0x12F18A and 0x12DDAF; a relocated immediate)
+survarium::image	unmanaged_resource_allocator	0x21E76C8	u32	the allocator set_unmanaged_resource 0xF0080 gets with a baked texture resource (push 21E76C8h, 0x12F1B1 and 0x12DDD6)
+vostok::render::bake_parameters	kind	0x7A0	u32	a bake's camouflage_decal_texture_type_baker_cook_parameters: its texture type, 0 d, 1 n, 2 f, 3 s (0x12DD95 cmp dword [esi+7A0h],3)
+vostok::render::bake_parameters	model	0x790	ptr<vostok::render::render_model_instance>	the model instance whose surface it bakes (translate_query keeps a reference while it runs, EDI; its end 0x12D443 lets it go)
+vostok::render::render_model_instance	references	0xD0	u32	a render_model_instance's references (lock xadd; translate_query's end 0x12D443 lets one go, 0xE0210 at 0)
+vostok::render::render_surface_instance	textures	0x0	obj<vostok::render::texture_slot>	a model instance's surface a bake is for (render_surface_instance): its four textures by type, d n f s (process_compression 0x12F0E0 mov edx,[esp+610h] / mov [edx],ecx; on_baked_texture_loaded 0x12C6D0..0x12C760, +4 a type)
+vostok::render::texture_slot	texture	0x0	ptr<vostok::render::res_texture>	a surface's texture of one type (0 none)
+vostok::render::texture_slot	size	0x4	size	a slot a type
+vostok::render::res_texture	references	0x4	u32	a texture's references, plain adds (0x12C6D0's inc [eax+4] / add [eax+4],-1, then 0x3BEE00 at 0)
+vostok::render::baked_texture_resource	references	0xD0	u32	a baked texture resource's references (lock xadd [eax+0D0h], 0x12DDF4 and 0xF009E)
+vostok::render::bake_translate_stack	parameters	0x1C	ptr<vostok::render::bake_parameters>	translate_query's [esp+1Ch] at 0x12D4C5: the bake's parameters
+vostok::render::bake_translate_stack	path	0x1B8	obj<vostok::buffer_string>	its [esp+1B8h] there: the path looked up (0x131ED0's argument)
+vostok::render::bake_translate_frame	query	0x8	ptr<vostok::resources::query_result_for_cook>	translate_query's [ebp+8]: the query
+vostok::render::process_compression_frame	texture	0x10	ptr<vostok::render::res_texture>	process_compression's [esp+10h] at 0x12F194 (its ESP after the prologue): the texture made, in the surface's slot (0x12F0E0)
+vostok::render::process_compression_frame	query	0x604	ptr<vostok::resources::query_result_for_cook>	its [esp+604h] there: the query
+vostok::render::process_compression_frame	surface	0x610	ptr<vostok::render::render_surface_instance>	its [esp+610h] there: the surface
+vostok::render::process_compression_frame	kind	0x620	u32	its [esp+620h] there: the texture's type
+vostok::render::texture_loaded_frame	parameters	0xC	ptr<vostok::render::bake_parameters>	on_baked_texture_loaded's [ebp+0Ch] (its second argument): the bake's parameters
+vostok::render::texture_loaded_frame	surface	0x10	ptr<vostok::render::render_surface_instance>	its [ebp+10h]: the surface
+vostok::render::texture_loaded_frame	query	0x14	ptr<vostok::resources::query_result_for_cook>	its [ebp+14h]: the query
+vostok::resources::finish_query_frame	query	0x4	ptr<vostok::resources::query_result_for_cook>	finish_query_impl's (0xF0D00, stdcall) first argument at its start: the query
+vostok::resources::finish_query_frame	result	0x8	u32	its second: the result (1 error, 2 postponed, 3 success, 4 requery, 5 out of memory)
+vostok::resources::finish_query_frame	assert_on_fail	0xC	u32	its third: assert on fail
+vostok::resources::finish_query_frame	error	0x10	u32	its fourth: the error type
+vostok::checksum::crc32_value	value	0x0	u32	the CRC the CRC-32 step 0x42050 updates (its EAX points to it)
+vostok::checksum::crc32_bytes	first	0x0	u8	the first of the bytes the step goes over (its EDX)
+vostok::checksum::crc32_step_frame	count	0x4	u32	the step's [esp+4] at its start: how many bytes
+vostok::input::keyboard	events	0x408	obj<vostok::input::key_event>	the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
+vostok::input::key_event	key	0x0	u32	DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)
+vostok::input::key_event	size	0x14	size	a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)
+survarium::image	d3d9_module	0xAF1194	u32	the delayed import d3d9.dll's module slot (its descriptor's hmod): __delayLoadHelper2 0xE48E0 binds the import to the module there, LoadLibrary only while it is 0 (0xE4995), then InterlockedExchange (0xE4B25); patch 83 puts DXVK's d3d9 there
+survarium::image	dxgi_module	0xAF30CC	u32	the delayed import dxgi.dll's module slot (as d3d9_module); patch 83 puts DXVK's dxgi there
+survarium::image	d3d11_module	0xAF30D0	u32	the delayed import d3d11.dll's module slot (as d3d9_module); patch 83 puts DXVK's d3d11 there
+vostok::ai::fsm	selected	0x10	u32	resolved state pointer, cleared before the serialized id search (0x38CCFE); dereferenced at 0x38CD29
+survarium::generic_anomaly_core	states_begin	0x68	ptr<u8>	state pointer vector, deserialize 0x31B0FF
+survarium::generic_anomaly_core	states_end	0x6C	ptr<u8>	state pointer vector end (constructor/registration); bound for serialized state id
+survarium::network_client	pvp_match	0x1F1C40	ptr<survarium::pvp_match>	the live match wrapper, process_dynamic_match_info 0x27C0FF; core at +1F8h
+survarium::core_world	rules_begin	0x18824	ptr<survarium::rule_entry>	owned rule pointer vector, world serialization and Research's rule lookup
+survarium::core_world	rules_end	0x18828	ptr<survarium::rule_entry>	end of the rule pointer vector
+survarium::rule_entry	rule	0x0	ptr<survarium::match_rule>	one rule pointer in the core's vector
+survarium::rule_entry	size	0x4	size	stride of a rule pointer
+survarium::match_rule	vtable	0x0	u32	concrete rule class, constructors and world rule serialization
+survarium::match_rule	rule_type	0x10C	u32	base constructor writes its argument here at 0x31394F; Research passes type 5
+survarium::match_rule	batteries_begin	0x110	ptr<u8>	gather/vi_spawn rule battery pointer vector (0x313D10, 0x3149B0)
+survarium::match_rule	batteries_end	0x114	ptr<u8>	end of the gather/vi_spawn battery pointer vector
+survarium::match_rule	respawn0	0x194	u32	respawn rule group 0 count (0x316F49..0x316FB6)
+survarium::match_rule	respawn1	0x198	u32	respawn rule group 1 count
+survarium::match_rule	respawn2	0x19C	u32	respawn rule group 2 count
+survarium::image	gather_rule_vtable	0xA06AB4	u32	gather_victory_items_rule_core vtable
+survarium::image	gather_client_rule_vtable	0xA15B04	u32	client gather rule vtable
+survarium::image	vi_spawn_rule_vtable	0xA06C04	u32	vi_spawn_rule_core vtable
+survarium::image	vi_spawn_client_rule_vtable	0xA15CAC	u32	client vi_spawn rule vtable
+survarium::image	tdm_rule_vtable	0xA06CBC	u32	tdm_rule_core vtable
+survarium::image	tdm_client_rule_vtable	0xA15DA4	u32	client tdm rule vtable
+survarium::image	respawn_rule_vtable	0xA06D1C	u32	respawn_rule_core vtable
+survarium::image	respawn_client_rule_vtable	0xA16084	u32	client respawn rule vtable
+survarium::network_client	match_connection_state	0x1F1C64	u32	2 is the live match transport, checked by late_join send_prepared
+survarium::network_client	world_generation	0x1F1C68	u8	process_dynamic_match_info 0x27C040 stores the accepted envelope generation before load
+survarium::match_options_holder	match_seed	0x577BC	u32	match_client options seed, checked by late_join send_prepared
+survarium::match_options_holder	packet_pool	0x578B0	ptr<survarium::match_packet_pool>	packet pool checked before allocating by late_join send_prepared
+survarium::match_packet_pool	used	0x30	u32	packet pool entries used; reserve seventeen as late_join send_prepared
+survarium::match_packet_pool	capacity	0x34	u32	packet pool entries available
+survarium::match_packet	flags	0x98	u8	clear 40h to keep a custom E0 carrier out of automatic joining
+survarium::match_packet	writer	0x2A8	obj<vostok::buffer_writer>	packet buffer writer, as late_join send_prepared
+survarium::game	world	0x18	obj<survarium::game_world>	the game world, inside the game: game::game constructs it in place (lea eax,[ebx+18h] / call 0x1F67B0 at 0x1E909F); the same one every match; its match (+4D4Ch, a counted reference) is 0 from the constructor (0x1F68A2), set at 0x1F9766 and 0 again at 0x1F8B64, for a live and a replay match alike
+survarium::game	options	0x57F4	obj<survarium::game_options>	the main menu, inside the game (activate_main_menu 0x1EDBD6 lea eax,[esi+57F4h]; game_world::on_deactivate 0x1F9567)
+survarium::game_options	shown	0x44	u8	the main menu shown: game_options::activate sets it (0x200F86), deactivate clears it (0x201067); each returns at once when it is so already
+survarium::game_options	game	0x34	ptr<survarium::game>	the game (game_options::activate 0x200F83; game_options_interface's game is this field, +30h of +4)
+survarium::game_options	awaited_action	0x3C	u32	the action whose key the menu's key-binding settings wait for: start_bind_key sets it (scaleform_callback 0x1FF8A3, as it takes the menu's cursor movie +10h off the scene at 0x1FF8A9), finish_binding (0x2015A0), its copies (0x201722, 0x201800) and a conflict's message (0x20134F) set it to 48h, none, as the constructor does (0x1FFA13); deactivate leaves it
+survarium::game_world	active	0xD4	u8	the scene active: base_game_scene::on_activate sets it (0x23DD69), game_world::on_deactivate clears it (0x1F952B) at a match's end, before it closes the main menu (0x1F956D)
+survarium::game_world	ui	0x1FC	obj<survarium::game_world_ui>	the hud (game_world_input+4; initialize_match's first argument from 0x1F8542)
+survarium::game_world_ui	cursor_movie	0xC	obj<survarium::movie_slot>	the hud's cursor movie: show_cursor shows it (0x23A995) and hides it (0x23A9B3), the hud's +2DCh with it
+survarium::movie_slot	holder	0x0	ptr<vostok::ui::movie_holder>	a scene's movie: base_game_scene::show_movie reads it (0x23DC26), hide_movie does nothing while it is 0 (0x23DC71)
+survarium::initialize_match_frame	ui	0x4	ptr<survarium::game_world_ui>	initialize_match's first argument at its start (0x234880, by the site's ESP): the hud, called once a match from 0x1F855D (the late join's rebuild enters at 0x234E71)
+vostok::network::login_client_impl	answer	0x2AA	u8	the sign-in answer's first byte, its code: one async_read_some of at most 52h bytes lands here (0x38010D); on_sign_in_answer_received dispatches on it (0x37FB47) and reads 08h's and 25h's bodies after it (0x37FD26, 0x37FB7F)
+vostok::network::sign_in_answer_frame	transferred	0x10	u32	on_sign_in_answer_received's bytes read (EBP+10h; 0 returns at 0x37FB3D)
+survarium::login_menu	status	0xF4	u32	the status set_status shows (written at 0x21EEB0; its jump table 0x21F2A4): 0Ch..19h the bans (the answer's code - 6), whose text is st_login_menu_status_user_banned + st_ban_reason_* (0x21F310)
+survarium::login_menu	game	0x9C	ptr<survarium::game>	the game (set_status 0x21EEB6; its translator +52A8h, 0x21EF49)
+survarium::login_status_frame	begin	0x18	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
+survarium::login_status_frame	cursor	0x1C	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217 (made at 0x21EECB..0x21EEED over the 200h bytes at +24h): the cursor, at the text's zero (0x21F3B4)
+survarium::login_status_frame	end	0x20	ptr<u8>	the text's end, its buffer's last byte + 1 (esp+224h, 0x21EECF)
+survarium::player_params_modifiers_container	artefact_ranks	0xA0	f32	modifier 40 artefact_power (no getter call, no code reference to its name, no config sets it): the artefact tree's packed skills; artefact-skills.md
+survarium::artefact	vtable	0x0	ptr<survarium::medical_vtable>	an inventory slot's artefact's (core) virtual table: its +80h enable_active names the kind (Onyx 0x3128C0, Lifebone 0x312250)
+survarium::image	onyx_active	0x3128C0	u32	artefact_onyx_core::enable_active_effects (vtable +80h; abi_inputs 0x3128C0)
+survarium::player	stamina	0x6C0	obj<survarium::player_stamina>	the embedded stamina (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
+survarium::player_stamina	maximum	0x0	f32	the most stamina: player_stamina::regenerate clamps current to it (0x329925 movss xmm1,[edi])
+survarium::player_stamina	current	0x6C	f32	the stamina now, 0..maximum (regenerate writes it at 0x329938 / 0x32994F)
+survarium::spring_reload_frame	spring	0x4	ptr<survarium::skill_spring>	artefact.spring_reload's argument (by the site ESP, the return address at +0): the Spring whose passive is linked
+survarium::artefact_fire_frame	artefact	0x4	ptr<survarium::artefact>	artefact.fire's first argument (by the site ESP, the return address at +0): a copy patch 54's press would fire (state 3, cooldown 0)
+survarium::artefact_fire_frame	fires	0x8	u32	its second: pushed 1; 0 written for a copy past the 4 of its kind that count for its holder (it does not fire and stays ready)
+survarium::skill_spring	item	0x0	obj<survarium::item>	the Spring's inventory item (its inventory +250h, holder +174h)
+survarium::skill_spring	active_left	0x394	u32	its active's milliseconds: enable_active 0x3118D0 writes trunc(+390h config x modifier 39) at 0x31193B, disable_active 0x311970 zeroes it; set when artefact_base::action's activation hook (0x313333) runs
+survarium::skill_spring	passive_reload	0x3E4	f32	Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
+survarium::skill_spring	active_reload	0x3F4	f32	Spring II's active reload node's value (patch 54's node at +3E8h, list 13)
+survarium::image	engine_world	0x1F1D310	obj<vostok::engine::engine_world_slot>	the engine world's global: set by the engine's run at 0x1881A (mov [1F1D310h],ebp), 0 again at 0x1898F; message_processor reads its game at 0x18359
+vostok::engine::engine_world_slot	world	0x0	ptr<vostok::engine::engine_world>	the engine world (0 before the engine runs and after)
+vostok::engine::engine_world	game	0x2D0	ptr<survarium::game>	the game: 0 from the constructor (0x138D6), the game module's factory's result at 0x19E58; message_processor calls its slot 44h (game::is_text_input_focused 0x1EE7C0, ECX the game, its +586Ch) through it at 0x1835F
+survarium::medical_pool	name	0x80	ptr<u8>	the part's name, a C string (find_pool 0x2E58C0 compares it; body_part::regenerate hands it to each regeneration modifier at 0x32A505)
+survarium::artefact	spring	0x0	obj<survarium::skill_spring>	itself as a Spring: only after its vtable's enable_active is Spring's (0x3118D0)
+survarium::artefact	lifebone	0x0	obj<survarium::skill_lifebone>	itself as a Lifebone: only after its vtable's enable_active is Lifebone's (0x312250)
+survarium::artefact	onyx	0x0	obj<survarium::skill_onyx>	itself as an Onyx: only after its vtable's enable_active is Onyx's (0x3128C0)
+survarium::skill_spring	first_node	0x340	obj<survarium::modifier_node>	its config's five native nodes (the loader 0x33ACF0, ESI = +340h): +340h and +350h the passive's (movement 4; aim 49, patch 54's), +360h, +370h, +380h the active's (4, 3, 19)
+survarium::skill_spring	added_node	0x3B8	obj<survarium::modifier_node>	patch 54's four nodes (artefacts_026g.asm): +3B8h and +3C8h the active's (aim 49, stopping 42), +3D8h the passive's reload (13), +3E8h the active's reload (13)
+survarium::modifier_node	index	0x8	u32	the index of the kit list it is linked into (+110h + index x 14h; the getter 0x2D5AE0 sums a list's values)
+survarium::modifier_node	value	0xC	f32	its value (0x2D5B20 adds it)
+survarium::modifier_node	size	0x10	size	a node {prev, next, index, value} (the loader writes one each 10h from +340h)
+survarium::modifier_node	next	0x4	ptr<survarium::modifier_node>	the next node of its list, 0 after the last (the getter's loop 0x2D5B25)
+survarium::modifier_list	first	0x4	ptr<survarium::modifier_node>	a kit list's first node, 0 for none (apply_modifier 0x2D5B0C, apply_modifiers 0x2D5C46)
+survarium::modifier_list	size	0x14	size	one of a kit's 68 node lists, 14h each from its modifiers' +110h (0x2D5AF2 lea edi,[eax+ecx*4+110h], ecx index x 5)
+survarium::player_params_modifiers_container	lists	0x110	obj<survarium::modifier_list>	its node lists, the index's at +110h + index x 14h (the getters 0x2D5AE0, 0x2D5BC0; a Spring links its nodes there)
+survarium::skill_lifebone	active_left	0x494	u32	its active's milliseconds (medical_artefact's active_remaining, set by enable_active before the effect at 0x312362)
+survarium::skill_lifebone	regeneration	0x354	ptr<survarium::lifebone_regeneration>	its passive's records begin, one a part (enable_passive_effects 0x3121F0: each record's part found by its name, a node at +490h + i x 28h linked into the part's regeneration modifiers +2E8h)
+survarium::skill_lifebone	regeneration_end	0x358	ptr<survarium::lifebone_regeneration>	their end (34h a record, 0x3121BC)
+survarium::lifebone_regeneration	name	0x0	ptr<u8>	the part's name (enable_passive_effects 0x3121F6 finds the part by it)
+survarium::lifebone_regeneration	rate_add	0x1C	f32	the callback 0x312590 (body_part::regenerate's rate, delay, limit at 0x32A530): rate = (rate + this) x rate_mul
+survarium::lifebone_regeneration	rate_mul	0x20	f32	the rate's factor
+survarium::lifebone_regeneration	delay_add	0x24	f32	seconds: delay = (delay + this x 1000 (0xA746B8)) x delay_mul, truncated (0x3125AD..0x3125E7)
+survarium::lifebone_regeneration	delay_mul	0x28	f32	the delay's factor
+survarium::lifebone_regeneration	limit_add	0x2C	f32	limit = (limit + this) x limit_mul (0x3125EA..0x3125FD)
+survarium::lifebone_regeneration	limit_mul	0x30	f32	the limit's factor
+survarium::lifebone_regeneration	size	0x34	size	a record (0x3121CD's /34h, 0x312232 add ebp,34h)
+survarium::skill_onyx	parts	0xC90	ptr<survarium::onyx_part>	its config's protected parts begin (enable_passive_effects 0x312860: each part found by its name gets a protector of protect 0x312BF0 at +340h + i x 70h, linked into the part's protectors +0BCh)
+survarium::skill_onyx	parts_end	0xC94	ptr<survarium::onyx_part>	their end (1Ch a part, the constructor 0x31273C)
+survarium::onyx_part	name	0x0	ptr<u8>	the part's name (enable_passive_effects 0x31286A)
+survarium::onyx_part	size	0x1C	size	a part's record (0x312736..0x31274B: /1Ch)
+survarium::skill_onyx	active_left	0xF14	u32	its active's milliseconds left: enable_active 0x3128C0 writes trunc(+F10h x modifier 39), tick_impl 0x3127E0 counts it down; patch 54's fire_kind adds 1 s for each other Onyx fired after every activation of the press
+survarium::skill_onyx	hit_kind	0xEE8	u32	the hit type it protects against (protect 0x312BF0 compares the hit's +1Ch)
+survarium::skill_onyx	passive_damage_add	0xEEC	f32	its passive (state 3): damage = (damage + this) x passive_damage_mul (0x312C10)
+survarium::skill_onyx	passive_damage_mul	0xEF0	f32	the passive's damage factor
+survarium::skill_onyx	passive_piercing_add	0xEF4	f32	piercing = (piercing + this) x passive_piercing_mul (0x312C2C)
+survarium::skill_onyx	passive_piercing_mul	0xEF8	f32	the passive's piercing factor
+survarium::skill_onyx	active_damage_add	0xEFC	f32	its active: damage - min(absorb, damage - (damage + this) x active_damage_mul) (0x312C47..0x312C99)
+survarium::skill_onyx	active_damage_mul	0xF00	f32	the active's damage factor
+survarium::skill_onyx	active_piercing_add	0xF04	f32	piercing = (piercing + this) x active_piercing_mul (0x312CA1)
+survarium::skill_onyx	active_piercing_mul	0xF08	f32	the active's piercing factor
+survarium::skill_onyx	absorb	0xF18	f32	the most an active takes off a hit: absorb_total (+0F0Ch) from enable_active (0x312934), only read by protect (0x312C77)
+survarium::damage_cell	value	0x0	f32	a hit's damage or piercing, a float the caller owns (body_part_parameters::hit_by_type's &damage EBX, &piercing ESP+144h)
+survarium::protectors_frame	piercing	0x144	ptr<survarium::damage_cell>	hit_by_type's &piercing argument by the ESP of its protectors' loop (0x32A042 mov edx,[esp+144h], 0x32A058)
+survarium::image	spring_active	0x3118D0	u32	artefact_spring_core::enable_active_effects: +80h of the Spring core vtable 0xA1558C (its constructor 0x31185C writes it)
+survarium::generic_anomaly_core	containers_begin	0x140	u32	its artefact containers' vector begin (spawn_artefact 0x31B70B: (end - begin) / 4 containers); equal to the end: no container, it never spawns an artefact
+survarium::generic_anomaly_core	containers_end	0x144	u32	its artefact containers' vector end (spawn_artefact 0x31B70B)
+survarium::generic_anomaly_core	pool_count	0x1B4	u32	its pool's artefacts (register_artefacts 0x31B8EB, 0x31B97F): the cook makes count of each config artefacts entry, registered in that order
+survarium::keeper_register_frame	anomaly	0x4	ptr<survarium::generic_anomaly_core>	register_artefacts 0x31B8E0's first argument (by the site ESP, the return address at +0): the anomaly whose pool it registers
+survarium::keeper_register_frame	world	0x8	ptr<survarium::core_world>	its second: the core world, whose artefact vector (+18940h) the pool is pushed onto, each id its index then
+survarium::artefact	default_count	0x27C	u16	the count the anomaly's spawn gives it (artefact_base::on_spawned 0x3134C0: 0xFFFF is 1); set by the constructor from its config (0x3130C4)
+survarium::artefact	cooldown_left	0x28C	u32	ms of its cooldown left (tick 0x313213 counts it down outside state 4; action 0x313313 needs 0); the spawn sets 0 (0x313518)
+survarium::artefact	active_since	0x2A0	u32	the time its active began: the constructor writes u32::MAX (0x313059), action writes the time (0x313333); read only in state 4 (deserialize 0x313860), in every world in every state (serialize 0x313735, deserialize 0x3137F7), no other code writes it; patch 109 writes 0 at a Keeper gift (its mark: given)
+survarium::player	damage_zones	0x2E4	u8	the damage zones it is inside: damage_zone_core's enter adds one (inc 0x319967), its leave takes one (dec 0x31980B); a hit with an owner reads it (0x332833) before incoming_weapon_damage_in_anomaly (modifier 41) multiplies the damage
+survarium::player	presenters	0xF478	ptr<survarium::player_presenters>	where the places' third-person presenters are held (player::initialize 0x1F256D: +22CCh + place x 220h)
+survarium::player_presenters	third_person	0x22CC	obj<survarium::effect_presenter_holder>	each place's third-person presenter's holder, 220h apart (player::initialize 0x1F2579; the camera's detach gives it back, 0x242D06)
+survarium::effect_presenter_holder	size	0x220	size	the places' holders step 220h (player::initialize 0x1F2573)
+survarium::effect_presenter_holder	presenter	0x0	ptr<survarium::third_person_game_effects_presenter>	the presenter it holds (a place's holder: its third-person presenter, made by 0x297570)
+survarium::third_person_game_effects_presenter	player	0x10	ptr<survarium::player>	the player its particles play on (its particle presenter +8h's +8h; set_player 0x297750 writes it and the sound presenter's +0C0h)
+survarium::game_effect_player	first	0x2C	ptr<survarium::medical_effect_node>	the first of the effects it plays (add 0x2DE090 links a new one after +30h's, remove 0x2DE350 walks them from here)
+survarium::game_effect_player	presenter	0x38	ptr<survarium::effect_presenter_holder>	where the effects it plays are presented: the holder set_effect_presenter 0x1F3740 last gave (its owner player's +390h; the owner's own default +3A8h before any)
+survarium::medical_effect_node	next	0x4C	ptr<survarium::medical_effect_node>	the next effect of its player (0 the last; add 0x2DE32E, remove 0x2DE364)
+survarium::medical_effect_node	calculator	0x30	ptr<survarium::game_effect_listener>	the time calculator it was added with (add's last argument, the node's constructor 0x2DD7C3)
+survarium::game_effect	resource	0x10	ptr<survarium::medical_effect_resource>	the game effect resource that emitted it (game_effect_resource::emit 0x329072)
+survarium::medical_effect_resource	references	0xD0	u32	its reference count (locked; damage_zone_core_cook::process_resources takes one, 0x3113BF, and gives it back through 0x0E0210 at 0, 0x311438)
+vostok::resources::queries_result	effect	0x12C	ptr<survarium::medical_effect_resource>	the first query's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources 0x311396 reads its own result there)
+survarium::game_effect_listener	owner	-0x394	obj<survarium::player>	the player whose own effect calculator (+394h) it is: meaningful only for that one (hit effects are played with it, 0x32A37A; Forest Protection's glow too)
+vostok::query_result	effect	0x0	ptr<survarium::medical_effect_resource>	the result's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources reads its own result there, 0x311396)
+survarium::network_client	game	0x14	ptr<survarium::game>	the game (on_finish_match's world is [this+14h]+18h, close_current_match 0x27A941; switch_to_level_loading's lobby menu [+14h]+5390h, 0x27BE95)
+survarium::network_client	play_state	0x1F1C60	u32	the time rule's state the client keeps: 0 until the first tick played after the first world (written by the time rule at 0x267AFB), 1 waiting, 2 the countdown, 3 in play; 0 again at a close (0x27A7CF, 0x27B12C); close_current_match does nothing while it is 0 (0x27A7A4)
+survarium::game_world	loading	0x4E20	u8	1 while a level loads: game_world::load sets it (0x1F8CB4), set_game_project clears it after switch_to_game_world (0x1F862F), and on_project_loaded's abort (0x1F8B14)
+survarium::lobby_client	status	0x1E5790	u32	what the lobby says the client is: the 0x85's first byte (read_status_info 0x270112: 0 the lobby, 1 the queue, 2 in a match), 2 at the 0x82 connect (0x274A95), 4 from the constructor (0x26F182); on_project_loaded aborts the load at 0 (0x1F8AF3)
+survarium::close_match_frame	reason	0x8	u32	close_current_match's argument by EBP (mov ebx,[ebp+8] at 0x27A7F3): the reason, jump table 0x27A958
+survarium::match_ready_frame	client	0x18	ptr<survarium::network_client>	on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
+vostok::render::res_render_output	window	0xE4	u32	the output window, an HWND (res_render_output::res_render_output 0x3CF4F0 writes it from EDX at 0x3CF540; set_size's SetWindowLongA 0x3CFA09/0x3CFA55 and SetWindowPos 0x3CFA20/0x3CFAD8, present's ShowWindow 0x3CF8C5 take it)

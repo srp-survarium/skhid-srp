@@ -21,7 +21,7 @@
 //! is shown while `a >> 3 & 1` (notes 0, "prepare to battle", step 3) or
 //! `a >> 2 & 1` (notes 1, "items", step 2) is clear, 0x2833F1; for 4: the
 //! match's own tutorial is skipped when `a & 0x10`, 0x27AE46; for 1:
-//! `a >> 1 & 1` opens `state_choose_faction`, 0x28E9AD). Bit 0 is a
+//! `a >> 1 & 1` opens `state_choose_        .find(|row| row.id == faction)`, 0x28E9AD). Bit 0 is a
 //! nickname chosen and bit 5 the tutorial skipped (`4B 02`), LIKELY.
 //!
 //! So srp sends [`ALL_DONE`]: `a & 0x22` puts the lobby in its
@@ -36,24 +36,24 @@
 //! `gameplay/awards/unique_awards.options` ([`survarium::v026g::awards`]):
 //! `tutorial_completed` 1000 silver and 250 experience, the two notes
 //! 25 gold each, the match's tutorial 50 gold. **A new account starts**
-//! with 15 000 silver, 150 gold, a month of premium ([`SIGNUP_SILVER`], [`SIGNUP_GOLD`]),
-//! the steps' experience, 1000 rounds of every ammo
-//! ([`starter_ammo`]), the Scavengers at their highest reputation level
-//! and a starter kit worn in each of its three kits ([`STARTER_GEAR`],
-//! [`STARTER_WEAPONS`], [`STARTER_POCKETS`],
-//! [`STARTER_MODIFICATIONS`]) (the owner's of 2026-10-19 and 2026-10-24,
-//! `docs/notes/no-tutorial.md`). It is the
-//! account's state when the client first hears of it: no window, no
-//! notice.
+//! with what the game data's table says
+//! ([`survarium::v026g::new_account`]): its
+//! level and skills, money, premium, the rounds of every ammo
+//! ([`starter_ammo`]), its reputation and quest faction, what it owns and
+//! what its three kits wear (the owner's of 2026-10-19, 2026-10-24 and
+//! 2026-11-06, `docs/notes/no-tutorial.md`). It is the account's state
+//! when the client first hears of it: no window, no notice.
 
-use survarium::v026g::awards::{Awards, kind, name};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::item_params::{self, shop_unit};
+use survarium::v026g::loadouts::POCKET_SLOTS;
 use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
 use survarium::v026g::lobby::{self, FULL_CONDITION, ServerMessage};
 use survarium::v026g::modifications::Modifications;
+use survarium::v026g::new_account::Preset;
+pub use survarium::v026g::new_account::shared as new_account;
 
-use super::account::Account;
+use super::account::{Account, KITS, level_start};
 
 /// The bits of the tutorial's state (`a` of `9D`).
 pub mod flag {
@@ -73,91 +73,8 @@ pub const ALL_DONE: u32 = flag::NICKNAME
     | flag::GAME_WORLD
     | flag::SKIPPED;
 
-/// The awards a new account is given, the tutorial's steps'.
-pub const AWARDS: [&str; 4] = [
-    name::TUTORIAL_COMPLETED,
-    name::ITEM_NOTES,
-    name::BATTLE_NOTES,
-    name::GAME_WORLD_TUTORIAL,
-];
-
-/// The faction a new account takes quests from: the Scavengers.
-pub const SIGNUP_FACTION: u8 = survarium::prices::faction::SCAVENGERS;
-
-/// What a new account's balance is: 15 000 silver and 150 gold (the owner's of
-/// 2026-10-24; before, 10 000 and 500).
-pub const SIGNUP_SILVER: u32 = 15_000;
-pub const SIGNUP_GOLD: u32 = 150;
-
-/// The premium a new account starts with, from its making: the shop's
-/// month (`shop_offers::PREMIUM_OFFERS` id 3, "a month (30 days)"), added
-/// as every premium is (`premium::add_premium`).
-pub const SIGNUP_PREMIUM_DAYS: u32 = 30;
-
-/// The rounds a new account owns of every ammo ([`starter_ammo`]): the
-/// client's own most of a free stack (`rules::MAX_FREE_UNITS`).
-pub const SIGNUP_ROUNDS: u32 = 1000;
-
-/// A new account's reputation level with [`SIGNUP_FACTION`]: the
-/// Scavengers' highest (`factions_dict`: 3000 points), everything they sell
-/// unlocked.
-pub const SIGNUP_REPUTATION_LEVEL: u8 = 5;
-
 /// Where the ammo lives: every item of the dictionary under it is ammo.
 pub const AMMO_CONFIGS: &str = "gameplay/items/weapons/ammo/";
-
-/// The gear each of a new account's three kits wears, `(slot, item)`, each
-/// the item of its English name: the Novice's knit cap (1821), the Amber
-/// respirator (43), the Survivor's jacket (325, the gold shop's; 345 is
-/// its premium-armour copy), the Oxygen tank (9, the back slot), the
-/// Chemical protection pants (46), gloves (42) and boots (38).
-pub const STARTER_GEAR: [(u8, &str); 7] = [
-    (0, "novice_026_helmet"),
-    (1, "scav_resp_1"),
-    (2, "scav_torso_4"),
-    (3, "scav_oxygen_1"),
-    (4, "scav_legs_2"),
-    (5, "scav_gloves_2"),
-    (6, "scav_boots_2"),
-];
-
-/// The one weapon of kits 1, 2 and 3, `(weapon, its ammo)`, in weapon slot
-/// 1 ([`WEAPON_SLOT`]; weapon slot 2 empty): the OTs-02 Kiparis (88, not
-/// the premium 332) with 9x18 (70); the TOZ-122 (12) with 7.62x51 (51),
-/// the game has no TOZ-11; the MP-153 Baikal (110) with 12x70 smallshot
-/// (22). Each weapon's ammo is its plain round (not the PBM, M59 or slug),
-/// its ammo slot filled to the most it takes ([`full_rounds`]: three bags
-/// of the gear, so three clips).
-pub const STARTER_WEAPONS: [(&str, &str); 3] = [
-    ("kiparis", "ammo_9x18_makarov"),
-    ("toz_122", "ammo_7.62x51"),
-    ("mp_153", "ammo_12mm_buck"),
-];
-
-/// Weapon slot 1 and its first ammo slot.
-pub const WEAPON_SLOT: (u8, u8) = (7, 8);
-
-/// The pockets of every kit, `(slot, item, units)`: 2 medkits (67) and 2
-/// antitoxins (82), each pocket full. A player has one pocket of one unit;
-/// the jacket's default 1030 adds a pocket and the pants' 1170 a unit to
-/// each, and a drug fills half a pocket, so a pocket takes the pocket size
-/// of it (`LocalPaperDoll`): 2.
-pub const STARTER_POCKETS: [(u8, &str, u32); 2] = [(13, "medkit", 2), (14, "antitoxin", 2)];
-
-/// What a new account owns of the pockets' items, `(item, units)`: the kits
-/// take theirs from these stacks.
-pub const STARTER_SUPPLIES: [(&str, u32); 2] = [("medkit", 50), ("antitoxin", 50)];
-
-/// The modifications of their own two pieces have, `(item, modification)`
-/// (`modifications.options`, the strongest but one of their type):
-/// - the respirator 1183, `st_modify_anom_filters`: +0.2 face armour
-///   against toxins, radiation, fire and shock; the lobby shows
-///   "Isolation: +20" (`props_list` 8, "20", added);
-/// - the gloves 1133, `st_modify_artefact_search`: -0.2 artefact search
-///   time; the lobby shows "Collection time: -20%" (`props_list` 108,
-///   "-0.20", a percentage). Beside the gloves' own default 1130 (-5%).
-pub const STARTER_MODIFICATIONS: [(&str, u32); 2] =
-    [("scav_resp_1", 1183), ("scav_gloves_2", 1133)];
 
 /// Every ammo a player can own: the dictionary's stacks under
 /// [`AMMO_CONFIGS`], ported weapons' too, by dict id.
@@ -195,176 +112,215 @@ pub fn full_rounds(ammo: u16, bags: u32) -> u32 {
     bags / required * shop_unit(ammo)
 }
 
-/// [`ammo_bags`] of a kit wearing [`STARTER_GEAR`] and its
-/// [`STARTER_MODIFICATIONS`].
-pub fn starter_ammo_bags(dictionary: &Dictionary) -> u32 {
-    let gear = STARTER_GEAR
+/// [`ammo_bags`] of kit `kit` (0 on) of the grant's `preset`: its worn
+/// items' default modifications and their own
+/// ([`survarium::v026g::new_account::NewAccount::modifications`]).
+pub fn starter_ammo_bags(dictionary: &Dictionary, preset: &Preset, kit: usize) -> u32 {
+    let grant = new_account();
+    let worn: Vec<&str> = preset.kit(kit).map(|(_, name)| name).collect();
+    let defaults = worn
         .iter()
-        .filter_map(|&(_, name)| dictionary.item_named(name))
+        .filter_map(|name| dictionary.item_named(name))
         .flat_map(|item| {
             item_params::item_params(item.dict_id)
                 .map_or(&[][..], |params| params.default_modifications)
                 .iter()
                 .copied()
         });
-    let own = STARTER_MODIFICATIONS.iter().map(|&(_, id)| id);
-    ammo_bags(gear.chain(own))
-}
-
-/// Every item name of the starter kit, for the start's check
-/// (`known::named_items`).
-pub fn starter_names() -> impl Iterator<Item = &'static str> {
-    STARTER_GEAR
+    let own = grant
+        .modifications
         .iter()
-        .map(|&(_, name)| name)
-        .chain(
-            STARTER_WEAPONS
-                .iter()
-                .flat_map(|&(weapon, ammo)| [weapon, ammo]),
-        )
-        .chain(STARTER_POCKETS.iter().map(|&(_, name, _)| name))
+        .filter(|(name, _)| worn.contains(&name.as_str()))
+        .map(|&(_, id)| id);
+    ammo_bags(defaults.chain(own))
 }
 
-/// The experience the tutorial's steps paid, by the game's file.
-pub fn experience() -> u32 {
-    AWARDS
-        .iter()
-        .flat_map(|award| Awards::shared().get(award))
-        .filter(|row| row.kind == kind::EXPERIENCE)
-        .map(|row| row.amount)
-        .sum()
+/// The ammo bags of ammo slot `slot` of kit `kit` (0 on) of `preset`: the
+/// kit's ([`starter_ammo_bags`]) shared by its ammo slots (the stacks it
+/// wears out of the pockets), one for each after the first, the first the
+/// rest.
+pub fn starter_slot_bags(dictionary: &Dictionary, preset: &Preset, kit: usize, slot: u8) -> u32 {
+    let ammo: Vec<u8> = preset
+        .kit(kit)
+        .filter(|(at, name)| {
+            !POCKET_SLOTS.contains(at)
+                && dictionary
+                    .item_named(name)
+                    .is_some_and(|item| item.is_stack)
+        })
+        .map(|(at, _)| at)
+        .collect();
+    let first = ammo.iter().copied().min();
+    let bags = starter_ammo_bags(dictionary, preset, kit);
+    if first == Some(slot) {
+        bags.saturating_sub(ammo.len() as u32 - 1)
+    } else {
+        1
+    }
 }
 
-/// A new account's start, before its client first hears of it: its
-/// balance ([`SIGNUP_SILVER`], [`SIGNUP_GOLD`]), the steps' experience,
-/// [`SIGNUP_ROUNDS`] of every ammo, the Scavengers at
-/// [`SIGNUP_REPUTATION_LEVEL`] and their quests (the tutorial ended in the
-/// faction's choice; the owner's of 2026-10-19: Scavengers, never neutral),
-/// and the starter kit worn in its three kits ([`wear_starter_kit`]), and
-/// [`SIGNUP_PREMIUM_DAYS`] of premium from `now` (Unix seconds).
+/// The experience an account starts with: one point short of the level
+/// after the table's (the owner's of 2026-11-06: the last point of level
+/// 15, so its first match brings it to 16).
+pub fn start_experience() -> u32 {
+    level_start(new_account().level.saturating_add(1)) - 1
+}
+
+/// A new account's start, before its client first hears of it
+/// ([`new_account`]): its level and skills, its money, the rounds of every
+/// ammo, the faction's reputation level and its quests (the tutorial ended
+/// in the faction's choice; the owner's of 2026-10-19: never neutral), what
+/// it owns and what its three kits wear ([`wear_starter_kit`]), and its
+/// premium from `now` (Unix seconds).
 pub fn signup_grant(account: &mut Account, now: u64) {
     signup_grant_with(account, true, now);
 }
 
-/// [`signup_grant`], the kits worn and the premium given only with `starter_kit`
-/// (off only in the lobby's tests, `GameAccounts::set_starter_kit`).
+/// [`signup_grant`], its level and skills, what it owns, the kits and the
+/// premium given only with `starter_kit` (off only in the lobby's tests,
+/// `GameAccounts::set_starter_kit`).
 pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
+    let grant = new_account();
+    let faction = grant.faction.id();
     let dictionary = Dictionary::shared();
     // The reputation first: the quests are given by its level.
     let points = dictionary
         .factions
         .iter()
-        .find(|faction| faction.id == SIGNUP_FACTION)
-        .and_then(|faction| faction.levels.get(usize::from(SIGNUP_REPUTATION_LEVEL)))
-        .expect("the Scavengers have their levels")
+        .find(|row| row.id == faction)
+        .and_then(|row| row.levels.get(usize::from(grant.reputation_level)))
+        .expect("the faction's level is there (new_account::check_data)")
         .value;
-    account.add_reputation(
-        SIGNUP_FACTION,
-        points.saturating_sub(account.reputation(SIGNUP_FACTION)),
-    );
-    super::quests::choose_faction(account, SIGNUP_FACTION)
-        .expect("every faction is open to a new account");
-    account.generic_money = account.generic_money.max(SIGNUP_SILVER);
-    account.premium_money = account.premium_money.max(SIGNUP_GOLD);
+    account.add_reputation(faction, points.saturating_sub(account.reputation(faction)));
+    // A faction whose quests the lobby shows (`QuestFaction`).
+    super::quests::choose_faction(account, faction).expect("every quest faction is open");
+    account.generic_money = grant.silver;
     if starter_kit {
-        super::premium::add_premium(account, u64::from(SIGNUP_PREMIUM_DAYS) * 86_400, now);
+        super::premium::add_premium(account, u64::from(grant.premium_days) * 86_400, now);
+        // The levels below it pay nothing. Before the kits: they carry the
+        // skills' modifiers.
+        account.exp_total = start_experience();
+        account.skills = grant.skills.clone();
     }
-    // Short of a level: nothing more to pay.
-    account.add_experience(experience());
     for dict_id in starter_ammo(dictionary) {
         let owned = account
             .inventory
             .iter()
             .find(|item| item.dict_id == dict_id)
             .map_or(0, |item| item.condition_or_stack);
-        if owned < SIGNUP_ROUNDS {
-            account.add_to_stack(dict_id, SIGNUP_ROUNDS - owned);
+        if owned < grant.rounds {
+            account.add_to_stack(dict_id, grant.rounds - owned);
         }
     }
     if starter_kit {
         wear_starter_kit(account, dictionary);
     }
-    account.extras.tutorial_flags = ALL_DONE;
-    account.tutorial_done = true;
 }
 
-/// The starter kit worn in each of the three kits by the lobby's own rule
-/// of a kit put on (`rules::fill_kit`): what the first kit wore before (the
-/// TT-33 and its clip) goes back to the inventory. Each item is bought once
-/// and the kits that wear it name that one, as a player's own kits share
-/// the inventory; the pockets' items come from stacks of
-/// [`STARTER_SUPPLIES`]. An item the game data lacks is left out: srp starts
+/// What the grant owns (`NewAccount::own`), then its presets' kits worn by
+/// the lobby's own rule of a kit put on (`rules::fill_kit`): the saved
+/// presets' kits each kept as that preset ([`presets::snapshot`]), then
+/// preset 1's, the kits. Each item worn is bought once and every kit and
+/// preset that wears it names that one, as a player's own kits share the
+/// inventory; a stack worn is the one owned: an ammo slot filled to the
+/// most its share of the kit's bags takes ([`starter_slot_bags`],
+/// [`full_rounds`]), a pocket with what one of the preset's `pocket_units` holds of it. Every item
+/// given, owned or worn, has the modifications of its own the grant names
+/// for it (`NewAccount::modifications`) before a kit wears it (they may
+/// open a pocket). An item the game data lacks is left out: srp starts
 /// only on data with all of them (`known::check_code`); the test data
-/// predates the knit cap.
+/// predates the Keeper of the Sun, the Novice's backpack and more.
 pub fn wear_starter_kit(account: &mut Account, dictionary: &Dictionary) {
-    for (name, units) in STARTER_SUPPLIES {
+    let grant = new_account();
+    // The items given, owned and bought for the kits, `(dict id, item id)`.
+    let mut given: Vec<(u16, u32)> = Vec::new();
+    for (name, units) in &grant.own {
         let Some(item) = dictionary.item_named(name) else {
             continue;
         };
-        let owned = account
-            .inventory
-            .iter()
-            .find(|owned| owned.dict_id == item.dict_id)
-            .map_or(0, |owned| owned.condition_or_stack);
-        account.add_to_stack(item.dict_id, units.saturating_sub(owned));
+        if item.is_stack {
+            let owned = account
+                .inventory
+                .iter()
+                .find(|owned| owned.dict_id == item.dict_id)
+                .map_or(0, |owned| owned.condition_or_stack);
+            account.add_to_stack(item.dict_id, units.saturating_sub(owned));
+        } else {
+            for _ in 0..*units {
+                given.push((item.dict_id, account.add_item(item.dict_id, FULL_CONDITION)));
+            }
+        }
     }
-    // The items bought for the kits, `(dict id, item id)`.
+    // The items bought for the kits, once each, `(dict id, item id)`.
     let mut bought: Vec<(u16, u32)> = Vec::new();
-    // A move of the item `name` (bought new the first time, the stack
-    // owned for a stack) from the inventory into `slot`.
-    let mut wear = |account: &mut Account, slot: u8, name: &str, count: u32| {
+    for name in grant
+        .presets()
+        .flat_map(|preset| (0..KITS).flat_map(move |kit| preset.kit(kit)))
+        .map(|(_, name)| name)
+    {
         let Some(item) = dictionary.item_named(name) else {
             log::warn!("starter kit: the game data has no {name}; left out");
-            return None;
+            continue;
         };
-        let item_id = if item.is_stack {
-            account.add_to_stack(item.dict_id, 0)
-        } else if let Some(&(_, item_id)) = bought.iter().find(|(id, _)| *id == item.dict_id) {
-            item_id
-        } else {
-            let item_id = account.add_item(item.dict_id, FULL_CONDITION);
-            bought.push((item.dict_id, item_id));
-            item_id
-        };
-        Some(Relocation {
-            item_id,
-            dict_id: item.dict_id,
-            source_slot: INVENTORY_SLOT,
-            target_slot: slot,
-            count,
-            count_in_inventory: 0,
-        })
-    };
-    let bags = starter_ammo_bags(dictionary);
-    for (kit, (weapon, ammo)) in STARTER_WEAPONS.into_iter().enumerate() {
-        let mut moves: Vec<Relocation> = Vec::new();
-        for (slot, name) in STARTER_GEAR {
-            moves.extend(wear(account, slot, name, 1));
-        }
-        let (slot, ammo_slot) = WEAPON_SLOT;
-        if let Some(weapon) = wear(account, slot, weapon, 1) {
-            let rounds = dictionary
-                .item_named(ammo)
-                .map_or(0, |ammo| full_rounds(ammo.dict_id, bags));
-            moves.push(weapon);
-            moves.extend(wear(account, ammo_slot, ammo, rounds));
-        }
-        for (slot, name, units) in STARTER_POCKETS {
-            moves.extend(wear(account, slot, name, units));
-        }
-        if let Err(error) = super::rules::fill_kit(account, kit, &moves) {
-            log::error!("starter kit: kit {} could not wear it ({error})", kit + 1);
+        if !item.is_stack && bought.iter().all(|(id, _)| *id != item.dict_id) {
+            bought.push((item.dict_id, account.add_item(item.dict_id, FULL_CONDITION)));
         }
     }
-    for (name, modification) in STARTER_MODIFICATIONS {
+    for (name, modification) in &grant.modifications {
         let Some(dict_id) = dictionary.item_named(name).map(|item| item.dict_id) else {
             continue;
         };
-        let worn = bought.iter().find(|(id, _)| *id == dict_id);
-        if let Some(item) = worn.and_then(|&(_, item_id)| account.item_mut(item_id)) {
-            item.modifications.push((modification, false));
+        for &(_, item_id) in given.iter().chain(&bought).filter(|(id, _)| *id == dict_id) {
+            if let Some(item) = account.item_mut(item_id) {
+                item.modifications.push((*modification, false));
+            }
         }
     }
+    let wear = |account: &mut Account, number: usize, preset: &Preset| {
+        for kit in 0..KITS {
+            let mut moves: Vec<Relocation> = Vec::new();
+            for (slot, name) in preset.kit(kit) {
+                let Some(item) = dictionary.item_named(name) else {
+                    continue;
+                };
+                let (item_id, count) = if !item.is_stack {
+                    let (_, item_id) = bought
+                        .iter()
+                        .find(|(id, _)| *id == item.dict_id)
+                        .expect("bought above");
+                    (*item_id, 1)
+                } else if POCKET_SLOTS.contains(&slot) {
+                    (
+                        account.add_to_stack(item.dict_id, 0),
+                        preset.pocket_units_of(item.dict_id),
+                    )
+                } else {
+                    let bags = starter_slot_bags(dictionary, preset, kit, slot);
+                    let rounds = full_rounds(item.dict_id, bags);
+                    (account.add_to_stack(item.dict_id, 0), rounds)
+                };
+                moves.push(Relocation {
+                    item_id,
+                    dict_id: item.dict_id,
+                    source_slot: INVENTORY_SLOT,
+                    target_slot: slot,
+                    count,
+                    count_in_inventory: 0,
+                });
+            }
+            if let Err(error) = super::rules::fill_kit(account, kit, &moves) {
+                log::error!(
+                    "starter kit: preset {number} kit {} could not wear it ({error})",
+                    kit + 1
+                );
+            }
+        }
+    };
+    for (index, preset) in grant.saved.iter().enumerate() {
+        wear(account, index + 2, preset);
+        account.presets[index + 1] = super::presets::snapshot(account);
+    }
+    wear(account, 1, &grant.active);
     account.sync_kits();
 }
 
@@ -399,8 +355,9 @@ mod tests {
         assert_eq!(super::message(false).body()[0], 0);
     }
 
-    /// A fresh account on the test data: everything, but the knit cap of a
-    /// patch the test data predates (srp refuses such data,
+    /// A fresh account on the test data, made as `GameAccounts::sign_up`
+    /// makes it: everything, but the Keeper of the Sun and the Novice's backpack of
+    /// patches the test data predates (srp refuses such data,
     /// `known::check_code`). The whole kit by its dict ids on released
     /// data: `tests/starter_kit.rs`.
     #[test]
@@ -408,43 +365,37 @@ mod tests {
         use super::super::account::KIT_SLOTS;
         use survarium::v026g::item_params::item_params;
 
-        assert_eq!(experience(), 250);
+        let grant = new_account();
         const NOW: u64 = 1_800_000_000;
-        let mut account = Account::new("Alice");
+        let mut account = Account::with_loadout(
+            "Alice",
+            &survarium::v026g::loadouts::Loadout { items: Vec::new() },
+        );
         signup_grant(&mut account, NOW);
-        assert_eq!(
-            (account.generic_money, account.premium_money),
-            (15_000, 150)
-        );
-        // A month of premium, the shop's: 30 days from the making, 720
-        // hours as the lobby is told.
-        assert_eq!(
-            survarium::v026g::shop_offers::PREMIUM_OFFERS
-                .iter()
-                .find(|&&(id, _)| id == 3)
-                .map(|&(_, days)| days),
-            Some(SIGNUP_PREMIUM_DAYS)
-        );
+        assert_eq!(account.generic_money, grant.silver);
+        // 30 days of premium from the making, 720 hours as the lobby is
+        // told.
         assert_eq!(account.premium_until, NOW + 30 * 86_400);
         assert!(account.is_premium(NOW) && account.is_premium(NOW + 30 * 86_400 - 1));
         assert!(!account.is_premium(NOW + 30 * 86_400));
         assert_eq!(account.premium_hours(NOW), Some(720));
-        assert_eq!(account.exp_total, 250);
-        assert_eq!(account.level(), 0);
-        assert_eq!(account.quest_faction, SIGNUP_FACTION);
-        assert_eq!(account.extras.tutorial_flags, ALL_DONE);
+        assert_eq!(account.level(), grant.level);
+        assert_eq!(account.exp_total, level_start(16) - 1);
+        assert_eq!(account.skills, grant.skills);
+        assert_eq!(account.free_skill_points(), 0);
+        assert_eq!(account.quest_faction, grant.faction.id());
 
         // The Scavengers at 3000 points: level 5, their highest.
         let dictionary = Dictionary::shared();
-        assert_eq!(account.reputation(SIGNUP_FACTION), 3000);
-        assert_eq!(account.reputation_level(SIGNUP_FACTION), 5);
+        assert_eq!(account.reputation(grant.faction.id()), 3000);
+        assert_eq!(account.reputation_level(grant.faction.id()), 5);
         let scavengers = dictionary.factions.iter().find(|f| f.id == 1).unwrap();
         assert_eq!(scavengers.levels.len(), 6);
         for faction in [2, 3, 4] {
             assert_eq!(account.reputation(faction), 0);
         }
 
-        // Exactly 1000 rounds of every ammo, one stack each.
+        // Exactly the table's rounds of every ammo, one stack each.
         let ammo = starter_ammo(dictionary);
         for name in [
             "ammo_7.62x25",
@@ -455,131 +406,185 @@ mod tests {
             let dict_id = dictionary.item_named(name).unwrap().dict_id;
             assert!(ammo.contains(&dict_id), "{name}");
         }
-        for &dict_id in &ammo {
-            assert_eq!(item_params(dict_id).unwrap().kind, "ammo");
-            let stacks: Vec<u32> = account
+        let stacks = |dict_id: u16| -> Vec<u32> {
+            account
                 .inventory
                 .iter()
                 .filter(|item| item.dict_id == dict_id)
                 .map(|item| item.condition_or_stack)
-                .collect();
-            assert_eq!(stacks, [SIGNUP_ROUNDS], "{dict_id}");
-        }
-
-        // Each of the three kits wears the kit, the rest of its slots empty.
-        // Each ammo slot full: the gear has no ammo bag modification, so
-        // the player's three bags, three clips of one bag each.
-        let bags = starter_ammo_bags(dictionary);
-        assert_eq!(bags, 3);
-        let rounds = |_weapon: &str, ammo: &str| {
-            full_rounds(dictionary.item_named(ammo).unwrap().dict_id, bags)
+                .collect()
         };
-        assert_eq!(rounds("kiparis", "ammo_9x18_makarov"), 150);
-        assert_eq!(rounds("toz_122", "ammo_7.62x51"), 30);
-        assert_eq!(rounds("mp_153", "ammo_12mm_buck"), 45);
-        // A bag modification counts: 1051 adds two.
-        assert_eq!(ammo_bags([1030, 1051]), 5);
-        let mut missing = Vec::new();
-        let mut levels = Vec::new();
-        for (index, (weapon, ammo)) in STARTER_WEAPONS.into_iter().enumerate() {
-            let mut wanted: Vec<(u8, &str, u32)> = STARTER_GEAR
-                .iter()
-                .map(|&(slot, name)| (slot, name, 1))
-                .collect();
-            let (slot, ammo_slot) = WEAPON_SLOT;
-            wanted.push((slot, weapon, 1));
-            wanted.push((ammo_slot, ammo, rounds(weapon, ammo)));
-            wanted.extend(STARTER_POCKETS);
-            let kit = &account.kits[index];
-            for &(slot, name, count) in &wanted {
-                let held = kit.slots[usize::from(slot)];
-                let Some(item) = dictionary.item_named(name) else {
-                    assert_eq!(held, None, "{name}");
-                    missing.push(name);
-                    continue;
-                };
-                let held = held.unwrap_or_else(|| panic!("kit {index}: {name} not worn"));
-                let owned = account.item(held.item_id).unwrap();
-                assert_eq!((owned.dict_id, held.count), (item.dict_id, count), "{name}");
-                // One item of a kind: every kit wears the same one.
-                let of_kind = account
+        for &dict_id in &ammo {
+            assert_eq!(item_params(dict_id).unwrap().kind, "ammo");
+            assert_eq!(stacks(dict_id), [grant.rounds], "{dict_id}");
+        }
+        // The modifications of its own a given item has: those it comes
+        // with (items.tsv `start`), then the grant's.
+        let own_modifications = |name: &str| -> Vec<(u32, bool)> {
+            let dict_id = dictionary.item_named(name).unwrap().dict_id;
+            let mut own = survarium::v026g::golden::starting_modifications(dict_id);
+            own.extend(
+                grant
+                    .modifications
+                    .iter()
+                    .filter(|(piece, _)| piece == name)
+                    .map(|&(_, modification)| (modification, false)),
+            );
+            own
+        };
+        // What it owns: the free weapons and the AKs, unworn, the stash
+        // maps, and the stacks the pockets take theirs from (the inventory
+        // shows them whole). The test data predates the AKMSU and the Glock 17.
+        for (name, units) in &grant.own {
+            let Some(item) = dictionary.item_named(name) else {
+                assert!(["akmsu", "glock_17"].contains(&name.as_str()), "{name}");
+                continue;
+            };
+            let owned = stacks(item.dict_id);
+            if item.is_stack {
+                assert_eq!(owned, [*units], "{name}");
+            } else {
+                assert_eq!(owned, vec![FULL_CONDITION; *units as usize], "{name}");
+                let worn = account
                     .inventory
                     .iter()
-                    .filter(|owned| owned.dict_id == item.dict_id);
-                assert_eq!(of_kind.count(), 1, "{name}");
-                if !item.is_stack {
-                    assert_eq!(owned.condition_or_stack, FULL_CONDITION, "{name}");
-                    let own: Vec<(u32, bool)> = STARTER_MODIFICATIONS
-                        .iter()
-                        .filter(|(piece, _)| *piece == name)
-                        .map(|&(_, modification)| (modification, false))
-                        .collect();
-                    assert_eq!(owned.modifications, own, "{name}");
+                    .filter(|it| it.dict_id == item.dict_id);
+                for it in worn {
+                    assert!(
+                        account
+                            .kits
+                            .iter()
+                            .all(|kit| kit.slot_of(it.item_id).is_none())
+                    );
+                    assert_eq!(it.modifications, own_modifications(name), "{name}");
                 }
             }
+        }
+
+        // Preset 1's ammo slots full: the player's three bags, three clips
+        // of one bag each (no bag modification on its gear); preset 2's
+        // five (the Keeper vest's and pants' 1050), all for its one weapon.
+        let [active, keeper] = [&grant.active, &grant.saved[0]];
+        for kit in 0..KITS {
+            assert_eq!(starter_ammo_bags(dictionary, active, kit), 3);
+            assert_eq!(starter_slot_bags(dictionary, active, kit, 8), 3);
+        }
+        // Preset 2 on the test data: kits 1 and 2 without the Keeper of the
+        // Sun, kit 3 wearing nothing: the player's three.
+        let bags: Vec<u32> = (0..KITS)
+            .map(|kit| starter_ammo_bags(dictionary, keeper, kit))
+            .collect();
+        assert_eq!(bags, [3, 3, 3]);
+        assert_eq!(starter_slot_bags(dictionary, keeper, 0, 8), 3);
+        // A kit of two weapons shares its bags: a TT-33 with its ammo in
+        // weapon slot 2 of kit 1 takes one, the AK-12's ammo the rest.
+        let mut two = keeper.clone();
+        two.kits[0].extend([(10, "tt_33".into()), (11, "ammo_7.62x25".into())]);
+        assert_eq!(starter_slot_bags(dictionary, &two, 0, 8), 2);
+        assert_eq!(starter_slot_bags(dictionary, &two, 0, 11), 1);
+        let rounds =
+            |ammo: &str, bags| full_rounds(dictionary.item_named(ammo).unwrap().dict_id, bags);
+        assert_eq!(rounds("ammo_7.62x51", 3), 30);
+        assert_eq!(rounds("ammo_12mm_buck", 3), 45);
+        assert_eq!(rounds("ammo_6.5x39", 3), 90);
+        assert_eq!(rounds("ammo_7.62x25", 1), 50);
+        // A bag modification counts: 1051 adds two.
+        assert_eq!(ammo_bags([1030, 1051]), 5);
+        // Each preset's kits: preset 1 the kits themselves, preset 2 kept
+        // (`Account::presets`), as the grant says.
+        assert_eq!(account.active_preset, 1);
+        let kept = [
+            super::super::presets::snapshot(&account).unwrap(),
+            account.presets[1].unwrap(),
+        ];
+        assert!(account.presets.iter().skip(2).all(Option::is_none));
+        let mut missing = Vec::new();
+        for (number, (preset, kept)) in (1..).zip(grant.presets().zip(kept)) {
+            for (index, kit) in kept.kits.iter().enumerate() {
+                for (slot, name) in preset.kit(index) {
+                    let held = kit[usize::from(slot)];
+                    let Some(item) = dictionary.item_named(name) else {
+                        assert_eq!(held, None, "{name}");
+                        missing.push(name);
+                        continue;
+                    };
+                    let count = match (item.is_stack, POCKET_SLOTS.contains(&slot)) {
+                        (true, true) => preset.pocket_units_of(item.dict_id),
+                        (true, false) => {
+                            rounds(name, starter_slot_bags(dictionary, preset, index, slot))
+                        }
+                        (false, _) => 1,
+                    };
+                    let held = held
+                        .unwrap_or_else(|| panic!("preset {number} kit {index}: {name} not worn"));
+                    let owned = account.item(held.item_id).unwrap();
+                    assert_eq!((owned.dict_id, held.count), (item.dict_id, count), "{name}");
+                    if !item.is_stack {
+                        // One item of a kind: every kit and preset wears
+                        // the same one.
+                        let of_kind = account
+                            .inventory
+                            .iter()
+                            .filter(|o| o.dict_id == item.dict_id);
+                        assert_eq!(of_kind.count(), 1, "{name}");
+                        assert_eq!(owned.condition_or_stack, FULL_CONDITION, "{name}");
+                        assert_eq!(owned.modifications, own_modifications(name), "{name}");
+                    }
+                }
+                // Nothing else.
+                let worn = kit.iter().flatten().count();
+                let named = preset
+                    .kit(index)
+                    .filter(|(_, name)| dictionary.item_named(name).is_some())
+                    .count();
+                assert_eq!(worn, named, "preset {number} kit {index}");
+            }
+        }
+        // The test data predates the knit cap and the Novice's backpack
+        // (preset 1), the Keeper of the Sun and the Saiga-12 and its buckshot
+        // (preset 2).
+        missing.sort_unstable();
+        missing.dedup();
+        assert_eq!(
+            missing,
+            [
+                "ammo_12mm_buck2",
+                "edge_legs_5_special",
+                "edge_torso_5_special",
+                "novice_026_helmet",
+                "saiga_12",
+                "stk2_novice_026_back"
+            ]
+        );
+        // Preset 1 plays: one weapon, in weapon slot 1; weapon slot 2
+        // empty; three pockets.
+        let mut levels = Vec::new();
+        for (index, kit) in account.kits.iter().enumerate() {
             let worn: Vec<u8> = (0..KIT_SLOTS as u8)
                 .filter(|&slot| kit.slots[usize::from(slot)].is_some())
                 .collect();
-            // One weapon, in weapon slot 1; weapon slot 2 empty.
-            assert_eq!(worn, [1, 2, 3, 4, 5, 6, 7, 8, 13, 14], "kit {index}");
-            assert_eq!(super::super::rules::check_play(&account, kit.id, 0), Ok(()));
+            assert_eq!(worn, [1, 2, 4, 5, 6, 7, 8, 13, 14, 15], "kit {index}");
+            assert_eq!(
+                super::super::rules::check_play(&account, kit.id, 0),
+                Ok(()),
+                "kit {index}"
+            );
             let weight = account.kit_weight(kit);
             assert!(weight <= 30.0, "kit {index}: {weight}");
             assert!(account.doubled_pockets(kit).is_empty());
             levels.push(super::super::matchmaking::kit_level(&account, kit));
         }
-        assert_eq!(missing, ["novice_026_helmet"].repeat(3));
-        // Within the bots' max gear 5: the armour, the oxygen tank and the
-        // pockets' drugs are 3, the MP-153 4.
-        assert_eq!(levels, [3, 3, 4]);
+        assert_eq!(levels, [7, 5, 4]);
         assert_eq!(account.active_kit, account.kits[0].id);
-        // 50 medkits and 50 antitoxins owned: the kits take theirs from them.
-        for (name, units) in STARTER_SUPPLIES {
-            let dict_id = dictionary.item_named(name).unwrap().dict_id;
-            let stacks: Vec<u32> = account
-                .inventory
-                .iter()
-                .filter(|item| item.dict_id == dict_id)
-                .map(|item| item.condition_or_stack)
-                .collect();
-            assert_eq!(stacks, [units], "{name}");
-        }
-        // The starting weapons stay owned, in the inventory.
-        for name in ["tt_33", "mosin_nagant", "ppsh"] {
-            let dict_id = dictionary.item_named(name).unwrap().dict_id;
-            let owned = account
-                .inventory
-                .iter()
-                .find(|item| item.dict_id == dict_id)
-                .unwrap();
-            let worn = account
-                .kits
-                .iter()
-                .any(|kit| kit.slot_of(owned.item_id).is_some());
-            assert!(!worn, "{name}");
-        }
 
-        // The two modifications: the game's own rows.
+        // The two modifications of every Keeper piece: the game's own rows,
+        // armour +8 and weight -15 %, the strongest of their kinds.
         let table = Modifications::shared();
-        let isolation = table.modification(1183).unwrap();
-        assert_eq!(isolation.name, "st_modify_anom_filters");
-        assert_eq!(isolation.lobby_info, [("mask_ano_armor".to_owned(), 0.2)]);
-        assert!(
-            isolation
-                .modifiers
-                .iter()
-                .all(|m| m.value == 0.2 && m.kind == 1)
-        );
-        let respirator = dictionary.item_named("scav_resp_1").unwrap().dict_id;
-        assert!(table.fits(respirator, &[], 1183));
-        let collection = table.modification(1133).unwrap();
-        assert_eq!(collection.name, "st_modify_artefact_search");
-        assert_eq!(
-            collection.lobby_info,
-            [("artefact_search_time_modifier".to_owned(), -0.2)]
-        );
-        // The gloves' own default of that type: 1130, -5 %.
-        let gloves = dictionary.item_named("scav_gloves_2").unwrap().dict_id;
-        assert_eq!(item_params(gloves).unwrap().default_modifications, [1130]);
+        let armour = table.modification(1004).unwrap();
+        assert_eq!(armour.name, "st_modify_armor");
+        assert_eq!(armour.lobby_info, [("armor".to_owned(), 0.08)]);
+        let weight = table.modification(1064).unwrap();
+        assert_eq!(weight.name, "st_modify_weight");
+        assert_eq!(weight.lobby_info, [("weight".to_owned(), -0.15)]);
     }
 }

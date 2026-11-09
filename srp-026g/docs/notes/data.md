@@ -188,6 +188,13 @@ Top-level sections (**PROVEN**):
 - `modifiers[levels]{<name>_modifier: value}`, using **modifier names, not ids**, and
   **fractions, not percents**;
 - `ui{position[col,row], name, description, icon, postfix, invert_sign, skill_descriptions}`.
+- **PROVEN** (exe `fill_skills_properties` 0x223a70): `branch` = id / 100 - 1; the
+  tooltip of rank r (0..levels) is `description` + d[r][0] + `postfix` + d[r][2],
+  and below the last rank + `st_current_value` + d[r][1] + `postfix` + d[r][3]
+  (no `postfix`: the description alone). `invert_sign` is read by nothing: the
+  strings carry their signs. The tabs' names: `st_{shooting,physical,survival,
+  engineering,anomaly}_skills_label` by branch (0x224828). The website's skills
+  page (`scripts/skills-tab/build.py`) shows them so.
 
 Two branches: 101–113 (weapon handling) and 201–214 (body/stamina).
 
@@ -211,14 +218,22 @@ Two branches: 101–113 (weapon handling) and 201–214 (body/stamina).
 | 203 | grenade_throw_power +0.1 | 2 | 5 | |
 | 204 | stamina_regeneration_speed +0.02 | 5 | 0 | |
 | 205 | stamina_boost_amount 0.1, interval 0, time 100 | 2 | 15 | |
-| 206 | meele_hit_ultimate 1 | 3 | 50 | |
+| ~~206~~ | meele_hit_ultimate 1 | 3 | 50 | removed by Skhid |
 | 207 | fall_damage −0.15 | 2 | 10 | |
 | 208 | movement_speed +0.01 | 5 | 10 | |
 | 209 | max_carried_weight +2 | 5 | 5 | |
-| 210 | meele_hit_range 1 | **0** | 50 | |
+| ~~210~~ | meele_hit_range 1 | **0** | 50 | removed by Skhid |
 | 211 | stamina_loss_on_hit −0.05 | 5 | 15 | |
 | 213 | can_sprint 1 | 1 | 20 | 214 |
 | 214 | max_carried_weight_ultimate 1 | 1 | 20 | 213 |
+
+The table is the stock 0.26g tree. Skhid removes 206 (Sledgehammer) and 210 (Jump with a knife)
+from the live tree (the owner, 2026-11-06; edit list `scripts/content-edit/physical-skills-1.json`),
+as the original developers did: both are in 0.31a2's `skills_tree`, neither is in 0.46c2's, and 0.69
+keeps only their strings (which stay here too). Nobody could learn them (`branch_points` 50, past the
+25 the window unlocks; their two modifiers are not among the exe's 68), so no account held a point
+in them. With column 4 of the physical tree empty, Packrat (202) moves from [3, 3] to [4, 3]
+(`ui.position` is [column, row]), its row and threshold unchanged.
 
 Consequences:
 - srp-021d `skills.rs` (booster id → modifier index, ÷100, 20 levels) **does not apply**.
@@ -380,6 +395,11 @@ Removed keys:
   srp-021d `quests.rs::kind` constants must change.
 - Ids run from 10101 to 41113. Factions: 63/64/121/121 quests.
 - The localization objective keys lost their per-level suffix: `st_*_obj_N` became `st_*_obj`.
+- `ui.icon` is the quest list's icon (PROVEN): the quest reader 0x321310 keeps it at descriptor
+  + 0xB8 (`faction` at + 0x1C), `lobby_menu::add_quest` 0x28DE20 sends it as `quest_icon`, and
+  `QuestListRender` draws frame `quest_icon + 1` of its `questIcon` (SrvQuestSideRenderer's child;
+  15 frames). A faction's emblem in the quest window is frame `faction_id` of SrvQuestFactionTab's
+  `icon` (ButtonQuestFaction). The wiki's quests page shows both (`scripts/wiki/build_icons.py`).
 
 ### static_game_parameters (dump `static_game_parameters.txt`): PROVEN
 - Same structure. `ui_properties` grows from 46 to 57 (props 123–133 added).
@@ -541,22 +561,19 @@ Evidence: the 0.26g exe (VAs) and `flash_movies/lobby_menu.swf` decompiled with 
     flagged premium, `base_cost` 0): an event camouflage, unavailable by the owner's
     decision. Its price of 0 would make it free.
   - **The PP-19-01 Vityaz (19) and the MP-27M Lancaster (108) are sold to everyone**: seller
-    0, level 0 (`EXCEPTIONS`; their configs name no faction, so the rule sold them nowhere).
-    The Lancaster for its `base_cost`, 2,500; **the Vityaz for 25,000, the owner's price**
-    (`OWNER_PRICES`; its `base_cost` is 12,000 and stays so in the data). Both still drop,
-    and their premium copies stay in gold bundles 12 and 10. The VSS, the SR-3M and the
-    SOCOM 16 stay unsold. The shop shows the record's cost (`GangShop.setupShopItems`:
-    `item.cost = p[i].cost`), but the item's descriptor keeps the game's (`descrData.cost`
-    is set from the record only when the exe gave none): an owned Vityaz shows 12,000, sells
-    for a quarter of it times its condition (at most 3,000; the lobby shows it so and the
-    server pays it so, `prices::sell_price` takes `base_cost`), and is repaired by it. So
-    buying for 25,000 and selling back cannot make silver. PROVEN in the ActionScript and
-    the code; not yet seen in a running game, nor the camouflages in the factions' tabs.
-  - **The starting weapons are sold to everyone** at the owner's prices (`OWNER_PRICES`,
-    seller 0, level 0; the game prices all three at 0): the Mosin carbine and the PPSh-41
+    0, level 0 (their configs name no faction: gear of no faction is everyone's). The
+    Lancaster for its `base_cost`, 2,500; **the Vityaz for 25,000, the owner's price**, its
+    `base_cost` (`scripts/content-edit/items.tsv`; the game's was 12,000). Both still drop,
+    and their premium copies stay in gold bundles 12 and 10. The VSS, the SR-3M, the SOCOM
+    16 and the plain Neostead stay unsold (`shop.tsv` `not_sold`). An owned one sells for a
+    quarter of its `base_cost` times its condition and is repaired by it, as the lobby
+    shows (`descrData.cost`, the exe's `base_cost`). Not yet seen in a running game, nor
+    the camouflages in the factions' tabs.
+  - **The starting weapons are sold to everyone** at the owner's prices, their `base_cost`
+    (seller 0, level 0; the game priced all three at 0): the Mosin carbine and the PPSh-41
     1,000 each (2026-10-18), the TT-33 500 (2026-10-23: "it should be there and cost
-    500"; before it, it was in no shop, so no Buy anywhere). Selling one back pays a quarter
-    of the game's 0. Their free ammo is listed at no cost.
+    500"; before it, it was in no shop, so no Buy anywhere). Selling one back pays a
+    quarter. Their free ammo is listed at no cost.
 - **What a new account owns (2026-10-12, `loadouts.rs`):** the TT-33, the Mosin carbine and
   the PPSh-41 with a clip of each free ammo (7.62x25, 7.62x54R): the wiki of February 2015
   names the three as every new player's, and they are the only weapons and ammo with
@@ -569,7 +586,7 @@ Evidence: the 0.26g exe (VAs) and `flash_movies/lobby_menu.swf` decompiled with 
     `branch_points` is more than that sum; reached rows unlock
     `floor(branch_points / 5) * 5`, at most 25 (`getBranchUnlockedLevel`, `SKILL_LEVELS 25`,
     `POINTS_PER_LEVEL 5`). So a row needs its `branch_points` spent in the rows above it.
-  - Skills 206 and 210 (`branch_points` 50) can never be bought.
+  - Skills 206 and 210 (`branch_points` 50) can never be bought: Skhid removes them (§3).
   - `antiskills` lock each other while one has points (`handleAntiskills`).
   - Points available = level - Σ points (exe `fill_char_info` 0x224420, as lobby.md §2.12).
   - That the original server checked the same rules is LIKELY.
@@ -700,7 +717,9 @@ own `GangShop.createItem`) call the same adapter. The UI harness exercises the
 real shop price-list/reconnect path, including zero, negative, positive and
 golden weapons, whose silver bonus is retained.
 This is the weapon's base stat; Bear Arms (skill 112, modifier 62) does not
-rewrite its card, just as it does not change the weapon's weight.
+rewrite its card, just as it does not change the weapon's weight. Held Alt the
+card shows the line as a match has it, a cancelled penalty "-5% -> 0%"
+(`alt-weapon-stats.md`, "Movement speed under Bear Arms").
 
 `weight_ui_026g` caches the same player stamina config at 0x22110F, owned by that
 lobby instance. At 0x2222EB it extends the existing two-number movie callback

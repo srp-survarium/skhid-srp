@@ -25,7 +25,7 @@ Both button labels are centered horizontally and vertically. Open Discord uses
 the same measured character advances for painting, avoiding the caption offset
 seen under Wine.
 
-Open Discord opens [SRP Discord](https://discord.gg/Pxa4prXfwu) in the default
+Open Discord opens [SRP Discord](https://discord.gg/QUmJg3gBhg) in the default
 browser, only when clicked. The dialog tells the player to find the named file
 in the displayed folder and send it to **#bugreports**. This applies to both a
 ZIP and a raw dump kept after compression failed. If saving failed, it asks
@@ -52,7 +52,7 @@ Every crash also gets a short text report, made from the exception and
 context records whether or not the dump is saved:
 
 ```
-Skhid crash report, 2026-10-25 18:44:17
+Skhid crash report, 2026-10-25 18:44:17 UTC (local +03:00)
 Exception: 0xC0000005 ACCESS_VIOLATION (write to 0x00000000)
 Address:   report_probe.exe+0x1444 (0x00401444)
 Thread:    284
@@ -64,11 +64,22 @@ Stack:     report_probe.exe+0x14D4
 Game:      report_probe.exe, patch revision unknown, sha256 6ac354ea1c2e
 Reporter:  local build
 Windows:   10.0.19045 (Wine 11.8)
+Match:     0x1092, map 12, 8 places, level 5; local place 3
+Reading:   place 3's player state, from byte 420 of its stream, 0.290 s before the crash
 Dump:      saved
+Events:    1530 recorded, the last 1024 kept: match 2 world 61 started 1 death 140 pickup 820 ...
+           the last 200, seconds before the crash:
+  -2.036 s  world: 4500 ms, 900 bytes packed, loaded, local place 3
+  -1.536 s  death: place 4, life 2, at 61000 ms
 Game log:  last 20 lines of the newest Survarium*.log in Documents\Survarium
 ...
+Patch log: last 100 lines of srp_patches.log
+srp: ...
 ```
 
+- The first line: the time in UTC (the server's logs are UTC), and the
+  PC's offset from UTC then (`FileTimeToLocalFileTime`, daylight saving
+  included).
 - Exception: the code, its Windows name, and for an access violation
   whether it read, wrote or executed and the address; for an MSVC C++
   exception the thrown type (`.?AVbad_alloc@std@@`).
@@ -86,12 +97,45 @@ Game log:  last 20 lines of the newest Survarium*.log in Documents\Survarium
 - Paths (only when it applies): non-ASCII letters in the game folder or the
   temporary folder, and whether they are outside the ANSI code page. The
   folders themselves are not written.
+- Match and Events (only when the game keeps breadcrumbs, client patch
+  revisions with `vostok/breadcrumbs.rs`): the client patches keep the last
+  1024 notable events in the exe's arena (`.srpx`, its state block: 32 KiB
+  and a 64-byte header, zeros at load, never allocated): a match's options
+  (the static info's or a replay's), a world about to be loaded (its game
+  time, bytes, packed or not, loaded or refused by patch 87, the local
+  place), the countdown's end, the world's unload, a player made or gone, a
+  death (place, life, game time) and patch 85's pickup steps. Each is an
+  entry of 32 bytes {number, kind, values, QueryPerformanceCounter}, written
+  by hooks the patches already had, at those events only (never a frame).
+  The reporter finds the ring in the `.srpx` section by its header (its own
+  address, then that xor "BRCS", written at the first record), copies it
+  with `ReadProcessMemory` and prints the last match's options and local
+  place (`Match:`, in what Copy copies), and after the dump's line the
+  counts per kind of the kept entries and the last 200 of them, dated in
+  seconds before the capture began (its QueryPerformanceCounter). The map is
+  the maps_dict id; the match as the server's logs name it (`Match
+  0x...`). The ZIP's `breadcrumbs.txt` has all the kept entries.
+- Reading (same games): what the game read last, so that a crash inside a
+  load (a deserialize's assertion) names the player and the place in the
+  stream. The header's `reading` is stamped at a world's load
+  (`a world (0xE8), before its players`), at base_player::deserialize's
+  start (`place 3's player state, from byte 420 of its stream`, patch 85's
+  `pickup.load`) and after its last native field (patch 78's `carry.load`),
+  with its seconds before the crash. The line is there only while a read
+  is unfinished: after a player state's last native field (rollbacks load
+  history states all the time) there is none. Three
+  stores and a counter read a stamp; once a player a load, never a frame.
+  The world's sections have no hook of their own (game_world_core's
+  deserialize reads them in one function), so a section is not named.
 - Dump: saved, or why not, with the Windows error.
 - Game log: the last 20 lines of the newest `Survarium*.log` in
   Documents\Survarium (its last 8 KiB), from the first line that starts a
   record (a cut inside a sensitive record's continuation lines would not be
   caught), through the same credential filter as the ZIP's logs; the file
   name is not written (it holds the account name).
+- Patch log: the last 100 lines of `srp_patches.log` beside the exe (the
+  client patches' log, `vostok/log.rs`; its last 24 KiB), the same way;
+  each of its `srp: ` lines is a record of its own for the filter.
 - Every read of the game's memory goes through `ReadProcessMemory`: a
   damaged pointer gives no line, not a second crash. The stack scan reads
   whole dwords only and stops at a short read. The report is made only after
@@ -159,7 +203,7 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
 >    allowed app", and choose: *(the game exe, with its folder)*
 > 3. Start the game again.
 >
-> If this does not help, ask us in Discord: discord.gg/Pxa4prXfwu
+> If this does not help, ask us in Discord: discord.gg/QUmJg3gBhg
 >
 > (Windows error *N*)
 
@@ -185,9 +229,10 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
 
 ## Dump contents
 
-`src/dump.rs`, `DUMP_TYPE`:
+`src/dump.rs`, `Kind`: read once, when the DLL is loaded, from the game's
+environment variable `SKHID_CRASH_DUMP`.
 
-- **Players' build:** `MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory`
+- **Players' dumps** (unset): `MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory`
   (0x41): every thread's stack and registers, the modules, their writable data
   sections, and the memory the stacks point to. Its memory callback also adds,
   for the crashing thread's EAX, EBX, ECX, EDX, ESI, EDI and EBP, the range
@@ -195,15 +240,19 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
   it: the object behind a faulting `mov eax, [esi+116h]`, which no stack slot
   need point to (at most 7 × 2.3 KiB). A range dbghelp cannot read is skipped,
   not a failed dump. Before 2026-11-01 it was DataSegs alone: no heap at all.
-- **Local test build** (`./build.sh --features full-memory-dumps`):
+- **Full-memory dumps** (`SKHID_CRASH_DUMP=full`, any build; on Linux
+  `SKHID_CRASH_DUMP=full bash Skhid.sh launcher`, which refuses any other
+  value and lists the crash files at the end; on Windows `set
+  SKHID_CRASH_DUMP=full` in the `cmd` that starts `Skhid.bat`; the DLL
+  takes `full` in any case, with spaces around it, as `set` keeps them):
   `MiniDumpWithFullMemory | FullMemoryInfo | HandleData | ThreadInfo |
-  UnloadedModules` (0x1826): the whole process memory, every heap object.
-  About the game's committed memory (1–3 GB); kept as the `.dmp` beside the
-  exe, not zipped (zipping would hold the crash for many seconds, and the dump
-  is read on that PC), the text report beside it. Crash details say
-  `Reporter:  local build, full-memory dumps`. Never released: `build.rs`
-  refuses the feature with `SKHID_REVISION`, which every release build sets
-  (`release/build-zip` builds a fresh worktree with plain `build.sh`).
+  UnloadedModules` (0x1826), no memory callback: the whole process memory,
+  every heap object. About the game's committed memory (1–3 GB); kept as the
+  `.dmp` beside the exe, not zipped (zipping would hold the crash for many
+  seconds, and the dump is read on that PC), the text report beside it. Crash
+  details say `Reporter:  <revision>, full-memory dumps (SKHID_CRASH_DUMP=full)`.
+  The launcher, the updater and Wine pass the environment on to the game
+  (their `CreateProcessW` gives no environment of its own).
 - **Wine's dbghelp** (Linux players and the local clients, which have no
   `dbghelp.dll` beside the exe) ignores DataSegs, IndirectlyReferencedMemory
   and memory callbacks: a players' dump written under Wine has stacks,
@@ -226,7 +275,7 @@ pointers; not yet measured on Windows: see Dump contents).
   worker, before callbacks and the dialog; for crashes and for
   `BT_SaveSnapshot[Ex]` alike, and also for a stack overflow (no dialog).
 - Files: `SRP-crash-…-N.zip` beside its `SRP-crash-…-N.dmp` (the same folder:
-  the EXE's or the temporary one), holding the dump under its own name, the text report as `crash.txt` (see Crash details) and recent game logs under `logs/`
+  the EXE's or the temporary one), holding the dump under its own name, the text report as `crash.txt` (see Crash details), the game's breadcrumbs as `breadcrumbs.txt` (when it keeps them) and recent game logs under `logs/`
   (DEFLATE; Unicode log names use the ZIP UTF-8 flag). It is written as
   `SRP-crash-…-N.zip.part`, never over an existing file, and renamed to `.zip`
   when complete.
@@ -242,6 +291,11 @@ pointers; not yet measured on Windows: see Dump contents).
   transaction journals, settings, screenshots, other extensions and unrelated
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
+- The client patches' log: `srp_patches.log` beside the EXE (`vostok/log.rs`;
+  the game never cuts it), first, as `logs/game-exe/srp_patches.log`,
+  whatever its age: its last 2 MiB, from the first whole line in them
+  (`collection.txt` says from which byte), under the same filter and budgets.
+  Its `srp: ` lines are each a record of their own for the filter.
 - Legacy code pages: the game writes its log in its locale's code page. The
   engine's start-up (`core::preinitialize`, 0.26g 0xE3C10) sets it from
   `-localization`: original and russian cp1251, english cp1252, polish cp1250;
@@ -395,7 +449,6 @@ nix develop ./srp-026g
 cd client/bugtrap
 ./build.sh                       # a local build: version 0.0.0.0, "local build"
 SKHID_REVISION=27 ./build.sh     # as release/build-zip builds revision 27
-./build.sh --features full-memory-dumps   # local tests only: whole-memory dumps
 ```
 
 The target is `i686-win7-windows-msvc` (Windows 7 and later, as the game; the
@@ -441,7 +494,7 @@ rustc --edition 2024 -O --test src/zip.rs -o target/zip-test
 ```
 
 What a dump holds (Dump contents) has its own check, no X server needed, run
-once with a players' build and once with a `full-memory-dumps` build. Build the
+for both kinds (the probe runs with `SKHID_CRASH_DUMP` unset and `=full`). Build the
 probe and the test dbghelp with MinGW
 (`nix shell nixpkgs#pkgsCross.mingw32.buildPackages.gcc`), into a folder with
 that `BugTrap.dll`:
@@ -565,6 +618,16 @@ or not (the scan once hung there), and checks the report beside the ZIP and in i
 exception line, the address inside the faulting function as module+offset,
 the caller on the stack scan, the other lines, and the log tail with a
 password's record and its continuation removed and the records after it kept.
+It also puts a 3 MB `srp_patches.log` beside the probe and checks the UTC
+header with its offset, the report's last 100 patch-log lines (a token's line
+removed), and the ZIP's `logs/game-exe/srp_patches.log`: at most 2 MiB, from
+a whole line, ending with the file's last line. (Nix's MinGW g++ links
+mcfgthread: add `-L` of `nixpkgs#pkgsCross.mingw32.windows.mcfgthreads`'s
+`lib`.)
+The probe also keeps a breadcrumb ring in a `.srpx` section of its own (after
+words that look like a header and are not one), and the check reads its
+`Match:` line, the three events and their ages, and the ZIP's
+`breadcrumbs.txt`.
 
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the

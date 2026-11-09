@@ -18,9 +18,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Play fills an eligible room in its bracket first (nearest level, then fullest).
     When all are full it queues, choosing a shortest queue. Repeated Play keeps
     the same queue position.
-  - Six ready Play users waiting across that bracket's queues open another room;
+  - Four ready Play users waiting across that bracket's queues open another room;
     up to 16 transfer together, oldest first. This repeats with demand: no fixed
-    three-plus-one limit. The operator's existing `SRP_ROOMS_MAX` still applies;
+    three-plus-one limit. The rooms table's `rooms_most` still applies;
     at that limit, or if creation fails, everyone keeps waiting.
   - Explicitly chosen queues do not count toward expansion and never move with it.
     Disconnected games, restarted games not yet told their queue, and unplayable
@@ -121,6 +121,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
+  - **The third card is Blackout** (the owner's of 2026-11-02: "offers blackout in voting
+    always as a third choice"): cards 1 and 2 drawn from the rest of the pool, card 3 one of
+    its Blackout maps, on another map than theirs while there is one; a pool without
+    Blackout or of Blackout alone draws its three as before (`blackout.md`).
 - **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
   players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
   sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the
@@ -185,6 +189,36 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     the next open room); the room's info line, its list row and the facts beside the list
     show no max level (the server tells 0). On the server a private room's settings have no
     max level at all (`rooms::Door::Pin`).
+  - **With bots** (the owner's of 2026-11-05: "private room should receive a with bots
+    toggle", "the room doesn't show bots", "when you enter the game, whoever is in which team
+    replaces bots"):
+    - The create window always has "With bots" under the private room's line (the owner's of
+      2026-11-05: "it should always be there, if you click it, all maps regimes are
+      unclicked"). Turned on, it unticks every mode and map the bots play none of; they are
+      greyed and cannot be chosen while it is on, and the pool's count is of the rest. Turned
+      off, they can be chosen again and stay unticked until ticked.
+    - The bots play batteries, timed batteries and Team Deathmatch (not Research, which the
+      match server refuses them, nor Blackout, which Play vs Bots never offered) on a map with a
+      bots' map file in `SRP_MAPDATA_DIR`, and only with Player vs Bots on (`SRP_PVB`). The
+      server keeps only those maps of the pool sent; none of them: refused (code 8).
+    - The room shows no bots: its list, teams, moves and Start are a private room's. The list
+      and its info line say "BOT" where a PIN room's say "PIN" (the owner's of 2026-11-05:
+      "PIN * should be replaced with BOT *").
+    - Always 8 v 8 (the owner's of 2026-11-05: "i wish matches were always 8vs8", "let's keep
+      it simple for now"): a team takes 8 members at most (`pvb/default_size`, the room's
+      size: 16 members, "TEAM 1 k / 8"), and Start fills each team with bots up to 8, the
+      members on it in bots' places (5 members split 3 v 2: 5 and 6 bots). Its match takes no
+      late joiner: a newcomer waits in the room, told the match is full (`J;-1;4`), and takes a
+      bot's place at the next Start. No bot leaves a match being played (a match's 20 places
+      are never used twice).
+    - Its matches count towards `SRP_PVB_MAX_MATCHES` with Play vs Bots'; at that many (or the
+      mode off), Start does nothing (logged).
+    - It pays as Player vs Bots (the owner's of 2026-11-05: "this should still give bot
+      rewards"), not as a PIN room: `SRP_PVB_PAY` of silver and experience, rewards at level 7
+      at most, no quest, daily bonus or rating (`MatchSetup::vs_bots`). No kill caps, as against
+      bots. With more than one player, the match server's stall rule of Play vs Bots (its one
+      player uploads no world) does not apply: the others upload.
+    - Its settings are not kept for the next create window (its pool is the bots' maps only).
   - Open rooms and Play keep their size, players to start, max level and countdown.
 - **The chosen room beside the list** (the owner's of 2026-10-29: it flipped between two layouts):
   one layout through the vote. Before the vote, and while no card leads alone (the server then
@@ -245,6 +279,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     plays its next match; the public room's separate capacity is still 16 members.
   - a maintenance within 30 min: "Server maintenance soon: no new joins." (5)
   - the match ending (its mode's rule, its result): "The match is ending: you'll play the next one." (6)
+  - no game of the match can give a joiner a world now: their last worlds were refused by the
+    match server's check (`match.md` §36), until one passes again: "The match can't take
+    players now. You'll join the next match." (8, since 2026-11-07). The member stays in its
+    room and plays its next match, as for 7; it goes in sooner if an upload passes first.
   - its own kit or gear unfit: the red mark's text, as before a match (no seconds either).
 - **In the match (Tab list), to do:** a lost player's row stays grey for the 90 s; one who
   left to the lobby, or is lost past the 90 s, has its row removed; coming back after the

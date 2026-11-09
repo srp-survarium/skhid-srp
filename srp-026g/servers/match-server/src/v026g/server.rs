@@ -398,9 +398,9 @@ impl Server {
             log::info!(
                 "Match {:#x}: map {} ({}), mode {}, {} players",
                 formed.match_id,
-                formed.map.id,
-                formed.map.name,
-                formed.map.mode,
+                formed.played.map().id,
+                formed.played.map().name,
+                formed.played.mode().lobby_number(),
                 formed.places.len()
             );
             let mut game = Game::new(formed, self.port, self.settings.clone(), now);
@@ -410,7 +410,7 @@ impl Server {
             self.games.insert(seat.match_id, game);
         }
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
-        if (growing && debug == 0x81) || (!growing && debug != 0) {
+        if (growing && debug & 1 != 0) || (!growing && debug != 0) {
             log::info!(
                 "{addr} (session {session_id:#x}) runs with -debug_hash_mismatch: a stock client \
                  like it would read an upload request (0xF6) as a world to compare"
@@ -430,6 +430,7 @@ impl Server {
             game.sync_roster(formed, now);
         }
         game.attach(index, addr, session_id, revision, transport, now);
+        if matches!(debug, 0x82 | 0x83) { game.enable_world_receipts(index); }
         self.routes.insert(addr, (seat.match_id, index));
         self.store.seen_in_match(session_id);
     }
@@ -469,8 +470,13 @@ impl Server {
                     self.store.matchmaking().join_failed(account_id);
                 }
             }
-            self.registry
-                .set_admitting(game.id, game.roster_size(), game.admission(now));
+            // The phase with the admission, in one record: a join reads both (Keeper's late joiner).
+            self.registry.set_admitting(
+                game.id,
+                game.roster_size(),
+                game.admission(now),
+                game.live_phase(),
+            );
             if tell_live {
                 self.registry.set_live(game.id, game.live_now(now));
             }
@@ -534,8 +540,8 @@ impl Server {
                 log::info!("Match {match_id:#x}: no client came; given up");
                 self.results.match_ended(MatchResult {
                     match_id,
-                    map_id: formed.map.id,
-                    game_mode: formed.map.mode,
+                    map_id: formed.played.map().id,
+                    mode: formed.played.mode(),
                     match_level: formed.match_level,
                     // A room's: called off, as one everyone left before its
                     // countdown (`Game::called_off`).
@@ -552,7 +558,6 @@ impl Server {
                     trusted_by: 0,
                     vs_bots: formed.vs_bots,
                     private: formed.private,
-                    blackout: formed.blackout,
                     players: formed
                         .places
                         .iter()

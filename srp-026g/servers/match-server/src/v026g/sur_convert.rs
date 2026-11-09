@@ -89,6 +89,9 @@ pub struct Settings {
     /// Key frames at these times are left out (for finding what the
     /// client chokes on).
     pub drop_key_frames: Vec<u32>,
+    /// Only these key frames (and the first): for a replay that must reach
+    /// one world without loading the worlds before it (a crash repro).
+    pub keep_key_frames: Option<Vec<u32>>,
     /// Only the first world as a key frame (the replay is never put
     /// right).
     pub first_key_frame_only: bool,
@@ -100,6 +103,7 @@ impl Default for Settings {
             coding: Coding::Packed,
             key_frame_every_ms: DEFAULT_KEY_FRAME_EVERY_MS,
             drop_key_frames: Vec::new(),
+            keep_key_frames: None,
             first_key_frame_only: false,
         }
     }
@@ -255,9 +259,50 @@ fn majority(bodies: &[Vec<u8>]) -> (usize, usize) {
 struct PlaceState {
     /// The roster of the 0xE4 this place got.
     roster: u8,
-    /// 0xE4 parts by unique id: (count, parts).
-    options: HashMap<u8, (u8, BTreeMap<u8, Vec<u8>>)>,
+    options: OptionsParts,
     uploads: Reassembler,
+}
+
+/// The 0xE4s a place was sent, in parts by unique id.
+#[derive(Default)]
+pub(crate) struct OptionsParts(HashMap<u8, Gathering>);
+
+/// One 0xE4's parts so far: the count (part 0 carries it), the parts by index.
+type Gathering = (Option<u8>, BTreeMap<u8, Vec<u8>>);
+
+impl OptionsParts {
+    /// A 0xE4 message to the place: its whole payload once its last part
+    /// is in. A part sent again after its message was whole is kept until
+    /// its message's part 0 comes again, never taken for a whole message.
+    pub(crate) fn push(&mut self, message: &wire::Message) -> Option<Vec<u8>> {
+        let x = message.x?;
+        let Some(part) = message.part else {
+            return Some(message.payload.to_vec());
+        };
+        let (count, parts) = self.0.entry(x).or_default();
+        if part.count.is_some() {
+            *count = part.count;
+        }
+        parts.insert(part.index, message.payload.to_vec());
+        if parts.len() < usize::from((*count)?) {
+            return None;
+        }
+        let (_, parts) = self.0.remove(&x)?;
+        Some(parts.into_values().flatten().collect())
+    }
+}
+
+/// The mask bytes of the datagrams to a place: a match that lets players in
+/// late sends its masks for 20 from the start (`Game::snapshot_players`),
+/// any other for the roster of the 0xE4 the place got (none before it).
+pub(crate) fn mask_len(growing_roster: bool, roster: u8) -> usize {
+    if growing_roster {
+        mask_bytes(MAX_PLAYERS as u8)
+    } else if roster == 0 {
+        0
+    } else {
+        mask_bytes(roster)
+    }
 }
 
 /// Makes the `.sur` of a recording. `config` is the mode's `.options` file.
@@ -435,15 +480,7 @@ impl Gather {
             return;
         }
         report.datagrams_out += 1;
-        // A match that lets players in late sends its masks for 20 from
-        // the start (`Game::snapshot_players`).
-        let mask_len = if report.growing_roster {
-            mask_bytes(MAX_PLAYERS as u8)
-        } else if place.roster == 0 {
-            0
-        } else {
-            mask_bytes(place.roster)
-        };
+        let mask_len = mask_len(report.growing_roster, place.roster);
         let parsed = wire::parse(Table::Match, Direction::ToClient, record.bytes, mask_len);
         let datagram = match parsed {
             Ok(datagram) => datagram,
@@ -457,24 +494,9 @@ impl Gather {
             let payload = message.payload;
             match message.id {
                 0xE4 => {
-                    let Some(x) = message.x else { continue };
-                    let (count, parts) = place.options.entry(x).or_insert((1, BTreeMap::new()));
-                    match message.part {
-                        Some(part) => {
-                            if let Some(n) = part.count {
-                                *count = n;
-                            }
-                            parts.insert(part.index, payload.to_vec());
-                            if parts.len() < usize::from(*count) {
-                                continue;
-                            }
-                        }
-                        None => {
-                            parts.insert(0, payload.to_vec());
-                        }
-                    }
-                    let whole: Vec<u8> = parts.values().flatten().copied().collect();
-                    place.options.remove(&x);
+                    let Some(whole) = place.options.push(message) else {
+                        continue;
+                    };
                     if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary) {
                         let roster = parsed.players.len() as u8;
                         place.roster = roster;
@@ -801,6 +823,9 @@ fn finish(
     times.dedup();
     times.truncate(MAX_KEY_FRAMES);
     times.retain(|time| !settings.drop_key_frames.contains(time));
+    if let Some(keep) = &settings.keep_key_frames {
+        times.retain(|time| *time == first_world || keep.contains(time));
+    }
     if settings.first_key_frame_only {
         times.truncate(1);
     }
@@ -1239,11 +1264,10 @@ mod tests {
         let map = survarium::v026g::maps::playable().next().unwrap();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1)],
-            map_id: map.id,
+            map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
-            blackout: false,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         let mut records = vec![
@@ -1251,7 +1275,7 @@ mod tests {
                 0,
                 &format!(
                     r#"{{"note":"header","map":"{}","map_id":{},"mode":{},"match_id":"0x1","places":[{{"place":0}},{{"place":1}}]}}"#,
-                    map.name, map.id, map.mode
+                    map.name, map.id, map.mode.rules()
                 ),
             ),
             note(1350, r#"{"note":"clock","match_ms":50}"#),
@@ -1424,6 +1448,7 @@ mod tests {
                 coding,
                 key_frame_every_ms: 10_000,
                 drop_key_frames: Vec::new(),
+                keep_key_frames: None,
                 first_key_frame_only: false,
             };
             let (file, report) = convert(&records, config, settings).unwrap();
@@ -1648,11 +1673,10 @@ mod tests {
         let map = survarium::v026g::maps::playable().next().unwrap();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1), armed("c", 0)],
-            map_id: map.id,
+            map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
-            blackout: false,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         for place in 0..3u8 {

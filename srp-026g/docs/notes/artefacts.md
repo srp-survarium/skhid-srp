@@ -1,7 +1,7 @@
 # Artefacts (the owner, 2026-10-22)
 
-Client patch 54 (README section 54, client_patch.md section 3.51) and the edit list
-`scripts/content-edit/artefacts-1.json`. The stock code and numbers:
+Client patch 54 (README section 54, client_patch.md section 3.51) and the table
+`scripts/content-edit/artefacts.tsv`. The stock code and numbers:
 `tools/re-kit/v026g` and the decoded retail configs (`gameplay/items/artefacts/*.options`).
 
 ## The idea
@@ -15,8 +15,16 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
 ## Every artefact
 
 - Passive from pickup to death, as before; each copy's passive adds up with the others'.
+  A death keeps the artefacts in that kit's containers (passive off while dead); a respawn in
+  that kit switches their passives on again, a respawn in another kit leaves them in the first
+  kit's containers until a spawn in it again (each kit its own object). A take with every
+  container held replaces the first container's (it is gone, dormant).
 - A press of an artefact's key fires every artefact of that kind in the slots that is ready
   (its passive, its cooldown 0): one key, all of a kind, their actives added up.
+- At most 4 copies of a kind count (the owner, 2026-11-07; artefact-skills.md "At most 4 copies
+  of a kind"): a press fires only the ready ones among the first 4 of the kind in the containers
+  (in their passive or active, container order); a fifth (Artifact Container) is never fired and
+  stays ready, so its active adds nothing (and it gives no passive).
 - A copy on its cooldown or already active does nothing on that press; it is not fired later.
 - The key of a copy that is not ready still fires the ready ones of its kind.
 - Different kinds have their own keys and cooldowns: Onyx, Spring and Lifebone fire on their own.
@@ -39,7 +47,7 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
 - Active (3 s, cooldown 45 s): hand and leg injuries removed as before, and pain, body and head full
   at once.
 - Cooldown 45 s, was 15 s (the owner, 2026-10-23): since its active is a full heal, 15 s was too
-  often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts-1.json`.
+  often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts.tsv`.
 - Nothing hard-codes it: artefact_base's constructor (0x312FD0) reads `cooldown_sec` x 1000 into
   +274h, the active's end (0x3135EC) starts the cooldown from it (times the holder's modifier 38),
   and the HUD slot's fill (0x313880) is 100 - time left x 100 / it. Patch 54 only reads the time
@@ -53,7 +61,8 @@ active")
 - Active: -75 % damage and piercing (`active/damage_mul` and `armor_piercing_mul` 0.1 -> 0.25) for
   3 s, cooldown 60 s as before.
 - Its key fires every ready Onyx; n fired together are each active 3 s + (n - 1) s (1 Onyx 3 s, 2
-  Onyx 4 s, 3 Onyx 5 s) and end and cool down together. A cooling Onyx adds no time.
+  Onyx 4 s, 3 Onyx 5 s) and end and cool down together. A cooling Onyx adds no time, nor a fifth
+  (not fired: five ready Onyx are 6 s, as four).
 - Several active Onyx reduce a hit once (-75 %): only the first active Onyx of the slots takes its
   share; the others leave the hit as it is (before: x0.1 per active Onyx, all 3 s).
 - An Onyx in its passive (on its cooldown) beside an active one still gives its -5 %.
@@ -98,6 +107,27 @@ down) when you use artifact? Note that your vision should still be clear")
     kept, as the owner asked.
   - The end: the effect's time calculator is the artefact's (`artefact_base::effect_calculator`
     0x313640): finished when the artefact leaves its active state (4); both children with it.
+- Version 5 of the pack adds Forest Protection's grey leg glow (artefact-skills.md, "Forest
+  Protection"): the same files of the three kinds, and effect_forest_protection with its own
+  particle system and grey materials.
+- Version 6 adds the leg quarters (artefact-skills.md, "Leg quarters"):
+  effect_artefact_leg_<kind>_<1..4>, each kind's stock glow on one quarter of the legs (without
+  its point light until version 8).
+- Version 7: the quarters' emitters at the stock glow's density on their parts (Rate and
+  MaxParticles times the kept share of each stock emitter's parts).
+- Version 8: the point light's emitter (up_light) back in every quarter, at the same share.
+- Version 9: Forest Protection's glow on the forearms and hands, made as a quarter is.
+- Version 10: Forest Protection's glow the legs' system of 5..8 moved to the arms; it and the leg quarters composites with a
+  first-person twin (view 0) without the point light and the haze, as the kinds' own glows are.
+- Version 11: Forest Protection's puffs, strokes and haze out of the arm on every side (their
+  animated domain's Scale outward on all three axes), the puffs twice as large; the twin 10's.
+- Version 12: Forest Protection's glow a dark-grey smoke around the arms: the stock Onyx glow on
+  the arms at full rate with its `up` puffs and `body` strokes moved onto them, no light, the
+  smoke drawn with `fx/artifacts/smoke_dark_grey` (a copy of the alpha-blended
+  `explosions/dark_smoke`); in the carrier's own view its rays only.
+- Version 13: the leg quarters one particle effect of view 2 each, without the point light and the
+  haze (what the carrier saw is what everyone sees), no first-person twin; Forest Protection's smoke
+  emitters' Rate and MaxParticles x1.5.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.
@@ -128,6 +158,29 @@ should mix them just as retail does")
 - So nothing changes in the third person; the first-person glows overlap the same way (each
   kind its own additive effect).
 
+## Artifact-master (the owner, 2026-11-05: "should also make artefacts recharge 20% faster")
+
+- The booster (`artefact_booster`, item 344) in a pocket: artefact search time -25 % as before
+  (built-in 1134, modifier 7: the container's `artefacts_search_time_sec` x max(0, 1 + S),
+  0x31C7EF; 6 s -> 4.5 s), and now every artefact's cooldown -20 % (Spring 40 -> 32 s, Lifebone
+  45 -> 36 s, Onyx 60 -> 48 s).
+- Data only, no exe change: a built-in bonus like 1134. Modification 1310
+  (`artefact-cooldown-bonus-1.json`, `modifications.tsv`): `parameters/artefact_cooldown_modifier`
+  -0.2, type 1, drop weight 0, a type of its own (41: never rolled), card property 173 "Artifact
+  recharge time" (made like 108, the search time: a percentage, lower is better), the search
+  time's icon (13). `boosters.tsv` makes it the booster's second built-in; the booster's config
+  carries the key at 0, as the other boosters carry theirs (the item cook skips a modifier whose
+  key the config lacks, weapon-rolls.md).
+- A booster (0x33F690) makes a player modifier of each of its 68 parameters that is not 0
+  (player_bots.md), and the active's end (0x313530) starts the cooldown at `cooldown_sec` x 1000 x
+  max(0, 1 + S38) (38 is multiplicative: not in the additive list 0x927E08). No skill, other item
+  or modification of the data gives it.
+- The card: "Artifact recharge time -20%" under the search time's line, green (no roll reaches
+  it, so not the gold of a best roll as 1134's -25 %). The lobby's Alt values leave boosters and
+  artefacts out (alt-weapon-stats.md): nothing to show.
+- The HUD slot's fill (0x313880) still divides the time left by the unmodified cooldown: with
+  the booster a cooling artefact's fill starts at 20 % instead of 0 and ends full on time.
+
 ## Texts
 
 - The only texts: each artefact's pickup hint (the passive) and activation hint (the active), fixed
@@ -148,7 +201,7 @@ should mix them just as retail does")
   max(0, 1 + the sum), floored at 0 by the game itself; scope-in 0x2E1B50 and scope-out 0x2E1BF0
   use it. Sources on real data: Spring -0.05 passive / -0.10 active each (artefact slots 13..18),
   the skill tree up to -0.10 and gloves (modifications 1080..1084) up to -0.10. A weapon's own
-  aim-time roll (2070..2074, up to -0.10) is not in this sum: since weapon-rolls-1 it scales the
+  aim-time roll (2070..2074, up to -0.10) is not in this sum: since weapon-rolls-1 (now modifications.tsv) it scales the
   weapon's `aim_time` in the item cook, so it multiplies the result (weapon-rolls.md).
 - The sum reaches -100 % only with five or six Springs all active and the other sources; the
   passives alone stop at -0.30 (-0.60 with all others). At 0 the scope is instant for those

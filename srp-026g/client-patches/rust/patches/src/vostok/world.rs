@@ -47,6 +47,11 @@ pub struct GameWorld<'t> {
 }
 
 impl<'t> GameWorld<'t> {
+    /// A player's game world, on the hook's thread.
+    pub(in crate::vostok) fn of(this: raw::GameWorld, thread: &'t Thread) -> GameWorld<'t> {
+        GameWorld { this, thread }
+    }
+
     /// The world the site's code is ticking.
     pub fn at_after_move(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
         // SAFETY: the context is this site's: the game world it ticks, alive
@@ -70,16 +75,67 @@ pub struct NetworkClient<'t> {
 }
 
 impl<'t> NetworkClient<'t> {
+    /// The client a site's typed register holds, on its hook's thread.
+    pub(in crate::vostok) fn of(this: raw::NetworkClient, thread: &'t Thread) -> NetworkClient<'t> {
+        NetworkClient { this, thread }
+    }
+
     /// The match's places' count (0 without match options).
     pub fn places(&self) -> u32 {
         // SAFETY: the client, alive for the hook; match_options is its own.
         unsafe { raw::engine_match_options(Some(self.this)).map_or(0, |options| u32::from(read(options.places()))) }
     }
 
+    /// The match it plays ([`MatchId`]), when it has match options.
+    pub fn match_id(&self) -> Option<MatchId> {
+        // SAFETY: the client, alive for the hook; match_options is its own.
+        unsafe { raw::engine_match_options(Some(self.this)).map(|options| MatchId(read(options.seed()))) }
+    }
+
+    /// The team word of each place of the match (0 or 1 a team; its
+    /// options' record, the one a player's profile is), None past its count.
+    pub(in crate::vostok) fn place_teams(&self) -> [Option<u32>; super::types::Place::COUNT] {
+        let mut teams = [None; super::types::Place::COUNT];
+        // SAFETY: the client, alive for the hook; match_options is its own
+        // (a live or a replay client's, its vtable's), its places as long as
+        // the client; a place below the count (at most the 20 of the array)
+        // is one of them.
+        unsafe {
+            if let Some(options) = raw::engine_match_options(Some(self.this)) {
+                let places = usize::from(read(options.places())).min(teams.len());
+                for (place, team) in teams.iter_mut().enumerate().take(places) {
+                    *team = Some(read(options.first_place().at(place).team()));
+                }
+            }
+        }
+        teams
+    }
+
+    /// The local player, if the match has one.
+    pub fn local_player(&self) -> Option<Player<'t>> {
+        // SAFETY: the client's local player, alive for the hook.
+        let this = unsafe { self.this.local_player() }?;
+        Some(Player { this, thread: self.thread })
+    }
+
     /// The local player's place, if it has a player.
     pub fn local_place(&self) -> Option<u8> {
         // SAFETY: the client's local player, alive for the hook.
         unsafe { Some(read(self.this.local_player()?.place())) }
+    }
+
+    /// The place the static info marked the local player's (its profile's
+    /// is_local, set at 0x27BE5F), if any: the options' own bytes, read
+    /// without the local player's object.
+    pub fn local_profile(&self) -> Option<u8> {
+        // SAFETY: the client's options and their places live as long as the
+        // client, on the hook's thread; a place below the count (at most the
+        // 20 of the array) is one of them.
+        unsafe {
+            let options = self.this.options_holder()?.options();
+            let places = read(options.places()).min(20);
+            (0..places).find(|&p| read(options.first_place().at(usize::from(p)).is_local()) != 0)
+        }
     }
 
     /// The place's current player. get_active_player adds a reference; it is
@@ -119,6 +175,63 @@ pub enum Held {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerId(u32);
 
+/// An inventory item (or an active object, a weapon) as a value kept between
+/// hooks: its address, compared, never read through. Made only from its
+/// handle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemId(u32);
+
+impl ItemId {
+    pub(in crate::vostok) fn of(item: raw::Item) -> ItemId {
+        ItemId(item.address())
+    }
+
+    /// Its address, for the log.
+    pub fn address(self) -> u32 {
+        self.0
+    }
+}
+
+/// Which match: its options' seed (+577B0h, the 0xE4's match id: the
+/// server's own a match, logged by the client as `Match id`). A world
+/// core's address (`WorldKey`) can be the next match's too; this cannot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchId(u32);
+
+impl MatchId {
+    /// Its value, for the log.
+    pub fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl<'t> GameWorld<'t> {
+    /// The match this world is of.
+    pub fn match_id(&self) -> Option<MatchId> {
+        self.network_client()?.match_id()
+    }
+}
+
+impl Player<'_> {
+    /// The match this player is of.
+    pub fn match_id(&self) -> Option<MatchId> {
+        // SAFETY: the live player's world, game and network client.
+        let client = unsafe { self.this.game_world()?.game()?.network_client() }?;
+        NetworkClient::of(client, self.thread).match_id()
+    }
+}
+
+/// A match's world core as a value kept between hooks: which match a
+/// record is of. Made only from its handle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldKey(u32);
+
+impl WorldKey {
+    pub(in crate::vostok) fn of(core: raw::CoreWorld) -> WorldKey {
+        WorldKey(core.address())
+    }
+}
+
 /// A model's skeleton, kept between hooks (a cache's key).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SkeletonId(u32);
@@ -126,6 +239,19 @@ pub struct SkeletonId(u32);
 /// A body in the physics world (a hit model's), kept between hooks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BodyId(pub(in crate::vostok) u32);
+
+/// A player modifier's index in a kit's 68 (the exe's names at 0x928448).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModifierIndex(u32);
+
+impl ModifierIndex {
+    /// `stamina_boost_interval` (29): no 0.26g code reads it (no
+    /// apply_modifier or apply_modifiers call names it) and nothing sets it
+    /// but skill 205's 0; additive (0x927E08's list). srp's: the Force
+    /// Protein's built-in modification 1330 gives 15: its carrier's
+    /// gun-stock kills push the ragdoll 1 + 15 times (shot::knocked_back).
+    pub const MELEE_KNOCKBACK: ModifierIndex = ModifierIndex(29);
+}
 
 /// A player of the match.
 #[derive(Clone, Copy)]
@@ -153,8 +279,30 @@ impl<'t> Player<'t> {
         this.map(|this| Player { this, thread: ctx.thread() })
     }
 
+    /// The hook's thread it borrows.
+    pub fn thread(&self) -> &'t Thread {
+        self.thread
+    }
+
     pub fn id(&self) -> PlayerId {
         PlayerId(self.this.address())
+    }
+
+    /// The sum of the player modifier `index` in its current kit (the
+    /// skills, the armour's and the carried boosters' entries:
+    /// apply_modifier 0x2D5AE0 of 0, weight 1, an additive index's sum);
+    /// None without a profile or a kit past the three.
+    pub fn kit_modifier(&self, index: ModifierIndex) -> Option<f32> {
+        // SAFETY: the live player's profile and current kit (+115h, below 3
+        // for a match player: checked), the kit's modifiers container.
+        unsafe {
+            let kit = usize::from(read(self.this.kit()));
+            if kit >= 3 {
+                return None;
+            }
+            let modifiers = self.this.profile()?.kits().at(kit).modifiers();
+            Some(raw::engine_apply_modifier(Some(modifiers), index.0, 0.0, 1.0))
+        }
     }
 
     /// The player's place in the match roster.

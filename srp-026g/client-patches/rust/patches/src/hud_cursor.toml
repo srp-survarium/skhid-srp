@@ -1,0 +1,32 @@
+# Patch 113: the hud's kits and cursor start over at a new match, and the
+# main menu covers the hud's cursor (README "The hud's kits and cursor"). The
+# sites are sites_026g.tsv's; the logic is hud_cursor.rs and
+# vostok/hud_input.rs.
+name = "hud_cursor"
+patch = 113
+
+# initialize_match's start, once a match: the kits and the cursor hidden.
+[[hook]]
+site = "hud.initialize_match"
+handler = "on_match_start"
+
+# show_cursor's show: no movie while the main menu is shown.
+[[hook]]
+site = "hud.cursor_movie"
+handler = "on_cursor_shown"
+
+# show_cursor's hide: no movie to take off while the main menu is shown.
+[[hook]]
+site = "hud.cursor_hide"
+handler = "on_cursor_hidden"
+
+# The main menu about to be shown: the hud's cursor movie off.
+[[hook]]
+site = "options.activate"
+handler = "on_menu_show"
+
+# The main menu about to close: a key its settings await given up as Esc
+# gives it up, then the hud's cursor movie back.
+[[hook]]
+site = "options.deactivate"
+handler = "on_menu_close"

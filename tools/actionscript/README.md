@@ -26,6 +26,11 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   A picture (a render, a capture) is `bitmaps/<class>.jpg` instead, a baseline JPEG: the
   build adds the file whole as a DefineBitsJPEG2, as compact as the game's own map renders
   (JPEG, DefineBits); a progressive JPEG is refused (Flash does not read it).
+- A character the original places wrongly is a row of `placements.tsv` beside `src/`
+  (`sprite frame depth from to`, tab-separated, `#` comments): in that DefineSprite's frame (from 1)
+  the PlaceObject2 at that depth places `to` where the original places `from`; a row that matches no
+  such placement, or names a character the movie lacks, fails the build. The lobby's skills tabs:
+  the selected icon's fifth frame placed a campfire, not the leaf.
 - **Tables.** Data the movie's code reads, which other tools read too (the
   lobby's shop filters, which the wiki's icons take), is a table
   `tables/<package path>/<Class>.tsv` beside `src/`: the build writes the
@@ -35,6 +40,13 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   class whose static constant the cell names, compiled as `Class.NAME`). Each
   list is `public static const <list>:Array` of `{field: value}` rows, in the
   file's order. Other tools read it with `flash_tree.read_table`.
+- **Data.** What the movie shows that the game's data holds (a modification's value) is
+  not written in the tree: `movie.json`'s `data`, `{"<package path>/<Class>": "<a table of the
+  repository>"}`, makes the build write each such table as the class `<Class>`, one
+  `public static const <column>:Object` a column but the first, the cells (texts) by the first
+  column's. The lobby reads `scripts/content-edit/modifications.tsv` so
+  (`survarium.data.ModificationValues`): the movie and the game read one file. build-content
+  keys the movie's cache by those tables too.
 - The build checks what the movie needs to load: every ABC block parses, and
   every class a SymbolClass tag binds is defined, once.
 - `original` cuts the original movie (the one whose graphics the build keeps)
@@ -126,6 +138,10 @@ rows made again; and Blackout (the list kept hidden): none on screen.
 ### Weapon upgrade window
 
 `srp-026g/scripts/weapon-kit/check.sh <lobby_menu.swf> [work dir]` checks the lobby's weapon upgrade window with the weapon kit (two decal slots, the kit's records, a drop shown at once, every language's texts fitting) and prints `WEAPONKIT RESULT pass` or `WEAPONKIT RESULT fail: ...`.
+
+### Item search
+
+`srp-026g/scripts/item-search/check.sh <lobby_menu.swf> [work dir]` checks the item lists' search (`docs/notes/item-search.md`: the "+" words in the inventory and the shop, every language's hint on one line in the box and its and the tip's examples finding what they name, the tip on the empty box only) and prints `ITEMSEARCH RESULT pass` or `ITEMSEARCH RESULT fail: ...`.
 
 ## History
 

@@ -140,6 +140,22 @@ pub fn read_snapshot(ctx: &Context<'_>) -> Option<Carry> {
     // SAFETY: live deserialize reader at the player-load site.
     Carry::restore(read_bytes(unsafe { raw::site::carry_load::reader(ctx) }?)?)
 }
+/// How far into its stream `reader` is (its cursor from its begin), when
+/// the cursor is inside its bytes.
+pub(super) fn offset_of(reader: raw::BufferReader) -> Option<u32> {
+    // SAFETY: a live reader {begin, cursor, size} of the hook's site.
+    unsafe {
+        let (begin, cursor, size) = (reader.begin() as usize, reader.cursor() as usize, read(reader.size()) as usize);
+        (cursor >= begin && cursor - begin <= size).then(|| (cursor - begin) as u32)
+    }
+}
+
+/// The player state's stream offset at `carry.load` (its last native field read).
+pub fn load_offset(ctx: &Context<'_>) -> Option<u32> {
+    // SAFETY: base_player::deserialize's live reader (the site's ESI).
+    offset_of(unsafe { raw::site::carry_load::reader(ctx) }?)
+}
+
 pub(super) fn read_bytes<const N: usize>(reader: raw::BufferReader) -> Option<[u8; N]> {
     // SAFETY: base_player::deserialize's live reader. Check the complete
     // extension against its allocation before copying or advancing it.
@@ -205,7 +221,7 @@ impl Scene {
             Some(Self { renderer: renderer.scene_renderer()?, reference: world.scene() })
         }
     }
-    unsafe fn present(&self, model: raw::SceneModel, matrix: &[f32; 16]) {
+    pub(super) unsafe fn present(&self, model: raw::SceneModel, matrix: &[f32; 16]) {
         // SAFETY: model holder and scene are retained by the live caller.
         unsafe {
             let reference = model.render_instance();
@@ -215,6 +231,36 @@ impl Scene {
             } else {
                 raw::engine_update_model(Some(self.renderer), Some(reference), Some(self.reference), matrix.as_ptr(), matrix.as_ptr());
             }
+        }
+    }
+    /// The model drawn as a world model, as weapon::on_show draws a gun not
+    /// in first person (0x243F54..0x243F6A: set_foreground with 0,
+    /// set_movable_static): depth-tested against the world. A cooked gun
+    /// keeps the first-person flag (the cook's default) until its on_show.
+    pub(super) unsafe fn as_world(model: raw::SceneModel) {
+        // SAFETY: a model holder retained by the live caller; the two bytes
+        // set_foreground and set_movable_static write.
+        unsafe {
+            if let Some(instance) = model.render_instance().instance() {
+                instance.foreground().write(0);
+                instance.movable().write(1);
+            }
+        }
+    }
+    /// Whether the model is in the scene (its render instance's own bit).
+    pub(super) unsafe fn has(model: raw::SceneModel) -> bool {
+        // SAFETY: a model holder retained by the live caller.
+        unsafe { model.render_instance().instance().is_some_and(|instance| read(instance.in_scene()) != 0) }
+    }
+    /// A skinned model's bones (model space, rows), as weapon::draw gives
+    /// its own after update_model (0x244F5A): update_skeleton copies them.
+    pub(super) unsafe fn skin(&self, model: raw::SceneModel, bones: &[[f32; 16]]) {
+        let count = bones.len().min(super::draw::MAX_BONES) as u32;
+        // SAFETY: the model holder retained by the live caller, our
+        // matrices, `count` of them, copied into the command.
+        unsafe {
+            raw::engine_update_skeleton(Some(self.renderer), Some(model.skinned()), bones.as_ptr().cast(),
+                                        bones.as_ptr().cast(), count)
         }
     }
     pub(super) unsafe fn remove(&self, model: raw::SceneModel) -> bool {

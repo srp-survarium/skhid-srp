@@ -9,6 +9,311 @@ release that made it what it is now.
 
 ---
 
+## 7 Nov, 23:16 — TODO: the owner's words (update required)
+
+<!-- Revision 53 (026g-rev53), released 2026-11-07 23:16 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1510 Patch 109: every kit's artefact slots made the world's at each world load (rev52's start crash)
+- TODO: #1509 Cascade: every kind's activation shared (Medic's path); Resonance 9 m, Cascade 6 m
+
+## 7 Nov, 21:40 — TODO: the owner's words (update required)
+
+<!-- Revision 52 (026g-rev52), released 2026-11-07 21:40 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1505 Release: exe self-test beside step 2, on every core; --no-selftest
+- TODO: #1506 Patch 109: fix the crash at a rollback over a Keeper's respawn into another kit
+
+## 7 Nov, 20:47 — TODO: the owner's words (update required)
+
+<!-- Revision 51 (026g-rev51), released 2026-11-07 20:47 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1351 web-server tests: give the stock account the silver the admin takes
+- TODO: #1355 build-content: cache unchanged steps (no change 54 s, lobby change 112 s, was 424 s)
+- TODO: #1359 DXVK on Windows: bind the game's dxgi, d3d11 and d3d9 to DXVK's DLLs
+- TODO: #1358 release.sh: swap as soon as no match has run for 30 s
+- TODO: #1354 Lock vertical sensitivity: Apply keeps an unlock; the greyed slider follows set values
+- TODO: #1363 Patch 108: a gun-stock hit kills wherever it lands
+- TODO: #1368 Trap 0.55 a foot; the painkiller's pain protection covers it
+- TODO: #1369 Take off what a skill opened when the skills change
+- TODO: #1372 Patch 113: kits and cursor start over at each match; the main menu covers the hud's cursor
+- TODO: #1370 Item search: "+" words for levels, factions and bonuses
+- TODO: #1373 Everyone at level 15's last point; new accounts with five skills
+- TODO: #1388 release/moderate: watch registrations and sign-ins, ban, mute, close sign-ups
+- TODO: #1380 VSSK rifles: Vychlop gets aiming time -10 %, Dusk reload +15 % as their one built-in
+- TODO: #1389 Boosters: every built-in bonus shows gold on the card
+- TODO: #1390 Lobby: held Alt, medicine cards show Numb Legs, Unflinching, Concentration and Take Cover
+- TODO: #1375 Modification window: the item's card is the inventory's, at its size
+- TODO: #1376 PPSh-41 Drum: seat the drum in the magazine well (weapons-069@15)
+- TODO: #1391 SVU: its iron sights raised, its eye on them (weapons-046@13)
+- TODO: #1382 Item search follow-up: Shift+= types +, penalties are no bonus, bonus words by type
+- TODO: #1360 Equipment 046@9: four new pieces; the NVD as open goggles; the Sniper set at level 11 and the Veles set at level 13 (the owner's numbers)
+- TODO: #1364 Equipment 069@5: the Snow-20 set (the level-11 Sniper's twin) and the Delta mask
+- TODO: #1393 Drop one-off checks of shipped changes
+- TODO: #1397 One Ruffle runner for the movies' harnesses
+- TODO: #1399 Release tests: the early swap's 30 s scale with the test's minute
+- TODO: #1400 build-content: read the pierce lines' files only when a list asks for one
+- TODO: #1402 Medical skills' texts in the language TSVs
+- TODO: #1395 Release: build the server image here, load it on the host
+- TODO: #1408 Wiki weapons: choose the round
+- TODO: #1412 release/moderate: reset-password, watch, give, money, fuzzy who
+- TODO: #1367 Graphics: Vulkan options (frame limit, overlay, low latency, tear-free, dedicated GPU); FOV to Gameplay
+- TODO: #1398 Fix the artefact-carry and language-option harnesses
+- TODO: #1407 Self-test: fix the four stale exe-patch checks (lohook dispatch, patch 96 exits, artefacts, configs.start chain)
+- TODO: #1414 Self-test: derive the pinned checks from the declarations, run it at a release
+- TODO: #1415 build-content: packs keyed by the movies they edit, lamps cached, a quick build by default (--full for releases)
+- TODO: #1180 [Packet safety v2 1/11] Shared message parsers (inert)
+- TODO: #1434 World checks: take the worlds the game writes for a NaN player and a shooter who left
+- TODO: #1458 Read uploaded worlds as typed views, every field held to what the game writes
+- TODO: #1423 World check cost: a bench over recorded matches, sorted compatibility pairs
+- TODO: #1421 Packet safety v2: catch a world check that is wrong before a release, and loudly in a match
+- TODO: #1463 check_bench: check with the server's Roster (main does not compile)
+- TODO: #1461 Patch 116: srp's ban reasons and the ban's end on the sign-in screen
+- TODO: #1466 Notes: what players' games send each other, and how it is checked
+- TODO: #1468 match-server: fall back to the games' own check for a kind in doubt (temporary)
+- TODO: #1464 Send every kit to the match with its pockets packed (crash of match 0x55809714)
+- TODO: #1467 Patch 117: a presenter ignores an event for an effect it holds no entry of (rev50 crash 2026-11-06)
+- TODO: #1471 test(srp): fix stale v026g_web assertions
+- TODO: #1474 Sell the rank and faction badges in the shop
+- TODO: #1469 Patch 117: a character controller's step never leaves its position non-finite
+- TODO: #1470 tools/check: world-check and world-drift over a private world corpus
+- TODO: #1475 AGENTS.md: the world format and its check
+- TODO: #1476 World check: no NaN in a player's speed, last position or a bullet's origin (after patch 117 is live)
+- TODO: #1477 Results screen: a map is always usable, bought on click, its item shown again
+- TODO: #1478 Renumber controller_position to patch 118
+- TODO: #1479 Lobby build: drop RESULT_SHA256
+- TODO: #1480 Lobby: the match pop-up over the room window, gone at the next press
+- TODO: #1481 simulation_changes: controller position fix is exe patch 118
+- TODO: #1486 Rooms: four ready Play waiters open another room (was six)
+- TODO: #1485 Read the refusals' clock from GetTickCount, not GetCurrentProcessId
+- TODO: #1487 Do not count invalid inputs of a world out of step toward removal
+- TODO: #1490 Input safety: 100 invalid inputs in step remove a sender (was 8)
+- TODO: #1492 match-server: never relay a refused world; give every waiting game an end
+- TODO: #1493 Rooms: say why a match can't take a joiner when it has no world (J;-1;8)
+- TODO: #1494 Rooms: J;-1;8 tells the member it joins the next match
+- TODO: #1495 Patch 119: a kicked game goes back to the lobby as a lost connection does
+- TODO: #1392 Artefact skill tree: the fifth tab, its eleven skills and Forest Protection's glow
+- TODO: #1489 Receipts: one per event, none dropped for time
+- TODO: #1482 World load receipts: admit on Loaded, answer each refusal once, no receipt timer
+- TODO: #1498 simulation_changes: restore the separator before the patch 118 clause
+- TODO: #1499 Refused worlds: count only a game's own refusals; end a match with no first world by events
+- TODO: #1500 Receipts: number refusals per connection, a waiting slot per kind
+- TODO: #1501 Patch 120: a match its game never played closes too (kick/timeout/lost link while loading)
+
+## 5 Nov, 19:51 — TODO: the owner's words (update required)
+
+<!-- Revision 50 (026g-rev50), released 2026-11-05 19:51 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1308 Lobby: only a buy started in the shop asks about an item owned already
+- TODO: #1311 Grenade and trap cards, with Alt after skills
+- TODO: #1312 Artifact-master: artefacts recharge 20% faster (built-in bonus 1310)
+- TODO: #1268 Medical tree retune: combo skills, fewer ranks, tier-5 either/or
+- TODO: #1315 Regeneration booster: regenerates to full health, starts 2 s sooner
+- TODO: #1313 Blackout: Tab no longer stops a held Use (artefact search, refill)
+- TODO: #1316 Gun-stock hits to the hand kill (patch 108)
+- TODO: #1330 Patch 110: keys the desktop moves are moved in the game under Wine's Wayland driver
+- TODO: #1283 Test bullet hits at the crossing millisecond, not the 50 ms grid
+- TODO: #1323 Opt-in Vulkan renderer (DXVK) for Windows players
+- TODO: #1326 Force Protein: gun-stock kills by its carrier send the ragdoll flying (visual)
+- TODO: #1338 Ragdoll: no travel cap, a thrown body flies on until friction stops it
+- TODO: #1334 Calculator: a wall in front of the target
+- TODO: #1339 Login and main menu: closing a message gives the focus back (Esc, close, Enter signs in)
+- TODO: #1341 Renderer list: open under its box, and the restart hint
+- TODO: #1331 Patch 70 (bake_cache) in Rust
+- TODO: #1343 Lobby: held Alt, Bear Arms shows a cancelled movement penalty
+- TODO: #1342 Calculator: the formula as numbered steps with this shot's numbers
+- TODO: #1347 Rooms: private rooms with bots
+- TODO: #1328 Mouse look: "Lock vertical sensitivity": 16:9's look at every window when locked, 1:1 when unlocked (patch 110)
+- TODO: #1348 VPN.txt: zapret settings and AmneziaVPN's white-list mode
+- TODO: #1349 hud-options harness: Controls part passes again; mouse sliders at their borders
+- TODO: #1346 Calculator: the glass wall is just Glass
+- TODO: #1340 Weapon card: Pierces, the best round per stat, shotguns by kind
+- TODO: #1350 tools/check: run only the checks a change affects, cached by their inputs
+
+## 5 Nov, 09:40 — TODO: the owner's words (update required)
+
+<!-- Revision 49 (026g-rev49), released 2026-11-05 09:40 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1240 Linux launcher: use Wine's Wayland driver under xwayland-satellite
+- TODO: #1243 Blackout: a mode of its own maps; type the configs' modes
+- TODO: #1238 Research: never read a departed place's player
+- TODO: #1242 Results screen: a NULL map name reads as ""
+- TODO: #1231 Lobby: hold Alt to see a medicine's numbers after the medical skills
+- TODO: #1245 Patch 95: log the animation pair the registry has no id for (rev47 crash at 0x1F18C8)
+- TODO: #1253 Patch 99: a world takes no player input whose rotation no client makes (0.27d's "input is invalid")
+- TODO: #1257 Patch 102: a side mouse button is no left click in the menus
+- TODO: #1255 Expect starter kit level 7 in the bot-match end-to-end test
+- TODO: #1270 srp-recording-to-sur: read the recording's dictionary; keep chosen key frames
+- TODO: #1256 Patch 101: a footstep first made by a re-simulation is heard (random step drop-outs)
+- TODO: #1258 Patch 100: the sound follows the audio output device (B43)
+- TODO: #1247 Patch 96: shots stay audible under heavy fire
+- TODO: #1265 Ported guns: other players' shots heard to 200-240 m (pack weapons-reverb-layers@1)
+- TODO: #1248 Hash worlds up to 0xF000 bytes; history item sections grow on the heap (patch 98)
+- TODO: #1254 Match server: skip a resync whose game already agrees; capture both worlds at a split's first tick
+- TODO: #1249 Crash dumps: full memory on SKHID_CRASH_DUMP=full, not a build feature
+- TODO: #1260 Crash report: the patch log's tail in crash.txt and the ZIP; the time in UTC
+- TODO: #1261 Crash report: the match and the last 1024 notable events (breadcrumbs in the arena's state)
+- TODO: #1264 Crash report: what the game was reading when a load crashed (player and stream offset)
+- TODO: #1267 Crash dialog: with SKHID_CRASH_DUMP=full, send the report and keep the .dmp; Copy fits one Discord message
+- TODO: #1266 Player log tools: the crash ZIPs' text in the collected logs; the crash files' labels on Linux
+- TODO: #1259 Server logs: one size-rotated file per server in the data volume
+- TODO: #1246 Weapon pickup: every client installs the recipe's gun (rev47 affects_count crash)
+- TODO: #1273 Weapon pickup: a player can take its own drop
+- TODO: #1275 Animation ids: the cause of the 0x1F18C8 / 0x3B336C crashes (docs)
+- TODO: #1286 Ammo cards: bullet speed, range and pellets, in the weapon card's rows
+- TODO: #1281 Linux: install the font Calibri into the Wine prefix
+- TODO: #1276 An RGD-5 takes two pocket units
+- TODO: #1289 Note the one-off RGD-5 pocket reset at release
+- TODO: #1290 Grenades: CCD sweeps a sphere inside the capsule, no more falling under the ground (patch 105)
+- TODO: #1288 Settings: Names on map (Tab map names without Alt)
+- TODO: #1296 Groza: less damage (0.34) and a harder upward kick
+- TODO: #1292 Groza: 0.31a2's own aim locator (weapons-031@13)
+- TODO: #1293 Collimators: the 9A-91's Cobra dot at the screen's centre
+- TODO: #1200 Publish the players' notes of revisions 46, 47 and 48
+- TODO: #1155 Preserve battery taker statistics across snapshot loads
+- TODO: #1299 Remove the two unlearnable physical skills; Packrat to column 4
+- TODO: #1301 Pre-release fixes for revision 49
+- TODO: #1295 Wiki: Skills, every skill tree as the lobby draws it
+- TODO: #1302 Chat text follows the keyboard layout under Wine (patch 107)
+
+## 4 Nov, 21:29 — Game update 48: no repeated camouflage (update required)
+
+<!-- Revision 48 (026g-rev48), released 2026-11-04 21:29 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+- Match drops and stash maps never give a camouflage or decal you already have.
+
+## 4 Nov, 10:11 — Game update 47: match drops and Team Deathmatch (update required)
+
+<!-- Revision 47 (026g-rev47), released 2026-11-04 10:11 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+- Every match ends with a drop, rolled like a stash map: a weapon, armour, or a camouflage or decal. Never gold, silver or a toolkit, and always in full condition.
+- Team Deathmatch: a kill scores three times as much.
+- The Blackout notice under the countdown shows its text properly in every language and stays for 10 seconds.
+
+Replays recorded before revision 47 are incompatible with the updated simulation.
+
+## 4 Nov, 08:49 — Game update 46: new-player kits, Vostok spawns and fixes (update required)
+
+<!-- Revision 46 (026g-rev46), released 2026-11-04 08:49 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+**Players**
+
+- Every existing player received 10 stash maps, an AKM, an AKMSU and a Remington 700.
+- New accounts start with an AK-74N in the first kit and a Remington 700 in the second, and also own an AKM, an AKMSU and 10 stash maps.
+
+**Maps**
+
+- Vostok (v0.11) uses the v0.26 spawn points: 14 per team in Protective Device and Team Deathmatch.
+
+**Weapons**
+
+- VSS: 20-round magazine, damage at range no lower than 80%, reloads 2.7 s (tactical) and 3.7 s (empty).
+- FAMAS: reloads 3 s (tactical) and 4 s (empty).
+
+**Fixes**
+
+- Medic: Larkspur's shared effect now activates reliably for nearby teammates; one booster per pocket.
+- Hit markers stay visible when the crosshair is hidden.
+- Battery markers update correctly.
+- Weapon stats no longer show long decimal tails.
+- Fewer resyncs: bullets after a resync load, and repeated clock corrections.
+
+Replays recorded before revision 46 are incompatible with the updated simulation.
+
+## 3 Nov, 20:12 — Game update 45: medical skills, reloads and fixes (update required)
+
+<!-- Revision 45 (026g-rev45), released 2026-11-03 20:12 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+**Medical skill tree**
+
+A third skill tree adds ten skills with original 0.69 icons and translated descriptions. Seven skills have five ranks; three are single-point unlocks, for 38 points in total.
+
+- Potent Painkiller strengthens the painkiller's existing protection by 5% per rank and adds one second of duration per rank.
+- Fast Bandaging reduces first-aid kit and bandage activation time by 2% per rank.
+- Metabolism starts health regeneration 0.5 seconds sooner per rank.
+- Medical Training increases first-aid kit and bandage healing by 5% per rank.
+- Adrenalin increases movement speed by 3% per rank while health is below 20.
+- Brothers in Arms reduces damage received from allies by 10% per rank.
+- Supply Pocket replaces the secondary weapon slot with an additional supply pocket.
+- Strong Bones increases maximum arm and leg health by 10% per rank.
+- Additional Medicine adds one item to each medicine pocket, within the five-item limit.
+- Medic shares Larkspur's active effect with living teammates within 5 metres. Teammate glows last for the full active duration; enemies receive no benefit. "They glow, you shine"
+
+**Equipment, medicine and weapons**
+
+- Supply pockets and artefacts share a maximum of six quick slots. Each supply pocket holds at most five items after bonuses.
+- Orange Medikit pain relief corrected to 40%; yellow Science Medkit to 50%.
+- SCAR-H uses dedicated 20-round armour-piercing ammunition.
+- Corrected tactical and empty reload timings, with matching animations and bot reload waits. Weapon cards show both reload times.
+
+**Presentation and Linux**
+
+- Blackout explains its rules above the pre-match countdown and through a System introduction during each account's first three Blackout matches.
+- Corrected weapon icon brightness and the Novice hood neckline.
+- Improved modern WoW64 support, automatic Gecko setup, ntsync guidance and XDG settings support. The Linux launcher starts the game without modifying its executable.
+
+Replays recorded before revision 45 are incompatible with the updated simulation.
+
+## 3 Nov, 06:36 — Game update 44: weapon icons and clothing fits (update required)
+
+<!-- Revision 44 (026g-rev44), released 2026-11-03 06:36 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+- New side-profile inventory and shop icons for all 20 recently added weapons, matching the original 0.26 style.
+- Corrected the AKMSU magazine position and PPSh-41 Drum magazine orientation in their icons.
+- Improved Bandit, Novice and Loner clothing fits around boots and cuffs, fixing pinched trouser legs above the boots.
+
+Weapon statistics are unchanged. Replays recorded from revision 43 remain compatible.
+
+## 2 Nov, 19:46 — Game update 43: new weapons, reloads and fixes (update required)
+
+<!-- Revision 43 (026g-rev43), released 2026-11-02 19:46 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+**20 new weapons**
+
+- OTs-14 Groza, FN SCAR-H, VHS-2 and FN Minimi.
+- MP5, SVU-A, L85A2, Fort-401 and Jackhammer.
+- CZ 75, MP-443, Beretta 93R, Glock 17 and Colt M1911.
+- AKMSU, FAMAS, H&K G3SG/1, Mauser M712, KS-23M and PPSh-41 Drum.
+- Includes their ammunition and kill-feed icons. Fort-401 uses a 100-round belt.
+
+**New-weapon balance**
+
+- New primary weapons tuned for distinct roles, with damage, penetration, distance falloff, fire rate, recoil and kick considered against AK-12 and Zubr +8. Pistols remain weaker backup weapons.
+- Groza has high penetration: 55 base, 66 with SP-6. L85A2 is available at equipment level 10.
+
+**Existing weapons**
+
+- Separate tactical and empty reloads for AK-74M, AK-74N, AKS-74U, AKMN, RPK, Uzi, AS Val, VSS, AK-12, A-545, ASh-12, 9A-91, VSK-94, PP-2000 and Vityaz, including applicable premium variants.
+- PKP gets updated animations and left-hand grip. Kick multiplier reduced from 1.00 to 0.85.
+- SOCOM 16 fire rate increases from 300 to 330 RPM.
+- Saiga-12 and its premium variant: magazine increases from 5 to 6 rounds; fire rate stays at 350 RPM.
+- Saiga-12 and Vepr-12 buckshot: damage multiplier increases from 0.14 to 0.15 (about 7.1% stronger). Slugs are unchanged.
+
+**Fixes and other changes**
+
+- Autobuy can be switched off and back on correctly, and refill-list refreshes preserve its setting.
+- Fixed dropped-weapon lifetime and pickup records that could cause resyncs across consecutive matches.
+- Fixed a replay crash involving ragdolls and the replay client.
+- Fixed stale loadout tooltips after swapping equipment.
+- Blackout is always the third room-vote option; its use prompt and progress indicator display correctly.
+- Military Medkit takes 2 seconds to activate, followed by a 1-second heal.
+- London and Rudnya Team Deathmatch spawn protection is 6 seconds.
+- New accounts receive the Novice backpack equipped and antitoxin in place of traps.
+
+Additional collimator/scope fits are deferred from this release.
+Replays recorded before revision 43 are incompatible with the updated simulation.
+
 ## 28 Oct, 18:37 — Game update 37: matchmaking, Research warnings and map data (update required)
 
 <!-- Revision 37 (026g-rev37), released 2026-10-28 18:37 UTC. Shipped: #691, #692, #463, #694, #695, #696. -->
@@ -814,3 +1119,112 @@ update changes what a match computes.
 - TODO: #919 Rudnya (v0.69): ammo only at the bases
 - TODO: #916 Lobby packs: textures 0.26g already has drawn from its own files (hangar @9, camp @17)
 - TODO: #920 Drops: no camouflage or decal the player already has
+
+## 1 Nov, 22:38 — TODO: the owner's words (update required)
+
+<!-- Revision 41 (026g-rev41), released 2026-11-01 22:38 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #921 Remove dead Rust code
+- TODO: #922 Remove stale docs, unused 0.100b tools and unused example files
+- TODO: #923 Remove the dead tutorial code from the lobby and hud movies
+- TODO: #924 Small audit fixes: Blackout in Matches, one on/off switch, one mask length, RUST_PATCHES
+- TODO: #926 Remove old notes and one-off audits
+- TODO: #946 Rudnya (v0.69): each base ammo crate refills its own team only
+- TODO: #991 Notes: the 0.26g renderer as a light bake needs it
+- TODO: #999 Login: ask for the nickname, not the e-mail
+- TODO: #983 Shop: a check mark on owned items, and a Hide owned box
+- TODO: #985 Rooms: rejoin the room's running match through the room after a relaunch
+- TODO: #982 Queue of a full room offers a loadout as Join does
+- TODO: #1000 Batteries: points for a battery's new progress toward its container (patch 92)
+- TODO: #984 Lobby: buying an item owned asks first; only the inventory's right-click Buy skips it
+- TODO: #1002 Player vs Bots: drops roll at match level 7 at most, drop cards too
+- TODO: #893 Weapon kit, step A: the kit transport and a second decal on weapons (patch 68, Rust)
+- TODO: #996 Patch 91: a weapon shown while aimed keeps its body
+- TODO: #1004 Upgrade window: a double click puts a camouflage, decal or scope in its slot
+- TODO: #1003 Shop: a consumable's buy starts at 30
+- TODO: #1009 Download mirrors: the game's archive and the patches from many addresses, resumed, logged
+- TODO: #990 build-content: files an earlier version of a pack left stay, listed
+- TODO: #1013 Setup scripts: English as well as Russian; the Defender setup puts back deleted files
+- TODO: #1017 release/test.sh: Ctrl-C tests signal a release.sh that can be interrupted
+- TODO: #1018 Crash dumps: referenced memory live, full memory for local tests
+- TODO: #939 Balance the sides by K/D at the match's equipment level
+- TODO: #1023 Battery points: progress paid at the delivery; found 5, delivery share 5
+- TODO: #1024 Patch 85: pick up a dead player's gun
+- TODO: #951 Patch 19's 0.29a3 weapons: melee k_damage 1.5, as every native weapon's
+- TODO: #1001 Content: 0.31a2's lower screen shake (shake-031-1)
+- TODO: #1011 Content: HK416 and M4A1 kick nearer the AK-12 (recoil-hk416-m4a1-1)
+- TODO: #1031 Revert #1011 (HK416/M4A1 recoil) for revision 41
+
+## 2 Nov, 03:58 — TODO: the owner's words (update required)
+
+<!-- Revision 42 (026g-rev42), released 2026-11-02 03:58 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1026 Admin chat mute: a muted account's lines reach nobody, it is told why
+- TODO: #1037 Put #1011 (HK416/M4A1 recoil) back after revision 41
+- TODO: #1032 Weapon stats as a table (weapon-stats.tsv); cards written from the configs
+- TODO: #1041 Readers of content.tsv edit rows skip stats tables
+- TODO: #1044 Admin page: the level field's label says 0 to 100
+- TODO: #1028 Scaleform: the render thread's capture walk never reaches a queue being destroyed (patch 93)
+- TODO: #1034 Weapon reload rolls: checked, they work as the card shows (notes + re-kit)
+- TODO: #1046 Shotguns: Saiga-12 and Vepr-12 armour piercing 0.1 -> 0.3
+- TODO: #1043 Dead duplicate keys out of the item configs (dead-keys-1)
+- TODO: #1048 A-545: damage 50 and 900 rounds a minute again
+- TODO: #1047 Stats tables: list rows, several files a row, entry selectors, key/value tables
+- TODO: #1033 Lobby: hold Alt to see a weapon's stats with kit and skills
+- TODO: #988 Room lobby: camp @18, no hard-edged ambient boxes at the ceiling
+- TODO: #1052 Site: serve every file of damage/ (Rudnya's render was not served)
+- TODO: #1045 Patch 85: fix the rev41 late-join desync, simplify the pickup's ammo
+- TODO: #1049 Fit the rooms' Leave on Play in every language
+- TODO: #1050 re-kit: one name for the weapon states' get_weapon_lexeme
+- TODO: #1054 Home page: trimmed download steps, then a short FAQ
+- TODO: #1063 Check that a resync converges: world load+save round trip
+- TODO: #1040 Shop: smooth Hide owned tick, Hide owned beside Comparing items, no sort (always by level)
+- TODO: #1061 Skhid-collect-logs.cmd: logs and the game folder's state in one ZIP to send
+- TODO: #1056 Bug-report Discord invite: discord.gg/QUmJg3gBhg
+- TODO: #1065 Ragdolls: rest on the bullet collision too (dropped guns no longer sink on Rudnya)
+- TODO: #1055 Ammo and throwables as tables (ammo.tsv, throwables.tsv)
+- TODO: #1066 Maps: the game's minimap by default, the render on the player's pick
+- TODO: #1067 Self-test ragdoll: the arena bounds the Rust statics; replayed calls allowed
+- TODO: #1062 Updater: a box per problem of the site's list, its title what failed
+- TODO: #1069 Home page: quote the launcher's new box titles
+- TODO: #1058 Artefacts as a table (artefacts.tsv); artefacts-1 goes
+- TODO: #1068 re-kit 0.26g: the weapon of a kill, a hit and a shot (research)
+- TODO: #1059 Character and battery item as tables (character.tsv, battery.tsv)
+- TODO: #1051 SR-3M 850 rounds a minute and +5 % movement; Vector armour piercing 0.3
+- TODO: #1030 Renderer study: 0.26g frame reference, light shader sources and PCSS prototype
+- TODO: #1070 MSBS: full damage to 35 m, 60 % from 70 m (was 20 / 50)
+- TODO: #1073 Saiga-12 and Vepr-12: slugs take three, buckshot two only with every pellet
+- TODO: #1076 ASh-12: 425 rounds a minute (was 400)
+- TODO: #1075 MP7: armour piercing 0.3 -> 0.35
+- TODO: #1077 Weapon pickup: a picked gun drops at death, and a drop lasts until that player's next death
+
+## 4 Nov, 08:49 — TODO: the owner's words (update required)
+
+<!-- Revision 46 (026g-rev46), released 2026-11-04 08:49 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1179 Publish revision 45 patch notes
+- TODO: #1191 Fix Medic activation, booster limits and mode notices
+- TODO: #1154 Fix bullet lifetime disagreement after snapshot loads
+- TODO: #1192 Fix floating-point tails in weapon stat tooltips
+- TODO: #1193 Fix battery marker state updates while hidden
+- TODO: #1194 Keep hit markers visible when the crosshair is hidden
+- TODO: #1157 Stop resync retries from repeatedly adding the clock margin
+- TODO: #1195 Balance VSS capacity and falloff; shorten FAMAS reloads
+- TODO: #1196 New accounts: AK-74N and Remington 700 kits; the AKM, AKMSU and 10 stash maps
+- TODO: #1197 Vostok v0.11: the v0.26g spawn layout
+- TODO: #1198 Mode notice: draw its text with the countdown's embedded font
+
+## 4 Nov, 10:11 — TODO: the owner's words (update required)
+
+<!-- Revision 47 (026g-rev47), released 2026-11-04 10:11 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1201 Mode notice: the countdown's whole text format, its bold cut included
+- TODO: #1202 Match drop: always a drop card's roll, whole
+- TODO: #1203 Team Deathmatch: a kill scores three times
+- TODO: #1204 Mode notice: 10 seconds after play starts
+
+## 4 Nov, 21:29 — TODO: the owner's words (update required)
+
+<!-- Revision 48 (026g-rev48), released 2026-11-04 21:29 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1206 Drops: never a camouflage or decal the player has

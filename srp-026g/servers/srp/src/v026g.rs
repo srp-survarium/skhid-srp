@@ -142,7 +142,7 @@ impl MatchHost for RegistryHost {
     fn create(&self, setup: lobby::MatchSetup) -> Result<lobby::MatchTicket, String> {
         let pool = setup.pool;
         let setup = matches::MatchSetup {
-            map_id: setup.map_id,
+            map: setup.map,
             match_level: setup.match_level,
             players: setup
                 .players
@@ -161,7 +161,6 @@ impl MatchHost for RegistryHost {
             vs_bots: setup.vs_bots,
             private: setup.private,
             room_minimum: setup.room_minimum,
-            blackout: setup.blackout,
         };
         let ticket = match pool {
             session::QueuePool::Standard => self.0.create(setup),
@@ -233,7 +232,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
     rewards::MatchResult {
         match_id: result.match_id,
         map_id: result.map_id,
-        game_mode: result.game_mode,
+        mode: result.mode,
         match_level: result.match_level,
         end: match result.end {
             matches::MatchEnd::ModeRule => rewards::MatchEnd::ModeRule,
@@ -250,7 +249,6 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         trusted_by: result.trusted_by,
         vs_bots: result.vs_bots,
         private: result.private,
-        blackout: result.blackout,
         players: result
             .players
             .into_iter()
@@ -676,6 +674,7 @@ impl Stack {
             )),
             min_patch_revision: self.min_patch_revision,
             replays: Some(self.replays.clone()),
+            results: self.results.clone(),
         }
     }
 

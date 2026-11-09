@@ -58,10 +58,37 @@ pub mod battery_progress;
 
 pub mod hud_options;
 pub mod tab_cursor;
+pub mod scaleform_capture;
 pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
 pub mod music;
+pub mod sound_voices;
 pub mod drug_interrupt;
+pub mod footsteps;
 
 pub mod weapon_pickup;
+
+pub mod medical_skills;
+pub mod artefact_skills;
+pub mod artefact_keeper;
+
+pub mod hand_kill;
+pub mod forest_glow;
+
+pub mod animation_id_log;
+pub mod input_check;
+pub mod subtick_hits;
+pub mod keyboard_layout;
+pub mod mouse_pitch;
+pub mod bake_cache;
+pub mod key_remap;
+pub mod deserialize_guards;
+pub mod effect_presenters;
+
+pub mod message_check;
+pub mod packet_recovery;
+pub mod hud_cursor;
+pub mod ban_time;
+pub mod controller_position;
+pub mod unplayed_match;

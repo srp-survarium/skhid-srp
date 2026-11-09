@@ -142,15 +142,19 @@ package survarium.controls
       
       protected var _victory:Boolean = false;
       
-      protected var _cache:Boolean = false;
-      
       // The matches whose drop card is used or refused this session (by
       // match id): their slot stays grey, here and on a screen reopened.
       // The server takes one card a player a match (`drop_cards.md`).
       protected static var _cardsDone:Object = {};
-      
-      // The match a card is asked for, till its answer (0: none).
-      protected var _cardAsked:uint = 0;
+
+      // A card on its way, or null: {match, step}, step CARD_BUYING (one
+      // bought to be used on that match once it comes) or CARD_ASKED (used,
+      // till its answer).
+      protected var _cardPending:Object = null;
+
+      protected static const CARD_BUYING:String = "buying";
+
+      protected static const CARD_ASKED:String = "asked";
       
       protected var _lastName:String = "";
       
@@ -198,13 +202,9 @@ package survarium.controls
       
       protected var _autobuy_money_consulables:int = 0;
       
-      protected var _autorepair_money:int = 0;
-      
       protected var _autobuy_money_ammo_arr:Array = [];
       
       protected var _autobuy_money_consulables_arr:Array = [];
-      
-      protected var _autorepair_money_arr:Array = [];
       
       public var treasureItem:MovieClip;
       
@@ -278,7 +278,7 @@ package survarium.controls
          this.totalScore.section_2.scorePremium.label.text = LocalizationData.getName("statistics_score_premium");
          this.totalScore.section_3.scoreWasted.label.text = LocalizationData.getName("wasted");
          this.totalScore.section_3.scoreTotal.label.text = LocalizationData.getName("total");
-         this.totalScore.section_3.wastedRepair.label.text = LocalizationData.getName("autorepair_money");
+         this.hideRepairRow();
          this.totalScore.section_3.wastedAmmo.label.text = LocalizationData.getName("autobuy_money_ammo");
          this.totalScore.section_3.wastedItems.label.text = LocalizationData.getName("autobuy_money_consulabels");
          this.totalScore.columns.textFieldMoney.text = LocalizationData.getName("money");
@@ -479,18 +479,74 @@ package survarium.controls
          dispatchEvent(new Event("try_buy_maps",true));
       }
       
+      // A click on the card slot: a card used on this screen's match, or with
+      // none left one bought (LobbyMenu.onBuyMapToUse), used once it comes.
       private function onTreasureMapClick(e:Event) : void
       {
-         trace("onTreasureMapClick::",this._match_id,this.treasureItem.mouseEnabled);
-         if(this.searchIcon.visible == false || _cardsDone[this._match_id])
+         trace("onTreasureMapClick::",this._match_id,this.cardOpen());
+         if(!this.cardOpen())
          {
             return;
          }
+         if(PlayerInfo.getVoucherCount(VoucherType.DROP_CARD) > 0)
+         {
+            this.useCard();
+         }
+         else
+         {
+            dispatchEvent(new Event("try_buy_map_to_use",true));
+         }
+      }
+
+      // The card on its way, or null (scripts/drop-card-slot reads it).
+      public function get cardPending() : Object
+      {
+         return this._cardPending;
+      }
+
+      // Whether this screen's match can take a card now: none used or
+      // refused for it, none on its way, no item in the slot.
+      protected function cardOpen() : Boolean
+      {
+         return this._match_id != 0 && this._cardPending == null && !_cardsDone[this._match_id] && this.treasureItem.itemSlot.data == null;
+      }
+
+      protected function useCard() : void
+      {
          var itemVoucherId:int = (PlayerInfo.getVoucherId(VoucherType.DROP_CARD));
          this.progressIndicator.gotoAndPlay(1);
          this.searchIcon.visible = false;
-         _cardAsked = this._match_id;
+         _cardPending = {
+            match:this._match_id,
+            step:CARD_ASKED
+         };
          ExternalInterface.call("use_drop_card",this._match_id,itemVoucherId);
+      }
+
+      // The buy dialog's yes for a card bought from the slot: it is used as
+      // soon as it comes (updateVoucherCount).
+      public function cardBought(value:Object = null) : void
+      {
+         if(!this.cardOpen())
+         {
+            return;
+         }
+         _cardPending = {
+            match:this._match_id,
+            step:CARD_BUYING
+         };
+         this.progressIndicator.gotoAndPlay(1);
+         this.searchIcon.visible = false;
+      }
+
+      // The slot open for a card: lit, its search icon shown.
+      protected function openCard() : void
+      {
+         this.treasureItem.alpha = 1;
+         this.treasureItem.mouseEnabled = true;
+         this.treasureItem.mouseChildren = true;
+         this.searchIcon.visible = true;
+         this.progressIndicator.gotoAndStop(1);
       }
       
       // The card slot greyed: no card for this screen's match.
@@ -515,13 +571,23 @@ package survarium.controls
       }
       
       // The lobby's refusal of the card asked (`84 46`,
-      // st_cannot_use_drop_card), which the exe shows as a message box.
+      // st_cannot_use_drop_card), which the exe shows as a message box; one
+      // while a card is bought is the buy's: the slot opens again.
       protected function cardRefused() : void
       {
-         if(this._cardAsked != 0)
+         var pending:Object = this._cardPending;
+         if(pending == null)
          {
-            this.noCard(this._cardAsked);
-            _cardAsked = 0;
+            return;
+         }
+         _cardPending = null;
+         if(pending.step == CARD_ASKED)
+         {
+            this.noCard(pending.match);
+         }
+         else if(pending.match == this._match_id)
+         {
+            this.openCard();
          }
       }
       
@@ -637,7 +703,6 @@ package survarium.controls
          this.progressIndicator.gotoAndStop(1);
          _data = null;
          _autobuy_money_ammo = 0;
-         _autorepair_money = 0;
          bonusMatchId = 0;
          _rewardsMultiplied = false;
       }
@@ -722,10 +787,8 @@ package survarium.controls
          this.buyTreasureMaps.visible = false;
          this.treasureTextfield.text = LocalizationData.getName("treasure_map_advert");
          this.dropChanceValueLabel.text = "0";
-         this.totalScore.section_3.wastedRepair.tooltipRendererName = "SrvProfileTipRendererStyled";
          this.totalScore.section_3.wastedAmmo.tooltipRendererName = "SrvProfileTipRendererStyled";
          this.totalScore.section_3.wastedItems.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.totalScore.section_3.wastedRepair.mouseChildren = false;
          this.totalScore.section_3.wastedAmmo.mouseChildren = false;
          this.totalScore.section_3.wastedItems.mouseChildren = false;
       }
@@ -748,11 +811,11 @@ package survarium.controls
          {
             mapsCount = PlayerInfo.getVoucherCount(VoucherType.DROP_CARD);
             this.treasureCount.text = "x" + mapsCount.toString();
-            if(!this._cache && !_cardsDone[this._match_id] && (!this._data || this._data && this._data.allow_drop_card != false))
+            var pending:Object = this._cardPending;
+            if(pending != null && pending.step == CARD_BUYING && pending.match == this._match_id && mapsCount > 0)
             {
-               this.treasureItem.mouseEnabled = mapsCount > 0;
-               this.treasureItem.mouseChildren = this.treasureItem.mouseEnabled;
-               this.searchIcon.visible = this.treasureItem.mouseEnabled;
+               _cardPending = null;
+               this.useCard();
             }
          }
       }
@@ -871,16 +934,13 @@ package survarium.controls
          hintStr = this.addToHint(hintStr,this._data.statistics_money.premium_items_money,"statistics_equipment_bonus",false);
          hintStr = this.addToHint(hintStr,this._autobuy_money_ammo,"autobuy_money_ammo",false);
          hintStr = this.addToHint(hintStr,this._autobuy_money_consulables,"autobuy_money_consulabels",false);
-         hintStr = this.addToHint(hintStr,this._autorepair_money,"autorepair_money",false);
-         var statistics_money:int = int(this._data.statistics_money.match_money) + int(this._data.statistics_money.quest_money) + int(this._data.statistics_money.premium_bonus_exp) + int(this._data.statistics_money.premium_bonus_money) + int(this._data.statistics_money.premium_items_money) + int(this._autorepair_money) + int(this._autobuy_money_consulables) + int(this._autobuy_money_ammo);
-         trace("VS:updateMoney",statistics_money,this._data.statistics_money.autobuy_money,this._data.statistics_money.autorepair_money,this._autobuy_money_ammo);
-         var wasted:int = this._autorepair_money + this._autobuy_money_ammo + this._autobuy_money_consulables;
+         var statistics_money:int = int(this._data.statistics_money.match_money) + int(this._data.statistics_money.quest_money) + int(this._data.statistics_money.premium_bonus_exp) + int(this._data.statistics_money.premium_bonus_money) + int(this._data.statistics_money.premium_items_money) + int(this._autobuy_money_consulables) + int(this._autobuy_money_ammo);
+         var wasted:int = this._autobuy_money_ammo + this._autobuy_money_consulables;
          var totalmoney:int = this.updateTotalScore(this._data.statistics_money,"money");
          this.totalScore.section_3.scoreTotal.money.text = (totalmoney + wasted).toString();
          this._data.money = totalmoney + wasted;
          this.set_score_value(this.score_container.score_3,totalmoney + wasted,(totalmoney + wasted) * premiumMultilplier,SCORE_ICON_MONEY);
          this.totalScore.section_3.scoreWasted.money.text = wasted.toString();
-         this.totalScore.section_3.wastedRepair.value.text = this._autorepair_money;
          this.totalScore.section_3.wastedAmmo.value.text = this._autobuy_money_ammo;
          this.totalScore.section_3.wastedItems.value.text = this._autobuy_money_consulables;
          this.updateScroreLayout();
@@ -1102,7 +1162,43 @@ package survarium.controls
          }
       }
       
-      public function setSpendMoneyDetailed(autobuy_ammo:Array, autobuy_consulables:Array, repair:Array) : void
+      // No "Repair cost" row (srp has no repair, the owner 2026-11-08): the stock row of the money spent
+      // is hidden, and the rows under it in its section move up by its height.
+      private function hideRepairRow() : void
+      {
+         var section:MovieClip = this.totalScore.section_3;
+         var row:DisplayObject = section.wastedRepair;
+         if(!row.visible)
+         {
+            return;
+         }
+         row.visible = false;
+         var step:Number = Number.MAX_VALUE;
+         var i:int;
+         var other:DisplayObject;
+         for(i = 0; i < section.numChildren; i++)
+         {
+            other = section.getChildAt(i);
+            if(other != row && other.y > row.y)
+            {
+               step = Math.min(step,other.y - row.y);
+            }
+         }
+         if(step == Number.MAX_VALUE)
+         {
+            return;
+         }
+         for(i = 0; i < section.numChildren; i++)
+         {
+            other = section.getChildAt(i);
+            if(other != row && other.y > row.y)
+            {
+               other.y -= step;
+            }
+         }
+      }
+      
+      public function setSpendMoneyDetailed(autobuy_ammo:Array, autobuy_consulables:Array) : void
       {
          if(!autobuy_ammo)
          {
@@ -1112,13 +1208,8 @@ package survarium.controls
          {
             autobuy_consulables = [];
          }
-         if(!repair)
-         {
-            repair = [];
-         }
          _autobuy_money_ammo_arr = autobuy_ammo;
          _autobuy_money_consulables_arr = autobuy_consulables;
-         _autorepair_money_arr = repair;
          this.calculateSpendMoney();
       }
       
@@ -1144,29 +1235,24 @@ package survarium.controls
          _itemdescriptor = ItemDescriptor.getItemDescriptor("InventoryItems");
          _autobuy_money_ammo = fillWastedData(this._autobuy_money_ammo_arr,this.totalScore.section_3.wastedAmmo);
          _autobuy_money_consulables = fillWastedData(this._autobuy_money_consulables_arr,this.totalScore.section_3.wastedItems);
-         _autorepair_money = fillWastedData(this._autorepair_money_arr,this.totalScore.section_3.wastedRepair);
-         trace("calculateSpendMoney",this._autobuy_money_ammo,this._autobuy_money_consulables,this._autorepair_money);
+
          if(this._data && this._data.statistics_money)
          {
             this._data.statistics_money.autobuy_money_ammo_arr = this._autobuy_money_ammo_arr;
             this._data.statistics_money.autobuy_money_consulables_arr = this._autobuy_money_consulables_arr;
-            this._data.statistics_money.autorepair_money_arr = this._autorepair_money_arr;
             this._data.statistics_money.autobuy_money_ammo = this._autobuy_money_ammo;
             this._data.statistics_money.autobuy_money_consulables = this._autobuy_money_consulables;
-            this._data.statistics_money.autorepair_money = this._autorepair_money;
          }
          this.updateMoney();
       }
       
-      public function setSpendMoney(autobuy:int, repair:int) : void
+      public function setSpendMoney(autobuy:int) : void
       {
          _autobuy_money_ammo = autobuy;
-         _autorepair_money = repair;
          if(this._data && this._data.statistics_money)
          {
             this._data.statistics_money.autobuy_money_ammo = autobuy;
             this._data.statistics_money.autobuy_money_consulables = autobuy;
-            this._data.statistics_money.autorepair_money = repair;
             this.updateMoney();
          }
       }
@@ -1195,7 +1281,7 @@ package survarium.controls
          return this._data;
       }
       
-      public function setData(value:Object, cache:Boolean = false) : void
+      public function setData(value:Object) : void
       {
          function set_title_value(clip:MovieClip, icon:int, name:String, value:String, value2:String = null):void
          {
@@ -1226,24 +1312,8 @@ package survarium.controls
          {
             value.statistics_money.autobuy_money_consulables = this._autobuy_money_consulables;
          }
-         if(this._autorepair_money != 0)
-         {
-            value.statistics_money.autorepair_money = this._autorepair_money;
-         }
          this.totalScore.visible = true;
          this.buyTreasureMaps.visible = true;
-         this.searchIcon.visible = this.treasureItem.mouseEnabled;
-         _cache = cache;
-         if(this._cache || value.allow_drop_card == false)
-         {
-            this.treasureItem.alpha = 0.5;
-            this.treasureItem.mouseEnabled = false;
-            this.treasureItem.mouseChildren = false;
-         }
-         else
-         {
-            this.treasureItem.alpha = 1;
-         }
          this.treasureItem.visible = true;
          this.droppedItem.visible = true;
          this.treasureTextfield.visible = true;
@@ -1260,13 +1330,35 @@ package survarium.controls
             trace("setDataVS::failed");
             return;
          }
-         trace("setDataVS",this.treasureItem.alpha,value.allow_drop_card);
+         trace("setDataVS",value.match_id,value.treasureItem);
          _data = value;
          _victory = value.match_result > MatchResult.DEFEAT_MAX;
          _match_id = value.match_id;
-         if(_cardsDone[this._match_id])
+         // A card bought for another screen's match is not used on this one.
+         if(this._cardPending != null && this._cardPending.step == CARD_BUYING && this._cardPending.match != this._match_id)
          {
-            this.greyCard();
+            _cardPending = null;
+         }
+         // The slot (drop_cards.md): the item a card gave this match (its
+         // report keeps it, LobbyMenu.fill_victory_screen_drop_item), else
+         // grey once a card was used or refused for it, else open to a card,
+         // whatever the screen (a new one or a report reopened) and whatever
+         // the match dropped; the server says whether the match takes one.
+         if(value.treasureItem != null)
+         {
+            this.showDropItem(value.treasureItem);
+         }
+         else
+         {
+            this.treasureItem.itemSlot.data = null;
+            if(_cardsDone[this._match_id])
+            {
+               this.greyCard();
+            }
+            else if(this._cardPending == null || this._cardPending.match != this._match_id)
+            {
+               this.openCard();
+            }
          }
          _rewardsMultiplied = value.is_bonus_match;
          this.players_list.set_local_name(PlayerInfo.nickname);
@@ -1382,12 +1474,19 @@ package survarium.controls
       public function setDropItem(value:ItemData) : void
       {
          // The card's item: its match takes no other card.
-         var matchId:uint = this._cardAsked != 0 ? this._cardAsked : this._match_id;
+         var pending:Object = this._cardPending;
+         var matchId:uint = pending != null && pending.step == CARD_ASKED ? uint(pending.match) : this._match_id;
          if(matchId != 0)
          {
             _cardsDone[matchId] = true;
          }
-         _cardAsked = 0;
+         _cardPending = null;
+         this.showDropItem(value);
+      }
+
+      // The slot showing a card's item.
+      protected function showDropItem(value:ItemData) : void
+      {
          this.treasureItem.alpha = 1;
          this.treasureItem.itemSlot.data = value;
          this.treasureItem.mouseEnabled = true;

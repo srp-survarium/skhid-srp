@@ -19,6 +19,7 @@ use updater_logic::{
     game::{self, Pin},
     patches::{self as list, Address, Download},
     pipe::{ToLauncher, state, step},
+    problem::{Fault, Miss},
     url::Url,
 };
 use windows_sys::Win32::Foundation::ERROR_INVALID_HANDLE;
@@ -76,9 +77,14 @@ fn output_path(layout: &Layout) -> String {
     format!("{}\\updater_skhid.7zr.txt", layout.exe_dir)
 }
 
-/// The extractor prints some twenty lines for the five files; the end of
-/// more than this is kept, where the errors are.
-const OUTPUT_LIMIT: usize = 16 * 1024;
+/// The extractor prints some twenty lines for the five files and its
+/// progress, a few hundred bytes a percent; the end of more than this is
+/// kept, where the errors are.
+const OUTPUT_LIMIT: usize = 64 * 1024;
+
+/// Enough of the end of what the extractor printed to hold its last
+/// progress (`game::extracted_percent`).
+const PROGRESS_LIMIT: usize = 1024;
 
 /// Copies what the extractor printed into the log, line by line, and removes
 /// its file. Without this the log has the extractor's exit number only, and
@@ -87,7 +93,7 @@ fn log_output(path: &str) {
     match win::read_tail(path, OUTPUT_LIMIT) {
         Ok(bytes) => {
             let text = String::from_utf8_lossy(&bytes);
-            for line in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            for line in game::output_lines(&text) {
                 log!("7zr: {line}");
             }
         }
@@ -210,6 +216,7 @@ fn fetch(
     }
     let count = addresses.len();
     let mut failed: Vec<(String, String)> = Vec::new();
+    let mut misses: Vec<Miss> = Vec::new();
     for (at, address) in addresses.iter().enumerate() {
         if !session.pump() {
             return Err(None);
@@ -243,9 +250,12 @@ fn fetch(
             http::Slow::Wait
         };
         let (result, received) = get(session, address, path, have, pin, slow)?;
-        let why = match result {
+        let (why, miss) = match result {
             Ok(()) => match win::file_size(path).unwrap_or(0) {
-                size if size != pin.size => format!("cut short at byte {size} of {}", pin.size),
+                size if size != pin.size => (
+                    format!("cut short at byte {size} of {}", pin.size),
+                    Miss::Answered(Fault::CutShort),
+                ),
                 _ => match check(path, pin, session)? {
                     Some(file) => {
                         log!(
@@ -261,11 +271,14 @@ fn fetch(
                     }
                     None => {
                         let _ = win::delete(path);
-                        format!("wrong SHA-256 (not {})", pin.sha256)
+                        (
+                            format!("wrong SHA-256 (not {})", pin.sha256),
+                            Miss::Answered(Fault::Damaged),
+                        )
                     }
                 },
             },
-            Err(error) => text::reason(&error),
+            Err(error) => (text::reason(&error), error.miss()),
         };
         log!(
             "{}",
@@ -277,11 +290,13 @@ fn fetch(
             )
         );
         failed.push((host.into(), why));
+        misses.push(miss);
     }
     // Bytes got stay for the next start; no byte, no file.
     if win::file_size(path).is_ok_and(|size| size == 0) {
         let _ = win::delete(path);
     }
+    session.failed(game::ARCHIVE_NAME, &misses);
     Err(Some(text::game_download_failed(&download::failures(
         &failed,
     ))))
@@ -406,9 +421,8 @@ pub fn ensure(
     // again. This works on a 32-bit updater too: file sizes and progress are
     // u64 throughout.
     let downloaded = win::file_size(&archive_path).is_ok_and(|size| size == game::ARCHIVE.size);
-    let needed = if downloaded { 0 } else { game::ARCHIVE.size }
-        + game::FILES.iter().map(|(_, size)| size).sum::<u64>()
-        + (256 << 20);
+    let unpacked = game::FILES.iter().map(|(_, size)| size).sum::<u64>();
+    let needed = if downloaded { 0 } else { game::ARCHIVE.size } + unpacked + (256 << 20);
     let free = win::free_space(&layout.game_dir)
         .ok_or_else(|| Some("Cannot check free disk space for the game installation.".into()))?;
     if free < needed {
@@ -426,21 +440,31 @@ pub fn ensure(
             step: step::EXTRACT,
             text: "Survarium 0.26g",
         });
-        // -sccUTF-8: what it prints is UTF-8, so a folder name in any
-        // alphabet reads right in the log.
+        // -bsp1: its progress goes to the output, read meanwhile for the
+        // launcher's bar. -sccUTF-8: what it prints is UTF-8, so a folder
+        // name in any alphabet reads right in the log.
         let mut command = format!(
-            "\"{extractor_path}\" x \"{archive_path}\" -o\"{stage}\" -y -bd -bb0 -sccUTF-8"
+            "\"{extractor_path}\" x \"{archive_path}\" -o\"{stage}\" -y -bsp1 -bb0 -sccUTF-8"
         );
         for (name, _) in game::FILES {
             command.push_str(&format!(" \"Survarium/game/{name}\""));
         }
         let output_path = output_path(layout);
+        session.begin_progress();
         let code = win::run_wait(
             &extractor_path,
             &command,
             &layout.game_dir,
             &output_path,
-            &mut || session.pump(),
+            &mut || {
+                if let Some(percent) = win::read_tail(&output_path, PROGRESS_LIMIT)
+                    .ok()
+                    .and_then(|tail| game::extracted_percent(&tail))
+                {
+                    let _ = session.progress(unpacked * u64::from(percent) / 100, unpacked);
+                }
+                session.pump()
+            },
         );
         log_output(&output_path);
         let code = code.map_err(|code| io_error("extract the original game", code))?;

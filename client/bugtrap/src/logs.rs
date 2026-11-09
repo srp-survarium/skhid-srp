@@ -16,7 +16,11 @@ use windows_sys::Win32::{
 };
 
 pub const COUNT: usize = 32;
-pub const MAX_MEMBERS: usize = COUNT + 3; // whole sources, dump, crash.txt, summary
+pub const MAX_MEMBERS: usize = COUNT + 5; // whole sources, patch log, dump, crash.txt, breadcrumbs, summary
+/// The client patches' log beside the exe (vostok/log.rs): the game never
+/// cuts it, so the ZIP takes its last [`PATCH_LOG_BYTES`].
+pub const PATCH_LOG: &str = "srp_patches.log";
+pub const PATCH_LOG_BYTES: u64 = 2 * 1024 * 1024;
 pub const PACKED_BYTES: u64 = 16 * 1024 * 1024; // log local headers + data + central records
 pub const INPUT_BYTES: u64 = 256 * 1024 * 1024; // source bytes read, including failed attempts
 const AGE: u64 = 48 * 60 * 60 * 10_000_000;
@@ -50,11 +54,19 @@ impl Write for Manifest {
         Ok(())
     }
 }
+/// How much of a source the ZIP takes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Take {
+    Whole,
+    /// Its last bytes, from the first whole line in them.
+    Last(u64),
+}
 #[derive(Clone, Copy)]
 pub struct Candidate {
     pub name: [u16; 260],
     pub len: usize,
     pub scope: usize,
+    pub take: Take,
     modified: u64,
 }
 impl Candidate {
@@ -62,10 +74,28 @@ impl Candidate {
         name: [0; 260],
         len: 0,
         scope: 0,
+        take: Take::Whole,
         modified: 0,
     };
+    /// srp_patches.log in the exe's folder (`folders()[1]`), its tail.
+    pub fn patch_log() -> Self {
+        let mut log = Self::EMPTY;
+        for (slot, b) in log.name.iter_mut().zip(PATCH_LOG.bytes()) {
+            *slot = b as u16;
+        }
+        log.len = PATCH_LOG.len();
+        log.scope = 1;
+        log.take = Take::Last(PATCH_LOG_BYTES);
+        log
+    }
     // Never echo user-controlled filenames into attachments or the summary.
     pub fn zip_name(&self, index: usize, buf: &mut [u8; zip::MAX_NAME]) -> usize {
+        if let Take::Last(_) = self.take {
+            // Our own file's name, not one of the player's.
+            let name = b"logs/game-exe/srp_patches.log";
+            buf[..name.len()].copy_from_slice(name);
+            return name.len();
+        }
         let mut prefix = 0;
         for part in [
             b"logs/".as_slice(),
@@ -221,6 +251,7 @@ pub unsafe fn recent(
                             name: data.cFileName,
                             len: n,
                             scope,
+                            take: Take::Whole,
                             modified,
                         };
                     }

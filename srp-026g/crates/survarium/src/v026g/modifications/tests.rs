@@ -16,7 +16,6 @@ fn the_three_files_parse_to_what_the_dump_shows() {
     let data = Modifications::shared();
     assert_eq!(data.modifications.len(), 158);
     assert_eq!(data.defects.len(), 20);
-    assert_eq!(data.defect_slots.len(), 3);
     // Sorted by id, each once.
     assert!(
         data.modifications
@@ -69,15 +68,7 @@ fn the_three_files_parse_to_what_the_dump_shows() {
 
     let defect = data.defect(3000).unwrap();
     assert_eq!(defect.name, "st_defect_barrel_deformation");
-    assert_eq!(
-        (
-            defect.kind,
-            defect.fix_cost_general,
-            defect.fix_cost_gold,
-            defect.fix_time_general
-        ),
-        (1, 100, 50, 360)
-    );
+    assert_eq!(defect.kind, 1);
     assert_eq!(defect.required_modifications, None);
     assert_eq!(defect.modifiers[0].value, -0.1);
     // The three defects that take away what a modification gave.
@@ -98,59 +89,19 @@ fn the_three_files_parse_to_what_the_dump_shows() {
     let mut kinds: Vec<u8> = data.defects.iter().map(|d| d.kind).collect();
     kinds.sort_unstable();
     assert_eq!(kinds, (1..=20).collect::<Vec<u8>>());
-    // Every defect costs and takes the same.
-    assert!(data.defects.iter().all(|d| {
-        (
-            d.fix_cost_general,
-            d.fix_cost_gold,
-            d.fix_time_general,
-            d.drop_weight,
-        ) == (100, 50, 360, 10.0)
-    }));
+    assert!(data.defects.iter().all(|d| d.drop_weight == 10.0));
 
-    assert_eq!(
-        data.defect_slots,
-        [
-            DefectSlot {
-                condition: (0.9, 0.0),
-                probability: (0.1, 0.5)
-            },
-            DefectSlot {
-                condition: (0.5, 0.0),
-                probability: (0.3, 0.7)
-            },
-            DefectSlot {
-                condition: (0.1, 0.0),
-                probability: (0.5, 1.0)
-            },
-        ]
-    );
-
+    // In silver, the game's gold prices (the owner, 2026-11-08): its silver
+    // ones, twice the price, are not read; nor are its chances.
     #[rustfmt::skip]
     assert_eq!(
-        data.craft.price_general,
-        [400, 400, 800, 1600, 2400, 3400, 4400, 5400, 6600, 8000, 10000, 12000, 14000, 16000, 18000, 20000]
-    );
-    assert_eq!(
-        data.craft.price_premium,
-        [2, 2, 4, 8, 12, 17, 22, 27, 33, 40, 50, 60, 70, 80, 90, 100]
-    );
-    assert_eq!(
-        data.craft.chances_general,
-        [(50.0, 0.0), (25.0, 25.0), (12.5, 67.5)]
-    );
-    assert_eq!(
-        data.craft.chances_premium,
-        [(100.0, 0.0), (50.0, 0.0), (25.0, 25.0)]
+        data.craft.price,
+        [200, 200, 400, 800, 1200, 1700, 2200, 2700, 3300, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
     );
     #[rustfmt::skip]
     assert_eq!(
-        data.reroll.price_general,
-        [200, 200, 400, 400, 600, 800, 1000, 1200, 1600, 2000, 2400, 2800, 3200, 3800, 4400, 5000]
-    );
-    assert_eq!(
-        data.reroll.price_premium,
-        [1, 1, 2, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 19, 22, 25]
+        data.reroll.price,
+        [100, 100, 200, 200, 300, 400, 500, 600, 800, 1000, 1200, 1400, 1600, 1900, 2200, 2500]
     );
 }
 
@@ -459,121 +410,36 @@ fn a_reroll_offers_three_on_an_item_of_few_types() {
 }
 
 #[test]
-fn defects_come_with_wear() {
-    let data = Modifications::shared();
-    // No defect at all over 90 %.
-    assert_eq!(data.defect_chance(1.0, 0), 0.0);
-    assert_eq!(data.defect_chance(0.9, 0), 0.0);
-    // The first slot: 10 % just under 90 %, 50 % at nothing.
-    assert!((data.defect_chance(0.8999, 0) - 0.1).abs() < 1e-3);
-    assert!((data.defect_chance(0.45, 0) - 0.3).abs() < 1e-5);
-    assert!((data.defect_chance(0.0, 0) - 0.5).abs() < 1e-6);
-    // The second opens under 50 %, the third under 10 %; there is no
-    // fourth.
-    assert_eq!(data.defect_chance(0.6, 1), 0.0);
-    assert!((data.defect_chance(0.25, 1) - 0.5).abs() < 1e-5);
-    assert_eq!(data.defect_chance(0.2, 2), 0.0);
-    assert!((data.defect_chance(0.0, 2) - 1.0).abs() < 1e-6);
-    assert_eq!(data.defect_chance(0.0, 3), 0.0);
-
-    let rifle = dict("ak_74m");
-    let ids = |list: Vec<&Defect>| list.iter().map(|d| d.id).collect::<Vec<u32>>();
-    // The rifle's mask: types 1..=5 and 7.
-    assert_eq!(
-        ids(data.defect_candidates(rifle, &[], &[])),
-        [3000, 3010, 3020, 3030, 3040, 3060]
-    );
-    assert_eq!(
-        ids(data.defect_candidates(rifle, &[], &[3000, 3060])),
-        [3010, 3020, 3030, 3040]
-    );
-    // Trousers with ammo bags (a default modification 1050) may lose one;
-    // those without may not.
-    let with_bags = dict("bm_legs_4");
-    assert!(ids(data.defect_candidates(with_bags, &[], &[])).contains(&4050));
-    let plain = dict("scav_legs_1");
-    assert!(item_mods(plain).unwrap().defects & (1 << 12) != 0);
-    assert!(!ids(data.defect_candidates(plain, &[], &[])).contains(&4050));
-
-    let mut rng = Rng::new(11);
-    // A whole item never breaks; one at nothing does half the time.
-    assert!((0..500).all(|_| { data.roll_defect(rifle, &[], &[], 0.95, &mut rng).is_none() }));
-    let broke = (0..4000)
-        .filter(|_| data.roll_defect(rifle, &[], &[], 0.0, &mut rng).is_some())
-        .count();
-    assert!((1800..2200).contains(&broke), "{broke}");
-    // At nothing the third slot always fills, with a defect it has not.
-    let third = data
-        .roll_defect(rifle, &[], &[3000, 3010], 0.0, &mut rng)
-        .unwrap();
-    assert!([3020, 3030, 3040, 3060].contains(&third));
-}
-
-#[test]
 fn craft_and_reroll_go_by_the_tables() {
     let data = Modifications::shared();
-    assert_eq!(data.craft.price(0, false), 400);
-    assert_eq!(data.craft.price(10, false), 10_000);
-    assert_eq!(data.craft.price(10, true), 50);
+    assert_eq!(data.craft.price(0), 200);
+    assert_eq!(data.craft.price(10), 5_000);
     // Level 16 (the highest an item has) costs the table's last.
-    assert_eq!(data.craft.price(16, false), 20_000);
-    assert_eq!(data.craft.chances(0, false), Some((50.0, 0.0)));
-    assert_eq!(data.craft.chances(2, true), Some((25.0, 25.0)));
-    assert_eq!(data.craft.chances(3, false), None);
-    use CraftOutcome::{Failure, Neutral, Success};
-    assert_eq!(data.craft.outcome_at(0, false, 49.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(0, false, 50.0), Some(Neutral));
-    assert_eq!(data.craft.outcome_at(0, true, 99.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(2, false, 12.4), Some(Success));
-    assert_eq!(data.craft.outcome_at(2, false, 12.5), Some(Failure));
-    assert_eq!(data.craft.outcome_at(2, false, 79.9), Some(Failure));
-    assert_eq!(data.craft.outcome_at(2, false, 80.0), Some(Neutral));
-    assert_eq!(data.craft.outcome_at(3, false, 0.0), None);
+    assert_eq!(data.craft.price(16), 10_000);
     // The lobby's rows: silver success and failure, gold success and
-    // failure, for a difference of 0, 1 and 2.
-    let (chances, general, premium) = data.craft.tables();
+    // failure, for a difference of 0, 1 and 2: always a success, in silver.
+    let (chances, silver, gold) = data.craft.tables();
     #[rustfmt::skip]
     assert_eq!(
         chances,
-        [50.0, 0.0, 100.0, 0.0,  25.0, 25.0, 50.0, 0.0,  12.5, 67.5, 25.0, 25.0]
+        [100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0]
     );
-    assert_eq!((general[2], premium[2]), (800, 4));
+    assert_eq!((silver[2], gold), (400, [0; 16]));
 
-    assert_eq!(data.reroll.price(0, false), 200);
-    assert_eq!(data.reroll.price(10, false), 2400);
-    assert_eq!(data.reroll.price(10, true), 12);
-    assert_eq!(data.reroll.price(16, true), 25);
+    assert_eq!(data.reroll.price(0), 100);
+    assert_eq!(data.reroll.price(10), 1200);
+    assert_eq!(data.reroll.price(16), 2500);
     // No level changes for nothing (the owner's rule of 2026-10-25: the
     // same price every time, `docs/notes/flat-reroll.md`).
     for level in 0..=u8::MAX {
-        assert!(data.reroll.price(level, false) > 0);
-        assert!(data.reroll.price(level, true) > 0);
+        assert!(data.reroll.price(level) > 0);
     }
 }
 
 #[test]
-fn reliability_slows_wear_and_premium_gear_pays_more() {
+fn premium_gear_pays_more() {
     let data = Modifications::shared();
-    let rifle = dict("ak_74m");
-    assert_eq!(data.wear_factor(rifle, &[], "degrade_per_match"), 1.0);
-    // 2090: 5 % less wear; 2094: 25 %.
-    let factor = data.wear_factor(rifle, &[(2090, false)], "degrade_per_match");
-    assert!((factor - 0.95).abs() < 1e-6);
-    let factor = data.wear_factor(rifle, &[(2094, false)], "degrade_per_use");
-    assert!((factor - 0.75).abs() < 1e-6);
-    // Another modification changes nothing of it, and a defect's id is
-    // not read as a modification's.
-    assert_eq!(
-        data.wear_factor(rifle, &[(2000, false)], "degrade_per_match"),
-        1.0
-    );
-    assert_eq!(
-        data.wear_factor(rifle, &[(2090, true)], "degrade_per_match"),
-        1.0
-    );
-    // The golden rifle's 2094 default is gone (`super::super::golden`).
     let premium = dict("ak_74n_premium");
-    assert_eq!(data.wear_factor(premium, &[], "degrade_per_death"), 1.0);
 
     // Its 1230 (10 % more silver) is a modification of its own: it pays
     // as one, and without it nothing.
@@ -596,7 +462,10 @@ fn reliability_slows_wear_and_premium_gear_pays_more() {
         &[(1240, false), (1250, false)],
     );
     assert!((bonuses.reputation[0] - 0.05).abs() < 1e-6);
-    assert_eq!(data.bonuses(rifle, &[(2000, false)]), Bonuses::default());
+    assert_eq!(
+        data.bonuses(dict("ak_74m"), &[(2000, false)]),
+        Bonuses::default()
+    );
 }
 
 /// The lobby colours a bonus at the best value it rolls gold and shows its
@@ -674,22 +543,34 @@ fn the_lobby_knows_the_values_each_bonus_rolls() {
     let start = source.find("ROLLS:Object = {").expect("the lobby's ROLLS");
     let rows = &source[start + "ROLLS:Object = {".len()..];
     let rows = &rows[..rows.find("};").expect("the end of ROLLS")];
-    // `<prop id>:[<values>], // <name>` a line.
+    // `<prop id>:[<first id>,<scale>], // <name>` a line; the movie reads
+    // the five ids' values from modifications.tsv (ModificationValues),
+    // each times the scale (`ModificationRolls.rollsOf`).
+    let tsv = include_str!("../../../../../scripts/content-edit/modifications.tsv");
+    let value_of = |id: u32| -> f64 {
+        tsv.lines()
+            .find_map(|line| {
+                let cells: Vec<&str> = line.split('\t').collect();
+                (cells[0] == id.to_string()).then(|| cells[2].parse().unwrap())
+            })
+            .unwrap_or_else(|| panic!("modifications.tsv: no {id}"))
+    };
     let lobby: BTreeMap<u32, Vec<f64>> = rows
         .lines()
         .map(|line| line.split("//").next().unwrap().trim())
         .filter(|line| !line.is_empty())
         .map(|line| {
-            let (id, values) = line.split_once(':').expect("<prop id>:[values]");
-            let values = values.trim().trim_end_matches(',');
-            let values = values.trim_start_matches('[').trim_end_matches(']');
-            (
-                id.trim().parse().unwrap(),
-                values
-                    .split(',')
-                    .map(|v| v.trim().parse().unwrap())
-                    .collect(),
-            )
+            let (prop, row) = line.split_once(':').expect("<prop id>:[first id,scale]");
+            let row = row.trim().trim_end_matches(',');
+            let row = row.trim_start_matches('[').trim_end_matches(']');
+            let [first, scale] = row.split(',').map(str::trim).collect::<Vec<_>>()[..] else {
+                panic!("a ROLLS row: {line}")
+            };
+            let (first, scale): (u32, f64) = (first.parse().unwrap(), scale.parse().unwrap());
+            let values = (first..first + 5)
+                .map(|id| (value_of(id) * scale * 1e6).round() / 1e6)
+                .collect();
+            (prop.trim().parse().unwrap(), values)
         })
         .collect();
     let same = lobby.len() == expected.len()
@@ -707,7 +588,7 @@ fn the_lobby_knows_the_values_each_bonus_rolls() {
     let table = table.join(",\n");
     assert!(
         same,
-        "ModificationRolls.ROLLS should be, by this data:\n{table}"
+        "ModificationRolls.ROLLS (its runs of ids, their modifications.tsv values times the scale) should give, by this data:\n{table}"
     );
 }
 
@@ -726,20 +607,29 @@ fn the_premium_bonuses_are_the_most_their_property_gives() {
         .expect("the lobby's BONUS_UI");
     let rows = &source[start..];
     let rows = &rows[rows.find('\n').unwrap() + 1..rows.find("\n      ];").unwrap()];
-    // `[<id>,<icon>,<prop id>,"<value>"], // <name>` a line.
+    // Its values: modifications.tsv's, as the movie reads them
+    // (`ItemFactory.bonusValue`, the build's ModificationValues).
+    let table = include_str!("../../../../../scripts/content-edit/modifications.tsv");
+    let value_of = |id: &str| -> f64 {
+        table
+            .lines()
+            .find_map(|line| {
+                let cells: Vec<&str> = line.split('\t').collect();
+                (cells[0] == id).then(|| cells[2].parse().unwrap())
+            })
+            .unwrap_or_else(|| panic!("modifications.tsv: no {id}"))
+    };
+    // `[<id>,<icon>,<prop id>], // <name>` a line.
     let premium: BTreeMap<u32, f64> = rows
         .lines()
         .map(|line| {
             let row = line.split("//").next().unwrap().trim();
             let row = row.trim_end_matches(',').trim_start_matches('[');
             let fields: Vec<&str> = row.trim_end_matches(']').split(',').collect();
-            let [_, _, prop_id, value] = fields[..] else {
+            let [id, _, prop_id] = fields[..] else {
                 panic!("a BONUS_UI row: {line}")
             };
-            (
-                prop_id.trim().parse().unwrap(),
-                value.trim().trim_matches('"').parse().unwrap(),
-            )
+            (prop_id.trim().parse().unwrap(), value_of(id.trim()))
         })
         .collect();
     // Silver, experience and the four factions' reputation.
@@ -927,8 +817,8 @@ fn no_roll_gives_reliability() {
 /// and respirators, oxygen packs) have two left, so they reach two
 /// modifications of their own by rolls, and none is left to offer for the
 /// reliability of a full one. No item that took a roll before has none now.
-/// On live, `third-mod-1.json` gives them a third type
-/// ([`every_item_rolls_three_types_with_the_edit_lists`]).
+/// On live, `armor.tsv`'s masks give them a third type
+/// ([`every_item_rolls_three_types_with_the_tables_masks`]).
 #[test]
 fn items_of_few_types_roll_two() {
     let data = Modifications::shared();
@@ -991,63 +881,36 @@ fn rollable_types(data: &Modifications, mask: u64, defaults: &[u32]) -> u32 {
     (mask & rolling & !data.kinds_of(defaults.iter().copied())).count_ones()
 }
 
-/// The masks the manifest's edit lists set, in its order: by config, the
-/// first `from` and the last `to` of each, and the configs of `third-mod-1.json`
-/// with their `from`.
-#[allow(clippy::type_complexity)]
-fn edited_masks() -> (
-    std::collections::BTreeMap<String, (String, String)>,
-    Vec<(String, String)>,
-) {
+/// The masks of `armor.tsv` (its `mods` column), by config.
+fn table_masks() -> std::collections::BTreeMap<String, String> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let manifest = std::fs::read_to_string(root.join("release/content.tsv")).unwrap();
-    let mut chain = std::collections::BTreeMap::<String, (String, String)>::new();
-    let mut third = Vec::new();
-    for line in manifest.lines().filter(|line| line.starts_with("edit\t")) {
-        let list = line.split('\t').nth(1).unwrap();
-        let path = root.join("srp-026g/scripts/content-edit").join(list);
-        let text = std::fs::read_to_string(&path).unwrap();
-        let edits: serde_json::Value = serde_json::from_str(&text).unwrap();
-        let entries = edits.get("edit_text").and_then(|value| value.as_array());
-        for edit in entries.into_iter().flatten() {
-            if edit["path"] != "parameters/available_modifications_mask" {
-                continue;
-            }
-            let text = |key: &str| edit[key].as_str().unwrap().to_owned();
-            let (file, from, to) = (text("file"), text("from"), text("to"));
-            match chain.get_mut(&file) {
-                Some(link) => {
-                    assert_eq!(
-                        link.1, from,
-                        "{list}: {file} starts where the last edit left it"
-                    );
-                    link.1 = to;
-                }
-                None => {
-                    chain.insert(file.clone(), (from.clone(), to));
-                }
-            }
-            if list == "third-mod-1.json" {
-                third.push((file, from));
-            }
-        }
-    }
-    (chain, third)
+    let text =
+        std::fs::read_to_string(root.join("srp-026g/scripts/content-edit/armor.tsv")).unwrap();
+    let mut lines = text.lines().filter(|line| !line.starts_with('#'));
+    let head: Vec<&str> = lines.next().unwrap().split('\t').collect();
+    let mods = head.iter().position(|column| *column == "mods").unwrap();
+    lines
+        .map(|line| line.split('\t').collect::<Vec<_>>())
+        .map(|row| {
+            (
+                format!("gameplay/items/armour/{}.options", row[0]),
+                row[mods].to_owned(),
+            )
+        })
+        .collect()
 }
 
 /// The owner's rule of 2026-10-23 (docs/notes/no-reliability-roll.md): with
-/// reliability out, every item that rolls has at least three types once the
-/// manifest's edit lists are on (`third-mod-1.json`: masks Armor, oxygen
-/// packs Weight limit and Energy costs, the Pilgrim container Energy costs),
-/// so an upgrade is never refused for nothing to roll and a full item's
-/// reliability always has another type to turn into. The stock test archive
-/// with the edit lists' masks laid on in order (the live masks are that
-/// chain's end); the masks of items the packs add (1812-1816, 1823, not in
-/// the archive) are in it as their edit's `from`.
+/// reliability out, every item that rolls has at least three types once
+/// `armor.tsv`'s masks are on (masks Armor, oxygen packs Weight limit and
+/// Energy costs, the Pilgrim container Energy costs), so an upgrade is never
+/// refused for nothing to roll and a full item's reliability always has
+/// another type to turn into. The stock test archive's items with the table's
+/// masks laid on.
 #[test]
-fn every_item_rolls_three_types_with_the_edit_lists() {
+fn every_item_rolls_three_types_with_the_tables_masks() {
     let data = Modifications::shared();
-    let (chain, third) = edited_masks();
+    let masks = table_masks();
     let bits = |mask: &str| mask_bits(mask, "available_modifications_mask").unwrap();
     let dictionary = Dictionary::shared();
     let defaults_of = |file: &str| {
@@ -1058,25 +921,14 @@ fn every_item_rolls_three_types_with_the_edit_lists() {
             .and_then(|entry| item_params(entry.dict_id))
             .map_or(&[][..], |params| params.default_modifications)
     };
-    let mut in_archive = std::collections::BTreeSet::new();
     let mut rolling = 0;
     for entry in &dictionary.items {
         let Some(item) = item_mods(entry.dict_id) else {
             continue;
         };
-        let mask = match chain.get(&entry.cfg_name) {
-            Some((from, to)) => {
-                assert_eq!(
-                    item.modifications,
-                    bits(from),
-                    "{}: the chain's start",
-                    entry.name
-                );
-                in_archive.insert(entry.cfg_name.clone());
-                bits(to)
-            }
-            None => item.modifications,
-        };
+        let mask = masks
+            .get(&entry.cfg_name)
+            .map_or(item.modifications, |mask| bits(mask));
         let types = rollable_types(data, mask, defaults_of(&entry.cfg_name));
         assert!(
             types == 0 || types >= 3,
@@ -1086,39 +938,27 @@ fn every_item_rolls_three_types_with_the_edit_lists() {
         rolling += usize::from(types > 0);
     }
     assert!(rolling > 150, "{rolling}");
-    for (file, (_, to)) in chain.iter().filter(|(file, _)| !in_archive.contains(*file)) {
-        assert!(file.starts_with("gameplay/items/armour/mask/"), "{file}");
-        assert!(rollable_types(data, bits(to), &[]) >= 3, "{file}");
+    // The pieces the packs add (not in the test archive): their table masks alone.
+    let known: std::collections::BTreeSet<&str> = dictionary
+        .items
+        .iter()
+        .map(|entry| entry.cfg_name.as_str())
+        .collect();
+    let mut packs = 0;
+    // The Duty exoskeleton's old back piece: no dictionary row names it (the body moved to torso/).
+    let unnamed = "gameplay/items/armour/back/duty_exo_026.options";
+    for (file, mask) in masks
+        .iter()
+        .filter(|(file, _)| !known.contains(file.as_str()) && file.as_str() != unnamed)
+    {
+        let types = rollable_types(data, bits(mask), &[]);
+        assert!(types == 0 || types >= 3, "{file} rolls {types} types");
+        packs += 1;
     }
-
-    // third-mod-1.json: the 20 that reliability left with two, each with
-    // three or more now.
-    let (mut masks, mut oxygen, mut pilgrim) = (0, 0, 0);
-    for (file, from) in &third {
-        let defaults = defaults_of(file);
-        assert_eq!(rollable_types(data, bits(from), defaults), 2, "{file}");
-        assert_ne!(bits(from) & (1 << 32), 0, "{file} took reliability");
-        let to = bits(&chain[file].1);
-        let added = to & !bits(from);
-        if file.starts_with("gameplay/items/armour/mask/") {
-            masks += 1;
-            assert_eq!(added, 1 << 13, "{file}: Armor");
-        } else if file.ends_with("/edge_back_6.options") {
-            pilgrim += 1;
-            assert_eq!(added, 1 << 28, "{file}: Energy costs");
-        } else {
-            oxygen += 1;
-            assert_eq!(
-                added,
-                1 << 24 | 1 << 28,
-                "{file}: Weight limit, Energy costs"
-            );
-        }
-    }
-    assert_eq!((masks, oxygen, pilgrim), (15, 4, 1));
+    assert!(packs > 50, "{packs}");
 }
 
-/// [`every_item_rolls_three_types_with_the_edit_lists`] on a server game
+/// [`every_item_rolls_three_types_with_the_tables_masks`] on a server game
 /// data file as `release/build-content` makes it (`SRP_TEST_GAME_DATA`):
 /// every item that rolls there has three types or more.
 #[test]

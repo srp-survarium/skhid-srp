@@ -66,7 +66,7 @@ fn listing(folder: &Path) -> Vec<String> {
 const BASE: &str = "http://203.0.113.5/patches";
 
 /// A project of nothing: a binary config of an empty table (the root value,
-/// its children at 24, none; `server_objects_of` keeps it as it is).
+/// its children at 24, none; `objects_of` keeps it as it is).
 const PROJECT: &str = "\x18\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x03\0\0\0";
 
 /// A game folder: resources.db and resources.db.patch_1.

@@ -1,0 +1,24 @@
+{
+  "reference_lobby_sha256": "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b959850",
+  "exposure_reference": "same weapon original donor icon in sources.tsv input pack",
+  "metric": "mean RGB luma (0.299, 0.587, 0.114), alpha > 200; finished icon within 1/255",
+  "retail_rifle_luma": 55.55078640976933,
+  "retail_pistol_luma": 71.50625432756694,
+  "camera": [
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      1,
+      0
+    ],
+    [
+      -1,
+      0,
+      0
+    ]
+  ]
+}

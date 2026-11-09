@@ -540,7 +540,7 @@ fn write_members(writer: &mut Writer, members: &[ClanMember]) -> Result<(), Wire
     for member in members {
         writer
             .u32(member.account_id)
-            .str(&member.name, limits::NAME)
+            .str(&member.name, limits::CLAN_MEMBER_NAME)
             .u8(member.rank)
             .u8(member.level)
             .bool(member.online);
@@ -610,7 +610,7 @@ pub fn clan_info(info: &ClanInfo) -> Result<ServerMessage, WireError> {
             for member in members {
                 writer
                     .u32(member.account_id)
-                    .str(&member.name, limits::NAME)
+                    .str(&member.name, limits::CLAN_MEMBER_NAME)
                     .u8(member.rank)
                     .u8(member.status);
             }
@@ -664,7 +664,7 @@ pub fn clan_info(info: &ClanInfo) -> Result<ServerMessage, WireError> {
             for member in members {
                 writer
                     .u32(member.account_id)
-                    .str(&member.name, limits::NAME)
+                    .str(&member.name, limits::CLAN_MEMBER_NAME)
                     .u8(member.role)
                     .bool(member.ready);
             }

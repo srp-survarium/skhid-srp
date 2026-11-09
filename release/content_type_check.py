@@ -20,12 +20,18 @@ offset 0, every value is 24 bytes (+0x14 a u16 type, +0x16 a u16 count), and
 walk returns every value as (path, type, value) in file order.
 
 Usage as a module: build the corpus of the previous versions
-(`corpus(previous)`), then `violations(old, new, path, corpus, allowlist)` for
+(`corpus(previous)`), then `violations(old, new, path, corpus, allowlist, keys)` for
 each changed file, old being its previous bytes or None (a brand-new file).
 release/build-content calls it over the whole manifest; it can also be run on
 two files:
 
-    python3 -I content_type_check.py <content-edit dir> <old file> <new file> <game path>
+    python3 -I content_type_check.py <content-edit dir> <old file> <new file> <game path> [<edit list>...]
+
+An entry of a list is weighed against the entry of the same identity: in a
+list the edit lists key (append_entry's `unique_key`: list_keys, `keys` of
+violations; build-content passes the manifest's edit lists, the CLI the
+lists named after the game path) the one with the same key, else the one of
+the same name or index (raw_types).
 """
 import re
 import struct
@@ -54,6 +60,7 @@ def load_walk(content_edit_dir):
 
 RAMP_KEY = re.compile(r"/key\d+(?=/|$)")
 ENTRY = re.compile(r"\[(\d+)\]")
+ENTRY_OF = re.compile(r"(.*)\[\d+\]")
 
 
 def normalise(path, kinds_of_entries):
@@ -132,20 +139,84 @@ def entry_names(values):
     return {e: n for e, n in out.items() if len(seen[(e[:e.rindex("[")], n)]) == 1}
 
 
-def raw_types(values):
+def list_keys(edit_lists):
+    """{game path: {a list's path (walk's, `/skills_tree`): the key that names its entries}}: the
+    identity the edit lists give a list's entries, append_entry's `unique_key` (content_edit.py, which
+    refuses a new entry without it or with a value another entry has), so the check knows each entry
+    of that list by its key, as the edit that made it does. Two edits naming two keys for one list are
+    refused."""
+    out = {}
+    for edits in edit_lists:
+        for e in edits.get('append_entry', []):
+            for file in e.get('files', [e.get('file')]):
+                lists = out.setdefault(file, {})
+                path, key = '/' + e['list'], e['unique_key']
+                if lists.setdefault(path, key) != key:
+                    raise ValueError(f"{file}: {path} is keyed by {lists[path]} and by {key} in the edit lists")
+    return out
+
+
+def key_text(t, value):
+    """A scalar key's value as the own path shows it (`id=211`), or None for a table or a vector."""
+    if t == T_STR:
+        return value.decode("utf-8", "replace")
+    if t == T_INT:
+        return str(struct.unpack("<i", struct.pack("<I", value))[0])
+    if t == T_FLOAT:
+        return repr(struct.unpack("<f", struct.pack("<I", value))[0])
+    if t == T_BOOL:
+        return "true" if value else "false"
+    return None
+
+
+def keyed_entries(values, keys):
+    """({an entry path of a keyed list (`keys`, list_keys' for the file): `<key>=<its value>`},
+    [problems]): every entry of a keyed list has the key, a scalar, with a value no other entry of
+    the list has; one that has not is a problem, never an entry silently known by its index."""
+    entries = {}
+    for path, _, _ in values:
+        m = ENTRY_OF.fullmatch(path)
+        if m and m.group(1) in keys:
+            entries[path] = m.group(1)
+    named, problems = {}, []
+    for path, t, value in values:
+        entry, _, name = path.rpartition("/")
+        if entry in entries and name == keys[entries[entry]]:
+            text = key_text(t, value)
+            if text is None:
+                problems.append(f"{path} is {type_name(t)}: the key of {entries[entry]}'s entries is a scalar")
+            else:
+                named[entry] = f"{name}={text}"
+    seen = {}
+    for entry, name in named.items():
+        seen.setdefault((entries[entry], name), []).append(entry)
+    for (list_path, name), at in sorted(seen.items()):
+        if len(at) > 1:
+            problems.append(f"{', '.join(at)} share {name}: the entries of {list_path} are known by "
+                            f"{keys[list_path]}")
+    for entry in sorted(set(entries) - set(named)):
+        problems.append(f"{entry} has no {keys[entries[entry]]}: the entries of {entries[entry]} are known by it")
+    return {e: n for e, n in named.items() if len(seen[(entries[e], n)]) == 1}, problems
+
+
+def raw_types(values, keyed=None):
     """{a value's own path: (its structural path, its type)}. In the own path
-    an entry of a list is itself: `[<game_object_type>:<its name>]` when it
-    has a name of its own (`/client_objects[light:bulb_2]/intensity`), else
-    its index with its type (`[47:light]`), so an entry an edit moved or took
-    out is never taken for the one now at its index."""
-    kinds, names = entry_kinds(values), entry_names(values)
+    an entry of a list is itself: `[<key>=<its value>]` in a list the edit
+    lists key (`keyed`, keyed_entries': `/skills_tree[id=211]/ui`), else
+    `[<game_object_type>:<its name>]` when it has a name of its own
+    (`/client_objects[light:bulb_2]/intensity`), else its index with its type
+    (`[47:light]`), so an entry an edit moved or took out is never taken for
+    the one now at its index."""
+    kinds, names, keyed = entry_kinds(values), entry_names(values), keyed or {}
 
     def own(path):
         out, at = [], 0
         for m in ENTRY.finditer(path):
             entry = path[:m.end()]
             out.append(path[at:m.start()])
-            if entry in names:
+            if entry in keyed:
+                out.append(f"[{keyed[entry]}]")
+            elif entry in names:
                 out.append(f"[{kinds.get(entry, '')}:{names[entry]}]")
             else:
                 out.append(f"[{m.group(1)}" + (f":{kinds[entry]}" if entry in kinds else "") + "]")
@@ -192,11 +263,25 @@ def corpus_with(walk, previous):
     return out
 
 
-def violations(walk, old, new, path, corp, allowlist):
+def number_either(was, now, known):
+    """An int that becomes a float or the reverse, at a structural path where 0.26g's own configs
+    already have both: the game's reader takes either for a number there (content_edit.set_number;
+    patch 19's weapons' melee/data/k_damage is an int where every native weapon's is a float). Never
+    a vector, a table or a string: only these two scalar types, and only where the base mixes them."""
+    return {was, now} == {T_INT, T_FLOAT} and {T_INT, T_FLOAT} <= known
+
+
+def violations(walk, old, new, path, corp, allowlist, keys=None):
     """The type problems of one changed file (`new` its bytes, `old` its
     previous bytes or None), a list of strings; value by value:
-    - a value at a path the previous version has (its own path, the entry's
-      index and object type kept) has the type it had there;
+    - a value at a path the previous version has (its own path: an entry of
+      a list `keys` keys (list_keys' for the file) by its key, any other
+      entry by its name or its index and object type) has the type it had
+      there, but for a number that turns int or float where the corpus has
+      both (number_either); a keyed entry only one version has (new, or
+      taken out) has no previous types to keep;
+    - an entry of a keyed list without its key, or with one another entry
+      has, is a problem (keyed_entries);
     - a value at a path new to the file, whose structural path 0.26g already
       uses (the corpus, and the file's own previous version), has one of the
       types used there, unless `allowlist` has (file, structural path): a
@@ -211,16 +296,20 @@ def violations(walk, old, new, path, corp, allowlist):
         old_values = parse(walk, old, is_config_path(path)) if old is not None else []
     except NotAConfig:
         old_values = []
-    old_raw, new_raw = raw_types(old_values), raw_types(new_values)
+    keys = keys or {}
+    old_keyed, old_bad = keyed_entries(old_values, keys)
+    new_keyed, new_bad = keyed_entries(new_values, keys)
+    out = [f"{path} (previous): {p}" for p in old_bad] + [f"{path}: {p}" for p in new_bad]
+    old_raw, new_raw = raw_types(old_values, old_keyed), raw_types(new_values, new_keyed)
     own = {}
     for structural, t in old_raw.values():
         own.setdefault(structural, set()).add(t)
-    out = []
     for key in sorted(new_raw):
         structural, t = new_raw[key]
         if key in old_raw:
-            if old_raw[key][1] != t:
-                out.append(f"{path}: {key or '/'} was {type_name(old_raw[key][1])}, now {type_name(t)} "
+            was = old_raw[key][1]
+            if was != t and not number_either(was, t, corp.get(structural, set())):
+                out.append(f"{path}: {key or '/'} was {type_name(was)}, now {type_name(t)} "
                            f"(a key that exists keeps its value type)")
             continue
         known = corp.get(structural, set()) | own.get(structural, set())
@@ -235,14 +324,17 @@ def fmt(kinds):
 
 
 def main():
-    if len(sys.argv) != 5:
+    if len(sys.argv) < 5:
         sys.exit(__doc__)
-    ce_dir, old_path, new_path, game_path = sys.argv[1:]
+    ce_dir, old_path, new_path, game_path = sys.argv[1:5]
+    import json
+    edit_lists = [json.load(open(p, encoding="utf-8")) for p in sys.argv[5:]]
+    keys = list_keys(edit_lists).get(game_path, {})
     walk = load_walk(ce_dir)
     old = open(old_path, "rb").read()
     new = open(new_path, "rb").read()
     corp = corpus_with(walk, {game_path: old})
-    problems = violations(walk, old, new, game_path, corp, {})
+    problems = violations(walk, old, new, game_path, corp, {}, keys)
     for p in problems:
         print(f"TYPE: {p}")
     print(f"{len(problems)} type problem(s)")

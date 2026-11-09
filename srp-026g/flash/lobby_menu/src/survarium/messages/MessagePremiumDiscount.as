@@ -14,6 +14,7 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.Colors;
    import survarium.constants.MessageId;
    
    public class MessagePremiumDiscount extends MessageAccept
@@ -97,7 +98,13 @@ package survarium.messages
          var enabled:Boolean;
          var dicountStr:String;
          super.configUI();
-         this.coin.gotoAndStop(2);
+         // The price in silver: its coin and the shop's price colour.
+         this.coin.gotoAndStop(1);
+         this.textFieldValue.textColor = Colors.PRICE_REG;
+         if(this.btnAddPremumMoney)
+         {
+            this.btnAddPremumMoney.visible = false;
+         }
          this.coinOld.gotoAndStop(2);
          btnAccept.label = LocalizationData.getName("buy");
          this.textFieldValue.mouseEnabled = false;
@@ -121,7 +128,7 @@ package survarium.messages
             for(i = 0; i < array.length; i++)
             {
                premiumOption = array[i];
-               enabled = PlayerInfo.premiumMoney >= premiumOption.value;
+               enabled = PlayerInfo.genericMoney >= premiumOption.value;
                premiumOption.valid = enabled;
                premiumOption.enabled = true;
                trace("configPM::",premiumOption.label,"|",premiumOption.value2,premiumOption.discount_value);
@@ -184,18 +191,8 @@ package survarium.messages
       
       protected function onNoMoneyEnought() : void
       {
-         var object:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",object,true,MessageId.AUTO,true);
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
+         // Premium time is bought with silver: the game has no gold (the owner, 2026-11-08).
+         Message.showMessage("ok",LocalizationData.getName("not_enough_money"),true,MessageId.AUTO,true);
       }
       
       override protected function onMessageCancel(event:ButtonEvent = null) : void
@@ -211,7 +208,7 @@ package survarium.messages
          {
             return;
          }
-         var selectedEnabled:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
+         var selectedEnabled:Boolean = PlayerInfo.genericMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
          var selectedId:uint;
          var selectedDiscount:Number;
          var fn:Function;

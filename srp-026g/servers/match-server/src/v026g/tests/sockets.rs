@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use survarium::v026g::match_msgs::ServerMessage;
 use survarium::v026g::match_msgs::snapshot::Tdm;
+use survarium::v026g::match_msgs::upload::CHUNK_DATA;
 
 use super::client::INITIAL_MS;
 use super::{MAP_BATTERIES, MAP_TDM, Net, one_at_a_time, quick, session_of};
@@ -35,13 +36,12 @@ fn one_player_plays_a_whole_match_over_udp() {
         let options = client.model.options.clone().unwrap();
         assert_eq!(client.model.local_index, Some(0));
         assert_eq!(options.players.len(), 1);
-        assert_eq!(options.map_id, MAP_TDM);
+        assert_eq!(options.map.map().id, MAP_TDM);
         assert_eq!(options.match_id, static_id(match_id));
     }
 
-    // Its world goes up in several chunks; it starts from it as generation
-    // 0 and enters.
-    net.client(0).sim.ballast = 1_500;
+    // Its world goes up in chunks (an initial world, with nobody in it,
+    // takes two); it starts from it as generation 0 and enters.
     net.client(0).ready();
     assert!(net.until(SOON, |net| net.clients[0].0.model.is_synced()));
     assert!(net.until(SOON, |net| net.clients[0].0.entered() == [0]));
@@ -52,7 +52,7 @@ fn one_player_plays_a_whole_match_over_udp() {
         _ => None,
     });
     assert_eq!(synced[0], net.clients[0].0.sim.world(INITIAL_MS));
-    assert!(synced[0].len() > 1_500);
+    assert!(synced[0].len() > CHUNK_DATA);
 
     // It plays: inputs go up and none is turned down; its worlds are asked
     // for, uploaded and vouched for by its own hash reports.
@@ -93,7 +93,10 @@ fn one_player_plays_a_whole_match_over_udp() {
     let result = net.results.recv_timeout(SOON).expect("the match's result");
     assert_eq!(result.match_id, net.match_id);
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.game_mode, 4);
+    assert_eq!(
+        result.mode,
+        survarium::v026g::maps::GameMode::TeamDeathmatch
+    );
     assert_eq!(result.winner, Some(1));
     assert_eq!(result.team_points, [0, 64]);
     assert!(result.played_ms.is_some());

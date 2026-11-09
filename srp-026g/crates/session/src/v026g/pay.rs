@@ -18,6 +18,7 @@
 //! multiplier (`match_levels_dict`), rounded down after multiplying
 //! (PROVEN by SHOT2: every cell of its kills and help rows comes out).
 
+
 /// What one event, or one point of score, pays before the match level's
 /// multipliers: silver, experience, reputation.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -231,78 +232,22 @@ pub const START_RATING: u16 = 100;
 pub const RATING_STEP: f64 = 4.0;
 pub const RATING_SPREAD: f64 = 40.0;
 
-/// What reaching a level pays.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LevelReward {
-    Silver(u32),
-    Gold(u32),
-}
-
-/// The gold of the last level (the wiki's table of February 2015).
-pub const LAST_LEVEL_GOLD: u32 = 250;
-
-/// The reward for reaching `level` (counted from 0, as a 0.26g account's
-/// is): 0.21d's table, which is the wiki's (100 gold at level 1 and every
-/// fifth, silver between: 500 rising by 250 each five levels to 5,000),
-/// and 250 gold at the last level, 100.
-pub fn level_reward(level: u8) -> LevelReward {
+/// The silver for reaching `level` (counted from 0, as a 0.26g account's
+/// is): 0.21d's table, which is the wiki's (silver at most levels: 500
+/// rising by 250 each five levels to 5,000). The levels that paid gold (100
+/// at level 1 and every fifth, 250 at the last, 100) pay nothing: gold is
+/// gone and its rewards with it (the owner, 2026-11-08: "there is also gold
+/// given for levels, I would remove that too"). A level still gives its
+/// skill point.
+pub fn level_reward(level: u8) -> u32 {
     use survarium::v021d::results::{LevelReward as Old, level_reward};
     if level >= super::account::MAX_LEVEL {
-        return LevelReward::Gold(LAST_LEVEL_GOLD);
+        return 0;
     }
     match level_reward(level.saturating_add(1)) {
-        Old::Money(amount) => LevelReward::Silver(amount),
-        Old::Premium(amount) => LevelReward::Gold(amount),
+        Old::Money(amount) => amount,
+        Old::Premium(_) => 0,
     }
-}
-
-/// The drop chance each battery the player's own team has at the end adds
-/// (LIKELY: the wiki of February 2015; SHOT1's 90 % does not come out of
-/// it).
-pub const DROP_CHANCE_PER_BATTERY: f32 = 0.025;
-/// The drop chance a premium account adds (LIKELY, the same source).
-pub const DROP_CHANCE_PREMIUM: f32 = 0.25;
-
-/// The condition a weapon or an armour piece a match dropped arrives in,
-/// in percent, when `SRP_DROP_CONDITION` is unset. That it arrives worn is
-/// PROVEN for 0.24a and never taken back (patch note 0.24a: "all the
-/// items found after a match will be in poor condition with critical
-/// malfunctions"); the 40 is the owner's choice (2026-10-12).
-pub const DEFAULT_DROP_CONDITION: u32 = 40;
-
-/// `SRP_DROP_CONDITION`: that condition, 1 to 100 percent. Read once.
-pub fn drop_condition() -> u32 {
-    static PERCENT: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
-    *PERCENT.get_or_init(|| setting("SRP_DROP_CONDITION", DEFAULT_DROP_CONDITION, 100))
-}
-
-/// `SRP_DROP_DEFECT`: whether such an item arrives with one defect (the
-/// same patch note); on unless `off`, `0`, `no` or `false`. Read once.
-pub fn drop_defect() -> bool {
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| crate::switch("SRP_DROP_DEFECT", true))
-}
-
-/// `SRP_ITEM_WEAR`: whether a match wears the weapons and armour of the
-/// kits played (the items' `degrade_per_match` and `degrade_per_use`), and
-/// with it whether a worn item may get a defect. Off unless `on`: the
-/// owner's choice (2026-10-13), an item a player has stays as it is. The
-/// game's own rule is `on`. Read once.
-pub fn item_wear() -> bool {
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| crate::switch("SRP_ITEM_WEAR", false))
-}
-
-/// `SRP_DROP_PLAYTIME_BONUS`: whether the first games of a play period
-/// raise the chance of a drop (`drops.options`, `playtime_dependence`: 100,
-/// 75, 50 and 25 for games 1 to 4). Off unless `on`: the owner's choice
-/// (2026-10-13). How the original applied those numbers is not known
-/// (GUESS: srp multiplied the table's chance by `1 + bonus / 100`); with
-/// it, 73 % of the players who finished a match on the live server found
-/// something, against the table's 40 %. Read once.
-pub fn drop_playtime_bonus() -> bool {
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| crate::switch("SRP_DROP_PLAYTIME_BONUS", false))
 }
 
 #[cfg(test)]
@@ -403,13 +348,15 @@ mod tests {
     }
 
     #[test]
-    fn the_last_level_pays_250_gold() {
-        assert_eq!(level_reward(1), LevelReward::Gold(100));
-        assert_eq!(level_reward(2), LevelReward::Silver(500));
-        assert_eq!(level_reward(5), LevelReward::Gold(100));
-        assert_eq!(level_reward(6), LevelReward::Silver(750));
-        assert_eq!(level_reward(95), LevelReward::Gold(100));
-        assert_eq!(level_reward(99), LevelReward::Silver(5_000));
-        assert_eq!(level_reward(100), LevelReward::Gold(250));
+    fn the_levels_that_paid_gold_pay_nothing() {
+        // 100 gold at the wiki's level 1 and every fifth, 250 at the last:
+        // none of it now; the silver levels as they were.
+        assert_eq!(level_reward(1), 0);
+        assert_eq!(level_reward(2), 500);
+        assert_eq!(level_reward(5), 0);
+        assert_eq!(level_reward(6), 750);
+        assert_eq!(level_reward(95), 0);
+        assert_eq!(level_reward(99), 5_000);
+        assert_eq!(level_reward(100), 0);
     }
 }

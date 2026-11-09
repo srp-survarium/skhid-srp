@@ -54,7 +54,6 @@ use survarium::v026g::lobby::ClientState;
 use survarium::v026g::lobby::client_model::Decoded;
 use survarium::v026g::lobby::requests::id as lobby_id;
 use survarium::v026g::lobby::rooms::ROOM_STATE;
-use survarium::v026g::maps;
 use survarium::v026g::match_msgs::ServerMessage;
 
 /// The version a 0.26g client signs in with.
@@ -274,7 +273,7 @@ struct Lobby {
     faults_told: usize,
     /// The kit the account plays, and what it was told it has.
     kit: Option<u32>,
-    money: Option<(u32, u32)>,
+    money: Option<u32>,
     /// The room it is in and its members, as last told, so that only
     /// changes are printed; and when it last asked.
     room: Option<(u32, u32)>,
@@ -448,7 +447,8 @@ impl Bot {
                         .or(kits.first())
                         .map(|kit| kit.id);
                 }
-                Decoded::Money { generic, premium } => lobby.money = Some((*generic, *premium)),
+                // Its second number, gold, is always 0: gold is gone.
+                Decoded::Money { generic, .. } => lobby.money = Some(*generic),
                 Decoded::ClientState { state, .. } => {
                     lobby.in_lobby = *state == ClientState::Lobby;
                     if let ClientState::InQueue { order_id, .. }
@@ -527,9 +527,7 @@ impl Bot {
             Stage::SignedOut(_) | Stage::Done => {}
             Stage::SigningIn(since) => {
                 if in_lobby && kit.is_some() {
-                    let money = money.map_or(String::new(), |(silver, gold)| {
-                        format!(", {silver} silver and {gold} gold")
-                    });
+                    let money = money.map_or(String::new(), |silver| format!(", {silver} silver"));
                     self.say(&format!(
                         "in the lobby: the account has kit {}{money}",
                         kit.unwrap_or(0)
@@ -815,14 +813,13 @@ impl Bot {
             say(&format!("{} left the match", player(place)));
         }
         let loaded = client.model.options.as_ref().map(|options| {
-            let map = maps::map_mode(options.map_id).map_or(String::new(), |map| {
-                format!(" ({}, mode {})", map.name, map.mode)
-            });
+            let map = options.map.map();
+            let map = format!(" ({}, mode {})", map.name, map.mode.lobby_number());
             format!(
                 "took the static info (0xE4): match {:#x}, map {}{map}, {} players, its place \
                  {}; says it has loaded (0xDA)",
                 options.match_id,
-                options.map_id,
+                options.map.map().id,
                 options.players.len(),
                 own.map_or("?".to_owned(), |place| place.to_string())
             )

@@ -30,9 +30,11 @@
 //! (`lobby.md` §2.5; the same client function 0x1F1070).
 
 use super::super::dictionary::{Dictionary, PROFILE_SLOTS};
-use super::super::loadouts::Loadout;
+use super::super::loadouts::{Loadout, POCKET_SLOTS};
 use super::super::skills::{MODIFIERS, write_modifier_block};
+use super::super::item_params::{self, ItemClass};
 use super::super::{lzma2, maps};
+use srp_validate::world::{AMMO_SLOTS, Ammo, Body, Gun, Held, Item, Measure, WEAPON_SLOTS};
 use super::snapshot::event;
 use super::{MAX_PLAYERS, ServerMessage};
 
@@ -157,21 +159,29 @@ pub const RESEARCH_WEIGHTS: [(usize, f32); 3] = [
     (event::KILL_INVADER, 10.0),
 ];
 
+/// A kill in Team Deathmatch scores this many times its weight: there a
+/// kill is the only way to earn (the owner, 2026-11-04).
+pub const TDM_KILL_FACTOR: f32 = 3.0;
+
 /// The weights of a match of `game_mode`: `weights`, with Research's own
-/// in mode 5. The other modes play with `weights` as they are.
-pub fn weights_of(game_mode: u8, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
+/// in mode 5 and a Team Deathmatch kill [`TDM_KILL_FACTOR`] times its
+/// weight in mode 4. The other modes play with `weights` as they are.
+pub fn weights_of(game_mode: maps::RuleMode, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
     let mut weights = weights;
-    if game_mode == maps::mode::RESEARCH {
+    if game_mode == maps::RuleMode::Research {
         for (event, weight) in RESEARCH_WEIGHTS {
             weights[event] = weight;
         }
+    }
+    if game_mode == maps::RuleMode::TeamDeathmatch {
+        weights[event::KILL] *= TDM_KILL_FACTOR;
     }
     weights
 }
 
 /// srp's weights for a match of `game_mode` ([`SCORE_WEIGHTS`],
 /// [`weights_of`]).
-pub fn score_weights(game_mode: u8) -> [f32; SCORE_EVENTS] {
+pub fn score_weights(game_mode: maps::RuleMode) -> [f32; SCORE_EVENTS] {
     weights_of(game_mode, SCORE_WEIGHTS)
 }
 
@@ -213,7 +223,7 @@ pub struct MatchKit {
     /// Empty: the client shows its own default name.
     pub name: String,
     /// By slot: `(index into the profile's items, count)`. A count of 0
-    /// is skipped by the client.
+    /// is skipped by the client. Its pockets are packed ([`MatchKit::new`]).
     pub slots: [Option<(u16, u16)>; PROFILE_SLOTS],
     /// The 68 modifiers the kit's skills give
     /// (`skills::SkillsTree::modifiers`); zeros are not written.
@@ -221,6 +231,62 @@ pub struct MatchKit {
 }
 
 impl MatchKit {
+    /// A kit of `slots` as the match can hold it: its pockets
+    /// ([`POCKET_SLOTS`]) packed, the held ones moved to the first pockets
+    /// in their order, so that no empty pocket comes before a held one.
+    ///
+    /// The game puts a kit's artefact slots at its first empty quick slot
+    /// (`inventory::setup_from_profile` 0x2FD1C3..0x2FD2A5: the first of
+    /// 13..18 with no object, then `artefact_slots` of them), over any
+    /// pocket after it. A player state saves those slots' ids from whatever
+    /// object they hold (0x2FE460: an item's byte +27Eh) and then the items;
+    /// reading it puts the artefact of each id, or none, into those slots
+    /// (0x2FE624..0x2FE6C6) before the items are read, so the pocket's item
+    /// is not read and every field after it is read out of place. A world
+    /// with such a player, or the game's own history of one (a rollback),
+    /// ends the game. PROVEN: match 0x55809714 (2026-11-07), place 8's kit
+    /// 2 with pocket 13 empty and a smoke grenade in 14
+    /// (`docs/notes/static_info.md`, "A kit's pockets must be packed").
+    pub fn new(
+        state: u8,
+        id: u32,
+        name: String,
+        mut slots: [Option<(u16, u16)>; PROFILE_SLOTS],
+        modifiers: [f32; MODIFIERS],
+    ) -> Self {
+        let mut held = POCKET_SLOTS
+            .map(|pocket| slots.get_mut(usize::from(pocket)).and_then(Option::take))
+            .into_iter()
+            .flatten();
+        for pocket in POCKET_SLOTS {
+            if let Some(slot) = slots.get_mut(usize::from(pocket)) {
+                *slot = held.next();
+            }
+        }
+        Self {
+            state,
+            id,
+            name,
+            slots,
+            modifiers,
+        }
+    }
+
+    /// The first empty pocket a held one comes after: a kit no match can
+    /// hold ([`MatchKit::new`]).
+    fn pocket_gap(&self) -> Option<u8> {
+        let held = |pocket: u8| {
+            self.slots
+                .get(usize::from(pocket))
+                .is_some_and(Option::is_some)
+        };
+        let empty = POCKET_SLOTS.into_iter().find(|&pocket| !held(pocket))?;
+        POCKET_SLOTS
+            .into_iter()
+            .any(|pocket| pocket > empty && held(pocket))
+            .then_some(empty)
+    }
+
     /// A usable kit with nothing in it.
     pub fn empty(id: u32, name: &str) -> Self {
         Self {
@@ -288,10 +354,9 @@ impl MatchProfile {
         let mut items = Vec::new();
         let mut kits = Vec::new();
         for (index, loadout) in loadouts.iter().take(MAX_KITS).enumerate() {
-            let mut kit = MatchKit::empty(index as u32 + 1, "");
-            kit.modifiers = modifiers;
+            let mut slots = [None; PROFILE_SLOTS];
             for item in &loadout.items {
-                let Some(slot) = kit.slots.get_mut(usize::from(item.slot)) else {
+                let Some(slot) = slots.get_mut(usize::from(item.slot)) else {
                     continue;
                 };
                 let is_stack = dictionary.is_stack(item.dict_id);
@@ -304,7 +369,13 @@ impl MatchProfile {
                     ..MatchItem::default()
                 });
             }
-            kits.push(kit);
+            kits.push(MatchKit::new(
+                KIT_USABLE,
+                index as u32 + 1,
+                String::new(),
+                slots,
+                modifiers,
+            ));
         }
         Self {
             team,
@@ -316,6 +387,134 @@ impl MatchProfile {
             squad: 0,
         }
     }
+
+    /// The place's grenades and traps in a world's game objects, in the
+    /// order the game binds them (`srp_validate::world::objects`): its
+    /// usable kits in order (each has a player object, 0x321820), each
+    /// kit's slots in order (0x2FC7D0), one object for each of the slot's
+    /// count of a grenade set or a trap set (0x309EC0, 0x3067A0). An item
+    /// the data does not have is no grenade and no trap.
+    pub fn held(&self) -> impl Iterator<Item = Held> + '_ {
+        self.kits
+            .iter()
+            .take(MAX_KITS)
+            .filter(|kit| kit.state == KIT_USABLE)
+            .flat_map(|kit| kit.slots.iter().flatten())
+            .flat_map(|&(index, count)| {
+                let class = self
+                    .items
+                    .get(usize::from(index))
+                    .and_then(|item| item_params::item_params(item.dict_id))
+                    .map(|params| params.class);
+                // Every class named: one a new data type adds is placed here
+                // or there by whoever adds it, never left out by a default.
+                let held = match class {
+                    Some(ItemClass::GrenadeSet) => Some(Held::Grenade),
+                    Some(ItemClass::TrapSet) => Some(Held::Trap),
+                    None
+                    | Some(
+                        ItemClass::Untyped
+                        | ItemClass::Medkit { .. }
+                        | ItemClass::OxygenTank
+                        | ItemClass::Artefact(_)
+                        | ItemClass::Armor
+                        | ItemClass::Scope
+                        | ItemClass::Ammunition
+                        | ItemClass::Booster,
+                    ) => None,
+                };
+                held.into_iter()
+                    .flat_map(move |held| std::iter::repeat_n(held, usize::from(count)))
+            })
+    }
+}
+
+impl MatchProfile {
+    /// Kit `kit`'s inventory as the game makes its objects
+    /// (`inventory_cook::on_subresources_loaded` 0x2C75B0), in slot order,
+    /// as a player's state saves them (`srp_validate::world::Inventory`): a
+    /// weapon slot's gun, an ammo slot's stack of a count over 0, any other
+    /// slot's item by its class. A kit with no player object has none. An
+    /// item the game makes no object of in its slot (an artefact, a scope,
+    /// an item of no class out of a weapon slot) is an error: what the game
+    /// would read there is not known.
+    pub fn inventory(
+        &self,
+        kit: usize,
+        dictionary: &Dictionary,
+    ) -> Result<Vec<Item<'static>>, String> {
+        let Some(kit) = self.kits.get(kit).filter(|kit| kit.state == KIT_USABLE) else {
+            return Ok(Vec::new());
+        };
+        let entry = |index: u16| self.items.get(usize::from(index)).filter(|item| item.dict_id != 0);
+        let mut objects = Vec::new();
+        for (slot, held) in kit.slots.iter().enumerate() {
+            let Some((index, count)) = *held else {
+                continue;
+            };
+            let Some(item) = entry(index) else {
+                continue;
+            };
+            let slot = slot as u8;
+            let params = item_params::item_params(item.dict_id);
+            let body = if WEAPON_SLOTS.contains(&slot) {
+                let Some(gun) = params.and_then(|params| params.gun) else {
+                    return Err(format!("the gun {} of slot {slot} has no states", item.dict_id));
+                };
+                // Its ammo list: the kit's ammo slots, in their order, that
+                // hold a stack the gun takes (0x2C7739..0x2C792C), at most 8.
+                let ammo = AMMO_SLOTS
+                    .iter()
+                    .filter_map(|&ammo| kit.slots.get(usize::from(ammo)).copied().flatten())
+                    .filter(|&(index, count)| {
+                        count > 0
+                            && entry(index).is_some_and(|ammo| dictionary.compatible(item.dict_id, ammo.dict_id))
+                    })
+                    .count()
+                    .min(8) as u8;
+                Body::Weapon(Gun {
+                    states: gun.states,
+                    chamber: gun.chamber,
+                    ammo: Ammo::Kit(ammo),
+                })
+            } else if AMMO_SLOTS.contains(&slot) {
+                if count == 0 {
+                    continue;
+                }
+                Body::None
+            } else {
+                match params.map(|params| params.class) {
+                    Some(ItemClass::Medkit { influences }) => Body::Medkit { influences },
+                    Some(ItemClass::OxygenTank) => Body::OxygenTank,
+                    Some(
+                        ItemClass::Armor
+                        | ItemClass::Booster
+                        | ItemClass::GrenadeSet
+                        | ItemClass::TrapSet
+                        | ItemClass::Ammunition,
+                    ) => Body::None,
+                    // Every class named (as in `held`): no default.
+                    other @ (None
+                    | Some(ItemClass::Untyped | ItemClass::Artefact(_) | ItemClass::Scope)) => {
+                        return Err(format!(
+                            "item {} of slot {slot} is {other:?}: no object of a kit",
+                            item.dict_id
+                        ));
+                    }
+                }
+            };
+            objects.push(Item {
+                slot,
+                measure: if dictionary.is_stack(item.dict_id) {
+                    Measure::Amount
+                } else {
+                    Measure::Condition
+                },
+                body,
+            });
+        }
+        Ok(objects)
+    }
 }
 
 /// The match options.
@@ -324,24 +523,22 @@ pub struct MatchOptions {
     /// The roster, by place: N is its length. The wire's other places are
     /// written empty.
     pub players: Vec<MatchProfile>,
-    /// A playable `maps_dict` id ([`maps`]).
-    pub map_id: u8,
+    /// The map, and with it the mode: a Blackout map's options carry srp's
+    /// Blackout entry (tag 2; exe patch 65, `docs/notes/blackout.md`: no
+    /// interface for anyone, the players' markers on Tab).
+    pub map: maps::MatchMap,
     /// What the client logs as `Match id`: the seed of the match's
     /// anomalies, victory items and player objects. It must not be the id
     /// the lobby's `82` gives (`lobby::client_rules::connects_to_match`).
     pub match_id: u32,
     pub match_level: u16,
     pub score_weights: [f32; SCORE_EVENTS],
-    /// A Blackout match (srp's block, tag 2; exe patch 65,
-    /// `docs/notes/blackout.md`): no interface for anyone, the players'
-    /// markers on Tab. `false`: the entry not sent.
-    pub blackout: bool,
 }
 
 /// srp's block after the options: its magic, then tagged entries
 /// `{u8 tag, u8 len, len bytes}`.
 pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
-/// The entry of [`MatchOptions::blackout`]: one byte, 1.
+/// The entry of a Blackout map's options ([`maps::GameMode::Blackout`]): one byte, 1.
 pub const SRPX_BLACKOUT: u8 = 2;
 
 /// Why options cannot go to a client, or why bytes are no options.
@@ -372,6 +569,9 @@ pub enum StaticInfoError {
         slot: usize,
         index: u16,
     },
+    /// Writing: a kit's pocket `slot` is empty and a later one is held,
+    /// which the game's artefact slots would take ([`MatchKit::new`]).
+    PocketGap { player: usize, kit: usize, slot: u8 },
     /// An item the client's dictionary lacks.
     DictId { player: usize, dict_id: u16 },
     /// More than 8 modifications or 3 upgrades on an item.
@@ -410,6 +610,10 @@ impl std::fmt::Display for StaticInfoError {
                 slot,
                 index,
             } => write!(f, "player {player}: slot {slot} names item {index}"),
+            Self::PocketGap { player, kit, slot } => write!(
+                f,
+                "player {player}: kit {kit}'s pocket {slot} is empty before a held one"
+            ),
             Self::DictId { player, dict_id } => {
                 write!(f, "player {player}: no dictionary item {dict_id}")
             }
@@ -548,6 +752,26 @@ fn write_item(item: &MatchItem, dictionary: &Dictionary, out: &mut Vec<u8>) {
     }
 }
 
+/// What a match is sent must also have its kits' pockets packed: a kit
+/// built as a literal is refused here, not played. Profiles read back
+/// (recordings) are not held to it.
+fn check_sent(
+    player: usize,
+    profile: &MatchProfile,
+    dictionary: &Dictionary,
+) -> Result<(), StaticInfoError> {
+    check_profile(player, profile, dictionary)?;
+    match profile
+        .kits
+        .iter()
+        .enumerate()
+        .find_map(|(kit, held)| Some((kit, held.pocket_gap()?)))
+    {
+        Some((kit, slot)) => Err(StaticInfoError::PocketGap { player, kit, slot }),
+        None => Ok(()),
+    }
+}
+
 fn write_profile(profile: &MatchProfile, dictionary: &Dictionary, out: &mut Vec<u8>) {
     out.push(profile.team);
     write_str(&profile.name, out);
@@ -584,7 +808,7 @@ pub(super) fn profile_bytes(
     profile: &MatchProfile,
     dictionary: &Dictionary,
 ) -> Result<Vec<u8>, StaticInfoError> {
-    check_profile(player, profile, dictionary)?;
+    check_sent(player, profile, dictionary)?;
     let mut bytes = Vec::new();
     write_profile(profile, dictionary, &mut bytes);
     Ok(bytes)
@@ -614,18 +838,15 @@ pub fn options_bytes(
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
-    if !maps::map_mode(options.map_id).is_some_and(|map| map.is_playable()) {
-        return Err(StaticInfoError::Map(options.map_id));
-    }
     let mut out = Vec::new();
     for (player, profile) in options.players.iter().enumerate() {
-        check_profile(player, profile, dictionary)?;
+        check_sent(player, profile, dictionary)?;
         write_profile(profile, dictionary, &mut out);
     }
     for _ in roster..MAX_PLAYERS {
         out.extend(EMPTY_PROFILE);
     }
-    out.push(options.map_id);
+    out.push(options.map.map().id);
     out.push(roster as u8);
     out.extend(options.match_id.to_le_bytes());
     out.extend(options.match_level.to_le_bytes());
@@ -638,7 +859,7 @@ pub fn options_bytes(
     }
     out.extend(squads);
     let mut block = Vec::new();
-    if options.blackout {
+    if options.map.mode() == maps::GameMode::Blackout {
         block.extend([SRPX_BLACKOUT, 1, 1]);
     }
     if !block.is_empty() {
@@ -884,9 +1105,11 @@ pub fn parse_options(
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
-    if !maps::map_mode(map_id).is_some_and(|map| map.is_playable()) {
-        return Err(StaticInfoError::Map(map_id));
-    }
+    // The Blackout entry on a map of another mode, or none on a Blackout
+    // map: no map and mode the client plays.
+    let map = maps::MatchMap::of(map_id)
+        .filter(|map| (map.mode() == maps::GameMode::Blackout) == blackout)
+        .ok_or(StaticInfoError::Map(map_id))?;
     players.truncate(roster);
     for (player, (profile, &squad)) in players.iter_mut().zip(squads).enumerate() {
         profile.squad = squad;
@@ -894,11 +1117,10 @@ pub fn parse_options(
     }
     Ok(MatchOptions {
         players,
-        map_id,
+        map,
         match_id,
         match_level,
         score_weights,
-        blackout,
     })
 }
 
@@ -949,6 +1171,7 @@ mod tests {
     use super::super::super::loadouts;
     use super::super::super::skills::modifier_index;
     use super::*;
+    use srp_validate::world::Chamber;
 
     fn dictionary() -> &'static Dictionary {
         Dictionary::shared()
@@ -1002,23 +1225,44 @@ mod tests {
     fn options(players: Vec<MatchProfile>) -> MatchOptions {
         MatchOptions {
             players,
-            map_id: 61,
+            map: maps::MatchMap::of(61).unwrap(),
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
         }
     }
 
+    /// A Blackout map of the test data.
+    fn blackout_map() -> maps::MatchMap {
+        maps::playable()
+            .find(|map| map.mode == maps::GameMode::Blackout)
+            .and_then(|map| maps::MatchMap::of(map.id))
+            .expect("a Blackout map")
+    }
+
     #[test]
-    fn blackout_is_an_entry_of_the_block_and_reads_back() {
-        let mut with = options(vec![alice()]);
-        let without = options_bytes(&with, dictionary()).unwrap();
-        with.blackout = true;
+    fn a_blackout_maps_options_end_with_its_entry_and_read_back() {
+        let plain = options(vec![alice()]);
+        let without = options_bytes(&plain, dictionary()).unwrap();
+        let with = MatchOptions {
+            map: blackout_map(),
+            ..plain
+        };
         let bytes = options_bytes(&with, dictionary()).unwrap();
-        assert_eq!(bytes[..without.len()], without[..]);
+        assert_eq!(bytes.len(), without.len() + 7);
         assert_eq!(bytes[without.len()..], b"SRPX\x02\x01\x01"[..]);
         assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        // The entry on another mode's map, or a Blackout map without it:
+        // no map and mode the client plays.
+        let entry_on_plain = [&without[..], b"SRPX\x02\x01\x01"].concat();
+        assert_eq!(
+            parse_options(&entry_on_plain, dictionary()),
+            Err(StaticInfoError::Map(61))
+        );
+        assert_eq!(
+            parse_options(&bytes[..without.len()], dictionary()),
+            Err(StaticInfoError::Map(with.map.map().id))
+        );
         // Another value or length, an unknown tag, another magic: refused.
         for bad in [
             &b"SRPX\x02\x01\x00"[..],
@@ -1111,15 +1355,15 @@ mod tests {
         assert_eq!(taken(false), 5);
         // Research weighs them the same.
         assert_eq!(
-            score_weights(super::super::super::maps::mode::RESEARCH)[event::WINNING_TEAM_VI_BONUS],
+            score_weights(super::super::super::maps::RuleMode::Research)[event::WINNING_TEAM_VI_BONUS],
             10.0
         );
     }
 
     #[test]
     fn research_weighs_its_captures_and_kill_invader() {
-        use super::super::super::maps::mode;
-        let research = score_weights(mode::RESEARCH);
+        use super::super::super::maps::RuleMode;
+        let research = score_weights(RuleMode::Research);
         assert_eq!(
             (research[6], research[18], research[10]),
             (30.0, 30.0, 10.0)
@@ -1128,19 +1372,21 @@ mod tests {
         for event in (0..SCORE_EVENTS).filter(|event| ![6, 10, 18].contains(event)) {
             assert_eq!(research[event], SCORE_WEIGHTS[event], "{event}");
         }
-        // Modes 2 to 4 are unchanged.
-        for game_mode in [
-            mode::BATTERIES,
-            mode::TIMED_BATTERIES,
-            mode::TEAM_DEATHMATCH,
-        ] {
+        // Modes 2 and 3 are unchanged.
+        for game_mode in [RuleMode::Batteries, RuleMode::TimedBatteries] {
             assert_eq!(score_weights(game_mode), SCORE_WEIGHTS);
         }
+        // Team Deathmatch: a kill three times, 30; the rest as every mode's.
+        let tdm = score_weights(RuleMode::TeamDeathmatch);
+        assert_eq!(tdm[event::KILL], 30.0);
+        for event in (0..SCORE_EVENTS).filter(|&event| event != event::KILL) {
+            assert_eq!(tdm[event], SCORE_WEIGHTS[event], "{event}");
+        }
         // Over weights of another's (a test's, a tool's): the three only.
-        let mut zero = weights_of(mode::RESEARCH, [0.0; SCORE_EVENTS]);
+        let mut zero = weights_of(RuleMode::Research, [0.0; SCORE_EVENTS]);
         assert_eq!(zero.iter().filter(|weight| **weight != 0.0).count(), 3);
         zero[10] = 0.0;
-        assert_eq!(weights_of(mode::BATTERIES, zero), zero);
+        assert_eq!(weights_of(RuleMode::Batteries, zero), zero);
     }
 
     #[test]
@@ -1324,9 +1570,10 @@ mod tests {
         use StaticInfoError as E;
         assert_eq!(refused(&|o| o.players.clear()), E::Roster(0));
         assert_eq!(refused(&|o| o.players = vec![alice(); 21]), E::Roster(21));
-        // 107 is level_08 at night, which has no project; 0 is no map.
-        assert_eq!(refused(&|o| o.map_id = 107), E::Map(107));
-        assert_eq!(refused(&|o| o.map_id = 0), E::Map(0));
+        // 107 is level_08 at night, which has no project; 0 is no map: no
+        // options can name them.
+        assert_eq!(maps::MatchMap::of(107), None);
+        assert_eq!(maps::MatchMap::of(0), None);
         assert_eq!(
             refused(&|o| o.players[0].team = 2),
             E::Team { player: 0, team: 2 }
@@ -1435,6 +1682,16 @@ mod tests {
                 dict_id: pistol()
             }
         );
+        // A kit built as a literal with pocket 13 empty and 14 held: the
+        // game's artefact slots would take 14 (match 0x55809714).
+        assert_eq!(
+            refused(&|o| o.players[0].kits[0].slots[14] = Some((0, 1))),
+            E::PocketGap {
+                player: 0,
+                kit: 0,
+                slot: 13
+            }
+        );
         // The limits themselves are fine.
         let mut most = options(vec![alice(); 20]);
         most.players[0].name = "n".repeat(63);
@@ -1517,5 +1774,141 @@ mod tests {
         let info = StaticInfo::new(&options(vec![player; 20]), dictionary()).unwrap();
         assert!(info.options().len() < OPTIONS_BUFFER);
         assert!(info.payload(19).unwrap().len() < MAX_MESSAGE);
+    }
+
+    #[test]
+    fn a_kit_goes_to_the_match_with_its_pockets_packed_in_their_order() {
+        // Match 0x55809714's kit: pocket 13 empty, a smoke grenade in 14;
+        // here also a medkit in 16 and a gun and its ammo.
+        let mut slots = [None; PROFILE_SLOTS];
+        slots[7] = Some((0, 1));
+        slots[8] = Some((1, 100));
+        slots[14] = Some((2, 1));
+        slots[16] = Some((3, 2));
+        let kit = MatchKit::new(KIT_USABLE, 3, String::new(), slots, [0.0; MODIFIERS]);
+        let mut packed = [None; PROFILE_SLOTS];
+        packed[7] = Some((0, 1));
+        packed[8] = Some((1, 100));
+        packed[13] = Some((2, 1));
+        packed[14] = Some((3, 2));
+        assert_eq!(kit.slots, packed);
+        assert_eq!(kit.pocket_gap(), None);
+        // A packed kit, every pocket held or none, stays as it is.
+        let mut full = [None; PROFILE_SLOTS];
+        for (index, pocket) in POCKET_SLOTS.into_iter().enumerate() {
+            full[usize::from(pocket)] = Some((index as u16, 1));
+        }
+        for slots in [packed, full, [None; PROFILE_SLOTS]] {
+            let kit = MatchKit::new(KIT_USABLE, 1, String::new(), slots, [0.0; MODIFIERS]);
+            assert_eq!(kit.slots, slots);
+        }
+        // The literal is what the writer refuses.
+        let literal = MatchKit {
+            slots,
+            ..MatchKit::empty(3, "")
+        };
+        assert_eq!(literal.pocket_gap(), Some(13));
+    }
+
+    #[test]
+    fn a_places_held_objects_are_its_usable_kits_grenades_and_traps_in_slot_order() {
+        let dictionary = dictionary();
+        let id = |name: &str| dictionary.item_named(name).expect(name).dict_id;
+        let item = |dict_id, count| MatchItem {
+            dict_id,
+            condition_or_stack: count,
+            ..MatchItem::default()
+        };
+        let mut kits = vec![
+            MatchKit::empty(1, ""),
+            MatchKit::empty(2, ""),
+            MatchKit::empty(3, ""),
+        ];
+        // Kit 0: a trap in pocket 14, two grenades in pocket 13, a pistol;
+        // kit 1 is locked; kit 2: one grenade.
+        kits[0].slots[7] = Some((0, 1));
+        kits[0].slots[13] = Some((1, 2));
+        kits[0].slots[14] = Some((2, 1));
+        kits[1].state = 2;
+        kits[1].slots[13] = Some((1, 2));
+        kits[2].slots[15] = Some((1, 1));
+        let profile = MatchProfile {
+            team: 0,
+            name: "held".into(),
+            clan_tag: String::new(),
+            protection: NO_PROTECTION,
+            kits,
+            items: vec![item(id("tt_33"), FULL_CONDITION), item(id("rgd-5"), 3), item(id("base_trap"), 1)],
+            squad: 0,
+        };
+        let held: Vec<Held> = profile.held().collect();
+        assert_eq!(held, [Held::Grenade, Held::Grenade, Held::Trap, Held::Grenade]);
+    }
+
+    #[test]
+    fn a_kits_inventory_is_its_objects_in_slot_order() {
+        let dictionary = dictionary();
+        let id = |name: &str| dictionary.item_named(name).expect(name).dict_id;
+        let item = |dict_id, count| MatchItem {
+            dict_id,
+            condition_or_stack: count,
+            ..MatchItem::default()
+        };
+        let mut kit = MatchKit::empty(1, "");
+        // An AK with two stacks it takes and one it does not, an empty
+        // ammo slot, a medkit, a grenade, a helmet.
+        kit.slots[7] = Some((0, 1));
+        kit.slots[8] = Some((1, 60));
+        kit.slots[9] = Some((2, 0));
+        kit.slots[11] = Some((3, 30));
+        kit.slots[12] = Some((4, 30));
+        kit.slots[13] = Some((5, 2));
+        kit.slots[14] = Some((6, 1));
+        kit.slots[0] = Some((7, 1));
+        let ak = id("ak_74m");
+        let rounds = dictionary
+            .items
+            .iter()
+            .find(|item| item.name.starts_with("ammo_") && dictionary.compatible(ak, item.dict_id))
+            .expect("ammunition the AK takes")
+            .dict_id;
+        let other = dictionary
+            .items
+            .iter()
+            .find(|item| item.name.starts_with("ammo_") && !dictionary.compatible(ak, item.dict_id))
+            .expect("ammunition the AK does not take")
+            .dict_id;
+        let profile = MatchProfile {
+            team: 0,
+            name: "kit".into(),
+            clan_tag: String::new(),
+            protection: NO_PROTECTION,
+            kits: vec![kit],
+            items: vec![
+                item(ak, FULL_CONDITION),
+                item(rounds, 60),
+                item(rounds, 0),
+                item(rounds, 30),
+                item(other, 30),
+                item(id("medkit"), 2),
+                item(id("rgd-5"), 1),
+                item(id("bm_helmet_1"), FULL_CONDITION),
+            ],
+            squad: 0,
+        };
+        let items = profile.inventory(0, dictionary).unwrap();
+        let slots: Vec<u8> = items.iter().map(|item| item.slot).collect();
+        assert_eq!(slots, [0, 7, 8, 11, 12, 13, 14]);
+        let Body::Weapon(gun) = items[1].body else {
+            panic!("{:?}", items[1]);
+        };
+        assert_eq!(gun.ammo, Ammo::Kit(2));
+        let chamber = usize::from(gun.chamber == Chamber::Saved);
+        assert_eq!(gun.states.len(), 7 + chamber);
+        assert!(matches!(items[5].body, Body::Medkit { influences: 7 }));
+        let measures: Vec<Measure> = items[..3].iter().map(|item| item.measure).collect();
+        assert_eq!(measures, [Measure::Condition, Measure::Condition, Measure::Amount]);
+        // No kit 1: nothing.
+        assert_eq!(profile.inventory(1, dictionary).unwrap(), []);
     }
 }

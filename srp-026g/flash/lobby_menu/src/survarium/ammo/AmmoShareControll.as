@@ -1,5 +1,6 @@
 package survarium.ammo
 {
+   import survarium.constants.ProfileSlot;
    import flash.display.Sprite;
    import flash.events.Event;
    import scaleform.clik.interfaces.IDataProvider;
@@ -86,7 +87,7 @@ package survarium.ammo
       
       public function openSlots(slotsN:int, slotsA:int) : void
       {
-         _slotsN = slotsN;
+         _slotsN = ProfileSlot.pocketCount(slotsN);
          slotsA = slotsA;
       }
       
@@ -377,7 +378,7 @@ package survarium.ammo
                   }
                   else if((inv.quickSlotItemSize))
                   {
-                     clips = 1 / inv.quickSlotItemSize;
+                     clips = PlayerInfo.pocketUnits(inv.category,inv.quickSlotItemSize);
                   }
                   auto_buy = false;
                   for(j = 0; j < _itemsAutoBuy.length; j++)
@@ -400,7 +401,6 @@ package survarium.ammo
                   itemData.clipSize = inv.clipSize;
                   itemData.weight = inv.weight;
                   itemData.cost = inv.cost;
-                  itemData.premiumCost = inv.premiumCost;
                   itemData.lockText = inv.lockText;
                   itemData.unlockLevelLabel = inv.unlockLevelLabel;
                   itemData.canBuy = inv.canBuy;
@@ -412,7 +412,7 @@ package survarium.ammo
                   itemData.icon = _icon;
                   itemData.dragIcon = _icon;
                   itemData.weaponTarget = Math.min(i + 1,3);
-                  trace("control_add_ammo:",inv.name,"ll::",inv.unlockLevelLabel,inv.itemId,itemData.canBuy,"st:",slot_target,"count:",count,inv.value,"compare:",isQuickslot,inv.dictId,slot_target,itemData.weaponTarget,"cl:",itemData.clipsInBag,itemData.count,itemData.premiumCost,auto_buy);
+                  trace("control_add_ammo:",inv.name,"ll::",inv.unlockLevelLabel,inv.itemId,itemData.canBuy,"st:",slot_target,"count:",count,inv.value,"compare:",isQuickslot,inv.dictId,slot_target,itemData.weaponTarget,"cl:",itemData.clipsInBag,itemData.count,auto_buy);
                   this._compassionItems.push(itemData);
                   return;
                }

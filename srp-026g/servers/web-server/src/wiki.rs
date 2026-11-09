@@ -3,9 +3,15 @@
 //! The modifiers ([`crate::modifiers`]) and the equipment
 //! ([`crate::equipment`]) come from the server's game data.
 //! The calculator ([`crate::damage`]) and the maps ([`crate::maps`]) are its
-//! sections too, each a page of its own look.
+//! sections too, each a page of its own look; the skills ([`crate::skills`])
+//! are built like them, from the released game, into a page of the wiki's.
+//! The quests ([`crate::quests`]) come from the server's game data and pay rules.
 
-use crate::{ContentType, Lang, Response, damage, equipment, escape, maps, modifiers};
+use session::v026g::rewards::PerMatch;
+
+use crate::{
+    ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, quests, skills,
+};
 
 pub(crate) const PATH: &str = "/wiki";
 pub(crate) const WEAPONS: &str = "/wiki/weapons";
@@ -41,14 +47,25 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 }
 
 /// The wiki's page at `path` in `lang` under `header`; `query`: the
-/// request's text after `?` (the modifiers page's chosen item).
-pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Response {
+/// request's text after `?` (the modifiers page's chosen item);
+/// `per_match`: what a match is now, for the skills page.
+pub(crate) fn page(
+    path: &str,
+    query: &str,
+    lang: Lang,
+    header: &str,
+    per_match: Option<PerMatch>,
+) -> Response {
     let (title, body) = if path == WEAPONS {
         let body = match lang {
             Lang::En => include_str!("../wiki/weapons.en.html"),
             Lang::Uk => include_str!("../wiki/weapons.uk.html"),
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
+    } else if path == skills::PATH {
+        (lang.tr("Skills", "Навички"), skills::body(lang, per_match))
+    } else if path == quests::PATH {
+        (lang.tr("Quests", "Завдання"), quests::body(lang))
     } else if path == EQUIPMENT {
         (lang.tr("Equipment", "Спорядження"), equipment::body(lang))
     } else if path == MODIFIERS {
@@ -60,7 +77,7 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
         (
             lang.tr("Wiki", "Вікі"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}</div>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}</div>",
                 lang.tr("Wiki", "Вікі"),
                 section(
                     lang,
@@ -82,6 +99,20 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
                     &lang.tr("Modifiers", "Модифікатори"),
                     &lang.tr("Every modifier, its strengths and the items that can get it.",
                         "Усі модифікатори, їхня сила та предмети, на які вони випадають."),
+                ),
+                section(
+                    lang,
+                    skills::PATH,
+                    &lang.tr("Skills", "Навички"),
+                    &lang.tr("Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.",
+                        "Рівні й скільки досвіду вони потребують; усі гілки навичок: пороги, ранги й що дає кожен ранг."),
+                ),
+                section(
+                    lang,
+                    quests::PATH,
+                    &lang.tr("Quests", "Завдання"),
+                    &lang.tr("Every faction quest: its goal at each reputation level and what it pays.",
+                        "Усі завдання угруповань: мета на кожному рівні репутації й винагорода."),
                 ),
                 section(
                     lang,
@@ -137,7 +168,7 @@ mod tests {
     #[test]
     fn both_languages_have_weapon_stats_and_comparison() {
         for lang in [Lang::En, Lang::Uk] {
-            let page = page(WEAPONS, "", lang, "site header");
+            let page = page(WEAPONS, "", lang, "site header", None);
             assert!(page.body.contains("site header"));
             assert!(page.body.contains("id=\"wpn_ak_74m\""));
             assert!(page.body.contains("class=\"weapon-details\""));
@@ -145,6 +176,40 @@ mod tests {
             assert!(page.body.contains("id=\"compare-a\""));
             assert!(page.body.contains("class=\"sim-vertical\""));
             assert!(page.body.contains("id=\"recoil-template\""));
+        }
+    }
+
+    #[test]
+    fn the_skills_page_names_only_files_it_serves() {
+        for lang in [Lang::En, Lang::Uk] {
+            let page = page(skills::PATH, "", lang, "site header", None);
+            assert!(page.body.contains("site header"));
+            assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
+            assert!(page.body.contains("class=\"skill-branch\""));
+            assert!(page.body.contains("data-skill=\"101\""));
+            let files: Vec<&str> = page
+                .body
+                .match_indices("/skills/")
+                .filter(|&(at, _)| page.body[..at].ends_with(['"', '\'']))
+                .map(|(at, _)| page.body[at..].split_once("?v=").unwrap().0)
+                .collect();
+            assert!(files.iter().any(|file| file.starts_with("/skills/icons/")));
+            assert!(files.contains(&"/skills/skills.js"));
+            assert!(
+                files
+                    .iter()
+                    .any(|file| file.starts_with("/skills/icons/branch-"))
+            );
+            for file in files {
+                let (content_type, bytes) = skills::file(file).unwrap_or_else(|| panic!("{file}"));
+                let kind = if file.ends_with(".js") {
+                    "text/javascript; charset=utf-8"
+                } else {
+                    "image/webp"
+                };
+                assert_eq!(content_type, kind, "{file}");
+                assert!(!bytes.is_empty(), "{file}");
+            }
         }
     }
 }

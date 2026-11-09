@@ -57,6 +57,7 @@ pub mod view;
 use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::PlayerInput;
 
 use crate::v026g::drive::{half_value, key};
@@ -455,8 +456,7 @@ fn near_any(spots: &[Vec3], point: Vec3) -> bool {
 /// A match's bots.
 pub struct Bots {
     level: u8,
-    /// The mode's id (2 batteries, 3 timed batteries, 4 TDM).
-    mode: u8,
+    mode: RuleMode,
     /// Whose the battery containers are, by id, as the server's game
     /// data has the map (`MapMode::container_teams`); without it, as the
     /// built map has them ([`Self::with_container_teams`]).
@@ -494,7 +494,7 @@ impl Bots {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         match_id: u32,
-        mode: u8,
+        mode: RuleMode,
         level: u8,
         teams: &[u8],
         driven: &[bool],

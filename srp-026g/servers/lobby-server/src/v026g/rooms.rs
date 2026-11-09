@@ -24,7 +24,7 @@
 //!   whoever is in, 1 v 0 too (`room_start_pressed`; the owner's of
 //!   2026-10-26).
 //! - **Late.** A member in the lobby while the room's match is played sees
-//!   the room first and goes into it `LATE_JOIN_WAIT` later (or at once on
+//!   the room first and goes into it `RoomRules::late_join_wait` later (or at once on
 //!   its ask) if the match admits players (from its countdown until
 //!   `LOAD_MARGIN` is left), on the side with fewer players in it; of two
 //!   alike in that, the side it played on in that match before, then the
@@ -40,7 +40,7 @@
 //!   it came in (Play or a join; the owner's of 2026-10-31).
 //! - **Play.** Public rooms start empty and grow with demand: the first
 //!   Play creates an 8 v 8 room in its equipment bracket (up to 10 or 15).
-//!   Full rooms queue newcomers; six ready Play waiters in the same bracket
+//!   Full rooms queue newcomers; four ready Play waiters in the same bracket
 //!   open another room. Explicit room queues stay chosen.
 //!   Only private rooms may be created by a client.
 //! - **Squads** (two at most; the owner's of 2026-10-31,
@@ -76,12 +76,11 @@
 //!
 //! | variable | default | meaning |
 //! |---|---|---|
-//! | `SRP_ROOMS_MAX` | 50 | the most rooms at once, 1 to 1000 |
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
 
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use session::matchmaking_policy::{self as policy, Closed, Worth};
 use session::v026g::presets::{self, Offer};
@@ -101,15 +100,6 @@ use survarium::v026g::maps;
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, Who};
 use super::play::{MatchPlayer, Running, match_profile};
-
-/// `SRP_ROOMS_MAX` when unset.
-pub const DEFAULT_MAX_ROOMS: usize = 50;
-/// What a room Play makes is made with (its bracket's cap, the standard pool):
-/// 8 a side, the owner's word of 2026-10-18 ("8vs8 not 10vs10").
-const QUICK_SIZE: u8 = 8;
-const QUICK_WAIT: u8 = 30;
-/// Six ready Play users waiting in one equipment bracket open another room.
-const SCALE_PLAYERS: usize = 6;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PublicBracket {
@@ -144,15 +134,10 @@ impl PublicBracket {
         room.is_open() && room.max_level() == self.max_level()
     }
 }
-/// How long a member who comes while its room's match is played sees the
-/// room before it is put into the match, unless it asks first (the owner's
-/// of 2026-10-19).
-pub const LATE_JOIN_WAIT: Duration = Duration::from_secs(15);
-
 /// The rooms' settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// `SRP_ROOMS_MAX` (default 50).
+    /// The most rooms at once (`RoomRules::rooms_most`).
     pub max_rooms: usize,
     /// `SRP_ROOMS_EXTRA_MAPS`: playable ids a pool may hold besides the
     /// match pool.
@@ -162,7 +147,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            max_rooms: DEFAULT_MAX_ROOMS,
+            max_rooms: wire::rules().rooms_most,
             extra_maps: Vec::new(),
         }
     }
@@ -172,15 +157,7 @@ impl Config {
     /// The environment's.
     pub fn from_env() -> Self {
         let var = |name: &str| std::env::var(name).ok();
-        let max_rooms = match var("SRP_ROOMS_MAX") {
-            Some(value) => parse_max(&value).unwrap_or_else(|| {
-                log::error!(
-                    "SRP_ROOMS_MAX is `{value}`; it must be 1 to 1000. Using {DEFAULT_MAX_ROOMS}"
-                );
-                DEFAULT_MAX_ROOMS
-            }),
-            None => DEFAULT_MAX_ROOMS,
-        };
+        let max_rooms = wire::rules().rooms_most;
         let extra_maps = match var("SRP_ROOMS_EXTRA_MAPS") {
             Some(value) => parse_extra(&value).unwrap_or_else(|| {
                 log::error!(
@@ -200,15 +177,6 @@ impl Config {
             extra_maps,
         }
     }
-}
-
-/// `SRP_ROOMS_MAX`: 1 to 1000.
-fn parse_max(value: &str) -> Option<usize> {
-    value
-        .trim()
-        .parse()
-        .ok()
-        .filter(|most| (1..=1000).contains(most))
 }
 
 /// `SRP_ROOMS_EXTRA_MAPS`: playable ids, comma-separated; empty is none.
@@ -239,6 +207,29 @@ fn code_of(refused: Refused) -> RoomCode {
     }
 }
 
+/// A room's match being made (`play::launch`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RoomLaunch {
+    /// The map its vote chose.
+    pub map_id: u8,
+    /// The room's minimum of players (`MatchSetup::room_minimum`).
+    pub minimum: u8,
+    pub kind: RoomKind,
+}
+
+/// What a room's match is, for its bots and its pay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RoomKind {
+    /// Paid as any match.
+    Open,
+    /// A PIN: it pays nothing (`MatchSetup::private`).
+    Private,
+    /// A PIN room made with bots: the server's bots each team takes
+    /// (`Room::bots_for`); paid as against bots (`MatchSetup::vs_bots`, the
+    /// owner's of 2026-11-05: "this should still give bot rewards").
+    WithBots { bots: [usize; 2] },
+}
+
 /// A free member of a room, ready for its match, and the gear level it
 /// would bring (`matchmaking::gear_level`): a match's equipment level is
 /// the highest of its players' (`docs/notes/kd-balance.md`).
@@ -249,9 +240,7 @@ struct Ready {
 
 impl Core<'_> {
     /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool, then the experimental maps, then
-    /// Blackout's: each plain battery map of those once more, as mode 6 by
-    /// its lobby id (its tile the same map and weather).
+    /// match pool (Blackout's maps too, mode 6), then the experimental maps.
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -260,7 +249,7 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        let entries = pool
+        pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
@@ -270,25 +259,11 @@ impl Core<'_> {
                     map_id: id,
                     level: map.level,
                     weather: map.weather,
-                    mode: map.mode,
+                    mode: map.mode.lobby_number(),
                     extra,
+                    bots: self.settings.pvb.bot_maps.contains(&id),
                 })
             })
-            .collect::<Vec<_>>();
-        let blackout: Vec<PoolEntry> = entries
-            .iter()
-            .filter(|entry| entry.mode == maps::BLACKOUT_RULES)
-            .filter_map(|entry| {
-                Some(PoolEntry {
-                    map_id: maps::blackout_id(entry.map_id)?,
-                    mode: maps::mode::BLACKOUT,
-                    ..*entry
-                })
-            })
-            .collect();
-        entries
-            .into_iter()
-            .chain(blackout)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
@@ -585,7 +560,7 @@ impl Core<'_> {
                     Err(RoomCode::PublicCreate)
                 }) {
                     Err(code) => code,
-                    Ok(()) => match self.room_create(who, spec, now) {
+                    Ok(()) => match self.room_create(who, spec, false, now) {
                         Ok(key) => {
                             self.room_remember(who, key, spec);
                             RoomCode::None
@@ -595,6 +570,36 @@ impl Core<'_> {
                 };
                 if code != RoomCode::None {
                     log::info!("{}: create a room: refused ({code:?})", who.name);
+                }
+                self.send_room_state(who, code, now);
+            }
+            // A private room with bots (the owner's of 2026-11-05): none
+            // while the server's bots play no map. Its settings are not
+            // kept: its pool is the bots' maps only.
+            RoomRequest::CreateWithBots => {
+                let default = wire::rules().default;
+                let spec = RoomSpec {
+                    size: default.size,
+                    max_level: 0,
+                    wait: default.wait,
+                    pin: true,
+                    min_side: default.min_side,
+                };
+                let code = match self
+                    .room_fit(who)
+                    .and(if self.settings.pvb.bot_maps.is_empty() {
+                        Err(RoomCode::Bad)
+                    } else {
+                        Ok(())
+                    }) {
+                    Err(code) => code,
+                    Ok(()) => self
+                        .room_create(who, spec, true, now)
+                        .err()
+                        .map_or(RoomCode::None, code_of),
+                };
+                if code != RoomCode::None {
+                    log::info!("{}: create a room with bots: refused ({code:?})", who.name);
                 }
                 self.send_room_state(who, code, now);
             }
@@ -710,7 +715,7 @@ impl Core<'_> {
             log::info!("{}: join room {key}: refused ({code:?})", who.name);
         }
         // Into the room first: its match, if one is played, after
-        // `LATE_JOIN_WAIT` or on the member's ask (the tick).
+        // `RoomRules::late_join_wait` or on the member's ask (the tick).
         self.send_room_state(who, code, now);
     }
 
@@ -825,14 +830,21 @@ impl Core<'_> {
         }
     }
 
-    fn room_create(&mut self, who: &Who, spec: RoomSpec, now: Instant) -> Result<u32, Refused> {
+    /// A room made by hand; `bots`: a private one with bots (`spec.pin`).
+    fn room_create(
+        &mut self,
+        who: &Who,
+        spec: RoomSpec,
+        bots: bool,
+        now: Instant,
+    ) -> Result<u32, Refused> {
         let entries: Vec<u8> = self
             .room_entries()
             .iter()
             .map(|entry| entry.map_id)
             .collect();
-        // The whole pool but the experimental maps: the match pool and
-        // its Blackout twins (the owner's of 2026-10-25: Blackout
+        // The whole pool but the experimental maps: the match pool,
+        // Blackout's maps with it (the owner's of 2026-10-25: Blackout
         // is part of the standard pool).
         let default: Vec<u8> = self
             .room_entries()
@@ -847,11 +859,13 @@ impl Core<'_> {
             false => Door::Open {
                 max_level: spec.max_level,
             },
-            true => Door::Pin(
-                self.rooms
+            true => Door::Pin {
+                pin: self
+                    .rooms
                     .take_pin(who.account_id, now)
                     .ok_or(Refused::Bad)?,
-            ),
+                bots,
+            },
         };
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let rng = &mut self.rng;
@@ -866,18 +880,23 @@ impl Core<'_> {
             },
             &entries,
             &default,
+            &self.settings.pvb.bot_maps,
             self.settings.rooms.max_rooms,
             now,
             &mut |bound| rng.below(bound as u32) as usize,
         )?;
-        let pool = self.rooms.get(key).map_or(0, |room| room.pool.len());
+        let (pool, size) = self
+            .rooms
+            .get(key)
+            .map_or((0, 0), |room| (room.pool.len(), room.spec.size));
         if spec.pin {
             log::info!(
-                "{}: made room {key}: private (PIN), {} v {}, started by its owner, any \
+                "{}: made room {key}: private (PIN){}, {} v {}, started by its owner, any \
                  equipment, {pool} maps",
                 who.name,
-                model::PRIVATE_SIZE,
-                model::PRIVATE_SIZE,
+                if bots { ", with bots" } else { "" },
+                size,
+                size,
             );
         } else {
             log::info!(
@@ -1081,12 +1100,13 @@ impl Core<'_> {
         let key = self.room_create(
             who,
             RoomSpec {
-                size: QUICK_SIZE,
+                size: wire::rules().default.size,
                 max_level: bracket.max_level(),
-                wait: QUICK_WAIT,
+                wait: wire::rules().default.wait,
                 pin: false,
-                min_side: 1,
+                min_side: wire::rules().default.min_side,
             },
+            false,
             now,
         )?;
         Ok(key)
@@ -1145,7 +1165,7 @@ impl Core<'_> {
                     .iter()
                     .map(|(_, _, mate)| 1 + usize::from(mate.is_some()))
                     .sum();
-                if players < SCALE_PLAYERS {
+                if players < wire::rules().scale_players {
                     break;
                 }
                 let Ok(key) = self.room_create_public(&waiting[0].0, bracket, now) else {
@@ -1345,6 +1365,7 @@ impl Core<'_> {
                     .map(|member| room.sides.get(member).copied().unwrap_or(0))
                     .collect()
             }),
+            bots: room.with_bots(),
         })
     }
 
@@ -1389,6 +1410,7 @@ impl Core<'_> {
                 Closed::LastSeconds => JoinHold::LastSeconds,
                 Closed::Ending => JoinHold::Ending,
                 Closed::Full => JoinHold::Full,
+                Closed::NoWorld => JoinHold::NoWorld,
             }))
     }
 
@@ -1415,7 +1437,7 @@ impl Core<'_> {
                 .room_join_at
                 .get(&who.account_id)
                 .copied()
-                .unwrap_or(now + LATE_JOIN_WAIT);
+                .unwrap_or(now + wire::rules().late_join_wait);
             at.saturating_duration_since(now).as_millis().div_ceil(1000) as u32
         };
         // Its place in the match is kept (its game started anew, or came
@@ -1426,6 +1448,11 @@ impl Core<'_> {
         }
         if self.member_fit(who.account_id) != Fit::Yes {
             return Ok(None);
+        }
+        // A room with bots plays 8 v 8 from its start (the owner's of
+        // 2026-11-05): its newcomers take bots' places in the next match.
+        if room.with_bots() {
+            return Err(JoinHold::Full);
         }
         match self.late_hold(match_id, running, usize::from(room.spec.size), now) {
             Ok(()) => {}
@@ -1552,7 +1579,11 @@ impl Core<'_> {
                     phase,
                     secs,
                     map_id,
-                    pin: !room.is_open(),
+                    door: match (room.is_open(), room.with_bots()) {
+                        (true, _) => wire::ListDoor::Open,
+                        (false, false) => wire::ListDoor::Pin,
+                        (false, true) => wire::ListDoor::PinWithBots,
+                    },
                     name: self.name_of(room.maker).unwrap_or_default(),
                 }
             })
@@ -1722,7 +1753,7 @@ impl Core<'_> {
 
     /// The account's game was told its room (a request answered with its
     /// state, or Play): the room plays with it again. One that comes while
-    /// its room's match is played sees the room first (`LATE_JOIN_WAIT`).
+    /// its room's match is played sees the room first (`RoomRules::late_join_wait`).
     fn room_shown(&mut self, account_id: u32) {
         if self.room_unseen.remove(&account_id).is_some() {
             self.room_join_at.remove(&account_id);
@@ -1798,7 +1829,7 @@ impl Core<'_> {
                 continue;
             };
             self.rooms.join_failed(key, account_id);
-            // Its next turn: `LATE_JOIN_WAIT` from now.
+            // Its next turn: `RoomRules::late_join_wait` from now.
             self.room_join_at.remove(&account_id);
             log::info!(
                 "{}: did not get into match {match_id:#x}; it waits in room {key} again",
@@ -1998,7 +2029,7 @@ impl Core<'_> {
                     .collect::<Vec<_>>()
             })
             .collect();
-        // Each goes into the match `LATE_JOIN_WAIT` after it came (or at
+        // Each goes into the match `RoomRules::late_join_wait` after it came (or at
         // once on its ask), back to its place if the match keeps one: the
         // room shows first (the owner's of 2026-10-19).
         self.room_join_at
@@ -2007,7 +2038,7 @@ impl Core<'_> {
             let at = *self
                 .room_join_at
                 .entry(account_id)
-                .or_insert(now + LATE_JOIN_WAIT);
+                .or_insert(now + wire::rules().late_join_wait);
             if at <= now {
                 self.room_late_join(account_id, now);
             }
@@ -2051,6 +2082,7 @@ impl Core<'_> {
         // A PIN is the room's for its whole life: its every match pays
         // nothing (the owner's of 2026-10-20).
         let private = !room.is_open();
+        let room_with_bots = room.with_bots();
         // A private room plays its owner's arrangement as it is (the
         // owner's of 2026-10-26): no sides drawn.
         let arranged = private.then(|| room.arranged());
@@ -2062,6 +2094,16 @@ impl Core<'_> {
             .collect();
         if self.maintenance_is_near() {
             log::info!("Room {key}: no match now, a maintenance is near");
+            self.rooms.not_started(key, now);
+            return;
+        }
+        // A room with bots plays only while the server's bots may play
+        // one more match (`pvb`: the mode on, under its most at once).
+        if room_with_bots
+            && (!self.settings.pvb.enabled
+                || self.pvb_running() + self.pvb_held(0, now) >= self.settings.pvb.max_matches)
+        {
+            log::info!("Room {key}: no match now, as many bot matches run as the server allows");
             self.rooms.not_started(key, now);
             return;
         }
@@ -2184,8 +2226,24 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         };
-        self.room_launching
-            .insert(match_id, (map_id, room_minimum, private));
+        // A room with bots fills each team with them, its players in bots'
+        // places (the owner's of 2026-11-05).
+        let bots = self.rooms.get(key).map_or([0, 0], |room| {
+            room.bots_for([teams[0].len(), teams[1].len()])
+        });
+        let kind = match (private, room_with_bots) {
+            (_, true) => RoomKind::WithBots { bots },
+            (true, false) => RoomKind::Private,
+            (false, false) => RoomKind::Open,
+        };
+        self.room_launching.insert(
+            match_id,
+            RoomLaunch {
+                map_id,
+                minimum: room_minimum,
+                kind,
+            },
+        );
         // Made at the match server before anyone is told: if it fails, its
         // players are back in the lobby (`launch`) and the room waits again,
         // nobody left marked as searching.
@@ -2201,9 +2259,12 @@ impl Core<'_> {
             .map(|player| player.account_id)
             .collect();
         log::info!(
-            "Room {key}: match {match_id:#x} on map {map_id}, {} v {}",
+            "Room {key}: match {match_id:#x} on map {map_id}, {} v {} with {} and {} of the \
+             server's bots",
             teams[0].len(),
-            teams[1].len()
+            teams[1].len(),
+            bots[0],
+            bots[1]
         );
         for player in teams.iter().flatten() {
             self.room_send_to_match(*player, now);
@@ -2281,6 +2342,10 @@ impl Core<'_> {
                     self.name_of(account_id).unwrap_or_default()
                 );
             }
+            return;
+        }
+        // A room with bots takes no late joiner: always 8 v 8 (`room_join_in`).
+        if room.with_bots() {
             return;
         }
         let running = &self.matches[&match_id];
@@ -2504,10 +2569,7 @@ mod tests {
     #[test]
     fn the_settings_read_as_documented() {
         let config = Config::default();
-        assert_eq!(config.max_rooms, 50);
-        assert_eq!(parse_max(" 7 "), Some(7));
-        assert_eq!(parse_max("0"), None);
-        assert_eq!(parse_max("1001"), None);
+        assert_eq!(config.max_rooms, wire::rules().rooms_most);
         assert_eq!(parse_extra(""), Some(vec![]));
         assert_eq!(parse_extra("61, 117"), Some(vec![61, 117]));
         // 107: level_08 night, which has no project.

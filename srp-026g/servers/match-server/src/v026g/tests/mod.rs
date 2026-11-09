@@ -15,6 +15,9 @@ mod game;
 mod late_join;
 mod late_join_edge_cases;
 mod resync_gate;
+mod packet_safety;
+mod packet_input;
+mod refused_worlds;
 mod sockets;
 mod start;
 mod units;
@@ -70,7 +73,7 @@ fn profile(name: &str, team: u8) -> MatchProfile {
 
 pub fn setup(players: usize, map_id: u8) -> MatchSetup {
     MatchSetup {
-        map_id,
+        map: survarium::v026g::maps::MatchMap::of(map_id).expect("a playable map"),
         match_level: 3,
         players: (0..players)
             .map(|place| MatchPlayer {
@@ -85,7 +88,6 @@ pub fn setup(players: usize, map_id: u8) -> MatchSetup {
         vs_bots: false,
         private: false,
         room_minimum: None,
-        blackout: false,
     }
 }
 
@@ -208,7 +210,7 @@ impl Bench {
         growing: bool,
     ) -> Self {
         log_to_stderr();
-        let (players, map_id) = (setup.players.len(), setup.map_id);
+        let (players, map_id) = (setup.players.len(), setup.map.map().id);
         let start = Instant::now();
         let registry = Arc::new(MatchRegistry::new("127.0.0.1", 1236));
         for place in bots {
