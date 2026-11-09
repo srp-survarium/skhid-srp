@@ -2096,7 +2096,9 @@ mod tests {
             match_id: id,
             ticket: 0xA000,
             account_id: account,
-            kind: WatchKind::Queued,
+            kind: WatchKind::Queued {
+                delay: crate::matchmaking::LiveDelay::DEFAULT,
+            },
         };
         assert!(store.matchmaking().watch(old, watcher));
         let _new = store.create_session_with_revision(account, 40);

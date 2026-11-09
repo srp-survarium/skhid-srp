@@ -698,7 +698,7 @@ impl Matchmaking {
     /// The sessions watching the match from its room's queue.
     pub fn queue_watchers_of(&self, match_id: u32) -> Vec<(u32, Watcher)> {
         let mut watchers = self.watchers_of(match_id);
-        watchers.retain(|(_, watcher)| matches!(watcher.kind, WatchKind::Queued));
+        watchers.retain(|(_, watcher)| matches!(watcher.kind, WatchKind::Queued { .. }));
         watchers
     }
 
