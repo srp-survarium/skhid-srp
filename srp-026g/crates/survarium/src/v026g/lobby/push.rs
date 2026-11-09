@@ -65,10 +65,9 @@ pub struct ItemDescr {
     pub dict_id: u16,
     /// A stack's count, or an item's condition × 10 000.
     pub condition_or_stack: u32,
-    /// Only on the wire for an item that is no stack (and only in the
-    /// lobby's form of the descriptor). Meaning LIKELY from the UI's names
-    /// (`repair_time`, `reroll_time`); srp sends 0.
-    pub repair_time: u32,
+    /// Only on the wire for an item that is no stack. Meaning LIKELY from
+    /// the UI's names. Before it, in the lobby's form, the item's
+    /// `repair_time`: always 0, srp has no repair (the owner, 2026-11-08).
     pub reroll_time: u32,
     pub modifications: Vec<Modification>,
     pub upgrades: Vec<Upgrade>,
@@ -81,7 +80,6 @@ impl ItemDescr {
             item_id,
             dict_id,
             condition_or_stack,
-            repair_time: 0,
             reroll_time: 0,
             modifications: Vec::new(),
             upgrades: Vec::new(),
@@ -95,7 +93,7 @@ impl ItemDescr {
 pub(crate) enum DescrMode {
     /// Mode 0: every lobby reader but the results' dropped item.
     Lobby,
-    /// Mode 1: no `repair_time`.
+    /// Mode 1: no `repair_time` (srp writes 0 in mode 0).
     Brief,
 }
 
@@ -128,7 +126,8 @@ pub(crate) fn write_item_tail(
     writer.u32(item.condition_or_stack);
     if !is_stack {
         if mode == DescrMode::Lobby {
-            writer.u32(item.repair_time);
+            // repair_time: no repair.
+            writer.u32(0);
         }
         writer.u32(item.reroll_time);
     }
@@ -284,12 +283,10 @@ pub struct OwnAccount {
     /// The id of the kit the player plays; the client selects the kit with
     /// this id.
     pub active_kit: u32,
-    /// The two boxes of the kit window: one byte on the wire, bit 0
-    /// autobuy and bit 1 auto-repair (the client hands the byte to
-    /// `root.set_autobuy` as a number, 0x227760; `LobbyMenu.set_autobuy`
-    /// ticks autobuy for 1 and 3, auto-repair for 2 and 3. PROVEN).
+    /// The kit window's autobuy box: bit 0 of one byte on the wire (the
+    /// client hands the byte to `root.set_autobuy` as a number, 0x227760;
+    /// PROVEN). Bit 1, the stock auto-repair, is 0: srp has no repair.
     pub autobuy: bool,
-    pub auto_repair: bool,
     /// The account's level: also the skill points it has unlocked.
     pub level: u8,
     pub exp_total: u32,
@@ -453,7 +450,7 @@ pub fn own_account(account: &OwnAccount) -> Result<ServerMessage, WireError> {
     }
     writer
         .u32(account.active_kit)
-        .u8(auto_state(account.autobuy, account.auto_repair))
+        .u8(auto_state(account.autobuy))
         .u8(account.level)
         .u32(account.exp_total)
         .u32(account.exp_level_start)
@@ -479,12 +476,12 @@ pub fn squad_member_account(
 /// of `89` (`lobby.md` §2.9; client 0x26EF40): three lists of `(silver,
 /// dict id)`, shown on the results screen as "Ammunition", "Special
 /// equipment" and "Repair cost" (`VictoryScreen.setSpendMoneyDetailed`).
-/// All empty unless the server really took that money.
+/// All empty unless the server really took that money; the repair list
+/// always is (srp has no repair).
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SpentMoney {
     pub autobuy_ammo: Vec<(u32, u16)>,
     pub autobuy_consumables: Vec<(u32, u16)>,
-    pub repair: Vec<(u32, u16)>,
 }
 
 /// One list of [`SpentMoney`]: what it is, its rows, and the most the
@@ -506,7 +503,7 @@ impl SpentMoney {
                 &self.autobuy_consumables,
                 limits::SPENT_AUTOBUY_CONSUMABLES,
             ),
-            ("repair rows", &self.repair, limits::SPENT_REPAIR),
+            ("repair rows", &[], limits::SPENT_REPAIR),
         ]
     }
 }
@@ -558,12 +555,13 @@ pub fn prices(records: &[PriceItem]) -> Result<ServerMessage, WireError> {
     Ok(writer.done(ServerId::Prices))
 }
 
-/// `8B`: the account's silver and gold (`lobby.md` §2.11). The client never
-/// asks: push it after every change.
-pub fn money(generic: u32, premium: u32) -> ServerMessage {
+/// `8B`: the account's silver and gold (`lobby.md` §2.11); gold is always 0
+/// (gone, the owner's of 2026-11-08). The client never asks: push it
+/// after every change.
+pub fn money(silver: u32) -> ServerMessage {
     Writer::new()
-        .u32(generic)
-        .u32(premium)
+        .u32(silver)
+        .u32(0)
         .done(ServerId::Money)
 }
 
@@ -601,7 +599,8 @@ pub struct ServicePrices {
     pub profile: u32,
     /// `set_change_name_cost`.
     pub change_name: u32,
-    /// `set_premium_exchange_rate`: silver for one gold.
+    /// `set_premium_exchange_rate`: silver for one gold; 0, since nothing is
+    /// paid in gold.
     pub premium_exchange_rate: u32,
     /// `set_clan_creation_cost`.
     pub clan_creation: u32,
@@ -1201,14 +1200,6 @@ pub fn permitted_upgrade_detached(upgrade_item_id: u32, host_item_id: u32) -> Se
         .done(ServerId::Permitted)
 }
 
-/// `83 46 04`: one of a usable item was used; the client takes one off its
-/// count and drops the item at 0.
-pub fn permitted_item_used(item_id: u32) -> ServerMessage {
-    permitted_event(INVENTORY, 4)
-        .u32(item_id)
-        .done(ServerId::Permitted)
-}
-
 /// `83 46 06`: the reroll window of an item: what the next change costs
 /// in silver (`a`) and in gold (`b`), and, once one of its modifications
 /// was changed, `more`: that modification's id (`was_rerolled_before`,
@@ -1264,20 +1255,14 @@ pub fn permitted_modifier_chosen(
     writer.done(ServerId::Permitted)
 }
 
-/// What a craft did to the item (`83 46 09`).
+/// What a craft did to the item (`83 46 09`). The game's other modes, 0
+/// ("nothing happened") and the rest ("one fewer"), are never sent: an
+/// upgrade always adds a modification (the owner, 2026-11-08).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Crafted {
-    /// Mode 0: nothing changed; `consumed_item_id` is taken from the
-    /// inventory.
-    Nothing { consumed_item_id: u32 },
-    /// Mode 1: the modification was added.
+    /// Mode 1: the modification was added; `consumed_item_id` is taken from
+    /// the inventory.
     Added {
-        consumed_item_id: u32,
-        modification: u32,
-    },
-    /// Another non-zero mode but 0xFE: the modification was removed.
-    Removed {
-        mode: u8,
         consumed_item_id: u32,
         modification: u32,
     },
@@ -1288,12 +1273,9 @@ pub enum Crafted {
 
 /// `83 46 09`: the result of a craft. The item's `dict_id` must be one the
 /// client knows (it is looked up with no check).
-pub fn permitted_crafted(item_id: u32, crafted: Crafted) -> Result<ServerMessage, WireError> {
+pub fn permitted_crafted(item_id: u32, crafted: Crafted) -> ServerMessage {
     let mut writer = permitted_event(INVENTORY, 9);
     match crafted {
-        Crafted::Nothing { consumed_item_id } => {
-            writer.u8(0).u32(item_id).u32(consumed_item_id);
-        }
         Crafted::Added {
             consumed_item_id,
             modification,
@@ -1304,25 +1286,11 @@ pub fn permitted_crafted(item_id: u32, crafted: Crafted) -> Result<ServerMessage
                 .u32(consumed_item_id)
                 .u32(modification);
         }
-        Crafted::Removed {
-            mode,
-            consumed_item_id,
-            modification,
-        } => {
-            if matches!(mode, 0 | 1 | 0xFE) {
-                return Err(WireError::BadValue("a remove mode that means another"));
-            }
-            writer
-                .u8(mode)
-                .u32(item_id)
-                .u32(consumed_item_id)
-                .u32(modification);
-        }
         Crafted::Failed => {
             writer.u8(0xFE).u32(item_id);
         }
     }
-    Ok(writer.done(ServerId::Permitted))
+    writer.done(ServerId::Permitted)
 }
 
 // ---- 83 47: the shop (`process_shop_action`) ----
@@ -1370,43 +1338,6 @@ pub fn permitted_offer_bought() -> ServerMessage {
     permitted_event(SHOP, 2).done(ServerId::Permitted)
 }
 
-/// How a repair was paid (`83 47 03`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Repaired {
-    /// The item's `repair_time` becomes this non-zero value.
-    Timed { repair_time: u32 },
-    /// At once, with nothing taken from the inventory.
-    AtOnce,
-    /// At once with a repair kit: `used` of the kit item are taken.
-    WithKit { kit_item_id: u32, used: u8 },
-}
-
-/// `83 47 03`: repaired. The client sets the item's condition to full and
-/// its `repair_time`; **only for a `repair_time` of 0** it reads a kit item
-/// id, and for a kit it has, how many were used.
-pub fn permitted_repaired(item_id: u32, repaired: Repaired) -> Result<ServerMessage, WireError> {
-    let mut writer = permitted_event(SHOP, 3);
-    writer.u32(item_id);
-    match repaired {
-        Repaired::Timed { repair_time } => {
-            if repair_time == 0 {
-                return Err(WireError::BadValue("a timed repair with no time"));
-            }
-            writer.u32(repair_time);
-        }
-        Repaired::AtOnce => {
-            writer.u32(0).u32(0);
-        }
-        Repaired::WithKit { kit_item_id, used } => {
-            if kit_item_id == 0 {
-                return Err(WireError::BadValue("a repair kit with no id"));
-            }
-            writer.u32(0).u32(kit_item_id).u8(used);
-        }
-    }
-    Ok(writer.done(ServerId::Permitted))
-}
-
 /// `83 47 04` (gold exchanged) and `83 47 05` (shows an important message
 /// of type 7): no body is read.
 pub fn permitted_shop_event(event: u8) -> Result<ServerMessage, WireError> {
@@ -1418,22 +1349,17 @@ pub fn permitted_shop_event(event: u8) -> Result<ServerMessage, WireError> {
 
 // ---- 83 49: kits and the account (`process_profiles_action`) ----
 
-/// `83 49 01`: the account's autobuy box.
+/// The lobby's number for the kit window's boxes (`LobbyMenu.set_autobuy`):
+/// bit 0 autobuy; bit 1, the stock auto-repair, 0 (srp has no repair).
+pub(crate) fn auto_state(autobuy: bool) -> u8 {
+    u8::from(autobuy)
+}
+
+/// `83 49 01`: the account's autobuy box, one byte the client stores and
+/// shows (0x275CC5 → `root.set_autobuy`).
 pub fn permitted_autobuy(on: bool) -> ServerMessage {
-    permitted_auto_state(on, false)
-}
-
-/// The lobby's number for the autobuy and auto-repair boxes: bit 0 and
-/// bit 1 (`LobbyMenu.set_autobuy`).
-pub(crate) fn auto_state(autobuy: bool, auto_repair: bool) -> u8 {
-    u8::from(autobuy) | u8::from(auto_repair) << 1
-}
-
-/// `83 49 01`: the account's autobuy and auto-repair boxes, one byte the
-/// client stores and shows (0x275CC5 → `root.set_autobuy`).
-pub fn permitted_auto_state(autobuy: bool, auto_repair: bool) -> ServerMessage {
     permitted_event(PROFILE, 1)
-        .u8(auto_state(autobuy, auto_repair))
+        .u8(auto_state(on))
         .done(ServerId::Permitted)
 }
 
@@ -1477,10 +1403,9 @@ pub fn permitted_nickname_check(nickname: &str, refusal: Option<NameRefusal>) ->
     writer.done(ServerId::Permitted)
 }
 
-/// `83 49 04`: the nickname was changed; one of the ticket item is taken
-/// (0 for none).
-pub fn permitted_nickname_changed(ticket_item_id: u32) -> ServerMessage {
-    permitted_event(PROFILE, 4)
-        .u32(ticket_item_id)
-        .done(ServerId::Permitted)
+/// `83 49 04`: the nickname was changed. Its u32 is the rename voucher one
+/// was taken of, which the client takes off its copy: always 0, the vouchers
+/// are gone (the owner, 2026-11-08) and a rename is paid in silver.
+pub fn permitted_nickname_changed() -> ServerMessage {
+    permitted_event(PROFILE, 4).u32(0).done(ServerId::Permitted)
 }

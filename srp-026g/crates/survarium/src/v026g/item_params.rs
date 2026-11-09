@@ -44,8 +44,6 @@ pub struct ItemParams {
     pub degrade_per_match: f32,
     pub degrade_per_death: f32,
     pub reliability: f32,
-    /// The share of the item's cost a full repair costs.
-    pub repair_cost_ratio: f32,
     /// Ammo: the rounds of a clip and its weight, and the ammo bags it takes.
     pub clip_size: u32,
     pub clip_weight: f32,
@@ -481,7 +479,6 @@ impl ItemParams {
             degrade_per_match: float(p, "degrade_per_match")?,
             degrade_per_death: float(p, "degrade_per_death")?,
             reliability: float(p, "reliability")?,
-            repair_cost_ratio: float(p, "repair_cost_ratio")?,
             clip_size: int(p, "clip_size")?,
             clip_weight: float(p, "clip_weight")?,
             required_bags: int(p, "required_bags")?,
@@ -678,7 +675,7 @@ mod tests {
             ),
             (0.0005, 0.01, 0.0)
         );
-        assert_eq!((ak.reliability, ak.repair_cost_ratio), (1.0, 0.1));
+        assert_eq!(ak.reliability, 1.0);
         assert_eq!(ak.magazine_capacity, 30);
         assert!(ak.double_handed);
 

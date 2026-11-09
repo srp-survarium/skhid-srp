@@ -86,16 +86,10 @@
 //! - **A room with a PIN's match** ([`MatchResult::private`]; the
 //!   owner's of 2026-10-20): pays nothing to anyone in it, late joiners
 //!   too: no experience, silver, reputation, quest, daily bonus, drop or
-//!   rating, and takes nothing (no wear, no supplies used, no autobuy or
-//!   auto-repair after it). Its screen opens with the match's numbers and
+//!   rating, and takes nothing (no supplies used, no autobuy after it). Its screen opens with the match's numbers and
 //!   nothing paid, and takes no drop card.
-//! - **Wear** (only with `SRP_ITEM_WEAR=on`; off by the owner's choice,
-//!   [`pay::item_wear`]): every item of a kit the player used loses its
-//!   `degrade_per_match`; a kit's firearms share `degrade_per_use` for each
-//!   bullet the kit fired [choice: which weapon fired is not in the
-//!   statistics]; `degrade_per_death` for each death (0 in every 0.26g
-//!   item). Armour's `degrade_per_use` is not applied: how often it was hit
-//!   is not in the statistics.
+//! - **No wear** (the owner's choice of 2026-10-13, and no repair since
+//!   2026-11-08): a match wears no item.
 //! - **A drop**: for a player who stayed to the end, always one roll of
 //!   `drop_card_drop` at the match's drop level, as a drop card's (the
 //!   owner's of 2026-11-04): a weapon, an armour piece or a camouflage or
@@ -119,16 +113,16 @@
 //! | the player | gets |
 //! |---|---|
 //! | stayed to the end | everything above |
-//! | left early | what its counters earned (kills, help, other score), a loss in the rating whatever its team did, wear, quests; nothing of the activity row's fixed part, no daily bonus and no drop |
+//! | left early | what its counters earned (kills, help, other score), a loss in the rating whatever its team did, quests; nothing of the activity row's fixed part, no daily bonus and no drop |
 //! | never got into the match | nothing; its rating stays (0.21d) |
 //! | left by its own word and came into the match again (a new place) | its latest place's as above; the place it left counts for nothing ([`MatchResult::latest_places`]) |
 //! | any, when play never began (`played_ms` is `None`) | nothing |
-//! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the fixed part of a match not won, wear, a drop; the rating stays (0.21d's unknown result) |
+//! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the fixed part of a match not won, a drop; the rating stays (0.21d's unknown result) |
 //! | any, when one client alone vouched (`trusted_by` 1) | in full, as 0.21d paid a match one client was alone in (its numbers passed the match server's checks) |
 //!
 //! A match no client ever reached ([`MatchEnd::NoShow`]) has no report, nor
 //! has a room's match called off before its countdown
-//! ([`MatchEnd::NotMade`]): no screen, pay, rating, quest or wear.
+//! ([`MatchEnd::NotMade`]): no screen, pay, rating or quest.
 //! A deserted match is a match all of whose players left early.
 //!
 //! # What the screen shows
@@ -150,7 +144,6 @@ use std::sync::{Arc, Mutex};
 use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::{self, DropTable, Drops, Rng};
-use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::{
     self, AccountBody, BonusColumn, FULL_CONDITION, FullResult, ItemDescr, ResultRow,
     ServerMessage, TitleHolder, WireError, limits,
@@ -165,7 +158,7 @@ use super::level_stats::KillsDeaths;
 use super::pay::{self, Pay};
 use super::persist::GameRepository;
 use super::quests::{self, Notice, REPUTATION_LEVEL_MESSAGE};
-use super::{GameAccounts, balance, items_rules, rules, wire};
+use super::{GameAccounts, balance, items_rules, wire};
 use crate::LockExt;
 
 /// The winner value of a draw (`survarium::v026g::match_msgs::rules::DRAW`).
@@ -197,10 +190,10 @@ pub const GRENADE_KILL: usize = 25;
 /// Event 21: an enemy caught in a trap (0.21d's name for it; LIKELY kept).
 pub const ENTRAP_ENEMY: usize = 21;
 
-/// The silver and the gold as dropped items. The client keeps neither in
-/// its inventory (`results.md` §3: dict ids 0xD6 and 0xD7 are never added).
+/// The silver as a dropped item. The client keeps it out of its inventory
+/// (`results.md` §3: dict ids 0xD6 and 0xD7, silver and gold, are never
+/// added). No drop is gold (`drops::dropped`).
 pub const GENERIC_MONEY: u16 = 214;
-pub const PREMIUM_MONEY: u16 = 215;
 /// The drop card's item name (`use_drop_card`).
 pub const DROP_CARD: &str = "drop_card";
 
@@ -349,9 +342,6 @@ pub struct Terms {
     /// match's are these with its own three ([`static_info::weights_of`]),
     /// as the match server sends them.
     pub score_weights: [f32; EVENTS],
-    /// Whether the match wears the items of the kits played
-    /// ([`pay::item_wear`]).
-    pub wear: bool,
     /// The fewest players a match must have had in it to move the balance
     /// rating ([`balance::players_in`]). 1: every match does.
     pub rated_players: u32,
@@ -364,7 +354,7 @@ pub struct Terms {
 impl Terms {
     /// srp's terms at `now`: `SRP_EXPERIENCE_RATE` (default 2),
     /// `SRP_MONEY_RATE` (default: by the match's level),
-    /// `SRP_REPUTATION_RATE` (default 120), `SRP_ITEM_WEAR` (off unless set),
+    /// `SRP_REPUTATION_RATE` (default 120),
     /// `SRP_BALANCE_RATED_PLAYERS` (default 4), `SRP_PVB_PAY` (default
     /// 0.5) and the weights srp's matches are made with.
     pub fn at(now: u64) -> Self {
@@ -374,7 +364,6 @@ impl Terms {
             money_rate: pay::money_rate(),
             reputation_rate: pay::reputation_rate(),
             score_weights: SCORE_WEIGHTS,
-            wear: pay::item_wear(),
             rated_players: balance::rated_players(),
             pvb_pay: super::pvb::pay(),
         }
@@ -435,7 +424,6 @@ pub struct Reward {
     /// The levels reached, and what they paid.
     pub levels: Vec<u8>,
     pub level_money: u32,
-    pub level_gold: u32,
     /// The reputation levels the match's own reputation reached.
     pub reputation_levels: Vec<u8>,
     pub quest_money: u32,
@@ -447,15 +435,9 @@ pub struct Reward {
     /// The chance the drop was rolled with, all its parts together; 0
     /// with no roll.
     pub drop_chance: f32,
-    /// `(item id, condition before, condition after)`.
-    pub worn: Vec<(u32, u32, u32)>,
-    /// `(item id, defect)`: the defects the match's wear gave.
-    pub defects: Vec<(u32, u32)>,
     /// The match was one of the day's first three victories: its
     /// experience and reputation were paid once more ([`super::bonus`]).
     pub daily_bonus: bool,
-    /// The seven days' reward, given by this victory.
-    pub daily_reward: Option<super::bonus::Given>,
     /// `(dict id, units)` of ammo and other stacks the match is known to
     /// have used ([`super::autobuy`]).
     pub supplies_used: Vec<(u16, u32)>,
@@ -1309,7 +1291,7 @@ impl Results {
         let (money, experience, reputation) = reward.premium_bonus;
         account.generic_money = account.generic_money.saturating_add(money);
         let mut notices = Vec::new();
-        let (levels, _, _) = pay_levels(account, experience);
+        let (levels, _) = pay_levels(account, experience);
         notices.extend(super::notices::levels_reached(&levels));
         if reward.reputation_faction != 0 {
             let faction = reward.reputation_faction;
@@ -1451,20 +1433,15 @@ fn player_id(player: &PlayerResult) -> u32 {
     u32::from(player.place) + 1
 }
 
-/// Adds experience and pays the levels it reaches: `(levels, silver,
-/// gold)`, by [`pay::level_reward`].
-pub(super) fn pay_levels(account: &mut Account, experience: u32) -> (Vec<u8>, u32, u32) {
+/// Adds experience and pays the levels it reaches: `(levels, silver)`,
+/// by [`pay::level_reward`].
+pub(super) fn pay_levels(account: &mut Account, experience: u32) -> (Vec<u8>, u32) {
     let levels = account.add_experience(experience);
-    let (mut silver, mut gold) = (0_u32, 0_u32);
-    for &level in &levels {
-        match pay::level_reward(level) {
-            pay::LevelReward::Silver(amount) => silver = silver.saturating_add(amount),
-            pay::LevelReward::Gold(amount) => gold = gold.saturating_add(amount),
-        }
-    }
+    let silver = levels
+        .iter()
+        .fold(0_u32, |sum, &level| sum.saturating_add(pay::level_reward(level)));
     account.generic_money = account.generic_money.saturating_add(silver);
-    account.premium_money = account.premium_money.saturating_add(gold);
-    (levels, silver, gold)
+    (levels, silver)
 }
 
 /// A player's counters by event and kit; none without statistics.
@@ -1878,63 +1855,6 @@ impl<'a> Shared<'a> {
         }
     }
 
-    /// Wears the items of the kits the player used; returns `(item id,
-    /// condition before, after)` of those that lost any.
-    fn wear(
-        &self,
-        account: &mut Account,
-        player: &PlayerResult,
-        main: usize,
-    ) -> Vec<(u32, u32, u32)> {
-        let events = self.events(player);
-        // (item, fraction): each item once, whatever kits wear it.
-        let mut wear: Vec<(u32, f32)> = Vec::new();
-        for (index, kit) in account.kits.iter().enumerate().take(KITS) {
-            let used = index == main || events.iter().any(|counts| counts[index] > 0);
-            if !used {
-                continue;
-            }
-            let worn: Vec<(u32, &'static survarium::v026g::item_params::ItemParams)> = kit
-                .slots
-                .iter()
-                .flatten()
-                .filter_map(|slot| {
-                    let item = account.item(slot.item_id)?;
-                    Some((item.item_id, item_params(item.dict_id)?))
-                })
-                .collect();
-            let firearms = worn
-                .iter()
-                .filter(|(_, params)| params.kind.starts_with("wpn_"))
-                .count();
-            let shots = f32::from(events[event::BULLET_FIRE][index]);
-            let deaths = f32::from(events[event::DEATH][index]);
-            for (item_id, params) in worn {
-                let mut fraction = deaths * params.degrade_per_death;
-                if params.kind.starts_with("wpn_") {
-                    fraction += shots / firearms as f32 * params.degrade_per_use;
-                }
-                match wear.iter_mut().find(|(id, _)| *id == item_id) {
-                    Some(entry) => entry.1 += fraction,
-                    None => wear.push((item_id, params.degrade_per_match + fraction)),
-                }
-            }
-        }
-        let mut changed = Vec::new();
-        for (item_id, fraction) in wear {
-            let Some(before) = account.item(item_id).map(|item| item.condition_or_stack) else {
-                continue;
-            };
-            // Less with a "reliability" modification on the item.
-            let fraction = fraction * items_rules::wear_factor(account, item_id);
-            let after = rules::wear(account, item_id, fraction).unwrap_or(before);
-            if after != before {
-                changed.push((item_id, before, after));
-            }
-        }
-        changed
-    }
-
     /// Give one player what the match earned. `rating_change` is its part
     /// of [`Self::rating_changes`]; `game` which game of its play period
     /// this is (0: no drop is rolled); `bot` whether the account is a test
@@ -1981,7 +1901,7 @@ impl<'a> Shared<'a> {
         full.play_seconds[main] = clamp_u16(player.time_in_match_ms / 1000);
         // A room with a PIN's match pays nothing and takes nothing: no
         // experience, silver, reputation, quest, daily bonus, drop or
-        // rating, and no wear, supplies used or autobuy after it (the
+        // rating, and no supplies used or autobuy after it (the
         // owner's of 2026-10-20). Its screen shows the match with nothing
         // paid.
         if self.result.private {
@@ -1996,12 +1916,6 @@ impl<'a> Shared<'a> {
             full.elo_after = account.rating;
         }
 
-        if self.terms.wear {
-            reward.worn = self.wear(account, player, main);
-        }
-        // A worn item may get a defect (`items_rules`): the inventory sent
-        // with the results shows it.
-        reward.defects = items_rules::after_wear(account, &reward.worn, rng);
         // What the match used of the account's stacks (`autobuy`), counted
         // before its pay or drop adds to one.
         if super::premium::settings().ammo_use {
@@ -2046,11 +1960,9 @@ impl<'a> Shared<'a> {
         // stayed for may be one of the day's first three. A match against
         // the server's bots counts for none of it.
         if standing == Standing::Finished && !bot && !vs_bots {
-            super::bonus::visit(account, now, rng);
+            super::bonus::visit(account, now);
             if reward.won {
-                let win = super::bonus::count_win(account);
-                reward.daily_bonus = win.doubled;
-                reward.daily_reward = win.given;
+                reward.daily_bonus = super::bonus::count_win(account);
             }
         }
         let mut daily_pay = (0_u32, 0_u32);
@@ -2144,7 +2056,7 @@ impl<'a> Shared<'a> {
         reward.experience = experience;
         reward.reputation = reputation;
         account.generic_money = account.generic_money.saturating_add(money);
-        (reward.levels, reward.level_money, reward.level_gold) = pay_levels(account, experience);
+        (reward.levels, reward.level_money) = pay_levels(account, experience);
         notices.extend(super::notices::levels_reached(&reward.levels));
         if faction != 0 {
             reward.reputation_levels = account.add_reputation(faction, reputation);
@@ -2197,12 +2109,9 @@ impl<'a> Shared<'a> {
                 reward.drop = Some(dropped);
             }
         }
-        // The supplies used are taken, and the account's autobuy and
-        // auto-repair boxes buy them back and repair what the match wore,
-        // paid from what it has now (the match's pay included).
-        let worn: Vec<u32> = reward.worn.iter().map(|&(item_id, _, _)| item_id).collect();
-        reward.spent =
-            super::autobuy::settle(account, &reward.supplies_used, &worn, self.terms.now).spent;
+        // The supplies used are taken, and the account's autobuy box buys
+        // them back, paid from what it has now (the match's pay included).
+        reward.spent = super::autobuy::settle(account, &reward.supplies_used).spent;
         account.sync_kits();
         (reward, full, notices)
     }
@@ -2313,7 +2222,8 @@ impl<'a> Shared<'a> {
     }
 }
 
-/// Gives the account a rolled drop: silver and gold to the balances, a
+/// Gives the account a rolled drop: silver to the balance (a drop is never
+/// gold, `drops::dropped`), a
 /// stack onto the one owned, anything else as a new item with the
 /// modifications of its rarity (`items_rules::roll_modifications`), whole.
 /// Returns what was given and the item as a message describes it (a
@@ -2324,10 +2234,6 @@ fn give_drop(account: &mut Account, rolled: &drops::Drop, rng: &mut Rng) -> (Dro
     let (item_id, value, rarity) = match rolled.dict_id {
         GENERIC_MONEY => {
             account.generic_money = account.generic_money.saturating_add(rolled.count);
-            (0, rolled.count, rolled.rarity)
-        }
-        PREMIUM_MONEY => {
-            account.premium_money = account.premium_money.saturating_add(rolled.count);
             (0, rolled.count, rolled.rarity)
         }
         dict_id if dictionary.is_stack(dict_id) => (

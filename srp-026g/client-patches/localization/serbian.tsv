@@ -887,7 +887,7 @@ st_ct_max_members_count_error	Tim klana već ima najveći broj igrača.
 st_current_value	\nTrenutna vrednost:
 st_cz_75_description	Češki poluautomatski pištolj, municija: 9x19. Jedan od najkopiranijih pištolja Hladnog rata.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Igrajte svakog dana i osvojite <highlight>x2</highlight> iskustvo i ugled za <highlight>prve tri</highlight> pobede.
+st_daily_bonus_description	Svakog dana: <highlight>x2</highlight> iskustva za <highlight>prve tri</highlight> pobede.
 st_daily_bonus_hint	Prikaži ekran dobrodošlice
 st_daily_bonus_label	Dobro došli nazad
 st_daily_bonus_progress	Vaš današnji napredak
@@ -2496,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_legs_7_name	Pantalone Sneg-20
 st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_torso_7_name	Pancir Sneg-20
-st_srp_exchange_balance	Stanje
-st_srp_exchange_button	Razmeni
-st_srp_exchange_gold	Zlato
-st_srp_exchange_pay	Plati
-st_srp_exchange_receive	Primi
-st_srp_exchange_short_gold	Nema dovoljno zlata
-st_srp_exchange_short_silver	Nema dovoljno srebra
-st_srp_exchange_title	Razmeni
 st_srp_face	Lice
 st_srp_hide_hit_markers_option	Sakrij oznake pogodaka
 st_srp_hide_quests_option	Sakrij zadatke
