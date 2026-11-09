@@ -8,7 +8,7 @@
 //! joint group, the last hit adds its impulse, and the level is read by
 //! one swept query per moving body a frame, whose plane the substeps keep.
 
-use crate::body::{Body, Capsule, Contact, Pair, close_gap, share_turn};
+use crate::body::{Body, CONTACTS, Capsule, Contact, Pair, close_gap, share_turn};
 use crate::limits::{Cone, Limit, degrees};
 use crate::math::{Pose, Quat, Vec3, clamp, exp_neg, finite, max, min};
 use crate::shot::{Shot, ShotHit, hit_on_capsule, ray_capsule};
@@ -87,6 +87,9 @@ const SLOW_TIME: f32 = 1.0;
 const MAX_AGE: f32 = 5.0;
 /// A sweep reaches this much past a body's motion of the frame.
 const SWEEP_MARGIN: f32 = 0.05;
+/// A capsule end moving across less than this in a frame (m) asks nothing
+/// beside it.
+const ACROSS_STILL: f32 = 0.001;
 /// The gun: its mass and the shape when its model gives none.
 const GUN_MASS: f32 = 3.5;
 
@@ -761,7 +764,8 @@ impl Ragdoll {
                 .chain(ragdoll.gun.iter_mut())
                 .chain(ragdoll.headwear.iter_mut().map(|h| &mut h.body))
             {
-                body.contacts = [Contact::Plane { point, normal }; 2];
+                let plane = Contact::Plane { point, normal };
+                body.contacts = [plane, plane, Contact::Free, Contact::Free];
             }
         }
         ragdoll.at_death = ragdoll.poses().0;
@@ -929,7 +933,7 @@ impl Ragdoll {
         self.query(dt, gravity, level);
         let h = SUBSTEP;
         let alpha_h = JOINT_COMPLIANCE / (h * h);
-        let mut contacts = [[0.0f32; 2]; PARTS + 2];
+        let mut contacts = [[0.0f32; CONTACTS]; PARTS + 2];
         for _ in 0..substeps {
             for body in self
                 .bodies
@@ -1428,6 +1432,31 @@ fn query_body(body: &mut Body, dt: f32, gravity: Vec3, down: Vec3, level: &mut i
             Probe::Clear => clear[i] = true,
             Probe::Unknown => {}
         }
+        // beside the end: the ray down passes a wall the end slides into (a
+        // head against a wall, a body tumbling into a corner), so a second
+        // ray along the motion across, two radii past it; only a surface
+        // that faces the end (a ray from inside a mesh meets its back). A
+        // wall found stays while the end is within reach of it (one let go
+        // as the end rocked off it, and found again, kept the body moving)
+        let across = motion.reject(down);
+        let side = CONTACTS / 2 + i;
+        if let Some(direction) = across.direction().filter(|_| across.length() >= ACROSS_STILL) {
+            let reach = across.length() + radius + SWEEP_MARGIN;
+            let kept = match body.contacts[side] {
+                Contact::Plane { point, normal } if (end - point).dot(normal) < radius + SWEEP_MARGIN => {
+                    body.contacts[side]
+                }
+                _ => Contact::Free,
+            };
+            body.contacts[side] = match level.sweep(end, end + direction * reach, radius) {
+                Sweep::Hit { point, normal } => match normal.direction() {
+                    Some(normal) if normal.dot(direction) < 0.0 => Contact::Plane { point, normal },
+                    _ => kept,
+                },
+                Sweep::Clear => kept,
+                Sweep::Deferred => body.contacts[side],
+            };
+        }
     }
     // an end with nothing under it while the other end lies on a
     // plane, at that plane's height or above: the capsule lies across
@@ -1543,19 +1572,20 @@ pub fn closest_points(p0: Vec3, p1: Vec3, q0: Vec3, q1: Vec3) -> (Vec3, Vec3) {
     (p0 + d1 * s, q0 + d2 * t)
 }
 
-/// The capsule's ends against its plane: each end pushed out, the slide of
-/// the end in the substep undone while static friction holds it. Returns the
-/// normal impulses (for the kinetic friction).
-fn solve_contact(body: &mut Body) -> [f32; 2] {
-    let mut out = [0.0; 2];
+/// The capsule's ends against their planes (under and beside each): each
+/// end pushed out, the slide of the end in the substep undone while static
+/// friction holds it. Returns the normal impulses (for the kinetic friction).
+fn solve_contact(body: &mut Body) -> [f32; CONTACTS] {
+    let mut out = [0.0; CONTACTS];
     let (pa, pb) = body.shape.ends(body.previous);
-    for (i, was) in [pa, pb].into_iter().enumerate() {
+    for i in 0..CONTACTS {
         let Contact::Plane { point, normal } = body.contacts[i] else {
             continue;
         };
+        let was = if i % 2 == 0 { pa } else { pb };
         // the end as it is now (the other end's push moved it too)
         let (a, b) = body.shape.ends(body.pose);
-        let end = if i == 0 { a } else { b };
+        let end = if i % 2 == 0 { a } else { b };
         let depth = body.shape.radius - (end - point).dot(normal);
         if depth <= 0.0 {
             continue;
@@ -1591,18 +1621,19 @@ fn solve_contact(body: &mut Body) -> [f32; 2] {
 
 /// The kinetic friction and no bounce, at the ends that touched, and the
 /// rolling resistance of a body on the ground.
-fn friction(body: &mut Body, lambdas: [f32; 2], h: f32) {
-    if lambdas[0] > 0.0 || lambdas[1] > 0.0 {
+fn friction(body: &mut Body, lambdas: [f32; CONTACTS], h: f32) {
+    if lambdas.iter().any(|&l| l > 0.0) {
         body.spin = body.spin * (1.0 - min(1.0, ROLLING_RESISTANCE * h));
     }
     let (a, b) = body.shape.ends(body.pose);
-    for (i, (end, lambda)) in [(a, lambdas[0]), (b, lambdas[1])].into_iter().enumerate() {
+    for (i, lambda) in lambdas.into_iter().enumerate() {
         let Contact::Plane { normal, .. } = body.contacts[i] else {
             continue;
         };
         if lambda <= 0.0 {
             continue;
         }
+        let end = if i % 2 == 0 { a } else { b };
         let r = end - normal * body.shape.radius - body.pose.position;
         let v = body.point_velocity(r);
         let vn = v.dot(normal);

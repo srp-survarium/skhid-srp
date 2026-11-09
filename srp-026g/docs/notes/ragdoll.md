@@ -440,8 +440,17 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   frame (over 0.08 m/s; an end at rest keeps its plane), along its motion with the ground
   below it added (v dt plus the radius and 5 cm). An end that finds nothing while the other
   end lies on a plane, at that plane's height or above, takes that plane (a capsule across a
-  battery's or a ledge's edge stays on it); below it, it hangs past a step and is free. The
-  game's budget is 160 rays a frame for all ragdolls; an end not asked keeps its plane.
+  battery's or a ledge's edge stays on it); below it, it hangs past a step and is free.
+  Each end also has a plane beside it (2026-11-09; the owner: "people shouldn't see others
+  heads clipping into walls"): the game's query is a thin ray from the end's centre, so a
+  ray down never met a wall beside the end, and a head slid or thrown into a wall sank in
+  (a body thrown at a wall, `a_body_thrown_into_a_wall_stays_out_of_it` with the game's ray:
+  15 cm into it before, under 4 cm now). A moving end (across more than 1 mm a frame) asks
+  a second ray along its motion across, that long plus two radii and 5 cm; a surface
+  facing the end is its side plane, kept while the end is within its radius and 5 cm of
+  it (a wall let go as the end rocked off it and found again kept the body from settling).
+  The game's budget is 320 rays a frame for all ragdolls (160 before the side rays); an end
+  not asked keeps its planes.
 - **Settled:** no capsule end moved 1.5 cm in 0.4 s, or every body slower than 0.05 m/s
   (the solver's creep between a limb, the ground and a leg); or every capsule end slower
   than 0.35 m/s for a second (a limb that still drifts, two constraints fighting with one
@@ -467,7 +476,10 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   the camera back toward the skull, 8 cm short of the surface, and it is kept 8 cm off
   that surface and the ground the head lies on, but never further from them than the
   skull is, so it stays inside the hidden head (the owner, same day: "camera gets stuck
-  in textures": nothing kept it out of walls). Its forward follows by a critically damped
+  in textures": nothing kept it out of walls). And the camera itself never crosses a
+  surface: each frame it moves from where it was to that place by a ray (one more to slide
+  along a surface it stops 8 cm off), so a head that still sinks into a wall for a while
+  leaves the camera before the wall until it comes out. Its forward follows by a critically damped
   spring (9 rad/s), its up level (no roll), its pitch within 55 degrees. Patch 46's drag
   still turns it.
 - **The pool:** 20 slots. A new death with none free takes the oldest settled corpse's

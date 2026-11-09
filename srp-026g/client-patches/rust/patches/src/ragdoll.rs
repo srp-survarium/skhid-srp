@@ -65,7 +65,8 @@ const LEVEL_MASK: u32 = 0x02 | 0x08 | 0x200;
 // ray_test takes them as u16
 const _: () = assert!(LEVEL_GROUP <= 0xFFFF && LEVEL_MASK <= 0xFFFF);
 /// The level's rays a frame, for all ragdolls (a ray is a few microseconds).
-const RAYS_A_FRAME: u32 = 160;
+/// (two an end of a moving body: under it and beside it.)
+const RAYS_A_FRAME: u32 = 320;
 const UP: Vec3 = Vec3::Y;
 /// The living hits kept between a frame's bullets and its step.
 const LIVING_HITS: usize = 32;

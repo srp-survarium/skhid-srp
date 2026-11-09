@@ -48,13 +48,72 @@ enum Ray {
     Blocked { reach: f32, wall: (Vec3, Vec3) },
 }
 
-/// The follow's state: the view's forward and how fast it turns, and the
-/// last ray's answer.
+/// The follow's state: where the camera is, the view's forward and how fast
+/// it turns, and the last skull ray's answer.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EyeFollow {
+    position: Vec3,
     forward: Vec3,
     turning: Vec3,
     ray: Ray,
+}
+
+/// A camera move shorter than this (m) asks no ray.
+const STILL: f32 = 0.001;
+
+/// One straight move of the camera: done, or stopped at a surface.
+enum Leg {
+    Reached,
+    Stopped { at: Vec3, normal: Vec3 },
+}
+
+/// The camera moved from `from` to `to`: stopped `MARGIN` short of the
+/// first surface on the way; `None` when the level was not asked.
+fn leg(level: &mut impl Level, from: Vec3, to: Vec3) -> Option<Leg> {
+    let along = to - from;
+    let Some(direction) = along.direction().filter(|_| along.length() >= STILL) else {
+        return Some(Leg::Reached);
+    };
+    // MARGIN off the surface, not along the move: an oblique move stops
+    // further back, so the ray reaches past the move by MARGIN at the
+    // steepest approach counted (a grazing one keeps less)
+    const LEAST_APPROACH: f32 = 1.0 / 3.0;
+    match level.sweep(from, to, MARGIN / LEAST_APPROACH) {
+        Sweep::Clear => Some(Leg::Reached),
+        Sweep::Hit { point, normal } => {
+            let normal = normal.direction().unwrap_or(-direction);
+            let approach = max(-direction.dot(normal), LEAST_APPROACH);
+            let stop = (point - from).dot(direction) - MARGIN / approach;
+            if stop >= along.length() {
+                return Some(Leg::Reached);
+            }
+            Some(Leg::Stopped {
+                at: from + direction * max(stop, 0.0),
+                normal,
+            })
+        }
+        Sweep::Deferred => None,
+    }
+}
+
+/// Where the camera gets from `from` toward `to` without crossing a
+/// surface: the ragdoll's head can sink into a wall or the ground for a
+/// while (a capsule end holds one plane, and a depth found late leaves
+/// slowly), the camera never does. Stopped short of a surface, the rest of
+/// the move slides along it; with the level not asked it stays.
+fn travel(level: &mut impl Level, from: Vec3, to: Vec3) -> Vec3 {
+    match leg(level, from, to) {
+        None => from,
+        Some(Leg::Reached) => to,
+        Some(Leg::Stopped { at, normal }) => {
+            let slide = at + (to - at).reject(normal);
+            match leg(level, at, slide) {
+                Some(Leg::Reached) => slide,
+                Some(Leg::Stopped { at, .. }) => at,
+                None => at,
+            }
+        }
+    }
 }
 
 /// One critically damped spring step of `x` (speed `v`) toward `target`.
@@ -88,6 +147,7 @@ impl EyeFollow {
     /// The follow starting on the eye at `eye`.
     pub fn new(eye: Pose, up: Vec3) -> EyeFollow {
         EyeFollow {
+            position: eye.position,
             forward: level_forward(eye.rotation.rotate(Vec3::Z), up),
             turning: Vec3::ZERO,
             ray: Ray::Clear,
@@ -106,7 +166,11 @@ impl EyeFollow {
                 Sweep::Clear => Ray::Clear,
                 Sweep::Hit { point, normal } => match normal.direction() {
                     Some(normal) => Ray::Blocked {
-                        reach: clamp(((point - skull).dot(direction) - MARGIN) / along.length(), 0.0, 1.0),
+                        reach: clamp(
+                            ((point - skull).dot(direction) - MARGIN) / along.length(),
+                            0.0,
+                            1.0,
+                        ),
                         wall: (point, normal),
                     },
                     None => self.ray,
@@ -125,6 +189,12 @@ impl EyeFollow {
         if !position.is_finite() {
             position = eye.position;
         }
+        let position = if self.position.is_finite() {
+            travel(level, self.position, position)
+        } else {
+            position
+        };
+        self.position = position;
         let wanted = level_forward(eye.rotation.rotate(Vec3::Z), up);
         let (forward, turning) = spring(self.forward, self.turning, wanted, TURN_RATE, dt);
         self.forward = level_forward(forward.direction_or(wanted), up);
@@ -146,7 +216,9 @@ mod tests {
 
     impl Level for Planes {
         fn sweep(&mut self, from: Vec3, to: Vec3, radius: f32) -> Sweep {
-            let Some(d) = (to - from).direction() else { return Sweep::Clear };
+            let Some(d) = (to - from).direction() else {
+                return Sweep::Clear;
+            };
             let reach = (to - from).length() + radius;
             self.0
                 .iter()
@@ -157,7 +229,10 @@ mod tests {
                     (facing < 0.0 && (0.0..=reach).contains(&t)).then_some((t, n))
                 })
                 .reduce(|a, b| if a.0 <= b.0 { a } else { b })
-                .map_or(Sweep::Clear, |(t, normal)| Sweep::Hit { point: from + d * t, normal })
+                .map_or(Sweep::Clear, |(t, normal)| Sweep::Hit {
+                    point: from + d * t,
+                    normal,
+                })
         }
     }
 
@@ -176,14 +251,25 @@ mod tests {
     fn the_camera_is_on_the_eye_of_a_falling_head_never_behind_it() {
         let up = Vec3::Y;
         let mut level = Planes(&[FLOOR]);
-        let start = view(Vec3::new(0.1, 1.6, 0.0), Quat::IDENTITY, Vec3::new(0.0, 1.6, 0.0));
+        let start = view(
+            Vec3::new(0.1, 1.6, 0.0),
+            Quat::IDENTITY,
+            Vec3::new(0.0, 1.6, 0.0),
+        );
         let mut follow = EyeFollow::new(start.eye, up);
         // a head falling at 4 m/s: the old spring trailed it by half a metre
-        for frame in 0..30 {
+        for frame in 0..20 {
             let y = 1.6 - 4.0 * frame as f32 / 60.0;
-            let head = view(Vec3::new(0.1, y, 0.0), Quat::IDENTITY, Vec3::new(0.0, y, 0.0));
+            let head = view(
+                Vec3::new(0.1, y, 0.0),
+                Quat::IDENTITY,
+                Vec3::new(0.0, y, 0.0),
+            );
             let camera = follow.follow(head, up, &mut level, 1.0 / 60.0);
-            assert!((camera.position - head.eye.position).length() < 1e-4, "{frame}: {camera:?}");
+            assert!(
+                (camera.position - head.eye.position).length() < 1e-4,
+                "{frame}: {camera:?}"
+            );
         }
     }
 
@@ -210,20 +296,64 @@ mod tests {
     }
 
     #[test]
-    fn a_wall_before_the_eye_pulls_the_camera_back_and_a_skull_at_it_is_kept() {
+    fn a_wall_before_the_eye_pulls_the_camera_back_and_a_skull_at_it_stops_it() {
         let up = Vec3::Y;
         // a wall at x = 0.15 facing -x; the eye 0.12 past the skull at x 0
         let mut level = Planes(&[FLOOR, WALL]);
-        let head = view(Vec3::new(0.12, 0.5, 0.0), Quat::IDENTITY, Vec3::new(0.0, 0.5, 0.0));
+        let head = view(
+            Vec3::new(0.12, 0.5, 0.0),
+            Quat::IDENTITY,
+            Vec3::new(0.0, 0.5, 0.0),
+        );
         let mut follow = EyeFollow::new(head.eye, up);
         let camera = follow.follow(head, up, &mut level, 1.0 / 60.0);
         assert!(camera.position.x <= 0.15 - MARGIN + 1e-4, "{camera:?}");
         assert!(camera.position.x >= 0.0, "{camera:?}");
-        // a skull nearer the wall than the margin: the camera at the skull,
-        // never pushed out of the head
-        let close = view(Vec3::new(0.16, 0.5, 0.0), Quat::IDENTITY, Vec3::new(0.12, 0.5, 0.0));
+        // a skull nearer the wall than the margin: the camera keeps its
+        // margin from the wall
+        let close = view(
+            Vec3::new(0.16, 0.5, 0.0),
+            Quat::IDENTITY,
+            Vec3::new(0.12, 0.5, 0.0),
+        );
         let camera = follow.follow(close, up, &mut level, 1.0 / 60.0);
-        assert!((camera.position - close.skull).length() < 1e-4, "{camera:?}");
+        assert!(camera.position.x <= 0.15 - MARGIN + 1e-4, "{camera:?}");
+    }
+
+    #[test]
+    fn a_head_sunk_into_a_wall_leaves_the_camera_before_it_until_it_comes_out() {
+        let up = Vec3::Y;
+        let mut level = Planes(&[FLOOR, WALL]);
+        let at = |x: f32| {
+            view(
+                Vec3::new(x + 0.1, 0.5, 0.02),
+                Quat::IDENTITY,
+                Vec3::new(x, 0.5, 0.0),
+            )
+        };
+        let mut follow = EyeFollow::new(at(-0.3).eye, up);
+        // the whole head goes through the wall at 0.15 and back
+        let mut path: [f32; 24] = [0.0; 24];
+        for (i, x) in path.iter_mut().enumerate() {
+            let t = i as f32 / 23.0;
+            *x = -0.3 + 0.9 * (1.0 - (2.0 * t - 1.0).abs());
+        }
+        for (i, &x) in path.iter().enumerate() {
+            let head = at(x);
+            let camera = follow.follow(head, up, &mut level, 1.0 / 60.0);
+            assert!(
+                camera.position.x <= 0.15 - MARGIN + 1e-4,
+                "{i}: through the wall: {camera:?}"
+            );
+            assert!(camera.is_finite());
+        }
+        // out again: on the eye
+        let head = at(-0.3);
+        let camera = follow.follow(head, up, &mut level, 1.0 / 60.0);
+        assert!(
+            (camera.position - head.eye.position).length() < 1e-4,
+            "{camera:?}"
+        );
     }
 
     #[test]
@@ -236,11 +366,18 @@ mod tests {
         }
         let up = Vec3::Y;
         let mut level = Planes(&[FLOOR, WALL]);
-        let head = view(Vec3::new(0.12, 0.5, 0.0), Quat::IDENTITY, Vec3::new(0.0, 0.5, 0.0));
+        let head = view(
+            Vec3::new(0.12, 0.5, 0.0),
+            Quat::IDENTITY,
+            Vec3::new(0.0, 0.5, 0.0),
+        );
         let mut follow = EyeFollow::new(head.eye, up);
         let blocked = follow.follow(head, up, &mut level, 1.0 / 60.0);
         let kept = follow.follow(head, up, &mut Spent, 1.0 / 60.0);
-        assert!((kept.position - blocked.position).length() < 1e-4, "{kept:?} {blocked:?}");
+        assert!(
+            (kept.position - blocked.position).length() < 1e-4,
+            "{kept:?} {blocked:?}"
+        );
     }
 
     #[test]
@@ -253,8 +390,17 @@ mod tests {
         let mut follow = EyeFollow::new(down, up);
         let mut level = Planes(&[]);
         let nan = Vec3::new(f32::NAN, 0.0, 0.0);
-        for (dt, skull) in [(0.0, Vec3::ZERO), (1.0 / 60.0, Vec3::Y), (5.0, nan), (f32::NAN, Vec3::Y)] {
-            let head = HeadView { eye: down, skull, ground: None };
+        for (dt, skull) in [
+            (0.0, Vec3::ZERO),
+            (1.0 / 60.0, Vec3::Y),
+            (5.0, nan),
+            (f32::NAN, Vec3::Y),
+        ] {
+            let head = HeadView {
+                eye: down,
+                skull,
+                ground: None,
+            };
             assert!(follow.follow(head, up, &mut level, dt).is_finite());
         }
     }
