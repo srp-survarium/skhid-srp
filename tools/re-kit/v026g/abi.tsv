@@ -1045,7 +1045,7 @@ va	name	source	ret_cleanup	result
 0x00265980	survarium::lobby_character::update_decal_preview	manual	0	
 0x00267a40	survarium::timelimit_rule::timelimit_rule	manual	4	EAX: this; the vtable 0xA06E8C (RTTI timelimit_rule) stored at 0x267A61 over the core's 0xA06E2C
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
-0x0026cb80	survarium::lobby_menu::on_keyboard_action	manual	12	first, for every key in the lobby, invokes root.has_active_window (0x26CBF9, its name 0xA07404, through 0x511600) on the lobby's movie; LobbyMenu.has_active_window reads stage.focus (the access violation at 0x77200B of 2026-10-22, patch 52); Esc then root.close_active_window (0xA0741C)
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	manual	12	first, for every key in the lobby, invokes root.has_active_window (0x26CBF9, its name 0xA07404, through 0x511600) on the lobby's movie; LobbyMenu.has_active_window reads stage.focus (the access violation at 0x77200B of 2026-10-22, patch 52); Esc then root.close_active_window (0xA0741C); the answer, read once at 0x26CC06, decides Esc: true calls root.close_active_window (results up, [this+313Ah]: at 0x26CC32, al 0; else 0x26CE32, al 1), false calls 0x1EDBC0 (the game's menu) at 0x26CE56; the Esc key is not handed to the movie; nothing is asked unless the game state is 0 or 4 (0x26CBB6..0x26CBC8: not in a match or its loading)
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path
 0x0026d090	survarium::lobby_menu::on_mouse_move	manual	16	AL: Observed constant1 on local return path
 0x0026d130	survarium::lobby_menu::mouse_ray	manual	4	the normalized direction at [EDI], the eye at [entry ESP+4]
