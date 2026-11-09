@@ -5852,3 +5852,10 @@ va	name	location	role	basis
 0x00106fc0	pt3free	EAX	the memory (0: nothing); a mapped chunk goes back to the region 0x106AD0 (0x107018), others to mspace_free (0x107053)	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	ESI	the bytes	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	entry ESP+4	the allocator ("global multithreaded" 0xA8001C; cdecl)	observed
+0x000dde70	vostok::command_line::key::is_set	ESI	the command-line key (stage_gbuffer::execute 0x177B74: 0xA94A48, the depth-prepass key, 0.10b's `-z_only_1` LIKELY; off unless given)	observed
+0x001ae390	vostok::render::stage_apply_distortion::is_effects_ready	ECX	apply-distortion stage receiver	observed
+0x001ae500	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>	EAX	effect manager ([0x2260494])	observed
+0x001ae500	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>	EDI	the res_effect_ptr written (stage +10h, from 0x1AE2EE)	observed
+0x001ae5f0	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>	EAX	effect manager ([0x2260494])	observed
+0x001ae5f0	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>	EDI	the res_effect_ptr written (stage +14h, from 0x1AE2FA)	observed
+0x001bd6a0	vostok::render::stage::is_enabled	ECX	stage receiver (vtable +24h of every stage)	observed

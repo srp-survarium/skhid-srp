@@ -2258,3 +2258,8 @@ va	status	ref_021d	name
 0x00106d70	verified		ptmalloc3::memalign_starter
 0x00106d90	verified		ptmalloc3::free_starter
 0x00106fc0	verified		pt3free
+0x000dde70	reviewed	0x000ac765	vostok::command_line::key::is_set
+0x001ae390	reviewed	0x0010affb	vostok::render::stage_apply_distortion::is_effects_ready
+0x001ae500	reviewed	0x00123a52	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>
+0x001ae5f0	reviewed	0x00123ad4	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>
+0x001bd6a0	reviewed	0x0012fc3d	vostok::render::stage::is_enabled
