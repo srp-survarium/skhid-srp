@@ -1030,7 +1030,7 @@ mod tests {
     use super::*;
 
     /// The draws of matches made one after another, from the registry's own random numbers:
-    /// each kind near its share (Onyx 10 %: now and then, not every match).
+    /// each kind near its share (Onyx 4 %: now and then, not every match).
     #[test]
     fn keeper_draws_of_successive_matches_land_near_their_shares() {
         const MATCHES: u32 = 20_000;
@@ -1040,7 +1040,7 @@ mod tests {
         }
         for (n, &(kind, share)) in keeper::SHARES.iter().enumerate() {
             let (name, percent) = (kind.name(), f64::from(seen[n]) * 100.0 / f64::from(MATCHES));
-            // Onyx's standard deviation over 20 000 matches is 0.2 points: 2 points is 10 of them.
+            // The largest standard deviation over 20 000 matches (Larkspur, Spring) is 0.35 points.
             let near = (percent - f64::from(share)).abs() < 2.0;
             assert!(near, "{name}: {percent} %");
         }

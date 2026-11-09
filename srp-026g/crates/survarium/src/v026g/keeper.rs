@@ -1,7 +1,7 @@
 //! Keeper of the Artifacts' match draw (docs/notes/artefact-skills.md "Keeper of the
 //! Artifacts"): srp draws one kind a match, each kind Keeper gives for its share of the matches
 //! ([`artefact_carry::keeper::SHARES`] beside [`artefact_carry::keeper::KINDS`], the one table
-//! the game takes them by too: Larkspur 45 %, Onyx 10 %, Spring 45 %), and writes it
+//! the game takes them by too: Larkspur 48 %, Onyx 4 %, Spring 48 %), and writes it
 //! into modifier 40 bits 9..11 of every kit of every player of the match, bots too, with the
 //! skill or without: every game knows the match's kind from the static info, and exe patch 109
 //! gives a Keeper a dormant artefact of it from the map's hidden Keeper pool. The kits of a joiner
@@ -95,9 +95,9 @@ mod tests {
     #[test]
     fn the_draw_gives_each_kind_its_share_and_keeps_the_skills() {
         // Every roll 0..100 once: exactly the shares (Larkspur, Onyx, Spring).
-        assert_eq!(tally(0..100), [45, 10, 45]);
+        assert_eq!(tally(0..100), [48, 4, 48]);
         // 100 000 matches of a seeded generator (splitmix64): each kind within half a point of
-        // its share (Onyx's standard deviation is 0.09 points).
+        // its share (the largest standard deviation, Larkspur's and Spring's, is 0.16 points).
         let mut state = 0x5EED_u64;
         let randoms = std::iter::repeat_with(move || {
             state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);

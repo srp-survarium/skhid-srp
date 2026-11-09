@@ -21,8 +21,8 @@ pub enum Kind {
 pub const KINDS: [Kind; 3] = [Kind::Larkspur, Kind::Onyx, Kind::Spring];
 
 /// Each kind's share of the matches, in percent, in [`KINDS`] order (the owner, 2026-11-07: Onyx
-/// rare, "they should still happen, but not always").
-pub const SHARES: [(Kind, u32); 3] = [(Kind::Larkspur, 45), (Kind::Onyx, 10), (Kind::Spring, 45)];
+/// rare, "they should still happen, but not always"; 2026-11-09: 4 %).
+pub const SHARES: [(Kind, u32); 3] = [(Kind::Larkspur, 48), (Kind::Onyx, 4), (Kind::Spring, 48)];
 
 /// Dormant artefacts of each kind in the hidden pool: one a place (20 places, one gift a place a
 /// match; once given it is an artefact as any found one, kept through a death, never given again).

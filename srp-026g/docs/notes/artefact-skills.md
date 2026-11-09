@@ -232,8 +232,9 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - The table: `crates/artefact-carry/src/keeper.rs` (`KINDS`, `SHARES`, `POOL`), the one table srp
   draws from and the game takes by: Larkspur (dict 54, artefact_lifebone), Onyx (76), Spring (74).
   srp refuses game data whose dictionary names them otherwise.
-- The shares (the owner, 2026-11-07: Onyx rare, "they should still happen, but not always"):
-  Spring 45 %, Larkspur 45 %, Onyx 10 % of the matches (`SHARES`).
+- The shares (the owner, 2026-11-07: Onyx rare, "they should still happen, but not always";
+  2026-11-09: Onyx 4 %, not 10 %):
+  Spring 48 %, Larkspur 48 %, Onyx 4 % of the matches (`SHARES`).
 - srp (the match server's registry, `survarium::v026g::keeper`): one kind a match, by the shares,
   from the registry's random number (SipHash of the clock under a fresh `RandomState`), drawn
   when the match is made, kept with it and written into every kit of every profile, a late
