@@ -3928,11 +3928,13 @@ package
       }
 
       // The one Esc handler (docs/notes/esc.md), from the exe and from handleInput, the same press
-      // handled once (_escapeHandled: handleInput takes the press's own key events). Esc first
-      // closes the top transient window (History, the match settings, a dropdown's list), then
-      // takes the keys from a text box (unless the right-click menu is open), then closes the
-      // topmost modal only: every modal (windows, popups, the Upgrade window, the rooms window,
-      // messages, the right-click menu...) enters Modals as it opens and leaves it as it closes.
+      // handled once (_escapeHandled: handleInput takes the press's own key events; the exe's next
+      // has_active_window, at the key's release, clears it). An Esc press only: nothing else calls
+      // it (the loading closes the top modal with Modals.escape). Esc first closes the top
+      // transient window (History, the match settings, a dropdown's list), then takes the keys from
+      // a text box (unless the right-click menu is open), then closes the topmost modal only: every
+      // modal (windows, popups, the Upgrade window, the rooms window, messages, the right-click
+      // menu...) enters Modals as it opens and leaves it as it closes.
       public function close_active_window() : void
       {
          _escapeHandled = true;
@@ -5166,7 +5168,10 @@ package
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
          // the match loads: the transient windows close (the loading screen is under their layer),
-         // the message up goes (closed, not answered as Esc would), else the top modal closes
+         // the message up goes (closed, not answered as Esc would), else the top modal closes. Not
+         // through close_active_window: that is an Esc press, and its _escapeHandled would outlive
+         // the match (the exe asks has_active_window only in the lobby) and answer the first Esc
+         // back in the lobby with false, opening the game's menu over the results.
          Transient.closeAll();
          if(Message.isAnyMessage() != -1)
          {
@@ -5174,7 +5179,7 @@ package
          }
          else
          {
-            this.close_active_window();
+            Modals.escape();
          }
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
       }
