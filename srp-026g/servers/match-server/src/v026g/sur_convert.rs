@@ -238,6 +238,26 @@ fn clock_offset(records: &[Record]) -> Option<i64> {
     offsets.get(offsets.len() / 2).copied()
 }
 
+/// The roster changes of a recording that notes them (`entered`, `left`,
+/// `stand-in entered`, `stand-in left`): `(match ms, place, entered)`.
+fn noted_roster(notes: &[Record]) -> Vec<(u32, u8, bool)> {
+    notes
+        .iter()
+        .filter(|record| record.kind == NOTE)
+        .filter_map(|record| {
+            let note: serde_json::Value = serde_json::from_slice(&record.bytes).ok()?;
+            let went_in = match note.get("note")?.as_str()? {
+                "entered" | "stand-in entered" => true,
+                "left" | "stand-in left" => false,
+                _ => return None,
+            };
+            let at = u32::try_from(note.get("match_ms")?.as_u64()?).ok()?;
+            let place = u8::try_from(note.get("place")?.as_u64()?).ok()?;
+            Some((at, place, went_in))
+        })
+        .collect()
+}
+
 /// The world of an item time that most uploads agree on.
 fn majority(bodies: &[Vec<u8>]) -> (usize, usize) {
     let mut counts: Vec<(usize, usize)> = Vec::new();
@@ -391,6 +411,11 @@ struct Gather {
     options: BTreeMap<u8, Vec<u8>>,
     /// The options of each roster, and when a 0xE4 of it first went out.
     rosters: BTreeMap<u8, (u32, static_info::MatchOptions)>,
+    /// The recording notes every relay at its match time (`record`): the
+    /// datagrams' copies are not read, nothing is guessed.
+    noted: bool,
+    /// Its roster changes then, from the notes: `(match ms, place, entered)`.
+    noted_roster: Vec<(u32, u8, bool)>,
 }
 
 impl Gather {
@@ -407,6 +432,8 @@ impl Gather {
         };
         let offset = clock_offset(notes).unwrap_or(0);
         report.clock_offset_ms = offset;
+        let noted = head["relays_noted"].as_bool().unwrap_or(false);
+        let noted_roster = if noted { noted_roster(notes) } else { Vec::new() };
         Ok(Self {
             report,
             offset,
@@ -419,6 +446,8 @@ impl Gather {
             accepted_profiles: BTreeMap::new(),
             options: BTreeMap::new(),
             rosters: BTreeMap::new(),
+            noted,
+            noted_roster,
         })
     }
 
@@ -509,6 +538,8 @@ impl Gather {
                     }
                     continue;
                 }
+                // The notes have the relays and roster changes.
+                _ if self.noted => continue,
                 // A 0xEA to the leaver itself is its farewell (match.md: the
                 // server closes the game with it, at tick 0 when the game
                 // never loaded); the others' copies are the leave.
@@ -559,6 +590,8 @@ fn finish(
         accepted_profiles,
         options,
         rosters,
+        noted: _,
+        noted_roster,
     } = gathered;
     // The places' half-read uploads and options are of no use now.
     drop(places);
@@ -701,6 +734,10 @@ fn finish(
     }
     drop(copies);
     report.messages_lost = kept.iter().filter(|kept| !**kept).count();
+    for (time, place, went_in) in noted_roster {
+        let list = if went_in { &mut entered } else { &mut left };
+        list.entry((time, place)).or_insert(());
+    }
 
     report.inputs = inputs.len();
     report.profiles = profiles.len();
@@ -1535,6 +1572,50 @@ mod tests {
         assert_eq!(report.lagging_copies, BTreeMap::from([(0, 1)]));
         assert_eq!(report.messages_lost, 0);
         assert_eq!(report.input_conflicts, 0);
+    }
+
+    /// Third review of #1537: a recording that says it notes its relays is
+    /// read from them, not from the datagrams' copies.
+    #[test]
+    fn a_recording_noting_its_relays_takes_nothing_from_the_wire() {
+        let mut records = recording();
+        let mut header: serde_json::Value = serde_json::from_slice(&records[0].bytes).unwrap();
+        header["relays_noted"] = true.into();
+        records[0].bytes = serde_json::to_vec(&header).unwrap();
+        // A copy from a backed-up link stays in the file, read as a tick
+        // the server never meant: it must not count.
+        records.push(datagram(
+            OUT,
+            0,
+            21_000,
+            0xEB,
+            None,
+            &relay(21, 0, [5, 6, 7, 8], 0x20),
+        ));
+        let accepted = |at_ms: u32, place: u8, time: u32, rotation: [u8; 4], actions: u32| {
+            let mut bytes = time.to_le_bytes().to_vec();
+            bytes.extend(rotation);
+            bytes.extend(actions.to_le_bytes());
+            Record {
+                kind: ACCEPTED_INPUT,
+                place,
+                at_ms,
+                bytes,
+            }
+        };
+        records.push(accepted(2_400, 1, 1_000, [1, 2, 3, 4], 0x10));
+        records.push(accepted(2_420, 0, 1_050, [5, 6, 7, 8], 0x20));
+        records.push(note(2_500, r#"{"note":"entered","place":0,"match_ms":400}"#));
+        records.push(note(2_510, r#"{"note":"left","place":1,"match_ms":1000}"#));
+        let (file, report) = convert(&records, b"config", Settings::default()).unwrap();
+        assert_eq!(inputs_of(&file), [(1000, 1, 0x10), (1050, 0, 0x20)]);
+        assert_eq!(
+            report.roster_events,
+            [(400, 'E', 0), (1000, 'L', 1)],
+            "the notes' times"
+        );
+        assert!(report.lagging_copies.is_empty());
+        assert_eq!(report.messages_lost, 0);
     }
 
     #[test]

@@ -3937,12 +3937,9 @@ impl Game {
     }
 
     fn relay_to_others(&mut self, index: usize, what: &Relayed, time: u32, now: Instant) {
-        // A solo human's inputs have no recipient. Keep the accepted
-        // action after rejection/retiming, not the unchecked inbound packet.
-        if self.formed.vs_bots
-            && !self.formed.places[index].driven
-            && let Some(recording) = self.recording.as_mut()
-        {
+        // The relay itself, at its match time (`record`): what playback is
+        // made of, not read back from the datagrams.
+        if let Some(recording) = self.recording.as_mut() {
             match what {
                 Relayed::Input(input) => recording.accepted_input(index, time, input, now),
                 Relayed::Profile { value, .. } => {

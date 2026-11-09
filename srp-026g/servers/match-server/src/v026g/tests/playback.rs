@@ -665,6 +665,11 @@ fn a_leave_request_lets_the_game_go() {
 }
 
 fn recorded_live(dir: &Path) -> (u32, PathBuf) {
+    recorded_live_with(dir, |_| {})
+}
+
+/// [`recorded_live`], `play` run in the live match first.
+fn recorded_live_with(dir: &Path, play: impl FnOnce(&mut Bench)) -> (u32, PathBuf) {
     let settings = Settings {
         record: Some(RecordSettings {
             dir: dir.to_path_buf(),
@@ -680,6 +685,7 @@ fn recorded_live(dir: &Path) -> (u32, PathBuf) {
     }
     live.join_all();
     live.run_long(12_000);
+    play(&mut live);
     let match_id = live.match_id;
     drop(live);
     let closed = |path: &Path| {
@@ -702,6 +708,27 @@ fn recorded_live(dir: &Path) -> (u32, PathBuf) {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     panic!("the live match's recording");
+}
+
+/// Third review of #1537: the server writes each relay when it relays it, at its match time; a
+/// recording of a match of humans keeps them, and says so in its header.
+#[test]
+fn a_recording_holds_each_relay_at_its_match_time() {
+    let dir = temp("relays-noted");
+    let (_, path) = recorded_live_with(&dir, |live| {
+        live.clients[0].input(50, 0x21);
+        live.run(300);
+    });
+    let records = record::read(&path).unwrap();
+    let relayed: Vec<_> = records
+        .iter()
+        .filter(|record| record.kind == record::ACCEPTED_INPUT)
+        .collect();
+    assert_eq!(relayed.len(), 1, "{}", records.len());
+    assert_eq!(relayed[0].place, 0);
+    let header: serde_json::Value =
+        serde_json::from_slice(&record::read_header(&path).unwrap().unwrap().bytes).unwrap();
+    assert_eq!(header["relays_noted"], true);
 }
 
 /// The bench runs until the desk's session of `account` is no longer

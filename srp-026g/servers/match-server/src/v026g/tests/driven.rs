@@ -394,7 +394,7 @@ fn a_solo_humans_bot_match_keeps_accepted_actions_for_replay() {
     let records = record::read(&path).unwrap();
     let human: Vec<_> = records
         .iter()
-        .filter(|r| r.kind == record::ACCEPTED_INPUT)
+        .filter(|r| r.kind == record::ACCEPTED_INPUT && r.place == 0)
         .collect();
     assert_eq!(human.len(), 1, "only the accepted input is saved");
     assert_eq!(human[0].place, 0);
