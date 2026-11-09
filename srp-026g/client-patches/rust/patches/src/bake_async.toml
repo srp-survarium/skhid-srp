@@ -46,3 +46,8 @@ handler = "on_frame"
 [[hook]]
 site = "game.exit_start"
 handler = "on_exit"
+
+# a save descriptor destroyed: a bake's DDS it owned is freed
+[[hook]]
+site = "save.freed"
+handler = "on_save_freed"

@@ -55,6 +55,8 @@ const BUDGET: Ms = Ms::new(6.0);
 /// A frame engine_world::tick has not ended in this long counts as ended
 /// (apc's wait loops dispatch with no tick): its budget starts again.
 const FRAME: Ms = Ms::new(100.0);
+/// An issue (with its draw) this long is logged: the cook line's "bake".
+const LONG_ISSUE: Ms = Ms::new(250.0);
 
 // ---- the places ------------------------------------------------------------------
 
@@ -423,6 +425,10 @@ static STOCK: Limited = Limited::new("stock bakes");
 static THEIRS: Limited = Limited::new("such dispatches");
 /// The passes that drained a thread that ticks no frames.
 static DRAINED: Limited = Limited::new("such passes");
+/// The bakes not saved while the saves not written yet hold their bound.
+static UNSAVED: Limited = Limited::new("not saved");
+/// The bakes whose issue (with its draw) took LONG_ISSUE or more.
+static SLOW: Limited = Limited::new("slow issues");
 
 /// A dispatch of a thread that ticks frames while the GPU's bakes are
 /// another thread's (only that one completes them, at its own dispatches).
@@ -449,7 +455,7 @@ fn log_drained(thread: &Thread, drained: u32, waited: u32) {
 
 
 /// What a completion that did not end well says.
-fn log_completion(completion: &Completion) {
+fn log_completion(thread: &Thread, completion: &Completion) {
     use Piece::{Dec, Text};
     let name = completion.name.as_str();
     let head: &[Piece] = &[Text("bake_async: "), Text(name)];
@@ -457,6 +463,9 @@ fn log_completion(completion: &Completion) {
     match completion.outcome {
         Outcome::Saved => {}
         Outcome::Unsaved => parts(&[head, &[Text(": no memory for its save; used, not saved")]]),
+        Outcome::SavesFull(pending) => UNSAVED.parts(thread, &[head, &[
+            Text(": used, not saved: "), Dec(pending.saves), Text(" saves not written yet hold "),
+            Dec(pending.bytes >> 20), Text(" MB of MT")]]),
         Outcome::NoSave => parts(&[head, &[Text(": its tail did not reach the save")]]),
         Outcome::Failed(ReadError::NoMemory) => {
             parts(&[head, &[Text(": no MT memory for its DDS of "), Dec(size), Text("; failed")]])
@@ -491,6 +500,18 @@ fn log_failed(failed: &IssueFailed) {
     }
 }
 
+/// A bake whose issue took LONG_ISSUE or more: the cook line's "bake" is its
+/// issue's ms and its draw's (2026-11-09: 1-65 s in a match load, not
+/// explained by the code).
+fn log_slow(thread: &Thread, issued: &Issued) {
+    use Piece::{Dec, Text};
+    let (issue, draw) = issued.issue_ms();
+    if issue + draw >= LONG_ISSUE {
+        SLOW.line(thread, &[Text("bake_async: "), Text(issued.name()), Text(": issued in "), Dec(issue.whole()),
+                            Text(" ms after a draw of "), Dec(draw.whole()), Text(" ms")]);
+    }
+}
+
 /// A bake on the stock path while playing, and why.
 fn log_stock(thread: &Thread, why: Why) {
     use Piece::{Hex, Text};
@@ -511,7 +532,7 @@ fn log_stock(thread: &Thread, why: Why) {
 /// given back, untouched, while another completion is under way.
 fn complete(thread: &Thread, bake: Issued) -> Result<(), Issued> {
     let completion = bake.complete(thread)?;
-    log_completion(&completion);
+    log_completion(thread, &completion);
     Ok(())
 }
 
@@ -564,7 +585,10 @@ pub fn on_issue(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnIssueExit> {
         return Flow::Continue;
     };
     match bake.issue() {
-        Ok(issued) => ticket.fill(issued),
+        Ok(issued) => {
+            log_slow(thread, &issued);
+            ticket.fill(issued)
+        }
         Err(failed) => {
             drop(ticket);
             log_failed(&failed);
@@ -582,6 +606,13 @@ pub fn on_resume(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnResumeExit> {
 /// `bake.save`: the tail's save takes the bake's DDS.
 pub fn on_save(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnSaveExit> {
     if bake_gpu::save(ctx) { Flow::Exit(BakeAsyncOnSaveExit::Made) } else { Flow::Continue }
+}
+
+/// `save.freed`: a save descriptor destroyed; a bake's DDS it owned is no
+/// longer a save not written yet.
+pub fn on_save_freed(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    bake_gpu::freed(ctx);
+    Flow::Continue
 }
 
 /// `bake.free`: the tail does not free that DDS to the render allocator.

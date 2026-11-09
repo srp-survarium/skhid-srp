@@ -58,6 +58,9 @@ record, bake.free, finish).
   threads); that thread's next dispatch completes every one before it ends,
   waiting for the GPU where it has not done them (logged); before the first
   frame, any thread's dispatch does the same;
+- the saves not written yet: with 64 descriptors never destroyed, the 65th
+  bake's texture made and used, no save, its DDS freed at once (logged);
+  the game's ~save_descriptor (0x10A050) on one frees its DDS and a place;
 - the budget: done bakes complete while the frame's 6 ms last (one at
   least), the rest in the next frames (engine_world::tick's start), oldest
   first; with no tick (a wait loop) a frame counts as ended after 100 ms; a
@@ -89,6 +92,7 @@ APPENDF, PHYSICAL, CONVERT, FROM_MEMORY = 0xE4590, 0x1051E0, 0x12780, 0x3BD030
 MT_ALLOC, MT_FREE, RENDER_FREE, MAKE_SAVE, TRIM = 0x106EF0, 0x106FC0, 0x1539D0, 0x109ED0, 0x131F90
 BLOCK_FREE, DESTROY_COPY = 0x1015E0, 0x29C40
 DESCRIPTOR_ALLOCATED = 0x109F6F    # allocate_save_descriptor's mt_allocate returns here
+SAVE_FREED = 0x10A050              # save_descriptor::~save_descriptor (save.freed)
 QPC, QPF, THREAD_ID = 0x870158, 0x870150, 0x870118
 SAVE_COUNTER = 0x1B3A2AC
 WAS_STILL_DRAWING, DEVICE_REMOVED = 0x887A000A, 0x887A0005
@@ -462,6 +466,16 @@ def fresh(built):
     return game
 
 
+def destroy(game, descriptor):
+    """save_descriptor::~save_descriptor (0x10A050, ESI the descriptor), as
+    ~query_result calls it once the save is written: (back, calls)."""
+    sp = cache.STACK + 0xD4000
+    game.word(sp, cache.STOP)
+    before = len(game.calls)
+    eip, _ = game.run(SAVE_FREED, sp, {UC_X86_REG_ESI: descriptor}, count=2_000_000)
+    return eip == cache.STOP, game.calls[before:]
+
+
 def exiting(game):
     """game::exit from its start (ECX the game, its argument) to the join
     past its delete, through the branch 0x1EC7AE takes when 0x1051E0 fails
@@ -789,6 +803,38 @@ def main():
     report(ok and finishes(calls, SUCCESS) == [bake.query] and sorted(m[1] for m in names(calls, "Map")
                                                                       if m[2] == 0) == sorted(mine),
            "before the first frame, a dispatch completes its thread's bakes too (read back waiting)")
+
+    print("the saves not written yet: at most 64")
+    game = fresh(built)
+    game.qpc_step = 10
+    bakes = [Bake(game, name=f"{NAME}_save_{i}") for i in range(66)]
+    held, last_calls = [], []
+    for b in bakes[:65]:
+        issue(game, b)
+        game.done.update(game.stagings())
+        tick(game)
+        game.log.clear()
+        ok, last_calls = dispatched(game)
+        held.append(game.read(b.query + 0xE0))
+    last = bakes[64]
+    allocs = [c for c in names(last_calls, "mt alloc") if c[1] == last.dds_size]
+    report(all(held[:64]) and held[64] == 0 and game.read(last.surface) != 0
+           and last.query in finishes(last_calls, SUCCESS) and allocs
+           and ("mt free", allocs[0][2]) in names(last_calls, "mt free")
+           and any("used, not saved: 64 saves not written yet" in line for line in game.log),
+           "64 bakes' saves not written yet (their descriptors never destroyed): the 65th's texture made and "
+           "used, its query finished, no save (+0E0h 0), its DDS freed at once, logged: " + "; ".join(game.log))
+    data = game.read(held[0])
+    ok, calls = destroy(game, held[0])
+    report(ok and ("mt free", data) in names(calls, "mt free"),
+           "the game's ~save_descriptor (0x10A050) on the first, as ~query_result runs it once written: its DDS "
+           "freed (mt_free)")
+    issue(game, bakes[65])
+    game.done.update(game.stagings())
+    tick(game)
+    ok, calls = dispatched(game)
+    report(ok and game.read(bakes[65].query + 0xE0) != 0,
+           "that place free: the next bake is saved again (its descriptor owns its DDS)")
 
     print("the budget: 6 ms a frame, oldest first")
     game = fresh(built)

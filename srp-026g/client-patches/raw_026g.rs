@@ -21221,6 +21221,21 @@ pub mod site {
         }
     }
 
+    /// save.freed (0x10a050): save_descriptor::~save_descriptor's start (sub esp,8 / cmp byte [esi+8],0; ESI the descriptor; its one caller ~query_result 0xF1135 with [query+0E0h]): when +8 is set it frees +0 (mt_free 0x106FC0 at 0x10A083), so a save's bytes live until its query is destroyed
+    pub mod save_freed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::resources::save_descriptor (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn descriptor(machine: &impl Machine) -> Option<SaveDescriptor> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(SaveDescriptor)
+        }
+    }
+
     /// compress_mip.readback (0x11f754): compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide
     pub mod compress_mip_readback {
         #[allow(unused_imports)]

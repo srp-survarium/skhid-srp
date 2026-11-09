@@ -106,11 +106,13 @@ asynchronous, the cost is the GPU work the game waited for.
   (map2D's no-wait byte, as the occlusion manager polls). Once the GPU has done it, the DDS is
   allocated, the levels are copied into it and the game's own tail completes the bake: the texture,
   the slot, patch 70's sharing, the save, the record, the query, the "camouflage/decal cook" line.
-  The line's "bake" was meant to be the ms the game's thread spent until the bake was issued (the
-  draw's with it; resume writes it at +40h), but in the 2026-11-09 run it read 0.3-1 s for fresh
-  bakes and up to 65 s for stale ones, about the time from the issue to the completion: not
-  explained yet (the log's operands at 0x12F4C0..0x12F4E4 are not read). Its "compress" is the ms of
-  the readback.
+  The line's "bake" is [esp+40h] + argument 10 at 0x12F4E4 (ESP S-24h there): the ms process_
+  compression ran until the bake was issued (resume writes it at +40h) and render_bake's. It holds no
+  GPU wait: a bake 3 s on the GPU logs 3.5 ms in Unicorn (1 ms issue, 2.5 ms draw), as stock's sum.
+  In the 2026-11-09 runs it read 0.3-1 s for fresh bakes and up to 65 s, so that time went by in the
+  issue or in the draw; which one, and why, is not known. An issue (with its draw) of 250 ms or
+  more is logged now, a line a second: "issued in N ms after a draw of M ms". Its "compress" is
+  the ms of the readback.
 - **A frame's budget, on the thread that ticks frames:** done bakes are completed while the frame's
   6 ms last (each makes its texture from its DDS, runs its CRC, saves it; a frame's first pass
   completes one). The time of a bake completed for its place counts in it too. The rest wait in their
@@ -135,11 +137,25 @@ asynchronous, the cost is the GPU work the game waited for.
 - A bake the GPU has had 1 s is read back waiting, and a line goes to `srp_patches.log`.
 - The model instance a bake is for is held until the bake ends: a player who leaves meanwhile only
   delays its release. Patch 70's owner row of its path ends with it (at most 8 bakes later, or 1 s).
-- The save takes the DDS the bake owns, MT memory, with no copy: the save's descriptor frees it once
-  written. The stock save copied the whole DDS into MT (a 5.6 MB copy ran MT out, 2026-10-28). With no
-  MT memory for the DDS, the bake fails, as a bake that fails does (patch 70 makes its waiters again).
-  With no memory for the descriptor, the texture is used and not saved (the stock save would write
-  through 0).
+- The save takes the DDS the bake owns, MT memory, with no copy. The stock save copied the whole DDS
+  into MT (a 5.6 MB copy ran MT out, 2026-10-28). The descriptor frees it when ~query_result destroys
+  it (0xF1135 calls ~save_descriptor 0x10A050, which mt_frees its +0 when +8 is set), after the device
+  manager wrote it; the device manager's queue is the load's reads'. With no MT memory for the DDS,
+  the bake fails, as a bake that fails does (patch 70 makes its waiters again). With no memory for
+  the descriptor, the texture is used and not saved (the stock save would write through 0).
+- **The saves not written yet are bounded** (measured 2026-11-09, 712dc41e5 with -rh_allocator=32
+  -render_allocator=320: 458 bakes in 11 s, 774 MB of DDS, then MT ("global multithreaded") at
+  99.3%, an assertion and a crash; stock in the same load did 768 bakes, 1229 MB, and lived). A
+  bake's per-save MT is the same as stock's, so the difference is how many saves wait at once. At most
+  64 bakes' saves, 128 MB, are pending (`save.freed` 0x10A050 takes each off when its descriptor
+  goes); past either, a bake's texture is made and used but not saved, its DDS freed at once, and a
+  line goes out ("used, not saved: N saves not written yet hold M MB of MT"). It is baked again next
+  game.
+- The managed resources: a bake on the GPU holds its model instance and its levels' stagings (up to
+  5.6 MB) until it completes; at most 8 bakes. Level 0 and the mips are let go at the issue, the bake
+  targets by on_textures_loaded as stock, and the textures made are the game's. So the patch keeps no
+  more than 8 bakes' stagings and models alive past stock (the 99.5% managed of 2026-11-09 is the
+  load's; main ran out of it in the same load at 124-184 cooks without the raised arenas).
 - A bake whose levels cannot be mapped (the device lost), whose level 0 finds no GPU memory, or whose
   compressor does not fit its DDS fails its query the same way, once (never tried again), and is
   logged.

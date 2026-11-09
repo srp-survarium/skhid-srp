@@ -891,6 +891,21 @@ pub extern "C" fn hook_bake_async_on_exit(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- bake_async (patch 121) ----
+
+/// The entry `bake_async_on_save_freed` (0x10a050, save_descriptor::~save_descriptor's start (sub esp,8 / cmp byte [esi+8],0; ESI the descriptor; its one caller ~query_result 0xF1135 with [query+0E0h]): when +8 is set it frees +0 (mt_free 0x106FC0 at 0x10A083), so a save's bytes live until its query is destroyed) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_save_freed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_save_freed` calls this, from the game's jump at 0x10a050,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_save_freed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_cache (patch 70) ----
 
 /// The named exits of bake_cache::on_game_start (the order the shim's Flow code

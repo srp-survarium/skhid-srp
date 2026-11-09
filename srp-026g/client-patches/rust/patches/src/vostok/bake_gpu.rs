@@ -1151,6 +1151,9 @@ pub enum Outcome {
     Saved,
     /// Made and used; no memory for the save's descriptor: not saved.
     Unsaved,
+    /// Made and used; not saved: the saves not written yet hold their
+    /// bound of MT memory.
+    SavesFull(Pending),
     /// The tail did not reach the save (the DDS freed here).
     NoSave,
     /// Its levels did not come back: the query failed.
@@ -1172,6 +1175,12 @@ impl Issued {
     /// Since when the GPU has it (a smaller stamp: issued earlier).
     pub fn since(&self) -> Stamp {
         self.since
+    }
+
+    /// The ms process_compression ran until the bake was issued, and its
+    /// draw's (render_bake's): the cook line's "bake" is their sum.
+    pub fn issue_ms(&self) -> (Ms, Ms) {
+        (self.issue_ms, self.job.draw_ms)
     }
 
     /// Whether the GPU has done it (one no-wait map of its last staging).
@@ -1222,6 +1231,9 @@ enum Save {
     Owned,
     /// allocate_save_descriptor had no memory: no descriptor, no save.
     Skipped,
+    /// The saves not written yet are at their bound ([`SAVES`]): no
+    /// descriptor, no save.
+    Held(Pending),
 }
 
 /// A completion under way on its thread: its levels read back, the call
@@ -1333,6 +1345,7 @@ impl<'t> Claim<'t> {
         let outcome = match self.end() {
             Some(Resuming::Tail { save: Save::Owned, .. }) => Outcome::Saved,
             Some(Resuming::Tail { save: Save::Skipped, .. }) => Outcome::Unsaved,
+            Some(Resuming::Tail { save: Save::Held(pending), .. }) => Outcome::SavesFull(pending),
             Some(Resuming::Tail { save: Save::Pending, .. } | Resuming::Calling(_) | Resuming::Reading) | None => {
                 Outcome::NoSave
             }
@@ -1401,6 +1414,90 @@ fn tail(thread: &Thread) -> Option<(NonNull<u8>, Save)> {
     }
 }
 
+// ---- the saves not written yet ------------------------------------------------------------
+
+/// The most bakes' saves not written yet, and their most MT bytes. A save's
+/// descriptor owns its DDS until ~query_result destroys it (0xF1135, after
+/// the device manager wrote it), and the device manager's queue is the
+/// load's reads': in the 2026-11-09 match load (458 bakes in 11 s, 774 MB of
+/// DDS) MT went to 99.3% and the game crashed. Past either bound a bake's
+/// texture is made and used, not saved (its DDS freed at once): baked again
+/// next game.
+pub const SAVES: usize = 64;
+pub const SAVE_BYTES: u32 = 128 << 20;
+
+/// The saves not written yet: how many, and their bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pending {
+    pub saves: u32,
+    pub bytes: u32,
+}
+
+/// A DDS a save descriptor owns: its address (an id, never read through)
+/// and size.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Held {
+    address: u32,
+    size: u32,
+}
+
+/// The bakes' DDS buffers save descriptors own, not freed yet.
+struct Saves {
+    held: [Option<Held>; SAVES],
+    bytes: u32,
+}
+
+impl Saves {
+    const fn new() -> Saves {
+        Saves { held: [None; SAVES], bytes: 0 }
+    }
+
+    fn pending(&self) -> Pending {
+        Pending { saves: self.held.iter().flatten().count() as u32, bytes: self.bytes }
+    }
+
+    /// A save of `size` bytes at `address` taken on, within the bounds; else
+    /// what is pending.
+    fn reserve(&mut self, address: u32, size: u32) -> Result<(), Pending> {
+        let pending = self.pending();
+        let bytes = self.bytes.checked_add(size).filter(|&bytes| bytes <= SAVE_BYTES).ok_or(pending)?;
+        let slot = self.held.iter_mut().find(|slot| slot.is_none()).ok_or(pending)?;
+        *slot = Some(Held { address, size });
+        self.bytes = bytes;
+        Ok(())
+    }
+
+    /// The save at `address` freed: whether it was one of ours.
+    fn release(&mut self, address: u32) -> bool {
+        let Some(slot) = self.held.iter_mut().find(|slot| slot.is_some_and(|held| held.address == address)) else {
+            return false;
+        };
+        if let Some(held) = slot.take() {
+            self.bytes -= held.size;
+        }
+        true
+    }
+}
+
+static SAVES_HELD: Lock<Saves> = Lock::new(Saves::new());
+
+/// `save.freed`, a save descriptor destroyed: when it owns one of the
+/// bakes' DDS buffers, that save is no longer pending (the destructor frees
+/// it next, 0x10A083).
+pub fn freed(ctx: &mut Context<'_>) {
+    let thread = ctx.thread();
+    // SAFETY: the site's ESI: the descriptor being destroyed, alive at its
+    // destructor's start.
+    let Some(descriptor) = (unsafe { raw::site::save_freed::descriptor(&*ctx) }) else { return };
+    // SAFETY: its +8, whether it frees its data.
+    let owns = unsafe { *descriptor.owns() };
+    // SAFETY: its +0, the data.
+    let data = unsafe { descriptor.data() };
+    if owns != 0 && !data.is_null() {
+        SAVES_HELD.with(thread, |s| s.release(data as usize as u32));
+    }
+}
+
 /// `bake.save`, the tail about to make the save's descriptor: for a resumed
 /// bake's DDS, a descriptor of the game's (its two paths, allocate_save_
 /// descriptor) that owns the DDS itself (its +8: the destructor frees it
@@ -1408,8 +1505,10 @@ fn tail(thread: &Thread) -> Option<(NonNull<u8>, Save)> {
 /// the descriptor; true to leave by `made`. With no memory for a
 /// descriptor, EAX 0 and `made` too: the query's +0E0h is 0, so
 /// finish_translated_query saves nothing (the game's make_save_descriptor
-/// would write through the 0 its allocation gives, 0x109EFD). Any other
-/// bake: false, the game's make_save_descriptor copies its bytes.
+/// would write through the 0 its allocation gives, 0x109EFD). With the
+/// saves not written yet at their bound ([`SAVES`], [`SAVE_BYTES`]), the
+/// same: no descriptor, no save. Any other bake: false, the game's
+/// make_save_descriptor copies its bytes.
 pub fn save(ctx: &mut Context<'_>) -> bool {
     let thread = ctx.thread();
     let Some((dds, Save::Pending)) = tail(thread) else { return false };
@@ -1432,9 +1531,20 @@ pub fn save(ctx: &mut Context<'_>) -> bool {
     unsafe { *frame.separator() = b'/' };
     // SAFETY: the bytes' count, written by the tail (0x12F2C5).
     let size = unsafe { *bytes.size() };
+    let address = data as usize as u32;
+    if let Err(pending) = SAVES_HELD.with(thread, |s| s.reserve(address, size)) {
+        // no descriptor: the query's +0E0h 0, no save; the DDS freed after the tail
+        advance(thread, Event::Saved(Save::Held(pending)));
+        ctx.set_reg(Reg::Eax, 0);
+        return true;
+    }
     // SAFETY: the game's allocation of a descriptor with its two paths
     // (copied), any thread.
-    let (save, eax) = match unsafe { raw::engine_allocate_save_descriptor(physical, virtual_path) } {
+    let allocated = unsafe { raw::engine_allocate_save_descriptor(physical, virtual_path) };
+    if allocated.is_none() {
+        SAVES_HELD.with(thread, |s| s.release(address));
+    }
+    let (save, eax) = match allocated {
         Some(descriptor) => {
             // SAFETY: the new descriptor's data, as make_save_descriptor
             // sets it (0x109EFD): ours given to it.
@@ -1501,6 +1611,7 @@ mod tests {
             Resuming::Tail { save: Save::Pending, .. } => "pending",
             Resuming::Tail { save: Save::Owned, .. } => "owned",
             Resuming::Tail { save: Save::Skipped, .. } => "skipped",
+            Resuming::Tail { save: Save::Held(_), .. } => "held",
             Resuming::Calling(_) => "calling",
             Resuming::Reading => "reading",
         };
@@ -1514,5 +1625,24 @@ mod tests {
         let saved = running.on(Event::Saved(Save::Owned));
         assert_eq!(tail(saved.on(Event::Saved(Save::Skipped))), "owned", "saved once");
         assert_eq!(tail(saved.on(Event::Call(resume))), "owned");
+    }
+
+    #[test]
+    fn the_saves_not_written_yet_stay_within_their_bounds() {
+        let mut saves = Saves::new();
+        for i in 0..SAVES as u32 {
+            assert_eq!(saves.reserve(0x1000 + i, 10), Ok(()));
+        }
+        let full = Pending { saves: SAVES as u32, bytes: 10 * SAVES as u32 };
+        assert_eq!(saves.reserve(0x9000, 10), Err(full), "past SAVES of them");
+        assert!(saves.release(0x1000) && !saves.release(0x1000), "freed once");
+        assert!(!saves.release(0x7777), "not one of ours");
+        assert_eq!(saves.reserve(0x9000, 10), Ok(()));
+        let mut big = Saves::new();
+        assert_eq!(big.reserve(1, SAVE_BYTES - 5), Ok(()));
+        assert_eq!(big.reserve(2, 6), Err(Pending { saves: 1, bytes: SAVE_BYTES - 5 }), "past SAVE_BYTES");
+        assert_eq!(big.reserve(2, u32::MAX), Err(Pending { saves: 1, bytes: SAVE_BYTES - 5 }));
+        assert!(big.release(1));
+        assert_eq!(big.pending(), Pending { saves: 0, bytes: 0 });
     }
 }
