@@ -2499,3 +2499,14 @@ va	name	source	ret_cleanup	result
 0x0005a840	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	manual	16	a hud proxy (0x65100's): as 0x5A6B0 (vtable 0x9E0EC0, +38h..+3Ch m_ext_params zeroed) but +80h 3, the point proxy's 0
 0x0033a730	survarium::weapon_core_throw_grenade_state::is_grenade_slot_held	manual	4	AL: (the inventory's grenade slot +17Ch == its item's slot +254h) == the argument
 0x00364f10	vostok::particle::particle_system::construct_action<vostok::configs::binary_config_value>	manual	44	an action by the config's type_index (0x29 without one): types 3..40 through the switch 0x3663C4 (14, 16, 19..22 none), 40 particle_action_distance_attenuation (vtable 0xA20C5C, 0x365A71)
+0x000750f0	vostok::physics::bullet_physics_world::update_single_aabb	manual	4	nothing: the object's AABB updated (0x9FF40, EDI the object, ESI the dynamics world +3Ch) and its broadphase proxy (+0C8h)'s pairs cleaned (the pair cache's vt+24h with the dispatcher +18h)
+0x00356f70	vostok::physics::bt_dynamic_rigid_body::bullet_object	manual	0	EAX: [ECX+14h], the Bullet body (a folded `mov eax,[ecx+14h] / ret`, the body's slots +4 and +0Ch)
+0x00357060	vostok::physics::bt_dynamic_rigid_body::`scalar deleting destructor'	manual	4	EAX: this; the Bullet body (+14h) deleted (its vt+4 with 1), vtable 0x9E2AD0, the base's 0x70B70; with flags bit 0 the memory freed (0x420F17)
+0x003578b0	vostok::physics::bullet_rigid_body::set_transform	manual	4	nothing: the Bullet body's (+14h) world transform set from the float4x4 (0x74470, 0x70C20, 0x70C80), then 0x8C2E0 on it
+0x00357890	vostok::physics::bullet_rigid_body::get_transform	manual	4	EAX: the out pointer, filled with the Bullet body's (+14h) world transform (its +10h) as a float4x4 (0x74620)
+0x00319e30	survarium::damage_zone_core::on_deserialized	manual	4	nothing: the zone's sensor contacts rebuilt and its 20 hit records' players found again in the world (active_player_ptr 0x2D0AB0, ESI the world)
+0x000760c0	vostok::physics::bullet_physics_world::get_all_objects_in_radius	manual	20	nothing: a sphere of the radius at the centre added with the group and mask, and each collision object it overlaps appended to the vector as its +0F8h (the physics object), grown from the vector's allocator (+8, its slot +18h frees)
+0x001af330	an empty member function (a folded `ret`)	manual	0	nothing
+0x00248300	survarium::grenade_core::position	manual	0	EAX: ECX+1C0h, the grenade's position (float3)
+0x001f56b0	survarium::base_player::game_object_player (adjustor)	manual	0	EAX: ECX-118h, the player whose vostok::collision::game_object (+118h) ECX is (sub ecx,10h, then 0x1F17A0's lea eax,[ecx-108h])
+0x00300040	a folded `xor eax,eax / ret`	manual	0	EAX 0

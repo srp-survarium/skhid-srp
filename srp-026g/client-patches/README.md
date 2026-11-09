@@ -168,8 +168,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
 | `rust/patches/src/bake_cache.rs`, `src/bake_cache.toml`, `src/vostok/baker.rs`, `src/vostok/files.rs`, `src/vostok/crc32.rs`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again: seven `lohook`s (`sites_026g.tsv` bake.* and crc32.step); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
-| `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 59's Sponge (artefact type 12): the ten hooks, the resolve_links slot and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces, thrown and exploding as retail's (the object, its vtables, the cook's query, the throw, the fuse from the pull, the first contact, the explosion, the zone, the passive, the state), and the owner's spots (where the Sponge spawns: the pool, the links, the spawn) (the arena's blocks `sponge.code`, `sponge.state`) |
-| `check_sponge_a_026g.py` | Checks of patch 59's Sponge: runs the built exe's hooks and the sponge's slots with the game's own cook, Rattle constructor, config look-ups, splash and damage zone code on made-up items, players and worlds, the first-contact rule beside 0.26g's grenade_core's 0x3041B0, and the anomaly cook's kinds loop (needs Unicorn); with `--v031a2` the rule through 0.31a2's own 0x6011E0, with `--v028d0` the throw, the passive and the splash through 0.28d0's own code, with `--options` the pack's `artefact_sponge.options`, with `--project` every anomaly of a map's client_project |
+| `rust/patches/src/sponge.rs`, `src/sponge.toml`, `src/vostok/sponge.rs`, `../crates/sponge` | Patch 59, the Sponge (artefact type 12): its rules in the pure crate `sponge` (the state machine, its record in a world, which srp-validate parses too, the spots and the spawn draw), the game side in vostok::sponge (the object, the cook, the throw state, the zone, the splash, the spots), the hooks in the patch module (14 lohooks, three vtable copies, two runtime callbacks) |
+| `check_sponge_026g.py` | Checks of patch 59's Sponge: runs the built exe's hooks and the sponge's slots with the game's own cook, Rattle constructor, config look-ups, splash and damage zone code on made-up items, players and worlds, the first-contact rule beside 0.26g's grenade_core's 0x3041B0, and the anomaly cook's kinds loop (needs Unicorn); with `--v031a2` the rule through 0.31a2's own 0x6011E0, with `--v028d0` the throw, the passive and the splash through 0.28d0's own code, with `--options` the pack's `artefact_sponge.options`, with `--project` every anomaly of a map's client_project |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -249,7 +249,6 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 | `artefacts.code` | 54, the artefacts | NASM |
 | `engine.code` | the engine-function library | NASM (generated) |
 | `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM |
-| `sponge.code`, `sponge.state` | 59, the Sponge | NASM, C |
 | `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM |
 | `kill_feed.code` | 67, the kill feed's flags | NASM |
 | `patches.code` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key) | Rust, generated hook entries |
@@ -3405,7 +3404,7 @@ contact, numbers and hit types in 0.26g's keys and the owner's static toxin rule
 particles, materials and textures, texts in six languages); the hud movie draws its combat-log icon (`SpongeLogIcon`). The rules:
 `../docs/notes/sponge.md`.
 
-- **The object** (`sponge_a_026g.c`, 0x6C8 bytes): Rattle's `artefact<artefact_rattle_core>`
+- **The object** (`skhid::sponge` of `fields_026g.tsv`, 0x6C8 bytes; `vostok::sponge`): Rattle's `artefact<artefact_rattle_core>`
   (artefact_base 0x312FD0 and the drawable at +340h, built by Rattle's constructor 0x25FA10), then
   the sponge's own fields from +360h: the cook and config it loads with, the passive's modifier (Lifebone's
   layout), `duration` and `ttl_ms` in ms, `throw_power`, the splash's parameters in the
@@ -3417,7 +3416,8 @@ particles, materials and textures, texts in six languages); the hud movie draws 
   Rattle); its drawable's vtable has its own draw; its inflictor's holds three of the game's
   functions (not a bullet, not a grenade, the position field's getter 0x346480).
 - **The cook.** The artefact cook's construct (0x25E660) and size (0x25E770) switch on
-  `data/type` - 3: at their switch (0x25E68A, 0x25E79A) type 12 is ours, else the switch. Its
+  `data/type` - 3: before their switch (lohooks `sponge.construct` 0x25E685 and `sponge.size` 0x25E795, at the
+  type read) type 12 is ours, its exit the function's own epilogue, else the switch. Its
   query of the derived resources (0x25E800) asks a sponge's model, particle and sound as Rattle's
   and a damage zone (class 75h) with the inline `damage_zone` config as its creation data (a
   variant of a config value) and its callback the game's own bound-member boost::function
@@ -3432,10 +3432,10 @@ particles, materials and textures, texts in six languages); the hud movie draws 
   armed, and the holder is the thrower from then on; the key's release takes the slot back (the
   throw state throws it). 0.28 armed at the release, and threw a tap's (the release before the
   pull) unarmed: it never exploded and could not be thrown again. The state reads
-  the grenade slot's item as a grenade set in four places; each becomes a stub that runs ours
-  for a sponge, else the original: its way in at 0x2E40C6 (vtable +64h and 0x30A090: the
+  the grenade slot's item as a grenade set in four places; each is a lohook that runs ours
+  for a sponge (or no grenade), else goes on in the original: its way in at 0x2E40C6 (vtable +64h and 0x30A090: the
   original dereferences null for any item that is not a grenade set; for a sponge: not in the
-  air), is_ready at 0x33A677 (the zone on), the throw at 0x33A7BB (the body made with the
+  air), is_ready at 0x33A66D (the zone on), the throw at 0x33A7BB (the body made with the
   grenade's shape and damping, its velocity the aim's third row x `throw_power` x modifier 27,
   as 0x30A250) and the pin at 0x3103C9. The grenade key's finder (0x2FE8B0) never takes a
   sponge, in 0.28 as here.
@@ -3452,8 +3452,9 @@ particles, materials and textures, texts in six languages); the hud movie draws 
   world, 0x3080B0), the sponge out of the physics and out of the slot (0x2FC680), and the zone
   ticked (0x319A70) by the sponge until `duration` is over, then switched off (0x319D30).
 - **The kill credit.** 0.26g has no damage_zone_owner: the zone's hit loop 0x319AF0 hits with no
-  instigator, inflictor or item. At 0x319C8B a stub passes, for the zone a sponge is ticking (`sp_g`
-  names it while it does), the thrower's game object, the sponge's inflictor and the
+  instigator, inflictor or item. Two lohooks around the receiver's call (0x319CA1 before its last pushes, 0x319CAC after it) pass, for the
+  zone a sponge is ticking (vostok::sponge's `ZONE_HIT` names it while it does: one tagged state, EBX lent to
+  the instigator's push and given back after the call), the thrower's game object, the sponge's inflictor and the
   sponge; any other zone hits as before. The thrower is his roster place, found again at each
   tick (a place is never given to another player in a match); while the place is out of the
   match (it left) no one is credited.
@@ -3471,30 +3472,28 @@ particles, materials and textures, texts in six languages); the hud movie draws 
   neither called nor walked (any may be gone first); its body, the geometry it made and its hold
   on the zone go.
 - **The owner's spots** of the Sponge: the anomaly cook's look-up of a core's
-  `artefacts` (`call 0xF6B10` at 0x2E9D53 in query_for_artefacts 0x2E9D40, the only reader of
-  that key; one artefact a unit) is `sponge_artefacts`: the match's map (its options' map id,
+  `artefacts` (operator[] at 0x2E9D53 in query_for_artefacts 0x2E9D40, the only reader of
+  that key; one artefact a unit) is followed by the lohook `sponge.artefacts` (0x2E9D58): the match's map (its options' map id,
   the items dictionary's loaded mode config) gives the spots, and a core with spots gets a unit
-  of the Sponge for each; the core's resolve_links slot (0xA16A10) is `sponge_links`, which keeps
-  which containers are picked; spawn_artefact's free list and third draw (0x31B800) are
-  `sponge_spawn`: a picked container takes the Sponge, the core's other containers its own kinds,
+  of the Sponge for each; the core's resolve_links (0x33C440, its vtable slot 0xA16A10) ends at the lohook `sponge.links`
+  (0x33C634), which keeps which containers are picked; spawn_artefact's free list and third draw
+  (0x31B800) are the lohook `sponge.spawn`: a picked container takes the Sponge, the core's other containers its own kinds,
   with 0.26g's draws (none free of those: nothing there this time).
-- **The arena**: `sponge_a_026g.asm` (the eleven entries `sponge_construct` .. `sponge_links`,
-  `jmp near` each, and the stubs) and the C code, the block `sponge.code`, `sp_g`, the kinds'
-  copies and the spots the block `sponge.state` (`patch_026g.py` `ARENA`, `SPONGE_HOOKS`,
-  `SPONGE_SLOT`; `link_026g.py` places them). The C
-  code calls the game only through the engine library (`engine_026g.tsv`). Its vtables are
-  `INSTALLED_VTABLES` rows and its query callback a `CALLBACKS` row, each slot of ours run
-  through the game's own call site by `check_sponge_a_026g.py`.
+- **The arena**: the Rust patch `sponge` in `patches.code` (rust_patches.md): its 14 lohook sites
+  and 13 vtable slots in `sites_026g.tsv`, the game's functions it calls in `engine_026g.tsv` (each
+  proven by the re-kit), the fields it reads in `fields_026g.tsv`. Its vtables are generated copies
+  of Rattle's artefact vtable 0xA06124 (ten slots ours), its drawable's 0xA061B8 (the draw) and
+  grenade_core's hit inflictor's 0xA13FB8 (not a grenade, the position); its contacts' and its
+  query's callbacks are generated runtime entries (grenade_core::on_contact's and a bound member's
+  conventions). Each slot of ours runs through the game's own call site in `check_sponge_026g.py`.
 
 What it does that 0.28d0 does not, and why: `../docs/notes/client_patch.md` section 3.52 (the
 splash of 0.28d0's config does no damage there either: `splash_pierce` 0).
 
-Checked (the Sponge): `selftest_026g.py` check 59 (the ten sites and the slot before and after, no relocation under one
-and no branch into one, the entries and the stubs' exits, the block, the C code's calls through the
-engine library) and the call shapes (the query's entry, ten artefact slots, the draw, the
-two callbacks (the query's, the contacts'): each pops what its model pops, each reached through
-the game's own caller);
-`check_sponge_a_026g.py` (Unicorn, the game's own code with made-up items, players and worlds:
+Checked (the Sponge): at a release `selftest_026g.py`'s general rules derive every hook's checks from its
+declaration (rust_patches.md section 5: the sites' bytes, their branches to the entries, the entries'
+ABI, the vtable copies and callbacks' call shapes); `cargo test -p sponge` (the machine, the record, the
+spots); `check_sponge_026g.py` (Unicorn, the game's own code with made-up items, players and worlds:
 the size and construct, the config read, Rattle unchanged, the query and its creation data, the
 loaded zone and geometry, set_game_world, the passive on pickup and its regeneration callback,
 the press (the original crashes there), the pin and the fuse from it, the throw's velocity and

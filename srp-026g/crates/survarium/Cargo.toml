@@ -23,6 +23,9 @@ resources-db = { workspace = true }
 # The world objects of a map, in the shape the world check reads them
 # (`v026g::maps::world_objects`).
 srp-validate = { workspace = true }
+# Exe patch 59's Sponge spots: the units a core of a map gets
+# (`v026g::maps::Spots`).
+sponge = { path = "../sponge" }
 log = { workspace = true }
 lzma-rust2 = { workspace = true }
 # The lobby's results types are kept in srp's database as JSON

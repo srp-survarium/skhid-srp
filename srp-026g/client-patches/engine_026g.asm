@@ -7,6 +7,7 @@ section .text
 global engine_cfg_child
 global engine_cfg_has
 global engine_malloc
+global engine_malloc_geometry
 global engine_allocated_size
 global engine_dump_statistics
 global engine_match_rule_base
@@ -97,6 +98,8 @@ global engine_remove_model
 global engine_update_model
 global engine_static_model_bounds
 global engine_release_item
+global engine_release_zone
+global engine_release_config
 global engine_release_model
 global engine_lobby_camera_ray
 global engine_read_file
@@ -218,6 +221,30 @@ global engine_geometry_load
 global engine_geometry_destroy
 global engine_config_variant_type
 global engine_recompute_damage_collision_bones
+global engine_physics_update
+global engine_physics_add_body
+global engine_physics_remove_body
+global engine_physics_subscribe_contact
+global engine_physics_unsubscribe_contact
+global engine_body_object
+global engine_body_destroy
+global engine_body_set_transform
+global engine_body_get_transform
+global engine_geometry_set_transform
+global engine_zone_serialize
+global engine_zone_deserialize
+global engine_zone_after_load
+global engine_pthreads_free
+global engine_object_query
+global engine_collision_owner
+global engine_artefact_action
+global engine_artefact_removed
+global engine_artefact_added
+global engine_nothing
+global engine_inflictor_is_grenade
+global engine_inflictor_position
+global engine_late_join_loaded
+global engine_grenade_contact
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -285,6 +312,35 @@ engine_get_system_time_as_file_time equ 0x870244   ; the IAT slot 0x870244 (an i
 engine_file_time_to_local_file_time equ 0x870230   ; the IAT slot 0x870230 (an import, stdcall)
 engine_file_time_to_system_time equ 0x87022c   ; the IAT slot 0x87022c (an import, stdcall)
 engine_discard_playing_order equ 0x2717e0   ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+engine_rattle_set_world equ 0x25fb30   ; 0x25fb30 survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core: artefact ECX, world ESP+4; pops 4; thiscall, called directly
+engine_rattle_draw equ 0x25fb80   ; 0x25fb80 survarium::artefact<artefact_rattle_core>::update_client_state: drawable ECX; pops 0; thiscall, called directly
+engine_rattle_destroy equ 0x260860   ; 0x260860 survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor': artefact ECX, flags ESP+4; pops 4; EAX; thiscall, called directly
+engine_artefact_tick equ 0x313200   ; 0x313200 survarium::artefact_base::tick: artefact ECX, dt ESP+4, time ESP+8; pops 8; thiscall, called directly
+engine_artefact_serialize equ 0x313670   ; 0x313670 survarium::artefact_base::serialize: artefact ECX, writer ESP+4, dumper ESP+8; pops 8; thiscall, called directly
+engine_artefact_deserialize equ 0x313760   ; 0x313760 survarium::artefact_base::deserialize: artefact ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12; thiscall, called directly
+engine_zone_tick equ 0x319a70   ; 0x319a70 survarium::damage_zone_core::tick: zone ECX, dt ESP+4, time ESP+8, on_grid ESP+12; pops 12; thiscall, called directly
+engine_physics_update equ 0x750f0   ; 0x750f0 vostok::physics::bullet_physics_world::update_single_aabb: world ECX, object ESP+4; pops 4; thiscall, called directly
+engine_physics_add_body equ 0x758b0   ; 0x758b0 vostok::physics::bullet_physics_world::add: world ECX, body ESP+4, group ESP+8, mask ESP+12; pops 12; thiscall, called directly
+engine_physics_remove_body equ 0x75a60   ; 0x75a60 vostok::physics::bullet_physics_world::remove: world ECX, body ESP+4, wake ESP+8; pops 8; thiscall, called directly
+engine_physics_subscribe_contact equ 0x78310   ; 0x78310 vostok::physics::bullet_physics_world::subscribe_on_contact: world ECX, body ESP+4, function ESP+8; pops 8; thiscall, called directly
+engine_physics_unsubscribe_contact equ 0x783a0   ; 0x783a0 vostok::physics::bullet_physics_world::unsubscribe_from_contact: world ECX, body ESP+4, function ESP+8; pops 8; thiscall, called directly
+engine_body_object equ 0x356f70   ; 0x356f70 vostok::physics::bt_dynamic_rigid_body::bullet_object: body ECX; pops 0; EAX; thiscall, called directly
+engine_body_destroy equ 0x357060   ; 0x357060 vostok::physics::bt_dynamic_rigid_body::`scalar deleting destructor': body ECX, flags ESP+4; pops 4; thiscall, called directly
+engine_body_set_transform equ 0x3578b0   ; 0x3578b0 vostok::physics::bullet_rigid_body::set_transform: body ECX, transform ESP+4; pops 4; thiscall, called directly
+engine_body_get_transform equ 0x357890   ; 0x357890 vostok::physics::bullet_rigid_body::get_transform: body ECX, out ESP+4; pops 4; EAX; thiscall, called directly
+engine_geometry_set_transform equ 0x2f8fe0   ; 0x2f8fe0 survarium::collision_geometry::set_transform: geometry ECX, transform ESP+4; pops 4; thiscall, called directly
+engine_zone_serialize equ 0x3193f0   ; 0x3193f0 survarium::damage_zone_core::serialize: zone ECX, writer ESP+4, dumper ESP+8; pops 8; thiscall, called directly
+engine_zone_deserialize equ 0x319470   ; 0x319470 survarium::damage_zone_core::deserialize: zone ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12; thiscall, called directly
+engine_zone_after_load equ 0x319e30   ; 0x319e30 survarium::damage_zone_core::on_deserialized: zone ECX, world ESP+4; pops 4; thiscall, called directly
+engine_pthreads_free equ 0xeb5b0   ; 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, memory ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
+engine_artefact_action equ 0x313300   ; 0x313300 survarium::artefact_base::action: artefact ECX, pressed ESP+4, time ESP+8; pops 8; thiscall, called directly
+engine_artefact_removed equ 0x313490   ; 0x313490 survarium::artefact_base::on_removed: artefact ECX; pops 0; thiscall, called directly
+engine_artefact_added equ 0x313470   ; 0x313470 survarium::artefact_base::on_taken: artefact ECX; pops 0; thiscall, called directly
+engine_nothing equ 0x1af330   ; 0x1af330 an empty member function (a folded `ret`): object ECX; pops 0; thiscall, called directly
+engine_inflictor_is_grenade equ 0x246380   ; 0x246380 survarium::inventory_item::cast_artefact: inflictor ECX; pops 0; EAX; thiscall, called directly
+engine_inflictor_position equ 0x248300   ; 0x248300 survarium::grenade_core::position: inflictor ECX; pops 0; EAX; thiscall, called directly
+engine_late_join_loaded equ 0x27aa20   ; 0x27aa20 survarium::network_client::on_match_ready: object ECX, results ESP+4; pops 4; thiscall, called directly
+engine_grenade_contact equ 0x3041b0   ; 0x3041b0 survarium::grenade_core::on_contact: grenade ECX, point ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -320,6 +376,23 @@ engine_cfg_has:
 
     align 16, db 0xCC
 engine_malloc:
+    ; 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; where -> 4
+    mov esi, [esp + 24]   ; allocator
+    mov eax, [esp + 28]   ; size
+    call 0xe4f90
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_malloc_geometry:
     ; 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
     push ebp
     push ebx
@@ -1452,6 +1525,38 @@ engine_release_item:
     ret
 
     align 16, db 0xCC
+engine_release_zone:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_config:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
 engine_release_model:
     ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     push ebp
@@ -2551,53 +2656,6 @@ engine_rattle_loaded:
     ret
 
     align 16, db 0xCC
-engine_rattle_set_world:
-    ; 0x25fb30 survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core: artefact ECX, world ESP+4; pops 4
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 24]   ; world -> 4
-    mov ecx, [esp + 24]   ; artefact
-    call 0x25fb30
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_rattle_draw:
-    ; 0x25fb80 survarium::artefact<artefact_rattle_core>::update_client_state: drawable ECX; pops 0
-    push ebp
-    push ebx
-    push esi
-    push edi
-    mov ecx, [esp + 20]   ; drawable
-    call 0x25fb80
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_rattle_destroy:
-    ; 0x260860 survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor': artefact ECX, flags ESP+4; pops 4; EAX
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 24]   ; flags -> 4
-    mov ecx, [esp + 24]   ; artefact
-    call 0x260860
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
 engine_cook_finish_query:
     ; 0x2ee8d0 survarium::artefact_core_cook::finish_query: cook ECX, resource EDX, artefact ESI, query EDI; pops 0
     push ebp
@@ -2609,58 +2667,6 @@ engine_cook_finish_query:
     mov esi, [esp + 28]   ; artefact
     mov edi, [esp + 32]   ; query
     call 0x2ee8d0
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_artefact_tick:
-    ; 0x313200 survarium::artefact_base::tick: artefact ECX, dt ESP+4, time ESP+8; pops 8
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 28]   ; time -> 8
-    push dword [esp + 28]   ; dt -> 4
-    mov ecx, [esp + 28]   ; artefact
-    call 0x313200
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_artefact_serialize:
-    ; 0x313670 survarium::artefact_base::serialize: artefact ECX, writer ESP+4, dumper ESP+8; pops 8
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 28]   ; dumper -> 8
-    push dword [esp + 28]   ; writer -> 4
-    mov ecx, [esp + 28]   ; artefact
-    call 0x313670
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_artefact_deserialize:
-    ; 0x313760 survarium::artefact_base::deserialize: artefact ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 32]   ; b -> 12
-    push dword [esp + 32]   ; a -> 8
-    push dword [esp + 32]   ; reader -> 4
-    mov ecx, [esp + 32]   ; artefact
-    call 0x313760
     pop edi
     pop esi
     pop ebx
@@ -2693,24 +2699,6 @@ engine_zone_deactivate:
     push dword [esp + 24]   ; flag -> 8
     push dword [esp + 24]   ; zone -> 4
     call 0x319d30
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_zone_tick:
-    ; 0x319a70 survarium::damage_zone_core::tick: zone ECX, dt ESP+4, time ESP+8, on_grid ESP+12; pops 12
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 32]   ; on_grid -> 12
-    push dword [esp + 32]   ; time -> 8
-    push dword [esp + 32]   ; dt -> 4
-    mov ecx, [esp + 32]   ; zone
-    call 0x319a70
     pop edi
     pop esi
     pop ebx
@@ -2772,6 +2760,43 @@ engine_recompute_damage_collision_bones:
     push dword [esp + 24]   ; object -> 4
     mov ecx, [esp + 24]   ; player
     call 0x2da5b0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_object_query:
+    ; virtual vostok::physics::world+0x60 (1 vtables of vtables.tsv: 0x760c0): world ECX, centre ESP+4, radius ESP+8, group ESP+12, mask ESP+16, found ESP+20; pops 20
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; found -> 20
+    push dword [esp + 40]   ; mask -> 16
+    push dword [esp + 40]   ; group -> 12
+    push dword [esp + 40]   ; radius -> 8
+    push dword [esp + 40]   ; centre -> 4
+    mov ecx, [esp + 40]   ; world
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x60]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_collision_owner:
+    ; virtual vostok::collision::game_object+0x8 (12 vtables of vtables.tsv: 0x1f56b0, 0x300040): owner ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; owner
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x8]
     pop edi
     pop esi
     pop ebx

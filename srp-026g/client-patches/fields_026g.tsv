@@ -913,3 +913,172 @@ survarium::lobby_client	status	0x1E5790	u32	what the lobby says the client is: t
 survarium::close_match_frame	reason	0x8	u32	close_current_match's argument by EBP (mov ebx,[ebp+8] at 0x27A7F3): the reason, jump table 0x27A958
 survarium::match_ready_frame	client	0x18	ptr<survarium::network_client>	on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
 vostok::render::res_render_output	window	0xE4	u32	the output window, an HWND (res_render_output::res_render_output 0x3CF4F0 writes it from EDX at 0x3CF540; set_size's SetWindowLongA 0x3CFA09/0x3CFA55 and SetWindowPos 0x3CFA20/0x3CFAD8, present's ShowWindow 0x3CF8C5 take it)
+survarium::inventory	grenade_slot	0x17C	u32	m_grenade_slot: the slot of the item the throw-grenade state throws, 17h none (weapon_core::can_start_throw_grenade 0x2E40B4; patch 59's key puts a sponge's slot there)
+survarium::core_world	physics	0x18FA4	ptr<vostok::physics::bullet_physics_world>	the physics world of the rigid bodies and the zones' ghosts (0x2D3B1E; grenade_core's register 0x303820)
+survarium::core_world	hits	0x18F58	ptr<survarium::hit_manager>	the splash's hit manager (grenade_set_core::on_exploded 0x30A4CF passes it to splash_hit 0x339630)
+survarium::core_world	grid_origin	0x18FBC	u32	the tick grid's origin, ms (50: 0x2D00CD; grenade_set_core::pull_pin 0x30A120 rounds the fuse to it)
+survarium::hit_manager	collision	0x98	ptr<vostok::physics::bullet_physics_world>	the object splash_hit queries for the objects in a sphere (0x339640, its vt+60h)
+survarium::player	game_object	0x110	obj<survarium::game_object>	its game object, a hit's instigator (the grenade's arm 0x30A1F1); its +4 is the place (player.place)
+survarium::item	fsm_state	0x330	ptr<survarium::weapon_state>	a weapon's current state (weapon_core::initialize 0x2E2A88 sets it; only for an item whose vtable is a weapon's)
+survarium::weapon_state	vtable	0x0	u32	the state's vtable (weapon_core_throw_grenade_state's 0xA1C1B0)
+survarium::weapon_state	throw_grenade	0x0	obj<survarium::throw_grenade_state>	itself as the throw-grenade state: only after its vtable is THROW_GRENADE_STATE_VTABLE
+survarium::image	throw_grenade_state_vtable	0xA1C1B0	u32	weapon_core_throw_grenade_state's vtable (RTTI; initialize 0x33A450, finalize 0x33A490, is_ready 0x33A650)
+survarium::throw_grenade_state	grenade	0x17C	ptr<survarium::item>	the item it throws (its serialize writes its slot +254h at 0x33A51B; 0 when its load found the slot empty)
+survarium::throw_grenade_state	index	0x180	u8	the grenade's index in its set (pull_pin's result, 0x3103DD; FFh none: is_ready 0x33A673 waits)
+survarium::throw_pull_substate	state	0x138	ptr<survarium::throw_grenade_state>	its throw state (initialize 0x3103C9)
+survarium::generic_anomaly_core	pool	0x1B0	ptr<survarium::inventory_slot>	its artefacts, an item pointer each (spawn_artefact 0x31B806; their count pool_count)
+survarium::generic_anomaly_core	random	0x1B8	u32	its random state: x * 8088405h + 1 per draw (spawn_artefact 0x31B84A)
+survarium::generic_anomaly_core	due	0x138	u8	a spawn pending: spawn_artefact clears it (0x31B7C1), the core's tick tries a core only while it is set (0x31B662)
+survarium::anomaly_links	core	-0x4	obj<survarium::generic_anomaly_core>	the link resolver interface at the core's +4 (its vtable 0xA16A10; resolve_links 0x33C440's ECX, its containers at +13Ch/+140h)
+survarium::damage_zone	references	0xD0	u32	its resource count (as every resource's; released by 0x0E0210 at 0)
+survarium::damage_zone	sensor	0x108	obj<survarium::collision_sensor>	its collision sensor (insert 0x3080B0; deactivate 0x319D30 takes it out)
+survarium::damage_zone	geometries	0x11C	ptr<survarium::geometry_slot>	its collision geometries (the sensor's +14h; the cook 0x3046F0 fills them)
+survarium::damage_zone	geometry_count	0x120	u32	their count
+survarium::damage_zone	active	0x124	u8	on (insert 0x3080B0 sets the sensor's +1Ch)
+survarium::damage_zone	serial	0x130	obj<survarium::zone_serializable>	its serializable (vtable 0xA0B900: serialize 0x3193F0, deserialize 0x319470, after_load 0x319E30)
+survarium::damage_zone	physics	0x1A8	ptr<vostok::physics::bullet_physics_world>	the physics world its ghosts are in (generic_anomaly_core's activation 0x31B9A0 sets it before the insert)
+survarium::damage_zone	last_hit	0x1CC	u32	its last hit's time, FFFFFFFFh none (0x31B9A0 resets it)
+survarium::damage_zone	hitting	0x1D1	u8	hitting now (0x31B9A0 clears it)
+survarium::damage_zone	drawable	0x408	obj<survarium::scene_drawable>	the client zone's drawable (damage_zone::draw 0x2993F0)
+survarium::damage_zone	sounds	0x41C	ptr<f32>	its sound zones' world matrices (16 f32 each; play_activated 0x298D80)
+survarium::damage_zone	sound_count	0x420	u32	their count
+survarium::damage_zone	effects	0x43C	ptr<f32>	its effect zones' world matrices (16 f32 each)
+survarium::damage_zone	effect_count	0x440	u32	their count
+survarium::geometry_slot	geometry	0x0	ptr<survarium::collision_geometry>	a geometry of a sensor's list
+survarium::geometry_slot	size	0x4	size	a pointer each
+survarium::collision_geometry	vtable	0x0	u32	its vtable (0xA13428, its ctor's; set_transform at +20h)
+survarium::collision_geometry	vtable2	0x4	u32	its second (0xA13454)
+survarium::collision_geometry	size	0x24	size	24h bytes (the cook's inline geometries 0x3046F0 allocate so)
+survarium::image	collision_geometry_vtable	0xA13428	u32	collision_geometry's vtable (RTTI .?AVcollision_geometry@survarium@@)
+survarium::image	collision_geometry_vtable2	0xA13454	u32	its second, at +4 (RTTI offset 4)
+survarium::image	collision_geometry_info	0xACED3C	u32	the collision geometry's allocation info, as 0x3046F0 passes it (0x304719: 0xACED34 + 8, 0x420789's lea eax,[ecx+8])
+vostok::physics::bt_dynamic_rigid_body	shape	0x10	ptr<vostok::physics::collision_shape>	its shape (grenade_core's destructor 0x30379A)
+vostok::physics::bt_dynamic_rigid_body	bullet	0x14	ptr<vostok::physics::bt_rigid_body>	its Bullet body (create_dynamic_rigid_body 0x357100)
+vostok::physics::bt_rigid_body	linear_damping	0x100	f32	damping, Bullet's member order (grenade_core's make 0x303890 writes 0.01)
+vostok::physics::bt_rigid_body	angular_damping	0x104	f32	damping (grenade_core's make 0x303890 writes 0.03)
+vostok::physics::collision_shape	flags	0xFC	u32	its resource flags (0.28's sponge shape gets 2, its +174h)
+survarium::image	physics_allocator	0x1F1D384	obj<survarium::physics_allocator_slot>	the physics allocator's slot (grenade_core's destructor 0x3037A6 frees a body to it)
+survarium::image	destroy_body_function	0xA1F294	u32	"vostok::physics::destroy_dynamic_rigid_body", the free's function name (0x3037CE)
+survarium::image	destroy_body_file	0xA1F278	u32	".\\dynamic_rigid_body.cpp", the free's file (0x3037C9; line 4Eh)
+survarium::image	splash_found_allocator	0xA8001C	obj<vostok::memory::pthreads3_allocator>	the found objects' allocator splash_hit gives its query (0x339667) and frees them to (0x3398CE)
+survarium::image	splash_found_function	0x9DC2BC	u32	the found objects' free's function string (std_allocator<void *>::deallocate; 0x3398DB, its ESP+8)
+survarium::image	splash_found_file	0x9DC1E0	u32	its file string (0x3398D6, its ESP+0Ch; line 67h)
+survarium::game_world	drawables	0xDC	obj<survarium::drawable_list>	its drawables' list (Rattle's set_world 0x25FB30 links its drawable at the end)
+survarium::drawable_list	head	0x4	ptr<survarium::scene_drawable>	the first (prev +4, next +8 each)
+survarium::drawable_list	tail	0x8	ptr<survarium::scene_drawable>	the last
+survarium::scene_drawable	prev	0x4	ptr<survarium::scene_drawable>	the drawable before (0: the first)
+survarium::scene_drawable	next	0x8	ptr<survarium::scene_drawable>	the drawable after (0: the last)
+survarium::scene_drawable	artefact	-0x340	obj<survarium::artefact>	the artefact whose drawable it is (artefact<rattle>'s at +340h: the drawable vtable 0xA061B8's ECX)
+survarium::artefact	drawable	0x340	obj<survarium::scene_drawable>	Rattle's drawable (its vtable 0xA061B8; set_world 0x25FB30 links it)
+survarium::artefact_client	drawable	0x0	obj<survarium::scene_drawable>	the same callback as a list member
+survarium::medical_pool	regeneration	0x2E8	obj<survarium::regeneration_list>	its regeneration modifiers (body_part::regenerate 0x32A4B0; Lifebone links its nodes here, 0x312200)
+survarium::regeneration_list	head	0x4	ptr<survarium::regeneration_node>	the first node
+survarium::regeneration_list	tail	0x8	ptr<survarium::regeneration_node>	the last node
+survarium::regeneration_node	next	0x20	ptr<survarium::regeneration_node>	the next node (Lifebone's at +490h, 0x312380 unlinks)
+survarium::config_resource	root	0x108	ptr<vostok::engine_cfg>	a config resource's root value (the artefact cook 0x25E667; items_dictionary's maps 0x2C9C81)
+survarium::config_resource	references	0xD0	u32	its resource count (released by 0x0E0210 at 0)
+survarium::config_handle	resource	0x0	ptr<survarium::config_resource>	a cook's &config: a pointer to the config resource (0x25E665 mov eax,[ebx])
+survarium::cook	context	0x20	ptr<survarium::cook_context>	a cook's context (generic_anomaly_core_cook's getters 0x1F6670, 0x1F6680)
+survarium::cook_context	game	0x9C	ptr<survarium::game>	the game (0x1F6670: [[+20h]+9Ch]+53A4h the dictionary)
+survarium::items_dictionary	maps	0x160	ptr<survarium::map_entry>	its maps {u32 id, mode name, the mode config resource} (on_map_configs_loaded 0x2C9BA0; map_descriptor_by_id 0x21F910)
+survarium::items_dictionary	map_count	0x164	u32	their count
+survarium::map_entry	id	0x0	u32	the maps_dict id (match_options.map)
+survarium::map_entry	config	0x8	ptr<survarium::config_resource>	its mode config, kept loaded
+survarium::map_entry	size	0xC	size	12 bytes an entry (0x21F910)
+vostok::query_result	zone	0x0	ptr<survarium::damage_zone>	the result's resource, a damage zone for a class 75h request (the Sponge's fourth)
+vostok::resources::queries_result	query	0x20	u32	the query the results are for (the artefact cook's callback 0x25E9DF hands it to finish_query)
+survarium::artefact_construct_frame	memory	0x10	ptr<skhid::sponge>	the artefact cook's construct 0x25E660 at 0x25E685 (three pushes): the memory (0 for none)
+survarium::artefact_construct_frame	config	0x14	ptr<survarium::config_handle>	&the config
+survarium::artefact_construct_frame	effect	0x18	u32	the spawn effect's emitter (Rattle's constructor's EAX)
+survarium::artefact_construct_frame	scene	0x1C	u32	the scene (its stack argument)
+survarium::artefact_query_frame	parent	0x4	u32	the artefact cook's query 0x25E800 at its entry: the parent query
+survarium::artefact_query_frame	artefact	0x8	ptr<survarium::artefact>	the artefact constructed
+survarium::artefact_query_frame	config	0xC	ptr<survarium::config_handle>	&its config
+survarium::throw_frame	hand	0x10	f32	the throw 0x33A770 at 0x33A7BB: the hand's transform (0x309F00's, normalized by 0x727B0), 16 f32
+survarium::zone_hit_frame	inflictor	0x10	u32	damage_zone_core's hit loop at 0x319CA1: the receiver call's inflictor argument (pushed 0 at 0x319C8C)
+survarium::zone_hit_frame	item	0x14	u32	its item argument (pushed 0 at 0x319C8B)
+survarium::query_artefacts_frame	cook	0x8	ptr<survarium::cook>	generic_anomaly_core_cook::query_for_artefacts 0x2E9D40 by EBP: the cook
+survarium::query_artefacts_frame	config	0x10	ptr<vostok::engine_cfg>	the core's config (0x2E9D49)
+survarium::spawn_artefact_frame	container	-0x8	u32	spawn_artefact 0x31B6C0 by EBP: the container chosen (its second draw; the free list's push 0x31C250 reads the frame after)
+survarium::resolve_links_frame	links	0x10	ptr<survarium::anomaly_links>	resolve_links 0x33C440 at 0x33C634 (four pushes): ECX kept at 0x33C45C
+survarium::resolve_links_frame	config	0x34	obj<vostok::engine_cfg>	its config, by value (0x33C475 lea eax,[esp+34h])
+survarium::artefact	sponge	0x0	obj<skhid::sponge>	itself as a sponge (patch 59): only after its vtable is the Sponge's (vostok::sponge)
+skhid::sponge	artefact	0x0	obj<survarium::artefact>	patch 59's object: Rattle's (artefact<artefact_rattle_core>, 360h bytes, its constructor 0x25FA10), then its own fields below
+skhid::sponge	loading_cook	0x360	ptr<survarium::cook>	the artefact cook while its query loads (its finish 0x2EE8D0 takes it)
+skhid::sponge	loading_config	0x364	ptr<survarium::config_resource>	the config resource held while its query loads
+skhid::sponge	passive	0x370	obj<survarium::lifebone_regeneration>	passive/{regen,timeout,threshold}_{add,mul}: Lifebone's regeneration modifier the callback 0x312590 reads (+1Ch..+33h)
+skhid::sponge	duration	0x3A4	u32	active/duration_s x 1000: the cloud's length
+skhid::sponge	ttl	0x3A8	u32	data/ttl_ms: the fuse from the pin's pull
+skhid::sponge	throw_power	0x3AC	f32	active/throw_power
+skhid::sponge	splash	0x3B0	obj<survarium::splash_parameters>	the splash's template (0.28's +3F8h)
+skhid::sponge	node	0x3F0	obj<survarium::regeneration_node>	the passive's node in the holder's infection pool
+skhid::sponge	linked	0x418	ptr<survarium::regeneration_list>	the list the node is in (0 out)
+skhid::sponge	state	0x41C	u32	what it is: the sponge crate's machine::State, 28 bytes (repr C, u32), written only by vostok::sponge
+skhid::sponge	body	0x438	ptr<vostok::physics::bt_dynamic_rigid_body>	its rigid body (made at set_world)
+skhid::sponge	made_geometry	0x43C	ptr<survarium::collision_geometry>	the zone's geometry it made (and destroys)
+skhid::sponge	transform	0x440	f32	m_transform: where it is in the air, where it exploded (16 f32)
+skhid::sponge	zone	0x480	ptr<survarium::damage_zone>	its damage zone (data/active/damage_zone), a resource it holds
+skhid::sponge	sounds	0x484	u32	the zone's sound zones moved with the explosion (at most 4)
+skhid::sponge	effects	0x488	u32	its effect zones moved with it (at most 4)
+skhid::sponge	sound_local	0x48C	f32	the sound zones' own matrices (4 x 16 f32)
+skhid::sponge	effect_local	0x58C	f32	the effect zones' own matrices (4 x 16 f32)
+skhid::sponge	inflictor	0x68C	obj<survarium::hit_inflictor>	its hits' inflictor (0.28's +3C4h)
+skhid::sponge	contact_fn	0x6A8	obj<vostok::boost_function>	its contacts' callback, the physics world's while in the air (it keeps it by pointer, 0x78310)
+skhid::sponge	safe_time	0x6C0	u32	data/safe_time
+skhid::sponge	explode_on_contact	0x6C4	u8	data/explode_on_contact
+skhid::sponge	material	0x6C6	u16	data/mtl_idx: its body's game material (45 grenade)
+skhid::sponge	size	0x6C8	size	the object (the cook's size switch answers it)
+survarium::splash_parameters	inflictor	0x0	ptr<survarium::hit_inflictor>	a splash's {inflictor, bodies[8], type, radius, min, max, pierce, stamina, stopping}: the grenade set's +278h (grenade_set_core::explosive 0x30A350), what splash_hit 0x339630 takes in ESI
+survarium::splash_parameters	bodies	0x4	u32	the bodies hit, eight i32, -1 after the last (the set's reader 0x309AE0)
+survarium::splash_parameters	kind	0x24	u32	the damage type (0x304370's index)
+survarium::splash_parameters	radius	0x28	f32	splash_radius (modifier 12 on it, 0x30A3A0)
+survarium::splash_parameters	min	0x2C	f32	splash_min_damage (modifier 11)
+survarium::splash_parameters	max	0x30	f32	splash_max_damage (modifier 11)
+survarium::splash_parameters	pierce	0x34	f32	splash_pierce
+survarium::splash_parameters	stamina	0x38	f32	stamina_damage (modifier 11)
+survarium::splash_parameters	stopping	0x3C	f32	stopping_power (modifier 11)
+survarium::splash_parameters	size	0x40	size	40h bytes (the set's +278h..+2B7h, explosive's copy)
+survarium::regeneration_node	vtable	0x0	u32	a regeneration modifier: a boost::function in place {vtable 0xA1566C plus 1, ?, function, adjust, this, &modifier, ..} (Lifebone's nodes, 0x311F4C)
+survarium::regeneration_node	function	0x8	u32	the function: Lifebone's callback 0x312590
+survarium::regeneration_node	this	0x10	u32	the bound object
+survarium::regeneration_node	modifier	0x14	ptr<survarium::lifebone_regeneration>	the bound modifier record
+survarium::image	regeneration_function_vtable	0xA1566C	u32	the regeneration node's boost::function vtable (Lifebone's constructor 0x311F4C, plus 1: trivially copied)
+survarium::image	lifebone_regeneration	0x312590	u32	artefact_lifebone_core::regeneration_modifier (the passive's callback)
+survarium::hit_inflictor	vtable	0x0	u32	hit_inflictor {vt, u16 id, u8 flag, the instigator, the item} (0.28's +3C4h; grenade_core's at its +0): its vtable
+survarium::hit_inflictor	id	0x4	u16	FFFFh
+survarium::hit_inflictor	flag	0x6	u8	0
+survarium::hit_inflictor	instigator	0x8	ptr<survarium::game_object>	the hit's instigator (the thrower's game object)
+survarium::hit_inflictor	item	0xC	ptr<survarium::artefact>	the item
+survarium::hit_inflictor	position	0x10	f32	where it is (3 f32): the position getter 0x346480 (lea eax,[ecx+10h]) the Sponge's vtable names reads it
+vostok::boost_function	vtable	0x0	u32	a boost::function in place: its manager's vtable plus 1 (trivially copied)
+vostok::boost_function	function	0x8	u32	the function its invoker 0x202300 calls (ECX = object + adjust)
+vostok::boost_function	adjust	0xC	u32	the this adjustment
+vostok::boost_function	object	0x10	u32	the object
+survarium::image	contact_function_vtable	0xA13FAC	u32	grenade_core's contact callback's boost::function manager vtable (0x304220; invoker 0x202300)
+survarium::image	config_variant_vtable	0x9ED1E4	u32	concrete_type_helper<binary_config_value>'s vtable: a variant holding a config value (0x2F2C8F)
+vostok::config_variant	vtable	0x0	u32	a variant<32> {vtable, pad, value (24 bytes), pad, this, type} (0x2F2C55 builds them for the victory items' containers)
+vostok::config_variant	value	0x8	obj<vostok::engine_cfg>	the config value held
+vostok::config_variant	this	0x28	u32	its own address
+vostok::config_variant	type_id	0x2C	u32	the type id (0x125790's)
+vostok::config_variant	size	0x30	size	30h bytes
+survarium::rattle_artefact_methods	rtti	-4	u32	the complete object locator (.?AV?$artefact@Vartefact_rattle_core@survarium@@@survarium@@, 0xA4C044)
+survarium::rattle_artefact_methods	size	0x90	size	36 slots (the Sponge's object is Rattle's: patch 59 replaces ten of them)
+survarium::rattle_drawable_methods	rtti	-4	u32	the complete object locator (offset 340h, 0xA4C030)
+survarium::rattle_drawable_methods	size	0x4	size	one slot, the draw 0x25FB80
+survarium::grenade_inflictor_methods	rtti	-4	u32	the complete object locator (.?AVgrenade_core@survarium@@, 0xA5291C)
+survarium::grenade_inflictor_methods	size	0x10	size	grenade_core's hit_inflictor slots: is_bullet 0x300040, is_grenade 0x246380, position 0x248300, 0x303890
+survarium::image	rattle_methods	0xA06124	obj<survarium::rattle_artefact_methods>	artefact<artefact_rattle_core>'s vtable including RTTI at -4 (its constructor writes it at 0x25FA32)
+survarium::image	rattle_drawable_methods	0xA061B8	obj<survarium::rattle_drawable_methods>	its drawable's (+340h) vtable including RTTI at -4
+survarium::image	grenade_inflictor_methods	0xA13FB8	obj<survarium::grenade_inflictor_methods>	grenade_core's vtable at its +0, its hit_inflictor (its destructor 0x303780 writes it)
+survarium::core_place	kit	0xC	u8	the place's current kit (core_active_player 0x2D0AED reads [place + kit x 4])
+survarium::found_objects	begin	0x0	ptr<survarium::found_object>	splash_hit's found objects {begin, end, allocator, 0} (its frame +18h..+24h, 0x33965C..0x33966F)
+survarium::found_objects	end	0x4	ptr<survarium::found_object>	their end
+survarium::found_objects	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	the allocator they come from and go back to (splash_hit sets 0xA8001C, 0x339667, and frees through it, 0x3398CE)
+survarium::found_objects	size	0x10	size	16 bytes
+survarium::found_object	object	0x0	ptr<survarium::collision_object>	a found collision object (the splash's loop 0x339696 reads [begin + i x 4])
+survarium::found_object	size	0x4	size	a pointer each
+survarium::collision_object	owner	0xC	ptr<survarium::collision_owner>	its owner, whose slot 8 is the player it is of or 0 (0x3396A6..0x3396AF)
+survarium::rattle_object	size	0x360	size	artefact<artefact_rattle_core>'s object: the artefact cook's size switch answers 360h for type 8 (0x25E7C9)
+survarium::scene_drawable	vtable	0x0	u32	its vtable (Rattle's drawable's 0xA061B8)
+survarium::physics_allocator_slot	allocator	0x0	ptr<vostok::memory::pthreads3_allocator>	the physics allocator: always the static pthreads3_allocator 0xA8001C (the only write of 0x1F1D384, 0x7A895)
+skhid::sponge	loading_handle	0x364	obj<survarium::config_handle>	the same field as a cook's &config (the cook's finish 0x2EE8D0 takes its address, as the stock callback 0x25E960 passes its own)

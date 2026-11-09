@@ -17,6 +17,8 @@ unsafe extern "C" {
     pub fn engine_cfg_has(table: *const c_void, key: *const u8) -> u32;
     /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
     pub fn engine_malloc(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
+    /// 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
+    pub fn engine_malloc_geometry(allocator: *mut c_void, size: u32, r#where: *const c_void) -> *mut c_void;
     /// 0xe5270 vostok::memory::doug_lea_allocator::allocated_size: allocator ECX; pops 0; EAX
     pub fn engine_allocated_size(allocator: *mut c_void) -> u32;
     /// 0xe1370 vostok::memory::dump_statistics: flag ESP+4; pops 0
@@ -148,6 +150,10 @@ unsafe extern "C" {
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_item(object: *mut c_void, count: *mut u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_zone(object: *mut c_void, count: *mut u32);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    pub fn engine_release_config(object: *mut c_void, count: *mut u32);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_model(object: *mut c_void, count: *mut u32);
     /// 0x2844d0 survarium::lobby_camera::process_collision: camera EAX, point ESI, distance EDI, direction ESP+4; pops 4
     pub fn engine_lobby_camera_ray(camera: *mut c_void, point: *const f32, distance: *mut f32, direction: *const f32);
@@ -277,26 +283,12 @@ unsafe extern "C" {
     pub fn engine_rattle_construct(effect: *mut c_void, root: *const c_void, memory: *mut c_void, scene: *mut c_void) -> *mut c_void;
     /// 0x2605f0 survarium::artefact_cook::on_rattle_resources_loaded: artefact EDI, results ESP+4; pops 4
     pub fn engine_rattle_loaded(artefact: *mut c_void, results: *mut c_void);
-    /// 0x25fb30 survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core: artefact ECX, world ESP+4; pops 4
-    pub fn engine_rattle_set_world(artefact: *mut c_void, world: *mut c_void);
-    /// 0x25fb80 survarium::artefact<artefact_rattle_core>::update_client_state: drawable ECX; pops 0
-    pub fn engine_rattle_draw(drawable: *mut c_void);
-    /// 0x260860 survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor': artefact ECX, flags ESP+4; pops 4; EAX
-    pub fn engine_rattle_destroy(artefact: *mut c_void, flags: u32) -> *mut c_void;
     /// 0x2ee8d0 survarium::artefact_core_cook::finish_query: cook ECX, resource EDX, artefact ESI, query EDI; pops 0
     pub fn engine_cook_finish_query(cook: *mut c_void, resource: *mut c_void, artefact: *mut c_void, query: *mut c_void);
-    /// 0x313200 survarium::artefact_base::tick: artefact ECX, dt ESP+4, time ESP+8; pops 8
-    pub fn engine_artefact_tick(artefact: *mut c_void, dt: u32, time: u32);
-    /// 0x313670 survarium::artefact_base::serialize: artefact ECX, writer ESP+4, dumper ESP+8; pops 8
-    pub fn engine_artefact_serialize(artefact: *mut c_void, writer: *mut c_void, dumper: *mut c_void);
-    /// 0x313760 survarium::artefact_base::deserialize: artefact ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12
-    pub fn engine_artefact_deserialize(artefact: *mut c_void, reader: *mut c_void, a: *mut c_void, b: *mut c_void);
     /// 0x3080b0 survarium::collision_sensor::insert: sensor ESP+4, physics ESP+8; pops 8
     pub fn engine_sensor_insert(sensor: *mut c_void, physics: *mut c_void);
     /// 0x319d30 survarium::damage_zone_core::deactivate: zone ESP+4, flag ESP+8; pops 8
     pub fn engine_zone_deactivate(zone: *mut c_void, flag: u32);
-    /// 0x319a70 survarium::damage_zone_core::tick: zone ECX, dt ESP+4, time ESP+8, on_grid ESP+12; pops 12
-    pub fn engine_zone_tick(zone: *mut c_void, dt: u32, time: u32, on_grid: u32);
     /// 0x2f8c30 survarium::collision_geometry::load: geometry ESP+4, config ESP+8; pops 8
     pub fn engine_geometry_load(geometry: *mut c_void, config: *const c_void);
     /// 0x2f8be0 survarium::collision_geometry::~collision_geometry: geometry ECX; pops 0
@@ -305,6 +297,10 @@ unsafe extern "C" {
     pub fn engine_config_variant_type() -> u32;
     /// 0x2da5b0 survarium::base_player::recompute_damage_collision_bones: player ECX, object ESP+4; pops 4; EAX
     pub fn engine_recompute_damage_collision_bones(player: *mut c_void, object: *const c_void) -> u32;
+    /// virtual vostok::physics::world+0x60 (1 vtables of vtables.tsv: 0x760c0): world ECX, centre ESP+4, radius ESP+8, group ESP+12, mask ESP+16, found ESP+20; pops 20
+    pub fn engine_object_query(world: *mut c_void, centre: *const f32, radius: f32, group: u32, mask: u32, found: *mut c_void);
+    /// virtual vostok::collision::game_object+0x8 (12 vtables of vtables.tsv: 0x1f56b0, 0x300040): owner ECX; pops 0; EAX
+    pub fn engine_collision_owner(owner: *mut c_void) -> *mut c_void;
 }
 
 #[allow(dead_code)]
@@ -381,6 +377,64 @@ unsafe extern "thiscall" {
     pub fn engine_translate_query(cook: *mut c_void, query: *mut c_void);
     /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
     pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
+    /// 0x25fb30 survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core: artefact ECX, world ESP+4; pops 4; thiscall, called directly
+    pub fn engine_rattle_set_world(artefact: *mut c_void, world: u32);
+    /// 0x25fb80 survarium::artefact<artefact_rattle_core>::update_client_state: drawable ECX; pops 0; thiscall, called directly
+    pub fn engine_rattle_draw(drawable: *mut c_void);
+    /// 0x260860 survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor': artefact ECX, flags ESP+4; pops 4; EAX; thiscall, called directly
+    pub fn engine_rattle_destroy(artefact: *mut c_void, flags: u32) -> u32;
+    /// 0x313200 survarium::artefact_base::tick: artefact ECX, dt ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_artefact_tick(artefact: *mut c_void, dt: u32, time: u32);
+    /// 0x313670 survarium::artefact_base::serialize: artefact ECX, writer ESP+4, dumper ESP+8; pops 8; thiscall, called directly
+    pub fn engine_artefact_serialize(artefact: *mut c_void, writer: *mut c_void, dumper: u32);
+    /// 0x313760 survarium::artefact_base::deserialize: artefact ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12; thiscall, called directly
+    pub fn engine_artefact_deserialize(artefact: *mut c_void, reader: *mut c_void, a: u32, b: u32);
+    /// 0x319a70 survarium::damage_zone_core::tick: zone ECX, dt ESP+4, time ESP+8, on_grid ESP+12; pops 12; thiscall, called directly
+    pub fn engine_zone_tick(zone: *mut c_void, dt: u32, time: u32, on_grid: u32);
+    /// 0x750f0 vostok::physics::bullet_physics_world::update_single_aabb: world ECX, object ESP+4; pops 4; thiscall, called directly
+    pub fn engine_physics_update(world: *mut c_void, object: *mut c_void);
+    /// 0x758b0 vostok::physics::bullet_physics_world::add: world ECX, body ESP+4, group ESP+8, mask ESP+12; pops 12; thiscall, called directly
+    pub fn engine_physics_add_body(world: *mut c_void, body: *mut c_void, group: u32, mask: u32);
+    /// 0x75a60 vostok::physics::bullet_physics_world::remove: world ECX, body ESP+4, wake ESP+8; pops 8; thiscall, called directly
+    pub fn engine_physics_remove_body(world: *mut c_void, body: *mut c_void, wake: u32);
+    /// 0x78310 vostok::physics::bullet_physics_world::subscribe_on_contact: world ECX, body ESP+4, function ESP+8; pops 8; thiscall, called directly
+    pub fn engine_physics_subscribe_contact(world: *mut c_void, body: *mut c_void, function: *mut c_void);
+    /// 0x783a0 vostok::physics::bullet_physics_world::unsubscribe_from_contact: world ECX, body ESP+4, function ESP+8; pops 8; thiscall, called directly
+    pub fn engine_physics_unsubscribe_contact(world: *mut c_void, body: *mut c_void, function: *mut c_void);
+    /// 0x356f70 vostok::physics::bt_dynamic_rigid_body::bullet_object: body ECX; pops 0; EAX; thiscall, called directly
+    pub fn engine_body_object(body: *mut c_void) -> *mut c_void;
+    /// 0x357060 vostok::physics::bt_dynamic_rigid_body::`scalar deleting destructor': body ECX, flags ESP+4; pops 4; thiscall, called directly
+    pub fn engine_body_destroy(body: *mut c_void, flags: u32);
+    /// 0x3578b0 vostok::physics::bullet_rigid_body::set_transform: body ECX, transform ESP+4; pops 4; thiscall, called directly
+    pub fn engine_body_set_transform(body: *mut c_void, transform: *const f32);
+    /// 0x357890 vostok::physics::bullet_rigid_body::get_transform: body ECX, out ESP+4; pops 4; EAX; thiscall, called directly
+    pub fn engine_body_get_transform(body: *mut c_void, out: *mut f32) -> *mut f32;
+    /// 0x2f8fe0 survarium::collision_geometry::set_transform: geometry ECX, transform ESP+4; pops 4; thiscall, called directly
+    pub fn engine_geometry_set_transform(geometry: *mut c_void, transform: *const f32);
+    /// 0x3193f0 survarium::damage_zone_core::serialize: zone ECX, writer ESP+4, dumper ESP+8; pops 8; thiscall, called directly
+    pub fn engine_zone_serialize(zone: *mut c_void, writer: *mut c_void, dumper: *mut c_void);
+    /// 0x319470 survarium::damage_zone_core::deserialize: zone ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12; thiscall, called directly
+    pub fn engine_zone_deserialize(zone: *mut c_void, reader: *mut c_void, a: *mut c_void, b: *mut c_void);
+    /// 0x319e30 survarium::damage_zone_core::on_deserialized: zone ECX, world ESP+4; pops 4; thiscall, called directly
+    pub fn engine_zone_after_load(zone: *mut c_void, world: *mut c_void);
+    /// 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, memory ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
+    pub fn engine_pthreads_free(allocator: *mut c_void, memory: *mut c_void, function: u32, file: u32, line: u32);
+    /// 0x313300 survarium::artefact_base::action: artefact ECX, pressed ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_artefact_action(artefact: *mut c_void, pressed: u32, time: u32);
+    /// 0x313490 survarium::artefact_base::on_removed: artefact ECX; pops 0; thiscall, called directly
+    pub fn engine_artefact_removed(artefact: *mut c_void);
+    /// 0x313470 survarium::artefact_base::on_taken: artefact ECX; pops 0; thiscall, called directly
+    pub fn engine_artefact_added(artefact: *mut c_void);
+    /// 0x1af330 an empty member function (a folded `ret`): object ECX; pops 0; thiscall, called directly
+    pub fn engine_nothing(object: *mut c_void);
+    /// 0x246380 survarium::inventory_item::cast_artefact: inflictor ECX; pops 0; EAX; thiscall, called directly
+    pub fn engine_inflictor_is_grenade(inflictor: *mut c_void) -> u32;
+    /// 0x248300 survarium::grenade_core::position: inflictor ECX; pops 0; EAX; thiscall, called directly
+    pub fn engine_inflictor_position(inflictor: *mut c_void) -> u32;
+    /// 0x27aa20 survarium::network_client::on_match_ready: object ECX, results ESP+4; pops 4; thiscall, called directly
+    pub fn engine_late_join_loaded(object: *mut c_void, results: *mut c_void);
+    /// 0x3041b0 survarium::grenade_core::on_contact: grenade ECX, point ESP+4; pops 4; thiscall, called directly
+    pub fn engine_grenade_contact(grenade: *mut c_void, point: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

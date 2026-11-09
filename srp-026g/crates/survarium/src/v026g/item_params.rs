@@ -166,7 +166,8 @@ pub enum ItemClass {
     /// 2: `booby_trap_set_core`: one trap object of a world's game objects
     /// for each of the kit slot's count.
     TrapSet,
-    /// 3, 6, 7: the core an anomaly's artefact of it has.
+    /// 3, 6, 7, 12 (the Sponge, exe patch 59): the core an anomaly's artefact
+    /// of it has.
     Artefact(Artefact),
     /// 4.
     Armor,
@@ -208,6 +209,7 @@ impl ItemClass {
             3 => Self::Artefact(Artefact::Lifebone),
             6 => Self::Artefact(Artefact::Spring),
             7 => Self::Artefact(Artefact::Onyx),
+            12 => Self::Artefact(Artefact::Sponge),
             4 => Self::Armor,
             5 => Self::Scope,
             9 => Self::GrenadeSet,

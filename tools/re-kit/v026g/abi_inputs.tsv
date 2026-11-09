@@ -3028,7 +3028,7 @@ va	name	location	role	basis
 0x00312bf0	survarium::artefact_onyx_core::protect	stack+8	&damage (float)	observed
 0x00312bf0	survarium::artefact_onyx_core::protect	stack+12	&armour piercing (float)	observed
 0x00313300	survarium::artefact_base::action	ECX	the artefact	verified
-0x00313300	survarium::artefact_base::action	stack+4	bool pressed	verified
+0x00313300	survarium::artefact_base::action	stack+4 low byte	bool pressed (cmp byte [esp+8],0 at 0x31330C)	verified
 0x00313300	survarium::artefact_base::action	stack+8	the time	verified
 0x00313670	survarium::artefact_base::serialize	ECX	artefact	inferred
 0x00313670	survarium::artefact_base::serialize	stack+4	writer	inferred
@@ -5434,7 +5434,7 @@ va	name	location	role	basis
 0x000758b0	vostok::physics::bullet_physics_world::add	stack+12	collision mask passed unchanged to Bullet insertion; native Unicorn check_bullet_bounds_026g	observed
 0x00075a60	vostok::physics::bullet_physics_world::remove	ECX	physics world; removes body without shrinking world AABB; native Unicorn check_bullet_bounds_026g	observed
 0x00075a60	vostok::physics::bullet_physics_world::remove	stack+4	physics body to remove; native Unicorn check_bullet_bounds_026g	observed
-0x00075a60	vostok::physics::bullet_physics_world::remove	stack+8	nonzero requests additional removal notification; native Unicorn check_bullet_bounds_026g	observed
+0x00075a60	vostok::physics::bullet_physics_world::remove	stack+8 low byte	a flag (a byte): nonzero wakes the body's neighbours first (vt+58h 0x75130, activate_all_neighbours, with the body's vt+4 Bullet object); native Unicorn check_bullet_bounds_026g	observed
 0x0032ee90	survarium::bullet::update_bullet_position	EAX	bullet; manager+98h physics world slot64h supplies bounds; outside returns AL=0 at32EF6Ah; native Unicorn check_bullet_bounds_026g	observed
 0x0032ee90	survarium::bullet::update_bullet_position	stack+4	trajectory time in seconds; native Unicorn check_bullet_bounds_026g	observed
 0x0032ee90	survarium::bullet::update_bullet_position	stack+8	acceleration vector; native Unicorn check_bullet_bounds_026g	observed
@@ -5469,7 +5469,7 @@ va	name	location	role	basis
 0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ESP+12	previous simulation milliseconds	verified
 0x002e5d80	survarium::default_game_effect_time_calculator::calculate	ESP+16	current simulation milliseconds	verified
 0x002da790	survarium::base_player::remove	player+33Fh	temporary insertion flag cleared at 0x2DA79D; insert sets it at 0x2DA869. Not in base_player serialize/deserialize (alive +33Ch is); must not gate Medic recipient selection.	observed
-0x00313300	survarium::artefact_base::action	patched entry	patch 54 fire_kind fans a press out to ready same-kind artefacts. Each activation must traverse the original-action bridge to reach hooks at 0x313333; copying the body bypassed Medic in revision 45. Full entrypoint Unicorn regression covers the bridge, ret8 and Onyx behavior.	observed
+0x00313300	survarium::artefact_base::action	code at 0x313300 (patched entry)	patch 54 fire_kind fans a press out to ready same-kind artefacts. Each activation must traverse the original-action bridge to reach hooks at 0x313333; copying the body bypassed Medic in revision 45. Full entrypoint Unicorn regression covers the bridge, ret8 and Onyx behavior.	observed
 0x001f2ad0	survarium::player::render_name	at 0x1F2D7E: ESI, EDI	target player and game_world_ui: [player+10Ch]+178h non-null sets carried-battery modifier; compares HUD row +388h and ORs dirty bit 40h at +389h only on change (0x1F2D98..0x1F2DAB); row is player +114h index times 24 bytes	observed
 0x0023aa10	survarium::game_world_ui::update_player_icons	at 0x23B0B7: BL, ESI	dirty bit 40h emits row +10h as modifier_visible (string 0xA03A38, call 0x23B11C); row +11h dirty flags cleared at 0x23B12B before root.set_player_icons_props (0x23B1C4), including updates with visible false; Flash must consume modifier changes while hidden	observed
 0x001f2ad0	survarium::player::render_name	at 0x1F2B7C / 0x1F2BE8	life/visibility failure goes to 0x1F302C; projection failure hides/returns at 0x1F2C0C, before carry check 0x1F2D7E; successful projection first sets row visible at 0x1F2C25. Ordinary off-screen/drop/reveal does not prove a combined hidden+modifier update reaches Flash	observed
@@ -5615,7 +5615,7 @@ va	name	location	role	basis
 0x000f65a0	vostok::math::float_to_half	entry ESP+4	the float	observed
 0x000f66d0	vostok::math::half_to_float	AX	the half	observed
 0x00241250	survarium::player_input_handler::process_first_person_mode	at 0x2412F4..0x2413D2	the look keys' steps, as on_mouse_move's (0x240226..0x240309): +50h s, +4Ch s * h/w * invert * 3/pi; actions 2 and 3 add +-0.01745 * the second to the yaw +338h, actions 0 and 1 the first to the pitch +33Ah (0.10b's kUP/kDOWN to x); patch 112 leaves this h/w	observed
-0x0027aa20	survarium::network_client::on_match_ready	at 0x27AB84..0x27AC28	journal recording (journal_usage 1, [0xA83948]): writes the sensitivity * 0.1 and h/w * it * invert * 3/pi (0xA2DAC4) to the journal, what playback reads at 0xA9F638 / 0xA9F63C; patch 112 leaves it	observed
+0x0027aa20	survarium::network_client::on_match_ready	code at 0x27AB84..0x27AC28	journal recording (journal_usage 1, [0xA83948]): writes the sensitivity * 0.1 and h/w * it * invert * 3/pi (0xA2DAC4) to the journal, what playback reads at 0xA9F638 / 0xA9F63C; patch 112 leaves it	observed
 0x00283d30	survarium::lobby_camera::on_mouse_move	at 0x283E00..0x283E8C	the drag's yaw +CCh -= dx/180*pi * sensitivity * 0.1; pitch +D0h -= dy/180*pi * the same * h/w * 3/pi (0xA2DAC4), h/w the render window's; no fov factor, no invert; patch 112 leaves it	observed
 0x00042050		EAX	&the CRC, updated a byte a step: crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T the table 0x225FD68 (0x1C210 makes it from 04C11DB7h reflected); the callers do the start and the end	observed
 0x00042050		EDX	the bytes	observed
@@ -5935,3 +5935,29 @@ va	name	location	role	basis
 0x0033a730	survarium::weapon_core_throw_grenade_state::is_grenade_slot_held	entry ESP+4	the answer wanted (u8)	observed
 0x00364f10	vostok::particle::particle_system::construct_action<vostok::configs::binary_config_value>	entry ESP+10h	the action's config by value (24 bytes: type_index, properties)	observed
 0x00077e50	vostok::physics::bullet_physics_world::notify_about_contact	entry ESP+4	the physics world: each manifold's two collision objects' +F8h (the rigid bodies) looked up in its contact subscriptions (+0Ch, by body), each subscribed function called with the contact point (0x780BB: the function's vtable +4, its buffer)	observed
+0x000750f0	vostok::physics::bullet_physics_world::update_single_aabb	ECX	the physics world (vtable 0x9E2EBC, its slot +20h)	observed
+0x000750f0	vostok::physics::bullet_physics_world::update_single_aabb	entry ESP+4	a Bullet collision object (a body's vt+4, bt_dynamic_rigid_body +14h): its AABB, its broadphase proxy +0C8h	observed
+0x00356f70	vostok::physics::bt_dynamic_rigid_body::bullet_object	ECX	the body (bt_dynamic_rigid_body, vtable 0xA1F2F0 slots +4 and +0Ch)	observed
+0x00357060	vostok::physics::bt_dynamic_rigid_body::`scalar deleting destructor'	ECX	the body (bt_dynamic_rigid_body, vtable 0xA1F2F0 slot +8)	observed
+0x00357060	vostok::physics::bt_dynamic_rigid_body::`scalar deleting destructor'	entry ESP+4	flags (bit 0: free the memory, 0x420F17; grenade_core's destructor 0x3037BC passes 0 and frees it to the physics allocator, 0x3037D6)	observed
+0x003578b0	vostok::physics::bullet_rigid_body::set_transform	ECX	the body (bt_dynamic_rigid_body, vtable 0xA1F2F0 slot +18h)	observed
+0x003578b0	vostok::physics::bullet_rigid_body::set_transform	entry ESP+4	&the float4x4 world transform ([ebp+8])	observed
+0x00357890	vostok::physics::bullet_rigid_body::get_transform	ECX	the body (bt_dynamic_rigid_body, vtable 0xA1F2F0 slot +1Ch; splash_hit calls a found object's at 0x3396CE)	observed
+0x00357890	vostok::physics::bullet_rigid_body::get_transform	entry ESP+4	&the float4x4 out, returned in EAX	observed
+0x00319470	survarium::damage_zone_core::deserialize	entry ESP+12	the third argument: unread, popped (ret 0Ch); artefact_base::deserialize's third	observed
+0x00319e30	survarium::damage_zone_core::on_deserialized	ECX	damage-zone serialization subobject at complete object+130h (vtable 0xA0B900 / 0xA16628 slot +8; ECX-130h the zone)	observed
+0x00319e30	survarium::damage_zone_core::on_deserialized	entry ESP+4	the game world core ([ebp+8], ESI of active_player_ptr 0x2D0AB0 for each hit record)	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	entry ESP+8	the function name string, unread (0x9DC2BC std_allocator<void *>::deallocate, splash_hit 0x3398DB; 0xA1F294 destroy_dynamic_rigid_body, 0x3037CE)	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	entry ESP+12	the source file string, unread (0x9DC1E0 std_allocator_inline.h, 0x3398D6; 0xA1F278 dynamic_rigid_body.cpp, 0x3037C9)	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	entry ESP+16	the line, unread (67h, 4Eh); popped (ret 10h)	observed
+0x000760c0	vostok::physics::bullet_physics_world::get_all_objects_in_radius	ECX	the physics world (vtable 0x9E2EBC slot +60h; splash_hit's [hits+98h], 0x339640)	observed
+0x000760c0	vostok::physics::bullet_physics_world::get_all_objects_in_radius	entry ESP+4	&the centre (float3: the sphere's translation, 0x573C0)	observed
+0x000760c0	vostok::physics::bullet_physics_world::get_all_objects_in_radius	entry ESP+8	the radius, a float (movss [ebp+0Ch]; the splash's fstp 0x339660)	observed
+0x000760c0	vostok::physics::bullet_physics_world::get_all_objects_in_radius	entry ESP+12	the collision group of the query's sphere (its btCollisionWorld vt+1Ch add, 0x7618E; the splash's 10h)	observed
+0x000760c0	vostok::physics::bullet_physics_world::get_all_objects_in_radius	entry ESP+16	the collision mask (0x76182; the splash's 40h)	observed
+0x000760c0	vostok::physics::bullet_physics_world::get_all_objects_in_radius	entry ESP+20	&the found objects' vector {begin, end, allocator, capacity end}: each found collision object's +0F8h appended (0x7626A)	observed
+0x001af330	an empty member function (a folded `ret`)	ECX	this, unread (Rattle's enable_passive and disable_passive, vtable 0xA06124 slots +7Ch and +84h; weapon states' execute)	observed
+0x00246380	survarium::inventory_item::cast_artefact	ECX	a hit inflictor: grenade_core's at its +0 (vtable 0xA13FB8 slot +4, is_grenade: the grenade itself)	observed
+0x00248300	survarium::grenade_core::position	ECX	a hit inflictor: grenade_core's at its +0 (vtable 0xA13FB8 slot +8; grenade's 0xA046A0 slot +8)	observed
+0x001f56b0	survarium::base_player::game_object_player (adjustor)	ECX	an owner: a player's vostok::collision::game_object at +118h (player 0x9FB3DC, base_player 0xA10B24, slot +8)	observed
+0x00300040	a folded `xor eax,eax / ret`	ECX	this, unread (any object; as a physics object's owner, vostok::collision::game_object slot +8: an owner that is no player)	observed

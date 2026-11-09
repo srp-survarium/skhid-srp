@@ -169,8 +169,8 @@ def heading(o):
 
 def objects(project, artefact_keys, spots=()):
     """What the tab shows of one project; `spots` its mode config's
-    `mode/artefact_spots` (exe patch 59, srp-026g/client-patches/sponge_a_026g.c
-    sp_spawn_pick): a picked container of a core that spawns artefacts spawns
+    `mode/artefact_spots` (exe patch 59, srp-026g/crates/sponge spots and vostok::sponge
+    spots::spawn): a picked container of a core that spawns artefacts spawns
     only its kind (a kind the items_dict lacks: the core's own); the core's
     other containers its own kinds."""
     picked = {(s["core"], s["index"]): s["kind"] for s in spots or ()}

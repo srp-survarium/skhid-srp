@@ -3105,6 +3105,729 @@ pub extern "C" fn hook_sound_voices_on_voice_made(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_construct (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnConstructExit { Done }
+/// The entry `sponge_on_construct` (0x25e685, the artefact cook's construct 0x25E660 at its type (mov eax,[eax] / add eax,-3; EAX &data/type): a sponge (12) constructed, the function's own epilogue (pop edi/esi/ebx, ret 10h) with EAX the object) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_construct(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_construct` calls this, from the game's jump at 0x25e685,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_construct(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_size (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnSizeExit { Done }
+/// The entry `sponge_on_size` (0x25e795, the artefact cook's size 0x25E770 at its type (mov eax,[eax] / add eax,-3): a sponge's size, the function's epilogue (pop edi/esi/ebx, ret 4) with EAX the size) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_size(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_size` calls this, from the game's jump at 0x25e795,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_size(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_query (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnQueryExit { Done }
+/// The entry `sponge_on_query` (0x25e800, the artefact cook's query_for_derived_resources entry (push ebp / mov ebp,esp / and esp,-8; thiscall, ret 0Ch): a sponge's query made, its bare ret 0Ch) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_query(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_query` calls this, from the game's jump at 0x25e800,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_query(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_predicate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnPredicateExit { On }
+/// The entry `sponge_on_predicate` (0x2e40c6, can_start_throw_grenade 0x2E4090, the grenade slot's item (mov eax,[ecx] / mov edx,[eax+64h]; before its vt+64h and 0x30A090): a sponge's answer or an empty slot's no in AL, at test al,al) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_predicate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_predicate` calls this, from the game's jump at 0x2e40c6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_predicate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_ready (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnReadyExit { Yes, No }
+/// The entry `sponge_on_ready` (0x33a66d, the throw state's is_ready 0x33A650 at its grenade's index (mov al,[esi+180h]): a sponge's (its zone on) or no grenade's answer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_ready` calls this, from the game's jump at 0x33a66d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_throw (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnThrowExit { On }
+/// The entry `sponge_on_throw` (0x33a7bb, the throw state's throw 0x33A770 before its pushes and call 0x30A250 (mov ecx,[esi+17Ch] / add edi,44Ch): a sponge thrown, or nothing for no grenade, at pop edi) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_throw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_throw` calls this, from the game's jump at 0x33a7bb,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_throw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_pull (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnPullExit { On }
+/// The entry `sponge_on_pull` (0x3103c9, the pull substate's initialize 0x3103A0 before its call 0x30A120 (mov esi,[esi+138h]; EAX the player's time): a sponge's pull (index 0) or no grenade's (FFh) in AL, ESI the throw state, at pop edi) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_pull(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_pull` calls this, from the game's jump at 0x3103c9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_pull(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_save (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnSaveExit { On }
+/// The entry `sponge_on_save` (0x33a51b, the throw state's serialize 0x33A4E0 at its grenade's slot (mov ecx,[ebx+17Ch] / mov dl,[ecx+254h]): DL 17h for no grenade held) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_save` calls this, from the game's jump at 0x33a51b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_load (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnLoadExit { On }
+/// The entry `sponge_on_load` (0x33a5ab, the throw state's deserialize 0x33A570 after its slot byte (CL; mov eax,[ebx+120h]): no item (EAX 0) for a slot past the inventory's 23) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_load` calls this, from the game's jump at 0x33a5ab,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The entry `sponge_on_zone_hit` (0x319ca1, damage_zone_core's hit loop before the receiver's vt+20h call's last pushes (mov edx,[esp+0B4h] / push ebx / push edx; EBX 0 the instigator pushed): a sponge's zone names its thrower, its inflictor and it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_zone_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_zone_hit` calls this, from the game's jump at 0x319ca1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_zone_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The entry `sponge_on_zone_hit_done` (0x319cac, the hit loop after the receiver's call (add esi,1Ch / cmp esi,ebp): EBX back to the loop's 0 after sponge.zone_hit lent it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_zone_hit_done(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_zone_hit_done` calls this, from the game's jump at 0x319cac,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_zone_hit_done(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The entry `sponge_on_artefacts` (0x2e9d58, generic_anomaly_core_cook::query_for_artefacts after its look-up of the core's artefacts (mov [ebp-0Ch],eax / movzx eax,word [eax+16h]; EAX the table): a core with spots reads a copy with the Sponge's units) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_artefacts(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_artefacts` calls this, from the game's jump at 0x2e9d58,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_artefacts(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The entry `sponge_on_links` (0x33c634, generic_anomaly_core's resolve_links 0x33C440 (its vtable 0xA16A10 slot 0) at its epilogue (pop edi/esi/ebp/ebx / add esp,1Ch): the core's picked containers kept) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_links(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_links` calls this, from the game's jump at 0x33c634,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_links(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The named exits of sponge::on_spawn (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpongeOnSpawnExit { Take, Nothing }
+/// The entry `sponge_on_spawn` (0x31b800, spawn_artefact 0x31B6C0, the container chosen (xor ebx,ebx / mov [ebp-18h],ecx / mov [ebp-14h],eax, before the free list): the artefact taken (EDX, its third draw made) or none (the next delay)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sponge_on_spawn(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sponge_on_spawn` calls this, from the game's jump at 0x31b800,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sponge::on_spawn(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_rattle_destroy (0x260860), as the vtable hook at 0xa06124 wraps it.
+pub struct OrigRattleDestroy;
+
+impl OrigRattleDestroy {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, artefact: &mut crate::vostok::sponge::Sponge, flags: u32) -> u32 {
+        // SAFETY: engine_rattle_destroy at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_rattle_destroy(Some(artefact.raw()), flags) }
+    }
+}
+
+/// The entry `sponge_on_destroy` (0xa06124, Rattle's artefact slot 0 (scalar deleting destructor 0x260860)) calls this with
+/// engine_rattle_destroy's 2 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_destroy`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_destroy(a0: Option<raw::Artefact>, a1: u32) -> u32 {
+    // SAFETY: only the entry `sponge_on_destroy` calls this, from the game's call at
+    // 0xa06124, on the game's thread; a0.. are engine_rattle_destroy's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut artefact) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return unsafe { raw::engine_rattle_destroy(a0, a1) };
+    };
+    let flags = a1;
+    let orig = OrigRattleDestroy;
+    crate::sponge::on_destroy(&orig, &mut artefact, flags)
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_artefact_action (0x313300), as the vtable hook at 0xa06150 wraps it.
+pub struct OrigArtefactAction;
+
+impl OrigArtefactAction {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, artefact: &mut crate::vostok::sponge::Sponge, pressed: u32, time: u32) {
+        // SAFETY: engine_artefact_action at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_artefact_action(Some(artefact.raw()), pressed, time) }
+    }
+}
+
+/// The entry `sponge_on_action` (0xa06150, slot 11 +2Ch, action(pressed, time): artefact_base::action 0x313300) calls this with
+/// engine_artefact_action's 3 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_action`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_action(a0: Option<raw::Artefact>, a1: u32, a2: u32) -> u32 {
+    // SAFETY: only the entry `sponge_on_action` calls this, from the game's call at
+    // 0xa06150, on the game's thread; a0.. are engine_artefact_action's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut artefact) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_artefact_action(a0, a1, a2) }; 0 };
+    };
+    let pressed = a1;
+    let time = a2;
+    let orig = OrigArtefactAction;
+    { crate::sponge::on_action(&orig, &mut artefact, pressed, time); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_artefact_removed (0x313490), as the vtable hook at 0xa06158 wraps it.
+pub struct OrigArtefactRemoved;
+
+impl OrigArtefactRemoved {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, artefact: &mut crate::vostok::sponge::Sponge) {
+        // SAFETY: engine_artefact_removed at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_artefact_removed(Some(artefact.raw())) }
+    }
+}
+
+/// The entry `sponge_on_removed` (0xa06158, slot 13 +34h, removed_from_inventory: 0x313490) calls this with
+/// engine_artefact_removed's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_removed`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_removed(a0: Option<raw::Artefact>) -> u32 {
+    // SAFETY: only the entry `sponge_on_removed` calls this, from the game's call at
+    // 0xa06158, on the game's thread; a0.. are engine_artefact_removed's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut artefact) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_artefact_removed(a0) }; 0 };
+    };
+    let orig = OrigArtefactRemoved;
+    { crate::sponge::on_removed(&orig, &mut artefact); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_artefact_added (0x313470), as the vtable hook at 0xa0615c wraps it.
+pub struct OrigArtefactAdded;
+
+impl OrigArtefactAdded {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, artefact: &mut crate::vostok::sponge::Sponge) {
+        // SAFETY: engine_artefact_added at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_artefact_added(Some(artefact.raw())) }
+    }
+}
+
+/// The entry `sponge_on_revived` (0xa0615c, slot 14 +38h, revived (the holder back from state 5): 0x313470, added_to_inventory's) calls this with
+/// engine_artefact_added's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_revived`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_revived(a0: Option<raw::Artefact>) -> u32 {
+    // SAFETY: only the entry `sponge_on_revived` calls this, from the game's call at
+    // 0xa0615c, on the game's thread; a0.. are engine_artefact_added's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut artefact) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_artefact_added(a0) }; 0 };
+    };
+    let orig = OrigArtefactAdded;
+    { crate::sponge::on_revived(&orig, &mut artefact); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_artefact_serialize (0x313670), as the vtable hook at 0xa0618c wraps it.
+pub struct OrigArtefactSerialize;
+
+impl OrigArtefactSerialize {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, artefact: &mut crate::vostok::sponge::Sponge, writer: &mut crate::vostok::sponge::SpongeWriter, dumper: u32) {
+        // SAFETY: engine_artefact_serialize at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_artefact_serialize(Some(artefact.raw()), Some(writer.raw()), dumper) }
+    }
+}
+
+/// The entry `sponge_on_serialize` (0xa0618c, slot 26 +68h, serialize(writer, dumper): 0x313670) calls this with
+/// engine_artefact_serialize's 3 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_serialize`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_serialize(a0: Option<raw::Artefact>, a1: Option<raw::BufferWriter>, a2: u32) -> u32 {
+    // SAFETY: only the entry `sponge_on_serialize` calls this, from the game's call at
+    // 0xa0618c, on the game's thread; a0.. are engine_artefact_serialize's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut artefact) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_artefact_serialize(a0, a1, a2) }; 0 };
+    };
+    let Some(mut writer) = (unsafe { crate::vostok::sponge::SpongeWriter::from_raw(&thread, a1) }) else {
+        // a null SpongeWriter never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_artefact_serialize(a0, a1, a2) }; 0 };
+    };
+    let dumper = a2;
+    let orig = OrigArtefactSerialize;
+    { crate::sponge::on_serialize(&orig, &mut artefact, &mut writer, dumper); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_artefact_deserialize (0x313760), as the vtable hook at 0xa06190 wraps it.
+pub struct OrigArtefactDeserialize;
+
+impl OrigArtefactDeserialize {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, artefact: &mut crate::vostok::sponge::Sponge, reader: &mut crate::vostok::sponge::SpongeReader, a: u32, b: u32) {
+        // SAFETY: engine_artefact_deserialize at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_artefact_deserialize(Some(artefact.raw()), Some(reader.raw()), a, b) }
+    }
+}
+
+/// The entry `sponge_on_deserialize` (0xa06190, slot 27 +6Ch, deserialize(reader, a, b): 0x313760) calls this with
+/// engine_artefact_deserialize's 4 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_deserialize`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_deserialize(a0: Option<raw::Artefact>, a1: Option<raw::BufferReader>, a2: u32, a3: u32) -> u32 {
+    // SAFETY: only the entry `sponge_on_deserialize` calls this, from the game's call at
+    // 0xa06190, on the game's thread; a0.. are engine_artefact_deserialize's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut artefact) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_artefact_deserialize(a0, a1, a2, a3) }; 0 };
+    };
+    let Some(mut reader) = (unsafe { crate::vostok::sponge::SpongeReader::from_raw(&thread, a1) }) else {
+        // a null SpongeReader never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_artefact_deserialize(a0, a1, a2, a3) }; 0 };
+    };
+    let a = a2;
+    let b = a3;
+    let orig = OrigArtefactDeserialize;
+    { crate::sponge::on_deserialize(&orig, &mut artefact, &mut reader, a, b); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_rattle_set_world (0x25fb30), as the vtable hook at 0xa06194 wraps it.
+pub struct OrigRattleSetWorld;
+
+impl OrigRattleSetWorld {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, artefact: &mut crate::vostok::sponge::Sponge, world: u32) {
+        // SAFETY: engine_rattle_set_world at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_rattle_set_world(Some(artefact.raw()), world) }
+    }
+}
+
+/// The entry `sponge_on_set_world` (0xa06194, slot 28 +70h, set_game_world_core(world): Rattle's 0x25FB30) calls this with
+/// engine_rattle_set_world's 2 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_set_world`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_set_world(a0: Option<raw::Artefact>, a1: u32) -> u32 {
+    // SAFETY: only the entry `sponge_on_set_world` calls this, from the game's call at
+    // 0xa06194, on the game's thread; a0.. are engine_rattle_set_world's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut artefact) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_rattle_set_world(a0, a1) }; 0 };
+    };
+    let world = a1;
+    let orig = OrigRattleSetWorld;
+    { crate::sponge::on_set_world(&orig, &mut artefact, world); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_artefact_tick (0x313200), as the vtable hook at 0xa06198 wraps it.
+pub struct OrigArtefactTick;
+
+impl OrigArtefactTick {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, artefact: &mut crate::vostok::sponge::Sponge, dt: u32, time: u32) {
+        // SAFETY: engine_artefact_tick at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_artefact_tick(Some(artefact.raw()), dt, time) }
+    }
+}
+
+/// The entry `sponge_on_tick` (0xa06198, slot 29 +74h, tick(dt, time): artefact_base::tick 0x313200) calls this with
+/// engine_artefact_tick's 3 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_tick`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_tick(a0: Option<raw::Artefact>, a1: u32, a2: u32) -> u32 {
+    // SAFETY: only the entry `sponge_on_tick` calls this, from the game's call at
+    // 0xa06198, on the game's thread; a0.. are engine_artefact_tick's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut artefact) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_artefact_tick(a0, a1, a2) }; 0 };
+    };
+    let dt = a1;
+    let time = a2;
+    let orig = OrigArtefactTick;
+    { crate::sponge::on_tick(&orig, &mut artefact, dt, time); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_nothing (0x1af330), as the vtable hook at 0xa061a0 wraps it.
+pub struct OrigNothing;
+
+impl OrigNothing {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, object: &mut crate::vostok::sponge::Sponge) {
+        // SAFETY: engine_nothing at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_nothing(Some(object.raw())) }
+    }
+}
+
+/// The entry `sponge_on_enable_passive` (0xa061a0, slot 31 +7Ch, enable_passive: Rattle's none (0x1AF330 ret)) calls this with
+/// engine_nothing's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_enable_passive`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_enable_passive(a0: Option<raw::Artefact>) -> u32 {
+    // SAFETY: only the entry `sponge_on_enable_passive` calls this, from the game's call at
+    // 0xa061a0, on the game's thread; a0.. are engine_nothing's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut object) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_nothing(a0) }; 0 };
+    };
+    let orig = OrigNothing;
+    { crate::sponge::on_enable_passive(&orig, &mut object); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The entry `sponge_on_disable_passive` (0xa061a8, slot 33 +84h, disable_passive: Rattle's none (0x1AF330 ret)) calls this with
+/// engine_nothing's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_disable_passive`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_disable_passive(a0: Option<raw::Artefact>) -> u32 {
+    // SAFETY: only the entry `sponge_on_disable_passive` calls this, from the game's call at
+    // 0xa061a8, on the game's thread; a0.. are engine_nothing's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut object) = (unsafe { crate::vostok::sponge::Sponge::from_raw(&thread, a0) }) else {
+        // a null Sponge never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_nothing(a0) }; 0 };
+    };
+    let orig = OrigNothing;
+    { crate::sponge::on_disable_passive(&orig, &mut object); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_rattle_draw (0x25fb80), as the vtable hook at 0xa061b8 wraps it.
+pub struct OrigRattleDraw;
+
+impl OrigRattleDraw {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, drawable: &mut crate::vostok::sponge::SpongeDrawable) {
+        // SAFETY: engine_rattle_draw at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_rattle_draw(Some(drawable.raw())) }
+    }
+}
+
+/// The entry `sponge_on_draw` (0xa061b8, Rattle's drawable slot 0, its draw 0x25FB80 (the scene's loop 0x23DD41)) calls this with
+/// engine_rattle_draw's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_draw`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_draw(a0: Option<raw::SceneDrawable>) -> u32 {
+    // SAFETY: only the entry `sponge_on_draw` calls this, from the game's call at
+    // 0xa061b8, on the game's thread; a0.. are engine_rattle_draw's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut drawable) = (unsafe { crate::vostok::sponge::SpongeDrawable::from_raw(&thread, a0) }) else {
+        // a null SpongeDrawable never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_rattle_draw(a0) }; 0 };
+    };
+    let orig = OrigRattleDraw;
+    { crate::sponge::on_draw(&orig, &mut drawable); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_inflictor_is_grenade (0x246380), as the vtable hook at 0xa13fbc wraps it.
+pub struct OrigInflictorIsGrenade;
+
+impl OrigInflictorIsGrenade {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, inflictor: &mut crate::vostok::sponge::SpongeInflictor) -> u32 {
+        // SAFETY: engine_inflictor_is_grenade at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_inflictor_is_grenade(Some(inflictor.raw())) }
+    }
+}
+
+/// The entry `sponge_on_is_grenade` (0xa13fbc, grenade_core's hit_inflictor slot 1 (0x246380)) calls this with
+/// engine_inflictor_is_grenade's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_is_grenade`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_is_grenade(a0: Option<raw::HitInflictor>) -> u32 {
+    // SAFETY: only the entry `sponge_on_is_grenade` calls this, from the game's call at
+    // 0xa13fbc, on the game's thread; a0.. are engine_inflictor_is_grenade's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut inflictor) = (unsafe { crate::vostok::sponge::SpongeInflictor::from_raw(&thread, a0) }) else {
+        // a null SpongeInflictor never happens at this site; take the unpatched path.
+        return unsafe { raw::engine_inflictor_is_grenade(a0) };
+    };
+    let orig = OrigInflictorIsGrenade;
+    crate::sponge::on_is_grenade(&orig, &mut inflictor)
+}
+
+// ---- sponge (patch 59) ----
+
+/// engine_inflictor_position (0x248300), as the vtable hook at 0xa13fc0 wraps it.
+pub struct OrigInflictorPosition;
+
+impl OrigInflictorPosition {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, inflictor: &mut crate::vostok::sponge::SpongeInflictor) -> u32 {
+        // SAFETY: engine_inflictor_position at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_inflictor_position(Some(inflictor.raw())) }
+    }
+}
+
+/// The entry `sponge_on_position` (0xa13fc0, its slot 2, the position (0x248300)) calls this with
+/// engine_inflictor_position's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_position`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_position(a0: Option<raw::HitInflictor>) -> u32 {
+    // SAFETY: only the entry `sponge_on_position` calls this, from the game's call at
+    // 0xa13fc0, on the game's thread; a0.. are engine_inflictor_position's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut inflictor) = (unsafe { crate::vostok::sponge::SpongeInflictor::from_raw(&thread, a0) }) else {
+        // a null SpongeInflictor never happens at this site; take the unpatched path.
+        return unsafe { raw::engine_inflictor_position(a0) };
+    };
+    let orig = OrigInflictorPosition;
+    crate::sponge::on_position(&orig, &mut inflictor)
+}
+
+// ---- sponge (patch 59) ----
+
+/// The convention of engine_grenade_contact (0x3041b0), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigGrenadeContact;
+
+/// The entry `sponge_on_contact` (a callback in engine_grenade_contact's convention, grenade_core::on_contact's convention (thiscall, the contact point; ret 4), which the physics world's boost invoker 0x202300 calls (ECX the object + adjust): the Sponge's contacts)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_contact`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_contact(a0: Option<raw::Artefact>, a1: u32) -> u32 {
+    // SAFETY: only the entry `sponge_on_contact` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let mut sponge = unsafe { crate::vostok::sponge::SpongeCallee::bind(&thread, a0) };
+    let point = a1;
+    { crate::sponge::on_contact(&mut sponge, point); 0 }
+}
+
+// ---- sponge (patch 59) ----
+
+/// The convention of engine_late_join_loaded (0x27aa20), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigLateJoinLoaded;
+
+/// The entry `sponge_on_loaded` (a callback in engine_late_join_loaded's convention, a member bound by 0x27D280's convention (thiscall, the queries_result; ret 4), which the resource system's boost invoker 0x202300 calls: the Sponge's resources loaded)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `sponge_on_loaded`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_sponge_on_loaded(a0: Option<raw::Artefact>, a1: Option<raw::QueriesResult>) -> u32 {
+    // SAFETY: only the entry `sponge_on_loaded` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let mut sponge = unsafe { crate::vostok::sponge::SpongeCallee::bind(&thread, a0) };
+    let mut results = unsafe { crate::vostok::sponge::SpongeLoad::bind(&thread, a1) };
+    { crate::sponge::on_loaded(&mut sponge, &mut results); 0 }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.
@@ -3832,6 +4555,24 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
 }
 
+unsafe extern "C" { fn sponge_on_contact(); }
+/// The entry `sponge_on_contact`, in engine_grenade_contact's convention (grenade_core::on_contact's convention (thiscall, the contact point; ret 4), which the physics world's boost invoker 0x202300 calls (ECX the object + adjust): the Sponge's contacts): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn sponge_on_contact_entry() -> super::hook::CallbackEntry<OrigGrenadeContact> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_grenade_contact, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(sponge_on_contact as *const () as *const c_void) }
+}
+
+unsafe extern "C" { fn sponge_on_loaded(); }
+/// The entry `sponge_on_loaded`, in engine_late_join_loaded's convention (a member bound by 0x27D280's convention (thiscall, the queries_result; ret 4), which the resource system's boost invoker 0x202300 calls: the Sponge's resources loaded): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn sponge_on_loaded_entry() -> super::hook::CallbackEntry<OrigLateJoinLoaded> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_late_join_loaded, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(sponge_on_loaded as *const () as *const c_void) }
+}
+
 unsafe extern "C" { static lamps_visual_vtable: [u32; 3]; }
 pub fn lamps_visual_vtable_handle() -> super::project::NativeVtable<raw::RenderVisualMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
@@ -3842,4 +4583,22 @@ unsafe extern "C" { static lamps_light_vtable: [u32; 11]; }
 pub fn lamps_light_vtable_handle() -> super::project::NativeVtable<raw::ObjectLightMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
     unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_light_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static sponge_artefact_vtable: [u32; 37]; }
+pub fn sponge_artefact_vtable_handle() -> super::project::NativeVtable<raw::RattleArtefactMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(sponge_artefact_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static sponge_drawable_vtable: [u32; 2]; }
+pub fn sponge_drawable_vtable_handle() -> super::project::NativeVtable<raw::RattleDrawableMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(sponge_drawable_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static sponge_inflictor_vtable: [u32; 5]; }
+pub fn sponge_inflictor_vtable_handle() -> super::project::NativeVtable<raw::GrenadeInflictorMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(sponge_inflictor_vtable).cast::<u32>().add(1) as usize as u32) }
 }

@@ -142,7 +142,7 @@ Read from `/mnt/hdd/survarium-offload/0.69d0/Survarium.zip`:
 
 - The press is an input. The pin, throw, explosion and zone ticks are on the 50 ms grid. A
   contact is ruled at the next tick; the sensor's sweep is part of the tick.
-- Its state is one tagged union (sponge_a_026g.c `struct sp_state`, AGENTS.md types and states):
+- Its state is one tagged enum (the sponge crate's `machine::State`, AGENTS.md types and states):
   - held, as artefact_base has it;
   - in the hand (the fuse's end, the thrower, the first contact, whether a throw state holds it);
   - in the air (the same, and the physics world);
@@ -200,7 +200,17 @@ Read from `/mnt/hdd/survarium-offload/0.69d0/Survarium.zip`:
 - `data/mtl_idx` 45 is the edit list `sponge-material-1`'s.
 - The lobby icon: atlas cell [22, 1] (in 0.26g already). The combat-log icon 17: 0.26g's empty
   frame (no weapon uses it), drawn by the hud movie's `SpongeLogIcon`.
-- The server needs nothing: it reads the item from the game data; artefacts are never sold.
+- The server reads the item from the game data (`data/type` 12, `ItemClass::Artefact(Sponge)`);
+  artefacts are never sold.
+- The world format (srp-validate, the server's and every game's check): an anomaly core with
+  spots has one Sponge for each after its own artefacts (`maps::Spots`, from the map's mode
+  config, the counting `sponge::spots::picks`, as `sp_artefacts`). A Sponge's record is
+  artefact_base's (m_state 6 and 7 a Sponge's only, never 4; in state 6 patch 78's 20-byte carry
+  record, all 0xFF, between m_time_left_to_cool and m_last_activation_time_ms: 0x313735 /
+  0x3137EC), then its own fields (`sponge::record::parse`), and with its cloud on the zone's
+  damage_zone_core record (its serializable +130h: 0x3193F0, u32 and a 0x00/0xFF bool) and the
+  explosion's transform. A throw state with no grenade held saves slot 23 (`StateData::
+  ThrowGrenade`'s `grenade_slot` `None`).
 
 ## Release
 

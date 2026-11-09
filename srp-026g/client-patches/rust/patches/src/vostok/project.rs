@@ -22,6 +22,11 @@ impl<T> NativeVtable<T> {
     pub(in crate::vostok) unsafe fn from_address(address: u32) -> Self {
         Self { address: NonZeroU32::new(address).expect("linked vtable"), layout: PhantomData }
     }
+
+    /// Its address, as an object's vtable field holds it.
+    pub(in crate::vostok) fn address(self) -> u32 {
+        self.address.get()
+    }
 }
 
 pub struct MethodTables {

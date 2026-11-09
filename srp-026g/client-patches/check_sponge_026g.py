@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Run patch 59 (the Sponge, artefact type 12: sponge_a_026g.asm,
-sponge_a_026g.c) in the default build on made-up cooks, inventories,
+"""Run patch 59 (the Sponge, artefact type 12: the Rust patch `sponge`,
+rust/patches/src/sponge.toml, vostok::sponge and the sponge crate) in the default build on made-up cooks, inventories,
 players, worlds and zones; its first-contact rule beside 0.26g's own
 grenade_core's (0x3041B0) and 0.31a2's (the first build whose Sponge
 explodes on contact); 0.28d0's own sponge code on the same inputs where the
 Sponge is still 0.28's (the throw, the passive's callback, the splash).
 
-    python check_sponge_a_026g.py <original survarium.exe> [--v028d0 <0.28d0 survarium.exe>]
+    python check_sponge_026g.py <original survarium.exe> [--v028d0 <0.28d0 survarium.exe>]
                                   [--v031a2 <0.31a2 survarium.exe>]
                                   [--options <artefact_sponge.options>] [--pack <sponge-5 folder>]
                                   [--project <a map's client_project>]... [--spots <artefact-spots-1.json>]
@@ -73,18 +73,59 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts", "research-mode"))
 import bcw  # noqa: E402
 
-# The arena's link (link_026g.py): the sponge's C functions and data, and
-# sp_g, the state the zone's hit hook reads (the block sponge.state).
+# The arena's link (link_026g.py): the patch's generated vtable copies and
+# callback entries (globals of patches.code), and two statics of
+# vostok::sponge the cases read (locals: found by their names' v0 mangling).
 ARENA = base.arena()
-SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith("sp_")}
-STATE = SYMBOLS["sp_g"]
+
+
+def local(name):
+    """the VA of the one symbol of the link whose name ends in `name` (a static's)"""
+    found = {va for symbol, va, *_ in ARENA.every if symbol.endswith(f"{len(name)}{name}")}
+    if len(found) != 1:
+        sys.exit(f"check_sponge_026g: the link has {len(found)} symbols {name}")
+    return found.pop()
+
+
+SYMBOLS = {"sp_vtable": ARENA.symbols["sponge_artefact_vtable"],
+           "sp_drawable_vtable": ARENA.symbols["sponge_drawable_vtable"],
+           "sp_inflictor_vtable": ARENA.symbols["sponge_inflictor_vtable"],
+           "sp_contact": ARENA.symbols["sponge_on_contact"], "sp_loaded": ARENA.symbols["sponge_on_loaded"]}
+# vostok::sponge's ZONE_HIT (repr C, u32): 0 idle, 1 a sponge's zone ticking, 2 EBX lent; then {zone,
+# instigator, inflictor, item}
+ZONE_HIT = local("ZONE_HIT")
+# its SPOTS (the sponge crate's SpotTable, repr C): 64 places {tag (1 taken), core, generation, picks},
+# then the generation
+SPOTS = local("SPOTS")
+
+
+def zone_hit(r):
+    """what the zone hit hooks name now: (zone, instigator, inflictor, item), zeros when idle"""
+    return tuple(r.read(ZONE_HIT + 4 + 4 * i) for i in range(4)) if r.read(ZONE_HIT) in (1, 2) else (0, 0, 0, 0)
+
+
+def set_zone_hit(r, values):
+    """a sponge's zone ticking naming `values` (zone, instigator, inflictor, item), or idle for ()"""
+    r.word(ZONE_HIT, 1 if values else 0)
+    for i in range(4):
+        r.word(ZONE_HIT + 4 + 4 * i, values[i] if values else 0)
+
+
+def pull_pin(r, sponge, time):
+    """the pin of a throw state holding `sponge`: the pull substate's site (0x3103C9..0x3103E3)"""
+    state, sub = r.allocate(0x200), r.allocate(0x200)
+    r.word(state, 0xA1C1B0)
+    r.word(state + 0x17C, sponge)
+    r.emu.mem_write(state + 0x180, b"\xFF")
+    r.word(sub + 0x138, state)
+    return r.span(0x3103C9, 0x3103E3, {UC_X86_REG_ESI: sub, UC_X86_REG_EAX: time, UC_X86_REG_EDI: 0})
 # the content pack (release/content.tsv sponge@5), in the main checkout's private folder
 MATERIAL_EDITS = os.path.join(HERE, "..", "scripts", "content-edit", "sponge-material-1.json")
 PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "sponge-5")
 HEAP, STACK, FAKE, CORE, CONFIG = 0x30000000, 0x21000000, 0x22000000, 0x40000000, 0x50000000
 STOP = FAKE + 0x10
 NEVER = 0xFFFFFFFF
-# struct sponge (sponge_a_026g.c's _Static_asserts)
+# skhid::sponge (fields_026g.tsv; its state the sponge crate's machine::State, repr C)
 S_LOADING, S_PASSIVE, S_DURATION, S_TTL, S_POWER, S_SPLASH, S_NODE, S_LINKED = \
     0x360, 0x370, 0x3A4, 0x3A8, 0x3AC, 0x3B0, 0x3F0, 0x418
 S_STATE, S_BODY, S_TRANSFORM, S_ZONE, S_SIZE = 0x41C, 0x438, 0x440, 0x480, 0x6C8
@@ -415,18 +456,30 @@ class Game:
         r.stub(lambda r: r.arg(0), 0, at=0x42A390, name="most_derived")
         allocator = r.allocate(0x20)
         r.word(allocator, r.vtable({6: (lambda r: self.log.append(("free_body", r.arg(0))), 0x10)}))
+        # pthreads3_allocator's free (0xEB5B0), the physics allocator's and the splash's vector's
+        r.stub(lambda r: self.log.append(("free_body", r.arg(0))) if r.emu.reg_read(UC_X86_REG_ECX) == allocator
+               else None, 0x10, at=0xEB5B0)
         r.word(0x1F1D384, allocator)
-        self.body_vtable = r.vtable({
+        body_slots = {
             1: (lambda r: r.emu.reg_read(UC_X86_REG_ECX) + 0x180, 0),                       # its object
             2: (lambda r: self.log.append(("body_dtor", r.emu.reg_read(UC_X86_REG_ECX))), 4),
-            6: (self.body_set_transform, 4), 7: (self.body_get_transform, 4)})
-        self.physics = r.allocate(0x40)
-        r.word(self.physics, r.vtable({
+            6: (self.body_set_transform, 4), 7: (self.body_get_transform, 4)}
+        self.body_vtable = r.vtable(body_slots)
+        physics_slots = {
             8: (lambda r: self.log.append(("pw_update", r.arg(0))), 4),
             11: (lambda r: self.log.append(("pw_add", r.arg(0), r.arg(1), r.arg(2))), 0xC),
             14: (lambda r: self.log.append(("pw_remove", r.arg(0), r.arg(1))), 8),
             28: (lambda r: self.log.append(("pw_contact_add", r.arg(0), r.arg(1))), 8),
-            29: (lambda r: self.log.append(("pw_contact_remove", r.arg(0), r.arg(1))), 8)}))
+            29: (lambda r: self.log.append(("pw_contact_remove", r.arg(0), r.arg(1))), 8)}
+        self.physics = r.allocate(0x40)
+        r.word(self.physics, r.vtable(physics_slots))
+        # the Rust patch calls these classes' own functions (one class each: bt_dynamic_rigid_body
+        # 0xA1F2F0, bullet_physics_world 0x9E2EBC; engine_026g.tsv): the same answers at their VAs
+        for va, (handler, cleanup) in ((0x356F70, body_slots[1]), (0x357060, body_slots[2]), (0x3578B0, body_slots[6]),
+                                       (0x357890, body_slots[7]), (0x750F0, physics_slots[8]),
+                                       (0x758B0, physics_slots[11]), (0x75A60, physics_slots[14]),
+                                       (0x78310, physics_slots[28]), (0x783A0, physics_slots[29])):
+            r.stub(handler, cleanup, at=va)
         r.word(CORE + 0x18FA4, self.physics)
         r.word(CORE + 0x18FBC, 50)
         # the hit manager: its collision world (the splash's queries)
@@ -448,12 +501,13 @@ class Game:
         self.inventory = r.allocate(0x200)
         r.word(self.player + 0x10C, self.inventory)
         r.word(self.inventory + 0x17C, 0x17)
-        self.model = r.allocate(0x200)
-        self.model_ptr = r.allocate(4)
+        self.model = r.allocate(0x400)                 # +389h read by can_start_throw_grenade 0x2E40EC
+        # the holder is the player's inventory_holder interface at +108h (base_player's vtable 0xA10B04: slot 2
+        # 0x1F1790 the damage model's &[+2E0h], slot 3 0x1F17A0 the player), as every inventory's is
+        self.model_ptr = self.player + 0x2E0
         r.word(self.model_ptr, self.model)
-        owner = r.allocate(0x10)
-        r.word(owner, r.vtable({2: (lambda r: self.model_ptr, 0), 3: (lambda r: self.player, 0)}))
-        r.word(self.inventory + 0x174, owner)
+        r.word(self.player + 0x108, 0xA10B04)
+        r.word(self.inventory + 0x174, self.player + 0x108)
         # the damage model's pools (find_pool 0x2E58B0: +8 the first, +0 next, +80h the name)
         self.pools = {}
         previous = 0
@@ -838,11 +892,10 @@ def main():
         emu.word(mode + 0x20, mode)                       # +20h -> +24h: not 4
         emu.word(core + 0x5EC, 6)
         emu.word(core + 8, player)
-        flags = emu.allocate(0x400)
-        flags_ptr = emu.allocate(4)
-        emu.word(flags_ptr, flags)
-        emu.word(holder_if, emu.vtable({2: (lambda r: flags_ptr, 0)}))
-        emu.word(player + 0x108, emu.read(holder_if))
+        # the player's damage model through its holder interface (+108h, slot 2: &[+2E0h]): +389h below 2
+        if not emu.read(player + 0x108):
+            emu.word(player + 0x108, 0xA10B04)
+            emu.word(player + 0x2E0, emu.allocate(0x400))
         return core
     core = weapon_core(r, game.player)
     entered, _ = r.thiscall(0x2E4090, core)
@@ -893,12 +946,12 @@ def main():
     r.emu.mem_write(probe, r.bytes(sponge, S_SIZE))
     for now in (100000, 100001, 100049, 100050, 99999, 30, 0):
         r.word(probe + S_STATE, SP_HELD)                  # not armed again
-        r.call(SYMBOLS["sp_pull_pin"], (probe, now))
+        pull_pin(r, probe, now)
         fuse.append(explode_of(r, probe))
     check("the fuse's end on other pulls: the first tick of the grid (50 + 50k) at or past now + 3000, as 0.28's "
           "0x514580 and 0.26g's pull_pin 0x30A120 round",
           fuse == [103000, 103050, 103050, 103050, 103000, 3050, 3000], str(fuse))
-    r.call(SYMBOLS["sp_pull_pin"], (sponge, 100100))
+    pull_pin(r, sponge, 100100)
     r.thiscall(vt(sponge, 11), sponge, 1, 100100)
     check("a press or a pull while armed changes nothing but the grenade slot (17h)",
           r.read(game.inventory + 0x17C) == 0x17 and explode_of(r, sponge) == 103050)
@@ -912,6 +965,7 @@ def main():
     game.log.clear()
     eip, moved = r.span(0x33A7BB, 0x33A7D9, {UC_X86_REG_ESI: throw_state, UC_X86_REG_EDI: game.player}, frame)
     linear = r.readf(bullet + 0x140, 3)
+    thrown_velocity = r.bytes(bullet + 0x140, 12)       # kept: the later cases unmap this world
     angular = r.readf(bullet + 0x150, 3)
     check("thrown: the body at the hand's transform into the physics world (818h, 8), velocity (0.6, 0, 0.8) x 15 "
           "x 1.2 (0.26g's setter keeps it with z negated), no spin, the item count 0, the inventory dirty",
@@ -934,7 +988,7 @@ def main():
     r.word(zone, zone_vtable)
     r.stub(lambda r: (events.append(("activate", r.arg(0), r.arg(1))), r.emu.mem_write(r.arg(0) + 0x1C, b"\x01"))
            and None, 8, at=0x3080B0)
-    g = lambda: tuple(r.read(STATE + 4 * i) for i in range(4))
+    g = lambda: zone_hit(r)
     r.stub(lambda r: events.append(("zone_tick", r.emu.reg_read(UC_X86_REG_ECX), r.arg(0), r.arg(1), r.arg(2), g())),
            0xC, at=0x319A70)
     r.stub(lambda r: (events.append(("zone_off", r.arg(0), r.arg(1))), r.emu.mem_write(r.arg(0) + 0x124, b"\x00"))
@@ -983,9 +1037,10 @@ def main():
     transform = r.readf(sponge + S_TRANSFORM, 16)
     zone_ticks = [e for e in events if e[0] == "zone_tick"]
     check("the zone on (0.28's 0x51E520 as 0.26g's anomaly does it: +1A8h the physics world, its geometries' "
-          "ghosts in (0x3080B0), timers reset, vt+1Ch(1)), its geometry at the sponge's transform, its sound and "
+          "ghosts in (0x3080B0), timers reset; its vt+1Ch activation is damage_zone's 0x75AF0, `ret 4`, not called), "
+          "its geometry at the sponge's transform, its sound and "
           "effect zones there, the thrower's place (3) kept for its hits",
-          ("activate", zone + 0x108, game.physics) in events and ("zone_on_activate", zone, 1) in events
+          ("activate", zone + 0x108, game.physics) in events and not [e for e in events if e[0] == "zone_on_activate"]
           and r.read(zone + 0x1A8) == game.physics and r.read(zone + 0x1CC) == NEVER
           and r.read(zone + 0x1D1, 1) == 0 and ("geometry_set", r.read(r.read(zone + 0x11C)), transform[12:15]) in events
           and r.readf(r.read(zone + 0x41C), 16) == transform and r.readf(r.read(zone + 0x43C), 16) == transform
@@ -1046,28 +1101,33 @@ def main():
         frame[0x9C // 4] = 123456                                              # the time ([esp+0B4h] after 18h)
         zone_obj = emu.allocate(0x200)
         emu.word(zone_obj + 0x1BC, 4)
-        for i, value in enumerate(g_values):
-            emu.word(STATE + 4 * i, value)
+        if emu is not stock:
+            set_zone_hit(emu, g_values)
         emu.emu.reg_write(UC_X86_REG_ECX, receiver)
-        eip, moved = emu.span(0x319C7C, 0x319CAC, {UC_X86_REG_EDI: zone_at or zone_obj, UC_X86_REG_EBX: 0,
-                                                   UC_X86_REG_ECX: receiver}, frame)
-        for i in range(len(g_values)):
-            emu.word(STATE + 4 * i, 0)
-        return eip, moved, hits, zone_obj
-    _, _, stock_hits, _ = site(stock, 0, ())
-    eip, moved, plain_hits, _ = site(r, 0, (0x77777777, 1, 2, 3))
+        # to the loop's jnz after the call: the hook at 0x319CAC gives EBX back (0)
+        eip, moved = emu.span(0x319C7C, 0x319CB1, {UC_X86_REG_EDI: zone_at or zone_obj, UC_X86_REG_EBX: 0,
+                                                   UC_X86_REG_ECX: receiver, UC_X86_REG_ESI: 0, UC_X86_REG_EBP: 0x1C},
+                              frame)
+        ebx = emu.emu.reg_read(UC_X86_REG_EBX)
+        if emu is not stock:
+            set_zone_hit(emu, ())
+        return eip, moved, hits, zone_obj, ebx
+    _, _, stock_hits, _, _ = site(stock, 0, ())
+    eip, moved, plain_hits, _, plain_ebx = site(r, 0, (0x77777777, 1, 2, 3))
     mine = r.allocate(0x200)
     r.word(mine + 0x1BC, 4)
-    eip2, moved2, sponge_hits, _ = site(r, mine, (mine, game.player + 0x110, sponge + S_INFLICTOR, sponge))
+    eip2, moved2, sponge_hits, _, sponge_ebx = site(r, mine, (mine, game.player + 0x110, sponge + S_INFLICTOR, sponge))
     part = STACK + 0x8000 + 0x28                           # [esp+3Ch] after 14h bytes: the part's name
     check("the zone's hit (the receiver's vt+20h): the original's (time, 0, &part, type, hit, power, 0, 0) for any "
-          "zone; for the zone a sponge ticks the thrower's game object, its inflictor and it in the three 0s",
+          "zone; for the zone a sponge ticks the thrower's game object, its inflictor and it in the three 0s; "
+          "the loop's EBX 0 again after the call",
           stock_hits == plain_hits and len(stock_hits) == 1 and stock_hits[0][0] == 123456
           and stock_hits[0][1] == 0 and stock_hits[0][2] == part and stock_hits[0][3] == 4
           and stock_hits[0][6:] == (0, 0)
           and struct.unpack("<2f", struct.pack("<2I", *stock_hits[0][4:6])) == (0.75, 0.25)
           and sponge_hits == [(123456, game.player + 0x110, stock_hits[0][2], 4, *stock_hits[0][4:6],
-                               sponge + S_INFLICTOR, sponge)] and moved == moved2 and eip == eip2 == 0x319CAC,
+                               sponge + S_INFLICTOR, sponge)] and moved == moved2 and eip == eip2 == 0x319CB1
+          and plain_ebx == sponge_ebx == 0,
           f"stock {stock_hits}, sponge {sponge_hits}")
 
     # 8. The splash (0x339630, the game's own) on made-up players at several distances, against 0.28's damage.
@@ -1187,8 +1247,12 @@ def main():
         reader = r.arg(0)
         zone_io.append(("zone_deserialize", r.emu.reg_read(UC_X86_REG_ECX), r.bytes(r.read(reader + 4), 5)))
         r.word(reader + 4, r.read(reader + 4) + 5)
-    serial_vtable = r.vtable({0: (zone_serialize, 8), 1: (zone_deserialize, 0xC),
-                              2: (lambda r: zone_io.append(("zone_after", r.emu.reg_read(UC_X86_REG_ECX), r.arg(0))), 4)})
+    serial_slots = {0: (zone_serialize, 8), 1: (zone_deserialize, 0xC),
+                    2: (lambda r: zone_io.append(("zone_after", r.emu.reg_read(UC_X86_REG_ECX), r.arg(0))), 4)}
+    serial_vtable = r.vtable(serial_slots)
+    # the Rust patch calls the serializable's functions (0xA0B900's: 0x3193F0, 0x319470, 0x319E30) directly
+    for index, va in enumerate((0x3193F0, 0x319470, 0x319E30)):
+        r.stub(*serial_slots[index], at=va)
 
     def make_sponge(slot):
         memory = r.allocate(S_SIZE, 0xAB)
@@ -1270,7 +1334,7 @@ def main():
           and blob[-9:] == b"\xff\xff\xff\xff\x00\x00\x00\xff\x00" and r.read(c + STATE_AT) == 3 and r.read(c + S_LINKED),
           f"{names}")
     r.thiscall(vt(b_sponge, 11), b_sponge, 1, 200000)
-    r.call(SYMBOLS["sp_pull_pin"], (b_sponge, 200000))
+    pull_pin(r, b_sponge, 200000)
     r.thiscall(vt(b_sponge, 11), b_sponge, 0, 200050)
     b_armed = explode_of(r, b_sponge)
     blob, names, c, c_zone, c_body, read_ok, same = round_trip(b_sponge, 16, "armed")
@@ -1354,7 +1418,7 @@ def main():
     r.thiscall(draw, drawable)
     check("held (state 3): the stock draw (no model calls)", not [e for e in game.log if "model" in e[0]])
     r.thiscall(vt(d_sponge, 11), d_sponge, 1, 300000)
-    r.call(SYMBOLS["sp_pull_pin"], (d_sponge, 300000))
+    pull_pin(r, d_sponge, 300000)
     r.thiscall(vt(d_sponge, 11), d_sponge, 0, 300000)
     game.log.clear()
     r.thiscall(draw, drawable)
@@ -1478,7 +1542,7 @@ def main():
     #      the sponge falls from the hand, its fuse and thrower kept, and explodes where it fell, his.
     a, a_zone, a_body = make_sponge(13)
     r.thiscall(vt(a, 11), a, 1, 600000)
-    r.call(SYMBOLS["sp_pull_pin"], (a, 600000))
+    pull_pin(r, a, 600000)
     r.thiscall(vt(a, 11), a, 0, 600000)
     a_fuse = explode_of(r, a)
     was_in = in_pool(a + S_NODE)
@@ -1524,7 +1588,7 @@ def main():
     #      instigator found again at each tick from his place, none kept; none for a thrower who left.
     e, e_zone, e_body = make_sponge(17)
     r.thiscall(vt(e, 11), e, 1, 700000)
-    r.call(SYMBOLS["sp_pull_pin"], (e, 700000))
+    pull_pin(r, e, 700000)
     r.thiscall(vt(e, 11), e, 0, 700000)
     throw(e, 1.0, 1.0, 1.0)
     r.floats(e_body + 0x100, translation(6.0, 0.5, -2.0))
@@ -1564,7 +1628,7 @@ def main():
     tap(t, 800000)
     tapped = (explode_of(r, t), contact_of(r, t), r.read(game.inventory + 0x17C))
     tap_blob, _, t2, _, _, read_ok, same = round_trip(t, 20, "tap")
-    r.call(SYMBOLS["sp_pull_pin"], (t2, 800050))
+    pull_pin(r, t2, 800050)
     check("a tap (press and release before the pull substate): not armed yet, nothing kept; the pull a tick "
           "later arms it once, from the pull: 803050, the first contact armed, the thrower its holder",
           tapped == (NEVER, 0, 0x17) and read_ok and same and contact_of(r, t2) == CONTACT_ARMED
@@ -1574,7 +1638,7 @@ def main():
     again = explode_of(r, t2)
     throw(t2, 2.0, 1.0, 2.0)
     t_end = tick_until(t2, 800050, 7)
-    r.call(SYMBOLS["sp_pull_pin"], (t, 800000))
+    pull_pin(r, t, 800000)
     check("a release after that changes nothing; thrown (no contact), it explodes at its fuse; a tap with the "
           "pull in the same tick arms from that tick (803000 from 800000)",
           again == 803050 and t_end == 803050 and r.read(t2 + STATE_AT) == 7 and explode_of(r, t) == 803000,
@@ -1611,7 +1675,7 @@ def main():
         return faulted, [x[0] for x in game.log]
     flying, f_zone, f_body = make_sponge(21)
     r.thiscall(vt(flying, 11), flying, 1, 900000)
-    r.call(SYMBOLS["sp_pull_pin"], (flying, 900000))
+    pull_pin(r, flying, 900000)
     r.thiscall(vt(flying, 11), flying, 0, 900000)
     throw(flying, 1.0, 2.0, 3.0)
     in_air = physics_of(r, flying) != 0 and r.read(flying + S_LINKED) != 0
@@ -1627,13 +1691,13 @@ def main():
     spent, s_zone, _ = make_sponge(22)
     made = r.read(r.read(s_zone + 0x11C))
     r.thiscall(vt(spent, 11), spent, 1, 900000)
-    r.call(SYMBOLS["sp_pull_pin"], (spent, 900000))
+    pull_pin(r, spent, 900000)
     r.thiscall(vt(spent, 11), spent, 0, 900000)
     throw(spent, 1.0, 2.0, 3.0)
     tick_until(spent, 900000, 7)
     zone_on_then = r.read(s_zone + 0x124, 1) == 1                     # Z_ACTIVE
     r.word(s_zone + 0xD0, 2)
-    r.word(STATE, s_zone)                               # the zone's hit hook's zone: this one
+    set_zone_hit(r, (s_zone, 0, 0, 0))                  # the zone's hit hook's zone: this one
     events.clear()
     faulted, kinds = destroyed_after_its_world(spent)
     order = [x[0] for x in events]
@@ -1643,7 +1707,7 @@ def main():
           "the zone's hit hook no longer naming it",
           zone_on_then and faulted is None and "zone_off" not in order and order[:2] == ["destroy_ghost", "free"]
           and events[1][1:] == (made, 0x5A110C) and r.read(r.read(s_zone + 0x11C)) == 0
-          and r.read(s_zone + 0xD0) == 1 and r.read(STATE) == 0, faulted or str(events))
+          and r.read(s_zone + 0xD0) == 1 and r.read(ZONE_HIT) == 0, faulted or str(events))
 
     # 14f. Nothing takes a spent sponge (state 7): a container's can_use (0x31C6B0) wants state 2; the zone
     #      runs on whatever the item's state, and its end touches only a sponge still in state 7.
@@ -1654,7 +1718,7 @@ def main():
     r.emu.mem_write(picker_inv + 0x16C, b"\x02")
     z, z_zone, z_body = make_sponge(23)
     r.thiscall(vt(z, 11), z, 1, 1000000)
-    r.call(SYMBOLS["sp_pull_pin"], (z, 1000000))
+    pull_pin(r, z, 1000000)
     r.thiscall(vt(z, 11), z, 0, 1000000)
     throw(z, 1.0, 2.0, 3.0)
     z_end = tick_until(z, 1000000, 7)
@@ -1693,7 +1757,7 @@ def main():
     def thrown_at(slot, pull):
         obj, _, body_at = make_sponge(slot)
         r.thiscall(vt(obj, 11), obj, 1, pull)
-        r.call(SYMBOLS["sp_pull_pin"], (obj, pull))
+        pull_pin(r, obj, pull)
         r.thiscall(vt(obj, 11), obj, 0, pull)
         game.log.clear()
         throw(obj, 1.0, 1.0, 1.0)
@@ -1827,7 +1891,7 @@ def main():
     for label, who, pull, slot in (("a living player", standing, 3600000, 12), ("a corpse", corpse, 3700000, 12)):
         obj, _, body_at = make_sponge(slot)
         r.thiscall(vt(obj, 11), obj, 1, pull)
-        r.call(SYMBOLS["sp_pull_pin"], (obj, pull))
+        pull_pin(r, obj, pull)
         r.thiscall(vt(obj, 11), obj, 0, pull)
         t_w = pull
         while t_w < pull + 1550:
@@ -1899,7 +1963,7 @@ def main():
 
     def our_rule(due, now, safe, slot):
         obj, _, _ = make_sponge(slot)
-        r.call(SYMBOLS["sp_pull_pin"], (obj, now - 1000))
+        pull_pin(r, obj, now - 1000)
         throw(obj, 1.0, 1.0, 1.0)                        # a contact is of its body in the air
         r.word(obj + S_STATE + 4, due)
         r.word(obj + S_SAFE, safe)
@@ -2178,7 +2242,7 @@ def main():
     #     source's +224h).
     print("  20. a Sponge's kill in the kill feed: icon 17, the thrower credited")
     killer_sponge, _, _ = make_sponge(23)
-    r.call(SYMBOLS["sp_pull_pin"], (killer_sponge, 4000000))
+    pull_pin(r, killer_sponge, 4000000)
     victim = game.make_player(7)
     r.word(victim + 0x120, CORE)
     victim_inventory = r.allocate(0x200)
@@ -2251,7 +2315,7 @@ def main():
     r.word(game.inventory + 0x17C, 0x17)
     eip1, moved1 = r.span(0x2FCB20, 0x2FCB33, {UC_X86_REG_ESI: act}, [0] * 6 + [1, 1100000])
     pressed_slot = r.read(game.inventory + 0x17C)
-    r.call(SYMBOLS["sp_pull_pin"], (act, 1100010))
+    pull_pin(r, act, 1100010)
     eip2, moved2 = r.span(0x2FCB20, 0x2FCB33, {UC_X86_REG_ESI: act}, [0] * 6 + [0, 1100020])
     check("driven: slot 11, action(pressed, time), through inventory::action 0x2FCB20: the press takes the grenade "
           "slot, the release gives it back (17h); the fuse the pull's (1100010 + 3000 on the tick grid)",
@@ -2335,7 +2399,7 @@ def main():
     # the drawable: the scene's loop of its drawables (ebx the drawable)
     seen_draw, _, _ = make_sponge(7)
     tap(seen_draw, 1300000)
-    r.call(SYMBOLS["sp_pull_pin"], (seen_draw, 1300000))
+    pull_pin(r, seen_draw, 1300000)
     game.log.clear()
     r.word(seen_draw + 0x340 + 0x10, 3)
     eip, moved = r.span(0x23DD41, 0x23DD49, {UC_X86_REG_EBX: seen_draw + 0x340})
@@ -2360,7 +2424,6 @@ def main():
     #     the build and the original exe.
     print("  17. the owner's spots: the Sponge where it is picked")
     k_run, k_stock = Run(pe_sections(built)), Run(pe_sections(original))
-    spots_g, cores_g = ARENA.symbols["sp_spots"], ARENA.symbols["sp_spot_cores"]
     SPOT_CORES, SPOT_CONTAINERS = 64, 32
 
     def match_world(emu, maps):
@@ -2494,12 +2557,14 @@ def main():
         return slot, popped, resolved, [emu.read(c + 0x50) for c in containers]
 
     def spot_kinds(emu, core):
-        """the current world's entry of `core` (struct sp_spot_core: the core, its generation, the kinds)"""
-        generation = emu.read(ARENA.symbols["sp_spot_generation"])
+        """the current world's entry of `core` (SPOTS: a place {tag 1 taken, core, generation, picks}),
+        its containers' kinds (758 picked, 0 not)"""
+        generation = emu.read(SPOTS + 16 * SPOT_CORES)
         for i in range(SPOT_CORES):
-            entry = cores_g + i * (8 + 2 * SPOT_CONTAINERS)
-            if emu.read(entry) == core and emu.read(entry + 4) == generation:
-                return [emu.read(entry + 8 + 2 * j, 2) for j in range(SPOT_CONTAINERS)]
+            entry = SPOTS + 16 * i
+            if emu.read(entry) == 1 and emu.read(entry + 4) == core and emu.read(entry + 8) == generation:
+                picks = emu.read(entry + 12)
+                return [758 if picks >> j & 1 else 0 for j in range(SPOT_CONTAINERS)]
         return None
 
     LIFEBONE_VT, SPONGE_VT = 0xA05FB0, SYMBOLS["sp_vtable"] + 4
@@ -2508,10 +2573,10 @@ def main():
     core_a, conts_a, _ = make_core(k_run, 4, [LIFEBONE_VT] * 3)
     slot, popped, resolved, owners = link(k_run, core_a, conts_a, picked)
     kinds_a = spot_kinds(k_run, core_a)
-    check("the core's resolve_links through its vtable slot 0xA16A10 (sponge_links): the game's resolve_links "
-          "fills its containers in artefact_containers' order and names the core their owner, then the core's "
+    check("the core's resolve_links through its vtable slot 0xA16A10 (still the game's 0x33C440; patch 59's "
+          "sponge.links at its epilogue 0x33C634): it fills its containers in artefact_containers' order and names the core their owner, then the core's "
           "spots are kept: Sponge at 0 and 3, none at 1 and 2 (another kind's row; none past its containers); ret 1Ch",
-          slot == ARENA.symbols["sponge_links"] and popped == 0x1C and resolved == conts_a
+          slot == 0x33C440 and popped == 0x1C and resolved == conts_a
           and owners == [core_a] * 4 and kinds_a is not None and kinds_a[:4] == [758, 0, 0, 758]
           and not any(kinds_a[4:]), str(kinds_a[:6] if kinds_a else None))
     plain_core, plain_conts, _ = make_core(k_run, 4, [LIFEBONE_VT] * 3)
@@ -2881,7 +2946,7 @@ def main():
               "the hand, into its physics world (818h, 8), the same linear velocity in its Bullet body (+140h, z "
               "negated) and no spin, the count 0; ret 0Ch",
               cleanup == 0xC and log28 == [("body_set", [f32(5.2), 1.5, f32(7.1)]), ("pw_add", 0x818, 8)]
-              and old.bytes(bullet28 + 0x140, 12) == r.bytes(bullet + 0x140, 12)
+              and old.bytes(bullet28 + 0x140, 12) == thrown_velocity
               and old.readf(bullet28 + 0x150, 3) == [0.0, 0.0, 0.0] and old.read(s28 + 0x2DC, 2) == 0,
               f"{log28} {old.readf(bullet28 + 0x140, 3)}")
         # the splash's damage by distance (0x5412A7..0x5412DC: f = (r - d) / r, min + (max - min) f)

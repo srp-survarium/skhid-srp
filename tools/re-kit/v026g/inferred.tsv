@@ -3489,3 +3489,6 @@ va	status	ref_021d	name
 0x00299320	inferred-medium		survarium::damage_zone::stop_hitting
 0x0005b200	inferred-medium		vostok::sound::sound_instance_proxy_internal::set_position
 0x0005a840	inferred-medium		vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal
+0x00356f70	inferred-medium		vostok::physics::bt_dynamic_rigid_body::bullet_object
+0x00248300	inferred-medium		survarium::grenade_core::position
+0x001f56b0	inferred-medium		survarium::base_player::game_object_player

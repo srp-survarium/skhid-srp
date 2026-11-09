@@ -10,10 +10,14 @@
 
 struct artefact;
 struct baked_texture_resource;
+struct boost_function;
 struct bt_broadphase_proxy;
 struct bt_collision_object;
 struct bt_collision_shape;
+struct bt_dynamic_rigid_body;
+struct bt_rigid_body;
 struct bt_transform;
+struct buffer_reader;
 struct buffer_string;
 struct buffer_writer;
 struct bullet;
@@ -24,12 +28,17 @@ struct cc_bool;
 struct cc_float;
 struct cc_string;
 struct closest_ray_result_callback;
+struct collision_geometry;
+struct collision_owner;
+struct config_resource;
 struct core_world;
 struct critical_section;
+struct damage_zone;
 struct di_command_queue;
 struct drawable_image_context;
 struct effect_presenter_holder;
 struct engine_cfg;
+struct found_objects;
 struct game_allocator;
 struct game_effect;
 struct game_effect_list;
@@ -46,6 +55,7 @@ struct gfx_movie;
 struct gfx_object;
 struct gfx_object_interface;
 struct gfx_value;
+struct hit_inflictor;
 struct inventory;
 struct inventory_recipe;
 struct item;
@@ -74,6 +84,7 @@ struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
 struct player_profile;
+struct pthreads3_allocator;
 struct pure_game_effect_emitter;
 struct queries_result;
 struct query_callback;
@@ -87,6 +98,7 @@ struct render_visual;
 struct res_texture;
 struct resource_manager;
 struct resource_request;
+struct scene_drawable;
 struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
@@ -105,6 +117,7 @@ struct statistics_listener;
 struct text_translator;
 struct weapon_locator;
 struct world_user;
+struct zone_serializable;
 
 /* 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX */
 const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key);
@@ -114,6 +127,9 @@ unsigned int engine_cfg_has(const struct engine_cfg *table, const char *key);
 
 /* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
 void *engine_malloc(void *allocator, unsigned int size, const void *where);
+
+/* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
+struct collision_geometry *engine_malloc_geometry(void *allocator, unsigned int size, const void *where);
 
 /* 0xe5270 vostok::memory::doug_lea_allocator::allocated_size: allocator ECX; pops 0; EAX */
 unsigned int engine_allocated_size(void *allocator);
@@ -384,6 +400,12 @@ void engine_static_model_bounds(struct static_model_instance *instance, float *b
 
 /* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
 void engine_release_item(struct artefact *object, unsigned int *count);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
+void engine_release_zone(struct damage_zone *object, unsigned int *count);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
+void engine_release_config(struct config_resource *object, unsigned int *count);
 
 /* 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0 */
 void engine_release_model(struct scene_model *object, unsigned int *count);
@@ -677,7 +699,7 @@ void engine_write_float3(const void *value, struct buffer_writer *writer, const 
 void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int material);
 
 /* 0x357100 vostok::physics::create_dynamic_rigid_body: description ESP+4, shape ESP+8; pops 0; EAX */
-void *engine_create_rigid_body(const void *description, void *shape);
+struct bt_dynamic_rigid_body *engine_create_rigid_body(const void *description, void *shape);
 
 /* 0x7a1b0 vostok::physics::destroy_shape: shape ESI; pops 0 */
 void engine_destroy_shape(void *shape);
@@ -706,26 +728,26 @@ void *engine_rattle_construct(void *effect, const void *root, void *memory, void
 /* 0x2605f0 survarium::artefact_cook::on_rattle_resources_loaded: artefact EDI, results ESP+4; pops 4 */
 void engine_rattle_loaded(void *artefact, void *results);
 
-/* 0x25fb30 survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core: artefact ECX, world ESP+4; pops 4 */
-void engine_rattle_set_world(void *artefact, void *world);
+/* 0x25fb30 survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core: artefact ECX, world ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_rattle_set_world(struct artefact *artefact, unsigned int world);
 
-/* 0x25fb80 survarium::artefact<artefact_rattle_core>::update_client_state: drawable ECX; pops 0 */
-void engine_rattle_draw(void *drawable);
+/* 0x25fb80 survarium::artefact<artefact_rattle_core>::update_client_state: drawable ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_rattle_draw(struct scene_drawable *drawable);
 
-/* 0x260860 survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor': artefact ECX, flags ESP+4; pops 4; EAX */
-void *engine_rattle_destroy(void *artefact, unsigned int flags);
+/* 0x260860 survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor': artefact ECX, flags ESP+4; pops 4; EAX; thiscall, called directly */
+unsigned int __attribute__((thiscall)) engine_rattle_destroy(struct artefact *artefact, unsigned int flags);
 
 /* 0x2ee8d0 survarium::artefact_core_cook::finish_query: cook ECX, resource EDX, artefact ESI, query EDI; pops 0 */
 void engine_cook_finish_query(void *cook, void *resource, void *artefact, void *query);
 
-/* 0x313200 survarium::artefact_base::tick: artefact ECX, dt ESP+4, time ESP+8; pops 8 */
-void engine_artefact_tick(void *artefact, unsigned int dt, unsigned int time);
+/* 0x313200 survarium::artefact_base::tick: artefact ECX, dt ESP+4, time ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_artefact_tick(struct artefact *artefact, unsigned int dt, unsigned int time);
 
-/* 0x313670 survarium::artefact_base::serialize: artefact ECX, writer ESP+4, dumper ESP+8; pops 8 */
-void engine_artefact_serialize(void *artefact, void *writer, void *dumper);
+/* 0x313670 survarium::artefact_base::serialize: artefact ECX, writer ESP+4, dumper ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_artefact_serialize(struct artefact *artefact, struct buffer_writer *writer, unsigned int dumper);
 
-/* 0x313760 survarium::artefact_base::deserialize: artefact ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12 */
-void engine_artefact_deserialize(void *artefact, void *reader, void *a, void *b);
+/* 0x313760 survarium::artefact_base::deserialize: artefact ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_artefact_deserialize(struct artefact *artefact, struct buffer_reader *reader, unsigned int a, unsigned int b);
 
 /* 0x3080b0 survarium::collision_sensor::insert: sensor ESP+4, physics ESP+8; pops 8 */
 void engine_sensor_insert(void *sensor, void *physics);
@@ -733,8 +755,8 @@ void engine_sensor_insert(void *sensor, void *physics);
 /* 0x319d30 survarium::damage_zone_core::deactivate: zone ESP+4, flag ESP+8; pops 8 */
 void engine_zone_deactivate(void *zone, unsigned int flag);
 
-/* 0x319a70 survarium::damage_zone_core::tick: zone ECX, dt ESP+4, time ESP+8, on_grid ESP+12; pops 12 */
-void engine_zone_tick(void *zone, unsigned int dt, unsigned int time, unsigned int on_grid);
+/* 0x319a70 survarium::damage_zone_core::tick: zone ECX, dt ESP+4, time ESP+8, on_grid ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_zone_tick(void *zone, unsigned int dt, unsigned int time, unsigned int on_grid);
 
 /* 0x2f8c30 survarium::collision_geometry::load: geometry ESP+4, config ESP+8; pops 8 */
 void engine_geometry_load(void *geometry, const void *config);
@@ -747,5 +769,77 @@ unsigned int engine_config_variant_type(void);
 
 /* 0x2da5b0 survarium::base_player::recompute_damage_collision_bones: player ECX, object ESP+4; pops 4; EAX */
 unsigned int engine_recompute_damage_collision_bones(void *player, const void *object);
+
+/* 0x750f0 vostok::physics::bullet_physics_world::update_single_aabb: world ECX, object ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_physics_update(struct bullet_physics_world *world, struct bt_rigid_body *object);
+
+/* 0x758b0 vostok::physics::bullet_physics_world::add: world ECX, body ESP+4, group ESP+8, mask ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_physics_add_body(struct bullet_physics_world *world, struct bt_dynamic_rigid_body *body, unsigned int group, unsigned int mask);
+
+/* 0x75a60 vostok::physics::bullet_physics_world::remove: world ECX, body ESP+4, wake ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_physics_remove_body(struct bullet_physics_world *world, struct bt_dynamic_rigid_body *body, unsigned int wake);
+
+/* 0x78310 vostok::physics::bullet_physics_world::subscribe_on_contact: world ECX, body ESP+4, function ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_physics_subscribe_contact(struct bullet_physics_world *world, struct bt_dynamic_rigid_body *body, struct boost_function *function);
+
+/* 0x783a0 vostok::physics::bullet_physics_world::unsubscribe_from_contact: world ECX, body ESP+4, function ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_physics_unsubscribe_contact(struct bullet_physics_world *world, struct bt_dynamic_rigid_body *body, struct boost_function *function);
+
+/* 0x356f70 vostok::physics::bt_dynamic_rigid_body::bullet_object: body ECX; pops 0; EAX; thiscall, called directly */
+struct bt_rigid_body *__attribute__((thiscall)) engine_body_object(struct bt_dynamic_rigid_body *body);
+
+/* 0x357060 vostok::physics::bt_dynamic_rigid_body::`scalar deleting destructor': body ECX, flags ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_body_destroy(struct bt_dynamic_rigid_body *body, unsigned int flags);
+
+/* 0x3578b0 vostok::physics::bullet_rigid_body::set_transform: body ECX, transform ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_body_set_transform(struct bt_dynamic_rigid_body *body, const float *transform);
+
+/* 0x357890 vostok::physics::bullet_rigid_body::get_transform: body ECX, out ESP+4; pops 4; EAX; thiscall, called directly */
+float *__attribute__((thiscall)) engine_body_get_transform(struct bt_dynamic_rigid_body *body, float *out);
+
+/* 0x2f8fe0 survarium::collision_geometry::set_transform: geometry ECX, transform ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_geometry_set_transform(struct collision_geometry *geometry, const float *transform);
+
+/* 0x3193f0 survarium::damage_zone_core::serialize: zone ECX, writer ESP+4, dumper ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_zone_serialize(struct zone_serializable *zone, void *writer, void *dumper);
+
+/* 0x319470 survarium::damage_zone_core::deserialize: zone ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_zone_deserialize(struct zone_serializable *zone, void *reader, void *a, void *b);
+
+/* 0x319e30 survarium::damage_zone_core::on_deserialized: zone ECX, world ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_zone_after_load(struct zone_serializable *zone, struct core_world *world);
+
+/* 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, memory ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly */
+void __attribute__((thiscall)) engine_pthreads_free(struct pthreads3_allocator *allocator, void *memory, unsigned int function, unsigned int file, unsigned int line);
+
+/* virtual vostok::physics::world+0x60 (1 vtables of vtables.tsv: 0x760c0): world ECX, centre ESP+4, radius ESP+8, group ESP+12, mask ESP+16, found ESP+20; pops 20 */
+void engine_object_query(struct bullet_physics_world *world, const float *centre, float radius, unsigned int group, unsigned int mask, struct found_objects *found);
+
+/* virtual vostok::collision::game_object+0x8 (12 vtables of vtables.tsv: 0x1f56b0, 0x300040): owner ECX; pops 0; EAX */
+struct player *engine_collision_owner(struct collision_owner *owner);
+
+/* 0x313300 survarium::artefact_base::action: artefact ECX, pressed ESP+4, time ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_artefact_action(struct artefact *artefact, unsigned int pressed, unsigned int time);
+
+/* 0x313490 survarium::artefact_base::on_removed: artefact ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_artefact_removed(struct artefact *artefact);
+
+/* 0x313470 survarium::artefact_base::on_taken: artefact ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_artefact_added(struct artefact *artefact);
+
+/* 0x1af330 an empty member function (a folded `ret`): object ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_nothing(struct artefact *object);
+
+/* 0x246380 survarium::inventory_item::cast_artefact: inflictor ECX; pops 0; EAX; thiscall, called directly */
+unsigned int __attribute__((thiscall)) engine_inflictor_is_grenade(struct hit_inflictor *inflictor);
+
+/* 0x248300 survarium::grenade_core::position: inflictor ECX; pops 0; EAX; thiscall, called directly */
+unsigned int __attribute__((thiscall)) engine_inflictor_position(struct hit_inflictor *inflictor);
+
+/* 0x27aa20 survarium::network_client::on_match_ready: object ECX, results ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_late_join_loaded(struct artefact *object, struct queries_result *results);
+
+/* 0x3041b0 survarium::grenade_core::on_contact: grenade ECX, point ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_grenade_contact(struct artefact *grenade, unsigned int point);
 
 #endif

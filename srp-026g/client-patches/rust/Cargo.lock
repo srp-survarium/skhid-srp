@@ -17,6 +17,7 @@ dependencies = [
  "artefact-carry",
  "ban-reason",
  "ragdoll",
+ "sponge",
  "srp-validate",
  "weapon-kit",
  "weapon-pickup",
@@ -28,10 +29,15 @@ name = "ragdoll"
 version = "0.1.0"
 
 [[package]]
+name = "sponge"
+version = "0.1.0"
+
+[[package]]
 name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "sponge",
  "weapon-pickup",
  "world-frame",
 ]

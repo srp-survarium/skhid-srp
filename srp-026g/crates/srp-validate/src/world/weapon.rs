@@ -63,7 +63,8 @@
 //!                  order LIKELY) and that sub-state's flag and index
 //! 316              throw grenade: the flag, its sub-state (pull pin, idle, throw;
 //!                  order LIKELY) with its flag and index, u8 the grenade set's
-//!                  profile_slot_id() (< 23 LIKELY), u8 m_grenade_index (+0x180, 0xFF none)
+//!                  profile_slot_id() (< 23 LIKELY; 23 none: exe patch 59, below),
+//!                  u8 m_grenade_index (+0x180, 0xFF none)
 //! ```
 
 use super::inventory::{
@@ -636,6 +637,10 @@ pub enum ReloadStep {
     Finish,
 }
 
+/// A throw state's grenade slot for no grenade held (exe patch 59's
+/// `NO_SLOT`, the inventory's own none: [`StateData::ThrowGrenade`]).
+const NO_GRENADE: u8 = super::inventory::SLOTS;
+
 /// A throw's sub-states (`weapon_core_throw_grenade_state::m_logic`; names
 /// and order LIKELY).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -669,9 +674,13 @@ pub enum StateData {
         animation_has_been_ended: bool,
         step: ThrowStep,
         step_wait: AnimationWait,
-        /// The grenade set's `profile_slot_id()` (an **unbounded** index
-        /// into the slots, 0x33A5AB).
-        grenade_slot: SlotId,
+        /// The grenade's `profile_slot_id()` (`[+0x17C]+0x254`, 0x33A51B), an
+        /// index into the slots its load reads with no bound in 0.26g
+        /// (0x33A5AB..0x33A5BD); `None` for 23 (0x17), which exe patch 59
+        /// writes for no grenade held (a Sponge let go: `sponge_save` at
+        /// 0x33A51B) and loads as none (`sponge_load`, any slot of 23 or
+        /// more). Stock 0.26g never writes it (it reads `[0+0x254]`).
+        grenade_slot: Option<SlotId>,
         /// `m_grenade_index`, `None` for 0xFF.
         grenade_index: Option<u8>,
     },
@@ -725,8 +734,10 @@ impl StateData {
                 let step_wait = AnimationWait::read(reader)?;
                 let at = reader.at();
                 let slot = u8(reader)?;
-                let grenade_slot =
-                    SlotId::new(slot).ok_or((at, Reason::TailGrenadeSlot { slot }))?;
+                let grenade_slot = match slot {
+                    NO_GRENADE => None,
+                    slot => Some(SlotId::new(slot).ok_or((at, Reason::TailGrenadeSlot { slot }))?),
+                };
                 StateData::ThrowGrenade {
                     animation_has_been_ended,
                     step,

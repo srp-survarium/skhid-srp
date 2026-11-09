@@ -24,4 +24,6 @@ world-frame = { path = "../../../crates/world-frame" }
 weapon-pickup = { path = "../../../crates/weapon-pickup" }
 # patch 68's weapon kit: srp's servers pack it, the client reads the same crate
 weapon-kit = { path = "../../../crates/weapon-kit" }
+# patch 59: the Sponge's rules (its state machine, its record, its spots), shared with the world check
+sponge = { path = "../../../crates/sponge" }
 srp-validate = { path = "../../../crates/srp-validate" }

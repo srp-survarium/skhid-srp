@@ -349,10 +349,12 @@ impl ProjectObjects {
     /// `with_batteries`: the containers are read (and must be one of each
     /// team) only for a mode that has batteries; a Team Deathmatch or
     /// Research project copied from a batteries one may keep containers it
-    /// never uses.
+    /// never uses. `spots`: the map's Sponge spots, from its mode config
+    /// ([`Spots`]).
     pub fn from_project(
         project: &ConfigValue,
         with_batteries: bool,
+        spots: &Spots,
         data: &GameData,
         dictionary: &Dictionary,
     ) -> Result<Self, ConfigError> {
@@ -397,7 +399,7 @@ impl ProjectObjects {
         Ok(Self {
             respawn_points,
             container_teams,
-            world_objects: world_objects(project, data, dictionary)?,
+            world_objects: world_objects(project, spots, data, dictionary)?,
         })
     }
 }
@@ -408,6 +410,79 @@ pub static NO_WORLD_OBJECTS: Map<'static> = Map {
     resupply_zones: 0,
     anomalies: &[],
 };
+
+/// The Sponge's item (exe patch 59, `sponge::KIND`): the item a core with
+/// spots gets.
+pub const SPONGE_KIND: u16 = sponge::KIND as u16;
+
+/// A map's Sponge spots: its mode config's `mode/artefact_spots`
+/// (`docs/notes/sponge.md`, edit list `artefact-spots-1`), each row as the
+/// game reads it (`sponge::spots::Row`: `core` a string, `index` and `kind`
+/// integers, a key missing or of another type none). The game reads the
+/// config of the match's map id, which is this row's own; a list that is
+/// not indexed is none.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Spots<'a> {
+    rows: Vec<sponge::spots::Row<'a>>,
+}
+
+impl<'a> Spots<'a> {
+    /// The spots of a mode config's `mode` table.
+    pub fn of_mode(mode: &'a ConfigValue) -> Self {
+        let Some(ConfigValue::Indexed(rows)) = mode.get("artefact_spots") else {
+            return Self::default();
+        };
+        // An integer key as the game's u32 of it.
+        let integer = |row: &ConfigValue, key| match row.get(key) {
+            Some(&ConfigValue::Integer(value)) => Some(value as u32),
+            _ => None,
+        };
+        let rows = rows
+            .iter()
+            .map(|row| sponge::spots::Row {
+                core: row.get("core").and_then(ConfigValue::as_str).map(str::as_bytes),
+                index: integer(row, "index"),
+                kind: integer(row, "kind"),
+            })
+            .collect();
+        Self { rows }
+    }
+
+    /// How many Sponges the anomaly `core` (a `client_objects` entry) gets
+    /// after its own artefacts, its `artefacts` being `table`: its picks
+    /// (`sponge::spots::picks` of its `full_name` and its
+    /// `artefact_containers`' count; the anomaly cook's hook at 0x2E9D53).
+    /// None unless `table` is an indexed list of 1 to
+    /// `sponge::spots::KINDS_MAX` kinds whose first is a table of exactly
+    /// the integers `dict_id` and `count`, and the containers an indexed
+    /// list of at least one: the game keeps the core's own table then
+    /// (`sp_artefacts`).
+    pub fn sponges(&self, core: &ConfigValue, table: Option<&ConfigValue>) -> usize {
+        let Some(ConfigValue::Indexed(kinds)) = table else {
+            return 0;
+        };
+        let Some(first) = kinds.first() else {
+            return 0;
+        };
+        let Some(ConfigValue::Indexed(containers)) = core.get("artefact_containers") else {
+            return 0;
+        };
+        let Some(name) = core.get("full_name").and_then(ConfigValue::as_str) else {
+            return 0;
+        };
+        let integer = |key| matches!(first.get(key), Some(ConfigValue::Integer(_)));
+        if kinds.len() > usize::from(sponge::spots::KINDS_MAX)
+            || containers.is_empty()
+            || first.entries().len() != 2
+            || !integer("dict_id")
+            || !integer("count")
+        {
+            return 0;
+        }
+        let containers = u32::try_from(containers.len()).unwrap_or(u32::MAX);
+        sponge::spots::picks(self.rows.iter().copied(), name.as_bytes(), containers) as usize
+    }
+}
 
 /// The objects a world of the project saves after its places' grenades and
 /// traps, in the game's order (`srp_validate::world::objects`): its
@@ -422,10 +497,13 @@ pub static NO_WORLD_OBJECTS: Map<'static> = Map {
 /// amount as a stack's u16 (`inventory_item::deserialize` 0x2FFF10 by the
 /// dictionary's `is_stack`, as every map's are), and an active one what its
 /// item's core saves (`data.type`, [`ItemClass::Artefact`]): one of no stack
-/// or of no artefact's class stops the data. Leaked: the rows live as long as
-/// the process.
+/// or of no artefact's class stops the data. An anomaly with Sponge spots
+/// ([`Spots::sponges`]) has that many more after its own: items
+/// [`SPONGE_KIND`], read as the others are. Leaked: the rows live as long
+/// as the process.
 pub fn world_objects(
     project: &ConfigValue,
+    spots: &Spots,
     data: &GameData,
     dictionary: &Dictionary,
 ) -> Result<&'static Map<'static>, ConfigError> {
@@ -486,8 +564,17 @@ pub fn world_objects(
         insertion_sort(&mut states);
         let artefacts = if flag(anomaly, "artefacts_enabled")? {
             let mut artefacts = Vec::new();
-            for artefact in anomaly.get("artefacts").map(ConfigValue::children).unwrap_or_default() {
-                let dict_id: u16 = int(Some(artefact), "dict_id")?;
+            let table = anomaly.get("artefacts");
+            // Its own kinds, then the Sponges of its spots (exe patch 59).
+            let own = table.map(ConfigValue::children).unwrap_or_default();
+            let own = own.into_iter().map(|artefact| {
+                let dict_id = int::<u16>(Some(artefact), "dict_id")?;
+                Ok::<_, ConfigError>((dict_id, int::<usize>(Some(artefact), "count")?))
+            });
+            let sponges = spots.sponges(anomaly, table);
+            let spotted = (sponges > 0).then_some(Ok((SPONGE_KIND, sponges)));
+            for entry in own.chain(spotted) {
+                let (dict_id, count) = entry?;
                 let item = dictionary.item(dict_id).filter(|item| item.is_stack).ok_or_else(|| {
                     ConfigError(format!(
                         "anomaly {name}: artefact {dict_id} is no stack of the dictionary"
@@ -503,7 +590,6 @@ pub fn world_objects(
                         "anomaly {name}: item {dict_id} is no artefact"
                     )));
                 };
-                let count = int::<usize>(Some(artefact), "count")?;
                 artefacts.extend(std::iter::repeat_n(core, count));
             }
             Some(Artefacts {
@@ -558,8 +644,9 @@ pub fn untouched_objects(held: impl IntoIterator<Item = Held>, map: &Map) -> Vec
             for _ in 0..artefacts.containers {
                 bytes.extend([0, 0xFF, 0, 0, 0, 0]);
             }
-            for _ in artefacts.artefacts {
+            for artefact in artefacts.artefacts {
                 bytes.extend([0, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+                bytes.extend(artefact.untouched_own());
             }
         }
     }
@@ -670,7 +757,13 @@ impl MapMode {
         let rule_mode = game_mode.rules();
         let objects = project
             .map(|project| {
-                ProjectObjects::from_project(project, rule_mode.has_batteries(), data, dictionary)
+                ProjectObjects::from_project(
+                    project,
+                    rule_mode.has_batteries(),
+                    &Spots::of_mode(mode),
+                    data,
+                    dictionary,
+                )
             })
             .transpose()?
             .unwrap_or(ProjectObjects {
@@ -1750,5 +1843,183 @@ mod tests {
         insertion_sort(&mut states);
         let sorted: Vec<u32> = states.iter().map(|(_, tag)| *tag).collect();
         assert_eq!(sorted, [4, 2, 1, 3]);
+    }
+
+    /// A config table of `entries`.
+    fn named(entries: Vec<(&str, ConfigValue)>) -> ConfigValue {
+        ConfigValue::Named(entries.into_iter().map(|(key, value)| (key.to_owned(), value)).collect())
+    }
+
+    fn text(value: &str) -> ConfigValue {
+        ConfigValue::String(value.to_owned())
+    }
+
+    /// A spot row of `core`'s container `index`, of item `kind`.
+    fn spot(core: &str, index: i32, kind: i32) -> ConfigValue {
+        named(vec![
+            ("core", text(core)),
+            ("index", ConfigValue::Integer(index)),
+            ("container", text("logic/a/container")),
+            ("kind", ConfigValue::Integer(kind)),
+        ])
+    }
+
+    /// An anomaly `name` of `containers` containers and the kinds `artefacts`.
+    fn core(name: &str, containers: usize, artefacts: ConfigValue) -> ConfigValue {
+        named(vec![
+            ("full_name", text(name)),
+            ("artefact_containers", ConfigValue::Indexed(vec![text("c"); containers])),
+            ("artefacts", artefacts),
+        ])
+    }
+
+    fn kind(dict_id: i32, count: i32) -> ConfigValue {
+        named(vec![
+            ("dict_id", ConfigValue::Integer(dict_id)),
+            ("count", ConfigValue::Integer(count)),
+        ])
+    }
+
+    #[test]
+    fn a_cores_sponges_are_its_spots_as_the_game_counts_them() {
+        let mode = named(vec![(
+            "artefact_spots",
+            ConfigValue::Indexed(vec![
+                spot("logic/a", 0, 758),
+                spot("logic/a", 6, 758),
+                spot("logic/a", 6, 758), // twice: two
+                spot("logic/a", 7, 758), // past its 7 containers
+                spot("logic/a", -1, 758),
+                spot("logic/a", 1, 759), // another kind
+                spot("logic/b", 1, 758),
+                named(vec![("core", text("logic/a")), ("index", ConfigValue::Integer(2))]),
+                named(vec![
+                    ("core", text("logic/a")),
+                    ("index", ConfigValue::Float(2.0)),
+                    ("kind", ConfigValue::Integer(758)),
+                ]),
+            ]),
+        )]);
+        let spots = Spots::of_mode(&mode);
+        let sponges = |core: &ConfigValue| spots.sponges(core, core.get("artefacts"));
+        let own = || ConfigValue::Indexed(vec![kind(3, 10), kind(7, 2)]);
+        assert_eq!(sponges(&core("logic/a", 7, own())), 3);
+        assert_eq!(sponges(&core("logic/b", 7, own())), 1);
+        assert_eq!(sponges(&core("logic/b", 1, own())), 0);
+        assert_eq!(sponges(&core("logic/c", 7, own())), 0);
+        // The game keeps a table it cannot extend: no kinds, more than 16,
+        // a first kind of another shape, no containers.
+        assert_eq!(sponges(&core("logic/a", 7, ConfigValue::Indexed(vec![]))), 0);
+        assert_eq!(sponges(&core("logic/a", 7, ConfigValue::Indexed(vec![kind(3, 1); 16]))), 3);
+        assert_eq!(sponges(&core("logic/a", 7, ConfigValue::Indexed(vec![kind(3, 1); 17]))), 0);
+        let three_keys = named(vec![
+            ("dict_id", ConfigValue::Integer(3)),
+            ("count", ConfigValue::Integer(1)),
+            ("weight", ConfigValue::Integer(1)),
+        ]);
+        assert_eq!(sponges(&core("logic/a", 7, ConfigValue::Indexed(vec![three_keys]))), 0);
+        let float_count = named(vec![
+            ("dict_id", ConfigValue::Integer(3)),
+            ("count", ConfigValue::Float(1.0)),
+        ]);
+        assert_eq!(sponges(&core("logic/a", 7, ConfigValue::Indexed(vec![float_count]))), 0);
+        assert_eq!(sponges(&core("logic/a", 0, own())), 0);
+        // No spots, or a list that is not indexed.
+        assert_eq!(Spots::of_mode(&named(vec![])).sponges(&core("logic/a", 7, own()), Some(&own())), 0);
+        let named_spots = named(vec![("artefact_spots", named(vec![("0", spot("logic/a", 0, 758))]))]);
+        assert_eq!(Spots::of_mode(&named_spots), Spots::default());
+    }
+
+    #[test]
+    fn a_core_with_spots_has_its_sponges_after_its_own_artefacts() {
+        // level_01/day_2 (map 61) with the Sponge's item and three spots on
+        // its first anomaly, as the pack and the edit list make them.
+        let stock = super::super::game_data::shared();
+        let map = map_mode(61).unwrap();
+        let project = ConfigValue::parse(stock.project(map.project).unwrap()).unwrap();
+        let anomaly = project
+            .get(resources_db::server::CLIENT_OBJECTS)
+            .unwrap()
+            .children()
+            .into_iter()
+            .find(|object| {
+                object.get("game_object_type").and_then(ConfigValue::as_str)
+                    == Some("generic_anomaly_core")
+            })
+            .unwrap();
+        let name = anomaly.get("full_name").and_then(ConfigValue::as_str).unwrap();
+        let own = anomaly.get("artefacts").unwrap().children()[0].i32_at("dict_id").unwrap();
+        let path = format!("{GAME_MODES_DIR}{}", map.config);
+        let mut config = ConfigValue::parse(stock.file(&path).unwrap()).unwrap();
+        let ConfigValue::Named(root) = &mut config else { panic!("a table") };
+        let (_, ConfigValue::Named(mode)) = root.iter_mut().find(|(key, _)| key == "mode").unwrap()
+        else {
+            panic!("a table")
+        };
+        let spots = [0, 5, 6].map(|index| spot(name, index, 758));
+        mode.push(("artefact_spots".into(), ConfigValue::Indexed(spots.to_vec())));
+        let dictionary_path = super::super::dictionary::PATH;
+        let mut dictionary = ConfigValue::parse(stock.file(dictionary_path).unwrap()).unwrap();
+        let ConfigValue::Named(entries) = &mut dictionary else { panic!("a table") };
+        let (_, ConfigValue::Indexed(items)) =
+            entries.iter_mut().find(|(key, _)| key == "items_dict").unwrap()
+        else {
+            panic!("a list")
+        };
+        let mut sponge = items
+            .iter()
+            .find(|item| item.i32_at("dict_id") == Ok(own))
+            .unwrap()
+            .clone();
+        let ConfigValue::Named(fields) = &mut sponge else { panic!("a table") };
+        for (key, value) in fields.iter_mut() {
+            match key.as_str() {
+                "dict_id" => *value = ConfigValue::Integer(758),
+                "name" => *value = text("artefact_sponge"),
+                "cfg_name" => *value = text("gameplay/items/artefacts/artefact_sponge.options"),
+                _ => {}
+            }
+        }
+        items.push(sponge);
+        let sponge_config = named(vec![("data", named(vec![("type", ConfigValue::Integer(12))]))]);
+        let data = stock.laid_over(
+            "the test data with the Sponge at three spots",
+            vec![
+                (path, config.to_bytes().unwrap()),
+                (dictionary_path.to_owned(), dictionary.to_bytes().unwrap()),
+                (
+                    "gameplay/items/artefacts/artefact_sponge.options".to_owned(),
+                    sponge_config.to_bytes().unwrap(),
+                ),
+            ],
+        );
+        let table = fixtures::table_of(&data).unwrap();
+        let row = table.iter().find(|row| row.id == 61).unwrap();
+        let first = row.world_objects.anomalies[0].artefacts.unwrap().artefacts;
+        let before = map.world_objects.anomalies[0].artefacts.unwrap().artefacts;
+        assert_eq!(&first[..before.len()], before);
+        assert_eq!(&first[before.len()..], [Artefact::Sponge; 3]);
+        assert_eq!(row.world_objects.artefacts(), map.world_objects.artefacts() + 3);
+        // The other anomaly and every other map are as they were.
+        assert_eq!(row.world_objects.anomalies[1], map.world_objects.anomalies[1]);
+        for other in table.iter().filter(|row| row.id != 61) {
+            assert_eq!(Some(other), map_mode(other.id), "{}", other.id);
+        }
+        // An untouched world of it reads to its end.
+        let objects = srp_validate::world::Objects { held: &[], map: row.world_objects };
+        let bytes = untouched_objects([], row.world_objects);
+        let context = srp_validate::world::Context {
+            time: 0,
+            places: 1,
+            game_mode: 2,
+            batteries: 0,
+            respawn_points: None,
+            profiles: None,
+            artefacts: None,
+            objects: Some(&objects),
+            inventory: None,
+        };
+        let section = srp_validate::world::Section { at: 0, bytes: &bytes };
+        assert_eq!(srp_validate::world::objects(&section, &context), Ok(()));
     }
 }

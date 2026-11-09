@@ -606,16 +606,17 @@ Patches:
   attached; patch 48's apply calls weapon_kit_preview_apply through its
   dword +23h, which the build writes. Nothing a match computes changes;
 - the Sponge (patch 59, with the late join; client_patch.md section 3.52,
-  docs/notes/sponge.md; the arena's blocks sponge.code and sponge.state).
+  docs/notes/sponge.md): the Rust patch `sponge` (rust/patches/src/sponge.toml,
+  vostok::sponge, the sponge crate's rules) in the arena's block patches.code.
   The Sponge, artefact type 12, is 0.28d0's thrown toxic artefact written
-  again on 0.26g (the cook's switches, the throw state, the damage zone's
-  hit). It spawns only at the owner's spots (each map's mode configs'
-  `mode/artefact_spots`): the anomaly cook's look-up of a core's
-  `artefacts` (0x2E9D53) adds a unit of the Sponge for each picked
-  container, the core's resolve_links (vtable slot 0xA16A10) keeps which
-  containers are picked, and spawn_artefact (0x31B800, the container
-  chosen) takes the Sponge at a picked container and the core's own kinds
-  elsewhere, with 0.26g's draws;
+  again on 0.26g (the cook's construct, size and query, the throw state, its
+  object's vtables, the damage zone's hit). It spawns only at the owner's
+  spots (each map's mode configs' `mode/artefact_spots`): the anomaly cook's
+  look-up of a core's `artefacts` (0x2E9D58) reads a copy with a unit of the
+  Sponge for each picked container, the core's resolve_links (0x33C634)
+  keeps which containers are picked, and spawn_artefact (0x31B800, the
+  container chosen) takes the Sponge at a picked container and the core's
+  own kinds elsewhere, with 0.26g's draws;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2604,36 +2605,6 @@ INSTALLS = {
                        "victim, ebp the bullet): event, which writes the cause icon, the flags and edx", None, None),
     0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
                        "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
-    # the Sponge, patch 59 (in `.srpx`)
-    0x25E68A: (JUMP, "the artefact cook's construct 0x25E660 at its type switch (`cmp eax,5 / ja near`, eax = "
-                     "data/type - 3): sponge_construct, type 12 a sponge's (`ret 10h` as the function), else the "
-                     "switch", None, None),
-    0x25E79A: (JUMP, "its size 0x25E770 at its switch (`cmp eax,5 / ja short`): sponge_size, type 12 the sponge's "
-                     "(`ret 4` as the function), else the switch", None, None),
-    0x25E800: (ENTRY, "the artefact cook's query_for_derived_resources (thiscall: parent, the artefact, &config; "
-                      "`ret 0Ch`): sponge_query, a sponge's query, any other back in the function", None, None),
-    0x2E40C6: (JUMP, "can_start_throw_grenade 0x2E4090, the grenade slot's item's vt+64h and 0x30A090: "
-                     "sponge_predicate", None, None),
-    0x33A66D: (JUMP, "the throw state's is_ready 0x33A650, its grenade's index and exploded flag: sponge_ready "
-                     "(a sponge's zone on; no grenade held: ready, or not for the index FFh)", None, None),
-    0x33A51B: (JUMP, "the throw state's serialize 0x33A4E0, its grenade's slot ([+17Ch]+254h): sponge_save, 17h for "
-                     "no grenade held", None, None),
-    0x33A5AB: (JUMP, "the throw state's deserialize 0x33A570, the inventory's slot read back: sponge_load, no item "
-                     "for a slot past the slots (17h and up)", None, None),
-    0x33A7BB: (JUMP, "the throw state's throw 0x33A770, `call 0x30A250` and its pushes: sponge_throw", None, None),
-    0x3103C9: (JUMP, "the pull substate's initialize 0x3103A0, `call 0x30A120` and its pushes: sponge_pull",
-               None, None),
-    0x319C8B: (JUMP, "the damage zone's hit loop 0x319AF0, the receiver's vt+20h call and its pushes: "
-                     "sponge_zone_hit", None, None),
-    0x2E9D53: (CALLEE, "generic_anomaly_core_cook::query_for_artefacts 0x2E9D40, the `artefacts` table's look-up "
-                       "(operator[] 0xF6B10, eax the core's config, edi the key): sponge_artefacts, the table with "
-                       "a unit of the Sponge for each of the core's spots", None, None),
-    0x31B800: (JUMP, "generic_anomaly_core::spawn_artefact 0x31B6C0, the container chosen, its free list and third "
-                     "draw: sponge_spawn, the artefact the container may take (back at 0x31B85F) or none "
-                     "(0x31B8C2)", None, None),
-    0xA16A10: (SLOT, "generic_anomaly_core's link resolver vtable 0xA16A10 (the core's +4) slot 0, "
-                     "resolve_links 0x33C440 (thiscall, the resolver and the config by value, `ret 1Ch`): sponge_links, the original "
-                     "and then the core's spots kept", None, None),
 }
 # Explain weight in the lobby; presentation only, no simulation changes.
 WEIGHT_UI_HOOKS = (
@@ -2718,7 +2689,6 @@ BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # review). The self-test fails a slot of ours with no such case, or a case
 # its script does not have (test_call_shapes).
 RESEARCH_CHECK = "check_research_026g.py"
-SPONGE_CHECK = "check_sponge_a_026g.py"
 INSTALLED_VTABLES = (
     ("Research's rule", "research.code", "rn_rule_vtable", 0xA15DA4, 20, 9, {
         7: (RESEARCH_CHECK, "driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0"),
@@ -2736,28 +2706,7 @@ INSTALLED_VTABLES = (
         10: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
     }),
     ("Research's rule's link resolver", "research.code", "rn_resolver_vtable", None, 1, 0, {}),
-    # The Sponge (patch 59): Rattle's artefact vtable with ten slots of ours,
-    # its drawable's draw, and its hit inflictor's (the game's three).
-    ("the Sponge's artefact", "sponge.code", "sp_vtable", 0xA06124, 36, 10, {
-        0: (SPONGE_CHECK, "driven: slot 0, the destructor (flags 0), through the resource system's delete 0xFBB4E"),
-        11: (SPONGE_CHECK, "driven: slot 11, action(pressed, time), through inventory::action 0x2FCB20"),
-        13: (SPONGE_CHECK, "driven: slot 13, removed_from_inventory, through inventory::remove_item 0x2FC680"),
-        14: (SPONGE_CHECK, "driven: slot 14, revived, through inventory::setup_from_profile's loop 0x2FD1A5"),
-        26: (SPONGE_CHECK, "driven: slot 26, serialize(writer, dumper), through generic_anomaly_core::serialize's "
-                           "loop 0x31B074"),
-        27: (SPONGE_CHECK, "driven: slot 27, deserialize(reader, a, b), through generic_anomaly_core::deserialize's "
-                           "loop 0x31B1A0"),
-        28: (SPONGE_CHECK, "driven: slot 28, set_game_world_core(world), through generic_anomaly_core::"
-                           "spawn_artefact 0x31B965"),
-        29: (SPONGE_CHECK, "driven: slot 29, tick(dt, time), through generic_anomaly_core::tick's loop 0x31B690"),
-        31: (SPONGE_CHECK, "driven: slot 31, enable_passive, through artefact_base::added_to_inventory 0x313470"),
-        33: (SPONGE_CHECK, "driven: slot 33, disable_passive, through artefact_base::tick 0x313200 (the holder "
-                           "dead)"),
-    }),
-    ("the Sponge's drawable", "sponge.code", "sp_drawable_vtable", 0xA061B8, 1, 1, {
-        0: (SPONGE_CHECK, "driven: the drawable's draw, through the scene's loop 0x23DD41"),
-    }),
-    ("the Sponge's hit inflictor", "sponge.code", "sp_inflictor_vtable", None, 3, 0, {}),
+
 ) + hooks_026g.installed_vtables()
 # What our code hands the game at run time to call later (a callback, a
 # boost::function, a tick delegate): no write of build() shows them, so each
@@ -2784,22 +2733,6 @@ CALLBACKS = (
      "(0x318050) puts its tick 0x317F10; the list's runner 0x2D1D20 calls it with ecx the object and "
      "(dt, time, step); the marker is `mov dword [ecx+114h], rn_tick` (the delegate's function)",
      (RESEARCH_CHECK, "driven: the tick's (dt, time) through the tick list's runner 0x2D1D20")),
-    ("the Sponge's resources loaded: sp_loaded", "sponge.code", bytes.fromhex("c74588"), 0x27AA20,
-     "sp_cook_query hands the resource query a boost::function of vtable 0xA09374|1, the game's own for a "
-     "member function bound to its object (as 0x27D280 binds network_client's 0x27AA20 for the late join): "
-     "the invoker 0x202300 calls [buffer] with ecx = the object and the queries_result pushed, so its model "
-     "is 0x27AA20 (thiscall, the queries_result; `ret 4`); the marker is the `mov dword [ebp-78h]` storing "
-     "the function in the buffer (sp_loaded's VA follows `C7 45 88`)",
-     (SPONGE_CHECK, "driven: sp_loaded(results) through the game's boost invoker 0x202300")),
-    ("the Sponge's contacts: sp_contact", "sponge.code", bytes.fromhex("c787b0060000"), 0x3041B0,
-     "launch subscribes the sponge's contact_fn (+6A8h) on its body with the physics world's vt+70h "
-     "(0x78310), a boost::function of vtable 0xA13FAC|1, grenade_core's own for its contacts (0x304220, "
-     "made in its throw_grenade 0x303C10): the invoker 0x202300 calls [buffer] with ecx = the sponge and "
-     "the contact point pushed, as grenade_core's thunk 0x2DD730 reaches its on_contact 0x3041B0 "
-     "(thiscall, the contact point; `ret 4`); the marker is sp_construct's `mov dword [edi+6B0h]` storing "
-     "the function in the buffer (sp_contact's VA follows `C7 87 B0 06 00 00`)",
-     (SPONGE_CHECK, "a contact reported through the game's invoker (0x202300: ecx the sponge, its argument "
-                    "popped by sp_contact)")),
 )
 
 
@@ -2946,9 +2879,6 @@ ARENA = (
     ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
     # patch 98: the history item's six world sections on the heap
     ArenaBlock("world_sections.code", "code", 0x1000, ("world_sections_026g.asm",)),
-    # the Sponge, patch 59: the asm's eight entries and stubs, then the C code
-    ArenaBlock("sponge.code", "code", 0x1000, ("sponge_a_026g.asm", "sponge_a_026g.c")),
-    ArenaBlock("sponge.state", "state", 0x10, ("sponge_a_026g.c",)),                # sp_g: the zone ticked now
 )
 
 
@@ -3024,59 +2954,6 @@ RESEARCH_HOOKS = (
     (0x23B3DE, bytes.fromhex("837f20047518"), "research_hud", 0xE8),         # update_ui after the teams' points
     (0x23B351, bytes.fromhex("83f8047514"), "research_welcome", 0xE9),       # update_ui's first message
 )
-# The Sponge, artefact type 12 (patch 59, README; client_patch.md section
-# 3.52; docs/notes/sponge.md): sponge_a_026g.asm's eight entries and stubs,
-# then the C code of sponge_a_026g.c and its constant data, in the arena's
-# block sponge.code; the C code's state (the zone a sponge ticks, for the
-# zone's hit: sp_g) in sponge.state, zeroed. 0.28d0's artefact_sponge_core
-# written again on 0.26g's interfaces. Eight hooks, `jmp` each:
-# - the artefact cook's construct 0x25E660 at its type switch (`cmp eax,5 /
-#   ja near`, 0x25E68A) and its size 0x25E770 at its own (`cmp eax,5 / ja
-#   short`, 0x25E79A): type 12 (eax 9 there) is a sponge, else the switch;
-# - its query of the model and spawn effects 0x25E800 (the entry's `push ebp
-#   / mov ebp,esp / and esp,-8`): a sponge's asks for a damage zone too;
-# - the throw-grenade state, where it takes the item in the grenade slot for
-#   a grenade set: its way in 0x2E4090 at 0x2E40C6 (vtable +64h and
-#   0x30A090: a null dereference for any other item), its is_ready at
-#   0x33A66D (the grenade's index and exploded flag), its throw at 0x33A7BB (`call
-#   0x30A250`), the pull substate's pin at 0x3103C9 (`call 0x30A120`): a
-#   sponge's own, else the original;
-# - the damage zone's hit loop 0x319AF0 at 0x319C8B (the receiver's vt+20h
-#   with no instigator, inflictor or item): a zone a sponge ticks names its
-#   thrower (kill credit), its inflictor and it;
-# - the owner's spots of the Sponge (the content:
-#   each map's mode configs' `mode/artefact_spots`, edit list
-#   artefact-spots-1): generic_anomaly_core_cook::query_for_artefacts
-#   0x2E9D40 looks up the core's `artefacts` table at 0x2E9D53 (a `call` of
-#   operator[] 0xF6B10; the only reader of that key, it makes one artefact a
-#   unit): a core with spots gets a copy with a unit of the Sponge for each;
-#   spawn_artefact 0x31B6C0 at 0x31B800 (a `jmp`, through its third draw to
-#   0x31B85F), the container chosen: the artefact it may take, its spot's
-#   kind or the core's own kinds, with 0.26g's draws; and the core's
-#   resolve_links (SPONGE_SLOT, its vtable slot) keeps which containers are
-#   picked. The maps' projects stay as they are.
-# No base relocation is under a site and no branch aims inside one.
-SPONGE_HOOKS = (
-    (0x25E68A, bytes.fromhex("83f8050f87a4000000"), "sponge_construct", 0xE9),          # construct's type switch
-    (0x25E79A, bytes.fromhex("83f8057733"), "sponge_size", 0xE9),                       # size's type switch
-    (0x25E800, bytes.fromhex("558bec83e4f8"), "sponge_query", 0xE9),                    # the query's entry
-    (0x2E40C6, bytes.fromhex("8b018b5064ffd2e8be5f0200"), "sponge_predicate", 0xE9),    # the throw state's way in
-    (0x33A66D, bytes.fromhex("8a86800100003cff741b"), "sponge_ready", 0xE9),            # is_ready's grenade
-    (0x33A7BB, bytes.fromhex("8b8e7c01000081c74c040000578d442414508a868001000051e877fafcff"), "sponge_throw",
-     0xE9),                                                                             # the throw
-    (0x3103C9, bytes.fromhex("8bb6380100008b8e7c0100005051e8449dffff"), "sponge_pull", 0xE9),  # the pin
-    (0x319C8B, bytes.fromhex("535383ec08d95c2404d9442420d91c24528d54243c528b9424b40000005352ffd0"),
-     "sponge_zone_hit", 0xE9),                                                          # the zone's hit
-    (0x2E9D53, bytes.fromhex("e8b8cde0ff"), "sponge_artefacts", 0xE8),                  # an anomaly's kinds
-    (0x31B800, bytes.fromhex(
-        "33db894de88945ec85f676308b97b00100008b049a83b88002000000750f8945f48d45f4508d75e8e8230a0000433b9fb401000072d68b45ec8b4de82bc1c1f8028bd085d2767b8b87b801000069c005840808408987b8010000f7e28b1491"), "sponge_spawn", 0xE9),                                                     # an anomaly's spawn
-    (0x33A51B, bytes.fromhex("8b8b7c0100008a9154020000"), "sponge_save", 0xE9),        # serialize's slot
-    (0x33A5AB, bytes.fromhex("8b83200100008b50080fb6c18b8a0c0100008b84810c010000"), "sponge_load", 0xE9),  # its load
-)
-# generic_anomaly_core's link resolver's resolve_links 0x33C440 (the vtable
-# 0xA16A10 of the core's +4, its slot 0): sponge_links (patch_section_value;
-# the slot keeps its base relocation).
-SPONGE_SLOT = (0xA16A10, struct.pack("<I", 0x33C440), "sponge_links")
 RESEARCH_EXITS = (0x23B35B,)          # update_ui's message (research_026g.asm WELCOME_SHOW)
 # The engine-function library (engine_026g.py, client_patch.md section 0.5):
 # a cdecl thunk per engine function our code calls, each the global symbol
@@ -4074,14 +3951,11 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
                         + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
-                        + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + SPONGE_HOOKS \
-                        + rust_hooks(original):
+                        + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
                 slot, old, symbol = MATCH_KEYS_POLL_SLOT
-                patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
-                slot, old, symbol = SPONGE_SLOT
                 patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
