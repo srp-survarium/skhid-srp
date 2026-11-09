@@ -128,6 +128,15 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 13: the leg quarters one particle effect of view 2 each, without the point light and the
   haze (what the carrier saw is what everyone sees), no first-person twin; Forest Protection's smoke
   emitters' Rate and MaxParticles x1.5.
+- Version 14 (the owner, 2026-11-09: frame rate first, "let's start with particles"): the same
+  glows drawn with less. Each kind's stock glow `human_<kind>` is replaced by a lean one, and every
+  glow is made from it (the carrier's twin, Forest Protection's, the quarters): its rays, chest rays
+  and up puffs at half the rate, each sqrt 2 as large (the same lit area: the materials are
+  additive); its point lights (`up_light`: a light per particle, about 34 alive per glow, each a
+  light pass of its own) at a quarter of the rate, each 2.5 times as bright and 1.25 times as wide.
+  The twin keeps them (versions 1 and 2 showed too little in the first person). The haze
+  (`distortion`) is disabled in the stock glow and costs nothing. Previews:
+  private/renders/particles/.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

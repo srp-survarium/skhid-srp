@@ -93,6 +93,28 @@ views (`view` 2) playing its system without the point light and the haze (FIRST_
 no composite and no first-person twin; and Forest Protection's smoke a tiny bit thicker: the
 FOREST_SMOKE emitters' Rate (curve and data source) and MaxParticles (rounded up) times
 SMOKE_THICKER, their colour and sizes as they were; the rays and the haze unchanged.
+
+Version 14 (the owner, 2026-11-09: frame rate first, "let's start with particles"): the same glows
+drawn with less. Every glow above is made from the kinds' stock systems made lighter first (`lean`),
+and the stock systems themselves are replaced by those lighter ones (what everyone sees of an
+activation):
+
+- the sprites (SPARSE: the rays, the chest's rays and the up puffs) at SPARSE_RATE of their Rate
+  (curve and data source) and MaxParticles, each SPARSE_SIZE as large (InitSize, every axis): half
+  the sprites, each twice the area, so the same lit area (the glow's materials are additive);
+- the point lights (`up_light`, a light per particle: about 34 alive per glow) at LIGHT_RATE of
+  their Rate and MaxParticles, each LIGHT_INTENSITY as bright and LIGHT_RADIUS as wide (Intensity
+  and Radius curves): about a quarter as many lights giving about the light they gave;
+- the carrier's own first-person twin (human_<kind>_fp) the lean system without the head, as it
+  was the stock one (version 3, approved by the owner; versions 1 and 2, lighter, showed too little
+  in the first person): its lights fewer and brighter as everyone else's;
+- the leg quarters cumulative: effect_artefact_leg_<kind>_<n> plays quarters 1..n of the legs in
+  one system (CUMULATIVE), and exe patch 111 plays only the one of the kind's count (it played
+  quarters 1..count, each a system of its own): a kind on a player is one system, not up to four;
+- Forest Protection's smoke on the lean puffs: SMOKE_THICKER of SPARSE_RATE, each puff
+  SPARSE_SIZE as large (version 13's lit area, half its puffs).
+
+Sizes, colours, materials, lifetimes, body parts and every other emitter are as before.
 """
 import argparse
 import copy
@@ -105,7 +127,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '13'
+VERSION = '14'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -150,10 +172,22 @@ BOTH_VIEWS = 2
 # The leg quarters (version 6): a kind's carried copies counting for a player light this many
 # quarters, in this order (lower legs first, left then right, then the thighs).
 QUARTERS = (('LeftLeg', 'LeftFoot'), ('RightLeg', 'RightFoot'), ('LeftUpLeg',), ('RightUpLeg',))
+# Version 14: effect n lights quarters 1..n (patch 111 plays the one of the count).
+CUMULATIVE = tuple(sum(QUARTERS[:n], ()) for n in range(1, len(QUARTERS) + 1))
+# Version 14's lean systems (`lean`).
+SPARSE = ('rays', 'rays_chest', 'up')
+SPARSE_RATE = 0.5
+SPARSE_SIZE = math.sqrt(2.0)
+LIGHT = 'up_light'
+LIGHT_RATE = 0.25
+LIGHT_INTENSITY = 2.5
+LIGHT_RADIUS = 1.25
+SIZE_ACTION = 'particle_action_initial_size_type'
+LIGHT_ACTION = 'particle_action_light_type'
 
 
 def quarter_names(kind, n):
-    """Quarter n (1..4) of `kind`: its effect config's path and its particle system."""
+    """Effect n (1..4) of `kind`, quarters 1..n lit: its effect config's path and its particle system."""
     return (f'gameplay/effects/effect_artefact_leg_{kind}_{n}.options', f'{KINDS[kind]}_leg_{n}')
 COMPOSITE, PARTICLE = 110, 114
 FIRST_PERSON = 0
@@ -275,8 +309,9 @@ def domains_off(tree):
 
 
 def first_person_particle(tree):
-    """The first-person copy of a human_<kind> particle system: the stock one with Head, Face and
-    Neck off in every emitter's animated domain."""
+    """The first-person copy of a human_<kind> particle system: the stock one (since version 14 the
+    lean one, what everyone else sees) with Head, Face and Neck off in every emitter's animated
+    domain."""
     return domains_off(copy.deepcopy(tree))
 
 
@@ -448,6 +483,130 @@ def share(emitter, stock_emitter):
 
 def scaled_maximum(maximum, k):
     return max(1, math.ceil(maximum * k))
+
+
+def selected_sources(tree):
+    """How many properties of `tree` select each data source (selected_source -> count)."""
+    used = {}
+
+    def walk(node):
+        t, v = node
+        if t == T_NAMED:
+            for k, c in v:
+                if k == 'selected_source' and c[0] == T_STR:
+                    used[c[1]] = used.get(c[1], 0) + 1
+                else:
+                    walk(c)
+        elif t == T_INDEXED:
+            for c in v:
+                walk(c)
+    walk(tree)
+    return used
+
+
+def lean_scales(emitter):
+    """What `lean` scales in an emitter: {(action type or None for the emitter's own properties,
+    property): factor}; empty for an emitter it leaves as it is."""
+    name = emitter_name(emitter)
+    if name in SPARSE:
+        return {(None, 'Rate'): SPARSE_RATE, (None, 'MaxParticles'): SPARSE_RATE,
+                (SIZE_ACTION, 'InitSize'): SPARSE_SIZE}
+    if name == LIGHT:
+        return {(None, 'Rate'): LIGHT_RATE, (None, 'MaxParticles'): LIGHT_RATE,
+                (LIGHT_ACTION, 'Intensity'): LIGHT_INTENSITY, (LIGHT_ACTION, 'Radius'): LIGHT_RADIUS}
+    return {}
+
+
+def lean(stock):
+    """A kind's stock glow drawn with less (version 14): for each emitter `lean_scales` names, its
+    MaxParticles (rounded up) and each named curve (Rate, InitSize, Intensity, Radius: every value of
+    the property's own sources and of the data source it selects, which no other property may share)
+    times the factor. Everything else is the stock's."""
+    tree = copy.deepcopy(stock)
+    sources, done = {}, []
+
+    def properties(props, scales, action):
+        out = []
+        for n, v in props:
+            k = scales.get((action, n))
+            if k is not None and n == 'MaxParticles':
+                v = (v[0], scaled_maximum(v[1], k))
+                done.append((action, n))
+            elif k is not None:
+                sources[dict(v[1])['selected_source'][1]] = k
+                v = (T_NAMED, [(m, rate_scaled(c, k) if m in ('source',) + AXES else c) for m, c in v[1]])
+                done.append((action, n))
+            out.append((n, v))
+        return (T_NAMED, out)
+
+    def child(c, scales):
+        action = dict(c[1])['particle_entity_type'][1]
+        return (T_NAMED, [(k, properties(v[1], scales, action) if k == 'properties' else v) for k, v in c[1]])
+
+    def emitter(e):
+        scales = lean_scales(e)
+        if not scales:
+            return e
+        done.clear()
+        e = (T_NAMED, [(k, properties(v[1], scales, None) if k == 'properties'
+                        else (T_NAMED, [(g, child(c, scales)) for g, c in v[1]]) if k == 'children' else v)
+                       for k, v in e[1]])
+        assert sorted(done, key=str) == sorted(scales, key=str), (emitter_name(e), done)
+        return e
+
+    lod = dict(tree[1])['LOD 0']
+    lod = (T_NAMED, [(k, (T_NAMED, [(g, emitter(e)) for g, e in v[1]]) if k == 'children' else v) for k, v in lod[1]])
+    used = selected_sources(stock)
+    assert all(used[s] == 1 for s in sources), 'a lean data source another property shares'
+    tables = dict(tree[1])['data_sources'][1]
+    assert all(sum(s in dict(t[1]) for _, t in tables) == 1 for s in sources), 'a lean data source not in one table'
+    data = (T_NAMED, [(kind, (T_NAMED, [(n, rate_scaled(c, sources[n]) if n in sources else c) for n, c in t[1]]))
+                      for kind, t in tables])
+    return (T_NAMED, [(k, lod if k == 'LOD 0' else data if k == 'data_sources' else v) for k, v in tree[1]])
+
+
+def check_lean(tree, stock):
+    """The lean system is the stock one but for `lean_scales`' properties of its emitters and the
+    data sources they select: each value there (a curve key's value and tangents) the stock's times
+    its factor, as f32, and MaxParticles the stock's scaled; every emitter `lean_scales` names
+    changed. Every other value is the stock's."""
+    factor = {}                    # a path prefix -> its factor
+    expected_max = {}
+    for guid, e in dict(dict(dict(stock[1])['LOD 0'][1])['children'][1]).items():
+        scales = lean_scales(e)
+        if not scales:
+            continue
+        base = f'/LOD 0/children/{guid}'
+        actions = {dict(c[1])['particle_entity_type'][1]: g for g, c in dict(e[1])['children'][1]}
+        for (action, prop), k in scales.items():
+            owner = dict(e[1]) if action is None else dict(dict(dict(e[1])['children'][1])[actions[action]][1])
+            at = base + ('' if action is None else f'/children/{actions[action]}') + f'/properties/{prop}'
+            if prop == 'MaxParticles':
+                expected_max[at] = scaled_maximum(dict(owner['properties'][1])[prop][1], k)
+                continue
+            factor[at + '/'] = k
+            source = dict(dict(owner['properties'][1])[prop][1])['selected_source'][1]
+            for kind, table in dict(stock[1])['data_sources'][1]:
+                if source in dict(table[1]):
+                    factor[f'/data_sources/{kind}/{source}/'] = k
+    changed = set()
+    for d in differences(tree, stock):
+        if d in expected_max:
+            assert get_path(tree, d)[1] == expected_max[d], d
+            changed.add(d)
+            continue
+        k = next((k for prefix, k in factor.items() if d.startswith(prefix)), None)
+        assert k is not None, d
+        new, old = get_path(tree, d), get_path(stock, d)
+        assert old[0] == 6 and new == (6, [old[1][0], f32(old[1][1] * k)]), (d, old, new)
+        changed.add(next(prefix for prefix in factor if d.startswith(prefix)))
+    assert changed == set(factor) | set(expected_max), sorted(set(factor) | set(expected_max) - changed)
+
+
+def get_path(tree, path):
+    for part in path.strip('/').split('/'):
+        tree = dict(tree[1])[part]
+    return tree
 
 
 def quarter_particle(stock, parts):
@@ -649,16 +808,14 @@ def differences(a, b, path=''):
 
 
 def check_particle(tree, stock):
-    """The twin is the stock system exactly (emitters, sizes, rates, lights, colours, the haze),
-    but for Head, Face and Neck off in the emitters' animated domains: the whole tree compared."""
+    """The twin is the stock system (since version 14 the lean one) exactly (emitters, sizes, rates,
+    lights, colours, the haze), but for Head, Face and Neck off in the emitters' animated domains:
+    the whole tree compared."""
     allowed = sorted(differences(domains_off(stock), stock))
     assert all(d.rsplit('/', 1)[-1] in NEAR_EYES and '/properties/' in d for d in allowed), allowed
     assert differences(tree, domains_off(stock)) == [], differences(tree, domains_off(stock))[:5]
     for d in allowed:                    # each of those is off in the twin
-        node = tree
-        for part in d.strip('/').split('/'):
-            node = dict(node[1])[part]
-        assert node == (T_BOOL, 0), d
+        assert get_path(tree, d) == (T_BOOL, 0), d
 
 
 def check_bites(stock):
@@ -733,21 +890,24 @@ def main():
         effect_path = f'gameplay/effects/effect_artefact_{kind}.options'
         particle_path = f'particles/{system}.particle'
         fp_system = system + '_fp'
-        particle = parse(stock[particle_path])
+        stock_particle = parse(stock[particle_path])
+        particle = lean(stock_particle)             # version 14: what everyone sees, lighter
+        check_lean(particle, stock_particle)
         fp_tree = first_person_particle(particle)
         check_particle(fp_tree, particle)
         check_bites(particle)
         effect = composite_effect(parse(stock[effect_path]), fp_system)
-        for path, tree in ((effect_path, effect), (f'particles/{fp_system}.particle', fp_tree)):
+        for path, tree in ((effect_path, effect), (particle_path, particle), (f'particles/{fp_system}.particle', fp_tree)):
             data = serialize(tree)
             assert sort_key(parse(data)) == sort_key(tree), path
             files[path] = data
         operations.append({'op': 'replace_file', 'path': effect_path, 'base_sha256': STOCK[effect_path]})
+        operations.append({'op': 'replace_file', 'path': particle_path, 'base_sha256': STOCK[particle_path]})
         operations.append({'op': 'add_file', 'path': f'particles/{fp_system}.particle'})
         # the stock child is the stock effect, value for value
         assert sort_key(get(effect, 'effect/effects')[1][0]) == sort_key(get(parse(stock[effect_path]), 'effect'))
     # Forest Protection's glow: its effect, its particle system and the grey materials.
-    onyx = parse(stock[f'particles/{KINDS[FOREST_FROM]}.particle'])
+    onyx = lean(parse(stock[f'particles/{KINDS[FOREST_FROM]}.particle']))
     forest = forest_particle(onyx)
     check_forest(forest, onyx)
     forest_twin = keep_emitters(forest, lambda e: emitter_name(e) in FOREST_FIRST_PERSON)
@@ -770,9 +930,9 @@ def main():
     forest_files[f'material_instances/{DARK_SMOKE}.material'] = dark
     # The leg quarters: each kind's stock glow, its colours, a quarter of the legs each.
     for kind, system in KINDS.items():
-        kind_stock = parse(stock[f'particles/{system}.particle'])
+        kind_stock = lean(parse(stock[f'particles/{system}.particle']))
         kind_effect = parse(stock[f'gameplay/effects/effect_artefact_{kind}.options'])
-        for n, parts in enumerate(QUARTERS, 1):
+        for n, parts in enumerate(CUMULATIVE, 1):
             effect_path, quarter_system = quarter_names(kind, n)
             scaled = quarter_particle(kind_stock, parts)
             check_quarter(scaled, kind_stock, parts)
@@ -793,16 +953,19 @@ def main():
         'id': PACK_ID,
         'version': VERSION,
         'target_build': '0.26g',
-        'description': "the artefacts' glow seen by their carrier: each effect_artefact_<kind> a composite of the "
+        'description': "the artefacts' glows, drawn with less (version 14): each kind's stock glow "
+                       'fx/artifacts/human_<kind> lighter (its rays, chest rays and up puffs at half the rate, '
+                       'each sqrt 2 as large; its point lights at a quarter of the rate, each 2.5 times as bright '
+                       'and 1.25 times as wide); each effect_artefact_<kind> a composite of the '
                        'stock third-person particle effect and a first-person one (view 0) playing '
-                       'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
-                       'included, with Head, Face and Neck off in every emitter\'s animated domain; and '
+                       'fx/artifacts/human_<kind>_fp: that lighter system, its point lights and haze included, '
+                       'with Head, Face and Neck off in every emitter\'s animated domain; and '
                        'Forest Protection\'s glow, effect_forest_protection (a composite: third person, and a first-person one with only its rays) playing '
-                       'fx/artifacts/human_forest_protection: a dark-grey smoke around the arms (the stock Onyx glow on the arms at full rate with its up puffs and body strokes moved onto them, no light, drawn with fx/artifacts/smoke_dark_grey, its smoke 1.5 times the stock rate); '
+                       'fx/artifacts/human_forest_protection: a dark-grey smoke around the arms (the lighter Onyx glow on the arms with its up puffs and body strokes moved onto them, no light, drawn with fx/artifacts/smoke_dark_grey, its smoke 1.5 times that rate); '
                        'and the leg quarters, effect_artefact_leg_<kind>_<1..4> (one particle effect each, seen in both views) playing '
-                       'fx/artifacts/human_<kind>_leg_<1..4>: each kind\'s stock glow on one quarter of the '
-                       'legs (left lower, right lower, left upper, right upper), each emitter at the stock '
-                       'density on the quarter\'s parts, without the point light and the haze',
+                       'fx/artifacts/human_<kind>_leg_<1..4>: each kind\'s lighter glow on quarters 1..n of the '
+                       'legs (left lower, right lower, left upper, right upper; exe patch 111 plays the one of '
+                       'the count), each emitter at that glow\'s density on the parts, without the point light and the haze',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/artefact-glow/make_pack.py from the stock resources.db\'s '
                   'artefact effects and particle systems (docs/notes/artefacts.md)'],

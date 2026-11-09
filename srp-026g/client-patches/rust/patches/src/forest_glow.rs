@@ -11,10 +11,12 @@
 //! - the leg quarters: each passive artefact copy that counts for a player
 //!   (its own carried copies giving their passive and those Resonance
 //!   shares with it, at most 4 of a kind) lights a quarter of its legs in
-//!   that kind's colour: `artefact_leg_<kind>_<n>`, n = 1 the left lower leg,
-//!   2 the right lower leg, 3 the left thigh, 4 the right one. Each kind
-//!   lights its own quarters from the first up; two kinds on one quarter
-//!   layer (their sprites add, as the stock glows of two kinds do). Shown
+//!   that kind's colour, from the first up: 1 the left lower leg, 2 the right
+//!   lower leg, 3 the left thigh, 4 the right one. A kind's count n plays the
+//!   one effect `artefact_leg_<kind>_<n>`, quarters 1..n in one particle
+//!   system (pack artefact-glow@14: one system a kind, not one a quarter);
+//!   two kinds on one quarter layer (their sprites add, as the stock glows
+//!   of two kinds do). Shown
 //!   only by a game whose local player's current kit has Knowledge of
 //!   Artifacts (every player's quarters, its own too), or that has no local
 //!   player (a spectator, a replay).
@@ -45,7 +47,7 @@ const INSTANCES: u32 = 20;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LegEffect {
     Forest,
-    /// The `nth` (1 to 4) quarter of `kind`.
+    /// `kind`'s quarters 1 to `nth` (1 to 4), played while `nth` of its copies count.
     Quarter { kind: Kind, nth: u8 },
 }
 
@@ -119,9 +121,15 @@ impl LegEffect {
     fn shown(self, legs: Legs) -> bool {
         match self {
             LegEffect::Forest => legs.forest == Glow::On,
-            LegEffect::Quarter { kind, nth } => legs.quarters == Quarters::Shown && legs.copies.get(kind) >= nth,
+            LegEffect::Quarter { kind, nth } => legs.quarters == Quarters::Shown && lit(nth, legs.copies.get(kind)),
         }
     }
+}
+
+/// Whether the effect of `nth` quarters plays for `count` copies of its kind: only the count's own
+/// (its system lights quarters 1..nth), so a kind on a player is one particle system.
+fn lit(nth: u8, count: u8) -> bool {
+    count == nth
 }
 
 /// Whether a player shows the glow.
@@ -197,7 +205,7 @@ fn shows(effect: LegEffect, player: &Player<'_>) -> bool {
     match effect {
         LegEffect::Forest => glow(player) == Glow::On,
         LegEffect::Quarter { kind, nth } => {
-            Quarters::seen_in(player) == Quarters::Shown && player.passive_copies().get(kind) >= nth
+            Quarters::seen_in(player) == Quarters::Shown && lit(nth, player.passive_copies().get(kind))
         }
     }
 }
@@ -305,6 +313,14 @@ mod tests {
     }
 
     #[test]
+    fn a_count_plays_its_own_effect_only() {
+        for count in 0..=4u8 {
+            let played: std::vec::Vec<u8> = (1..=4).filter(|&nth| lit(nth, count)).collect();
+            assert_eq!(played, if count == 0 { std::vec![] } else { std::vec![count] });
+        }
+    }
+
+    #[test]
     fn copies_light_their_kinds_quarters_from_the_first() {
         let copies = Copies::of(|kind| match kind {
             Kind::Spring => (1, 1),
@@ -313,14 +329,7 @@ mod tests {
         });
         let legs = Legs { forest: Glow::Off, quarters: Quarters::Shown, copies };
         let lit: std::vec::Vec<_> = EFFECTS.into_iter().filter(|effect| effect.shown(legs)).collect();
-        assert_eq!(lit, [
-            LegEffect::Quarter { kind: Kind::Spring, nth: 1 },
-            LegEffect::Quarter { kind: Kind::Spring, nth: 2 },
-            LegEffect::Quarter { kind: Kind::Onyx, nth: 1 },
-            LegEffect::Quarter { kind: Kind::Onyx, nth: 2 },
-            LegEffect::Quarter { kind: Kind::Onyx, nth: 3 },
-            LegEffect::Quarter { kind: Kind::Onyx, nth: 4 },
-        ]);
+        assert_eq!(lit, [LegEffect::Quarter { kind: Kind::Spring, nth: 2 }, LegEffect::Quarter { kind: Kind::Onyx, nth: 4 }]);
         let none = Legs { forest: Glow::On, quarters: Quarters::Shown, copies: Copies::default() };
         let hidden = Legs { forest: Glow::On, quarters: Quarters::Hidden, copies };
         assert_eq!(EFFECTS.into_iter().filter(|effect| effect.shown(hidden)).collect::<std::vec::Vec<_>>(), [LegEffect::Forest]);
