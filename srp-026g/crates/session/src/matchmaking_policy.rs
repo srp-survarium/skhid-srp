@@ -45,7 +45,7 @@ pub enum Closed {
 }
 
 /// The most players a side may be ahead of the other by after a strong late
-/// joiner goes to it to keep the strong even ([`place_joiner`]; the
+/// joiner goes to it to keep the strong even ([`place_open_joiner`]; the
 /// owner's of 2026-11-09: "let's allow 6vs4 (but never 7vs4)").
 pub const STRONG_JOIN_APART: usize = 2;
 
@@ -92,7 +92,7 @@ pub struct LateRule {
     /// them (a game that broke: Play takes it back there). They count
     /// against `capacity`, not as players of the side: a joiner never
     /// fills a side one of them comes back to. Their strong players count
-    /// as the side's for a strong joiner ([`place_joiner`]).
+    /// as the side's for a strong joiner ([`place_open_joiner`]).
     pub kept: [Worth; 2],
 }
 
@@ -159,9 +159,11 @@ fn first_choice(sides: [Worth; 2], previous: Option<u8>, rule: &LateRule) -> usi
 /// 2. never more than [`STRONG_JOIN_APART`] players ahead: past that, the
 ///    other side.
 ///
-/// A side counts the players away who keep their places there (they come
-/// back to it). It waits while the side it goes to is full; with the strong
-/// as even either way, the other side takes it while that keeps the rule.
+/// A side's strong players count the players away who keep their places
+/// there (they come back to it). It waits while the side it goes to is
+/// full, or while both would be too far ahead ([`too_far`]); with the
+/// strong as even either way, the other side takes it while that keeps the
+/// rule.
 pub fn place_open_joiner(
     sides: [Worth; 2],
     joiner: Worth,
@@ -172,21 +174,48 @@ pub fn place_open_joiner(
         return place_joiner(sides, joiner, previous, rule);
     }
     let strong = |side: usize| sides[side].strong + rule.kept[side].strong;
-    let places = |side: usize| sides[side].players + rule.kept[side].players;
     let strong_apart = |side: usize| (strong(side) + joiner.strong).abs_diff(strong(1 - side));
-    let too_far =
-        |side: usize| places(side) + joiner.players > places(1 - side) + STRONG_JOIN_APART;
-    let near = |side: usize| if too_far(side) { 1 - side } else { side };
+    let near = |side: usize| {
+        [side, 1 - side]
+            .into_iter()
+            .find(|&each| !too_far(sides, joiner, each, rule))
+    };
     if strong_apart(0) != strong_apart(1) {
         let side = usize::from(strong_apart(1) < strong_apart(0));
-        return placed(sides, joiner, near(side), rule);
+        return placed(sides, joiner, near(side)?, rule);
     }
-    let side = near(first_choice(sides, previous, rule));
+    let side = near(first_choice(sides, previous, rule))?;
     placed(sides, joiner, side, rule).or_else(|| {
-        (!too_far(1 - side))
+        (!too_far(sides, joiner, 1 - side, rule))
             .then(|| placed(sides, joiner, 1 - side, rule))
             .flatten()
     })
+}
+
+/// Where an open room's match takes `joiner` beside its squad mate on
+/// `side`: [`place_joiner_beside`], and for one with a strong player not
+/// past [`too_far`] (it waits, "never 7vs4").
+pub fn place_open_joiner_beside(
+    sides: [Worth; 2],
+    joiner: Worth,
+    side: u8,
+    rule: &LateRule,
+) -> Option<LatePlacement> {
+    if joiner.strong > 0 && too_far(sides, joiner, usize::from(side.min(1)), rule) {
+        return None;
+    }
+    place_joiner_beside(sides, joiner, side, rule)
+}
+
+/// Whether `joiner` on `side` puts it more than [`STRONG_JOIN_APART`]
+/// players ahead: now, or once the players away who keep their places come
+/// back (they may not: the room lets them go after ~90 s).
+fn too_far(sides: [Worth; 2], joiner: Worth, side: usize, rule: &LateRule) -> bool {
+    let other = 1 - side;
+    let now = sides[side].players + joiner.players > sides[other].players + STRONG_JOIN_APART;
+    let back = sides[side].players + rule.kept[side].players + joiner.players
+        > sides[other].players + rule.kept[other].players + STRONG_JOIN_APART;
+    now || back
 }
 
 /// Where a match being played takes `joiner` that has a side of its own
@@ -353,6 +382,38 @@ mod tests {
         assert_eq!(private.assignments, [(0, 0)]);
         let open = place_open_joiner(sides, strong, None, &rule()).unwrap();
         assert_eq!(open.assignments, [(0, 1)]);
+    }
+
+    /// The fourth review of #1567: "never 7vs4" now and once the players
+    /// away come back, beside a squad mate too.
+    #[test]
+    fn a_strong_joiner_never_makes_7_v_4() {
+        let strong = with_strong(0, &[3000]);
+        // 6 v 4 in, 2 kept on side 1 (the only strong one there): side 0
+        // has fewer strong but would be 7 v 4 now; side 1, 6 v 5 now and
+        // 6 v 7 with them back.
+        let kept_short = LateRule {
+            kept: [Worth::default(), with_strong(2, &[])],
+            ..rule()
+        };
+        let sides = [with_strong(6, &[]), with_strong(3, &[2500])];
+        let placed = place_open_joiner(sides, strong, None, &kept_short).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
+        // 4 kept on side 1: 7 v 4 now on side 0, 6 v 9 back on side 1. It
+        // waits.
+        let kept_four = LateRule {
+            kept: [Worth::default(), with_strong(4, &[])],
+            ..rule()
+        };
+        assert!(place_open_joiner(sides, strong, None, &kept_four).is_none());
+        // Beside its mate on the side of 6: it waits; one not strong goes in
+        // (the squad's rule of before).
+        assert!(place_open_joiner_beside(sides, strong, 0, &rule()).is_none());
+        let weak = with_strong(1, &[]);
+        let placed = place_open_joiner_beside(sides, weak, 0, &rule()).unwrap();
+        assert_eq!(placed.assignments, [(0, 0)]);
+        let placed = place_open_joiner_beside(sides, strong, 1, &rule()).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
     }
 
     fn rule() -> LateRule {

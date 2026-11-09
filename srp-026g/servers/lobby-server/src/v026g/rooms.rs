@@ -28,9 +28,10 @@
 //!   its ask) if the match admits players (from its countdown until
 //!   `LOAD_MARGIN` is left), on the side with fewer players in it; of two
 //!   alike in that, the side it played on in that match before, then the
-//!   one that counts for less; a joiner with a strong player to the side
-//!   with fewer strong players, up to two players ahead, waiting while
-//!   that side is full (`matchmaking_policy::place_joiner`);
+//!   one that counts for less (`matchmaking_policy::place_joiner`); in an
+//!   open room a joiner with a strong player to the side with fewer strong
+//!   players, never more than two players ahead, waiting while that side
+//!   is full (`place_open_joiner`, `place_open_joiner_beside`);
 //!   otherwise it waits for the next match. While it waits it is told why it
 //!   cannot go in now (`late_hold`: a joiner on its way, a game loading,
 //!   the last 30 s, the end, full, a maintenance; the owner's of 2026-10-20).
@@ -2516,9 +2517,12 @@ impl Core<'_> {
         let previous = side_in_match(account_id);
         let placement = match (room.arranged_side(account_id), mate_side) {
             (Some(side), _) => policy::place_joiner_on(sides, worth, side, &rule),
-            (None, Some(side)) => policy::place_joiner_beside(sides, worth, side, &rule),
             // The strong dealt evenly in an open room; a private room's owner
             // arranges its sides.
+            (None, Some(side)) if room.is_open() => {
+                policy::place_open_joiner_beside(sides, worth, side, &rule)
+            }
+            (None, Some(side)) => policy::place_joiner_beside(sides, worth, side, &rule),
             (None, None) if room.is_open() => {
                 policy::place_open_joiner(sides, worth, previous, &rule)
             }

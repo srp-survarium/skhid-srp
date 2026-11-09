@@ -42,8 +42,9 @@ pub const SQUAD_FACTOR: (i64, i64) = (13, 10);
 /// evenly between the sides (the owner's of 2026-11-09: "strong people
 /// being split always evenly"; `rooms::sides`), and a strong late joiner
 /// goes to the side with fewer of them, up to two players ahead
-/// (`matchmaking_policy::place_joiner`). At 2, each player the owner named
-/// strong on 2026-11-05 is strong at a level it plays (K/Ds of 2.0 to 5.0).
+/// (`matchmaking_policy::place_open_joiner`). At 2, each player the owner
+/// named strong on 2026-11-05 is strong at a level it plays (K/Ds of 2.0
+/// to 5.0).
 pub const STRONG: Strength = Strength::from_milli(2 * Strength::UNIT);
 
 /// A member of a squad that plays together: its K/D times
