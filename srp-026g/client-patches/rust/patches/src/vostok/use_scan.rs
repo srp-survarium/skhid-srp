@@ -7,7 +7,10 @@
 //! user data's cast_to_collision_geometry (+4), query_objects_by_type
 //! (0x2DC390) with the cast 0x2DD730, the usable object's can_use (+30h) and
 //! get_transform (+44h); both vectors with the multithreaded allocator,
-//! freed by it.
+//! freed by it. One step is earlier than the game's: a hit's usable list is
+//! freed as soon as its first object is read, before that object's
+//! get_transform and can_use (the game frees it after, 0x2D85FC); those only
+//! read, so nothing sees the difference.
 
 use core::ffi::c_void;
 use core::marker::PhantomData;
@@ -173,10 +176,10 @@ impl<'t> UseHit<'t> {
         self.point
     }
 
-    /// Its object's collision group (get_collision_group, a u16 in AX).
+    /// Its object's collision group (get_collision_group: AX, widened by the thunk).
     pub fn group(&self) -> u16 {
         // SAFETY: a live physics object (its vtable's slot 0).
-        unsafe { raw::engine_collision_group(Some(self.object)) as u16 }
+        unsafe { raw::engine_collision_group(Some(self.object)) }
     }
 
     /// The usable object it belongs to: the first of its collision

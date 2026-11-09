@@ -818,7 +818,7 @@ survarium::detect_frame	player	0x4	ptr<survarium::player>	detect_usable_object's
 survarium::detect_frame	point	0x8	ptr<f32>	its point: a float3 written with the hit point of the object found, or 0 (entry ESP+8)
 vostok::physics::hit_object	user	0xC	ptr<vostok::collision::game_object>	base_physics_object's user data, the game's object (0.10b +8; detect_usable_object reads +0Ch at 0x2D8587)
 vostok::collision::game_object	vtable	0x0	u32	its vtable (0.10b: cast_to_hit_receiver +0, cast_to_collision_geometry +4, cast_to_base_player +8)
-survarium::collision_geometry	subscribers	0xC	ptr<survarium::usable_slot>	its subscribers' begin (+10h the end), which query_objects_by_type 0x2DC39A walks
+survarium::collision_geometry	subscribers	0xC	u32	its subscribers' begin (+10h the end): collision_geometry_subscriber pointers (damage and effect zones, sensors, players_checker, usable objects), not all usable; query_objects_by_type 0x2DC39A walks them through the cast it is given
 vostok::physics::ray_hits	begin	0x0	ptr<vostok::physics::ray_result>	a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} (detect_usable_object's at 0x2D850F..0x2D851F, ray_query appends 0x777DE): the first hit
 vostok::physics::ray_hits	end	0x4	ptr<vostok::physics::ray_result>	past the last hit (the count is (end - begin) / 28h, 0x2D852C)
 vostok::physics::ray_hits	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	what grows it (0x788C0) and frees it: detect_usable_object gives the multithreaded one (0xA8001C)
