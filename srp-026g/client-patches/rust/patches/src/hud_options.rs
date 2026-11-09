@@ -832,6 +832,10 @@ pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> {
     {
         window.set_style(thread, style);
         let after = window.styles(thread);
+        if after.dxgi_takes() {
+            // the refused state ended here: the same styles again are a new one
+            REFUSED.with(thread, |last| *last = None);
+        }
         line(&[Text("dxvk: the window DXGI refuses (style "), Hex(before.style), Text(", extended "),
                Hex(before.extended), Text(") made a popup: style "), Hex(after.style),
                Text(if after.dxgi_takes() { ", DXGI takes it" } else { ", DXGI still refuses it" })]);

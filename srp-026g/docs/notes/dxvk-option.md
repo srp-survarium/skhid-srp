@@ -234,7 +234,7 @@ WS_EX_WINDOWEDGE, or must not be WS_EX_TOPMOST.
   WS_CLIPSIBLINGS, WS_EX_TOPMOST, refused;
 - Settings to fullscreen in a running game: `set_size` 0x3CF980 sets GWL_STYLE to its +E0h, 0
   (0x3CFA09), then SetWindowPos(HWND_TOPMOST, SWP_SHOWWINDOW): refused too;
-- Alt+Tab: the window's deactivation (message_processor 0x182E9, engine_world::on_alttab 0x14020,
+- Alt+Tab: the window's deactivation (message_processor 0x18307, engine_world::on_alttab 0x14020,
   game vtable +2Ch 0x1ED450) calls res_render_output::minimize 0x3CFE80 (SetFullscreenState(FALSE,
   the monitor's output), then ShowWindow(SW_FORCEMINIMIZE) if that succeeded; DXGI and DXVK refuse
   FALSE with an output, DXGI_ERROR_INVALID_CALL); DXVK's GetFullscreenState and Present leave it for a
@@ -297,4 +297,5 @@ thread reading it is shown (the start, the login screen and every Present are th
   window (`check_hud_options_026g.py`): WS_POPUP set before the Present, which then sees a window
   DXGI's rule takes. That AMD's driver then makes its swap chain is AMD's word (#57, #5258), not
   seen on this game: no Windows PC with an AMD GPU was run.
-- Not checked on Windows; not played.
+- Not checked on Windows. Played locally under Wine (wayland driver, DXVK, fullscreen
+  2560x1440) on 2026-11-09: the window made a popup at the start, the game fine.

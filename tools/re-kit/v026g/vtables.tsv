@@ -44,5 +44,5 @@ vtable	slot	va	class	base	basis
 0x009ffb14	0x28	0x0027b4b0	survarium::network_client	survarium::base_network_client	observed: unload, called by game_world::unload 0x1F8B9F
 0x009ffb14	0x3c	0x00219960	survarium::network_client	survarium::base_network_client	observed: lobby_client (this + 1E0h); close_current_match 0x27A939, the 0xEA handler 0x27C757
 0x009ffb14	0x58	0x0027a790	survarium::network_client	survarium::base_network_client	observed: close_current_match, called by on_match_disconnected 0x21BEA5 and the 0xEA handler 0x27C774 (a tail jump)
-0x009fac8c	0x2c	0x001ed450	survarium::game	survarium::game	observed: the window lost the focus (message_processor 0x182E9 through engine_world::on_alttab 0x14020): res_render_output::minimize 0x3CFE80
+0x009fac8c	0x2c	0x001ed450	survarium::game	survarium::game	observed: the window lost the focus (message_processor 0x18307 through engine_world::on_alttab 0x14020): res_render_output::minimize 0x3CFE80
 0x009fac8c	0x30	0x001ed430	survarium::game	survarium::game	observed: each engine tick (0x13D58, before the render): res_render_output::goto_fullscreen 0x3CFE20, fullscreen again when focused
