@@ -2461,3 +2461,11 @@ va	name	source	ret_cleanup	result
 0x00106d90	ptmalloc3::free_starter	manual	0	
 0x00106fc0	pt3free	manual	0	
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	manual	0	EAX the memory (pt3malloc 0x1C6B4), 0 when the allocator is closed ([0x1F1D61B])
+0x00038ff0	vostok::math::sin	manual	0	ST0: fsin of the float argument (x87, 80-bit; every caller stores it as a float)
+0x00039000	vostok::math::cos	manual	0	ST0: fcos of the float argument (x87, 80-bit)
+0x00079c40	vostok::math::atan2	manual	0	ST0: fpatan of (entry ESP+4, entry ESP+8): atan2(y, x), the angle of (x, y) (x87, 80-bit)
+0x000ed2e0	vostok::math::quaternion::quaternion	manual	12	the quaternion (x, y, z, w floats) written at ESI from the Euler angles; sin/cos of half of each angle (0x38FF0, 0x39000), each stored as a float
+0x00074290	vostok::math::quaternion::quaternion	manual	4	EAX = ESI, the quaternion from an axis and an angle: w = cos(angle/2), xyz = axis * sin(angle/2)
+0x00074300	vostok::math::quaternion::get_axis_and_angle	manual	4	AL 1 with the axis at EDI and the angle (2 atan2(|xyz|, w), 0x79C40) at entry ESP+4; AL 0, axis (0, 0, 1) and angle 0 when |xyz| <= 1e-7
+0x003b3180	vostok::animation::evaluate_frame	manual	0	each of the channels cubic-evaluated at the time into EAX[i]: domain 0x3B3340, then ((c3 dt + c2) dt + c1) dt + c0
+0x003b3340	vostok::animation::time_channel::domain	manual	4	EAX the domain j (knots[j] <= t <= knots[j+1], t clamped to the knots, searched from *current mod count), also stored at the current; ECX the knot count, EDX j

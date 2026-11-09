@@ -143,6 +143,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
 | `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
+| `rust/patches/src/animation_math.rs`, `src/animation_math.toml`, `src/vostok/trig.rs`, `animation_math_026g.asm`, `check_animation_math_026g.py` | Patch 134: the animation's sines, cosines and atan2 (nine calls of the x87's fsin, fcos, fpatan whose results are stored as floats at once) computed with SSE2 doubles where the float is provably the x87's, the game's own function otherwise; time_channel::domain's knot search without a `div` per try. The same floats; the check runs the game's functions in both exes (needs Unicorn), the crate's ignored test every float against the CPU's x87 (`../docs/notes/client_patch.md` section 3.80) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
@@ -5107,3 +5108,28 @@ waiters yield after a few spins (`vostok::YieldingLock`). `../scripts/memory-pro
 prints each arena's use, holes and top call sites by live and peak bytes (named from the re-kit) and the
 address-space budget. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
+
+## The animation's math, faster and the same (patch 134, unreleased)
+
+The simulation thread spent about 6 % of its time in three x87 instructions (fsin, fcos, fpatan:
+about 100 cycles each) and 3 % in a knot search with a division per try, all of it the animation's:
+every frame each bone of each animation turns its Euler angles into a quaternion (a sine and a
+cosine of each half angle) and a weighted one goes through an axis and an angle (profile of the
+live game, 2026-11-09).
+
+- **Sines, cosines, atan2** (`animation_math.rs`, `vostok/trig.rs`): Rust `call` hooks on the nine
+  calls in quaternion::quaternion (0xED2E0, 0x74290) and get_axis_and_angle (0x74300), each of which
+  stores the result as a float at once. A double-precision kernel (fdlibm's) gives that float when it
+  is provably the one the x87's result rounds to (|x| <= 64; not near a zero of a reduced argument;
+  not within 2^-34 of a midpoint between two floats), and the game's own function otherwise (0.1 %
+  of the floats up to 64). Every float of sin and cos and 2.4 billion atan2 pairs match this CPU's
+  x87 bit for bit (`cargo test -- --ignored`). About 9 ns a call instead of 25.
+- **The knot search** (`animation_math_026g.asm`, a code hook at time_channel::domain 0x3B3340): the
+  same tries in the same order, (current + i) mod n, counted up instead of divided.
+
+The framework learnt an `f32` argument and result for `call` hooks (returned in ST0, as C and the
+game's x87 functions return it) and engine rows called directly with an ST0 result.
+
+Every float the game computes is the same: nothing a match computes changes, no row in
+`simulation_changes.tsv`. Checked with `check_animation_math_026g.py` (Unicorn: the game's own
+functions in both exes, 0 of 62000 cases differ) and the crate's tests. Not run in a game.

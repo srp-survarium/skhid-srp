@@ -2258,3 +2258,11 @@ va	status	ref_021d	name
 0x00106d70	verified		ptmalloc3::memalign_starter
 0x00106d90	verified		ptmalloc3::free_starter
 0x00106fc0	verified		pt3free
+0x00038ff0	reviewed		vostok::math::sin
+0x00039000	reviewed		vostok::math::cos
+0x00079c40	reviewed		vostok::math::atan2
+0x000ed2e0	reviewed	0x000b67d6	vostok::math::quaternion::quaternion
+0x00074290	reviewed		vostok::math::quaternion::quaternion
+0x00074300	reviewed		vostok::math::quaternion::get_axis_and_angle
+0x003b3180	reviewed	0x00260e7f	vostok::animation::evaluate_frame
+0x003b3340	reviewed		vostok::animation::time_channel::domain

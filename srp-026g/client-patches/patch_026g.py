@@ -2726,6 +2726,19 @@ WORLD_SECTIONS_HOOKS = (
 INSTALLS[0x3246C0] = (JUMP, "game_state_history_item::construct's last store: the six world sections' buffers "
                             "get the multithreaded allocator and a block each; back at 0x3246C6", None, None)
 
+# Patch 134 (the Rust patch animation_math, client_patch.md section 3.80): the
+# animation's sines, cosines and atan2 (calls of vostok::math's x87 functions
+# whose results are stored as floats at once) and its knot search.
+for _va, _what in ((0xED30F, "sin x"), (0xED31F, "cos x"), (0xED32F, "sin y"), (0xED33F, "cos y"),
+                   (0xED34F, "sin z"), (0xED35F, "cos z")):
+    INSTALLS[_va] = (CALLEE, f"quaternion::quaternion(float3 angles)'s {_what}: animation_math (Rust `call` hook)",
+                     None, None)
+INSTALLS[0x742A5] = (CALLEE, "quaternion::quaternion(axis, angle)'s sin: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x742B5] = (CALLEE, "quaternion::quaternion(axis, angle)'s cos: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x743B2] = (CALLEE, "get_axis_and_angle's atan2: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
+                             "per step", None, None)
+
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):

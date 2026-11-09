@@ -283,6 +283,12 @@ unsafe extern "cdecl" {
     pub fn engine_xaudio2_create(engine: *mut *mut c_void, flags: u32) -> u32;
     /// 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
     pub fn engine_ray_test_single(from: Option<BtTransform>, to: Option<BtTransform>, object: Option<BtCollisionObject>, shape: Option<BtCollisionShape>, transform: Option<BtTransform>, callback: Option<ClosestRayResultCallback>);
+    /// 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly
+    pub fn engine_sin(angle: f32) -> f32;
+    /// 0x39000 vostok::math::cos: angle ESP+4; pops 0; ST0; cdecl, called directly
+    pub fn engine_cos(angle: f32) -> f32;
+    /// 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly
+    pub fn engine_atan2(y: f32, x: f32) -> f32;
 }
 
 #[allow(dead_code)]

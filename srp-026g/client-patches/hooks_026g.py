@@ -107,6 +107,11 @@ TYPES["QueryTag"] = {
     "binding": "let {n} = QueryTag::from_raw({a} as usize as u32);",
     "orig_type": "QueryTag", "orig_raw": "-", "pass": "{n}", "null": "{a}",
 }
+# A float the game passes by value in a stack slot (vostok::math's x87
+# functions, `call` hooks).
+TYPES["f32"] = {
+    "raw": "f32", "binding": "let {n} = {a};", "orig_type": "f32", "orig_raw": "{n}", "pass": "{n}", "null": "{a}",
+}
 # Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
 # the public views borrow the generated hook's thread.
 for _view in ("RenderVisual", "GameScene", "ObjectLight"):
@@ -119,11 +124,14 @@ for _view in ("RenderVisual", "GameScene", "ObjectLight"):
 
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
 # the Vostok type and how F's raw result `{x}` becomes it (`Original::call`),
-# and how that Vostok value `{v}` becomes the shim's u32 (EAX).
+# and how that Vostok value `{v}` becomes the shim's result (`shim`: u32 in EAX
+# unless named; an f32 in ST0, as C and the game's x87 functions return it,
+# which the RUST_CALL entry leaves as the shim left it).
 RESULTS = {
     None: {"raw": (None,), "type": "()", "from_raw": "{x}", "to_u32": "{{ {v}; 0 }}"},
     "bool": {"raw": ("AL", "EAX"), "type": "bool", "from_raw": "{x} != 0", "to_u32": "u32::from({v})"},
     "u32": {"raw": ("EAX",), "type": "u32", "from_raw": "{x}", "to_u32": "{v}"},
+    "f32": {"raw": ("ST0",), "type": "f32", "from_raw": "{x}", "to_u32": "{v}", "shim": "f32"},
 }
 
 
@@ -744,11 +752,16 @@ def rs_text(hs, tables=()):
             "/// # Safety",
             f"/// Called only by the entry `{h['entry']}`.",
             "#[unsafe(no_mangle)]",
-            f"pub unsafe extern \"C\" fn {h['shim']}({', '.join(f'a{i}: {t}' for i, t in enumerate(h['raw_params']))}) -> u32 {{",
-            f"    // SAFETY: only the entry `{h['entry']}` calls this, from the game's call at",
-            f"    // {h['site']:#x}, on the game's thread; a0.. are {h['function']}'s arguments.",
-            "    let thread = unsafe { Thread::new() };",
+            f"pub unsafe extern \"C\" fn {h['shim']}({', '.join(f'a{i}: {t}' for i, t in enumerate(h['raw_params']))}) "
+            f"-> {result.get('shim', 'u32')} {{",
         ]
+        # the thread token, for the arguments that borrow it (plain values do not)
+        if any("thread" in TYPES[v].get("build", "") + TYPES[v].get("binding", "") for _, v in h["args"]):
+            lines += [
+                f"    // SAFETY: only the entry `{h['entry']}` calls this, from the game's call at",
+                f"    // {h['site']:#x}, on the game's thread; a0.. are {h['function']}'s arguments.",
+                "    let thread = unsafe { Thread::new() };",
+            ]
         null_args = ", ".join(TYPES[v]["null"].format(a=f"a{i}") for i, (_, v) in enumerate(h["args"]))
         null = f"unsafe {{ {'raw::' if abi is None else ''}{target_fn}({null_args}) }}"
         null_ret = result["to_u32"].format(v=result["from_raw"].format(x=null))

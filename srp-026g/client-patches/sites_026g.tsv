@@ -189,3 +189,13 @@ memory_profile.allocated	-	entry	-	-	-	frame=ESP:vostok::memory::profile_frame	p
 memory_profile.freeing	-	entry	-	-	-	frame=ESP:vostok::memory::profile_frame	patch 127's gates before mspace_free or mspace_realloc: cdecl, the ESP of the game's call and the memory given back; the caller keeps every register and pops the two
 memory_profile.mapped_free	0x10700A	code	-	6	-	-	pt3free (0x106FC0; EAX the memory, then EDI) where a block mapped on its own (prev_foot bit 0) goes back to the region, not to mspace_free (and edx,-2 / and eax,-8; ECX the chunk, EAX its head; pt3free's return at ESP+10h): patch 127's gate
 memory_profile.hook_mapped_free	0x106DAC	code	-	6	-	-	ptmalloc3's free hook (0x106D90, the pointer ptmalloc_init stores at 0x106E38; EAX the memory) where a mapped block goes back to the region (and ebx,-2 / and edx,-8; its return at ESP+8): patch 127's gate
+quaternion.sin_x	0xED30F	call	engine_sin	-	-	-	quaternion::quaternion(float3 angles) 0xED2E0: sin of half the x angle, stored as a float (fstp dword [esp+0Ch])
+quaternion.cos_x	0xED31F	call	engine_cos	-	-	-	quaternion::quaternion(float3 angles) 0xED2E0: cos of half the x angle, stored as a float (fstp dword [esp+10h])
+quaternion.sin_y	0xED32F	call	engine_sin	-	-	-	quaternion::quaternion(float3 angles) 0xED2E0: sin of half the y angle, stored as a float (fstp dword [esp+4])
+quaternion.cos_y	0xED33F	call	engine_cos	-	-	-	quaternion::quaternion(float3 angles) 0xED2E0: cos of half the y angle, stored as a float (fstp dword [esp+8])
+quaternion.sin_z	0xED34F	call	engine_sin	-	-	-	quaternion::quaternion(float3 angles) 0xED2E0: sin of half the z angle, stored as a float (fstp dword [esp+14h])
+quaternion.cos_z	0xED35F	call	engine_cos	-	-	-	quaternion::quaternion(float3 angles) 0xED2E0: cos of half the z angle, stored as a float (fstp dword [esp+18h] after one movss)
+quaternion.axis_sin	0x742A5	call	engine_sin	-	-	-	quaternion::quaternion(axis, angle) 0x74290: sin of half the angle, stored as a float (fstp dword [esp+8])
+quaternion.axis_cos	0x742B5	call	engine_cos	-	-	-	quaternion::quaternion(axis, angle) 0x74290: cos of half the angle, stored as the w float (fstp dword [esi+0Ch])
+quaternion.angle_atan2	0x743B2	call	engine_atan2	-	-	-	quaternion::get_axis_and_angle 0x74300: atan2(|xyz|, w), doubled in ST0 (fadd st0,st0: exact) and stored as a float (fstp dword [ebx])
+animation.domain	0x3B3340	code	-	5	-	-	time_channel::domain 0x3B3340 at its start (mov ecx,[eax] / mov edx,[eax+4]; EAX the channel, XMM2 the time, [esp+4] the current domain, ret 4; called only from evaluate_frame 0x3B31A6): patch 134's search, the same domain without a division per step, returning to the caller itself

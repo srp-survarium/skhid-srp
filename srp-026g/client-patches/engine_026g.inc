@@ -656,3 +656,15 @@ extern engine_discard_playing_order
 ; void engine_finish_key_binding(struct game_options *options)
 ; 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
 extern engine_finish_key_binding
+; float engine_sin(float angle)
+; 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_sin
+; float engine_cos(float angle)
+; 0x39000 vostok::math::cos: angle ESP+4; pops 0; ST0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_cos
+; float engine_atan2(float y, float x)
+; 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_atan2
