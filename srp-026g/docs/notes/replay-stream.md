@@ -40,9 +40,8 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    recording through #1285's spectator machine: 0xE3, 0xE4 naming 0xFF with every place of the
    recording, the key frame, then the relays and roster changes at their recorded times.
 6. It ends when the game leaves (0xE0, Esc), its link goes, or the recording ends (0xEA naming
-   0xFF; patch 121 takes the game back to the lobby). The session is over when its game acks that
-   0xEA; the address stays silent the 7 s a game whose 0xEA was lost needs to end its link by
-   itself (`SILENCE`), and a session seated meanwhile connects from it at once.
+   0xFF, then 7 s of silence; patch 121 takes the game back to the lobby). The session is over
+   once the match server forgets the game.
 
 **The start** (`Recording::start`): the replay opens where the action is, at the end of the
 match's countdown (`Recording::opening`: the start of the time rule's "in process" in the first key

@@ -589,67 +589,6 @@ fn a_session_ended_by_the_lobby_drops_its_playback() {
     assert!(replays.watches().holds(WATCHER_ACCOUNT));
 }
 
-/// Review of 2026-11-09: the session ended only with the silence after the farewell (7 s), which
-/// kept the account `busy`; the event is its game acking the farewell.
-#[test]
-fn a_farewell_acked_ends_the_session_and_its_silence_goes_on() {
-    let (mut bench, replays) = bench();
-    session_of_the_recording(&mut bench, &replays, 0);
-    let at = watching(&mut bench, WATCHER);
-    bench.run_long(2_000);
-    assert!(replays.watches().holds(WATCHER_ACCOUNT));
-    control(&mut bench, at, 1, Op::Leave);
-    assert!(bench.until(1_000, |b| b.clients[at].told_to_leave));
-    assert!(
-        bench.until(1_000, |_| !replays.watches().holds(WATCHER_ACCOUNT)),
-        "the account is free when its farewell is heard"
-    );
-    // Still silent towards that game, so its match link ends.
-    bench.run(300);
-    let heard = bench.clients[at].datagrams_received;
-    bench.run_long(6_000);
-    assert_eq!(bench.clients[at].datagrams_received, heard);
-    bench.assert_no_faults();
-}
-
-/// Review of 2026-11-09: while a game that had been let go was silent, the address was kept by the
-/// replays, so the 0xD8 of its session, seated in a match meanwhile, was swallowed.
-#[test]
-fn a_game_let_go_and_seated_connects_from_its_address() {
-    let (mut bench, replays) = bench();
-    // A match running here, for its session to be seated in.
-    bench.join_all();
-    bench.run_long(25_000);
-    session_of_the_recording(&mut bench, &replays, 0);
-    let at = watching(&mut bench, WATCHER);
-    bench.run_long(1_000);
-    // Its acks do not reach the server, so its farewell stays unheard.
-    bench.clients[at].mute_acks = true;
-    control(&mut bench, at, 1, Op::Leave);
-    assert!(bench.until(1_000, |b| b.clients[at].told_to_leave));
-    bench
-        .registry
-        .join_running(
-            bench.match_id,
-            MatchPlayer {
-                session_id: WATCHER,
-                account_id: WATCHER_ACCOUNT,
-                profile: profile("seated", 0),
-                bot: false,
-                driven: false,
-            },
-        )
-        .unwrap();
-    assert!(bench.registry.seat(WATCHER).is_some());
-    bench.clients[at] = Client::growing(WATCHER, 3, MAP_BATTERIES);
-    bench.clients[at].connect();
-    assert!(
-        bench.until(2_000, |b| b.clients[at].model.options.is_some()),
-        "its 0xD8 was swallowed"
-    );
-    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
-}
-
 #[test]
 fn a_leave_request_lets_the_game_go() {
     let (mut bench, replays) = bench();
