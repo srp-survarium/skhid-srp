@@ -288,7 +288,8 @@ impl<'a> Head<'a> {
 
 /// An existing hit effect's root emitter (`game_effect_ptr_wrapper`): its
 /// registry index (the pointer flag `is_client_effect` 0, as the effects
-/// template's), and `m_single_effect_index`.
+/// template's), held to 0 as the effects template's is, and
+/// `m_single_effect_index` (stored, not an index the loader follows).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HitEmitter {
     registry_index: u32,
@@ -344,8 +345,27 @@ impl HitEffect {
                     let flag_at = start.saturating_add(1);
                     return Err((flag_at, Reason::TailHitEffect { at: flag_at }));
                 }
+                // The root emitter's registry index names an entry of an
+                // unbounded global table (0xAA2E48) that the native hit-effect
+                // loader reads and ref-counts through with NO bound:
+                // `hit_player_game_effect_presenter::deserialize` 0x340410,
+                // when `is_exists`, calls `game_effect_ptr_wrapper` 0x2E5C30,
+                // which with the flag clear does `[0xAA2E48 + index*4]` (an
+                // out-of-bounds read for any index past the table) and then a
+                // refcount `lock xadd [ptr+0xD0]` through the loaded pointer (a
+                // write through a bogus pointer). This is the same unbounded
+                // read the effects section and the player E-effect records
+                // force to 0 (`world::Effect::read` RootIndex,
+                // `effects::record_is_safe`); the hit-effect emitter was the
+                // one copy of it left open. Hold it to 0 too, as the effects
+                // template is: a non-zero index is refused, not loaded.
+                let index_at = reader.at();
+                let registry_index = u32(reader)?;
+                if registry_index != 0 {
+                    return Err((index_at, Reason::TailHitEffect { at: index_at }));
+                }
                 Some(HitEmitter {
-                    registry_index: u32(reader)?,
+                    registry_index,
                     single_effect_index: optional_u32(reader)?,
                 })
             }
@@ -1424,6 +1444,44 @@ mod tests {
             matches!(refusal.reason, Reason::TailHitEffect { .. }),
             "{refusal}"
         );
+    }
+
+    #[test]
+    fn a_hit_effect_with_a_nonzero_emitter_index_goes_to_nobody() {
+        // H = 1, one record present whose root emitter is the index form
+        // (flag 0) but names a non-zero registry entry: the native loader
+        // (0x340410 -> 0x2E5C30) would read `[0xAA2E48 + index*4]` and
+        // ref-count through it with no bound. Must be refused like the
+        // effects template's root emitter, not loaded.
+        let mut state = valid_state();
+        state.truncate(HIT_AT);
+        state.extend(1u32.to_le_bytes()); // H = 1
+        state.push(0xFF); // is_exists
+        state.push(0x00); // is_client_effect: the index form
+        state.extend(0x0000_0001u32.to_le_bytes()); // registry_index: not 0
+        state.extend([0u8; 32]); // room, so the fault is the index not a short read
+        let refusal = with_profile(&state).expect_err("refused");
+        assert!(
+            matches!(refusal.reason, Reason::TailHitEffect { .. }),
+            "{refusal}"
+        );
+    }
+
+    #[test]
+    fn a_hit_effect_with_a_zero_emitter_index_is_read() {
+        // The same record with registry_index 0 (the effects template's
+        // value) is the valid index form and must still be accepted.
+        let mut state = valid_state();
+        let tail: Vec<u8> = state.split_off(HIT_AT);
+        state.extend(1u32.to_le_bytes()); // H = 1
+        state.push(0xFF); // is_exists
+        state.push(0x00); // is_client_effect: the index form
+        state.extend(0u32.to_le_bytes()); // registry_index = 0 (valid)
+        state.extend(0xFFFF_FFFFu32.to_le_bytes()); // single_effect_index: none
+        state.extend(0.0f32.to_le_bytes()); // last_hit_time
+        state.extend(0.0f32.to_le_bytes()); // time
+        state.extend(&tail[4..]); // the active bytes onward
+        assert_eq!(with_profile(&state), Ok(()));
     }
 
     #[test]

@@ -1,17 +1,17 @@
-//! The premium account, the premium shop and the premium items, all paid in
-//! silver (gold is gone, the owner's of 2026-11-08)
-//! (`docs/notes/lobby.md` §2.17, §2.18; `lobby_requests.md`
-//! `47 02`, `47 05`, `47 06`, `46 04`).
+//! The premium shop and the premium items, all paid in silver (gold is
+//! gone, the owner's of 2026-11-08)
+//! (`docs/notes/lobby.md` §2.18; `lobby_requests.md` `47 00`, `47 02`).
 //!
-//! - **The shop's offers** are `survarium::v026g::shop_offers`: premium
-//!   time and the seven bundles, each named by its bundle id. Buying one
-//!   ([`buy_offer`]) takes its silver; premium time is added to what is left
-//!   ([`add_premium`]), a bundle's items go to the inventory.
-//! - **A discount** is the operator's (`SRP_PREMIUM_DISCOUNT`, percent,
-//!   default 0: none). With one, a player without premium is offered it at
-//!   sign-in (`A9`, answered by `47 06`) and after a match together with
-//!   the premium half of the match's pay (`A8`, answered by `47 05`); the
-//!   price is the client's own arithmetic, [`discounted`].
+//! - **No premium account** (the owner, 2026-11-09: "let's do the same with
+//!   premium", "no premium state anywhere should exist", "essentially we
+//!   should just increase numbers premium does"): what it paid, half again
+//!   of a match's rows, every account is paid, by the rates
+//!   (`pay::MONEY_RATES`, `pay::DEFAULT_EXPERIENCE_RATE`,
+//!   `pay::DEFAULT_REPUTATION_RATE`); nothing sells, gives or shows premium
+//!   time (`docs/notes/premium.md`).
+//! - **The shop's offers** are `survarium::v026g::shop_offers`: the seven
+//!   bundles, each named by its bundle id. Buying one ([`buy_offer`])
+//!   takes its silver; its items go to the inventory.
 //! - **Premium items one by one** ([`buy_item`], `47 00` for an item of
 //!   `shop_offers::premium_price_list`): paid in silver.
 //! - **No vouchers but the drop card** (the owner, 2026-11-08: "premium
@@ -26,17 +26,13 @@
 //! **There is no gold** (the owner, 2026-11-08): every price that was gold
 //! is its gold times `prices::GOLD_IN_SILVER` in silver, and what gave gold
 //! gives that silver.
-//!
-//! The premium account itself: half again of a match's pay
-//! ([`super::rewards`]). Not the third kit: every account has all three
-//! since 2026-10-17 ([`Account::kit_usable`]).
 
 use std::sync::OnceLock;
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
-use survarium::v026g::lobby::{Bought, FULL_CONDITION, ShopRecord};
-use survarium::v026g::shop_offers::{self, DEFAULT_PREMIUM_PRICES, Offer, PREMIUM_OFFERS};
+use survarium::v026g::lobby::{Bought, FULL_CONDITION};
+use survarium::v026g::shop_offers;
 
 use super::account::Account;
 use super::rules::{self, ActionError};
@@ -45,9 +41,6 @@ use super::rules::{self, ActionError};
 /// what the rename voucher cost (its 250 gold in silver) before the
 /// vouchers were removed.
 pub const DEFAULT_RENAME_COST: u32 = 25_000;
-/// The most a discount may be, in percent: the client divides by what is
-/// left of the price (`LobbyMenu.show_premium_discount`).
-pub const MAX_DISCOUNT_PERCENT: u8 = 90;
 /// Most items one purchase of a premium item that is no stack makes, as
 /// the shop's ([`rules::MAX_BOUGHT_AT_ONCE`]).
 const MAX_BOUGHT_AT_ONCE: u32 = rules::MAX_BOUGHT_AT_ONCE;
@@ -56,17 +49,6 @@ const MAX_BOUGHT_AT_ONCE: u32 = rules::MAX_BOUGHT_AT_ONCE;
 /// once at start; every value has a default).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Settings {
-    /// Silver for each premium offer, in the order of
-    /// [`shop_offers::PREMIUM_OFFERS`] (longest first).
-    /// `SRP_PREMIUM_PRICES`: seven numbers, **shortest first** (a day,
-    /// 3 days, a week, a month, 3, 6 months, a year).
-    pub premium_prices: [u32; 7],
-    /// `SRP_PREMIUM_DISCOUNT`: percent off premium time for a player
-    /// without premium, 0..=90; 0 offers none.
-    pub discount_percent: u8,
-    /// `SRP_PREMIUM_OFFER_SECONDS`: how long the offer after a match
-    /// stands (the client counts it down on its premium button).
-    pub offer_seconds: u32,
     /// `SRP_RENAME_COST`: silver for a nickname change (0x8D's fourth
     /// price). Default: [`DEFAULT_RENAME_COST`].
     pub rename_cost: u32,
@@ -78,24 +60,10 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            premium_prices: DEFAULT_PREMIUM_PRICES,
-            discount_percent: 0,
-            offer_seconds: 3600,
             rename_cost: DEFAULT_RENAME_COST,
             ammo_use: true,
         }
     }
-}
-
-/// `SRP_PREMIUM_PRICES`: seven prices over 0, shortest time first.
-fn parse_prices(value: &str) -> Option<[u32; 7]> {
-    let prices: Vec<u32> = value
-        .split(',')
-        .map(|price| price.trim().parse::<u32>().ok().filter(|&price| price > 0))
-        .collect::<Option<_>>()?;
-    let mut prices: [u32; 7] = prices.try_into().ok()?;
-    prices.reverse();
-    Some(prices)
 }
 
 impl Settings {
@@ -103,36 +71,6 @@ impl Settings {
     /// test's).
     pub fn read(var: impl Fn(&str) -> Option<String>) -> Self {
         let mut settings = Self::default();
-        if let Some(value) = var("SRP_PREMIUM_PRICES") {
-            match parse_prices(&value) {
-                Some(prices) => settings.premium_prices = prices,
-                None => log::error!(
-                    "SRP_PREMIUM_PRICES is `{value}`; it must be seven prices over 0, for a day, \
-                     3 days, a week, a month, 3 months, 6 months and a year. Using the defaults"
-                ),
-            }
-        }
-        if let Some(value) = var("SRP_PREMIUM_DISCOUNT") {
-            match value.trim().parse::<u8>() {
-                Ok(percent) if percent <= MAX_DISCOUNT_PERCENT => {
-                    settings.discount_percent = percent;
-                }
-                _ => log::error!(
-                    "SRP_PREMIUM_DISCOUNT is `{value}`; it must be a percent of 0 to \
-                     {MAX_DISCOUNT_PERCENT}. No discount"
-                ),
-            }
-        }
-        if let Some(value) = var("SRP_PREMIUM_OFFER_SECONDS") {
-            match value.trim().parse::<u32>() {
-                Ok(seconds) if seconds > 0 => settings.offer_seconds = seconds,
-                _ => log::error!(
-                    "SRP_PREMIUM_OFFER_SECONDS is `{value}`; it must be a number of seconds over \
-                     0. Using {}",
-                    settings.offer_seconds
-                ),
-            }
-        }
         if let Some(value) = var("SRP_RENAME_COST") {
             match value.trim().parse::<u32>() {
                 Ok(cost) => settings.rename_cost = cost,
@@ -147,16 +85,6 @@ impl Settings {
             crate::switch_value("SRP_AMMO_USE", ammo_use.as_deref(), settings.ammo_use);
         settings
     }
-
-    /// The discount as the share the wire carries.
-    pub fn discount(&self) -> f32 {
-        f32::from(self.discount_percent) / 100.0
-    }
-
-    /// The records of 0x95 at these prices.
-    pub fn shop_records(&self) -> Vec<ShopRecord> {
-        shop_offers::records(&self.premium_prices)
-    }
 }
 
 /// The settings of this srp: the environment's, read at first use.
@@ -170,8 +98,6 @@ pub fn settings() -> &'static Settings {
 pub enum ShopError {
     /// No offer with that id.
     NoSuchOffer,
-    /// A discount the server did not offer.
-    NotOffered,
     NotEnoughMoney,
 }
 
@@ -179,7 +105,7 @@ impl ShopError {
     /// The game's own text for the refusal.
     pub fn text_key(&self) -> &'static str {
         match self {
-            Self::NoSuchOffer | Self::NotOffered => "st_cannot_buy_item",
+            Self::NoSuchOffer => "st_cannot_buy_item",
             Self::NotEnoughMoney => "st_not_enougth_money",
         }
     }
@@ -192,17 +118,6 @@ impl std::fmt::Display for ShopError {
 }
 
 impl std::error::Error for ShopError {}
-
-/// Adds premium time: to what is left, or from `now` (Unix seconds).
-pub fn add_premium(account: &mut Account, seconds: u64, now: u64) {
-    account.premium_until = account.premium_until.max(now).saturating_add(seconds);
-}
-
-/// A price with a discount, as the client shows it: `value * (1 -
-/// discount) + 0.5`, cut to a whole number (0x28A547, 0x28AC6E; PROVEN).
-pub fn discounted(price: u32, discount: f32) -> u32 {
-    (f64::from(price) * (1.0 - f64::from(discount)) + 0.5) as u32
-}
 
 /// Puts `units` of `dict_id` into the inventory: onto the stack owned, or
 /// as a new item (a new item for each unit of what is no stack). Returns
@@ -236,63 +151,35 @@ pub fn grant(account: &mut Account, dict_id: u16, units: u32) -> Vec<Bought> {
     }
 }
 
-/// What an offer gave.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Gave {
-    Premium {
-        days: u32,
-    },
-    /// The bundle's items, as they are in the inventory now.
-    Bundle {
-        bundle_id: u8,
-        items: Vec<Bought>,
-    },
-}
-
-/// A purchase of the premium shop.
+/// A purchase of the premium shop: a bundle.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Purchase {
     /// The silver taken.
     pub cost: u32,
-    pub gave: Gave,
+    pub bundle_id: u8,
+    /// The bundle's items, as they are in the inventory now.
+    pub items: Vec<Bought>,
 }
 
-/// `47 02` (and `47 05`, `47 06` with a `discount` the server offered):
-/// buy the offer `offer_id` at `now`. A discount is taken off premium time
-/// only: the client lists no bundle with one.
-pub fn buy_offer(
-    account: &mut Account,
-    settings: &Settings,
-    offer_id: u32,
-    discount: f32,
-    now: u64,
-) -> Result<Purchase, ShopError> {
+/// `47 02`: buy the bundle `offer_id`.
+pub fn buy_offer(account: &mut Account, offer_id: u32) -> Result<Purchase, ShopError> {
     let dictionary = Dictionary::shared();
-    let offer = shop_offers::offer(offer_id).ok_or(ShopError::NoSuchOffer)?;
-    let cost = match offer {
-        Offer::Premium { index, .. } => discounted(settings.premium_prices[index], discount),
-        Offer::Bundle(_) if discount != 0.0 => return Err(ShopError::NotOffered),
-        Offer::Bundle(bundle) => bundle.price(dictionary),
-    };
+    let bundle = shop_offers::offer(offer_id).ok_or(ShopError::NoSuchOffer)?;
+    let cost = bundle.price(dictionary);
     if account.generic_money < cost {
         return Err(ShopError::NotEnoughMoney);
     }
     account.generic_money -= cost;
-    let gave = match offer {
-        Offer::Premium { days, .. } => {
-            add_premium(account, u64::from(days) * 86_400, now);
-            Gave::Premium { days }
-        }
-        Offer::Bundle(bundle) => Gave::Bundle {
-            bundle_id: bundle.bundle_id,
-            items: bundle
-                .contents(dictionary)
-                .into_iter()
-                .flat_map(|(dict_id, units, _)| grant(account, dict_id, units))
-                .collect(),
-        },
-    };
-    Ok(Purchase { cost, gave })
+    let items = bundle
+        .contents(dictionary)
+        .into_iter()
+        .flat_map(|(dict_id, units, _)| grant(account, dict_id, units))
+        .collect();
+    Ok(Purchase {
+        cost,
+        bundle_id: bundle.bundle_id,
+        items,
+    })
 }
 
 /// Whether `dict_id` is a premium item the shop sells one by one.
@@ -340,14 +227,6 @@ pub fn buy_item(
     Ok(bought)
 }
 
-/// The days of the premium offer `offer_id`, if it is one.
-pub fn premium_days(offer_id: u32) -> Option<u32> {
-    PREMIUM_OFFERS
-        .iter()
-        .find(|&&(id, _)| u32::from(id) == offer_id)
-        .map(|&(_, days)| days)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,9 +250,6 @@ mod tests {
     fn the_settings_have_defaults_and_take_the_operators() {
         let none = Settings::read(|_| None);
         assert_eq!(none, Settings::default());
-        assert_eq!(none.premium_prices, DEFAULT_PREMIUM_PRICES);
-        assert_eq!(none.discount_percent, 0);
-        assert_eq!(none.offer_seconds, 3600);
         // What the rename voucher cost: its 250 gold, in silver.
         assert_eq!(none.rename_cost, 25_000);
         assert!(none.ammo_use);
@@ -381,9 +257,6 @@ mod tests {
         let set = Settings::read(|name| {
             Some(
                 match name {
-                    "SRP_PREMIUM_PRICES" => "10, 25,50,150,400,700,1200",
-                    "SRP_PREMIUM_DISCOUNT" => "25",
-                    "SRP_PREMIUM_OFFER_SECONDS" => "600",
                     "SRP_RENAME_COST" => "0",
                     "SRP_AMMO_USE" => "OFF",
                     _ => return None,
@@ -391,11 +264,6 @@ mod tests {
                 .to_owned(),
             )
         });
-        // Longest first inside.
-        assert_eq!(set.premium_prices, [1200, 700, 400, 150, 50, 25, 10]);
-        assert_eq!(set.discount_percent, 25);
-        assert_eq!(set.discount(), 0.25);
-        assert_eq!(set.offer_seconds, 600);
         assert_eq!(set.rename_cost, 0);
         assert!(!set.ammo_use);
 
@@ -403,9 +271,6 @@ mod tests {
         let bad = Settings::read(|name| {
             Some(
                 match name {
-                    "SRP_PREMIUM_PRICES" => "10,20,30",
-                    "SRP_PREMIUM_DISCOUNT" => "100",
-                    "SRP_PREMIUM_OFFER_SECONDS" => "0",
                     "SRP_RENAME_COST" => "free",
                     "SRP_AMMO_USE" => "maybe",
                     _ => return None,
@@ -414,16 +279,11 @@ mod tests {
             )
         });
         assert_eq!(bad, Settings::default());
-        assert_eq!(parse_prices("1,2,3,4,5,6,0"), None);
     }
 
     #[test]
     fn every_refusal_has_a_text_of_the_game() {
-        for error in [
-            ShopError::NoSuchOffer,
-            ShopError::NotOffered,
-            ShopError::NotEnoughMoney,
-        ] {
+        for error in [ShopError::NoSuchOffer, ShopError::NotEnoughMoney] {
             assert!(error.text_key().starts_with("st_"), "{error}");
         }
         assert_eq!(
@@ -434,90 +294,50 @@ mod tests {
 
     #[test]
     fn the_shop_goes_out_in_a_form_the_client_takes() {
-        let records = Settings::default().shop_records();
+        let records = shop_offers::records();
         let message = lobby::shop(&records).unwrap();
         let mut client = Client::signed_in();
         let Decoded::Shop(read) = client.receive(&message).unwrap() else {
             panic!("not the shop");
         };
         assert_eq!(read, records);
-        assert_eq!(read.len(), 14);
-        // `95`, 14 records, the stored stream of 14 * 0xD0 bytes.
+        assert_eq!(read.len(), 7);
+        // `95`, 7 records, the stored stream of 7 * 0xD0 bytes.
         let body = message.body();
-        assert_eq!(body[..4], [14, 0, 0, 0]);
+        assert_eq!(body[..4], [7, 0, 0, 0]);
         let packed = u32::from_le_bytes([body[4], body[5], body[6], body[7]]) as usize;
         assert_eq!(body.len(), 8 + packed);
-        assert!(packed > 14 * 0xD0);
+        assert!(packed > 7 * 0xD0);
     }
 
     #[test]
-    fn premium_time_is_bought_and_adds_up() {
-        let settings = Settings::default();
-        let mut account = rich(35_000);
-        // A day: 100 gold, in silver.
-        let bought = buy_offer(&mut account, &settings, 7, 0.0, NOW).unwrap();
-        assert_eq!(
-            bought,
-            Purchase {
-                cost: 10_000,
-                gave: Gave::Premium { days: 1 }
-            }
-        );
-        assert_eq!(account.generic_money, 25_000);
-        assert_eq!(account.premium_until, NOW + 86_400);
-        assert_eq!(account.premium_hours(NOW), Some(24));
-        // Three days more are added to what is left.
-        buy_offer(&mut account, &settings, 1, 0.0, NOW + 3600).unwrap();
-        assert_eq!(account.premium_until, NOW + 4 * 86_400);
-        assert_eq!(account.generic_money, 5_000);
-        // Not the silver for a week; nothing changes.
+    fn premium_time_is_sold_no_more() {
+        let mut account = rich(1_000_000);
         let before = account.clone();
-        assert_eq!(
-            buy_offer(&mut account, &settings, 2, 0.0, NOW),
-            Err(ShopError::NotEnoughMoney)
-        );
-        assert_eq!(
-            buy_offer(&mut account, &settings, 99, 0.0, NOW),
-            Err(ShopError::NoSuchOffer)
-        );
+        // A day, three days, a year: the dictionary's premium bundles.
+        for offer in [7, 1, 6] {
+            assert_eq!(buy_offer(&mut account, offer), Err(ShopError::NoSuchOffer));
+        }
+        assert_eq!(buy_offer(&mut account, 99), Err(ShopError::NoSuchOffer));
         assert_eq!(account, before);
-        // Premium that ran out starts again from now.
-        account.generic_money = 10_000;
-        buy_offer(&mut account, &settings, 7, 0.0, NOW + 30 * 86_400).unwrap();
-        assert_eq!(account.premium_until, NOW + 31 * 86_400);
-    }
-
-    #[test]
-    fn a_discount_is_the_clients_arithmetic() {
-        assert_eq!(discounted(250, 0.0), 250);
-        assert_eq!(discounted(250, 0.25), 188);
-        assert_eq!(discounted(1_200, 0.25), 900);
-        assert_eq!(discounted(600, 0.9), 60);
-        let settings = Settings::default();
-        let mut account = rich(100_000);
-        let bought = buy_offer(&mut account, &settings, 2, 0.25, NOW).unwrap();
-        // A week: 400 gold in silver, a quarter off.
-        assert_eq!(bought.cost, 30_000);
-        assert_eq!(account.generic_money, 70_000);
-        // No bundle has one.
-        assert_eq!(
-            buy_offer(&mut account, &settings, 9, 0.25, NOW),
-            Err(ShopError::NotOffered)
-        );
+        // Not the silver for the AK-74N bundle; nothing changes.
+        let mut poor = rich(1_000);
+        assert_eq!(buy_offer(&mut poor, 9), Err(ShopError::NotEnoughMoney));
+        assert_eq!(poor, rich(1_000));
     }
 
     #[test]
     fn a_bundle_gives_its_items() {
-        let settings = Settings::default();
         let mut account = rich(300_000);
         let before = account.inventory.len();
         // The AK-74N bundle: the rifle and 2000 rounds for 1500 gold, in
         // silver.
-        let bought = buy_offer(&mut account, &settings, 9, 0.0, NOW).unwrap();
-        assert_eq!(bought.cost, 150_000);
-        let Gave::Bundle { bundle_id, items } = bought.gave else {
-            panic!("not a bundle");
-        };
+        let Purchase {
+            cost,
+            bundle_id,
+            items,
+        } = buy_offer(&mut account, 9).unwrap();
+        assert_eq!(cost, 150_000);
         assert_eq!(bundle_id, 9);
         assert_eq!(items.len(), 2);
         assert_eq!(account.inventory.len(), before + 2);
@@ -534,7 +354,7 @@ mod tests {
         );
         assert_eq!(account.generic_money, 150_000);
         // A second one: another rifle, the rounds onto the stack.
-        buy_offer(&mut account, &settings, 9, 0.0, NOW).unwrap();
+        buy_offer(&mut account, 9).unwrap();
         assert_eq!(account.inventory.len(), before + 3);
         assert_eq!(
             account.item(ammo.item_id).unwrap().condition_or_stack,
@@ -543,12 +363,7 @@ mod tests {
         // The starter bundle: jacket, pants, the Kiparis and its rounds,
         // 2000 gold in silver.
         account.generic_money = 200_000;
-        let Gave::Bundle { items, .. } = buy_offer(&mut account, &settings, 14, 0.0, NOW)
-            .unwrap()
-            .gave
-        else {
-            panic!("not a bundle");
-        };
+        let items = buy_offer(&mut account, 14).unwrap().items;
         assert_eq!(items.len(), 4);
         assert_eq!(account.generic_money, 0);
         // The Survivor jacket and pants: their premium bonuses are their own
@@ -569,7 +384,7 @@ mod tests {
         }
         // The account as it is now goes out whole.
         let mut client = Client::signed_in();
-        let push = super::super::wire::after_change(&account, NOW).unwrap();
+        let push = super::super::wire::after_change(&account).unwrap();
         assert!(client.receive_all(&push).is_ok());
     }
 
@@ -599,7 +414,7 @@ mod tests {
         // The client takes the answer.
         let mut client = Client::signed_in();
         client
-            .receive_all(&super::super::wire::after_change(&account, NOW).unwrap())
+            .receive_all(&super::super::wire::after_change(&account).unwrap())
             .unwrap();
         assert!(
             client
@@ -665,11 +480,5 @@ mod tests {
         // The flag of Ukraine is, for its 300 gold in silver.
         assert!(buy_item(&mut account, dict("decals_4_3"), 1, INVENTORY_SLOT, 1, NOW).is_ok());
         assert_eq!(account.generic_money, 970_000);
-    }
-
-    #[test]
-    fn premium_days_are_the_offers() {
-        assert_eq!(premium_days(7), Some(1));
-        assert_eq!(premium_days(9), None);
     }
 }

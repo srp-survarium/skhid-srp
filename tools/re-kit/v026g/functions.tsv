@@ -2220,18 +2220,27 @@ va	status	ref_021d	name
 0x002015e0	reviewed	0x0015f619	survarium::game_options::on_keyboard_action
 0x002016d0	reviewed	0x0015f6bb	survarium::game_options::on_mouse_key_action
 0x002017a0	reviewed	0x0015f73e	survarium::game_options::on_mouse_move
+0x0031d6e0	observed		survarium::breath_vibration_calculator::tick
 0x00013660	reviewed	0x00012735	vostok::engine::engine_world::engine_world
 0x000141b0	reviewed	0x00012ef0	vostok::command_line::key::is_set_as_number<unsigned int>
 0x000ddf20	reviewed	0x000ac7b6	vostok::command_line::key::is_set_as_number
 0x000e0f20	reviewed	0x000ae85f	vostok::memory::preinitialize
 0x000e1120	reviewed	0x000ae992	vostok::memory::allocate_region
-0x00101280	verified		create_mspace_with_base
-0x00101330	verified		mspace_malloc
-0x001005a0	verified		mspace_realloc
-0x001015e0	verified		mspace_free
-0x00100750	verified		mspace_memalign
+0x000ff200	verified		dlmalloc::internal_mallinfo
+0x00101190	verified		dlmalloc::init_user_mstate
+0x00101280	verified		dlmalloc::create_mspace_with_base
+0x000e0930	reviewed	0x000ae43f	vostok::threading::spawn_internal
+0x000e3770	reviewed		vostok::threading::spawn
+0x000fc090	reviewed		vostok::tasks::thread_pool::thread_pool
+0x000fc350	observed		vostok::tasks::thread_pool::initialize
+0x0027f780	reviewed	0x001a3c98	survarium::network_client::draw_match_stats
+0x00429f20	reviewed		_chkstk
+0x00101330	verified		dlmalloc::mspace_malloc
+0x001005a0	verified		dlmalloc::mspace_realloc
+0x001015e0	verified		dlmalloc::mspace_free
+0x00100750	verified		dlmalloc::mspace_memalign
 0x00106ef0	verified		pt3malloc
 0x000eb530	reviewed		vostok::memory::mt_allocator::call_malloc
-0x00106d70	verified		memalign_starter
-0x00106d90	verified		free_starter
+0x00106d70	verified		ptmalloc3::memalign_starter
+0x00106d90	verified		ptmalloc3::free_starter
 0x00106fc0	verified		pt3free

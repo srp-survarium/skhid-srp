@@ -8,7 +8,7 @@
       "unique_key": "id",
       "value": {
         "id": 501,
-        "levels_amount": 4,
+        "levels_amount": 3,
         "preconditions": {
           "branch_points": 0
         },
@@ -24,26 +24,20 @@
           "postfix": "st_percent_postfix",
           "skill_descriptions": [
             [
-              " <green>-6",
+              " <green>-8",
               " 0",
               "</green>",
               ""
             ],
             [
-              " <green>-6",
-              " -6",
+              " <green>-8",
+              " -8",
               "</green>",
               ""
             ],
             [
-              " <green>-6",
-              " -12",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>-6",
-              " -18",
+              " <green>-8",
+              " -16",
               "</green>",
               ""
             ],
@@ -57,16 +51,13 @@
         },
         "modifiers": [
           {
-            "artefact_search_time_modifier": -0.06
+            "artefact_search_time_modifier": -0.08
           },
           {
-            "artefact_search_time_modifier": -0.06
+            "artefact_search_time_modifier": -0.08
           },
           {
-            "artefact_search_time_modifier": -0.06
-          },
-          {
-            "artefact_search_time_modifier": -0.06
+            "artefact_search_time_modifier": -0.08
           }
         ]
       }

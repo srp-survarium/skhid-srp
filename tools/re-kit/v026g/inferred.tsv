@@ -3098,7 +3098,6 @@ va	status	ref_021d	name
 0x0025f640	inferred-high		survarium::artefact<artefact_onyx_core>::update_client_state
 0x0025fb80	inferred-high		survarium::artefact<artefact_rattle_core>::update_client_state
 0x002fec10	inferred-high		survarium::portable_interactive_object_core::selected_user_animations
-0x0031d6e0	inferred-medium		survarium::breath_vibration_calculator::tick
 0x002e13a0	inferred-medium		survarium::weapon_core::get_camera_shake_lexeme
 0x00329ff0	inferred-medium		survarium::body_part_parameters::hit_by_type
 0x00331a50	inferred-medium		survarium::weapon_recoil_calculator::tick
@@ -3402,4 +3401,11 @@ va	status	ref_021d	name
 0x003cfdb0	inferred-medium		vostok::render::res_render_output::apply_fullscreen_state
 0x003cfe20	inferred-medium		vostok::render::res_render_output::goto_fullscreen
 0x003cfe80	inferred-medium	0x00274fc2	vostok::render::res_render_output::minimize
+0x00107260	inferred-high		ptmalloc3::public_mALLINFo
+0x000eb5f0	inferred-high		vostok::memory::pthreads_allocator::total_size
+0x000eb630	inferred-high		vostok::memory::pthreads_allocator::allocated_size
+0x000e0e40	inferred-high		vostok::memory::managed_allocator::total_size
+0x000e0e50	inferred-high		vostok::memory::managed_allocator::allocated_size
+0x0010f8c0	inferred-high		vostok::memory::mt_region::take
+0x0010f980	inferred-high		vostok::memory::mt_region::give
 0x0001c6a0	inferred-high		vostok::memory::mt_allocator::malloc_impl

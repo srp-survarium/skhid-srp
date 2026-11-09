@@ -539,18 +539,7 @@ fn every_core_push_reads_back() {
         active: true,
     };
     round_trip(quests(&[quest]), Decoded::Quests(vec![quest]));
-    round_trip(
-        services(Some(24)),
-        Decoded::Services {
-            premium_hours: Some(24),
-        },
-    );
-    round_trip(
-        services(None),
-        Decoded::Services {
-            premium_hours: None,
-        },
-    );
+    round_trip(services(), Decoded::Services);
     round_trip(unlocked_factions(0x0F), Decoded::UnlockedFactions(0x0F));
     round_trip(
         tutorial(false, 0, 0),
@@ -979,18 +968,6 @@ fn the_small_pushes_read_back() {
         client.receive(&admin_text_clear()),
         Ok(Decoded::AdminTextClear)
     );
-    assert_eq!(
-        client.receive(&premium_store(3600, [1, 2, 3, 4], 0.5)),
-        Ok(Decoded::PremiumStore {
-            seconds: 3600,
-            values: [1, 2, 3, 4],
-            factor: 0.5
-        })
-    );
-    assert_eq!(
-        client.receive(&premium_discount(0.1)),
-        Ok(Decoded::PremiumDiscount(0.1))
-    );
     assert_eq!(client.receive(&signed_out()), Ok(Decoded::SignedOut));
     let tables = craft_tables(&[0.5; 12], &[7; 16], &[9; 16]);
     assert_eq!(
@@ -1147,7 +1124,7 @@ fn results_read_back() {
         show_amount: false,
         columns: [(0.0, 0, 0, 0), (2.5, 10, -3, 4), (0.0, 0, 0, 0)],
     };
-    full.premium.columns[2].money = 9;
+    full.premium_items.columns[2].money = 9;
     full.dropped = Some(ItemDescr::plain(5, PISTOL, 900_000));
     full.drop_chances = [0.1, 0.2, 0.3, 0.4];
     assert_eq!(

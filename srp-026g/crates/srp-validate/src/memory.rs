@@ -287,6 +287,17 @@ impl Report {
     }
 }
 
+/// The bytes of the body that starts `bytes` (more may follow it), from
+/// its count alone: 1 to [`PER_PART`] records after the moment and the
+/// count. The rest of it is checked by [`Part::parse`].
+pub(crate) fn body_len(bytes: &[u8]) -> Option<usize> {
+    let &count = bytes.get(1)?;
+    if count == 0 || usize::from(count) > PER_PART {
+        return None;
+    }
+    HEAD.checked_add(usize::from(count).checked_mul(RECORD)?)
+}
+
 /// One part as the server reads it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Part {
@@ -382,7 +393,9 @@ impl Mspace {
     /// thread may use the heap meanwhile (the game's arenas have no lock):
     /// a walk that does not end at the top, the fence or the segment's end
     /// on a chunk's boundary, or meets a chunk too small to be one, is
-    /// `None`, never a figure.
+    /// `None`. A walk that ends cleanly may still be a little stale: the
+    /// state (top, topsize) is read before the walk, and another thread can
+    /// move the top or split a chunk meanwhile.
     pub fn usage(self, head: impl FnMut(u32) -> Option<u32>) -> Option<Usage> {
         self.walk(head, |_| ())
     }

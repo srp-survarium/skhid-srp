@@ -159,12 +159,11 @@ package survarium.player
          {
             // While a painkiller is active (set_active's flag on a pain protector): Numb Legs, the
             // sprint's stamina x (1 - 0.2 x rank) (player_stamina::sprint 0x329AAD); Unflinching,
-            // the hits' stopping power x (1 - 0.1 x rank); Concentration, the environment's
-            // sounds x (1 - 0.1 x rank) and the opponents' (not their shots) x (1 + 0.1 x rank).
+            // the hits' stopping power x (1 - 0.1 x rank); Concentration, the sight's sway x (1 - 0.05
+            // x rank) (breath_vibration_calculator::tick 0x31D727, added to modifier 61's own).
             skillLine(lines,"st_srp_medicine_sprint_stamina",1 - _kit.numbLegsRank * 0.2,false);
             skillLine(lines,"st_srp_medicine_hit_slow",1 - _kit.unflinchingRank * 0.1,false);
-            skillLine(lines,"st_srp_medicine_ambient_sounds",1 - _kit.concentrationRank * 0.1,false);
-            skillLine(lines,"st_srp_medicine_enemy_sounds",1 + _kit.concentrationRank * 0.1,true);
+            skillLine(lines,"st_srp_medicine_sight_sway",1 - _kit.concentrationRank * 0.05,false);
          }
          // Take Cover: each heal tick's amount x (1 + 0.1 x rank) while crouched (medkit::tick
          // 0x33D948, after Medical Training's S57), on a medicine that heals.

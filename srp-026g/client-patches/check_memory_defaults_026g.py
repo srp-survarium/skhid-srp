@@ -7,7 +7,8 @@ Command-line readers are stubs supplying absent/invalid/explicit values; native
 branches, units conversion and allocator instructions execute from the PE.
 Patch 124's helper and render arenas run from the key's read to their
 registration with the native is_set_as_number<u32> (0x141B0); only the key's
-reader 0xDDF20 is a stub.
+reader 0xDDF20 is a stub. Patch 128's thread stack runs from threading::spawn's
+size to spawn_internal's call of CreateThread.
 The fragmentation fixture matches the report's total/used/requested byte counts,
 but its block layout is synthetic: the submitted dump does not contain the heap.
 It demonstrates why aggregate free bytes do not imply a successful allocation;
@@ -124,6 +125,16 @@ def render_arena(data, value, valid=True):
     return arena_size(data, 0xA7C088, 0x13A81, 0x13AF4, 0x78, value, valid)
 
 
+def thread_stack(data):
+    """Patch 128: what CreateThread is given for an engine thread. Runs
+    threading::spawn from its size (0xE37BA) into spawn_internal (0xE0930) to
+    its `call [CreateThread]` (0xE094A): (dwStackSize, dwCreationFlags)."""
+    m = Machine(data)
+    m.run(0xE37BA, 0xE094A)
+    sp = m.uc.reg_read(UC_X86_REG_ESP)
+    return m.read(sp + 4), m.read(sp + 16)
+
+
 def fragmented_allocation(data, size):
     """Same held blocks in both arenas; extra capacity stays free at the end."""
     total, used, requested = 295436288, 173033088, 22369685
@@ -232,8 +243,11 @@ def main():
     assert render_arena(built, None) == render_arena(built, 99, False) == 320 * MIB
     for value, size in ((100, 224), (224, 224), (256, 256), (320, 320), (512, 512)):
         assert render_arena(built, value) == render_arena(original, value) == size * MIB
+    # Patch 128: an engine thread's stack, committed (flags 0).
+    assert thread_stack(original) == (8 * MIB, 0)
+    assert thread_stack(built) == (2 * MIB, 0)
     print('PASS: native defaults, independent/explicit/invalid option paths, fragmentation fixture, '
-          'address-space fallback limitation, helper/render arena defaults and options')
+          'address-space fallback limitation, helper/render arena defaults and options, thread stacks')
 
 
 if __name__ == '__main__':

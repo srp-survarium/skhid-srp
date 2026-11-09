@@ -95,8 +95,8 @@ pub struct FullResult {
     pub components: [ScoreComponent; 3],
     pub daily: BonusBlock,
     pub premium_items: BonusBlock,
-    /// Read and not shown.
-    pub premium: BonusBlock,
+    // The premium account's block, read and not shown, follows: always
+    // empty (there is no premium account, the owner's of 2026-11-09).
     pub elo_before: u16,
     pub elo_after: u16,
     pub quest_money: u32,
@@ -121,7 +121,6 @@ impl FullResult {
             components: Default::default(),
             daily: BonusBlock::default(),
             premium_items: BonusBlock::default(),
-            premium: BonusBlock::default(),
             elo_before: 0,
             elo_after: 0,
             quest_money: 0,
@@ -217,7 +216,8 @@ fn write_full(writer: &mut Writer, full: &FullResult) -> Result<(), WireError> {
     }
     write_bonus(writer, &full.daily);
     write_bonus(writer, &full.premium_items);
-    write_bonus(writer, &full.premium);
+    // The premium account's, empty.
+    write_bonus(writer, &BonusBlock::default());
     writer
         .u16(full.elo_before)
         .u16(full.elo_after)

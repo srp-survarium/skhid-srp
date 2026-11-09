@@ -581,6 +581,15 @@ Patches:
   lobby 31 in the handshake, and while the level loads waits for
   on_match_ready's end (0x27AEBF) to close it; on_project_loaded's abort
   (0x1F8AF3) lets an open match's load go on. Nothing a match computes;
+- the game tells the match server how much memory it has left (patch 126,
+  memory_report; docs/notes/memory-report.md, client_patch.md section
+  3.76): when a match connection's first world is in (world_load.loaded)
+  and when the match closes on it (close_current_match's entry), the free
+  address space and its largest region, the video budget, and each
+  registered arena's size, use and largest free block, read by its own
+  walk (no engine call), to srp_patches.log and in 0xE0 carriers
+  (srp_validate::report); the server only logs them. Nothing a match
+  computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -909,6 +918,27 @@ ARENA_DEFAULTS = (
      bytes.fromhex("c7442410") + struct.pack("<I", ARENA_HELPER_MIB << 20)),
     (0x13A95, bytes.fromhex("bfe0000000"),
      b"\xbf" + struct.pack("<I", ARENA_RENDER_MIB)),
+)
+
+# Patch 128: every engine thread's stack is 2 MiB, not 8. threading::spawn
+# (0xE3770) gives spawn_internal (0xE0930) one fixed size, `mov edx,800000h`
+# at 0xE37BA, for every thread it starts: splash, sound, network, logic,
+# hdd, dvd, res_man, res_cook, process termination (the editor's and the
+# test watcher's were not started in the game measured) and the task pool's
+# 2 x min(32, cores) "task #n" (thread_pool::initialize 0xFC350, its spawn
+# at 0xFC4F1). spawn_internal passes it to CreateThread with flags 0: on
+# Windows the size is committed, and as it is above the exe's 1 MiB reserve
+# it is the reserve too. Measured 2026-11-09 under Wine (19 bots, 777
+# bakes): the deepest of the 57 stacks touched 536 KiB, 51 of 56 stayed
+# under 64 KiB. The one frame above 2 MiB a players' game can reach is
+# network_client::draw_match_stats (0x27F780, 5.8 MiB, the logic thread),
+# drawn only with -net_stats on the command line, which nothing passes.
+# platform::allocate_arenas' stack term ((threads x 2 + 8) x 8 MiB,
+# 0xE98C6) is kept, so the resource arenas and the video budget are sized
+# as before; the space freed stays free. A number, no relocation.
+THREAD_STACK_MIB = 2
+THREAD_STACKS = (
+    (0xE37BA, bytes.fromhex("ba00008000"), b"\xba" + struct.pack("<I", THREAD_STACK_MIB << 20)),
 )
 
 # replay_network_client's "is this place mine" (vtable 0x9FF344, slot +0x54
@@ -3542,7 +3572,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((BAKED_TEXTURE_MISSING[0], BAKED_TEXTURE_MISSING[0] + len(BAKED_TEXTURE_MISSING[1])))
         patch(data, *AI_ARENA)
         sites.append((AI_ARENA_VA, AI_ARENA_VA + len(AI_ARENA[1])))
-        for site in MEMORY_DEFAULTS + ARENA_DEFAULTS:
+        for site in MEMORY_DEFAULTS + ARENA_DEFAULTS + THREAD_STACKS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         for site in SOUND_POOLS:
@@ -4023,6 +4053,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "the archive reads' order is a strict weak ordering, "
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
                      f"the resources helper and render arenas {ARENA_HELPER_MIB} and {ARENA_RENDER_MIB} MiB by default, "
+                     f"an engine thread's stack is {THREAD_STACK_MIB} MiB, "
                      f"the game world's sound scene has {SOUND_INSTANCES} sound instances and propagators, "
                      "a history item's six world sections grow on the heap, "
                      "a weapon's upgrade window shows the weapon, "
