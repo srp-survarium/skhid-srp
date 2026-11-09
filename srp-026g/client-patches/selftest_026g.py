@@ -194,13 +194,6 @@ def test_bins():
             check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.PICKUP_VA:#x}",
-                        os.path.join(HERE, "pickup_below_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.pickup_bin(), "rb").read(),
-          f"{os.path.basename(P.pickup_bin())} is current ({len(fresh)} bytes)")
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.SEEK_CLEAR_VA:#x}",
                         os.path.join(HERE, "replay_seek_026g.asm"), "-o", out], check=True, timeout=60)
         fresh = open(out, "rb").read()
@@ -1243,13 +1236,6 @@ def test_fov_lod(original, image, before):
           and P.FOV_LOD_STATE_OFFSET + P.FOV_LOD_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE,
           f"k is at {P.FOV_LOD_STATE_OFFSET:#x} of the state page, aligned, after the other states "
           "(the scoreboard's the last)")
-
-
-def test_pickup(original, image, before):
-    """Check 24: a battery under the floor one stands on (patch 23)."""
-    code = open(P.pickup_bin(), "rb").read()
-    check_piece(original, image, "the pickup code", P.PICKUP_VA, code, len(code) - 4)
-    check(code[-4:] == struct.pack("<f", P.PICKUP_ACROSS ** 2), f"its distance across is {P.PICKUP_ACROSS:g} m")
 
 
 def test_weapon_random(original, image, before):
@@ -2842,7 +2828,6 @@ def test_late_join(original, without, server, source):
           f".srp: virtual {vsize:#x} = one page, the {len(code)} bytes of late-join code and the weapon preview's "
           f"{len(weapon_preview)} at +{P.WEAPON_PREVIEW_OFFSET:#x}, file {raw:#x}+{rsize:#x}")
     body = bytes(data[raw:raw + rsize])
-    pickup = open(P.pickup_bin(), "rb").read()
     seek = open(P.seek_clear_bin(), "rb").read()
     stale_dll = open(P.stale_dll_bin(), "rb").read()
     mount_patches = open(P.mount_patches_bin(), "rb").read()
@@ -2860,7 +2845,6 @@ def test_late_join(original, without, server, source):
               (P.MOUNT_PATCHES_OFFSET, len(mount_patches), "the patches' mount"),
               (P.SHARED_UPGRADES_OFFSET, len(shared), "the shared upgrades' code"),
               (P.SPOT_OFFSET, len(spot), "the spot code"),
-              (P.PICKUP_OFFSET, len(pickup), "the pickup code"),
               (P.WARMUP_KEYS_OFFSET, len(warmup_keys), "the warmup keys"),
               (P.SEEK_CLEAR_OFFSET, len(seek), "the seek code"),
               (P.WARMUP_LIMITS_OFFSET, len(warmup_limits), "the warmup camera's limits"),
@@ -2885,9 +2869,7 @@ def test_late_join(original, without, server, source):
           and body[P.SHARED_UPGRADES_OFFSET:P.SHARED_UPGRADES_OFFSET + len(shared)] == shared
           and set(body[P.SHARED_UPGRADES_OFFSET + len(shared):P.SPOT_OFFSET]) <= {0xCC}
           and body[P.SPOT_OFFSET:P.SPOT_OFFSET + len(spot)] == spot
-          and set(body[P.SPOT_OFFSET + len(spot):P.PICKUP_OFFSET]) <= {0xCC}
-          and body[P.PICKUP_OFFSET:P.PICKUP_OFFSET + len(pickup)] == pickup
-          and set(body[P.PICKUP_OFFSET + len(pickup):P.WARMUP_KEYS_OFFSET]) <= {0xCC}
+          and set(body[P.SPOT_OFFSET + len(spot):P.WARMUP_KEYS_OFFSET]) <= {0xCC}
           and body[P.WARMUP_KEYS_OFFSET:P.WARMUP_KEYS_OFFSET + len(warmup_keys)] == warmup_keys
           and set(body[P.WARMUP_KEYS_OFFSET + len(warmup_keys):P.SEEK_CLEAR_OFFSET]) <= {0xCC}
           and body[P.SEEK_CLEAR_OFFSET:P.SEEK_CLEAR_OFFSET + len(seek)] == seek
@@ -2911,7 +2893,6 @@ def test_late_join(original, without, server, source):
           f"its first page is the build's without the late join ({len(first_page)} bytes, then int3) with the "
           f"replay link code at +{P.REPLAY_LINK_OFFSET:#x}, the patches' mount at +{P.MOUNT_PATCHES_OFFSET:#x}, "
           f"the shared upgrades' code at +{P.SHARED_UPGRADES_OFFSET:#x}, the spot code at +{P.SPOT_OFFSET:#x}, "
-          f"the pickup code at +{P.PICKUP_OFFSET:#x}, "
           f"the warmup keys at +{P.WARMUP_KEYS_OFFSET:#x}, the seek "
           f"code at +{P.SEEK_CLEAR_OFFSET:#x}, the warmup camera's limits at +{P.WARMUP_LIMITS_OFFSET:#x}, the forward effect's scrolling at +{P.FORWARD_SCROLL_OFFSET:#x}, "
           f"the weapon preview's draw at +{P.WEAPON_DRAW_OFFSET:#x}, the warmup look at +{P.WARMUP_LOOK_OFFSET:#x}, "
@@ -2990,7 +2971,6 @@ def test_late_join(original, without, server, source):
     test_fov(original, image, before)
     test_fov_lod(original, image, before)
     test_weapon_camo(original, image, before)
-    test_pickup(original, image, before)
     test_weapon_random(original, image, before)
     test_kit_state(original, image, before)
     test_first_load(original, image, before)

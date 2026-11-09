@@ -60,6 +60,7 @@ pub mod resources;
 pub mod renderer;
 pub mod gun_cook;
 pub mod pickup;
+pub mod use_scan;
 pub mod ray_test;
 mod rt;
 pub mod sound;

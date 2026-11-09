@@ -10,6 +10,7 @@
 # logic is weapon_pickup.rs.
 name = "weapon_pickup"
 patch = 85
+uses = ["use_scan"]
 
 # a player cook's batch is in: a late joiner's install may follow
 [[hook]]

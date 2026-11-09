@@ -92,4 +92,5 @@ pub mod memory_report;
 pub mod hud_cursor;
 pub mod ban_time;
 pub mod controller_position;
+pub mod use_scan;
 pub mod unplayed_match;
