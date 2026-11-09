@@ -36,6 +36,7 @@ pub mod password;
 pub mod persist;
 mod reports;
 mod squads;
+mod watching;
 pub mod utc;
 // The 0.26g account model, beside the 0.21d one (`resources/notes/v026g/`).
 pub mod v026g;
@@ -48,6 +49,7 @@ pub use matchmaking::{
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};
 pub use squads::{MAX_SQUAD_MEMBERS, Squad, SquadError, Squads};
+pub use watching::WatchTable;
 
 /// The `on`/`off` setting `name` of the environment ([`switch_value`]).
 pub fn switch(name: &str, default: bool) -> bool {

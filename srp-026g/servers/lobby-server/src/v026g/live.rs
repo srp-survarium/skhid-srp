@@ -125,12 +125,7 @@ fn phase_code(phase: LivePhase) -> u8 {
 impl Core<'_> {
     /// The Live window's spectators of the match (the lobby's id).
     fn live_watchers(&self, match_id: u32) -> usize {
-        self.store
-            .matchmaking()
-            .watchers_of(match_id)
-            .iter()
-            .filter(|(_, watcher)| matches!(watcher.kind, WatchKind::Live { .. }))
-            .count()
+        self.store.matchmaking().live_watchers_of(match_id).len()
     }
 
     /// A player seated in the match keeps its matches from being watched

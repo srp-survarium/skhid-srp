@@ -34,10 +34,11 @@
 //!   seats are told apart by their places, never by the account alone.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::LockExt;
+use crate::watching::{WatchTable, Watching};
 
 /// `player_profile[20]` in the client's `match_options`.
 pub const MAX_PLAYERS_PER_MATCH: usize = 20;
@@ -242,9 +243,6 @@ struct Inner {
     /// they entered ([`Matchmaking::join_failed`]), the lobby not told yet
     /// ([`Matchmaking::take_failed_joins`]).
     failed_joins: Vec<(u32, u32)>,
-    /// Who watches a running match from its room's queue, by session
-    /// ([`Matchmaking::watch`], `docs/notes/queue-spectate.md`).
-    watchers: HashMap<u32, Watcher>,
     /// `(match, account)`: watchers whose game left the match by itself
     /// ([`Matchmaking::watcher_left`]), the lobby not told yet
     /// ([`Matchmaking::take_watchers_left`]).
@@ -304,6 +302,10 @@ pub enum WatchKind {
 
 pub struct Matchmaking {
     inner: Mutex<Inner>,
+    /// What each session watches, a match or a replay
+    /// ([`Matchmaking::watch`], `docs/notes/queue-spectate.md`). Locked
+    /// after `inner`, never before.
+    watching: Arc<WatchTable>,
 }
 
 impl Matchmaking {
@@ -325,9 +327,9 @@ impl Matchmaking {
                 given_up: HashSet::new(),
                 left: Vec::new(),
                 failed_joins: Vec::new(),
-                watchers: HashMap::new(),
                 watchers_left: Vec::new(),
             }),
+            watching: Arc::default(),
         }
     }
 
@@ -412,9 +414,14 @@ impl Matchmaking {
         });
         // A spectator gets a place only once it watches no more: its game
         // is back in the lobby (`stop_watching`), not in the match unplaced.
-        let watching = players
-            .iter()
-            .any(|(player, _)| inner.watchers.contains_key(&player.session_id));
+        let watching = {
+            let table = self.watching.lock();
+            players.iter().any(|(player, _)| {
+                table
+                    .get(&player.session_id)
+                    .is_some_and(Watching::is_open)
+            })
+        };
         if queued || watching {
             return false;
         }
@@ -666,38 +673,77 @@ impl Matchmaking {
     /// gets no place (`docs/notes/queue-spectate.md`). A session watches one
     /// match at a time; a seated session watches none.
     pub fn watch(&self, session_id: u32, watcher: Watcher) -> bool {
-        let mut inner = self.inner.locked();
+        let inner = self.inner.locked();
         if inner.seat_of_session(session_id).is_some()
             || !inner.matches.contains_key(&watcher.match_id)
         {
             return false;
         }
-        inner.watchers.insert(session_id, watcher);
+        let mut table = self.watching.lock();
+        // A session watches one thing at a time.
+        if matches!(table.get(&session_id), Some(Watching::Replay(replay)) if replay.is_open()) {
+            return false;
+        }
+        table.insert(session_id, Watching::Match(watcher));
         true
+    }
+
+    /// The table of what each session watches, shared with the process's
+    /// replay sessions (`Replays::with_watch_table`).
+    pub fn watch_table(&self) -> Arc<WatchTable> {
+        Arc::clone(&self.watching)
     }
 
     /// What the session watches. The match server takes a connecting
     /// client without a seat as a spectator of this match, and lets go of a
     /// spectator whose session watches it no more.
     pub fn watched(&self, session_id: u32) -> Option<Watcher> {
-        self.inner.locked().watchers.get(&session_id).copied()
+        match self.watching.lock().get(&session_id) {
+            Some(Watching::Match(watcher)) => Some(*watcher),
+            _ => None,
+        }
     }
 
-    /// The sessions watching the match.
+    /// The sessions watching the match, either way.
     pub fn watchers_of(&self, match_id: u32) -> Vec<(u32, Watcher)> {
-        let inner = self.inner.locked();
-        inner
-            .watchers
+        self.watchers_where(match_id, |_| true)
+    }
+
+    /// The sessions watching the match from its room's queue.
+    pub fn queue_watchers_of(&self, match_id: u32) -> Vec<(u32, Watcher)> {
+        self.watchers_where(match_id, |kind| matches!(kind, WatchKind::Queued))
+    }
+
+    /// The sessions watching the match from the Live window.
+    pub fn live_watchers_of(&self, match_id: u32) -> Vec<(u32, Watcher)> {
+        self.watchers_where(match_id, |kind| matches!(kind, WatchKind::Live { .. }))
+    }
+
+    fn watchers_where(&self, match_id: u32, kind: impl Fn(WatchKind) -> bool) -> Vec<(u32, Watcher)> {
+        self.watching
+            .lock()
             .iter()
-            .filter(|(_, watcher)| watcher.match_id == match_id)
-            .map(|(session, watcher)| (*session, *watcher))
+            .filter_map(|(session, watching)| match watching {
+                Watching::Match(watcher) if watcher.match_id == match_id && kind(watcher.kind) => {
+                    Some((*session, *watcher))
+                }
+                _ => None,
+            })
             .collect()
     }
 
     /// The lobby: the session watches no more (it got a place, left the
     /// queue, or the match is over). The match server closes its link.
     pub fn stop_watching(&self, session_id: u32) -> Option<Watcher> {
-        self.inner.locked().watchers.remove(&session_id)
+        let mut table = self.watching.lock();
+        match table.get(&session_id) {
+            Some(Watching::Match(watcher)) => {
+                let watcher = *watcher;
+                table.remove(&session_id);
+                Some(watcher)
+            }
+            _ => None,
+        }
     }
 
     /// The match server: the watcher's game left the match by itself (its
@@ -707,10 +753,12 @@ impl Matchmaking {
     /// match server's id of it).
     pub fn watcher_left(&self, session_id: u32, ticket: u32) {
         let mut inner = self.inner.locked();
-        if let Some(watcher) = inner.watchers.get(&session_id).copied()
+        let mut table = self.watching.lock();
+        if let Some(Watching::Match(watcher)) = table.get(&session_id)
             && watcher.ticket == ticket
         {
-            inner.watchers.remove(&session_id);
+            let watcher = *watcher;
+            table.remove(&session_id);
             inner
                 .watchers_left
                 .push((watcher.match_id, watcher.account_id));
@@ -801,9 +849,9 @@ impl Matchmaking {
         inner.given_up.retain(|(id, _)| *id != match_id);
         inner.left.retain(|(id, _)| *id != match_id);
         // Its spectators watch nothing now; they are still in their queue.
-        inner
-            .watchers
-            .retain(|_, watcher| watcher.match_id != match_id);
+        self.watching.lock().retain(
+            |_, watching| !matches!(watching, Watching::Match(watcher) if watcher.match_id == match_id),
+        );
         inner.watchers_left.retain(|(id, _)| *id != match_id);
         inner.formed_at.remove(&match_id);
         inner.match_pools.remove(&match_id);

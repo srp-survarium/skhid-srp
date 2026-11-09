@@ -505,7 +505,7 @@ impl Stack {
 
         // One for the process: the match server's recordings and replay
         // sessions, the lobby's asks and list rows.
-        let replays = Arc::new(matches::replays_from_env());
+        let replays = Arc::new(matches::replays_from_env(store.matchmaking().watch_table()));
 
         let host: Arc<dyn MatchHost> = Arc::new(RegistryHost(registry.clone()));
         let bind_lobby = {
