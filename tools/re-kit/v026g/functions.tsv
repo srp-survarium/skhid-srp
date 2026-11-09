@@ -2225,3 +2225,6 @@ va	status	ref_021d	name
 0x000ddf20	reviewed	0x000ac7b6	vostok::command_line::key::is_set_as_number
 0x000e0f20	reviewed	0x000ae85f	vostok::memory::preinitialize
 0x000e1120	reviewed	0x000ae992	vostok::memory::allocate_region
+0x000ff200	verified		dlmalloc::internal_mallinfo
+0x00101190	verified		dlmalloc::init_user_mstate
+0x00101280	verified		dlmalloc::create_mspace_with_base

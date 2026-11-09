@@ -581,6 +581,15 @@ Patches:
   lobby 31 in the handshake, and while the level loads waits for
   on_match_ready's end (0x27AEBF) to close it; on_project_loaded's abort
   (0x1F8AF3) lets an open match's load go on. Nothing a match computes;
+- the game tells the match server how much memory it has left (patch 126,
+  memory_report; docs/notes/memory-report.md, client_patch.md section
+  3.76): when a match connection's first world is in (world_load.loaded)
+  and when the match closes on it (close_current_match's entry), the free
+  address space and its largest region, the video budget, and each
+  registered arena's size, use and largest free block, read by its own
+  walk (no engine call), to srp_patches.log and in 0xE0 carriers
+  (srp_validate::report); the server only logs them. Nothing a match
+  computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
