@@ -9,6 +9,53 @@ release that made it what it is now.
 
 ---
 
+## 9 Nov, 16:06 — TODO: the owner's words (update required)
+
+<!-- Revision 54 (026g-rev54), released 2026-11-09 16:06 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1457 feat(client): macOS support
+- TODO: #1526 Wiki skills: levels, their formula and a graph
+- TODO: #1528 Wiki: no footer, the header is enough
+- TODO: #1527 Wiki: quests page
+- TODO: #1530 Content: ten more 0.69d decals (pack decals-069d@2)
+- TODO: #1536 Content: the "Alpha" Squad badge costs 10,000,000 silver
+- TODO: #1520 New accounts: the Keeper set in preset 2 (AK-12, Saiga-12); premium bonuses +20 % / +50 %
+- TODO: #1548 Patch 113: never take the hud's cursor movie off a scene twice (crash at exe+0x14EE8D)
+- TODO: #1542 Local launcher: refuse an exe older than the server takes
+- TODO: #1549 Lobby: Esc over the results after a match closes them, not the game's menu
+- TODO: #1523 Silver only: remove gold from the game
+- TODO: #1551 Patch 83: a DXVK fullscreen window DXGI refuses becomes a popup (Vulkan on AMD)
+- TODO: #1550 Patch 113: the main menu gives up an awaited key before it closes (a latent crash at exe+0x14EE8D)
+- TODO: #1472 fix(updater): report progress while extracting
+- TODO: #1539 Nerf the SCAR-H, vz.58 and VSK-94
+- TODO: #1517 SV-1367 Dusk: base rarity 0, so it can craft and roll modifications
+- TODO: #1502 Keeper of the Artifacts: Onyx rare (48/48/4)
+- TODO: #1518 Delta mask and NVD armour 5, NVD sway -10 %, Sniper vest pocket back
+- TODO: #1557 Dev shell: share one sccache across worktrees
+- TODO: #1519 Give the VKS Vychlop weight -15% instead of aiming speed
+- TODO: #1558 Hold every kit to its layout: pockets, pocket size, second weapon
+- TODO: #1556 Patch 124: resources helper arena 32 MiB, render arena 320 MiB by default
+- TODO: #1560 Artefact tree: Forest Protection and Keeper of the Artifacts go together
+- TODO: #1473 fix(client): Linux Calibri from a pinned mirror
+- TODO: #1562 Concentration: sway -5% a rank while the painkiller is active
+- TODO: #1563 Wiki skills: how many players took each skill
+- TODO: #1561 No premium account: its half again is everyone's pay
+- TODO: #1565 Skills: seven stock skills and Quick Hands take 3 ranks, each worth more
+- TODO: #1540 fix(harness): measure text with the movie's fonts
+- TODO: #1566 Wiki skills: plan a build by clicking skills
+- TODO: #1569 Patch 128: engine threads get 2 MiB stacks, not 8
+- TODO: #1567 Sides: strong players dealt evenly, at the start and on late joins
+- TODO: #1564 Patch 126: the game reports its memory headroom to the match server
+- TODO: #1570 Refuse a hit effect with a non-zero root-emitter registry index
+- TODO: #1571 Token backpack back at level 10
+- TODO: #1516 Token backpack: pocket capacity +1 beside its artefact container
+- TODO: #1491 Use: Rust detect_usable_object; a usable battery beats a dropped gun
+- TODO: #1568 Patch 127: a memory profiler of the engine's arenas (SKHID_MEMORY_PROFILE=on)
+- TODO: #1572 Make the 0.21d Radar's electric anomalies hit the legs only
+- TODO: #1574 Use scan: deep review follow-ups
+- TODO: #1573 Patch 129: the multithreaded arena is at least 1024 MiB
+- TODO: #1579 release: the swap check reads the new srp26's whole log
+
 ## 7 Nov, 23:16 — TODO: the owner's words (update required)
 
 <!-- Revision 53 (026g-rev53), released 2026-11-07 23:16 UTC. To be worded for players; what it shipped: -->
