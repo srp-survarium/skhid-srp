@@ -502,8 +502,8 @@ impl Server {
     }
 
     /// A client's 0xD8 for a session that watches the match `watcher.ticket`
-    /// from a room's queue (Queue and spectate) or the Live window (its
-    /// delay behind): a spectator of it, if this server runs it (a match no
+    /// from a room's queue (Queue and spectate) or the Live window, its
+    /// delay behind: a spectator of it, if this server runs it (a match no
     /// player has reached is not made for one) in the dialect the client
     /// speaks. Else turned away, as a client with no seat is.
     fn connect_spectator(
@@ -516,10 +516,13 @@ impl Server {
         now: Instant,
     ) {
         let ticket = watcher.ticket;
+        // One rule for all live watching: its delay behind, from the queue
+        // as from the Live window.
         let (delay, view) = match watcher.kind {
-            session::WatchKind::Queued => (None, None),
-            session::WatchKind::Live { delay, view } => (Some(delay.as_duration()), view),
+            session::WatchKind::Queued { delay } => (delay, None),
+            session::WatchKind::Live { delay, view } => (delay, view),
         };
+        let delay = delay.as_duration();
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
         let watched = match self.games.get_mut(&ticket) {
             Some(game) if growing => game.watch(addr, session_id, transport, delay, view, now),

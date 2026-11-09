@@ -1,5 +1,7 @@
 //! Spectators: games that watch the match from a room's queue ("Queue and
-//! spectate", `docs/notes/queue-spectate.md`, `match.md` section 37).
+//! spectate", `docs/notes/queue-spectate.md`, `match.md` section 37) or the
+//! lobby's Live window, behind the match by the Live delay: one rule for all
+//! live watching.
 //!
 //! A spectator is no player. It has no roster place, so it is kept apart
 //! from the places: not a [`Peer`] of `Game::peers` (indexed by place, beside
@@ -15,9 +17,10 @@
 //! - the places appended later, as every game is asked to install them
 //!   (`late_join`'s `Prepare`), and acked the same way;
 //! - once it has loaded (0xDA) and has every place, a trusted world young
-//!   enough to start from: 0xE5 of its next generation until it answers,
-//!   then 0xE5 again with the inputs and entries since the world and the
-//!   world (0xE8);
+//!   enough to start from (the worlds the match keeps, behind its delay:
+//!   it never asks the players for one): 0xE5 of its next generation until
+//!   it answers, then 0xE5 again with the inputs and entries since the
+//!   world and the world (0xE8);
 //! - from then on every relay and roster change the players get (a leave
 //!   only after its world is loaded: the client's 0xEA handler reads the
 //!   match's view, `Game::roster_change`).
@@ -76,6 +79,13 @@ const REPORTS_KEPT: usize = 64;
 /// world was in.
 const DRIFT_REPORTS: u32 = 2;
 
+/// A spectator is this far behind the match at least, whatever delay it was
+/// given: a relay it can be fed comes this far before the time the match's
+/// list holds it for (the `HORIZON_MS` of lead), and an input the match
+/// takes late comes up to `HORIZON_MS` after: nearer than this, what is
+/// on its way would be behind what it has been fed.
+const LEAST_BEHIND: Duration = Duration::from_secs(1);
+
 /// Where a spectator's game is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Watch {
@@ -108,9 +118,9 @@ enum Watch {
     Leaving { quiet_from: Instant, until: Instant },
 }
 
-/// A Live window's spectator, `ms` behind the match: its relays and roster
-/// changes come from the match's lists as its clock reaches them, not as
-/// they are played; those up to `fed` have gone to it.
+/// A spectator of a match, `ms` behind it: its relays and roster changes
+/// come from the match's lists as its clock reaches them, not as they are
+/// played; those up to `fed` have gone to it.
 #[derive(Clone, Copy, Debug)]
 struct Delay {
     ms: u32,
@@ -136,7 +146,8 @@ struct Installing {
 pub(crate) struct Spectator {
     addr: SocketAddr,
     session_id: u32,
-    /// A Live window's: behind the match (`None`: as it is played).
+    /// A match's spectator's: behind the match (`None`: a replay's, which
+    /// its playback drives).
     delay: Option<Delay>,
     transport: Transport,
     stage: Watch,
@@ -205,7 +216,7 @@ impl Game {
         addr: SocketAddr,
         session_id: u32,
         transport: Transport,
-        delay: Option<Duration>,
+        delay: Duration,
         view: Option<u8>,
         now: Instant,
     ) -> Result<(), Box<Transport>> {
@@ -219,9 +230,9 @@ impl Game {
         self.spectators
             .retain(|spectator| spectator.addr != addr && spectator.session_id != session_id);
         log::info!(
-            "Match {:#x}: a spectator (session {session_id:#x}) connected from {addr}{}",
+            "Match {:#x}: a spectator (session {session_id:#x}) connected from {addr}, {} s behind",
             self.id,
-            delay.map_or_else(String::new, |delay| format!(", {} s behind", delay.as_secs()))
+            delay.as_secs()
         );
         let mut spectator = Spectator::connect(
             addr,
@@ -231,8 +242,8 @@ impl Game {
             self.port,
             view,
         );
-        spectator.delay = delay.map(|delay| Delay {
-            ms: delay.as_millis() as u32,
+        spectator.delay = Some(Delay {
+            ms: delay.max(LEAST_BEHIND).as_millis() as u32,
             fed: 0,
         });
         self.spectators.push(spectator);
@@ -445,67 +456,6 @@ impl Game {
             .unwrap_or(self.players())
     }
 
-    /// A trusted world the spectator may start from now: final, young
-    /// enough for its 1-byte ticks, taken when every game had every place
-    /// (`after_preparation`; a place whose newcomer failed has no barrier,
-    /// and is in every game's world as one whose player left) and no game is
-    /// installing one (a world with a place's kit objects is another than
-    /// one without).
-    fn spectator_start(&self, clock: u32) -> Option<Snapshot> {
-        if self.installing() {
-            return None;
-        }
-        let first_time = self.clock_start.map(|(_, at)| at);
-        let recent = self.recent.as_ref().filter(|recent| {
-            self.live() <= 1 || self.vouchers(recent.time, snapshot::crc(&recent.body)) >= 2
-        });
-        [self.snapshot.as_ref(), recent]
-            .into_iter()
-            .flatten()
-            .filter(|world| {
-                (0..self.spectator_roster()).all(|place| {
-                    self.after_preparation(place, world.time)
-                        || self.admissions[place]
-                            .as_ref()
-                            .is_some_and(Admission::failed)
-                })
-            })
-            .filter(|world| clock.saturating_sub(world.time) <= FRESH_SNAPSHOT_MS)
-            .filter(|world| Some(world.time) == first_time || world.time + HORIZON_MS <= clock)
-            .max_by_key(|world| world.time)
-            .cloned()
-    }
-
-    /// A relay of the place `from` went to the players: to the spectators
-    /// too (`Game::relay_to_others`).
-    pub(super) fn relay_to_spectators(
-        &mut self,
-        from: usize,
-        message: &ServerMessage,
-        time: u32,
-        now: Instant,
-    ) {
-        let clock = self.clock(now);
-        // A delayed one gets it from the list when its clock is there.
-        for spectator in self.spectators.iter_mut().filter(|s| s.delay.is_none()) {
-            spectator.relay(from, message, time, clock, now);
-        }
-    }
-
-    /// A roster change of the place `index` at `at` went to the players: to
-    /// the spectators too (`Game::roster_change`).
-    pub(super) fn roster_to_spectators(
-        &mut self,
-        index: usize,
-        entered: bool,
-        at: u32,
-        message: &ServerMessage,
-    ) {
-        for spectator in self.spectators.iter_mut().filter(|s| s.delay.is_none()) {
-            spectator.roster_change(index, entered, at, message);
-        }
-    }
-
     /// The match is over: its spectators are let go with its players.
     pub(super) fn spectators_finish(&mut self, now: Instant) {
         let clock = self.clock(now);
@@ -536,22 +486,13 @@ impl Game {
         let mut starts = Vec::with_capacity(self.spectators.len());
         for at in 0..self.spectators.len() {
             self.prepare_for_spectator(at, now);
-            let start = if let Some(delay) = self.spectators[at].delay {
-                self.spectators[at]
-                    .waits_for_world(roster)
-                    .then(|| self.delayed_start(clock.saturating_sub(delay.ms)))
-                    .flatten()
-                    .map(|world| world.time)
-            } else if self.spectators[at].waits_for_world(roster) && self.clock_start.is_some()
-            {
-                let start = self.spectator_start(clock);
-                if start.is_none() && !self.installing() {
-                    self.request_upload(usize::MAX, now, RESYNC_REQUEST_GAP);
-                }
-                start.map(|world| world.time)
-            } else {
-                None
-            };
+            // From the worlds the match keeps anyway: a spectator asks the
+            // players for nothing.
+            let start = self.spectators[at]
+                .delay
+                .filter(|_| self.spectators[at].waits_for_world(roster))
+                .and_then(|delay| self.delayed_start(clock.saturating_sub(delay.ms)))
+                .map(|world| world.time);
             starts.push(start);
         }
         let echo = self.mono(now) as u16;

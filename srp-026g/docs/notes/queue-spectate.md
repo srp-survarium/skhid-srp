@@ -25,6 +25,8 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
 
 ## Picks (simplest; the owner may change them)
 
+- **Behind the match by the Live delay, like every live watcher** (the owner's of 2026-11-09;
+  `replay-stream.md`, "Live"), and not of a match with a player who opted out of live watching.
 - **When:** at once. The button sends the game straight to the running match as a spectator,
   with no 15 s room view first. A room between matches (vote, wait): the usual queue, and the
   watch starts when its next match starts while the player still waits.

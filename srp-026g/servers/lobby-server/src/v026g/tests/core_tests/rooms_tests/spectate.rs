@@ -126,6 +126,43 @@ fn queue_and_spectate_watches_the_match_and_plays_when_a_place_frees() {
     assert_eq!(made, 13);
 }
 
+/// The owner's rule of 2026-11-09: Queue and spectate is live watching like
+/// the Live window's: its delay behind, and not of a match with a player who
+/// opted out of being watched live.
+#[test]
+fn queue_and_spectate_follows_the_rule_of_live_watching() {
+    use crate::v026g::tests::core_tests::live_tests::set_live_watch;
+    use survarium::v026g::lobby::LiveWatch;
+    let mut world = World::new();
+    let (key, ticket, members) = full_room_playing(&mut world);
+    set_live_watch(&mut world, members[3], LiveWatch::Hidden);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watched(&world, carol), None, "a player opted out");
+    assert_eq!(sent_to_match(&world.take(carol)), None);
+    // Allowed again: the queue watches it, the delay behind.
+    set_live_watch(&mut world, members[3], LiveWatch::Allowed);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((ticket, 0)));
+    let watcher = world
+        .core
+        .store
+        .matchmaking()
+        .watched(session_of(&world, carol))
+        .expect("watches");
+    assert_eq!(
+        watcher.kind,
+        session::WatchKind::Queued {
+            delay: session::LiveDelay::DEFAULT
+        }
+    );
+    // A player opting out then does not end a watch that has begun.
+    set_live_watch(&mut world, members[3], LiveWatch::Hidden);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watched(&world, carol), Some(ticket));
+}
+
 #[test]
 fn a_plain_queue_stays_in_the_lobby() {
     let mut world = World::new();

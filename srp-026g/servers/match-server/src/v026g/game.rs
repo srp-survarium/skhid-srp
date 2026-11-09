@@ -2196,7 +2196,6 @@ impl Game {
                 track(peer, serial, Flight::Roster(message.clone()), at);
             }
         }
-        self.roster_to_spectators(index, entered, at, &message);
         self.events.push((at, index, entered));
         let bot = self.is_bot(index);
         if let Some(recording) = self.recording.as_mut() {
@@ -3984,7 +3983,6 @@ impl Game {
                 _ => {}
             }
         }
-        self.relay_to_spectators(index, &message, time, now);
     }
 
     /// A client's whole world came (its 0xE0 chunks).

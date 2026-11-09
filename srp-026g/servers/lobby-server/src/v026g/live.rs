@@ -23,8 +23,9 @@
 //!   answered `R1;watching;<match>;0`, or `busy` when full ([`Config`]'s
 //!   caps), `not_yours` when it is not watchable.
 //! - The player's setting: read when the list is built and at a watch's
-//!   ask, so a change applies from then on; a spectator already there
-//!   goes on. Nothing says which player it was.
+//!   ask (a room's Queue and spectate too, `rooms`), so a change applies
+//!   from then on; a spectator already there goes on. Nothing says which
+//!   player it was.
 //!
 //! Each row's place in the `91` is the request's start and its index.
 
@@ -136,7 +137,7 @@ impl Core<'_> {
     /// A player seated in the match keeps its matches from being watched
     /// ([`LiveWatch::Hidden`]): one who left the match counts until it ends,
     /// its place is still the match's.
-    fn hidden_by_a_player(&self, running: &Running) -> bool {
+    pub(super) fn hidden_by_a_player(&self, running: &Running) -> bool {
         running.seats.iter().any(|&(session, _)| {
             self.store
                 .session_account(session)

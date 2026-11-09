@@ -293,9 +293,10 @@ impl LiveDelay {
 /// How a session came to watch a match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WatchKind {
-    /// From its room's queue (Queue and spectate): at once, until a place
-    /// comes or it leaves the queue (`docs/notes/queue-spectate.md`).
-    Queued,
+    /// From its room's queue (Queue and spectate): `delay` behind the match
+    /// (the one rule of all live watching), until a place comes or it leaves
+    /// the queue (`docs/notes/queue-spectate.md`).
+    Queued { delay: LiveDelay },
     /// From the lobby's Live window: `delay` behind the match (a public
     /// match's, so nobody calls positions to a friend), until it leaves;
     /// `view` the place its game is to follow first (`None`: its own pick).
@@ -1149,7 +1150,9 @@ mod tests {
             match_id: id,
             ticket: 0xA000,
             account_id,
-            kind: WatchKind::Queued,
+            kind: WatchKind::Queued {
+                delay: LiveDelay::DEFAULT,
+            },
         };
         assert!(!mm.watch(1, watcher(1001)), "a seated session watches none");
         assert!(!mm.watch(

@@ -166,7 +166,7 @@ fn a_full_match_is_busy_and_one_not_begun_is_not_watched() {
 }
 
 /// The Settings' box: `3B` at the setting's start (the exe's).
-fn set_live_watch(world: &mut World, index: usize, state: LiveWatch) {
+pub(super) fn set_live_watch(world: &mut World, index: usize, state: LiveWatch) {
     world.ask(index, request::ranking(state.start(), 1));
 }
 

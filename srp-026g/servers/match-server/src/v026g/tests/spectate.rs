@@ -2,7 +2,7 @@
 //! match from a room's queue, with no place.
 
 use super::*;
-use session::{Player, WatchKind, Watcher};
+use session::{LiveDelay, Player, WatchKind, Watcher};
 use survarium::v026g::match_msgs::ServerMessage;
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
@@ -43,7 +43,13 @@ fn watch_as(bench: &Bench, session: u32, kind: WatchKind) {
 
 /// A spectator's game connected and loaded: its client's index.
 fn spectate(bench: &mut Bench, session: u32) -> usize {
-    spectate_as(bench, session, WatchKind::Queued)
+    spectate_as(bench, session, WatchKind::Queued { delay: no_delay() })
+}
+
+/// Live watching with its delay configured away: the worlds and relays as
+/// soon as the path takes them, so a test need not run through the delay.
+fn no_delay() -> LiveDelay {
+    LiveDelay::from_secs(0).unwrap()
 }
 
 /// [`spectate`], as `kind` watches (`watch_as`).
@@ -91,7 +97,8 @@ fn a_spectator_gets_the_roster_with_no_place_its_world_and_every_relay() {
         bench.clients[0].input(50, 0x21);
         bench.run(50);
     }
-    bench.run(500);
+    // It is as far behind as the match's own relaying lets it be.
+    bench.run(1_500);
     let to_player = bench.clients[1].relays_of(0);
     let to_spectator = bench.clients[at].relays_of(0);
     assert!(to_player.len() >= 20);
@@ -307,7 +314,7 @@ fn a_spectator_of_no_match_here_is_turned_away() {
             match_id: lobby_match,
             ticket: bench.match_id + 1,
             account_id: SPECTATOR_ACCOUNT,
-            kind: WatchKind::Queued,
+            kind: WatchKind::Queued { delay: no_delay() },
         },
     ));
     let at = bench.clients.len();
@@ -572,6 +579,41 @@ fn a_spectator_coming_back_holds_no_abandoned_match_open() {
         "the match is still open"
     );
     assert!(bench.clients.last().unwrap().disconnected, "turned away");
+}
+
+/// The owner's rule of 2026-11-09: Queue and spectate runs behind the match by the delay it was
+/// given (the Live delay), as a Live window's watcher does.
+#[test]
+fn queue_and_spectate_watches_behind_the_match() {
+    let mut bench = running();
+    let delay = LiveDelay::from_secs(10).unwrap();
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Queued { delay });
+    assert!(
+        bench.until(8_000, |b| b.clients[at].model.is_synced()),
+        "{:?}",
+        bench.clients[at].faults
+    );
+    bench.run(200);
+    let behind = i64::from(bench.clients[0].clock()) - i64::from(bench.clients[at].clock());
+    assert!((9_000..=11_000).contains(&behind), "{behind}");
+    bench.assert_no_faults();
+}
+
+/// Review of 2026-11-09: a spectator waiting for a fresh world asked the players for one every
+/// second, and one that ignores each 0xE5 waits for ever: it got them uploading a world a second.
+#[test]
+fn a_stuck_spectator_asks_the_players_for_nothing() {
+    let requests = |stuck: bool| {
+        let mut bench = running();
+        if stuck {
+            let at = spectate(&mut bench, SPECTATOR);
+            bench.clients[at].mute_time_replies = true;
+        }
+        let before = bench.clients[0].upload_requests;
+        bench.run_long(15_000);
+        bench.clients[0].upload_requests - before
+    };
+    assert_eq!(requests(true), requests(false));
 }
 
 /// Every place stands in every game's next worlds with `kit` as its current one.

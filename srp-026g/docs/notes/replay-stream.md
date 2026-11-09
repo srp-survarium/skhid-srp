@@ -155,8 +155,10 @@ is a `91` row at the request's start plus its index.
   of the last 60 s (as its inputs); a delayed spectator starts from the newest at least 250 ms
   behind its clock (and fresh enough for the inputs since, 1.5 s) and gets the relays and roster
   changes from the match's lists as its clock reaches them, never as they are played. Queue and
-  spectate's spectators stay immediate (the owner's rule), and a room's queue never ends a Live
-  one. Not yet: a delayed spectator is let go at the match's end with the players, so the last
+  spectate is the same (`WatchKind::Queued { delay }`, the owner's of 2026-11-09: one rule for all
+  live watching, so nobody calls a friend the positions). The delay of a watcher is at least 1 s
+  (`LEAST_BEHIND`: nearer, an input on its way would be behind what it has been fed), so a delay
+  of 0 is 1 s. A room's queue never ends a Live one. Not yet: a delayed spectator is let go at the match's end with the players, so the last
   delay of the match is not shown; a late joiner who entered within the delay has a place in its
   0xE4 before the world shows it (as a replay's late install).
 
@@ -169,8 +171,8 @@ answered `not_yours` to a watch ask and gives no friend's `F1` row, as a private
 player. The list and the ask read it when they run, so a change applies from then on; spectators already watching
 go on. The wire: `lobby.md` 2.16.6.
 
-Not this setting's: finished replays, and a room's "Queue and spectate" (`WatchKind::Queued`,
-`queue-spectate.md`), which shows the room's own match to someone in its queue.
+Not this setting's: finished replays. A room's "Queue and spectate" follows it: its watch of a
+match with such a player does not start (`rooms::room_watchers`); one already there goes on.
 
 ## Settings
 
