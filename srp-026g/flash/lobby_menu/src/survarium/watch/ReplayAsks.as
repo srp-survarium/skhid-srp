@@ -123,16 +123,17 @@ package survarium.watch
       }
 
       // Asks to watch `match` with `ask` (a REPLAY_WATCH_* player, WatchRows.watchAsk); nothing
-      // while another watch is being asked for.
-      public static function watch(match:uint, ask:uint) : void
+      // while another watch is being asked for (false).
+      public static function watch(match:uint, ask:uint) : Boolean
       {
          if(_watch != null)
          {
-            return;
+            return false;
          }
          WatchPrompt.onClosed = promptClosed;
          _watch = begin(ask,match);
          WatchPrompt.asking();
+         return true;
       }
 
       // Saves match `match`'s replay; nothing while another save is under way or it is saved.

@@ -110,8 +110,13 @@ package survarium.watch
       // rows), and after a match (the asker's matches again)
       private static const FIRST_ASK_MS:int = 3000;
 
-      // a friend's Spectate gives up after this many live lists without the friend
-      private static const SPECTATE_MISSES:int = 3;
+      // Mine asked again this long after the lobby's return: the history row of the match just
+      // played is written at the server's next save, and nothing says when
+      private static const BACK_ASK_MS:int = 2000;
+
+      // a friend's Spectate waits this many of the window's seconds for its match to be listed in
+      // play, then says so
+      private static const SPECTATE_S:int = 60;
 
       private static const TOOL_Y:Number = 50;
 
@@ -158,7 +163,7 @@ package survarium.watch
       private var _delay:int = -1;
 
       // a friend's Spectate waiting for the live list to say where it plays ({name lower case,
-      // shown, misses: the lists without the friend}), null none
+      // shown, left: the seconds it still waits}), null none
       private var _spectate:Object = null;
 
       private var _asks:int = 0;
@@ -296,7 +301,7 @@ package survarium.watch
          {
             return;
          }
-         win._spectate = {"name":name.toLowerCase(),"shown":name,"misses":0};
+         win._spectate = {"name":name.toLowerCase(),"shown":name,"left":SPECTATE_S};
          win._liveChip = FRIENDS;
          win.showTab(LIVE);
       }
@@ -332,7 +337,7 @@ package survarium.watch
          {
             return;
          }
-         win.ask(MINE);
+         win._mineDue = getTimer() + BACK_ASK_MS;
          win.resumeStep(BACK);
       }
 
@@ -600,6 +605,12 @@ package survarium.watch
       {
          var now:int = getTimer();
          ReplayAsks.second();
+         if(this._spectate != null && --this._spectate.left <= 0)
+         {
+            var lost:String = this._spectate.shown;
+            this._spectate = null;
+            this.tell(LocalizationData.format("st_srp_watch_spectate_lost",lost));
+         }
          // nothing asked in a match (the lobby is not shown then)
          var free:Boolean = !MainScene.activeMatchMaking;
          if(free && this._mineDue != 0 && now >= this._mineDue)
@@ -743,9 +754,8 @@ package survarium.watch
       }
 
       // A friend's Spectate, on each live list the server answers (never the list from before the
-      // Spectate: it may be stale): the match it names the friend in, watched from its place. An
-      // answer without the friend counts; enough of them end it with a word. A match found that
-      // cannot be watched says why.
+      // Spectate: it may be stale): the match it names the friend in, watched from its place. A
+      // match found that cannot be watched says why; onTimer ends a wait that finds none.
       private function findSpectated() : void
       {
          var spectate:Object = this._spectate;
@@ -763,7 +773,6 @@ package survarium.watch
                   // counting down: watched once it plays
                   if(reason == "st_srp_watch_reason_starts")
                   {
-                     spectate.misses = 0;
                      return;
                   }
                   this._spectate = null;
@@ -778,11 +787,6 @@ package survarium.watch
                   return;
                }
             }
-         }
-         if(++spectate.misses >= SPECTATE_MISSES)
-         {
-            this._spectate = null;
-            this.tell(LocalizationData.format("st_srp_watch_spectate_lost",spectate.shown));
          }
       }
 
@@ -957,13 +961,16 @@ package survarium.watch
       // Asks to watch `match` with `ask` (ReplayAsks); the view to come back to.
       private function watch(match:uint, ask:uint) : void
       {
-         this.resumeStep(ASKED_WATCH,match,{
-            "tab":this._tab,
-            "liveChip":this._liveChip,
-            "replaysChip":this._replaysChip,
-            "search":this._search
-         });
-         ReplayAsks.watch(match,ask);
+         // only an ask that was taken: one under another's would never hear its end
+         if(ReplayAsks.watch(match,ask))
+         {
+            this.resumeStep(ASKED_WATCH,match,{
+               "tab":this._tab,
+               "liveChip":this._liveChip,
+               "replaysChip":this._replaysChip,
+               "search":this._search
+            });
+         }
       }
 
       // A card's Watch: a recorded match from the player's place (a player's list) or anyone's;

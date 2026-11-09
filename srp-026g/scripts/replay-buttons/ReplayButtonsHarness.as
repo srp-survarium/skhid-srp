@@ -37,11 +37,11 @@ package
    //   the click still asks; a match gone from the list loses its card;
    // - Live's Watch asks at once from the place of the friend in the match (or anyone's), no
    //   roster; a friend's Spectate watches the friend's match from the friend's place, waits while
-   //   it counts down, says so when the list keeps not naming the friend or the match can't be
-   //   watched;
+   //   it counts down, says so when its 60 s end or the match can't be watched;
    // - one ask-and-poll loop (ReplayAsks) on the window's second: a watch polls 2200000000, a save
    //   2210000000, both from the same tick; after a watch asked from the window, its view again once
-   //   it played (the load, `watching`) and not after a refusal; Mine asked anew back in the lobby;
+   //   it played (the load, `watching`) and not after a refusal, nor for an ask under another's;
+   //   Mine not asked at once back in the lobby (BACK_ASK_MS: the history row is not written yet);
    // - a lobby window opening (MainScene.activeWindow) or the rooms window closes Watch;
    // - Save replay (ReplayAsks): a save icon right of the code on the cards that may be watched
    //   (none on live cards or ones that cannot be watched); a press asks `3D 00 FFFFFF01 <match>`
@@ -686,9 +686,21 @@ package
          expect(language + ": polled after a refusal",polls(2200000000) == 1);
          win.show(false);
          W.away();
+         ExternalInterface.calls.length = 0;
          W.back();
          expect(language + ": a refused watch brought Watch back",!win.visible);
-         expect(language + ": Mine was not asked at the back in the lobby",ExternalInterface.calls[ExternalInterface.calls.length - 1][1] == 2230000001);
+         expect(language + ": Mine asked at once back in the lobby, before the history row",polls(2230000001) == 0);
+         // a watch under another's is ignored, and leaves no view to come back to
+         W.open("live");
+         lobby.take(WatchFake.LIVE);
+         click(cards()[1],"srpWatchWatch");
+         click(cards()[0],"srpWatchWatch");
+         lobby.answer("gone",OTHER);
+         Prompt.noteReplay(hex(OTHER),null);
+         win.show(false);
+         W.away();
+         W.back();
+         expect(language + ": an ignored watch left a view to come back to",!win.visible);
          // no answer at all (31 polls): the same, and the ask ended
          W.open("live");
          lobby.take(WatchFake.LIVE);
@@ -727,16 +739,17 @@ package
          expect(language + ": not back on Live after the watch",win.visible && shownTab() == "live");
          W.back();
          win.show(false);
-         // a friend's Spectate: not in the list three times over: it says so, once
+         // a friend's Spectate never listed: after its 60 s it says so, once
          W.spectate("Vlad");
          lobby.take(["L0;0"]);
-         lobby.take(["L0;0"]);
+         for(p = 0; p < 59; p++)
+            second();
          expect(language + ": gave up too soon",told().length == 0);
-         lobby.take(["L0;0"]);
+         second();
          var said:Array = told();
          var lost:String = words.getName("st_srp_watch_spectate_lost").split("%1$s").join("Vlad");
          expect(language + ": a Spectate that gave up says " + said,said.length == 1 && said[0] == lost);
-         lobby.take(["L0;0"]);
+         second();
          expect(language + ": it said so again",told().length == 0);
          win.show(false);
          // found, but the match can't be watched: it says why

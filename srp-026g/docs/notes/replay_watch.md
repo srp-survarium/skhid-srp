@@ -32,8 +32,8 @@ Watch button wherever a match is mentioned.
   chooses it, and its `P1` rows list its matches (no chip chosen meanwhile; a chip ends the search;
   the asker's own name is Mine). A watch asked from the window that comes to play (the game loads a
   match with it asked, or `watching`) opens it on that view again at the lobby's return; a refusal,
-  no answer or the prompt's Close drops the view. A friend's Spectate that three live lists in a row
-  do not name the friend, or finds a match it can't watch, says so in a message box.
+  no answer or the prompt's Close drops the view. A friend's Spectate whose 60 s end, or that finds a
+  match it can't watch, says so in a message box.
 - **Cards** (`MatchCard`): the map's render and name by the rooms' pool (`RoomsWindow.entry`: the
   map id's level and weather; a map the pool lacks: its History row's name, else "Retired map", its
   mode's colour), mode and teams or players; the score or the player's result and K/D; the age, the
@@ -44,8 +44,9 @@ Watch button wherever a match is mentioned.
   kept" (0, 3, or a `gone` answer); live: "Opens when the match starts" (made or counting down),
   "Match just ended", "No spectator places left" (full), "Not open to spectators". A History row and
   the results screen show the same reason in place of their Watch once a row or an answer said it
-  (`NotificationListScrollContent.replayReason`); the asker's own matches are asked again at each
-  return to the lobby and when the tab opens (and once as it comes up) so History's rows know theirs.
+  (`NotificationListScrollContent.replayReason`); the asker's own matches are asked again 2 s after
+  each return to the lobby (the history row is written at the server's next save, and no event says
+  when), when the tab opens and once as it comes up, so History's rows know theirs.
   Cards and the toolbar are updated in place, keyed by match, so a press outlives the refreshes.
 - **Watch asks** a replay session through the Watch window's one ask-and-poll loop
   (`survarium/watch/ReplayAsks.as`, the prompt `WatchPrompt.as`, `replay-stream.md`): `3D 00 <0xC0000000 | place << 16> <match id>`,
