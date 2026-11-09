@@ -1,5 +1,6 @@
 package survarium.controls
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.events.IEventDispatcher;
@@ -344,6 +345,42 @@ package survarium.controls
             this.btn_item_craft.visible = true;
             this.btn_item_reroll.visible = true;
             this.btn_item_upgrade.visible = true;
+         }
+         this.spaceItemRow();
+      }
+
+      // The item row (Upgrade, Modification, Attachments, Sell or Buy) had Fix among them; with Fix gone
+      // the visible ones share the row's span (the first one's left edge to the last one's right edge)
+      // with equal gaps between them (the owner, 2026-11-09: "there is a hole can we align those to have
+      // equal space between each other?").
+      private function spaceItemRow() : void
+      {
+         var row:Array = [];
+         for each(var button:DisplayObject in [this.btn_item_craft,this.btn_item_reroll,this.btn_item_upgrade,this.btn_item_sell,this.btn_item_buy])
+         {
+            if(button.visible)
+            {
+               row.push(button);
+            }
+         }
+         if(row.length < 2)
+         {
+            return;
+         }
+         row.sortOn("x",Array.NUMERIC);
+         var left:Number = row[0].x;
+         var right:Number = row[row.length - 1].x + row[row.length - 1].width;
+         var widths:Number = 0;
+         for each(button in row)
+         {
+            widths += button.width;
+         }
+         var gap:Number = (right - left - widths) / (row.length - 1);
+         var x:Number = left;
+         for each(button in row)
+         {
+            button.x = Math.round(x);
+            x += button.width + gap;
          }
       }
       

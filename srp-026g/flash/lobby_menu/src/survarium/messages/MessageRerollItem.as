@@ -351,6 +351,12 @@ package survarium.messages
       // panel gave back. The panel is rerollContainer's `background`; without one, nothing moves.
       private static const DESCRIPTION_MARGIN:Number = 12;
 
+      // The panel's height and the price row's y as the timeline placed them: the fit is worked out from
+      // these, so a second setup of the window (configUI runs again) moves nothing further.
+      private var _stockPanelHeight:Number = NaN;
+
+      private var _stockPriceY:Number = NaN;
+
       private function fitDescription() : void
       {
          var panel:DisplayObject = this.rerollContainer.getChildByName("background");
@@ -358,14 +364,17 @@ package survarium.messages
          {
             return;
          }
+         if(isNaN(this._stockPanelHeight))
+         {
+            this._stockPanelHeight = panel.height;
+            this._stockPriceY = this.checkBoxRegularCost.y;
+         }
          var top:Number = this.rerollContainer.y + panel.y;
-         var oldBottom:Number = top + panel.height;
-         var textHeight:Number = this.decriptionLabel.textHeight + 4;
-         this.decriptionLabel.height = textHeight;
-         this.decriptionLabel.y = top + DESCRIPTION_MARGIN;
-         panel.height = textHeight + 2 * DESCRIPTION_MARGIN;
-         var up:Number = oldBottom - (top + panel.height);
-         this.checkBoxRegularCost.y -= up;
+         this.decriptionLabel.height = this.decriptionLabel.textHeight + 4;
+         panel.height = this.decriptionLabel.height + 2 * DESCRIPTION_MARGIN;
+         // The text centred in its panel, by the height the label really has.
+         this.decriptionLabel.y = Math.round(top + (panel.height - this.decriptionLabel.height) / 2);
+         this.checkBoxRegularCost.y = this._stockPriceY - (this._stockPanelHeight - panel.height);
       }
 
       private function setChooseReollOptionState(choosing:Boolean) : void

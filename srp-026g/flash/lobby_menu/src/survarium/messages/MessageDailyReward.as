@@ -1,6 +1,8 @@
 package survarium.messages
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ButtonBar;
@@ -28,6 +30,9 @@ package survarium.messages
 
       protected const MESSAGE_WIDTH:uint = 604;
 
+      // How much narrower the window is without the reward panel (closeUpRight).
+      private var _cut:Number = 0;
+
       public function MessageDailyReward()
       {
          super();
@@ -35,7 +40,7 @@ package survarium.messages
 
       override public function get width() : Number
       {
-         return this.MESSAGE_WIDTH;
+         return this.MESSAGE_WIDTH - this._cut;
       }
 
       override public function set width(value:Number) : void
@@ -57,6 +62,52 @@ package survarium.messages
          this.textFieldDescr.styleSheet = MainScene.textStyleSheet;
          this.textFieldLabel.text = LocalizationData.getName("daily_bonus_label") + ", " + Util.styledChar(PlayerInfo.nickname,"beige_bright") + "!";
          this.textFieldDescr.text = LocalizationData.getName("daily_bonus_description");
+         this.closeUpRight();
+      }
+
+      // The reward panel's place on the right is empty (the owner, 2026-11-08: "7 day bonuses now has an
+      // unnecessary space"): the window ends as far right of the last day as it begins left of the first.
+      // The frame's pieces are the timeline's, unnamed: whatever lies wholly right of the days (the close
+      // button) moves left by the cut, whatever reaches past them (the frame, the title bar, the text strip,
+      // the centred texts) narrows by it.
+      private function closeUpRight() : void
+      {
+         this.rewardsList.validateNow();
+         var days:Rectangle = this.rewardsList.getBounds(this);
+         var frame:Rectangle = new Rectangle();
+         var child:DisplayObject;
+         var i:int;
+         for(i = 0; i < numChildren; i++)
+         {
+            child = getChildAt(i);
+            if(child.visible && child != this.rewardContainer)
+            {
+               frame = frame.union(child.getBounds(this));
+            }
+         }
+         var cut:Number = Math.floor(frame.right - days.right - (days.left - frame.left));
+         if(cut <= 0)
+         {
+            return;
+         }
+         for(i = 0; i < numChildren; i++)
+         {
+            child = getChildAt(i);
+            if(child == this.rewardsList || child == this.rewardContainer)
+            {
+               continue;
+            }
+            var box:Rectangle = child.getBounds(this);
+            if(box.left >= days.right)
+            {
+               child.x -= cut;
+            }
+            else if(box.right > days.right)
+            {
+               child.width -= cut;
+            }
+         }
+         this._cut = cut;
       }
    }
 }
