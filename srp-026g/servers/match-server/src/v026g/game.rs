@@ -95,7 +95,7 @@
 //! now either is acked while the game can still use it or is lost:
 //! [`RELAY_USEFUL_MS`]).
 
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
@@ -704,6 +704,9 @@ struct Peer {
     /// How its uploads stand with the world check (`refused_worlds`).
     upload_standing: UploadStanding,
     world_receipts: WorldReceipts,
+    /// The parts of its client reports logged so far (client patch 126,
+    /// `Carrier::key`): each once, however often the client resends it.
+    reports_heard: BTreeSet<(u8, u8, u8)>,
     /// The sync generation of the last 0xE5/0xE8 sent to it: 0xFF once it
     /// is ready, as the client's own.
     generation: Generation,
@@ -1378,6 +1381,7 @@ impl Game {
             receipts_log: RefusalLog::default(),
             upload_standing: UploadStanding::default(),
             world_receipts: WorldReceipts::default(),
+            reports_heard: BTreeSet::new(),
             generation: Generation::AT_READY,
             set_times: VecDeque::new(),
             time_confirmed: false,
@@ -1488,6 +1492,29 @@ impl Game {
         }
     }
 
+    /// A part of a client report (an E0 carrier, client patch 126 on,
+    /// `srp_validate::report`): only logged (`client_report`), each part
+    /// once per connection, of this match only, whatever its stage (a game
+    /// given its farewell tells its match's end after it).
+    fn accept_report(&mut self, index: usize, message: u8, payload: &[u8]) -> bool {
+        if message != survarium::v026g::match_msgs::id::LEAVE {
+            return false;
+        }
+        let Some(carrier) = srp_validate::report::Carrier::parse(payload) else {
+            return false;
+        };
+        let (Some(peer), Some(place)) = (
+            self.peers.get_mut(index).and_then(Option::as_mut),
+            self.formed.places.get(index),
+        ) else {
+            return true;
+        };
+        if carrier.match_id == super::registry::static_id(self.id) && peer.reports_heard.insert(carrier.key()) {
+            super::client_report::log(&carrier, &place.name, place.account_id, self.id);
+        }
+        true
+    }
+
     /// A load receipt (an E0 carrier, `srp_validate::recovery`): whatever it
     /// does, a refusal by the client and a receipt the server ignores are
     /// logged (`refusal_log`).
@@ -1571,7 +1598,10 @@ impl Game {
     }
 
     fn message(&mut self, index: usize, id: u8, payload: &[u8], now: Instant) {
-        if self.accept_world_receipt(index, id, payload, now) || self.accept_prepared(index, id, payload) {
+        if self.accept_world_receipt(index, id, payload, now)
+            || self.accept_report(index, id, payload)
+            || self.accept_prepared(index, id, payload)
+        {
             return;
         }
         let message = match parse_client(id, payload) {
@@ -6722,6 +6752,11 @@ impl Game {
     }
 
     /// How many worlds and handshakes its game refused (Rejected receipts).
+    /// The parts of its client reports (client patch 126 on) logged.
+    pub fn report_parts_heard(&self, index: usize) -> usize {
+        self.peers[index].as_ref().map_or(0, |peer| peer.reports_heard.len())
+    }
+
     pub fn loads_refused(&self, index: usize) -> u32 {
         self.peers[index].as_ref().map_or(0, |peer| peer.loads_refused)
     }

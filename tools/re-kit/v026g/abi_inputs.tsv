@@ -5772,6 +5772,13 @@ va	name	location	role	basis
 0x000e1120	vostok::memory::allocate_region	entry ESP+12	additional address space (u64; the same value)	observed
 0x000e21c0	vostok::memory::register_allocator	ESI	the arenas' list ([0xA808FC]: +4 end, +8 capacity end)	observed
 0x000e21c0	vostok::memory::register_allocator	EDI	the record: +0 allocator, +8 arena size (u64), +10h arena address (0), +14h name	observed
+0x00101280	dlmalloc::create_mspace_with_base	entry ESP+4	the base (the arena's start)	observed
+0x00101280	dlmalloc::create_mspace_with_base	entry ESP+8	the capacity (u64)	observed
+0x000ff200	dlmalloc::internal_mallinfo	entry ESP+4	the malloc_state	observed
+0x000ff200	dlmalloc::internal_mallinfo	EAX	the struct mallinfo to fill (28h bytes)	observed
+0x0010f8c0	vostok::memory::mt_region::take	ECX	the bytes wanted	observed
+0x0010f980	vostok::memory::mt_region::give	ESI	the pages given back	observed
+0x0010f980	vostok::memory::mt_region::give	EDI	their bytes	observed
 0x000e0930	vostok::threading::spawn_internal	ECX	the thread_entry_params (the function, the names, the hardware thread, tasks awareness, +30h processed)	observed
 0x000e0930	vostok::threading::spawn_internal	EDX	the stack size in bytes, CreateThread's dwStackSize	observed
 0x000e3770	vostok::threading::spawn	EAX	the thread's name for the log, or 0 for its debugger name	observed

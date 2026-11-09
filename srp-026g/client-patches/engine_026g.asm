@@ -123,6 +123,7 @@ global engine_medkit_set_active
 global engine_profile_destroy
 global engine_release_inventory
 global engine_global_memory_status_ex
+global engine_virtual_query
 global engine_allocate_recipe
 global engine_get_current_process_id
 global engine_bind_member_callback
@@ -215,6 +216,7 @@ engine_store_first_resource equ 0x14730   ; 0x14730 vostok::resources::store_fir
 engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::close_current_match: client ECX, reason ESP+4; pops 4; thiscall, called directly
 engine_gfx_set_member equ 0x7c6a20   ; 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
 engine_global_memory_status_ex equ 0x870164   ; the IAT slot 0x870164 (an import, stdcall)
+engine_virtual_query equ 0x870168   ; the IAT slot 0x870168 (an import, stdcall)
 engine_get_current_process_id equ 0x8701b8   ; the IAT slot 0x8701b8 (an import, stdcall)
 engine_weapon_set_user equ 0x2445e0   ; 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly
 engine_weapon_initialize equ 0x2449e0   ; 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly

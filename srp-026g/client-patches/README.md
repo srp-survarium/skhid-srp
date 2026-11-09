@@ -140,6 +140,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
 | `rust/patches/src/unplayed_match.rs`, `src/unplayed_match.toml`, `src/vostok/match_close.rs`, `check_unplayed_match_026g.py` | Patch 120: a match its game never played (the time rule's state 0: the handshake, a level loading, a level loaded before its first world) closes too, kicked, timed out, cut off or given its farewell: five lohooks (connect_to_match's connect, the logoff, close_current_match's guard, on_project_loaded's abort test, on_match_ready's end); its check runs each from the game's code on a made-up network client, the original beside (needs Unicorn; `../docs/notes/client_patch.md` section 3.74) |
 | `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
+| `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`) and patch 128 (`THREAD_STACKS` in `patch_026g.py`): the defaults of the multithreaded arena and the resource floor (768 MiB), and of the resources helper (32 MiB) and render (320 MiB) arenas, a command-line value still taking over, and an engine thread's stack (2 MiB); its check runs the native option reads, the registrations' sizes and threading::spawn to CreateThread in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75 and 3.77) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
@@ -4896,6 +4897,40 @@ a stubbed key reader: absent or not a number, the original's 8 and 224 MiB and t
 320; values given (helper 4 to 64, render 100 to 512) the same size in both, 100 raised to 224.
 Against the build without it, the default build differs in the four bytes of the two immediates and
 the PE checksum. The built exe was not run in a game: the runs above gave the same sizes as options.
+
+## The game tells how much memory it has left (patch 126, unreleased)
+
+The game is a 32-bit process: its address space is cut at the start into fixed arenas and what is
+left for the video driver, and a full arena (or a driver without room) ends the game. We sized the
+arenas from a handful of crash dumps (patches 36, 37, 78, 124); these reports give the real margins
+of players' games. The rules: `../docs/notes/memory-report.md`; the reading: `../docs/notes/client_patch.md`
+section 3.76.
+
+**The patch** (`memory_report`, Rust, two lohooks; `vostok::memory`, `srp_validate::memory`). When a
+match connection's first world is in (`world_load.loaded`, order 3) and when the match closes on the
+game (close_current_match's entry, `match_recovery.close`, order 1, only after a first world), a
+snapshot: the address space's free bytes and largest free region (`VirtualQuery`), the engine's video
+budget, and every arena of the engine's list with its name, size and use: a doug_lea heap walked
+chunk by chunk (used, largest free block), the managed resources' and the multithreaded region's
+counts, unknown otherwise. Nothing of the engine's is called: its size queries walk heaps other
+threads use without a lock; ours reads only inside each arena, checked readable, and gives up on a
+torn walk (a clean one can be slightly stale). The snapshot is written to `srp_patches.log` (a line for the process, one an arena) and
+sent in the generic client-report carrier (`srp_validate::report`: 0xE0, prefix
+`ff ff ff ff ff ff 03 00`, the match id, the kind, part and parts), all parts at once or none,
+through patch 97's one 0xE0 path (`Connection::tell`).
+
+**The server.** The match server logs each part once per connection, of its own match only, to
+`logs/memory.log` (16 files of 4 MB): `<name> (account <id>), match <id>, loaded, part 1/2: process
+free <bytes> largest <bytes> video <bytes> | arena "render" size <bytes> used <bytes> largest <bytes> | ...`.
+`release/moderate memory` lists each arena, tightest first, with its least room left and least largest
+free block, and the address space's least largest free region, with who and when. An older server takes
+a carrier alone in its datagram for a chunk whose offset is past its total and ignores it, but it
+refuses a whole multi datagram that carries one (it cannot measure the carrier): the server ships in
+the same release as the patch or earlier. The transport measures the carrier with the codec's own
+`srp_validate::report::carrier_len`.
+
+Nothing a match computes. Checked with `srp-validate`'s tests, the patch crate's tests and Clippy, and
+the match server's test. Not run in a game.
 
 ## Engine threads get 2 MiB stacks (patch 128, unreleased)
 

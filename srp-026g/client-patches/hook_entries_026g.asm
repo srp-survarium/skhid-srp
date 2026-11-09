@@ -4896,6 +4896,45 @@ medical_skills_on_sway_replay:
     db 0x8b, 0x45, 0x0c, 0xdb, 0x45, 0x0c
     jmp 0x31d72d
 
+; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> memory_report_on_close
+global memory_report_on_close
+extern hook_memory_report_on_close_chain
+memory_report_on_close:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_memory_report_on_close_chain
+    mov edx, memory_report_on_close_replay
+    cmp eax, 0
+    je memory_report_on_close_go
+    mov edx, 0x27a796
+    cmp eax, 1
+    je memory_report_on_close_go
+    ud2
+memory_report_on_close_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+memory_report_on_close_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x27a796
+
 ; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
 global message_check_on_message
 extern hook_message_check_on_message
@@ -5206,45 +5245,6 @@ music_on_sound_tick_replay:
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
-
-; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> packet_recovery_on_close
-global packet_recovery_on_close
-extern hook_packet_recovery_on_close
-packet_recovery_on_close:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_packet_recovery_on_close
-    mov edx, packet_recovery_on_close_replay
-    cmp eax, 0
-    je packet_recovery_on_close_go
-    mov edx, 0x27a796
-    cmp eax, 1
-    je packet_recovery_on_close_go
-    ud2
-packet_recovery_on_close_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-packet_recovery_on_close_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x27a796
 
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull

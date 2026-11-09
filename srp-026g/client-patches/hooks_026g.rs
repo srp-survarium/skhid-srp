@@ -751,6 +751,21 @@ pub extern "C" fn hook_artefact_skills_on_world_loaded(frame: &mut Frame) -> u32
     }
 }
 
+// ---- memory_report (patch 126) ----
+
+/// The entry `memory_report_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_report_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_report_on_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_report::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_cache (patch 70) ----
 
 /// The named exits of bake_cache::on_game_start (the order the shim's Flow code
@@ -2603,6 +2618,36 @@ pub extern "C" fn hook_medical_skills_on_sway(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- memory_report (patch 126) ----
+
+/// The entry `memory_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_report_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_report_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_report::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- packet_recovery (patch 97) ----
+
+/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::packet_recovery::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- message_check (patch 114) ----
 
 /// The named exits of message_check::on_message (the order the shim's Flow code
@@ -2758,21 +2803,6 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
     let result = unsafe { QueryResults::from_raw(&thread, a0) };
     let tag = QueryTag::from_raw(a1 as usize as u32);
     { crate::music::on_query_done(result, tag); 0 }
-}
-
-// ---- packet_recovery (patch 97) ----
-
-/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::packet_recovery::on_close(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
 }
 
 // ---- ragdoll (patch 76) ----
@@ -3491,6 +3521,8 @@ pub extern "C" fn hook_packet_recovery_on_loaded_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_artefact_skills_on_world_loaded(frame);
     if flow != 0 { return flow; }
+    let flow = hook_memory_report_on_loaded(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -3625,6 +3657,15 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_unload(frame);
     if flow != 0 { return flow; }
     let flow = hook_lobby_scene_on_game_closing(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_report_on_close_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_memory_report_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_packet_recovery_on_close(frame);
     if flow != 0 { return flow; }
     0
 }

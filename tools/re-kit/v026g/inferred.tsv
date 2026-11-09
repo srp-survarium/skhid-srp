@@ -3401,3 +3401,10 @@ va	status	ref_021d	name
 0x003cfdb0	inferred-medium		vostok::render::res_render_output::apply_fullscreen_state
 0x003cfe20	inferred-medium		vostok::render::res_render_output::goto_fullscreen
 0x003cfe80	inferred-medium	0x00274fc2	vostok::render::res_render_output::minimize
+0x00107260	inferred-high		ptmalloc3::public_mALLINFo
+0x000eb5f0	inferred-high		vostok::memory::pthreads_allocator::total_size
+0x000eb630	inferred-high		vostok::memory::pthreads_allocator::allocated_size
+0x000e0e40	inferred-high		vostok::memory::managed_allocator::total_size
+0x000e0e50	inferred-high		vostok::memory::managed_allocator::allocated_size
+0x0010f8c0	inferred-high		vostok::memory::mt_region::take
+0x0010f980	inferred-high		vostok::memory::mt_region::give

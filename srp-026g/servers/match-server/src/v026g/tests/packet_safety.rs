@@ -46,6 +46,41 @@ fn receipts_cannot_accuse_other_players_or_restart_a_settled_generation() {
 }
 
 #[test]
+fn a_memory_report_is_logged_once_a_part_and_is_no_leave() {
+    use srp_validate::memory::{Arena, Moment, Name, Process, Report as Memory, Usage};
+    use srp_validate::report::Report;
+    let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    assert!(bench.until(10_000, |b| b.stages() == "LLL"));
+    let report = |moment| {
+        let mut memory = Memory::new(moment, Process { free: 0x1000_0000, largest_free: 0x800_0000, video_budget: 1 << 30 });
+        for n in 0..17u32 {
+            memory.add(Arena { name: Name::of_c(b"render"), size: 0x1400_0000, usage: Usage::Heap { used: n, largest_free: 0x10_0000 } });
+        }
+        Report::Memory(memory)
+    };
+    let match_id = bench.clients[0].model.options.as_ref().unwrap().match_id;
+    // Each part with its copies (0xE0 is resent until acked), both moments,
+    // and a report of another match, which is not this one's to log.
+    for _ in 0..3 {
+        for report in [report(Moment::Loaded), report(Moment::Ended)] {
+            for part in 0..report.parts() {
+                let (bytes, len) = report.part(match_id, part).unwrap();
+                bench.clients[0].send(id::LEAVE, &bytes[..len], true);
+                let (other, len) = report.part(match_id ^ 1, part).unwrap();
+                bench.clients[1].send(id::LEAVE, &other[..len], true);
+            }
+        }
+    }
+    bench.run(2_000);
+    assert_eq!(bench.game().report_parts_heard(0), 4);
+    assert_eq!(bench.game().report_parts_heard(1), 0);
+    assert_eq!(bench.stages(), "LLL");
+    assert!(bench.clients.iter().all(|c| !c.closed && !c.disconnected));
+    bench.assert_no_faults();
+}
+
+#[test]
 fn rejecting_a_resync_world_retries_only_that_recipient_and_then_play_continues() {
     for copies in [false, true] {
         let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());

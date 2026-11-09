@@ -900,3 +900,36 @@ survarium::lobby_client	status	0x1E5790	u32	what the lobby says the client is: t
 survarium::close_match_frame	reason	0x8	u32	close_current_match's argument by EBP (mov ebx,[ebp+8] at 0x27A7F3): the reason, jump table 0x27A958
 survarium::match_ready_frame	client	0x18	ptr<survarium::network_client>	on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
 vostok::render::res_render_output	window	0xE4	u32	the output window, an HWND (res_render_output::res_render_output 0x3CF4F0 writes it from EDX at 0x3CF540; set_size's SetWindowLongA 0x3CFA09/0x3CFA55 and SetWindowPos 0x3CFA20/0x3CFAD8, present's ShowWindow 0x3CF8C5 take it)
+vostok::memory::image	arena_list	0xA808FC	obj<vostok::memory::arena_list_slot>	the engine's registered arenas: the slot of a pointer to their fixed_vector of allocator_data (memory::preinitialize sets it, 0xE0F51; register_allocator 0xE21C0 appends with ESI it, dump_statistics 0xE1379 and allocate_region 0xE1128 walk it); patch 126
+vostok::memory::arena_list_slot	list	0x0	ptr<vostok::memory::arena_list>	the arenas' fixed_vector {begin, end, capacity end} (dump_statistics: mov eax,[0A808FCh] / mov esi,[eax] / mov edi,[eax+4], 0xE1379..0xE1385)
+vostok::memory::arena_list	begin	0x0	ptr<vostok::memory::arena_record>	the first allocator_data record
+vostok::memory::arena_list	end	0x4	ptr<vostok::memory::arena_record>	past the last record (register_allocator's push_back moves it)
+vostok::memory::arena_list	capacity_end	0x8	ptr<vostok::memory::arena_record>	past the room for records (a full list asserts, 0x113450)
+vostok::memory::arena_record	size	0x18	size	allocator_data: 18h bytes (dump_statistics steps 18h, 0xE13F1; 0.10b memory.cpp {allocator, u64 arena_size, arena_address, arena_id})
+vostok::memory::arena_record	allocator	0x0	ptr<vostok::memory::base_allocator>	the arena's allocator (dump_statistics calls its vtable +8h total_size and +0Ch allocated_size)
+vostok::memory::arena_record	arena_size_low	0x8	u32	the arena's bytes as registered (a u64: its low word)
+vostok::memory::arena_record	arena_size_high	0xC	u32	the arena's bytes as registered (a u64: its high word, 0 in a 32-bit process)
+vostok::memory::arena_record	arena_start	0x10	u32	the arena's start, written once it is reserved (0.10b allocate_region: arena_address from the region); 0 for the process heap
+vostok::memory::arena_record	name	0x14	ptr<u8>	the arena's name, a C string of the image ("render" 0x9DB590, "resources helper allocator" 0x9E5B9C)
+vostok::memory::base_allocator	vtable	0x0	u32	the allocator's vtable: its kind (doug_lea_vtable, managed_vtable, pthreads_vtable, others)
+vostok::memory::base_allocator	mspace	0x14	ptr<vostok::memory::mspace>	a doug_lea_allocator's m_arena: the mspace create_mspace_with_base 0x101280 made at the arena's start (initialize_impl 0xE4F70; total_size 0xE51F0 and allocated_size 0xE52C0 hand it to internal_mallinfo 0xFF200)
+vostok::memory::base_allocator	managed_free	0x28	u32	a managed_allocator's free bytes (allocated_size 0xE0E50: [ecx+30h] - [ecx+28h]; 0.10b resources_managed_allocator.h total_size() - get_free_size())
+vostok::memory::base_allocator	managed_total	0x30	u32	a managed_allocator's bytes (total_size 0xE0E40)
+vostok::memory::image	doug_lea_vtable	0x9E68DC	u32	doug_lea_allocator's vtable (slots: +8h total_size 0xE51A0, +0Ch allocated_size 0xE5270; engine_world's constructor writes it at 0x136EC..0x1380C; shared strings, cook, resources helper in the image)
+vostok::memory::image	managed_vtable	0x9E602C	u32	managed_allocator's vtable (+8h total_size 0xE0E40, +0Ch allocated_size 0xE0E50; its constructor 0xE0E71; the resources (managed) allocator at 0x21E51E8, which allocate_region registers at 0xE1220, its initializer 0xFCF4A)
+vostok::memory::image	pthreads_vtable	0x9E6000	u32	the multithreaded allocator's vtable ("global multithreaded", 0xA8001C: +8h total_size 0xEB5F0 the region's size, +0Ch allocated_size 0xEB630 walks ptmalloc3's arenas from 0x1BFAC90 with 0xFF200)
+vostok::memory::image	mt_region	0xA2B5250	obj<vostok::memory::mt_region>	the multithreaded arena's region, the pages ptmalloc3 takes (0x10F8C0 under the spin lock 0x1BFAEBC, 0x106A90) and gives back (0x10F980); 0xEB437..0xEB453 set it
+vostok::memory::mt_region	base	0x0	u32	the region's start
+vostok::memory::mt_region	size	0x4	u32	the region's bytes (-mt_allocator, 768 MiB by patch 37)
+vostok::memory::mt_region	free	0x8	u32	the region's bytes not taken: a take subtracts (0x10F90B, 0x10F942), a give adds (0x10F985)
+vostok::memory::image	video_memory	0x1B3A1F0	obj<vostok::memory::video_memory>	the engine's video memory figures (platform::allocate_arenas 0xE9580 writes them, 0xE991D..0xE9CF9; dump_statistics' "video memory stats for engine", 0xE195D..0xE198D)
+vostok::memory::video_memory	detected_low	0x0	u32	the video memory detected (a u64: its low word; 0x106300's answer, 0xE9C52), the percentages' 100 %
+vostok::memory::video_memory	budget_low	0x8	u32	the engine's video memory budget (a u64: its low word; its "video memory stats for engine" size)
+vostok::memory::video_memory	budget_high	0xC	u32	the engine's video memory budget (a u64: its high word)
+vostok::memory::mspace	top_size	0xC	u32	dlmalloc 2.8 malloc_state.topsize: the top chunk's bytes (init_user_mstate 0x101254; internal_mallinfo 0xFF239 counts it free with the top's foot, 28h)
+vostok::memory::mspace	top	0x18	u32	malloc_state.top: the top chunk, where internal_mallinfo's walk ends (0xFF286; set at 0x101251)
+vostok::memory::mspace	footprint	0x1B0	u32	malloc_state.footprint: a fixed-base mspace's capacity from its start, as max_footprint +1B4h (0x1011E8, 0x1011EE): no high-water mark
+vostok::memory::mspace	segment	0x1BC	u32	malloc_state.seg.base: the arena's start (0x1011E2), where the walk begins (0xFF23C)
+vostok::memory::mspace	segment_size	0x1C0	u32	malloc_state.seg.size: the arena's bytes (0x1011F4)
+vostok::memory::mspace	next_segment	0x1C4	u32	malloc_state.seg.next: 0 in a fixed-base mspace (the memset of 1E0h, 0x1011B6), the walk's next segment (0xFF2B7)
+vostok::memory::mspace	size	0x1D8	size	malloc_state's bytes: its chunk is 1E0h (the head 1E3h, init_user_mstate 0x1011C6), the state 8 bytes in; its last word +1D4h/+1D8h the out-of-memory callback and its parameter (0x101201, create_mspace_with_base 0x1012D4)
