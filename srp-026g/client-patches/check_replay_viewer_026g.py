@@ -380,7 +380,7 @@ def kits_for(game, place, current=0):
     game.word(NC + 4, PLAYER)
     game.word(PLAYER + 0x114, place, 1)
     game.word(GAME + 0x53A4, KIT_CONFIG)
-    game.word(PVP + 0x1F8 + 0x18650, CLIENTS)
+    game.word(PVP + 0x18650, CLIENTS)            # get_player: [the match + 18650h] (0x27A991), not its core's
     game.word(CLIENTS + place * 0x30 + 0xC, current, 1)
     record = LINK + 0xC + place * 0x45FC
     game.word(record + 0x57, 3, 1)
@@ -708,6 +708,7 @@ def main():
     invoked = {c[2]: c[4] for c in calls if c[0] == "invoke"}
     check(invoked.get("root.srp_spectator_kits") == (6, "0|0|7|st_default_profile_name1|77:0:1;") and invoked.get("root.srp_spectator_kits_show") == (4, 2),
           "frame, a viewer, a kits note: the hud's chooser told it, above the controls (mode 2)")
+    check(invoked.get("root.srp_spectator_current_kit") == (4, 0), "frame, a viewer, a kits note: the plate of the kit the place has told (the highlight)")
     state, _, calls = mouse(ours, "pointer")
     check(state[UC_X86_REG_EIP] == SITES["pointer"][2] and not calls, "pointer, a viewer, no Ctrl cursor: to the controls alone")
     key(ours, 0x1D)

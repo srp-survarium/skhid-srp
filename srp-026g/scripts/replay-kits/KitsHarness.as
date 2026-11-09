@@ -68,6 +68,11 @@ package {
    expect("a player: the game's own place, bottom centre " + own,own.x > stage.stageWidth * 0.25 && own.right < stage.stageWidth * 0.75 && own.bottom > stage.stageHeight * 0.85);
    hud.show_profiles_selector(false);
    expect("a player: the game's own hide",!panel.visible);
+   // The ammo counter, placed by the hud's layout: nothing of a spectator's chooser moves it.
+   hud.update_current_player_weapon_stats([{name:"5.45x39 7N6M",count:60,icon:0}],0,0,true,30,true,10);
+   hud.ammoInd.validateNow();
+   var ammoAt:Number = hud.playerInfo.x;
+   trace("KITS ammo playerInfo.x=" + ammoAt + " w=" + hud.playerInfo.width);
    // Nothing given: nothing shown.
    hud.srp_spectator_kits_show(1);
    expect("no kits given, the chooser hidden",!panel.visible);
@@ -115,6 +120,7 @@ package {
    for each(var drawn:String in ["minimap","ammoInd","chat"]) hud[drawn].visible = true;
    for each(var mode:int in [1,2]) {
     hud.srp_spectator_kits_show(mode);
+    expect((mode == 1 ? "live" : "replay") + ": the chooser does not move the ammo counter (" + hud.playerInfo.x + ", was " + ammoAt + ")",hud.playerInfo.x == ammoAt);
     hud.show_player_list(true);
     if(mode == 2) {
      expect("replay: the chooser hidden while the player list is up",!panel.visible);

@@ -946,7 +946,7 @@ survarium::match_place	item_count	0x1564	u8	the place's items' count (player_pro
 survarium::match_place	item	0x1568	obj<survarium::match_item_record>	the place's item 0 (initialize_match 0x235D3B)
 survarium::match_item_record	size	0xB4	size	an item's record (initialize_match 0x235D32)
 survarium::match_item_record	dict_id	0x4	u16	the item's dictionary id (initialize_match 0x235D6C)
-survarium::core_world	clients	0x18650	ptr<survarium::core_client>	the places' client records (get_player 0x27A991)
+survarium::pvp_match	clients	0x18650	ptr<survarium::core_client>	the places' client records: get_player 0x27A991 adds [pvp_match+18650h], the match itself (0x27A985), not its core at +1F8h
 survarium::core_client	size	0x30	size	a place's client record (get_player 0x27A98E: place * 30h)
 survarium::core_client	current_kit	0xC	u8	the place's current player object: the kit in use (get_player 0x27A997; the world's current_index, 0x321924)
 survarium::game	kit_level_config	0x53A4	ptr<survarium::kit_level_config>	the config the kit level is read from (initialize_match 0x23491D..0x234928)

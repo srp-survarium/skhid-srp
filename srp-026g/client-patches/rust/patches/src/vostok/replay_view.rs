@@ -391,11 +391,8 @@ impl<'t> NetworkClient<'t> {
 
     /// The kit `place` has now (its client record's current player object).
     pub fn current_kit(&self, place: u8) -> Option<u8> {
-        // SAFETY: the core's table of its places' records, a place below the options' count.
-        unsafe {
-            let core = self.raw().pvp_match()?.core();
-            Some(read(core.clients()?.at(usize::from(place)).current_kit()))
-        }
+        // SAFETY: the match's table of its places' records, a place below the options' count.
+        unsafe { Some(read(self.raw().pvp_match()?.clients()?.at(usize::from(place)).current_kit())) }
     }
 }
 

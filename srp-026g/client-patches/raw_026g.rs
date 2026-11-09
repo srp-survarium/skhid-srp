@@ -7041,24 +7041,6 @@ impl CoreWorld {
     pub unsafe fn set_rules_end(self, value: Option<RuleEntry>) {
         unsafe { self.0.byte_add(0x18828).cast::<Option<RuleEntry>>().write_volatile(value) }
     }
-
-    /// +0x18650 (ptr<survarium::core_client>): the places' client records (get_player 0x27A991)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn clients(self) -> Option<CoreClient> {
-        unsafe { self.0.byte_add(0x18650).cast::<Option<CoreClient>>().read_volatile() }
-    }
-
-    /// +0x18650 (ptr<survarium::core_client>): the places' client records (get_player 0x27A991)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_clients(self, value: Option<CoreClient>) {
-        unsafe { self.0.byte_add(0x18650).cast::<Option<CoreClient>>().write_volatile(value) }
-    }
 }
 
 /// A vostok::scene_reference (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -11239,6 +11221,24 @@ impl PvpMatch {
     #[inline(always)]
     pub unsafe fn core(self) -> CoreWorld {
         CoreWorld(unsafe { self.0.byte_add(0x1f8) })
+    }
+
+    /// +0x18650 (ptr<survarium::core_client>): the places' client records: get_player 0x27A991 adds [pvp_match+18650h], the match itself (0x27A985), not its core at +1F8h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn clients(self) -> Option<CoreClient> {
+        unsafe { self.0.byte_add(0x18650).cast::<Option<CoreClient>>().read_volatile() }
+    }
+
+    /// +0x18650 (ptr<survarium::core_client>): the places' client records: get_player 0x27A991 adds [pvp_match+18650h], the match itself (0x27A985), not its core at +1F8h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_clients(self, value: Option<CoreClient>) {
+        unsafe { self.0.byte_add(0x18650).cast::<Option<CoreClient>>().write_volatile(value) }
     }
 }
 
