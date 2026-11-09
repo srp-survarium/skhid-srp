@@ -53,7 +53,7 @@ const PART: &str = ".part";
 /// (`SRP_RECORD_MIN_PLAYERS` and the rest, [`record::RecordSettings`]) and
 /// the replay sessions' settings ([`WatchSettings::from_env`]); off, and
 /// said in the log, without recordings.
-pub fn replays_from_env(watch_table: Arc<session::WatchTable>) -> Replays {
+pub fn replays_from_env() -> Replays {
     let Some(record) = record::RecordSettings::from_env() else {
         log::info!("Replay sessions are off (SRP_RECORD_DIR)");
         return Replays::new(None);
@@ -107,8 +107,7 @@ pub fn replays_from_env(watch_table: Arc<session::WatchTable>) -> Replays {
     }
     let replays = Replays::new(Some(record.dir))
         .with_oldest_revision(oldest)
-        .with_watch(watch)
-        .with_watch_table(watch_table);
+        .with_watch(watch);
     match save {
         Some(save) => replays.with_save(save),
         None => replays,

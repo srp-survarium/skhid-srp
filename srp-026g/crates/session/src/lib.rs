@@ -36,7 +36,6 @@ pub mod password;
 pub mod persist;
 mod reports;
 mod squads;
-mod watching;
 pub mod utc;
 // The 0.26g account model, beside the 0.21d one (`resources/notes/v026g/`).
 pub mod v026g;
@@ -49,7 +48,6 @@ pub use matchmaking::{
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};
 pub use squads::{MAX_SQUAD_MEMBERS, Squad, SquadError, Squads};
-pub use watching::WatchTable;
 
 /// The `on`/`off` setting `name` of the environment ([`switch_value`]).
 pub fn switch(name: &str, default: bool) -> bool {
@@ -1212,7 +1210,7 @@ impl SessionStore {
             .collect();
         for other in before {
             self.matchmaking.leave_queue(other);
-            self.matchmaking.session_gone(other);
+            self.matchmaking.stop_watching(other);
         }
         self.sessions_made(&[session_id]);
         Some(session_id)
@@ -1309,7 +1307,7 @@ impl SessionStore {
         };
         self.sessions_ended(&[(session_id, account_id)]);
         self.matchmaking.leave_queue(session_id);
-        self.matchmaking.session_gone(session_id);
+        self.matchmaking.stop_watching(session_id);
         if !self.plays_on_elsewhere(account_id, session_id, Instant::now()) {
             self.leave_squad(account_id, "its session ended (signed out)");
         }

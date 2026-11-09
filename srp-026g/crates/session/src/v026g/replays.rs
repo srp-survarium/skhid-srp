@@ -847,14 +847,6 @@ impl Replays {
         self
     }
 
-    /// Replay sessions on the process's table of what each session watches
-    /// ([`crate::Matchmaking::watch_table`]).
-    #[must_use]
-    pub fn with_watch_table(mut self, table: std::sync::Arc<crate::WatchTable>) -> Self {
-        self.watches = self.watches.on_table(table);
-        self
-    }
-
     /// The replay sessions.
     pub fn watches(&self) -> &Watches {
         &self.watches

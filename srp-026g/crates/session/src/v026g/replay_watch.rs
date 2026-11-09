@@ -2,9 +2,7 @@
 //! the running client, as a spectated match (path A of
 //! `research/replay-plan.md`; `docs/notes/replay-stream.md`). What the lobby
 //! and the match server share of them, in memory: one [`Watches`] for the
-//! srp process, in its [`super::replays::Replays`], on the table of what each
-//! session is watching ([`crate::WatchTable`]), so a session never watches a
-//! match and a replay at once.
+//! srp process, in its [`super::replays::Replays`].
 //!
 //! - The lobby starts a session on the movie's request (`3D 00
 //!   <REPLAY_WATCH | place << 16 | seconds> <match>`, [`Watches::start`]).
@@ -25,12 +23,11 @@
 //! at, or why it was refused.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use super::replays::{MIN_REVISION, Refusal, Status, refusal_of};
 use crate::LockExt;
-use crate::watching::{WatchTable, Watching};
 
 /// `SRP_REPLAY_WATCH_MAX` when unset: sessions at once (loading, on their
 /// way or playing). Each costs about a player's traffic and its recording
@@ -309,58 +306,19 @@ struct Misses {
     count: u32,
 }
 
-/// A replay session (the module's doc): its table row.
-pub(crate) struct ReplaySession {
+struct Session {
     request: WatchRequest,
     stage: Stage,
     /// When it came to its stage.
     since: Instant,
 }
 
-impl ReplaySession {
-    pub(crate) fn is_open(&self) -> bool {
-        self.stage.is_open()
-    }
-}
-
-/// The replay sessions in the table.
-fn replays(table: &HashMap<u32, Watching>) -> impl Iterator<Item = &ReplaySession> {
-    table.values().filter_map(|watching| match watching {
-        Watching::Replay(replay) => Some(replay),
-        Watching::Match(_) => None,
-    })
-}
-
-/// The account's replay session, and its session id.
-fn of_account(
-    table: &mut HashMap<u32, Watching>,
-    account_id: u32,
-) -> Option<(u32, &mut ReplaySession)> {
-    table
-        .iter_mut()
-        .find_map(|(session_id, watching)| match watching {
-            Watching::Replay(replay) if replay.request.account_id == account_id => {
-                Some((*session_id, replay))
-            }
-            _ => None,
-        })
-}
-
-/// The replay session of `session_id`.
-fn of_session(table: &mut HashMap<u32, Watching>, session_id: u32) -> Option<&mut ReplaySession> {
-    match table.get_mut(&session_id) {
-        Some(Watching::Replay(replay)) => Some(replay),
-        _ => None,
-    }
-}
-
 /// The replay sessions (the module's doc). `None` settings: off (no
 /// recordings, `SRP_RECORD_DIR`), every request answered `off`.
 pub struct Watches {
     settings: Option<WatchSettings>,
-    /// One replay session to an account; a session's row is also what it
-    /// watches, if anything.
-    table: Arc<WatchTable>,
+    /// By account: one session each.
+    sessions: Mutex<HashMap<u32, Session>>,
     /// By account ([`MISSES_ALLOWED`]).
     misses: Mutex<HashMap<u32, Misses>>,
 }
@@ -369,16 +327,9 @@ impl Watches {
     pub fn new(settings: Option<WatchSettings>) -> Self {
         Self {
             settings,
-            table: Arc::default(),
+            sessions: Mutex::new(HashMap::new()),
             misses: Mutex::new(HashMap::new()),
         }
-    }
-
-    /// On this table (the process's: [`crate::Matchmaking::watch_table`]).
-    #[must_use]
-    pub fn on_table(mut self, table: Arc<WatchTable>) -> Self {
-        self.table = table;
-        self
     }
 
     pub fn settings(&self) -> Option<&WatchSettings> {
@@ -435,18 +386,14 @@ impl Watches {
         {
             return Status::OldGame;
         }
-        let mut table = self.table.lock();
-        // A session watches one thing at a time, an account one replay.
-        if table
-            .get(&request.session_id)
-            .is_some_and(Watching::is_open)
-            || replays(&table).any(|session| {
-                session.request.account_id == request.account_id && session.is_open()
-            })
+        let mut sessions = self.sessions.locked();
+        if sessions
+            .get(&request.account_id)
+            .is_some_and(|session| session.stage.is_open())
         {
             return Status::Busy;
         }
-        let open = replays(&table).filter(|session| session.is_open()).count();
+        let open = sessions.values().filter(|s| s.stage.is_open()).count();
         if open >= settings.max_sessions {
             log::info!(
                 "Replay sessions: account {} may not watch match {:#x}: {open} sessions run",
@@ -461,17 +408,13 @@ impl Watches {
             request.match_id,
             request.from
         );
-        // A refusal not polled for yet: replaced, as the ask is.
-        table.retain(|_, watching| {
-            !matches!(watching, Watching::Replay(old) if old.request.account_id == request.account_id)
-        });
-        table.insert(
-            request.session_id,
-            Watching::Replay(ReplaySession {
+        sessions.insert(
+            request.account_id,
+            Session {
                 request,
                 stage: Stage::Queued,
                 since: now,
-            }),
+            },
         );
         Status::Preparing
     }
@@ -479,8 +422,8 @@ impl Watches {
     /// The answer for the movie's poll while the account has a session or
     /// a refusal not told yet (told now, and forgotten).
     pub fn answer(&self, account_id: u32) -> Option<WatchAnswer> {
-        let mut table = self.table.lock();
-        let (session_id, session) = of_account(&mut table, account_id)?;
+        let mut sessions = self.sessions.locked();
+        let session = sessions.get(&account_id)?;
         let match_id = session.request.match_id;
         let (status, figure) = match session.stage {
             Stage::Queued => (Status::Preparing, 2),
@@ -491,7 +434,7 @@ impl Watches {
             Stage::Refused(refusal) => (refusal.status(), 0),
         };
         if step(session.stage, Event::Told) == Some(Step::Over) {
-            table.remove(&session_id);
+            sessions.remove(&account_id);
         }
         Some(WatchAnswer {
             status,
@@ -503,30 +446,39 @@ impl Watches {
     /// Whether the account's session is not over: its player is in none of
     /// its room's matches meanwhile.
     pub fn holds(&self, account_id: u32) -> bool {
-        of_account(&mut self.table.lock(), account_id).is_some_and(|(_, session)| session.is_open())
+        self.sessions
+            .locked()
+            .get(&account_id)
+            .is_some_and(|session| session.stage.is_open())
     }
 
     /// Whether the session's game is on its way to the match server or
     /// watches there: its lobby link may be quiet while it loads.
     pub fn in_replay(&self, session_id: u32) -> bool {
-        of_session(&mut self.table.lock(), session_id).is_some_and(|session| {
-            matches!(session.stage, Stage::Sent { .. } | Stage::Playing { .. })
+        self.sessions.locked().values().any(|session| {
+            session.request.session_id == session_id
+                && matches!(session.stage, Stage::Sent { .. } | Stage::Playing { .. })
         })
     }
 
     /// Whether the request's session is read and its game not here yet
     /// (ready, or sent): the match server keeps its recording meanwhile.
     pub fn waits_for_game(&self, request: &WatchRequest) -> bool {
-        of_session(&mut self.table.lock(), request.session_id).is_some_and(|session| {
-            session.request == *request
-                && matches!(session.stage, Stage::Ready { .. } | Stage::Sent { .. })
-        })
+        self.sessions
+            .locked()
+            .get(&request.account_id)
+            .is_some_and(|session| {
+                session.request == *request
+                    && matches!(session.stage, Stage::Ready { .. } | Stage::Sent { .. })
+            })
     }
 
     /// The sessions read and ready, whose games the lobby sends now
     /// ([`Self::sent`]), or turns down ([`Self::refuse`]).
     pub fn to_send(&self) -> Vec<(WatchRequest, u32)> {
-        replays(&self.table.lock())
+        self.sessions
+            .locked()
+            .values()
             .filter_map(|session| match session.stage {
                 Stage::Ready { start_ms } => Some((session.request, start_ms)),
                 _ => None,
@@ -536,7 +488,7 @@ impl Watches {
 
     /// The lobby sent the session's game to the match server.
     pub fn sent(&self, account_id: u32, now: Instant) {
-        if let Some((_, session)) = of_account(&mut self.table.lock(), account_id)
+        if let Some(session) = self.sessions.locked().get_mut(&account_id)
             && let Some(Step::To(stage)) = step(session.stage, Event::SentGame)
         {
             session.stage = stage;
@@ -551,11 +503,7 @@ impl Watches {
         self.misses
             .locked()
             .retain(|_, misses| now.saturating_duration_since(misses.since) < MISSES_WINDOW);
-        self.table.lock().retain(|_, watching| {
-            let Watching::Replay(session) = watching else {
-                return true;
-            };
-            let account_id = session.request.account_id;
+        self.sessions.locked().retain(|account_id, session| {
             let waited = now.saturating_duration_since(session.since);
             if !session.stage.patience().is_some_and(|most| waited >= most) {
                 return true;
@@ -589,13 +537,10 @@ impl Watches {
     /// The next session to read the recording of (oldest first), now
     /// [`Stage::Loading`].
     pub fn next_job(&self, now: Instant) -> Option<WatchRequest> {
-        let mut table = self.table.lock();
-        let session = table
+        let mut sessions = self.sessions.locked();
+        let session = sessions
             .values_mut()
-            .filter_map(|watching| match watching {
-                Watching::Replay(replay) if replay.stage == Stage::Queued => Some(replay),
-                _ => None,
-            })
+            .filter(|session| session.stage == Stage::Queued)
             .min_by_key(|session| session.since)?;
         let Some(Step::To(stage)) = step(session.stage, Event::Taken) else {
             return None;
@@ -650,8 +595,10 @@ impl Watches {
     /// A game of `session_id` connects to the match server: its session's
     /// request and start, now [`Stage::Playing`], if it was sent to watch.
     pub fn connected(&self, session_id: u32, now: Instant) -> Option<(WatchRequest, u32)> {
-        let mut table = self.table.lock();
-        let session = of_session(&mut table, session_id)?;
+        let mut sessions = self.sessions.locked();
+        let session = sessions
+            .values_mut()
+            .find(|session| session.request.session_id == session_id)?;
         let Some(Step::To(stage @ Stage::Playing { start_ms })) =
             step(session.stage, Event::Connected)
         else {
@@ -665,11 +612,11 @@ impl Watches {
     /// The session is over (its game left, its recording ended, or its game
     /// never came): its player is free again.
     pub fn ended(&self, request: &WatchRequest) {
-        let mut table = self.table.lock();
-        if of_session(&mut table, request.session_id).is_some_and(|session| {
+        let mut sessions = self.sessions.locked();
+        if sessions.get(&request.account_id).is_some_and(|session| {
             session.request == *request && step(session.stage, Event::Ended) == Some(Step::Over)
         }) {
-            table.remove(&request.session_id);
+            sessions.remove(&request.account_id);
             log::info!(
                 "Replay sessions: account {}'s session of match {:#x} is over",
                 request.account_id,
@@ -681,8 +628,10 @@ impl Watches {
     /// Whether the request's session is still open: the match server drops the playback of one
     /// that is not ([`Watches::game_back`]).
     pub fn is_open(&self, request: &WatchRequest) -> bool {
-        of_session(&mut self.table.lock(), request.session_id)
-            .is_some_and(|session| session.request == *request && session.is_open())
+        self.sessions
+            .locked()
+            .get(&request.account_id)
+            .is_some_and(|session| session.request == *request && session.stage.is_open())
     }
 
     /// The game of `session_id` says it is back in the lobby (`31 .. 1`). A game that watched
@@ -690,27 +639,29 @@ impl Watches {
     /// match: its session ends now, or it would hold the account until the match server gave up
     /// on it. A session not sent yet is no business of this word.
     pub fn game_back(&self, session_id: u32) -> bool {
-        let mut table = self.table.lock();
-        let Some(session) = of_session(&mut table, session_id)
-            .filter(|session| step(session.stage, Event::GameBack) == Some(Step::Over))
-        else {
-            return false;
-        };
-        log::info!(
-            "Replay sessions: account {}'s game came back from match {:#x} on its own; its \
-             session is over",
-            session.request.account_id,
-            session.request.match_id
-        );
-        table.remove(&session_id);
+        let mut sessions = self.sessions.locked();
+        let account = sessions.iter().find_map(|(account, session)| {
+            (session.request.session_id == session_id
+                && step(session.stage, Event::GameBack) == Some(Step::Over))
+            .then_some(*account)
+        });
+        let Some(account) = account else { return false };
+        if let Some(session) = sessions.remove(&account) {
+            log::info!(
+                "Replay sessions: account {account}'s game came back from match {:#x} on its own; \
+                 its session is over",
+                session.request.match_id
+            );
+        }
         true
     }
 
     /// The event happens to the account's session, if it is still this
     /// request's and the event means something in its stage. Whether it did.
     fn advance(&self, request: &WatchRequest, event: Event, now: Instant) -> bool {
-        let mut table = self.table.lock();
-        let Some(session) = of_session(&mut table, request.session_id)
+        let mut sessions = self.sessions.locked();
+        let Some(session) = sessions
+            .get_mut(&request.account_id)
             .filter(|session| session.request == *request)
         else {
             return false;
@@ -722,7 +673,7 @@ impl Watches {
                 true
             }
             Some(Step::Over) => {
-                table.remove(&request.session_id);
+                sessions.remove(&request.account_id);
                 true
             }
             None => false,
@@ -731,7 +682,10 @@ impl Watches {
 
     /// The account's session's stage, if it has one.
     pub fn stage(&self, account_id: u32) -> Option<Stage> {
-        of_account(&mut self.table.lock(), account_id).map(|(_, session)| session.stage)
+        self.sessions
+            .locked()
+            .get(&account_id)
+            .map(|session| session.stage)
     }
 }
 
@@ -894,50 +848,6 @@ mod tests {
         assert_eq!(watches.start(request(MOD), now), Status::Preparing);
         assert_eq!(watches.answer(ALICE).unwrap().status, Status::Incompatible);
         assert_eq!(watches.answer(ALICE), None);
-    }
-
-    /// One state per session: a session that watches a match has no replay
-    /// session, and one with a replay session watches no match until that
-    /// is over.
-    #[test]
-    fn a_session_watches_a_match_or_a_replay_never_both() {
-        use crate::{Matchmaking, Player, QueuePool, WatchKind, Watcher};
-        let mm = Matchmaking::new(Duration::ZERO);
-        let now = Instant::now();
-        let player = |n: u32| Player {
-            session_id: n,
-            account_id: 1000 + n,
-            profile_id: 1,
-        };
-        let id = mm
-            .seat_sides_in_pool(
-                [&[player(1)], &[player(2)]],
-                now,
-                QueuePool::GrowingRoster,
-                &|_| 0,
-            )
-            .expect("1 v 1");
-        let watches = Watches::new(Some(WatchSettings::default())).on_table(mm.watch_table());
-        let alice = request(ALICE);
-        let watcher = Watcher {
-            match_id: id,
-            ticket: 0xA000,
-            account_id: ALICE,
-            kind: WatchKind::Queued,
-        };
-        assert!(mm.watch(alice.session_id, watcher));
-        assert_eq!(watches.start(alice, now), Status::Busy);
-        assert!(!watches.holds(ALICE));
-        assert_eq!(mm.stop_watching(alice.session_id), Some(watcher));
-        assert_eq!(watches.start(alice, now), Status::Preparing);
-        assert!(
-            !mm.watch(alice.session_id, watcher),
-            "a replay session is on"
-        );
-        assert_eq!(mm.stop_watching(alice.session_id), None, "it is no match");
-        assert!(watches.holds(ALICE));
-        watches.ended(&alice);
-        assert!(mm.watch(alice.session_id, watcher));
     }
 
     /// One account's lookups of matches with no recording run out, and
