@@ -453,6 +453,23 @@ impl List {
         0
     }
 
+    /// Its records and their files' bytes (the list's own sum, +4923Ch):
+    /// what this game baked or found in the folder. Two words and the
+    /// list's ends, read without its owner (a bake thread may push one
+    /// meanwhile: a figure a record off).
+    pub fn saved() -> (u32, u32) {
+        let baker = raw::image::baker();
+        // SAFETY: the baker static's list ends and its bytes' word: plain
+        // words of the image.
+        unsafe {
+            let records = match (baker.list_begin(), baker.list_end()) {
+                (Some(begin), Some(end)) => end.index_from(begin).unwrap_or(0),
+                _ => 0,
+            };
+            (records as u32, read(baker.list_bytes()))
+        }
+    }
+
     /// The record past the list's end, when the list's capacity has room
     /// for it.
     pub fn free() -> Option<FreeRecord> {

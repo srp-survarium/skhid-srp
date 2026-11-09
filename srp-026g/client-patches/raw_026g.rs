@@ -399,6 +399,17 @@ pub unsafe fn engine_get_async_key_state(function: NonNull<c_void>, key: u32) ->
     unsafe { function(key) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_mapped_file_name_a(void *process, const void *address, char *name, unsigned int size)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_mapped_file_name_a(function: NonNull<c_void>, process: *mut c_void, address: *const c_void, name: *mut u8, size: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *mut u8, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(process, address, name, size) }
+}
+
 #[allow(dead_code, non_upper_case_globals)]
 unsafe extern "C" {
     /// the IAT slot 0x870048 (an import, stdcall): void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)

@@ -32,9 +32,22 @@ QPC, QPF = 0x870158, 0x870150                                            # Query
 # after the first are dropped (each case expects one).
 TICK_COUNT, PROCESS_ID = 0x870090, 0x8701B8
 BREADCRUMB_CHECK = int.from_bytes(b"BRCS", "little")                     # vostok/breadcrumbs.rs CHECK
+# Patch 126's memory report, at a match's first world and its close: the
+# address space (VirtualQuery), its files' names (GetModuleFileNameA,
+# kernel32's K32GetMappedFileNameA through GetModuleHandleA and
+# GetProcAddress) and the system (ntdll's wine_get_version: none here,
+# Windows). Its carriers go to `reports`, its lines to `lines`.
+VIRTUAL_QUERY, MODULE_HANDLE, PROC_ADDRESS, MODULE_FILE_NAME = 0x870168, 0x87003C, 0x870084, 0x87014C
+KERNEL32, NTDLL = 0x7B000000, 0x7B200000
+REPORT_MAGIC = bytes([255] * 6 + [3, 0])                                  # srp_validate::report::MAGIC
 CLIENT, GAME, READER = 0x40000000, 0x40400000, 0x40500000
 WORLD, STACK, STUBS = 0x41000000, 0x42000000, 0x43000000
 HOLDER, POOL, PACKET = 0x44000000, 0x44100000, 0x44200000
+MAPPED = 0x46000000                         # a mapped view the address space tells (no memory of its own)
+# The address space VirtualQuery tells: (base, size, state, type, allocation
+# base), in order to 2 GiB; the image's own from the exe's sections.
+EXE_PATH = b"C:\\Game\\game\\binaries\\x86\\survarium_skhid.exe"
+MAPPED_PATH = b"\\Device\\HarddiskVolume3\\Game\\resources.db"
 WORLD_ROOM, STACK_ROOM = 0x20000, 0x10000
 FRAME = STACK + 0x8000                     # the handler's EBP
 CORE = GAME + 0x1F8                        # [client+1F1C40h] + 1F8h
@@ -86,14 +99,46 @@ class Run:
                            (0x870118, STUBS + 0x30),  # GetCurrentThreadId, pickup cache's owner
                            (TICK_COUNT, STUBS + 0x40),  # pickup cache deadlines, refusals' limits
                            (QPC, STUBS + 0x50), (QPF, STUBS + 0x60),  # the crash report's ring
-                           (PROCESS_ID, STUBS + 0x70)):
+                           (PROCESS_ID, STUBS + 0x70),
+                           (VIRTUAL_QUERY, STUBS + 0x200), (MODULE_HANDLE, STUBS + 0x210),  # the memory report
+                           (PROC_ADDRESS, STUBS + 0x220), (MODULE_FILE_NAME, STUBS + 0x230)):
             self.word(slot, stub)
+        self.space = self.address_space(data)
+        self.reports, self.modules = [], {base.IMAGE_BASE: EXE_PATH}
         for address in (LOAD, CLOSE, 0x279FE0, 0x27A2A0, 0x7AC10, STUBS, STUBS + 0x10, STUBS + 0x20, STUBS + 0x30, STUBS + 0x40,
-                        STUBS + 0x50, STUBS + 0x60, STUBS + 0x70):
+                        STUBS + 0x50, STUBS + 0x60, STUBS + 0x70, STUBS + 0x200, STUBS + 0x210, STUBS + 0x220,
+                        STUBS + 0x230, STUBS + 0x240):
             handle = emu.hook_add(UC_HOOK_CODE, self.stub, begin=address, end=address)
             if address == CLOSE: self.close_stub = handle
         for address in (LOADED, EPILOGUE):
             emu.hook_add(UC_HOOK_CODE, self.stop, begin=address, end=address)
+
+    @staticmethod
+    def address_space(data):
+        """What VirtualQuery tells: the exe's image (its headers and
+        sections, one allocation), the harness's own memory (private, one
+        allocation each), a mapped view of a file, the rest free."""
+        taken = [(base.IMAGE_BASE, 0x1000, 0x1000000, base.IMAGE_BASE)]
+        for _, rva, vsize, _, rsize, _ in base.Headers(data).sections(data):
+            taken.append((base.IMAGE_BASE + rva, (max(vsize, rsize) + 0xFFF) & ~0xFFF, 0x1000000, base.IMAGE_BASE))
+        for at, size in ((CLIENT, 0x200000), (GAME, 0x20000), (READER, 0x1000), (WORLD, WORLD_ROOM),
+                         (STACK, STACK_ROOM), (STUBS, 0x1000), (HOLDER, 0x60000), (POOL, 0x1000), (PACKET, 0x1000)):
+            taken.append((at, size, 0x20000, at))
+        taken.append((MAPPED, 0x400000, 0x40000, MAPPED))
+        space, at = [], 0
+        for start, size, kind, allocation in sorted(taken):
+            if start > at:
+                space.append((at, start - at, 0x10000, 0, 0))
+            space.append((start, size, 0x1000, kind, allocation))
+            at = start + size
+        space.append((at, 0x80000000 - at, 0x10000, 0, 0))
+        return space
+
+    def c_string(self, at):
+        out = bytearray()
+        while (byte := self.emu.mem_read(at + len(out), 1)[0]) != 0:
+            out.append(byte)
+        return bytes(out)
 
     def match_context(self, mode=4, batteries=0, points=3):
         table, rule, respawn = GAME+0x1a000, GAME+0x1b000, GAME+0x1c000
@@ -139,14 +184,47 @@ class Run:
             self.word(PACKET+0x98, 0x40)
             pops, result = 4, PACKET
         elif address == 0x7AC10:
-            assert args[0] == PACKET+0x2a8 and emu.reg_read(UC_X86_REG_EDI) == 20
-            self.pending_packet = bytes(emu.mem_read(args[1], 20))
+            size = emu.reg_read(UC_X86_REG_EDI)
+            # a receipt (20 bytes) or a client report's carrier
+            assert args[0] == PACKET+0x2a8 and (size == 20 or bytes(emu.mem_read(args[1], 8)) == REPORT_MAGIC), size
+            self.pending_packet = bytes(emu.mem_read(args[1], size))
             pops, result = 8, 0
         elif address == 0x27A2A0:
             assert emu.reg_read(UC_X86_REG_ECX) == HOLDER and args[0] == PACKET
             assert not self.read(PACKET+0x98) & 0x40
-            self.receipts.append(self.pending_packet)
+            if self.pending_packet.startswith(REPORT_MAGIC):
+                self.reports.append(self.pending_packet)
+            else:
+                self.receipts.append(self.pending_packet)
             pops, result = 4, 0
+        elif address == STUBS + 0x200:      # VirtualQuery(address, info, size): 28 bytes
+            assert args[2] == 28, args
+            region = next((r for r in self.space if r[0] <= args[0] < r[0] + r[1]), None)
+            if region is None:
+                pops, result = 12, 0
+            else:
+                start, size, state, kind, allocation = region
+                protect = 1 if state == 0x10000 else 4
+                emu.mem_write(args[1], struct.pack("<7I", start, allocation, protect if state != 0x10000 else 0, size,
+                                                   state, protect, kind))
+                pops, result = 12, 28
+        elif address == STUBS + 0x210:      # GetModuleHandleA(name)
+            name = self.c_string(args[0]).lower()
+            pops, result = 4, {b"kernel32.dll": KERNEL32, b"ntdll.dll": NTDLL}.get(name, 0)
+        elif address == STUBS + 0x220:      # GetProcAddress(module, name): K32GetMappedFileNameA alone
+            name = self.c_string(args[1])
+            pops, result = 8, STUBS + 0x240 if (args[0], name) == (KERNEL32, b"K32GetMappedFileNameA") else 0
+            self.asked = getattr(self, "asked", []) + [(args[0], name)]
+        elif address == STUBS + 0x230:      # GetModuleFileNameA(module, out, size)
+            path = self.modules.get(args[0], b"")[:args[2] - 1]
+            emu.mem_write(args[1], path + b"\0")
+            pops, result = 12, len(path)
+        elif address == STUBS + 0x240:      # K32GetMappedFileNameA(process, address, out, size)
+            assert args[0] == 0xFFFFFFFF, args
+            region = next((r for r in self.space if r[0] <= args[1] < r[0] + r[1]), None)
+            path = MAPPED_PATH if region and region[3] == 0x40000 else b""
+            emu.mem_write(args[2], path + b"\0")
+            pops, result = 16, len(path)
         elif address == CLOSE:              # thiscall (reason), ret 4
             self.calls.append(("close", emu.reg_read(UC_X86_REG_ECX), args[0]))
             pops, result = 4, 0
@@ -179,7 +257,7 @@ class Run:
         emu.emu_stop()
 
     def start(self, at, regs, sp):
-        self.calls, self.lines, self.stopped, self.receipts = [], [], None, []
+        self.calls, self.lines, self.stopped, self.receipts, self.reports = [], [], None, [], []
         self.ticks = getattr(self, "ticks", 0) + getattr(self, "advance", 2000)
         if self.offers is not None:
             self.offers = (self.offers + 1) & 0xFF
@@ -316,7 +394,8 @@ def compare(stock, ours, path, world, can_load):
     if can_load:
         if got[:3] != load[:3] or ours.calls != calls or got[3] != load[3]:
             fails.append(f"loaded otherwise: {got}, {ours.calls} against {load}, {calls}")
-        if ours.lines:
+        # patch 126's memory report is logged at the connection's first world
+        if [line for line in ours.lines if not line.startswith(b"srp: memory ")]:
             fails.append(f"a log line: {ours.lines}")
         return fails
     stopped, kept, _, cursor = got
