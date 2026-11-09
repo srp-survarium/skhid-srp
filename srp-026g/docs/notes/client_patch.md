@@ -2124,9 +2124,13 @@ The v0.100b decompilation (`udp_match_client.cpp`) is no guide to this function:
 
 Patch 132's site retires with T4 (the Rust match socket replaces `udp_match_client::handle_receive`).
 
-### 3.79 The match sites the Rust client's T5 replaces (inventory, written 2026-11-09 for the replay viewer's PR)
+### 3.79 T5 site inventory, T4 retirements (written 2026-11-09 for the replay viewer's PR)
+
+Kept here because `RUST-CLIENT-WORK.md` and `PLAN-RUST-CLIENT.md`, where these lists belong, could not be found in this repository's default branch; move this section there when they are.
 
 The replay viewer (patches 121, 130) and the patches before it reach into the native match lifecycle at these sites; the Rust client's T5 (world loads as native effects, roster events, a Rust dispatcher) replaces their functions whole, so each row retires with them. Whole-function replacements done so far: `process_player_left_match` 0x27C690 (spectator.rs, a Unicorn differential check in `check_spectator_026g.py`).
+
+The rows marked still hooked stay hooks on purpose until T5: a port of each would carry its patches' hooks and edge cases along with it.
 
 | Function | Sites | Patches there | Note |
 |---|---|---|---|
