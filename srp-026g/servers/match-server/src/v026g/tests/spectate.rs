@@ -550,6 +550,30 @@ fn a_delayed_spectator_gets_a_leave_once_when_its_clock_reaches_it() {
     bench.assert_no_faults();
 }
 
+/// Review of 2026-11-09: a client that skips the way back and connects again within each 7 s of
+/// silence kept a match everyone had left open, and with it its results and pay.
+#[test]
+fn a_spectator_coming_back_holds_no_abandoned_match_open() {
+    let mut bench = running();
+    let at = watching(&mut bench);
+    bench.clients[0].leave();
+    bench.clients[1].leave();
+    assert!(bench.until(5_000, |b| b.clients[at].told_to_leave));
+    for round in 0..4 {
+        bench.clients.push(Client::growing(SPECTATOR, 2, MAP_BATTERIES));
+        bench
+            .addrs
+            .push(SocketAddr::from(([127, 0, 0, 1], 46_000 + round)));
+        bench.clients.last_mut().unwrap().connect();
+        bench.run_long(5_000);
+    }
+    assert!(
+        !bench.server.games.contains_key(&bench.match_id),
+        "the match is still open"
+    );
+    assert!(bench.clients.last().unwrap().disconnected, "turned away");
+}
+
 /// Every place stands in every game's next worlds with `kit` as its current one.
 fn in_the_world(bench: &mut Bench, kit: u8) {
     for client in &mut bench.clients {

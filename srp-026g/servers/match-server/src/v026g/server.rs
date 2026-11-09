@@ -522,7 +522,7 @@ impl Server {
         };
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
         let watched = match self.games.get_mut(&ticket) {
-            Some(game) if growing => game.watch(addr, session_id, transport, delay, view),
+            Some(game) if growing => game.watch(addr, session_id, transport, delay, view, now),
             _ => Err(Box::new(transport)),
         };
         match watched {

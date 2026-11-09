@@ -207,8 +207,12 @@ impl Game {
         transport: Transport,
         delay: Option<Duration>,
         view: Option<u8>,
+        now: Instant,
     ) -> Result<(), Box<Transport>> {
-        if self.finished_at.is_some() || !self.growing_roster() {
+        // Over with no end of its own too: a spectator taken now would hold
+        // its close back (`is_over` waits for them), and one that keeps
+        // coming back would hold it for ever.
+        if self.finished_at.is_some() || self.over_unfinished(now) || !self.growing_roster() {
             return Err(Box::new(transport));
         }
         // One game a session, one session an address.
