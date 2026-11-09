@@ -5772,3 +5772,16 @@ va	name	location	role	basis
 0x000e1120	vostok::memory::allocate_region	entry ESP+12	additional address space (u64; the same value)	observed
 0x000e21c0	vostok::memory::register_allocator	ESI	the arenas' list ([0xA808FC]: +4 end, +8 capacity end)	observed
 0x000e21c0	vostok::memory::register_allocator	EDI	the record: +0 allocator, +8 arena size (u64), +10h arena address (0), +14h name	observed
+0x000e0930	vostok::threading::spawn_internal	ECX	the thread_entry_params (the function, the names, the hardware thread, tasks awareness, +30h processed)	observed
+0x000e0930	vostok::threading::spawn_internal	EDX	the stack size in bytes, CreateThread's dwStackSize	observed
+0x000e3770	vostok::threading::spawn	EAX	the thread's name for the log, or 0 for its debugger name	observed
+0x000e3770	vostok::threading::spawn	ECX	the function the thread runs (a delegate)	observed
+0x000e3770	vostok::threading::spawn	entry ESP+4	the thread's name for the debugger	observed
+0x000e3770	vostok::threading::spawn	entry ESP+8	the hardware thread	observed
+0x000e3770	vostok::threading::spawn	entry ESP+12	tasks awareness (a byte)	observed
+0x000fc090	vostok::tasks::thread_pool::thread_pool	entry ESP+4	the pool (0xA86680)	observed
+0x000fc090	vostok::tasks::thread_pool::thread_pool	entry ESP+8	the most task threads, 2 x min(32, cores)	observed
+0x000fc090	vostok::tasks::thread_pool::thread_pool	entry ESP+12	the core count ([0x1F1D634])	observed
+0x0027f780	survarium::network_client::draw_match_stats	ECX	the network_client	observed
+0x0027f780	survarium::network_client::draw_match_stats	entry ESP+4	the time since the last tick (game::tick: now - game+584Ch)	observed
+0x00429f20	_chkstk	EAX	the bytes to take off the stack	observed
