@@ -22,6 +22,7 @@ va	status	ref_021d	name
 0x000195a0	inferred-medium	0x00015e46	stlp_std::allocator<char>::_M_allocate
 0x00019680	inferred-medium	0x00015f1e	stlp_std::basic_string<char,stlp_std::char_traits<char>,stlp_std::allocator<char> >::basic_string<char,stlp_std::char_traits<char>,stlp_std::allocator<char> >
 0x00019af0	inferred-medium	0x000161c2	vostok::engine::engine_world::initialize_network_modules
+0x00019c80	inferred-high		vostok::engine::engine_world::network_thread
 0x00019fc0	inferred-medium	0x0001644c	vostok::engine::engine_world::logic_finalize_modules
 0x0001a670	inferred-medium	0x00016721	vostok::engine::engine_world::create_game_console
 0x0001ae90	inferred-medium	0x00016b48	vostok::engine::engine_world::try_load_editor
@@ -697,6 +698,8 @@ va	status	ref_021d	name
 0x00110490	inferred-medium	0x000d0199	vostok::network::response::`scalar deleting destructor'
 0x001104f0	inferred-medium	0x000d01d4	vostok::network_core::mutable_buffer::~mutable_buffer
 0x001108b0	inferred-medium	0x000d049b	vostok::network::network_world::`scalar deleting destructor'
+0x00110d30	inferred-medium		vostok::network::network_world::run_orders
+0x00110d80	inferred-medium		vostok::network::network_world::run_responses
 0x00110f30	inferred-medium	0x000d0923	vostok::one_way_threads_channel<vostok::intrusive_spsc_queue<vostok::network::response,vostok::network::response,8>,vostok::intrusive_spsc_queue<vostok::network::response,vostok::network::response,8> >::delete_value
 0x00111080	inferred-medium	0x000d0950	vostok::one_way_threads_channel<vostok::intrusive_spsc_queue<vostok::network::order,vostok::network::order,8>,vostok::intrusive_spsc_queue<vostok::network::order,vostok::network::order,8> >::delete_value
 0x001113a0	inferred-high		vostok::animation::skeleton::get_bone_index
@@ -2970,7 +2973,10 @@ va	status	ref_021d	name
 0x003f30e0	inferred-medium	0x00287339	vostok::network_core::udp_match_client::send_packet_impl
 0x003f32b0	inferred-medium	0x002874a2	vostok::network_core::udp_match_client::send_packet
 0x003f3430	inferred-medium	0x002876f9	vostok::network_core::udp_match_client::on_disconnect
+0x003f3500	inferred-high		boost::asio::basic_socket<boost::asio::ip::udp,boost::asio::datagram_socket_service<boost::asio::ip::udp> >::open
+0x003f3580	inferred-high		boost::asio::basic_socket<boost::asio::ip::udp,boost::asio::datagram_socket_service<boost::asio::ip::udp> >::close
 0x003f35f0	inferred-medium	0x00287808	boost::asio::basic_socket<boost::asio::ip::udp,boost::asio::datagram_socket_service<boost::asio::ip::udp> >::cancel
+0x003f3660	inferred-high		boost::asio::basic_socket<boost::asio::ip::udp,boost::asio::datagram_socket_service<boost::asio::ip::udp> >::bind
 0x003f3750	inferred-medium	0x002878e8	boost::asio::ip::basic_endpoint<boost::asio::ip::udp>::port
 0x003f3bb0	inferred-medium	0x0028797d	vostok::network_core::udp_match_connection::process_incoming_packet<vostok::network_core::process_packet_predicate>
 0x003f4720	inferred-medium	0x00288154	vostok::network_core::udp_match_connection::call_predicate<vostok::network_core::process_packet_predicate>

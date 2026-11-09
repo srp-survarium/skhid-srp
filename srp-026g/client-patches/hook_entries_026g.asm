@@ -4357,6 +4357,48 @@ map_names_on_key_replay:
     db 0x8b, 0x10, 0x8b, 0xc8, 0x8b, 0x02
     jmp 0x25cd22
 
+; 0x3f21de udp_match_client::handle_receive's error path after its log line (cmp dword [ebx+15Ch],3; 0x3F21EE je 0x3F2583 returns; EBX the client): the 995/10061 tests that lead to instant_disconnect(1) follow: lohook -> match_reconnect_on_receive_failed
+global match_reconnect_on_receive_failed
+extern hook_match_reconnect_on_receive_failed
+match_reconnect_on_receive_failed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_match_reconnect_on_receive_failed
+    mov edx, match_reconnect_on_receive_failed_replay
+    cmp eax, 0
+    je match_reconnect_on_receive_failed_go
+    mov edx, 0x3f21e5
+    cmp eax, 1
+    je match_reconnect_on_receive_failed_go
+    mov edx, 0x3f2583
+    cmp eax, 2
+    je match_reconnect_on_receive_failed_go
+    ud2
+match_reconnect_on_receive_failed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+match_reconnect_on_receive_failed_replay:
+    db 0x83, 0xbb, 0x5c, 0x01, 0x00, 0x00, 0x03
+    jmp 0x3f21e5
+
 ; 0x33d41b EBP medkit EBX player XMM0 duration: lohook -> medical_skills_on_duration_start
 global medical_skills_on_duration_start
 extern hook_medical_skills_on_duration_start

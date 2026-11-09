@@ -1804,19 +1804,23 @@ va	name	source	ret_cleanup	result
 0x003e31e0	vostok::render::xs_descriptor<vostok::render::gs_data>::use_texture	manual	4	
 0x003e31e0	vostok::render::xs_descriptor<vostok::render::ps_data>::use_texture	manual	4	
 0x003e33e0	vostok::render::shader_constant_table::operator=	manual	4	EAX: EAX destination table pointer
+0x003f2050	vostok::network_core::udp_match_client::handle_receive	manual	8	
 0x003f2590	vostok::network_core::udp_match_client::start_receiving	manual	0	
 0x003f2610	vostok::network_core::udp_match_client::connect_impl	manual	8	
+0x003f2990	vostok::network_core::udp_match_client::connect	manual	16	
 0x003f2990	vostok::network_core::udp_match_client::connect	manual	16	
 0x003f2af0	vostok::network_core::udp_match_client::send_queued_packets_impl	manual	4	
 0x003f2b50	vostok::network_core::udp_match_client::set_connection_ports	manual	20	
 0x003f2df0	vostok::network_core::udp_match_client::enqueue	manual	8	
 0x003f2f10	vostok::network_core::udp_match_client::enqueue	manual	8	
+0x003f3070	vostok::network_core::udp_match_client::original_packet_send_handler	manual	12	
 0x003f33f0	vostok::network_core::udp_match_client::send_queued_packets	manual	4	
 0x003faf90		auto	None	
 0x003fb4f0		auto	None	
 0x003fbf70		auto		
 0x003fcc40		auto	12	
 0x003fdcf0		auto		
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	manual	4	
 0x003fe000		auto	0	
 0x00400940		auto	0	
 0x00401730		auto	0	

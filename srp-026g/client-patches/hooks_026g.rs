@@ -2528,6 +2528,26 @@ pub extern "C" fn hook_map_names_on_key(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- match_reconnect (patch 132) ----
+
+/// The named exits of match_reconnect::on_receive_failed (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MatchReconnectOnReceiveFailedExit { Done }
+/// The entry `match_reconnect_on_receive_failed` (0x3f21de, udp_match_client::handle_receive's error path after its log line (cmp dword [ebx+15Ch],3; 0x3F21EE je 0x3F2583 returns; EBX the client): the 995/10061 tests that lead to instant_disconnect(1) follow) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_match_reconnect_on_receive_failed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `match_reconnect_on_receive_failed` calls this, from the game's jump at 0x3f21de,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::match_reconnect::on_receive_failed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- medical_skills (patch 94) ----
 
 /// The entry `medical_skills_on_duration_start` (0x33d41b, EBP medkit EBX player XMM0 duration) calls this with the saved machine.

@@ -4210,6 +4210,9 @@ va	name	location	role	basis
 0x003e31e0	vostok::render::xs_descriptor<vostok::render::ps_data>::use_texture	stack+4	texture binding name copied into EBP	inferred
 0x003e33e0	vostok::render::shader_constant_table::operator=	EDI	source constant-table pointer	observed
 0x003e33e0	vostok::render::shader_constant_table::operator=	entry ESP+4	destination constant-table pointer	observed
+0x003f2050	vostok::network_core::udp_match_client::handle_receive	ECX	the client	observed
+0x003f2050	vostok::network_core::udp_match_client::handle_receive	entry ESP+4	the completion's boost::system::error_code	observed
+0x003f2050	vostok::network_core::udp_match_client::handle_receive	entry ESP+8	bytes transferred	observed
 0x003f2590	vostok::network_core::udp_match_client::start_receiving	ECX	UDP-client receiver	observed
 0x003f2610	vostok::network_core::udp_match_client::connect_impl	ECX	UDP-client receiver	observed
 0x003f2610	vostok::network_core::udp_match_client::connect_impl	entry ESP+4	packet pointer forwarded to connection	observed
@@ -4219,6 +4222,7 @@ va	name	location	role	basis
 0x003f2990	vostok::network_core::udp_match_client::connect	entry ESP+8	port slot forwarded to endpoint construction	observed
 0x003f2990	vostok::network_core::udp_match_client::connect	entry ESP+12	packet pointer	observed
 0x003f2990	vostok::network_core::udp_match_client::connect	entry ESP+16	time value	observed
+0x003f2990	vostok::network_core::udp_match_client::connect	EAX	the client	observed
 0x003f2af0	vostok::network_core::udp_match_client::send_queued_packets_impl	EAX	UDP-client receiver	observed
 0x003f2af0	vostok::network_core::udp_match_client::send_queued_packets_impl	entry ESP+4	time forwarded to underlying flush	observed
 0x003f2b50	vostok::network_core::udp_match_client::set_connection_ports	entry ESP+4	UDP-client receiver	observed
@@ -4232,6 +4236,7 @@ va	name	location	role	basis
 0x003f2f10	vostok::network_core::udp_match_client::enqueue	DL	message byte; upper EDX bits not established	observed
 0x003f2f10	vostok::network_core::udp_match_client::enqueue	entry ESP+4	reader pointer	observed
 0x003f2f10	vostok::network_core::udp_match_client::enqueue	entry ESP+8	time dword	observed
+0x003f3070	vostok::network_core::udp_match_client::original_packet_send_handler	ECX	the client	observed
 0x003f33f0	vostok::network_core::udp_match_client::send_queued_packets	ESI	UDP-client receiver	observed
 0x003f33f0	vostok::network_core::udp_match_client::send_queued_packets	entry ESP+4	new time dword	observed
 0x003faf90		ECX		auto
@@ -4243,6 +4248,8 @@ va	name	location	role	basis
 0x003fcc40		entry ESP+4		auto
 0x003fdcf0		ECX		auto
 0x003fdcf0		EAX		auto
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	ESI	the connection (client+8)	observed
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	entry ESP+4	the disconnect reason, close_current_match's	observed
 0x003fe000		EAX		auto
 0x00400940		entry ESP+4		auto
 0x00400940		entry ESP+12		auto

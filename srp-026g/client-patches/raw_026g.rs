@@ -17796,6 +17796,30 @@ impl PointerCoord {
     }
 }
 
+/// A vostok::network_core::udp_match_client (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UdpMatchClient(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UdpMatchClient {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1280 (u32): the boost::function udp_match_client::connect (0x3F2A8B) leaves for connect_impl while the old socket's receive or send is outstanding: the manager word, 0 empty (handle_receive 0x3F2072, original_packet_send_handler 0x3F30A2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn connect_waiting(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1280).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -21866,6 +21890,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<SetupProfilesFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(SetupProfilesFrame)
+        }
+    }
+
+    /// match_link.receive_failed (0x3f21de): udp_match_client::handle_receive's error path after its log line (cmp dword [ebx+15Ch],3; 0x3F21EE je 0x3F2583 returns; EBX the client): the 995/10061 tests that lead to instant_disconnect(1) follow
+    pub mod match_link_receive_failed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::network_core::udp_match_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<UdpMatchClient> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(UdpMatchClient)
         }
     }
 }

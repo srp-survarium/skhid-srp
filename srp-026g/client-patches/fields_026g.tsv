@@ -953,3 +953,4 @@ survarium::core_client	size	0x30	size	a place's client record (get_player 0x27A9
 survarium::core_client	current_kit	0xC	u8	the place's current player object: the kit in use (get_player 0x27A997; the world's current_index, 0x321924)
 survarium::game	kit_level_config	0x53A4	ptr<survarium::kit_level_config>	the config the kit level is read from (initialize_match 0x23491D..0x234928)
 survarium::pointer_coord	value	0x0	i32	the pointer's coordinate game_world::set_pointer is given (cvtsi2ss xmm0,[ebx] / [ebp], 0x25D1C5)
+vostok::network_core::udp_match_client	connect_waiting	0x1280	u32	the boost::function udp_match_client::connect (0x3F2A8B) leaves for connect_impl while the old socket's receive or send is outstanding: the manager word, 0 empty (handle_receive 0x3F2072, original_packet_send_handler 0x3F30A2)
