@@ -4636,6 +4636,7 @@ va	name	location	role	basis
 0x0023b200	survarium::game_world_ui::update_ui	entry ESP+4	the frame's ms (x 0.001 at 0x91A8F0: the movies' advance, vtable +5Ch)	observed
 0x0023b200	survarium::game_world_ui::update_ui	entry ESP+8	the time in ms: under 28h past [ui+33Ch] the rest of the hud waits (0x23B249..0x23B252); past that, the hud's part runs only when a checksum of the hud state [ui+24h..2D8h) differs from [ui+2E0h] (0x23B2CD..0x23B301)	observed
 0x0023b200	survarium::game_world_ui::update_ui	entry ESP+12 low byte	inside the 40 ms: nonzero advances the hud movie too, zero returns at once (0x23B254)	observed
+0x0023b200	survarium::game_world_ui::update_ui	[EAX+8h], [EAX+0Ch], [EAX+10h], [EAX+14h]	the match's movies, as game_world loads them (0x1F8F0E..0x1F8FA7): hud, cursor, player_icons, replay_player. player_icons is advanced at every call (0x23B214); the hud inside the 40 ms only with ESP+12 set, else once per 40 ms with the time since (0x23B4BC); replay_player once per 40 ms in every match (0x23B4D7); the cursor once per 40 ms while [ui+2DCh] (0x23B507). No other movie is advanced in a match: the lobby's (lobby_menu::update_ui 0x220A00) only from lobby_menu::tick (0x21D660), the active scene's	observed
 0x001e8da0	survarium::delete_folder	EAX	the folder's physical path, a buffer_string (begin +0, end +4); SHFileOperationA FO_DELETE, flags 414h	observed
 0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	EAX	the baker cook (its list at +230h)	observed
 0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	entry ESP+4	the path, a buffer_string	observed
@@ -5852,3 +5853,4 @@ va	name	location	role	basis
 0x00106fc0	pt3free	EAX	the memory (0: nothing); a mapped chunk goes back to the region 0x106AD0 (0x107018), others to mspace_free (0x107053)	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	ESI	the bytes	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	entry ESP+4	the allocator ("global multithreaded" 0xA8001C; cdecl)	observed
+0x0023d070	survarium::game_world_ui::update_game_stats	EAX	the ui; called by update_ui every 40 ms (0x23B4B3): root.set_game_stats (state 1..3, fps, latency) only when one of them differs from the last sent (0x23D10D..0x23D129)	observed
