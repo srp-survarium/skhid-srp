@@ -855,6 +855,64 @@ blend values were not read.
 - Foreground (slot 22): first-person models via `stage_forward::execute_foreground` and
   `stage_lights::execute_foreground` (vtable slot +8). LIKELY.
 
+### 9.3 One-layer transparency (OLTA, `use_olta`)
+
+A G-buffer material with `use_olta` is see-through by a one-bit stipple, resolved later. Read for
+the 0.21d and 0.11e Radar ports' glass bricks (`ported/v0xxx/tiled/window/glass_tile`,
+2026-11-09).
+
+**Write** (`gbuffer_pass.ps` with `CONFIG_USE_OLTA`, 354 of the 5918 blobs, all checked): with
+a = `t_transparency.a`, a pixel with 0.025 < a < 0.975 is discarded on even rows
+(`(uint)SV_Position.y & 1 == 0`), and albedo.a (rt 13) = a. Every other `gbuffer_pass` blob and
+every `terrain_gbuffer_pass` blob writes albedo.a = 1; `gbuffer_nomaterial_pass` writes 0.5.
+PROVEN (bytecode). So the even rows show what is behind the first OLTA surface, and every OLTA
+surface behind it is gone there too: one layer only.
+
+**Resolve** (slot 19, `stage_apply_distortion::execute` 0x1AE3B0): when both effects exist
+(`is_effects_ready` 0x1AE390), opt+11Ch is set (1 by `set_default_values` 0x3CD5BF, no console
+command) and the stage is enabled (`stage::is_enabled` 0x1BD6A0, +0Ch, 1 from the constructor
+0x1AE2C8), `effect_olta` (stage +14h, one technique: `olta_blend`, `t_frame_color` = generic0,
+`t_diffuse` = albedo, 0x1D4210) draws generic0 into generic1, then `effect_apply_distortion`'s
+technique 1 (stage +10h) draws generic1 back into generic0. 0.21d's stage is the same
+(0x12393D); 0.10b resolved in the post-process instead, from its own R8 target cleared to 1 each
+frame. PROVEN (code). The captured frame (section 11) has the pass. OBSERVED.
+
+`olta_blend.ps` is keyed by `GLOBAL_SHADING_QUALITY` alone (`shaders/masks`) and the db has only
+`_0` and `_3`; the options' macro writer turns every value but 0 into 3 (0x3CD3B7..0x3CD3F9), so
+`r_shading_quality` 1..3 give `_3`. PROVEN. With n = albedo.a one row down, c = albedo.a here:
+
+```
+_0 (0.21d's only program):  n < 1: here*(1-n) + below*n     else c < 1: here*c + below*(1-c)
+_3:                          n < 1: blur(below)*(1-n) + below*n
+                             else c < 1: here*c + blur(here)*(1-c)
+     blur(t) = mean of 9 taps at x-1..x+1, rows t-3, t-1, t+1 (the rows of the other layer)
+```
+
+So `_3` gives the two rows of a pair the same value: the glass and what is behind it both at half
+the vertical resolution, in two-row steps fixed to the screen. PROVEN (bytecode). In the owner's
+screenshot of the 0.21d Radar's glass (2026-11-09 15:21, 2560x1440) the glass has that structure
+(mean |v(y) - v(y+1)| 2.47 inside a pair against 6.44 across pairs, the wall beside it 3.6/3.5):
+the resolve runs there. OBSERVED.
+
+**The carrier is not reset.** `stage_gbuffer::execute` binds normal, albedo and surface parameters
+(0x177C4E) and clears none of them; after the resolve the post-process uses albedo as scratch
+(TAA: `CopyResource(albedo, present)` 0x1B2EAE; the aberration/sharpen pass drawn into albedo
+0x1B3476, then copied to present), and the aberration, sharpen and TAA programs write alpha 0.
+So where no G-buffer geometry was drawn (the sky), the resolve finds albedo.a from the previous
+frame's post-process, 0 with those passes, and takes the "n < 1" branch: the sky gets the 9-tap
+blur, the row above the sky too, and an OLTA row with sky below it shows only itself. PROVEN
+(code and bytecode); which post-process branch a frame takes depends on the options and the
+scene; not seen in a game.
+
+**Live OLTA materials** (stock db and the live patches, 2026-11-09): `tiled/window/` glass,
+glass_det_test, glass_tile, window, window_tiles, windows_broken, windows_factory;
+`props/light/` lamp_lights_glass, lamp_lights_glass_light, light_emitters_glass;
+`props/chemicalflaskcentre/` capsuleglass, flaskglass; `props/plantflask/plantflaskglass`;
+`level/lobby/glass`; `vehicle/vaz_2109_alpha`; `editor/victory_item_spawner`;
+`test/taras_fx/fly1`; patch 14 `level/level_09/church_glass`, `gherkin_ts`,
+`vehicle/military/ocelot/ocelot_glass`; patch 20 `ported/v021d/` glass, glass_tile, window,
+`props/light/lamp_lights_glass_light`; patch 22 `ported/v011e/` glass, glass_tile.
+
 ## 10. Post-process (`stage_postprocess::execute` 0x1B2270)
 
 Enabled by opt+11Eh and scene_view+1DE3Ch. Order (PIX labels in the code):
