@@ -52,19 +52,40 @@ package {
   private function run(hud:*, player:*):void {
    var panel:* = hud.spectatorKitsPanel, selector:* = panel.profileSelector;
    var plates:Function = function():int { return selector.tabPage.dataProvider ? selector.tabPage.dataProvider.length : 0; };
+   stage.dispatchEvent(new Event(Event.RESIZE));
+   // A player's game, before any call of a spectator's: the game's own feed and its own show.
+   hud.setup_player_profiles([{name:"Profile 1",state:0,level:1,items:[]},{name:"Profile 2",state:0,level:2,items:[]},{name:"Profile 3",state:1,level:0,items:[]}]);
+   hud.show_profiles_selector(true);
+   expect("a player: the chooser shown",panel.visible);
+   expect("a player: its three plates (" + plates() + ")",plates() == 3);
+   expect("a player: the chooser its own",selector.local == true);
+   expect("a player: an incomplete kit not playable",selector.getProfileData(2).enabled == false && selector.getProfileData(0).enabled == true);
+   hud.select_player_profile(1);
+   expect("a player: the game's own select",selector.tabPage.selectedIndex == 1);
+   var own:Rectangle = rect(selector);
+   trace("KITS player " + stage.stageWidth + "x" + stage.stageHeight + " chooser " + own);
+   expect("a player: the game's own place, bottom centre " + own,own.x > stage.stageWidth * 0.25 && own.right < stage.stageWidth * 0.75 && own.bottom > stage.stageHeight * 0.85);
+   hud.show_profiles_selector(false);
+   expect("a player: the game's own hide",!panel.visible);
    // Nothing given: nothing shown.
    hud.srp_spectator_kits_show(1);
    expect("no kits given, the chooser hidden",!panel.visible);
    // Live: kits 0 and 2 used so far, kit 1 not: only their plates.
    hud.srp_spectator_kits("0|0|7||77:0:1,78:1:3;");
    expect("a kit's items (" + selector.getProfileData(0).items.length + ")",selector.getProfileData(0).items.length == 2 && selector.getProfileData(0).items[1].dictId == 78 && selector.getProfileData(0).items[1].condition_or_stack == 3);
-   hud.srp_spectator_kits("0|0|7|Alpha|;2|0|5||;");   // no items: the item table the hover list reads is the exe's
+   hud.srp_spectator_kits("0|0|7|Alpha|;2|0|5|Bravo|;");   // no items: the item table the hover list reads is the exe's
    hud.srp_spectator_kits_show(1);
    expect("two kits given, shown",panel.visible);
    expect("two plates (" + plates() + ")",plates() == 2);
-   expect("the second plate is kit 2's (" + selector.getProfileData(1).name + ")",selector.getProfileData(1).name == "st_default_profile_name3" || selector.getProfileData(1).level == 5);
+   expect("the second plate is kit 2's (" + selector.getProfileData(1).name + ")",selector.getProfileData(1).name == "Bravo");
    hud.srp_spectator_current_kit(2);
    expect("the highlight on kit 2's plate",selector.tabPage.selectedIndex == 1);
+   expect("its glow shown",selector.selectedTabGlow.visible);
+   hud.select_player_profile(0);
+   expect("the game's own select does not move a spectator's highlight",selector.tabPage.selectedIndex == 1);
+   selector.selectProfile(0);
+   hud.srp_spectator_kits_show(1);
+   expect("the highlight held on the next frame's show",selector.tabPage.selectedIndex == 1);
    hud.srp_spectator_current_kit(1);
    expect("a kit not given moves nothing",selector.tabPage.selectedIndex == 1);
    // Read-only: a pick tells the game nothing.
@@ -73,7 +94,6 @@ package {
    hud.show_profiles_selector(false);
    expect("the game's own hide does not hide a spectator's chooser",panel.visible);
    // The game's own place, live.
-   stage.dispatchEvent(new Event(Event.RESIZE));
    trace("KITS scale " + hud.scaleX + " minimap " + rect(hud.minimap) + " ammo " + rect(hud.ammoInd) + " slots " + rect(hud.quick_slots) + " list " + rect(hud.player_list));
    var w:int = stage.stageWidth, h:int = stage.stageHeight;
    expect("the hud laid out: the ammo counter at the bottom right " + rect(hud.ammoInd),rect(hud.ammoInd).right > w - 100 && rect(hud.ammoInd).bottom > h - 100);
@@ -131,6 +151,12 @@ package {
    expect("mode 0: the selector its own again",selector.local == true);
    hud.show_profiles_selector(true);
    expect("mode 0: the game's own show is honoured",panel.visible);
+   // A player's match after a spectator's, the movie being the last match's.
+   hud.srp_spectator_kits_show(2);
+   try { hud.reset(); } catch(rest:Error) { trace("KITS reset outside the game: " + rest.message); }
+   hud.show_profiles_selector(true);
+   expect("reset: the game's own show honoured after a spectator's match",panel.visible);
+   expect("reset: the selector its own again",selector.local == true);
   }
   private function finish(error:String):void {
    if(error) failures.push(error);

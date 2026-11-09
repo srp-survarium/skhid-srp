@@ -403,10 +403,10 @@ def static_info(game, options):
     return game.run("static", regs)
 
 
-def setup_profiles(game):
+def setup_profiles(game, place):
     regs = dict(STEADY)
     regs[UC_X86_REG_ESI] = 0x05050505
-    return game.run("profiles", regs)
+    return game.run("profiles", regs, bytes(0x94) + struct.pack("<I", LINK + 0xC + place * 0x45FC))  # the place the feed was built for
 
 
 def events(first, total, items):
@@ -598,13 +598,33 @@ def main():
     # initialize_match's feed of the local place's kits (place 0 in a spectator's game): withheld from a spectator alone.
     ours.setup(2)
     static_info(ours, LINK + 0xC)
-    state, _, calls = setup_profiles(ours)
+    state, _, calls = setup_profiles(ours, 2)
     check(state[UC_X86_REG_EIP] == SITES["profiles"][2] and not calls, "profiles, a player's match: the feed goes on (0x2362D2)")
+    # As the exe orders a player's start: at the static info no place is local yet (0x27BE5F marks
+    # its own after it) and the client's own place not known (0xFF, which reads as a spectator's).
     ours.setup(0xFF)
     static_info(ours, LINK + 0xC)
-    state, _, calls = setup_profiles(ours)
+    ours.word(LINK + 0xC + 2 * 0x45FC + 0x45F0, 1, 1)
+    state, _, calls = setup_profiles(ours, 2)
+    check(state[UC_X86_REG_EIP] == SITES["profiles"][2] and not calls,
+          "profiles, a player whose place was marked after the static info, the client's role not yet known: the feed goes on")
+    ours.word(NC + 0x1F1C44, 2, 1)
+    state, _, calls = setup_profiles(ours, 2)
+    check(state[UC_X86_REG_EIP] == SITES["profiles"][2] and not calls, "profiles, the same player, its role known: the feed goes on")
+    ours.setup(0xFF)
+    static_info(ours, LINK + 0xC)
+    state, _, calls = setup_profiles(ours, 0)
     check(state[UC_X86_REG_EIP] == SITES["profiles"][3] and state[UC_X86_REG_ESI] == 0 and not calls,
           "profiles, a spectator's match: skipped to 0x2362E9, ESI 0 as the skipped xor leaves it, nothing given to the movie")
+    ours.setup(2)                                # a player, with its hud movie: its chooser is the game's alone
+    static_info(ours, LINK + 0xC)
+    ours.word(WORLD_UI + 0x8, HUD_HOLDER)
+    state, _, calls = frame(ours)
+    check(not calls, "frame, a player with its hud movie: nothing told, the chooser left as the game shows it")
+    state, _, calls = close(ours, 0)
+    check(not [c for c in calls if c[0] == "invoke" and "srp_spectator" in c[2]], "close, a player: the chooser left alone")
+    ours.setup(0xFF)
+    static_info(ours, LINK + 0xC)
     ours.word(WORLD_UI + 0x8, HUD_HOLDER)        # this hud has its hud movie (a viewer's frames test without it)
     kits_for(ours, 1)
     state, _, calls = frame(ours)
@@ -618,7 +638,7 @@ def main():
     check(state[UC_X86_REG_EIP] == exit_ and not calls, "note, a place's kits: kept, nothing called yet")
     state, _, calls = frame(ours)
     invoked = {c[2]: c[4] for c in calls if c[0] == "invoke"}
-    check(invoked.get("root.srp_spectator_kits") == (6, "0|0|7||77:0:1;") and [c for c in calls if c[0] == "kit_level"] == [("kit_level", 0, LINK + 0xC + 0x45FC, KIT_CONFIG)],
+    check(invoked.get("root.srp_spectator_kits") == (6, "0|0|7|st_default_profile_name1|77:0:1;") and [c for c in calls if c[0] == "kit_level"] == [("kit_level", 0, LINK + 0xC + 0x45FC, KIT_CONFIG)],
           "frame, a live spectator, a note of kit 0: the chooser told only kit 0 (its level read of that kit alone)")
     check(invoked.get("root.srp_spectator_current_kit") == (4, 0), "frame, a live spectator: the kit the place has now")
     state, _, calls = frame(ours)
@@ -686,7 +706,7 @@ def main():
     ours.run("note", note_regs(ours, kits_note(1, 0b001)))
     state, _, calls = frame(ours)
     invoked = {c[2]: c[4] for c in calls if c[0] == "invoke"}
-    check(invoked.get("root.srp_spectator_kits") == (6, "0|0|7||77:0:1;") and invoked.get("root.srp_spectator_kits_show") == (4, 2),
+    check(invoked.get("root.srp_spectator_kits") == (6, "0|0|7|st_default_profile_name1|77:0:1;") and invoked.get("root.srp_spectator_kits_show") == (4, 2),
           "frame, a viewer, a kits note: the hud's chooser told it, above the controls (mode 2)")
     state, _, calls = mouse(ours, "pointer")
     check(state[UC_X86_REG_EIP] == SITES["pointer"][2] and not calls, "pointer, a viewer, no Ctrl cursor: to the controls alone")

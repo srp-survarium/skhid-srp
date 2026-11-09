@@ -33,7 +33,7 @@ use replay_control::{newer, Event, EventKind, EventsNote, MatchMs, Op, Playback,
 use core::ffi::CStr;
 
 use crate::spectator;
-use crate::vostok::replay_view::{button_client, pointer_at, pointer_client, query_network, take_network, CoreLoad, GameClock, HudFrame, KitChooser, KitData, MatchClose, Names, Overlay, ServerNoteSite, StaticInfoSite};
+use crate::vostok::replay_view::{button_client, pointer_at, pointer_client, query_network, take_network, CoreLoad, GameClock, HudFrame, KitChooser, KitData, KitFeed, MatchClose, Names, Overlay, ServerNoteSite};
 use crate::vostok::world::{NetworkClient, Role};
 use crate::vostok::{
     Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, NoExit, ReplayViewerOnHudCallExit,
@@ -458,16 +458,6 @@ impl KitMasks {
 static SESSION: GameCell<Session> = GameCell::new(Session::Live);
 static EVENTS: GameCell<Events> = GameCell::new(Events::NONE);
 static MASKS: GameCell<KitMasks> = GameCell::new(KitMasks::NONE);
-/// Whether this match's game has a place of its own: set from the static info, before
-/// initialize_match runs, whose feed of the local place's kits it withholds from a spectator.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum MatchSide {
-    Player,
-    Spectator,
-}
-
-static SPECTATING_MATCH: GameCell<MatchSide> = GameCell::new(MatchSide::Player);
-
 /// Whether `key` is one of the kit keys (patch 58's 1, 2 and 3).
 fn is_kit_key(key: Dik) -> bool {
     matches!(key, Dik::KEY_1 | Dik::KEY_2 | Dik::KEY_3)
@@ -600,15 +590,15 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
     EVENTS.set(thread, Events::NONE);
     MASKS.set(thread, KitMasks::NONE);
     FED.set(thread, Fed::NOTHING);
-    let side = if StaticInfoSite::at(ctx).is_some_and(|site| site.spectator()) { MatchSide::Spectator } else { MatchSide::Player };
-    SPECTATING_MATCH.set(thread, side);
     Flow::Continue
 }
 
 /// `hud.setup_profiles`: initialize_match's feed of the local place's kits. A spectator has none,
-/// and would be given place 0's, used or not: its chooser is filled from the notes instead.
+/// and would be given place 0's, used or not: its chooser is filled from the notes instead. Asked
+/// here, of the place the feed was built for: at the static info no place is local yet (the game
+/// marks its own later in the same handler, 0x27BE5F), and a player would count as a spectator.
 pub fn on_setup_profiles(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnSetupProfilesExit> {
-    if SPECTATING_MATCH.get(ctx.thread()) == MatchSide::Spectator {
+    if KitFeed::at(ctx).is_some_and(|feed| !feed.is_the_games_own()) {
         ctx.set_reg(Reg::Esi, 0); // what the `xor esi,esi` it skips leaves
         return Flow::Exit(ReplayViewerOnSetupProfilesExit::Skip);
     }
@@ -807,8 +797,12 @@ fn feed_chooser(client: &NetworkClient<'_>, fed: Option<ChooserFed>, mode: u32, 
     let new_plates = fed.map(|fed| (fed.place, fed.version)) != Some((place, masks.version));
     if new_plates {
         let mut room = [0; MARKERS_ROOM];
+        let mut names = [[0; 0x200]; KIT_NUMBERS as usize];
+        let named = &chooser;
         chooser.set_kits(chooser_text(place.map(|place| {
-            (0..KIT_NUMBERS).filter(move |kit| masks.of(place) & 1 << kit != 0).filter_map(move |kit| client.kit_data(place, kit))
+            (0..KIT_NUMBERS).zip(names.iter_mut()).filter(move |&(kit, _)| masks.of(place) & 1 << kit != 0).filter_map(move |(kit, name)| {
+                Some(named.named(client.kit_data(place, kit)?, name))
+            })
         }), &mut room));
     }
     let current = place.and_then(|place| client.current_kit(place).filter(|&kit| masks.of(place) & 1 << kit != 0));

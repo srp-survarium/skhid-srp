@@ -54,24 +54,22 @@ impl<'t> ServerNoteSite<'t> {
     }
 }
 
-/// `static_info.options_read`: the match's options just read.
-pub struct StaticInfoSite {
-    options: raw::MatchOptions,
+/// `hud.setup_profiles`: the kits initialize_match has just built for the hud.
+pub struct KitFeed {
+    place: raw::MatchPlace,
 }
 
-impl StaticInfoSite {
-    pub fn at(ctx: &Context<'_>) -> Option<StaticInfoSite> {
-        // SAFETY: the context is this site's: ESI the options, alive on the game's thread.
-        Some(StaticInfoSite { options: unsafe { raw::site::static_info_options_read::options(ctx) }? })
+impl KitFeed {
+    pub fn at(ctx: &Context<'_>) -> Option<KitFeed> {
+        // SAFETY: the context is this site's: ESP initialize_match's frame, whose place it set
+        // before its loop over that place's kits, alive on the game's thread.
+        Some(KitFeed { place: unsafe { raw::site::hud_setup_profiles::frame(ctx)?.place() }? })
     }
 
-    /// No place of the options is the game's own: a spectator's.
-    pub fn spectator(&self) -> bool {
-        // SAFETY: the places below the count, in the array the options hold.
-        unsafe {
-            let places = usize::from(*self.options.places());
-            !(0..places).any(|place| read(self.options.first_place().at(place).is_local()) != 0)
-        }
+    /// The place is the game's own, by the byte initialize_match chose it with (0x234949).
+    pub fn is_the_games_own(&self) -> bool {
+        // SAFETY: a place of the match's options, alive with the match on the game's thread.
+        unsafe { read(self.place.is_local()) != 0 }
     }
 }
 
@@ -292,6 +290,15 @@ impl<'t> KitChooser<'t> {
         }
     }
 
+    /// `kit` as initialize_match names it for the hud (0x235A7B): its own name, or the running
+    /// language's default for its number when it has none, kept in `room`.
+    pub fn named<'k>(&self, mut kit: KitData<'k>, room: &'k mut [u8; 0x200]) -> KitData<'k> {
+        if let (true, Some(key)) = (kit.name.is_empty(), KIT_DEFAULT_NAMES.get(usize::from(kit.number))) {
+            kit.name = super::ui::GameWorldUi::of(self.ui).translate(key, room).to_bytes();
+        }
+        kit
+    }
+
     /// The kits' text (root.srp_spectator_kits).
     pub fn set_kits(&self, text: &CStr) {
         self.movie.invoke_text(c"root.srp_spectator_kits", text);
@@ -334,6 +341,9 @@ pub const KIT_SLOTS: usize = 23;
 
 /// A kit name's room, its zero included.
 const KIT_NAME_LIMIT: usize = 64;
+
+/// A kit's name when it has none of its own, by its number (the exe's table, 0xA7482C).
+const KIT_DEFAULT_NAMES: [&CStr; 3] = [c"st_default_profile_name1", c"st_default_profile_name2", c"st_default_profile_name3"];
 
 /// `ui`'s cursor as asked (show_cursor 0x23A930, when the hud's +2DCh says otherwise): the
 /// kits show it before the start, and a spectator has none to pick. While the Tab list is up,

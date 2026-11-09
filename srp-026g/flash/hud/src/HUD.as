@@ -133,6 +133,7 @@ package
       private var _spectatorKitIndex:Object = {};
       private var _spectatorKitCount:int = 0;
       private var _spectatorHover:int = -1;
+      private var _spectatorKit:int = -1;
       
       private var _profilePanel:MovieClip = new HUDProfileSelector();
       
@@ -773,7 +774,11 @@ package
       
       public function select_player_profile(value:uint) : void
       {
-         this._profilePanel.profileSelector.selectProfile(value);
+         // srp's: a spectator's highlight is the exe's alone (srp_spectator_current_kit).
+         if(this._spectatorMode == 0)
+         {
+            this._profilePanel.profileSelector.selectProfile(value);
+         }
       }
 
       // The keys 1, 2 and 3 (exe patch 58 calls this for each going down while the cursor is
@@ -985,7 +990,7 @@ package
             var kit:int = int(fields[0]);
             var name:String = String(fields[3]);
             this._spectatorKitIndex[kit] = kits.length;
-            kits.push({name:name.length > 0 ? name : LocalizationData.getName("st_default_profile_name" + (kit + 1)),state:int(fields[1]),level:int(fields[2]),items:items});
+            kits.push({name:name,state:int(fields[1]),level:int(fields[2]),items:items});
          }
          this._spectatorKitCount = kits.length;
          this._profilePanel.profileSelector.local = false;
@@ -998,9 +1003,18 @@ package
       // srp's: the kit the player in view has now.
       public function srp_spectator_current_kit(kit:int) : void
       {
-         if(this._spectatorKitIndex[kit] != undefined)
+         this._spectatorKit = kit;
+         this.holdSpectatorHighlight();
+      }
+
+      // Told once a change, and its plates can be rebuilt or reselected after: kept on it each frame.
+      private function holdSpectatorHighlight() : void
+      {
+         var plate:* = this._spectatorKitIndex[this._spectatorKit];
+         var selector:* = this._profilePanel.profileSelector;
+         if(plate != undefined && (selector.tabPage.selectedIndex != plate || !selector.selectedTabGlow.visible))
          {
-            this._profilePanel.profileSelector.selectProfile(uint(this._spectatorKitIndex[kit]));
+            selector.selectProfile(uint(plate));
          }
       }
 
@@ -1012,6 +1026,7 @@ package
          {
             this._profilePanel.profileSelector.local = true;
             this._hudPlayerProfile.visible = false;
+            this._spectatorKit = -1;
          }
          this.applySpectatorKits();
       }
@@ -1049,6 +1064,10 @@ package
       {
          // A replay's chooser sits where the Tab list can reach, at a small window.
          this._profilePanel.visible = this._spectatorMode > 0 && this._spectatorKitCount > 0 && !(this._spectatorMode == 2 && this.player_list.visible);
+         if(this._spectatorMode > 0)
+         {
+            this.holdSpectatorHighlight();
+         }
          this.placeProfilePanel();
       }
 
@@ -2138,6 +2157,10 @@ package
          this.show_player_list(false);
          // the kits too: the exe's patch 113 puts its own kits state away at the same start, so
          // the match's first showing of them tells the movie its kit
+         // srp's: the movie is the last match's, which may have been a spectator's
+         this._spectatorMode = 0;
+         this._spectatorKit = -1;
+         this._profilePanel.profileSelector.local = true;
          this.show_profiles_selector(false);
          this.show_oxygen(false);
          this.show_stamina(false);

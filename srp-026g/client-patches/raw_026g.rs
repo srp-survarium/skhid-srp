@@ -3553,6 +3553,39 @@ impl StaticInfoFrame {
     }
 }
 
+/// A survarium::setup_profiles_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SetupProfilesFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SetupProfilesFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x94 (ptr<survarium::match_place>): the place whose kits initialize_match has just built (0x235992, its loop reads it at 0x2362AA): the local place, or place 0 with none
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn place(self) -> Option<MatchPlace> {
+        unsafe { self.0.byte_add(0x94).cast::<Option<MatchPlace>>().read_volatile() }
+    }
+
+    /// +0x94 (ptr<survarium::match_place>): the place whose kits initialize_match has just built (0x235992, its loop reads it at 0x2362AA): the local place, or place 0 with none
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_place(self, value: Option<MatchPlace>) {
+        unsafe { self.0.byte_add(0x94).cast::<Option<MatchPlace>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::replay_options_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -21749,6 +21782,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn args(machine: &impl Machine) -> Option<CoreLoadRawArgs> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(CoreLoadRawArgs)
+        }
+    }
+
+    /// hud.setup_profiles (0x2362c9): game_world_ui::initialize_match before its root.setup_player_profiles (the pushes and the call to 0x2362E9), with the kits of the local place (of place 0 in a spectator's game): a spectator's game skips them, ESI zero as the skipped xor leaves it
+    pub mod hud_setup_profiles {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::setup_profiles_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SetupProfilesFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(SetupProfilesFrame)
         }
     }
 }
