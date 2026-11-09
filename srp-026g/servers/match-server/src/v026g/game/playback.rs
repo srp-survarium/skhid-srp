@@ -28,7 +28,7 @@
 
 use std::path::Path;
 
-use replay_control::{
+use replay_control::{ITEMS_PER_KIT, KitsNote,
     EVENTS_PER_NOTE, Event as TimelineEvent, EventKind, EventsNote, MatchMs, Op, Playback as Note,
     Request, Speed,
 };
@@ -39,7 +39,8 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use session::v026g::replay_watch::{DEFAULT_MAX_RECORDING_MB, WatchFrom, WatchRequest};
 use session::v026g::replays::{Refusal, ReplayId, Replays, Status};
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
-use survarium::v026g::match_msgs::static_info::{self, NO_LOCAL_PLACE, StaticInfo};
+use survarium::v026g::match_msgs::players::{self, PlayerState};
+use survarium::v026g::match_msgs::static_info::{self, KIT_USABLE, MatchProfile, NO_LOCAL_PLACE, StaticInfo};
 use survarium::v026g::match_msgs::{
     ClientMessage, PlayerInput, WireTime, mask_bytes, parse_client,
 };
@@ -83,6 +84,8 @@ pub(crate) struct Recording {
     /// whose deaths a player's are.
     accounts: Vec<Option<u32>>,
     revisions: Vec<Option<u8>>,
+    /// Each place's kits used, for the viewer's kit view.
+    kits: Vec<PlaceKits>,
     /// The key frames, in time order.
     worlds: Vec<Snapshot>,
     /// In time order.
@@ -166,8 +169,17 @@ impl Recording {
             return Err("no key frame".into());
         }
         let countdown_end = countdown_end(&worlds, &options);
+        let picks: Vec<(usize, u8)> = inputs
+            .iter()
+            .filter_map(|(_, player, what)| match what {
+                Relayed::Profile { value, .. } => Some((*player, *value)),
+                Relayed::Input(_) => None,
+            })
+            .collect();
+        let kits = used_kits(&options.players, &first_kits(&worlds, &options.players), &picks, dictionary);
         Ok(Self {
             match_id,
+            kits,
             timeline: Vec::new(),
             deaths: Vec::new(),
             info,
@@ -672,6 +684,21 @@ impl Playback {
                     break;
                 }
             }
+            // Each place's kits used: the viewer's kit view.
+            let mut buffer = [0; KITS_NOTE_ROOM];
+            for place in &self.recording.kits {
+                let names: Vec<(u8, Vec<&[u8]>)> = place
+                    .kits
+                    .iter()
+                    .map(|(kit, items)| (*kit, items.iter().map(|name| name.as_bytes()).collect()))
+                    .collect();
+                let kits: Vec<(u8, &[&[u8]])> = names.iter().map(|(kit, items)| (*kit, items.as_slice())).collect();
+                if let Some(len) = KitsNote::encode(place.place, &kits, &mut buffer) {
+                    self.spectator.note(&buffer[..len]);
+                } else {
+                    log::warn!("Replay: place {}'s kits do not fit their note", place.place);
+                }
+            }
         }
         self.told = Some(note);
     }
@@ -878,6 +905,86 @@ fn read(
         }
     }
     Ok(recording)
+}
+
+/// A kits note's room: three kits of [`ITEMS_PER_KIT`] items of the longest name.
+const KITS_NOTE_ROOM: usize = 4 + 3 * (2 + ITEMS_PER_KIT * (1 + replay_control::ITEM_NAME_MAX));
+
+/// A place's kits used in the match, by number, with their items' names (the viewer's kit view).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PlaceKits {
+    place: u8,
+    kits: Vec<(u8, Vec<String>)>,
+}
+
+/// Each place's starting kit: the kit its player object has in the first key frame that holds it
+/// (`current_index`, players.rs). None for a place in no key frame the parser reads.
+fn first_kits(worlds: &[Snapshot], profiles: &[MatchProfile]) -> Vec<Option<u8>> {
+    let mut first = vec![None; profiles.len()];
+    for world in worlds {
+        let Some(blocks) = players::blocks(&world.body) else {
+            continue;
+        };
+        for block in blocks {
+            let place = usize::from(block.place);
+            let Some(profile) = profiles.get(place) else {
+                continue;
+            };
+            if first[place].is_none() {
+                first[place] = PlayerState::read(block.state, profile.items.len()).map(|head| head.current_index);
+            }
+        }
+        if first.iter().all(Option::is_some) {
+            break;
+        }
+    }
+    first
+}
+
+/// The kits each place used: the kit it started with and every kit it picked (an accepted kit
+/// choice, `event.profiles`), as the history counts a kit used, never another. A kit the
+/// profile cannot play is left out; a place with no used kit has no entry. The item names,
+/// in the kit's order and once each, are those a kits note carries.
+fn used_kits(
+    profiles: &[MatchProfile],
+    first: &[Option<u8>],
+    picks: &[(usize, u8)],
+    dictionary: &Dictionary,
+) -> Vec<PlaceKits> {
+    let mut out = Vec::new();
+    for (place, profile) in profiles.iter().enumerate() {
+        let picked = picks.iter().filter(|(player, _)| *player == place).map(|(_, kit)| *kit);
+        let kits: std::collections::BTreeSet<u8> = first.get(place).copied().flatten().into_iter().chain(picked).collect();
+        let mut used = Vec::new();
+        for number in kits {
+            let Some(kit) = profile.kits.get(usize::from(number)).filter(|kit| kit.state == KIT_USABLE) else {
+                continue;
+            };
+            let mut names: Vec<String> = Vec::new();
+            for &(item, count) in kit.slots.iter().flatten() {
+                if count == 0 {
+                    continue;
+                }
+                let name = profile
+                    .items
+                    .get(usize::from(item))
+                    .and_then(|item| dictionary.item(item.dict_id))
+                    .map(|item| item.name.clone())
+                    .filter(|name| replay_control::is_item_name(name.as_bytes()));
+                if let Some(name) = name
+                    && !names.contains(&name)
+                    && names.len() < ITEMS_PER_KIT
+                {
+                    names.push(name);
+                }
+            }
+            used.push((number, names));
+        }
+        if !used.is_empty() {
+            out.push(PlaceKits { place: place as u8, kits: used });
+        }
+    }
+    out
 }
 
 /// A session's recording read: its game not here yet.
@@ -1219,5 +1326,84 @@ impl ReplayWatch {
             .values()
             .find(|playback| playback.spectator.session_id() == session_id)
             .map(|playback| playback.position(now))
+    }
+}
+
+#[cfg(test)]
+mod kit_tests {
+    use super::*;
+    use survarium::dictionary::PROFILE_SLOTS;
+    use survarium::v026g::match_msgs::static_info::{MatchItem, MatchKit};
+    use survarium::v026g::skills::MODIFIERS;
+
+    /// A profile of three kits, each holding the dictionary's item at `dict_ids[n]`, and a fourth kit slot unused.
+    fn profile(dict_ids: [u16; 3]) -> MatchProfile {
+        let items = dict_ids
+            .iter()
+            .enumerate()
+            .map(|(at, &dict_id)| MatchItem {
+                instance_id: at as u32 + 1,
+                dict_id,
+                condition_or_stack: 1,
+                repair_time: 0,
+                reroll_time: 0,
+                modifications: Vec::new(),
+                upgrades: Vec::new(),
+            })
+            .collect();
+        let kit = |item: u16, state: u8| {
+            let mut slots = [None; PROFILE_SLOTS];
+            slots[0] = Some((item, 1));
+            MatchKit { state, id: u32::from(item) + 1, name: String::new(), slots, modifiers: [0.0; MODIFIERS] }
+        };
+        MatchProfile {
+            team: 0,
+            name: "p".into(),
+            clan_tag: String::new(),
+            protection: 0,
+            kits: vec![kit(0, KIT_USABLE), kit(1, KIT_USABLE), kit(2, 2)],
+            items,
+            squad: 0,
+        }
+    }
+
+    fn dict_with_names() -> (&'static Dictionary, [u16; 3], [String; 3]) {
+        let dictionary = Dictionary::shared();
+        let mut named = dictionary.items.iter().filter(|item| replay_control::is_item_name(item.name.as_bytes()));
+        let mut next = || named.next().expect("an item with a plain name");
+        let (a, b, c) = (next(), next(), next());
+        (dictionary, [a.dict_id, b.dict_id, c.dict_id], [a.name.clone(), b.name.clone(), c.name.clone()])
+    }
+
+    #[test]
+    fn only_the_starting_and_picked_kits_are_used_and_a_locked_kit_is_never_shown() {
+        let (dictionary, ids, names) = dict_with_names();
+        let profiles = [profile(ids), profile(ids)];
+        // Place 0 started in kit 0 and picked 1 and the locked 2; place 1 started in 1, no picks.
+        let used = used_kits(&profiles, &[Some(0), Some(1)], &[(0, 1), (0, 2), (0, 1)], dictionary);
+        assert_eq!(used.len(), 2);
+        assert_eq!(used[0], PlaceKits { place: 0, kits: vec![(0, vec![names[0].clone()]), (1, vec![names[1].clone()])] });
+        assert_eq!(used[1], PlaceKits { place: 1, kits: vec![(1, vec![names[1].clone()])] });
+    }
+
+    #[test]
+    fn a_place_unseen_and_without_picks_has_no_entry() {
+        let (dictionary, ids, _) = dict_with_names();
+        let profiles = [profile(ids)];
+        assert_eq!(used_kits(&profiles, &[None], &[], dictionary), vec![]);
+    }
+
+    #[test]
+    fn the_note_of_a_recordings_kits_parses() {
+        let (dictionary, ids, names) = dict_with_names();
+        let used = used_kits(&[profile(ids)], &[Some(1)], &[], dictionary);
+        let items: Vec<&[u8]> = used[0].kits[0].1.iter().map(|name| name.as_bytes()).collect();
+        let mut room = [0; KITS_NOTE_ROOM];
+        let len = KitsNote::encode(used[0].place, &[(used[0].kits[0].0, items.as_slice())], &mut room).unwrap();
+        let Some(replay_control::ServerNote::Kits(note)) = replay_control::ServerNote::parse(&room[..len]) else {
+            panic!();
+        };
+        let kit = note.kits().next().unwrap();
+        assert_eq!((note.place, kit.kit, kit.items().next()), (0, 1, Some(names[1].as_bytes())));
     }
 }

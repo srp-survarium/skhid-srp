@@ -249,7 +249,7 @@ fn notes(client: &Client) -> Vec<(u8, bool, Speed)> {
         .iter()
         .filter_map(|payload| match ServerNote::parse(payload)? {
             ServerNote::Playback(note) => Some((note.revision, note.paused, note.speed)),
-            ServerNote::Events(_) | ServerNote::View(_) => None,
+            ServerNote::Events(_) | ServerNote::View(_) | ServerNote::Kits(_) => None,
         })
         .collect()
 }
@@ -860,7 +860,7 @@ fn events_noted(client: &Client) -> Vec<(u16, u16, Vec<replay_control::Event>)> 
                 note.total,
                 note.events().filter_map(|(_, event)| event).collect(),
             )),
-            ServerNote::Playback(_) | ServerNote::View(_) => None,
+            ServerNote::Playback(_) | ServerNote::View(_) | ServerNote::Kits(_) => None,
         })
         .collect()
 }

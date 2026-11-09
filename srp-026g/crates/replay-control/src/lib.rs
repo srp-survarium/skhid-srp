@@ -20,7 +20,11 @@
 //!     the [`EventsNote`], the events `first..` of the replay's `total`;
 //!   - `52 03 place`, [`ServerNote::View`]: the place the watcher asked to
 //!     see, once its game has its first world (a replay's or a live match's
-//!     spectator); the game follows it.
+//!     spectator); the game follows it;
+//!   - `52 04 place count`, then `count` kits of `kit items` and each item's
+//!     `len name`: the [`KitsNote`], the kits a place used in the replay,
+//!     for the viewer's read-only kit view. The names are the items' own
+//!     (`st_<name>_name` the game's translation of each).
 //! - Game -> server, an 0xE0 (reliable and plain: it is resent every 500 ms
 //!   until acked, and may come twice or late), a [`Request`]:
 //!   [`REQUEST_HEAD`] then `seq op value:u32` (14 bytes). The game's
@@ -150,6 +154,7 @@ pub struct Playback {
 const PLAYBACK: u8 = 1;
 const EVENTS: u8 = 2;
 const VIEW: u8 = 3;
+const KITS: u8 = 4;
 
 impl Playback {
     /// Its bytes after the message's id.
@@ -293,11 +298,129 @@ impl<'a> EventsNote<'a> {
     }
 }
 
+/// The most kits one [`KitsNote`] names: a player's three.
+pub const KITS_PER_NOTE: usize = 3;
+/// A kit's number: `0..KITS_PER_NOTE`.
+pub const KIT_NUMBERS: u8 = KITS_PER_NOTE as u8;
+/// The most items one kit lists.
+pub const ITEMS_PER_KIT: usize = 32;
+/// The longest item name a note carries.
+pub const ITEM_NAME_MAX: usize = 48;
+
+/// An item name as a note carries it: 1 to [`ITEM_NAME_MAX`] of ASCII letters, digits, `_` and `-`
+/// (what makes a dictionary key, `st_<name>_name`, and nothing else).
+pub fn is_item_name(name: &[u8]) -> bool {
+    (1..=ITEM_NAME_MAX).contains(&name.len())
+        && name.iter().all(|&b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// One kit a place used, read from a [`KitsNote`]: its number and its items' names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UsedKit<'a> {
+    pub kit: u8,
+    items: u8,
+    names: &'a [u8],
+}
+
+impl<'a> UsedKit<'a> {
+    /// The items' names, in the kit's order.
+    pub fn items(&self) -> impl Iterator<Item = &'a [u8]> {
+        let mut rest = self.names;
+        (0..self.items).map_while(move |_| {
+            let (&len, tail) = rest.split_first()?;
+            let (name, after) = tail.split_at_checked(usize::from(len))?;
+            rest = after;
+            Some(name)
+        })
+    }
+}
+
+/// The kits a place of the replay used, in the order the note has them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitsNote<'a> {
+    pub place: u8,
+    count: u8,
+    kits: &'a [u8],
+}
+
+impl<'a> KitsNote<'a> {
+    fn parse(body: &'a [u8]) -> Option<KitsNote<'a>> {
+        let (&[place, count], kits) = body.split_first_chunk::<2>()?;
+        if usize::from(count) > KITS_PER_NOTE {
+            return None;
+        }
+        let note = KitsNote { place, count, kits };
+        let mut rest = kits;
+        for _ in 0..count {
+            let (_, tail) = KitsNote::one(rest)?;
+            rest = tail;
+        }
+        rest.is_empty().then_some(note)
+    }
+
+    /// The kit at the front of `bytes`, whole and valid, and what follows it.
+    fn one(bytes: &'a [u8]) -> Option<(UsedKit<'a>, &'a [u8])> {
+        let (&[kit, items], body) = bytes.split_first_chunk::<2>()?;
+        if kit >= KIT_NUMBERS || usize::from(items) > ITEMS_PER_KIT {
+            return None;
+        }
+        let mut rest = body;
+        for _ in 0..items {
+            let (&len, tail) = rest.split_first()?;
+            let (name, after) = tail.split_at_checked(usize::from(len))?;
+            if !is_item_name(name) {
+                return None;
+            }
+            rest = after;
+        }
+        let used = body.len() - rest.len();
+        Some((UsedKit { kit, items, names: &body[..used] }, rest))
+    }
+
+    /// Its kits, in order.
+    pub fn kits(&self) -> impl Iterator<Item = UsedKit<'a>> {
+        let mut rest = self.kits;
+        (0..self.count).map_while(move |_| {
+            let (kit, tail) = KitsNote::one(rest)?;
+            rest = tail;
+            Some(kit)
+        })
+    }
+
+    /// The note of `kits` (a kit's number and its items' names) for `place`, into `out`: its
+    /// length, or `None` when they are not valid or do not fit `out`.
+    pub fn encode(place: u8, kits: &[(u8, &[&[u8]])], out: &mut [u8]) -> Option<usize> {
+        if kits.len() > KITS_PER_NOTE {
+            return None;
+        }
+        let mut len = 0;
+        let mut put = |bytes: &[u8]| -> Option<()> {
+            out.get_mut(len..len + bytes.len())?.copy_from_slice(bytes);
+            len += bytes.len();
+            Some(())
+        };
+        put(&[TAG, KITS, place, kits.len() as u8])?;
+        for (kit, items) in kits {
+            if *kit >= KIT_NUMBERS || items.len() > ITEMS_PER_KIT || !items.iter().all(|name| is_item_name(name)) {
+                return None;
+            }
+            put(&[*kit, items.len() as u8])?;
+            for name in *items {
+                put(&[name.len() as u8])?;
+                put(name)?;
+            }
+        }
+        Some(len)
+    }
+}
+
 /// What the server tells a replay's viewer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ServerNote<'a> {
     Playback(Playback),
     Events(EventsNote<'a>),
+    /// The kits a place used in the replay, for the kit view.
+    Kits(KitsNote<'a>),
     /// The place to follow (a roster place; the game checks it is one).
     View(u8),
 }
@@ -315,6 +438,7 @@ impl<'a> ServerNote<'a> {
         match payload {
             [TAG, PLAYBACK, body @ ..] => Playback::parse(body).map(ServerNote::Playback),
             [TAG, EVENTS, body @ ..] => EventsNote::parse(body).map(ServerNote::Events),
+            [TAG, KITS, body @ ..] => KitsNote::parse(body).map(ServerNote::Kits),
             [TAG, VIEW, place] => Some(ServerNote::View(*place)),
             _ => None,
         }
@@ -407,6 +531,68 @@ mod tests {
         assert_eq!(ServerNote::parse(&bytes), Some(ServerNote::View(7)));
         assert_eq!(ServerNote::parse(&[0x52, 3]), None);
         assert_eq!(ServerNote::parse(&[0x52, 3, 7, 0]), None);
+    }
+
+    #[test]
+    fn kits_go_and_come_back() {
+        let first: &[&[u8]] = &[b"ak74m", b"base_medkit"];
+        let third: &[&[u8]] = &[b"svd"];
+        let mut out = [0; 64];
+        let len = KitsNote::encode(9, &[(0, first), (2, third)], &mut out).unwrap();
+        assert_eq!(out[..4], [0x52, 4, 9, 2]);
+        let Some(ServerNote::Kits(note)) = ServerNote::parse(&out[..len]) else { panic!() };
+        assert_eq!(note.place, 9);
+        let mut kits = note.kits();
+        let kit = kits.next().unwrap();
+        assert_eq!(kit.kit, 0);
+        let names: [&[u8]; 2] = {
+            let mut it = kit.items();
+            [it.next().unwrap(), it.next().unwrap()]
+        };
+        assert_eq!(names, [&b"ak74m"[..], &b"base_medkit"[..]]);
+        let last = kits.next().unwrap();
+        assert_eq!((last.kit, last.items().next(), last.items().count()), (2, Some(&b"svd"[..]), 1));
+        assert!(kits.next().is_none());
+    }
+
+    #[test]
+    fn no_kits_is_a_note() {
+        let mut out = [0; 8];
+        let len = KitsNote::encode(1, &[], &mut out).unwrap();
+        let Some(ServerNote::Kits(note)) = ServerNote::parse(&out[..len]) else { panic!() };
+        assert_eq!(note.kits().count(), 0);
+    }
+
+    #[test]
+    fn a_wrong_kits_note_is_refused() {
+        let items: &[&[u8]] = &[b"pm"];
+        let mut out = [0; 32];
+        let len = KitsNote::encode(1, &[(1, items)], &mut out).unwrap();
+        let good = out;
+        let reject = |bytes: &[u8]| assert_eq!(ServerNote::parse(bytes), None, "{bytes:?}");
+        // Cut short, a byte more, four kits, kit number 3, more items than it has, a name's length past the end.
+        reject(&good[..len - 1]);
+        reject(&[&good[..len], &[0][..]].concat());
+        reject(&[0x52, 4, 1, 4]);
+        let mut wrong = good;
+        wrong[4] = 3;
+        reject(&wrong[..len]);
+        let mut wrong = good;
+        wrong[5] = 2;
+        reject(&wrong[..len]);
+        let mut wrong = good;
+        wrong[6] = 9;
+        reject(&wrong[..len]);
+        // A name that is no name: empty, a space, too long.
+        for bad in [&b""[..], b"a b", &[b'x'; ITEM_NAME_MAX + 1]] {
+            let names: &[&[u8]] = &[bad];
+            assert_eq!(KitsNote::encode(0, &[(0, names)], &mut [0; 128]), None, "{bad:?}");
+        }
+        assert!(!is_item_name(b"st_a-b\0"));
+        // Encoding refuses what the parser would.
+        assert_eq!(KitsNote::encode(0, &[(3, items)], &mut out), None);
+        assert_eq!(KitsNote::encode(0, &[(0, items); 4], &mut out), None);
+        assert_eq!(KitsNote::encode(0, &[(0, items)], &mut [0; 3]), None);
     }
 
     #[test]
