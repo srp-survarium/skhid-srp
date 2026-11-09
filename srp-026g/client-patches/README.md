@@ -4951,3 +4951,59 @@ the build of main with it against the same build with 8 MiB): 52 or 53 stacks of
 against 3085 MiB. Three of four loads clean; the fourth filled the multithreaded arena 17 s after
 Play, as one of the two loads with 8 MiB did. Not run on native Windows, nor with a replay, a late
 join, the death camera or another map.
+
+## The multithreaded arena: at least 1024 MiB (patch 129, unreleased)
+
+In the bake-stress load (one headless client, 19 bots in live players' gear, map 61, an empty
+`streamed_textures`, about 780 bakes) the global multithreaded arena (768 MiB, patch 37) filled 17 s
+after Play in 2 of 6 loads, 795 and 800 of 805 MB used, `not enough memory for arena [global mt
+allocator]`, with 8 MiB stacks and with 2 MiB ones. The memory profiler (patch 127, not merged) saw
+it peak at 760 of 768 MiB in one such load, mostly one 410 MiB transient block from
+`query_result::finish_translated_query`. Patch 128 freed about 312 MiB of peak address space; this
+patch spends 256 of it on that arena.
+
+**The patch** (`MT_ARENA` in `patch_026g.py`, the builds with the late join): three immediates.
+
+- `memory::preinitialize` (0xE0F20) presets the u32 that `is_set_as_number<u32>` (0x141B0) writes
+  the key `mt_allocator` (0xA80150) to: `mov dword [esp+10h],1000000h` at 0xE0FFA. Without the key
+  the code added 360 MiB to that preset (patch 37: 752); with it, `shl esi,14h`. The preset
+  becomes 400h (1024) and the two branches (0xE100B..0xE1019) one floor: `mov eax,400h` /
+  `cmp esi,eax` / `cmovb esi,eax` / `shl esi,14h`. No key or a key that is no number: 1024 MiB; a
+  value under 1024: 1024; a larger one: itself.
+- `platform::allocate_arenas` (0xE9580) counts (threads x 2 + 8) x 8 MiB of engine-thread stacks
+  into "engine(fixed)" (`mov ecx,800000h` at 0xE98C6) before it sizes the resource arenas and the
+  video budget from the address space left. The 8 MiB becomes patch 128's `THREAD_STACK_MIB` (2):
+  the budget counts the stacks there are. Without it the 256 MiB would come out of the video budget
+  everywhere; with it the budget is higher than before on 18 or more threads, and lower by at most
+  256 - 6 x (2 x threads + 8) MiB on fewer, which start from a budget higher by the same smaller
+  term (here, 24 threads: 1643 -> 1723 MiB). It also takes the start's "Not enough memory" check
+  away from very large CPUs (64 threads counted 1088 MiB there).
+
+**The one owner of the number** is the exe (`MT_ARENA_MIB`). No launch line passes `-mt_allocator`
+any more (the launcher's arguments, the Linux and macOS scripts, `play_skhid.bat`, the updater's
+replay, `Skhid-without-updater.bat`, the local clients); they keep
+`-minimum_resources_memory_size=768`. A launcher or a script of before still passes
+`-mt_allocator=768`, which the floor raises to 1024: a new exe gets 1024 MiB with any launcher, an
+old exe (patch 37) 768 MiB with any, as today. A cert-only build (no patch 37 either) gets the
+retail 376 MiB without the key; it is no players' build.
+
+**The video budget** (u64 0x1B3A1F8, the startup dump's "video memory stats for engine") is not
+reserved: it is the address space the engine leaves for the driver. The render gets it at its
+creation (engine_world 0x15574 -> render::world -> render::engine::world 0x117820 -> device+1B0h
+and resource_manager+10h) and reads it only against thresholds: above 1 GiB or not (the automatic
+level 2 or 3, e.g. 0x1C96E0, 0x190508, 0x19377B, 0x11AB9C), 640 MiB and 1 GiB (512, 1024 or 2048,
+0x3CF260), and in the statistics (MiB, 0x13D766). 1643 or 1723 MiB is above both.
+
+Nothing a match computes. `check_memory_defaults_026g.py` runs the key's read to the size stored
+in both exes (absent, not a number, 256 to 1536, 2048) and the stack term for 4 to 64 threads
+(8 MiB a stack in the original, 2 in the build). The self-test's default-build variant passes.
+
+Run in the bake-stress rig (2026-11-09, under Wine/DXVK, 24 threads, main + this patch): 6 of 6
+loads clean, about 5 minutes in the match each; 3 with the launch line without the key, 3 with the
+old `-mt_allocator=768`; all 6 logged the arena at 1 073 741 824 bytes, the engine's arenas at
+2 339 110 904 bytes (+256 MiB), the resource arenas 512 + 256 MiB, the video budget 1806.5 to
+1806.8 MB (1723 MiB, from 1643). The arena's touched extent peaked at 558 to 816 MiB (816 is past
+the old arena's end), the address space mapped below 4 GiB at 3001 to 3037 MiB (2757 to 2773 with
+768 MiB, 3085 before patch 128). With 1024 MiB a 760 MiB peak has 264 MiB to spare; the 410 MiB
+transient needs one hole of its size, so two at once would not fit. Not run on native Windows, nor
+with a replay, a late join or another map.
