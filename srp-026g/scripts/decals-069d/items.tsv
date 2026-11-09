@@ -1,9 +1,14 @@
-# The decals and the camouflage of the owner's pick from 0.69d (2026-10-22), in the owner's order.
-# dict_id: 0.26g's (the next free after 1823; 0.69d's own ids clash with the scopes, 2001-2468).
+# The decals and the camouflage of the owner's picks from 0.69d, in the owner's order: 2026-10-22
+# (1824-1862, version 1) and 2026-11-08 (1884-1893, version 2).
+# dict_id: 0.26g's (the next free after 1823, then after 1883; 0.69d's own ids clash with the scopes,
+# 2001-2468).
 # kind: flag (premium, 300 gold, as 0.26g's 4_x flags), holiday (premium, 300 gold; a 0.69d event
-# decal), drop (dropped, 1,000 silver, as 0.26g's 3_x decals), camo (premium camouflage, 300 gold).
+# or premium decal, prm_decl), drop (dropped, 1,000 silver, as 0.26g's 3_x decals), badge (sold for
+# 50,000 silver by seller 0 at no rank, never dropped, as 0.26g's unl_decl badges; 0.69d's
+# achievement awards, unl_decl there too), camo (premium camouflage, 300 gold).
 # icon: [row, col] of the lobby's atlas (decals: LobbyMenu_DecalsIcons, 82x82, cells free in
-# revision 27's movie; the camouflage: [2, 7] of LobbyMenu_CamoIcons and LobbyMenu_CamoIconsBig).
+# revision 27's movie, then in the live one, patch 51's; the camouflage: [2, 7] of
+# LobbyMenu_CamoIcons and LobbyMenu_CamoIconsBig).
 # dict_id	069d_dict_id	069d_name	kind	row	col	english (the owner's word)
 1824	2041	char_decal_7_9	holiday	1	9	Herbs
 1825	2157	char_decal_7_27	holiday	1	10	Clover ornament
@@ -44,3 +49,13 @@
 1860	2070	char_decal_4_75	flag	2	41	Wales
 1861	2069	char_decal_4_74	flag	2	42	South Africa
 1862	840	camo_steam	camo	2	7	Steam camo
+1884	2042	char_decal_7_10	holiday	1	12	Matchsticks
+1885	2114	char_decal_7_23	holiday	1	13	Heart
+1886	2115	char_decal_7_24	holiday	1	14	Frightening Pumpkin
+1887	2162	char_decal_7_30	holiday	1	15	Homing pigeon
+1888	2163	char_decal_7_31	holiday	1	16	Victory
+1889	2193	char_decal_7_35	holiday	1	17	Bloody Hand
+1890	2195	char_decal_7_37	holiday	1	18	The Keeper
+1891	762	char_decal_1_9	badge	3	23	Musician
+1892	903	char_decal_1_10	badge	3	24	Boar hunter
+1893	904	char_decal_1_11	badge	3	25	Deer hunter

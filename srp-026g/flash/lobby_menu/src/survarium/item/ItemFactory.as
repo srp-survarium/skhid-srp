@@ -8,6 +8,7 @@ package survarium.item
    import survarium.data.ItemData;
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
+   import survarium.data.ModificationValues;
    import survarium.data.PropertiesDescriptor;
    import survarium.interfaces.IItemFactory;
    import survarium.upgrade.UpgradeWindow;
@@ -191,16 +192,24 @@ package survarium.item
       
       // The bonuses srp gives a new golden item as its own first modifications
       // (golden::starting_modifications), as the exe gives the movie a modification ({state, icon,
-      // name, props} from its ui_desc; the name is unused for a modification): [id, icon, prop_id,
-      // prop_value] a line. A test holds these to the data (survarium::v026g::golden::tests).
+      // name, props} from its ui_desc; the name is unused for a modification): [id, icon, prop_id] a
+      // line, its value the game's own (bonusValue: scripts/content-edit/modifications.tsv, the one
+      // place it is written). A test holds these to the data (survarium::v026g::golden::tests).
       public static const BONUS_UI:Array = [
-         [1230,66,126,"0.10"], // +10 % silver
-         [1240,65,127,"0.05"], // +5 % experience
-         [1250,67,128,"0.05"], // +5 % reputation with the Scavengers
-         [1260,68,129,"0.05"], // +5 % reputation with the Black Market
-         [1270,69,130,"0.05"], // +5 % reputation with the Renaissance Army
-         [1280,70,131,"0.05"] // +5 % reputation with the Fringe Settlers
+         [1230,66,126], // silver
+         [1240,65,127], // experience
+         [1250,67,128], // reputation with the Scavengers
+         [1260,68,129], // reputation with the Black Market
+         [1270,69,130], // reputation with the Renaissance Army
+         [1280,70,131] // reputation with the Fringe Settlers
       ];
+      
+      // A BONUS_UI row's value, its card line's text: the modification's value (ModificationValues,
+      // made by the build from modifications.tsv), two decimals as the game's own rows (0.20).
+      public static function bonusValue(row:Array) : String
+      {
+         return Number(ModificationValues.value[String(row[0])]).toFixed(2);
+      }
       
       public static const SILVER_BONUS:int = 1230;
       
@@ -217,7 +226,7 @@ package survarium.item
                   icon:row[1],
                   props:[{
                      prop_id:row[2],
-                     prop_value:row[3]
+                     prop_value:bonusValue(row)
                   }]
                };
             }

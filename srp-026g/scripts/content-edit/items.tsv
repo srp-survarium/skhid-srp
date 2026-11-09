@@ -193,7 +193,7 @@ items	name	base_cost	premium	like	start
 218	ammo_7.62x39_7n23	40	false		
 219	rdg-m	50	false		
 220	a_545	85500	false		
-221	decals_1_1	1000000	false		
+221	decals_1_1	50000	false		
 222	rpk	69300	false		
 223	camo_cyfra_03_camo	100000	true		
 224	camo_izlom	50000	true		
@@ -203,7 +203,7 @@ items	name	base_cost	premium	like	start
 228	camo_spekrt_03	150000	true		
 229	camo_ucp	100000	true		
 230	camo_vsr	50000	true		
-231	decals_1_2	1000000	false		
+231	decals_1_2	10000000	false		
 232	decals_1_3	1000000	false		
 233	decals_1_4	1000000	false		
 234	decals_1_5	1000000	false		
@@ -591,6 +591,16 @@ items	name	base_cost	premium	like	start
 1881	eq069_snow_20_boots_7	16630	false		
 1882	eq069_league_shadow_mask	23630	false		
 1883	eq069_snow_20_helmet_7	39080	false		
+1884	decals_7_10	30000	true		
+1885	decals_7_23	30000	true		
+1886	decals_7_24	30000	true		
+1887	decals_7_30	30000	true		
+1888	decals_7_31	30000	true		
+1889	decals_7_35	30000	true		
+1890	decals_7_37	30000	true		
+1891	decals_1_9	50000	false		
+1892	decals_1_10	50000	false		
+1893	decals_1_11	50000	false		
 1901	fit_pso1_gip	0	false		
 1902	fit_pso1_rem	0	false		
 1903	fit_pso1_mosin	0	false		

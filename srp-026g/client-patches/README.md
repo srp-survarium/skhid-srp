@@ -133,7 +133,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
-| `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
+| `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MenuChange`, `CursorMovie`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); five lohooks, at initialize_match's start, show_cursor's show and hide and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
 | `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper gets a dormant artefact of the match's kind from the map's hidden pool at the match's start, into its first empty container, once a match: register_artefacts 0x31B8E0, the player's tick 0x2DAAD3); their checks run the game's code for each (needs Unicorn) |
 | `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
@@ -4618,17 +4618,38 @@ The owner's two reports (2026-11-06), both before a match's start, with the kits
   `HUD.reset`, which initialize_match invokes at 0x234AE8, hides its kits too
   (`show_profiles_selector(false)`, as its constructor). The match's first showing of the kits is
   then a whole one, with the right tab.
-- `options.activate` (0x200F50): over a running match (the game world active, +D4h) with the hud's
-  cursor shown, its movie is taken off (base_game_scene::hide_movie 0x23DC70; the renderer takes
-  out every copy and does nothing with none).
+- `options.activate` (0x200F50): a closed menu about to be shown with the hud's cursor shown
+  (+2DCh), in a match or not, takes its movie off (base_game_scene::hide_movie 0x23DC70). activate
+  returns at once when the menu is shown already (0x200F62), and so does the patch.
 - `hud.cursor_movie` (0x23A992): while the menu is shown, `show_cursor(1)` (a death under the menu,
   the kits again) writes its flag but does not show the movie.
-- `options.deactivate` (0x201040): a shown menu closing over a running match with the hud's cursor
-  shown puts the movie back (show_movie 0x23DC00). A match's end clears +D4h before it closes the
-  menu (0x1F952B, 0x1F956D), so nothing comes back then; the lobby's menu has no running match.
+- `hud.cursor_hide` (0x23A9B0): while the menu is shown, `show_cursor(0)` (a spawn under the menu,
+  the next match's start) writes its flag but does not take off the movie, which is not there.
+- `options.deactivate` (0x201040): a shown menu about to close with the hud's cursor shown puts the
+  movie back (show_movie 0x23DC00), over a running match and at its end alike (a match's end clears
+  +D4h, then closes the menu: 0x1F952B, 0x1F956D).
 
-The hud's flag is the game's throughout, so the mouse goes where it went. Nothing a match computes.
-Checked with `check_hud_cursor_026g.py`, `cargo test` and clippy. Not run in a game.
+So the hud's cursor movie is in the game world's scene exactly when +2DCh is set and the menu is
+closed, as in the original without the menu. The hud's flag is the game's throughout, so the mouse
+goes where it went. Nothing a match computes. Checked with `check_hud_cursor_026g.py` (each site
+against the original, and the game's orders of calls on a scene's movie list), `cargo test` and
+clippy. Not run in a game.
+
+**The crash it had (rev51 to rev54, exe+0x14EE8D).** The first build took the movie off only over a
+running match and put it back only over one, so a match that ended under the menu (Esc over the
+kits or the death screen, then Leave, or the match's end) left +2DCh set with the movie off the
+scene; under the menu, show_cursor(1) set the flag without the movie, and show_cursor(0) ran the
+stock hide. So the next `show_cursor(0)` after a match's end (the next match's `initialize_match`)
+or under the menu (a spawn, the start of play) took off a movie the scene did not hold. The scene's remove_movie (inlined in world::hide_movie 0x118FE0, as 0.21d's
+scene_view::remove_movie) erases what std::find (0x3C5510) returns, and for a movie not there that
+is the end: buffer_vector::erase (0x15EE30) then copies from end+1 until it meets the end, which it
+never does, and writes through the list's inline buffer until it meets a word that is not a pointer
+(write to 0x17789 live on rev52, 2026-11-07; to 0x2A2 locally on rev54, 2026-11-09). Both on the
+render thread at dispatch_callbacks (0x1024F3), about 0.2 s after a match's players were made. The
+local full dump: the scene (game world +8, 0x41194868) holds the hud movie and the player icons
+(begin 0x411B25A4, end 0x411B25AC, buffer of 32), the command's movie is the hud's cursor movie
+(hud +0Ch, 0x7C1214D8), +2DCh is 0 (the hide had run); the server log has that game leave the match
+before its start "by its own word" (the menu's Leave), then its next match's load.
 
 ## A ban's reason and end on the sign-in screen (patch 116, unreleased)
 

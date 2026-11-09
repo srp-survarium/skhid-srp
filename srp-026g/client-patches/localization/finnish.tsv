@@ -594,6 +594,8 @@ st_change_quest_label	Vaihda tehtävä
 st_change_weapon_speed_description	Aseenvaihdon nopeus:
 st_change_weapon_speed_name	Näppärät kädet
 st_character	Hahmo
+st_character_decals_1_10_name	Villisikametsästäjä
+st_character_decals_1_11_name	Peuranmetsästäjä
 st_character_decals_1_12_name	Jarilo
 st_character_decals_1_1_name	Kirjailija
 st_character_decals_1_2_name	Alfa-ryhmä
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veteraani
 st_character_decals_1_6_name	Mestari
 st_character_decals_1_7_name	Legenda
 st_character_decals_1_8_name	Siivekkäät husaarit
+st_character_decals_1_9_name	Muusikko
 st_character_decals_2_1_name	Haaskaajien tulokas
 st_character_decals_2_2_name	Haaskaajien veteraani
 st_character_decals_2_3_name	Mustan pörssin alokas
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Liettuan vaakuna
 st_character_decals_5_7_name	Liettuan vaakuna
 st_character_decals_5_8_name	Viron vaakuna
 st_character_decals_5_9_name	Moldovan vaakuna
+st_character_decals_7_10_name	Tulitikut
+st_character_decals_7_23_name	Sydän
+st_character_decals_7_24_name	Pelottava kurpitsa
 st_character_decals_7_27_name	Apilakoriste
 st_character_decals_7_28_name	Hevosenkenkä
+st_character_decals_7_30_name	Kirjekyyhky
+st_character_decals_7_31_name	Voitto
+st_character_decals_7_35_name	Verinen käsi
+st_character_decals_7_37_name	Vartija
 st_character_decals_7_9_name	Yrtit
 st_character_decals_generic_desc	Vaihda liivien ja housujen ulkoasua niiden ikkunan merkeillä.
 st_characteristics_label	Pelaajatilastot

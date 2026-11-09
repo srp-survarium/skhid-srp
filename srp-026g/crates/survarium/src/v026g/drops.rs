@@ -802,4 +802,40 @@ mod tests {
             assert!(pool.iter().any(|candidate| candidate.dict_id == item.dict_id), "{name}");
         }
     }
+
+    /// decals-069d's three badges on game data with the pack
+    /// (`SRP_GAME_DATA`: `release/build-content`'s server-game-data.db with
+    /// decals-069d@2): sold for 50,000 silver by seller 0 at no rank (the
+    /// owner, 2026-11-08), and no table drops them. It makes that data the
+    /// process's: run it alone.
+    #[test]
+    #[ignore = "needs game data with decals-069d@2 (SRP_GAME_DATA); run alone"]
+    fn the_069d_badges_are_sold_by_seller_0_and_never_dropped() {
+        use super::super::{game_data, prices};
+        let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
+        game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
+        let dictionary = Dictionary::shared();
+        let drops = Drops::shared();
+        let tables = [&drops.generic, &drops.new_player, &drops.drop_card];
+        for (name, dict_id) in [("decals_1_9", 1891), ("decals_1_10", 1892), ("decals_1_11", 1893)] {
+            let item = dictionary.item_named(name).unwrap_or_else(|| panic!("no {name}"));
+            let params = item_params(item.dict_id).unwrap();
+            assert_eq!(item.dict_id, dict_id, "{name}");
+            assert!(prices::is_badge(item, params), "{name}");
+            assert_eq!(prices::sellers_of(dictionary, item, params), [(0, 0)], "{name}");
+            let listed: Vec<_> = prices::price_list()
+                .iter()
+                .filter(|record| record.dict_id == dict_id)
+                .map(|record| (record.faction_id, record.level, record.cost))
+                .collect();
+            assert_eq!(listed, [(0, 0, 50_000)], "{name}");
+            assert_eq!(params.drop_weight, 0, "{name}");
+            for table in tables {
+                for level in 0..=15 {
+                    let pool = table.nearest_candidates(dictionary, item.category, level);
+                    assert!(pool.iter().all(|candidate| candidate.dict_id != dict_id), "{name}");
+                }
+            }
+        }
+    }
 }

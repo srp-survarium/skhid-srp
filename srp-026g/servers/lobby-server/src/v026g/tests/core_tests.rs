@@ -3343,7 +3343,7 @@ fn a_nickname_is_checked_and_changed() {
 
 /// No tutorial (`session::v026g::tutorial`): a new account is told every
 /// step is done, so its client runs none of it, and starts with 30 000
-/// silver (the table's 15 000 and its 150 gold in silver), level 15, the ammo and the starter kit
+/// silver (the table's), level 15, the ammo and the starter kit
 /// (`tutorial::tests`); a step a client sends anyway is not answered.
 #[test]
 fn a_new_account_has_no_tutorial_and_what_it_paid() {
@@ -3368,7 +3368,21 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
             (item.dict_id, ids)
         })
         .collect();
-    assert_eq!(held, [(43, vec![1183]), (42, vec![1133])]);
+    // The respirator and the gloves; the Keeper set (198-202) and the AK-12
+    // (363) with the modifications of their own (#1520's new-account.tsv).
+    assert_eq!(
+        held,
+        [
+            (43, vec![1183]),
+            (42, vec![1133]),
+            (202, vec![1004, 1064]),
+            (200, vec![1064]),
+            (199, vec![1064, 1124]),
+            (201, vec![1004, 1064, 1084]),
+            (198, vec![1004, 1064]),
+            (363, vec![2064, 2084, 2074]),
+        ]
+    );
     assert_eq!(
         world.client(alice).model.inventory().len(),
         world.account(alice).inventory.len()

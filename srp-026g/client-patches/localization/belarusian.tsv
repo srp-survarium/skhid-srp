@@ -594,6 +594,8 @@ st_change_quest_label	Змяніць заданне
 st_change_weapon_speed_description	Хуткасць змены зброі:
 st_change_weapon_speed_name	Спрытныя рукі
 st_character	Уменні
+st_character_decals_1_10_name	Паляўнічы на дзікоў
+st_character_decals_1_11_name	Паляўнічы на аленяў
 st_character_decals_1_12_name	Ярыла
 st_character_decals_1_1_name	Літаратар
 st_character_decals_1_2_name	Атрад "Альфа"
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Ветэран
 st_character_decals_1_6_name	Майстар
 st_character_decals_1_7_name	Легенда
 st_character_decals_1_8_name	Лятучыя гусары
+st_character_decals_1_9_name	Музыкант
 st_character_decals_2_1_name	Навічок бадзяг
 st_character_decals_2_2_name	Ветэран бадзяг
 st_character_decals_2_3_name	Рэкрут Чорнага Рынку
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Герб Латвіі
 st_character_decals_5_7_name	Герб Літвы
 st_character_decals_5_8_name	Герб Эстоніі
 st_character_decals_5_9_name	Герб Малдовы
+st_character_decals_7_10_name	Запалкі
+st_character_decals_7_23_name	Сэрца
+st_character_decals_7_24_name	Страшны гарбуз
 st_character_decals_7_27_name	Арнамент канюшыны
 st_character_decals_7_28_name	Падкова
+st_character_decals_7_30_name	Паштовы голуб
+st_character_decals_7_31_name	Перамога
+st_character_decals_7_35_name	Крывавая рука
+st_character_decals_7_37_name	Захавальнік
 st_character_decals_7_9_name	Травы
 st_character_decals_generic_desc	Выкарыстоўвайце нашыўкі ў акне знешняга выгляду бронекамізэлек і штаноў, каб змяніць іх выгляд.
 st_characteristics_label	Характарыстыкі гульца

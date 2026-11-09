@@ -38,7 +38,7 @@ given), LIKELY or GUESS.
 | [weapons-069.md](weapons-069.md) | The 0.69d0 weapons (pack weapons-069): AKMSU, FAMAS, H&K G3SG/1, Mauser M.712, KS-23M with its 23x75R smallshot, PPSH-41 "Drum"; ids, icons, rigs, stats beside their live peers, attach points for the weapon kit |
 | [weapon-kit.md](weapon-kit.md) | A weapon's six upgrades (two decals, camouflage, scope, muzzle device, grip) in the client's three records: the kit record's layout, client patch 68, the server's packing |
 | [weapons-046.md](weapons-046.md) | Weapons from 0.46c2 (packs weapons-046, weapons-046-camo; release 41, batches 2 and 2b): the MP5, SVU, L85A2, Fort-401, Jackhammer and five pistols, balanced around their live peers (the table), their default parts baked in, the muzzle data for the muzzle step |
-| [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
+| [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo; ten more in version 2: seven premium decals and three badges) and the Steam camouflage: ids 1824-1862 and 1884-1893, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
