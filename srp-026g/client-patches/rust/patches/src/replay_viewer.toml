@@ -54,6 +54,12 @@ site = "hud.callback"
 handler = "on_hud_call"
 order = 1
 
+# initialize_match's feed of the local place's kits (place 0 in a spectator's game): never sent
+# to a spectator, whose chooser the server's kits notes and the place followed fill.
+[[hook]]
+site = "hud.setup_profiles"
+handler = "on_setup_profiles"
+
 # Each frame of the hud: a viewer's controls fed.
 [[hook]]
 site = "hud.update"

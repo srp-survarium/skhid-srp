@@ -1239,6 +1239,7 @@ va	name	source	ret_cleanup	result
 0x002f5be0	survarium::shared_statistics::deserialize	manual	0	
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	manual	20	
 0x002f73f0	survarium::player_profile::player_profile	manual	0	EAX = this; keeps EBX, ESI, EDI, EBP
+0x002f79a0	survarium::player_profile::kit_level	manual	0	EAX
 0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	manual	0	the two buffer_vectors point at their inline storage (+20h..+60h, +6Ch..+B4h)
 0x002f81f0	survarium::usable_object::load	manual	4	
 0x002f8280	survarium::usable_object::resolve_links	manual	28	

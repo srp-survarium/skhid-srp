@@ -488,7 +488,7 @@ fn a_live_windows_spectator_watches_behind_the_match() {
     );
     bench.run(200);
     assert_eq!(
-        bench.clients[at].replay_notes,
+        views_told(&bench.clients[at]),
         [replay_control::ServerNote::view(1).to_vec()]
     );
     let behind = |bench: &Bench| i64::from(bench.clients[0].clock()) - i64::from(bench.clients[at].clock());
@@ -512,6 +512,95 @@ fn a_live_windows_spectator_watches_behind_the_match() {
     assert_eq!(late(&bench), 15);
     assert!((9_000..=11_000).contains(&behind(&bench)), "{}", behind(&bench));
     assert_eq!(bench.clients[at].snapshots().len(), 1, "never started again");
-    assert_eq!(bench.clients[at].replay_notes.len(), 1, "told once");
+    assert_eq!(views_told(&bench.clients[at]).len(), 1, "told once");
+    bench.assert_no_faults();
+}
+
+/// Every place stands in every game's next worlds with `kit` as its current one.
+fn in_the_world(bench: &mut Bench, kit: u8) {
+    for client in &mut bench.clients {
+        for state in &mut client.sim.player_states {
+            *state = Some(survarium::v026g::match_msgs::players::PlayerState {
+                current_index: kit,
+                target_index: kit,
+                pickup: weapon_pickup::Record::EMPTY,
+                items: vec![1],
+                alive: true,
+                has_to_die: false,
+                look_pitch: 0.0,
+                rotation_y: 0.0,
+                actions_mask: 0,
+                effects: 0,
+            });
+        }
+    }
+}
+
+/// A spectator's view notes taken, in order.
+fn views_told(client: &Client) -> Vec<Vec<u8>> {
+    client
+        .replay_notes
+        .iter()
+        .filter(|payload| matches!(replay_control::ServerNote::parse(payload), Some(replay_control::ServerNote::View(_))))
+        .cloned()
+        .collect()
+}
+
+/// A spectator's kits notes taken: each place's kit numbers.
+fn kits_told(client: &Client) -> Vec<(u8, Vec<u8>)> {
+    client
+        .replay_notes
+        .iter()
+        .filter_map(|payload| match replay_control::ServerNote::parse(payload)? {
+            replay_control::ServerNote::Kits(note) => Some((note.place, note.kits().collect())),
+            _ => None,
+        })
+        .collect()
+}
+
+/// `kits_told`, the last list of `place`.
+fn kits_of_place(client: &Client, place: u8) -> Option<Vec<u8>> {
+    kits_told(client).into_iter().rev().find(|(of, _)| *of == place).map(|(_, kits)| kits)
+}
+
+#[test]
+fn a_spectator_is_told_only_the_kits_a_world_shows_and_a_late_one_gets_them() {
+    let mut bench = running();
+    in_the_world(&mut bench, 0);
+    bench.run_long(8_000);
+    // Comes long after the start: the kept worlds are gone, the match's record is not.
+    bench.run_long(90_000);
+    let at = spectate(&mut bench, SPECTATOR);
+    assert!(
+        bench.until(8_000, |b| b.clients[at].model.is_synced()),
+        "{:?}",
+        bench.clients[at].faults
+    );
+    bench.run(500);
+    assert_eq!(kits_of_place(&bench.clients[at], 0), Some(vec![0]), "{:?}", kits_told(&bench.clients[at]));
+    assert_eq!(kits_of_place(&bench.clients[at], 1), Some(vec![0]));
+    let told = kits_told(&bench.clients[at]).len();
+    // A pick the player never spawns with: told nothing more.
+    bench.clients[0].profile_input(1);
+    bench.run_long(10_000);
+    assert_eq!(kits_of_place(&bench.clients[at], 0), Some(vec![0]), "a pick is no use of the kit");
+    assert_eq!(kits_told(&bench.clients[at]).len(), told, "nothing more told");
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_delayed_spectator_is_told_a_kit_only_when_its_clock_reaches_it() {
+    let mut bench = running();
+    let delay = session::LiveDelay::from_secs(10).unwrap();
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
+    assert!(bench.until(8_000, |b| b.clients[at].model.is_synced()), "{:?}", bench.clients[at].faults);
+    bench.run(200);
+    in_the_world(&mut bench, 0);
+    bench.run_long(6_000);
+    assert_eq!(kits_of_place(&bench.clients[at], 0), None, "its clock has not reached that world yet");
+    bench.run_long(14_000);
+    assert_eq!(kits_of_place(&bench.clients[at], 0), Some(vec![0]), "{:?}", kits_told(&bench.clients[at]));
+    // Its clock is 10 s behind the match: what it was told is what a world at or before it showed.
+    assert!(kits_told(&bench.clients[at]).iter().all(|(_, kits)| kits == &vec![0u8]), "{:?}", kits_told(&bench.clients[at]));
     bench.assert_no_faults();
 }

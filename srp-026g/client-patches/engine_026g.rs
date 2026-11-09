@@ -239,6 +239,8 @@ unsafe extern "C" {
     pub fn engine_spectator_camera(world: *mut c_void);
     /// 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
     pub fn engine_show_replay_controls(hud: *mut c_void, shown: u32);
+    /// 0x2f79a0 survarium::player_profile::kit_level: kit EAX, place ESP+4, config ESP+8; pops 0; EAX
+    pub fn engine_kit_level(kit: u32, place: *const c_void, config: *const c_void) -> u32;
 }
 
 #[allow(dead_code)]

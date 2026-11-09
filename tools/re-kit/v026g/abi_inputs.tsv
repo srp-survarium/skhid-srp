@@ -2892,6 +2892,9 @@ va	name	location	role	basis
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+16	diagnostic caller function name	observed
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+20	diagnostic value label	observed
 0x002f73f0	survarium::player_profile::player_profile	ECX	this (4634h bytes)	observed
+0x002f79a0	survarium::player_profile::kit_level	EAX	the kit (AL)	observed
+0x002f79a0	survarium::player_profile::kit_level	ESP+4	the profile (a match place)	observed
+0x002f79a0	survarium::player_profile::kit_level	ESP+8	the config	observed
 0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	ECX	this (B4h bytes)	observed
 0x002f81f0	survarium::usable_object::load	ECX	usable_receiver	inferred
 0x002f81f0	survarium::usable_object::load	stack+4	config	inferred

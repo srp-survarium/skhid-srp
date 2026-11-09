@@ -54,6 +54,27 @@ impl<'t> ServerNoteSite<'t> {
     }
 }
 
+/// `static_info.options_read`: the match's options just read.
+pub struct StaticInfoSite {
+    options: raw::MatchOptions,
+}
+
+impl StaticInfoSite {
+    pub fn at(ctx: &Context<'_>) -> Option<StaticInfoSite> {
+        // SAFETY: the context is this site's: ESI the options, alive on the game's thread.
+        Some(StaticInfoSite { options: unsafe { raw::site::static_info_options_read::options(ctx) }? })
+    }
+
+    /// No place of the options is the game's own: a spectator's.
+    pub fn spectator(&self) -> bool {
+        // SAFETY: the places below the count, in the array the options hold.
+        unsafe {
+            let places = usize::from(*self.options.places());
+            !(0..places).any(|place| read(self.options.first_place().at(place).is_local()) != 0)
+        }
+    }
+}
+
 /// close_current_match at `close_match.reason`, past its guard: the game's
 /// match ends whatever the reason (patch 119 gives reason 4, a kick, reason
 /// 1's end).
@@ -246,18 +267,73 @@ pub fn pointer_client<'t>(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>> {
     mouse_client(unsafe { raw::site::hud_mouse_replay_pointer::world(ctx) }, ctx.thread())
 }
 
-/// `ui`'s kit chooser and quick slots hidden (root.show_profiles_selector(false),
-/// root.show_slots(false)): a spectator picks no kit and uses no slot, and the
-/// game shows both to it (the kits before the start and on a death screen, the
-/// slots of the player followed, 0x239C8D), the kits with the followed
-/// player's three, used or not.
+/// `ui`'s quick slots hidden (root.show_slots(false)): a spectator uses no slot, and the game
+/// shows them for the player followed (0x239C8D).
 fn hide_player_panels(ui: raw::GameWorldUi) {
     // SAFETY: the hud's own movie, alive with the hud on its thread.
     if let Some(hud) = unsafe { super::ui::movie_of(ui.hud_movie()) } {
-        hud.invoke_bool(c"root.show_profiles_selector", false);
         hud.invoke_bool(c"root.show_slots", false);
     }
 }
+
+/// A spectator's read-only kit chooser: the hud movie's own (`HUD.as`, srp_spectator_*), filled
+/// with the kits the server's notes allow, which the game alone has the contents of.
+pub struct KitChooser<'t> {
+    ui: raw::GameWorldUi,
+    movie: super::ui::Movie<'t>,
+}
+
+impl<'t> KitChooser<'t> {
+    pub fn of(client: &NetworkClient<'t>) -> Option<KitChooser<'t>> {
+        // SAFETY: as Overlay::of.
+        unsafe {
+            let ui = client.raw().game()?.world().ui();
+            Some(KitChooser { ui, movie: super::ui::movie_of(ui.hud_movie())? })
+        }
+    }
+
+    /// The kits' text (root.srp_spectator_kits).
+    pub fn set_kits(&self, text: &CStr) {
+        self.movie.invoke_text(c"root.srp_spectator_kits", text);
+    }
+
+    /// The kit the followed player has now (root.srp_spectator_current_kit).
+    pub fn set_current(&self, kit: u8) {
+        self.movie.invoke_uints(c"root.srp_spectator_current_kit", &[u32::from(kit)]);
+    }
+
+    /// The chooser's place and whether it shows (root.srp_spectator_kits_show): 0 hidden,
+    /// 1 the game's own place (live), 2 above a replay viewer's controls.
+    pub fn show(&self, mode: u32) {
+        self.movie.invoke_uints(c"root.srp_spectator_kits_show", &[mode]);
+    }
+
+    /// The pointer, for the hover list (root.srp_spectator_pointer).
+    pub fn pointer(&self, x: u32, y: u32) {
+        self.movie.invoke_uints(c"root.srp_spectator_pointer", &[x, y]);
+    }
+
+    /// The game's own show_cursor kept from the kits. The chooser has no cursor of its own.
+    pub fn ui(&self) -> raw::GameWorldUi {
+        self.ui
+    }
+}
+
+/// One kit of a place, as the game keeps it in the match's options.
+pub struct KitData<'a> {
+    pub number: u8,
+    pub state: u32,
+    pub level: u16,
+    pub name: &'a [u8],
+    /// Its held items: (dictionary id, slot, count).
+    pub items: [Option<(u16, u8, u16)>; KIT_SLOTS],
+}
+
+/// A kit's slots (`survarium::dictionary::PROFILE_SLOTS`).
+pub const KIT_SLOTS: usize = 23;
+
+/// A kit name's room, its zero included.
+const KIT_NAME_LIMIT: usize = 64;
 
 /// `ui`'s cursor as asked (show_cursor 0x23A930, when the hud's +2DCh says otherwise): the
 /// kits show it before the start, and a spectator has none to pick. While the Tab list is up,
@@ -270,6 +346,50 @@ fn keep_cursor(ui: raw::GameWorldUi, shown: bool) {
         }
     }
 }
+
+impl<'t> NetworkClient<'t> {
+    /// Kit `number` of `place`, when the options have it (read from the game's own copy).
+    pub fn kit_data(&self, place: u8, number: u8) -> Option<KitData<'t>> {
+        // SAFETY: the client's options and their places live with the client on its thread; the
+        // indices are bounded by the counts the options give.
+        unsafe {
+            let options = self.raw().options_holder()?.options();
+            if u32::from(place) >= u32::from(*options.places()) {
+                return None;
+            }
+            let record = options.first_place().at(usize::from(place));
+            if number >= *record.kit_count() {
+                return None;
+            }
+            let kit = record.kit().at(usize::from(number));
+            let name = super::ui::c_string(kit.name(), KIT_NAME_LIMIT).map_or(&b""[..], CStr::to_bytes);
+            let config = self.raw().game()?.kit_level_config();
+            let level = (raw::engine_kit_level(u32::from(number), Some(record), config) & 0xFFFF) as u16;
+            let mut items = [None; KIT_SLOTS];
+            let count = *record.item_count();
+            for (slot, room) in items.iter_mut().enumerate() {
+                let entry = kit.slots().at(slot);
+                let item = read(entry.item());
+                if item == NO_ITEM || item >= u16::from(count) {
+                    continue;
+                }
+                *room = Some((read(record.item().at(usize::from(item)).dict_id()), slot as u8, read(entry.count())));
+            }
+            Some(KitData { number, state: read(kit.state()), level, name, items })
+        }
+    }
+
+    /// The kit `place` has now (its client record's current player object).
+    pub fn current_kit(&self, place: u8) -> Option<u8> {
+        // SAFETY: the core's table of its places' records, a place below the options' count.
+        unsafe {
+            let core = self.raw().pvp_match()?.core();
+            Some(read(core.clients()?.at(usize::from(place)).current_kit()))
+        }
+    }
+}
+
+const NO_ITEM: u16 = 0xFFFF;
 
 /// The replay controls (replay_player.swf) over a viewer's hud.
 pub struct Overlay<'t> {
@@ -317,36 +437,6 @@ impl<'t> Overlay<'t> {
         keep_cursor(self.ui, shown);
     }
 
-    /// The text of dictionary key `key` in the running language.
-    pub fn translate<'o>(&self, key: &CStr, room: &'o mut [u8; 0x200]) -> &'o CStr {
-        super::ui::GameWorldUi::of(self.ui).translate(key, room)
-    }
-
-    /// The kit view forgets every place's kits (root.reset_player_kits: a new match's).
-    pub fn reset_kits(&self) {
-        self.movie.invoke_uints(c"root.reset_player_kits", &[]);
-    }
-
-    /// `place`'s kits' text (root.set_player_kits: place, text).
-    pub fn set_player_kits(&self, place: u8, text: &CStr) {
-        let mut digits = [0u8; 4];
-        let mut len = 0;
-        let (mut left, mut divisor) = (place, 100);
-        while divisor > 0 {
-            let digit = left / divisor;
-            if digit > 0 || len > 0 || divisor == 1 {
-                digits[len] = b'0' + digit;
-                len += 1;
-            }
-            left %= divisor;
-            divisor /= 10;
-        }
-        digits[len] = 0;
-        if let Ok(number) = CStr::from_bytes_until_nul(&digits) {
-            self.movie.invoke_strings(c"root.set_player_kits", &[number, text]);
-        }
-    }
-
     /// The controls and the cursor's movie let go of every button they still hold. Both get a viewer's
     /// presses, and neither its release once the viewer has ended: the mouse goes back to the lobby's
     /// movie, and these two outlive the match.
@@ -356,11 +446,6 @@ impl<'t> Overlay<'t> {
         if let Some(cursor) = unsafe { super::ui::movie_of(self.ui.cursor_movie().holder()) } {
             cursor.release_held_buttons();
         }
-    }
-
-    /// The place whose kits the kit view shows (root.set_watched_place), none (255) for no player.
-    pub fn set_watched_place(&self, place: Option<u8>) {
-        self.movie.invoke_uints(c"root.set_watched_place", &[place.map_or(255, u32::from)]);
     }
 
     /// The speed stepper's value, as a percent (root.set_replay_speed: 25 to
@@ -408,6 +493,15 @@ impl<'t> Overlay<'t> {
     /// The hud's cursor shown: the key hint with it (root.set_cursor_shown).
     pub fn set_cursor_shown(&self, shown: bool) {
         self.movie.invoke_bool(c"root.set_cursor_shown", shown);
+    }
+}
+
+/// The pointer at `hud_mouse.replay_pointer`, in the screen's pixels.
+pub fn pointer_at(ctx: &Context<'_>) -> Option<(u32, u32)> {
+    // SAFETY: the context is this site's: EBX and EBP the pointer's coordinates' cells, set_pointer's arguments.
+    unsafe {
+        let (x, y) = (raw::site::hud_mouse_replay_pointer::x(ctx)?, raw::site::hud_mouse_replay_pointer::y(ctx)?);
+        Some((u32::try_from(read(x.value())).ok()?, u32::try_from(read(y.value())).ok()?))
     }
 }
 

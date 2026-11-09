@@ -3277,6 +3277,26 @@ pub extern "C" fn hook_replay_viewer_on_hud_call(frame: &mut Frame) -> u32 {
 
 // ---- replay_viewer (patch 130) ----
 
+/// The named exits of replay_viewer::on_setup_profiles (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayViewerOnSetupProfilesExit { Skip }
+/// The entry `replay_viewer_on_setup_profiles` (0x2362c9, game_world_ui::initialize_match before its root.setup_player_profiles (the pushes and the call to 0x2362E9), with the kits of the local place (of place 0 in a spectator's game): a spectator's game skips them, ESI zero as the skipped xor leaves it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_setup_profiles(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_setup_profiles` calls this, from the game's jump at 0x2362c9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_setup_profiles(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- replay_viewer (patch 130) ----
+
 /// The entry `replay_viewer_on_frame` (0x23b200, game_world_ui::update_ui's start (push ebx / push ebp / push esi / push edi / mov edi,eax; EAX the hud), every frame the game world shows its interface (game_world::tick 0x1F8023, with the game world's +0A0h)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_replay_viewer_on_frame(frame: &mut Frame) -> u32 {

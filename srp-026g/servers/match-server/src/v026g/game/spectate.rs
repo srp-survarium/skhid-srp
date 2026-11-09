@@ -50,7 +50,7 @@
 //! roster change of a place it has not installed comes; when a world is not
 //! loaded in [`WORLD_WAIT`] or an 0xE5 not answered in [`TIMING_WAIT`].
 
-use survarium::v026g::match_msgs::static_info::{NO_LOCAL_PLACE, StaticInfo};
+use survarium::v026g::match_msgs::static_info::{MatchProfile, NO_LOCAL_PLACE, StaticInfo};
 
 use super::*;
 use survarium::v026g::match_msgs::id;
@@ -153,6 +153,8 @@ pub(crate) struct Spectator {
     /// The place its watcher asked to see, still to be told: in a view note
     /// (`replay_control::ServerNote::View`) once it first watches.
     view: Option<u8>,
+    /// The mask of kits it has been told of each place (a live match's chooser).
+    kits_told: Vec<u8>,
 }
 
 /// What a spectator's machine is shown of what it watches, as of `clock`: a
@@ -239,6 +241,7 @@ impl Game {
         if self.past.back().is_some_and(|last| last.time >= world.time) {
             return;
         }
+        self.kits_seen.record(world, &self.formed.profiles);
         self.past.push_back(world.clone());
         let keep_from = world.time.saturating_sub(INPUTS_KEPT_MS);
         while self.past.front().is_some_and(|old| old.time < keep_from) {
@@ -553,6 +556,7 @@ impl Game {
             let view = self.view_of(spectator.delay, clock);
             spectator.feed(&view, now);
             spectator.step(&view, start, echo, now);
+            spectator.tell_kits(&self.kits_seen, &self.formed.profiles, view.clock);
         }
         self.spectators = spectators;
         let mut datagrams = Vec::new();
@@ -724,6 +728,7 @@ impl Spectator {
             reports: VecDeque::new(),
             restarts: VecDeque::new(),
             view,
+            kits_told: Vec::new(),
         }
     }
 
@@ -951,6 +956,24 @@ impl Spectator {
         }
         if let Some(delay) = self.delay.as_mut() {
             delay.fed = until;
+        }
+    }
+
+    /// What its game may show of the kits played by `clock`: each place whose mask grew, told
+    /// again whole. Only once it watches.
+    pub(super) fn tell_kits(&mut self, seen: &super::kit_view::KitsSeen, profiles: &[MatchProfile], clock: u32) {
+        if !matches!(self.stage, Watch::Live { .. }) {
+            return;
+        }
+        self.kits_told.resize(profiles.len(), 0);
+        for place in 0..profiles.len() {
+            let Some(note) = seen.note_by(place, clock, profiles) else {
+                continue;
+            };
+            if note.mask != self.kits_told[place] {
+                self.kits_told[place] = note.mask;
+                self.note(&note.encode());
+            }
         }
     }
 

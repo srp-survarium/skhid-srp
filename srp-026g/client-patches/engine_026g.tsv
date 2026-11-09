@@ -186,3 +186,4 @@ engine_detach_player	0x242cc0	ECX:client	void engine_detach_player(struct networ
 engine_game_pause	0x1ed5c0	ECX:game	void engine_game_pause(struct game *game)	thiscall	
 engine_game_resume	0x1ed650	ECX:game	void engine_game_resume(struct game *game)	thiscall	
 engine_show_replay_controls	0x23a9d0	EDI:hud ESP+4:shown	void engine_show_replay_controls(struct game_world_ui *hud, unsigned int shown)	thunk	
+engine_kit_level	0x2f79a0	EAX:kit ESP+4:place ESP+8:config	unsigned int engine_kit_level(unsigned int kit, const struct match_place *place, const struct kit_level_config *config)	thunk	

@@ -2838,7 +2838,6 @@ st_srp_viewer_cap_space	Space
 st_srp_viewer_cursor	Kursori
 st_srp_viewer_filter	Suodatin
 st_srp_viewer_hide	Piilota
-st_srp_viewer_kits	Käytetyt varustesetit
 st_srp_viewer_moments	Hetket
 st_srp_viewer_moments_all	Kaikki
 st_srp_viewer_moments_followed	Seurattu

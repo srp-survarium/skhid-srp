@@ -6131,6 +6131,48 @@ tab_cursor_on_hud_call_replay:
     db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x233d36
 
+; 0x2362c9 game_world_ui::initialize_match before its root.setup_player_profiles (the pushes and the call to 0x2362E9), with the kits of the local place (of place 0 in a spectator's game): a spectator's game skips them, ESI zero as the skipped xor leaves it: lohook -> replay_viewer_on_setup_profiles
+global replay_viewer_on_setup_profiles
+extern hook_replay_viewer_on_setup_profiles
+replay_viewer_on_setup_profiles:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_setup_profiles
+    mov edx, replay_viewer_on_setup_profiles_replay
+    cmp eax, 0
+    je replay_viewer_on_setup_profiles_go
+    mov edx, 0x2362d2
+    cmp eax, 1
+    je replay_viewer_on_setup_profiles_go
+    mov edx, 0x2362e9
+    cmp eax, 2
+    je replay_viewer_on_setup_profiles_go
+    ud2
+replay_viewer_on_setup_profiles_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_setup_profiles_replay:
+    db 0x6a, 0x01, 0x8d, 0x94, 0x24, 0xf8, 0x00, 0x00, 0x00
+    jmp 0x2362d2
+
 ; 0x23b200 game_world_ui::update_ui's start (push ebx / push ebp / push esi / push edi / mov edi,eax; EAX the hud), every frame the game world shows its interface (game_world::tick 0x1F8023, with the game world's +0A0h): lohook -> replay_viewer_on_frame
 global replay_viewer_on_frame
 extern hook_replay_viewer_on_frame

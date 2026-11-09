@@ -1144,6 +1144,7 @@ va	status	ref_021d	name
 0x002f5ac0	reviewed	0x001de11c	survarium::shared_statistics::serialize
 0x002f5be0	reviewed	0x001de1e0	survarium::shared_statistics::deserialize
 0x002f5da0	reviewed	0x001e5a42	vostok::network_core::buffer_writer::w<unsigned short>
+0x002f79a0	reviewed		survarium::player_profile::kit_level
 0x002f81f0	reviewed	0x001e8a44	survarium::usable_object::load
 0x002f8280	reviewed	0x001e8aa6	survarium::usable_object::resolve_links
 0x002f8300	reviewed	0x001e8b0f	survarium::usable_object::insert

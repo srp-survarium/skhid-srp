@@ -620,3 +620,6 @@ extern engine_game_resume
 ; void engine_show_replay_controls(struct game_world_ui *hud, unsigned int shown)
 ; 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
 extern engine_show_replay_controls
+; unsigned int engine_kit_level(unsigned int kit, const struct match_place *place, const struct kit_level_config *config)
+; 0x2f79a0 survarium::player_profile::kit_level: kit EAX, place ESP+4, config ESP+8; pops 0; EAX
+extern engine_kit_level

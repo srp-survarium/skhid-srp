@@ -91,6 +91,9 @@ clock):
     (an empty one for none);
   - the view, `52 03 place`: the place asked to be in view, once live (a live match's spectator
     gets it too, from the Live window's or a friend's ask), only when one was asked.
+  - the kits, `52 04 place mask`: which of a place's kits a spectator's chooser may show (a mask below
+    `1 << KIT_NUMBERS`). A replay's: each place's playable kits, once, after the events note. A live
+    match's: the kits the place has played by the spectator's delayed clock, told when that mask changes.
 
 **The events** are the match history's (`persist::match_events`, `docs/notes/match_history.md`),
 read by the match server with the recording (`MatchHistory::events_of_replay` of its file stem,

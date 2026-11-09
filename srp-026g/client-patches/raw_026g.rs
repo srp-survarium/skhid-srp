@@ -245,6 +245,8 @@ unsafe extern "C" {
     pub fn engine_spectator_camera(world: Option<GameWorld>);
     /// 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
     pub fn engine_show_replay_controls(hud: Option<GameWorldUi>, shown: u32);
+    /// 0x2f79a0 survarium::player_profile::kit_level: kit EAX, place ESP+4, config ESP+8; pops 0; EAX
+    pub fn engine_kit_level(kit: u32, place: Option<MatchPlace>, config: Option<KitLevelConfig>) -> u32;
 }
 
 #[allow(dead_code)]
@@ -703,6 +705,24 @@ impl Game {
     #[inline(always)]
     pub unsafe fn options(self) -> GameOptions {
         GameOptions(unsafe { self.0.byte_add(0x57f4) })
+    }
+
+    /// +0x53a4 (ptr<survarium::kit_level_config>): the config the kit level is read from (initialize_match 0x23491D..0x234928)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit_level_config(self) -> Option<KitLevelConfig> {
+        unsafe { self.0.byte_add(0x53a4).cast::<Option<KitLevelConfig>>().read_volatile() }
+    }
+
+    /// +0x53a4 (ptr<survarium::kit_level_config>): the config the kit level is read from (initialize_match 0x23491D..0x234928)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_kit_level_config(self, value: Option<KitLevelConfig>) {
+        unsafe { self.0.byte_add(0x53a4).cast::<Option<KitLevelConfig>>().write_volatile(value) }
     }
 }
 
@@ -6988,6 +7008,24 @@ impl CoreWorld {
     pub unsafe fn set_rules_end(self, value: Option<RuleEntry>) {
         unsafe { self.0.byte_add(0x18828).cast::<Option<RuleEntry>>().write_volatile(value) }
     }
+
+    /// +0x18650 (ptr<survarium::core_client>): the places' client records (get_player 0x27A991)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn clients(self) -> Option<CoreClient> {
+        unsafe { self.0.byte_add(0x18650).cast::<Option<CoreClient>>().read_volatile() }
+    }
+
+    /// +0x18650 (ptr<survarium::core_client>): the places' client records (get_player 0x27A991)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_clients(self, value: Option<CoreClient>) {
+        unsafe { self.0.byte_add(0x18650).cast::<Option<CoreClient>>().write_volatile(value) }
+    }
 }
 
 /// A vostok::scene_reference (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -8429,6 +8467,42 @@ impl MatchPlace {
     #[inline(always)]
     pub unsafe fn is_local(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x45f0).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x57 (u8): the place's kits' count (initialize_match's loop end, 0x2362B7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit_count(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x57).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x0 (obj<survarium::match_kit>): kit 0 of the place: kit n at +n*704h from here (initialize_match 0x2359E2; the kits' own fields below are from this base)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit(self) -> MatchKit {
+        MatchKit(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x1564 (u8): the place's items' count (player_profile::serialize_dynamic 0x2F7CC9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn item_count(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x1564).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x1568 (obj<survarium::match_item_record>): the place's item 0 (initialize_match 0x235D3B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn item(self) -> MatchItemRecord {
+        MatchItemRecord(unsafe { self.0.byte_add(0x1568) })
     }
 
     /// 0x45fc bytes: a place's record: 45FCh bytes (imul esi,esi,45FCh at 0x234EEF)
@@ -17331,6 +17405,325 @@ impl GfxMovie {
     }
 }
 
+/// A survarium::match_kit (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchKit(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MatchKit {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x58 (u8): its name, a C string in 64 bytes; empty: the game's default (initialize_match 0x2359F0, 0x235A77)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x58).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x98 (obj<survarium::match_kit_slot>): slot 0 of the kit (get level 0x2F79E9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn slots(self) -> MatchKitSlot {
+        MatchKitSlot(unsafe { self.0.byte_add(0x98) })
+    }
+
+    /// +0x758 (u32): the kit's state (initialize_match 0x235C55): 0 complete
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x758).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x704 bytes: a place's kit: 704h bytes (initialize_match 0x2359E2)
+    pub const SIZE: usize = 0x704;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::match_kits (0x704 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct MatchKitStorage([u8; 0x704]);
+
+#[allow(dead_code)]
+impl MatchKitStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x704])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> MatchKit {
+        MatchKit(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<MatchKit> {
+        (!rooms.is_empty()).then(|| MatchKit(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::match_kit_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchKitSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MatchKitSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u16): an index of the place's items; 0xFFFF none (initialize_match 0x235D17)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn item(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x0).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x2 (u16): the slot's count (get level 0x2F7A2F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn count(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x2).cast::<u16>().as_ptr() }
+    }
+
+    /// 0x4 bytes: a kit's slot (get level's step, 0x2F79E9)
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::match_kit_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct MatchKitSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl MatchKitSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> MatchKitSlot {
+        MatchKitSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<MatchKitSlot> {
+        (!rooms.is_empty()).then(|| MatchKitSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::match_item_record (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchItemRecord(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MatchItemRecord {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u16): the item's dictionary id (initialize_match 0x235D6C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn dict_id(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x4).cast::<u16>().as_ptr() }
+    }
+
+    /// 0xb4 bytes: an item's record (initialize_match 0x235D32)
+    pub const SIZE: usize = 0xb4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::match_item_records (0xb4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct MatchItemRecordStorage([u8; 0xb4]);
+
+#[allow(dead_code)]
+impl MatchItemRecordStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xb4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> MatchItemRecord {
+        MatchItemRecord(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<MatchItemRecord> {
+        (!rooms.is_empty()).then(|| MatchItemRecord(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::core_client (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CoreClient(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CoreClient {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (u8): the place's current player object: the kit in use (get_player 0x27A997; the world's current_index, 0x321924)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn current_kit(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xc).cast::<u8>().as_ptr() }
+    }
+
+    /// 0x30 bytes: a place's client record (get_player 0x27A98E: place * 30h)
+    pub const SIZE: usize = 0x30;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::core_clients (0x30 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct CoreClientStorage([u8; 0x30]);
+
+#[allow(dead_code)]
+impl CoreClientStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x30])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> CoreClient {
+        CoreClient(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<CoreClient> {
+        (!rooms.is_empty()).then(|| CoreClient(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::pointer_coord (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PointerCoord(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PointerCoord {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (i32): the pointer's coordinate game_world::set_pointer is given (cvtsi2ss xmm0,[ebx] / [ebp], 0x25D1C5)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut i32 {
+        unsafe { self.0.byte_add(0x0).cast::<i32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -17564,6 +17957,21 @@ pub struct QueryResultForCook(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl QueryResultForCook {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A survarium::kit_level_config (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitLevelConfig(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KitLevelConfig {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -21284,6 +21692,24 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn world(machine: &impl Machine) -> Option<GameWorld> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(GameWorld)
+        }
+
+        /// EBX: a survarium::pointer_coord (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn x(machine: &impl Machine) -> Option<PointerCoord> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(PointerCoord)
+        }
+
+        /// EBP: a survarium::pointer_coord (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn y(machine: &impl Machine) -> Option<PointerCoord> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(PointerCoord)
         }
     }
 

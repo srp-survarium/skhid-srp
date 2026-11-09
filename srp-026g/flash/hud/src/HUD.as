@@ -119,6 +119,20 @@ package
       public var layout:Layout;
       
       private var _hudPlayerProfile:PlayerProfileBase = new HUDPlayerProfile();
+
+      // srp's: a spectator's kit chooser: its mode (0 none), kit number -> plate, plates, hover.
+      private static const SPECTATOR_PLATE_WIDTH:Number = 187;
+      private static const SPECTATOR_REPLAY_RIGHT:int = 622;
+
+      private static const SPECTATOR_REPLAY_ABOVE_AMMO:int = 200;
+
+      private static const SPECTATOR_REPLAY_ABOVE_HINT:int = 146;
+
+      private static const SPECTATOR_HOVER_BOTTOM:int = 109;
+      private var _spectatorMode:int = 0;
+      private var _spectatorKitIndex:Object = {};
+      private var _spectatorKitCount:int = 0;
+      private var _spectatorHover:int = -1;
       
       private var _profilePanel:MovieClip = new HUDProfileSelector();
       
@@ -944,6 +958,114 @@ package
          this.effectContainer.transform.matrix = place;
       }
 
+      // srp's: a spectator's read-only kit chooser (docs/notes/client_patch.md): the game's own
+      // component, filled by the exe with only the kits the server's note allows, one for each
+      // `kit|state|level|name|dict:slot:count,...;` of the text.
+      public function srp_spectator_kits(text:String) : void
+      {
+         var kits:Array = [];
+         var rows:Array = text == null ? [] : text.split(";");
+         this._spectatorKitIndex = {};
+         for each(var row:String in rows)
+         {
+            if(row.length == 0)
+            {
+               continue;
+            }
+            var fields:Array = row.split("|");
+            var items:Array = [];
+            for each(var entry:String in String(fields[4]).split(","))
+            {
+               if(entry.length > 0)
+               {
+                  var parts:Array = entry.split(":");
+                  items.push({dictId:int(parts[0]),slotId:int(parts[1]),condition_or_stack:int(parts[2]),enabled:true});
+               }
+            }
+            var kit:int = int(fields[0]);
+            var name:String = String(fields[3]);
+            this._spectatorKitIndex[kit] = kits.length;
+            kits.push({name:name.length > 0 ? name : LocalizationData.getName("st_default_profile_name" + (kit + 1)),state:int(fields[1]),level:int(fields[2]),items:items});
+         }
+         this._spectatorKitCount = kits.length;
+         this._profilePanel.profileSelector.local = false;
+         this.setup_player_profiles(kits);
+         this._spectatorHover = -1;
+         this._hudPlayerProfile.visible = false;
+         this.applySpectatorKits();
+      }
+
+      // srp's: the kit the player in view has now.
+      public function srp_spectator_current_kit(kit:int) : void
+      {
+         if(this._spectatorKitIndex[kit] != undefined)
+         {
+            this._profilePanel.profileSelector.selectProfile(uint(this._spectatorKitIndex[kit]));
+         }
+      }
+
+      // srp's: 0 hidden, 1 the game's own place (live), 2 above a replay viewer's controls.
+      public function srp_spectator_kits_show(mode:int) : void
+      {
+         this._spectatorMode = mode;
+         if(mode == 0)
+         {
+            this._profilePanel.profileSelector.local = true;
+            this._hudPlayerProfile.visible = false;
+         }
+         this.applySpectatorKits();
+      }
+
+      // srp's: the pointer over the chooser (a viewer's goes to the controls' movie): its hover list.
+      public function srp_spectator_pointer(x:uint, y:uint) : void
+      {
+         var tabs:* = this._profilePanel.profileSelector.tabPage;
+         var at:Point = tabs.globalToLocal(new Point(x,y));
+         var index:int = at.x < 0 ? -1 : int(at.x / SPECTATOR_PLATE_WIDTH);
+         if(!this._profilePanel.visible || index < 0 || index >= this._spectatorKitCount || at.y < 0 || at.y >= tabs.height)
+         {
+            index = -1;
+         }
+         if(index == this._spectatorHover)
+         {
+            return;
+         }
+         this._spectatorHover = index;
+         this._hudPlayerProfile.visible = index >= 0;
+         if(index >= 0)
+         {
+            this.fill_player_profile_items(this._profilePanel.profileSelector.getProfileData(index));
+            this._hudPlayerProfile.x = Math.min(this._profilePanel.profileSelector.x + index * SPECTATOR_PLATE_WIDTH,this.stageWidth - this._profilePanel.x - this._hudPlayerProfile.width);
+         }
+      }
+
+      // srp's: for a harness, the panel of the kit chooser.
+      public function get spectatorKitsPanel() : MovieClip
+      {
+         return this._profilePanel;
+      }
+
+      private function applySpectatorKits() : void
+      {
+         // A replay's chooser sits where the Tab list can reach, at a small window.
+         this._profilePanel.visible = this._spectatorMode > 0 && this._spectatorKitCount > 0 && !(this._spectatorMode == 2 && this.player_list.visible);
+         this.placeProfilePanel();
+      }
+
+      private function placeProfilePanel() : void
+      {
+         if(this._spectatorMode == 2)
+         {
+            // A replay's: bottom right, above the ammo counter, over the height of the viewer's key
+            // hint (in the replay movie's own pixels, which do not scale with the hud).
+            this._profilePanel.x = this.stageWidth - SPECTATOR_REPLAY_RIGHT;
+            this._profilePanel.y = int(Math.min(this.stageHeight - SPECTATOR_REPLAY_ABOVE_AMMO,(stage.stageHeight - SPECTATOR_REPLAY_ABOVE_HINT) / this.scaleFactor)) - SPECTATOR_HOVER_BOTTOM;
+            return;
+         }
+         this._profilePanel.x = int(this.stageWidth - 594) / 2;
+         this._profilePanel.y = int(this.stageHeight - 120);
+      }
+
       public function setup_player_profiles(value:Array) : void
       {
          var i:uint;
@@ -1134,7 +1256,11 @@ package
       
       public function show_profiles_selector(value:Boolean) : void
       {
-         this._profilePanel.visible = value;
+         // srp's: a spectator's chooser is the exe's alone (srp_spectator_kits_show).
+         if(this._spectatorMode == 0)
+         {
+            this._profilePanel.visible = value;
+         }
          // A death/respawn switches the Tab view even while Tab stays held.
          // The game's show_player_list only invokes the movie when Tab changes.
          this._forcedView.refresh();
@@ -1801,6 +1927,10 @@ package
          }
          this.player_list.visible = bool;
          this.questTaskList.visible = bool && this.questList.visible;
+         if(this._spectatorMode == 2)
+         {
+            this.applySpectatorKits();
+         }
       }
       
       // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend
@@ -2676,8 +2806,7 @@ package
          }
          this.hud_overlay.update(this.scaleFactor);
          this.crosshair.scaleX = this.crosshair.scaleY = 1 / this.scaleFactor;
-         this._profilePanel.x = int(this.stageWidth - 594) / 2;
-         this._profilePanel.y = int(this.stageHeight - 120);
+         this.placeProfilePanel();
          this.layout.reflow();
          if(this._gameType == this.GAME_MODE_RESEARCH)
          {

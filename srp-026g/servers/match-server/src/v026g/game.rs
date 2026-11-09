@@ -131,6 +131,7 @@ use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
 
 mod driven;
+mod kit_view;
 mod late_join;
 mod live;
 pub(crate) mod playback;
@@ -1000,6 +1001,8 @@ pub(crate) struct Game {
     /// Since when two or more clients have been reporting with no tick
     /// that two of them named.
     hash_unshared_since: Option<Instant>,
+    /// Which kits each place has played, for the whole match (a live spectator's kit view).
+    kits_seen: kit_view::KitsSeen,
     /// That has lasted [`HASH_STARVED_AFTER`]: no world can be trusted.
     hash_starved: bool,
     hash_starved_logged: Option<Instant>,
@@ -1085,6 +1088,7 @@ impl Game {
             snapshot: None,
             recent: None,
             past: VecDeque::new(),
+            kits_seen: kit_view::KitsSeen::default(),
             requested_at: None,
             candidates: Vec::new(),
             inputs: Vec::new(),

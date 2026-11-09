@@ -52,6 +52,7 @@ struct item;
 struct item_entry;
 struct items_dictionary;
 struct keyboard;
+struct kit_level_config;
 struct lobby_camera;
 struct lobby_character;
 struct lobby_client;
@@ -59,6 +60,7 @@ struct lobby_menu;
 struct match_options;
 struct match_options_holder;
 struct match_packet;
+struct match_place;
 struct material_pair;
 struct medical_effect_resource;
 struct medical_pool;
@@ -654,5 +656,8 @@ void __attribute__((thiscall)) engine_game_resume(struct game *game);
 
 /* 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4 */
 void engine_show_replay_controls(struct game_world_ui *hud, unsigned int shown);
+
+/* 0x2f79a0 survarium::player_profile::kit_level: kit EAX, place ESP+4, config ESP+8; pops 0; EAX */
+unsigned int engine_kit_level(unsigned int kit, const struct match_place *place, const struct kit_level_config *config);
 
 #endif

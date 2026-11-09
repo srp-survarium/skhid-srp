@@ -87,6 +87,8 @@ SITES = {
     "call": (0x233D30, bytes.fromhex("53568b742410"), 0x233D36, 0x233D73),
     "frame": (0x23B200, bytes.fromhex("53555657 8bf8".replace(" ", "")), 0x23B206, None),
     "raw": (0x27C10A, bytes.fromhex("81c1f8010000"), 0x27C110, None),
+    "profiles": (0x2362C9, bytes.fromhex("6a018d9424f8000000"), 0x2362D2, 0x2362E9),
+    "static": (0x27B92D, bytes.fromhex("8b178b4240"), 0x27B932, None),
 }
 SHOW_CONTROLS, DETACH, HANDLE_EVENT = 0x23A9D0, 0x242CC0, 0x513580
 CURSOR_HOLDER, CURSOR_VIEW, CURSOR_MOVIE = OBJECTS + 0x71000, OBJECTS + 0x72000, OBJECTS + 0x73000
@@ -123,7 +125,7 @@ class Game:
         self.word(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
         self.calls = []
-        for va, how in ((PAUSE, self.pause), (RESUME, self.resume), (NEW_PACKET, self.new_packet),
+        for va, how in ((KIT_LEVEL, self.kit_level), (PAUSE, self.pause), (RESUME, self.resume), (NEW_PACKET, self.new_packet),
                         (WRITE, self.write), (ENQUEUE, self.enqueue), (CLOSE, self.close),
                         (INVOKE, self.invoke), (SHOW_CURSOR, self.show_cursor),
                         (SHOW_CONTROLS, self.show_controls), (DETACH, self.detach), (TRANSLATE, self.translate),
@@ -207,6 +209,11 @@ class Game:
         self.calls.append(("translate", key))
         emu.mem_write(out, key.encode() + b"\0")
         self.ret(8)
+
+    def kit_level(self, emu, *_):
+        self.calls.append(("kit_level", emu.reg_read(UC_X86_REG_EAX) & 0xFF, self.arg(1), self.arg(2)))
+        emu.reg_write(UC_X86_REG_EAX, 7)
+        self.ret(0)
 
     def show_cursor(self, emu, *_):
         self.calls.append(("show_cursor",))
@@ -316,11 +323,15 @@ def load(game, site):
     return game.run(site, regs)
 
 
-def mouse(game, site):
+def mouse(game, site, at=(0, 0)):
     """The game world's mouse at a hud with the replay controls: a button (ESI its input
     handler) or the pointer (EDI the game world)."""
     regs = dict(STEADY)
     regs[UC_X86_REG_ESI if site == "button" else UC_X86_REG_EDI] = INPUT if site == "button" else GAME + 0x18
+    if site == "pointer":
+        game.word(STUBS + 0xE00, at[0])
+        game.word(STUBS + 0xE04, at[1])
+        regs[UC_X86_REG_EBX], regs[UC_X86_REG_EBP] = STUBS + 0xE00, STUBS + 0xE04
     return game.run(site, regs)
 
 
@@ -357,13 +368,45 @@ def request(seq, op, value):
     return b"\xff" * 6 + struct.pack("<4BI", 0x52, 0, seq, op, value)   # replay_control::REQUEST_HEAD, seq, op, value
 
 
-def kits_note(place, kits):
-    body = struct.pack("<4B", 0x52, 4, place, len(kits))
-    for kit, names in kits:
-        body += struct.pack("<2B", kit, len(names))
-        for name in names:
-            body += struct.pack("<B", len(name)) + name
-    return body
+def kits_note(place, mask):
+    return struct.pack("<4B", 0x52, 4, place, mask)
+
+
+KIT_LEVEL, PLAYER, CLIENTS, KIT_CONFIG = 0x2F79A0, OBJECTS + 0x74000, OBJECTS + 0x75000, OBJECTS + 0x76000
+
+
+def kits_for(game, place, current=0):
+    """The followed player is `place`, its kit 0 holds one item (dictionary id 77) and it plays kit `current`."""
+    game.word(NC + 4, PLAYER)
+    game.word(PLAYER + 0x114, place, 1)
+    game.word(GAME + 0x53A4, KIT_CONFIG)
+    game.word(PVP + 0x1F8 + 0x18650, CLIENTS)
+    game.word(CLIENTS + place * 0x30 + 0xC, current, 1)
+    record = LINK + 0xC + place * 0x45FC
+    game.word(record + 0x57, 3, 1)
+    game.word(record + 0x1564, 1, 1)
+    game.word(record + 0x1568 + 4, 77, 2)
+    for kit in range(3):
+        slots = record + kit * 0x704 + 0x98
+        for slot in range(23):
+            game.word(slots + slot * 4, 0xFFFF, 2)
+    game.word(record + 0x98, 0, 2)
+    game.word(record + 0x9A, 1, 2)
+
+
+def static_info(game, options):
+    regs = dict(STEADY)
+    regs[UC_X86_REG_ESI] = options
+    regs[UC_X86_REG_EBP] = 0                     # no frame: blackout's read of the options (and its breadcrumb) passes
+    regs[UC_X86_REG_EDI] = STUBS + 0xD00         # what the site's own `mov edx,[edi]; mov eax,[edx+40h]` reads
+    game.word(STUBS + 0xD00, STUBS + 0xC00)
+    return game.run("static", regs)
+
+
+def setup_profiles(game):
+    regs = dict(STEADY)
+    regs[UC_X86_REG_ESI] = 0x05050505
+    return game.run("profiles", regs)
 
 
 def events(first, total, items):
@@ -552,17 +595,55 @@ def main():
     check(not calls, "frame, a player's game: nothing done, its kits its own")
     state, _, calls = key(ours, 0x03)
     check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls, "key, a player, 2: on to the game (patch 58's kit key)")
+    # initialize_match's feed of the local place's kits (place 0 in a spectator's game): withheld from a spectator alone.
+    ours.setup(2)
+    static_info(ours, LINK + 0xC)
+    state, _, calls = setup_profiles(ours)
+    check(state[UC_X86_REG_EIP] == SITES["profiles"][2] and not calls, "profiles, a player's match: the feed goes on (0x2362D2)")
     ours.setup(0xFF)
+    static_info(ours, LINK + 0xC)
+    state, _, calls = setup_profiles(ours)
+    check(state[UC_X86_REG_EIP] == SITES["profiles"][3] and state[UC_X86_REG_ESI] == 0 and not calls,
+          "profiles, a spectator's match: skipped to 0x2362E9, ESI 0 as the skipped xor leaves it, nothing given to the movie")
     ours.word(WORLD_UI + 0x8, HUD_HOLDER)        # this hud has its hud movie (a viewer's frames test without it)
+    kits_for(ours, 1)
     state, _, calls = frame(ours)
     names = [c[2] for c in calls if c[0] == "invoke"]
-    check(names == ["root.show_profiles_selector", "root.show_slots"] and [c[4] for c in calls] == [(2, 0), (2, 0)],
-          "frame, a live spectator: the kit chooser and the slots hidden through the hud movie, nothing else")
+    check(names == ["root.show_slots", "root.srp_spectator_kits", "root.srp_spectator_kits_show"] and not [c for c in calls if c[0] == "kit_level"],
+          "frame, a live spectator, no kits note yet: the quick slots hidden, an empty chooser, nothing read of any kit")
+    check([c[4] for c in calls if c[0] == "invoke"][1] == (6, "") and [c[4] for c in calls if c[0] == "invoke"][2] == (4, 1),
+          "frame, a live spectator: the chooser empty, in the game's own place (mode 1)")
+    kit = kits_note(1, 0b001)
+    state, _, calls = ours.run("note", note_regs(ours, kit))
+    check(state[UC_X86_REG_EIP] == exit_ and not calls, "note, a place's kits: kept, nothing called yet")
+    state, _, calls = frame(ours)
+    invoked = {c[2]: c[4] for c in calls if c[0] == "invoke"}
+    check(invoked.get("root.srp_spectator_kits") == (6, "0|0|7||77:0:1;") and [c for c in calls if c[0] == "kit_level"] == [("kit_level", 0, LINK + 0xC + 0x45FC, KIT_CONFIG)],
+          "frame, a live spectator, a note of kit 0: the chooser told only kit 0 (its level read of that kit alone)")
+    check(invoked.get("root.srp_spectator_current_kit") == (4, 0), "frame, a live spectator: the kit the place has now")
+    state, _, calls = frame(ours)
+    check([c[2] for c in calls if c[0] == "invoke"] == ["root.show_slots", "root.srp_spectator_kits_show"] and not [c for c in calls if c[0] == "kit_level"],
+          "frame, a live spectator, the next: only the slots and the chooser's place")
+    ours.run("note", note_regs(ours, kits_note(1, 0b101)))
+    ours.word(CLIENTS + 1 * 0x30 + 0xC, 2, 1)
+    state, _, calls = frame(ours)
+    check({c[2]: c[4] for c in calls if c[0] == "invoke"}.get("root.srp_spectator_current_kit") == (4, 2),
+          "frame, a live spectator, its followed player changed kit: told")
+    ours.run("note", note_regs(ours, kits_note(1, 0b011)))
+    state, _, calls = frame(ours)
+    check(sorted(c[1] for c in calls if c[0] == "kit_level") == [0, 1] and "root.srp_spectator_kits" in [c[2] for c in calls if c[0] == "invoke"],
+          "frame, a live spectator, a place's mask grew: the chooser told both kits")
     state, _, calls = key(ours, 0x03)
     check(state[UC_X86_REG_EIP] == SITES["key"][3] and state[UC_X86_REG_EAX] & 0xFF == 1 and not calls,
           "key, a live spectator, 2: taken, nothing called (no kit pick)")
     state, _, calls = key(ours, 0x04, kind=HELD)
     check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls, "key, a live spectator, 3 held: on as the game's (only a key going down picks)")
+    state, _, calls = close(ours, 0)
+    check(("invoke", HUD_MOVIE, "root.srp_spectator_kits_show", 1, (4, 0)) in calls and not [c for c in calls if c[0] in ("resume", "show_replay_controls")],
+          "close, a live spectator: the chooser hidden, no clock or controls touched")
+    state, _, calls = frame(ours)
+    check([c[2] for c in calls if c[0] == "invoke"] == ["root.show_slots"], "frame, after a live spectator's end: the chooser not fed again")
+    static_info(ours, LINK + 0xC)                # the next match
     ours.word(WORLD_UI + 0x8, 0)                 # back to no hud movie for the viewer's frames below
     ours.run("note", note_regs(ours, playback(1, 0, 100)))
     for site, name in (("button", "a button"), ("pointer", "the pointer")):
@@ -589,28 +670,32 @@ def main():
           "frame, a viewer: the controls shown, the bar's length, the markers, its position and the play button")
     keys = ["st_srp_viewer_back", "st_srp_viewer_moments", "st_srp_viewer_moments_all", "st_srp_viewer_moments_mine",
             "st_srp_viewer_moments_followed", "st_srp_viewer_cursor", "st_srp_viewer_pause", "st_srp_viewer_filter",
-            "st_srp_viewer_hide", "st_srp_viewer_cap_ctrl", "st_srp_viewer_cap_space", "st_srp_viewer_kits"]
+            "st_srp_viewer_hide", "st_srp_viewer_cap_ctrl", "st_srp_viewer_cap_space"]
     check([c[1] for c in calls if c[0] == "translate"] == keys
           and ("root.start_viewer", (6, "st_srp_viewer_back")) in names
-          and any(c[2] == "root.start_viewer" and c[3] == 12 for c in calls if c[0] == "invoke")
+          and any(c[2] == "root.start_viewer" and c[3] == 11 for c in calls if c[0] == "invoke")
           and ("root.set_moments", (4, 0)) in names and ("root.set_cursor_shown", (2, 0)) in names,
-          "frame, a viewer: the controls made a viewer's (root.start_viewer with its 12 texts translated), "
+          "frame, a viewer: the controls made a viewer's (root.start_viewer with its 11 texts translated), "
           "the Moments switch at All (the viewer did not play), the cursor hidden")
     state, _, calls = frame(ours)
     names = [c[2] for c in calls if c[0] == "invoke"]
     check(names == ["root.set_position", "root.set_play_state"] and not [c for c in calls if c[0] != "invoke"],
           "frame, a viewer, the next frame: only the position and the play button")
-    kit = kits_note(1, [(0, [b"st_ak74m_name", b"st_base_medkit_name"])])
-    state, _, calls = ours.run("note", note_regs(ours, kit))
-    check(state[UC_X86_REG_EIP] == exit_ and not calls, "note, a place's kits: kept, nothing called yet")
+    ours.word(WORLD_UI + 0x8, HUD_HOLDER)
+    kits_for(ours, 1)
+    ours.run("note", note_regs(ours, kits_note(1, 0b001)))
     state, _, calls = frame(ours)
-    ks = [c for c in calls if c[0] == "invoke" and c[2] == "root.set_player_kits"]
-    tr = [c[1] for c in calls if c[0] == "translate"]
-    check(ks and tr == ["st_ak74m_name", "st_base_medkit_name"] and ks[0][3] == 2,
-          "frame, a viewer, after a kits note: its items' text keys translated, root.set_player_kits(place, text)")
-    state, _, calls = frame(ours)
-    check(not [c for c in calls if c[0] == "invoke" and c[2] == "root.set_player_kits"],
-          "frame, a viewer, the next frame: the kits not given again")
+    invoked = {c[2]: c[4] for c in calls if c[0] == "invoke"}
+    check(invoked.get("root.srp_spectator_kits") == (6, "0|0|7||77:0:1;") and invoked.get("root.srp_spectator_kits_show") == (4, 2),
+          "frame, a viewer, a kits note: the hud's chooser told it, above the controls (mode 2)")
+    state, _, calls = mouse(ours, "pointer")
+    check(state[UC_X86_REG_EIP] == SITES["pointer"][2] and not calls, "pointer, a viewer, no Ctrl cursor: to the controls alone")
+    key(ours, 0x1D)
+    state, _, calls = mouse(ours, "pointer", (640, 480))
+    check(state[UC_X86_REG_EIP] == SITES["pointer"][2] and ("invoke", HUD_MOVIE, "root.srp_spectator_pointer", 2, (4, 640)) in calls,
+          "pointer, a viewer, the Ctrl cursor up: to the controls, the chooser told where it is (its hover list)")
+    key(ours, 0x1D)
+    ours.word(WORLD_UI + 0x8, 0)
     state, _, calls = control(ours, "moments_clicked", (4, 2, 0))
     check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls, "call, a viewer, moments_clicked(2): taken, nothing sent")
     state, _, calls = frame(ours)
