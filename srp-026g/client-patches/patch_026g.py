@@ -883,16 +883,14 @@ SOUND_POOLS = (
     (0x1F8DBD, bytes.fromhex("c745f4c4000000"), bytes.fromhex("c745f4") + struct.pack("<I", SOUND_INSTANCES)),
 )
 
-# Match the shipped launcher's budgets when command-line keys are absent.
-# mt_allocator starts at 16 MiB, then adds 360 MiB on the default branch;
-# an explicit value instead takes the unchanged `shl esi,20` branch.
+# Patch 37: the resource arenas' floor when the command line has none.
 # minimum_resources_memory_size defaults to 336 MiB before the native u64
-# multiplication by MiB. Its explicit numeric path jumps over this immediate.
-# Both values are numbers, not addresses; neither has a base relocation.
+# multiplication by MiB; its explicit numeric path jumps over this
+# immediate. 768 MiB, what the launcher and the scripts pass. A number, no
+# base relocation. (Patch 37 also made the multithreaded arena's default 768
+# MiB, at 0xE100F; patch 129 below replaced that.)
 MEMORY_DEFAULT_MIB = 768
 MEMORY_DEFAULTS = (
-    (0xE100F, bytes.fromhex("81c600008016"),
-     b"\x81\xc6" + struct.pack("<I", (MEMORY_DEFAULT_MIB - 16) << 20)),
     (0xE9985, bytes.fromhex("b850010000"),
      b"\xb8" + struct.pack("<I", MEMORY_DEFAULT_MIB)),
 )
@@ -933,12 +931,47 @@ ARENA_DEFAULTS = (
 # under 64 KiB. The one frame above 2 MiB a players' game can reach is
 # network_client::draw_match_stats (0x27F780, 5.8 MiB, the logic thread),
 # drawn only with -net_stats on the command line, which nothing passes.
-# platform::allocate_arenas' stack term ((threads x 2 + 8) x 8 MiB,
-# 0xE98C6) is kept, so the resource arenas and the video budget are sized
-# as before; the space freed stays free. A number, no relocation.
+# platform::allocate_arenas' stack term (0xE98C6) is patch 129's.
 THREAD_STACK_MIB = 2
 THREAD_STACKS = (
     (0xE37BA, bytes.fromhex("ba00008000"), b"\xba" + struct.pack("<I", THREAD_STACK_MIB << 20)),
+)
+
+# Patch 129: the global multithreaded arena (the allocator 0xA8001C,
+# "global multithreaded") is at least 1024 MiB, whatever the command line
+# says. memory::preinitialize (0xE0F20) presets the u32 that
+# is_set_as_number<u32> (0x141B0) writes the key mt_allocator (0xA80150,
+# "set maximum memory for global mt allocator, Mb") to, `mov dword
+# [esp+10h],1000000h` at 0xE0FFA; absent (or not a number) the code then
+# adds 360 MiB to that (376 MiB; patch 37 made it 768), given it is MiB,
+# `shl esi,14h`. The preset becomes MT_ARENA_MIB and the two branches
+# (0xE100B..0xE1019) one floor, `mov eax,400h` / `cmp esi,eax` / `cmovb
+# esi,eax` / `shl esi,14h`: no key gives 1024 MiB, a value under 1024 (the
+# -mt_allocator=768 of the launchers and scripts made before this patch)
+# 1024, a larger one itself. EAX is free there: 0xE6690, called next, loads its
+# own. The exe is the one owner of the number; no launch line names it.
+# The arena is full at 795-800 of 805 MB in 2 of 6 bake-stress loads (19
+# bots in live gear, 777 bakes, 2026-11-09).
+# The arena is one of allocate_arenas' "engine(fixed)" sum (0xE98A0), with
+# (threads x 2 + 8) x 8 MiB counted for the engine threads' stacks
+# (0xE98C2..0xE98CB, `mov ecx,800000h` at 0xE98C6), before it sizes the
+# resource arenas (their 768 MiB floor) and the video budget from the
+# address space left. The term becomes THREAD_STACK_MIB, the size patch 128
+# gives the stacks, so the budget counts the stacks there are:
+# "engine(fixed)" changes by 256 - 6 x (2 x threads + 8) MiB (+160 on 4
+# threads, -80 on 24). Limited by the address space, the budget moves by the
+# opposite and stays above 1 GiB; limited by RAM (0xE8DC0: physical - kernel
+# - fixed - 768 MiB), it drops by that on fewer than 18 threads, and the
+# start's RAM check moves up by as much (README patch 129). The render reads
+# the budget (device+1B0h) as thresholds (640 MiB, 1 GiB) for its automatic
+# sizes. Numbers, no relocation under any.
+MT_ARENA_MIB = 1024
+MT_ARENA = (
+    (0xE0FFA, bytes.fromhex("c744241000000001"),
+     bytes.fromhex("c7442410") + struct.pack("<I", MT_ARENA_MIB)),
+    (0xE100B, bytes.fromhex("84c0750881c600008016eb03c1e614"),
+     b"\xb8" + struct.pack("<I", MT_ARENA_MIB) + bytes.fromhex("3bf00f42f0c1e6149090")),
+    (0xE98C6, bytes.fromhex("b900008000"), b"\xb9" + struct.pack("<I", THREAD_STACK_MIB << 20)),
 )
 
 # replay_network_client's "is this place mine" (vtable 0x9FF344, slot +0x54
@@ -3560,7 +3593,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((BAKED_TEXTURE_MISSING[0], BAKED_TEXTURE_MISSING[0] + len(BAKED_TEXTURE_MISSING[1])))
         patch(data, *AI_ARENA)
         sites.append((AI_ARENA_VA, AI_ARENA_VA + len(AI_ARENA[1])))
-        for site in MEMORY_DEFAULTS + ARENA_DEFAULTS + THREAD_STACKS:
+        for site in MEMORY_DEFAULTS + ARENA_DEFAULTS + THREAD_STACKS + MT_ARENA:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         for site in SOUND_POOLS:
@@ -4031,6 +4064,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
                      f"the resources helper and render arenas {ARENA_HELPER_MIB} and {ARENA_RENDER_MIB} MiB by default, "
                      f"an engine thread's stack is {THREAD_STACK_MIB} MiB, "
+                     f"the multithreaded arena at least {MT_ARENA_MIB} MiB, "
                      f"the game world's sound scene has {SOUND_INSTANCES} sound instances and propagators, "
                      "a history item's six world sections grow on the heap, "
                      "a weapon's upgrade window shows the weapon, "

@@ -483,7 +483,6 @@ va	status	ref_021d	name
 0x000e77e0	inferred-medium	0x000b28c4	vostok::resources::check_queries_result
 0x000e7ef0	inferred-medium		vostok::resources::query_mount_archive
 0x000e8d20	inferred-medium	0x000b386a	get_minimum_kernel_memory
-0x000e9580	inferred-medium		vostok::memory::platform::allocate_arenas
 0x000e9e20	inferred-medium	0x000b431f	vostok::math::align_up<unsigned __int64>
 0x000eab50	inferred-medium	0x000b4d61	vostok::resources::schedule_release_all_resources
 0x000eae00	inferred-medium	0x000b4eab	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::resources::game_resources_manager,vostok::resources::resource_base *>,boost::_bi::list2<boost::_bi::value<vostok::resources::game_resources_manager *>,boost::arg<1> > > >::manager
@@ -645,7 +644,6 @@ va	status	ref_021d	name
 0x00105ad0	inferred-medium	0x000c8e62	GetVideoMemoryViaWMI
 0x00105db0	inferred-medium	0x000c90d3	GetVideoMemoryViaDirectDraw
 0x00106030	inferred-high		GetVideoMemoryViaDXGI
-0x00106300	inferred-medium		vostok::platform::get_local_video_memory_size
 0x00106430	inferred-medium	0x000c9389	vostok::resources::game_resources_manager::try_free_or_decrease_quality
 0x001064c0	inferred-medium	0x000c93e0	vostok::resources::game_resources_manager::try_reallocate_queue
 0x001065d0	inferred-medium	0x000c944b	vostok::resources::game_resources_manager::on_resource_freed_callback

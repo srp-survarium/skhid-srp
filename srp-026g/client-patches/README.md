@@ -141,7 +141,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/unplayed_match.rs`, `src/unplayed_match.toml`, `src/vostok/match_close.rs`, `check_unplayed_match_026g.py` | Patch 120: a match its game never played (the time rule's state 0: the handshake, a level loading, a level loaded before its first world) closes too, kicked, timed out, cut off or given its farewell: five lohooks (connect_to_match's connect, the logoff, close_current_match's guard, on_project_loaded's abort test, on_match_ready's end); its check runs each from the game's code on a made-up network client, the original beside (needs Unicorn; `../docs/notes/client_patch.md` section 3.74) |
 | `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
 | `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
-| `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`) and patch 128 (`THREAD_STACKS` in `patch_026g.py`): the defaults of the multithreaded arena and the resource floor (768 MiB), and of the resources helper (32 MiB) and render (320 MiB) arenas, a command-line value still taking over, and an engine thread's stack (2 MiB); its check runs the native option reads, the registrations' sizes and threading::spawn to CreateThread in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75 and 3.77) |
+| `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
@@ -452,7 +452,7 @@ the game **from `game\binaries\x86`** (it finds the certificate by a path
 relative to where it is started):
 
 ```
-survarium_skhid.exe -localization=english -server=<host>:<login port> -mt_allocator=768 -minimum_resources_memory_size=768
+survarium_skhid.exe -localization=english -server=<host>:<login port> -minimum_resources_memory_size=768
 ```
 
 Or let `make_client_026g.py` do all of it, without touching the game folder.
@@ -2239,6 +2239,9 @@ checksum and in nothing else (compared byte by byte); `--no-late-join`,
 **Not run:** a game.
 
 ### 37. Memory defaults match the launcher
+
+(The multithreaded arena's half of this patch, at 0xE100F, was replaced by patch 129: the arena is
+at least 1024 MiB, with or without `-mt_allocator`. The resource floor below is still this patch.)
 
 When memory options are absent, the full client now defaults to a 768 MiB
 multithreaded arena and a 768 MiB resource-memory floor, matching the existing
@@ -4968,7 +4971,7 @@ reserve, is the reserve too: 6 MiB of address space and commit charge freed a th
 8 logical CPUs, 342 with 24, 438 with 32.
 
 `platform::allocate_arenas` still counts (threads x 2 + 8) x 8 MiB of stacks into "engine(fixed)"
-(0xE98C2..0xE98CB) for its budget: kept, so the resource arenas and the video budget are sized
+(0xE98C2..0xE98CB) for its budget (patch 129 makes that term 2 MiB): kept here, so the resource arenas and the video budget are sized
 byte for byte as before and the space freed stays free. Lowering that term too would size them
 from the real stacks, and would keep a CPU with very many threads (64 and more: 1088 MiB counted
 there, without the pool's cap of 32) from failing the "Not enough memory" check at the start
@@ -4999,6 +5002,85 @@ the build of main with it against the same build with 8 MiB): 52 or 53 stacks of
 against 3085 MiB. Three of four loads clean; the fourth filled the multithreaded arena 17 s after
 Play, as one of the two loads with 8 MiB did. Not run on native Windows, nor with a replay, a late
 join, the death camera or another map.
+
+## The multithreaded arena: at least 1024 MiB (patch 129, unreleased)
+
+In the bake-stress load (one headless client, 19 bots in live players' gear, map 61, an empty
+`streamed_textures`, about 780 bakes) the global multithreaded arena (768 MiB, patch 37) filled 17 s
+after Play in 2 of 6 loads, 795 and 800 of 805 MB used, `not enough memory for arena [global mt
+allocator]`, with 8 MiB stacks and with 2 MiB ones. The memory profiler (patch 127, not merged) saw
+it peak at 760 of 768 MiB in one such load, mostly one 410 MiB transient block from
+`query_result::finish_translated_query`. Patch 128 freed about 312 MiB of peak address space; this
+patch spends 256 of it on that arena.
+
+**The patch** (`MT_ARENA` in `patch_026g.py`, the builds with the late join): three immediates.
+
+- `memory::preinitialize` (0xE0F20) presets the u32 that `is_set_as_number<u32>` (0x141B0) writes
+  the key `mt_allocator` (0xA80150) to: `mov dword [esp+10h],1000000h` at 0xE0FFA. Without the key
+  the code added 360 MiB to that preset (patch 37: 752); with it, `shl esi,14h`. The preset
+  becomes 400h (1024) and the two branches (0xE100B..0xE1019) one floor: `mov eax,400h` /
+  `cmp esi,eax` / `cmovb esi,eax` / `shl esi,14h`. No key or a key that is no number: 1024 MiB; a
+  value under 1024: 1024; a larger one: itself.
+- `platform::allocate_arenas` (0xE9580) counts (threads x 2 + 8) x 8 MiB of engine-thread stacks
+  into "engine(fixed)" (`mov ecx,800000h` at 0xE98C6) before it sizes the resource arenas and the
+  video budget from the address space left. The 8 MiB becomes patch 128's `THREAD_STACK_MIB` (2):
+  the budget counts the stacks there are. "engine(fixed)" changes by 256 - 6 x (2 x threads + 8)
+  MiB: +160 on 4 threads, +112 on 8, +64 on 12, +16 on 16, less from 18 on (-80 on 24). On a
+  machine limited by its address space, the budget moves by the opposite (here, 24 threads:
+  1643 -> 1723 MiB), and machines with fewer threads start from a budget higher by the same
+  amount, so every one stays above 1 GiB. It also takes the start's "Not enough memory" check
+  away from very large CPUs (64 threads counted 1088 MiB there).
+
+**Machines limited by RAM** (read in the code, not run). `calculate_desirable_resource_arenas`
+(0xE8DC0, 0.10b `memory_win.cpp`) also bounds everything by RAM: the physical memory (0x1B3A1D0)
+less the kernel's (0x1B3A200, at least 512 MiB) less "engine(fixed)" must be at least 320 + 768
+MiB, or the game stops at its start ("Not enough memory to run Vostok Engine"); the budget is then
+at most that less the 768 MiB floor. On fewer than 18 threads "engine(fixed)" grows (above), so
+on such a machine the budget drops by the same 160, 112, 64 or 16 MiB, and patch 124 (the same
+release) adds 120 MiB on every machine. With the kernel at its 512 MiB floor, the RAM Windows
+reports where each line falls, live revision 53 -> with patch 129 -> with patches 124 and 129:
+
+| Threads | Budget under 1 GiB (auto level 3, 0x3CF260 1024 not 2048) | Under 640 MiB (0x3CF260 512) | The start refuses |
+|---|---|---|---|
+| 4 | 3519 -> 3679 -> 3799 MiB | 3135 -> 3295 -> 3415 MiB | 2815 -> 2975 -> 3095 MiB |
+| 8 | 3583 -> 3695 -> 3815 MiB | 3199 -> 3311 -> 3431 MiB | 2879 -> 2991 -> 3111 MiB |
+| 16 | 3711 -> 3727 -> 3847 MiB | 3327 -> 3343 -> 3463 MiB | 3007 -> 3023 -> 3143 MiB |
+
+So a "4 GiB" PC that reports about 3.5 to 3.8 GiB, on 16 threads or fewer, can now get the lower
+automatic level and the 1024 size where it had the higher; a "3 GiB" PC that reports about 2.8 to
+3.1 GiB can now refuse to start where it started. A larger kernel moves each line up by as much.
+On 18 or more threads patch 129 lowers the lines (patch 124 still adds its 120). No change here
+keeps today's numbers on few threads simply; it is left as it is.
+
+**The one owner of the number** is the exe (`MT_ARENA_MIB`). No launch line passes `-mt_allocator`
+any more (the launcher's arguments, the Linux and macOS scripts, `play_skhid.bat`, the updater's
+replay, `Skhid-without-updater.bat`, the local clients); they keep
+`-minimum_resources_memory_size=768`. A launcher or a script of before still passes
+`-mt_allocator=768`, which the floor raises to 1024: a new exe gets 1024 MiB with any launcher, an
+old exe (patch 37) 768 MiB with any, as today. A cert-only build (no patch 37 either) gets the
+retail 376 MiB without the key; it is no players' build.
+
+**The video budget** (u64 0x1B3A1F8, the startup dump's "video memory stats for engine") is not
+reserved: it is the address space the engine leaves for the driver. The render gets it at its
+creation (engine_world 0x15574 -> render::world -> render::engine::world 0x117820 -> device+1B0h
+and resource_manager+10h) and reads it only against thresholds: above 1 GiB or not (the automatic
+level 2 or 3, e.g. 0x1C96E0, 0x190508, 0x19377B, 0x11AB9C), 640 MiB and 1 GiB (512, 1024 or 2048,
+0x3CF260), and in the statistics (MiB, 0x13D766). 1643 or 1723 MiB is above both; a machine limited
+by RAM can fall under them (above).
+
+Nothing a match computes. `check_memory_defaults_026g.py` runs the key's read to the size stored
+in both exes (absent, not a number, 256 to 1536, 2048) and the stack term for 4 to 64 threads
+(8 MiB a stack in the original, 2 in the build). The self-test's default-build variant passes.
+
+Run in the bake-stress rig (2026-11-09, under Wine/DXVK, 24 threads, main + this patch): 6 of 6
+loads clean, about 5 minutes in the match each; 3 with the launch line without the key, 3 with the
+old `-mt_allocator=768`; all 6 logged the arena at 1 073 741 824 bytes, the engine's arenas at
+2 339 110 904 bytes (+256 MiB), the resource arenas 512 + 256 MiB, the video budget 1806.5 to
+1806.8 MB (1723 MiB, from 1643). The arena's touched extent peaked at 558 to 816 MiB (816 is past
+the old arena's end), the address space mapped below 4 GiB at 3001 to 3037 MiB (2757 to 2773 with
+768 MiB, 3085 before patch 128). With 1024 MiB a 760 MiB peak has 264 MiB to spare; the 410 MiB
+transient needs one hole of its size, so two at once would not fit. Not run on native Windows, nor
+with a replay, a late join or another map.
 
 ## The memory profiler (patch 127, unreleased)
 

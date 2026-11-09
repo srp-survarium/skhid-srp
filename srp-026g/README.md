@@ -54,7 +54,7 @@ The game: the original 0.26g with the patched exe and the certificate of
 `client-patches/`, started from `game\binaries\x86` with
 
 ```
-survarium_skhid.exe -localization=english -server=127.0.0.1:1234 -mt_allocator=768 -minimum_resources_memory_size=768
+survarium_skhid.exe -localization=english -server=127.0.0.1:1234 -minimum_resources_memory_size=768
 ```
 
 A match needs two players who did not come as one squad. Alone on one PC, the

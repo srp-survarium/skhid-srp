@@ -8,7 +8,7 @@ USAGE (this script never touches the source exe):
     python patch_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe <out>/launcher_skhid.exe
         [--site=https://skhid.link]     the server's web page (HTTPS)
         [--game-exe=survarium_skhid.exe] what PLAY starts, beside the launcher
-        [--arguments="-mt_allocator=768 -minimum_resources_memory_size=768"]
+        [--arguments="-minimum_resources_memory_size=768"]
         [--bin=<file>]                  another launcher_values_026g.bin
     python patch_launcher_026g.py <survarium_launcher.exe> --check [...]
         every check and patch in memory, nothing written
@@ -46,7 +46,7 @@ UPDATER_NAME = "updater_skhid.exe"
 PAGES_DIR = "launcher_skhid"
 DEFAULT_SITE = "https://skhid.link"
 DEFAULT_GAME_EXE = "survarium_skhid.exe"
-DEFAULT_ARGUMENTS = "-mt_allocator=768 -minimum_resources_memory_size=768"
+DEFAULT_ARGUMENTS = "-minimum_resources_memory_size=768"
 
 # The new section, right after .reloc (the original image ends there).
 SECTION_NAME = b".skhid\0\0"

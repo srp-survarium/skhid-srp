@@ -135,7 +135,7 @@ class Config:
         account = self.accounts[index]
         game = [account.executable, f"-account_name={account.name}", f"-account_password={account.password}",
                 f"-server=127.0.0.1:{self.ports[0]}",
-                "-mt_allocator=768", "-minimum_resources_memory_size=768", "-splash_screen"]
+                "-minimum_resources_memory_size=768", "-splash_screen"]
         if self.localization:
             game.insert(3, f"-localization={self.localization}")
         if self.virtual_desktop:
