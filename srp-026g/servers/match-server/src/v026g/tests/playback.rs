@@ -17,7 +17,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU32;
 
 use session::v026g::persist::match_events::{self, MatchEvent, Player, Timing};
-use session::v026g::replay_watch::{Access, Stage, WatchFrom, WatchRequest, WatchSettings};
+use session::v026g::replay_watch::{
+    Access, Stage, WatchFrom, WatchRefusal, WatchRequest, WatchSettings,
+};
 use session::v026g::replays::{Refusal, Replays, Status};
 use survarium::v026g::maps::MatchMap;
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
@@ -698,18 +700,12 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
     // Not a player.
     assert_eq!(
         ask(&mut bench, 555, revision()),
-        Stage::Refused {
-            status: Status::NotYours,
-            refusal: None
-        }
+        Stage::Refused(WatchRefusal::NotYours)
     );
     // A player, with a game older than the recording's.
     assert!(matches!(
         ask(&mut bench, 100, revision() - 1),
-        Stage::Refused {
-            status: Status::Incompatible,
-            refusal: Some(Refusal::Newer { .. })
-        }
+        Stage::Refused(WatchRefusal::Incompatible(Refusal::Newer { .. }))
     ));
     watches.answer(100);
     // A player, then a moderator (the recording shared: read once).
@@ -761,10 +757,7 @@ fn a_match_without_a_recording_is_gone() {
     replays.watches().start(request, bench.now());
     assert_eq!(
         read_for(&mut bench, &replays, WATCHER_ACCOUNT),
-        Stage::Refused {
-            status: Status::Gone,
-            refusal: None
-        }
+        Stage::Refused(WatchRefusal::Gone)
     );
 }
 

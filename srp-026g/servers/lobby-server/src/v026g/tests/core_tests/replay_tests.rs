@@ -2,9 +2,7 @@
 //! session's player) and the polls (`3B` with `REPLAY_START`), answered
 //! with the asker's own `R1` row.
 
-use session::v026g::replays::{
-    Replays, SaveSettings, Sidecar, Status, oldest_replayable_here,
-};
+use session::v026g::replays::{Replays, SaveSettings, Sidecar, oldest_replayable_here};
 use survarium::v026g::lobby::{REPLAY_START, SAVE_ASK, SAVE_START};
 
 use super::*;
@@ -213,6 +211,7 @@ fn a_game_back_by_its_own_word_is_free_to_watch_again_at_once() {
 /// and a server without sessions `off`.
 #[test]
 fn a_refused_replay_session_says_why_and_a_busy_player_gets_none() {
+    use session::v026g::replay_watch::WatchRefusal;
     use session::v026g::replays::Refusal;
     let desk = sessions();
     let mut world = World::new();
@@ -234,7 +233,7 @@ fn a_refused_replay_session_says_why_and_a_busy_player_gets_none() {
         oldest: 17,
     };
     desk.watches()
-        .refuse(&request, Status::Incompatible, Some(why), world.now);
+        .refuse(&request, WatchRefusal::Incompatible(why), world.now);
     assert_eq!(poll_refused(&mut world, taras), "R1;incompatible;1f07c8fb;0");
     // A refusal holds nothing; a session not over: `busy`.
     assert_eq!(

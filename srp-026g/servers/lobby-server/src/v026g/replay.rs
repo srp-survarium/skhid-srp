@@ -34,7 +34,7 @@
 
 use std::time::Instant;
 
-use session::v026g::replay_watch::{WatchFrom, WatchRequest};
+use session::v026g::replay_watch::{WatchFrom, WatchRefusal, WatchRequest};
 use session::v026g::replays::{Answer, Status};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::ReplayWatchAsk;
@@ -143,7 +143,7 @@ impl Core<'_> {
                     watches.sent(request.account_id, now);
                     self.send_to_replay(addr, &ticket);
                 }
-                None => watches.refuse(&request, Status::Busy, None, now),
+                None => watches.refuse(&request, WatchRefusal::Busy, now),
             }
         }
     }

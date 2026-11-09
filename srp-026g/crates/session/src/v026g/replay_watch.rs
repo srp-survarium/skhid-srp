@@ -159,6 +159,35 @@ pub struct WatchFrom {
     pub place: Option<u8>,
 }
 
+/// Why a session is not given: what its player is told.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WatchRefusal {
+    Off,
+    /// The game's revision is unknown, or older than [`MIN_REVISION`].
+    OldGame,
+    NotYours,
+    /// No recording of it (or no more).
+    Gone,
+    /// Another simulation epoch's, and why (for the log; the movie says it).
+    Incompatible(Refusal),
+    Busy,
+    Failed,
+}
+
+impl WatchRefusal {
+    pub fn status(self) -> Status {
+        match self {
+            Self::Off => Status::Off,
+            Self::OldGame => Status::OldGame,
+            Self::NotYours => Status::NotYours,
+            Self::Gone => Status::Gone,
+            Self::Incompatible(_) => Status::Incompatible,
+            Self::Busy => Status::Busy,
+            Self::Failed => Status::Failed,
+        }
+    }
+}
+
 /// Where a session is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
@@ -173,18 +202,81 @@ pub enum Stage {
     /// Its game watches.
     Playing { start_ms: u32 },
     /// Not given, until the movie is told.
-    Refused {
-        status: Status,
-        refusal: Option<Refusal>,
-    },
+    Refused(WatchRefusal),
 }
 
 impl Stage {
     /// Not refused: a session that counts, and holds its player out of its
     /// room's matches.
     fn is_open(self) -> bool {
-        !matches!(self, Self::Refused { .. })
+        !matches!(self, Self::Refused(_))
     }
+
+    /// How long a session may stay here before [`Event::TimedOut`]. Never
+    /// for one that plays: its playback ends it, and the match server
+    /// bounds a pause.
+    fn patience(self) -> Option<Duration> {
+        match self {
+            Self::Queued | Self::Loading => Some(LOAD_WITHIN),
+            Self::Ready { .. } | Self::Sent { .. } => Some(CONNECT_WITHIN),
+            Self::Playing { .. } => None,
+            Self::Refused(_) => Some(REFUSAL_KEPT),
+        }
+    }
+}
+
+/// What can happen to a session: [`step`]'s input.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Event {
+    /// The match server's reader takes it.
+    Taken,
+    /// Its recording is read.
+    Loaded { start_ms: u32 },
+    /// It is not given.
+    Refuse(WatchRefusal),
+    /// The lobby sent its game.
+    SentGame,
+    /// Its game reached the match server.
+    Connected,
+    /// Its game left, or its recording ended.
+    Ended,
+    /// Its game says it is back in the lobby.
+    GameBack,
+    /// It stayed longer than [`Stage::patience`].
+    TimedOut,
+    /// The movie's poll was told its refusal.
+    Told,
+}
+
+/// Where an [`Event`] takes a session.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Step {
+    To(Stage),
+    Over,
+}
+
+/// The session's machine, the one place its stage changes. `None`: the
+/// event means nothing in this stage (a word that came late), and nothing
+/// changes.
+fn step(stage: Stage, event: Event) -> Option<Step> {
+    use Stage::{Loading, Playing, Queued, Ready, Refused, Sent};
+    Some(match (stage, event) {
+        (Queued, Event::Taken) => Step::To(Loading),
+        (Loading, Event::Loaded { start_ms }) => Step::To(Ready { start_ms }),
+        (Ready { start_ms }, Event::SentGame) => Step::To(Sent { start_ms }),
+        (Sent { start_ms } | Playing { start_ms }, Event::Connected) => {
+            Step::To(Playing { start_ms })
+        }
+        (Loading | Ready { .. }, Event::Refuse(refusal)) => Step::To(Refused(refusal)),
+        (Queued | Loading, Event::TimedOut) => Step::To(Refused(WatchRefusal::Failed)),
+        (Ready { .. } | Sent { .. } | Refused(_), Event::TimedOut) => Step::Over,
+        (Refused(_), Event::Told) => Step::Over,
+        (Sent { .. } | Playing { .. }, Event::GameBack) => Step::Over,
+        (Queued | Loading | Ready { .. } | Sent { .. } | Playing { .. }, Event::Ended) => {
+            Step::Over
+        }
+        _ => return None,
+    })
 }
 
 /// What the movie's poll gets of a session ([`Watches::answer`]).
@@ -281,11 +373,11 @@ impl Watches {
             Stage::Ready { start_ms } | Stage::Sent { start_ms } | Stage::Playing { start_ms } => {
                 (Status::Watching, start_ms)
             }
-            Stage::Refused { status, .. } => {
-                sessions.remove(&account_id);
-                (status, 0)
-            }
+            Stage::Refused(refusal) => (refusal.status(), 0),
         };
+        if step(session.stage, Event::Told) == Some(Step::Over) {
+            sessions.remove(&account_id);
+        }
         Some(WatchAnswer {
             status,
             match_id,
@@ -339,9 +431,9 @@ impl Watches {
     /// The lobby sent the session's game to the match server.
     pub fn sent(&self, account_id: u32, now: Instant) {
         if let Some(session) = self.sessions.locked().get_mut(&account_id)
-            && let Stage::Ready { start_ms } = session.stage
+            && let Some(Step::To(stage)) = step(session.stage, Event::SentGame)
         {
-            session.stage = Stage::Sent { start_ms };
+            session.stage = stage;
             session.since = now;
         }
     }
@@ -352,30 +444,29 @@ impl Watches {
     pub fn expire(&self, now: Instant) {
         self.sessions.locked().retain(|account_id, session| {
             let waited = now.saturating_duration_since(session.since);
+            if !session.stage.patience().is_some_and(|most| waited >= most) {
+                return true;
+            }
+            let match_id = session.request.match_id;
             match session.stage {
-                Stage::Queued | Stage::Loading if waited >= LOAD_WITHIN => {
-                    log::warn!(
-                        "Replay sessions: match {:#x} for account {account_id} was not read in \
-                         time",
-                        session.request.match_id
-                    );
-                    session.stage = Stage::Refused {
-                        status: Status::Failed,
-                        refusal: None,
-                    };
+                Stage::Queued | Stage::Loading => log::warn!(
+                    "Replay sessions: match {match_id:#x} for account {account_id} was not read \
+                     in time"
+                ),
+                Stage::Ready { .. } | Stage::Sent { .. } => log::info!(
+                    "Replay sessions: account {account_id}'s game never came to watch match \
+                     {match_id:#x}"
+                ),
+                Stage::Playing { .. } | Stage::Refused(_) => {}
+            }
+            match step(session.stage, Event::TimedOut) {
+                Some(Step::To(stage)) => {
+                    session.stage = stage;
                     session.since = now;
                     true
                 }
-                Stage::Ready { .. } | Stage::Sent { .. } if waited >= CONNECT_WITHIN => {
-                    log::info!(
-                        "Replay sessions: account {account_id}'s game never came to watch match \
-                         {:#x}",
-                        session.request.match_id
-                    );
-                    false
-                }
-                Stage::Refused { .. } => waited < REFUSAL_KEPT,
-                _ => true,
+                Some(Step::Over) => false,
+                None => true,
             }
         });
     }
@@ -390,7 +481,10 @@ impl Watches {
             .values_mut()
             .filter(|session| session.stage == Stage::Queued)
             .min_by_key(|session| session.since)?;
-        session.stage = Stage::Loading;
+        let Some(Step::To(stage)) = step(session.stage, Event::Taken) else {
+            return None;
+        };
+        session.stage = stage;
         session.since = now;
         Some(session.request)
     }
@@ -407,16 +501,14 @@ impl Watches {
         players: &[u32],
         revisions: &[Option<u8>],
         oldest: u8,
-    ) -> Result<(), (Status, Option<Refusal>)> {
-        let settings = self.settings.as_ref().ok_or((Status::Off, None))?;
+    ) -> Result<(), WatchRefusal> {
+        let settings = self.settings.as_ref().ok_or(WatchRefusal::Off)?;
         if !settings.may_watch(request.account_id, players.contains(&request.account_id)) {
-            return Err((Status::NotYours, None));
+            return Err(WatchRefusal::NotYours);
         }
-        let Some(revision) = request.revision else {
-            return Err((Status::OldGame, None));
-        };
+        let revision = request.revision.ok_or(WatchRefusal::OldGame)?;
         match refusal_of(revisions, revision, oldest) {
-            Some(refusal) => Err((Status::Incompatible, Some(refusal))),
+            Some(refusal) => Err(WatchRefusal::Incompatible(refusal)),
             None => Ok(()),
         }
     }
@@ -424,32 +516,17 @@ impl Watches {
     /// The session's recording is read: it starts at `start_ms`. False when
     /// the session is gone meanwhile.
     pub fn loaded(&self, request: &WatchRequest, start_ms: u32, now: Instant) -> bool {
-        self.update(
-            request,
-            |stage| match stage {
-                Stage::Loading => Some(Stage::Ready { start_ms }),
-                _ => None,
-            },
-            now,
-        )
+        self.advance(request, Event::Loaded { start_ms }, now)
     }
 
     /// The session is not given (its recording, its player, the epoch).
-    pub fn refuse(
-        &self,
-        request: &WatchRequest,
-        status: Status,
-        refusal: Option<Refusal>,
-        now: Instant,
-    ) {
+    pub fn refuse(&self, request: &WatchRequest, refusal: WatchRefusal, now: Instant) {
         log::info!(
-            "Replay sessions: account {} is not shown match {:#x}: {}{}",
+            "Replay sessions: account {} is not shown match {:#x}: {refusal:?}",
             request.account_id,
             request.match_id,
-            status.word(),
-            refusal.map_or_else(String::new, |refusal| format!(" ({refusal:?})"))
         );
-        self.update(request, |_| Some(Stage::Refused { status, refusal }), now);
+        self.advance(request, Event::Refuse(refusal), now);
     }
 
     /// A game of `session_id` connects to the match server: its session's
@@ -459,11 +536,12 @@ impl Watches {
         let session = sessions
             .values_mut()
             .find(|session| session.request.session_id == session_id)?;
-        let start_ms = match session.stage {
-            Stage::Sent { start_ms } | Stage::Playing { start_ms } => start_ms,
-            _ => return None,
+        let Some(Step::To(stage @ Stage::Playing { start_ms })) =
+            step(session.stage, Event::Connected)
+        else {
+            return None;
         };
-        session.stage = Stage::Playing { start_ms };
+        session.stage = stage;
         session.since = now;
         Some((session.request, start_ms))
     }
@@ -472,10 +550,10 @@ impl Watches {
     /// never came): its player is free again.
     pub fn ended(&self, request: &WatchRequest) {
         let mut sessions = self.sessions.locked();
-        if sessions
-            .get(&request.account_id)
-            .is_some_and(|session| session.request == *request && session.stage.is_open())
-        {
+        if sessions.get(&request.account_id).is_some_and(|session| {
+            session.request == *request
+                && step(session.stage, Event::Ended) == Some(Step::Over)
+        }) {
             sessions.remove(&request.account_id);
             log::info!(
                 "Replay sessions: account {}'s session of match {:#x} is over",
@@ -502,7 +580,7 @@ impl Watches {
         let mut sessions = self.sessions.locked();
         let account = sessions.iter().find_map(|(account, session)| {
             (session.request.session_id == session_id
-                && matches!(session.stage, Stage::Sent { .. } | Stage::Playing { .. }))
+                && step(session.stage, Event::GameBack) == Some(Step::Over))
             .then_some(*account)
         });
         let Some(account) = account else { return false };
@@ -516,14 +594,9 @@ impl Watches {
         true
     }
 
-    /// The account's session moved by `step` (`None`: unchanged), if it is
-    /// still this request's.
-    fn update(
-        &self,
-        request: &WatchRequest,
-        step: impl FnOnce(Stage) -> Option<Stage>,
-        now: Instant,
-    ) -> bool {
+    /// The event happens to the account's session, if it is still this
+    /// request's and the event means something in its stage. Whether it did.
+    fn advance(&self, request: &WatchRequest, event: Event, now: Instant) -> bool {
         let mut sessions = self.sessions.locked();
         let Some(session) = sessions
             .get_mut(&request.account_id)
@@ -531,12 +604,18 @@ impl Watches {
         else {
             return false;
         };
-        let Some(stage) = step(session.stage) else {
-            return false;
-        };
-        session.stage = stage;
-        session.since = now;
-        true
+        match step(session.stage, event) {
+            Some(Step::To(stage)) => {
+                session.stage = stage;
+                session.since = now;
+                true
+            }
+            Some(Step::Over) => {
+                sessions.remove(&request.account_id);
+                true
+            }
+            None => false,
+        }
     }
 
     /// The account's session's stage, if it has one.
@@ -594,19 +673,16 @@ mod tests {
         );
         assert_eq!(
             watches.judge(&request(0x2_0000), &players, &revisions, 30),
-            Err((Status::NotYours, None))
+            Err(WatchRefusal::NotYours)
         );
         // Another epoch: refused with why, for a player of it too.
         assert_eq!(
             watches.judge(&request(ALICE), &players, &[Some(20)], 30),
-            Err((
-                Status::Incompatible,
-                Some(Refusal::Older {
-                    from: 20,
-                    to: 20,
-                    oldest: 30
-                })
-            ))
+            Err(WatchRefusal::Incompatible(Refusal::Older {
+                from: 20,
+                to: 20,
+                oldest: 30
+            }))
         );
     }
 
@@ -625,7 +701,7 @@ mod tests {
         assert!(!watches.holds(ALICE));
         assert_eq!(
             watches.judge(&unknown, &[ALICE], &[Some(40)], 30),
-            Err((Status::OldGame, None))
+            Err(WatchRefusal::OldGame)
         );
     }
 
@@ -702,11 +778,41 @@ mod tests {
             to: 20,
             oldest: 30,
         };
-        watches.refuse(&alice, Status::Incompatible, Some(why), now);
+        watches.refuse(&alice, WatchRefusal::Incompatible(why), now);
         assert!(!watches.holds(ALICE));
         assert_eq!(watches.start(request(MOD), now), Status::Preparing);
         assert_eq!(watches.answer(ALICE).unwrap().status, Status::Incompatible);
         assert_eq!(watches.answer(ALICE), None);
+    }
+
+    /// A refusal is for a session not given yet: one that plays is not
+    /// taken back by a word that came late, and nothing but an event of its
+    /// stage moves a session.
+    #[test]
+    fn a_session_moves_only_as_its_stage_allows() {
+        let now = Instant::now();
+        let watches = watches(Access::All, 4);
+        let alice = request(ALICE);
+        watches.start(alice, now);
+        // Not read yet: neither ready nor refused.
+        assert!(!watches.loaded(&alice, 50, now));
+        watches.refuse(&alice, WatchRefusal::Failed, now);
+        assert_eq!(watches.stage(ALICE), Some(Stage::Queued));
+        watches.next_job(now);
+        assert!(watches.loaded(&alice, 50, now));
+        watches.sent(ALICE, now);
+        assert_eq!(watches.connected(alice.session_id, now), Some((alice, 50)));
+        watches.refuse(&alice, WatchRefusal::Busy, now);
+        assert_eq!(watches.stage(ALICE), Some(Stage::Playing { start_ms: 50 }));
+        // A session that plays does not expire by waiting.
+        watches.expire(now + LOAD_WITHIN + CONNECT_WITHIN + REFUSAL_KEPT);
+        assert_eq!(watches.stage(ALICE), Some(Stage::Playing { start_ms: 50 }));
+        assert_eq!(step(Stage::Playing { start_ms: 50 }, Event::Told), None);
+        assert_eq!(
+            step(Stage::Refused(WatchRefusal::Busy), Event::Ended),
+            None,
+            "a refused session is the movie's to be told"
+        );
     }
 
     #[test]

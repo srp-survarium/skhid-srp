@@ -36,8 +36,10 @@ use session::v026g::GameAccounts;
 use session::v026g::persist::match_events::{self, MatchEvent};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use session::v026g::replay_watch::{DEFAULT_MAX_RECORDING_MB, WatchFrom, WatchRequest};
-use session::v026g::replays::{Refusal, ReplayId, Replays, Status};
+use session::v026g::replay_watch::{
+    DEFAULT_MAX_RECORDING_MB, WatchFrom, WatchRefusal, WatchRequest,
+};
+use session::v026g::replays::{ReplayId, Replays};
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::static_info::{self, NO_LOCAL_PLACE, StaticInfo};
 use survarium::v026g::match_msgs::{
@@ -782,9 +784,6 @@ pub(crate) fn timeline_of(events: &[MatchEvent]) -> Vec<TimelineEvent> {
         .collect()
 }
 
-/// Why a session's recording is not shown: its answer to the lobby.
-type Refused = (Status, Option<Refusal>);
-
 /// A match's recording read for a session ([`ReplayWatch`]'s reader): not
 /// found (`gone`), over `SRP_REPLAY_MAX_RECORDING_MB` or unreadable
 /// (`failed`), or not for this player ([`Watches::judge`], before it is
@@ -797,12 +796,12 @@ fn read(
     record_dir: &Path,
     max_bytes: u64,
     request: &WatchRequest,
-) -> Result<Recording, Refused> {
+) -> Result<Recording, WatchRefusal> {
     let match_id = request.match_id;
-    let path = replay::recording_in(record_dir, match_id).ok_or((Status::Gone, None))?;
+    let path = replay::recording_in(record_dir, match_id).ok_or(WatchRefusal::Gone)?;
     let failed = |why: String| {
         log::warn!("Replay sessions: the recording of match {match_id:#x}: {why}");
-        (Status::Failed, None)
+        WatchRefusal::Failed
     };
     let size = std::fs::metadata(&path)
         .map_err(|error| failed(error.to_string()))?
@@ -846,7 +845,7 @@ struct Prepared {
 /// A recording being read on its own thread, for a session.
 struct Reading {
     request: WatchRequest,
-    answer: Receiver<Result<Recording, Refused>>,
+    answer: Receiver<Result<Recording, WatchRefusal>>,
 }
 
 /// `SRP_DEV_REPLAY_CONTROL` (dev aid): controls written to a file, a line
@@ -1033,17 +1032,13 @@ impl ReplayWatch {
         let read = match reading.answer.try_recv() {
             Ok(read) => read,
             Err(TryRecvError::Empty) => return,
-            Err(TryRecvError::Disconnected) => Err((Status::Failed, None)),
+            Err(TryRecvError::Disconnected) => Err(WatchRefusal::Failed),
         };
         let request = reading.request;
         self.reading = None;
         match read {
             Ok(recording) => self.prepare(request, Arc::new(recording), now),
-            Err((status, refusal)) => {
-                self.replays
-                    .watches()
-                    .refuse(&request, status, refusal, now);
-            }
+            Err(refusal) => self.replays.watches().refuse(&request, refusal, now),
         }
     }
 
@@ -1090,11 +1085,7 @@ impl ReplayWatch {
                 self.replays.oldest(),
             ) {
                 Ok(()) => self.prepare(request, recording, now),
-                Err((status, refusal)) => {
-                    self.replays
-                        .watches()
-                        .refuse(&request, status, refusal, now);
-                }
+                Err(refusal) => self.replays.watches().refuse(&request, refusal, now),
             }
             return;
         }
@@ -1125,7 +1116,7 @@ impl ReplayWatch {
                 log::error!("Replay sessions: no thread to read a recording: {error}");
                 self.replays
                     .watches()
-                    .refuse(&request, Status::Failed, None, now);
+                    .refuse(&request, WatchRefusal::Failed, now);
             }
         }
     }
