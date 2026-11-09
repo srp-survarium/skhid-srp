@@ -13,7 +13,7 @@ use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::golden;
 use survarium::v026g::item_params;
-use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
+use survarium::v026g::loadouts::{self, KitLayout, Loadout, POCKET_SLOTS};
 use survarium::v026g::lobby::{FULL_CONDITION, KIT_PREMIUM, KIT_READY, limits};
 use survarium::v026g::quests::FACTIONS;
 use survarium::v026g::skills::{self, SkillsTree};
@@ -219,18 +219,17 @@ pub fn doubled_pockets(
     doubled
 }
 
-/// [`loadouts::narrowed`] put into a kit's or a preset's `slots`: `held`
-/// is each slot's dict id and units (`None` for an empty one, or one whose
-/// item is not known, which stays as it is), `modifications` its worn
-/// items', `units` a slot's units.
-fn narrow_into<S>(
+/// [`KitLayout::kept`] put into a kit's or a preset's `slots`: `held` is
+/// each slot's dict id and units (`None` for an empty one, or one whose
+/// item is not known, which stays as it is), `layout` the kit's, `units` a
+/// slot's units.
+fn keep_into<S>(
     slots: &mut [Option<S>; KIT_SLOTS],
     held: &[Option<(u16, u32)>; KIT_SLOTS],
-    modifications: &[(u32, bool)],
-    (before, after): (&[f32; skills::MODIFIERS], &[f32; skills::MODIFIERS]),
+    layout: &KitLayout,
     units: fn(&mut S) -> &mut u32,
 ) {
-    let kept = loadouts::narrowed(held, modifications, before, after);
+    let kept = layout.kept(held);
     for ((slot, held), kept) in slots.iter_mut().zip(held).zip(kept) {
         if held.is_none() {
             continue;
@@ -331,16 +330,16 @@ impl Account {
                 continue;
             }
             let (value, count) = if entry.is_stack {
-                (
-                    worn.count,
-                    loadouts::equipped_units(worn.slot, worn.dict_id, worn.count),
-                )
+                (worn.count, worn.count)
             } else {
                 (FULL_CONDITION, 1)
             };
             let item_id = account.add_item(worn.dict_id, value);
             account.kits[0].slots[slot] = Some(KitSlot { item_id, count });
         }
+        let mut slots = account.kits[0].slots;
+        account.keep_to_layout(&mut slots);
+        account.kits[0].slots = slots;
         account
     }
 
@@ -624,48 +623,42 @@ impl Account {
     }
 
     /// Bring the kits up to the inventory after it changed: a slot whose
-    /// item is gone is emptied, and a stack's slot takes at most what is
-    /// owned (a stack down to nothing empties its slot). A kit whose slots
-    /// changed gets a new revision. Returns whether anything changed.
+    /// item is gone is emptied, a stack's slot takes at most what is owned
+    /// (a stack down to nothing empties its slot), and each kit is held to
+    /// its layout ([`Self::keep_to_layout`]). A kit whose slots changed gets
+    /// a new revision. Returns whether anything changed.
     pub fn sync_kits(&mut self) -> bool {
         let dictionary = Dictionary::shared();
         // An upgrade whose cosmetic is gone (sold) is no upgrade, and the
         // kits wearing the item it was on show another one.
         let stripped = super::items_rules::drop_gone_upgrades(&mut self.inventory);
-        let inventory = &self.inventory;
         let mut any = false;
-        for kit in &mut self.kits {
-            let mut changed = kit
+        for index in 0..self.kits.len() {
+            let mut slots = self.kits[index].slots;
+            for slot in &mut slots {
+                let Some(held) = slot.as_mut() else {
+                    continue;
+                };
+                let Some(owned) = self.item(held.item_id) else {
+                    *slot = None;
+                    continue;
+                };
+                if dictionary.is_stack(owned.dict_id) {
+                    held.count = held.count.min(owned.condition_or_stack);
+                    if held.count == 0 {
+                        *slot = None;
+                    }
+                }
+            }
+            self.keep_to_layout(&mut slots);
+            let kit = &mut self.kits[index];
+            let upgraded = kit
                 .slots
                 .iter()
                 .flatten()
                 .any(|slot| stripped.contains(&slot.item_id));
-            for (index, slot) in kit.slots.iter_mut().enumerate() {
-                let Some(held) = slot.as_mut() else {
-                    continue;
-                };
-                let Some(owned) = inventory.iter().find(|item| item.item_id == held.item_id) else {
-                    *slot = None;
-                    changed = true;
-                    continue;
-                };
-                if dictionary.is_stack(owned.dict_id) {
-                    let count = loadouts::equipped_units(
-                        index as u8,
-                        owned.dict_id,
-                        held.count.min(owned.condition_or_stack),
-                    );
-                    if count != held.count {
-                        if count == 0 {
-                            *slot = None;
-                        } else {
-                            held.count = count;
-                        }
-                        changed = true;
-                    }
-                }
-            }
-            if changed {
+            if upgraded || slots != kit.slots {
+                kit.slots = slots;
                 kit.revision = kit.revision.wrapping_add(1);
                 any = true;
             }
@@ -687,32 +680,24 @@ impl Account {
     }
 
     /// The account's skills become `skills` (of `tree`). The kits carry the
-    /// skills' modifiers, so each gets a new revision, and what the slots
-    /// opened by a skill held before no longer allow is taken off every kit
-    /// and preset ([`loadouts::narrowed`]): the pocket Deep
-    /// Pockets or Supply Pocket opened, Additional Medicine's extra
-    /// medicine, a second weapon beside Deep Pockets or Supply Pocket, a
-    /// second double-handed one without Terminator. A slot names units of
+    /// skills' modifiers, so each gets a new revision, and every kit and
+    /// preset is held to its layout with them ([`KitLayout::kept`]): the
+    /// pocket Deep Pockets or Supply Pocket opened, Additional Medicine's
+    /// extra medicine, a second weapon beside Deep Pockets or Supply Pocket,
+    /// a second double-handed one without Terminator. A slot names units of
     /// the inventory's stack, so nothing leaves the inventory.
     pub fn change_skills(&mut self, skills: Vec<(u16, u8)>, tree: &SkillsTree) {
-        let modifiers = (&tree.modifiers(&self.skills), &tree.modifiers(&skills));
+        let modifiers = tree.modifiers(&skills);
         self.skills = skills;
         for index in 0..self.kits.len() {
             let held = self.kits[index].slots.map(|slot| {
                 let held = slot?;
                 Some((self.item(held.item_id)?.dict_id, held.count))
             });
-            let worn = self.worn_modifications(
-                self.kits[index]
-                    .slots
-                    .iter()
-                    .flatten()
-                    .map(|held| held.item_id),
-            );
+            let worn = self.kits[index].slots.iter().flatten().map(|held| held.item_id);
+            let layout = self.layout_of(worn, &modifiers);
             let kit = &mut self.kits[index];
-            narrow_into(&mut kit.slots, &held, &worn, modifiers, |held| {
-                &mut held.count
-            });
+            keep_into(&mut kit.slots, &held, &layout, |held| &mut held.count);
             kit.revision = kit.revision.wrapping_add(1);
         }
         let mut presets = self.presets;
@@ -722,10 +707,35 @@ impl Account {
             .flat_map(|preset| &mut preset.kits)
         {
             let held = kit.map(|slot| slot.map(|saved| (saved.dict_id, saved.count)));
-            let worn = self.worn_modifications(kit.iter().flatten().map(|saved| saved.item_id));
-            narrow_into(kit, &held, &worn, modifiers, |saved| &mut saved.count);
+            let worn = kit.iter().flatten().map(|saved| saved.item_id);
+            let layout = self.layout_of(worn, &modifiers);
+            keep_into(kit, &held, &layout, |saved| &mut saved.count);
         }
         self.presets = presets;
+    }
+
+    /// A kit's `slots` held to its layout: what its worn items and the
+    /// account's skills open ([`KitLayout::kept`]). Every change of a kit
+    /// ends in it ([`Self::sync_kits`], `rules::relocate`), so a request can
+    /// not put back what the layout took off, nor fill more than it opens.
+    pub fn keep_to_layout(&self, slots: &mut [Option<KitSlot>; KIT_SLOTS]) {
+        let held = slots.map(|slot| {
+            let held = slot?;
+            Some((self.item(held.item_id)?.dict_id, held.count))
+        });
+        let modifiers = SkillsTree::shared().modifiers(&self.skills);
+        let layout = self.layout_of(slots.iter().flatten().map(|held| held.item_id), &modifiers);
+        keep_into(slots, &held, &layout, |held| &mut held.count);
+    }
+
+    /// The layout of a kit wearing the owned items of `item_ids`, with the
+    /// skills' `modifiers`.
+    fn layout_of(
+        &self,
+        item_ids: impl IntoIterator<Item = u32>,
+        modifiers: &[f32; skills::MODIFIERS],
+    ) -> KitLayout {
+        KitLayout::new(&self.worn_modifications(item_ids), modifiers)
     }
 
     /// The modifications of the owned items of `item_ids`: their defaults
@@ -828,6 +838,29 @@ impl Account {
             self.quest_faction = 0;
         }
         *self != before
+    }
+}
+
+#[cfg(test)]
+impl Account {
+    /// Kit `kit` (an index) wearing a backpack and a vest whose
+    /// modifications open all six pockets, of five units ([`KitLayout`]):
+    /// the tests' room for whatever they put in the pockets.
+    pub fn wear_roomy_gear(&mut self, kit: usize) {
+        let dictionary = Dictionary::shared();
+        // `ren_back_1` +2 pockets +2 units, `ren_torso_5` +1 and +1; 1031
+        // +2 pockets, 1030 +1, 1171 +2 units.
+        for (slot, name, modifications) in [
+            (3, "ren_back_1", &[(1031, false), (1171, false)][..]),
+            (2, "ren_torso_5", &[(1030, false)][..]),
+        ] {
+            let item_id = self.add_item(
+                dictionary.item_named(name).unwrap().dict_id,
+                FULL_CONDITION,
+            );
+            self.item_mut(item_id).unwrap().modifications = modifications.to_vec();
+            self.kits[kit].slots[slot] = Some(KitSlot { item_id, count: 1 });
+        }
     }
 }
 
@@ -1076,9 +1109,11 @@ mod tests {
     fn a_type_in_two_pockets_is_merged_into_the_first() {
         let dictionary = Dictionary::shared();
         let speed = dictionary.item_named("speed_booster").unwrap().dict_id;
-        let grenade = dictionary.item_named("rgd-5").unwrap().dict_id;
+        let grenade = dictionary.item_named("rdg-m").unwrap().dict_id;
         let medkit = dictionary.item_named("medkit").unwrap().dict_id;
         let mut account = Account::new("Alice");
+        account.wear_roomy_gear(0);
+        account.wear_roomy_gear(1);
         let booster = account.add_item(speed, 3);
         let grenades = account.add_item(grenade, 3);
         let medkits = account.add_item(medkit, 5);
@@ -1133,8 +1168,9 @@ mod tests {
     /// type; the first pocket keeps its own stack, at most what it owns.
     #[test]
     fn two_stacks_of_one_type_are_one_type() {
-        let grenade = Dictionary::shared().item_named("rgd-5").unwrap().dict_id;
+        let grenade = Dictionary::shared().item_named("rdg-m").unwrap().dict_id;
         let mut account = Account::new("Alice");
+        account.wear_roomy_gear(2);
         let few = account.add_item(grenade, 1);
         let many = account.add_item(grenade, 4);
         in_pocket(&mut account, 2, 16, few, 1);
@@ -1169,13 +1205,20 @@ mod tests {
     }
 
     /// An RGD-5 takes two units of a pocket, so a pocket holds two of them
-    /// at most (the largest pocket, five units): a kit saved with more
-    /// keeps two, the rest stays in the storage.
+    /// at most (a pocket of 4 or 5 units; one in a smaller one): a kit saved
+    /// with more keeps two, the rest stays in the storage.
     #[test]
     fn a_pocket_holds_two_rgd_5s_at_most() {
-        let grenade = Dictionary::shared().item_named("rgd-5").unwrap().dict_id;
-        let smoke = Dictionary::shared().item_named("rdg-m").unwrap().dict_id;
+        let dictionary = Dictionary::shared();
+        let grenade = dictionary.item_named("rgd-5").unwrap().dict_id;
+        let smoke = dictionary.item_named("rdg-m").unwrap().dict_id;
         let mut account = Account::new("Alice");
+        // Pockets of 4 units.
+        for (slot, name) in [(3, "ren_back_1"), (2, "ren_torso_5")] {
+            let dict_id = dictionary.item_named(name).unwrap().dict_id;
+            let item_id = account.add_item(dict_id, FULL_CONDITION);
+            in_pocket(&mut account, 0, slot, item_id, 1);
+        }
         let grenades = account.add_item(grenade, 30);
         let smokes = account.add_item(smoke, 30);
         in_pocket(&mut account, 0, 13, grenades, 5);
@@ -1183,7 +1226,8 @@ mod tests {
         let inventory = account.inventory.clone();
         assert!(account.repair());
         let count = |slot: usize| account.kits[0].slots[slot].unwrap().count;
-        assert_eq!((count(13), count(14)), (2, 5));
+        // The smoke grenades: the pocket's four units.
+        assert_eq!((count(13), count(14)), (2, 4));
         assert_eq!(account.inventory, inventory);
         assert!(!account.repair());
     }
