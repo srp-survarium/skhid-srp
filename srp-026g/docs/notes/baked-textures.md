@@ -58,7 +58,10 @@ fixes them; the RE is in `client_patch.md` section 3.57.
     folder is kept and stamped again when no patch past 54 has a file in those folders.
   - `srp_patches.log` gets a line at the start: kept or deleted, and the stamp.
 - At the start, every whole DDS file in the folder goes back into the baker's list. A file cut short
-  is deleted. So are the files past 512 or past 512 MB (half of the stock 1 GiB limit; stock trimming
+  is deleted. So are the files past 512 or past 896 MB (the stock 1 GiB limit less 128 MB for the
+  game's own bakes before stock trimming starts; until 2026-11-09 half of it, 512 MB, which deleted
+  half of a 20-player match's folder, 0.9-1 GB in ~500 files, at every start: the next game baked ~400
+  textures again, fps-measure `r54-warm`, 398 bakes against the cold run's 831; stock trimming
   goes on as before).
 - A kept file's record has CRC 0. Its first load is used and takes the CRC it read; after that, stock
   rules apply.

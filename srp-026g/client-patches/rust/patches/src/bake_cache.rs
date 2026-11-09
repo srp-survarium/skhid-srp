@@ -80,8 +80,11 @@ const REVISION_FORMAT: (u32, u32) = (54, 1);
 
 /// Half the list: the game's own bakes have the rest.
 const SEED_FILES: u32 = 512;
-/// Half of what remove_unwanted_files keeps (1 GiB).
-const SEED_BYTES: u32 = 512 << 20;
+/// What remove_unwanted_files keeps (1 GiB) less 128 MiB for this game's
+/// bakes before it trims. A 20-player match's folder is 0.9-1 GB (~500
+/// files); half of 1 GiB deleted half of it at every start, and that game
+/// baked ~400 textures again (fps-measure r54-warm, 2026-11-09).
+const SEED_BYTES: u32 = 896 << 20;
 const OWNERS: usize = 64;
 const WAITERS: usize = 192;
 const PER_OWNER: usize = 16;

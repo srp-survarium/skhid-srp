@@ -3622,7 +3622,8 @@ and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
   patch's file table (`bake_cache/inputs.rs`); then it is made again and stamped. So a release keeps
   it unless its patch has such a file. Revision 54's stamp counts as format 1's. Otherwise each
   whole DDS in it (DXT1 or DXT5, the file as long as
-  its header says) goes back into the baker's list with CRC 0, at most 512 files and 512 MB; the
+  its header says) goes back into the baker's list with CRC 0, at most 512 files and 896 MB (512 MB until 2026-11-09: half a 20-player
+  folder was deleted at every start); the
   rest are deleted. `game::exit`'s delete (0x1EC832) is a 5-byte nop (`BAKE_CACHE_KEEP`).
 - check_loaded_baked_texture's CRC compare (0x131C90, `on_check_crc`): a record of CRC 0
   takes the CRC of the bytes loaded, so a kept file is used; then stock rules apply.
