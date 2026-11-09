@@ -26,7 +26,7 @@ package survarium.controls
    import survarium.data.ItemData;
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
-   import survarium.watch.ReplaySave;
+   import survarium.watch.ReplayAsks;
    import survarium.constants.ClaimReason;
    import survarium.constants.CommentKind;
    import survarium.constants.Compliment;
@@ -286,10 +286,9 @@ package survarium.controls
          button.visible = false;
          button.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
          {
-            var history:NotificationListScrollContent = NotificationListScrollContent.replayHolder;
-            if(_match_id != 0 && history != null)
+            if(_match_id != 0)
             {
-               history.replayBegin(_match_id,NotificationListScrollContent.REPLAY_WATCH_ALL);
+               ReplayAsks.watch(_match_id,NotificationListScrollContent.REPLAY_WATCH_ALL);
             }
          });
          LocalizationData.addButton(button,"st_srp_replay_title");
@@ -297,7 +296,7 @@ package survarium.controls
          return button;
       }
 
-      // The button that saves this match's replay (ReplaySave), as the close button.
+      // The button that saves this match's replay (ReplayAsks), as the close button.
       protected function saveButton() : Button
       {
          var button:Button = new (Object(this.btn_close).constructor as Class)() as Button;
@@ -305,9 +304,9 @@ package survarium.controls
          button.visible = false;
          button.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
          {
-            ReplaySave.save(_match_id);
+            ReplayAsks.save(_match_id);
          });
-         ReplaySave.listen(function():void
+         ReplayAsks.listen(function():void
          {
             if(parent != null)
             {
@@ -341,12 +340,12 @@ package survarium.controls
       {
          var reason:String = this._match_id != 0 ? NotificationListScrollContent.replayReason(NotificationListScrollContent.matchNumberText(this._match_id).substr(1)) : null;
          var font:String = this.btn_close.textField.getTextFormat().font;
-         var state:String = ReplaySave.stateOf(this._match_id);
+         var state:String = ReplayAsks.stateOf(this._match_id);
          this._watchAll.visible = this._match_id != 0 && reason == null;
          this._save.visible = this._watchAll.visible;
-         this.placeButton(this._save,LocalizationData.getName(state == ReplaySave.SAVING ? "st_srp_replay_saving"
-            : state == ReplaySave.SAVED ? "st_srp_replay_saved" : "st_srp_replay_save"),this.btn_close.x - 10,font);
-         this._save.enabled = state == ReplaySave.SAVE;
+         this.placeButton(this._save,LocalizationData.getName(state == ReplayAsks.SAVING ? "st_srp_replay_saving"
+            : state == ReplayAsks.SAVED ? "st_srp_replay_saved" : "st_srp_replay_save"),this.btn_close.x - 10,font);
+         this._save.enabled = state == ReplayAsks.SAVE;
          this.placeButton(this._watchAll,LocalizationData.getName("st_srp_replay_title"),this._save.x - 10,font);
          var left:Number = this._watchAll.x;
          if(!this._watchReason)

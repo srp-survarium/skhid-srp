@@ -475,9 +475,10 @@ package replay_player_fla
       // srp's: the controls a replay viewer's (the exe, once): its Back button, Moments switch and key
       // hint (ViewerControls), with their texts in the running language: Back, the switch's label and
       // its choices All, Mine, Followed, the hint's actions Cursor, Pause, Filter, Hide and its Ctrl and
-      // Space caps.
-      public function start_viewer(back:String, moments:String, all:String, mine:String, followed:String, cursor:String, pause:String, filter:String, hide:String, ctrl:String, space:String) : void
+      // Space caps, and the markers' kinds Kill, Objective, Death and another event (MarkerTicks).
+      public function start_viewer(back:String, moments:String, all:String, mine:String, followed:String, cursor:String, pause:String, filter:String, hide:String, ctrl:String, space:String, kill:String, objective:String, death:String, event:String) : void
       {
+         MarkerTicks.setKindWords([kill,objective,death,event]);
          if(this.viewer != null)
          {
             return;

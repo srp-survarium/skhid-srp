@@ -690,12 +690,13 @@ def main():
           "frame, a viewer: the controls shown, the bar's length, the markers, its position and the play button")
     keys = ["st_srp_viewer_back", "st_srp_viewer_moments", "st_srp_viewer_moments_all", "st_srp_viewer_moments_mine",
             "st_srp_viewer_moments_followed", "st_srp_viewer_cursor", "st_srp_viewer_pause", "st_srp_viewer_filter",
-            "st_srp_viewer_hide", "st_srp_viewer_cap_ctrl", "st_srp_viewer_cap_space"]
+            "st_srp_viewer_hide", "st_srp_viewer_cap_ctrl", "st_srp_viewer_cap_space",
+            "st_srp_viewer_marker_kill", "st_srp_viewer_marker_objective", "st_srp_viewer_marker_death", "st_srp_viewer_marker_event"]
     check([c[1] for c in calls if c[0] == "translate"] == keys
           and ("root.start_viewer", (6, "st_srp_viewer_back")) in names
-          and any(c[2] == "root.start_viewer" and c[3] == 11 for c in calls if c[0] == "invoke")
+          and any(c[2] == "root.start_viewer" and c[3] == 15 for c in calls if c[0] == "invoke")
           and ("root.set_moments", (4, 0)) in names and ("root.set_cursor_shown", (2, 0)) in names,
-          "frame, a viewer: the controls made a viewer's (root.start_viewer with its 11 texts translated), "
+          "frame, a viewer: the controls made a viewer's (root.start_viewer with its 15 texts translated), "
           "the Moments switch at All (the viewer did not play), the cursor hidden")
     state, _, calls = frame(ours)
     names = [c[2] for c in calls if c[0] == "invoke"]

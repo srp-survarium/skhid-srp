@@ -1,5 +1,6 @@
 package survarium.rooms
 {
+    import survarium.watch.WatchWindow;
     import flash.display.DisplayObject;
     import flash.display.Sprite;
     import flash.events.Event;
@@ -608,6 +609,9 @@ package survarium.rooms
 
         public function show(value:Boolean):void
         {
+            // Watch and the rooms share the space: opening one closes the other (WatchWindow.show).
+            if (value && WatchWindow.me != null && WatchWindow.me.shown)
+                WatchWindow.me.show(false);
             if (!value)
             {
                 releaseInputFocus();

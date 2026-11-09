@@ -50,8 +50,16 @@ package {
    trace("KITS " + layout + " " + name + " " + bounds + " visible=" + object.visible);
    if((object.visible || always) && bounds.width > 0) expect(layout + ": the chooser " + panel + " overlaps " + name + " " + bounds,clear(panel,bounds));
   }
+  // The kit chooser's panel: the hud's child holding the profile selector.
+  private function kitsPanel(hud:*):* {
+   for(var i:int = 0; i < hud.numChildren; i++) {
+    var child:* = hud.getChildAt(i);
+    try { if(child is MovieClip && child.profileSelector) return child; } catch(e:Error) { }
+   }
+   throw new Error("no kit chooser panel in the hud");
+  }
   private function run(hud:*, player:*):void {
-   var panel:* = hud.spectatorKitsPanel, selector:* = panel.profileSelector;
+   var panel:* = kitsPanel(hud), selector:* = panel.profileSelector;
    var plates:Function = function():int { return selector.tabPage.dataProvider ? selector.tabPage.dataProvider.length : 0; };
    stage.dispatchEvent(new Event(Event.RESIZE));
    // A player's game, before any call of a spectator's: the game's own feed and its own show.
@@ -136,7 +144,7 @@ package {
     }
     if(mode == 2) {
      player.set_match_time(600000);
-     player.start_viewer("Back","Moments","All","Mine","Followed","Cursor","Pause","Filter","Hide","Ctrl","Space");
+     player.start_viewer("Back","Moments","All","Mine","Followed","Cursor","Pause","Filter","Hide","Ctrl","Space","Kill","Objective","Death","Event");
      player.set_moments(0,0);
      player.set_cursor_shown(true);
      player.viewer.place();

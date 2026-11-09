@@ -44,6 +44,11 @@ package
          Scene.stage = holder;
          Scene.scaleFactor = k;
          Scene.layout = make("scaleform.clik.layout.Layout");
+         // the game's message box for what a watch or a save says: the "ok" box, on the holder
+         var Box:* = domain.getDefinition("survarium.controls.Message");
+         Box.initStage(holder);
+         Box.registerBackground(Sprite);
+         Box.registerMessage("ok",domain.getDefinition("survarium.messages.MessageBox"));
          history = make("SrvNotificationListSC");
          history.registerRenderer(domain.getDefinition("survarium.constants.NotificationType").MATCH,domain.getDefinition("NotificationMatchRenderer"));
          history.x = 1920 - 440;
@@ -122,8 +127,7 @@ package
          {
             hex = "0" + hex;
          }
-         domain.getDefinition("survarium.controls.NotificationListScrollContent").replayTake(
-            [{"nickname":"R1;" + status + ";" + hex + ";" + n,"place":0,"ranking":0,"ranking_diff":0}]);
+         W.take([{"nickname":"R1;" + status + ";" + hex + ";" + n,"place":0,"ranking":0,"ranking_diff":0}]);
       }
 
       public static function find(box:DisplayObjectContainer, name:String) : DisplayObject

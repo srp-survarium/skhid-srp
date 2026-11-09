@@ -55,6 +55,10 @@ package survarium.replay
       // the label shown over a tick (on the stage's root), null none
       private var _label:Sprite;
 
+      // a marker's kind in the running language (the exe's, start_viewer: Kill, Objective, Death, an
+      // other event); a .sur's replay client is given none and shows no word
+      private static var _kindWords:Array = null;
+
       // the slider's size and scale the ticks were drawn at: drawn again when they change
       private var _drawnAt:String = "";
 
@@ -89,7 +93,13 @@ package survarium.replay
 
       public static function kindWord(kind:int) : String
       {
-         return kind == KILL ? "Kill" : kind == OBJECTIVE ? "Objective" : kind == DEATH ? "Death" : "Event";
+         return _kindWords == null ? "" : _kindWords[kind == KILL ? 0 : kind == OBJECTIVE ? 1 : kind == DEATH ? 2 : 3];
+      }
+
+      // The words of the kinds, from the exe: Kill, Objective, Death and another event.
+      public static function setKindWords(words:Array) : void
+      {
+         _kindWords = words;
       }
 
       // Whether the switch's `moments` (0 All, 1 Mine, 2 Followed) lights `marker`.
@@ -128,7 +138,8 @@ package survarium.replay
       {
          var time:String = clock(Number(marker.time));
          var text:String = marker.label == null ? "" : String(marker.label);
-         return time + "  " + kindWord(int(marker.kind)) + (text != "" && text != time ? "  " + text : "");
+         var word:String = kindWord(int(marker.kind));
+         return time + (word != "" ? "  " + word : "") + (text != "" && text != time ? "  " + text : "");
       }
 
       // The x of `time` in the slider: Slider.updateThumb's mapping (in the slider's width), in the
@@ -249,11 +260,6 @@ package survarium.replay
          box.y = int(Math.max(origin.y + 4,at.y - box.height - 8));
          this._label = box;
          return box;
-      }
-
-      public function get label() : Sprite
-      {
-         return this._label;
       }
 
       public function hideLabel() : void

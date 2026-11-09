@@ -108,6 +108,8 @@ package survarium.rooms
         // their height. The wheel and the bar's thumb move it.
         public var _scrollInner:Sprite;
         public var _scrollThumb:Sprite;
+
+        private var _scrollTrack:Shape;
         internal var _scrollTop:Number = 0;
         internal var _scrollViewH:Number = 0;
         internal var _scrollTotal:Number = 0;
@@ -221,15 +223,7 @@ package survarium.rooms
             var tab:Sprite = new Sprite();
             tab.x = x;
             tab.y = 1;
-            tab.graphics.beginFill(on ? 0x3C2C10 : 0x000000, on ? 0.6 : 0.01);
-            tab.graphics.drawRect(0, 0, w, HEAD_H);
-            tab.graphics.endFill();
-            if (on)
-            {
-                tab.graphics.beginFill(GOLD, 1);
-                tab.graphics.drawRect(0, HEAD_H - 3, w, 3);
-                tab.graphics.endFill();
-            }
+            paintTab(tab, w, on);
             text(tab, label, 0, 9, w, 15, on ? 0xFFFFFF : GREY, "center");
             tab.name = name;
             tab.buttonMode = true;
@@ -246,6 +240,21 @@ package survarium.rooms
                 pick(control.name);
             });
             return tab;
+        }
+
+        // A tab's fill: chosen or not.
+        public function paintTab(tab:Sprite, w:Number, on:Boolean):void
+        {
+            tab.graphics.clear();
+            tab.graphics.beginFill(on ? 0x3C2C10 : 0x000000, on ? 0.6 : 0.01);
+            tab.graphics.drawRect(0, 0, w, HEAD_H);
+            tab.graphics.endFill();
+            if (on)
+            {
+                tab.graphics.beginFill(GOLD, 1);
+                tab.graphics.drawRect(0, HEAD_H - 3, w, 3);
+                tab.graphics.endFill();
+            }
         }
 
         // The strip along the window's bottom, as the shop's under its list;
@@ -362,28 +371,41 @@ package survarium.rooms
             return inner;
         }
 
+        // The list's total height: the bar made or kept, in place (a drawing anew clears them).
         public function scrollDone(total:Number):void
         {
             _scrollTotal = total;
             if (total > _scrollViewH)
             {
-                var track:Shape = new Shape();
-                track.graphics.beginFill(0x0F151B, 1);
-                track.graphics.drawRect(_scrollBarX, _scrollTop, 6, _scrollViewH);
-                track.graphics.endFill();
-                _content.addChild(track);
-                _scrollThumb = new Sprite();
-                _scrollThumb.buttonMode = true;
+                if (_scrollTrack == null || _scrollTrack.parent != _content)
+                {
+                    _scrollTrack = new Shape();
+                    _scrollTrack.graphics.beginFill(0x0F151B, 1);
+                    _scrollTrack.graphics.drawRect(_scrollBarX, _scrollTop, 6, _scrollViewH);
+                    _scrollTrack.graphics.endFill();
+                    _content.addChild(_scrollTrack);
+                }
+                if (_scrollThumb == null || _scrollThumb.parent != _content)
+                {
+                    _scrollThumb = new Sprite();
+                    _scrollThumb.buttonMode = true;
+                    _scrollThumb.x = _scrollBarX;
+                    _scrollThumb.addEventListener(MouseEvent.MOUSE_DOWN, onThumb, false, 0, true);
+                    _content.addChild(_scrollThumb);
+                }
                 var th:Number = Math.max(30, _scrollViewH * _scrollViewH / total);
+                _scrollThumb.graphics.clear();
                 _scrollThumb.graphics.beginFill(0x4C6070, 1);
                 _scrollThumb.graphics.drawRect(0, 0, 6, th);
                 _scrollThumb.graphics.endFill();
-                _scrollThumb.x = _scrollBarX;
-                _scrollThumb.addEventListener(MouseEvent.MOUSE_DOWN, onThumb, false, 0, true);
-                _content.addChild(_scrollThumb);
             }
             else
             {
+                if (_scrollTrack != null && _scrollTrack.parent == _content)
+                    _content.removeChild(_scrollTrack);
+                if (_scrollThumb != null && _scrollThumb.parent == _content)
+                    _content.removeChild(_scrollThumb);
+                _scrollTrack = null;
                 _scrollThumb = null;
             }
             applyScroll();
@@ -459,6 +481,14 @@ package survarium.rooms
         public function route(control:DisplayObject, press:Function):void
         {
             _routes.push({"control": control, "press": press});
+        }
+
+        // A control gone from the content: its route with it.
+        public function unroute(control:DisplayObject):void
+        {
+            for (var i:int = _routes.length - 1; i >= 0; i--)
+                if (_routes[i].control === control)
+                    _routes.splice(i, 1);
         }
 
         // A game button (CLIK) placed in the content: a press the content

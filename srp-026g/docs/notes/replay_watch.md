@@ -30,22 +30,26 @@ Watch button wherever a match is mentioned.
   search (`find_players`, answered in `LobbyMenu.fill_players_search`, taken by `WatchWindow.found`)
   finds the account (the name in any case, or the one player found), `3D 00 <PLAYER_MATCHES_ASK> <account>`
   chooses it, and its `P1` rows list its matches (no chip chosen meanwhile; a chip ends the search;
-  the asker's own name is Mine). After a watch asked from the window plays (`watching`, then the game
-  loads a match within 2 min) the lobby's return opens it on that view again.
+  the asker's own name is Mine). A watch asked from the window that comes to play (the game loads a
+  match with it asked, or `watching`) opens it on that view again at the lobby's return; a refusal,
+  no answer or the prompt's Close drops the view. A friend's Spectate whose 60 s end, or that finds a
+  match it can't watch, says so in a message box.
 - **Cards** (`MatchCard`): the map's render and name by the rooms' pool (`RoomsWindow.entry`: the
   map id's level and weather; a map the pool lacks: its History row's name, else "Retired map", its
   mode's colour), mode and teams or players; the score or the player's result and K/D; the age, the
-  code with a copy icon (the code in a field selected for Ctrl+C and the keys to press: the game's
-  `System.setClipboard` takes nothing, run in a game on 2026-11-08, while a field's own Ctrl+C reaches
-  the system's clipboard) and the friends in it; then one **Watch**, or why it cannot be
+  code, selectable (a press selects it for Ctrl+C: the game's `System.setClipboard` takes nothing, run
+  in a game on 2026-11-08, while a field's own Ctrl+C reaches the system's clipboard), and the friends
+  in it; then one **Watch**, or why it cannot be
   watched: "Recorded before a game update" (replay 4, or an `incompatible` answer), "Replay not
   kept" (0, 3, or a `gone` answer); live: "Opens when the match starts" (made or counting down),
   "Match just ended", "No spectator places left" (full), "Not open to spectators". A History row and
   the results screen show the same reason in place of their Watch once a row or an answer said it
   (`NotificationListScrollContent.replayReason`); the asker's own matches are asked again 2 s after
-  each return to the lobby (and once as it comes up) so History's rows know theirs.
-- **Watch asks** a replay session through the History's prompt
-  (`NotificationListScrollContent.replayBegin`, `replay-stream.md`): `3D 00 <0xC0000000 | place << 16> <match id>`,
+  each return to the lobby (the history row is written at the server's next save, and no event says
+  when), when the tab opens and once as it comes up, so History's rows know theirs.
+  Cards and the toolbar are updated in place, keyed by match, so a press outlives the refreshes.
+- **Watch asks** a replay session through the Watch window's one ask-and-poll loop
+  (`survarium/watch/ReplayAsks.as`, the prompt `WatchPrompt.as`, `replay-stream.md`): `3D 00 <0xC0000000 | place << 16> <match id>`,
   place 0xFF (anyone) for a recent match, the player's own place for a player's match, the place of
   a friend in a live match (`F1`), else 0xFF. The live path (`live.rs`, `live_watch`) does not follow a
   place yet: the spectator starts on the server's pick. "Watch my deaths" is gone from the movie;
@@ -88,7 +92,7 @@ Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none
 
 ### 2.1 Save
 
-The save icon of the Watch window's cards and the results screen's Save replay save a match's replay to a file in the player's `<game>\replays` (`research/local-replays-design.md` section 1; the movie: `survarium/watch/ReplaySave.as`).
+The save icon of the Watch window's cards and the results screen's Save replay save a match's replay to a file in the player's `<game>\replays` (`research/local-replays-design.md` section 1; the movie: `survarium/watch/ReplayAsks.as`, the same loop as a watch's).
 
 | message | bytes |
 |---|---|

@@ -2830,6 +2830,10 @@ st_srp_viewer_cap_space	Leertaste
 st_srp_viewer_cursor	Cursor
 st_srp_viewer_filter	Filter
 st_srp_viewer_hide	Ausblenden
+st_srp_viewer_marker_death	Tod
+st_srp_viewer_marker_event	Ereignis
+st_srp_viewer_marker_kill	Abschuss
+st_srp_viewer_marker_objective	Ziel
 st_srp_viewer_moments	Momente
 st_srp_viewer_moments_all	Alle
 st_srp_viewer_moments_followed	Verfolgt
@@ -2853,7 +2857,6 @@ st_srp_vulkan_tear_free_hint	Hält das Bild ganz, wenn die vertikale Synchronisi
 st_srp_watch_chip_everyone	Alle
 st_srp_watch_chip_friends	Freunde
 st_srp_watch_chip_mine	Meine
-st_srp_watch_copy_keys	Strg+C zum Kopieren
 st_srp_watch_delay	%1$s s Verzögerung
 st_srp_watch_friends	Freunde: %1$s
 st_srp_watch_live	Live
@@ -2874,6 +2877,7 @@ st_srp_watch_reason_starts	Öffnet, wenn das Match beginnt
 st_srp_watch_replays	Wiederholungen
 st_srp_watch_search_hint	Spielername oder Match-Code
 st_srp_watch_spectate	Zuschauen
+st_srp_watch_spectate_lost	Das Spiel von %1$s wurde nicht gefunden. Es ist vielleicht vorbei oder für Zuschauer gesperrt.
 st_srp_watch_title	Zuschauen
 st_srp_weapon069_akmsu_desc	Verkürzte AKMS mit Klappschaft, Munition: 7,62x39. Einzel- und Dauerfeuer.
 st_srp_weapon069_akmsu_name	AKMSU

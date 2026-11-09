@@ -1,0 +1,340 @@
+package survarium.watch
+{
+   import flash.external.ExternalInterface;
+   import flash.utils.getTimer;
+   import survarium.controls.Message;
+   import survarium.controls.NotificationListScrollContent;
+   import survarium.data.LocalizationData;
+
+   // The one ask-and-poll loop for a match's replay, ticked by the Watch window's second
+   // (WatchWindow.onTimer). A watch or a save asks once, `3D 00 <player> <match>`, then polls
+   // `3B 00 <start> 1` once a second until the lobby server's `91` row answers it, 30 polls at most,
+   // or 180 s once it says `preparing`:
+   // - a watch: `R1;<status>;<match 8 hex>;<n>`, polled at WATCH_START. `watching` means the game is
+   //   in the match; WatchPrompt shows what happens meanwhile. One watch at a time.
+   // - a save (research/local-replays-design.md 1.1): `R2;<status>;<match 8 hex>;<n>`, polled at
+   //   SAVE_START. `ready` comes just after the `9E` with the hidden link `replay <id> <token>
+   //   <sha256> <size>`: video_tutorial_link_clicked with no argument hands it to the exe (patch
+   //   revision 14's replay_link), which starts updater_skhid.exe; the updater downloads the file and
+   //   says where it went in a message box of its own. A match is SAVED from then on for this session.
+   //   One save at a time.
+   // The rows reach take through WatchWindow.take.
+   public class ReplayAsks
+   {
+      // the lobby server's REPLAY_START, SAVE_ASK and SAVE_START
+      public static const WATCH_START:uint = 2200000000;
+
+      public static const SAVE_ASK:uint = 0xFFFFFF01;
+
+      public static const SAVE_START:uint = 2210000000;
+
+      private static const POLLS:int = 30;
+
+      private static const PREPARE_MS:int = 180000;
+
+      public static const SAVE:String = "save";
+
+      public static const SAVING:String = "saving";
+
+      public static const SAVED:String = "saved";
+
+      // the texts of the answers that end an ask without a watch or a file
+      private static const REFUSALS:Object = {
+         "gone":"st_srp_replay_gone",
+         "not_yours":"st_srp_replay_not_yours",
+         "old_game":"st_srp_replay_old_game",
+         "incompatible":"st_srp_replay_incompatible",
+         "busy":"st_srp_replay_busy",
+         "failed":"st_srp_replay_failed",
+         "off":"st_srp_replay_off"
+      };
+
+      // what an answer says of its match's replay (NotificationListScrollContent.replayReason): it
+      // cannot play (a reason), or it may (null); the other answers say nothing of it
+      private static const REASONS:Object = {
+         "watching":null,
+         "preparing":null,
+         "incompatible":NotificationListScrollContent.REASON_OLD,
+         "gone":NotificationListScrollContent.REASON_GONE
+      };
+
+      private static const NO_ANSWER:String = "st_srp_replay_no_answer";
+
+      private static const STILL_PREPARING:String = "st_srp_replay_still_preparing";
+
+      // The window told (match 8 hex, status) of a watch's every word: an answer's status, or
+      // GAVE_UP (no answer, or preparing too long) or CLOSED (the prompt's Close).
+      public static const GAVE_UP:String = "gave_up";
+
+      public static const CLOSED:String = "closed";
+
+      public static var told:Function;
+
+      // the watch and the save under way ({hex, match, at, polls, preparing}), null none
+      private static var _watch:Object = null;
+
+      private static var _save:Object = null;
+
+      // match 8 hex -> SAVED
+      private static var _saved:Object = {};
+
+      private static var _listeners:Array = [];
+
+      public function ReplayAsks()
+      {
+         super();
+      }
+
+      public static function hex(match:uint) : String
+      {
+         var text:String = match.toString(16).toLowerCase();
+         while(text.length < 8)
+         {
+            text = "0" + text;
+         }
+         return text;
+      }
+
+      // SAVE, SAVING or SAVED.
+      public static function stateOf(match:uint) : String
+      {
+         var h:String = hex(match);
+         if(_save != null && _save.hex == h)
+         {
+            return SAVING;
+         }
+         return _saved[h] === true ? SAVED : SAVE;
+      }
+
+      // Told (no argument) of every change of a match's state.
+      public static function listen(listener:Function) : void
+      {
+         if(_listeners.indexOf(listener) < 0)
+         {
+            _listeners.push(listener);
+         }
+      }
+
+      // The seam for the Open half: a file of match `hex` is in the replays folder.
+      public static function markSaved(hex:String) : void
+      {
+         _saved[hex] = true;
+         changed();
+      }
+
+      // Asks to watch `match` with `ask` (a REPLAY_WATCH_* player, WatchRows.watchAsk); nothing
+      // while another watch is being asked for (false).
+      public static function watch(match:uint, ask:uint) : Boolean
+      {
+         if(_watch != null)
+         {
+            return false;
+         }
+         WatchPrompt.onClosed = promptClosed;
+         _watch = begin(ask,match);
+         WatchPrompt.asking();
+         return true;
+      }
+
+      // Saves match `match`'s replay; nothing while another save is under way or it is saved.
+      public static function save(match:uint) : void
+      {
+         if(match == 0 || _save != null || stateOf(match) != SAVE)
+         {
+            return;
+         }
+         _save = begin(SAVE_ASK,match);
+         changed();
+      }
+
+      private static function begin(player:uint, match:uint) : Object
+      {
+         exe("victory_screen_request_player_data",player,match);
+         return {
+            "hex":hex(match),
+            "match":match,
+            "at":getTimer(),
+            "polls":0,
+            "preparing":false
+         };
+      }
+
+      // The lobby server's rows: taken (true) when they are an `R1` or `R2` answer.
+      public static function take(rows:Array) : Boolean
+      {
+         var name:String = null;
+         try
+         {
+            name = rows && rows.length > 0 && rows[0] ? String(rows[0].nickname) : "";
+         }
+         catch(e:Error)
+         {
+            return false;
+         }
+         var f:Array = name.split(";");
+         if(f[0] == "R1")
+         {
+            watchAnswer(f);
+            return true;
+         }
+         if(f[0] == "R2")
+         {
+            saveAnswer(f);
+            return true;
+         }
+         return false;
+      }
+
+      private static function watchAnswer(f:Array) : void
+      {
+         var status:String = f.length > 1 ? String(f[1]) : "";
+         var h:String = f.length > 2 ? String(f[2]).toLowerCase() : "";
+         if(_watch == null || h != _watch.hex)
+         {
+            return;
+         }
+         tell(h,status);
+         if(status == "watching")
+         {
+            // the game is in it already (the answer comes once it connected): no box over it
+            _watch = null;
+         }
+         else if(status == "preparing")
+         {
+            _watch.preparing = true;
+            WatchPrompt.preparing(int(_watch.at));
+         }
+         else if(status in REFUSALS)
+         {
+            _watch = null;
+            WatchPrompt.show(REFUSALS[status] as String);
+         }
+      }
+
+      private static function saveAnswer(f:Array) : void
+      {
+         var status:String = f.length > 1 ? String(f[1]) : "";
+         if(_save == null || f.length != 4 || f[2] != _save.hex)
+         {
+            return;
+         }
+         if(status == "preparing")
+         {
+            _save.preparing = true;
+         }
+         else if(status == "ready")
+         {
+            _saved[_save.hex] = true;
+            endSave(null);
+            exe("video_tutorial_link_clicked");
+         }
+         else if(status in REFUSALS)
+         {
+            endSave(REFUSALS[status] as String);
+         }
+      }
+
+      // The Watch window's second: each ask polls, or gives up.
+      public static function second() : void
+      {
+         var now:int = getTimer();
+         if(_watch != null)
+         {
+            if(pollAgain(_watch,WATCH_START,now))
+            {
+               if(_watch.preparing)
+               {
+                  WatchPrompt.preparing(int(_watch.at));
+               }
+            }
+            else
+            {
+               var ended:Object = _watch;
+               _watch = null;
+               WatchPrompt.show(ended.preparing ? STILL_PREPARING : NO_ANSWER);
+               tell(ended.hex,GAVE_UP);
+            }
+         }
+         if(_save != null && !pollAgain(_save,SAVE_START,now))
+         {
+            endSave(NO_ANSWER);
+         }
+      }
+
+      private static function pollAgain(ask:Object, start:uint, now:int) : Boolean
+      {
+         ask.polls += 1;
+         if(ask.preparing ? now - int(ask.at) >= PREPARE_MS : ask.polls > POLLS)
+         {
+            return false;
+         }
+         exe("request_players_range",start,1);
+         return true;
+      }
+
+      // The prompt's Close: the watch is no longer asked for.
+      private static function promptClosed() : void
+      {
+         var ended:Object = _watch;
+         _watch = null;
+         if(ended != null)
+         {
+            tell(ended.hex,CLOSED);
+         }
+      }
+
+      // The save over: saved (no text), or why not, in the game's message box.
+      private static function endSave(key:String) : void
+      {
+         _save = null;
+         changed();
+         if(key != null)
+         {
+            try
+            {
+               Message.showMessage("ok",LocalizationData.getName(key));
+            }
+            catch(e:Error)
+            {
+            }
+         }
+      }
+
+      private static function tell(h:String, status:String) : void
+      {
+         if(status in REASONS)
+         {
+            NotificationListScrollContent.noteReplay(h,REASONS[status] as String);
+         }
+         if(told != null)
+         {
+            told(h,status);
+         }
+      }
+
+      private static function exe(name:String, ... args) : void
+      {
+         try
+         {
+            ExternalInterface.call.apply(null,[name].concat(args));
+         }
+         catch(e:Error)
+         {
+         }
+      }
+
+      private static function changed() : void
+      {
+         for each(var listener:Function in _listeners.concat())
+         {
+            try
+            {
+               listener();
+            }
+            catch(e:Error)
+            {
+            }
+         }
+      }
+   }
+}

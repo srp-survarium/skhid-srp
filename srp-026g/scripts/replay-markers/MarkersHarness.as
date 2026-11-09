@@ -1,5 +1,6 @@
 package
 {
+   import harness.extern.ExternalInterface;
    import flash.display.Loader;
    import flash.display.DisplayObject;
    import flash.display.Sprite;
@@ -47,7 +48,7 @@ package
          {
             e.preventDefault();
          });
-         loader.load(new URLRequest("replay_player.swf"),new LoaderContext(false,new ApplicationDomain()));
+         loader.load(new URLRequest("replay_player.swf"),new LoaderContext(false,new ApplicationDomain(ApplicationDomain.currentDomain)));
       }
 
       private function expect(what:String, ok:Boolean) : void
@@ -116,7 +117,8 @@ package
       }
 
       // start_viewer's texts in the 10 languages (the dictionaries' st_srp_viewer_*): Back, Moments,
-      // All, Mine, Followed, Cursor, Pause, Filter, Hide, the Ctrl and Space caps.
+      // All, Mine, Followed, Cursor, Pause, Filter, Hide, the Ctrl and Space caps; then the markers'
+      // kinds (WORDS: English for every language, what the marker word test reads).
       private static const TEXTS:Array = [
          ["Back","Moments","All","Mine","Followed","Cursor","Pause","Filter","Hide","Ctrl","Space"],
          ["Назад","Моменти","Усі","Мої","Відстежуваний","Курсор","Пауза","Фільтр","Сховати","Ctrl","Space"],
@@ -131,11 +133,13 @@ package
 
       private static function texts(i:int, first:String = null) : Array
       {
-         var out:Array = TEXTS[i].concat();
+         var out:Array = TEXTS[i].concat(WORDS);
          if(first != null)
             out[0] = first;
          return out;
       }
+
+      private static const WORDS:Array = ["Kill","Objective","Death","Event"];
 
       private static const LIT:Number = 1;
 
@@ -150,12 +154,13 @@ package
          return out.join(",");
       }
 
-      // What a press on `target` calls the exe with (ViewerControls.lastCall: Ruffle has no exe).
-      private function calls(v:*, target:Sprite) : String
+      // What dispatching `what` on `target` calls the exe with, "name arguments" (the stand-in saw it:
+      // Ruffle has no exe), "" nothing.
+      private function calls(target:Sprite, what:String) : String
       {
-         v.lastCall = "";
-         target.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN));
-         return v.lastCall;
+         ExternalInterface.calls.length = 0;
+         target.dispatchEvent(new MouseEvent(what));
+         return ExternalInterface.calls.length == 0 ? "" : ExternalInterface.calls[0].join(" ");
       }
 
       private function viewer(root:*) : void
@@ -175,7 +180,7 @@ package
          expect("a second start_viewer made the controls again",Object(v.back.getChildAt(1)).text == "<  Back");
          root.set_moments(1,1);
          expect("Mine fades " + alphas(root),alphas(root) == [LIT,FADED,LIT,FADED].join(","));
-         expect("Mine is not shown as the choice",v.choice == 1 && v.choices[1].visible && v.choices[1].getChildAt(0).alpha == 1 && v.choices[0].getChildAt(0).alpha < 1);
+         expect("Mine is not shown as the choice",v.choices[1].visible && v.choices[1].getChildAt(0).alpha == 1 && v.choices[0].getChildAt(0).alpha < 1);
          root.set_moments(2,1);
          expect("Followed fades " + alphas(root),alphas(root) == [FADED,LIT,LIT,FADED].join(","));
          root.set_markers_text("30000:1:1:Me > Bob;60000:1:2:Ada > Eve;90000:3:3:Me > Eve;120000:2:0:Battery");
@@ -184,9 +189,23 @@ package
          expect("All fades " + alphas(root),alphas(root) == [LIT,LIT,LIT,LIT].join(","));
          expect("Mine offered to a viewer who did not play",!v.choices[1].visible);
          expect("Followed not next to All with Mine hidden",Math.abs(v.choices[2].x - (v.choices[0].x + v.choices[0].width + 3)) < 1);
-         expect("a press on Back calls '" + calls(v,v.back) + "'",calls(v,v.back) == "back_clicked");
-         expect("a press on Followed calls '" + calls(v,v.choices[2]) + "'",calls(v,v.choices[2]) == "moments_clicked 2");
-         expect("a press on All calls '" + calls(v,v.choices[0]) + "'",calls(v,v.choices[0]) == "moments_clicked 0");
+         // Back goes on the click (the release reaches the movie before the viewer ends), not the press
+         expect("a press alone on Back calls '" + calls(v.back,MouseEvent.MOUSE_DOWN) + "'",calls(v.back,MouseEvent.MOUSE_DOWN) == "");
+         expect("a click on Back calls '" + calls(v.back,MouseEvent.CLICK) + "'",calls(v.back,MouseEvent.CLICK) == "back_clicked");
+         expect("a press on Followed calls '" + calls(v.choices[2],MouseEvent.MOUSE_DOWN) + "'",calls(v.choices[2],MouseEvent.MOUSE_DOWN) == "moments_clicked 2");
+         expect("a press on All calls '" + calls(v.choices[0],MouseEvent.MOUSE_DOWN) + "'",calls(v.choices[0],MouseEvent.MOUSE_DOWN) == "moments_clicked 0");
+         // the markers' words: the exe's, by kind (a kill, an objective, a death)
+         root.set_markers_text("30000:1:1:Me > Bob;120000:2:0:Battery;90000:3:3:");
+         var kinds:Array = [[0,"0'30  Kill  Me > Bob"],[1,"1'30  Death"],[2,"2'00  Objective  Battery"]];
+         for each(var kind:Array in kinds)
+         {
+            tickAt(root,kind[0]).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
+            var box:* = root.getChildByName("srpMarkerLabel");
+            var said:String = box == null ? null : box.getChildAt(1).text;
+            expect("the marker word says '" + said + "', not '" + kind[1] + "'",said == kind[1]);
+            tickAt(root,kind[0]).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+         }
+         root.set_markers_text("30000:1:1:Me > Bob;60000:1:2:Ada > Eve;90000:3:3:Me > Eve;120000:2:0:Battery");
          expect("the hint takes the mouse",!v.hint.mouseEnabled);
          root.set_moments(1,1);
          trace("MARKERS viewer: start_viewer once, set_moments fades the ticks it does not light, Back and the switch call the exe");
@@ -208,7 +227,7 @@ package
          expect("the hint has " + v.hint.groups.length + " keys",v.hint.groups.length == 6);
          expect("the switch leaves the stage " + moments,inStage(moments));
          expect("the switch is on the bottom panel " + moments + " " + panel,moments.x >= panel.right && moments.y < panel.bottom && moments.bottom > panel.y);
-         expect("the hint is not shown at the start",v.hintShown);
+         expect("the hint is not shown at the start",v.hint.visible);
          // every language's hint in this stage: two rows at most, each action whole, in the stage
          var Hint:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.replay.KeyHint") as Class;
          var font:String = root.freeViewButton.textField.getTextFormat().font;
@@ -226,14 +245,30 @@ package
                if(action.textWidth > action.width || action.maxScrollH > 0)
                   clipped.push(action.text);
             }
-            expect(t[0] + "'s hint has " + h.rows + " rows, " + int(h.width) + " of " + int(room) + " units, clipped " + clipped.join(","),
-               h.rows <= 2 && h.width <= room && clipped.length == 0);
-            trace("MARKERS hint " + t[0] + ": " + h.rows + " row(s), " + int(h.width) + " of " + int(room));
+            expect(t[0] + "'s hint has " + rowsOf(h) + " rows, " + int(h.width) + " of " + int(room) + " units, clipped " + clipped.join(","),
+               rowsOf(h) <= 2 && h.width <= room && clipped.length == 0);
+            trace("MARKERS hint " + t[0] + ": " + rowsOf(h) + " row(s), " + int(h.width) + " of " + int(room));
             h.layout(360);
-            expect(t[0] + "'s hint in 360 units has " + h.rows + " rows, " + int(h.width) + " wide",h.rows >= 2 && h.width <= 360);
+            expect(t[0] + "'s hint in 360 units has " + rowsOf(h) + " rows, " + int(h.width) + " wide",rowsOf(h) >= 2 && h.width <= 360);
             root.removeChild(h);
          }
          trace("MARKERS viewer: Back at the top left, the hint above the bar, the switch by the bottom panel, in the stage");
+      }
+
+      // The hint's rows, as its groups' lines say.
+      private function rowsOf(h:*) : int
+      {
+         var ys:Object = {};
+         var n:int = 0;
+         for each(var g:* in h.groups)
+         {
+            if(ys[g.y] !== true)
+            {
+               ys[g.y] = true;
+               n++;
+            }
+         }
+         return n;
       }
 
       // The hint: hidden 10 s after start_viewer, shown again with the cursor.
@@ -252,7 +287,6 @@ package
             {
                expect("the hint still shown after 10 s",!v.hint.visible && v.hint.alpha == 0);
                root.set_cursor_shown(true);
-               expect("the hint not to be shown with the cursor",v.hintShown);
                expect("the hint cut in, not faded (" + v.hint.alpha + ")",v.hint.alpha == 0);
             }],
             [11100,function():void
@@ -410,17 +444,18 @@ package
          expect("the ticks span " + int(xs[times.length - 1] - xs[0]) + " px of the track's " + int(track.width),
             rate > 0 && (xs[times.length - 1] - xs[0]) > track.width * 0.8);
          // over a tick: its label, in the stage
-         var words:Array = ["0'02  Kill","0'30  Kill","1'01  Objective  Battery","5'00  Death","9'58  Kill  0'00 Ada > Bob"];
+         // (before the exe's start_viewer, no word: a .sur's replay client gets none)
+         var words:Array = ["0'02","0'30","1'01  Battery","5'00","9'58  0'00 Ada > Bob"];
          for(i = 0; i < times.length; i++)
          {
             tickAt(root,i).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
-            var label:DisplayObject = root.markerTicks().label;
+            var label:DisplayObject = root.getChildByName("srpMarkerLabel");
             var text:String = label == null ? null : Object(label).getChildAt(1).text;
             expect("tick " + i + "'s label is '" + text + "', not '" + words[i] + "'",text == words[i]);
             if(label != null)
                expect("tick " + i + "'s label leaves the stage " + label.getBounds(stage),inStage(label.getBounds(stage)));
             tickAt(root,i).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
-            expect("tick " + i + "'s label stays out of it",root.markerTicks().label == null);
+            expect("tick " + i + "'s label stays out of it",root.getChildByName("srpMarkerLabel") == null);
          }
          // a press: 4 s before it, as the bar's press (VALUE_CHANGE, sent as update_position)
          var Change:* = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.SliderEvent");

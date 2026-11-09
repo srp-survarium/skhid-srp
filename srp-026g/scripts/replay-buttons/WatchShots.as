@@ -16,7 +16,7 @@ package
    // The Watch window as the lobby draws it, for a screenshot (shots.sh): the lobby movie's own top
    // bar, bottom bar, History and WatchWindow (WatchLobby) on a stage of the game's size, told
    // WatchFake's rows. Parameters: movie, language, view (lobby, mine, friends, search, live, reasons,
-   // copied, results, history). Traces "SHOT ready" once drawn.
+   // results, history). Traces "SHOT ready" once drawn.
    public class WatchShots extends Sprite
    {
       private var loader:Loader = new Loader();
@@ -94,9 +94,6 @@ package
                {
                   press(W.me,"srpWatchTab_replays");
                   lobby.take(WatchFake.played("PocketTest1"));
-                  if(view == "copied")
-                     press(WatchLobby.find(W.me,"srpWatchCard1") as DisplayObjectContainer,"srpWatchCopy");
-               }
                else if(view == "friends")
                {
                   press(W.me,"srpWatchTab_replays");

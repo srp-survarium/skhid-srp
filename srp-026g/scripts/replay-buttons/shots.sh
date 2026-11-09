@@ -21,7 +21,7 @@ language=${SHOT_LANGUAGE:-english}
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work" "$language"
 harness_compile "$here/WatchShots.as" 1280,720 -source-path+="$work" -default-background-color=0x101418
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
-read -ra views <<<"${SHOT_VIEWS:-lobby mine friends search live reasons copied results history}"
+read -ra views <<<"${SHOT_VIEWS:-lobby mine friends search live reasons results history}"
 for size in "${sizes[@]}"; do
     w=${size%x*}
     h=${size#*x}

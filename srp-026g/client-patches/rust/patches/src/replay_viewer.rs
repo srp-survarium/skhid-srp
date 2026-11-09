@@ -699,10 +699,12 @@ impl Fed {
 /// The dictionary keys of the viewer's own controls, in root.start_viewer's
 /// order: the Back button, the Moments switch and its choices, the key hint's
 /// actions and its Ctrl and Space caps.
-const VIEWER_TEXTS: [&CStr; 11] = [c"st_srp_viewer_back", c"st_srp_viewer_moments", c"st_srp_viewer_moments_all",
+const VIEWER_TEXTS: [&CStr; 15] = [c"st_srp_viewer_back", c"st_srp_viewer_moments", c"st_srp_viewer_moments_all",
                                    c"st_srp_viewer_moments_mine", c"st_srp_viewer_moments_followed",
                                    c"st_srp_viewer_cursor", c"st_srp_viewer_pause", c"st_srp_viewer_filter",
-                                   c"st_srp_viewer_hide", c"st_srp_viewer_cap_ctrl", c"st_srp_viewer_cap_space"];
+                                   c"st_srp_viewer_hide", c"st_srp_viewer_cap_ctrl", c"st_srp_viewer_cap_space",
+                                   c"st_srp_viewer_marker_kill", c"st_srp_viewer_marker_objective",
+                                   c"st_srp_viewer_marker_death", c"st_srp_viewer_marker_event"];
 
 /// The markers' sources: the events' version, and the player watched (whose
 /// deaths are their own kind).
