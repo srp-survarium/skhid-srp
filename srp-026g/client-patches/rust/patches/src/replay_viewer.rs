@@ -35,7 +35,7 @@ use core::ffi::CStr;
 use crate::spectator;
 use crate::vostok::log::{line, Piece};
 use crate::vostok::replay_view::{button_client, pointer_at, pointer_client, query_network, take_network, CoreLoad, GameClock, HudFrame, KitChooser, KitData, KitFeed, MatchClose, Names, Overlay, ServerNoteSite};
-use crate::vostok::world::{NetworkClient, Role};
+use crate::vostok::world::NetworkClient;
 use crate::vostok::{
     Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, NoExit, ReplayViewerOnHudCallExit,
     ReplayViewerOnKeyExit, ReplayViewerOnMouseButtonExit, ReplayViewerOnMousePointerExit, ReplayViewerOnMovieQueryExit, ReplayViewerOnSetupProfilesExit, Reg,
@@ -499,7 +499,7 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
         return Flow::Continue;
     }
     let thread = ctx.thread();
-    if site.client.role() != Some(Role::Spectator) {
+    if !site.client.is_spectator() {
         // Never sent to a player's game: dropped, its keys stay the game's.
         return Flow::Exit(ReplayViewerOnServerNoteExit::Done);
     }
@@ -509,6 +509,7 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
             let own = Own::by_name(names.own(), site.client.places(), |place| names.of_place(place));
             let (next, act) = EVENTS.with(thread, |events| step(SESSION.get(thread), Input::Playback { playback, own }, events));
             SESSION.set(thread, next);
+            site.client.become_replay_viewer();
             if let (Act::Play { paused, speed }, Some(clock)) = (act, GameClock::of(&site.client)) {
                 clock.set_paused(paused);
                 clock.set_speed(speed.factor());
@@ -538,7 +539,7 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
     // A spectator has no kits: its 1 to 3 pick nothing (before patch 58's key, further in this
     // function; the key would reach the kit chooser the game shows it).
     if is_kit_key(key.key()) && key.kind() == KeyKind::Down
-        && key.hud().client(thread).is_some_and(|client| client.role() == Some(Role::Spectator)) {
+        && key.hud().client(thread).is_some_and(|client| client.is_spectator()) {
         key.take();
         return Flow::Exit(ReplayViewerOnKeyExit::Taken);
     }
@@ -592,7 +593,7 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     MASKS.set(thread, KitMasks::NONE);
     // A world may tick on after this: nothing is shown again until the next match.
     FED.set(thread, Fed::ENDED);
-    if close.client.role() == Some(Role::Spectator)
+    if close.client.is_spectator()
         && let Some(chooser) = KitChooser::of(&close.client)
     {
         chooser.show(CHOOSER_HIDDEN);
@@ -902,7 +903,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Session::Replay(viewer) => FED.set(thread, feed(&client, &viewer, FED.get(thread), thread)),
         // A live match's spectator: the kit chooser and the slots stay hidden (it may not have
         // the replay controls' movie, whose Overlay a viewer's frame goes through).
-        Session::Live if client.role() == Some(Role::Spectator) => {
+        Session::Live if client.is_spectator() => {
             hud.hide_player_panels();
             hud.keep_cursor_off();
             let fed = FED.get(thread);
@@ -1019,12 +1020,12 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
     // A spectator picks no kit: the chooser's pick of a spectator's game is dropped (the movie
     // would tell the game profile_changed).
     if call.method().to_bytes() == b"profile_changed" {
-        let spectator = call.hud().client(call.thread()).is_some_and(|client| client.role() == Some(Role::Spectator));
+        let spectator = call.hud().client(call.thread()).is_some_and(|client| client.is_spectator());
         return if spectator { Flow::Exit(ReplayViewerOnHudCallExit::Done) } else { Flow::Continue };
     }
     let Some(control) = ControlCall::of(&call) else { return Flow::Continue };
     let thread = call.thread();
-    let Some(client) = call.hud().client(thread).filter(|client| client.role().is_some()) else {
+    let Some(client) = call.hud().client(thread).filter(|client| client.is_match_client()) else {
         return Flow::Continue;
     };
     let session = SESSION.get(thread);

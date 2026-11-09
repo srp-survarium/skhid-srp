@@ -998,7 +998,7 @@ pub extern "C" fn hook_battery_progress_on_load(frame: &mut Frame) -> u32 {
 
 // ---- blackout (patch 65) ----
 
-/// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+/// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch], EDI the network client ([ebp+8], kept since 0x27B8DB), [ebp-5] the 0xE4's first byte, the local place) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_static_info(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `blackout_on_static_info` calls this, from the game's jump at 0x27b92d,
@@ -1013,7 +1013,7 @@ pub extern "C" fn hook_blackout_on_static_info(frame: &mut Frame) -> u32 {
 
 // ---- tab_cursor (patch 86) ----
 
-/// The entry `tab_cursor_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+/// The entry `tab_cursor_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch], EDI the network client ([ebp+8], kept since 0x27B8DB), [ebp-5] the 0xE4's first byte, the local place) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_tab_cursor_on_static_info(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `tab_cursor_on_static_info` calls this, from the game's jump at 0x27b92d,
@@ -1028,7 +1028,7 @@ pub extern "C" fn hook_tab_cursor_on_static_info(frame: &mut Frame) -> u32 {
 
 // ---- hud_options (patch 83) ----
 
-/// The entry `hud_options_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+/// The entry `hud_options_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch], EDI the network client ([ebp+8], kept since 0x27B8DB), [ebp-5] the 0xE4's first byte, the local place) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `hud_options_on_static_info` calls this, from the game's jump at 0x27b92d,
@@ -1043,7 +1043,7 @@ pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
 
 // ---- spectator (patch 121) ----
 
-/// The entry `spectator_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+/// The entry `spectator_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch], EDI the network client ([ebp+8], kept since 0x27B8DB), [ebp-5] the 0xE4's first byte, the local place) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_spectator_on_static_info(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `spectator_on_static_info` calls this, from the game's jump at 0x27b92d,
@@ -1058,7 +1058,7 @@ pub extern "C" fn hook_spectator_on_static_info(frame: &mut Frame) -> u32 {
 
 // ---- replay_viewer (patch 130) ----
 
-/// The entry `replay_viewer_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+/// The entry `replay_viewer_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch], EDI the network client ([ebp+8], kept since 0x27B8DB), [ebp-5] the 0xE4's first byte, the local place) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_replay_viewer_on_static_info(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `replay_viewer_on_static_info` calls this, from the game's jump at 0x27b92d,
@@ -3095,6 +3095,21 @@ pub extern "C" fn hook_replay_viewer_on_close(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- spectator (patch 121) ----
+
+/// The entry `spectator_on_close` (0x27a7f3, close_current_match before its reason's jump (mov ebx,[ebp+8] / cmp ebx,5, then ja / jmp [table]): EDI the network client, past its guard (+1F1C60h 0 returns, 0x27A7A4; patch 120's played exit comes on to here); every reason then ends the world (0x1F96F0 at 0x27A947 or 0x27A80C; reason 4, a kick, by patch 119's reason 1 path)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spectator_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spectator_on_close` calls this, from the game's jump at 0x27a7f3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spectator::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- replay_viewer (patch 130) ----
 
 /// The named exits of replay_viewer::on_movie_query (the order the shim's Flow code
@@ -4099,6 +4114,15 @@ pub extern "C" fn hook_tab_cursor_on_key_chain(frame: &mut Frame) -> u32 {
     let flow = hook_tab_cursor_on_key(frame);
     if flow != 0 { return flow; }
     let flow = hook_replay_viewer_on_key(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_close_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_replay_viewer_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_spectator_on_close(frame);
     if flow != 0 { return flow; }
     0
 }

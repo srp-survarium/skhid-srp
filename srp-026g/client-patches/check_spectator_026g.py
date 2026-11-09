@@ -64,6 +64,7 @@ SITES = {
     "hud": (0x23B7B9, bytes.fromhex("8a853c030000"), 0x23B7BF, None),
     "left": (0x27C72C, bytes.fromhex("8a86441c1f003cff"), 0x27C734, 0x27C79F),
 }
+STATIC = (0x27B92D, bytes.fromhex("8b178b4240"), 0x27B932, None)
 
 failed = 0
 
@@ -88,6 +89,9 @@ class Game:
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         self.word(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
+        emu.mem_write(STUBS + 0x90, b"\xB8\x01\x00\x00\x00\xC2\x04\x00")  # QueryPerformanceCounter and -Frequency: 1 (stdcall)
+        self.word(0x870158, STUBS + 0x90)
+        self.word(0x870150, STUBS + 0x90)
         self.calls = []
         for va, how in ((GET_ACTIVE, self.get_active), (FOLLOW, self.follow), (CAMERA, self.camera),
                         (CLOSE, self.close), (DETACH, self.detach)):
@@ -164,10 +168,24 @@ class Game:
             self.word(p + 0x33F, inserted, 1)
         if followed is not None:
             self.word(NC + 4, PLAYERS[followed])
+        # The 0xE4's first byte names the game's place (0xFF none): the role of the match.
+        frame = STUBS + 0x4000                   # not in the stack run() clears
+        self.word(frame - 5, local, 1)
+        regs = dict(zip(REGS, (0, 0, 0, 0, HOLDER + 0xC, NC, frame)))
+        self.run("static", regs)
+        self.calls = []
+
+    def stale_observer(self):
+        """A player whose client watched before and whose match's close was skipped: a new match
+        (its static info told again) clears +0Ch."""
+        self.word(NC + 0xC, 1, 1)
+        frame = STUBS + 0x4000
+        self.word(frame - 5, self.read(NC + 0x1F1C44, 1), 1)
+        self.run("static", dict(zip(REGS, (0, 0, 0, 0, HOLDER + 0xC, NC, frame))))
         self.calls = []
 
     def run(self, site, regs, stack=b""):
-        start, _, past, exit_ = SITES[site]
+        start, _, past, exit_ = SITES[site] if site != "static" else STATIC
         emu = self.emu
         emu.mem_write(STACK, bytes(0x10000))
         emu.mem_write(SP, stack)
@@ -212,6 +230,7 @@ def site_regs(site, action=0x17):
 def both(stock, ours, site, case, regs, stack=b"", **setup):
     stock.setup(**setup)
     ours.setup(**setup)
+    stock.word(NC + 0xC, ours.read(NC + 0xC, 1), 1)     # a spectator's +0Ch the build set, so the objects compare
     s = stock.run(site, regs, stack)
     o = ours.run(site, regs, stack)
     past = SITES[site][2]
@@ -305,7 +324,7 @@ def main():
     # network client is the game's one): its first world turns its input on.
     for game in (stock, ours):
         game.setup(vtable=NC_VTABLE, local=2, followed=None, players=MATCH)
-        game.word(NC + 0xC, 1, 1)
+        game.stale_observer()
     s, o = stock.run("world", site_regs("world")), ours.run("world", site_regs("world"))
     check(s[0] == o[0] and s[0][UC_X86_REG_EIP] == 0x27C11B and stock.read(NC + 0xC, 1) == 1
           and ours.read(NC + 0xC, 1) == 0 and not o[2],
@@ -366,6 +385,7 @@ def main():
           "left, a spectator, 0xEA of the place it follows (1): the next living player (3), then 0x27C79F")
     ours.setup(vtable=NC_VTABLE, local=0xFF, followed=1, players=MATCH)
     stock.setup(vtable=NC_VTABLE, local=0xFF, followed=1, players=MATCH)
+    stock.word(NC + 0xC, 1, 1)                  # the +0Ch the build's static info set
     s, o = stock.run("left", site_regs("left", 3)), ours.run("left", site_regs("left", 3))
     check(s == o and s[0][UC_X86_REG_EIP] == 0x27C734,
           "left, a spectator, 0xEA of another place (3): at 0x27C734 as the original (its je: nothing)")

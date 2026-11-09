@@ -22,7 +22,7 @@ use replay_control::{MatchMs, Request};
 
 use super::context::Context;
 use super::hook::Thread;
-use super::world::{read, NetworkClient, Role};
+use super::world::{read, NetworkClient};
 use crate::raw;
 
 /// The 0xF6 at `match_packet.server_note`, before the game's own case: the
@@ -107,7 +107,7 @@ impl<'t> GameClock<'t> {
     /// The clock of a spectator's game (patch 121's role); none for a
     /// player's or a replay's own client.
     pub fn of(client: &NetworkClient<'t>) -> Option<GameClock<'t>> {
-        if client.role()? != Role::Spectator {
+        if !client.is_spectator() {
             return None;
         }
         // SAFETY: the client's game, alive as long as the client, on its thread.
@@ -164,7 +164,7 @@ impl<'t> NetworkClient<'t> {
     /// pool could run dry (an empty pool is a crash in new_packet): whether
     /// it went.
     pub fn send_request(&self, request: Request) -> bool {
-        if self.role() != Some(Role::Spectator) {
+        if !self.is_spectator() {
             return false;
         }
         let bytes = request.encode();
@@ -194,7 +194,7 @@ impl<'t> NetworkClient<'t> {
     /// close_current_match(2), an empty 0xE0 to the match server, then back
     /// to the lobby (the world ended, no results). A player's is not touched.
     pub fn leave(&self) {
-        if self.role() != Some(Role::Spectator) {
+        if !self.is_spectator() {
             return;
         }
         // SAFETY: the client's own close_current_match, on the game's thread
@@ -225,7 +225,7 @@ pub fn network_load(game: Option<raw::Game>, thread: &Thread) -> bool {
     // SAFETY: the game of the site's register, alive while it loads its
     // world on the game's thread; its client likewise.
     let Some(client) = game.and_then(|game| unsafe { game.network_client() }) else { return false };
-    NetworkClient::of(client, thread).role().is_some()
+    NetworkClient::of(client, thread).is_match_client()
 }
 
 /// At `replay_movie.query`.
@@ -248,7 +248,7 @@ fn mouse_client<'t>(world: Option<raw::GameWorld>, thread: &'t Thread) -> Option
     // alive while the input world dispatches the mouse on the game's thread.
     let client = unsafe { world?.game()?.network_client() }?;
     let client = NetworkClient::of(client, thread);
-    client.role().is_some().then_some(client)
+    client.is_match_client().then_some(client)
 }
 
 /// At `hud_mouse.replay_button`.

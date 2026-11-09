@@ -31,9 +31,16 @@ handler = "on_followed_alive"
 site = "player_left.local"
 handler = "on_player_left"
 
-# A match's options read (after patches 65, 86 and 58): a new match, its camera
-# following nobody yet.
+# A match's options read (after patches 65, 86 and 58): a new match: its role
+# and the camera following nobody yet.
 [[hook]]
 site = "static_info.options_read"
 handler = "on_static_info"
 order = 3
+
+# A match's end, after patch 130's (which reads the role): the role over and a
+# spectator's input off for the next match.
+[[hook]]
+site = "close_match.reason"
+handler = "on_close"
+order = 1

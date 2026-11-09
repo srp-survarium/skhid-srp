@@ -13,8 +13,9 @@
 //! it; the sites move the camera and the hud alone.
 #![forbid(unsafe_code)]
 
-use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, MatchLine, PlayerLeft, SpectateKey};
-use crate::vostok::world::{NetworkClient, Role, Step};
+use crate::vostok::replay_view::MatchClose;
+use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, MatchLine, MatchStart, PlayerLeft, SpectateKey};
+use crate::vostok::world::{NetworkClient, Step};
 use crate::vostok::{
     Context, Flow, GameCell, NoExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit, SpectatorOnPlayerLeftExit,
     SpectatorOnWorldCameraExit, Thread,
@@ -95,9 +96,21 @@ pub fn view_free(client: &NetworkClient<'_>, thread: &Thread) {
 
 /// `static_info.options_read` (after patches 65, 86 and 58's): a new match.
 pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(start) = MatchStart::at(ctx) {
+        start.client.begin_match(start.local_place, start.places);
+    }
     // A new match's camera does nothing yet (Act::Nothing): its first world
     // finds it a player.
     CAMERA.update(ctx.thread(), |camera| step(camera, Event::NewMatch).0);
+    Flow::Continue
+}
+
+/// `close_match.reason`, after patch 130's (which reads the role): the match is
+/// over, its role with it and a spectator's input off for the next match.
+pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(close) = MatchClose::at(ctx) {
+        close.client.end_match();
+    }
     Flow::Continue
 }
 
@@ -110,14 +123,12 @@ pub fn on_world_camera(ctx: &mut Context<'_>) -> Flow<SpectatorOnWorldCameraExit
     let Some(client) = world_camera_client(ctx) else {
         return Flow::Continue;
     };
-    match client.take_role() {
-        Some(Role::Spectator) => {
-            let followed_in_match = client.local_player().is_some_and(|player| player.inserted());
-            camera(&client, ctx.thread(), Event::World { followed_in_match });
-            Flow::Exit(SpectatorOnWorldCameraExit::Done)
-        }
-        Some(Role::Player) | None => Flow::Continue,
+    if !client.is_spectator() {
+        return Flow::Continue;
     }
+    let followed_in_match = client.local_player().is_some_and(|player| player.inserted());
+    camera(&client, ctx.thread(), Event::World { followed_in_match });
+    Flow::Exit(SpectatorOnWorldCameraExit::Done)
 }
 
 /// `keyboard.spectate`: a spectator's F6 and F5 move its camera to the next
@@ -127,8 +138,8 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<SpectatorOnKeyExit> {
     let Some(key) = SpectateKey::at(ctx) else {
         return Flow::Continue;
     };
-    match (key.client.role(), key.key) {
-        (Some(Role::Spectator), Some(camera_key)) => {
+    match (key.client.is_spectator(), key.key) {
+        (true, Some(camera_key)) => {
             camera(&key.client, ctx.thread(), Event::Key(camera_key));
             Flow::Exit(SpectatorOnKeyExit::Taken)
         }
@@ -142,13 +153,11 @@ pub fn on_match_line(ctx: &mut Context<'_>) -> Flow<SpectatorOnMatchLineExit> {
     let Some(line) = MatchLine::at(ctx) else {
         return Flow::Continue;
     };
-    match line.client.role() {
-        Some(Role::Spectator) => {
-            line.as_plain();
-            Flow::Exit(SpectatorOnMatchLineExit::Plain)
-        }
-        Some(Role::Player) | None => Flow::Continue,
+    if !line.client.is_spectator() {
+        return Flow::Continue;
     }
+    line.as_plain();
+    Flow::Exit(SpectatorOnMatchLineExit::Plain)
 }
 
 /// `player_left.local`: an 0xEA, after leave_match. A spectator's game
@@ -161,7 +170,7 @@ pub fn on_player_left(ctx: &mut Context<'_>) -> Flow<SpectatorOnPlayerLeftExit> 
     let Some(left) = PlayerLeft::at(ctx) else {
         return Flow::Continue;
     };
-    if left.client.role() != Some(Role::Spectator) {
+    if !left.client.is_spectator() {
         return Flow::Continue;
     }
     if left.place == NO_PLACE {
@@ -184,7 +193,7 @@ const NO_PLACE: u8 = 0xFF;
 /// would be the followed player's, in its own world alone).
 pub fn on_followed_alive(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let mut site = FollowedAlive::at(ctx);
-    if site.client().and_then(|client| client.role()) != Some(Role::Spectator) {
+    if !site.client().is_some_and(|client| client.is_spectator()) {
         return Flow::Continue;
     }
     site.as_alive();

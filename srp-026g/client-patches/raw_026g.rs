@@ -3549,6 +3549,15 @@ impl StaticInfoFrame {
         self.0.as_ptr() as usize as u32
     }
 
+    /// -0x5 (u8): process_static_match_info's first byte of the 0xE4 (0x27B8A0, [ebp-5]): the place the message names the game's own, 0xFF (or any value past the match's places) none
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn local_place(self) -> *mut u8 {
+        unsafe { self.0.byte_sub(0x5).cast::<u8>().as_ptr() }
+    }
+
     /// -0x2c (obj<vostok::buffer_reader>): process_static_match_info's local reader {begin, cursor, size} (by EBP; filled 0x27B903..0x27B90B, deserialize's EAX at 0x27B925)
     ///
     /// # Safety
@@ -18362,7 +18371,7 @@ pub mod site {
         }
     }
 
-    /// static_info.options_read (0x27b92d): process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]
+    /// static_info.options_read (0x27b92d): process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch], EDI the network client ([ebp+8], kept since 0x27B8DB), [ebp-5] the 0xE4's first byte, the local place
     pub mod static_info_options_read {
         #[allow(unused_imports)]
         use super::*;
@@ -18383,6 +18392,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<StaticInfoFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StaticInfoFrame)
+        }
+
+        /// EDI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
         }
     }
 

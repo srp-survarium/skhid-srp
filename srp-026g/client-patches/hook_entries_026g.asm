@@ -2107,7 +2107,7 @@ battery_progress_on_load_replay:
     db 0x8b, 0x85, 0x38, 0x0a, 0x00, 0x00
     jmp 0x3350d6
 
-; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
+; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch], EDI the network client ([ebp+8], kept since 0x27B8DB), [ebp-5] the 0xE4's first byte, the local place: lohook -> blackout_on_static_info
 global blackout_on_static_info
 extern hook_blackout_on_static_info_chain
 blackout_on_static_info:
@@ -5656,7 +5656,7 @@ tab_cursor_on_key_replay:
 
 ; 0x27a7f3 close_current_match before its reason's jump (mov ebx,[ebp+8] / cmp ebx,5, then ja / jmp [table]): EDI the network client, past its guard (+1F1C60h 0 returns, 0x27A7A4; patch 120's played exit comes on to here); every reason then ends the world (0x1F96F0 at 0x27A947 or 0x27A80C; reason 4, a kick, by patch 119's reason 1 path): lohook -> replay_viewer_on_close
 global replay_viewer_on_close
-extern hook_replay_viewer_on_close
+extern hook_replay_viewer_on_close_chain
 replay_viewer_on_close:
     lea esp, [esp - 4]
     pushfd
@@ -5674,7 +5674,7 @@ replay_viewer_on_close:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_replay_viewer_on_close
+    call hook_replay_viewer_on_close_chain
     mov edx, replay_viewer_on_close_replay
     cmp eax, 0
     je replay_viewer_on_close_go

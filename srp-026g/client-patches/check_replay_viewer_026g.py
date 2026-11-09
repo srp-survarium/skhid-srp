@@ -102,6 +102,7 @@ DOWN, HELD = 1, 3
 CLOCK = 100_000                            # the world core's time in the made-up match
 
 failed = 0
+ORIGINAL = [None]
 
 
 def check(ok, what):
@@ -124,6 +125,9 @@ class Game:
         emu.mem_map(STACK, STACK_SIZE, UC_PROT_ALL)
         self.word(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
+        emu.mem_write(STUBS + 0x90, b"\xB8\x01\x00\x00\x00\xC2\x04\x00")  # QueryPerformanceCounter and -Frequency: 1 (stdcall)
+        self.word(0x870158, STUBS + 0x90)
+        self.word(0x870150, STUBS + 0x90)
         self.calls = []
         for va, how in ((KIT_LEVEL, self.kit_level), (PAUSE, self.pause), (RESUME, self.resume), (NEW_PACKET, self.new_packet),
                         (WRITE, self.write), (ENQUEUE, self.enqueue), (CLOSE, self.close),
@@ -394,13 +398,27 @@ def kits_for(game, place, current=0):
     game.word(record + 0x9A, 1, 2)
 
 
-def static_info(game, options):
+def static_info(game, local):
+    """The 0xE4 that names `local` the game's place (0xFF none): the match's role is set here."""
     regs = dict(STEADY)
-    regs[UC_X86_REG_ESI] = options
-    regs[UC_X86_REG_EBP] = 0                     # no frame: blackout's read of the options (and its breadcrumb) passes
-    regs[UC_X86_REG_EDI] = STUBS + 0xD00         # what the site's own `mov edx,[edi]; mov eax,[edx+40h]` reads
-    game.word(STUBS + 0xD00, STUBS + 0xC00)
+    regs[UC_X86_REG_ESI] = LINK + 0xC
+    frame = STUBS + 0x4000                       # not in the stack run() clears
+    regs[UC_X86_REG_EBP] = frame                 # the frame: its [ebp-5] the 0xE4's first byte
+    regs[UC_X86_REG_EDI] = NC
+    game.word(frame - 5, local, 1)
+    game.word(frame - 0x2C, PAYLOAD)             # the frame's reader over nothing: the options' readers past it find no extras
+    game.word(frame - 0x28, PAYLOAD)
+    game.word(frame - 0x24, 0)
     return game.run("static", regs)
+
+
+def begin(game, local):
+    """A match of `local`: set up, and the static info told. The original has no role to keep;
+    its +0Ch made as the build's (a spectator's is 1), so both compare."""
+    game.setup(local)
+    static_info(game, local)
+    if game is ORIGINAL[0] and local == 0xFF:
+        game.word(NC + 0xC, 1, 1)
 
 
 def setup_profiles(game, place):
@@ -439,11 +457,12 @@ def main():
           "time_scale (0xA70298) is 1.0 in the image")
 
     stock, ours = Game(original), Game(built)
+    ORIGINAL[0] = stock
 
     # The game's own code where the patch has nothing to do.
     def both(case, local, run):
-        stock.setup(local)
-        ours.setup(local)
+        begin(stock, local)
+        begin(ours, local)
         s, o = run(stock), run(ours)
         check(s == o and not o[2] and s[0][UC_X86_REG_EIP] in {SITES[k][2] for k in SITES},
               f"{case}: past the span as the original, registers, flags and objects the same, nothing called")
@@ -452,11 +471,15 @@ def main():
         both(f"note, {who}, the upload request (00)", local, lambda g: g.run("note", note_regs(g, b"\x00")))
         for dik, name in ((SPACE, "Space"), (ESC, "Esc"), (H, "H"), (RIGHT, "Right")):
             both(f"key, {who}, {name}", local, lambda g, dik=dik: key(g, dik))
-        both(f"close, {who}, reason 0", local, lambda g: close(g, 0))
+        def closed(g):
+            if g is stock:                         # the build turns +0Ch off: the original has nothing to turn off
+                g.word(NC + 0xC, 0, 1)
+            return close(g, 0)
+        both(f"close, {who}, reason 0", local, closed)
 
     # A player's game given a playback note (never sent to one): taken, nothing done, its keys its own.
-    stock.setup(2)
-    ours.setup(2)
+    begin(stock, 2)
+    begin(ours, 2)
     state, _, calls = ours.run("note", note_regs(ours, playback(1, 1, 50)))
     check(state[UC_X86_REG_EIP] == SITES["note"][3] and not calls and ours.time_scale() == 1.0,
           "note, a player, a playback note: taken (0x27A5AB), nothing called, time_scale 1")
@@ -465,7 +488,7 @@ def main():
     check(s == o and not o[2], "key, that player, Space: as the original")
 
     # A spectator's game through one replay.
-    ours.setup(0xFF)
+    begin(ours, 0xFF)
     exit_ = SITES["note"][3]
     state, _, calls = ours.run("note", note_regs(ours, playback(5, 1, 50)))
     check(state[UC_X86_REG_EIP] == exit_ and calls == [("pause", GAME)] and ours.time_scale() == 0.5,
@@ -540,6 +563,7 @@ def main():
         return (movie, 3, -1.0, -1.0, button, 0)
 
     def ended_with(controls, cursor):
+        static_info(ours, 0xFF)                    # the next match: a new viewer's role
         ours.run("note", note_regs(ours, playback(8, 1, 100)))
         ours.word(REPLAY_MOVIE + MOUSE_BUTTONS, controls)
         ours.word(CURSOR_MOVIE + MOUSE_BUTTONS, cursor)
@@ -561,8 +585,8 @@ def main():
 
     # (The unpacked load's site runs patch 87's check after ours, which a
     # made-up world does not pass; the game's own test runs it.)
-    stock.setup(2)
-    ours.setup(2)
+    begin(stock, 2)
+    begin(ours, 2)
     state, mode, calls = world_load(ours, "raw")
     check(mode == 1 and not calls and world_load(stock, "raw")[0] == state,
           "raw, a player's game: its world loads as a network one (mode 1), as the original")
@@ -571,24 +595,24 @@ def main():
     # them, and their hud gives them the mouse only in a viewer's game.
     for local, who in ((2, "a player's"), (0xFF, "a spectator's (no place local)")):
         for site, name in (("query", "the query"), ("take", "the callback's take")):
-            stock.setup(local)
-            ours.setup(local)
+            begin(stock, local)
+            begin(ours, local)
             o = load(ours, site)
             want = SITES[site][3]
             check(o[0][UC_X86_REG_EIP] == want and not o[2], f"{site}, {who} world: {name} of replay_player.swf made ({want:#x})")
         for site, name in (("button", "a button"), ("pointer", "the pointer")):
-            ours.setup(local)
+            begin(ours, local)
             o = mouse(ours, site)
             check(o[0][UC_X86_REG_EIP] == SITES[site][3] and not o[2],
                   f"{site}, {who} game: {name} to the hud movie ({SITES[site][3]:#x}), not the hidden controls")
-    ours.setup(0xFF)
+    begin(ours, 0xFF)
     state, _, calls = control(ours, "update_position", (4, 5000, 0))
     check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls,
           "call, a live spectator, update_position: taken with nothing done (the game's would seek with no reader)")
     state, _, calls = control(ours, "profile_changed", (4, 1, 0))
     check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls,
           "call, a live spectator, profile_changed (the kit chooser's pick): taken, nothing done")
-    ours.setup(2)
+    begin(ours, 2)
     state, _, calls = control(ours, "profile_changed", (4, 1, 0))
     check(state[UC_X86_REG_EIP] == SITES["call"][2] and not calls, "call, a player, profile_changed: on as the game's")
     state, _, calls = frame(ours)
@@ -596,35 +620,30 @@ def main():
     state, _, calls = key(ours, 0x03)
     check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls, "key, a player, 2: on to the game (patch 58's kit key)")
     # initialize_match's feed of the local place's kits (place 0 in a spectator's game): withheld from a spectator alone.
-    ours.setup(2)
-    static_info(ours, LINK + 0xC)
+    begin(ours, 2)
     state, _, calls = setup_profiles(ours, 2)
     check(state[UC_X86_REG_EIP] == SITES["profiles"][2] and not calls, "profiles, a player's match: the feed goes on (0x2362D2)")
-    # As the exe orders a player's start: at the static info no place is local yet (0x27BE5F marks
-    # its own after it) and the client's own place not known (0xFF, which reads as a spectator's).
+    # As the exe orders a player's start: the client's own place byte is still 0xFF at the static info
+    # (on_match_ready sets it later, 0x27AD89); the role is the 0xE4's, not that byte's.
     ours.setup(0xFF)
-    static_info(ours, LINK + 0xC)
+    static_info(ours, 2)
     ours.word(LINK + 0xC + 2 * 0x45FC + 0x45F0, 1, 1)
     state, _, calls = setup_profiles(ours, 2)
     check(state[UC_X86_REG_EIP] == SITES["profiles"][2] and not calls,
-          "profiles, a player whose place was marked after the static info, the client's role not yet known: the feed goes on")
-    ours.word(NC + 0x1F1C44, 2, 1)
-    state, _, calls = setup_profiles(ours, 2)
-    check(state[UC_X86_REG_EIP] == SITES["profiles"][2] and not calls, "profiles, the same player, its role known: the feed goes on")
-    ours.setup(0xFF)
-    static_info(ours, LINK + 0xC)
+          "profiles, a player whose client byte is still 0xFF (its role is the 0xE4's): the feed goes on")
+    state, _, calls = frame(ours)
+    check(not calls, "frame, the same player, before on_match_ready: not a spectator's frame")
+    begin(ours, 0xFF)
     state, _, calls = setup_profiles(ours, 0)
     check(state[UC_X86_REG_EIP] == SITES["profiles"][3] and state[UC_X86_REG_ESI] == 0 and not calls,
           "profiles, a spectator's match: skipped to 0x2362E9, ESI 0 as the skipped xor leaves it, nothing given to the movie")
-    ours.setup(2)                                # a player, with its hud movie: its chooser is the game's alone
-    static_info(ours, LINK + 0xC)
+    begin(ours, 2)                               # a player, with its hud movie: its chooser is the game's alone
     ours.word(WORLD_UI + 0x8, HUD_HOLDER)
     state, _, calls = frame(ours)
     check(not calls, "frame, a player with its hud movie: nothing told, the chooser left as the game shows it")
     state, _, calls = close(ours, 0)
     check(not [c for c in calls if c[0] == "invoke" and "srp_spectator" in c[2]], "close, a player: the chooser left alone")
-    ours.setup(0xFF)
-    static_info(ours, LINK + 0xC)
+    begin(ours, 0xFF)
     ours.word(WORLD_UI + 0x8, HUD_HOLDER)        # this hud has its hud movie (a viewer's frames test without it)
     kits_for(ours, 1)
     state, _, calls = frame(ours)
@@ -658,16 +677,18 @@ def main():
           "key, a live spectator, 2: taken, nothing called (no kit pick)")
     state, _, calls = key(ours, 0x04, kind=HELD)
     check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls, "key, a live spectator, 3 held: on as the game's (only a key going down picks)")
+    check(ours.read(NC + 0xC, 1) == 1, "a live spectator's game: no input is built or sent (+0Ch 1)")
     state, _, calls = close(ours, 0)
+    check(ours.read(NC + 0xC, 1) == 0, "close, a live spectator: +0Ch off again for the next match")
     check(("invoke", HUD_MOVIE, "root.srp_spectator_kits_show", 1, (4, 0)) in calls and not [c for c in calls if c[0] in ("resume", "show_replay_controls")],
           "close, a live spectator: the chooser hidden, no clock or controls touched")
     state, _, calls = frame(ours)
-    check([c[2] for c in calls if c[0] == "invoke"] == ["root.show_slots"], "frame, after a live spectator's end: the chooser not fed again")
-    static_info(ours, LINK + 0xC)                # the next match
+    check([c[2] for c in calls if c[0] == "invoke"] == [], "frame, after a live spectator's end: no spectator any more, nothing fed")
+    static_info(ours, 0xFF)                      # the next match
     ours.word(WORLD_UI + 0x8, 0)                 # back to no hud movie for the viewer's frames below
     ours.run("note", note_regs(ours, playback(1, 0, 100)))
     for site, name in (("button", "a button"), ("pointer", "the pointer")):
-        stock.setup(0xFF)
+        begin(stock, 0xFF)
         s, o = mouse(stock, site), mouse(ours, site)
         check(o[0][UC_X86_REG_EIP] == SITES[site][2] and s[0] == o[0] and not o[2],
               f"{site}, a viewer: {name} to the controls, as the original")

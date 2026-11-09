@@ -22,6 +22,7 @@
 use super::context::{Context, Reg};
 use super::input::Action;
 use super::world::{NetworkClient, Step};
+use raw::site::static_info_options_read as static_info_site;
 use crate::raw;
 
 impl Action {
@@ -33,6 +34,30 @@ impl Action {
     pub const NEXT_PLAYER: Action = Action(0x17);
     /// prev_player (0xA74C94, default F5).
     pub const PREV_PLAYER: Action = Action(0x18);
+}
+
+/// The match's first facts at `static_info.options_read`: a game's role comes from them.
+pub struct MatchStart<'t> {
+    pub client: NetworkClient<'t>,
+    /// The 0xE4's first byte.
+    pub local_place: u8,
+    /// The match's places.
+    pub places: u8,
+}
+
+impl<'t> MatchStart<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<MatchStart<'t>> {
+        // SAFETY: the context is this site's: EDI the network client (kept since 0x27B8DB), EBP
+        // process_static_match_info's frame, ESI the options just read, alive with it.
+        unsafe {
+            let (client, frame, options) = (static_info_site::client(ctx)?, static_info_site::frame(ctx)?, static_info_site::options(ctx)?);
+            Some(MatchStart {
+                client: NetworkClient::of(client, ctx.thread()),
+                local_place: frame.local_place().read(),
+                places: options.places().read(),
+            })
+        }
+    }
 }
 
 /// The client at `world_load.loaded`: a world was just loaded (or skipped).
