@@ -1609,14 +1609,17 @@ pub fn sides(parties: &[Party], size: usize, player: Strength, seed: u32) -> [Ve
             players[side_of(index)] += members.len();
             strength[side_of(index)] += *each;
         }
-        // How far past one strong player a side is ahead in all, then the
-        // same summed over the ranks.
+        // How far past one strong player a side is ahead in all, then at
+        // each rank, the strongest first: a rank above counts before every
+        // rank below it.
         let mut ahead = 0_i64;
-        let mut uneven = 0_u64;
+        let mut uneven = [0_u8; crate::MAX_PLAYERS_PER_MATCH];
         for (rank, &(index, each)) in strong.iter().enumerate() {
             ahead += if side_of(index) == 0 { 1 } else { -1 };
-            if strong.get(rank + 1).is_none_or(|&(_, next)| next < each) {
-                uneven += ahead.unsigned_abs().saturating_sub(1);
+            if strong.get(rank + 1).is_none_or(|&(_, next)| next < each)
+                && let Some(slot) = uneven.get_mut(rank)
+            {
+                *slot = ahead.unsigned_abs().saturating_sub(1) as u8;
             }
         }
         let over: usize = players.iter().map(|&side| side.saturating_sub(size)).sum();
@@ -2757,6 +2760,18 @@ mod tests {
                 other.contains(&3) && other.contains(&4),
                 "seed {seed}: {squad:?} {other:?}"
             );
+        }
+        // The second review of #1567: a squad of two strong (2.6, 2.47) and
+        // three strong alone (3.7, 3.3, 2.3) in a 3 v 2. Three against two
+        // either way: the two strongest apart, the squad with the 3.3.
+        let mut parties = vec![Party::new(vec![
+            (1, Strength::from_milli(2000)),
+            (2, Strength::from_milli(1900)),
+        ])];
+        parties.extend([(3, 3700), (4, 3300), (5, 2300)].map(|(id, s)| party(&[id], s)));
+        for seed in 0..200 {
+            let [a, b] = sides(&parties, 3, KD, seed);
+            assert!(a.contains(&3) != a.contains(&4), "seed {seed}: {a:?} {b:?}");
         }
     }
 

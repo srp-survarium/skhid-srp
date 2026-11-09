@@ -312,6 +312,19 @@ impl Core<'_> {
             .is_some_and(|squad| squad.commander() != account_id)
     }
 
+    /// Whether the member is a soldier whose commander waits in `room` to
+    /// go into its match: it goes in with its commander, by the
+    /// commander's turn (`late_placement`), never alone.
+    fn goes_with_commander(&self, account_id: u32, room: &model::Room) -> bool {
+        self.squad_soldier(account_id)
+            && self.store.squads().of(account_id).is_some_and(|squad| {
+                let commander = squad.commander();
+                room.members.contains(&commander)
+                    && !room.in_match.contains(&commander)
+                    && self.room_ready(commander).is_some()
+            })
+    }
+
     /// The mate a commander's Play takes ([`Self::room_mate`]), and the
     /// equipment level Play picks a room by: the higher of the two, so the
     /// room's max level lets both in.
@@ -1461,8 +1474,11 @@ impl Core<'_> {
         }
         // A squad's side has no place for it (beside its mate, or two
         // together), or a strong player's (the side with fewer strong
-        // players): it waits, told the match is full.
-        if let Some(ready) = self.room_ready(who.account_id) {
+        // players): it waits, told the match is full. A soldier whose
+        // commander waits goes by the pair's place, its commander's check.
+        if let Some(ready) = self.room_ready(who.account_id)
+            && !self.goes_with_commander(who.account_id, room)
+        {
             let late = self.late_placement(who.account_id, room, match_id, running, &ready, now);
             if late.placement.is_none() {
                 return Err(JoinHold::Full);
@@ -2361,14 +2377,7 @@ impl Core<'_> {
         };
         // A soldier whose commander waits in the room to go in goes with
         // it, by its commander's turn (`late_placement`).
-        if self.squad_soldier(account_id)
-            && self.store.squads().of(account_id).is_some_and(|squad| {
-                let commander = squad.commander();
-                room.members.contains(&commander)
-                    && !room.in_match.contains(&commander)
-                    && self.room_ready(commander).is_some()
-            })
-        {
+        if self.goes_with_commander(account_id, room) {
             return;
         }
         let Late {

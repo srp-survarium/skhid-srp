@@ -22,8 +22,9 @@ schema step 12).
   with its 1.3). After the sizes and before the equalizer: as many strong a side as can be (one
   apart at most); then, ranked by what they count, the strongest two are on different sides, the
   strongest four two a side, and so on; at every rank a side is at most one strong player ahead
-  (players of one strength are one rank), as far as squads, which stay whole, allow. The noise
-  only shakes the equalizer's sums, never the ranks.
+  (players of one strength are one rank; a rank above counts before every rank below it), as far
+  as squads, which stay whole, allow. The noise only shakes the equalizer's sums, never the
+  ranks.
 - **A side counts** its players' strengths, and 1 more for each player being there
   (`SRP_BALANCE_PLAYER_KD`, default 1: an average player). So with an odd count the side with a
   player more must be the weaker in strength *(pick)*.
@@ -70,8 +71,9 @@ strength = (kills at L + 10 * overall) / (deaths at L + 10)
 - **A strong late joiner goes to the side with fewer strong players**, even with more players: up
   to two ahead (6 v 4), never three (7 v 4; `STRONG_JOIN_APART`). At 6 v 4 it goes to the 4. With
   the side it goes to full, it waits in the room (told the match is full) until a place opens
-  there (`matchmaking_policy::place_joiner`). With the strong as even either way, the rule above.
-  A joiner going in beside its squad mate keeps to its mate's side.
+  there (`matchmaking_policy::place_joiner`). Players away who keep their places count on their
+  side, strong and in number. With the strong as even either way, the rule above. A joiner going
+  in beside its squad mate keeps to its mate's side.
 - The kills and deaths of a match are counted at its level when it ends (the highest of everyone
   who was in it, late joiners too).
 

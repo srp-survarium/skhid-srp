@@ -529,15 +529,15 @@ impl Core<'_> {
     /// A place is kept only while its player is a member of the match's
     /// room: one the room let go (its game gone past the ~90 s, or Leave)
     /// frees it.
-    fn kept_places(&self, match_id: u32, running: &Running, live: Option<&LiveView>) -> [usize; 2] {
+    fn kept_places(&self, match_id: u32, running: &Running, live: Option<&LiveView>) -> [Worth; 2] {
         let Some(live) = live else {
             // Not said: the whole roster counts as in it.
-            return [0; 2];
+            return [Worth::default(); 2];
         };
         let room = self.rooms.all().find(|room| {
             matches!(room.stage, session::v026g::rooms::Stage::InMatch { match_id: id, .. } if id == match_id)
         });
-        let mut kept = [0; 2];
+        let mut kept = [Worth::default(); 2];
         for (place, account_id) in self.store.matchmaking().held_places(match_id) {
             let away = place >= 32 || live.present >> place & 1 == 0;
             let member = room.is_some_and(|room| room.members.contains(&account_id));
@@ -545,7 +545,8 @@ impl Core<'_> {
                 && away
                 && member
             {
-                kept[usize::from(team.min(1))] += 1;
+                let side = &mut kept[usize::from(team.min(1))];
+                *side = side.with(running.strengths.get(place).copied().unwrap_or_default());
             }
         }
         kept

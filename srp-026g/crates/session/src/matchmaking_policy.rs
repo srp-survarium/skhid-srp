@@ -91,8 +91,9 @@ pub struct LateRule {
     /// Each side's places whose players are not in the match now but keep
     /// them (a game that broke: Play takes it back there). They count
     /// against `capacity`, not as players of the side: a joiner never
-    /// fills a side one of them comes back to.
-    pub kept: [usize; 2],
+    /// fills a side one of them comes back to. Their strong players count
+    /// as the side's for a strong joiner ([`place_joiner`]).
+    pub kept: [Worth; 2],
 }
 
 /// Who goes into a match being played, and on which side.
@@ -133,12 +134,14 @@ pub fn place_joiner(
     previous: Option<u8>,
     rule: &LateRule,
 ) -> Option<LatePlacement> {
-    let strong_apart =
-        |side: usize| (sides[side].strong + joiner.strong).abs_diff(sides[1 - side].strong);
+    // A side as it will be: its players in the match and those coming back
+    // to their kept places.
+    let strong = |side: usize| sides[side].strong + rule.kept[side].strong;
+    let places = |side: usize| sides[side].players + rule.kept[side].players;
+    let strong_apart = |side: usize| (strong(side) + joiner.strong).abs_diff(strong(1 - side));
     if joiner.strong > 0 && strong_apart(0) != strong_apart(1) {
         let side = usize::from(strong_apart(1) < strong_apart(0));
-        let too_far =
-            sides[side].players + joiner.players > sides[1 - side].players + STRONG_JOIN_APART;
+        let too_far = places(side) + joiner.players > places(1 - side) + STRONG_JOIN_APART;
         return placed(sides, joiner, if too_far { 1 - side } else { side }, rule);
     }
     let worth = |sides: &[Worth; 2], side: usize| {
@@ -194,7 +197,7 @@ fn placed(sides: [Worth; 2], joiner: Worth, side: usize, rule: &LateRule) -> Opt
     after[side].strong += joiner.strong;
     if joiner.players == 0
         || joiner.players > rule.room
-        || after[side].players + rule.kept[side] > rule.capacity
+        || after[side].players + rule.kept[side].players > rule.capacity
     {
         return None;
     }
@@ -249,25 +252,49 @@ mod tests {
         assert_eq!(placed.assignments, [(0, 1)]);
         assert_eq!((placed.sides[0].players, placed.sides[1].players), (4, 6));
         // 4 v 6: side 1 would be 7 v 4, so side 0, with the other strong
-        // one; side 0 full, it waits.
+        // one.
         let sides = [with_strong(3, &[2500]), with_strong(6, &[])];
         let placed = place_joiner(sides, strong, None, &rule()).unwrap();
         assert_eq!(placed.assignments, [(0, 0)]);
-        let four = LateRule {
+        // 3 v 4 in a 4 a side, side 1 full: it waits, though side 0 has a
+        // place (a player not strong takes it); it does not go with the
+        // other strong one.
+        let full = LateRule {
             capacity: 4,
             ..rule()
         };
-        assert!(place_joiner(sides, strong, None, &four).is_none());
-        // Side 1 full: it waits, it does not go with the other strong one.
-        let full = LateRule {
-            capacity: 3,
-            ..rule()
-        };
-        assert!(place_joiner(even, strong, None, &full).is_none());
+        let sides = [with_strong(2, &[2500]), with_strong(4, &[])];
+        assert!(place_joiner(sides, strong, None, &full).is_none());
+        let placed = place_joiner(sides, with_strong(1, &[]), None, &full).unwrap();
+        assert_eq!(placed.assignments, [(0, 0)]);
         // The strong as many a side: the rule of before (fewer players).
         let even = [with_strong(4, &[2500]), with_strong(3, &[2500])];
         let placed = place_joiner(even, strong, None, &rule()).unwrap();
         assert_eq!(placed.assignments, [(0, 1)]);
+    }
+
+    /// The review of #1567: players away who keep their places come back
+    /// to their side, so a strong joiner counts them. A strong one away on
+    /// side 0 (4 in, none strong, against 5): side 1, not the side of fewer.
+    /// One away on side 1 (5 in and 1 kept against 4 with a strong one):
+    /// side 1 would be 7 v 4 when it comes back, so side 0.
+    #[test]
+    fn a_strong_joiner_counts_the_players_who_keep_their_places() {
+        let strong = with_strong(0, &[3000]);
+        let away_strong = LateRule {
+            kept: [with_strong(0, &[2500]), Worth::default()],
+            ..rule()
+        };
+        let sides = [with_strong(4, &[]), with_strong(5, &[])];
+        let placed = place_joiner(sides, strong, None, &away_strong).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
+        let away_weak = LateRule {
+            kept: [Worth::default(), with_strong(1, &[])],
+            ..rule()
+        };
+        let sides = [with_strong(3, &[2500]), with_strong(5, &[])];
+        let placed = place_joiner(sides, strong, None, &away_weak).unwrap();
+        assert_eq!(placed.assignments, [(0, 0)]);
     }
 
     fn rule() -> LateRule {
@@ -276,7 +303,7 @@ mod tests {
             room: 20,
             player_value: Strength::from_milli(1200),
             lead: [Strength::ZERO; 2],
-            kept: [0, 0],
+            kept: [Worth::default(); 2],
         }
     }
 
@@ -288,7 +315,7 @@ mod tests {
         let one = side(1, 0);
         let pair = side(2, 0);
         let kept = LateRule {
-            kept: [4, 0],
+            kept: [side(4, 0), Worth::default()],
             ..rule()
         };
         // 6 in side 0 and 4 kept for it: full. 8 in side 1: there.
@@ -296,7 +323,7 @@ mod tests {
         assert_eq!(placed.assignments, [(0, 1)]);
         // A pair: one place on each side is not two on one.
         let tight = LateRule {
-            kept: [3, 0],
+            kept: [side(3, 0), Worth::default()],
             ..rule()
         };
         assert!(place_joiner([side(6, 0), side(9, 0)], pair, None, &tight).is_none());
