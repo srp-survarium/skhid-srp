@@ -586,11 +586,6 @@ impl HudFrame {
         hide_player_panels(self.ui);
     }
 
-    /// The hud's cursor kept off: the kits show it, and a spectator has none to pick.
-    pub fn keep_cursor_off(&self) {
-        keep_cursor(self.ui, false);
-    }
-
     /// Its game's network client.
     pub fn client<'t>(&self, thread: &'t Thread) -> Option<NetworkClient<'t>> {
         // SAFETY: the hud's game world, its game and the game's client, alive with the hud.

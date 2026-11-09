@@ -792,6 +792,7 @@ struct ChooserFed {
     place: Option<Place>,
     version: u16,
     current: Option<u8>,
+    mode: ChooserMode,
 }
 
 /// The controls of a viewer's game, brought to the session: made a viewer's
@@ -832,7 +833,12 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, fed: Fed, thread: &crate::v
         overlay.set_position(now.within(start, end).0 - start.0);
     }
     overlay.set_paused(paused);
-    overlay.hide_player_panels();
+    if fed.chooser.is_none() {
+        // The game shows them for the player followed only at a change of its life; a spectator's
+        // never does (spectator's followed_alive): hidden once for the match.
+        overlay.hide_player_panels();
+    }
+    // Ctrl's cursor, each frame: the Tab list (patch 86) may have moved it.
     overlay.keep_cursor(viewer.cursor == Ui::Shown);
     let chooser = feed_chooser(client, fed.chooser, ChooserMode::Replay, thread);
     Fed {
@@ -848,8 +854,7 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, fed: Fed, thread: &crate::v
 
 /// The hud's chooser brought up to date with the place in view: its kits (only those a note
 /// allows, read from the game's own copy) when the place or the notes changed, the kit that place
-/// has now, and its place on the screen (each frame: the game's own show_profiles_selector calls
-/// would hide or show it).
+/// has now, and its place on the screen when that changed.
 fn feed_chooser(client: &NetworkClient<'_>, fed: Option<ChooserFed>, mode: ChooserMode, thread: &crate::vostok::Thread) -> Option<ChooserFed> {
     let chooser = KitChooser::of(client)?;
     let place = client.local_place();
@@ -870,8 +875,12 @@ fn feed_chooser(client: &NetworkClient<'_>, fed: Option<ChooserFed>, mode: Choos
     if let (Some(kit), true) = (current, new_plates || fed.map(|fed| fed.current) != Some(current)) {
         chooser.set_current(kit);
     }
-    chooser.show(mode);
-    Some(ChooserFed { place, version: masks.version, current })
+    // Once: the game never hides or shows it for a spectator (show_profiles_selector, the kits at a
+    // death, is only called for its own player: the hud's followed_alive hook skips it).
+    if fed.map(|fed| fed.mode) != Some(mode) {
+        chooser.show(mode);
+    }
+    Some(ChooserFed { place, version: masks.version, current, mode })
 }
 
 /// The kits' text for the hud's chooser: `<kit>|<state>|<level>|<name>|<dict>:<slot>:<count>,...;`
@@ -917,9 +926,11 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
         // A live match's spectator: the kit chooser and the slots stay hidden (it may not have
         // the replay controls' movie, whose Overlay a viewer's frame goes through).
         Session::Live if client.is_spectator() => {
-            hud.hide_player_panels();
-            hud.keep_cursor_off();
             if let Feeding::Running(fed) = feeding {
+                if fed.chooser.is_none() {
+                    // Once for the match: nothing shows them for a spectator (spectator's followed_alive).
+                    hud.hide_player_panels();
+                }
                 let chooser = feed_chooser(&client, fed.chooser, ChooserMode::Live, thread);
                 VIEWING.with(thread, |viewing| viewing.feeding = Feeding::Running(Fed { chooser, ..fed }));
             }

@@ -661,8 +661,8 @@ def main():
           "frame, a live spectator, a note of kit 0: the chooser told only kit 0 (its level read of that kit alone)")
     check(invoked.get("root.srp_spectator_current_kit") == (4, 0), "frame, a live spectator: the kit the place has now")
     state, _, calls = frame(ours)
-    check([c[2] for c in calls if c[0] == "invoke"] == ["root.show_slots", "root.srp_spectator_kits_show"] and not [c for c in calls if c[0] == "kit_level"],
-          "frame, a live spectator, the next: only the slots and the chooser's place")
+    check([c[2] for c in calls if c[0] == "invoke"] == [] and not [c for c in calls if c[0] == "kit_level"],
+          "frame, a live spectator, the next: nothing (no fight with the game's frames)")
     ours.run("note", note_regs(ours, kits_note(1, 0b101)))
     ours.word(CLIENTS + 1 * 0x30 + 0xC, 2, 1)
     state, _, calls = frame(ours)

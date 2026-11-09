@@ -31,8 +31,8 @@ and switch_to_spectator_camera (0x1F8360, EDX).
     the previous living player of any team, the one followed left out, then
     0x25CEAE (the key's return, AL 0); any other action as the original;
   - a match line (0x208D77): [esp+48h] 0, on at 0x208DE2 (the plain line);
-  - the hud's life byte (0x23B7B9): AL 1 for a dead player, the read
-    skipped, at 0x23B7BF.
+  - the hud's life byte (0x23B7B9): a spectator's skips the panels' change, to
+    0x23B7FC, for a dead player.
 """
 import os
 import struct
@@ -61,7 +61,7 @@ SITES = {
     "world": (0x27C116, bytes.fromhex("8b470485c0"), 0x27C11B, 0x27C1B9),
     "key": (0x25CDBD, bytes.fromhex("8bb3ac530000"), 0x25CDC3, 0x25CEAE),
     "chat": (0x208D77, bytes.fromhex("0fb686441c1f00"), 0x208D7E, 0x208DE2),
-    "hud": (0x23B7B9, bytes.fromhex("8a853c030000"), 0x23B7BF, None),
+    "hud": (0x23B7B9, bytes.fromhex("8a853c030000"), 0x23B7BF, 0x23B7FC),
     "left": (0x27C72C, bytes.fromhex("8a86441c1f003cff"), 0x27C734, 0x27C79F),
 }
 STATIC = (0x27B92D, bytes.fromhex("8b178b4240"), 0x27B932, None)
@@ -391,9 +391,9 @@ def main():
           "left, a spectator, 0xEA of another place (3): at 0x27C734 as the original (its je: nothing)")
 
     state, _, done = spectator("hud", 1)
-    check(state[UC_X86_REG_EIP] == 0x23B7BF and state[UC_X86_REG_EAX] & 0xFF == 1
+    check(state[UC_X86_REG_EIP] == 0x23B7FC and not done
           and state[UC_X86_REG_EAX] >> 8 == STEADY[UC_X86_REG_EAX] >> 8 and not done,
-          "hud, a spectator, the followed player dead: AL 1 (the rest of EAX kept), at 0x23B7BF")
+          "hud, a spectator, the followed player dead: no panels' change, at 0x23B7FC (the release), nothing called")
 
     # Detach (F2, cam_2): one spectator's game through a flight, the patch's
     # camera state kept between the runs (its arena's).

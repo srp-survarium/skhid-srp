@@ -19,7 +19,7 @@
 //! - `player_left.local` (0x27C72C): an 0xEA, which the game takes as its
 //!   own end only for its local place: a game with none returns at once.
 
-use super::context::{Context, Reg};
+use super::context::Context;
 use super::input::Action;
 use super::types::Place;
 use super::world::{NetworkClient, Step};
@@ -179,11 +179,6 @@ impl<'c, 'm> FollowedAlive<'c, 'm> {
         Some(NetworkClient::of(client, self.ctx.thread()))
     }
 
-    /// The hud takes the player for alive (AL 1, the overwritten read
-    /// skipped): it shows no kits and no cursor at the player's death.
-    pub fn as_alive(&mut self) {
-        self.ctx.set_reg8(Reg::Eax, 1);
-    }
 }
 
 #[cfg(test)]

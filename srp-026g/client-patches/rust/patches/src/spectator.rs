@@ -18,8 +18,8 @@ use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, Lef
 use crate::vostok::world::{NetworkClient, Step};
 use crate::vostok::types::Place;
 use crate::vostok::{
-    Context, Flow, GameCell, NoExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit, SpectatorOnPlayerLeftExit,
-    SpectatorOnWorldCameraExit, Thread,
+    Context, Flow, GameCell, NoExit, SpectatorOnFollowedAliveExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit,
+    SpectatorOnPlayerLeftExit, SpectatorOnWorldCameraExit, Thread,
 };
 
 /// A spectator's camera, kept between hooks: it follows a player (the
@@ -187,16 +187,16 @@ pub fn on_player_left(ctx: &mut Context<'_>) -> Flow<SpectatorOnPlayerLeftExit> 
     }
 }
 
-/// `hud.followed_alive`: a spectator's hud takes the player it follows for
-/// alive, so a death shows it no kits and no cursor (a kit picked there
-/// would be the followed player's, in its own world alone).
-pub fn on_followed_alive(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let mut site = FollowedAlive::at(ctx);
+/// `hud.followed_alive`: a spectator's hud has no quick slots, stamina or kits of the player it
+/// follows to show or hide at a death or a spawn (a kit picked there would be the followed
+/// player's, in its own world alone): the game's change of those panels is skipped, once for
+/// all, here. The slots hide themselves at a match's start (0x23B565) and nothing shows them.
+pub fn on_followed_alive(ctx: &mut Context<'_>) -> Flow<SpectatorOnFollowedAliveExit> {
+    let site = FollowedAlive::at(ctx);
     if !site.client().is_some_and(|client| client.is_spectator()) {
         return Flow::Continue;
     }
-    site.as_alive();
-    Flow::Skip
+    Flow::Exit(SpectatorOnFollowedAliveExit::Kept)
 }
 
 #[cfg(test)]

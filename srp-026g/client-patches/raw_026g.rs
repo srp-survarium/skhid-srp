@@ -21501,7 +21501,7 @@ pub mod site {
         }
     }
 
-    /// hud.followed_alive (0x23b7b9): update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7)
+    /// hud.followed_alive (0x23b7b9): update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7); kept is the reference's release at their end, nothing shown or hidden
     pub mod hud_followed_alive {
         #[allow(unused_imports)]
         use super::*;

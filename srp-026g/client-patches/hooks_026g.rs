@@ -3412,7 +3412,12 @@ pub extern "C" fn hook_spectator_on_match_line(frame: &mut Frame) -> u32 {
 
 // ---- spectator (patch 121) ----
 
-/// The entry `spectator_on_followed_alive` (0x23b7b9, update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7)) calls this with the saved machine.
+/// The named exits of spectator::on_followed_alive (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpectatorOnFollowedAliveExit { Kept }
+/// The entry `spectator_on_followed_alive` (0x23b7b9, update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7); kept is the reference's release at their end, nothing shown or hidden) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_spectator_on_followed_alive(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `spectator_on_followed_alive` calls this, from the game's jump at 0x23b7b9,
@@ -3421,7 +3426,7 @@ pub extern "C" fn hook_spectator_on_followed_alive(frame: &mut Frame) -> u32 {
     match crate::spectator::on_followed_alive(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
