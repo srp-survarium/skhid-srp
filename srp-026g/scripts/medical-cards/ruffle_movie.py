@@ -10,6 +10,11 @@ visibility=false, clear the classless image flag and place a class by its
 symbol's character id in a COPY for Ruffle. All graphics, transforms, names
 and ActionScript stay intact.
 
+A text field that names its font by class (the lobby's CalibriBold, which the
+game resolves): Ruffle does not find it and lays the text out in a wider
+fallback font, so such text measures and wraps wrongly. The copy names the
+font's character id instead.
+
 --exe: the COPY's flash.external package named harness.extern instead (the same
 length): its ExternalInterface.call lands in a harness's stand-in
 (scripts/exe-stand-in), Ruffle having no exe. The movie's code is otherwise as
@@ -46,6 +51,12 @@ def rewrite(tags,symbols):
     if name in symbols: b[4:end+1]=struct.pack('<H',symbols[name]);b[1]&=~8;b[0]|=2;count+=1
    if b[0]&2 and b[1]&16 and not b[1]&8: b[1]&=~16;count+=1
    if b[1]&32: b.append(0);count+=1
+   r=swf.tag(k,b)
+  elif k==37 and 'CalibriBold' in symbols:
+   b=bytearray(b);at=2+(5+4*(b[2]>>3)+7)//8
+   if b[at+1]&128 and not b[at]&1:
+    end=b.index(0,at+2)
+    if b[at+2:end]==b'CalibriBold': b[at+2:end+1]=struct.pack('<H',symbols['CalibriBold']);b[at]|=1;b[at+1]&=~128;count+=1
    r=swf.tag(k,b)
   out.append((k,r))
  return out

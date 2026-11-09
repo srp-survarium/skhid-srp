@@ -28,7 +28,10 @@
 //!   its ask) if the match admits players (from its countdown until
 //!   `LOAD_MARGIN` is left), on the side with fewer players in it; of two
 //!   alike in that, the side it played on in that match before, then the
-//!   one that counts for less (`matchmaking_policy::place_joiner`);
+//!   one that counts for less (`matchmaking_policy::place_joiner`); in an
+//!   open room a joiner with a strong player to the side with fewer strong
+//!   players, never more than two players ahead, waiting while that side
+//!   is full (`place_open_joiner`, `place_open_joiner_beside`);
 //!   otherwise it waits for the next match. While it waits it is told why it
 //!   cannot go in now (`late_hold`: a joiner on its way, a game loading,
 //!   the last 30 s, the end, full, a maintenance; the owner's of 2026-10-20).
@@ -307,6 +310,18 @@ impl Core<'_> {
             .squads()
             .of(account_id)
             .is_some_and(|squad| squad.commander() != account_id)
+    }
+
+    /// The commander of a soldier that waits in `room` to go into its match:
+    /// the soldier goes in with it, by the commander's turn
+    /// (`late_placement`), never alone.
+    fn waiting_commander(&self, account_id: u32, room: &model::Room) -> Option<u32> {
+        let commander = self.store.squads().of(account_id)?.commander();
+        (commander != account_id
+            && room.members.contains(&commander)
+            && !room.in_match.contains(&commander)
+            && self.room_ready(commander).is_some())
+        .then_some(commander)
     }
 
     /// The mate a commander's Play takes ([`Self::room_mate`]), and the
@@ -1405,10 +1420,8 @@ impl Core<'_> {
         if rule.room == 0 {
             return Err(Some(JoinHold::PlayerLimit));
         }
-        let anyone = Worth {
-            players: 1,
-            strength: Strength::ZERO,
-        };
+        // Anyone not strong: a strong one's side is `room_join_in`'s.
+        let anyone = Worth::of([Strength::ZERO]);
         if policy::place_joiner(sides, anyone, None, &rule).is_none() {
             return Err(Some(JoinHold::Full));
         }
@@ -1475,10 +1488,15 @@ impl Core<'_> {
             Err(None) => return Ok(None),
         }
         // A squad's side has no place for it (beside its mate, or two
-        // together): it waits for the next match, told the match is full.
-        if let Some(ready) = self.room_ready(who.account_id) {
-            let late = self.late_placement(who.account_id, room, match_id, running, &ready, now);
-            if late.squad && late.placement.is_none() {
+        // together), or a strong player's (the side with fewer strong
+        // players): it waits, told the match is full. A soldier whose
+        // commander waits is told what the pair is: its commander's check.
+        let whose = self
+            .waiting_commander(who.account_id, room)
+            .unwrap_or(who.account_id);
+        if let Some(ready) = self.room_ready(whose) {
+            let late = self.late_placement(whose, room, match_id, running, &ready, now);
+            if late.placement.is_none() {
                 return Err(JoinHold::Full);
             }
         }
@@ -2308,7 +2326,7 @@ impl Core<'_> {
         }
         // A squad alone plays no match against itself (the owner's of
         // 2026-10-31): the room waits for a third.
-        if arranged.is_none() && parties.len() == 1 && parties[0].members().len() > 1 {
+        if arranged.is_none() && parties.len() == 1 && parties[0].is_squad() {
             log::info!("Room {key}: no match yet: only a squad can play");
             self.rooms.not_started(key, now);
             return;
@@ -2353,8 +2371,8 @@ impl Core<'_> {
         let mut next_squad = 0_u8;
         for party in parties
             .iter()
-            .map(model::Party::members)
-            .filter(|party| party.len() > 1)
+            .filter(|party| party.is_squad())
+            .map(|party| party.members().collect::<Vec<u32>>())
         {
             // In a private room a squad may be on both teams: a squad in the
             // match is its members on one team, two at least.
@@ -2523,14 +2541,7 @@ impl Core<'_> {
         };
         // A soldier whose commander waits in the room to go in goes with
         // it, by its commander's turn (`late_placement`).
-        if self.squad_soldier(account_id)
-            && self.store.squads().of(account_id).is_some_and(|squad| {
-                let commander = squad.commander();
-                room.members.contains(&commander)
-                    && !room.in_match.contains(&commander)
-                    && self.room_ready(commander).is_some()
-            })
-        {
+        if self.waiting_commander(account_id, room).is_some() {
             return;
         }
         let Late {
@@ -2661,10 +2672,7 @@ impl Core<'_> {
                 strength: self.strength_of(player.account_id, match_gear, squad),
             })
             .collect();
-        let worth = Worth {
-            players: party.len(),
-            strength: party.iter().map(|each| each.strength).sum(),
-        };
+        let worth = Worth::of(party.iter().map(|each| each.strength));
         // One who played this match before (left it, or its game was gone
         // for good) goes back to its side when the sides have as many
         // players: the side of its latest place in the roster, which keeps
@@ -2672,13 +2680,20 @@ impl Core<'_> {
         let previous = side_in_match(account_id);
         let placement = match (room.arranged_side(account_id), mate_side) {
             (Some(side), _) => policy::place_joiner_on(sides, worth, side, &rule),
+            // The strong dealt evenly in an open room; a private room's owner
+            // arranges its sides.
+            (None, Some(side)) if room.is_open() => {
+                policy::place_open_joiner_beside(sides, worth, side, &rule)
+            }
             (None, Some(side)) => policy::place_joiner_beside(sides, worth, side, &rule),
+            (None, None) if room.is_open() => {
+                policy::place_open_joiner(sides, worth, previous, &rule)
+            }
             (None, None) => policy::place_joiner(sides, worth, previous, &rule),
         };
         Late {
             placement,
             lead: rule.lead,
-            squad,
             party,
         }
     }
@@ -2697,9 +2712,6 @@ struct Late {
     lead: [Strength; 2],
     /// Who goes in: the member, and its squad mate waiting with it.
     party: Vec<Joiner>,
-    /// Whether its squad decided the side (its mate in the match, or
-    /// going in with it).
-    squad: bool,
 }
 
 /// The phase and its seconds: left of a countdown, played of a match.

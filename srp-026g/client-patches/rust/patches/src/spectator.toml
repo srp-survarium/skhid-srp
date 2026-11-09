@@ -4,12 +4,13 @@
 name = "spectator"
 patch = 121
 
-# After a world (after patches 97 and 109, whose hooks share the site): the
-# camera to the local place, or a spectator's player.
+# After a world (last of the site's hooks, after patches 97, 109, 126 and 127:
+# a spectator's ends the chain): the camera to the local place, or a
+# spectator's player.
 [[hook]]
 site = "world_load.loaded"
 handler = "on_world_camera"
-order = 3
+order = 5
 
 # F6 / F5 (next_player, prev_player) and F2 (cam_2, the free view) for a spectator.
 [[hook]]

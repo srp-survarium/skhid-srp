@@ -761,6 +761,46 @@ pub extern "C" fn hook_artefact_skills_on_world_loaded(frame: &mut Frame) -> u32
     }
 }
 
+// ---- memory_report (patch 126) ----
+
+/// The named exits of memory_report::on_loaded (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MemoryReportOnLoadedExit { Done }
+/// The entry `memory_report_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here; then the camera back to the local place (get_player(+1F1C44h), set_followed_player, the warmup or player camera), patch 121 its exit done, the join 0x27C1B9 after it (a skip, 0x27C0E3, 0x27C0E7, 0x27C0FD, jumps here too)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_report_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_report_on_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_report::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- memory_profile (patch 127) ----
+
+/// The named exits of memory_profile::on_loaded (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MemoryProfileOnLoadedExit { Done }
+/// The entry `memory_profile_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here; then the camera back to the local place (get_player(+1F1C44h), set_followed_player, the warmup or player camera), patch 121 its exit done, the join 0x27C1B9 after it (a skip, 0x27C0E3, 0x27C0E7, 0x27C0FD, jumps here too)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_profile_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_profile::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- spectator (patch 121) ----
 
 /// The named exits of spectator::on_world_camera (the order the shim's Flow code
@@ -2733,6 +2773,111 @@ pub extern "C" fn hook_medical_skills_on_sway(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- memory_profile (patch 127) ----
+
+/// The entry `memory_profile_on_start` (0xe12bf, allocate_region (0xE1120) after memory::initialize (0xE12D0) made each registered allocator's heap in its arena (lea esp,[ebp-58h] / pop edi / pop esi / pop ebx): every arena is where it stays while the game runs; patch 127 reads SKHID_MEMORY_PROFILE here, once) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_profile_on_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_start` calls this, from the game's jump at 0xe12bf,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_profile::on_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- memory_profile (patch 127) ----
+
+/// The entry `memory_profile_on_allocated` (memory_profile.allocated, patch 127's gates (memory_profile_026g.asm) after mspace_malloc or mspace_realloc returned: cdecl, the ESP of the game's call and the memory (0 none); the caller keeps every register and pops the two) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_profile_on_allocated(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_allocated` calls this, from our own code's call (memory_profile.allocated),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_profile::on_allocated(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- memory_profile (patch 127) ----
+
+/// The entry `memory_profile_on_freeing` (memory_profile.freeing, patch 127's gates before mspace_free or mspace_realloc: cdecl, the ESP of the game's call and the memory given back; the caller keeps every register and pops the two) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_profile_on_freeing(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_freeing` calls this, from our own code's call (memory_profile.freeing),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_profile::on_freeing(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- memory_report (patch 126) ----
+
+/// The entry `memory_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_report_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_report_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_report::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- packet_recovery (patch 97) ----
+
+/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::packet_recovery::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- memory_profile (patch 127) ----
+
+/// The entry `memory_profile_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_profile_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_profile::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- memory_profile (patch 127) ----
+
+/// The entry `memory_profile_on_out_of_memory` (0xe4d70, out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug_lea_allocator, first time), a fixed arena's heap callback: it logs "out of memory in arena", dumps the statistics and FATALs; EBP the bytes asked when it returns to mspace_malloc (heap_out_of_memory_return)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_profile_on_out_of_memory(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_out_of_memory` calls this, from the game's jump at 0xe4d70,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_profile::on_out_of_memory(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- message_check (patch 114) ----
 
 /// The named exits of message_check::on_message (the order the shim's Flow code
@@ -2888,21 +3033,6 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
     let result = unsafe { QueryResults::from_raw(&thread, a0) };
     let tag = QueryTag::from_raw(a1 as usize as u32);
     { crate::music::on_query_done(result, tag); 0 }
-}
-
-// ---- packet_recovery (patch 97) ----
-
-/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::packet_recovery::on_close(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
 }
 
 // ---- ragdoll (patch 76) ----
@@ -3589,6 +3719,26 @@ pub extern "C" fn hook_unplayed_match_on_ready(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- use_scan (patch 23) ----
+
+/// The named exits of use_scan::on_detect (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum UseScanOnDetectExit { Returned }
+/// The entry `use_scan_on_detect` (0x2d84c0, base_player::detect_usable_object's start (push ebp / mov ebp,esp / and esp,-8): every use scan (a use's start 0x2D8900, its tick 0x2D86AD, the prompt 0x246FCD); ESP+4 the player, +8 the point or 0; returned is its `ret 8` (0x2D8697), EAX the object) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_use_scan_on_detect(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `use_scan_on_detect` calls this, from the game's jump at 0x2d84c0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::use_scan::on_detect(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- weapon_kit (patch 68) ----
 
 /// The entry `weapon_kit_on_query` (0x2f1776, translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F)) calls this with the saved machine.
@@ -3941,6 +4091,10 @@ pub extern "C" fn hook_packet_recovery_on_loaded_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_artefact_skills_on_world_loaded(frame);
     if flow != 0 { return flow; }
+    let flow = hook_memory_report_on_loaded(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_memory_profile_on_loaded(frame);
+    if flow != 0 { return flow; }
     let flow = hook_spectator_on_world_camera(frame);
     if flow != 0 { return flow; }
     0
@@ -4106,6 +4260,17 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_report_on_close_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_memory_report_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_packet_recovery_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_memory_profile_on_close(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_frame(frame);
     if flow != 0 { return flow; }
@@ -4166,6 +4331,46 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+// ---- memory_profile: its hooks installed on demand ----
+
+unsafe extern "C" {
+    fn memory_profile_malloc();
+    fn memory_profile_realloc();
+    fn memory_profile_free();
+    fn memory_profile_mapped_free();
+    fn memory_profile_hook_mapped_free();
+    fn memory_profile_on_out_of_memory();
+}
+/// memory_profile's sites that keep the game's bytes until it installs them.
+pub fn memory_profile_on_demand() -> [super::hook::OnDemand; 6] {
+    [
+        // memory_profile.malloc: mspace_malloc's entry (sub esp,8 / push ebx / push ebp; EAX the mspace, [esp+4] the bytes, cdecl, EA
+        // SAFETY: the site's span as the original exe has it; memory_profile_malloc is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x101330, &[0x83, 0xec, 0x08, 0x53, 0x55], memory_profile_malloc as *const () as usize as u32) },
+        // memory_profile.realloc: mspace_realloc's entry (mov ecx,[esp+8] / push esi; EAX the mspace, [esp+4] the memory, [esp+8] the 
+        // SAFETY: the site's span as the original exe has it; memory_profile_realloc is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1005a0, &[0x8b, 0x4c, 0x24, 0x08, 0x56], memory_profile_realloc as *const () as usize as u32) },
+        // memory_profile.free: mspace_free's entry (sub esp,0Ch / push edi / mov edi,eax; ESI the mspace, EAX the memory): patch 12
+        // SAFETY: the site's span as the original exe has it; memory_profile_free is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1015e0, &[0x83, 0xec, 0x0c, 0x57, 0x8b, 0xf8], memory_profile_free as *const () as usize as u32) },
+        // memory_profile.mapped_free: pt3free (0x106FC0; EAX the memory, then EDI) where a block mapped on its own (prev_foot bit 0) goes 
+        // SAFETY: the site's span as the original exe has it; memory_profile_mapped_free is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x10700a, &[0x83, 0xe2, 0xfe, 0x83, 0xe0, 0xf8], memory_profile_mapped_free as *const () as usize as u32) },
+        // memory_profile.hook_mapped_free: ptmalloc3's free hook (0x106D90, the pointer ptmalloc_init stores at 0x106E38; EAX the memory) where
+        // SAFETY: the site's span as the original exe has it; memory_profile_hook_mapped_free is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x106dac, &[0x83, 0xe3, 0xfe, 0x83, 0xe2, 0xf8], memory_profile_hook_mapped_free as *const () as usize as u32) },
+        // memory.out_of_memory: out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug
+        // SAFETY: the site's span as the original exe has it; memory_profile_on_out_of_memory is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0xe4d70, &[0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8], memory_profile_on_out_of_memory as *const () as usize as u32) },
+    ]
 }
 
 unsafe extern "C" { static lamps_visual_vtable: [u32; 3]; }

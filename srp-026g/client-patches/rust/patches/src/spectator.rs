@@ -1,5 +1,5 @@
 //! Patch 121: a game sent to a match with no place of its own watches it
-//! (the rooms' queue, docs/notes/queue-spectate.md; client_patch.md 3.76).
+//! (the rooms' queue, docs/notes/queue-spectate.md; client_patch.md 3.78).
 //! The match server's 0xE4 names no place local; the game has no player and
 //! sends no input. Its camera follows a player of any team, as the game's
 //! spectate_next_player does (mode 4, the player's eyes), F6 and F5 (the

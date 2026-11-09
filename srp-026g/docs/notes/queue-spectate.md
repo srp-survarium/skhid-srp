@@ -77,7 +77,7 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   computes: no row in `simulation_changes.tsv`. It is let go by one 0xEA naming place 0xFF (a
   closed link ends no match in the game, `match.md` §24; patch 121 ends a spectator's on it),
   then silence.
-- **The exe** (patch 121, `client_patch.md` §3.76), for a game with no place of its own only:
+- **The exe** (patch 121, `client_patch.md` §3.78), for a game with no place of its own only:
   after each world the camera keeps the player it follows (else the first living one), where
   the original looked the local place up and read past the player table; the game builds and
   sends no input for the player it follows (it would drive it in its own world); F6 / F5 (next

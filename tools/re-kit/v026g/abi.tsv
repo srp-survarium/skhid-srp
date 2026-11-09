@@ -1346,12 +1346,12 @@ va	name	source	ret_cleanup	result
 0x0031c480	survarium::artefact_container_core::load	manual	4	
 0x0031c530	survarium::artefact_container_core::serialize	manual	8	
 0x0031c5b0	survarium::artefact_container_core::deserialize	manual	12	
-0x0031c6b0	survarium::artefact_container_core::can_use	manual	4	
+0x0031c6b0	survarium::artefact_container_core::can_use	manual	4	AL (EAX 0 or 1): the user can put an artefact in
 0x0031c720	survarium::artefact_container_core::use_info	manual	4	
 0x0031c780	survarium::artefact_container_core::use_execute	manual	12	
 0x0031c8a0	survarium::artefact_container_core::transfer_artefact	manual	4	
 0x0031cad0	survarium::victory_items_container_core::load	manual	4	
-0x0031cb10	survarium::victory_items_container_core::can_use	manual	4	
+0x0031cb10	survarium::victory_items_container_core::can_use	manual	4	AL: the user can put a battery in (0x31CB53 mov al,cl: the high bytes of EAX are not set)
 0x0031cbb0	survarium::victory_items_container_core::use_info	manual	4	
 0x0031cc40	survarium::victory_items_container_core::use_initialize	manual	8	
 0x0031cdb0	survarium::victory_items_container_core::put_item	manual	4	
@@ -2026,7 +2026,7 @@ va	name	source	ret_cleanup	result
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
 0x0079d360	Scaleform::GFx::AS3::AvmTextField::OnCharEvent	manual	8	AL: allow character insertion; false ignores character. Source AS3_AvmTextField.cpp: unguarded GetAS3Obj()->WillTrigger(textInput, false)
-0x002f8080	survarium::resupply_zone_core::can_use	manual	4	EAX: 1 when team permits and inventory can resupply
+0x002f8080	survarium::resupply_zone_core::can_use	manual	4	AL (EAX 0 or 1): 1 when team permits and inventory can resupply
 0x002f80c0	survarium::resupply_zone_core::use_hint	manual	4	EAX: localization key
 0x002f8120	survarium::resupply_zone_core::update_use	manual	12	AL: interaction still running
 0x002f81a0	survarium::resupply_zone_core::finish_use	manual	4	not used by caller
@@ -2394,6 +2394,19 @@ va	name	source	ret_cleanup	result
 0x002a9ef0	survarium::sound_game_effect_presenter::on_event	manual	12	none; kind 0 adds an entry (0x2AA870); kind 1 searches the entries for the effect (index -1 at 0x2AA155 when none) and erases [begin + 14h x index, +14h) (0x2AB420 at 0x2AA1EB): for -1 the range is the presenter's own +10h..+24h (the seed taken for an effect reference: counted down and freed when its +4 was 1; the capacity pointer's +28h counted down), the 2026-11-06 crash, patch 117 returns at 0x2AA1CD; any other kind updates the entry found (its +0Ch, the volume), [esp+10h] 0 when none and read at 0x2AA0BD, patch 117 returns there
 0x002de350	survarium::game_effect_player::stop	manual	0	none; finds the playing item whose +0 is ECX in the list +2Ch (next at +4Ch; none: a null read at 0x2DE36D), deactivates it (its vtable +20h), sets its state +44h to 2 and sends its events to the presenter (0x2DE3A0)
 0x0031a210	survarium::damage_zone_core::stop_effect	manual	0	none; the player's place (+114h) slot at ECX+1D8h + 0Ch x place {effect, +4, +8}: an effect there is stopped on the player's game_effect_player (+358h, game_effect_player::stop 0x2DE350) and the slot reset (+4 0, +8 -1); called at 0x31A342 by 0x31A300, a loop over the objects the zone's collision sensor saw leave (collision_sensor::notify_and_erase_left_objects 0x307CF0 -> 0x3198C5 -> 0x31A300), a player removed from the world too
+0x00077560	vostok::physics::bullet_physics_world::ray_query	manual	24	
+0x000716c0	vostok::physics::bt_animated_rigid_body::get_collision_group	manual	0	AX: the collision group (+30h's +0C8h's +4); the high half of EAX is not set
+0x0007ab10	vostok::physics::bullet_character_controller::get_collision_group	manual	0	AX: the collision group (+2C6FCh); the high half of EAX is not set
+0x00356d50	vostok::physics::bt_static_rigid_body::get_collision_group	manual	0	AX: the collision group (+14h's +0C8h's +4); the high half of EAX is not set
+0x00357a90	vostok::physics::bt_ghost_object::get_collision_group	manual	0	AX: the collision group (+18h's +0C8h's +4); the high half of EAX is not set
+0x002f8bb0	survarium::collision_geometry::cast_to_collision_geometry	manual	0	EAX: ECX - 4, the collision_geometry whose collision::game_object ECX is
+0x00300040		manual	0	EAX: 0 (xor eax,eax / ret: one body for many virtuals that return nothing, e.g. cast_to_collision_geometry and cast_to_usable of the classes that are no such thing)
+0x00246380		manual	0	EAX: ECX (mov eax,ecx / ret: one body for many virtuals that return this, e.g. a usable object's cast_to_usable)
+0x002dc390	survarium::collision_geometry::query_objects_by_type<survarium::usable_object>	manual	12	
+0x00300710	survarium::victory_item_core::can_use	manual	4	AL (EAX 0 or 1): the battery can be taken by the user
+0x00305070	survarium::booby_trap_core::can_use	manual	4	AL: the trap can be used by the user
+0x00246ed0	[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'	manual	4	EAX = the out matrix (sub ecx,14h / jmp 0x300A20: its ret 4)
+0x002d84c0	survarium::base_player::detect_usable_object	manual	8	EAX: the usable object Use would take (the first in the ray whose can_use says yes), else the first usable object met (for the prompt), else 0
 0x000fe5e0	vostok::setup_floating_point_control	manual	0	none; behind the option at 0xA86BD0 (0x145C0): _controlfp 53-bit precision and round to nearest, MXCSR rounding cleared, _controlfp(_DN_FLUSH), then MXCSR |= 8000h (FTZ): denormals flushed on its thread
 0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	manual	12	none; erases [*first, *last) and moves the tail down, releasing each overwritten element (count at +0D0h); it walks the tail until the source equals end, so a first at end (std::find not finding) walks past the list (exe+0x14EE8D)
 0x00246380	survarium::inventory_item::cast_artefact	manual	0	EAX = ECX (an identity cast: vfn +54h/+58h of the artefact vtables 0xA05F44, 0xA05FE4, 0xA06084)
@@ -2427,6 +2440,32 @@ va	name	source	ret_cleanup	result
 0x000e0f20	vostok::memory::preinitialize	manual	0	registers the arenas C runtime library, process heap, shared strings, global multithreaded (mt_allocator, 0xE0FF0..0xE1029), then with the resources manager (byte [0xA71F77]) cook allocator, resources helper allocator (rh_allocator: default 8 MiB stored in bytes in the u32 0x141B0 writes to (0xE1099), a value in MiB shl 14h; 0xE108F..0xE10D7) and resources links allocator
 0x000e1120	vostok::memory::allocate_region	manual	0	every registered arena's size summed, platform::allocate_arenas 0xE9580 (0xE11F9) reserves them and sizes the resource arenas from the address space left, then registers "resources (managed) allocator" and "resources (unmanaged) allocator"
 0x000e21c0	vostok::memory::register_allocator	manual	0	appends the 18h-byte record at EDI to the arenas' list; a full list asserts (0x113450)
+0x000ff200	dlmalloc::internal_mallinfo	manual	0	EAX: the struct mallinfo it filled (EAX on entry; arena, ordblks, ..., +14h usmblks max_footprint, +1Ch uordblks footprint - free, +20h fordblks, +24h keepcost topsize); walks every chunk of every segment with no lock (0xFF260..0xFF2C0)
+0x00101190	dlmalloc::init_user_mstate	manual	0	EAX: the malloc_state, 8 bytes into the base (its chunk 1E0h, head 1E3h); footprint = max_footprint = seg.size = the capacity (0x1011E8..0x1011F4), top after it with topsize capacity - 1E0h - 28h (0x101251..0x10125D)
+0x00101280	dlmalloc::create_mspace_with_base	manual	0	EAX: the mspace (its malloc_state), 0 when the capacity is too small or too large; cdecl (base, capacity u64 at ESP+8, the out-of-memory callback ESP+10h kept at +1D4h, its parameter ESP+14h at +1D8h)
+0x00107260	ptmalloc3::public_mALLINFo	manual	0	EDI: the mallinfo summed over ptmalloc3's arenas from the main one 0x1BFAC90 (each mstate at +20h, the next at +14h) with internal_mallinfo 0xFF200, no arena lock
+0x000eb5f0	vostok::memory::pthreads_allocator::total_size	manual	0	EAX: [0A2B5254h], the multithreaded region's size (the global multithreaded arena's vtable 0x9E6000 +8h)
+0x000eb630	vostok::memory::pthreads_allocator::allocated_size	manual	0	EAX: ptmalloc3's uordblks (0x107260) less 210h; 0 while [1F1D61Bh] is set or nothing is taken of the region ([0A2B5254h] - [0A2B5258h] 0)
+0x000e0e40	vostok::memory::managed_allocator::total_size	manual	0	EAX: [ECX+30h], its bytes (vtable 0x9E602C +8h)
+0x000e0e50	vostok::memory::managed_allocator::allocated_size	manual	0	EAX: [ECX+30h] - [ECX+28h], its bytes less the free ones (vtable 0x9E602C +0Ch)
+0x0010f8c0	vostok::memory::mt_region::take	manual	0	EAX: pages of the multithreaded region (ECX bytes, rounded to 64 KiB) from its first-fit free list [0A2B5240h] of {prev, next, size}, its free bytes [0A2B5258h] less them; -1 when none fits (after the callback [0A2B524Ch]); ptmalloc3's MORECORE 0x106A90 calls it under the spin lock 0x1BFAEBC
+0x0010f980	vostok::memory::mt_region::give	manual		puts ESI (EDI bytes) back in the region's free list, coalescing with its neighbours; [0A2B5258h] += EDI (0x10F985); 0x106AD0 calls it under the spin lock 0x1BFAEBC
+0x000e0930	vostok::threading::spawn_internal	manual	0	EAX: the new thread's id. CreateThread (0xE094A) with the stack size, the entry 0xE0910, the params and flags 0 (the size committed, no STACK_SIZE_PARAM_IS_A_RESERVATION); the handle closed (0xE0A4E). A failed CreateThread logs GetLastError's message (FormatMessageA, 0x111ED0)
+0x000e3770	vostok::threading::spawn	manual	0	EAX: the new thread's id. Copies the function into its thread_entry_params on the stack, calls spawn_internal 0xE0930 with a fixed 8 MiB stack (`mov edx,800000h` at 0xE37BA; patch 128: 2 MiB) and yields until the new thread has taken them (params +30h). Every engine thread: splash, sound, network, logic, hdd, dvd, res_man, res_cook, process termination, editor, test watcher and the task pool's task threads
+0x000fc090	vostok::tasks::thread_pool::thread_pool	manual	12	the task pool (0xA86680) made for its most task threads, 2 x min(32, cores), computed by its caller (0xE425E..0xE4272, in 0xE3EE0)
+0x000fc350	vostok::tasks::thread_pool::initialize	manual	4	spawns the pool's task threads, "task #%d" (0x9E8A7C), through threading::spawn (0xFC4F1)
+0x0027f780	survarium::network_client::draw_match_stats	manual	4	network_client vtable 0x9FFB14 slot 6Ch; called by game::tick (0x1EC94C, the logic thread) only when game+5870h is set, i.e. -net_stats on the command line (key 0xA9CBE0, read in game::game 0x1E9B84). Its frame is 5ab554h bytes (5.8 MiB, __chkstk 0x429F20 at 0x27F78B): above patch 128's 2 MiB stack
+0x00429f20	_chkstk	manual	0	ESP lowered by EAX, each 4 KiB page of it touched from the top down (the CRT's _alloca_probe; `mov eax,<frame>` / `call 0x429F20` in a prologue: 1754 of them, 6 above 256 KiB)
+0x00319af0	survarium::damage_zone_core::hit_objects	manual	8	none; skipped while the last hit (+1CCh, -1 none) + interval_in_msec (+1C8h) is after now (unless continuous_hit, +13Ch); else each object of the list: its hit receiver (the object +118h, vtable +20h: base_player::hit 0x2D9AE0) called once a name of hit_parts_filter (+1B0h..+1B4h, 1Ch each, the strings load 0x319500 reads), with max_hit (+1C0h) x the hit curve (0x31A410), x elapsed / interval when continuous, and max_armor_piercing (+1C4h); then +1CCh = now. Each name is looked up as a hit param by find_body_part 0x2E58B0 (body and head are the torso and head pools of human_hit_params, hit directly)
+0x00101330	dlmalloc::mspace_malloc	manual	0	EAX the memory, 0 when the callback said give up
+0x001005a0	dlmalloc::mspace_realloc	manual	0	EAX the memory (moved through mspace_malloc 0x1006DF and mspace_free 0x100733 when it cannot grow in place), 0 for none
+0x001015e0	dlmalloc::mspace_free	manual	0	
+0x00106ef0	pt3malloc	manual	0	EAX the memory, from its thread's arena's mspace (mspace_malloc 0x106F6B)
+0x000eb530	vostok::memory::mt_allocator::call_malloc	manual	20	EAX the memory (pt3malloc 0xEB54B)
+0x000e4d70	out_of_memory_with_crash	manual		never returns: logs "out of memory in arena", dumps the statistics and FATALs
+0x00106d90	ptmalloc3::free_starter	manual	0	
+0x00106fc0	pt3free	manual	0	
+0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	manual	0	EAX the memory (pt3malloc 0x1C6B4), 0 when the allocator is closed ([0x1F1D61B])
 0x00242ae0	survarium::base_network_client::attach_to_player	manual	4	
 0x00242b90	survarium::base_network_client::set_followed_player	manual	4	
 0x00242cc0	survarium::base_network_client::detach_from_player	manual	0	

@@ -255,7 +255,7 @@ fn parse_message(
         }
         Ok(len)
     };
-    // Patched clients use E0 for snapshots, resource ACKs and world receipts. Single messages
+    // Patched clients use E0 for snapshots, resource ACKs, world receipts and client reports. Single messages
     // consume the whole area; multi messages need the extension's own length.
     // An E0 without a recognized extension prefix remains an empty leave.
     let carrier = table == Table::Match
@@ -314,7 +314,8 @@ fn parse_message(
     Ok((message, at + len))
 }
 
-/// Length of a resource ACK, world receipt or whole snapshot chunk. Snapshot header:
+/// Length of a resource ACK, world receipt, client report (its codec's own,
+/// `srp_validate::report::carrier_len`) or whole snapshot chunk. Snapshot header:
 /// `u32 item_time` (a tick), `u16 offset` (a
 /// multiple of 480), `u16 total` (over the offset, at most
 /// [`MAX_SNAPSHOT_TOTAL`]), then
@@ -330,6 +331,9 @@ fn carrier_len(bytes: &[u8]) -> Option<usize> {
     if *head == replay_control::REQUEST_HEAD {
         let len = replay_control::Request::LEN;
         return (bytes.len() >= len).then_some(len);
+    }
+    if let Some(len) = srp_validate::report::carrier_len(bytes) {
+        return Some(len);
     }
     let time = u32::from_le_bytes([head[0], head[1], head[2], head[3]]);
     let offset = usize::from(u16::from_le_bytes([head[4], head[5]]));
@@ -408,6 +412,78 @@ mod tests {
         assert_eq!(parsed.messages[1].id, 0xdf);
         assert_eq!(parsed.messages[1].payload, &captured[25..]);
     }
+    #[test]
+    fn a_client_report_in_a_multi_datagram_preserves_the_messages_around_it() {
+        use srp_validate::memory::{Arena, Moment, Name, Process, Report as Memory, Usage};
+        let mut memory = Memory::new(
+            Moment::Loaded,
+            Process {
+                free: 9,
+                largest_free: 3,
+                video_budget: 1,
+            },
+        );
+        for n in 0..12 {
+            memory.add(Arena {
+                name: Name::of_c(b"render"),
+                size: n,
+                usage: Usage::Heap {
+                    used: n,
+                    largest_free: 1,
+                },
+            });
+        }
+        let report = srp_validate::report::Report::Memory(memory);
+        for part in 0..report.parts() {
+            let (carrier, len) = report.part(0x8000_0001, part).unwrap();
+            let carrier = &carrier[..len];
+            for before in [false, true] {
+                for after in [false, true] {
+                    let mut bytes = vec![7, 3, 0x81];
+                    if before {
+                        bytes.push(0xe1);
+                    }
+                    bytes.push(0xe0);
+                    bytes.extend(carrier);
+                    if after {
+                        bytes.push(0xe1);
+                    }
+                    bytes.push(1);
+                    let parsed = parse_match(Direction::ToServer, &bytes).unwrap();
+                    assert_eq!(
+                        parsed.messages.len(),
+                        1 + usize::from(before) + usize::from(after)
+                    );
+                    let message = parsed.messages[usize::from(before)];
+                    assert_eq!((message.id, message.payload), (0xe0, carrier));
+                    assert!(srp_validate::report::Carrier::parse(message.payload).is_some());
+                }
+            }
+            // alone in its datagram, the whole rest is the carrier
+            let mut single = vec![7, 3, 0, 0xe0];
+            single.extend(carrier);
+            let parsed = parse_match(Direction::ToServer, &single).unwrap();
+            assert_eq!(parsed.messages[0].payload, carrier);
+            // cut short, with or without a message after it: refused, never a
+            // leave (a message's byte that makes up the length is the carrier's)
+            for cut in 1..len {
+                for tail in [&[][..], &[0xe1][..]]
+                    .into_iter()
+                    .filter(|tail| cut + tail.len() < len)
+                {
+                    let mut bytes = vec![7, 3, 0x81, 0xe0];
+                    bytes.extend(&carrier[..cut]);
+                    bytes.extend(tail);
+                    bytes.push(1);
+                    assert!(
+                        parse_match(Direction::ToServer, &bytes).is_err(),
+                        "cut {cut}"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn world_receipt_in_a_multi_datagram_preserves_following_messages_and_tail_acks() {
         let ack = [

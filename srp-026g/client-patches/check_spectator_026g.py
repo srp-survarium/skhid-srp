@@ -34,9 +34,11 @@ and switch_to_spectator_camera (0x1F8360, EDX).
   - the hud's life byte (0x23B7B9): a spectator's skips the panels' change, to
     0x23B7FC, for a dead player.
 """
+import glob
 import os
 import struct
 import sys
+import tomllib
 
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL, UC_HOOK_CODE
 from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI,
@@ -79,6 +81,23 @@ def check(ok, what):
     print(f"  {'ok' if ok else 'FAIL'}  {what}")
 
 
+def spectator_is_last_on_world_load():
+    """A spectator's world_load.loaded handler leaves by an exit, which ends the
+    site's chain: a hook ordered after it would never run in a spectator's game
+    (patches 126 and 127's memory snapshots)."""
+    orders = {}
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rust", "patches", "src")
+    for path in glob.glob(os.path.join(folder, "*.toml")):
+        with open(path, "rb") as file:
+            patch = tomllib.load(file)
+        for hook in patch.get("hook", []):
+            if hook["site"] == "world_load.loaded":
+                orders[patch["name"]] = hook["order"]
+    after = [name for name, order in orders.items() if name != "spectator" and order >= orders["spectator"]]
+    check({"memory_report", "memory_profile"} <= set(orders) and not after,
+          f"world_load.loaded: the spectator's hook is the chain's last ({sorted(orders.items(), key=lambda row: row[1])})")
+
+
 class Game:
     def __init__(self, data):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
@@ -103,6 +122,12 @@ class Game:
                         (STATS, self.stats), (DISCARD, self.discard), (GET_PLAYER, self.get_player),
                         (SPECTATE_NEXT, self.spectate_next)):
             emu.hook_add(UC_HOOK_CODE, how, begin=va, end=va)
+
+    def without_memory_report(self, linked):
+        """Patch 126's handler in world_load.loaded's chain goes on at once (Flow::Continue): it
+        walks the address space and reports through the match's link and the log, which this
+        made-up world does not have, and it is not what is checked here."""
+        self.emu.mem_write(linked.symbols["hook_memory_report_on_loaded"], bytes.fromhex("31c0c3"))
 
     def word(self, at, value, size=4):
         self.emu.mem_write(at, (value & (1 << 8 * size) - 1).to_bytes(size, "little"))
@@ -311,6 +336,7 @@ def both(stock, ours, site, case, regs, stack=b"", **setup):
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
+    spectator_is_last_on_world_load()
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
@@ -338,6 +364,7 @@ def main():
           "0x25CEAE is on_keyboard_action's `xor al,al` and epilogue (its next/prev player's return)")
 
     stock, ours = Game(original), Game(built)
+    ours.without_memory_report(linked)
     # A player's game, and a replay's client, run the game's code at each site.
     for vtable, local, name in ((NC_VTABLE, 2, "a player (local place 2)"),
                                 (REPLAY_VTABLE, 0xFF, "a replay's client")):

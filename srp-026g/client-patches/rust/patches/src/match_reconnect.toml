@@ -1,5 +1,5 @@
 # Patch 132: a completion of the match link's old socket is no failure of the
-# link (client_patch.md section 3.78). The site is sites_026g.tsv's, the logic
+# link (client_patch.md section 3.80). The site is sites_026g.tsv's, the logic
 # match_reconnect.rs.
 name = "match_reconnect"
 patch = 132

@@ -1,5 +1,5 @@
 //! Patch 130: a replay played in the running game (path A,
-//! docs/notes/replay-stream.md; client_patch.md 3.77). The match server
+//! docs/notes/replay-stream.md; client_patch.md 3.79). The match server
 //! streams a recording to a game with no place of its own (patch 121) and
 //! runs its playback; its first playback note (an 0xF6, the
 //! `replay-control` crate) makes the spectator's game a replay's viewer:

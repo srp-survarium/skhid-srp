@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Patch 132: a receive aborted by the connect that replaced the match link's
-socket is no lost link (client_patch.md section 3.78).
+socket is no lost link (client_patch.md section 3.80).
 
     python check_match_reconnect_026g.py <original survarium.exe>
 

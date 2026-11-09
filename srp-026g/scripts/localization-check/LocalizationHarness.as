@@ -9,7 +9,6 @@ package
     import flash.system.LoaderContext;
     import flash.text.Font;
     import flash.text.TextField;
-    import flash.text.TextFormat;
 
     // Uses the rebuilt movie's own classes and embedded font; no game or server.
     // Each language's texts reach the movie as the exe gives them
@@ -44,9 +43,15 @@ package
                 var words:* = domain.getDefinition("survarium.rooms.RoomsText");
                 var fontClass:Class = domain.getDefinition("Fonts_CB_Bold") as Class;
                 var font:Font = new fontClass() as Font;
-                var label:TextField = new TextField();
-                label.embedFonts = true;
-                label.defaultTextFormat = new TextFormat(font.fontName, 15, 0xffffff, true);
+                // The tab's own text field, in the game's font at the tab's size: a field made here
+                // does not see the movie's fonts under Ruffle and measures a wider fallback font.
+                var tab:* = new (domain.getDefinition("ButtonChatTabBottom") as Class)();
+                var label:TextField = null;
+                for (var child:int = 0; child < tab.numChildren; child++)
+                {
+                    if (tab.getChildAt(child) is TextField) label = tab.getChildAt(child) as TextField;
+                }
+                require(label != null, "the room chat tab has no text field");
                 var keys:int = 0;
                 for each (var language:String in HarnessText.LANGUAGES)
                 {

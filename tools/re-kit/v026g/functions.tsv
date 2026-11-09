@@ -167,6 +167,9 @@ va	status	ref_021d	name
 0x0006f109	verified	0x00051a73	render_line0
 0x0006f181	verified	0x00051aeb	accumulate_fit
 0x0006f561	verified	0x00051ecb	inspect_error
+0x000716c0	reviewed	0x00053e64	vostok::physics::bt_animated_rigid_body::get_collision_group
+0x00077560	reviewed	0x00057966	vostok::physics::bullet_physics_world::ray_query
+0x0007ab10	reviewed	0x0021c787	vostok::physics::bullet_character_controller::get_collision_group
 0x0007ab30	reviewed	0x00155e22	vostok::network_core::mutable_buffer::resize
 0x0007ab70	observed		vostok::network_core::mutable_buffer::reallocate
 0x0007ac10	reviewed	0x00155ebe	vostok::network_core::buffer_writer::w
@@ -2206,6 +2209,14 @@ va	status	ref_021d	name
 0x002ac400	observed		survarium::particle_game_effect_presenter::on_event
 0x002de350	observed		survarium::game_effect_player::stop
 0x0031a210	observed		survarium::damage_zone_core::stop_effect
+0x002dc390	observed		survarium::collision_geometry::query_objects_by_type<survarium::usable_object>
+0x002dd730	observed		[thunk]:survarium::collision_geometry_subscriber::`vcall'{32}'
+0x002f8bb0	observed		survarium::collision_geometry::cast_to_collision_geometry
+0x00305070	observed		survarium::booby_trap_core::can_use
+0x00356d50	observed		vostok::physics::bt_static_rigid_body::get_collision_group
+0x00356d50	observed		vostok::physics::bt_dynamic_rigid_body::get_collision_group
+0x00357a90	observed		vostok::physics::bt_ghost_object::get_collision_group
+0x00246ed0	observed		[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'
 0x0021beb0	observed		survarium::network_client::connect_to_match
 0x0027b880	observed		survarium::network_client::process_static_match_info
 0x0027aa20	verified	0x001a25cc	survarium::network_client::on_match_ready
@@ -2227,6 +2238,25 @@ va	status	ref_021d	name
 0x000ddf20	reviewed	0x000ac7b6	vostok::command_line::key::is_set_as_number
 0x000e0f20	reviewed	0x000ae85f	vostok::memory::preinitialize
 0x000e1120	reviewed	0x000ae992	vostok::memory::allocate_region
+0x000ff200	verified		dlmalloc::internal_mallinfo
+0x00101190	verified		dlmalloc::init_user_mstate
+0x00101280	verified		dlmalloc::create_mspace_with_base
+0x000e0930	reviewed	0x000ae43f	vostok::threading::spawn_internal
+0x000e3770	reviewed		vostok::threading::spawn
+0x000fc090	reviewed		vostok::tasks::thread_pool::thread_pool
+0x000fc350	observed		vostok::tasks::thread_pool::initialize
+0x0027f780	reviewed	0x001a3c98	survarium::network_client::draw_match_stats
+0x00429f20	reviewed		_chkstk
+0x00319af0	observed		survarium::damage_zone_core::hit_objects
+0x00101330	verified		dlmalloc::mspace_malloc
+0x001005a0	verified		dlmalloc::mspace_realloc
+0x001015e0	verified		dlmalloc::mspace_free
+0x00100750	verified		dlmalloc::mspace_memalign
+0x00106ef0	verified		pt3malloc
+0x000eb530	reviewed		vostok::memory::mt_allocator::call_malloc
+0x00106d70	verified		ptmalloc3::memalign_starter
+0x00106d90	verified		ptmalloc3::free_starter
+0x00106fc0	verified		pt3free
 0x001f8360	reviewed		survarium::game_world::switch_to_spectator_camera
 0x00242d50	reviewed		survarium::base_network_client::spectate_next_player
 0x00242f00	reviewed		survarium::base_network_client::spectate_previous_player
