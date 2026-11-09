@@ -164,7 +164,7 @@ thread changes under it is told as unknown for that snapshot.
 - **Off** (every player's game):
   - bytes changed in the exe for it: none at the six sites (the game's own bytes,
     checked by `check_memory_profile_026g.py`); the arena holds the gates, the
-    entries and the profiler (patches.code about 9 KiB, patches.data about 3 KiB);
+    entries and the profiler (patches.code 9.7 KiB, patches.data 3 KiB more than main's);
   - instructions added on a hot path: none (the check counts the same
     instructions as the original's over its allocations, frees and reallocations);
   - hooks that run: `memory.arenas_ready` once at the start (one read of the
