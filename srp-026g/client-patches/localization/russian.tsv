@@ -877,7 +877,7 @@ st_ct_max_members_count_error	Ошибка добавления. В кланов
 st_current_value	\nТекущее значение:
 st_cz_75_description	Чешский самозарядный пистолет, патрон: 9x19. Один из самых копируемых пистолетов холодной войны.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходи каждый день, и получай <highlight>x2</highlight> опыта и репутации за <highlight>первые три</highlight> победы.
+st_daily_bonus_description	Каждый день: <highlight>x2</highlight> опыта за <highlight>первые три</highlight> победы.
 st_daily_bonus_hint	Показать окно приветствия
 st_daily_bonus_label	Добро пожаловать обратно
 st_daily_bonus_progress	Ваш прогресс за текущий день

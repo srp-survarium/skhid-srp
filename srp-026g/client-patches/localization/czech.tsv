@@ -877,7 +877,7 @@ st_ct_max_members_count_error	Nelze přidat další hráče. Klanový tým už j
 st_current_value	\nAktuální hodnota:
 st_cz_75_description	Česká samonabíjecí pistole, náboj: 9x19. Jedna z nejkopírovanějších pistolí studené války.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Hraj každý den a za <highlight>první tři</highlight> výhry získáš <highlight>x2</highlight> zkušenosti i pověst.
+st_daily_bonus_description	Každý den: <highlight>x2</highlight> zkušenosti za <highlight>první tři</highlight> výhry.
 st_daily_bonus_hint	Zobrazit uvítací obrazovku
 st_daily_bonus_label	Vítej zpátky
 st_daily_bonus_progress	Tvůj dnešní postup

@@ -877,7 +877,7 @@ st_ct_max_members_count_error	Tim klana već ima najveći broj igrača.
 st_current_value	\nTrenutna vrednost:
 st_cz_75_description	Češki poluautomatski pištolj, municija: 9x19. Jedan od najkopiranijih pištolja Hladnog rata.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Igrajte svakog dana i osvojite <highlight>x2</highlight> iskustvo i ugled za <highlight>prve tri</highlight> pobede.
+st_daily_bonus_description	Svakog dana: <highlight>x2</highlight> iskustva za <highlight>prve tri</highlight> pobede.
 st_daily_bonus_hint	Prikaži ekran dobrodošlice
 st_daily_bonus_label	Dobro došli nazad
 st_daily_bonus_progress	Vaš današnji napredak

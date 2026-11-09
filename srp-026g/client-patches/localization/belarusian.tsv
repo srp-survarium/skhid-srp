@@ -877,7 +877,7 @@ st_ct_max_members_count_error	Памылка дадавання. У кланав
 st_current_value	\nБягучае значэнне:
 st_cz_75_description	Чэшскі самазарадны пісталет, патрон: 9x19. Адзін з самых капіяваных пісталетаў халоднай вайны.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходзь кожны дзень і атрымлівай <highlight>x2</highlight> досведу і рэпутацыі за <highlight>першыя тры</highlight> перамогі.
+st_daily_bonus_description	Кожны дзень: <highlight>x2</highlight> досведу за <highlight>першыя тры</highlight> перамогі.
 st_daily_bonus_hint	Паказаць акно прывітання
 st_daily_bonus_label	З вяртаннем
 st_daily_bonus_progress	Ваш прагрэс за бягучы дзень

@@ -877,7 +877,7 @@ st_ct_max_members_count_error	Помилка додавання. У кланов
 st_current_value	\nПоточне значення:
 st_cz_75_description	Чеський самозарядний пістолет, набій: 9x19. Один із найбільш копійованих пістолетів холодної війни.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходь щодня і отримуй <highlight>x2</highlight> досвіду і репутації за <highlight>перші три</highlight> перемоги.
+st_daily_bonus_description	Щодня: <highlight>x2</highlight> досвіду за <highlight>перші три</highlight> перемоги.
 st_daily_bonus_hint	Показати вікно привітання
 st_daily_bonus_label	Ласкаво просимо назад
 st_daily_bonus_progress	Ваш прогрес за поточний день

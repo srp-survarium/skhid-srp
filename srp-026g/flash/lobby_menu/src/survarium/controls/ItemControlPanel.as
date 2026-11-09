@@ -350,40 +350,55 @@ package survarium.controls
       }
 
       // The item row (Upgrade, Modification, Attachments, Sell or Buy) had Fix among them; with Fix gone
-      // the visible ones share the row's span (the first one's left edge to the last one's right edge)
-      // with equal gaps between them (the owner, 2026-11-09: "there is a hole can we align those to have
-      // equal space between each other?").
+      // the visible ones grow to take the row's whole span, the stock gap between them (the owner,
+      // 2026-11-09: "there is a hole", "actually just make buttons bigger", "so the whole space is taken").
+      // The span (the first button's left edge to the last one's right edge), the gap and the order are
+      // the timeline's, read once: a later layout starts from them, not from the last one.
+      private var _rowOrder:Array;
+
+      private var _rowLeft:Number;
+
+      private var _rowRight:Number;
+
+      private var _rowGap:Number;
+
       private function spaceItemRow() : void
       {
+         var button:DisplayObject;
+         if(this._rowOrder == null)
+         {
+            this._rowOrder = [this.btn_item_craft,this.btn_item_reroll,this.btn_item_upgrade,this.btn_item_fix,this.btn_item_sell,this.btn_item_buy];
+            this._rowOrder.sortOn("x",Array.NUMERIC);
+            this._rowLeft = this._rowOrder[0].x;
+            this._rowRight = 0;
+            for each(button in this._rowOrder)
+            {
+               this._rowRight = Math.max(this._rowRight,button.x + button.width);
+            }
+            this._rowGap = this._rowOrder[1].x - (this._rowOrder[0].x + this._rowOrder[0].width);
+         }
          var row:Array = [];
-         for each(var button:DisplayObject in [this.btn_item_craft,this.btn_item_reroll,this.btn_item_upgrade,this.btn_item_sell,this.btn_item_buy])
+         for each(button in this._rowOrder)
          {
             if(button.visible)
             {
                row.push(button);
             }
          }
-         if(row.length < 2)
+         if(row.length == 0)
          {
             return;
          }
-         row.sortOn("x",Array.NUMERIC);
-         var left:Number = row[0].x;
-         var right:Number = row[row.length - 1].x + row[row.length - 1].width;
-         var widths:Number = 0;
-         for each(button in row)
-         {
-            widths += button.width;
-         }
-         var gap:Number = (right - left - widths) / (row.length - 1);
-         var x:Number = left;
+         var width:Number = (this._rowRight - this._rowLeft - this._rowGap * (row.length - 1)) / row.length;
+         var x:Number = this._rowLeft;
          for each(button in row)
          {
             button.x = Math.round(x);
-            x += button.width + gap;
+            button.width = Math.round(width);
+            x += width + this._rowGap;
          }
       }
-      
+
       private function sortButton() : void
       {
          // Two buttons, centred: no item is used any more (the vouchers that were are gone, the owner

@@ -69,7 +69,8 @@ package survarium.messages
       // unnecessary space"): the window ends as far right of the last day as it begins left of the first.
       // The frame's pieces are the timeline's, unnamed: whatever lies wholly right of the days (the close
       // button) moves left by the cut, whatever reaches past them (the frame, the title bar, the text strip,
-      // the centred texts) narrows by it.
+      // the centred texts) narrows by it. It never cuts into a text's line (the owner, 2026-11-09: "text is
+      // now cut").
       private function closeUpRight() : void
       {
          this.rewardsList.validateNow();
@@ -85,12 +86,16 @@ package survarium.messages
                frame = frame.union(child.getBounds(this));
             }
          }
-         var cut:Number = Math.floor(frame.right - days.right - (days.left - frame.left));
-         if(cut <= 0)
+         // The texts keep their whole line: the window ends no closer to them than to the days.
+         var content:Number = days.right;
+         for each(var text:TextField in [this.textFieldLabel,this.textFieldDescr])
          {
-            return;
+            var box0:Rectangle = text.getBounds(this);
+            content = Math.max(content,box0.left + (box0.width + text.textWidth) / 2 + 4);
          }
-         for(i = 0; i < numChildren; i++)
+         var margin:Number = days.left - frame.left;
+         var cut:Number = Math.max(0,Math.floor(frame.right - content - margin));
+         for(i = 0; cut > 0 && i < numChildren; i++)
          {
             child = getChildAt(i);
             if(child == this.rewardsList || child == this.rewardContainer)

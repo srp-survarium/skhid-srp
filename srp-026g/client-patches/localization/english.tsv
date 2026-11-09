@@ -877,7 +877,7 @@ st_ct_max_members_count_error	Error adding new players. The clan team already ha
 st_current_value	\nCurrent value:
 st_cz_75_description	Czech self-loading pistol, ammo: 9x19. One of the most copied pistols of the Cold War.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Play everyday and get <highlight>x2</highlight> experience and reputation for the <highlight>first three</highlight> victories.
+st_daily_bonus_description	Every day: <highlight>x2</highlight> experience for the <highlight>first three</highlight> victories.
 st_daily_bonus_hint	Show the welcoming screen
 st_daily_bonus_label	Welcome back
 st_daily_bonus_progress	Your progress for the current day

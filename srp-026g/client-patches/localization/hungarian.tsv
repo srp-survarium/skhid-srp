@@ -877,7 +877,7 @@ st_ct_max_members_count_error	Nem adható hozzá több játékos. A kláncsapat 
 st_current_value	\nJelenlegi érték:
 st_cz_75_description	Cseh öntöltő pisztoly, lőszer: 9x19. A hidegháború egyik legtöbbet másolt pisztolya.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Játssz mindennap, és az <highlight>első három</highlight> győzelemért <highlight>x2</highlight> tapasztalatot és hírnevet kapsz.
+st_daily_bonus_description	Minden nap: <highlight>x2</highlight> tapasztalat az <highlight>első három</highlight> győzelemért.
 st_daily_bonus_hint	Üdvözlőképernyő mutatása
 st_daily_bonus_label	Üdv újra
 st_daily_bonus_progress	Mai haladásod

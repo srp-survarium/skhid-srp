@@ -877,7 +877,7 @@ st_ct_max_members_count_error	Pelaajien lisääminen epäonnistui. Klaanijoukkue
 st_current_value	\nNykyinen arvo:
 st_cz_75_description	Tšekkiläinen itselataava pistooli, ammus: 9x19. Yksi kylmän sodan kopioiduimmista pistooleista.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Pelaa päivittäin ja saat <highlight>kolmesta ensimmäisestä</highlight> voitosta <highlight>x2</highlight> kokemusta ja mainetta.
+st_daily_bonus_description	Joka päivä: <highlight>x2</highlight> kokemusta <highlight>kolmesta ensimmäisestä</highlight> voitosta.
 st_daily_bonus_hint	Näytä tervetuloruutu
 st_daily_bonus_label	Tervetuloa takaisin
 st_daily_bonus_progress	Tämän päivän edistymisesi

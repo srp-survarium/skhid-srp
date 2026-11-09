@@ -1,7 +1,7 @@
 package survarium.messages
 {
-   import flash.display.DisplayObject;
    import flash.display.MovieClip;
+   import flash.geom.Rectangle;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
@@ -347,34 +347,31 @@ package survarium.messages
       }
       
       // The description's panel fits its text, DESCRIPTION_MARGIN above and below (the owner, 2026-11-08:
-      // "too much padding for that text", "from above and below"); the price under it moves up by what the
-      // panel gave back. The panel is rerollContainer's `background`; without one, nothing moves.
-      private static const DESCRIPTION_MARGIN:Number = 12;
+      // "too much padding for that text", "from above and below"), and the price row moves up by what the
+      // panel gives back. All of it in the window's coordinates: the panel (rerollContainer, at y 177) is
+      // placed scaled (0.681 high), so it is measured with getBounds and sized through its own height;
+      // the text box (y 186, about 70 high) is cut to its text. The stock layout is read once, so a
+      // second setup of the window (configUI runs again) gives the same result.
+      private static const DESCRIPTION_MARGIN:Number = 10;
 
-      // The panel's height and the price row's y as the timeline placed them: the fit is worked out from
-      // these, so a second setup of the window (configUI runs again) moves nothing further.
-      private var _stockPanelHeight:Number = NaN;
+      private var _stockPanel:Rectangle;
 
-      private var _stockPriceY:Number = NaN;
+      private var _stockPriceY:Number;
 
       private function fitDescription() : void
       {
-         var panel:DisplayObject = this.rerollContainer.getChildByName("background");
-         if(panel == null)
+         if(this._stockPanel == null)
          {
-            return;
-         }
-         if(isNaN(this._stockPanelHeight))
-         {
-            this._stockPanelHeight = panel.height;
+            this._stockPanel = this.rerollContainer.getBounds(this);
             this._stockPriceY = this.checkBoxRegularCost.y;
          }
-         var top:Number = this.rerollContainer.y + panel.y;
-         this.decriptionLabel.height = this.decriptionLabel.textHeight + 4;
-         panel.height = this.decriptionLabel.height + 2 * DESCRIPTION_MARGIN;
-         // The text centred in its panel, by the height the label really has.
-         this.decriptionLabel.y = Math.round(top + (panel.height - this.decriptionLabel.height) / 2);
-         this.checkBoxRegularCost.y = this._stockPriceY - (this._stockPanelHeight - panel.height);
+         var textHeight:Number = this.decriptionLabel.textHeight + 4;
+         var panelHeight:Number = textHeight + 2 * DESCRIPTION_MARGIN;
+         this.rerollContainer.height = panelHeight;
+         this.rerollContainer.y += this._stockPanel.top - this.rerollContainer.getBounds(this).top;
+         this.decriptionLabel.height = textHeight;
+         this.decriptionLabel.y = this._stockPanel.top + DESCRIPTION_MARGIN;
+         this.checkBoxRegularCost.y = this._stockPriceY - (this._stockPanel.height - panelHeight);
       }
 
       private function setChooseReollOptionState(choosing:Boolean) : void
