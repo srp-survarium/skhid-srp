@@ -1222,11 +1222,31 @@ package
             // the minimap position list's choices (st_minimap_off, _bottom, _top), the lower left corner
             settingsList[9].dataProvider = [texts[0][10], texts[0][11], texts[0][12]];
             values[9].value = 1;
+            // The real order (game_options::on_resources_ready is the only root.set_settings): the tab is bound at the
+            // game's start, the exe answering the account's setting not known; the lobby says it after the sign-in;
+            // then the window opens (the lobby's gear: root.show_settings(true), nothing bound again).
+            var earlyLive:* = content.getChildByName("_srp_live_watch");
+            var earlyExe:* = domain.getDefinition("SrpExe");
+            var liveKnown:String = "", liveAsks:int = 0;
+            earlyExe.standIn = function(name:String, value:String):void {
+                if (name == "srp_live_watch")
+                {
+                    ++liveAsks;
+                    root.srp_check_option(name, texts[0][35], liveKnown);
+                }
+            };
             root.set_settings(0, settingsList);
             root.set_values(0, values);
             root.srp_language(texts[0][3], "Applies after restart.", "english", "english", "english", "English",
                 "ukrainian", "Українська");
+            var liveAsksBound:int = liveAsks;
+            require(liveAsksBound > 0 && !earlyLive.visible, "the tab's bind asks the live watch box (asks " + liveAsksBound + "), not known: no box");
+            liveKnown = "1";
             root.show_settings(true);
+            require(liveAsks > liveAsksBound && earlyLive.visible && earlyLive.selected,
+                "the window opened after the sign-in: asked again (asks " + liveAsks + "), the box shown ticked");
+            trace("SETTINGS live watch open pass");
+            earlyExe.standIn = null;
 
             var boxes:Array = [];
             for each (var name:String in NAMES)
@@ -1245,7 +1265,6 @@ package
                 require(!boxes[i].selected, NAMES[i] + ": the saved state (off) is shown");
             }
             var live:* = content.getChildByName("_srp_live_watch");
-            require(live != null && !live.visible, "the live watch box waits for the exe's answer");
             root.srp_check_option("srp_live_watch", texts[0][35], "");
             require(!live.visible && !settings.btn_accept.enabled, "a state not known: no box, nothing pending");
             root.srp_check_option("srp_live_watch", texts[0][35], "1");

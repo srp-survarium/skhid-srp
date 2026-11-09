@@ -371,6 +371,14 @@ package survarium.menu
          }
       }
       
+      // The window opens (MainMenu.show_settings, from the lobby's gear and from Esc's menu alike). The tab is bound once, at the
+      // game's start before any sign-in (the exe's root.set_settings has one caller, game_options::on_resources_ready),
+      // and opening binds nothing: the account's setting, which the lobby says only after the sign-in, is asked again here.
+      public function refreshAccountOptions() : void
+      {
+         this._liveWatch.place();
+      }
+
       public function hide() : void
       {
          var messageData:Object;

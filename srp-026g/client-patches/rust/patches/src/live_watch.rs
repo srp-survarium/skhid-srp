@@ -6,9 +6,11 @@
 //! (patch 81). The match list and the watch ask are srp's alone: this patch
 //! only shows the box and carries the answer.
 //!
-//! Until `0xA1` says (and at the login screen, whose next sign-in may be
-//! another account's) the state is not known and the box is not shown; a
-//! lobby connection that is down shows none and sends nothing.
+//! Until `0xA1` says the state is not known and the box is not shown; a
+//! lobby connection that is down (the login screen's) shows none and sends
+//! nothing, and the next sign-in's `0xA1` says the state again. The Settings
+//! window asks each time it opens (`Settings.refreshAccountOptions`): the
+//! game binds its tab once, at its start, before any sign-in.
 
 #![forbid(unsafe_code)]
 
@@ -97,12 +99,6 @@ pub fn on_squad(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(read) = SquadRead::at(ctx) {
         told(ctx.thread(), read.live_watch());
     }
-    Flow::Continue
-}
-
-/// The login screen shown: the next sign-in may be another account.
-pub fn on_login(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    SETTING.set(ctx.thread(), Setting::Unknown);
     Flow::Continue
 }
 

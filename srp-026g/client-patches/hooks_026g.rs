@@ -1852,21 +1852,6 @@ pub extern "C" fn hook_hud_options_on_login(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- live_watch (patch 131) ----
-
-/// The entry `live_watch_on_login` (0x21eac8, login_menu::on_activate after base_game_scene::on_activate (mov ecx,[esi+9Ch]; the jmp at 0x21EAC4 lands here): the login screen is shown) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_live_watch_on_login(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `live_watch_on_login` calls this, from the game's jump at 0x21eac8,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::live_watch::on_login(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
 // ---- input_check (patch 99) ----
 
 /// The named exits of input_check::on_change_input (the order the shim's Flow code
@@ -4194,8 +4179,6 @@ pub extern "C" fn hook_music_on_login_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_login(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_login(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_live_watch_on_login(frame);
     if flow != 0 { return flow; }
     0
 }

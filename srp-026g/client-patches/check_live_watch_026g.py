@@ -18,7 +18,8 @@ one every messaging sender checks ([[client+1E55C8h]]+0B01F4h, states 0 and 4 se
   answers the new state; nothing goes to user.cfg; another value sends nothing;
 - a lobby connection that is down (or none) answers "" and sends nothing, its setting kept for
   when it is up;
-- the login screen (login_menu::on_activate 0x21EAC8's hook) forgets the state.
+- the login screen's chain (login_menu::on_activate 0x21EAC8) after a 0xA1 leaves the state: the box does not
+  depend on the order of a sign-in; with the connection down there is no box, and the next 0xA1 says the state.
 """
 import sys
 
@@ -159,7 +160,16 @@ def main():
 
     r.login()
     invokes, sent, _ = r.ask()
-    expect(normal(invokes) == answered(""), "the login screen shown: the state forgotten, no box until the next 0xA1")
+    expect(normal(invokes) == answered("1") and sent == [],
+           "the login screen's chain after a 0xA1 (any order of a sign-in): the state kept, the box shown")
+    r.connect(False)
+    r.login()
+    invokes, _, _ = r.ask()
+    expect(normal(invokes) == answered(""), "signed out (the connection down): no box")
+    r.connect(True)
+    r.squad(0, b"\x00\x00\x02")
+    invokes, _, _ = r.ask()
+    expect(normal(invokes) == answered("0"), "the next sign-in's 0xA1 says the state again")
 
 
 if __name__ == "__main__":
