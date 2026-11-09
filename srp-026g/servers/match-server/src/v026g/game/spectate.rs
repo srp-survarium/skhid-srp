@@ -35,7 +35,7 @@
 //!
 //! Let go by the server (its watch ended: its place came, it left the queue;
 //! the match over), not reported: one 0xEA naming no place
-//! (`NO_LOCAL_PLACE`), then silence for [`SILENCE`]. A link closed by the
+//! (`replay_control::LeftPlace::Farewell`), then silence for [`SILENCE`]. A link closed by the
 //! server ends nothing in the game (0xFD reaches `close_current_match` as
 //! reason 4, its return, `match.md` section 24), and an 0xEA ends a game's
 //! match only for its own place (0x27C72C: with no local place the handler
@@ -53,7 +53,7 @@
 //! roster change of a place it has not installed comes; when a world is not
 //! loaded in [`WORLD_WAIT`] or an 0xE5 not answered in [`TIMING_WAIT`].
 
-use survarium::v026g::match_msgs::static_info::{MatchProfile, NO_LOCAL_PLACE, StaticInfo};
+use survarium::v026g::match_msgs::static_info::{MatchProfile, StaticInfo};
 
 use super::*;
 use survarium::v026g::match_msgs::id;
@@ -1302,7 +1302,7 @@ impl Spectator {
     pub(super) fn farewell(&mut self, clock: u32, now: Instant) {
         let farewell = ServerMessage::PlayerLeft {
             tick: tick_byte(clock),
-            player: NO_LOCAL_PLACE,
+            player: replay_control::LeftPlace::Farewell.byte(),
         };
         // Lasting its whole silence: an ack seen before that is heard
         // (`farewell_heard`), however late; it is no more sent past

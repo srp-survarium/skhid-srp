@@ -73,9 +73,9 @@ impl StaticInfoHead {
         if payload.starts_with(&LATE_JOIN_PREPARE) {
             return Some(Self::LateJoinPrepare);
         }
-        match payload.first()? {
-            &NO_PLACE => Some(Self::NoPlace),
-            &place => Some(Self::Place(place)),
+        match *payload.first()? {
+            NO_PLACE => Some(Self::NoPlace),
+            place => Some(Self::Place(place)),
         }
     }
 }
