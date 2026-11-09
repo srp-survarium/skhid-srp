@@ -198,6 +198,24 @@ pub fn bind_delayed_import(_: &Thread, import: DelayedImport, module: Module) ->
     true
 }
 
+/// The d3d11.dll the game's delayed import is bound to, as patch 126's
+/// report tells it: none yet, or the folder it was loaded from and whether
+/// it has Direct3D's layered-device exports (`D3D11CoreRegisterLayers`:
+/// Windows' own and Wine's have them, DXVK's has not).
+pub fn bound_d3d11(_: &Thread) -> srp_validate::memory::Renderer {
+    use srp_validate::memory::{Folder, Renderer};
+    let slot = DelayedImport::D3d11.slot() as *const *mut c_void;
+    // SAFETY: the slot is an HMODULE of the exe's .data, written once by
+    // the delay-load helper (or patch 83) on the game's thread.
+    let Some(module) = NonNull::new(unsafe { slot.read_volatile() }) else { return Renderer::Unbound };
+    let mut path = [0u8; super::memory::PATH];
+    let folder = super::memory::module_path(module, &mut path).map_or(Folder::Elsewhere, Folder::of_path);
+    // SAFETY: GetProcAddress of a loaded module (the slot keeps it loaded)
+    // and a NUL-ended name: its export's address or null, only compared.
+    let layered = unsafe { !(raw::engine_get_proc_address)(module.as_ptr(), c"D3D11CoreRegisterLayers".as_ptr().cast()).is_null() };
+    if layered { Renderer::Direct3d(folder) } else { Renderer::Dxvk(folder) }
+}
+
 /// A window's two style words (GWL_STYLE, GWL_EXSTYLE), read together.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WindowStyles {

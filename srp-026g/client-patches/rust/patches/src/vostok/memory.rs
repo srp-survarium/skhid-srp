@@ -7,7 +7,11 @@
 //! - each arena the engine registered (its list, `memory::register_allocator`),
 //!   its name and size, and what its allocator's kind tells of its use:
 //!   a doug_lea_allocator's heap walked chunk by chunk ([`Mspace::usage`]),
-//!   a managed allocator's and the multithreaded region's counts.
+//!   a managed allocator's and the multithreaded region's counts;
+//! - in the same `VirtualQuery` walk ([`Walk`]), every allocation by its
+//!   type (the census) and the largest outside the arenas, each image's
+//!   and mapping's file named (`GetModuleFileNameA`, kernel32's
+//!   `K32GetMappedFileNameA`).
 //!
 //! [`process`] and [`arenas`] are the reader, for any caller on the game's
 //! thread; [`snapshot`] is the report's. Patch 127's profiler reads the
@@ -27,7 +31,10 @@ use super::Thread;
 use super::world::read;
 use crate::raw;
 use core::ffi::c_void;
-use srp_validate::memory::{readable, Arena, Moment, Mspace, Name, Process, Report, Space, Usage, MAX_ARENAS, NAME};
+use core::ptr::NonNull;
+use srp_validate::memory::{
+    self as codec, readable, Arena, Client, Found, Moment, Mspace, Name, Process, Report, Type, Usage, Walk, Walked, MAX_ARENAS, NAME,
+};
 
 /// kernel32's `MEMORY_BASIC_INFORMATION` (32-bit: 28 bytes).
 #[repr(C)]
@@ -69,10 +76,80 @@ fn regions(start: usize, most: usize) -> impl Iterator<Item = MemoryInfo> {
     .take(most)
 }
 
-fn space() -> Space {
-    let mut space = Space::default();
-    regions(0, MAX_REGIONS).for_each(|info| space.region(info.state, info.size as u32));
-    space
+/// The address space from 0 in one walk, the `arenas` (start, size) left
+/// out of its largest allocations.
+fn walk(arenas: impl IntoIterator<Item = (u32, u32)>) -> Walked {
+    let mut walk = Walk::new(arenas);
+    regions(0, MAX_REGIONS)
+        .for_each(|info| walk.region(codec::Region::of(info.state, info.kind, info.allocation as u32, info.size as u32)));
+    walk.end()
+}
+
+/// A Windows path's room (MAX_PATH, and more for a long one).
+pub(in crate::vostok) const PATH: usize = 0x208;
+
+/// The path of the module loaded at `module` (`GetModuleFileNameA`), in
+/// `out`: none when it is no module's. A path longer than `out` is cut.
+pub(in crate::vostok) fn module_path(module: NonNull<c_void>, out: &mut [u8; PATH]) -> Option<&[u8]> {
+    // SAFETY: GetModuleFileNameA through the exe's import slot; it writes
+    // at most `out.len()` bytes into `out`. A handle that is no module's
+    // makes it fail (0), nothing more.
+    let len = unsafe { (raw::engine_get_module_file_name_a)(module.as_ptr(), out.as_mut_ptr(), out.len() as u32) };
+    out.get(..len as usize).filter(|path| !path.is_empty())
+}
+
+/// What names an allocation's file: kernel32's K32GetMappedFileNameA
+/// (Windows 7 on, and Wine), looked up once a snapshot; none without it.
+struct Namer {
+    mapped: Option<NonNull<c_void>>,
+}
+
+impl Namer {
+    fn new() -> Namer {
+        // SAFETY: kernel32 is loaded in every process; GetProcAddress of a
+        // NUL-ended name gives its export's address or null.
+        let mapped = unsafe {
+            let kernel32 = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
+            if kernel32.is_null() {
+                None
+            } else {
+                NonNull::new((raw::engine_get_proc_address)(kernel32, c"K32GetMappedFileNameA".as_ptr().cast()))
+            }
+        };
+        Namer { mapped }
+    }
+
+    /// The file of the section mapped at `address` (an image's or a
+    /// mapping's view), by its NT path's last part.
+    fn mapped(&self, address: u32) -> Option<Name> {
+        let function = self.mapped?;
+        let mut path = [0u8; PATH];
+        // SAFETY: K32GetMappedFileNameA(process, address, buffer, size) of
+        // this process (the pseudo-handle -1); it writes at most
+        // `path.len()` bytes into `path`, and fails (0) for an address no
+        // section's view holds.
+        let len = unsafe {
+            raw::engine_get_mapped_file_name_a(function, usize::MAX as *mut c_void, address as usize as *const c_void,
+                                               path.as_mut_ptr(), path.len() as u32)
+        };
+        Name::of_file(path.get(..len as usize)?)
+    }
+
+    /// The file of the allocation `found`: a module's path for an image
+    /// (its section's when that fails), a section's for a mapping, none for
+    /// a private one.
+    fn name(&self, found: Found) -> Option<Name> {
+        match found.kind() {
+            Type::Private => None,
+            Type::Mapped => self.mapped(found.base()),
+            Type::Image => {
+                let mut path = [0u8; PATH];
+                NonNull::new(found.base() as usize as *mut c_void)
+                    .and_then(|module| module_path(module, &mut path).and_then(Name::of_file))
+                    .or_else(|| self.mapped(found.base()))
+            }
+        }
+    }
 }
 
 /// `[start, end)` is all committed and readable.
@@ -267,15 +344,19 @@ pub fn regions_map(_: &Thread, most: usize) -> impl Iterator<Item = Region> + '_
     })
 }
 
+/// The engine's video budget, computed at its start.
+fn video_budget() -> u64 {
+    // SAFETY: two words of the image, written once at the engine's start.
+    unsafe {
+        let video = raw::image::video_memory();
+        u64::from(read(video.budget_high())) << 32 | u64::from(read(video.budget_low()))
+    }
+}
+
 /// The process as a whole: its address space and the engine's video
 /// budget.
 pub fn process(_: &Thread) -> Process {
-    // SAFETY: two words of the image, written once at the engine's start.
-    let video = unsafe {
-        let video = raw::image::video_memory();
-        u64::from(read(video.budget_high())) << 32 | u64::from(read(video.budget_low()))
-    };
-    space().process(video)
+    walk([]).process(video_budget())
 }
 
 /// Each arena of the engine's list, in its order, read as it is now.
@@ -283,10 +364,16 @@ pub fn arenas(_: &Thread) -> impl Iterator<Item = Arena> + '_ {
     records().map(|record| Arena { name: record.name(), size: record.size(), usage: record.usage() })
 }
 
-/// The snapshot at `moment`: the process, then each arena in the
-/// engine's order.
-pub fn snapshot(thread: &Thread, moment: Moment) -> Report {
-    let mut report = Report::new(moment, process(thread));
+/// The snapshot at `moment`: the process, each arena in the engine's
+/// order, the address space's census, what the game runs with (`client`),
+/// and the largest allocations outside the arenas, named.
+pub fn snapshot(thread: &Thread, moment: Moment, client: Client) -> Report {
+    let walked = walk(records().map(|record| (record.start as u32, record.size())));
+    let mut report = Report::new(moment, walked.process(video_budget()));
     arenas(thread).for_each(|arena| report.add(arena));
+    report.add_census(walked.census());
+    report.add_client(client);
+    let namer = Namer::new();
+    walked.largest().for_each(|found| report.add_allocation(found.named(namer.name(found))));
     report
 }

@@ -292,6 +292,19 @@ static TABLES: Lock<Tables> = Lock::new(Tables {
 /// The owners in the table: finish_query's quick test, read without the lock.
 static OWNED: AtomicU32 = AtomicU32::new(0);
 
+/// The textures the cache holds for the game now, and their files' bytes
+/// (patch 126's report).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Held {
+    pub textures: u32,
+    pub bytes: u32,
+}
+
+/// What the cache holds now: the tables' lock for a count of 256 slots.
+pub fn held(thread: &Thread) -> Held {
+    TABLES.with(thread, |t| Held { textures: t.kept.iter().flatten().count() as u32, bytes: t.kept_bytes })
+}
+
 /// What translate_query does with a query (`lookup`).
 enum Looked {
     /// It bakes or loads (the path's owner when the table has room).

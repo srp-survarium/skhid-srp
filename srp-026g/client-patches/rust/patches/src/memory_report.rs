@@ -1,16 +1,23 @@
 //! Patch 126: the game tells the match server how much memory it has left
 //! (`docs/notes/memory-report.md`): each arena the engine registered, the
-//! address space and the video budget (`vostok::memory`), when a match
+//! address space and the video budget, where the address space goes (its
+//! census by type and its largest allocations outside the arenas, named)
+//! (`vostok::memory`), and what the game runs with: Windows or Wine, the
+//! d3d11.dll it draws with, the baked textures held (patch 70) and listed
+//! ([`client`]), when a match
 //! connection's first world is in (the load's bakes are its peak) and when
 //! the match closes on the game with its world still there (the match's).
 //! The same snapshot goes to `srp_patches.log`, so a crash report carries
 //! the last one. The server only logs it.
 #![forbid(unsafe_code)]
+use crate::vostok::baker::List;
 use crate::vostok::log::{line, line_of, Piece::*};
 use crate::vostok::memory::snapshot;
 use crate::vostok::packet_recovery::Connection;
+use crate::vostok::renderer::bound_d3d11;
+use crate::vostok::system;
 use crate::vostok::{Context, Flow, GameCell, NoExit, Thread};
-use srp_validate::memory::{Entry, Moment, Usage};
+use srp_validate::memory::{Client, Entry, Folder, Moment, Renderer, System, Textures, Usage};
 use srp_validate::report::Report;
 
 /// A match connection: its client and match seed.
@@ -60,11 +67,34 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// What the game runs with, now.
+fn client(thread: &Thread) -> Client {
+    let system = match system::System::running() {
+        system::System::Windows => System::Windows,
+        system::System::Wine => System::Wine,
+    };
+    let held = crate::bake_cache::held(thread);
+    let (listed, listed_bytes) = List::saved();
+    Client {
+        system,
+        renderer: bound_d3d11(thread),
+        textures: Textures { kept: held.textures, kept_bytes: held.bytes, listed, listed_bytes },
+    }
+}
+
+fn folder(folder: Folder) -> &'static str {
+    match folder {
+        Folder::Dxvk => " (dxvk folder)",
+        Folder::System => " (system folder)",
+        Folder::Elsewhere => " (elsewhere)",
+    }
+}
+
 fn report(thread: &Thread, connection: &Connection<'_>, event: Event) {
     let (next, moment) = step(REPORTED.get(thread), event);
     REPORTED.set(thread, next);
     let Some(moment) = moment else { return };
-    let report = Report::Memory(snapshot(thread, moment));
+    let report = Report::Memory(snapshot(thread, moment, client(thread)));
     let told = connection.tell(&report);
     let Report::Memory(memory) = &report;
     for entry in memory.entries() {
@@ -91,6 +121,71 @@ fn report(thread: &Thread, connection: &Connection<'_>, event: Event) {
                         line_of(&[&head, &[Text(", used "), Dec(used), Text(", largest free "), Dec(largest_free)]])
                     }
                 }
+            }
+            Entry::Census(census) => line(&[
+                Text("memory census: image "),
+                Dec(census.image.reserved()),
+                Text("/"),
+                Dec(census.image.committed()),
+                Text(" in "),
+                Dec(census.image.allocations()),
+                Text(", mapped "),
+                Dec(census.mapped.reserved()),
+                Text("/"),
+                Dec(census.mapped.committed()),
+                Text(" in "),
+                Dec(census.mapped.allocations()),
+                Text(", private "),
+                Dec(census.private.reserved()),
+                Text("/"),
+                Dec(census.private.committed()),
+                Text(" in "),
+                Dec(census.private.allocations()),
+                Text(" (reserved/committed in allocations)"),
+            ]),
+            Entry::Client(client) => {
+                let (d3d11, place) = match client.renderer {
+                    Renderer::Unbound => ("unbound", ""),
+                    Renderer::Direct3d(place) => ("direct3d", folder(place)),
+                    Renderer::Dxvk(place) => ("dxvk", folder(place)),
+                };
+                let baked = client.textures;
+                line(&[
+                    Text("memory client: "),
+                    Text(client.system.word()),
+                    Text(", d3d11 "),
+                    Text(d3d11),
+                    Text(place),
+                    Text(", baked kept "),
+                    Dec(baked.kept),
+                    Text(" of "),
+                    Dec(baked.kept_bytes),
+                    Text(", listed "),
+                    Dec(baked.listed),
+                    Text(" of "),
+                    Dec(baked.listed_bytes),
+                ])
+            }
+            Entry::Allocation(allocation) => {
+                let owner = allocation.owner();
+                let name = owner.name();
+                let (open, file, close) = match &name {
+                    Some(name) => (" \"", name.as_str(), "\""),
+                    None => ("", "", ""),
+                };
+                line(&[
+                    Text("memory allocation "),
+                    Hex(allocation.base()),
+                    Text(" "),
+                    Text(owner.kind().word()),
+                    Text(open),
+                    Text(file),
+                    Text(close),
+                    Text(" size "),
+                    Dec(allocation.size()),
+                    Text(", committed "),
+                    Dec(allocation.committed()),
+                ])
             }
         }
     }
