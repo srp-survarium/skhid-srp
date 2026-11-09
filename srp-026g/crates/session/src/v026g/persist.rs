@@ -668,7 +668,7 @@ impl GameRepository for SqliteGameRepository {
         let mut accounts: Vec<(u32, Account)> = Vec::new();
         {
             let mut statement = transaction.prepare(
-                "SELECT account_id, name, clan_tag, generic_money, premium_until,
+                "SELECT account_id, name, clan_tag, generic_money,
                         exp_total, quest_faction, rating, rating_before,
                         active_kit, autobuy, next_item_id, next_quest_instance
                  FROM g26_accounts ORDER BY account_id",
@@ -680,23 +680,22 @@ impl GameRepository for SqliteGameRepository {
                         name: row.get(1)?,
                         clan_tag: row.get(2)?,
                         generic_money: row.get(3)?,
-                        premium_until: row.get::<_, i64>(4)?.max(0) as u64,
-                        exp_total: row.get(5)?,
+                        exp_total: row.get(4)?,
                         skills: Vec::new(),
                         reputations: Vec::new(),
-                        quest_faction: row.get(6)?,
-                        rating: row.get(7)?,
-                        rating_before: row.get(8)?,
+                        quest_faction: row.get(5)?,
+                        rating: row.get(6)?,
+                        rating_before: row.get(7)?,
                         balance: Default::default(),
                         level_stats: Default::default(),
                         kits: Vec::new(),
-                        active_kit: row.get(9)?,
-                        autobuy: row.get(10)?,
+                        active_kit: row.get(8)?,
+                        autobuy: row.get(9)?,
                         inventory: Vec::new(),
-                        next_item_id: row.get(11)?,
+                        next_item_id: row.get(10)?,
                         quests: Vec::new(),
                         quest_cooldowns: Vec::new(),
-                        next_quest_instance: row.get(12)?,
+                        next_quest_instance: row.get(11)?,
                         extras: Default::default(),
                         map_plays: Vec::new(),
                         room_settings: None,
@@ -920,8 +919,7 @@ fn write_account(
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
          ON CONFLICT(account_id) DO UPDATE SET
             name = excluded.name, clan_tag = excluded.clan_tag,
-            generic_money = excluded.generic_money,
-            premium_until = excluded.premium_until, exp_total = excluded.exp_total,
+            generic_money = excluded.generic_money, exp_total = excluded.exp_total,
             quest_faction = excluded.quest_faction, rating = excluded.rating,
             rating_before = excluded.rating_before, active_kit = excluded.active_kit,
             autobuy = excluded.autobuy, next_item_id = excluded.next_item_id,
@@ -932,10 +930,11 @@ fn write_account(
             account.name,
             account.clan_tag,
             account.generic_money,
-            // The gold column: kept in the schema and unused (the owner,
-            // 2026-11-08); a new row needs a value.
+            // The gold column and the premium account's end: kept in the
+            // schema and unused (gold removed 2026-11-08, premium
+            // 2026-11-09); a new row needs a value.
             0,
-            account.premium_until.min(i64::MAX as u64) as i64,
+            0,
             account.exp_total,
             account.quest_faction,
             account.rating,
@@ -1080,7 +1079,6 @@ mod tests {
         let mut account = Account::new("Alice");
         account.clan_tag = "SRP".into();
         account.generic_money = 123_456;
-        account.premium_until = 9_999_999_999;
         account.add_experience(40_000);
         account.add_reputation(2, 500);
         account.autobuy = true;

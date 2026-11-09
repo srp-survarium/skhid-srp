@@ -120,7 +120,7 @@ pub struct GameAccounts {
     flush_hooks: Mutex<Vec<FlushHook>>,
     /// The admin's audit rows not written yet ([`Self::write_admin`]).
     pending_actions: Mutex<Vec<AdminAction>>,
-    /// A new account wears the starter kits and has the starter premium
+    /// A new account wears the starter kits
     /// ([`tutorial::signup_grant_with`]); off only in tests ([`Self::set_starter_kit`]).
     starter_kit: AtomicBool,
 }
@@ -299,7 +299,7 @@ impl GameAccounts {
         } else {
             Account::new(name)
         };
-        tutorial::signup_grant_with(&mut account, wear_kit, quests::now());
+        tutorial::signup_grant_with(&mut account, wear_kit);
         let account = Arc::new(Mutex::new(account));
         accounts.insert(account_id, account.clone());
         drop(accounts);
@@ -308,10 +308,10 @@ impl GameAccounts {
     }
 
     /// **Testing only**: whether a new account is made with what it is
-    /// given, the starter kits and premium too (on by default). Off, it is
-    /// the stock account ([`Account::new`]: the TT-33 worn, the Mosin and
-    /// the PPSh-41 owned) with the grant's money, rounds and reputation, no
-    /// premium: the lobby's tests, written against such an account.
+    /// given, the starter kits too (on by default). Off, it is the stock
+    /// account ([`Account::new`]: the TT-33 worn, the Mosin and the PPSh-41
+    /// owned) with the grant's money, rounds and reputation: the lobby's
+    /// tests, written against such an account.
     #[cfg(any(test, feature = "test-support"))]
     pub fn set_starter_kit(&self, on: bool) {
         self.starter_kit.store(on, Ordering::Relaxed);

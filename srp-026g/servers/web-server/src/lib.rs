@@ -2245,7 +2245,6 @@ fn admin_extras_026g(
     let panels = format!(
         "<div class=\"panel p-account\">\
          <label for=au>{}</label><input id=au name=acc_user maxlength=99>\
-         <label for=ph>{}</label><input id=ph name=premium_hours placeholder=+24>\
          <label for=lv>{}</label><input id=lv name=level inputmode=numeric>\
          <label for=xp>{}</label><input id=xp name=experience placeholder=+500>\
          <label for=fa>{}</label><input id=fa name=faction inputmode=numeric>\
@@ -2262,7 +2261,6 @@ fn admin_extras_026g(
          <small>{}</small><br>\
          <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}{}",
         lang.tr("User name", "Ім'я користувача"),
-        lang.tr("Premium hours, + or -", "Години преміуму, + або -"),
         lang.tr(
             &format!("Set the level (0 to {})", session::v026g::account::MAX_LEVEL),
             &format!("Встановити рівень (0–{})", session::v026g::account::MAX_LEVEL)

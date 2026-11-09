@@ -14,7 +14,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::golden;
 use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
-use survarium::v026g::lobby::{FULL_CONDITION, KIT_PREMIUM, KIT_READY, limits};
+use survarium::v026g::lobby::{FULL_CONDITION, limits};
 use survarium::v026g::quests::FACTIONS;
 use survarium::v026g::skills::{self, SkillsTree};
 
@@ -136,8 +136,6 @@ pub struct Account {
     /// Silver, the one currency (gold was removed 2026-11-08: the balances
     /// were paid back in silver once, `persist::SqliteGameRepository::pay_back_once`).
     pub generic_money: u32,
-    /// When the premium account runs out, Unix seconds; 0 without.
-    pub premium_until: u64,
     /// All the experience earned; the level follows from it ([`level_at`]).
     pub exp_total: u32,
     /// `(skill id, points)`, only skills with points.
@@ -295,7 +293,6 @@ impl Account {
             name: cap_name(name),
             clan_tag: String::new(),
             generic_money: 0,
-            premium_until: 0,
             exp_total: 0,
             skills: Vec::new(),
             reputations: FACTIONS.iter().map(|&faction| (faction, 0)).collect(),
@@ -408,24 +405,12 @@ impl Account {
         self.kit(self.active_kit).or_else(|| self.kits.first())
     }
 
-    /// Whether its premium account holds at `now` (Unix seconds).
-    pub fn is_premium(&self, now: u64) -> bool {
-        self.premium_until > now
-    }
-
-    /// The whole hours of premium left, at least 1 while it holds.
-    pub fn premium_hours(&self, now: u64) -> Option<u32> {
-        self.is_premium(now).then(|| {
-            let hours = (self.premium_until - now).div_ceil(3600);
-            hours.min(u64::from(u32::MAX)) as u32
-        })
-    }
-
     /// Whether the kit at `index` may be used at `now`: every kit of the
-    /// account, premium or not. The original game kept a kit for a premium
-    /// account (the client's state 2, `st_premium_profile_hint`, PROVEN;
-    /// that it was the third, LIKELY); srp gives all three to everyone (the
-    /// owner's choice, 2026-10-17), so no kit is sent as [`KIT_PREMIUM`].
+    /// account. The original game kept a kit for a premium account (the
+    /// client's state 2, `KIT_PREMIUM`, PROVEN; that it was the third,
+    /// LIKELY); srp gives all three to everyone (the owner's choice,
+    /// 2026-10-17) and has no premium account (2026-11-09), so every kit is
+    /// sent as [`KIT_READY`].
     pub fn kit_usable(&self, index: usize, _now: u64) -> bool {
         index < self.kits.len()
     }
@@ -443,15 +428,6 @@ impl Account {
                 true
             }
             _ => false,
-        }
-    }
-
-    /// The state byte the client gets for the kit at `index`.
-    pub fn kit_state(&self, index: usize, now: u64) -> u8 {
-        if self.kit_usable(index, now) {
-            KIT_READY
-        } else {
-            KIT_PREMIUM
         }
     }
 
@@ -935,19 +911,12 @@ mod tests {
     }
 
     #[test]
-    fn the_third_kit_needs_no_premium() {
+    fn every_kit_is_usable() {
         let mut account = Account::new("Alice");
-        assert_eq!(account.premium_hours(100), None);
-        assert_eq!(account.kit_state(0, 100), KIT_READY);
-        assert_eq!(account.kit_state(1, 100), KIT_READY);
-        assert_eq!(account.kit_state(2, 100), KIT_READY);
-        account.premium_until = 100 + 2 * 3600 + 1;
-        assert_eq!(account.kit_state(2, 100), KIT_READY);
-        assert_eq!(account.premium_hours(100), Some(3));
-        assert!(!account.is_premium(account.premium_until));
-        // Playing the third kit when the premium runs out: it stays.
+        assert!((0..3).all(|index| account.kit_usable(index, 100)));
+        // Playing the third kit: it stays.
         account.active_kit = 3;
-        assert!(!account.settle_active_kit(account.premium_until));
+        assert!(!account.settle_active_kit(100));
         assert_eq!(account.active_kit, 3);
         // An active kit that is none of the account's: the first kit.
         account.active_kit = 9;

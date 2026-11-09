@@ -1,8 +1,10 @@
 package
 {
-   import survarium.buttons.ButtonPremium;
+   import survarium.buttons.ButtonClick;
    
-   public dynamic class SrvBtnPrem extends ButtonPremium
+   // The stock premium button's symbol: the top panel places it, and topPanelLeftContainer_56 puts the
+   // lobby button in its place and size and takes it away.
+   public dynamic class SrvBtnPrem extends ButtonClick
    {
       
       public function SrvBtnPrem()

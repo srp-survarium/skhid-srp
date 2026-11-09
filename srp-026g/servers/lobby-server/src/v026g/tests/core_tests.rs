@@ -52,9 +52,8 @@ impl World {
     fn with_settings(settings: Settings) -> Self {
         let store: &'static SessionStore = Box::leak(Box::new(SessionStore::new()));
         let accounts: &'static GameAccounts = Box::leak(Box::new(GameAccounts::new()));
-        // The tests are written against the stock first kit (the TT-33) and
-        // no premium: a new account has neither starter kit nor starter
-        // premium unless a test turns them on.
+        // The tests are written against the stock first kit (the TT-33): a
+        // new account has no starter kit unless a test turns it on.
         accounts.set_starter_kit(false);
         let results: &'static Results = Box::leak(Box::new(Results::new()));
         let host: &'static TestHost = Box::leak(Box::new(TestHost::default()));
@@ -710,9 +709,9 @@ fn what_srp_does_not_have_is_refused_never_ignored() {
         (0x46, u32s(6, &[99], &[]), "st_cannot_select_rerolled_modification"),
         (0x46, u32s(7, &[1, 2], &[0xFF]), "st_cannot_select_rerolled_modification"),
         (0x46, u32s(8, &[1, 2, 3], &[]), "st_cannot_select_rerolled_modification"),
-        // A shop offer, premium with bonuses and with a discount.
-        // (An offer that is none; no discount was offered.)
+        // A shop offer that is none.
         (0x47, u32s(2, &[99, 0, 0], &[]), "st_cannot_buy_item"),
+        // The answers to a premium offer: there is no premium, not read.
         (0x47, u32s(5, &[1, 0, 0, 0, 0], &[1]), "st_cannot_buy_item"),
         (0x47, u32s(6, &[1, 0], &[]), "st_cannot_buy_item"),
         // A repair: srp has none, not read.
@@ -795,7 +794,7 @@ fn the_queries_are_answered() {
     world.ask(alice, request::query(0x3C));
     assert!(matches!(world.take(alice)[..], [Decoded::Quests(_)]));
     world.ask(alice, request::query(0x3E));
-    assert!(matches!(world.take(alice)[..], [Decoded::Services { .. }]));
+    assert!(matches!(world.take(alice)[..], [Decoded::Services]));
     world.ask(alice, request::query(0x40));
     assert!(matches!(
         world.take(alice)[..],
@@ -1044,10 +1043,9 @@ fn a_kit_without_a_weapon_is_not_loaded_in_a_match() {
     // The second kit gets the first one's weapon and ammunition: loaded.
     account.kits[1].slots = account.kits[0].slots;
     assert_eq!(states(&account), [0, 0, 2]);
-    // The third kit is the account's to use in the lobby without premium,
-    // and is still not loaded while it is empty.
-    assert!(!account.is_premium(1_000));
-    assert_eq!(account.kit_state(2, 1_000), 0);
+    // The third kit is the account's to use in the lobby, and is still not
+    // loaded while it is empty.
+    assert!(account.kit_usable(2, 1_000));
     assert_eq!(states(&account), [0, 0, 2]);
     account.kits[2].slots = account.kits[0].slots;
     assert_eq!(states(&account), [0, 0, 0]);
@@ -1055,7 +1053,7 @@ fn a_kit_without_a_weapon_is_not_loaded_in_a_match() {
     // lets the player have such a kit.
     account.kits[1].slots[7] = None;
     account.kits[1].slots[10] = None;
-    assert_eq!(account.kit_state(1, 1_000), 0);
+    assert!(account.kit_usable(1, 1_000));
     assert_eq!(states(&account), [0, 2, 0]);
 }
 
@@ -2387,47 +2385,17 @@ fn a_finished_match_pays_its_players_and_shows_them_the_results() {
     world.ask(carol, request::player_details(1, match_id));
     assert!(world.take(carol).is_empty());
 
-    // The screen's "buy premium" (`47 02 <offer> <match>`): three days
-    // (offer 1) for 20,000 silver (200 gold), and the premium half the
-    // screen promised.
-    let half = world
-        .results
-        .find(match_id)
-        .unwrap()
-        .player(world.ids[alice].0)
-        .unwrap()
-        .reward
-        .premium_bonus;
+    // Premium time is offered no more, from the screen or anywhere: the
+    // results screen's old "buy premium" (`47 02 <offer> <match>`) is
+    // refused and gives nothing.
     world.change(alice, |account| account.generic_money += 100_000);
     let paid = world.account(alice).clone();
     world.ask(alice, request::buy_offer(1, match_id));
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::OfferBought)
-    ));
-    assert!(decoded.iter().any(|message| matches!(
-        message,
-        Decoded::Services {
-            premium_hours: Some(72)
-        }
-    )));
-    {
-        let account = world.account(alice);
-        assert!(account.generic_money + 20_000 >= paid.generic_money + half.0);
-        assert_eq!(account.exp_total, paid.exp_total + half.1);
-    }
-    // Once: a second purchase adds time and no second half.
-    let paid = world.account(alice).clone();
-    world.change(alice, |account| account.generic_money += 60_000);
-    world.ask(alice, request::buy_offer(1, match_id));
-    assert!(world.take(alice).iter().any(|message| matches!(
-        message,
-        Decoded::Services {
-            premium_hours: Some(144)
-        }
-    )));
-    assert_eq!(world.account(alice).exp_total, paid.exp_total);
+    assert_eq!(
+        denial(&world.take(alice), 0x47).as_deref(),
+        Some("st_cannot_buy_item")
+    );
+    assert_eq!(*world.account(alice), paid);
     world.assert_clean();
 }
 
@@ -2758,19 +2726,12 @@ fn told_money(decoded: &[Decoded]) -> Option<(u32, u32)> {
     })
 }
 
-fn told_premium(decoded: &[Decoded]) -> Option<Option<u32>> {
-    decoded.iter().rev().find_map(|message| match message {
-        Decoded::Services { premium_hours } => Some(*premium_hours),
-        _ => None,
-    })
-}
-
 #[test]
 fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let decoded = world.take(alice);
-    // The shop: seven premium times and seven bundles.
+    // The shop: the seven bundles.
     let records = decoded
         .iter()
         .find_map(|message| match message {
@@ -2778,8 +2739,8 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
             _ => None,
         })
         .expect("the shop");
-    assert_eq!(records, premium::Settings::default().shop_records());
-    assert_eq!(records.len(), 14);
+    assert_eq!(records, premium::shop_records());
+    assert_eq!(records.len(), 7);
     // The price list has the premium items too.
     let prices_sent = decoded
         .iter()
@@ -2827,11 +2788,11 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
         .expect("the daily bonus");
     // No reward (its gold is gone, the owner's of 2026-11-08): silver, 0.
     assert_eq!(bonus, (vec![0], 214, 0, false, true));
-    // No discount is set: none is offered.
+    // No services: there is no premium account.
     assert!(
-        !decoded
+        decoded
             .iter()
-            .any(|message| matches!(message, Decoded::PremiumDiscount(_)))
+            .any(|message| matches!(message, Decoded::Services))
     );
     // `43 00`: the bonus again.
     world.ask(alice, request::query(0x43));
@@ -2858,10 +2819,10 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
     )));
 }
 
-/// An account without premium: the third kit comes as one it may use, takes
-/// a move and goes to Play.
+/// The third kit comes as one the account may use, takes a move and goes
+/// to Play.
 #[test]
-fn the_third_kit_is_filled_and_played_without_premium() {
+fn the_third_kit_is_filled_and_played() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let decoded = world.take(alice);
@@ -2873,8 +2834,6 @@ fn the_third_kit_is_filled_and_played_without_premium() {
     };
     let states: Vec<u8> = own.body.kits.iter().map(|kit| kit.state).collect();
     assert_eq!(states, [survarium::v026g::lobby::KIT_READY; 3]);
-    let now = session::v026g::quests::now();
-    assert!(!world.account(alice).is_premium(now));
     // The first kit's gear in the third, then its pistol out and back in
     // by the client's own moves.
     world.change(alice, |account| {
@@ -2899,49 +2858,25 @@ fn the_third_kit_is_filled_and_played_without_premium() {
 }
 
 #[test]
-fn premium_time_is_bought_for_silver() {
+fn premium_time_is_sold_no_more() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     world.take(alice);
-    world.change(alice, |account| account.generic_money = 100_000);
-    let silver = world.account(alice).generic_money;
-    // The third kit is every account's, premium or not.
-    world.ask(alice, request::active_kit(3));
-    assert!(matches!(
-        world.take(alice)[..],
-        [Decoded::Permitted(Permitted::ActiveKit(3))]
-    ));
-
-    // A day (offer 7) for 100 gold, in silver.
-    world.ask(alice, request::buy_offer(7, 0));
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::OfferBought)
-    ));
-    assert_eq!(told_premium(&decoded), Some(Some(24)));
-    assert_eq!(told_money(&decoded), Some((silver - 10_000, 0)));
-    // The services say so when asked.
+    world.change(alice, |account| account.generic_money = 1_000_000);
+    // A day (offer 7), a year (6), and no such offer: refused, nothing
+    // taken.
+    for offer in [7, 6, 99] {
+        world.ask(alice, request::buy_offer(offer, 0));
+        assert_eq!(
+            denial(&world.take(alice), 0x47).as_deref(),
+            Some("st_cannot_buy_item"),
+            "{offer}"
+        );
+    }
+    assert_eq!(world.account(alice).generic_money, 1_000_000);
+    // The services list nothing when asked.
     world.ask(alice, request::query(0x3E));
-    assert!(matches!(
-        world.take(alice)[..],
-        [Decoded::Services {
-            premium_hours: Some(24)
-        }]
-    ));
-
-    // No such offer, and not the silver for a year: the game's texts.
-    world.ask(alice, request::buy_offer(99, 0));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_buy_item")
-    );
-    world.ask(alice, request::buy_offer(6, 0));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_not_enougth_money")
-    );
-    assert_eq!(world.account(alice).generic_money, silver - 10_000);
+    assert!(matches!(world.take(alice)[..], [Decoded::Services]));
     world.assert_clean();
 }
 
@@ -3074,172 +3009,6 @@ fn the_excluded_flags_and_emblems_are_not_sold() {
     world.assert_clean();
 }
 
-/// `47 05 <offer> <discount> <money> <experience> <reputation> <faction>`.
-fn accept_with_bonuses(offer_id: u32, discount: f32) -> (u8, Vec<u8>) {
-    let mut body = vec![5];
-    body.extend(offer_id.to_le_bytes());
-    body.extend(discount.to_le_bytes());
-    for value in [0_u32, 0, 0] {
-        body.extend(value.to_le_bytes());
-    }
-    body.push(0);
-    (0x47, body)
-}
-
-/// `47 06 <offer> <discount>`.
-fn accept_with_discount(offer_id: u32, discount: f32) -> (u8, Vec<u8>) {
-    let mut body = vec![6];
-    body.extend(offer_id.to_le_bytes());
-    body.extend(discount.to_le_bytes());
-    (0x47, body)
-}
-
-#[test]
-fn a_discount_the_operator_set_is_offered_and_taken() {
-    let mut world = World::new();
-    world.core.shop.discount_percent = 25;
-    let alice = world.connect("Alice");
-    let decoded = world.take(alice);
-    // `A9`: the discount, for an account without premium.
-    assert!(
-        decoded.iter().any(
-            |message| matches!(message, Decoded::PremiumDiscount(discount) if *discount == 0.25)
-        )
-    );
-    world.change(alice, |account| account.generic_money = 100_000);
-    let silver = world.account(alice).generic_money;
-    // Closing the window (`-1`) is answered with nothing.
-    world.ask(alice, accept_with_discount(u32::MAX, -1.0));
-    assert!(world.take(alice).is_empty());
-    // Another discount than the one offered is refused.
-    world.ask(alice, accept_with_discount(7, 0.9));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_buy_item")
-    );
-    // A day at a quarter off: 7,500 silver.
-    world.ask(alice, accept_with_discount(7, 0.25));
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::OfferBought)
-    ));
-    assert_eq!(told_premium(&decoded), Some(Some(24)));
-    assert_eq!(told_money(&decoded), Some((silver - 7_500, 0)));
-    // With premium there is no discount to take.
-    world.ask(alice, accept_with_discount(7, 0.25));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_buy_item")
-    );
-    // Nor is one offered at the next sign-in.
-    let ids = world.ids[alice];
-    world.store.end_session(ids.1);
-    world.advance(Duration::from_secs(2));
-    let session = world.new_session(ids.0);
-    let again = world.connect_session((ids.0, session));
-    assert!(
-        !world
-            .take(again)
-            .iter()
-            .any(|message| matches!(message, Decoded::PremiumDiscount(_)))
-    );
-    world.assert_clean();
-}
-
-#[test]
-fn the_offer_after_a_match_gives_the_premium_half() {
-    let mut world = World::new();
-    world.core.shop.discount_percent = 20;
-    let alice = world.connect("Alice");
-    let bob = world.connect("Bob");
-    let (match_id, alice_team) = world.match_of(alice, bob);
-    world.end_match(match_id, alice_team);
-    world.settle();
-    let decoded = world.take(alice);
-    world.take(bob);
-    // `A8` after the screen: the premium half of the match, an hour to
-    // take it, a fifth off.
-    let half = world
-        .results
-        .find(match_id)
-        .unwrap()
-        .player(world.ids[alice].0)
-        .unwrap()
-        .reward
-        .premium_bonus;
-    assert!(half.0 > 0 && half.1 > 0);
-    let screen = position(&decoded, |message| {
-        matches!(message, Decoded::MatchStats { .. })
-    })
-    .expect("the results screen");
-    let offer = position(&decoded, |message| {
-        matches!(message, Decoded::PremiumStore { .. })
-    })
-    .expect("the offer");
-    assert!(screen < offer);
-    assert!(matches!(
-        decoded[offer],
-        Decoded::PremiumStore { seconds: 0, values, factor }
-            if values == [half.0, half.1, half.2, 3600] && factor == 0.2
-    ));
-    // The daily bonus as the match left it: Alice's first victory today.
-    assert!(decoded.iter().any(|message| matches!(
-        message,
-        Decoded::DailyBonus { progress, show_window: false, .. } if progress == &[1]
-    )));
-
-    // A wrong discount is refused; the offer stands.
-    world.ask(alice, accept_with_bonuses(7, 0.5));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_buy_item")
-    );
-    world.change(alice, |account| account.generic_money += 100_000);
-    let before = world.account(alice).clone();
-    world.ask(alice, accept_with_bonuses(7, 0.2));
-    let decoded = world.take(alice);
-    // `83 47 05`: the client shows "premium activated" with the rewards.
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::NoEffect {
-            op: 0x47,
-            event: Some(5)
-        })
-    ));
-    assert_eq!(told_premium(&decoded), Some(Some(24)));
-    let after = world.account(alice).clone();
-    // A day at a fifth off: 8,000 silver; the half's money and experience.
-    assert!(after.generic_money + 8_000 >= before.generic_money + half.0);
-    assert_eq!(after.exp_total, before.exp_total + half.1);
-    assert_eq!(
-        told_money(&decoded),
-        Some((after.generic_money, 0))
-    );
-    assert!(
-        decoded
-            .iter()
-            .any(|message| matches!(message, Decoded::Skills { .. }))
-    );
-    // Once: the offer is gone with its purchase.
-    world.ask(alice, accept_with_bonuses(7, 0.2));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_buy_item")
-    );
-    assert_eq!(world.account(alice).exp_total, after.exp_total);
-
-    // Bob's offer ran out: refused.
-    let bob_id = world.ids[bob].0;
-    world.core.premium_offers.get_mut(&bob_id).unwrap().1 = 0;
-    world.ask(bob, accept_with_bonuses(7, 0.2));
-    assert_eq!(
-        denial(&world.take(bob), 0x47).as_deref(),
-        Some("st_cannot_buy_item")
-    );
-    world.assert_clean();
-}
-
 #[test]
 fn a_nickname_is_checked_and_changed() {
     let mut world = World::new();
@@ -3354,8 +3123,12 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
     // The start is what the client is first told: no window for it.
     let decoded = world.take(alice);
     assert_eq!(told_money(&decoded), Some((30_000, 0)));
-    // A month of premium: 720 hours left.
-    assert_eq!(told_premium(&decoded), Some(Some(720)));
+    // No premium: the services list none.
+    assert!(
+        decoded
+            .iter()
+            .any(|message| matches!(message, Decoded::Services))
+    );
     // Its inventory, the respirator's and the gloves' modifications too.
     let held: Vec<(u16, Vec<u32>)> = world
         .client(alice)

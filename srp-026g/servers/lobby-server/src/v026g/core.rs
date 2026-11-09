@@ -200,9 +200,6 @@ pub(super) struct Core<'a> {
     /// The premium shop's settings (`session::v026g::premium`): the
     /// environment's.
     pub shop: premium::Settings,
-    /// The offer made with a match's results (`A8`), by account: the match
-    /// and when the offer ends, Unix seconds (`shop`).
-    pub premium_offers: HashMap<u32, (u32, u64)>,
     next_tick: Instant,
     /// The ranked players, and the count of accounts they were counted at.
     ranked: (usize, u32),
@@ -280,7 +277,6 @@ impl<'a> Core<'a> {
             matches: HashMap::new(),
             rng: Rng::from_time(),
             shop: *premium::settings(),
-            premium_offers: HashMap::new(),
             ranked: (usize::MAX, 0),
             squads_dirty: false,
             clan: Default::default(),
@@ -394,10 +390,7 @@ impl<'a> Core<'a> {
     pub fn push_account(&mut self, who: &Who) {
         let (push, balance) = {
             let account = who.account.locked();
-            (
-                wire::after_change(&account, quests::now()),
-                account.generic_money,
-            )
+            (wire::after_change(&account), account.generic_money)
         };
         self.accounts.mark_dirty(who.account_id);
         match push {
@@ -737,7 +730,7 @@ impl<'a> Core<'a> {
             self.notify(&who, &notices);
             // Its clan, and the clan invites that waited.
             self.clan_sign_in(&who);
-            // The daily bonus and a premium discount (`shop`).
+            // The daily bonus (`shop`).
             self.sign_in_extras(&who);
         }
         // A match that ended while the account was away: its screen. The
