@@ -419,6 +419,27 @@ fn the_game_is_told_the_playback_after_its_world_each_change_and_each_seek() {
     bench.assert_no_faults();
 }
 
+/// A paused replay does not hold its session for as long as the game stays
+/// open: after [`PAUSED_MOST`] it is shown the end, as at the recording's,
+/// and the session goes (the sessions are few).
+#[test]
+fn a_replay_paused_too_long_ends_and_frees_its_session() {
+    use crate::v026g::game::playback::PAUSED_MOST;
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(2_000);
+    control(&mut bench, at, 1, Op::Pause(true));
+    bench.run_long(PAUSED_MOST.as_millis() as u64 - 1_000);
+    assert!(!bench.clients[at].told_to_leave, "still within its pause");
+    assert!(bench.until(2_000, |b| b.clients[at].told_to_leave));
+    assert!(replays.watches().holds(WATCHER_ACCOUNT), "not yet gone");
+    // The session is over once the farewell had its time.
+    bench.run_long(10_000);
+    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
+    bench.assert_no_faults();
+}
+
 /// A game whose clock did not stop or scale as told reports worlds far from
 /// the playback: started again from where the playback is.
 #[test]

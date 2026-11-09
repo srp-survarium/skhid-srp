@@ -63,6 +63,12 @@ const CONTROL_EVERY: Duration = Duration::from_millis(250);
 /// A paused game is pinged this often: nothing else goes to it, and a game
 /// ends a match link silent for 5 s.
 const PAUSED_PING_EVERY: Duration = Duration::from_secs(1);
+/// A game paused this long is shown the recording's end: its session is one
+/// of a few ([`DEFAULT_MAX_SESSIONS`]) and nobody at the keyboard would keep
+/// the others' out for as long as the game stays open.
+///
+/// [`DEFAULT_MAX_SESSIONS`]: session::v026g::replay_watch::DEFAULT_MAX_SESSIONS
+pub(crate) const PAUSED_MOST: Duration = Duration::from_secs(5 * 60);
 /// A game whose reported world is this far from where the playback has it
 /// ([`DRIFT_REPORTS`] in a row) is started again from a world: the
 /// fallback for a game that did not freeze or scale its clock as told.
@@ -365,7 +371,8 @@ enum Clock {
         at: u32,
     },
     /// Stopped at `at`; its game pinged next at `ping`.
-    Paused { at: u32, ping: Instant },
+    /// `since`: when it paused, or last sought.
+    Paused { at: u32, ping: Instant, since: Instant },
 }
 
 /// What became of a playback.
@@ -519,6 +526,7 @@ impl Playback {
                     self.clock = Clock::Paused {
                         at,
                         ping: now + PAUSED_PING_EVERY,
+                        since: now,
                     };
                 }
             }
@@ -578,7 +586,7 @@ impl Playback {
         self.clock = match self.clock {
             Clock::Loading { .. } => Clock::Loading { at },
             Clock::Playing { .. } => Clock::Playing { since: now, at },
-            Clock::Paused { ping, .. } => Clock::Paused { at, ping },
+            Clock::Paused { ping, .. } => Clock::Paused { at, ping, since: now },
         };
         (self.inputs, self.events) = self.recording.due(at);
         self.spectator.wait_again();
@@ -651,19 +659,31 @@ impl Playback {
             Clock::Loading { at } if self.spectator.has_loaded() => {
                 self.clock = Clock::Playing { since: now, at };
             }
-            Clock::Paused { at, ping } if now >= ping => {
+            Clock::Paused { at, ping, since } if now >= ping => {
                 self.spectator.ping();
                 self.clock = Clock::Paused {
                     at,
                     ping: now + PAUSED_PING_EVERY,
+                    since,
                 };
             }
             _ => {}
         }
         let at = self.position(now);
         let mut ended = None;
-        if at >= self.recording.end && !self.spectator.is_leaving() {
-            log::info!("Replay {session_id:#x}: the recording is over");
+        let paused_out = matches!(
+            self.clock,
+            Clock::Paused { since, .. } if now.saturating_duration_since(since) >= PAUSED_MOST
+        );
+        if (at >= self.recording.end || paused_out) && !self.spectator.is_leaving() {
+            log::info!(
+                "Replay {session_id:#x}: {}",
+                if paused_out {
+                    "paused too long, its session goes to someone else"
+                } else {
+                    "the recording is over"
+                }
+            );
             self.spectator.farewell(at, now);
             ended = Some(Ended::Over);
         }
