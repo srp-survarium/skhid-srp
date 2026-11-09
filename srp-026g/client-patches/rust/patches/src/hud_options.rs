@@ -38,6 +38,12 @@
 //!   the Vulkan loader loads, may be loaded under the same name). A marker
 //!   left is a start with DXVK that never showed its login screen: plain
 //!   DirectX, and the setting goes off;
+//! - every Present of the game's swap chain, right before it
+//!   (`render_output.present`, on the window's own thread): with DXVK, a window
+//!   DXGI refuses (`WindowStyles::dxgi_takes`: topmost with no frame style,
+//!   as DXVK's fullscreen and the game's set_size leave it) gets WS_POPUP, so
+//!   the Vulkan swap chain AMD's driver makes through DXGI on it is made
+//!   (docs/notes/dxvk-option.md, "The fullscreen window");
 //! - the login screen shown (`login_menu.activated`, after patch 88): the
 //!   renderer works, the marker goes; after a failed DXVK start the setting
 //!   is turned off there (user.cfg has run by then) and saved;
@@ -56,11 +62,12 @@ use core::ffi::CStr;
 
 use crate::vostok::language::ConsoleString;
 use crate::vostok::log::{Piece::*, line};
-use crate::vostok::renderer::{DelayedImport, Vulkan, VulkanVersion, best_vulkan, bind_delayed_import, exists_beside_exe,
-                              is_loaded, load_beside_exe, set_environment, with_user_cfg};
+use crate::vostok::renderer::{DelayedImport, OutputWindow, Vulkan, VulkanVersion, WindowStyles, best_vulkan,
+                              bind_delayed_import, exists_beside_exe, is_loaded, load_beside_exe, set_environment,
+                              with_user_cfg};
 use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, SliderSteps, create_file, delete_file, file_exists,
                               save_user_config};
-use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, NoExit, Thread};
+use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, Lock, NoExit, Thread};
 
 /// A Settings checkbox kept in user.cfg as `<name> on|off`: the Settings ask
 /// for it by the same name; its label is a dictionary key. Off until the
@@ -341,7 +348,7 @@ impl VulkanOptions {
     /// without DXVK, none but the saved ones (nothing to restart for but the
     /// Renderer itself).
     fn running(thread: &Thread) -> VulkanOptions {
-        match RENDERER.get(thread) {
+        match renderer(thread) {
             Renderer::Dxvk(options) => options,
             _ => VulkanOptions::saved(thread),
         }
@@ -539,15 +546,30 @@ pub fn step(state: Renderer, event: Event) -> (Renderer, Action) {
     }
 }
 
-static RENDERER: GameCell<Renderer> = GameCell::new(Renderer::Undecided);
+/// A lock, by way of defence: `on_present` reads it at each Present. The
+/// report's stack shows Present on the game's main thread, the one that
+/// pumps the window's messages and then ticks the engine (engine_world::run
+/// 0x18B30), where the start and the login screen run too; no second thread
+/// is shown.
+static RENDERER: Lock<Renderer> = Lock::new(Renderer::Undecided);
+
+/// The last window styles DXGI refused that `on_present` made a popup.
+static REFUSED: Lock<Option<WindowStyles>> = Lock::new(None);
+
+fn renderer(thread: &Thread) -> Renderer {
+    RENDERER.with(thread, |state| *state)
+}
 
 /// `event` through [`step`], its action done; an action that finds something
 /// (the Vulkan look) goes on with it.
 fn drive(thread: &Thread, event: Event) {
     let mut event = Some(event);
     while let Some(now) = event.take() {
-        let (next, action) = step(RENDERER.get(thread), now);
-        RENDERER.set(thread, next);
+        let (next, action) = RENDERER.with(thread, |state| {
+            let (next, action) = step(*state, now);
+            *state = next;
+            (next, action)
+        });
         match action {
             Action::Nothing => {}
             Action::Unmark => delete_file(thread, DXVK_MARKER),
@@ -744,7 +766,7 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
         let saved = DIGITS[usize::from(setting.on(thread))];
         // the renderer this process runs ("1": DXVK loaded at its start), or the option's value it runs
         let running = if core::ptr::eq(setting, &DXVK) {
-            Some(DIGITS[usize::from(matches!(RENDERER.get(thread), Renderer::Dxvk(_)))])
+            Some(DIGITS[usize::from(matches!(renderer(thread), Renderer::Dxvk(_)))])
         } else {
             VulkanOptions::running(thread).shown(setting.name)
         };
@@ -781,6 +803,39 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
 /// the setting goes off (user.cfg has run by now).
 pub fn on_login(ctx: &mut Context<'_>) -> Flow<NoExit> {
     drive(ctx.thread(), Event::LoginShown);
+    Flow::Continue
+}
+
+/// res_render_output::present right before the game's IDXGISwapChain::Present
+/// (0x3CF8FF), on the window's own thread: DXVK makes its Vulkan swap chain
+/// inside a Present (its first, and again after a resize or a fullscreen change), and
+/// AMD's Windows driver makes a DXGI swap chain on the game's window for it,
+/// which DXGI refuses for a topmost window with no frame style: DXVK's
+/// fullscreen takes WS_OVERLAPPEDWINDOW's styles away and makes it topmost
+/// (a start in fullscreen, the 2026-11-08 report), the game's set_size sets
+/// style 0 (Settings to fullscreen). So under DXVK such a window gets WS_POPUP
+/// first, once for each refused state (a style Windows does not take is not
+/// set and said again at every Present); any other window, and every window
+/// without DXVK, is left as it is.
+pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if !matches!(renderer(thread), Renderer::Dxvk(_)) {
+        return Flow::Continue;
+    }
+    let Some(window) = OutputWindow::at_present(ctx) else { return Flow::Continue };
+    let before = window.styles(thread);
+    let refused = before.for_dxgi();
+    // a window DXGI takes ends a refused state: the same styles later are a new one
+    let last = REFUSED.with(thread, |last| core::mem::replace(last, refused.map(|_| before)));
+    if let Some(style) = refused
+        && last != Some(before)
+    {
+        window.set_style(thread, style);
+        let after = window.styles(thread);
+        line(&[Text("dxvk: the window DXGI refuses (style "), Hex(before.style), Text(", extended "),
+               Hex(before.extended), Text(") made a popup: style "), Hex(after.style),
+               Text(if after.dxgi_takes() { ", DXGI takes it" } else { ", DXGI still refuses it" })]);
+    }
     Flow::Continue
 }
 

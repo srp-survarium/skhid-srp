@@ -3400,3 +3400,11 @@ va	status	ref_021d	name
 0x002ffc40	inferred-high		survarium::inventory_item::degrade_per_death
 0x002ffc80	inferred-medium		survarium::inventory_item::degrade_per_use
 0x002da790	inferred-medium		survarium::base_player::unload
+0x00014020	inferred-high	0x00012d86	vostok::engine::engine_world::on_alttab
+0x00018ac0	inferred-high		vostok::engine::engine_world::process_messages
+0x00018b30	inferred-high	0x00015871	vostok::engine::engine_world::run
+0x001ed430	inferred-medium		survarium::game::on_fullscreen_alttab
+0x001ed450	inferred-medium	0x0015422f	survarium::game::on_alttab
+0x003cfdb0	inferred-medium		vostok::render::res_render_output::apply_fullscreen_state
+0x003cfe20	inferred-medium		vostok::render::res_render_output::goto_fullscreen
+0x003cfe80	inferred-medium	0x00274fc2	vostok::render::res_render_output::minimize
