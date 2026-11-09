@@ -137,6 +137,19 @@ down) when you use artifact? Note that your vision should still be clear")
   The twin keeps them (versions 1 and 2 showed too little in the first person). The haze
   (`distortion`) is disabled in the stock glow and costs nothing. Previews:
   private/renders/particles/.
+- What a glow costs (the engine's source, vostok v0.10b `sources/vostok/particle`, LIKELY the same
+  in 0.26g, whose exe names only "LOD 0" too): `particle_world::tick` ticks every playing system,
+  seen or not; `particle_emitter_instance::tick` runs, for each live particle, every action that
+  updates (color_over_lifetime: `color_matrix::evaluate`; turbulence, size and light curves:
+  `curve_line` evaluations; billboard; trail); the initial actions (size, animated domain,
+  velocity) run once at a particle's birth. The renderer draws each seen emitter with one draw of
+  its own (`render_particle_emitter_instance::render_sprites`: four vertices a particle, its
+  material's constants a draw). The `up` puffs (colour, turbulence, velocity) are the dearest per
+  particle, the rays (no per-tick action but the billboard) the cheapest; each `up_light` particle
+  is also a point light of the scene. No distance limit can be set in content:
+  `particle_system::load_from_config` makes one LOD and reads only "LOD 0" ("TODO: Iterate all
+  lods"), so `check_lods` never switches; a cap on all particles exists only in the engine
+  (`particle_world::m_max_particles`, which scales every emitter's rate down past it).
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.
