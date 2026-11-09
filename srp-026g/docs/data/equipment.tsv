@@ -129,7 +129,7 @@ eq046_edge_back_6	Stalker's backpack	backpack	9	The Fringe Settlers			4.5	Ammo b
 scav_back_7	Field radio	backpack	9	Scavengers			4	Respawn time -0.25	Weight, Regeneration, Weight limit	
 bm_back_8	Life support system M-1	backpack	12	Black Market			5	Regeneration +12%, Stamina regeneration +8%	Weight, Weight limit	
 scav_back_8	Big backpack	backpack	12	Scavengers			6	Item slots +1, Pocket capacity +2	Weight, Regeneration, Weight limit	
-eq046_edge_back_7	Token	backpack	13	The Fringe Settlers			3	Artifact container +1	Weight, Regeneration, Weight limit	
+eq046_edge_back_7	Token	backpack	10	The Fringe Settlers			3	Artifact container +1	Weight, Regeneration, Weight limit	
 bm_back_9	Antiradar Veil	backpack	14	Black Market			4	Item slots +1, Respawn time -0.2	Weight, Regeneration, Weight limit	
 edge_back_5	"Wanderer" Container	backpack	14	The Fringe Settlers			4	Artifact container +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
 eq069_leagues_back_5	Soldier's backpack	backpack	14	Scavengers			8	Ammo bags +2, Item slots +1, Pocket capacity +2	Weight, Regeneration, Weight limit	
