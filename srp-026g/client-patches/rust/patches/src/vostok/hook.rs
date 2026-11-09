@@ -160,8 +160,8 @@ mod tests {
 
 /// A hook its patch installs at run time (`install = "on_demand"`,
 /// hooks_026g.py): its site keeps the game's bytes in the exe until
-/// [`install_on_demand`] writes the jump to its entry. Only the generated
-/// glue makes one (`<patch>_on_demand()`).
+/// vostok writes the jump to its entry (`unlock_on_demand`, then
+/// `Unlocked::write`). Only the generated glue makes one (`<patch>_on_demand()`).
 #[derive(Clone, Copy, Debug)]
 pub struct OnDemand {
     site: u32,
@@ -185,64 +185,117 @@ impl OnDemand {
     }
 }
 
-/// Why [`install_on_demand`] wrote nothing, or not everything.
+/// Why [`unlock_on_demand`] refused: nothing written, every page as it was.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InstallRefused {
-    /// A site's bytes are not the game's (someone wrote there): nothing written.
+    /// A site's bytes are not the game's (someone wrote there), or its span
+    /// is not 5 to 32 bytes.
     Changed { site: u32 },
-    /// kernel32 refused to make a site writable: the sites before it are installed.
+    /// kernel32 refused to make a site writable.
     Protect { site: u32 },
+    /// More sites than [`Unlocked`] keeps protections for.
+    TooMany,
 }
 
-/// Writes each site's jump to its entry (a `jmp rel32`, then nops to the
-/// span's end): every site's bytes checked first, each page made writable
-/// for the write and given its protection back, the instruction cache
-/// flushed.
-///
-/// # Safety
-/// No other thread may be running any of the sites' code while they are
-/// written (the patch installs them while only the main thread runs).
-pub unsafe fn install_on_demand(_: &Thread, sites: &[OnDemand]) -> Result<(), InstallRefused> {
-    const PAGE_EXECUTE_READWRITE: u32 = 0x40;
-    for site in sites {
-        // SAFETY: the site's span is the game's code, mapped and readable.
-        let now = unsafe { core::slice::from_raw_parts(site.site as usize as *const u8, site.original.len()) };
-        if now != site.original || !(5..=32).contains(&site.original.len()) {
-            return Err(InstallRefused::Changed { site: site.site });
+/// Sites whose bytes were checked to be the game's and whose pages are
+/// writable now: [`Unlocked::write`] writes every jump; dropped unwritten,
+/// each page gets its protection back and nothing was written.
+pub(in crate::vostok) struct Unlocked<'s> {
+    sites: &'s [OnDemand],
+    old: [u32; Unlocked::MOST],
+    made: usize,
+}
+
+impl Unlocked<'_> {
+    const MOST: usize = 16;
+
+    fn restore(&mut self) {
+        for (site, &old) in self.sites.iter().zip(&self.old).take(self.made) {
+            let mut was = 0u32;
+            // SAFETY: the exe's import on a span `unlock_on_demand` made writable.
+            unsafe { (crate::raw::engine_virtual_protect)(site.site as usize as *mut c_void, site.original.len() as u32, old, &mut was) };
         }
+        self.made = 0;
     }
-    // SAFETY: kernel32 is loaded in every process; its export's address or null.
-    let flush = unsafe {
-        let kernel32 = (crate::raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
-        if kernel32.is_null() {
-            None
-        } else {
-            core::ptr::NonNull::new((crate::raw::engine_get_proc_address)(kernel32, c"FlushInstructionCache".as_ptr().cast()))
+
+    /// Writes each site's jump to its entry (a `jmp rel32`, then nops to the
+    /// span's end), gives each page its protection back and flushes the
+    /// instruction cache.
+    pub(in crate::vostok) fn write(mut self) {
+        // SAFETY: kernel32 is loaded in every process; its export's address or null.
+        let flush = unsafe {
+            let kernel32 = (crate::raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
+            if kernel32.is_null() {
+                None
+            } else {
+                core::ptr::NonNull::new((crate::raw::engine_get_proc_address)(kernel32, c"FlushInstructionCache".as_ptr().cast()))
+            }
+        };
+        for site in self.sites {
+            let at = site.site as usize as *mut u8;
+            let relative = site.entry.wrapping_sub(site.site.wrapping_add(5));
+            let mut bytes = [0x90u8; 32];
+            bytes[0] = 0xE9;
+            bytes[1..5].copy_from_slice(&relative.to_le_bytes());
+            // SAFETY: the span (5 to 32 bytes, checked), writable now; unlock_on_demand's
+            // contract: no thread runs it.
+            unsafe { core::ptr::copy_nonoverlapping(bytes.as_ptr(), at, site.original.len()) };
         }
-    };
-    for site in sites {
-        let at = site.site as usize as *mut u8;
-        let length = site.original.len();
-        let mut old = 0u32;
-        // SAFETY: the exe's import on the game's own code pages.
-        if unsafe { (crate::raw::engine_virtual_protect)(at.cast(), length as u32, PAGE_EXECUTE_READWRITE, &mut old) } == 0 {
-            return Err(InstallRefused::Protect { site: site.site });
-        }
-        let relative = site.entry.wrapping_sub(site.site.wrapping_add(5));
-        let mut bytes = [0x90u8; 32];
-        bytes[0] = 0xE9;
-        bytes[1..5].copy_from_slice(&relative.to_le_bytes());
-        // SAFETY: the span, writable now; the function's contract: no thread runs it.
-        unsafe { core::ptr::copy_nonoverlapping(bytes.as_ptr(), at, length.min(bytes.len())) };
-        let mut was = 0u32;
-        // SAFETY: as above, its protection given back; then the cache of this
-        // process (the pseudo-handle -1) flushed over the span.
-        unsafe {
-            (crate::raw::engine_virtual_protect)(at.cast(), length as u32, old, &mut was);
-            if let Some(flush) = flush {
-                crate::raw::engine_flush_instruction_cache(flush, usize::MAX as *mut c_void, at.cast(), length as u32);
+        self.restore();
+        if let Some(flush) = flush {
+            for site in self.sites {
+                // SAFETY: FlushInstructionCache of this process (the pseudo-handle -1) over the span.
+                unsafe {
+                    crate::raw::engine_flush_instruction_cache(flush, usize::MAX as *mut c_void,
+                        site.site as usize as *const c_void, site.original.len() as u32)
+                };
             }
         }
     }
-    Ok(())
+}
+
+impl Drop for Unlocked<'_> {
+    fn drop(&mut self) {
+        self.restore();
+    }
+}
+
+/// Every site's bytes checked to be the game's, then every page made
+/// writable: all of them, or none (each page made writable before a
+/// refusal gets its protection back). Nothing is written yet.
+///
+/// # Safety
+/// No other thread may run any of the sites' code from now until the
+/// [`Unlocked`] is written or dropped.
+pub(in crate::vostok) unsafe fn unlock_on_demand<'s>(_: &Thread, sites: &'s [OnDemand]) -> Result<Unlocked<'s>, InstallRefused> {
+    const PAGE_EXECUTE_READWRITE: u32 = 0x40;
+    if sites.len() > Unlocked::MOST {
+        return Err(InstallRefused::TooMany);
+    }
+    for site in sites {
+        if !(5..=32).contains(&site.original.len()) {
+            return Err(InstallRefused::Changed { site: site.site });
+        }
+        // SAFETY: the site's span is the game's code, mapped and readable.
+        let now = unsafe { core::slice::from_raw_parts(site.site as usize as *const u8, site.original.len()) };
+        if now != site.original {
+            return Err(InstallRefused::Changed { site: site.site });
+        }
+    }
+    let mut unlocked = Unlocked { sites, old: [0; Unlocked::MOST], made: 0 };
+    for (index, site) in sites.iter().enumerate() {
+        let mut old = 0u32;
+        // SAFETY: the exe's import on the game's own code pages.
+        let made = unsafe {
+            (crate::raw::engine_virtual_protect)(site.site as usize as *mut c_void, site.original.len() as u32, PAGE_EXECUTE_READWRITE, &mut old)
+        };
+        if made == 0 {
+            return Err(InstallRefused::Protect { site: site.site }); // `unlocked` drops: the pages before it restored
+        }
+        if let Some(slot) = unlocked.old.get_mut(index) {
+            *slot = old;
+        }
+        unlocked.made = index + 1;
+    }
+    Ok(unlocked)
 }

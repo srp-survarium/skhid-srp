@@ -4999,10 +4999,13 @@ five gates (dlmalloc's `mspace_malloc`, `mspace_realloc`, `mspace_free`, ptmallo
 block) and its out-of-memory lohook are linked but installed on demand (`install = "on_demand"`,
 hooks_026g.py): no instruction more on any allocation or free. What runs: `memory.arenas_ready` once at
 the start, and one call per world loaded and per match closing in lohook chains other patches already
-have. **On**: at the start (only the main thread runs) the six jumps are written (VirtualProtect, the write,
-the protection back, FlushInstructionCache), 16.8 MiB of tables reserved with VirtualAlloc, and snapshots
+have. **On**: at the start (`vostok::memory_profile::start`, checked to run in allocate_region's frame, once,
+while only the main thread runs) every site and page is readied, 16.8 MiB of tables reserved with VirtualAlloc,
+then the six jumps written (VirtualProtect, the write, the protection back, FlushInstructionCache); a refusal
+at any step writes nothing and gives everything back. Snapshots are
 written to `srp_memory_profile.txt` in the user data folder when a world is in, when a match closes, before
-a full arena ends the game, and at Scroll Lock (polled by the gates); `../scripts/memory-profile/analyze.py`
+a full arena ends the game, and at Scroll Lock (polled by the gates); the tables are behind a lock whose
+waiters yield after a few spins (`vostok::YieldingLock`). `../scripts/memory-profile/analyze.py`
 prints each arena's use, holes and top call sites by live and peak bytes (named from the re-kit) and the
 address-space budget. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.

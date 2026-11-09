@@ -85,17 +85,27 @@ exe keeps the game's bytes at their sites.
 
 `memory.arenas_ready` (allocate_region after `memory::initialize`, 0xE12BF: every
 arena is reserved and its heap made) reads the variable. Off, it returns and that
-is all. On, it reserves the tables with `VirtualAlloc` (never an engine heap),
-records where each arena lies, and writes the six jumps
-(`vostok::hook::install_on_demand`: each site's bytes checked to be the game's
-first, the page made writable for the write and given its protection back, the
-instruction cache flushed). It does that while no other thread runs the game's
-code: allocate_region runs in engine_world's constructor on the main thread, and
-the exe's threads are all made by threading::spawn (0xE3770) or the CRT's
-_beginthreadex (0x422C69, for boost.asio, the renderer and Scaleform), none
-reachable from the constructor before that call (the crash reporter's and Wine's
-own threads never run the game's allocator). A site that is not the game's bytes
-writes nothing and leaves the profile off, with a line in `srp_patches.log`.
+is all. On, the patch asks vostok to start the profile
+(`vostok::memory_profile::start`, the only way the gates are written):
+
+1. its precondition is checked, not trusted: the context's frame must be
+   allocate_region's (its EBP's return address engine_world's constructor's call,
+   0x13BF5), and only the first call goes on. There no other thread runs the
+   game's code: allocate_region runs in engine_world's constructor on the main
+   thread, and the exe's threads are all made by threading::spawn (0xE3770) or
+   the CRT's _beginthreadex (0x422C69, for boost.asio, the renderer and
+   Scaleform), none reachable from the constructor before that call (the crash
+   reporter's and Wine's own threads never run the game's allocator);
+2. every site's bytes are checked to be the game's and every page made writable
+   (VirtualProtect), all or none;
+3. the patch's tables are reserved (VirtualAlloc, never an engine heap);
+4. the six jumps are written, each page given its protection back, the
+   instruction cache flushed.
+
+A refusal at any step leaves the game as it was: no jump written, every page made
+writable given its protection back, any table already reserved given back
+(VirtualFree), and one line in `srp_patches.log` (`memory profile: ...; off,
+nothing written`). Then the patch records where each arena lies.
 
 A gate calls the stock body itself (its replayed first instructions and a jump
 back) and tells the Rust patch through two generated entries:
@@ -133,7 +143,7 @@ its cut tail, mspace_memalign's; return addresses 0xFF160..0x101B40) are left ou
 the outer call is the one counted. A block's bytes are its chunk's (the head word
 before it), what the arena spends on it.
 
-**The tables** (one spin lock, `vostok::Lock`, over all of them):
+**The tables** (one lock, `vostok::YieldingLock`, over all of them):
 
 | table | slots | holds | when full (7/8) |
 |---|---|---|---|
@@ -146,11 +156,18 @@ About 16.8 MiB of the address space, which the report counts as the profiler's o
 **Threads.** The gates run on whatever thread allocates. A gate takes the lock
 only after the game's body made a block and before it gives one back, so a block
 is in the table only while it is live and no other thread can be handed it first.
-Nothing done under the lock reaches an engine heap or the engine (kernel32's
-`VirtualQuery`, `CreateFileA`, `WriteFile` only), so a gate never waits on itself;
-a lock taken again on its own thread would be a bug, and panics. A snapshot holds
-the lock while it writes: the game's other threads wait for it at their next
-allocation.
+The lock is a `vostok::YieldingLock`: a waiter spins 256 times, then gives its
+time slice away (SwitchToThread, then Sleep(0)), so a holder preempted while more
+threads than cores want it (Wine, a load) is not starved by waiters burning whole
+slices, which would distort the load and frame times the profile is for. Nothing
+done under the lock reaches an engine heap or calls the engine: kernel32's
+`VirtualQuery` and `WriteFile` (and GetTickCount, GetAsyncKeyState) only, so a
+gate never waits on itself; a lock taken again on its own thread would be a bug,
+and panics. The file is opened by the first snapshot outside the lock (the
+engine's `get_user_data_directory` 0x18BD0, which sets up its folder the first
+time it is asked, and CreateFileA): not at the start, where it would be the
+engine's first call of it. A snapshot holds the lock while it walks the heaps and
+writes: the game's other threads wait for it at their next allocation.
 
 **What it does not see**: the managed resources allocator (its own allocator, no
 dlmalloc; its arena's count is in the report), the process heap and the stack

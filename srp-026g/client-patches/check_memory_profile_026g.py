@@ -45,6 +45,7 @@ HERE = Path(__file__).resolve().parent
 MSPACE_MALLOC, MSPACE_REALLOC, MSPACE_FREE = 0x101330, 0x1005A0, 0x1015E0
 CREATE_MSPACE, MALLOC_IMPL = 0x101280, 0xE4F90
 ARENAS_READY, OUT_OF_MEMORY, OUT_OF_MEMORY_ON = 0xE12BF, 0xE4D70, 0xE4D76
+ALLOCATE_REGION_RETURN = 0x13BF5        # engine_world's constructor after its call of allocate_region
 USER_DATA_DIRECTORY = 0x18BD0
 ARENA_LIST_SLOT, DOUG_LEA_VTABLE = 0xA808FC, 0x9E68DC
 IMPORTS = {0x8701B4: ("GetEnvironmentVariableA", 3), 0x87015C: ("VirtualAlloc", 4),
@@ -52,7 +53,7 @@ IMPORTS = {0x8701B4: ("GetEnvironmentVariableA", 3), 0x87015C: ("VirtualAlloc", 
            0x8701B8: ("GetCurrentProcessId", 0), 0x870048: ("CreateFileA", 7), 0x870108: ("WriteFile", 5),
            0x870040: ("CloseHandle", 1), 0x870168: ("VirtualQuery", 3), 0x87008C: ("GetSystemInfo", 1),
            0x870200: ("VirtualProtect", 4), 0x87003C: ("GetModuleHandleA", 1), 0x870084: ("GetProcAddress", 2),
-           0x870080: ("LoadLibraryA", 1)}
+           0x870080: ("LoadLibraryA", 1), 0x870160: ("VirtualFree", 3)}
 # what GetProcAddress gives: stubs of their own
 DYNAMIC = {"FlushInstructionCache": 3, "GetAsyncKeyState": 1}
 # the sites patch 127 installs on demand: the five gates, out_of_memory_with_crash's entry
@@ -109,7 +110,8 @@ class Run:
             self.dynamic[name] = at
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=at, end=at)
         self.protects, self.flushes, self.scroll, self.tick = [], [], False, 123456
-        for stop in (RETURN, CALLER_A, CALLER_B, CALLER_C, OUT_OF_MEMORY_ON):
+        self.freed, self.rooms_left = [], None      # VirtualFree's; how many VirtualAllocs succeed (None: all)
+        for stop in (RETURN, CALLER_A, CALLER_B, CALLER_C, OUT_OF_MEMORY_ON, ALLOCATE_REGION_RETURN):
             emu.hook_add(UC_HOOK_CODE, self.done, begin=stop, end=stop)
         emu.hook_add(UC_HOOK_CODE, self.user_data, begin=USER_DATA_DIRECTORY, end=USER_DATA_DIRECTORY)
         self.room = ROOM
@@ -169,9 +171,13 @@ class Run:
             if self.variable is not None and len(self.variable) < args[2]:
                 emu.mem_write(args[1], self.variable.encode() + b"\0")
                 result = len(self.variable)
+        elif name == "VirtualAlloc" and self.rooms_left == 0:
+            result = 0
         elif name == "VirtualAlloc":
             address_, length, kind, protect = args
             assert (address_, kind, protect) == (0, 0x3000, 4), args
+            if self.rooms_left is not None:
+                self.rooms_left -= 1
             result = self.room
             self.room += (length + 0xFFFF) & ~0xFFFF
             assert self.room <= ROOM + ROOM_SIZE
@@ -181,6 +187,10 @@ class Run:
         elif name == "GetTickCount":                 # 250 ms a call: each gate's key poll is due
             self.tick += 250
             result = self.tick
+        elif name == "VirtualFree":
+            assert args[1:] == [0, 0x8000], args       # MEM_RELEASE of a whole reservation
+            self.freed.append(args[0])
+            result = 1
         elif name == "GetModuleHandleA":
             result = KERNEL32 if self.string(args[0]).lower() == "kernel32.dll" else 0
         elif name == "LoadLibraryA":
@@ -239,16 +249,17 @@ class Run:
         assert self.emu.reg_read(UC_X86_REG_EIP) == returns, hex(self.emu.reg_read(UC_X86_REG_EIP))
         return [self.emu.reg_read(reg) for reg in REGS] + [self.emu.reg_read(UC_X86_REG_EFLAGS) & FLAGS]
 
-    def start(self):
+    def start(self, caller=ALLOCATE_REGION_RETURN):
         """allocate_region's tail, memory.arenas_ready the patched exe's: its
-        frame made up, its three pops and its return."""
+        frame made up (called by engine_world's constructor, or `caller`),
+        its three pops and its return."""
         frame = STACK + 0x4000
         self.emu.mem_write(frame - 0x58, struct.pack("<3I", 0x1E1E1E1E, 0x15151515, 0x1B1B1B1B))
-        self.emu.mem_write(frame, struct.pack("<2I", 0x0019FF00, RETURN))
+        self.emu.mem_write(frame, struct.pack("<2I", 0x0019FF00, caller))
         self.emu.reg_write(UC_X86_REG_EBP, frame)
         self.emu.reg_write(UC_X86_REG_ESP, frame - 0x60)
         self.emu.emu_start(ARENAS_READY, 0, count=60_000_000)
-        assert self.emu.reg_read(UC_X86_REG_EIP) == RETURN
+        assert self.emu.reg_read(UC_X86_REG_EIP) == caller
         assert [self.emu.reg_read(r) for r in (UC_X86_REG_EDI, UC_X86_REG_ESI, UC_X86_REG_EBX, UC_X86_REG_EBP)] \
             == [0x1E1E1E1E, 0x15151515, 0x1B1B1B1B, 0x0019FF00]
 
@@ -323,6 +334,33 @@ def main():
           f"reserved, written or logged; every call the original's (registers, flags, the heap) and its "
           f"instructions, as many ({old.steps} over {old.gates} allocator entries)")
 
+    def log_of(run):
+        return bytes(run.written[run.files["srp_patches.log"]]).decode() if "srp_patches.log" in run.files else ""
+
+    # refusals leave the game as it was: no gate, no page left writable, no room kept
+    elsewhere = Run(bytes(built), "on")
+    elsewhere.start(caller=CALLER_A)
+    assert (elsewhere.reserved, elsewhere.protects, elsewhere.sites()) == ([], [], stock)
+    assert "not at the start; off, nothing written" in log_of(elsewhere), log_of(elsewhere)
+    changed = Run(bytes(built), "on")
+    changed.emu.mem_write(0x1015E0, b"\xCC")
+    changed.start()
+    assert (changed.reserved, changed.protects) == ([], [])
+    assert "not the game's at 0x001015e0; off, nothing written" in log_of(changed), log_of(changed)
+    roomless = Run(bytes(built), "on")
+    roomless.rooms_left = 1
+    roomless.start()
+    assert roomless.sites() == stock and len(roomless.reserved) == 1
+    assert roomless.freed == [roomless.reserved[0][0]], (roomless.freed, roomless.reserved)
+    assert sorted(roomless.protects) == sorted([(va, n, 0x40) for va, n in ON_DEMAND.items()]
+                                               + [(va, n, 0x20) for va, n in ON_DEMAND.items()]), roomless.protects
+    assert "no room for its tables; off, nothing written" in log_of(roomless), log_of(roomless)
+    got, _ = play(roomless)
+    assert got == expected
+    print("ok refused (not allocate_region's frame; a site not the game's bytes; no room for the second table): "
+          "no gate written, each page made writable given its protection back, the room made given back, one line "
+          "logged; every call the original's")
+
     on = Run(bytes(built), "on")
     on.start()
     lengths = [length for _, length in on.reserved]   # 2 Mi blocks of 8 bytes, 16 Ki sites, the text
@@ -341,6 +379,8 @@ def main():
     assert list(on.files) == ["srp_patches.log"], on.files
     log = bytes(on.written[on.files["srp_patches.log"]]).decode()
     assert "memory profile on" in log and "srp_memory_profile.txt" in log, log
+    on.start()
+    assert on.sites() == written and "not at the start" in log_of(on), "a second start writes nothing more"
     got, live = play(on, flags=False)
     assert got == [(regs[:-1], heap) for regs, heap in expected]
     print(f"ok on: the tables reserved, the {len(ON_DEMAND)} jumps written (each page writable for it, its "

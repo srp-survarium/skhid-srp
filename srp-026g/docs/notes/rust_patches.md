@@ -173,13 +173,15 @@ arguments and cleans up as the function did; it adds no `fxsave`.
 of its own site): the hook is generated and linked as any other, but the build
 does not write its site, so the exe keeps the game's bytes there. The generated
 `<patch>_on_demand()` lists the patch's such sites (the VA, the game's bytes
-read from the exe, the entry's address) and `vostok::install_on_demand` writes
-the jumps when the patch decides to: each site's bytes checked first, the page
-made writable for the write and given its protection back, the instruction
-cache flushed. Its caller must know no other thread runs those sites' code
-then. Patch 127 (the memory profiler) installs its allocator gates this way at
-the start, only when it is switched on, so an off game runs the original
-allocator.
+read from the exe, the entry's address). Only `vostok` writes them, in two
+steps (`hook::unlock_on_demand`: every site's bytes checked and every page made
+writable, all or none; then `Unlocked::write`: the jumps, the protections back,
+the instruction cache flushed; dropped unwritten, the pages are restored), from
+a safe function of its own that checks when no other thread can run those
+sites' code. Patch 127 (the memory profiler) installs its allocator gates this
+way through `vostok::memory_profile::start`, which checks it runs in
+allocate_region's frame at the start, once, and only when the profile is on, so
+an off game runs the original allocator.
 **Lohook chains**: handlers sharing an exact named site declare distinct
 integer `order`s. A single entry saves/restores the machine; handlers observe
 earlier Context writes and the first non-`Continue` ends the chain. A partial
@@ -191,7 +193,9 @@ State shared between hooks is a `vostok::GameCell<T>`, reachable only inside
 a hook (a `Thread` token), so patch code stays safe and single-threaded.
 State the game reaches from several of its threads (mt_draw's tasks, the
 bullet manager's) is a `vostok::Lock<T>` instead: a spin lock, its value
-`&mut` inside `with`, a lock taken again on its own thread a panic. A
+`&mut` inside `with`, a lock taken again on its own thread a panic. State a
+thread may hold for long (patch 127's profiler) is a `vostok::YieldingLock<T>`:
+the same, its waiters giving their time slice away after a few spins. A
 static that is not all zeros goes to `patches.data`, a zero one to
 `patches.state` (ARENA).
 The crash report's breadcrumbs are `vostok::breadcrumbs::record(thread,

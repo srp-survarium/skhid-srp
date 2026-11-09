@@ -425,6 +425,12 @@ unsafe extern "C" {
     pub static engine_get_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *mut u8, u32) -> u32;
     /// the IAT slot 0x870200 (an import, stdcall): unsigned int engine_virtual_protect(void *address, unsigned int size, unsigned int protect, unsigned int *old)
     pub static engine_virtual_protect: unsafe extern "stdcall" fn(*mut c_void, u32, u32, *mut u32) -> u32;
+    /// the IAT slot 0x870160 (an import, stdcall): unsigned int engine_virtual_free(void *address, unsigned int size, unsigned int type)
+    pub static engine_virtual_free: unsafe extern "stdcall" fn(*mut c_void, u32, u32) -> u32;
+    /// the IAT slot 0x870120 (an import, stdcall): unsigned int engine_switch_to_thread(void)
+    pub static engine_switch_to_thread: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x87011c (an import, stdcall): void engine_sleep(unsigned int milliseconds)
+    pub static engine_sleep: unsafe extern "stdcall" fn(u32);
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
@@ -17535,6 +17541,30 @@ impl GameCall {
     }
 }
 
+/// A vostok::memory::allocate_region_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AllocateRegionFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AllocateRegionFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): allocate_region's frame by its EBP (push ebp / mov ebp,esp, 0xE1120): its return address, allocate_region_return when engine_world's constructor called it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn return_address(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::memory::profile_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -18157,6 +18187,9 @@ pub mod image {
 
     /// 0x1c6b9 (u8, vostok::memory::image): mt_allocator's malloc_impl (0x1C6A0; ESI the bytes, [esp+4] the allocator, 0xA8001C) return from pt3malloc (call 0x1C6B4)
     pub const MT_MALLOC_IMPL_RETURN: u32 = 0x1c6b9;
+
+    /// 0x13bf5 (u8, vostok::memory::image): engine_world's constructor's return from allocate_region (call 0x13BF0, its one caller): the frame of memory.arenas_ready is the start's, while only the main thread runs
+    pub const ALLOCATE_REGION_RETURN: u32 = 0x13bf5;
 }
 
 /// A general-purpose register at a hook's site.
@@ -21342,6 +21375,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn output(machine: &impl Machine) -> Option<ResRenderOutput> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ResRenderOutput)
+        }
+    }
+
+    /// memory.arenas_ready (0xe12bf): allocate_region (0xE1120) after memory::initialize (0xE12D0) made each registered allocator's heap in its arena (lea esp,[ebp-58h] / pop edi / pop esi / pop ebx): every arena is where it stays while the game runs; patch 127 reads SKHID_MEMORY_PROFILE here, once
+    pub mod memory_arenas_ready {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::memory::allocate_region_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<AllocateRegionFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(AllocateRegionFrame)
         }
     }
 

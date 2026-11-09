@@ -25,9 +25,11 @@
 //! by region; `scripts/memory-profile/analyze.py` reads it.
 //!
 //! The gates run on any of the game's threads: the tables are one
-//! [`Lock`], taken by a gate only after the game's body gave a block and
+//! [`YieldingLock`] (its waiters give their time slice away after a few
+//! spins), taken by a gate only after the game's body gave a block and
 //! before it takes one back, so a block is in the tables only while it is
-//! live. Nothing under the lock reaches the engine's heaps.
+//! live. Nothing under the lock reaches the engine's heaps or calls the
+//! engine; the file is opened outside it.
 #![forbid(unsafe_code)]
 
 use crate::vostok::files::tick_count;
@@ -35,9 +37,9 @@ use crate::vostok::memory_profile::ScrollLock;
 use crate::vostok::gun_cook::process_id;
 use crate::vostok::log::{line, Piece::*};
 use crate::vostok::memory::{placed, process, regions_map};
-use crate::vostok::memory_profile::{self as runtime, Block, CallSite, HeapCall, Room};
+use crate::vostok::memory_profile::{self as runtime, Block, CallSite, HeapCall, StartRefused};
 use crate::vostok::trace::TraceFile;
-use crate::vostok::{Context, Flow, InstallRefused, Lock, NoExit, Thread};
+use crate::vostok::{Context, Flow, InstallRefused, NoExit, Thread, YieldingLock};
 use srp_validate::memory::{Usage, MAX_ARENAS};
 
 /// The variable that switches the profiler on, and what it says.
@@ -565,9 +567,13 @@ fn key_step(state: KeyState, down: bool) -> (KeyState, bool) {
 
 /// The file's state.
 enum Output {
-    /// Not opened yet: the first snapshot opens it (the user data folder is
-    /// known only after the arenas are made).
+    /// Not opened yet: the first snapshot opens it, outside the lock (the
+    /// game's user data folder is the engine's, whose first call sets it up:
+    /// not ours to make at the start).
     NotYet,
+    /// A snapshot is opening it (outside the lock); another one meanwhile
+    /// writes nothing.
+    Opening,
     Open(TraceFile),
     /// It could not be opened: no snapshot is written.
     Failed,
@@ -589,7 +595,7 @@ enum Profile {
     On(On),
 }
 
-static PROFILE: Lock<Profile> = Lock::new(Profile::Off);
+static PROFILE: YieldingLock<Profile> = YieldingLock::new(Profile::Off);
 
 /// The arenas' places, in the engine's list's order.
 fn places(thread: &Thread) -> [Option<Place>; MAX_ARENAS] {
@@ -607,29 +613,36 @@ pub fn on_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if Setting::parse(runtime::environment(thread, VARIABLE, &mut value)) == Setting::Off {
         return Flow::Continue;
     }
-    let (Some(blocks), Some(sites), Some(out)) = (
-        runtime::reserve::<Option<Tracked>>(thread, BLOCK_SLOTS),
-        runtime::reserve::<Option<Site>>(thread, SITE_SLOTS),
-        runtime::reserve::<u8>(thread, OUT_BYTES),
-    ) else {
-        line(&[Text("memory profile: no room for its tables; off")]);
-        return Flow::Continue;
+    // the gates written only with the tables made, both or neither (vostok's start)
+    let started = runtime::start(ctx, |thread| {
+        let blocks = runtime::reserve::<Option<Tracked>>(thread, BLOCK_SLOTS)?;
+        let sites = runtime::reserve::<Option<Site>>(thread, SITE_SLOTS)?;
+        let out = runtime::reserve::<u8>(thread, OUT_BYTES)?;
+        Some((blocks, sites, out))
+    });
+    let (blocks, sites, out) = match started {
+        Ok(tables) => tables,
+        Err(refused) => {
+            let (why, site) = match refused {
+                StartRefused::NotTheStart => ("memory profile: not at the start", None),
+                StartRefused::NoRoom => ("memory profile: no room for its tables", None),
+                StartRefused::Site(InstallRefused::Changed { site }) => ("memory profile: the allocator's bytes are not the game's at ", Some(site)),
+                StartRefused::Site(InstallRefused::Protect { site }) => ("memory profile: its gate could not be made writable at ", Some(site)),
+                StartRefused::Site(InstallRefused::TooMany) => ("memory profile: too many gates", None),
+            };
+            match site {
+                Some(site) => line(&[Text(why), Hex(site), Text("; off, nothing written")]),
+                None => line(&[Text(why), Text("; off, nothing written")]),
+            }
+            return Flow::Continue;
+        }
     };
-    let rooms = [room(&blocks), room(&sites), room(&out)];
-    let profiler = Profiler::new(blocks.items, sites.items, places(thread));
+    let rooms = [blocks.place(), sites.place(), out.place()];
+    let profiler = Profiler::new(blocks.keep(), sites.keep(), places(thread));
     let keys = Keys { key: ScrollLock::resolve(thread), next: tick_count(), state: KeyState::Up };
     PROFILE.with(thread, |profile| {
-        *profile = Profile::On(On { profiler, out: out.items, output: Output::NotYet, rooms, snapshots: 0, keys });
+        *profile = Profile::On(On { profiler, out: out.keep(), output: Output::NotYet, rooms, snapshots: 0, keys });
     });
-    if let Err(refused) = runtime::install(thread) {
-        PROFILE.with(thread, |profile| *profile = Profile::Off);
-        let (why, site) = match refused {
-            InstallRefused::Changed { site } => ("memory profile: the allocator's bytes are not the game's at ", site),
-            InstallRefused::Protect { site } => ("memory profile: its gate could not be written at ", site),
-        };
-        line(&[Text(why), Hex(site), Text("; off")]);
-        return Flow::Continue;
-    }
     line(&[
         Text("memory profile on: snapshots to "),
         Text(FILE),
@@ -639,10 +652,6 @@ pub fn on_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Hex(rooms[0].0),
     ]);
     Flow::Continue
-}
-
-fn room<T>(room: &Room<T>) -> (u32, u32) {
-    (room.base, room.bytes)
 }
 
 pub fn on_allocated(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -701,10 +710,20 @@ fn snapshot(thread: &Thread, moment: Moment) {
     if !runtime::is_on() {
         return;
     }
+    // the first snapshot opens the file outside the lock (the engine's user
+    // data folder and CreateFileA), claiming it first so another waits for none
+    let open = PROFILE.with(thread, |profile| match profile {
+        Profile::On(on) if matches!(on.output, Output::NotYet) => {
+            on.output = Output::Opening;
+            true
+        }
+        _ => false,
+    });
+    let opened = open.then(|| TraceFile::open(thread, FILE));
     PROFILE.with(thread, |profile| {
         let Profile::On(on) = profile else { return };
-        if matches!(on.output, Output::NotYet) {
-            on.output = TraceFile::open(thread, FILE).map_or(Output::Failed, Output::Open);
+        if let Some(opened) = opened {
+            on.output = opened.map_or(Output::Failed, Output::Open);
             if let Output::Open(file) = &on.output {
                 let mut text = Text::new(&mut *on.out, |bytes: &[u8]| file.write(thread, bytes));
                 text.word("run").dec(u64::from(process_id())).word("tick").dec(u64::from(tick_count()));

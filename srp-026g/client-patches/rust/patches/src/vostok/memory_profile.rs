@@ -1,7 +1,7 @@
 //! Patch 127's runtime (the profiler is `patches::memory_profile`,
 //! `docs/notes/memory-profile.md`): the variable that switches it on, its
 //! gates written into dlmalloc's and ptmalloc3's code only then
-//! ([`install`]: an off game runs the original allocator byte for byte),
+//! ([`start`]: an off game runs the original allocator byte for byte),
 //! room of our own for the profiler's tables, the snapshot key, and what a
 //! gate's call tells, read once here into typed values:
 //!
@@ -27,35 +27,75 @@ use core::ffi::c_void;
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicBool, Ordering};
 
-/// The profile is on: its gates are written. Set once, by [`install`].
+/// The profile is on: its gates are written. Set once, by [`start`].
 static ON: AtomicBool = AtomicBool::new(false);
+/// [`start`] has been asked (once only, whatever it answered).
+static STARTED: AtomicBool = AtomicBool::new(false);
 
 /// The gates are written (an event hook's one test while off).
 pub fn is_on() -> bool {
     ON.load(Ordering::Acquire)
 }
 
-/// Writes the gates into the allocator's code (`memory_profile.toml`'s
-/// hooks installed on demand: dlmalloc's mspace_malloc, mspace_realloc and
-/// mspace_free, ptmalloc3's two frees of a mapped block, and
-/// out_of_memory_with_crash's entry); from then on every block is told.
+/// Why [`start`] left the profile off. Nothing of it is left: no gate is
+/// written, every page has its protection, the tables are given back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartRefused {
+    /// Not memory.arenas_ready's context inside allocate_region called by
+    /// engine_world's constructor, or not the first time.
+    NotTheStart,
+    /// A gate's site (its bytes, its page) refused.
+    Site(super::InstallRefused),
+    /// `tables` found no room.
+    NoRoom,
+}
+
+/// Switches the profile on, at memory.arenas_ready alone: writes the gates
+/// into the allocator's code (`memory_profile.toml`'s hooks installed on
+/// demand: dlmalloc's mspace_malloc, mspace_realloc and mspace_free,
+/// ptmalloc3's two frees of a mapped block, out_of_memory_with_crash's
+/// entry), with `tables` (the profiler's room, [`reserve`]) made in
+/// between: every site's bytes checked and every page made writable first,
+/// then the tables made, then the jumps written. A refusal at any step
+/// leaves the game as it was, its pages restored and the room `tables`
+/// made dropped (given back).
 ///
-/// Only at `memory.arenas_ready`: allocate_region runs on the main thread
-/// inside engine_world's constructor (its call 0x13BF0), before any other
-/// thread runs the game's code: the exe makes its threads with
+/// Its precondition is checked, not trusted: `ctx` must be a context whose
+/// frame is allocate_region's (its EBP's return address engine_world's
+/// constructor's call, 0x13BF5), and only the first call goes on. There
+/// only the main thread runs the game's code: the exe makes its threads with
 /// threading::spawn (0xE3770) and the CRT's _beginthreadex (0x422C69: for
 /// boost.asio, the renderer, Scaleform), and none is reachable from the
 /// constructor's code before that call; the crash reporter's and Wine's
 /// own threads never run the game's allocator. So no thread runs the sites'
 /// code while they are written.
-pub fn install(thread: &Thread) -> Result<(), super::InstallRefused> {
-    // SAFETY: the function's contract: called from memory.arenas_ready only
-    // (patches::memory_profile::on_start), the main thread alone.
-    let done = unsafe { super::install_on_demand(thread, &super::memory_profile_on_demand()) };
-    if done.is_ok() {
-        ON.store(true, Ordering::Release);
+pub fn start<T>(ctx: &Context<'_>, tables: impl FnOnce(&Thread) -> Option<T>) -> Result<T, StartRefused> {
+    // SAFETY: the context's EBP as a frame of allocate_region's kind; its
+    // return word is read only after its own check (a stack word of this
+    // thread when the context is the start's: EBP points into the stack).
+    let at_start = unsafe {
+        raw::site::memory_arenas_ready::frame(ctx).is_some_and(|frame| {
+            let ebp = frame.address() as usize;
+            let esp = ctx.reg(super::Reg::Esp) as usize;
+            // EBP a frame of this stack just above ESP (allocate_region's, its _alloca of the
+            // arenas' list included), before its word is read
+            ebp > esp && ebp - esp < 0x4000 && read(frame.return_address()) == raw::image::ALLOCATE_REGION_RETURN
+        })
+    };
+    if !at_start || STARTED.swap(true, Ordering::AcqRel) {
+        return Err(StartRefused::NotTheStart);
     }
-    done
+    let thread = ctx.thread();
+    let sites = super::memory_profile_on_demand();
+    // SAFETY: checked above: inside allocate_region at the start, the main
+    // thread alone runs the game's code until the gates are written.
+    let unlocked = unsafe { super::hook::unlock_on_demand(thread, &sites) }.map_err(StartRefused::Site)?;
+    let Some(tables) = tables(thread) else {
+        return Err(StartRefused::NoRoom); // `unlocked` drops: the pages restored, nothing written
+    };
+    unlocked.write();
+    ON.store(true, Ordering::Release);
+    Ok(tables)
 }
 
 /// Scroll Lock as user32's GetAsyncKeyState tells it (the snapshot key),
@@ -104,13 +144,39 @@ pub fn environment<'b>(_: &Thread, name: &[u8], into: &'b mut [u8]) -> Option<&'
     (length > 0 && length < into.len()).then(|| into.get(..length)).flatten()
 }
 
-/// Room of our own: `items` in pages kernel32 committed for us (never an
-/// engine heap), kept while the game runs; `base` and `bytes` its place,
-/// for the report (the address space counts it).
+/// Room of our own: `T`s in pages kernel32 committed for us (never an
+/// engine heap). Dropped, the pages go back (VirtualFree); [`Room::keep`]
+/// keeps them while the game runs.
 pub struct Room<T: 'static> {
-    pub items: &'static mut [T],
-    pub base: u32,
-    pub bytes: u32,
+    items: NonNull<T>,
+    count: usize,
+    bytes: u32,
+}
+
+// SAFETY: the pages are this Room's alone; T: Send moves with it.
+unsafe impl<T: Send> Send for Room<T> {}
+
+impl<T> Room<T> {
+    /// Where it lies and its bytes, for the report (the address space counts it).
+    pub fn place(&self) -> (u32, u32) {
+        (self.items.as_ptr() as usize as u32, self.bytes)
+    }
+
+    /// The items, kept for good: the pages are never given back.
+    pub fn keep(self) -> &'static mut [T] {
+        let room = core::mem::ManuallyDrop::new(self);
+        // SAFETY: the pages are ours alone, every item written by reserve;
+        // this Room is consumed without its Drop: the one `&'static mut` of them.
+        unsafe { core::slice::from_raw_parts_mut(room.items.as_ptr(), room.count) }
+    }
+}
+
+impl<T> Drop for Room<T> {
+    fn drop(&mut self) {
+        const MEM_RELEASE: u32 = 0x8000;
+        // SAFETY: the exe's import on the pages reserve committed, nothing of them lent out.
+        unsafe { (raw::engine_virtual_free)(self.items.as_ptr().cast(), 0, MEM_RELEASE) };
+    }
 }
 
 /// `count` fresh `T`s, each `T::default()`; None when the room cannot be
@@ -123,19 +189,13 @@ pub fn reserve<T: Copy + Default>(_: &Thread, count: usize) -> Option<Room<T>> {
     // SAFETY: the exe's import: fresh pages of our own, zeroed, aligned to
     // 64 KiB (any T's alignment), or null.
     let base = unsafe { (raw::engine_virtual_alloc)(null_mut(), bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE) };
-    if base.is_null() {
-        return None;
-    }
-    let first = base.cast::<T>();
+    let items = NonNull::new(base.cast::<T>())?;
     for index in 0..count {
         // SAFETY: inside the pages just committed (count T's of them), each
-        // written once before the slice is made.
-        unsafe { first.add(index).write(T::default()) };
+        // written once before anything reads them.
+        unsafe { items.as_ptr().add(index).write(T::default()) };
     }
-    // SAFETY: the pages are ours alone, every item written, never freed:
-    // the one `&'static mut` of them.
-    let items = unsafe { core::slice::from_raw_parts_mut(first, count) };
-    Some(Room { items, base: base as usize as u32, bytes })
+    Some(Room { items, count, bytes })
 }
 
 /// A heap's block: the address dlmalloc handed out, its chunk's head the
