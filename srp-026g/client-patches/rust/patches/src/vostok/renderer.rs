@@ -3,13 +3,16 @@
 //! user.cfg (read into a static buffer: no engine allocator), the files of
 //! the game's folder, the best Vulkan device (vulkan-1.dll loaded for the
 //! look and let go), and DXVK's DLLs loaded from `dxvk\` by their full paths,
-//! the game's delayed d3d9, dxgi and d3d11 bound to them.
-//! kernel32's and shell32's functions through the exe's import slots (raw).
+//! the game's delayed d3d9, dxgi and d3d11 bound to them; and, at each
+//! Present, the output window's styles as DXGI's rule for them reads them.
+//! kernel32's, shell32's and user32's functions through the exe's import
+//! slots (raw).
 
 use core::cell::UnsafeCell;
 use core::ffi::{CStr, c_void};
 use core::ptr::{NonNull, null, null_mut};
 
+use super::context::Context;
 use super::hook::Thread;
 use crate::raw;
 
@@ -149,6 +152,16 @@ pub fn is_loaded(_: &Thread, name: &CStr) -> bool {
     !unsafe { (raw::engine_get_module_handle_a)(name.as_ptr().cast()) }.is_null()
 }
 
+/// Sets the process's environment variable `name` (SetEnvironmentVariableA):
+/// DXVK reads its own (`DXVK_CONFIG`) with GetEnvironmentVariableW when its
+/// first device is made, from the same Win32 environment, at most 259
+/// characters (DXVK 3.1.1's util_env.cpp: a longer value reads as none).
+pub fn set_environment(_: &Thread, name: &CStr, value: &CStr) -> bool {
+    // SAFETY: SetEnvironmentVariableA with two NUL-terminated strings; it
+    // copies them.
+    unsafe { (raw::engine_set_environment_variable_a)(name.as_ptr().cast(), value.as_ptr().cast()) != 0 }
+}
+
 /// The game's delayed imports a DXVK DLL serves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DelayedImport {
@@ -183,6 +196,88 @@ pub fn bind_delayed_import(_: &Thread, import: DelayedImport, module: Module) ->
         *slot = module.0.as_ptr();
     }
     true
+}
+
+/// A window's two style words (GWL_STYLE, GWL_EXSTYLE), read together.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WindowStyles {
+    pub style: u32,
+    pub extended: u32,
+}
+
+impl WindowStyles {
+    /// WS_POPUP (0x80000000).
+    pub const WS_POPUP: u32 = 1 << 31;
+    /// WS_POPUP, WS_BORDER (WS_CAPTION has it), WS_SYSMENU, WS_THICKFRAME,
+    /// WS_MINIMIZEBOX, WS_MAXIMIZEBOX (bits 23, 19, 18, 17, 16).
+    const FRAMED: u32 = WindowStyles::WS_POPUP | 1 << 23 | 1 << 19 | 1 << 18 | 1 << 17 | 1 << 16;
+    /// WS_EX_DLGMODALFRAME, WS_EX_TOOLWINDOW, WS_EX_WINDOWEDGE,
+    /// WS_EX_CLIENTEDGE, WS_EX_CONTEXTHELP.
+    const FRAMED_EXTENDED: u32 = 0x0001 | 0x0080 | 0x0100 | 0x0200 | 0x0400;
+    const WS_EX_TOPMOST: u32 = 0x0008;
+
+    /// Whether DXGI makes a swap chain for this window: one of the styles
+    /// above, or not topmost (the debug layer's "The specified output window
+    /// has a style that is incompatible with DXGI", as AMD quoted it in
+    /// doitsujin/dxvk#5258). AMD's Vulkan driver
+    /// on Windows presents through a DXGI swap chain on the game's window:
+    /// its vkCreateSwapchainKHR fails (VK_ERROR_UNKNOWN) for a window DXGI
+    /// refuses.
+    pub fn dxgi_takes(self) -> bool {
+        self.style & WindowStyles::FRAMED != 0
+            || self.extended & WindowStyles::FRAMED_EXTENDED != 0
+            || self.extended & WindowStyles::WS_EX_TOPMOST == 0
+    }
+
+    /// The style that makes a window DXGI refuses one it takes: WS_POPUP
+    /// added (DXVK's fullscreen keeps it: it takes away WS_OVERLAPPEDWINDOW's
+    /// styles alone); None for a window DXGI takes.
+    pub fn for_dxgi(self) -> Option<u32> {
+        (!self.dxgi_takes()).then_some(self.style | WindowStyles::WS_POPUP)
+    }
+}
+
+/// The game's output window (its HWND), as the render output it presents
+/// with holds it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OutputWindow(NonNull<c_void>);
+
+impl OutputWindow {
+    const GWL_STYLE: u32 = -16i32 as u32;
+    const GWL_EXSTYLE: u32 = -20i32 as u32;
+
+    /// At `render_output.present`: the window the game's swap chain presents
+    /// to now.
+    pub fn at_present(ctx: &Context<'_>) -> Option<OutputWindow> {
+        // SAFETY: the context is this site's: ESI the render output present
+        // runs on, alive while it runs on the game's main thread; its window field
+        // is the constructor's, never written again.
+        let window = unsafe { *raw::site::render_output_present::output(ctx)?.window() };
+        NonNull::new(window as usize as *mut c_void).map(OutputWindow)
+    }
+
+    /// Its styles now (GetWindowLongA).
+    pub fn styles(self, _: &Thread) -> WindowStyles {
+        // SAFETY: GetWindowLongA through the game's delayed user32 slot (its
+        // helper resolves it at the first call) with the game's window.
+        unsafe {
+            WindowStyles {
+                style: (raw::engine_get_window_long_a)(self.0.as_ptr(), OutputWindow::GWL_STYLE),
+                extended: (raw::engine_get_window_long_a)(self.0.as_ptr(), OutputWindow::GWL_EXSTYLE),
+            }
+        }
+    }
+
+    /// Its style set to `style` (SetWindowLongA, as the game's set_size and
+    /// DXVK's fullscreen set it: from the window's own thread, so its
+    /// WM_STYLECHANGING/WM_STYLECHANGED are sent within the call).
+    pub fn set_style(self, _: &Thread, style: u32) {
+        // SAFETY: SetWindowLongA through the game's delayed user32 slot with
+        // the game's window; the old style it answers is not kept.
+        unsafe {
+            (raw::engine_set_window_long_a)(self.0.as_ptr(), OutputWindow::GWL_STYLE, style);
+        }
+    }
 }
 
 /// A Vulkan version as Vulkan packs it (`VK_MAKE_API_VERSION`, variant 0).
@@ -316,5 +411,68 @@ pub fn best_vulkan(_: &Thread) -> Vulkan {
         raw::engine_vk_destroy_instance(destroy, instance, null());
         (raw::engine_free_library)(library);
         best.map_or(Vulkan::NoDevice, Vulkan::Device)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WS_VISIBLE: u32 = 0x1000_0000;
+    const WS_CLIPSIBLINGS: u32 = 0x0400_0000;
+    const WS_CAPTION: u32 = 0x00C0_0000;
+    const WS_SYSMENU: u32 = 0x0008_0000;
+    const WS_EX_TOPMOST: u32 = 0x0008;
+    const WS_EX_WINDOWEDGE: u32 = 0x0100;
+    /// WS_OVERLAPPEDWINDOW, WS_EX_OVERLAPPEDWINDOW: what DXVK 3.1.1's
+    /// enterFullscreenMode takes away (wsi_window_win32.cpp).
+    const OVERLAPPEDWINDOW: u32 = 0x00CF_0000;
+    const EX_OVERLAPPEDWINDOW: u32 = 0x0300;
+
+    fn styles(style: u32, extended: u32) -> WindowStyles {
+        WindowStyles { style, extended }
+    }
+
+    /// DXVK's fullscreen of a window: its frame styles gone, topmost.
+    fn dxvk_fullscreen(window: WindowStyles) -> WindowStyles {
+        styles(window.style & !OVERLAPPEDWINDOW, (window.extended & !EX_OVERLAPPEDWINDOW) | WS_EX_TOPMOST)
+    }
+
+    #[test]
+    fn the_games_window_in_dxvks_fullscreen_is_refused_and_a_popup_is_taken() {
+        // CreateWindowExA(0, .., WS_CAPTION | WS_SYSMENU, ..) at 0x186FF; Windows adds
+        // WS_CLIPSIBLINGS and WS_EX_WINDOWEDGE to such a window, show() WS_VISIBLE
+        let windowed = styles(WS_CAPTION | WS_SYSMENU | WS_CLIPSIBLINGS | WS_VISIBLE, WS_EX_WINDOWEDGE);
+        assert!(windowed.dxgi_takes() && windowed.for_dxgi().is_none());
+        let fullscreen = dxvk_fullscreen(windowed);
+        assert_eq!(fullscreen, styles(WS_CLIPSIBLINGS | WS_VISIBLE, WS_EX_TOPMOST));
+        assert!(!fullscreen.dxgi_takes());
+        let popup = fullscreen.for_dxgi().unwrap();
+        assert_eq!(popup, WindowStyles::WS_POPUP | WS_CLIPSIBLINGS | WS_VISIBLE);
+        let fixed = styles(popup, fullscreen.extended);
+        assert!(fixed.dxgi_takes() && fixed.for_dxgi().is_none());
+        // DXVK entering fullscreen again keeps the popup
+        assert_eq!(dxvk_fullscreen(fixed), fixed);
+    }
+
+    #[test]
+    fn the_games_own_fullscreen_style_is_refused() {
+        // set_size: SetWindowLongA(window, GWL_STYLE, 0) then SetWindowPos(HWND_TOPMOST, .., SWP_SHOWWINDOW)
+        let fullscreen = styles(WS_VISIBLE, WS_EX_TOPMOST);
+        assert!(!fullscreen.dxgi_takes());
+        assert_eq!(fullscreen.for_dxgi(), Some(WindowStyles::WS_POPUP | WS_VISIBLE));
+    }
+
+    #[test]
+    fn any_frame_style_or_no_topmost_is_taken() {
+        assert!(styles(WS_VISIBLE, 0).dxgi_takes());
+        for style in [WindowStyles::WS_POPUP, 0x0080_0000, WS_SYSMENU, 0x0004_0000, 0x0002_0000, 0x0001_0000] {
+            assert!(styles(style, WS_EX_TOPMOST).dxgi_takes(), "{style:#x}");
+        }
+        for extended in [0x0001, 0x0080, WS_EX_WINDOWEDGE, 0x0200, 0x0400] {
+            assert!(styles(0, WS_EX_TOPMOST | extended).dxgi_takes(), "{extended:#x}");
+        }
+        // WS_DLGFRAME alone is not in DXGI's list: refused, a popup given
+        assert!(!styles(0x0040_0000, WS_EX_TOPMOST).dxgi_takes());
     }
 }

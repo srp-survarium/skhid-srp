@@ -15,12 +15,18 @@ handler = "on_match_start"
 site = "hud.cursor_movie"
 handler = "on_cursor_shown"
 
+# show_cursor's hide: no movie to take off while the main menu is shown.
+[[hook]]
+site = "hud.cursor_hide"
+handler = "on_cursor_hidden"
+
 # The main menu about to be shown: the hud's cursor movie off.
 [[hook]]
 site = "options.activate"
 handler = "on_menu_show"
 
-# The main menu about to close: the hud's cursor movie back.
+# The main menu about to close: a key its settings await given up as Esc
+# gives it up, then the hud's cursor movie back.
 [[hook]]
 site = "options.deactivate"
 handler = "on_menu_close"

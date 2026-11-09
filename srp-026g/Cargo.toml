@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "crates/ban-reason",
   "crates/binary-config-parser",
   "crates/mapdata",
   "crates/research-rule",
@@ -14,6 +15,7 @@ members = [
   "crates/udp-transport",
   "crates/vostok",
   "crates/weapon-kit",
+  "crates/srp-validate",
   "crates/world-frame",
 
   "servers/lobby-server",
@@ -35,6 +37,9 @@ edition = "2024"
 new_without_default = "allow"
 # Parallel arrays indexed by one place, slot or event number read better as an index loop.
 needless_range_loop = "allow"
+# srp-validate's views are no_std and allocation-free: a state's largest
+# variant cannot be boxed, and each view is built once in place.
+large_enum_variant = "allow"
 
 [workspace.dependencies]
 arrayref = "0.3.9" # TODO: Remove
@@ -69,7 +74,9 @@ resources-db = { path = "crates/resources-db" }
 # The mapdata dump's reader of the shipped archive (hard links resolved);
 # kept beside the in-tree crate above under its own name.
 vostok-resources-db = { package = "resources-db", git = "https://github.com/srp-survarium/vostok-resources-db", rev = "9498aca14014ef74460429f51eb41a6af333522c" }
+ban-reason = { path = "crates/ban-reason" }
 session = { path = "crates/session" }
+srp-validate = { path = "crates/srp-validate" }
 survarium = { path = "crates/survarium" }
 udp-transport = { path = "crates/udp-transport" }
 vostok = { path = "crates/vostok" }

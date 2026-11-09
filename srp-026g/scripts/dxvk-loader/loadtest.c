@@ -23,6 +23,10 @@ int main(void) {
     *strrchr(dir, '\\') = 0;
     const char *order[] = {"dxgi.dll", "d3d11.dll", "d3d10core.dll", "d3d9.dll", "d3d8.dll"};
     HMODULE ours[5];
+#ifdef CONFIG
+    /* as patch 83 does: the process's own Win32 environment, before DXVK's DLLs load */
+    printf("SetEnvironmentVariableA(DXVK_CONFIG) -> %d\n", SetEnvironmentVariableA("DXVK_CONFIG", CONFIG));
+#endif
     for (int i = 0; i < 5; i++) {
         snprintf(path, sizeof path, "%s\\dxvk\\%s", dir, order[i]);
         ours[i] = LoadLibraryA(path);

@@ -127,7 +127,7 @@ float 43 as above):
 |---|---|---|
 | Sprint stamina (`sprint_stamina`) | a pain protector | Numb Legs: the sprint's stamina x (1 - 0.2 x rank) while it is active (100 -> 60 % at rank 2) |
 | Slow from bullets (`hit_slow`) | a pain protector | Unflinching: the hits' stopping power x (1 - 0.1 x rank) while it is active (100 -> 60 % at rank 4) |
-| Ambient sounds, Enemy sounds (`ambient_sounds`, `enemy_sounds`) | a pain protector | Concentration: the environment x (1 - 0.1 x rank), the opponents' sounds (not their shots) x (1 + 0.1 x rank) while it is active (60 % and 140 % at rank 4) |
+| Sight sway (`sight_sway`) | a pain protector | Concentration: the sight's sway x (1 - 0.05 x rank) while it is active (100 -> 80 % at rank 4; in a match added to the kit's own sway bonuses) |
 | Healing crouched (`crouched_healing`) | a medicine that heals | Take Cover: each heal tick x (1 + 0.1 x rank) while crouched, after Medical Training (100 -> 120 % at rank 2) |
 
 The other medical skills (Metabolism, Adrenalin, Strong Bones, Brothers in Arms, the pockets)

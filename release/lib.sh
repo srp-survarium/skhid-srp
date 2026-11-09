@@ -15,6 +15,10 @@ DATA_NAME=server-game-data.db
 # Where a checkout keeps its item tables (srp-item-tables).
 # shellcheck disable=SC2034 # used by the scripts that source this
 ITEM_TABLES_DIR=srp-026g/docs/data
+# The file in the folder of a quick build (build-content --quick), which
+# release.sh refuses a patch beside.
+# shellcheck disable=SC2034 # used by the scripts that source this
+QUICK_MARK=QUICK-BUILD
 # The stock 0.26g resources.db (build 2777).
 # shellcheck disable=SC2034 # used by the scripts that source this
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
@@ -269,6 +273,20 @@ item_tables_bin() {
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-item-tables"
 }
 
+# The world check (srp-world-check, the match server's own check of an
+# upload, run on recorded worlds): $SRP_WORLD_CHECK_BIN, else built here.
+world_check_bin() {
+    if [[ -n ${SRP_WORLD_CHECK_BIN:-} ]]; then
+        printf '%s\n' "$SRP_WORLD_CHECK_BIN"
+        return
+    fi
+    say "building srp-world-check (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p match-server --bin srp-world-check') >&2 ||
+        die "srp-world-check did not build"
+    printf '%s\n' "$ROOT/srp-026g/target/release/srp-world-check"
+}
+
 # The server's image (srp-026g/Dockerfile) built here from <src>, main's
 # srp-026g source, into <out>: a zstd docker-archive tagged $IMAGE, which
 # the host's `docker load` takes, so the live host (one core, the running
@@ -321,6 +339,28 @@ client_patches_python() {
     local src=$1
     shift
     (cd "$src/srp-026g/client-patches" && nix develop "$src/srp-026g" -c python3 "$@")
+}
+
+# The exe patches' self-test (srp-026g/client-patches/selftest_026g.py) of
+# the checkout <src> on the original exe <exe>, its output into <log>, its
+# builds into <scratch>: its Linux part (imagehlp's checksum and the
+# certificate's read, test_windows, are Windows' own), in that checkout's
+# dev shell with nixpkgs' Python unicorn, at nice 10: nothing of this
+# machine's PATH is needed but nix. Fails when a check fails. For
+# release/test.sh: $SKHID_SELFTEST_BIN <src> <exe> instead.
+run_selftest() {
+    local src=$1 exe=$2 log=$3 scratch=$4
+    if [[ -n ${SKHID_SELFTEST_BIN:-} ]]; then
+        "$SKHID_SELFTEST_BIN" "$src" "$exe" >"$log" 2>&1
+        return
+    fi
+    # shellcheck disable=SC2016 # the dev shell's bash expands them
+    (cd "$src/srp-026g/client-patches" && SRP_026G_SCRATCH=$scratch nice -n 10 nix develop "$src/srp-026g" -c bash -c '
+        py=$(python3 -c "import sys; print(f\"python{sys.version_info.major}.{sys.version_info.minor}\")")
+        unicorn=$(nix build --no-link --print-out-paths --inputs-from "$1" nixpkgs#python3Packages.unicorn | head -n 1)
+        PYTHONPATH=$unicorn/lib/$py/site-packages exec python3 -u -c \
+            "import selftest_026g as st; st.test_windows = lambda *a, **k: None; st.main()" "$2"' - "$src/srp-026g" "$exe") \
+        >"$log" 2>&1
 }
 
 # `<sha256> <name>` of every file entry of a ZIP, in name order. (Python's

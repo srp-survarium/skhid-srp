@@ -1,0 +1,17 @@
+[package]
+name = "srp-validate"
+version.workspace = true
+edition.workspace = true
+description = "Shared allocation-free validation of match messages and worlds"
+
+[lints]
+workspace = true
+
+[dependencies]
+world-frame = { workspace = true }
+weapon-pickup = { path = "../weapon-pickup" }
+# Client patch 78's carry snapshot: its size and version byte, as written.
+artefact-carry = { path = "../artefact-carry" }
+
+[dev-dependencies]
+survarium = { workspace = true }

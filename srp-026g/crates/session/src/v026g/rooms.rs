@@ -35,7 +35,7 @@
 //!   wait begin, however each came in (Play or a join; the owner's of
 //!   2026-10-31, [`Rooms::match_over`]).
 //! - The lobby routes Play within its equipment bracket, queues for full
-//!   rooms, and opens another room when six ready Play users are waiting.
+//!   rooms, and opens another room when four ready Play users are waiting.
 //!   [`QueueChoice`] keeps those waiters distinct from explicit room queues.
 //! - A private room (a PIN; the owner's of 2026-10-26) has no team size
 //!   and no players to start: it takes the most a match has (10 v 10), and
@@ -1501,13 +1501,12 @@ impl Rooms {
 }
 
 /// One of the parties the sides of a room's match are drawn with: a player
-/// alone, or a squad, which plays on one side; and what it counts for,
-/// its members' K/Ds at the match's equipment level (`super::level_stats`;
-/// `docs/notes/kd-balance.md`).
+/// alone, or a squad, which plays on one side; and what each of its
+/// members counts for, its K/D at the match's equipment level
+/// (`super::level_stats`; `docs/notes/kd-balance.md`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Party {
-    members: Vec<u32>,
-    strength: Strength,
+    members: Vec<(u32, Strength)>,
 }
 
 impl Party {
@@ -1517,32 +1516,34 @@ impl Party {
     /// 2026-11-01: "squads have their kd multiplied by 1.3").
     pub fn new(members: Vec<(u32, Strength)>) -> Self {
         let squad = members.len() > 1;
-        let strength = members
-            .iter()
-            .map(|&(_, each)| {
-                if squad {
-                    level_stats::in_squad(each)
-                } else {
-                    each
-                }
-            })
-            .sum();
         Self {
             members: members
                 .into_iter()
-                .map(|(account_id, _)| account_id)
+                .map(|(account_id, each)| {
+                    let counted = if squad {
+                        level_stats::in_squad(each)
+                    } else {
+                        each
+                    };
+                    (account_id, counted)
+                })
                 .collect(),
-            strength,
         }
     }
 
-    pub fn members(&self) -> &[u32] {
-        &self.members
+    /// Its members' accounts, in its order.
+    pub fn members(&self) -> impl Iterator<Item = u32> + '_ {
+        self.members.iter().map(|&(account_id, _)| account_id)
+    }
+
+    /// Whether it is a squad: two or more.
+    pub fn is_squad(&self) -> bool {
+        self.members.len() > 1
     }
 
     /// What it counts for, beside its players being there.
     pub fn strength(&self) -> Strength {
-        self.strength
+        self.members.iter().map(|&(_, each)| each).sum()
     }
 }
 
@@ -1553,47 +1554,84 @@ impl Party {
 pub const NOISE_MILLI: u32 = 50;
 
 /// The sides of a match of a room: `parties` on two sides of at most
-/// `size`, a party too large for a side split into parts that fit (each
-/// part counting its share). Each party's strength is first shaken by a
-/// factor drawn by `seed` within [`NOISE_MILLI`], so the same parties and
-/// seed always make the same sides. Of the ways to put the parties whole,
-/// every one is tried: of those that fit the sizes and whose sides are
-/// the fewest players apart past one, the one whose sides count the most
-/// alike (`player` a player, and the shaken strengths: the owner's "k/d
-/// equalizer", so with an odd count the stronger players are the side of
-/// fewer). The largest party (the first of those) is on side 0. When no
-/// way fits, the larger parties go first, each to the side with fewer
-/// players, split where it must be.
+/// `size`, a party too large for a side split into parts that fit. Of the
+/// ways to put the parts whole, every one is tried, and the best is, in
+/// this order:
+/// 1. one that fits the sizes, its sides the fewest players apart past one;
+/// 2. **the strong players dealt evenly** (the owner's of 2026-11-09: "strong
+///    people being split always evenly"): of the players who count
+///    [`level_stats::STRONG`] or more, first as many a side as can be
+///    (one apart at most); then, ranked by what they count, the strongest
+///    two apart, the strongest four two a side, and so on, a side never
+///    more than one strong player ahead at any rank (players of one
+///    strength are one rank), as far as squads, which stay whole, allow;
+/// 3. the one whose sides count the most alike (`player` a player, and the
+///    strengths: the owner's "k/d equalizer", so with an odd count the
+///    stronger players are the side of fewer). For this alone each party's
+///    strength is first shaken by a factor drawn by `seed` within
+///    [`NOISE_MILLI`]: the ranks of 2 are never shaken.
+///
+/// The same parties and seed always make the same sides. The largest party
+/// (the first of those) is on side 0. When no way fits, the larger parties
+/// go first, each to the side with fewer players, split where it must be.
 pub fn sides(parties: &[Party], size: usize, player: Strength, seed: u32) -> [Vec<u32>; 2] {
     let mut rng = Rng::new(u64::from(seed) ^ 0x9E37_79B9_7F4A_7C15);
-    let parties: Vec<(Vec<u32>, Strength)> = parties
-        .iter()
-        .flat_map(|party| {
-            let factor = 1000 - NOISE_MILLI + rng.below(2 * NOISE_MILLI + 1);
-            let each = party
-                .strength
-                .ratio(i64::from(factor), 1000 * party.members.len().max(1) as i64);
-            party
-                .members
-                .chunks(size.max(1))
-                .map(move |chunk| (chunk.to_vec(), each.times(chunk.len())))
-        })
-        .collect();
+    // Each part: its members and what they count for shaken; and each
+    // strong player: its part and what it counts for.
+    let mut parts: Vec<(Vec<u32>, Strength)> = Vec::new();
+    let mut strong: Vec<(usize, Strength)> = Vec::new();
+    for party in parties {
+        let factor = 1000 - NOISE_MILLI + rng.below(2 * NOISE_MILLI + 1);
+        for chunk in party.members.chunks(size.max(1)) {
+            let counted: Strength = chunk.iter().map(|&(_, each)| each).sum();
+            strong.extend(
+                chunk
+                    .iter()
+                    .filter(|&&(_, each)| each >= level_stats::STRONG)
+                    .map(|&(_, each)| (parts.len(), each)),
+            );
+            parts.push((
+                chunk.iter().map(|&(account_id, _)| account_id).collect(),
+                counted.ratio(i64::from(factor), 1000),
+            ));
+        }
+    }
+    let parties = parts;
+    strong.sort_by_key(|&(_, each)| std::cmp::Reverse(each));
     let count = parties.len();
     // What a way is worth, the less the better. Bit `i` of `mask`: party
     // `i` is on side 1.
     let score = |mask: u32| {
+        let side_of = |index: usize| (mask >> index & 1) as usize;
         let mut players = [0_usize; 2];
         let mut strength = [Strength::ZERO; 2];
         for (index, (members, each)) in parties.iter().enumerate() {
-            let side = (mask >> index & 1) as usize;
-            players[side] += members.len();
-            strength[side] += *each;
+            players[side_of(index)] += members.len();
+            strength[side_of(index)] += *each;
+        }
+        // How far past one strong player a side is ahead in all, then at
+        // each rank, the strongest first: a rank above counts before every
+        // rank below it.
+        let mut ahead = 0_i64;
+        let mut uneven = [0_u8; crate::MAX_PLAYERS_PER_MATCH];
+        for (rank, &(index, each)) in strong.iter().enumerate() {
+            ahead += if side_of(index) == 0 { 1 } else { -1 };
+            if strong.get(rank + 1).is_none_or(|&(_, next)| next < each)
+                && let Some(slot) = uneven.get_mut(rank)
+            {
+                *slot = ahead.unsigned_abs().saturating_sub(1) as u8;
+            }
         }
         let over: usize = players.iter().map(|&side| side.saturating_sub(size)).sum();
         let apart = players[0].abs_diff(players[1]);
         let worth = |side: usize| player.times(players[side]) + strength[side];
-        (over, apart.saturating_sub(1), worth(0).abs_diff(worth(1)))
+        (
+            over,
+            apart.saturating_sub(1),
+            ahead.unsigned_abs().saturating_sub(1),
+            uneven,
+            worth(0).abs_diff(worth(1)),
+        )
     };
     let fixed = (0..count).max_by_key(|&index| (parties[index].0.len(), std::cmp::Reverse(index)));
     // A room has at most 20 members, so at most 20 parties.
@@ -2611,6 +2649,132 @@ mod tests {
         }
     }
 
+    /// The owner's of 2026-11-09: "strong people being split always
+    /// evenly", before the sides count alike. The two strongest (2.2 and
+    /// 2.1) with a player of 0 would count exactly as the other three; they
+    /// are apart, whatever the seed.
+    #[test]
+    fn the_strongest_are_apart_though_together_would_count_alike() {
+        let strengths = [
+            (1, 2200),
+            (2, 2100),
+            (3, 0),
+            (4, 1400),
+            (5, 1500),
+            (6, 1400),
+        ];
+        let parties: Vec<Party> = strengths.iter().map(|&(id, s)| party(&[id], s)).collect();
+        for seed in 0..50 {
+            let [a, b] = sides(&parties, 3, KD, seed);
+            assert_eq!((a.len(), b.len()), (3, 3));
+            assert!(a.contains(&1) != a.contains(&2), "{a:?} {b:?}");
+        }
+    }
+
+    /// Of any room of players alone, at every rank of the strong (ties one
+    /// rank) a side is at most one strong player ahead; and a squad of two
+    /// strong with two strong alone has both of them against it, wherever
+    /// they rank.
+    #[test]
+    fn the_strong_are_dealt_evenly() {
+        let mut state = 0x9e37_79b9_u32;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            state
+        };
+        for _ in 0..200 {
+            let players = 2 + next() % 19;
+            let strengths: Vec<(u32, Strength)> = (1..=players)
+                .map(|id| (id, Strength::from_milli(i64::from(300 + next() % 3700))))
+                .collect();
+            let parties: Vec<Party> = strengths
+                .iter()
+                .map(|&each| Party::new(vec![each]))
+                .collect();
+            let size = players.div_ceil(2) as usize;
+            let [a, _] = sides(&parties, size, KD, next());
+            let mut strong: Vec<(u32, Strength)> = strengths
+                .iter()
+                .copied()
+                .filter(|&(_, each)| each >= level_stats::STRONG)
+                .collect();
+            strong.sort_by_key(|&(_, each)| std::cmp::Reverse(each));
+            let mut ahead = 0_i64;
+            for (rank, &(id, each)) in strong.iter().enumerate() {
+                ahead += if a.contains(&id) { 1 } else { -1 };
+                if strong.get(rank + 1).is_none_or(|&(_, next)| next < each) {
+                    assert!(ahead.abs() <= 1, "{strong:?} side {a:?}");
+                }
+            }
+        }
+        // A squad of 3 and 2.5 (3.9 and 3.25 in it), two strong alone (2.8,
+        // 2.2) and four of 1 in a 4 v 4: both strong alone against it.
+        let mut parties = vec![Party::new(vec![
+            (1, Strength::from_milli(3000)),
+            (2, Strength::from_milli(2500)),
+        ])];
+        parties.extend(
+            [
+                (3, 2800),
+                (4, 2200),
+                (5, 1000),
+                (6, 1000),
+                (7, 1000),
+                (8, 1000),
+            ]
+            .map(|(id, s)| party(&[id], s)),
+        );
+        for seed in 0..50 {
+            let [a, b] = sides(&parties, 4, KD, seed);
+            let (squad, other) = if a.contains(&1) { (a, b) } else { (b, a) };
+            assert!(
+                other.contains(&3) && other.contains(&4),
+                "{squad:?} {other:?}"
+            );
+        }
+        // The review of #1567: the squad's two strong (2.6 and 2.47 in it)
+        // below two strong alone (4 and 3.8). Three against one keeps the top
+        // two apart, but the strong count comes before the ranks: two a side,
+        // the two alone together against the squad, whatever the seed.
+        let mut parties = vec![Party::new(vec![
+            (1, Strength::from_milli(2000)),
+            (2, Strength::from_milli(1900)),
+        ])];
+        parties.extend(
+            [
+                (3, 4000),
+                (4, 3800),
+                (5, 0),
+                (6, 1750),
+                (7, 1750),
+                (8, 1750),
+            ]
+            .map(|(id, s)| party(&[id], s)),
+        );
+        for seed in 0..200 {
+            let [a, b] = sides(&parties, 4, KD, seed);
+            let (squad, other) = if a.contains(&1) { (a, b) } else { (b, a) };
+            assert!(
+                other.contains(&3) && other.contains(&4),
+                "seed {seed}: {squad:?} {other:?}"
+            );
+        }
+        // The second review of #1567: a squad of two strong (2.6, 2.47) and
+        // three strong alone (3.7, 3.3, 2.3) in a 3 v 2. Three against two
+        // either way: the two strongest apart, the squad with the 3.3.
+        let mut parties = vec![Party::new(vec![
+            (1, Strength::from_milli(2000)),
+            (2, Strength::from_milli(1900)),
+        ])];
+        parties.extend([(3, 3700), (4, 3300), (5, 2300)].map(|(id, s)| party(&[id], s)));
+        for seed in 0..200 {
+            let [a, b] = sides(&parties, 3, KD, seed);
+            assert!(a.contains(&3) != a.contains(&4), "seed {seed}: {a:?} {b:?}");
+        }
+    }
+
     /// The owner's of 2026-11-01, "we can add small noise": players alike
     /// are put apart otherwise by each seed, so the same players do not
     /// always play together; the same seed always makes the same sides.
@@ -2659,8 +2823,8 @@ mod tests {
             assert_eq!(made, sides(&parties, size, KD, seed));
             assert_eq!(made[0].len() + made[1].len(), players as usize);
             assert!(made[0].len().abs_diff(made[1].len()) <= 2, "{made:?}");
-            for party in parties.iter().filter(|party| party.members().len() > 1) {
-                let on = |side: &Vec<u32>| party.members().iter().all(|m| side.contains(m));
+            for party in parties.iter().filter(|party| party.is_squad()) {
+                let on = |side: &Vec<u32>| party.members().all(|m| side.contains(&m));
                 assert!(on(&made[0]) || on(&made[1]), "{made:?} split {party:?}");
             }
         }

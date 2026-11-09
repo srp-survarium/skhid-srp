@@ -375,6 +375,44 @@ fn an_input_with_a_rotation_no_client_makes_goes_to_nobody() {
     bench.assert_no_faults();
 }
 
+/// The client checks the relayed input too. A sender must never be able
+/// to relay bytes that make all the recipients take their refusal path.
+#[test]
+fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    let good = bench.clients[0].input(50, 0x21);
+    bench.run(100);
+    let bad = PlayerInput {
+        time: WireTime::tick(bench.clients[0].clock() + 50),
+        rotation: [0; 4],
+        actions: 1 << 30,
+    };
+    assert!(srp_validate::messages::input(bad.rotation, bad.actions).is_err());
+    bench.clients[0].send_input(bad);
+    bench.clients[0].send_input(bad);
+    bench.run(100);
+    assert_eq!(discards(&bench.clients[0]), [bad.time]);
+    assert_eq!(bench.game().inputs_refused(0), 1);
+    for other in [1, 2] {
+        assert_eq!(bench.clients[other].relays_of(0), [good]);
+        assert!(discards(&bench.clients[other]).is_empty());
+    }
+    // Native bit 31 and the shipped carry/pickup marker in bit 29 stay
+    // accepted. All players continue after the bad input is discarded.
+    for actions in [1 << 31, 1 << 29, 0x20] {
+        let input = bench.clients[0].input(50, actions);
+        bench.run(100);
+        for other in [1, 2] {
+            assert_eq!(bench.clients[other].relays_of(0).last(), Some(&input));
+        }
+    }
+    assert_eq!(bench.stages(), "LLL");
+    assert!(bench.clients.iter().all(|client| !client.closed));
+    bench.assert_no_faults();
+}
+
 #[test]
 fn a_late_input_is_dropped_when_the_setting_says_so() {
     let settings = Settings {
@@ -1092,6 +1130,108 @@ fn a_first_world_gets_through_a_line_that_carries_a_little_at_a_time() {
 }
 
 #[test]
+fn a_first_world_that_takes_three_seconds_is_waited_for_with_load_receipts_as_without() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // A line thinner still: one full datagram in 40 ms. The first world
+    // takes some 3 s to get through, within its 4 s on the way
+    // (`Timing::entry_state`). A game that sends load receipts (0x82) is
+    // not given up on before that, which would start it again every 2 s
+    // and never let it in.
+    for mode in [WorldReceiptMode::Legacy, WorldReceiptMode::Accept] {
+        let settings = Settings {
+            compress_state: false,
+            ..Settings::default()
+        };
+        let mut bench = Bench::growing(2, MAP_BATTERIES, settings);
+        for client in &mut bench.clients {
+            client.sim.ballast = 13_000;
+        }
+        bench.join(0);
+        settle(&mut bench);
+
+        bench.clients[1].world_receipts = mode;
+        bench.clients[1].slow_acks = true;
+        bench.clients[1].connect();
+        assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+        let line = thin_line(&mut bench, 1);
+        bench.clients[1].ready();
+        let started = bench.ms;
+        while bench.stages() != "LL" && bench.ms < started + 8_000 {
+            for _ in 0..7 {
+                bench.step(5);
+            }
+            thin_step(&mut bench, &line);
+        }
+        let took = bench.ms - started;
+        assert_eq!(bench.stages(), "LL", "{mode:?}: after {took} ms");
+        assert!(took > 2_500, "{mode:?}: in after {took} ms, the line is not thin enough");
+        assert_eq!(bench.game().generation(1), Some(0), "{mode:?}");
+        assert_eq!(bench.clients[1].snapshots().len(), 1, "{mode:?}");
+        assert!(bench.until(50, |bench| bench.clients[1].entered() == [1]));
+        bench.assert_no_faults();
+    }
+}
+
+#[test]
+fn a_resync_on_a_long_line_settles_with_load_receipts_as_without() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // One player of several on a line of 800 to 850 ms one way, resynced:
+    // its 14 KB worlds wait behind the replay and the transport's window,
+    // and are acked more than 2 s after they were queued. A game that
+    // sends load receipts is waited for as long as one that does not: its
+    // receipt is due after the acks, not 2 s after the world was queued.
+    for (players, one_way) in [(6usize, 800u64), (8, 850)] {
+        let mut settled = Vec::new();
+        for mode in [WorldReceiptMode::Legacy, WorldReceiptMode::Accept] {
+            let settings = Settings {
+                compress_state: false,
+                ..Settings::default()
+            };
+            let mut bench = Bench::growing(players, MAP_BATTERIES, settings);
+            for client in &mut bench.clients {
+                client.sim.ballast = 13_000;
+            }
+            let far = players - 1;
+            bench.clients[far].world_receipts = mode;
+            bench.clients[far].slow_acks = true;
+            bench.join_all();
+            settle(&mut bench);
+            bench.run(3_000);
+            bench.one_way = vec![0; players];
+            bench.one_way[far] = one_way;
+            bench.run(2_000);
+            // Its game goes out of step: it is resynced.
+            let from = bench.clients[far].clock();
+            bench.clients[far].sim.salt_from = Some((from, 7));
+            let start = bench.ms;
+            let mut resynced = false;
+            let mut live_ms = 0u64;
+            while bench.ms < start + 40_000 {
+                let (resyncing, _) = bench.game().resync_state(far);
+                resynced |= resyncing;
+                if resynced && !resyncing && bench.stages().ends_with('L') {
+                    live_ms += 5;
+                }
+                if bench.ms.is_multiple_of(50) {
+                    for client in &mut bench.clients[..far] {
+                        client.input(20, 0x21);
+                    }
+                }
+                bench.step(5);
+            }
+            let what = format!("{players} players, {one_way} ms, {mode:?}");
+            assert!(resynced, "{what}");
+            assert_eq!(bench.stages(), "L".repeat(players), "{what}");
+            assert!(live_ms > 25_000, "{what}: in step {live_ms} ms of 40 s");
+            assert_eq!(bench.game().resyncs(far), 1, "{what}");
+            bench.assert_no_faults();
+            settled.push(bench.game().generation(far));
+        }
+        assert_eq!(settled[0], settled[1], "{players} players, {one_way} ms");
+    }
+}
+
+#[test]
 fn a_game_waiting_for_its_first_world_gets_the_others_inputs_many_in_a_datagram() {
     let mut bench = Bench::new(4, MAP_BATTERIES, Settings::default());
     for place in 0..3 {
@@ -1205,6 +1345,52 @@ fn a_world_goes_out_only_once_its_time_was_answered() {
     bench.run(3_000);
     assert_eq!(bench.clients[0].model.syncs, 1);
     bench.assert_no_faults();
+}
+
+#[test]
+fn an_initial_world_with_a_player_in_it_is_not_used() {
+    // A world of a match in play, with its player 0 in it.
+    let mut played = Bench::new(2, MAP_BATTERIES, Settings::default());
+    for client in &mut played.clients {
+        client.sim.player_states[0] = Some(PlayerState {
+            current_index: 0,
+            target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
+            items: vec![1_000_000],
+            alive: true,
+            has_to_die: false,
+            look_pitch: 0.0,
+            rotation_y: 0.0,
+            actions_mask: 0,
+            effects: 0,
+        });
+    }
+    played.join_all();
+    settle(&mut played);
+    let time = played.clock() / 50 * 50 - 500;
+    let sim = played.clients[0].sim.clone();
+    assert_ne!(sim.world(time)[..4], [0; 4]);
+    // Uploaded as an initial world, every other game would load its
+    // player's block, animation stream and all, with nobody vouching.
+    let start = |settings: Settings| {
+        let mut bench = Bench::new(2, MAP_BATTERIES, settings);
+        bench.clients[0].sim = sim.clone();
+        bench.clients[0].initial_ms = time;
+        bench.clients[0].connect();
+        assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
+        bench.clients[0].ready();
+        bench.run(1_000);
+        bench
+    };
+    let bench = start(Settings::default());
+    assert_eq!(bench.stages(), "w-");
+    assert!(!bench.game().has_clock());
+    // That is the only thing wrong with it.
+    let unchecked = start(Settings {
+        check_initial_world: false,
+        ..Settings::default()
+    });
+    assert!(unchecked.game().has_clock());
 }
 
 #[test]
@@ -1854,7 +2040,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     // Team 0 brings the tenth battery home; player 0 has 5 kills.
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.kills_from = Some((at, 5));
     }
     // The next world asked for shows it, both clients vouch for it, and
@@ -1865,7 +2051,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
     assert_eq!(result.winner, Some(0));
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     assert_eq!(result.trusted_by, 2);
     let ended_after = result.duration_ms - at;
     assert!((3_000..9_500).contains(&ended_after), "{ended_after}");
@@ -1898,7 +2084,7 @@ fn a_players_battery_events_are_paid_at_most_the_maps_battery_count_per_kind() {
         (at, 1, event::PUT_VICTORY_ITEM_IN_CONTAINER, 4),
     ];
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.events_from.clone_from(&events);
     }
     assert!(bench.until(12_000, |bench| {
@@ -2239,6 +2425,39 @@ fn a_world_no_game_could_load_goes_to_nobody() {
 }
 
 #[test]
+fn a_framed_world_with_unsafe_effects_is_refused_and_a_valid_retry_starts_the_match() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.clients[0].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
+    let bad = with_unsafe_effects(&bench.clients[0].sim.world(INITIAL_MS + 50));
+    assert!(Frame::parse(&bad, Places::of(20)).is_ok());
+    bench.clients[0].upload(INITIAL_MS + 50, &bad);
+    bench.run(100);
+    assert_eq!(bench.game().uploads_refused(0), 1);
+    assert!(!bench.game().has_clock());
+    // A fresh upload transaction, still a valid initial world.
+    bench.clients[0].ready();
+    assert!(bench.until(5_000, |bench| bench.stages().starts_with('L')));
+    bench.join(1);
+    assert_eq!(bench.game().uploads_refused(1), 0);
+    bench.assert_no_faults();
+}
+
+/// `world` with an effects section no game loads, which the games' own
+/// check refuses too (`world::effects`).
+fn with_unsafe_effects(world: &[u8]) -> Vec<u8> {
+    let real = Sections::walk(world).unwrap();
+    let mut effects = real.effects.to_vec();
+    effects[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+    Sections {
+        effects: &effects,
+        ..real
+    }
+    .to_body()
+    .unwrap()
+}
+
+#[test]
 fn the_initial_world_is_not_checked_when_the_setting_says_so() {
     let settings = Settings {
         check_initial_world: false,
@@ -2479,14 +2698,14 @@ fn what_each_player_has_left_comes_with_the_result() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(12_000, |bench| {
         bench.clients.iter().all(|client| client.closed)
     }));
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     let supplies = result.players[0]
         .supplies
         .as_ref()
@@ -3152,6 +3371,32 @@ fn a_world_whose_parts_go_unacked_is_taken_as_loaded_on_the_games_right_hash() {
 }
 
 #[test]
+fn a_world_whose_parts_go_unacked_is_taken_as_loaded_on_the_games_load_receipt() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // Two players and no hash reports from the one who enters: no hash
+    // can prove its load (as in a match of a few, or against bots). Its
+    // acks name nothing of its world, but its game loads it and says so.
+    let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
+    bench.join(0);
+    settle(&mut bench);
+    bench.clients[1].world_receipts = WorldReceiptMode::Accept;
+    bench.clients[1].no_hashes = true;
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+    bench.clients[1].ready();
+    assert!(bench.until(3_000, |bench| bench.stages() == "Lt"), "{}", bench.stages());
+    bench.clients[1].mute_acks = true;
+    assert!(bench.until(1_000, |bench| bench.stages() == "LL"), "{}", bench.stages());
+    bench.clients[1].mute_acks = false;
+    assert_eq!(bench.game().generation(1), Some(0));
+    assert_eq!(bench.clients[1].snapshots().len(), 1);
+    assert!(bench.until(50, |bench| bench.clients[1].entered() == [1]));
+    bench.run(3_000);
+    assert_eq!(bench.clients[1].snapshots().len(), 1);
+    bench.assert_no_faults();
+}
+
+#[test]
 fn a_tie_does_not_clear_a_disagreement_that_stands() {
     let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
     bench.join_all();
@@ -3506,7 +3751,7 @@ fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.kills_from = Some((at, 23));
     }
     assert!(bench.until(12_000, |bench| {

@@ -259,9 +259,50 @@ fn majority(bodies: &[Vec<u8>]) -> (usize, usize) {
 struct PlaceState {
     /// The roster of the 0xE4 this place got.
     roster: u8,
-    /// 0xE4 parts by unique id: (count, parts).
-    options: HashMap<u8, (u8, BTreeMap<u8, Vec<u8>>)>,
+    options: OptionsParts,
     uploads: Reassembler,
+}
+
+/// The 0xE4s a place was sent, in parts by unique id.
+#[derive(Default)]
+pub(crate) struct OptionsParts(HashMap<u8, Gathering>);
+
+/// One 0xE4's parts so far: the count (part 0 carries it), the parts by index.
+type Gathering = (Option<u8>, BTreeMap<u8, Vec<u8>>);
+
+impl OptionsParts {
+    /// A 0xE4 message to the place: its whole payload once its last part
+    /// is in. A part sent again after its message was whole is kept until
+    /// its message's part 0 comes again, never taken for a whole message.
+    pub(crate) fn push(&mut self, message: &wire::Message) -> Option<Vec<u8>> {
+        let x = message.x?;
+        let Some(part) = message.part else {
+            return Some(message.payload.to_vec());
+        };
+        let (count, parts) = self.0.entry(x).or_default();
+        if part.count.is_some() {
+            *count = part.count;
+        }
+        parts.insert(part.index, message.payload.to_vec());
+        if parts.len() < usize::from((*count)?) {
+            return None;
+        }
+        let (_, parts) = self.0.remove(&x)?;
+        Some(parts.into_values().flatten().collect())
+    }
+}
+
+/// The mask bytes of the datagrams to a place: a match that lets players in
+/// late sends its masks for 20 from the start (`Game::snapshot_players`),
+/// any other for the roster of the 0xE4 the place got (none before it).
+pub(crate) fn mask_len(growing_roster: bool, roster: u8) -> usize {
+    if growing_roster {
+        mask_bytes(MAX_PLAYERS as u8)
+    } else if roster == 0 {
+        0
+    } else {
+        mask_bytes(roster)
+    }
 }
 
 /// Makes the `.sur` of a recording. `config` is the mode's `.options` file.
@@ -439,15 +480,7 @@ impl Gather {
             return;
         }
         report.datagrams_out += 1;
-        // A match that lets players in late sends its masks for 20 from
-        // the start (`Game::snapshot_players`).
-        let mask_len = if report.growing_roster {
-            mask_bytes(MAX_PLAYERS as u8)
-        } else if place.roster == 0 {
-            0
-        } else {
-            mask_bytes(place.roster)
-        };
+        let mask_len = mask_len(report.growing_roster, place.roster);
         let parsed = wire::parse(Table::Match, Direction::ToClient, record.bytes, mask_len);
         let datagram = match parsed {
             Ok(datagram) => datagram,
@@ -461,24 +494,9 @@ impl Gather {
             let payload = message.payload;
             match message.id {
                 0xE4 => {
-                    let Some(x) = message.x else { continue };
-                    let (count, parts) = place.options.entry(x).or_insert((1, BTreeMap::new()));
-                    match message.part {
-                        Some(part) => {
-                            if let Some(n) = part.count {
-                                *count = n;
-                            }
-                            parts.insert(part.index, payload.to_vec());
-                            if parts.len() < usize::from(*count) {
-                                continue;
-                            }
-                        }
-                        None => {
-                            parts.insert(0, payload.to_vec());
-                        }
-                    }
-                    let whole: Vec<u8> = parts.values().flatten().copied().collect();
-                    place.options.remove(&x);
+                    let Some(whole) = place.options.push(message) else {
+                        continue;
+                    };
                     if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary) {
                         let roster = parsed.players.len() as u8;
                         place.roster = roster;

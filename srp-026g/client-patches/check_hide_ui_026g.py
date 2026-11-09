@@ -69,12 +69,13 @@ HANDLER, WORLD, HUD, LOBBY = 0x20000000, 0x20010000, 0x20020000, 0x20030000
 HOLDER, UI, MOVIE, BINDER, KEYS = 0x20040000, 0x20041000, 0x20042000, 0x20050000, 0x20060000
 STACK, SENTINEL = 0x21000000, 0x22000000
 # kernel32's imports the patches' shared code reaches at a hook (the Lock's
-# GetCurrentThreadId; patch 88's clock, QueryPerformanceCounter / -Frequency):
+# GetCurrentThreadId; patch 88's clock, QueryPerformanceCounter / -Frequency; the log's CreateFileA):
 # one thread, the counter 0 at 10 MHz; a harness of its own sets them anew
 IMPORTS = 0x3E000000
 IMPORT_STUBS = ((0x870118, b"\xB8\x01\x00\x00\x00\xC3"),
                 (0x870158, b"\x8B\x44\x24\x04\xC7\x00\x00\x00\x00\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"),
-                (0x870150, b"\x8B\x44\x24\x04\xC7\x00\x80\x96\x98\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"))
+                (0x870150, b"\x8B\x44\x24\x04\xC7\x00\x80\x96\x98\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"),
+                (0x870048, b"\xB8\xFF\xFF\xFF\xFF\xC2\x1C\x00"))   # the patches' log: CreateFileA fails, nothing written
 REGS = (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP)
 GAME = dict(zip(REGS, (0x0A0A0A0A, 0x0C0C0C0C, 0x0D0D0D0D, 0x0B0B0B0B, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))

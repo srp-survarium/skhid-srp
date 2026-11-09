@@ -20,7 +20,7 @@ been played or released.
 | 3 | 10 | 321 | Adrenalin | Movement +5% below 30 body health | +15% |
 | 4 | 15 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
 | 4 | 15 | 323 | Unflinching | Bullets' slow -10% while a painkiller is active | -40% |
-| 4 | 15 | 333 | Concentration | While a painkiller is active: environment sounds -10%, opponents' sounds (not shots) +10% | -40% / +40% |
+| 4 | 15 | 333 | Concentration | Sight sway -5% while a painkiller is active | -20% |
 | 5 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
 | 5 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
 
@@ -38,23 +38,29 @@ Additional Medicine, one or the other):
 Points held: tier 1 = 5, tiers 1-2 = 15, tiers 1-3 = 22, tiers 1-4 = 31 (with
 Unflinching or Concentration); a full build 32.
 
-## Concentration (owner decision, 2026-11-06)
+## Concentration (owner decisions, 2026-11-06 and 2026-11-09)
 
 - New skill 333, tier 4 column 4, 4 ranks; Strong Bones column 2, Unflinching
   column 3. Unflinching and Concentration exclude each other (antiskills both
   ways, as Supply Pocket and Additional Medicine).
-- For the local player only, while a painkiller is active (the same test as
-  Numb Legs and Unflinching): environment sounds 10% quieter a rank, opponents'
-  sounds except their shots 10% louder a rank (-40% / +40% at rank 4).
-  Teammates and the player's own sounds are unchanged.
-- Name and text from retail 0.69's orphan strings st_trained_ears_name /
-  description ("Concentration"; "Makes environment sounds more quiet, and
-  opponents' sounds (except firing) are louder by:"), adapted to the
-  painkiller condition, in every locale of the edit list.
+- Since 2026-11-09 (the owner: "reduce sway by 5% per skill point when
+  painkiller is active"): while a painkiller is active (the same test as Numb
+  Legs and Unflinching), the sight's sway is 5% less a rank (-20% at rank 4).
+  It replaces the 2026-11-06 hearing effect (environment -10% / opponents'
+  sounds +10% a rank, the local player only), which is gone with its sound
+  sites (commit 61205cf06 has them).
+- The sway is the game's own: modifier 61 `breath_vibration` ("Sight sway",
+  the gear's -20 % bonus 1210), and Concentration adds -0.05 a rank to it,
+  as percentage points (skill-design rule): the gear's -20 % and rank 4
+  together give -40 %, never below no sway.
+- It is part of the match: every game of it computes the aimed weapon's sway
+  in the simulation (weapon_core::tick), so it has its `simulation_changes.tsv`
+  row.
+- Name kept ("Concentration", retail 0.69's st_trained_ears_name); the
+  description says "While a painkiller is active, reduction in sight sway:"
+  with the stock "Sight sway" words of each language.
 - Icon: retail 0.69d0 `skills/survival/15.png` (a brain), bytes unchanged,
   MedicalSkill069333 (`icons-069.tsv`).
-- Purely what the local player hears: no simulation change, so no
-  `simulation_changes.tsv` row for it (the retune's `next` row stays).
 
 ## 2026-11-06 changes (owner decisions)
 
@@ -111,8 +117,11 @@ Unflinching or Concentration); a full build 32.
 - Potent Painkiller shows both values per rank and in the final result.
 - Medic (341) leaves the tree; it returns later in an anomalous tree. Its native
   code (activation sharing, the Larkspur 20-instance pool, the length clock) and
-  its transport bit 20 stay as they are: the bit is 0 because no skill sets it.
-  The sections below about Medic describe that retained code.
+  its transport bit 20 stay as they are. It returned in the artefact tree:
+  Cascade (542) sets bit 20 (artefact-skills.md), so a Larkspur's
+  activation heals the teammates within 6 m (Cascade's reach) with its glow; since the owner's
+  rev51 games every kind's activation (Spring, Lifebone, Onyx) plays its glow on them, a
+  Lifebone's also heals (`share_active`). The sections below about Medic describe that code.
 - Supply Pocket and Additional Medicine move to tier 5 and exclude each other,
   symmetrically; Supply Pocket keeps its exclusion of 111 and 113.
 - Saved skills are settled when an account loads (`Account::repair`,
@@ -144,7 +153,7 @@ the native medicine category, excluding whole-pocket items (the boosters).
 Whole-pocket items remain one; the server applies the same cap to moves, preset
 fills and account repair without deleting inventory stock. The menu uses committed skills, never an unsaved preview. Server reset
 validation obtains available branches from the loaded tree instead of assuming
-two tabs. The stock movie contains only two icon sets; `MedicalSkillIcon.as`
+two tabs. The stock movie contains only two icon sets; `SkillIcon069.as`
 displays original 0.69d survival PNGs for branch 3 within the existing
 skill renderer. Their bytes are unchanged in `flash/lobby_menu/bitmaps/`;
 `scripts/medical-skills/icons-069.tsv` records the donor paths, mapping and SHA-256.
@@ -163,7 +172,7 @@ leaves the player with no medical skill at all.
 - Slot 43 `armored_trap`, 24 bits, the layout it shipped with: bit offsets 0
   (Potent Painkiller, 0..3), 3 (Fast Bandaging, 0..2), 6 (Metabolism, 0..5),
   9 (Medical Training, 0..3), 12 (Adrenalin, 0..3), 15 (Additional Medicine),
-  16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained, 0 now) and
+  16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained: set by the artefact tree's Cascade) and
   21 (Brothers in Arms, 0..2). Ranked fields keep three bits; unlocks use one.
 - Slot 45 `can_defuse_traps`, 10 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
   0..2), Take Cover at 2 (2 bits, 4.0, 0..2), Unflinching at 4 (3 bits, 16.0,
@@ -222,7 +231,8 @@ time), after native enable/effect and before the activation timestamp/state
 assignment. It obtains the source from item+250h / inventory+174h, reads its
 simulation core, then visits active places in order. The visual effect helper is
 also invoked by deserialize and must never perform this gameplay healing.
-It excludes self, enemies, dead/inactive players and targets outside 5 m.
+It excludes self, enemies, dead/inactive players and targets outside Cascade's reach (6 m;
+5 m before the owner's 2026-11-07 change).
 Each successful native lookup is an owned reference released on every exit.
 For recipients it removes the Larkspur config's affects, fills body/head/pain
 like patch 54, and adds a native effect instance with the recipient's calculator.
@@ -230,49 +240,26 @@ The source's normal activation and cooldown continue unchanged. Brothers in Arms
 uses the same core lookup and team rule, after spawn invulnerability and before
 native body-part damage processing. Environmental and self damage are unchanged.
 
-Concentration (`on_listener` .. `on_once_point` in medical_skills.rs; the
-sound sites' owner is `vostok/sound.rs`, the listener `vostok/medical.rs`):
+Concentration (`on_sway` in medical_skills.rs, `vostok::medical::sway`; the
+site `medical.sway`, sites_026g.tsv):
 
-- What a sound is: a tag of ours in each sound proxy, `Source` (untagged,
-  environment, opponent), at proxy +8Ch, the tail padding of its 144-byte
-  pool record (the three constructors write up to +88h; the sound code
-  0x55000..0x67000 has no +8Ch access of a proxy). `sound_proxy.allocated`
-  (new_helper 0x65484, the one allocation of point, hud and spot proxies)
-  clears it, so a proxy no site tags is untagged.
-- Tagged where it is made, before it is played, on the game's thread:
-  - environment: a map object's looped spot or point sound
-    (`object_sound.play`, object_sound::insert 0x294A6F); a damage zone's
-    loop (`damage_zone.sound`, emit_sound 0x298CF8) and its three fx
-    one-shots (emit_and_play_once's return address 0x298DEE, 0x298F1E,
-    0x299269);
-  - opponent: a weapon's sounds that are not its shot (`weapon_sound.made`,
-    play_sound_callback 0x297F7E; a shot is an effect of the fire states'
-    handlers, whose +18h vtable lies 150h before the effect for
-    weapon_core_fire_state, 158h for the pistol's and the double barrel's,
-    both words inside every handler state) when its user's place is an
-    opponent's; a step or a landing (`player_sound.foot_step` ..
-    `foot_stepped` around on_foot_step's call of on_step 0x2A6572,
-    `player.landing_step` .. `landing_stepped` around on_landing's landing
-    step 0x23FBE0) of an opponent: the thread's id is marked before the call
-    and cleared after it (also on its early returns), and only that thread's
-    point one-shots in between (`sound_emitter.once_point`,
-    emit_and_play_once 0x6587F) are the step's: a bullet task's sound at the
-    same time is not.
-- Opponents: every other place of the match's options not on the local
-  player's team (vostok::medical `ally()`'s rule by place: teams 0 and 1
-  have allies, another team none).
-- Published once a frame at `game_world.after_move` (order 2, after ragdoll
-  and lamps): the local player's `Hearing` (`Plain`, or `Concentrated` with
-  its rank while its painkiller is active) for the sound thread and the
-  opponents' places for the tagging sites, two atomics; `lobby_menu.activate`
-  (order 1, after lobby_scene's) sets them back to plain and none.
-- The volume: `sound_voice.gain` (notify_listener2 0x5C73E, the sound thread)
-  multiplies XMM1 by the factor of the voice's proxy's tag; set_volume_impl
-  still clamps it to [0, 1], so an opponent's sound already at full volume is
-  not louder.
-- Later (left untagged in this version): stamina breathing, the game-effect
-  presenter's sounds, poisoning, the rustles of equipment; hud sounds;
-  bullet impacts and other one-shots (game_world::play_sound).
+- breath_vibration_calculator::tick (0x31D6E0; the calculator at weapon+288h,
+  EDI) runs from weapon_core::tick (0x2E0A40) only while the weapon is aimed
+  (+5E8h), with the weapon's dispersion now as its first argument: the
+  dispersion calculator's m_weapon_dispersion (+418h) plus
+  m_character_dispersion (+404h), 0x2E0A23. At 0x31D722 it calls
+  apply_modifier with index 61 (`breath_vibration`) on the holder's kit
+  (calculator +3Ch, the player set by set_user 0x2E29F3): B x max(0, 1 + S).
+  That value feeds the breath state's tick (vtable +1Ch), the amplitude it
+  eases to (1 + params+18h x it, 0x31D898) and the phase's speed (params+1Ch
+  x it, 0x31D7E9): the sight's sway. It is the only read of modifier 61 in
+  the exe (the 93 apply_modifier calls' indices; 0x2D5B80's one call reads
+  29, apply_modifiers 0x2D5BC0's two {4, 20} (0x2DBC1D) and {24, 56} (0x331715)).
+- The site: 0x31D727, after that call, before `movss [esp+10h],xmm0`
+  (0x31D72D); the hook replays `mov eax,[ebp+0Ch]` / `fild dword [ebp+0Ch]`.
+  XMM0 becomes max(0, M - 0.05 x rank x B) = B x max(0, 1 + S - 0.05 x rank),
+  with B the tick's argument ([ebp+8], never written) and the painkiller test
+  of Numb Legs. A B or M not above 0 is left as it is.
 
 ## Effect ownership, capacity and duration
 
@@ -354,8 +341,8 @@ The broader `selftest_026g.py` passed arena, engine ABI, hook/call-shape and
 cert-only structural checks before stopping at its Windows-only certificate
 check: Linux Python has no `ctypes.WinDLL`. It did not complete its remaining
 variants; this is not reported as a full self-test pass. The new lobby source
-movie is `eb2ba8b7c606f5978095225a8784585d015d8d5df5edfc110a45c8501aeea0d9`,
-not `RESULT_SHA256`; its latest-main changes still need an owner gameplay check
+movie is `eb2ba8b7c606f5978095225a8784585d015d8d5df5edfc110a45c8501aeea0d9`;
+its latest-main changes still need an owner gameplay check
 before publishing. No release has been made.
 
 
@@ -430,47 +417,31 @@ Implemented and tested locally; not played, not released.
 - Ruffle harness on the built lobby movie: `MEDICALSKILLS RESULT pass`.
 - `engine_026g.py`, `hooks_026g.py` and `link_026g.py` checks current.
 
-## Validation of Concentration (2026-11-06)
+## Validation of Concentration's sway (2026-11-09)
 
-Implemented and tested locally; not played, not released.
+Implemented and tested locally; not played, not released. (The hearing
+version's checks of 2026-11-06 went with it; commit 61205cf06 has them.)
 
-- `check_medical_skills_026g.py` (Unicorn, built exe), `check_concentration`:
-  the tag cleared at allocation (and nothing written when the pool is
-  empty); map objects', damage zones' loops and one-shots environment,
-  another one-shot untagged; weapon sounds of every place of three team
-  layouts (allies, self, places past the count untagged), the three fire
-  handlers' shots never, non-fire effects at +158h/+168h/+170h tagged; foot
-  steps and landings tagged only between their pair, only on their thread,
-  nothing after, and nothing after a call that played nothing (on_step's
-  early return); the volume through the real set_volume_impl for
-  Concentration 0..7 (5..7 refused), with Unflinching beside it (refused),
-  painkiller on/off (an active bandage is no painkiller), every tag, volumes
-  0..1.5 and below 0 clamped; the lobby's activate resets it. The publish
-  runs the real after_move chain (ragdoll and lamps first). PASS; the
-  earlier checks unchanged, PASS.
-- Patch-crate tests (4 medical: Concentration 0..4, 5..7 and beside
-  Unflinching refused, the volume per tag, the opponents' set) and i686
-  Clippy, no warnings.
-- `survarium` skills tests (layout with 333, both held refused and settled
-  to Concentration with 32 points), session account tests (a set holding
-  both refunds Unflinching and sends the kits again) and Clippy, no warnings.
+- `check_medical_skills_026g.py` (Unicorn, built exe), `check_sway`: the
+  native breath tick from 0x31D6F1 to 0x31D72D, the real apply_modifier of
+  index 61 and the hook between, for the dispersion 0, 0.3 and 2, the kit's
+  S61 0, -0.2, -0.9 and -1.5, Concentration 0..7 (5..7 refused) with and
+  without Unflinching (refused beside it), painkiller on/off (an active
+  bandage is no painkiller): B x max(0, 1 + S - 0.05 x rank), the argument
+  unchanged; kits 0 and 2 the same. PASS; the file's other checks PASS.
+- Patch-crate tests (218, the new sway test among them) and i686 Clippy, no
+  warnings.
 - `engine_026g.py`, `hooks_026g.py` current; `link_026g.py --write`, then
-  current. The after_move and lobby-activate chains' own checks
-  (`check_ragdoll`, `check_lamps`, `check_lobby_scene`, `check_weapon_pickup`)
-  run with Concentration's handlers in them.
-- `release/build-content 49` (a local build; no number reserved): all 18960
-  files the manifest makes are as it makes them; patch
-  `c099d3ea278492c75af392133779e914a54ae3731f8654fd5e1fe244801b5f87`, server
-  data `44f1c4414a8ea38cf8ace5087b15ce18212bf946b404d67e6090a7d2c1a97566`.
-  Its skills tree passes `survarium/tests/medical_skills.rs` (13 skills,
-  Concentration at tier 4 column 4, 32-point builds with either of the pair,
-  both refused, modifier 45 = 74 or 522).
-- Ruffle on that lobby movie: `MEDICALSKILLS RESULT pass` (layout with 333,
-  Concentration refused beside Unflinching and the other way, stops at 4,
-  survival/15 pixels) and `DETAILS RESULT pass` (Concentration 5, and
-  beside Unflinching, refused; its full set 522 valid).
-- Not played: whether the factors are audible as intended, and the sources
-  left untagged (above), need the owner's ears in a match.
+  current; `check_hooks_026g.py` 28 ok. The after_move and lobby-activate
+  chains without Concentration's handlers: `check_lobby_scene`,
+  `check_lamps`, `check_ragdoll`, `check_weapon_pickup` pass.
+- `check_localization_026g.py` PASS; `release/build-content 54` (a quick
+  local build; no number reserved) builds, skills_tree.options changed by the
+  edit list.
+- Ruffle on that build's lobby movie: `DETAILS RESULT pass` (the painkiller
+  card's Sight sway line 100 -> 95 % and -> 80 %, green, in every language
+  beside its value).
+- Not played: how -5 % to -20 % of the sway feels at the sight.
 
 ## Validation of the 2026-11-06 changes
 

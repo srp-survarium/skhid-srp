@@ -4,24 +4,29 @@
 
   release/moderate registrations [--since 2h] [-n 20] [--follow]
   release/moderate joins         [--since 30m] [-n 20] [--follow]   sign-ins and refused ones
-  release/moderate who <name | address | range>                    accounts, and who shares their address
+  release/moderate watch [--all] [--every 60]                       suspicious sign-ups and sign-ins, as notices
+  release/moderate who <name | address | range>                    accounts like that name (fuzzy), who shares their address
   release/moderate bans                                             banned accounts and addresses
+  release/moderate memory [--account A] [--log-mb 16]              games' memory headroom (patch 126), tightest arena first
   release/moderate ban <name | address | range> <hours | forever> [--reason R] [--with-ip] [--tell]
   release/moderate unban <name | address | range> [--with-ip]
   release/moderate mute <name> <hours | forever> --reason R         the player is told the reason
   release/moderate unmute <name>
   release/moderate signups [open | closed]                          no argument: the current state
+  release/moderate reset-password <name>                            its next sign-in sets the new one
+  release/moderate give <name> <item name | id> [count]
+  release/moderate money <name> --silver=+N|-N --reason R             silver only: gold is gone
 
 Lines are plain text, one row each, times in UTC; --json gives one JSON object a line. A sign-up
 or sign-in that looks like a banned player back starts with "!! <why> !!" (red on a terminal,
 not with NO_COLOR; --json: "suspicious"): BANNED IP <address or range>, IP of banned <login>
 (a banned account's last address), name like banned <login> (the names' letters without digits
 or e-mail domain: the same, reversed, one inside the other, or a letter or two apart). Changes
-take --dry-run: the request is shown and not sent. Python 3, stdlib only (here: nix-shell -p python3).
+take --dry-run: the request is shown and not sent, and exit 1 when the page refuses. Python 3, stdlib only (here: nix-shell -p python3).
 
-Reads (registrations, joins, who, bans) run a small read-only Python on the live host: srp.db
+Reads (registrations, joins, who, bans, memory) run a small read-only Python on the live host: srp.db
 opened read-only, and only the last --log-mb MB of logs/srp.log (registrations) and
-logs/login.log (sign-ins), read by seek, under nice/ionice. The live host is small: keep
+logs/login.log (sign-ins), logs/memory.log* (memory), read by seek, under nice/ionice. The live host is small: keep
 --follow at 30 s or more. Changes go through the admin page, POSTed by curl on the jump host
 (the address in SRP_ADMIN_IPS); curl reads the URL and the form from stdin, so neither the token
 nor the secret path is in any command line, and neither is ever printed.
@@ -51,11 +56,13 @@ few minutes, so a brand-new account may not be in srp.db yet ("not saved yet").
 
 import argparse
 import datetime
+import difflib
 import html
 import ipaddress
 import json
 import os
 import re
+import shutil
 import signal
 import sqlite3
 import subprocess
@@ -71,23 +78,24 @@ COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
 
 DEFAULT_DATA ="/var/lib/docker/volumes/srp26_srp26-data/_data"
 
-# The words the login server turns into one of the game's ban messages
-# (BAN_REASONS in srp-026g/servers/login-server/src/v026g.rs). A reason with
-# none of them shows the game's default, "Impersonating a game administrator".
+# The words the login server takes a ban's reason by (BAN_WORDS in
+# srp-026g/servers/login-server/src/v026g.rs), with the text the player sees
+# (st_srp_ban_reason_*, English). The first row with a word wins; none: the
+# default, "Decision of the administration."
 BAN_WORDS = [
-    ("cheating", ["cheat", "hack", "aimbot", "wallhack", "exploit"]),
-    ("teamkilling", ["teamkill", "team kill", "team-kill"]),
-    ("account trading", ["trading", "account sale", "selling"]),
-    ("real-life threats", ["threat", "treating", "real life", "reallife"]),
-    ("discussing admins", ["discuss"]),
-    ("incorrect information", ["incorrect", "false info", "misinform"]),
-    ("fascism", ["fascism", "faschism", "nazi"]),
-    ("politics", ["politic"]),
-    ("advertising", ["advert"]),
-    ("flood", ["flood", "spam"]),
-    ("nickname", ["nickname", "nick name", "user name", "username"]),
-    ("insult", ["insult", "abus", "harass"]),
-    ("bad language", ["language", "swear", "profan", "obscen"]),
+    ("Harassing or team-killing players who don't farm.", ["farm"]),
+    ("Cheats or other prohibited software.", ["cheat", "hack", "aimbot", "wallhack", "exploit"]),
+    ("Killing teammates.", ["teamkill", "team kill", "team-kill"]),
+    ("Selling or trying to sell an account.", ["trading", "account sale", "selling"]),
+    ("Real-life threats.", ["threat", "treating", "real life", "reallife"]),
+    ("Spreading false information.", ["incorrect", "false info", "misinform"]),
+    ("Racism or Nazism.", ["racism", "fascism", "faschism", "nazi"]),
+    ("Political discussion.", ["politic"]),
+    ("Advertising.", ["advert"]),
+    ("Spam or flooding.", ["flood", "spam"]),
+    ("An unacceptable name.", ["nickname", "nick name", "user name", "username"]),
+    ("Insults or provocation.", ["insult", "abus", "harass"]),
+    ("Obscene language.", ["language", "swear", "profan", "obscen"]),
 ]
 
 
@@ -108,22 +116,27 @@ def remote_main(request):
                 pass
     kind = request["kind"]
     out = {}
-    if kind in ("registrations", "joins"):
-        log = "srp.log" if kind == "registrations" else "login.log"
-        text, out["pos"] = read_log("%s/logs/%s" % (data, log), request.get("pos"), request["window"])
-        first = re.search(r"^(\d{4}-\d\d-\d\dT\S+Z) ", text, re.M)
-        out["first"] = first.group(1) if first else None
-        events = registrations(db, text) if kind == "registrations" else joins(db, text)
+    if kind in ("registrations", "joins", "watch"):
         banned = [
             {"id": row["id"], "login": row["login"], "last_ip": row["last_ip"],
              "cores": cores([row["login"], row["name"], row["game_name"]])}
             for row in db.execute(
                 "SELECT * FROM accounts WHERE banned = 1 AND (banned_until IS NULL OR banned_until > ?)", (now,))
         ]
-        for event in events:
-            event["account"] = account(db, nets, event["account"], now)
-            event["suspicious"] = suspicious(event, nets, banned)
-        out["events"] = events
+        logs = {"registrations": "srp.log", "joins": "login.log"}
+        pos = request.get("pos") or {}
+        out["pos"], out["events"], firsts = {}, [], []
+        for each in list(logs) if kind == "watch" else [kind]:
+            text, out["pos"][each] = read_log("%s/logs/%s" % (data, logs[each]), pos.get(each), request["window"])
+            first = re.search(r"^(\d{4}-\d\d-\d\dT\S+Z) ", text, re.M)
+            if first:
+                firsts.append(first.group(1))
+            for event in registrations(db, text) if each == "registrations" else joins(db, text):
+                event["account"] = account(db, nets, event["account"], now)
+                event["suspicious"] = suspicious(event, nets, banned)
+                out["events"].append(event)
+        out["events"].sort(key=lambda event: event["at"])
+        out["first"] = max(firsts) if firsts else None
     elif kind == "who":
         out["accounts"] = [account(db, nets, row, now) for row in find(db, request["target"])]
     elif kind == "bans":
@@ -133,7 +146,82 @@ def remote_main(request):
         )
         out["accounts"] = [account(db, nets, row, now) for row in rows]
         out["nets"] = [ban for _, ban in nets]
+    elif kind == "memory":
+        out["memory"] = memory_summary(read_newest("%s/logs/memory.log" % data, request["window"]), request.get("account"))
     sys.stdout.write(json.dumps(out))
+
+
+def read_newest(path, window):
+    """The whole lines of the last `window` bytes of `path` and its rotated
+    files before it (.1, .2 ...), oldest first. Read by seek."""
+    parts, left, n = [], window, 0
+    while left > 0:
+        name = path if n == 0 else "%s.%d" % (path, n)
+        if not os.path.exists(name):
+            break
+        size = os.stat(name).st_size
+        start = max(0, size - left)
+        with open(name, "rb") as f:
+            f.seek(start)
+            chunk = f.read()
+        if start > 0:
+            chunk = chunk.split(b"\n", 1)[1] if b"\n" in chunk else b""
+        parts.append(chunk)
+        left -= size
+        n += 1
+    return b"".join(reversed(parts)).decode("utf-8", "replace")
+
+
+MEMORY_PART = re.compile(
+    r"^(?P<at>\d{4}-\d\d-\d\dT\S+Z) \[\w+\] (?P<name>.+) \(account (?P<id>\d+)\), match (?P<match>0x[0-9a-f]+), "
+    r"(?P<moment>loaded|ended), part \d+/\d+: (?P<list>.*)$", re.M)
+MEMORY_PROCESS = re.compile(r"^process free (\d+) largest (\d+) video (\d+)$")
+MEMORY_ARENA = re.compile(r'^arena "((?:[^"\\]|\\.)*)" size (\d+) (?:used (\d+) largest (\d+)|counted (\d+)|unknown)$')
+
+
+def memory_summary(text, account=None):
+    """The tightest each arena and the address space came, across the memory
+    reports in `text` (memory.log, client patch 126; one line a part): per
+    arena the reports, the unknown ones, the least left (size - used) and the
+    least largest free block, each with who, when and at which moment; for
+    the process the least largest free region and free total, and the least
+    video budget. `account`: only its reports (name or id)."""
+    arenas, process = {}, {"reports": 0}
+    target = account.casefold() if account else None
+
+    def at(line):
+        return {"who": line["name"], "account": int(line["id"]), "at": line["at"], "match": line["match"],
+                "moment": line["moment"]}
+
+    def least(row, key, value, line):
+        if key not in row or value < row[key]["value"]:
+            row[key] = dict(at(line), value=value)
+
+    for line in MEMORY_PART.finditer(text):
+        if target and target not in (line["id"], line["name"].casefold()):
+            continue
+        for entry in line["list"].split(" | "):
+            p, a = MEMORY_PROCESS.match(entry), MEMORY_ARENA.match(entry)
+            if p:
+                free, largest, video = (int(x) for x in p.groups())
+                process["reports"] += 1
+                least(process, "largest_free", largest, line)
+                least(process, "free", free, line)
+                least(process, "video", video, line)
+            elif a:
+                name = re.sub(r"\\(.)", r"\1", a.group(1))
+                size = int(a.group(2))
+                row = arenas.setdefault(name, {"name": name, "reports": 0, "unknown": 0, "size": 0})
+                row["reports"] += 1
+                row["size"] = max(row["size"], size)
+                used = a.group(3) or a.group(5)
+                if used is None:
+                    row["unknown"] += 1
+                    continue
+                least(row, "left", size - int(used), line)
+                if a.group(4) is not None:
+                    least(row, "largest_free", int(a.group(4)), line)
+    return {"process": process, "arenas": list(arenas.values())}
 
 
 def suspicious(event, nets, banned):
@@ -312,18 +400,30 @@ def find(db, target):
     if net is not None:
         rows = db.execute("SELECT * FROM accounts WHERE last_ip IS NOT NULL ORDER BY id").fetchall()
         return [row for row in rows if in_net(net, row["last_ip"])]
-    exact = db.execute(
-        "SELECT * FROM accounts WHERE login = ?1 COLLATE NOCASE OR name = ?1 COLLATE NOCASE "
-        "OR game_name = ?1 COLLATE NOCASE ORDER BY id",
-        (target,),
-    ).fetchall()
-    if exact:
-        return exact
-    return db.execute(
-        "SELECT * FROM accounts WHERE instr(lower(login), lower(?1)) OR instr(lower(name), lower(?1)) "
-        "OR instr(lower(game_name), lower(?1)) ORDER BY id LIMIT 30",
-        (target,),
-    ).fetchall()
+    # Compared here, not in SQL: its NOCASE and lower() know only Latin.
+    key = target.strip().casefold()
+    scored = []
+    for row in db.execute("SELECT * FROM accounts ORDER BY id"):
+        names = {(n or "").casefold() for n in (row["login"], row["login"].split("@")[0], row["name"], row["game_name"])}
+        best = max(likeness(key, n) for n in names - {""})
+        if best >= 0.6:
+            scored.append((best, row))
+    scored.sort(key=lambda each: (-each[0], each[1]["id"]))
+    return [row for _, row in scored[:30]]
+
+
+def likeness(key, name):
+    """1: the same name; 0.9 to 1: one inside the other; else how alike they
+    are (difflib), at least 0.8 when their letters are (`alike`: wolfie99,
+    Wolfie)."""
+    if key == name:
+        return 1.0
+    if min(len(key), len(name)) >= 3 and (key in name or name in key):
+        return 0.9 + 0.09 * min(len(key), len(name)) / max(len(key), len(name))
+    ratio = difflib.SequenceMatcher(None, key, name).ratio()
+    if any(alike(a, b) for a in cores([key]) for b in cores([name])):
+        ratio = max(ratio, 0.8)
+    return ratio
 
 
 def account(db, nets, row, now):
@@ -490,12 +590,70 @@ def watch(args, kind):
         pass
 
 
+def alert(args):
+    """Sign-ups and sign-ins as they come, from now on: the suspicious ones
+    (all with --all), each suspicious one also a desktop notice."""
+    notify = shutil.which("notify-send")
+    # A 1-byte read: no whole line, just where the logs end now.
+    pos = remote({"kind": "watch", "window": 1})["pos"]
+    print("-- watching sign-ups and sign-ins, every %d s%s (Ctrl-C stops) --" % (
+        args.every, "" if notify else "; no notify-send, so no notices"), file=sys.stderr, flush=True)
+    try:
+        while True:
+            time.sleep(args.every)
+            answer = remote({"kind": "watch", "window": 4 * 1024 * 1024, "pos": pos})
+            pos = answer["pos"]
+            for event in answer["events"]:
+                if event["suspicious"] or args.all:
+                    emit(args, event, event_line(event))
+                if event["suspicious"] and notify:
+                    acc = event["account"] or {}
+                    text = "%s %s from %s: %s" % (
+                        event["kind"], acc.get("login") or event["name"],
+                        event.get("addr") or acc.get("last_ip") or "-", "; ".join(event["suspicious"]))
+                    subprocess.run([notify, "-u", "critical", "skhid", text], check=False)
+    except KeyboardInterrupt:
+        pass
+
+
 def who(args):
     accounts = remote({"kind": "who", "target": args.target})["accounts"]
     if not accounts:
         sys.exit("moderate: no account matches %r" % args.target)
     for acc in accounts:
         emit(args, acc, "%s  %s%s" % (acc["last_ip"] or "-", account_line(acc), same_ip_line(acc)))
+
+
+def mib(n):
+    return "%.1f MiB" % (n / 1048576)
+
+
+def memory_where(least):
+    return "%s (%d) %s %s, match %s" % (least["who"], least["account"], least["at"], least["moment"], least["match"])
+
+
+def memory(args):
+    summary = remote({"kind": "memory", "window": int(args.log_mb * 1024 * 1024), "account": args.account})["memory"]
+    process, arenas = summary["process"], summary["arenas"]
+    if not process["reports"] and not arenas:
+        sys.exit("moderate: no memory reports in the read (clients before patch 126 send none)")
+    if process["reports"]:
+        emit(args, dict(process, kind="process"),
+             "address space  %d reports  least largest free %s: %s  least free %s  least video budget %s" % (
+                 process["reports"], mib(process["largest_free"]["value"]), memory_where(process["largest_free"]),
+                 mib(process["free"]["value"]), mib(process["video"]["value"])))
+    # tightest first: the least left as a share of the arena
+    for row in sorted(arenas, key=lambda r: r["left"]["value"] / r["size"] if "left" in r and r["size"] else 2):
+        text = "%-32s %10s  %d reports" % (row["name"], mib(row["size"]), row["reports"])
+        if row["unknown"]:
+            text += " (%d unknown)" % row["unknown"]
+        if "left" in row:
+            left = row["left"]
+            text += "  least left %s (%.1f %% used): %s" % (
+                mib(left["value"]), 100 - 100 * left["value"] / row["size"] if row["size"] else 0, memory_where(left))
+        if "largest_free" in row:
+            text += "  least largest free %s" % mib(row["largest_free"]["value"])
+        emit(args, dict(row, kind="arena"), text)
 
 
 def bans(args):
@@ -515,9 +673,10 @@ def quoted(value):
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def admin(args, fields, what):
+def admin(args, fields, what, direct=False):
     """POSTs `fields` (name, value) to the admin page from the jump host;
-    the page's answer line. --dry-run: shows the request, sends nothing."""
+    the page's answer line. `direct`: a script's request, answered by one
+    line of text, not the page. --dry-run: shows the request, sends nothing."""
     site = need("SKHID_SITE").rstrip("/")
     fields = list(fields) + [("lang", "en")]
     if args.dry_run:
@@ -538,8 +697,15 @@ def admin(args, fields, what):
         capture_output=True,
         text=True,
     )
-    # The page puts the token back in its form: the body is never printed.
     body, _, status = done.stdout.rpartition("\n")
+    if direct:
+        # One line of text (password_reset.rs); "pending" (202) is done too.
+        said = body.strip()[:300] if status.strip() in ("200", "202", "404", "400") else ""
+        if done.returncode != 0 or status.strip() not in ("200", "202"):
+            sys.exit("moderate: the admin page answered HTTP %s %s %s" % (
+                status.strip() or "none", said, done.stderr.strip()[-500:]))
+        return {"what": what, "answer": said}
+    # The page puts the token back in its form: the body is never printed.
     if done.returncode != 0 or status.strip() != "200":
         sys.exit(
             "moderate: the admin page answered HTTP %s (404: wrong SRP_ADMIN_PATH or the jump host not in "
@@ -552,6 +718,9 @@ def admin(args, fields, what):
     row = {"what": what, "answer": said}
     if signups:
         row["signups"] = html.unescape(signups.group(1))
+    plan = re.search(r"name=money_plan value=([^\s>]+)", body)
+    if plan:
+        row["plan"] = plan.group(1)
     if said in ("Wrong token.",) or said.startswith("Too many wrong tokens"):
         sys.exit("moderate: the admin page said: %s" % said)
     return row
@@ -574,33 +743,34 @@ def ban(args):
             "Reword it, or --tell to send it so." % told[0]
         )
     print(
-        "moderate: the player sees the game's ban text%s" % (
-            ': "%s"' % told[0] if told else ' with its default reason, "Impersonating a game administrator"'),
+        'moderate: the player sees "You are banned. %s" and when it ends' % (
+            told[0] if told else "Decision of the administration."),
         file=sys.stderr,
     )
-    fields = [("tab", "ban"), ("ban_user", args.target), ("hours", hours), ("reason", args.reason)]
+    fields = [("tab", "ban"), ("ban_user", account_or_address(args.target)), ("hours", hours), ("reason", args.reason)]
     if args.with_ip:
         fields.append(("with_ip", "on"))
-    answered(args, admin(args, fields, "ban"))
+    answered(args, admin(args, fields, "ban"), r" banned (for good|for \d+ h)")
 
 
 def unban(args):
-    fields = [("tab", "unban"), ("unban_user", args.target)]
+    fields = [("tab", "unban"), ("unban_user", account_or_address(args.target))]
     if args.with_ip:
         fields.append(("unban_ip", "on"))
-    answered(args, admin(args, fields, "unban"))
+    answered(args, admin(args, fields, "unban"), r" unbanned\.")
 
 
 def mute(args):
     if not args.reason.strip():
         sys.exit("moderate: a mute needs --reason: the player is told it")
-    fields = [("tab", "mute"), ("mute_user", args.target), ("mute_hours", duration(args.hours)),
+    fields = [("tab", "mute"), ("mute_user", named(args.target)["login"]), ("mute_hours", duration(args.hours)),
               ("mute_reason", args.reason)]
-    answered(args, admin(args, fields, "mute"))
+    answered(args, admin(args, fields, "mute"), r"chat muted ")
 
 
 def unmute(args):
-    answered(args, admin(args, [("tab", "mute"), ("mute_user", args.target), ("unmute", "1")], "unmute"))
+    answered(args, admin(args, [("tab", "mute"), ("mute_user", named(args.target)["login"]), ("unmute", "1")], "unmute"),
+             r"chat unmuted\.")
 
 
 def signups(args):
@@ -608,15 +778,79 @@ def signups(args):
     row = admin(args, fields, "signups")
     if row is not None and not args.state:
         row["answer"] = row.get("signups", "")
-    answered(args, row)
+    answered(args, row, r"^New accounts are" if args.state else None)
 
 
-def answered(args, row):
+def named(target):
+    """The one account `target` names, by its user name or else its
+    character name, in any case; refused with the likely ones otherwise.
+    The page's own lookup knows case only in Latin letters."""
+    accounts = remote({"kind": "who", "target": target})["accounts"]
+    key = target.strip().casefold()
+    # A user name outranks another account's character name.
+    found = [a for a in accounts if a["login"].casefold() == key] or [
+        a for a in accounts if key in ((a["name"] or "").casefold(), (a["character"] or "").casefold())]
+    if len(found) != 1:
+        likely = ", ".join(
+            "#%d %s%s" % (a["id"], a["login"], " (%s)" % a["name"] if a["name"] and a["name"].casefold() != a["login"] else "")
+            for a in (found or accounts)[:10]) or "none"
+        sys.exit("moderate: %r names %s account; likely: %s" % (
+            target, "more than one" if found else "no", likely))
+    print("moderate: %s" % account_line(found[0]), file=sys.stderr)
+    return found[0]
+
+
+def account_or_address(target):
+    """An address or range as it is; else the account's user name."""
+    try:
+        ipaddress.ip_network(target, strict=False)
+        return target
+    except ValueError:
+        return named(target)["login"]
+
+
+def reset_password(args):
+    """Clears the password (srp-026g/docs/notes/password-reset.md): the
+    player's next sign-in, with any password, sets the new one, so reset
+    when the player is ready to sign in."""
+    acc = named(args.target)
+    print("moderate: its next sign-in, with any password, sets the new one; tell the player to sign in now",
+          file=sys.stderr)
+    answered(args, admin(args, [("tab", "reset_password"), ("login", acc["login"])], "reset-password", direct=True))
+
+
+def give(args):
+    fields = [("tab", "item"), ("item_user", named(args.target)["login"]), ("item", args.item), ("count", str(args.count))]
+    answered(args, admin(args, fields, "give"), r": given \d+ of ")
+
+
+def money(args):
+    """The page's two steps: a preview hands out a plan, the confirm applies
+    it only if neither the account nor the fields changed since."""
+    if not args.reason.strip():
+        sys.exit("moderate: money needs --reason (kept in the account's history)")
+    if not re.fullmatch(r"[+-]?\d+", args.silver):
+        sys.exit("moderate: give --silver, a whole number, + or -")
+    fields = [("tab", "money"), ("user", named(args.target)["login"]), ("silver", args.silver),
+              ("money_reason", args.reason)]
+    preview = admin(args, fields, "money")
+    if preview is None:
+        return
+    plan = preview.pop("plan", None)
+    if not plan:
+        answered(args, preview, r"(?!)")
+    answered(args, admin(args, fields + [("confirm", "1"), ("money_plan", plan)], "money"), r"silver .*→")
+
+
+def answered(args, row, done=None):
+    """Prints the page's answer line; exits 1 when it is not `done`'s."""
     if row is None:
         return
     if not row["answer"]:
         sys.exit("moderate: the admin page gave no answer line")
     emit(args, row, row["answer"])
+    if done and not re.search(done, row["answer"]):
+        sys.exit(1)
 
 
 def main():
@@ -634,11 +868,19 @@ def main():
         p.add_argument("--log-mb", type=float, default=4, help="how much of the log's end to read (default 4)")
         p.set_defaults(run=lambda args, kind=name: watch(args, kind))
 
-    p = commands.add_parser("who", help="accounts by user, character name or address/range; who shares it")
+    p = commands.add_parser("watch", help="suspicious sign-ups and sign-ins from now on, as desktop notices")
+    p.add_argument("--all", action="store_true", help="print every sign-up and sign-in, not only suspicious ones")
+    p.add_argument("--every", type=int, default=60, help="poll, seconds (at least 30; default 60)")
+    p.set_defaults(run=alert)
+    p = commands.add_parser("who", help="accounts like a user or character name (fuzzy), or by address/range")
     p.add_argument("target")
     p.set_defaults(run=who)
     p = commands.add_parser("bans", help="banned accounts and addresses (srp.db)")
     p.set_defaults(run=bans)
+    p = commands.add_parser("memory", help="how close games came to each arena's end and the address space's (memory.log)")
+    p.add_argument("--account", help="only this account's reports (name or id)")
+    p.add_argument("--log-mb", type=float, default=16, help="how much of the log's end to read (default 16)")
+    p.set_defaults(run=memory)
 
     def change(name, text):
         p = commands.add_parser(name, help=text)
@@ -667,6 +909,19 @@ def main():
     p = change("signups", "close or open the registration of new accounts")
     p.add_argument("state", nargs="?", choices=("open", "closed"))
     p.set_defaults(run=signups)
+    p = change("reset-password", "clear an account's password: its next sign-in sets the new one")
+    p.add_argument("target", help="user name or character name")
+    p.set_defaults(run=reset_password)
+    p = change("give", "give an account an item")
+    p.add_argument("target", help="user or character name")
+    p.add_argument("item", help="the item's exact name or id (e.g. ak_12 or 363)")
+    p.add_argument("count", nargs="?", type=int, default=1)
+    p.set_defaults(run=give)
+    p = change("money", "add (+) or take (-) silver")
+    p.add_argument("target", help="user or character name")
+    p.add_argument("--silver", default="", help="e.g. --silver=+2000 or --silver=-500")
+    p.add_argument("--reason", default="", help="required; kept in the account's history")
+    p.set_defaults(run=money)
 
     args = parser.parse_args()
     if hasattr(signal, "SIGPIPE"):

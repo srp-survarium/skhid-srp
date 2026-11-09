@@ -594,6 +594,8 @@ st_change_quest_label	Сменить задание
 st_change_weapon_speed_description	Скорость смены оружия:
 st_change_weapon_speed_name	Ловкие руки
 st_character	Умения
+st_character_decals_1_10_name	Охотник на кабанов
+st_character_decals_1_11_name	Охотник на оленей
 st_character_decals_1_12_name	Ярило
 st_character_decals_1_1_name	Литератор
 st_character_decals_1_2_name	Отряд "Альфа"
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Ветеран
 st_character_decals_1_6_name	Мастер
 st_character_decals_1_7_name	Легенда
 st_character_decals_1_8_name	Летучие гусары
+st_character_decals_1_9_name	Музыкант
 st_character_decals_2_1_name	Новичок бродяг
 st_character_decals_2_2_name	Ветеран бродяг
 st_character_decals_2_3_name	Рекрут Черного Рынка
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Герб Латвии
 st_character_decals_5_7_name	Герб Литвы
 st_character_decals_5_8_name	Герб Эстонии
 st_character_decals_5_9_name	Герб Молдовы
+st_character_decals_7_10_name	Спички
+st_character_decals_7_23_name	Сердце
+st_character_decals_7_24_name	Пугающая Тыква
 st_character_decals_7_27_name	Орнамент клевера
 st_character_decals_7_28_name	Подкова
+st_character_decals_7_30_name	Почтовый голубь
+st_character_decals_7_31_name	Победа
+st_character_decals_7_35_name	Кровавая рука
+st_character_decals_7_37_name	Хранитель
 st_character_decals_7_9_name	Травы
 st_character_decals_generic_desc	Используйте нашивки в окне внешнего вида бронежилетов и штанов, чтобы изменить их облик.
 st_characteristics_label	Характеристики игрока
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Ошибка добавления. В кланов
 st_current_value	\nТекущее значение:
 st_cz_75_description	Чешский самозарядный пистолет, патрон: 9x19. Один из самых копируемых пистолетов холодной войны.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходи каждый день, и получай <highlight>x2</highlight> опыта и репутации за <highlight>первые три</highlight> победы.
+st_daily_bonus_description	Каждый день: <highlight>x2</highlight> опыта за <highlight>первые три</highlight> победы.
 st_daily_bonus_hint	Показать окно приветствия
 st_daily_bonus_label	Добро пожаловать обратно
 st_daily_bonus_progress	Ваш прогресс за текущий день
@@ -2191,7 +2201,46 @@ st_srp_ammo_scar_ap_desc	Бронебойные патроны 7.62x51 для FN
 st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 патронов
 st_srp_ammo_slug	Пуля
 st_srp_ammo_stats	Характеристики патронов
+st_srp_artefact_501_description	Время сбора артефакта:
+st_srp_artefact_501_name	Быстрые руки
+st_srp_artefact_502_description	Изоляция от аномалий:
+st_srp_artefact_502_name	Стойкость
+st_srp_artefact_512_description	Длительность активного эффекта артефактов:
+st_srp_artefact_512_name	Знание артефактов
+st_srp_artefact_513_description	Пассивные артефакты видны как свечение на ногах игроков, включая ваши.
+st_srp_artefact_513_name	Артефактное зрение
+st_srp_artefact_521_description	Матч начинается со случайным артефактом в контейнере; вид один на весь матч.
+st_srp_artefact_521_name	Хранитель артефактов
+st_srp_artefact_522_description	Один карман становится контейнером для артефакта.
+st_srp_artefact_522_name	Контейнер для артефакта
+st_srp_artefact_523_description	Урон от пуль и осколков внутри аномалии:
+st_srp_artefact_523_name	Защита Леса
+st_srp_artefact_531_description	Каждая Пружина также ускоряет перезарядку: +5% пассивно, +15% при активации.
+st_srp_artefact_531_name	Пружина II
+st_srp_artefact_532_description	Нет урона от падения, пока Оникс активен.
+st_srp_artefact_532_name	Оникс II
+st_srp_artefact_533_description	Активация Живокоста полностью восстанавливает выносливость.
+st_srp_artefact_533_name	Живокост II
+st_srp_artefact_541_description	Пассивные эффекты ваших артефактов действуют и на живых союзников в радиусе 9 м.
+st_srp_artefact_541_name	Резонанс
+st_srp_artefact_542_description	Активированные артефакты действуют и на живых союзников в радиусе 6 м. "Они сияют, а ты блистаешь"
+st_srp_artefact_542_name	Каскад
+st_srp_artefact_points	 ед.
 st_srp_attachments	Обвес
+st_srp_ban_reason_account_trading	Продажа или попытка продажи учётной записи.
+st_srp_ban_reason_administration	Решение администрации.
+st_srp_ban_reason_advertising	Реклама.
+st_srp_ban_reason_bad_language	Нецензурная лексика.
+st_srp_ban_reason_cheating	Читы или другое запрещённое ПО.
+st_srp_ban_reason_false_information	Распространение ложной информации.
+st_srp_ban_reason_farm_pressure	Травля или убийство союзников, которые не фармят.
+st_srp_ban_reason_flood	Спам или флуд.
+st_srp_ban_reason_insults	Оскорбления или провокации.
+st_srp_ban_reason_nickname	Недопустимое имя.
+st_srp_ban_reason_politics	Обсуждение политики.
+st_srp_ban_reason_racism	Расизм или нацизм.
+st_srp_ban_reason_teamkilling	Убийство союзников.
+st_srp_ban_reason_threats	Угрозы в реальной жизни.
 st_srp_crosshair_dynamic	Динамический прицел
 st_srp_crosshair_hidden	Скрытый прицел
 st_srp_crosshair_static	Статический прицел
@@ -2448,14 +2497,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Описание пока недосту
 st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
 st_srp_equipment069_snow_20_torso_7_desc	Описание пока недоступно.
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Снег-20"
-st_srp_exchange_balance	Баланс
-st_srp_exchange_button	Обменять
-st_srp_exchange_gold	Золото
-st_srp_exchange_pay	Отдаёте
-st_srp_exchange_receive	Получаете
-st_srp_exchange_short_gold	Недостаточно золота
-st_srp_exchange_short_silver	Недостаточно серебра
-st_srp_exchange_title	Обмен
 st_srp_hide_hit_markers_option	Скрыть хитмаркеры
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
@@ -2517,6 +2558,8 @@ st_srp_lobby_hangar	Ангар
 st_srp_lobby_room	Комната
 st_srp_lobby_title	Лобби
 st_srp_login_account_hint	Аккаунт создаётся при первом входе
+st_srp_login_ban_ends	Закончится в %1$s (через %2$s).
+st_srp_login_ban_forever	Бан бессрочный.
 st_srp_map_chemical_plant	Химзавод
 st_srp_map_chemical_plant_v011	Химзавод (v0.11)
 st_srp_map_cologne	Кельн
@@ -2576,15 +2619,14 @@ st_srp_medical_331_description	Заменяет ячейку дополните�
 st_srp_medical_331_name	Карман для припасов
 st_srp_medical_332_description	Бонус к максимальному здоровью рук и ног:
 st_srp_medical_332_name	Крепкие кости
-st_srp_medical_333_description	Пока действует обезболивающее, звуки окружения тише, а звуки противников (кроме выстрелов) громче на:
+st_srp_medical_333_description	Пока действует обезболивающее, снижение раскачивания прицела:
 st_srp_medical_333_name	Концентрация
 st_srp_medical_342_description	Снижение урона, получаемого от союзников:
 st_srp_medical_342_name	Братья по оружию
 st_srp_medical_seconds	 s
-st_srp_medicine_ambient_sounds	Звуки окружения
 st_srp_medicine_crouched_healing	Лечение в приседе
-st_srp_medicine_enemy_sounds	Звуки противников
 st_srp_medicine_hit_slow	Замедление от пуль
+st_srp_medicine_sight_sway	Раскачивание
 st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
 st_srp_mode_blackout	Защитное устройство: блэкаут
@@ -2694,6 +2736,7 @@ st_srp_rooms_join_why_4	Матч заполнен.
 st_srp_rooms_join_why_5	Скоро технические работы: новые входы закрыты.
 st_srp_rooms_join_why_6	Матч завершается: вы сыграете следующий.
 st_srp_rooms_join_why_7	Этот матч достиг лимита игроков. Вы присоединитесь к следующему матчу.
+st_srp_rooms_join_why_8	Матч сейчас не может принять игроков. Вы присоединитесь к следующему матчу.
 st_srp_rooms_joined_room	%1$s вошёл в комнату
 st_srp_rooms_late_hint	Кто зайдёт сейчас, увидит комнату, потом попадёт в матч.
 st_srp_rooms_leave	Выйти
@@ -2761,12 +2804,30 @@ st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s
 st_srp_static_minimap_option	Статическая миникарта
+st_srp_unit_days	%1$s д
+st_srp_unit_hours	%1$s ч
 st_srp_unit_kg	%1$s кг
 st_srp_unit_meters	%1$sм
+st_srp_unit_minutes	%1$s мин
 st_srp_unit_mps	%1$s м/с
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Приоритет дискретной GPU
+st_srp_vulkan_dedicated_gpu_hint	Выбирает более мощную видеокарту на ноутбуках.\n+ Выше производительность на ноутбуках\n- Тратит больше батареи
+st_srp_vulkan_frame_limit	Ограничение FPS
+st_srp_vulkan_frame_limit_hint	Ограничивает, сколько кадров в секунду рисует игра.
+st_srp_vulkan_low_latency	Снизить задержку ввода
+st_srp_vulkan_low_latency_hint	Игра быстрее отзывается на мышь.\n+ Прицел реагирует быстрее\n- На некоторых ПК может идти менее плавно
+st_srp_vulkan_off	Выкл.
+st_srp_vulkan_options	Настройки Vulkan
+st_srp_vulkan_overlay	Оверлей
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+график
+st_srp_vulkan_overlay_full	Полный
+st_srp_vulkan_overlay_hint	Показывает скорость игры на экране.
+st_srp_vulkan_tear_free	Без разрывов без V-Sync
+st_srp_vulkan_tear_free_hint	Картинка не рвётся при выключенной вертикальной синхронизации.\n+ Нет рваных полос при быстром повороте\n- Задержка чуть больше, чем просто без VSync
 st_srp_weapon069_akmsu_desc	Укороченный АКМС со складным прикладом под патрон 7.62×39. Поддерживает одиночный и автоматический режим стрельбы.
 st_srp_weapon069_akmsu_name	АКМСУ
 st_srp_weapon069_famas_desc	Французская штурмовая винтовка схемы булл-пап под боеприпас 5.56х45. Поддерживает одиночный режим, очередь по три выстрела и автоматический режим стрельбы.

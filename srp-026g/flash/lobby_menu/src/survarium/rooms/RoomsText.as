@@ -42,7 +42,7 @@ package survarium.rooms
         private static const JOIN_WHY:Object = {
             "1": "st_srp_rooms_join_why_1", "2": "st_srp_rooms_join_why_2", "3": "st_srp_rooms_join_why_3",
             "4": "st_srp_rooms_join_why_4", "5": "st_srp_rooms_join_why_5", "6": "st_srp_rooms_join_why_6",
-            "7": "st_srp_rooms_join_why_7"
+            "7": "st_srp_rooms_join_why_7", "8": "st_srp_rooms_join_why_8"
         };
         // The room's own lines in its chat: the server says them in English
         // after the player's name.

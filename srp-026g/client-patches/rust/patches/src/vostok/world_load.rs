@@ -10,8 +10,8 @@
 //!
 //! Either way the bytes are the world's time (u32), then its body, read
 //! once here into a slice; the patch parses them (`world_frame`). A world
-//! refused is never loaded: [`WorldLoad::leave`] leaves the match as the
-//! leave button does, and the site's exit `refused` is the handler's
+//! refused is never loaded: [`WorldLoad::discard`] requests a fresh world
+//! without leaving the match. The site's exit `refused` is the handler's
 //! epilogue (0x27C1E0), past the post-load steps (world_frame_check.md).
 
 use super::context::Context;
@@ -19,16 +19,11 @@ use super::hook::Thread;
 use super::world::{read, NetworkClient};
 use crate::raw;
 
-/// `close_current_match`'s reason 2, "disconnected_by_initiator" (the
-/// leave button's): 0xE0 to the match server, `31 .. 01` to the lobby, the
-/// world ended (match.md section 25).
-const LEAVE_BY_INITIATOR: u32 = 2;
-
-/// Where the world's bytes are, and so what leaving does to them.
+/// Where the world's bytes are, and so how discarding consumes them.
 enum Source {
     /// In the handler's buffer; the packet was read to its end already.
     Unpacked,
-    /// The rest of the packet's reader: read to its end on a leave, as the
+    /// The rest of the packet's reader: read to its end on refusal, as the
     /// handler's stale-world path does (0x27C02E).
     Packet(raw::BufferReader),
 }
@@ -88,27 +83,31 @@ impl<'t> WorldLoad<'t> {
         NetworkClient::of(self.client, self.thread)
     }
 
+    /// Match parameters read from the live core's owned rule list.
+    pub fn match_context(&self) -> Option<crate::world_check::Match> {
+        super::world_context::from_client(self.client)
+    }
+
     /// The hook's thread.
     pub fn thread(&self) -> &'t Thread {
         self.thread
     }
 
-    /// Leaves the match instead of loading the world: the packet read to its
-    /// end, then `close_current_match(2)`. The hook's exit `refused` next.
-    pub fn leave(self) {
+    /// Ignore the world without touching simulation state. Tell only the
+    /// server that this recipient needs a new generation. The server waits
+    /// for an actual load receipt, never just the transport acknowledgement.
+    pub fn discard(self) {
         if let Source::Packet(reader) = self.source {
-            // SAFETY: the packet's live reader, for the hook; its end is
-            // inside its bytes.
+            // SAFETY: at_raw already checked this reader's allocation bounds.
             unsafe {
                 let end = (reader.begin() as usize).wrapping_add(read(reader.size()) as usize);
                 reader.set_cursor(end as *mut u8);
             }
         }
-        // SAFETY: the handler's own network client, on the game's thread;
-        // the 0xEA handler makes the same call from inside the dispatch
-        // (0x27C720..0x27C76F).
-        unsafe { raw::engine_close_current_match(Some(self.client), LEAVE_BY_INITIATOR) }
+        let connection = super::packet_recovery::Connection::of(self.client, self.thread);
+        if let Some(connection) = &connection { connection.rejected_current(); }
     }
+
 }
 
 /// The `len` bytes at `at`; none for a null pointer.

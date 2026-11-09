@@ -52,6 +52,40 @@ pub const FILES: &[(&str, u64)] = &[
     ("resources.db", 6_285_533_906),
 ];
 
+/// How far the extractor is, 0 to 100, from what it printed (its `-bsp1`
+/// progress): the last "NN%" in `output`.
+pub fn extracted_percent(output: &[u8]) -> Option<u8> {
+    output
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, byte)| **byte == b'%')
+        .find_map(|(at, _)| {
+            let digits = output[..at]
+                .iter()
+                .rev()
+                .take_while(|byte| byte.is_ascii_digit())
+                .count();
+            core::str::from_utf8(&output[at - digits..at])
+                .ok()?
+                .parse::<u8>()
+                .ok()
+                .filter(|percent| *percent <= 100)
+        })
+}
+
+/// The lines of what the extractor printed as a console would show them:
+/// its progress rewrites a line over and over with `\r` (`\b` in other
+/// builds), and only the last text of each line is kept.
+pub fn output_lines(text: &str) -> impl Iterator<Item = &str> {
+    text.lines().filter_map(|line| {
+        line.split(['\r', '\u{8}'])
+            .map(str::trim)
+            .rev()
+            .find(|part| !part.is_empty())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,5 +123,41 @@ mod tests {
         }
         assert!(crate::zip::safe_name(ARCHIVE_NAME));
         assert!(crate::zip::safe_name(EXTRACTOR_NAME));
+    }
+
+    // Printed with `-bsp1 -bb0 -sccUTF-8`: 7zr.exe 26.04 (under Wine) and,
+    // with backspaces, the macOS 7zz 26.05.
+    const WINDOWS: &[u8] = b"Blocks = 1\r\n\r\n  0%\r    \r 11%\r    \r 25%\r    \r 96%\r    \r100% 1\r        \rEverything is Ok\r\n\r\nSize:       250000000\r\nCompressed: 79490477\r\n";
+    const MAC: &[u8] = b"Blocks = 2\n\n  0%\x08\x08\x08\x08    \x08\x08\x08\x08 18% - Survarium/game/resources.db\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08                                  \x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08 38% - Survarium/game/resources.db\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08                                  \x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08Everything is Ok\n\nFiles: 2\n";
+
+    #[test]
+    fn the_extractors_last_percentage_is_read() {
+        assert_eq!(extracted_percent(WINDOWS), Some(100));
+        assert_eq!(extracted_percent(&WINDOWS[..30]), Some(11));
+        assert_eq!(extracted_percent(MAC), Some(38));
+        assert_eq!(extracted_percent(&MAC[..100]), Some(18));
+        // Nothing yet, a percentage being written, none that is one.
+        assert_eq!(extracted_percent(b"Blocks = 1\r\n\r\n"), None);
+        assert_eq!(extracted_percent(b"  0%\r    \r 1"), Some(0));
+        assert_eq!(extracted_percent(b"%\r 250%\r"), None);
+    }
+
+    #[test]
+    fn the_log_gets_the_extractors_lines_without_its_progress() {
+        let lines = |output| {
+            output_lines(core::str::from_utf8(output).unwrap()).collect::<alloc::vec::Vec<_>>()
+        };
+        assert_eq!(
+            lines(WINDOWS),
+            [
+                "Blocks = 1",
+                "Everything is Ok",
+                "Size:       250000000",
+                "Compressed: 79490477"
+            ]
+        );
+        assert_eq!(lines(MAC), ["Blocks = 2", "Everything is Ok", "Files: 2"]);
+        // Cut short: how far it got.
+        assert_eq!(lines(&WINDOWS[..30]), ["Blocks = 1", "11%"]);
     }
 }

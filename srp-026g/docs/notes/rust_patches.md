@@ -342,20 +342,21 @@ bit when the key went down.
   patch_026g.py. link_026g.py links the arena and writes the lock; it builds
   the crate and runs the layer check first.
 - **Overlap audit**: hooks_026g.py rejects two Rust hooks whose replaced
-  spans overlap (each hook names its patch); the whole arena's audit, across
-  the asm and C installs too, is selftest_026g.py's span check (it now
-  includes the Rust hooks).
+  spans overlap (each hook names its patch); the whole build's audit, across
+  the asm and C installs too, is patch_026g.py's apply(): two writes over the
+  same bytes stop the build (the self-test's test_writes and test_apply).
 - **Sizes**: `python link_026g.py --sizes` prints each block's bytes and
   pages and, for `patches.code`, each patch's bytes from its symbols -- the
   budget a port reports before and after.
 - **Tests**: `cargo test` and `cargo clippy --all-targets` in `rust/` (i686);
   the patch's own Unicorn check unchanged (`check_suicide_key_026g.py` runs
   the site to the reconvergence point against the original exe, which is the
-  behavioural proof and handles the call-and-return shape); `selftest_026g.py`
-  check 35 (the action table, the builder's 35 queries without 1Fh and
-  without the bit, the consumer and its one caller, the site, the generated
-  entry's shape, the blocks and the lock) plus the engine, hooks-staleness
-  and layer checks.
+  behavioural proof and handles the call-and-return shape); at a release,
+  `selftest_026g.py`'s general rules derive every hook's checks from its
+  declaration (the site's bytes, its branch to the generated entry, the
+  entry's ABI, nothing aiming inside: test_writes, test_rust_hooks,
+  test_rust_code, test_call_shapes) plus the engine, hooks-staleness and
+  layer checks: a new patch adds no line to it.
 - **The alignment probe** (`align_probe_026g.py`): Unicorn does not fault on a misaligned aligned-SSE operand. A check that imports it and calls `install()` has every Unicorn machine check each aligned-SSE memory operand our code runs (`.srp` to the arena's end) and reports the misaligned ones; `python align_probe_026g.py check_<patch>_026g.py <exe>` runs any check under it unchanged. `check_weapon_kit_026g.py` and `check_upgrade_preview_026g.py` have it built in.
 - **Not run in a game** until the owner plays it.
 

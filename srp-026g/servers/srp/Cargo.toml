@@ -23,3 +23,6 @@ web-server = { path = "../web-server" }
 
 # The test bot's sign-in (`src/bot.rs`): TLS, as the client does it.
 openssl = { workspace = true }
+
+[dev-dependencies]
+ban-reason = { workspace = true }

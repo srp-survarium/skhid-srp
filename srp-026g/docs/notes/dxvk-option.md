@@ -7,20 +7,125 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 - **Where:** Settings, Graphics, left column, right under Monitor: a "Renderer" list built as
   Monitor's (its label on its left, the same size), "DirectX 11" (the default) or "Vulkan/DXVK"
   (`st_srp_renderer_option`, `_dx11`, `_dxvk`, ten languages; "Vulkan (DXVK)" does not fit Monitor's
-  field). The rows under it move down one of Monitor's steps and the hint's room; the Optimal and Default buttons go
-  side by side in their panel (`flash/main_menu/src/SrpRendererChoice.as`, `SrpVideoTab.as` with the
-  FOV slider).
+  field), and the "Vulkan options" button under it (below). The rows under them move down two of
+  Monitor's steps and the hint's room; the preset panel (Optimal, Default side by side) stays where
+  it was. The room is the field of view slider's, which went to the Gameplay tab, a group of the
+  right column under the HUD group, its "FOV:" heading in the headings' look (the owner, 2026-11-06:
+  "we can move fov to game maybe?"; `client-patches/README.md`,
+  "Field-of-view slider") (`flash/main_menu/src/SrpRendererChoice.as`, `SrpVulkanOptions.as`,
+  `SrpVideoTab.as`).
 - **Restart hint:** the Language choice's "Applies after restart." (`st_srp_language_restart`, its
-  style) under the list at its label's left edge, while the saved choice is not the renderer this
-  process runs (the exe's answer says it: DXVK loaded at the start or not). Its room is kept
-  whether it shows or not: the rows under the list are one step and the note's room lower, so
-  nothing moves when it appears; both lists' open popups lie over it.
+  style) under the Vulkan options' button at the labels' left edge, while a saved value (the choice
+  or a Vulkan option) is not what this process runs (the exe's answers say it: DXVK loaded at the
+  start or not, the options DXVK was given). Its room is kept whether it shows or not, so nothing
+  moves when it appears; the lists' open popups lie over it.
 - **DirectX 11 by default.** Apply saves it as `srp_dxvk on|off` (on: Vulkan) in
   `Documents\survarium\user.cfg`, as the HUD crosshair list keeps its Hidden choice (exe patch 83's
   saved bools, `hide-hit-markers-scores.md`); Cancel puts the saved choice back.
 - **At the next start:** the game's Direct3D DLLs (d3d9, dxgi, d3d11) are delayed imports, so a
   module of the same name loaded first serves them. Nothing changes in a running game.
 - **Linux:** nothing changes; `play_skhid.sh` installs DXVK into the Wine prefix as before.
+
+## Vulkan options
+
+The owner (2026-11-05): all five, clearly integrated; (2026-11-06) one row that opens a panel, the
+window keeping its size.
+
+- **Where:** a "Vulkan options" button (`st_srp_vulkan_options`) on the row right under the Renderer
+  list, at the column's left edge, the tab's own (the Optimal and Default buttons' SetingsButton, at
+  their width; wider only for a text that would not fit), with a drop-down's arrow at its right end and
+  its text left of it (the owner, 2026-11-06: a button that clearly opens a menu; a drop-down row was
+  worse). The arrow is the Renderer box's own art (DropdownMenuSkinnedLabel's shape, masked to its
+  triangle) at 1.5 times its size, over the button (beside it in the tab, since a CLIK button sizes
+  itself by its children's bounds); it turns up while the panel is open and greys with the button.
+  A press on the button opens the panel under it (the button's own click). While the panel is open the
+  button is held on its "down" frames: CLIK draws its state on the stage's render (in the game it went
+  back to its first frame), so after each render the frames are set again; on closing it shows "over"
+  or "up" as the pointer is. A press on the stage while it is open (a stage MOUSE_DOWN listener, the
+  stock lists' way) is decided by where it lands only, never by its target: the game's log (build
+  6b2fb5d4b) showed every press over the popup with the panel container as its target, the button
+  getting none. In the panel's rectangle (its lists open inside it) the panel stays; on the button it
+  closes, and that press's own click of the button opens nothing (Ruffle gives the click; the button's
+  next MOUSE_DOWN clears it); anywhere else it closes. Esc and a DirectX 11 pick close it too.
+- **Presses on the popup:** a child that takes no presses still gives its parent a hit where it is
+  drawn (Flash's rule, the game's too), so the popup holds only the panel's rectangle (a Sprite filled
+  at alpha 0.01, its one part a press lands on), the shadow and the controls; the popup itself takes
+  none. The panel's frame and surface lie in the tab right under the button while open, so nothing of
+  them is over the button: a press there is the button's, and over the column rows it is the tab's, an
+  outside press. The shadow, in the popup over the tab's rows, lies outside the outline only, never over
+  the button.
+- **The panel:** a popup over the column, a little wider than it on both sides, and one piece with the
+  button, a tab that drops down: the Settings window's own border (its 1 px light line, then its dark
+  band) runs round the panel and round the button above it, the band under the button left out, so the
+  button opens into the panel. Round the button the border's inner edge keeps the same gap off its
+  drawn art on the left, the right and the top: the left is the panel's own (its edge, the band's width
+  in), the right and the top the same gap off the button (its art fills its bounds: the harness draws
+  it and scans the frame's pixels, the gaps within half a pixel). Its surface is the window's own
+  background art (SrvSettingsWndow's shape's bitmap, character 273, added to the movie as
+  `SrpSettingsGround`), placed where the window draws it, so the texture inside continues what is
+  behind it. A drawn soft shadow (ten one-pixel bands of black, 0.6 fading to nothing, fainter over the
+  top edges; rectangles, no filter: the game showed no DropShadowFilter knock-out) lies outside
+  the whole outline, so the panel sits above the tab.
+  The owner, 2026-11-06: the panel a separate floating window, joined to its
+  button, everything inside it looking as the same control outside does. Chosen from renders of: the
+  border alone, with a shadow, a stronger shadow, a lighter surface, the tab, a notch pointing at the
+  button; the menu's message backgrounds (MessageThinBackground and the others) are other surfaces
+  (scratched metal, blue), not the tab's, so the window's own art stays. Its controls are the column's components, unchanged (the
+  harness compares each with its twin: class, scale, size, colour, filters, frame, parts and text
+  formats). Its rows on the column's grid (each list at the Renderer list's place and width, so its label and box
+  are at the column's; each checkbox at Fullscreen's x, its text on its box as Fullscreen's), one line
+  each, on one step (Monitor's list step, grown as little as
+  ending in a gap of the column's rows takes: no row shows half below it), the same padding over
+  the first and under the last. A press outside it, on the button again or Esc closes it (Esc closes the
+  window only when no panel is open). The button is disabled (greyed as the stock buttons, not hidden)
+  while the Renderer list shows DirectX 11, following the list's pick before Apply; picking DirectX 11
+  closes an open panel.
+- **Hints:** each of the five shows a hint when the pointer rests on it, the game's own tooltip (CLIK's
+  ToolTip with the menu's tip, SrvProfileTipRenderer, 300 ms after the pointer comes over it): the
+  lists' one line (what it does), the checkboxes' three (`st_srp_vulkan_*_hint`, ten languages): what it
+  does, "+" what it gives, "-" what it costs (the owner: no pros and cons for the two lists).
+  The tip lies 4 px under the option the pointer is on, never over it (above it when the window ends
+  first), from 16 px right of the pointer, inside the window, at the menu's own scale (2 at 4K). It is
+  opaque (the symbol's look: a 1 px grey edge round a near-black fill; the symbol's own fill let the
+  rows under it show through), the text 6 px from each of its four edges. Each line is a field of its
+  own in the tip's format; a line's leading "+ " or "- " goes into a column of its own, the sign centred
+  in it on its line's baseline, so the texts after "+" and "-" start at one x in every language. The
+  checkboxes' labels: Scaleform centres them on their box (CheckBoxMultiline's vertical align), as the
+  stock Fullscreen's in the game; Ruffle draws them high, so the harness moves them for its
+  screenshots. The main menu's copy of
+  ToolTip needed: its delay timer repeated forever, so the tip never came (`Timer(300,1)`, the lobby
+  copy's); a tip is raised over the popups (PopUpManager puts its canvas back on top of whatever the
+  stage gets, so the tip lay under the panel); the placement above. The menu's tip is used by these
+  hints only (every other control of the movie sets no tip renderer).
+- **The five** (each kept in user.cfg, `st_srp_vulkan_*` texts in ten languages):
+  - Frame rate limit: Off, 60, 120, 144, 165, 240 (`srp_dxvk_frame_limit 0|60|...`) ->
+    `dxvk.maxFrameRate = <n>`.
+  - Performance overlay: Off, FPS, FPS+graph, Full (`srp_dxvk_overlay off|fps|frametimes|full`) ->
+    `dxvk.hud = fps`, `fps,frametimes`, `fps,frametimes,gpuload,compiler,memory`.
+  - Reduce input lag, off by default (`srp_dxvk_low_latency`) -> `dxvk.latencySleep = True`.
+  - Tear-free with vsync off, off by default (`srp_dxvk_tear_free`) -> `dxvk.tearFree = True`.
+  - Prefer the dedicated GPU, on by default: no line in user.cfg is on (`srp_dxvk_dedicated_gpu`) ->
+    `dxvk.hideIntegratedGraphics = True`. DXVK 3.1.1 hides the integrated GPUs only when it finds a
+    dedicated one too (`dxvk_instance.cpp`: `numDGPU > 0 && numIGPU > 0`), so a PC with an
+    integrated GPU alone keeps it; nothing to check on our side. It counts only the devices it can
+    use: one under Vulkan 1.4 is skipped before (`dxvk_device_filter.cpp` testAdapter,
+    `dxvk_device_info.cpp` checkDeviceCompatibility), so an integrated GPU of 1.4 beside a dedicated one
+    of 1.3 is kept too.
+  - An option off is DXVK's default, not named. The game's own anisotropic filtering, FXAA and
+    vsync settings stay the game's.
+- **Settings:** the five and the Renderer list are one change of the tab: a change is pending
+  until Apply (each changed option saved, user.cfg at once), Cancel puts the saved ones back.
+- **At the next start, only with Vulkan/DXVK** (Windows and Linux alike): patch 83's start reads
+  them with the Renderer from user.cfg once (`Choice::Vulkan(VulkanOptions)`: an unknown word is the
+  list's first choice, a checkbox's its default), and the start that loads DXVK sets the process's
+  `DXVK_CONFIG` from them (SetEnvironmentVariableA, the exe's import) right before DXVK's DLLs load.
+  DXVK reads it with GetEnvironmentVariableW, the same Win32 environment, when the game makes its
+  first device; a value of 260 characters or more reads as none (all five: 158). The variable is
+  set (empty with every option off) whatever the player's own environment has; a `dxvk.conf` in
+  `binaries\x86` and `DXVK_HUD` still add to it, as DXVK reads them.
+- `srp_patches.log` says what was given: `dxvk: DXVK_CONFIG "<value>"` (an option is written whole or
+  not at all; one left out for want of room, none ever with these five, is counted on the line). Nothing changes in a running
+  game; DirectX 11 runs ignore the five.
 
 ## The files
 
@@ -44,8 +149,9 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   - DirectX 11 picked, or a file of `dxvk\` missing: Windows' own Direct3D; a marker left goes.
   - Vulkan/DXVK picked, all five there, no marker: `dxvk.pending` written first, then the Vulkan
     look: vulkan-1.dll loaded, an instance made, the devices' `apiVersion` read (the CPU's not
-    counted), the instance destroyed, the DLL let go. A device of 1.4 or later: DXVK's DLLs loaded
-    by their full paths, dxgi, d3d11, d3d10core, d3d9, d3d8 (each one's imports by name are of
+    counted), the instance destroyed, the DLL let go. A device of 1.4 or later: `DXVK_CONFIG` set
+    from the Vulkan options (above), then DXVK's DLLs loaded by their full paths, dxgi, d3d11,
+    d3d10core, d3d9, d3d8 (each one's imports by name are of
     those before it), never let go; one that fails stops the loads, logged, and the marker covers
     a crash. As each loads, the game's delayed import of its name (dxgi, d3d11, d3d9) is bound to
     it: its module slot (`survarium::image` `dxgi_module`, `d3d11_module`, `d3d9_module`) holds
@@ -57,7 +163,8 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
     is the file's) `srp_dxvk` off and user.cfg saved: the list shows DirectX 11; picking Vulkan
     again tries once more.
   - The login screen (`login_menu.activated`) deletes the marker in every case.
-- Every outcome but plain DirectX writes one `dxvk:` line in `srp_patches.log`.
+- Every outcome but plain DirectX writes its `dxvk:` lines in `srp_patches.log` (a start with DXVK
+  the `DXVK_CONFIG` it gave, then the loads).
 - **Why the imports are bound, not left to the name** (the first Windows report, 2026-11-05, rev50,
   RTX 5070 Ti, Windows 10 19045): the Vulkan look itself loads Windows' `System32\dxgi.dll`
   (the Khronos loader sorts its devices through DXGI; the minidump lists it right before
@@ -87,6 +194,87 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   (Windows 10/11's list, the same in Wine's `Session Manager\KnownDLLs`: advapi32, gdi32, kernel32,
   ole32, shell32, user32, ...; no Direct3D DLL).
 
+## The fullscreen window
+
+**The report** (2026-11-08 23:42 +03, rev53; AMD Radeon RX 6900 XT, AMD's Vulkan driver 2.0.353,
+Windows 10.0.26100, the game started through Steam; user.cfg `r_fullscreen on`, `r_resolution
+2560x1440`, `srp_dxvk on`): DXVK loaded (`srp_patches.log`, "another dxgi.dll is loaded already"),
+its device made, and at the game's first Present its d3d11 log says `Presenter: Failed to create
+Vulkan swapchain: -13` (VK_ERROR_UNKNOWN); DXVK's Present then answers E_FAIL
+(`D3D11SwapChain::PresentImage`: a negative acquire), and the game's `renderer::render` asserts on a
+failed Present that is no device loss (`renderer.cpp` line 2175, the int3 at 0x13DDBD, after
+`res_render_output::present` 0x3CF7F0), before the login screen (the marker then makes the next
+start DirectX 11). DXVK's dxgi log has one display mode change and no restore before it: one
+fullscreen entry. The minidump has the rest: the Steam overlay's own log line,
+`Sun Nov 08 20:42:23 2026 UTC - g_IDXGIFactory2_CreateSwapChainForHWND failed, hres=887a0001`
+(DXGI_ERROR_INVALID_CALL; the dump is 20:42:24), and in the crashed thread's stack memory below the
+crash's ESP stale return addresses (a scan, not a walked chain) of amdvlk32, D3D12, D3D12Core,
+gameoverlayrenderer (Steam's DXGI hook), Windows' `System32\dxgi.dll` and amdxc32 (AMD's D3D12
+driver): AMD's Windows Vulkan driver makes a DXGI flip-model swap chain on the game's window for its
+own presentation, and DXGI refused that window. The window's styles at that moment are not in the
+dump (no heap, no DXVK window state): they are inferred from the code below.
+
+**DXGI's rule** (its debug layer: "The specified output window has a style that is incompatible with
+DXGI", which AMD quoted in doitsujin/dxvk#5258 and named the cause of the same `-13` in
+GPUOpen-Drivers/AMD-Gfx-Drivers#57, Fallout New Vegas under DXVK, where AMD confirmed that appending
+WS_POPUP works; #57 is closed as fixed in the driver, still seen with Adrenalin 26.6.4 in July 2026):
+the window needs one of WS_POPUP, WS_BORDER, WS_CAPTION, WS_SYSMENU, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
+WS_THICKFRAME, WS_EX_CLIENTEDGE, WS_EX_CONTEXTHELP, WS_EX_DLGMODALFRAME, WS_EX_TOOLWINDOW,
+WS_EX_WINDOWEDGE, or must not be WS_EX_TOPMOST.
+
+**The game's window, every way** (the exe's only GWL_STYLE writes are set_size's two; DXVK's own):
+
+- made `CreateWindowExA(0, .., WS_CAPTION | WS_SYSMENU)` (`new_window` 0x184F0, the call 0x186FF):
+  taken;
+- a start in fullscreen (`r_fullscreen on`, the report's): the render output is made fullscreen
+  (`render_output_window_cook::translate_query` 0x138030, `res_render_output` +EDh) and set_size
+  writes no style (its first call has nothing to change); `show` 0x3CF600 calls
+  SetFullscreenState(TRUE), and DXVK 3.1.1's `enterFullscreenMode` (wsi_window_win32.cpp) takes
+  away WS_OVERLAPPEDWINDOW and WS_EX_OVERLAPPEDWINDOW and makes it HWND_TOPMOST: WS_VISIBLE |
+  WS_CLIPSIBLINGS, WS_EX_TOPMOST, refused;
+- Settings to fullscreen in a running game: `set_size` 0x3CF980 sets GWL_STYLE to its +E0h, 0
+  (0x3CFA09), then SetWindowPos(HWND_TOPMOST, SWP_SHOWWINDOW): refused too;
+- Alt+Tab: the window's deactivation (message_processor 0x18307, engine_world::on_alttab 0x14020,
+  game vtable +2Ch 0x1ED450) calls res_render_output::minimize 0x3CFE80 (SetFullscreenState(FALSE,
+  the monitor's output), then ShowWindow(SW_FORCEMINIMIZE) if that succeeded; DXGI and DXVK refuse
+  FALSE with an output, DXGI_ERROR_INVALID_CALL); DXVK's GetFullscreenState and Present leave it for a
+  window not foreground for 100 ms, and present minimizes it (0x3CF8C5). Back: each engine tick
+  (0x13D58, game vtable +30h 0x1ED430) calls res_render_output::goto_fullscreen 0x3CFE20, which
+  enters fullscreen again when the window has the focus and is not minimized: the same strip,
+  refused but for a WS_POPUP already there, which the strip keeps;
+- windowed (a start, or Settings to windowed: set_size writes +DCh, WS_CAPTION | WS_SYSMENU): taken;
+- DirectX 11: the game makes its swap chain windowed (desc Windowed 1, one buffer, DISCARD) while
+  the window has its caption, and never another; Windows' DXGI keeps that swap chain through its
+  fullscreen: the rule is never met.
+
+**Where the Vulkan swap chain is made:** DXVK 3.1.1 makes it in `Presenter::recreateSwapChain` alone,
+from `acquireNextImage` (`D3D11SwapChain::PresentImage`) and `checkSwapChainStatus` (a Present with
+DXGI_PRESENT_TEST, which the game never passes): inside the game's IDXGISwapChain::Present, at its
+first one and again after a resize, a mode change or a minimize. The game presents in
+`res_render_output::present` 0x3CF7F0 alone (vtable +20h at 0x3CF90E; its callers 0x117EDF,
+0x13CA02, 0x13CB73, 0x13DD46). The report's stack has it on the game's main thread, the window's
+own: engine_world::run 0x18B30 loops over process_messages 0x18AC0 (PeekMessage, Translate,
+Dispatch) and the engine tick, which runs the render commands (set_size, `show`), the alt-tab
+re-entry above and then the render with its Present. So every style write and fullscreen entry
+named here and every Present are one thread, in order, and SetWindowLongA there is a same-thread
+call (its WM_STYLECHANGING/WM_STYLECHANGED go to the window procedure within the call).
+
+**The fix** (patch 83, `render_output.present`, a lohook at 0x3CF8FF right before that Present):
+with DXVK loaded at the start (`Renderer::Dxvk`), the window's two styles are read, and a window
+DXGI refuses gets WS_POPUP (SetWindowLongA, on the window's thread, as set_size and DXVK set it),
+said in `srp_patches.log` (`dxvk: the window DXGI refuses (style .., extended ..) made a popup:
+style .., DXGI takes it`), once per refused state: styles that stay refused (a set Windows did not
+take) are not set or said again until a Present finds a window DXGI takes. DXVK's later fullscreen
+entries keep WS_POPUP (they take away WS_OVERLAPPEDWINDOW's styles only), so each later Present
+only reads. A window DXGI takes (any windowed one) is never changed; with DirectX 11 nothing is
+read. After DXVK leaves fullscreen by
+itself (Alt+Tab) it puts back its saved styles only when the window's are what it left, so the
+window stays a popup without its caption until the next fullscreen entry: the game minimizes it
+then, unless it has the focus at that check (0x3CF8A6), when it stays a borderless popup at its last
+size; Settings to windowed writes the caption back itself (set_size). This holds for every GPU under
+DXVK (Wine too), not only AMD's. The renderer's state is a `Lock` now, by way of defence: no second
+thread reading it is shown (the start, the login screen and every Present are the main thread's).
+
 ## Known limits
 
 - A start that fails with DXVK costs one start; the next is DirectX 11 again by itself.
@@ -100,4 +288,14 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   VirusTotal before the release. DXVK's release has no signature: its DLLs are not
   Authenticode-signed and it ships no checksum file; GitHub's asset digest (sha256) is the one
   pinned here.
-- Not checked on Windows; not played.
+- The Vulkan options: DXVK 3.1.1's taking of `DXVK_CONFIG` set in-process was checked under Wine
+  11.8 with `../../scripts/dxvk-loader/run.sh <x32> <work> "<value>"` (all five set: DXVK's log has
+  `Found config env: ...`, then each of them in `Effective configuration`), not with the game
+  itself; the panel and its hints in Ruffle only (Scaleform's presses, Esc, the tip's place and
+  font metrics are the game's to show).
+- The fullscreen window: Unicorn runs the patched `res_render_output::present` with the report's
+  window (`check_hud_options_026g.py`): WS_POPUP set before the Present, which then sees a window
+  DXGI's rule takes. That AMD's driver then makes its swap chain is AMD's word (#57, #5258), not
+  seen on this game: no Windows PC with an AMD GPU was run.
+- Not checked on Windows. Played locally under Wine (wayland driver, DXVK, fullscreen
+  2560x1440) on 2026-11-09: the window made a popup at the start, the game fine.

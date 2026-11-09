@@ -35,13 +35,16 @@ use log::{Level, LevelFilter, Log, Metadata, Record};
 /// at the heaviest seen (2026-11-01 to 11-02, 116-127 MB a day in all, of
 /// it about 95 % match, 4 % lobby, 1.5 % srp, under 0.2 % login and web);
 /// the lobby's about 12 days, the balance refit's input
-/// (scripts/balance-refit).
-const SERVERS: [(&str, u64, u32); 5] = [
+/// (scripts/balance-refit). `memory`: the match server's lines of target
+/// `memory`, client patch 126's memory reports (about 2.5 KB a player a
+/// match), weeks of them for `release/moderate memory`.
+const SERVERS: [(&str, u64, u32); 6] = [
     ("login", 2 << 20, 4),
     ("lobby", 4 << 20, 16),
     ("match", 8 << 20, 32),
     ("web", 2 << 20, 2),
     ("srp", 4 << 20, 4),
+    ("memory", 4 << 20, 16),
 ];
 
 /// Where the files are: unset for `logs`, empty or `off` for nowhere.
@@ -229,9 +232,12 @@ fn civil_from_days(days: u64) -> (u64, u64, u64) {
     (year, month, day)
 }
 
-/// Which server's log a record belongs to, decided from its target prefix.
+/// Which server's log a record belongs to, decided from its target prefix
+/// (a client report's kind its own file: `memory`).
 fn server_for_target(target: &str) -> &'static str {
-    if target.starts_with("login_server") {
+    if target == "memory" {
+        "memory"
+    } else if target.starts_with("login_server") {
         "login"
     } else if target.starts_with("lobby_server") || target.starts_with("messaging") {
         "lobby"
@@ -302,6 +308,13 @@ mod tests {
             .collect();
         names.sort();
         names
+    }
+
+    #[test]
+    fn memory_reports_go_to_their_own_file() {
+        assert_eq!(server_for_target("memory"), "memory");
+        assert_eq!(server_for_target("match_server::v026g::game"), "match");
+        assert!(SERVERS.iter().any(|&(server, _, _)| server == "memory"));
     }
 
     #[test]

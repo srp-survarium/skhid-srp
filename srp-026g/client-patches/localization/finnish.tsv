@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Varasto
 st_aniso_filtering_option	Anisotrooppinen suodatus
 st_anomaly_damage_corr_perc_name	Anomaliavahinko
-st_anomaly_skills_label	Metsän tuntemus.
+st_anomaly_skills_label	Metsän tuntemus
 st_antialiasing_option	Reunanpehmennys
 st_antitoxin_description	Yhdistelmälääke kehon myrkkyjen neutralointiin. Parhaan tehon saat ottamalla sen ennen altistumista. 
 st_antitoxin_name	Vastamyrkky
@@ -594,6 +594,8 @@ st_change_quest_label	Vaihda tehtävä
 st_change_weapon_speed_description	Aseenvaihdon nopeus:
 st_change_weapon_speed_name	Näppärät kädet
 st_character	Hahmo
+st_character_decals_1_10_name	Villisikametsästäjä
+st_character_decals_1_11_name	Peuranmetsästäjä
 st_character_decals_1_12_name	Jarilo
 st_character_decals_1_1_name	Kirjailija
 st_character_decals_1_2_name	Alfa-ryhmä
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veteraani
 st_character_decals_1_6_name	Mestari
 st_character_decals_1_7_name	Legenda
 st_character_decals_1_8_name	Siivekkäät husaarit
+st_character_decals_1_9_name	Muusikko
 st_character_decals_2_1_name	Haaskaajien tulokas
 st_character_decals_2_2_name	Haaskaajien veteraani
 st_character_decals_2_3_name	Mustan pörssin alokas
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Liettuan vaakuna
 st_character_decals_5_7_name	Liettuan vaakuna
 st_character_decals_5_8_name	Viron vaakuna
 st_character_decals_5_9_name	Moldovan vaakuna
+st_character_decals_7_10_name	Tulitikut
+st_character_decals_7_23_name	Sydän
+st_character_decals_7_24_name	Pelottava kurpitsa
 st_character_decals_7_27_name	Apilakoriste
 st_character_decals_7_28_name	Hevosenkenkä
+st_character_decals_7_30_name	Kirjekyyhky
+st_character_decals_7_31_name	Voitto
+st_character_decals_7_35_name	Verinen käsi
+st_character_decals_7_37_name	Vartija
 st_character_decals_7_9_name	Yrtit
 st_character_decals_generic_desc	Vaihda liivien ja housujen ulkoasua niiden ikkunan merkeillä.
 st_characteristics_label	Pelaajatilastot
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Pelaajien lisääminen epäonnistui. Klaanijoukkue
 st_current_value	\nNykyinen arvo:
 st_cz_75_description	Tšekkiläinen itselataava pistooli, ammus: 9x19. Yksi kylmän sodan kopioiduimmista pistooleista.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Pelaa päivittäin ja saat <highlight>kolmesta ensimmäisestä</highlight> voitosta <highlight>x2</highlight> kokemusta ja mainetta.
+st_daily_bonus_description	Joka päivä: <highlight>x2</highlight> kokemusta <highlight>kolmesta ensimmäisestä</highlight> voitosta.
 st_daily_bonus_hint	Näytä tervetuloruutu
 st_daily_bonus_label	Tervetuloa takaisin
 st_daily_bonus_progress	Tämän päivän edistymisesi
@@ -2191,7 +2201,46 @@ st_srp_ammo_scar_ap_desc	Panssarinläpäiseviä 7.62x51-patruunoita FN SCAR-H:ll
 st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20 patruunaa
 st_srp_ammo_slug	Täyteisluoti
 st_srp_ammo_stats	Ammustilastot
+st_srp_artefact_501_description	Artefaktin keräämiseen kuluva aika:
+st_srp_artefact_501_name	Nopeat kädet
+st_srp_artefact_502_description	Eristys anomalioita vastaan:
+st_srp_artefact_502_name	Vastustuskyky
+st_srp_artefact_512_description	Artefaktien aktiivisen vaikutuksen kesto:
+st_srp_artefact_512_name	Artefaktien tuntemus
+st_srp_artefact_513_description	Näet passiiviset artefaktit hehkuna pelaajien jaloissa, myös omissasi.
+st_srp_artefact_513_name	Artefaktinäkö
+st_srp_artefact_521_description	Ottelu alkaa satunnaisella artefaktilla säiliössä; sama laji kaikille ottelussa.
+st_srp_artefact_521_name	Artefaktien vartija
+st_srp_artefact_522_description	Yksi tasku muuttuu artefaktisäiliöksi.
+st_srp_artefact_522_name	Artefaktisäiliö
+st_srp_artefact_523_description	Luotien ja sirpaleiden vahinko anomalian sisällä:
+st_srp_artefact_523_name	Metsän suoja
+st_srp_artefact_531_description	Jokainen Jousi nopeuttaa myös latausta: +5% passiivisesti, +15% aktiivisena.
+st_srp_artefact_531_name	Jousi II
+st_srp_artefact_532_description	Ei putoamisvahinkoa, kun Onyksi on aktiivinen.
+st_srp_artefact_532_name	Onyksi II
+st_srp_artefact_533_description	Ritarinkannuksen aktivointi palauttaa kaiken kestävyyden.
+st_srp_artefact_533_name	Ritarinkannus II
+st_srp_artefact_541_description	Artefaktiesi passiiviset vaikutukset koskevat myös eläviä joukkuetovereita 9 m:n säteellä.
+st_srp_artefact_541_name	Resonanssi
+st_srp_artefact_542_description	Aktivoidut artefaktit vaikuttavat myös eläviin joukkuetovereihin 6 m:n säteellä. "He hehkuvat, sinä loistat"
+st_srp_artefact_542_name	Kaskadi
+st_srp_artefact_points	 pistettä
 st_srp_attachments	Lisävarusteet
+st_srp_ban_reason_account_trading	Tilin myynti tai myyntiyritys.
+st_srp_ban_reason_administration	Ylläpidon päätös.
+st_srp_ban_reason_advertising	Mainostaminen.
+st_srp_ban_reason_bad_language	Rivo kielenkäyttö.
+st_srp_ban_reason_cheating	Huijausohjelmat tai muut kielletyt ohjelmat.
+st_srp_ban_reason_false_information	Väärän tiedon levittäminen.
+st_srp_ban_reason_farm_pressure	Farmaamattomien joukkuetovereiden häirintä tai tappaminen.
+st_srp_ban_reason_flood	Spämmi tai floodaus.
+st_srp_ban_reason_insults	Loukkaukset tai provosointi.
+st_srp_ban_reason_nickname	Sopimaton nimi.
+st_srp_ban_reason_politics	Politiikasta keskustelu.
+st_srp_ban_reason_racism	Rasismi tai natsismi.
+st_srp_ban_reason_teamkilling	Joukkuetovereiden tappaminen.
+st_srp_ban_reason_threats	Uhkaukset tosielämässä.
 st_srp_crosshair_dynamic	Dynaaminen tähtäin
 st_srp_crosshair_hidden	Piilotettu tähtäin
 st_srp_crosshair_static	Kiinteä tähtäin
@@ -2448,14 +2497,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment069_snow_20_legs_7_name	Lumi-20-housut
 st_srp_equipment069_snow_20_torso_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment069_snow_20_torso_7_name	Lumi-20-suojaliivi
-st_srp_exchange_balance	Saldo
-st_srp_exchange_button	Vaihda
-st_srp_exchange_gold	Kulta
-st_srp_exchange_pay	Maksat
-st_srp_exchange_receive	Saat
-st_srp_exchange_short_gold	Ei tarpeeksi kultaa
-st_srp_exchange_short_silver	Ei tarpeeksi hopeaa
-st_srp_exchange_title	Vaihda
 st_srp_hide_hit_markers_option	Piilota osumamerkit
 st_srp_hide_quests_option	Piilota tehtävät
 st_srp_hide_scores_option	Piilota pelaajien pisteet
@@ -2517,6 +2558,8 @@ st_srp_lobby_hangar	Halli
 st_srp_lobby_room	Huone
 st_srp_lobby_title	Aula
 st_srp_login_account_hint	Tili luodaan ensimmäisellä kirjautumisella
+st_srp_login_ban_ends	Päättyy klo %1$s (%2$s kuluttua).
+st_srp_login_ban_forever	Porttikielto on pysyvä.
 st_srp_map_chemical_plant	Kemiantehdas
 st_srp_map_chemical_plant_v011	Kemiantehdas (v0.11)
 st_srp_map_cologne	Köln
@@ -2576,15 +2619,14 @@ st_srp_medical_331_description	Korvaa toissijaisen aseen paikan ylimääräisell
 st_srp_medical_331_name	Tarviketasku
 st_srp_medical_332_description	Lisäys käsien ja jalkojen enimmäisterveyteen:
 st_srp_medical_332_name	Vahvat luut
-st_srp_medical_333_description	Kipulääkkeen vaikuttaessa ympäristön äänet ovat hiljaisempia ja vihollisten äänet (paitsi laukaukset) kovempia:
+st_srp_medical_333_description	Kipulääkkeen vaikuttaessa tähtäimen heilunnan vähennys:
 st_srp_medical_333_name	Keskittyminen
 st_srp_medical_342_description	Liittolaisilta saadun vahingon vähennys:
 st_srp_medical_342_name	Aseveljet
 st_srp_medical_seconds	 s
-st_srp_medicine_ambient_sounds	Ympäristön äänet
 st_srp_medicine_crouched_healing	Parannus kyykyssä
-st_srp_medicine_enemy_sounds	Vihollisten äänet
 st_srp_medicine_hit_slow	Hidastus luodeista
+st_srp_medicine_sight_sway	Tähtäimen heilunta
 st_srp_medicine_sprint_stamina	Sprintin kestävyys
 st_srp_melee_knockback	Perälyönnin työntö
 st_srp_mode_blackout	Suojalaite: sähkökatko
@@ -2694,6 +2736,7 @@ st_srp_rooms_join_why_4	Ottelu on täynnä.
 st_srp_rooms_join_why_5	Palvelinhuolto alkaa pian. Uusia liittyjiä ei oteta.
 st_srp_rooms_join_why_6	Ottelu päättyy. Pääset seuraavaan.
 st_srp_rooms_join_why_7	Ottelun pelaajaraja on täynnä. Liityt seuraavaan otteluun.
+st_srp_rooms_join_why_8	Ottelu ei voi ottaa pelaajia juuri nyt. Liityt seuraavaan otteluun.
 st_srp_rooms_joined_room	%1$s liittyi huoneeseen
 st_srp_rooms_late_hint	Uudet liittyjät näkevät ensin huoneen ja siirtyvät sitten otteluun.
 st_srp_rooms_leave	Poistu
@@ -2761,12 +2804,30 @@ st_srp_skills	Taidot
 st_srp_speed_label	Nopeus
 st_srp_speed_title	Liikkumisnopeus: %1$s
 st_srp_static_minimap_option	Kiinteä pienoiskartta
+st_srp_unit_days	%1$s pv
+st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_minutes	%1$s min
 st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Suosi erillistä näytönohjainta
+st_srp_vulkan_dedicated_gpu_hint	Valitsee kannettavissa tehokkaamman näytönohjaimen.\n+ Parempi suorituskyky kannettavissa\n- Kuluttaa enemmän akkua
+st_srp_vulkan_frame_limit	Kuvataajuusraja
+st_srp_vulkan_frame_limit_hint	Rajoittaa, montako kuvaa sekunnissa peli piirtää.
+st_srp_vulkan_low_latency	Vähennä syöteviivettä
+st_srp_vulkan_low_latency_hint	Peli reagoi hiireen nopeammin.\n+ Tähtäys reagoi nopeammin\n- Voi tuntua joillain koneilla vähemmän sulavalta
+st_srp_vulkan_off	Pois
+st_srp_vulkan_options	Vulkan-asetukset
+st_srp_vulkan_overlay	Suorituskykynäyttö
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+kuvaaja
+st_srp_vulkan_overlay_full	Täysi
+st_srp_vulkan_overlay_hint	Näyttää pelin nopeuden ruudulla.
+st_srp_vulkan_tear_free	Repeilytön ilman V-Synciä
+st_srp_vulkan_tear_free_hint	Pitää kuvan ehjänä, kun pystytahdistus on pois päältä.\n+ Ei repeäviä viivoja nopeissa käännöksissä\n- Hieman enemmän viivettä kuin pelkkä VSync pois
 st_srp_weapon069_akmsu_desc	Lyhennetty taittoperäinen AKMS, kaliiperi 7.62x39. Kerta- ja sarjatuli.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Ranskalainen bullpup-rynnäkkökivääri, kaliiperi 5.56x45. Kertatuli, kolmen laukauksen sarja ja sarjatuli.

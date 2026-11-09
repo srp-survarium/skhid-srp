@@ -7,11 +7,17 @@ name = "artefact-carry"
 version = "0.1.0"
 
 [[package]]
+name = "ban-reason"
+version = "0.1.0"
+
+[[package]]
 name = "patches"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "ban-reason",
  "ragdoll",
+ "srp-validate",
  "voice-abi",
  "weapon-kit",
  "weapon-pickup",
@@ -21,6 +27,15 @@ dependencies = [
 [[package]]
 name = "ragdoll"
 version = "0.1.0"
+
+[[package]]
+name = "srp-validate"
+version = "0.1.0"
+dependencies = [
+ "artefact-carry",
+ "weapon-pickup",
+ "world-frame",
+]
 
 [[package]]
 name = "voice-abi"

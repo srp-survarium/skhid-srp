@@ -22,7 +22,7 @@ root=$(dirname "$here")
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh bot-data test.sh &&
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
         shellcheck -s sh host-rollback.sh host-bot-data.sh)
     echo "ok   shellcheck"
 else
@@ -98,6 +98,48 @@ done
 EOF
 chmod +x "$T/bin/srp-item-tables"
 export SRP_ITEM_TABLES_BIN=$T/bin/srp-item-tables
+# srp-world-check --data <data> --save <dir> <folder>: its arguments and the
+# recordings in <folder> a line of $TEST_DIR/world-check.args; every world
+# passes, unless $TEST_DIR/world-check-refuses is there.
+cat >"$T/bin/srp-world-check" <<'EOF'
+#!/usr/bin/env bash
+folder=${!#}
+printf '%s | %s\n' "$*" "$(ls "$folder" | tr '\n' ' ')" >>"$TEST_DIR/world-check.args"
+if [[ -e $TEST_DIR/world-check-refuses ]]; then
+    echo "$folder/rec026g_x.srprec: 2 worlds, 1 passed, 1 refused, 0 not checked"
+    echo "  REFUSED p3 t1000: effects at 0x67e9: the closing part at 12 is not every world's"
+    echo "2 worlds checked: 1 passed, 1 refused; 0 not checked, 0 files unread, 0 recordings skipped"
+    echo "FAILED: the match server would refuse worlds games wrote, or could not check them"
+    exit 1
+fi
+echo "2 worlds checked: 2 passed, 0 refused; 0 not checked, 0 files unread, 0 recordings skipped"
+echo "ok: the match server takes every world"
+EOF
+chmod +x "$T/bin/srp-world-check"
+export SRP_WORLD_CHECK_BIN=$T/bin/srp-world-check
+# The exe patches' self-test (release.sh, step 2, after build-zip): its
+# arguments (the commit's checkout, the original exe) a line of
+# $TEST_DIR/selftest.args; $TEST_DIR/selftest-fails: a check fails;
+# $TEST_DIR/selftest-hangs: it runs on (a sleep of its own; both PIDs in
+# $TEST_DIR/selftest.pids).
+cat >"$T/bin/selftest" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TEST_DIR/selftest.args"
+echo "  ok    the PE parses"
+if [[ -e $TEST_DIR/selftest-hangs ]]; then
+    sleep 300 &
+    printf '%s %s\n' "$$" "$!" >"$TEST_DIR/selftest.pids"
+    wait
+fi
+if [[ -e $TEST_DIR/selftest-fails ]]; then
+    echo "  FAIL  the default build: nothing of the original aims inside the bytes a write changed in .text; 0x265e73 -> (0x2845bf, 0x2845c3)"
+    printf '\n1 FAILED\n'
+    exit 1
+fi
+printf '\nall checks passed\n'
+EOF
+chmod +x "$T/bin/selftest"
+export SKHID_SELFTEST_BIN=$T/bin/selftest
 cat >"$T/bin/ssh" <<'EOF'
 #!/usr/bin/env bash
 # ssh [-o <option>]... <host> <command>: runs the command here.
@@ -253,6 +295,15 @@ cp "$T/docker/latest" "$T/docker/running"
 echo running >"$T/docker/state"
 echo 0 >"$T/docker/starts"
 printf 'srp.db schema 1\n' >"$T/volume/srp.db"
+# The kept match recordings the world check reads (the newest 3), and one
+# being written (.part) and another file, which it does not.
+mkdir -p "$T/volume/recordings"
+for n in 1 2 3 4; do
+    printf 'SRPREC01 match %s\n' "$n" >"$T/volume/recordings/rec026g_20261107-00000${n}_0000000${n}.srprec"
+    touch -d "2026-11-07 00:0$n" "$T/volume/recordings/rec026g_20261107-00000${n}_0000000${n}.srprec"
+done
+: >"$T/volume/recordings/rec026g_20261107-000009_00000009.srprec.part"
+: >"$T/volume/recordings/notes.txt"
 
 serve() { # <folder> <port file>: a port answering from it, with "Server: Caddy"
     local port_file=$2
@@ -1334,6 +1385,8 @@ tag_text=$(git -C "$T/origin.git" cat-file tag 026g-rev12 2>/dev/null || true)
 check "release: ... its message: the UTC time, the ZIP's and the server data's sha256" bash -c \
     "grep -qE '^Revision 12, released 20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} UTC$' <<<\"\$1\" && grep -q 'sha256 $zip_sha$' <<<\"\$1\" && grep -q 'server-game-data.db: sha256 $data_sha$' <<<\"\$1\" && grep -q 'sha256 $exe_with (--server=127.0.0.1:1234), $exe_without without a server' <<<\"\$1\"" _ "$tag_text"
 check "release: ... its tagger is the owner (no one else)" grep -q '^tagger the owner <owner@example.org>' <<<"$tag_text"
+check "release: ... with the self-test: the plan says so, the tag does not say it went without" bash -c \
+    "grep -q \"the exe patches' self-test: in step 2, beside the rest\" <<<\"\$1\" && ! grep -q 'WITHOUT the exe patches' <<<\"\$2\"" _ "$out" "$tag_text"
 check "release: main is a merge commit: the released commit, then the record" \
     test "$(git -C "$T/origin.git" log -1 --format='%P' main)" = "$released $(git -C "$T/origin.git" rev-parse 'main^2')"
 check "release: ... the record PR's merge, as GitHub's" has "$(git -C "$T/origin.git" log -1 --format=%B main)" "^Merge pull request #[0-9]* from srp/release/record-rev12"
@@ -1363,6 +1416,10 @@ check "release: ... made once in step 2 too, in its work folder" \
     grep -qE 'server-game-data\.db --dir .*/skhid-release\.[^/]*/item-tables$' "$T/item-tables.args"
 check "release: ... before anything is staged" bash -c \
     "t=\$(grep -n 'the item tables of it: made' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$t\" -a -n \"\$s\" && ((t < s))" _ "$out"
+check "release: runs the exe patches' self-test once, of the commit built, on SKHID_GAME's survarium.exe" bash -c \
+    "test \$(wc -l <$T/selftest.args) = 1 && grep -qE '/zip/src $T/game/(game/)?binaries/x86/survarium\\.exe\$' $T/selftest.args"
+check "release: ... started after build-zip, before the staging; its result after the staging, before the go" bash -c \
+    "z=\$(grep -n '2. building the ZIP' <<<\"\$1\" | head -n 1 | cut -d: -f1); b=\$(grep -n 'the exe patches. self-test of .* started' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); t=\$(grep -n 'the exe patches. self-test: all checks passed' <<<\"\$1\" | head -n 1 | cut -d: -f1); g=\$(grep -n '^go: given beforehand' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$z\" -a -n \"\$b\" -a -n \"\$s\" -a -n \"\$t\" -a -n \"\$g\" && ((z < b && b < s && s < t && t < g))" _ "$out"
 check "release: ... says it all, and ends 0" bash -c "grep -q 'done     the PR merged (a merge commit): main has REVISION 12' <<<\"\$1\" && ! grep -q 'NOT COMPLETE' <<<\"\$1\"" _ "$out"
 check "release: no change of what a match computes: said, the replays' list as it was" bash -c \
     "grep -q 'replays: no change of what a match computes is marked (.*): recordings from revision 11 on stay watchable' <<<\"\$1\" && git -C $T/origin.git show main:srp-026g/crates/session/src/v026g/simulation_changes.tsv | grep -qx \$'11\tthe TDM end'" _ "$out"
@@ -1507,6 +1564,12 @@ echo "item 14" >"$T/p14/gameplay/items/e.txt"
 mkdir -p "$T/r16" && cp "$T/r14/resources.db.patch_14" "$T/r16/resources.db.patch_16"
 expect_refused "release: a patch of another revision" "must be called resources.db.patch_14" \
     "$here/release.sh" --resources "$T/r16/resources.db.patch_16"
+mkdir -p "$T/r14q" && cp "$T/r14/resources.db.patch_14" "$T/r14q/" && echo "a quick build" >"$T/r14q/QUICK-BUILD"
+expect_refused "release: a quick build's patch (build-content without --full, QUICK-BUILD beside it): rebuild with --full" \
+    "is a quick build (release/build-content without --full: QUICK-BUILD beside it).*build it again with release/build-content 14 --full" \
+    "$here/release.sh" --resources "$T/r14q/resources.db.patch_14"
+expect_refused "upload-patch: a quick build's patch too: rebuild with --full" \
+    "is a quick build.*build it again with release/build-content 14 --full" "$here/upload-patch" "$T/r14q/resources.db.patch_14"
 # A stop before the go (the ZIP's build fails) after the patch was
 # published: its row goes from the list (no server offered it), and the
 # file this run uploaded goes too (the revision can be made again); a file
@@ -1625,6 +1688,11 @@ check "release --dry-run: shows the swap and the restart" has "$out" "docker com
 check "release --dry-run: shows the image built here and loaded" bash -c "grep -q \"server's image of main's source\" <<<\"\$1\" && grep -q 'docker load' <<<\"\$1\"" _ "$out"
 check "release --dry-run: ... builds none" bash -c "! grep -q '^build-image' $T/log"
 check "release --dry-run: says so" has "$out" "dry run: nothing was planned, uploaded or changed"
+check "release --dry-run: reads the live host's newest 3 kept recordings for the world check" has "$out" \
+    "^  ok       the world check: will read the newest 3 recording(s) on the live host ([0-9]* MB: rec026g_20261107-000004_00000004.srprec rec026g_20261107-000003_00000003.srprec rec026g_20261107-000002_00000002.srprec)\$"
+check "release --dry-run: ... read at the lowest priority" grep -q "nice -n 19 ionice -c 3 cat .*rec026g_20261107-000004_00000004.srprec" "$T/args"
+check "release --dry-run: ... and shows step 2 checking them with the new data" has "$out" \
+    "^\[dry run\]    then the world check of the newest 3 recording(s) on the live host .*: $SRP_WORLD_CHECK_BIN --data .*server-game-data.db .*/worlds (one world refused stops the release)\$"
 check "release --dry-run: prints the rebuild of the site's pages with the new patch" has "$out" \
     "^  \[dry run\] would rebuild the Maps tab and the calculator (about 2 min; .*) in a worktree of [0-9a-f]*: $T/build-site --tree $T/tmp/skhid-release\.[^ ]*/site --with $T/r14/resources.db.patch_14\$"
 check "release --dry-run: ... runs none" test ! -s "$T/build-site.args"
@@ -1636,6 +1704,15 @@ check "release --dry-run: ... its server-code report has them changed, as the re
 check "release --dry-run: a GRID_ALGO of the live tree other than main's is warned about" has "$out" \
     "^  WARNING  the built maps (mapdata/built, [0-9]* file(s) now): pub const GRID_ALGO: u32 = 2; pub const SIGHT_ALGO: u32 = 1; on the live tree, pub const GRID_ALGO: u32 = 3; pub const SIGHT_ALGO: u32 = 1; on main: the first match on each map after the swap builds its grid and tree again"
 sed -i 's/^pub const GRID_ALGO: u32 = 2;$/pub const GRID_ALGO: u32 = 3;/' "$T/live/crates/mapdata/src/lib.rs"
+mkdir -p "$T/worlds-given"
+run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 --worlds "$T/worlds-given" &&
+    fail "release.sh --dry-run --worlds <empty>: no problem ($out)"
+check "release --dry-run --worlds: a folder of no recording is a problem" has "$out" "--worlds $T/worlds-given: no match recording (\*.srprec) in it"
+cp "$T/volume/recordings/rec026g_20261107-000001_00000001.srprec" "$T/worlds-given/"
+run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 --worlds "$T/worlds-given" ||
+    fail "release.sh --dry-run --worlds: $out"
+check "release --dry-run --worlds: its recordings are checked in place of the host's" bash -c \
+    "grep -q 'the world check: will read 1 recording(s) of --worlds $T/worlds-given\$' <<<\"\$1\" && grep -q 'then the world check of 1 recording(s) of --worlds $T/worlds-given with it: .* $T/worlds-given (one world' <<<\"\$1\"" _ "$out"
 before=$(tree)
 run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --server-code no --minutes 2 && fail "release.sh --dry-run --server-code no: no problem ($out)"
 check "release --dry-run --server-code no: refused as a real run is, the pages to rebuild" bash -c \
@@ -1811,6 +1888,52 @@ check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
 check "release: ... stages nothing" nothing_staged
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 check "release: ... and makes no record" no_record 14
+
+# The world check refusing a recorded world with the new server data:
+# stopped in step 2, before the go, the refusal shown.
+: >"$T/state/admin.log"
+: >"$T/world-check.args"
+touch "$T/world-check-refuses"
+run yes --minutes 2 --label wc || true
+rm "$T/world-check-refuses"
+check "release: a world the new server would refuse stops before the swap" bash -c \
+    "grep -q 'the world check: the new server would refuse (or could not check) worlds its games wrote' <<<\"\$1\" && grep -q '^    REFUSED p3 t1000: effects at 0x67e9' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
+check "release: ... it checked the live host's newest 3 recordings with the new server data" grep -qE \
+    "^--data .*/server-game-data\.db --save .*/worlds-refused .*/worlds \| rec026g_20261107-000002_00000002\.srprec rec026g_20261107-000003_00000003\.srprec rec026g_20261107-000004_00000004\.srprec \$" "$T/world-check.args"
+check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
+check "release: ... stages nothing" nothing_staged
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+check "release: ... and makes no record" no_record 14
+
+# A check of the exe patches' self-test failing: stopped in step 2, before
+# anything is staged and before the go.
+: >"$T/state/admin.log"
+touch "$T/selftest-fails"
+run yes --minutes 2 --label st || true
+rm "$T/selftest-fails"
+check "release: a failed check of the exe patches' self-test stops before the swap" bash -c \
+    "grep -q \"the exe patches' self-test failed: 1 check(s), the first: the default build: nothing of the original aims inside\" <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
+check "release: ... after the staging, before the go" bash -c \
+    "grep -q '2. staging in the release folder' <<<\"\$1\" && ! grep -qE '^go: |3. the go' <<<\"\$1\"" _ "$out"
+check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
+check "release: ... removes the staged files" nothing_staged
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+check "release: ... and makes no record" no_record 14
+
+# A stop while the self-test runs (in the background, from build-zip to
+# the go): the item tables' tool failing after it started; the self-test
+# killed, its whole process group.
+: >"$T/state/admin.log"
+rm -f "$T/selftest.pids"
+touch "$T/selftest-hangs" "$T/item-tables-panics"
+run yes --minutes 2 --label sh || true
+rm "$T/selftest-hangs" "$T/item-tables-panics"
+check "release: a stop while the self-test runs stops before the swap" bash -c \
+    "grep -q 'the item tables (srp-item-tables)' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
+check "release: ... kills the self-test and what it started" bash -c \
+    "read -r a b <$T/selftest.pids && ! kill -0 \$a 2>/dev/null && ! kill -0 \$b 2>/dev/null"
+check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
+check "release: ... stages nothing" nothing_staged
 
 # A no at the question before the swap.
 : >"$T/state/admin.log"
@@ -1991,6 +2114,9 @@ expect_refused "release after a rollback: ... and its record is on origin" "the 
 run quiet --dry-run --revision 15 --minutes 1 || fail "release.sh --revision 15 --dry-run: $out"
 check "release --revision 15 after the rollback: accepted (the dry run)" has "$out" "the release: revision 13 -> 15 to the live server"
 check "release --dry-run: prints the record it would make" has "$out" '^\[dry run\] 7. once it went out, the record: git tag -a 026g-rev15'
+run quiet --dry-run --revision 15 --minutes 1 --no-selftest || fail "release.sh --no-selftest --dry-run: $out"
+check "release --no-selftest --dry-run: says it, in the preflight, the plan and step 2" bash -c \
+    "grep -q \"WARNING  --no-selftest: the exe patches' self-test is NOT run\" <<<\"\$1\" && grep -q \"the exe patches' self-test: NOT RUN (--no-selftest)\" <<<\"\$1\" && grep -q \"\\[dry run\\]    WARNING no exe patches' self-test\" <<<\"\$1\" && ! grep -q 'self-test.s result' <<<\"\$1\"" _ "$out"
 check "release --dry-run: ... no change of what a match computes, and no exe patch changed: no note" bash -c \
     "! grep -q 'note     the exe.s patches changed' <<<\"\$1\"" _ "$out"
 # An exe patch changed since the last release's tag, and nothing marked:
@@ -2402,8 +2528,15 @@ check "release --now: ... the old ZIP back in place" cmp -s "$T/work/r17.zip" "$
 check "release --now: ... no record of 18" no_record 18
 # A match running: swapped anyway, and it says how many it ended.
 echo 1000 >"$T/state/busy"
-run yes --now --label now || fail "release.sh --now: $out"
+: >"$T/selftest.args"
+run yes --now --no-selftest --label now || fail "release.sh --now --no-selftest: $out"
 rm -f "$T/state/busy"
+check "release --no-selftest: runs no self-test" test ! -s "$T/selftest.args"
+check "release --no-selftest: ... says so in the preflight, the plan, step 2 and the summary" bash -c \
+    "grep -q \"WARNING  --no-selftest\" <<<\"\$1\" && grep -q \"the exe patches' self-test: NOT RUN (--no-selftest)\" <<<\"\$1\" && grep -q \"^WARNING the exe patches' self-test: NOT RUN\" <<<\"\$1\" && grep -q \"^WARNING: shipped WITHOUT the exe patches' self-test (--no-selftest)\" <<<\"\$1\"" _ "$out"
+check "release --no-selftest: ... the tag and the record's commit say it" bash -c \
+    "git -C $T/origin.git cat-file tag 026g-rev18 | grep -qx \"Shipped WITHOUT the exe patches' self-test (release.sh --no-selftest).\" && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -qx \"Shipped WITHOUT the exe patches' self-test (release.sh --no-selftest).\""
+check "release --no-selftest: ... no worktree of the ZIP left" bash -c "! git -C $T/repo worktree list | grep -q /zip/src"
 check "release --now: with a match running, swaps anyway" cmp -s "$T/work/r18.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release --now: ... says, right before the stop, the match it ends" in_order "$out" \
     '5. the swap' '--now: 1 match(es) running: the stop ends them now, WITHOUT RESULTS' 'the server is up on the new data'
@@ -2508,11 +2641,17 @@ echo "$1: built"
 EOF
 cat >"$T/vostok-port" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >"$TEST_DIR/vostok-port.args"
-out='' packs=()
-while (($#)); do case $1 in --out-dir) out=$2; shift 2 ;; --pack) packs+=("$2"); shift 2 ;; *) shift ;; esac; done
+printf '%s\n' "$*" >"$TEST_DIR/vostok-args"
+out='' packs=() replaced=()
+while (($#)); do case $1 in --out-dir) out=$2; shift 2 ;; --pack) packs+=("$2"); shift 2 ;; --replace) replaced+=("$2"); shift 2 ;; *) shift ;; esac; done
 mkdir -p "$out"
+# As vostok-port: each --replace file in the output as given, unless a pack edits it (its edits:
+# a path a line, the stand-in's own, appended to).
+for r in "${replaced[@]}"; do mkdir -p "$(dirname "$out/${r%%=*}")" && cp "${r#*=}" "$out/${r%%=*}"; done
 for p in "${packs[@]}"; do cp -r "$p/files/." "$out/"; done
+for p in "${packs[@]}"; do
+    [[ ! -f $p/edits ]] || while read -r path; do echo "edited by ${p##*/}" >>"$out/$path"; done <"$p/edits"
+done
 echo "pack patch: done"
 EOF
 chmod +x "$T/build-movie" "$T/vostok-port"
@@ -2527,11 +2666,14 @@ manifest() { # the rows, `kind name source` a line ('|' for a tab), into $T/cont
 }
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-"
 bc_env=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/content-list.tsv|")
-cat >"$T/bc" <<EOF
+# $bc: the release's build (--full); $bcq: the plain command, a quick build.
+cat >"$T/bcq" <<EOF
 #!/usr/bin/env bash
 SKHID_RELEASE_ENV=$bc_env SKHID_TEST_BUILD_MOVIE=$T/build-movie SKHID_TEST_BUILD_SITE=$T/build-site TEST_DIR=$T exec "$here/build-content" "\$@" --tree "$C" --manifest "$T/content.tsv"
 EOF
-chmod +x "$T/bc"
+printf '#!/usr/bin/env bash\nexec %q "$@" --full\n' "$T/bcq" >"$T/bc"
+chmod +x "$T/bc" "$T/bcq"
+bcq=$T/bcq
 bc=$T/bc
 site_runs=$(grep -c . "$T/build-site.args" || true)
 out=$(cd "$T/work" && "$bc" 41 2>&1) || fail "build-content: $out"
@@ -2566,6 +2708,20 @@ rm -rf "$T/cache/skhid-release/build-content"
 out=$("$bc" 41 --out "$T/work/c41d" 2>&1) || fail "build-content, the cache deleted: $out"
 check "build-content: the cache deleted: every step runs, the same patch" bash -c \
     "! grep -q '$from_cache' <<<\"\$1\" && cmp -s $T/work/content-rev41/resources.db.patch_41 $T/work/c41d/resources.db.patch_41" _ "$out"
+# Without --full, a quick build: the same files, without the check of players' files with the patch
+# and the item tables; its folder says so (release.sh refuses it: above). --full leaves no mark.
+check "build-content --full: no QUICK-BUILD" test ! -e "$T/work/content-rev41/QUICK-BUILD"
+tables_runs=$(grep -c . "$T/item-tables.args")
+out=$("$bcq" 41 --out "$T/work/c41q" 2>&1) || fail "build-content (quick): $out"
+for file in resources.db.patch_41 server-game-data.db files.tsv; do
+    check "build-content (quick): the same $file as --full" cmp -s "$T/work/content-rev41/$file" "$T/work/c41q/$file"
+done
+check "build-content (quick): ... players' files with it not checked, no item tables, said" bash -c \
+    "grep -q 'over players. files: not checked (a quick build; --full checks it)' <<<\"\$1\" && grep -q 'the item tables: not made (a quick build; --full makes them)' <<<\"\$1\" && ! grep -q 'files the manifest makes are as it makes them' <<<\"\$1\" && test ! -e $T/work/c41q/item-tables && test \"\$(grep -c . $T/item-tables.args)\" = $tables_runs" _ "$out"
+check "build-content (quick): ... marked QUICK-BUILD, no release.sh next" bash -c \
+    "test -s $T/work/c41q/QUICK-BUILD && ! grep -q 'next: release/release.sh' <<<\"\$1\" && grep -q 'release.sh refuses it (QUICK-BUILD): a release builds with --full' <<<\"\$1\"" _ "$out"
+expect_refused "build-content: --quick is no option (the plain command is the quick build)" "unknown option --quick" \
+    "$bcq" 41 --out "$T/work/c41qq" --quick
 expect_refused "build-content never overwrites" "already there" "$bc" 41 --out "$T/work/content-rev41"
 out=$("$bc" 41 --out "$T/work/c41site" --site 2>&1) || fail "build-content --site: $out"
 check "build-content --site: the site's pages in its tree, of the list and the new patch" bash -c \
@@ -2615,11 +2771,41 @@ expect_refused "build-content: a pack needs vostok-port" "SKHID_VOSTOK_PORT must
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42d" 2>&1) || fail "build-content with a pack: $out"
 check "build-content: a pack's new file, and why" has "$out" "NEW       gameplay/items/hat.txt: pack hat@1; not in players' files"
 check "build-content: ... over the base patches, the built movie in place of the base's" \
-    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-port.args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-port.args"
+    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-args"
 printf '{"id": "hat", "version": "2"}\n' >"$T/packs/hat-1/pack.json"
 expect_refused "build-content: a pack whose pack.json is not the row's" "not $hat_sha" \
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42e"
 printf '{"id": "hat", "version": "1"}\n' >"$T/packs/hat-1/pack.json"
+# The packs' cache: a movie no operation of theirs names is not in its key (vostok-port gives it
+# back as it was); one an operation edits is. (The pack.json just written again is new to the cache.)
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42m0" 2>&1) || fail "build-content with a pack: $out"
+echo 2 >"$C/srp-026g/flash/m/src/version"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42m" 2>&1) || fail "build-content, a movie changed: $out"
+check "build-content: a movie no pack names changed: the packs from the cache, the new movie" bash -c \
+    "grep -q 'composed them: the cache' <<<\"\$1\" && grep -q 'CHANGED   flash_movies/m.swf: movie m (srp-026g/flash/m); live' <<<\"\$1\"" _ "$out"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42mn" --no-cache 2>&1) || fail "build-content --no-cache, a movie changed: $out"
+check "build-content: ... the same patch as without the cache" \
+    cmp -s "$T/work/c42m/resources.db.patch_42" "$T/work/c42mn/resources.db.patch_42"
+mkdir -p "$T/packs/icons-1/files"
+printf '{"id": "icons", "version": "1", "operations": [{"op": "atlas_icons_add", "swf": "flash_movies/m.swf", "symbol": "S", "icons": []}]}\n' \
+    >"$T/packs/icons-1/pack.json"
+echo flash_movies/m.swf >"$T/packs/icons-1/edits"
+icons_row="pack|icons@1|$(sha256sum <"$T/packs/icons-1/pack.json" | cut -c1-64)"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "$icons_row" "edit|e1.json|-"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i1" 2>&1) || fail "build-content, a pack editing the movie: $out"
+check "build-content: a pack that edits a movie: over the built one, and why" bash -c \
+    "grep -q 'flash_movies/m.swf: movie m (srp-026g/flash/m), then pack hat@1, icons@1' <<<\"\$1\"" _ "$out"
+echo 1 >"$C/srp-026g/flash/m/src/version"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i2" 2>&1) || fail "build-content, the edited movie changed: $out"
+check "build-content: ... that movie changed: the packs composed again" bash -c "! grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
+printf '{"id": "icons", "version": "1", "operations": [{"op": "add_file", "path": "gameplay/items/icon.txt"}]}\n' >"$T/packs/icons-1/pack.json"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" \
+    "pack|icons@1|$(sha256sum <"$T/packs/icons-1/pack.json" | cut -c1-64)" "edit|e1.json|-"
+expect_refused "build-content: a movie vostok-port changed that no operation names" \
+    "vostok-port changed flash_movies/m.swf, which no operation of the packs names" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42i3"
+rm -r "$T/packs/icons-1"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
 
 # A pack that rewrites a base config's vector as an indexed table: the value-
 # type check refuses it, naming the file, the path and both types.

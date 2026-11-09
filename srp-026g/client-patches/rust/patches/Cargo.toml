@@ -15,6 +15,8 @@ workspace = true
 [dependencies]
 # patch 76's solver and corpses' machine: pure Rust, tested in its own crate
 ragdoll = { path = "../../../crates/ragdoll" }
+# patch 116: the reasons and the answer srp's login server tells a ban by
+ban-reason = { path = "../../../crates/ban-reason" }
 artefact-carry = { path = "../../../crates/artefact-carry" }
 # patch 87's world check: the match server's own parse of a world's frame
 world-frame = { path = "../../../crates/world-frame" }
@@ -24,3 +26,4 @@ weapon-pickup = { path = "../../../crates/weapon-pickup" }
 weapon-kit = { path = "../../../crates/weapon-kit" }
 # patch 66: the voice DLL's C ABI, shared with srp-026g/client-voice
 voice-abi = { path = "../../../crates/voice-abi" }
+srp-validate = { path = "../../../crates/srp-validate" }

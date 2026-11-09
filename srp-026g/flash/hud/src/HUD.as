@@ -30,7 +30,6 @@ package
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.layout.Layout;
    import scaleform.clik.layout.LayoutData;
-   import scaleform.gfx.Extensions;
    import survarium.Util;
    import survarium.constants.BodyPartState;
    import survarium.constants.Colors;
@@ -391,7 +390,8 @@ package
          addChild(this.voiceSpeakers);
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
-         this.pregameInfo.premiumMembers.visible = false;
+         // The stock "premium players in the match" box: srp has no premium (the owner, 2026-11-09)
+         this.pregameInfo.premiumMembers.parent.removeChild(this.pregameInfo.premiumMembers);
          this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
          addChild(this._modeNotice);
          damageDebug = new SrvDebugDamage();
@@ -480,10 +480,6 @@ package
          this.effects[this.BLOOD_DRIP2] = Blood_drip2;
          this.effects[this.BLOOD_DRIP3] = Blood_drip3;
          this.effects[this.GRENADE_EFFECT] = GrenadeEffect;
-         if(Extensions.isGFxPlayer)
-         {
-            setTimeout(this.test_all,1000);
-         }
          function makeGrayscale(bitmapData:BitmapData = null):BitmapData
          {
             var newBitmapData:BitmapData = bitmapData.clone();
@@ -497,244 +493,6 @@ package
          var textField:TextField = this.contextInfo.textPoints;
          textField.text = "";
          this._pointsTimer.addEventListener(TimerEvent.TIMER,this.removePoints);
-      }
-      
-      private function test_minimap() : void
-      {
-      }
-      
-      private function test_minimap_3() : void
-      {
-         setTimeout(this.test_minimap_2,100);
-         var m_objects:Array = [{
-            player_id:10,
-            team:Team.SECOND,
-            player_pos_x:10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:1,
-            is_local_player:true
-         },{
-            player_id:23,
-            team:Team.FIRST,
-            player_pos_x:-0.0,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true,
-            is_carrying_item:true
-         },{
-            player_id:24,
-            team:Team.SECOND,
-            player_pos_x:-10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:9
-         },{
-            player_id:25,
-            team:Team.FIRST,
-            player_pos_x:-20,
-            player_pos_y:-35 - Math.random() * 10,
-            type:8
-         },{
-            player_id:26,
-            team:Team.FIRST,
-            player_pos_x:-30,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2
-         },{
-            player_id:27,
-            team:Team.FIRST,
-            player_pos_x:-40,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2,
-            is_carrying_item:true
-         },{
-            player_id:30,
-            team:Team.SECOND,
-            player_pos_x:-50,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true,
-            is_carrying_item:true
-         }];
-         this.update_players(m_objects);
-         this.update_players([]);
-      }
-      
-      private function test_minimap_1() : void
-      {
-         setTimeout(this.test_minimap_3,100);
-         var m_objects:Array = [{
-            player_id:10,
-            team:Team.FIRST,
-            player_pos_x:10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:1,
-            is_local_player:true
-         },{
-            player_id:23,
-            team:Team.SECOND,
-            player_pos_x:-0.0,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true,
-            is_carrying_item:true
-         },{
-            player_id:24,
-            team:Team.FIRST,
-            player_pos_x:-10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:9
-         },{
-            player_id:25,
-            team:Team.SECOND,
-            player_pos_x:-20,
-            player_pos_y:-35 - Math.random() * 10,
-            type:8
-         },{
-            player_id:26,
-            team:Team.SECOND,
-            player_pos_x:-30,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2
-         },{
-            player_id:27,
-            team:Team.SECOND,
-            player_pos_x:-40,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2,
-            is_carrying_item:true
-         }];
-         this.update_players(m_objects);
-      }
-      
-      private function test_minimap_2() : void
-      {
-         var m_objects:Array = [{
-            player_id:23,
-            team:Team.FIRST,
-            player_pos_x:-0.0,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true
-         },{
-            player_id:70,
-            team:Team.FIRST,
-            player_pos_x:-60,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:80,
-            team:Team.FIRST,
-            player_pos_x:-70,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:90,
-            team:Team.FIRST,
-            player_pos_x:-80,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:10,
-            team:Team.FIRST,
-            player_pos_x:10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:1,
-            is_local_player:true
-         },{
-            player_id:26,
-            team:Team.FIRST,
-            player_pos_x:-30,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2
-         },{
-            player_id:27,
-            team:Team.FIRST,
-            player_pos_x:-40,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2,
-            is_carrying_item:false
-         }];
-         this.update_players(m_objects);
-         m_objects = [{
-            player_id:23,
-            team:Team.FIRST,
-            player_pos_x:-0.0,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true
-         },{
-            player_id:70,
-            team:Team.FIRST,
-            player_pos_x:-60,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:80,
-            team:Team.FIRST,
-            player_pos_x:-70,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:90,
-            team:Team.FIRST,
-            player_pos_x:-80,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         }];
-         this.update_players(m_objects);
-         m_objects = [{
-            id:23,
-            type:"resupply",
-            pos_x:-40,
-            pos_y:-40 - Math.random() * 10
-         },{
-            id:26,
-            type:"base_highlighted",
-            pos_x:-50,
-            pos_y:-40 - Math.random() * 10
-         }];
-         this.update_objects(m_objects);
-      }
-      
-      private function test_all() : void
-      {
-         this.quick_slots.visible = true;
-         this.fill_slots([{
-            slot_id:1,
-            name:"sdfsdfsd",
-            icon_row:2,
-            icon_column:2,
-            icon:23,
-            enabled:true
-         },{
-            icon_row:18,
-            icon_column:1,
-            slot_id:2,
-            name:"sdfsdfsd",
-            icon:49,
-            enabled:true,
-            cooldown:0,
-            is_artefact:true
-         },{
-            icon_row:0,
-            icon_column:0,
-            slot_id:3,
-            name:"sdfsdfsd",
-            icon:0,
-            enabled:true,
-            cooldown:0,
-            is_artefact:true
-         }]);
-         this.show_crosshair(true);
-         stage.addEventListener(MouseEvent.CLICK,this.testClick);
-         this.add_log_message({
-            who_name:"Test",
-            action_id:CombatAction.KILL,
-            victim_name:"super_logn_extra_icvon",
-            who_team:CombatLogTeam.ALLY,
-            victim_team:CombatLogTeam.ENEMY,
-            extra_icon:4
-         });
       }
       
       private function onProfileChanged(e:Event) : void
@@ -977,159 +735,6 @@ package
             indexOfLevel = 1;
          }
          this.set_minimap_props({map:"level_0" + this.indexOfLevel.toString()});
-      }
-      
-      private function testClick(e:MouseEvent) : void
-      {
-         trace("testClick::",stage.stageWidth,stage.stageHeight);
-         this.set_crosshair_damage(Math.random(),1000,true,true);
-      }
-      
-      private function test_all2() : void
-      {
-         var m_objects:Array = [{
-            player_id:10,
-            team:Team.SECOND,
-            player_pos_x:-2,
-            player_pos_y:-35 - Math.random() * 10,
-            type:1,
-            is_local_player:true
-         },{
-            player_id:23,
-            team:Team.FIRST,
-            player_pos_x:-10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:25,
-            team:Team.FIRST,
-            player_pos_x:-20,
-            player_pos_y:-35 - Math.random() * 10,
-            type:8
-         },{
-            player_id:27,
-            team:Team.SECOND,
-            player_pos_x:-40,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2,
-            is_carrying_item:false
-         }];
-         m_objects = [{
-            faction_id:Faction.SCAVENGERS,
-            quest_icon:1,
-            current_progress:4,
-            required:5
-         }];
-         this.show_quests_progress(true);
-         this.set_quests_progress(m_objects);
-         this.set_body_part_hp(1,1,0.5);
-         this.crosshair_enemy_hit(0.8);
-         var temp_players:Array = [{
-            id:10,
-            team:TeamSide.ALLY,
-            name:"fdgfdAAF",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:20,
-            squad_state:SquadState.IN_SQUAD,
-            squad_id:1
-         },{
-            id:9,
-            team:TeamSide.ALLY,
-            name:"fdgfd1F",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:21,
-            squad_state:SquadState.STATE_2,
-            squad_id:1
-         },{
-            id:8,
-            team:TeamSide.NONE,
-            name:"fdgfd2",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:4,
-            squad_state:SquadState.NONE,
-            squad_id:0
-         },{
-            id:7,
-            team:TeamSide.NONE,
-            name:"fdgfd3",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:20,
-            squad_state:SquadState.STATE_2,
-            squad_id:1
-         },{
-            id:6,
-            team:TeamSide.NONE,
-            name:"fdgfd4",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:4,
-            squad_state:SquadState.STATE_2,
-            squad_id:2
-         },{
-            id:5,
-            team:TeamSide.NONE,
-            name:"fdgfd5",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:4,
-            squad_state:SquadState.STATE_2,
-            squad_id:2
-         },{
-            id:4,
-            team:TeamSide.NONE,
-            name:"fdgfd6",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:4,
-            squad_state:SquadState.STATE_2,
-            squad_id:2
-         },{
-            id:3,
-            team:TeamSide.NONE,
-            name:"fdgfd6",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:6
-         },{
-            id:2,
-            team:TeamSide.NONE,
-            name:"fdgfd1",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:1
-         },{
-            id:1,
-            team:TeamSide.NONE,
-            name:"fdgfd8",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:8
-         }];
-         this.list_set_players(temp_players);
       }
       
       public function set_localization_data(value:Object) : void
@@ -1854,29 +1459,15 @@ package
          }
       }
       
+      // The exe's "premium players in the match" (their drop bonus): srp has no premium account.
       public function show_premium_players(value:String, prefix:String = "", postfix:String = "", bonus:uint = 20) : void
       {
-         var style:StyleSheet = new StyleSheet();
-         var styleObject:Object;
-         styleObject = new Object();
-         styleObject.color = Colors.PLAYER_ST;
-         style.setStyle("yellow",styleObject);
-         this.pregameInfo.premiumMembers.textField.autoSize = TextFieldAutoSize.LEFT;
-         this.pregameInfo.premiumMembers.textField.styleSheet = style;
-         var players:String = value;
-         this.pregameInfo.premiumMembers.visible = true;
-         this.pregameInfo.premiumMembers.textField.text = prefix + "\n" + Util.styledChar(value,"yellow") + "\n" + postfix + Util.styledChar("+" + bonus.toString() + "%","yellow");
-         this.pregameInfo.premiumMembers.background.height = this.pregameInfo.premiumMembers.textField.textHeight + 25;
       }
       
       public function show_pregame(bool:Boolean) : void
       {
          this.pregameInfo.visible = bool;
          this._modeNotice.update(getTimer(),true,bool);
-         if(bool == false)
-         {
-            this.pregameInfo.premiumMembers.visible = false;
-         }
          this.placeResearchCountdowns();
       }
       
@@ -1888,12 +1479,10 @@ package
          if(this.pregameInfo.contextText.width > 400)
          {
             this.pregameInfo.contextText.x = 0;
-            this.pregameInfo.premiumMembers.x = (this.pregameInfo.contextText.textWidth - this.pregameInfo.premiumMembers.width) / 2;
          }
          else
          {
             this.pregameInfo.contextText.x = (400 - this.pregameInfo.contextText.textWidth) / 2;
-            this.pregameInfo.premiumMembers.x = 55;
          }
          this.placeResearchCountdowns();
       }

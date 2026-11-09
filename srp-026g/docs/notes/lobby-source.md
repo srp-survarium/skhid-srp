@@ -19,7 +19,7 @@ ours is an edit of a tree, and a movie is built from its whole tree; nothing is 
 The owner, 2026-10-21: "we now got the source code" "and we just modify it".
 
 - Put the code in the game's class that owns the behaviour, in that class's style:
-  - Get Gold and the exchange: `MessageMoneyExchange` (`buyGold`, `open`);
+  - a window's payment: its dialog (`MessageRepair`, `MessageRerollItem`);
   - a right-click menu: the list that builds it (`InventoryList`); a dialog's buttons: the dialog
     (`MessageCraftItem`);
   - a request and its answer: the class with the answer's handler (`LobbyMenu`); the click that asks:
@@ -45,8 +45,6 @@ python3 tools/actionscript/flash_tree.py build srp-026g/flash/<movie> <the origi
   original movie in place of the original's code. The graphics are the original's.
 - The build checks that every ABC block parses and every class a symbol is bound to is defined.
   Whether the movie works is checked in the game.
-- `build_lobby_026g.py` says whether the movie is `RESULT_SHA256`, the one last checked in the game
-  (the same tree gives the same bytes). Set `RESULT_SHA256` when the owner has checked a new one.
 - `flash_tree.py original srp-026g/flash/<movie> <archive> <out.swf>` cuts an original from its
   archive.
 - Tests: `python3 -m unittest discover` in `srp-026g/client-patches` and in `tools/actionscript`;
@@ -92,8 +90,8 @@ package of its own; no behaviour changes:
 - the craft window's Buy and Sell: `InventoryList.showCraftMenu`, `findCraftWindow`,
   `buyFromCraftMenu`; its Continue and Exit: `MessageCraftItem.offerContinue`, `onContinue`, `holds`
   (was `SrpCraftMenu`);
-- Get Gold: `MessageMoneyExchange.buyGold` (was `SrpBuyGold`); the exchange: `MessageMoneyExchange`
-  itself (was `SrpExchange`, removed from the movie);
+- Get Gold and the exchange: `MessageMoneyExchange.buyGold` and `MessageMoneyExchange` (was
+  `SrpBuyGold`, `SrpExchange`); both removed with gold (the owner, 2026-11-08: [buy-gold.md](buy-gold.md));
 - the player gear: `LobbyMenu.showPlayerInfoMenu`, the ask in flight, `takePlayerInfo`;
   `PlayerRanking.onPlayerRightClick` (was `SrpPlayerGear`);
 - the rooms: `survarium/rooms` (was `SrpRooms`, removed from the movie); their parts in `TopMenu`,
@@ -132,8 +130,8 @@ keeps revision 24's bytes. The byte-exact proof, the per-class compiler settings
 reconstruction diffs are in git history. The lobby of 6064476c built this way (882 classes, 883 ABC
 blocks) was checked in the game by the owner: "good, it works". compc lays the code out by where
 the source lies, so the build compiles every tree from one place (`/tmp/srp-flash-build/<movie>`);
-the tree of 6064476c gives `8b099212…` (`RESULT_SHA256`), the movie checked was `c3898574…`, the
-same tree compiled from another place.
+the tree of 6064476c gives `8b099212…`, the movie checked was `c3898574…`, the same tree compiled
+from another place.
 
 The HUD tree took three source fixes Flex asks for (those classes had been compiled with FFDec's
 compiler): `Minimap`'s `§default§` written as `["default"]` and a field initializer without
