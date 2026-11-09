@@ -126,9 +126,12 @@ package
       // The hover list's own width, its two columns: its `width` while it lays itself out is more.
       private static const SPECTATOR_HOVER_WIDTH:int = 435;
 
-      private static const SPECTATOR_REPLAY_ABOVE_AMMO:int = 200;
+      // A replay's chooser, in the hud's units from the stage's bottom: over the chat (its top 275).
+      private static const SPECTATOR_REPLAY_ABOVE_CHAT:int = 285;
 
-      private static const SPECTATOR_REPLAY_ABOVE_HINT:int = 146;
+      // The room the replay movie's player list and free-view button take at the stage's right edge,
+      // in that movie's own units (its scale is the hud's, never below 1).
+      private static const SPECTATOR_REPLAY_PLAYERS:int = 160;
 
       private static const SPECTATOR_HOVER_BOTTOM:int = 109;
       private var _spectatorMode:int = 0;
@@ -756,7 +759,7 @@ package
             var kit:int = int(fields[0]);
             var name:String = String(fields[3]);
             this._spectatorKitIndex[kit] = kits.length;
-            kits.push({name:name,state:int(fields[1]),level:int(fields[2]),items:items});
+            kits.push({item_slots:this.spectatorQuickRows(items),artifact_slots:0,name:name,state:int(fields[1]),level:int(fields[2]),items:items});
          }
          this._spectatorKitCount = kits.length;
          this._profilePanel.profileSelector.local = false;
@@ -836,7 +839,7 @@ package
          if(index >= 0)
          {
             this.fill_player_profile_items(this._profilePanel.profileSelector.getProfileData(index));
-            this._hudPlayerProfile.x = Math.min(this._profilePanel.profileSelector.x + index * SPECTATOR_PLATE_WIDTH,this.stageWidth - this._profilePanel.x - SPECTATOR_HOVER_WIDTH);
+            this._hudPlayerProfile.x = Math.min(this._profilePanel.profileSelector.x + index * SPECTATOR_PLATE_WIDTH,this.spectatorRightEdge() - this._profilePanel.x - SPECTATOR_HOVER_WIDTH);
          }
       }
 
@@ -857,14 +860,36 @@ package
          this.placeProfilePanel();
       }
 
+      // The right end of what a spectator's chooser and its hover list may take, in the hud's units.
+      private function spectatorRightEdge() : Number
+      {
+         if(this._spectatorMode != 2)
+         {
+            return this.stageWidth;
+         }
+         return (stage.stageWidth - SPECTATOR_REPLAY_PLAYERS * Math.max(1,this.scaleFactor)) / this.scaleFactor;
+      }
+
+      // Rows of a kit's side panel: up to its last quick slot (slots 13 to 18; the panel keeps the last
+      // kit's otherwise, the movie being the last match's).
+      private function spectatorQuickRows(items:Array) : int
+      {
+         var rows:int = 0;
+         for each(var item:Object in items)
+         {
+            rows = Math.max(rows,item.slotId - 12);
+         }
+         return rows;
+      }
+
       private function placeProfilePanel() : void
       {
          if(this._spectatorMode == 2)
          {
-            // A replay's: bottom right, above the ammo counter, over the height of the viewer's key
-            // hint (in the replay movie's own pixels, which do not scale with the hud).
-            this._profilePanel.x = this.stageWidth - SPECTATOR_REPLAY_RIGHT;
-            this._profilePanel.y = int(Math.min(this.stageHeight - SPECTATOR_REPLAY_ABOVE_AMMO,(stage.stageHeight - SPECTATOR_REPLAY_ABOVE_HINT) / this.scaleFactor)) - SPECTATOR_HOVER_BOTTOM;
+            // A replay's, at every size by one rule: left of the replay's player list, over the chat
+            // (so over the viewer's key hint and bar and the ammo counter).
+            this._profilePanel.x = int(this.spectatorRightEdge() - SPECTATOR_REPLAY_RIGHT);
+            this._profilePanel.y = int(this.stageHeight - SPECTATOR_REPLAY_ABOVE_CHAT - SPECTATOR_HOVER_BOTTOM);
             return;
          }
          this._profilePanel.x = int(this.stageWidth - 594) / 2;

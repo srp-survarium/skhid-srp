@@ -27,7 +27,9 @@ harness_work "${2:-}"
 # The texts the exe gives the movie (set_localization_data), from the dictionaries.
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
 harness_compile "$here/RoomsHarness.as" 1280,720 -source-path+="$work"
-harness_display 1280x720
+# HARNESS_SIZE: another size, as docs/notes/ui_scale.md lists (with room for the window's menu bar).
+size=${HARNESS_SIZE:-1280x720}
+harness_display "${size%x*}x$((${size#*x} + 40))"
 
 for players in 0 1; do
 if [[ $players == 0 ]]; then
@@ -38,7 +40,7 @@ else
     "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
 fi
 log=RoomsHarness-$players.log
-harness_run "$log" -p low --width 1280 --height 720 -Pmovie=lobby_menu.swf -Pplayers="$players" RoomsHarness.swf
+harness_run "$log" -p low --width "${size%x*}" --height "${size#*x}" -Pmovie=lobby_menu.swf -Pplayers="$players" RoomsHarness.swf
 wait_for "$log" 'ROOMS RESULT' || true
 kill "$ruffle_pid" 2>/dev/null || true
 wait "$ruffle_pid" 2>/dev/null || true

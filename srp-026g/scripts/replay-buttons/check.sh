@@ -16,9 +16,10 @@ harness_work "${2:-}"
 harness_compile "$here/ReplayButtonsHarness.as" 1280,720 -source-path+="$work"
 # The native Scaleform placements Ruffle refuses, so the results screen's named children exist.
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
-harness_display 1920x1300
+harness_display "${HARNESS_DISPLAY:-1920x1300}"
 status=0
-for size in 1280x720 1920x1080; do
+# HARNESS_SIZES (and HARNESS_DISPLAY, room for them): other sizes, as docs/notes/ui_scale.md lists.
+for size in ${HARNESS_SIZES:-1280x720 1920x1080}; do
     log=ReplayButtonsHarness-$size.log
     HARNESS_TIMEOUT=180 harness_run "$log" -p low --width "${size%x*}" --height "${size#*x}" ReplayButtonsHarness.swf
     wait_for "$log" 'REPLAYBUTTONS RESULT' 1700 || true

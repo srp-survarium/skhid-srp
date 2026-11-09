@@ -24,8 +24,8 @@
 //! view: the game fills it from its own copy of the match's options, with only the kits the
 //! server's kits note allows (a replay: every playable kit; a live match: the ones the place has
 //! played by the spectator's delayed clock), the initialize_match feed of the local place's kits
-//! being withheld from a spectator. Live it is the game's own place; in a replay it is bottom right,
-//! above the ammo counter, and gives way to the Tab list. Nothing a match computes changes.
+//! being withheld from a spectator. Live it is the game's own place; in a replay it is left of the
+//! replay's player list, over the chat, and gives way to the Tab list. Nothing a match computes changes.
 #![forbid(unsafe_code)]
 
 use replay_control::{newer, Event, EventKind, EventsNote, MatchMs, Op, Playback, Request, ServerNote, Speed, KIT_NUMBERS};

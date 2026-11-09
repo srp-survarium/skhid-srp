@@ -114,7 +114,7 @@ package {
    // The game's own place, live.
    trace("KITS scale " + hud.scaleX + " minimap " + rect(hud.minimap) + " ammo " + rect(hud.ammoInd) + " slots " + rect(hud.quick_slots) + " list " + rect(hud.player_list));
    var w:int = stage.stageWidth, h:int = stage.stageHeight;
-   expect("the hud laid out: the ammo counter at the bottom right " + rect(hud.ammoInd),rect(hud.ammoInd).right > w - 100 && rect(hud.ammoInd).bottom > h - 100);
+   expect("the hud laid out: the ammo counter at the bottom right " + rect(hud.ammoInd),rect(hud.ammoInd).right > w - 100 * hud.scaleX && rect(hud.ammoInd).bottom > h - 100 * hud.scaleX);
    hud.show_slots(false);                 // what the exe holds, every frame, for both
    expect("the quick slots hidden",!hud.quick_slots.visible);
    for each(var drawn:String in ["minimap","ammoInd","chat"]) hud[drawn].visible = true;
@@ -199,6 +199,115 @@ package {
    hud.show_profiles_selector(true);
    expect("reset: the game's own show honoured after a spectator's match",panel.visible);
    expect("reset: the selector its own again",selector.local == true);
+   hud.show_profiles_selector(false);
+   everySize(hud,player,panel,selector);
+  }
+  // Every size: where each layout's pieces are, on the worst kit (every row of the list, six quick slots)
+  // and the fullest player list (20 rows), by bounds on the stage, as a table.
+  private function box(r:Rectangle):String { return int(r.x) + "," + int(r.y) + " " + int(r.width) + "x" + int(r.height); }
+  private function middle(r:Rectangle):String { return int(r.x + r.width / 2) + "," + int(r.y + r.height / 2); }
+  private function onStage(what:String, r:Rectangle):void {
+   expect(what + " on the stage " + r,r.x >= 0 && r.y >= 0 && r.right <= stage.stageWidth && r.bottom <= stage.stageHeight);
+  }
+  private function everySize(hud:*, player:*, panel:*, selector:*):void {
+   var w:int = stage.stageWidth, h:int = stage.stageHeight, size:String = w + "x" + h;
+   var wanted:String = root.loaderInfo.parameters.size;
+   expect("the stage is the size asked for (" + wanted + ", " + size + ")",wanted == size);
+   var dict:Array = [], worst:Array = [];
+   for(var i:int = 0; i < 19; i++) {
+    dict.push({dictId:1000 + i,name:"Chemical protection boots, reinforced",is_stack:i >= 13,category:0,icon:0,level:1});
+    worst.push((1000 + i) + ":" + i + ":3");
+   }
+   hud.itemDescriptor.setItemsDictionary(dict);
+   var kit:String = worst.join(",");
+   var rows:Array = [];
+   for(var n:int = 0; n < 20; n++) rows.push(n + ":" + (n % 2) + ":Player " + n);
+   player.set_players_text(rows.join(";"));
+   hud.show_player_list(false);
+   player.set_cursor_shown(false);
+   stage.dispatchEvent(new Event(Event.RESIZE));
+   player.viewer.place();
+   var list:* = panel.getChildAt(panel.numChildren - 1);
+   var v:* = player.viewer, doll:* = list.profileItems;
+   var around:Array = [["the seek bar",player.bottomPanel],["the key hint",v.hint],["the Moments switch",v.moments],["Back",v.back],
+    ["the minimap",hud.minimap],["the ammo counter",hud.ammoInd],["the chat",hud.chat],["the player list",player.playersBar],["free view",player.freeViewButton]];
+   var clear:Function = function(what:String, r:Rectangle):void { for each(var a:Array in around) expect(size + ": " + what + " " + r + " over " + a[0] + " " + rect(a[1]),!r.intersects(rect(a[1]))); };
+   for each(var a:Array in around) if(a[0] != "the chat" && a[0] != "the minimap" && a[0] != "the ammo counter") onStage(size + ": " + a[0],rect(a[1]));
+   // The viewer's own controls.
+   var mine:Array = around.slice(0,4);
+   for(var x:int = 0; x < mine.length; x++) for(var y:int = x + 1; y < mine.length; y++) expect(size + ": " + mine[x][0] + " over " + mine[y][0],!rect(mine[x][1]).intersects(rect(mine[y][1])));
+   // A replay's viewer.
+   hud.srp_spectator_kits("0|0|7|Alpha|" + kit + ";1|0|5|Bravo|" + kit + ";2|0|4|Charlie|" + kit + ";");
+   hud.srp_spectator_current_kit(0);
+   hud.srp_spectator_kits_show(2);
+   expect(size + ": a replay's chooser shows",panel.visible);
+   var line:String = "KITS TABLE " + size + " scale=" + hud.scaleX.toFixed(3) + " replay=" + player.scaleX.toFixed(3) + " chooser " + box(rect(selector));
+   clear("the chooser",rect(selector));
+   onStage(size + ": the chooser",rect(selector));
+   line += " plates " + box(rect(selector.tabPage));
+   var coords:String = "KITS COORDS " + size + " plates";
+   var plates:Array = [];
+   for(var p:int = 0; p < 3; p++) {
+    plates.push(rect(selector.tabPage.getButtonAt(p)));
+    onStage(size + ": plate " + p,plates[p]);
+    coords += " " + middle(plates[p]);
+   }
+   for(p = 0; p < 3; p++) {
+    hud.srp_spectator_pointer(uint(plates[p].x + plates[p].width / 2),uint(plates[p].y + plates[p].height / 2));
+    doll.validateNow();
+    expect(size + ": hover " + p + " shows",list.visible);
+    expect(size + ": hover " + p + " has the kit's six quick rows (" + doll.itemsBack.height + ")",doll.itemsBack.visible && doll.itemsBack.height == 10 + 27 * 6 + 9);
+    var whole:Rectangle = rect(doll), side:Rectangle = rect(doll.itemsBack);
+    var items:Rectangle = whole.clone(); items.right = side.x;
+    onStage(size + ": hover " + p + " list",whole); onStage(size + ": hover " + p + " side panel",side);
+    clear("hover " + p + " list",items); clear("hover " + p + " side panel",side);
+    expect(size + ": hover " + p + " list ends above the plates (" + whole.bottom + ", plates at " + plates[p].y + ")",whole.bottom <= plates[p].y + 1);
+    line += " | hover" + p + " list " + box(items) + " side " + box(side);
+    // kept by the frame's show
+    var keptX:Number = list.x; hud.srp_spectator_kits_show(2);
+    expect(size + ": hover " + p + " kept by the frame's show",list.visible && list.x == keptX);
+   }
+   hud.srp_spectator_pointer(uint(0),uint(0));
+   expect(size + ": hover goes off the plates",!list.visible);
+   trace(line);
+   // The player list as a two-player match shows it (for the real client's check).
+   player.set_players_text("0:0:ReplayTester;1:1:SecondTester");
+   stage.dispatchEvent(new Event(Event.RESIZE));
+   player.playersBar.validateNow();
+   coords += " rows";
+   for(var row:int = 0; row < 2; row++) coords += " " + middle(rect(player.playersBar.getButtonAt(row)));
+   coords += " freeview " + middle(rect(player.freeViewButton));
+   trace(coords);
+   // A live spectator, the game's own place, one to three plates (no cursor there: its hover measured all the same).
+   for(var count:int = 1; count <= 3; count++) {
+    var live:Array = [];
+    for(var q:int = 0; q < count; q++) live.push(q + "|0|5|Kit|" + kit);
+    hud.srp_spectator_kits(live.join(";") + ";");
+    hud.srp_spectator_kits_show(1);
+    var chooser:Rectangle = rect(selector.tabPage);
+    onStage(size + ": live, " + count + " plates",chooser);
+    var liveLine:String = "KITS LIVE " + size + " plates=" + count + " " + box(chooser);
+    for(var t:int = 0; t < count; t++) {
+     var one:Rectangle = rect(selector.tabPage.getButtonAt(t));
+     hud.srp_spectator_pointer(uint(one.x + one.width / 2),uint(one.y + one.height / 2));
+     doll.validateNow();
+     var hovered:Rectangle = rect(doll);
+     onStage(size + ": live, " + count + " plates, hover " + t,hovered);
+     for each(var fixed:* in [hud.minimap,hud.ammoInd]) expect(size + ": live hover over the hud's corner " + hovered,!hovered.intersects(rect(fixed)));
+     liveLine += " hover" + t + " " + box(hovered);
+    }
+    hud.srp_spectator_pointer(uint(0),uint(0));
+    trace(liveLine);
+   }
+   // A player's own chooser: the game's own feed and place.
+   hud.srp_spectator_kits_show(0);
+   hud.setup_player_profiles([{name:"A",state:0,level:1,items:[]},{name:"B",state:0,level:1,items:[]},{name:"C",state:0,level:1,items:[]}]);
+   hud.show_profiles_selector(true);
+   var ownBox:Rectangle = rect(selector);
+   expect(size + ": a player's chooser centred on the stage " + ownBox,Math.abs(ownBox.x + ownBox.width / 2 - w / 2) < 40 * hud.scaleX);
+   expect(size + ": a player's chooser at the bottom " + ownBox,ownBox.bottom > h * 0.85 && ownBox.bottom <= h);
+   trace("KITS PLAYER " + size + " chooser " + box(ownBox));
+   hud.show_profiles_selector(false);
   }
   private function finish(error:String):void {
    if(error) failures.push(error);
