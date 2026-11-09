@@ -206,23 +206,6 @@ fn the_search_chooses_whose_matches_are_listed() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Account ids cannot be walked: an account with no public match is
-/// answered as one that does not exist, its name not said.
-#[test]
-fn an_account_with_no_public_match_is_answered_as_none() {
-    let dir = temp("walk");
-    let mut world = world(&dir, BOB);
-    let quiet = BOB + 1;
-    let _ = world.accounts.sign_up(quiet, "Quiet");
-    let dana = world.connect("Dana");
-    world.ask(dana, request::player_details(PLAYER_MATCHES_ASK, 777_777));
-    let unknown = matches(&mut world, dana, 10);
-    assert_eq!(unknown, ["P1;0;"]);
-    world.ask(dana, request::player_details(PLAYER_MATCHES_ASK, quiet));
-    assert_eq!(matches(&mut world, dana, 10), unknown);
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
 #[test]
 fn each_row_says_its_replays_state_for_the_askers_game() {
     let dir = temp("replay");

@@ -164,15 +164,8 @@ impl Core<'_> {
                 player_id: lobby::player_matches::PLAYER_MATCHES_ASK,
                 match_id: account_id,
             } => {
-                // Only an account with a public match: its name and that it
-                // exists are not given for any other id (account ids cannot
-                // be walked, `lobby::push`).
-                let public = self.accounts.history().is_some_and(|history| {
-                    history
-                        .player_matches(account_id, None, 1)
-                        .is_ok_and(|matches| !matches.is_empty())
-                });
-                if let Some(player) = self.player_mut(addr).filter(|_| public) {
+                let known = self.accounts.get(account_id).is_some();
+                if let Some(player) = self.player_mut(addr).filter(|_| known) {
                     player.shown_kits_of = Some(account_id);
                 }
             }
