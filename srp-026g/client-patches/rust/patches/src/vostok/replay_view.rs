@@ -467,9 +467,15 @@ impl<'t> Overlay<'t> {
     }
 
     /// The markers, as the movie's text helper takes them
-    /// (root.set_markers_text: `time_ms:kind:whose:label;...`).
+    /// (root.set_markers_text: `time_ms:kind:whose:actor:victim;...`).
     pub fn set_markers(&self, text: &CStr) {
         self.movie.invoke_text(c"root.set_markers_text", text);
+    }
+
+    /// The markers' names by place (root.set_marker_names: `place:name;...`),
+    /// told before their markers.
+    pub fn set_marker_names(&self, text: &CStr) {
+        self.movie.invoke_text(c"root.set_marker_names", text);
     }
 
     /// Which movie this is (a new game world's is another).

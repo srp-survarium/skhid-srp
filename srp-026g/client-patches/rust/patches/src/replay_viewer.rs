@@ -33,6 +33,7 @@ use replay_control::{newer, Event, EventKind, EventsNote, MatchMs, Op, Playback,
 use core::ffi::CStr;
 
 use crate::spectator;
+use crate::vostok::log::{line, Piece};
 use crate::vostok::replay_view::{button_client, pointer_at, pointer_client, query_network, take_network, CoreLoad, GameClock, HudFrame, KitChooser, KitData, KitFeed, MatchClose, Names, Overlay, ServerNoteSite};
 use crate::vostok::world::{NetworkClient, Role};
 use crate::vostok::{
@@ -349,43 +350,69 @@ impl Viewer {
     }
 }
 
-/// The most events a replay's list keeps here.
-const MAX_EVENTS: usize = 256;
+/// The most events a viewer keeps: more than any real match's, whose kills and
+/// objectives are 20 players' for 15 minutes (the arena is nearly full: each
+/// slot is 12 bytes), and the rest are only the bar's marks. A replay with
+/// more: [`Events::take`] tells the log.
+const MAX_EVENTS: usize = 512;
 
 /// The replay's events as the server sent them (by their index in its
 /// list), for the keys' previous and next moment. Kept apart from the session:
 /// a note may come before the first playback note (the transport reorders).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Events {
     slots: [Option<Event>; MAX_EVENTS],
     /// Counts the notes taken (the controls' markers follow it).
     version: u16,
+    /// Whether this match's line about events past [`MAX_EVENTS`] was written.
+    capacity: Capacity,
+}
+
+/// Events past [`MAX_EVENTS`]: none, or some and told once a match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Capacity {
+    Enough,
+    Exceeded,
+}
+
+/// A replay with events past [`MAX_EVENTS`] ([`Events::take`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TooManyEvents {
+    total: u16,
 }
 
 impl Events {
-    const NONE: Events = Events { slots: [None; MAX_EVENTS], version: 0 };
+    const NONE: Events = Events { slots: [None; MAX_EVENTS], version: 0, capacity: Capacity::Enough };
 
-    fn take(mut self, note: &EventsNote<'_>) -> Events {
+    /// Takes a note. `Err` the first time a note names an event past
+    /// [`MAX_EVENTS`]: its marks are lost and the log must say so.
+    fn take(&mut self, note: &EventsNote<'_>) -> Result<(), TooManyEvents> {
+        let mut over = false;
         for (index, event) in note.events() {
-            if let Some(slot) = self.slots.get_mut(usize::from(index)) {
-                *slot = event;
+            match self.slots.get_mut(usize::from(index)) {
+                Some(slot) => *slot = event,
+                None => over = true,
             }
         }
         self.version = self.version.wrapping_add(1);
-        self
+        if over && self.capacity == Capacity::Enough {
+            self.capacity = Capacity::Exceeded;
+            return Err(TooManyEvents { total: note.total });
+        }
+        Ok(())
     }
 
-    /// The controls' markers text (`time_ms:kind:whose:label;...`, the time
-    /// from the replay's `start`), up to the room of `out`; an event before
-    /// the start is left out. The kind is the movie's tick: 1 a kill, 2 an
-    /// objective, 3 a death of the player `watched`; whose, what the Moments
-    /// switch lights it under: 1 one of the viewer's `own` places in it, 2 the
-    /// player `watched`, 3 both, 0 neither; the label its players by `name`
-    /// (`Ada > Bob`, the victim alone for a death no one made, the actor of an
-    /// objective), at most [`LABEL_MAX`] bytes.
-    fn markers<'o, 'n>(&self, start: MatchMs, own: Own, watched: Option<u8>, name: impl Fn(u8) -> Option<&'n [u8]>,
-                       out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
-        let mut text = Text { out, len: 0 };
+    /// The controls' markers text (`time_ms:kind:whose:actor:victim;...`, the
+    /// time from the replay's `start`), whole ([`MARKERS_ROOM`] is sized for
+    /// [`MAX_EVENTS`]); an event before the start is left out. The kind is the
+    /// movie's tick: 1 a kill, 2 an objective, 3 a death of the player
+    /// `watched`; whose, what the Moments switch lights it under: 1 one of the
+    /// viewer's `own` places in it, 2 the player `watched`, 3 both, 0 neither;
+    /// actor and victim its places, named by the movie's list
+    /// (root.set_marker_names), empty for none (a death no one made has only a
+    /// victim, an objective only an actor).
+    fn markers<'o>(&self, start: MatchMs, own: Own, watched: Option<u8>, out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
+        let mut text = Text::new(out);
         for event in self.slots.iter().flatten() {
             let Some(offset) = event.time.0.checked_sub(start.0) else { continue };
             let kind = match event.kind {
@@ -393,18 +420,18 @@ impl Events {
                 EventKind::Kill => 1,
                 EventKind::Objective => 2,
             };
-            let (first, second) = match event.kind {
-                EventKind::Kill => (event.actor.and_then(&name), event.victim.and_then(&name)),
-                EventKind::Objective => (event.actor.and_then(&name), None),
+            let (actor, victim) = match event.kind {
+                EventKind::Kill => (event.actor, event.victim),
+                EventKind::Objective => (event.actor, None),
             };
             let whose = u32::from(Moments::Mine.lights(event, own, watched))
                 | u32::from(Moments::Followed.lights(event, own, watched)) << 1;
-            let mark = text.len;
             let fits = (text.len == 0 || text.push(b";")) && text.number(offset) && text.push(b":")
                 && text.number(kind) && text.push(b":") && text.number(whose) && text.push(b":")
-                && text.label(first, second);
+                && text.place(actor) && text.push(b":") && text.place(victim);
+            // MARKERS_ROOM holds MAX_EVENTS at their longest (a test proves it).
+            debug_assert!(fits);
             if !fits {
-                text.len = mark;
                 break;
             }
         }
@@ -480,14 +507,19 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
         Some(ServerNote::Playback(playback)) => {
             let names = Names::of(&site.client);
             let own = Own::by_name(names.own(), site.client.places(), |place| names.of_place(place));
-            let (next, act) = step(SESSION.get(thread), Input::Playback { playback, own }, &EVENTS.get(thread));
+            let (next, act) = EVENTS.with(thread, |events| step(SESSION.get(thread), Input::Playback { playback, own }, events));
             SESSION.set(thread, next);
             if let (Act::Play { paused, speed }, Some(clock)) = (act, GameClock::of(&site.client)) {
                 clock.set_paused(paused);
                 clock.set_speed(speed.factor());
             }
         }
-        Some(ServerNote::Events(note)) => EVENTS.update(thread, |events| events.take(&note)),
+        Some(ServerNote::Events(note)) => {
+            if let Err(TooManyEvents { total }) = EVENTS.with(thread, |events| events.take(&note)) {
+                line(&[Piece::Text("replay_viewer: the replay has "), Piece::Dec(u32::from(total)),
+                       Piece::Text(" events, the viewer keeps "), Piece::Dec(MAX_EVENTS as u32), Piece::Text(": the rest have no marks")]);
+            }
+        }
         Some(ServerNote::Kits(note)) => MASKS.update(thread, |masks| masks.take(note.place, note.mask)),
         // The place its watcher asked to see (a replay's or a live match's
         // spectator, once its first world is in): followed, as a player list
@@ -524,7 +556,7 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
     let client = key.hud().client(thread);
     let now = client.as_ref().and_then(|client| client.clock());
     let watched = client.as_ref().and_then(|client| client.local_place());
-    let (next, act) = step(session, Input::Command { command: replay_key, now, watched }, &EVENTS.get(thread));
+    let (next, act) = EVENTS.with(thread, |events| step(session, Input::Command { command: replay_key, now, watched }, events));
     SESSION.set(thread, next);
     match act {
         Act::Ask(request) => {
@@ -554,9 +586,9 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
 pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(close) = MatchClose::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
-    let (next, act) = step(SESSION.get(thread), Input::MatchEnded, &EVENTS.get(thread));
+    let (next, act) = EVENTS.with(thread, |events| step(SESSION.get(thread), Input::MatchEnded, events));
     SESSION.set(thread, next);
-    EVENTS.set(thread, Events::NONE);
+    EVENTS.with(thread, |events| *events = Events::NONE);
     MASKS.set(thread, KitMasks::NONE);
     // A world may tick on after this: nothing is shown again until the next match.
     FED.set(thread, Fed::ENDED);
@@ -585,9 +617,9 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// match starts as no replay, with no events.
 pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let (next, _) = step(SESSION.get(thread), Input::NewMatch, &EVENTS.get(thread));
+    let (next, _) = EVENTS.with(thread, |events| step(SESSION.get(thread), Input::NewMatch, events));
     SESSION.set(thread, next);
-    EVENTS.set(thread, Events::NONE);
+    EVENTS.with(thread, |events| *events = Events::NONE);
     MASKS.set(thread, KitMasks::NONE);
     FED.set(thread, Fed::NOTHING);
     Flow::Continue
@@ -605,24 +637,34 @@ pub fn on_setup_profiles(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnSetupProfi
     Flow::Continue
 }
 
-/// The markers text's room, its zero included: a match's events with their
-/// names (an entry is at most about 80 bytes).
-const MARKERS_ROOM: usize = 4096;
-/// A marker's label at most (the movie's helper cuts one longer).
-const LABEL_MAX: usize = 63;
-/// A name in a label at most: two and the arrow fit [`LABEL_MAX`].
+/// One marker at most: `4294967295:3:3:255:255;`.
+const MARKER_MAX: usize = 10 + 1 + 1 + 1 + 1 + 1 + 3 + 1 + 3 + 1;
+/// The markers text's room, its zero included: every event of the list.
+const MARKERS_ROOM: usize = MAX_EVENTS * MARKER_MAX + 1;
+/// A name the movie is given at most (it never cuts one): two and the arrow fit its label.
 const NAME_MAX: usize = 30;
+/// One place of the names text at most: `255:name;`.
+const NAME_ENTRY_MAX: usize = 3 + 1 + NAME_MAX + 1;
+/// The names text's room, its zero included: every place.
+const NAMES_ROOM: usize = MAX_PLACES * NAME_ENTRY_MAX + 1;
+/// The hud chooser's text's room: its three kits at their most (a name of 64
+/// bytes, 23 items of `65535:255:65535,`) with their fields.
+const CHOOSER_ROOM: usize = KIT_NUMBERS as usize * (3 + 1 + 10 + 1 + 5 + 1 + 64 + 1 + 23 * (5 + 1 + 3 + 1 + 5 + 1) + 1) + 1;
 
 /// A text written into a fixed room, kept one byte short for its zero.
 struct Text<'o> {
-    out: &'o mut [u8; MARKERS_ROOM],
+    out: &'o mut [u8],
     len: usize,
 }
 
 impl<'o> Text<'o> {
+    fn new(out: &'o mut [u8]) -> Text<'o> {
+        Text { out, len: 0 }
+    }
+
     fn push(&mut self, bytes: &[u8]) -> bool {
         let end = self.len + bytes.len();
-        if end >= MARKERS_ROOM {
+        if end >= self.out.len() {
             return false;
         }
         self.out[self.len..end].copy_from_slice(bytes);
@@ -644,30 +686,40 @@ impl<'o> Text<'o> {
         self.push(&digits[at..])
     }
 
-    /// A marker's label: `first > second`, or the one there is, each name
-    /// cut to [`NAME_MAX`] bytes on a character's start; a `;` (the entries'
-    /// separator) becomes `,`.
-    fn label(&mut self, first: Option<&[u8]>, second: Option<&[u8]>) -> bool {
-        let start = self.len;
-        let name = |text: &mut Text<'o>, name: &[u8]| {
-            let mut cut = name.len().min(NAME_MAX);
-            while cut > 0 && cut < name.len() && name[cut] & 0xC0 == 0x80 {
-                cut -= 1;
-            }
-            name[..cut].iter().all(|&b| text.push(&[if b == b';' { b',' } else { b }]))
-        };
-        let fits = match (first, second) {
-            (Some(a), Some(b)) => name(self, a) && self.push(b" > ") && name(self, b),
-            (Some(one), None) | (None, Some(one)) => name(self, one),
-            (None, None) => true,
-        };
-        fits && self.len - start <= LABEL_MAX
+    /// A place's number, or nothing for none.
+    fn place(&mut self, place: Option<u8>) -> bool {
+        place.is_none_or(|place| self.number(u32::from(place)))
+    }
+
+    /// A name, cut to [`NAME_MAX`] bytes on a character's start; a `;` (the
+    /// entries' separator) becomes `,`.
+    fn name(&mut self, name: &[u8]) -> bool {
+        let mut cut = name.len().min(NAME_MAX);
+        while cut > 0 && cut < name.len() && name[cut] & 0xC0 == 0x80 {
+            cut -= 1;
+        }
+        name[..cut].iter().all(|&b| self.push(&[if b == b';' { b',' } else { b }]))
     }
 
     fn finish(self) -> &'o CStr {
         self.out[self.len] = 0;
         CStr::from_bytes_until_nul(&self.out[..]).unwrap_or(c"")
     }
+}
+
+/// The names the movie's markers show, by place: `place:name;...`.
+fn names_text<'o, 'n>(places: u32, name: impl Fn(u8) -> Option<&'n [u8]>, out: &'o mut [u8; NAMES_ROOM]) -> &'o CStr {
+    let mut text = Text::new(out);
+    for place in (0..places.min(MAX_PLACES as u32)).map(|place| place as u8) {
+        if let Some(name) = name(place) {
+            let fits = (text.len == 0 || text.push(b";")) && text.number(u32::from(place)) && text.push(b":") && text.name(name);
+            debug_assert!(fits, "NAMES_ROOM holds every place");
+            if !fits {
+                break;
+            }
+        }
+    }
+    text.finish()
 }
 
 /// What the replay controls were last given (they are fed each frame from
@@ -742,7 +794,7 @@ static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
 /// position and play button every frame (as the replay client's tick does,
 /// 0x218C16 / 0x218C27), the hud's kit chooser and quick slots kept hidden,
 /// and its cursor kept as Ctrl left it.
-fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed, thread: &crate::vostok::Thread) -> Fed {
+fn feed(client: &NetworkClient<'_>, viewer: &Viewer, fed: Fed, thread: &crate::vostok::Thread) -> Fed {
     let Some(overlay) = Overlay::of(client) else { return fed };
     let Playback { revision, paused, speed, start, end } = viewer.playback;
     let movie = Some(overlay.id()).filter(|&id| fed.movie == Some(id) || overlay.start_viewer(&VIEWER_TEXTS));
@@ -754,11 +806,14 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed, 
         overlay.set_speed(speed.percent());
     }
     let watched = client.local_place();
-    let markers = MarkersOf { events: events.version, watched };
+    let markers = MarkersOf { events: EVENTS.with(thread, |events| events.version), watched };
     if fed.markers != Some(markers) || fed.revision.is_none() {
-        let mut room = [0; MARKERS_ROOM];
         let names = Names::of(client);
-        overlay.set_markers(events.markers(start, viewer.own, watched, |place| names.of_place(place), &mut room));
+        let mut names_room = [0; NAMES_ROOM];
+        overlay.set_marker_names(names_text(client.places(), |place| names.of_place(place), &mut names_room));
+        let mut room = [0; MARKERS_ROOM];
+        let text = EVENTS.with(thread, |events| events.markers(start, viewer.own, watched, &mut room));
+        overlay.set_markers(text);
     }
     if fed.moments != Some(viewer.moments) {
         overlay.set_moments(viewer.moments.index(), viewer.own.played());
@@ -796,7 +851,7 @@ fn feed_chooser(client: &NetworkClient<'_>, fed: Option<ChooserFed>, mode: u32, 
     // New plates lose the highlight, so it is told again; a kit without a plate has none to move to.
     let new_plates = fed.map(|fed| (fed.place, fed.version)) != Some((place, masks.version));
     if new_plates {
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         let mut names = [[0; 0x200]; KIT_NUMBERS as usize];
         let named = &chooser;
         chooser.set_kits(chooser_text(place.map(|place| {
@@ -815,8 +870,8 @@ fn feed_chooser(client: &NetworkClient<'_>, fed: Option<ChooserFed>, mode: u32, 
 
 /// The kits' text for the hud's chooser: `<kit>|<state>|<level>|<name>|<dict>:<slot>:<count>,...;`
 /// a kit; a name's `|`, `;`, `,` and `:` are spaces.
-fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
-    let mut text = Text { out, len: 0 };
+fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'o mut [u8; CHOOSER_ROOM]) -> &'o CStr {
+    let mut text = Text::new(out);
     for kit in kits.into_iter().flatten() {
         let mark = text.len;
         let fits = text.number(u32::from(kit.number)) && text.push(b"|") && text.number(kit.state) && text.push(b"|")
@@ -828,6 +883,7 @@ fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'
                     && text.push(b":") && text.number(u32::from(count))
             })
             && text.push(b";");
+        debug_assert!(fits, "CHOOSER_ROOM holds the kits at their longest");
         if !fits {
             text.len = mark;
             break;
@@ -836,14 +892,14 @@ fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'
     text.finish()
 }
 
-/// `hud.update` (game_world_ui::update_ui, every frame of the hud): a
+/// `hud.update`(game_world_ui::update_ui, every frame of the hud): a
 /// viewer's controls fed for this frame.
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some(hud) = HudFrame::at(ctx) else { return Flow::Continue };
     let Some(client) = hud.client(thread) else { return Flow::Continue };
     match SESSION.get(thread) {
-        Session::Replay(viewer) => FED.set(thread, feed(&client, &viewer, &EVENTS.get(thread), FED.get(thread), thread)),
+        Session::Replay(viewer) => FED.set(thread, feed(&client, &viewer, FED.get(thread), thread)),
         // A live match's spectator: the kit chooser and the slots stay hidden (it may not have
         // the replay controls' movie, whose Overlay a viewer's frame goes through).
         Session::Live if client.role() == Some(Role::Spectator) => {
@@ -993,7 +1049,7 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
     };
     if let Some(command) = command {
         let input = Input::Command { command, now: client.clock(), watched: client.local_place() };
-        let (next, act) = step(session, input, &EVENTS.get(thread));
+        let (next, act) = EVENTS.with(thread, |events| step(session, input, events));
         SESSION.set(thread, next);
         if let Act::Ask(request) = act {
             client.send_request(request);
@@ -1198,29 +1254,54 @@ mod tests {
         };
         let mut room = [0; MARKERS_ROOM];
         // Kill 1 > 2, the objective (nobody), a death of 1 no one made.
-        assert_eq!(events.markers(MatchMs(10_000), Own(0), None, names, &mut room).to_bytes(),
-                   b"65500:1:0:Ada > Bob,;601000:2:0:;80000:1:0:Ada");
+        assert_eq!(events.markers(MatchMs(10_000), Own(0), None, &mut room).to_bytes(),
+                   b"65500:1:0:1:2;601000:2:0::;80000:1:0::1");
         // Watching 2: its death is kind 3, followed; watching 1: the lone death and its kill.
-        assert_eq!(events.markers(MatchMs(10_000), Own(0), Some(2), names, &mut room).to_bytes(),
-                   b"65500:3:2:Ada > Bob,;601000:2:0:;80000:1:0:Ada");
-        assert_eq!(events.markers(MatchMs(10_000), Own(0), Some(1), names, &mut room).to_bytes(),
-                   b"65500:1:2:Ada > Bob,;601000:2:0:;80000:3:2:Ada");
+        assert_eq!(events.markers(MatchMs(10_000), Own(0), Some(2), &mut room).to_bytes(),
+                   b"65500:3:2:1:2;601000:2:0::;80000:1:0::1");
+        assert_eq!(events.markers(MatchMs(10_000), Own(0), Some(1), &mut room).to_bytes(),
+                   b"65500:1:2:1:2;601000:2:0::;80000:3:2::1");
         // The viewer was 1, watching 2: its kill is both, its death its own.
-        assert_eq!(events.markers(MatchMs(10_000), Own(1 << 1), Some(2), names, &mut room).to_bytes(),
-                   b"65500:3:3:Ada > Bob,;601000:2:0:;80000:1:1:Ada");
-        // Long names (UTF-8) cut on a character, the label within 63 bytes.
+        assert_eq!(events.markers(MatchMs(10_000), Own(1 << 1), Some(2), &mut room).to_bytes(),
+                   b"65500:3:3:1:2;601000:2:0::;80000:1:1::1");
+        assert_eq!(Events::NONE.markers(MatchMs(0), Own(0), None, &mut room).to_bytes(), b"");
+        // The names are told apart, a `;` of one replaced, long ones (UTF-8) cut on a character.
         let long = |_: u8| Some("ЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖ".as_bytes());
-        let text = events.markers(MatchMs(10_000), Own(0), None, long, &mut room).to_bytes();
-        let first = text.split(|&b| b == b';').next().unwrap();
-        let label = &first[first.iter().rposition(|&b| b == b':').unwrap() + 1..];
-        assert!(label.len() <= LABEL_MAX && core::str::from_utf8(label).is_ok(), "{}", label.len());
+        let mut names_room = [0; NAMES_ROOM];
+        assert_eq!(names_text(3, names, &mut names_room).to_bytes(), b"1:Ada;2:Bob,");
+        let text = names_text(1, long, &mut names_room).to_bytes();
+        let name = &text[2..];
+        assert!(name.len() <= NAME_MAX && core::str::from_utf8(name).is_ok(), "{}", name.len());
+    }
+
+    #[test]
+    fn a_full_list_of_the_longest_markers_fits_whole() {
         let mut many = Events::NONE;
-        for (i, slot) in many.slots.iter_mut().enumerate() {
-            *slot = kill(1_000_000 + i as u32);
+        for slot in many.slots.iter_mut() {
+            *slot = Some(Event { time: MatchMs(u32::MAX), kind: EventKind::Kill, actor: Some(255), victim: Some(255) });
         }
-        let text = many.markers(MatchMs(0), Own(0), None, names, &mut room).to_bytes();
-        assert!(text.len() < MARKERS_ROOM && text.ends_with(b"Ada > Bob,"), "{}", text.len());
-        assert_eq!(Events::NONE.markers(MatchMs(0), Own(0), None, names, &mut room).to_bytes(), b"");
+        let mut room = [0; MARKERS_ROOM];
+        let text = many.markers(MatchMs(0), Own(u32::MAX), Some(255), &mut room).to_bytes();
+        assert_eq!(text.split(|&b| b == b';').count(), MAX_EVENTS);
+        assert!(text.len() < MARKERS_ROOM, "{}", text.len());
+        // And the last one is whole.
+        assert!(text.ends_with(b"4294967295:3:2:255:255"), "{}", core::str::from_utf8(&text[text.len() - 30..]).unwrap());
+    }
+
+    #[test]
+    fn events_past_the_cap_are_told_once() {
+        let kill = Event { time: MatchMs(1), kind: EventKind::Kill, actor: None, victim: None };
+        let mut events = Events::NONE;
+        let mut take = |first, total| {
+            let mut bytes = [0u8; 13];
+            let len = EventsNote::encode(first, total, &[kill], &mut bytes).unwrap();
+            let Some(ServerNote::Events(note)) = ServerNote::parse(&bytes[..len]) else { panic!() };
+            events.take(&note)
+        };
+        assert_eq!(take(5, 2000), Ok(()));
+        assert_eq!(take(MAX_EVENTS as u16, 2000), Err(TooManyEvents { total: 2000 }));
+        assert_eq!(take(MAX_EVENTS as u16 + 1, 2000), Ok(()), "told once a match");
+        assert_eq!(events.capacity, Capacity::Exceeded);
     }
 
     #[test]
@@ -1242,19 +1323,19 @@ mod tests {
 
     #[test]
     fn the_chooser_text_has_only_the_kits_given() {
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         let kits = [kit(0, b"Alpha", &[(7, 0, 1), (8, 3, 2)]), kit(2, b"", &[(9, 1, 1)])];
         let text = chooser_text(Some(kits.into_iter()), &mut room);
         assert_eq!(text.to_bytes(), b"0|0|7|Alpha|7:0:1,8:3:2;2|0|7||9:1:1;");
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         assert_eq!(chooser_text(Some(core::iter::empty::<KitData<'static>>()), &mut room).to_bytes(), b"");
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         assert_eq!(chooser_text(None::<core::iter::Empty<KitData<'static>>>, &mut room).to_bytes(), b"");
     }
 
     #[test]
     fn a_kit_name_cannot_break_the_text() {
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         let kits = [kit(1, b"a|b;c,d:e", &[])];
         assert_eq!(chooser_text(Some(kits.into_iter()), &mut room).to_bytes(), b"1|0|7|a b c d e|;");
     }

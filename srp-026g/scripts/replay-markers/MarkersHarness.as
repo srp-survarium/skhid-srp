@@ -137,6 +137,8 @@ package
          return out;
       }
 
+      private static const MARKER_NAMES:String = "0:Me;1:Bob;2:Ada;3:Eve;4:Battery";
+
       private static const LIT:Number = 1;
 
       private static const FADED:Number = 0.3;
@@ -163,7 +165,8 @@ package
          root.set_match_time(600000);
          // a kill of the viewer's, the followed player's, a death of the followed one that the viewer
          // made, an objective of no one's
-         root.set_markers_text("30000:1:1:Me > Bob;60000:1:2:Ada > Eve;90000:3:3:Me > Eve;120000:2:0:Battery;bad:1:1:x;7000:1:x:y");
+         root.set_marker_names(MARKER_NAMES);
+         root.set_markers_text("30000:1:1:0:1;60000:1:2:2:3;90000:3:3:0:3;120000:2:0:4:;bad:1:1::;7000:1:x::");
          expect("before start_viewer, no viewer's controls",root.viewer == null);
          expect("the markers with whose are " + labels(root).join(","),labels(root).join(",") == "30000=Me > Bob,60000=Ada > Eve,90000=Me > Eve,120000=Battery");
          root.start_viewer.apply(null,texts(0));
@@ -178,7 +181,8 @@ package
          expect("Mine is not shown as the choice",v.choice == 1 && v.choices[1].visible && v.choices[1].getChildAt(0).alpha == 1 && v.choices[0].getChildAt(0).alpha < 1);
          root.set_moments(2,1);
          expect("Followed fades " + alphas(root),alphas(root) == [FADED,LIT,LIT,FADED].join(","));
-         root.set_markers_text("30000:1:1:Me > Bob;60000:1:2:Ada > Eve;90000:3:3:Me > Eve;120000:2:0:Battery");
+         root.set_marker_names(MARKER_NAMES);
+         root.set_markers_text("30000:1:1:0:1;60000:1:2:2:3;90000:3:3:0:3;120000:2:0:4:");
          expect("new markers under Followed fade " + alphas(root),alphas(root) == [FADED,LIT,LIT,FADED].join(","));
          root.set_moments(0,0);
          expect("All fades " + alphas(root),alphas(root) == [LIT,LIT,LIT,LIT].join(","));
@@ -323,7 +327,8 @@ package
       private function shot(root:*) : void
       {
          root.set_match_time(600000);
-         root.set_markers_text("24000:1:0:0'24;39000:1:1:0'39;61000:2:0:Battery;125000:3:3:;212000:1:1:3'32;300000:2:0:Battery;365000:1:0:6'05;480000:1:2:Ada > Bob;552000:3:2:");
+         root.set_marker_names("0:0'24;1:0'39;2:Battery;3:3'32;4:6'05;5:Ada;6:Bob");
+         root.set_markers_text("24000:1:0:0:;39000:1:1:1:;61000:2:0:2:;125000:3:3::;212000:1:1:3:;300000:2:0:2:;365000:1:0:4:;480000:1:2:5:6;552000:3:2::");
          root.start_viewer.apply(null,texts(0));
          root.set_moments(1,1);
          longNames(root);
@@ -350,7 +355,8 @@ package
       private function markers(root:*) : void
       {
          root.set_match_time(600000);
-         root.set_markers_text("125000:1:0:2:05;bad;30000:1:0:;9x:1:0:no;61000:2:0:Battery;40000:1:Battery;");
+         root.set_marker_names("7:2:05;9:Battery");
+         root.set_markers_text("125000:1:0:7:;bad;30000:1:0::;9x:1:0::;61000:2:0:9:;5000:1:0:x:;40000:1:9;");
          var got:String = labels(root).join(",");
          expect("markers are " + got,got == "30000=,61000=Battery,125000=2:05");
          expect("the left list of markers shown",!root.labelsBar.visible);
@@ -384,7 +390,8 @@ package
       {
          var times:Array = [2000,30000,61000,300000,598000];
          root.set_match_time(600000);
-         root.set_markers_text("300000:3:0:;61000:2:0:Battery;bad;2000:1:0:;598000:1:0:0'00 Ada > Bob;30000:1:0:0'30");
+         root.set_marker_names("3:Battery;4:0'00 Ada > Bob;5:0'30");
+         root.set_markers_text("300000:3:0::;61000:2:0:3:;bad;2000:1:0::;598000:1:0:4:;30000:1:0:5:");
          var track:Rectangle = root.slider.track.getBounds(stage);
          var xs:Array = [];
          for(var i:int = 0; i < times.length; i++)
