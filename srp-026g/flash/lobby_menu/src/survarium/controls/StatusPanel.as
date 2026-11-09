@@ -152,8 +152,6 @@ package survarium.controls
       private var _vtMessage:MessageBase;
       
       protected var _factionData:Object;
-      
-      protected var firstScale:int = 0;
 
       // The game's own label of Play while it is the rooms' Leave, and ours.
       private var _roomsPlayLabel:String;
@@ -637,40 +635,25 @@ package survarium.controls
          }
       }
       
+      // The top bar spans the lobby's width (MainScene.stageWidth, in the lobby's units: 1920 below
+      // an aspect of 1.85, wider above) at its own scale 1: the constraints move its parts to their
+      // edges or the middle, none is stretched. (Stretching the panel to that width and scaling its
+      // parts back assumed the panel's bounds stay those of its symbol; they do not, so on a wide
+      // screen everything ended short of the right edge, and Play, not constrained, was stretched
+      // over the Clan tab.)
       override protected function draw() : void
       {
-         var scale:Number = 1;
-         var upscale:Number = 0;
-         var newWidth:int;
-         var originHeight:Number;
-         newWidth = MainScene.stageWidth;
-         originHeight = _height / scaleY;
-         trace("SP::updateSize",newWidth,upscale,"|",height,_height,originHeight);
          if(isInvalid(InvalidationType.SETTINGS))
          {
-            setActualSize(newWidth / scale,originHeight);
-            setSize(newWidth / scale,originHeight);
+            setActualScale(1,1);
             if((constraints))
             {
-               constraints.update(newWidth / (scale - upscale),originHeight);
-            }
-            if(this.firstScale < 2)
-            {
+               constraints.update(MainScene.stageWidth,_originalHeight);
             }
             this.reflowPlayers();
          }
-         var stScale:Number = 1;
-         if(MainScene.stageWidth / MainScene.stageHeight < 1.85)
-         {
-            setActualScale(stScale - upscale,stScale - upscale);
-         }
-         trace("SP::",this.centerContainerTop,this.play_container,this.matchSettings);
          this.play_container.x = this.centerContainerTop.x;
          this.matchSettings.x = int(this.play_container.x + 8);
-         firstScale += 1;
-         if((this.labelInfo))
-         {
-         }
          dispatchEvent(new Event(LAID_OUT));
       }
       
@@ -686,15 +669,17 @@ package survarium.controls
          var gamesX:int;
          var totalWidth:int;
          var newPos:int;
+         // the blocks are mid_back's: their x is from its left, which is the panel's 0 only below an aspect of 1.85
+         var origin:Number = this.mid_back.x;
          if(this.lobbyGameSearch.visible)
          {
-            playersX = this.lobbyGameSearch.x - panelGamesSize;
-            gamesX = this.lobbyGameSearch.x + this.lobbyGameSearch.width + 10;
+            playersX = this.lobbyGameSearch.x - panelGamesSize - origin;
+            gamesX = this.lobbyGameSearch.x + this.lobbyGameSearch.width + 10 - origin;
          }
          else
          {
             totalWidth = panelGamesSize + this.panel_games_block.tx_online.textWidth + 22;
-            newPos = this.centerContainerTop.x + (this.centerContainerTop.width - totalWidth) / 2 - 3;
+            newPos = this.centerContainerTop.x + (this.centerContainerTop.width - totalWidth) / 2 - 3 - origin;
             playersX = newPos;
             gamesX = newPos + panelGamesSize;
          }
