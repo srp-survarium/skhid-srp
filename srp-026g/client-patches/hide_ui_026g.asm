@@ -56,17 +56,15 @@
 ; toggle_replay_ui in the game group, labelled st_hide_interface_action
 ; (its text in client-patches/localization/*.tsv), and a 42nd for patch 78:
 ; artefact (23h, default H, its default key patch_026g.py's
-; ARTEFACT_KEY_DEFAULT), st_hold_artifact_action, and a 43rd for patch 66:
-; mute_last_speaker (37h, no default key) in the chat group (1, type 0, as
-; ptt's), st_mute_last_speaker_action; patch_026g.py points the six
-; functions at it and makes their counts 2Bh. The binding is the binder's
+; ARTEFACT_KEY_DEFAULT), st_hold_artifact_action; patch_026g.py points the six
+; functions at it and makes their counts 2Ah. The binding is the binder's
 ; as any other: applied with `bind toggle_replay_ui <key>`, saved and read
 ; back by the binder's own bind command (its save 0x207450 writes every bound
 ; action).
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset
-global controls                    ; the options' controls, 43 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls                    ; the options' controls, 42 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 section .text
 
 %define REPLAY_TOGGLE 0x25CEDB     ; the case 19h after its replay test: the replay's controls
@@ -83,7 +81,6 @@ section .text
 %define NO_ACTION 0x49             ; the binder's answer for a key without an action
 %define TOGGLE_UI 0x19             ; toggle_replay_ui
 %define HOLD_ARTIFACT 0x23         ; artefact: unused by the game; patch 78 holds it with a quick-use key
-%define MUTE_LAST_SPEAKER 0x37     ; serialize_player_state renamed by patch 66 (VOICE_ACTION), a chat key
 %define MATCH_KINDS 1              ; the kind the game world asks (0x25CD5F)
 
 ; The case of action 19h in on_keyboard_action, at 0x25CED1 (`mov esi,[esp+10h] /
@@ -296,9 +293,6 @@ hide_interface_label:
 hold_artifact_label:
     db "st_hold_artifact_action", 0
 
-mute_last_speaker_label:
-    db "st_mute_last_speaker_action", 0
-
 ; A row of the controls: the action, its label's key, the group, the type, and
 ; two empty buffer_strings (begin, end, the buffer's end; 32 bytes).
 %macro CONTROL 4
@@ -355,4 +349,3 @@ controls:                          ; the game's 40 rows (0xA9DB28), in their ord
     CONTROL 0x47, 0x9FC900, 1, 0   ; st_ptt_action
     CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F11)
     CONTROL HOLD_ARTIFACT, hold_artifact_label, 2, 1   ; st_hold_artifact_action (H): patch 78's carry chord
-    CONTROL MUTE_LAST_SPEAKER, mute_last_speaker_label, 1, 0   ; st_mute_last_speaker_action: patch 66

@@ -1,5 +1,5 @@
 //! Patch 66's boundaries (voice chat, docs/notes/voice-chat.md): the voice's
-//! console variables, the match a connect starts, the chat keys, the match's
+//! console variables, the match a connect starts, the push-to-talk key, the match's
 //! places as a frame or a menu sees them, the movies, and the optional
 //! versioned DLL (`skhid_voice.dll`, `voice_abi`). Every game and DLL value
 //! is read here once into a type; who talks, who is heard and who is muted
@@ -154,34 +154,24 @@ impl<'c> Connect<'c> {
     }
 }
 
-/// A chat key of voice's (the binder's kind 8, the chat keys' group).
+/// A press or a release of push-to-talk (`ptt`, 47h, a chat key: the binder's
+/// kind 8), at the game world's keys' start (`tab_cursor.key`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ChatKey {
-    /// `ptt` (47h): push-to-talk.
-    Talk,
-    /// `mute_last_speaker` (37h, the debug entry renamed).
-    MuteLast,
+pub enum TalkKey {
+    Down(Dik),
+    Up(Dik),
 }
 
-/// A press or a release of one, at the game world's keys' start (`tab_cursor.key`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ChatKeyEvent {
-    Down(ChatKey, Dik),
-    Up(ChatKey, Dik),
-}
-
-impl ChatKeyEvent {
-    /// The event when the key is bound to one of the two (a held key's
-    /// repeats are none).
-    pub fn of(key: &GameWorldKey<'_, '_>) -> Option<ChatKeyEvent> {
-        let chat = match key.chat_action()? {
-            Action::PTT => ChatKey::Talk,
-            Action::MUTE_LAST_SPEAKER => ChatKey::MuteLast,
-            _ => return None,
-        };
+impl TalkKey {
+    /// The event when the key is bound to `ptt` (a held key's repeats are
+    /// none).
+    pub fn of(key: &GameWorldKey<'_, '_>) -> Option<TalkKey> {
+        if key.chat_action()? != Action::PTT {
+            return None;
+        }
         match key.kind() {
-            KeyKind::Down => Some(ChatKeyEvent::Down(chat, key.key())),
-            KeyKind::Up => Some(ChatKeyEvent::Up(chat, key.key())),
+            KeyKind::Down => Some(TalkKey::Down(key.key())),
+            KeyKind::Up => Some(TalkKey::Up(key.key())),
             KeyKind::Held => None,
         }
     }
@@ -253,18 +243,6 @@ impl Roster {
     }
 }
 
-/// A text of the running language (text_translator::translate_text
-/// 0x1FF0F0; the key itself when the dictionary has none) into `out`.
-fn translate<'o>(game: raw::Game, key: &CStr, out: &'o mut [u8; 0x200]) -> &'o CStr {
-    out[0] = 0;
-    // SAFETY: the game and its text translator, alive for the hook;
-    // translate_text copies a text shorter than 200h bytes with its zero
-    // into `out` (0x1FF15D) and leaves it alone otherwise.
-    unsafe { raw::engine_translate_text(Some(game.text_translator()), key.as_ptr().cast(), out.as_mut_ptr()) };
-    out[0x1FF] = 0;
-    CStr::from_bytes_until_nul(out).unwrap_or(c"")
-}
-
 /// A record's name (64 bytes; its 64th never read, so the text ends even
 /// when the record's does not).
 pub fn name_text(name: &[u8; 64]) -> &CStr {
@@ -272,8 +250,8 @@ pub fn name_text(name: &[u8; 64]) -> &CStr {
     CStr::from_bytes_until_nul(&name[..=end]).unwrap_or(c"")
 }
 
-/// What a hook has of the game for voice: the match's places, a movie to
-/// tell and the language's texts.
+/// What a hook has of the game for voice: the match's places and a movie to
+/// tell.
 pub struct Scene<'t> {
     game: Option<raw::Game>,
     movie: Option<Movie<'t>>,
@@ -296,25 +274,12 @@ impl<'t> Scene<'t> {
         self.movie.as_ref()
     }
 
-    pub fn translate<'o>(&self, key: &CStr, out: &'o mut [u8; 0x200]) -> &'o CStr {
-        match self.game {
-            Some(game) => translate(game, key, out),
-            None => c"",
-        }
-    }
-
     /// Each frame of a match (`game_world.after_move`): the world's game and its hud.
     pub fn at_frame(ctx: &'t Context<'_>) -> Option<Scene<'t>> {
         let world = GameWorld::at_after_move(ctx)?;
         // SAFETY: the world's game and its hud (inside it), alive for the hook.
         let (game, movie) = unsafe { (world.this.game(), movie_of(world.this.ui().hud_movie())) };
         Some(Scene { game, movie, thread: ctx.thread() })
-    }
-
-    /// At a chat key (`tab_cursor.key`): the hud's game and movie.
-    pub fn at_key(key: &'t GameWorldKey<'_, '_>) -> Scene<'t> {
-        let hud = key.hud();
-        Scene { game: hud.game(), movie: hud.movie(), thread: key.thread() }
     }
 
     /// At a hud movie's call (`hud.callback`): the hud's game (the call
@@ -445,13 +410,6 @@ impl Dll {
         Places::of_word(unsafe { (self.api.talking)() })
     }
 
-    /// The teammate heard last (the DLL's -1: none yet).
-    pub fn last_speaker(self) -> Option<Place> {
-        // SAFETY: the checked API.
-        let n = unsafe { (self.api.last_speaker)() };
-        u32::try_from(n).ok().and_then(Place::new)
-    }
-
     /// The place's voice id, from the roster the relay sent.
     pub fn voice_id(self, place: Place) -> Option<VoiceId> {
         // SAFETY: the checked API, a place below 20.
@@ -469,9 +427,3 @@ impl Dll {
         self.window.is_none_or(|window| window.down(key))
     }
 }
-
-/// The action table entry 37h's new name (patch_026g.py's VOICE_ACTION
-/// write points the entry at it).
-#[unsafe(no_mangle)]
-#[unsafe(link_section = ".data")]
-pub static mute_action_name: [u8; 18] = *b"mute_last_speaker\0";

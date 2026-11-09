@@ -1681,8 +1681,8 @@ def test_match_keys(original, image, before):
 
 
 def test_voice(original, image, before):
-    """Check 66: voice chat (patch 66: voice.toml's seven lohooks, the action
-    entry VOICE_ACTION; its Controls row is test_hide_ui's), the movies' side."""
+    """Check 66: voice chat (patch 66: voice.toml's seven lohooks; its key the
+    game's ptt, the action table the game's), the movies' side."""
     print("voice chat (patch 66)")
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
@@ -1695,12 +1695,10 @@ def test_voice(original, image, before):
           "the sites: match_client::connect's start (0x27A1B0; a replay's connect 0x122350 is another, `ret 14h`), "
           "on_finish_match (0x1F96F0) and on_deactivate (0x1F9520) at their starts; the chat handler asks the "
           "game's binder (+5344h) for kind 8 (0x208887)")
-    entry = struct.unpack("<5I", stock.read(P.VOICE_ACTION, 20))
-    check(stock.read(P.VOICE_ACTION, 20) == P.VOICE_ACTION_OLD == before.read(P.VOICE_ACTION, 20)
-          and cstr(entry[0]) == b"serialize_player_state" and entry[1:4] == (0x37, 5, 0) and cstr(entry[4]) == b"kO"
-          and [struct.unpack("<5I", stock.read(0xA74AF0 + 20 * i, 20))[1] for i in range(60)].count(0x37) == 1,
-          "0xA74E10 is the action table's one entry of 37h: serialize_player_state, kinds 5, kO (a debug "
-          "action: no console command of that name)")
+    ptt = struct.unpack("<5I", stock.read(0xA74F8C, 20))
+    check(cstr(ptt[0]) == b"ptt" and ptt[1:4] == (0x47, 8, 0) and cstr(ptt[4]) == b"kP"
+          and image.read(0xA74F8C, 20) == stock.read(0xA74F8C, 20),
+          "the action table's entry 0xA74F8C is the game's ptt (47h, kind 8, kP), unchanged in the build")
     linked = P.arena()
     block = linked.blocks["patches.code"]
     declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
@@ -1716,18 +1714,11 @@ def test_voice(original, image, before):
         check(opcode == 0xE9 and stock.read(va, len(old)) == old == before.read(va, len(old))
               and image.read(va, len(hook)) == hook and block.va <= target < block.va + block.size,
               f"{va:#x}: {old.hex()} in the original, `jmp {target:#x}` ({symbol}, patches.code) in the build")
-    name = linked.symbols["mute_action_name"]
-    data_block = linked.blocks["patches.data"]
-    check(struct.unpack("<5I", image.read(P.VOICE_ACTION, 20)) == (name, 0x37, 8, 0, 0)
-          and data_block.va <= name < data_block.va + data_block.size
-          and image.read(name, 18) == b"mute_last_speaker\0",
-          "the action is mute_last_speaker in patches.data, kind 8, with no default key")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     hud = here("flash", "hud", "src", "HUD.as")
     menu = here("flash", "hud", "src", "survarium", "controls", "PlayerRowMenu.as")
     timeline = here("flash", "main_menu", "src", "main_menu_fla", "settingsTabs_15.as")
     check("public function srp_voice_talking(... names)" in hud
-          and "public function srp_voice_notice(text:String, name:String)" in hud
           and "public function srp_voice_menu(place:uint, offered:uint, muted:uint)" in hud
           and "public function srp_voice_mute(place:uint, done:uint)" in hud
           and 'this.call("srp_voice_menu",String(row.id));' in menu
@@ -1737,7 +1728,7 @@ def test_voice(original, image, before):
           and "this._hide_spam.enabled = true;" in timeline and "this._use_mik.enabled = true;" in timeline
           and "this._sound_сhat.slider.enabled = false;" not in timeline
           and "this._mic_sens.slider.enabled = false;" not in timeline,
-          "the hud has root.srp_voice_talking, root.srp_voice_notice and the Tab menu's root.srp_voice_menu and "
+          "the hud has root.srp_voice_talking and the Tab menu's root.srp_voice_menu and "
           "root.srp_voice_mute, its row menu asks srp_voice_menu and sends srp_voice_mute; the options enable "
           "Disable voice chat (_hide_spam), Use microphone, the voice volume and the microphone's sensitivity")
 
@@ -1777,13 +1768,12 @@ def test_hide_ui(original, image, before):
           and all(arena_rows[i][:16] == original_rows[i][:16] and arena_rows[i][16:] == empty(controls + 0x68 * i)
                   for i in range(count))
           and [struct.unpack_from("<4I", row) for row in new_rows]
-          == [(action, label, group, kind) for (action, _, group, kind), label in zip(P.CONTROLS_ADDED, labels)]
+          == [(action, label, 2, 1) for (action, _), label in zip(P.CONTROLS_ADDED, labels)]
           and all(row[16:] == empty(controls + 0x68 * (count + n)) for n, row in enumerate(new_rows))
-          and [image.read(label, len(key) + 1) for (_, key, _, _), label in zip(P.CONTROLS_ADDED, labels)]
-          == [key.encode() + b"\0" for _, key, _, _ in P.CONTROLS_ADDED],
+          and [image.read(label, len(key) + 1) for (_, key), label in zip(P.CONTROLS_ADDED, labels)]
+          == [key.encode() + b"\0" for _, key in P.CONTROLS_ADDED],
           f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, a 41st: "
-          "19h, st_hide_interface_action, a 42nd: 23h, st_hold_artifact_action (group 2, type 1), and a 43rd: "
-          "37h, st_mute_last_speaker_action (group 1, type 0)")
+          "19h, st_hide_interface_action, and a 42nd: 23h, st_hold_artifact_action, group 2, type 1")
     check("\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
           "release/content.tsv makes the label (localization-1.json)")

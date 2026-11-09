@@ -4,10 +4,8 @@ package survarium.controls
    import flash.display.Graphics;
    import flash.display.Shape;
    import flash.display.Sprite;
-   import flash.events.TimerEvent;
    import flash.geom.ColorTransform;
    import flash.text.TextFieldAutoSize;
-   import flash.utils.Timer;
    import scaleform.clik.core.UIComponent;
 
    // Voice chat: which teammates are talking (exe patch 66 calls HUD.srp_voice_talking with their
@@ -37,13 +35,6 @@ package survarium.controls
 
       // The rows, top first: {sprite, name, talking}.
       protected var _rows:Array = [];
-
-      // A short line under the rows ("Voice muted: name"), for NOTICE_MS.
-      public static const NOTICE_MS:uint = 3000;
-
-      protected var _notice:DefaultLabel3;
-
-      protected var _noticeTimer:Timer;
 
       public function VoiceSpeakers()
       {
@@ -102,37 +93,6 @@ package survarium.controls
             removeChild(row.sprite);
          }
          this._rows = [];
-         if(this._notice)
-         {
-            this._notice.visible = false;
-         }
-      }
-
-      // The mute key's answer (HUD.srp_voice_notice): the line under the rows, then gone.
-      public function notice(text:String) : void
-      {
-         if(!this._notice)
-         {
-            _notice = new DefaultLabel3();
-            this._notice.textField.wordWrap = false;
-            this._notice.textField.multiline = false;
-            this._notice.autoSize = TextFieldAutoSize.LEFT;
-            this._notice.scaleX = this._notice.scaleY = TEXT_SCALE;
-            this._notice.transform.colorTransform = tint(SPEAKER);
-            addChild(this._notice);
-            _noticeTimer = new Timer(NOTICE_MS,1);
-            this._noticeTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.onNoticeOver);
-         }
-         this._notice.text = text;
-         this._notice.visible = true;
-         this.place();
-         this._noticeTimer.reset();
-         this._noticeTimer.start();
-      }
-
-      protected function onNoticeOver(event:TimerEvent) : void
-      {
-         this._notice.visible = false;
       }
 
       protected function rowOf(name:String) : Object
@@ -175,10 +135,6 @@ package survarium.controls
          for(var i:int = 0; i < this._rows.length; i++)
          {
             this._rows[i].sprite.y = i * ROW_HEIGHT;
-         }
-         if(this._notice)
-         {
-            this._notice.y = this._rows.length * ROW_HEIGHT;
          }
       }
 

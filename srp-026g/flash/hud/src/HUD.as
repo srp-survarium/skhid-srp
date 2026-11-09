@@ -1638,12 +1638,6 @@ package
          this.voiceSpeakers.update(names);
       }
 
-      // The "mute the last speaker" key's answer: the text (the exe's, translated) and the name.
-      public function srp_voice_notice(text:String, name:String) : void
-      {
-         this.voiceSpeakers.notice(text + ": " + name);
-      }
-
       // The exe's answers to the Tab list's player menu's voice entries (exe patch 66): whether a
       // place's voice can be muted and is, and a voice mute done or not.
       public function srp_voice_menu(place:uint, offered:uint, muted:uint) : void

@@ -223,7 +223,6 @@ pub struct Core {
     speakers: Vec<Speaker>,
     stats: Stats,
     muted: u32,
-    last: Option<u8>,
 }
 impl Core {
     pub fn new() -> Result<Self, String> {
@@ -233,7 +232,6 @@ impl Core {
                 .collect::<Result<_, _>>()?,
             stats: Stats::default(),
             muted: 0,
-            last: None,
         })
     }
     pub fn stats(&self) -> Stats {
@@ -247,7 +245,6 @@ impl Core {
             s.effect = None;
             s.closing_effect = false;
         }
-        self.last = None;
     }
     /// A roster identity changed: its new occupant has an independent
     /// utterance sequence and must never inherit the old occupant's audio.
@@ -261,9 +258,6 @@ impl Core {
         s.heard = None;
         s.effect = None;
         s.closing_effect = false;
-        if self.last == Some(slot) {
-            self.last = None;
-        }
     }
     pub fn mute(&mut self, mask: u32) {
         self.muted = mask;
@@ -275,9 +269,6 @@ impl Core {
                 s.closing_effect = false;
             }
         }
-    }
-    pub fn last_speaker(&self) -> Option<u8> {
-        self.last
     }
     pub fn receive(&mut self, message: &Message, now: u32) {
         let (slot, id) = match message {
@@ -294,7 +285,6 @@ impl Core {
             Message::RelayStart { .. } => {
                 if s.take(id, slot, &mut self.stats) {
                     s.heard = Some(now);
-                    self.last = Some(slot);
                 }
             }
             Message::RelayAudio { seq, frames, .. } => {
@@ -303,7 +293,6 @@ impl Core {
                     return;
                 }
                 s.heard = Some(now);
-                self.last = Some(slot);
                 for (k, frame) in frames.iter().take(2).enumerate() {
                     s.frame(u32::from(*seq) * 2 + k as u32, frame, &mut self.stats);
                 }

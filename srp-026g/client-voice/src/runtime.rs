@@ -214,7 +214,6 @@ mod platform {
         stop: AtomicBool,
         slot: AtomicI32,
         heard: AtomicU32,
-        last: AtomicI32,
         transmitting: AtomicBool,
         ids: [AtomicU32; SLOTS],
     }
@@ -224,7 +223,6 @@ mod platform {
                 stop: AtomicBool::new(false),
                 slot: AtomicI32::new(-1),
                 heard: AtomicU32::new(0),
-                last: AtomicI32::new(-1),
                 transmitting: AtomicBool::new(false),
                 ids: std::array::from_fn(|_| AtomicU32::new(0)),
             }
@@ -412,9 +410,6 @@ mod platform {
                 }
             }
             status.heard.store(core.talking(now), SeqCst);
-            status
-                .last
-                .store(core.last_speaker().map_or(-1, i32::from), SeqCst);
 
             let pressed = CONTROL.ptt.load(SeqCst);
             match talk.update(now, pressed, CONTROL.mic.load(SeqCst)) {
@@ -619,7 +614,6 @@ mod platform {
         mute: sv_mute,
         talking: sv_talking,
         slot: sv_slot,
-        last_speaker: sv_last_speaker,
         voice_id: sv_voice_id,
     };
     fn read_status<T>(default: T, read: impl FnOnce(&Status) -> T) -> T {
@@ -655,10 +649,6 @@ mod platform {
     #[unsafe(no_mangle)]
     pub extern "C" fn sv_slot() -> i32 {
         read_status(-1, |status| status.slot.load(SeqCst))
-    }
-    #[unsafe(no_mangle)]
-    pub extern "C" fn sv_last_speaker() -> i32 {
-        read_status(-1, |status| status.last.load(SeqCst))
     }
     #[unsafe(no_mangle)]
     pub extern "C" fn sv_voice_id(slot: i32) -> u32 {

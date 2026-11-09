@@ -81,16 +81,15 @@ int main(int argc, char **argv)
     mask_fn sv_mute = (mask_fn)GetProcAddress(dll, "sv_mute");
     talking_fn sv_talking = (talking_fn)GetProcAddress(dll, "sv_talking");
     slot_fn sv_slot = (slot_fn)GetProcAddress(dll, "sv_slot");
-    slot_fn sv_last_speaker = (slot_fn)GetProcAddress(dll, "sv_last_speaker");
     voice_id_fn sv_voice_id = (voice_id_fn)GetProcAddress(dll, "sv_voice_id");
     CHECK(sv_version && sv_start && sv_stop && sv_ptt && sv_settings && sv_radio && sv_mute &&
-              sv_talking && sv_slot && sv_last_speaker && sv_voice_id,
+              sv_talking && sv_slot && sv_voice_id,
           "every export resolves");
     if (failures)
         return 1;
     CHECK(sv_version() == 1, "sv_version is 1");
     sv_stop(); /* not started: nothing */
-    CHECK(sv_talking() == 0 && sv_slot() == -1 && sv_last_speaker() == -1, "idle state");
+    CHECK(sv_talking() == 0 && sv_slot() == -1, "idle state");
 
     WSAStartup(MAKEWORD(2, 2), &wsa);
     server = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -142,7 +141,6 @@ int main(int argc, char **argv)
             Sleep(10);
         CHECK(sv_talking() & (1u << 2), "slot 2 is heard");
         CHECK(!(sv_talking() & (1u << 3)), "muted slot 3 is not");
-        CHECK(sv_last_speaker() == 2, "the last speaker is 2");
     }
 
     /* A new account reuses slot 2: its low first utterance id must not be

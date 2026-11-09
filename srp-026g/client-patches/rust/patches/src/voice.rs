@@ -12,8 +12,8 @@
 //!   mutes and who is far (the radio) told to the DLL when they change, a
 //!   held push-to-talk let go when the key is up or the game lost the
 //!   keyboard, and the hud's list of who talks;
-//! - the game world's keys (`tab_cursor.key`): push-to-talk (`ptt`, P) and
-//!   "Mute last speaker", the chat keys' group;
+//! - the game world's keys (`tab_cursor.key`): push-to-talk (`ptt`, P, the
+//!   chat keys' group);
 //! - the hud's calls (`hud.callback`): the Tab list's player menu (patch 86's)
 //!   asks `srp_voice_menu(place)`, answered `root.srp_voice_menu(place,
 //!   offered, muted)` (a teammate whose voice id is known), and sends
@@ -29,8 +29,7 @@ use core::ffi::CStr;
 use crate::vostok::log::{self, Piece::*};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
-    self as engine, ChatKey, ChatKeyEvent, Connect, Dll, MUTES_SIZE, Places, Roster, Scene, Settings, VoiceId,
-    name_text,
+    self as engine, Connect, Dll, MUTES_SIZE, Places, Roster, Scene, Settings, TalkKey, VoiceId, name_text,
 };
 use crate::vostok::{Context, Dik, Flow, GameCell, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit};
 
@@ -299,42 +298,22 @@ fn show_speakers(scene: &Scene<'_>, roster: &Roster, speakers: Places) -> bool {
 
 pub fn on_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(key) = GameWorldKey::at_start(ctx) else { return Flow::Continue };
-    let Some(event) = ChatKeyEvent::of(&key) else { return Flow::Continue };
+    let Some(event) = TalkKey::of(&key) else { return Flow::Continue };
     let thread = key.thread();
     let Voice::Live(dll, mut live) = VOICE.get(thread) else { return Flow::Continue };
-    let settings = engine::settings(thread);
     match event {
-        ChatKeyEvent::Down(ChatKey::Talk, code) => {
-            if live.talk.is_none() && matches!(settings, Settings::On { microphone: true, .. }) {
+        TalkKey::Down(code) => {
+            if live.talk.is_none() && matches!(engine::settings(thread), Settings::On { microphone: true, .. }) {
                 dll.talk(true);
                 live.talk = Some(code);
             }
         }
-        ChatKeyEvent::Up(ChatKey::Talk, code) => {
+        TalkKey::Up(code) => {
             if live.talk == Some(code) {
                 dll.talk(false);
                 live.talk = None;
             }
         }
-        ChatKeyEvent::Down(ChatKey::MuteLast, _) if matches!(settings, Settings::On { .. }) => {
-            let scene = Scene::at_key(&key);
-            let roster = scene.roster(false);
-            if let Some(place) = dll.last_speaker().filter(|&p| roster.teammate(p))
-                && let Some(id) = dll.voice_id(place)
-                && let Some(seat) = roster.seat(place)
-            {
-                let muted = !live.mutes.has(id);
-                live.mutes.set(id, muted);
-                save(thread, &live.mutes);
-                if let Some(movie) = scene.movie() {
-                    let mut text = [0; 0x200];
-                    let key = if muted { c"st_srp_hud_voice_muted" } else { c"st_srp_hud_voice_unmuted" };
-                    let text = scene.translate(key, &mut text);
-                    movie.invoke_strings(c"root.srp_voice_notice", &[text, name_text(&seat.name)]);
-                }
-            }
-        }
-        ChatKeyEvent::Down(ChatKey::MuteLast, _) | ChatKeyEvent::Up(ChatKey::MuteLast, _) => {}
     }
     VOICE.set(thread, Voice::Live(dll, live));
     Flow::Continue

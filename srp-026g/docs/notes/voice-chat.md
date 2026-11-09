@@ -254,18 +254,18 @@ Where the build differs from or adds to the design above:
   its boundary `vostok/voice.rs`. Its names-only `voice.toml` chains seven lohooks of
   `sites_026g.tsv`: `configs.start` (the variables, before user.cfg), `match_client.connect`
   (`sv_start(host, match port + 1, session)`), `game_world.finish` and `game_world.deactivate`
-  (`sv_stop`), `game_world.after_move` (every frame), `tab_cursor.key` (the keys) and
+  (`sv_stop`), `game_world.after_move` (every frame), `tab_cursor.key` (push-to-talk) and
   `hud.callback` (the Tab menu's voice entries). README patch 66, client_patch.md 3.71.
 - **Options:** `s_chat_volume` and `s_mic_sens` are 0..100 (the game's float slider steps by 1),
   defaults 100 and 50; `s_use_microphone` default on. **"Disable voice chat"** is the gameplay
   tab's dead option 5 (`g_hide_spam`, "Hide spam"), relabelled in `localization/*.tsv`, next to
   "Hide chat in match" (patch 58's dead option 4, the same way).
-- **Keys:** PTT is the stock `ptt` (P, the chat keys' group; relabelled "Push to talk"). **"Mute
-  the last speaker"** is the action table's dead entry 37h renamed `mute_last_speaker`, the 43rd
-  Controls row (patch 62's table, after patch 78's), **no default key**: M is
-  `set_next_ammo_type` in 0.26g (free in every group: B, J, U, Y, Z, 9, 0, F4, F7-F10, F12, Caps
-  Lock; H is patch 78's now). A held PTT is let go when its key is up (user32's GetAsyncKeyState,
-  so a release the chat box took is seen) or the game loses the keyboard.
+- **Keys:** PTT is the stock `ptt` (P, the chat keys' group; relabelled "Push to talk"), the one
+  voice key. A held PTT is let go when its key is up (user32's GetAsyncKeyState, so a release the
+  chat box took is seen) or the game loses the keyboard. A "mute the last speaker" key (the action
+  table's dead entry 37h renamed, a 43rd Controls row) was built and removed (the owner,
+  2026-11-09: "that mute last speaker button can be removed, since now this can be done in UI");
+  the exe's action table and Controls stay the game's.
 - **Muting** (the owner, 2026-11-06: in the Tab list's player menu): a right-click on a teammate's
   row (Ctrl for the cursor, patch 86) offers "Mute voice" or "Unmute voice" after the chat mute's
   entries, for a teammate whose voice id the relay sent; the menu shows "Voice muted", "Voice
@@ -275,8 +275,7 @@ Where the build differs from or adds to the design above:
   `VoiceSpeakers` at the left, mid-height (0.69's (20,370) of 1280x720): a row per teammate
   talking, a light-blue speaker (0x73B9FF) and the name, 25 px apart, the newest on top; a name
   fades over 1 s, 0.5 s after its player stops. Neither the player's own name nor the muted show
-  (0.69's own-microphone icon and its speaker over heads were not picked). The mute key shows
-  "Voice muted: name" / "Voice unmuted: name" under it for 3 s.
+  (0.69's own-microphone icon and its speaker over heads were not picked).
 - **The radio** (the DLL): a teammate farther than 25 m, or either player dead, through a filter
   fitted to 0.69's `_radio` quick-command recordings (high-pass 405 Hz, peaks and dips up to 6.3
   kHz), retail static under it (`tutorial_interference_02`, -44 dBFS), and retail's squelch at the
@@ -364,7 +363,8 @@ Where the build differs from or adds to the design above:
 
 - **Muting** (moved to the Tab list's player menu 2026-11-06, above; the Esc menu's panel of
   2026-10-25 is gone):
-  - a key "mute the last speaker" in Controls (default M only if M is free in every group);
+  - a key "mute the last speaker" in Controls (default M only if M is free in every group;
+    removed 2026-11-09, the Tab menu does it);
   - mutes are per account, kept across matches; the HUD list leaves the muted out;
   - kept by a **voice id**, not the name (accounts can be renamed; the owner, 2026-10-25): srp's
     ROSTER gives each teammate's slot the first four bytes of SHA-256(key, account id), the key
@@ -388,8 +388,6 @@ Where the build differs from or adds to the design above:
   codec participates. Relay tests also cover team isolation, mutes, authentication, rate limits,
   released seats, immediate reseats, stale utterances and process restarts in the same slot
   while the listener misses the new START packet.
-- `check_hide_ui_026g.py` (Unicorn) runs the options' own functions over the 43 rows: the mute
-  row sent to the movie, its empty key, alongside F11's and patch 78's cases.
 - `scripts/tab-row-menu/check.sh` (Ruffle) runs the Tab menu with the voice entries: offered,
   muted, unmuted, not done, none without the exe's answer.
 - `cargo test` in `client-patches/rust/`: the saved mutes' text (malformed records), the radio's

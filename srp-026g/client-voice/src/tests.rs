@@ -192,7 +192,7 @@ fn utterance_order_wrap_and_reset() {
     assert_eq!(core.stats().late, 2);
     core.reset();
     core.receive(&message, 30);
-    assert_eq!(core.last_speaker(), Some(3));
+    assert_eq!(core.talking(30), 1 << 3);
 }
 fn sine_gain(freq: f32) -> f32 {
     let mut radio = Radio::new(0);
@@ -405,7 +405,6 @@ fn oversize_bad_version_type_and_slot_are_malformed() {
         );
     }
     assert_eq!(core.talking(0), 0);
-    assert_eq!(core.last_speaker(), None);
 }
 #[test]
 fn audio_frames_must_be_twenty_ms_of_opus() {

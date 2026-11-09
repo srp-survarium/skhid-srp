@@ -3550,8 +3550,8 @@ without it, or of another version (unloaded), voice is off.
   places, the far ones (a teammate beyond 25 m, or either of the two dead: the radio filter) and the
   hud's `root.srp_voice_talking(name, ...)` on a change; a push-to-talk whose key is up (user32's
   GetAsyncKeyState) or with the game out of focus is let go;
-- `tab_cursor.key` (before patch 86's): the binder's chat keys (kind 8): 47h down and up is
-  push-to-talk, 37h down mutes or unmutes the last speaker (`root.srp_voice_notice`);
+- `tab_cursor.key` (before patch 86's): the binder's chat key (kind 8) 47h, `ptt`, down and up is
+  push-to-talk;
 - `hud.callback` (after patch 86's): the Tab list's player menu asks `srp_voice_menu(place)`
   (answered `root.srp_voice_menu(place, offered, muted)`) and sends `srp_voice_mute(place,
   "1"|"0")` (answered `root.srp_voice_mute(place, done)`): "Mute voice" / "Unmute voice" after the
@@ -3561,12 +3561,8 @@ without it, or of another version (unloaded), voice is off.
 mid-height, a light-blue speaker and the name, the newest on top; a name fades over 1 s, 0.5 s
 after its player stops (`flash/hud` `VoiceSpeakers`). The player's own and the muted are not shown.
 
-**The mute key.** The action table (0xA74AF0..0xA74FA0) is fixed; its entry 37h,
-`serialize_player_state` (kinds 5, kO; a debug action whose console command does not exist),
-becomes `mute_last_speaker`, kind 8, no default key (M is `set_next_ammo_type`'s, 0Ah, in the
-game's group). Patch 62's controls table gets a 43rd row (37h, `st_mute_last_speaker_action`, group
-1 as ptt's), the six readers' counts 2Bh. Its default key's relocation is disabled (the pointer is
-0 now).
+**Muting** is the Tab list's player menu only (the owner, 2026-11-09: a "mute the last speaker"
+key was removed, the menu does it); the action table and the Controls rows stay the game's.
 
 **The mutes** are srp's voice ids (ROSTER, type 90h: a hash of the account with a server key;
 names can change hands), kept in `srp_voice_mutes` as eight hex digits and `|` each (56 at most,
@@ -3574,12 +3570,11 @@ the oldest go first), read once a match: a record that is not 8 hex digits, or a
 out and logged.
 
 **Texts** in `localization/*.tsv`: `st_hide_spam_option` ("Disable voice chat"), `st_ptt_action`
-("Push to talk"), `st_mute_last_speaker_action`, `st_srp_hud_voice_*` (the Tab menu's entries and
-lines, the mute key's notice).
+("Push to talk"), `st_srp_hud_voice_*` (the Tab menu's entries and lines).
 
-Checked: `selftest_026g.py` check 66 (the sites in the original, the seven hooks and the action's
-entry in the build), `check_hide_ui_026g.py` (the 43rd row), `cargo test` in `rust/` (the mutes'
-text, malformed records, the radio's 25 m and the dead). **Not run in a game.**
+Checked: `selftest_026g.py` check 66 (the sites in the original, the seven hooks in the build, the
+game's ptt entry unchanged), `cargo test` in `rust/` (the mutes' text, malformed records, the
+radio's 25 m and the dead). **Not run in a game.**
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)
 

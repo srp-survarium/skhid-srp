@@ -12,7 +12,6 @@ pub type Radio = unsafe extern "C" fn(u32);
 pub type Mute = unsafe extern "C" fn(u32);
 pub type Talking = unsafe extern "C" fn() -> u32;
 pub type Slot = unsafe extern "C" fn() -> i32;
-pub type LastSpeaker = unsafe extern "C" fn() -> i32;
 pub type VoiceId = unsafe extern "C" fn(i32) -> u32;
 #[derive(Clone, Copy)]
 pub struct Api {
@@ -25,7 +24,6 @@ pub struct Api {
     pub mute: Mute,
     pub talking: Talking,
     pub slot: Slot,
-    pub last_speaker: LastSpeaker,
     pub voice_id: VoiceId,
 }
 impl Api {
@@ -61,7 +59,6 @@ impl Api {
             mute: load!(c"sv_mute", Mute),
             talking: load!(c"sv_talking", Talking),
             slot: load!(c"sv_slot", Slot),
-            last_speaker: load!(c"sv_last_speaker", LastSpeaker),
             voice_id: load!(c"sv_voice_id", VoiceId),
         })
     }

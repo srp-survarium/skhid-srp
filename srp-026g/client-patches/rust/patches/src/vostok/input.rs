@@ -23,9 +23,6 @@ impl Action {
     /// gives it the default key H and a controls row (patch 62's table), and
     /// holding it makes a quick-use key offer that slot's artefact.
     pub const ARTEFACT: Action = Action(0x23);
-    /// mute_last_speaker: the action table's debug entry serialize_player_state
-    /// (0xA74E10), renamed and made a chat key (kind 8) by patch 66.
-    pub const MUTE_LAST_SPEAKER: Action = Action(0x37);
     /// ptt (entry 0xA74F8C, kind 8, default P): patch 66's push-to-talk.
     pub const PTT: Action = Action(0x47);
 }

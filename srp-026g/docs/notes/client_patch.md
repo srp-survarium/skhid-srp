@@ -3340,7 +3340,7 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, seven lohooks; its boundary `
   record left out and logged).
 - **Connect, end** (`match_client.connect` 0x27A1B0 at its start: ECX the client, [esp+4] the
   host, +8 the port, +0Ch the session; a replay's connect is 0x122350): the DLL loaded once
-  (`LoadLibraryA`, its eleven exports and version through `voice_abi`), `sv_start(host, port + 1,
+  (`LoadLibraryA`, its ten exports and version through `voice_abi`), `sv_start(host, port + 1,
   session)`; `game_world.finish` (on_finish_match 0x1F96F0) and `game_world.deactivate`
   (on_deactivate 0x1F9520): push-to-talk let go, `sv_stop`.
 - **Every frame** (`game_world.after_move`): the options, the muted teammates and the far ones (a
@@ -3348,15 +3348,11 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, seven lohooks; its boundary `
   a held push-to-talk let go when its key is up (user32's GetAsyncKeyState, so a release the chat
   box took is seen) or the game lost the keyboard; the hud's `root.srp_voice_talking(names...)`
   on a change (0.69's list: the teammates, newest on top, fading 1 s after 0.5 s).
-- **The keys** (`tab_cursor.key`, before patch 86's): the binder's chat keys (kind 8, as
-  chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]): `ptt` (47h, P) down
-  and up; `mute_last_speaker` (37h) down toggles the last teammate heard, `root.srp_voice_notice`.
-- **The mute key**: the action table's entry 0xA74E10 (`serialize_player_state`, 37h, kinds 5, kO;
-  no console command of that name) becomes `mute_last_speaker`, kind 8, no default key (M is
-  `set_next_ammo_type`'s); the 43rd row of patch 62's controls (group 1, type 0, as ptt's).
+- **The key** (`tab_cursor.key`, before patch 86's): the binder's chat key (kind 8, as
+  chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P) down
+  and up. The action table and patch 62's controls stay as they were: muting is the Tab menu's.
 - **The Tab list's player menu** (`hud.callback`, after patch 86's): `srp_voice_menu(place)` is
   answered `root.srp_voice_menu(place, offered, muted)` (a teammate whose voice id the relay sent),
   `srp_voice_mute(place, "1"|"0")` `root.srp_voice_mute(place, done)`; the menu shows "Mute voice"
   or "Unmute voice" after the chat's entries.
-- **Checked**: `selftest_026g.py` check 66, `check_hide_ui_026g.py` with the 43rd row, `cargo
-  test` (rust/: the mutes' text, the radio). **Not run**: a game.
+- **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio). **Not run**: a game.
