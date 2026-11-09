@@ -17,7 +17,10 @@ use rule::{Found, Scene, User};
 /// the function's `ret 8`.
 pub fn on_detect(ctx: &mut Context<'_>) -> Flow<UseScanOnDetectExit> {
     let Some(call) = UseScanCall::at(ctx) else { return Flow::Continue };
-    let found = detect(&call.player()).map(|found| (found.object().address(), found.at()));
+    let found = detect(&call.player()).map(|found| {
+        let spot = found.spot();
+        (spot.object.taken(), spot.at)
+    });
     call.finish(found);
     Flow::Exit(UseScanOnDetectExit::Returned)
 }

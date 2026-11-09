@@ -10,6 +10,8 @@
 //! freed by it.
 
 use core::ffi::c_void;
+use core::marker::PhantomData;
+use core::ptr::NonNull;
 
 use super::context::{Context, Reg};
 use super::hook::Thread;
@@ -28,7 +30,9 @@ const FREE_LINE: u32 = 0x67;
 pub struct UseScanCall<'c, 'm> {
     ctx: &'c mut Context<'m>,
     player: raw::Player,
-    point: *mut f32,
+    /// Where the caller wants the point (None: it passed 0, as the HUD's
+    /// st_draw and 0x2D86A0 do).
+    point: Option<NonNull<f32>>,
 }
 
 impl<'c, 'm> UseScanCall<'c, 'm> {
@@ -38,7 +42,7 @@ impl<'c, 'm> UseScanCall<'c, 'm> {
         // arguments (the player, the point or 0), alive while it runs.
         let (player, point) = unsafe {
             let frame = site::frame(&*ctx)?;
-            (frame.player()?, frame.point())
+            (frame.player()?, NonNull::new(frame.point()))
         };
         Some(UseScanCall { ctx, player, point })
     }
@@ -48,14 +52,15 @@ impl<'c, 'm> UseScanCall<'c, 'm> {
     }
 
     /// The scan's answer, as detect_usable_object gives it: EAX the object
-    /// (0 for none) and, with one, its point written where asked (when a
-    /// point was asked). The caller leaves by the site's `returned` exit.
-    pub fn finish(self, found: Option<(u32, [f32; 3])>) {
-        if let (Some((_, at)), false) = (found, self.point.is_null()) {
+    /// (0 for none) and, with one, its point written where asked. Only a
+    /// usable object the scan met can be the answer. The caller leaves by
+    /// the site's `returned` exit.
+    pub fn finish(self, found: Option<(Taken, [f32; 3])>) {
+        if let (Some((_, at)), Some(point)) = (found, self.point) {
             // SAFETY: the caller's float3 (apply_new_input's frame).
-            unsafe { write_floats(self.point, at) };
+            unsafe { write_floats(point.as_ptr(), at) };
         }
-        self.ctx.set_reg(Reg::Eax, found.map_or(0, |(object, _)| object));
+        self.ctx.set_reg(Reg::Eax, found.map_or(0, |(Taken(object), _)| object.address()));
     }
 }
 
@@ -102,7 +107,7 @@ impl<'t> Player<'t> {
             hits.set_allocator(Some(raw::image::mt_allocator()));
             let eye = self.this.eye();
             raw::engine_ray_query(Some(world), eye.add(12), eye.add(8), length, Some(hits), GROUP, MASK);
-            Some(UseHits { room, thread: self.thread })
+            Some(UseHits { room, thread: PhantomData })
         }
     }
 
@@ -117,7 +122,7 @@ impl<'t> Player<'t> {
 /// as detect_usable_object frees its own (0x2D866D).
 pub struct UseHits<'t> {
     room: raw::RayHitsStorage,
-    thread: &'t Thread,
+    thread: PhantomData<&'t Thread>,
 }
 
 impl<'t> UseHits<'t> {
@@ -131,13 +136,12 @@ impl<'t> UseHits<'t> {
             (Some(begin), Some(end)) => end.index_from(begin).unwrap_or(0),
             _ => 0,
         };
-        let thread = self.thread;
         (0..count).map_while(move |i| {
             // SAFETY: the i-th of `count` hits of the vector.
             let hit = unsafe { begin?.at(i) };
             // SAFETY: as above; the object a live physics object.
             let (object, point) = unsafe { (hit.object()?, floats(hit.point())) };
-            Some(UseHit { object, point, thread })
+            Some(UseHit { object, point, thread: PhantomData })
         })
     }
 }
@@ -161,7 +165,7 @@ impl Drop for UseHits<'_> {
 pub struct UseHit<'t> {
     object: raw::HitObject,
     point: [f32; 3],
-    thread: &'t Thread,
+    thread: PhantomData<&'t Thread>,
 }
 
 impl<'t> UseHit<'t> {
@@ -197,22 +201,28 @@ impl<'t> UseHit<'t> {
                                     raw::image::USABLES_DEALLOCATE as usize as *const u8,
                                     raw::image::STD_ALLOCATOR_FILE as usize as *const u8, FREE_LINE);
             }
-            Some(Usable { this: first?, thread: self.thread })
+            Some(Usable { this: first?, thread: PhantomData })
         }
     }
 }
+
+/// A use scan's answer for [`UseScanCall::finish`]: only a [`Usable`] makes one
+/// ([`Usable::taken`]), so nothing else reaches the game's EAX.
+#[derive(Clone, Copy)]
+pub struct Taken(raw::UsableObject);
 
 /// A usable object a use scan met (a battery, a container, a crate, a trap).
 #[derive(Clone, Copy)]
 pub struct Usable<'t> {
     this: raw::UsableObject,
-    thread: &'t Thread,
+    /// Alive while the hook that met it runs.
+    thread: PhantomData<&'t Thread>,
 }
 
 impl Usable<'_> {
-    /// Its address: what detect_usable_object returns.
-    pub fn address(&self) -> u32 {
-        self.this.address()
+    /// It as the scan's answer.
+    pub fn taken(&self) -> Taken {
+        Taken(self.this)
     }
 
     /// Its can_use for `player` (vtable+30h, the player's user data).
@@ -225,7 +235,6 @@ impl Usable<'_> {
     /// usable vtable (the only two whose can_use is victory_item_core's),
     /// its get_transform's (vtable+44h) translation. None for anything else.
     pub fn battery_centre(&self) -> Option<[f32; 3]> {
-        let _ = self.thread;
         // SAFETY: a live usable object's vtable; then its get_transform
         // into our matrix.
         unsafe {

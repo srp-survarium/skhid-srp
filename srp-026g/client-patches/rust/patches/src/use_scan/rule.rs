@@ -80,24 +80,26 @@ pub fn ray_length(reach: f32) -> f32 {
 /// compared squared).
 const ACROSS_SQUARED: f32 = 1.0;
 
+/// A usable object the scan met and its point.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Spot<O> {
+    pub object: O,
+    pub at: [f32; 3],
+}
+
 /// The scan's answer: the object Use takes, or (for the prompt) the first
-/// usable object that refused; each with its point.
+/// usable object that refused.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Found<O> {
-    Usable { object: O, at: [f32; 3] },
-    Refused { object: O, at: [f32; 3] },
+    Usable(Spot<O>),
+    Refused(Spot<O>),
 }
 
 impl<O: Copy> Found<O> {
-    pub fn object(&self) -> O {
-        match *self {
-            Found::Usable { object, .. } | Found::Refused { object, .. } => object,
-        }
-    }
-
-    pub fn at(&self) -> [f32; 3] {
-        match *self {
-            Found::Usable { at, .. } | Found::Refused { at, .. } => at,
+    /// What detect_usable_object returns either way: the object and its point.
+    pub fn spot(self) -> Spot<O> {
+        match self {
+            Found::Usable(spot) | Found::Refused(spot) => spot,
         }
     }
 }
@@ -112,12 +114,13 @@ enum Past {
 struct Walk<O> {
     groups: Groups,
     past: Past,
-    refused: Option<Found<O>>,
+    /// The first usable object that refused.
+    refused: Option<Spot<O>>,
 }
 
 enum Next<O> {
     On(Walk<O>),
-    Took(Found<O>),
+    Took(Spot<O>),
 }
 
 /// The scan of `hits` (nearest first) by `user`.
@@ -126,10 +129,10 @@ pub fn scan<S: Scene>(scene: &mut S, user: &User, hits: impl IntoIterator<Item =
     for hit in hits {
         match step(scene, user, walk, hit) {
             Next::On(next) => walk = next,
-            Next::Took(found) => return Some(found),
+            Next::Took(spot) => return Some(Found::Usable(spot)),
         }
     }
-    walk.refused
+    walk.refused.map(Found::Refused)
 }
 
 fn step<S: Scene>(scene: &mut S, user: &User, walk: Walk<S::Object>, hit: S::Hit) -> Next<S::Object> {
@@ -153,9 +156,9 @@ fn step<S: Scene>(scene: &mut S, user: &User, walk: Walk<S::Object>, hit: S::Hit
         at
     };
     if scene.can_use(object) {
-        return Next::Took(Found::Usable { object, at });
+        return Next::Took(Spot { object, at });
     }
-    let refused = walk.refused.or(Some(Found::Refused { object, at }));
+    let refused = walk.refused.or(Some(Spot { object, at }));
     Next::On(Walk { groups: groups.without_usable(), past: walk.past, refused })
 }
 
@@ -187,8 +190,8 @@ pub enum UseOwner {
 
 pub fn use_owner<O: Copy>(found: Option<Found<O>>) -> UseOwner {
     match found {
-        Some(Found::Usable { .. }) => UseOwner::Game,
-        Some(Found::Refused { .. }) | None => UseOwner::Free,
+        Some(Found::Usable(_)) => UseOwner::Game,
+        Some(Found::Refused(_)) | None => UseOwner::Free,
     }
 }
 
@@ -257,15 +260,15 @@ mod tests {
     #[test]
     fn the_first_usable_one_in_reach_is_taken() {
         let at = [13.0, 10.1, -7.0];
-        assert_eq!(run(vec![usable(1, at, true)]).0, Some(Found::Usable { object: 1, at }));
+        assert_eq!(run(vec![usable(1, at, true)]).0, Some(Found::Usable(Spot { object: 1, at })));
         assert_eq!(run(vec![]).0, None);
     }
 
     #[test]
     fn a_refusal_is_kept_for_the_prompt_and_the_walk_goes_on() {
         let (a, b) = ([12.5, 10.5, -7.0], [12.8, 10.4, -7.0]);
-        assert_eq!(run(vec![usable(1, a, false), usable(2, b, true)]).0, Some(Found::Usable { object: 2, at: b }));
-        assert_eq!(run(vec![usable(1, a, false), usable(2, b, false)]).0, Some(Found::Refused { object: 1, at: a }));
+        assert_eq!(run(vec![usable(1, a, false), usable(2, b, true)]).0, Some(Found::Usable(Spot { object: 2, at: b })));
+        assert_eq!(run(vec![usable(1, a, false), usable(2, b, false)]).0, Some(Found::Refused(Spot { object: 1, at: a })));
     }
 
     #[test]
@@ -276,7 +279,7 @@ mod tests {
         let (found, _) = run(vec![walkable, hittable, usable(1, [12.0, 10.5, -7.0], true)]);
         assert_eq!(found, None);
         let (found, _) = run(vec![walkable, usable(1, [12.0, 10.5, -7.0], true)]);
-        assert_eq!(found, Some(Found::Usable { object: 1, at: [12.0, 10.5, -7.0] }));
+        assert_eq!(found, Some(Found::Usable(Spot { object: 1, at: [12.0, 10.5, -7.0] })));
     }
 
     #[test]
@@ -284,7 +287,7 @@ mod tests {
         let below = |across: f32| battery(1, [12.0 + across, 9.8, -7.0], [12.0 + across, 9.7, -7.0], true);
         for (across, taken) in [(0.0, true), (0.99, true), (1.0, true), (1.01, false)] {
             let found = run(vec![wall(10.0), below(across)]).0;
-            assert_eq!(found, taken.then_some(Found::Usable { object: 1, at: FEET }), "{across}");
+            assert_eq!(found, taken.then_some(Found::Usable(Spot { object: 1, at: FEET })), "{across}");
         }
         // centre above the feet, a NaN centre, another object: not seen at all
         assert_eq!(run(vec![wall(10.0), battery(1, [12.0, 9.9, -7.0], [12.0, 10.05, -7.0], true)]).0, None);
@@ -297,7 +300,7 @@ mod tests {
         assert_eq!(run(vec![usable(1, [14.5, 10.4, -7.0], true)]).0, None);
         // a NaN point is not beyond: the game's way
         let nan = [f32::NAN, 10.0, -7.0];
-        assert!(matches!(run(vec![usable(1, nan, true)]).0, Some(Found::Usable { object: 1, .. })));
+        assert!(matches!(run(vec![usable(1, nan, true)]).0, Some(Found::Usable(Spot { object: 1, .. }))));
     }
 
     #[test]
@@ -309,8 +312,8 @@ mod tests {
     #[test]
     fn use_is_the_games_only_for_an_object_it_takes() {
         let at = [0.0; 3];
-        assert_eq!(use_owner(Some(Found::Usable { object: 1u8, at })), UseOwner::Game);
-        assert_eq!(use_owner(Some(Found::Refused { object: 1u8, at })), UseOwner::Free);
+        assert_eq!(use_owner(Some(Found::Usable(Spot { object: 1u8, at }))), UseOwner::Game);
+        assert_eq!(use_owner(Some(Found::Refused(Spot { object: 1u8, at }))), UseOwner::Free);
         assert_eq!(use_owner::<u8>(None), UseOwner::Free);
     }
 }

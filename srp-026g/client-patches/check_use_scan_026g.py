@@ -61,6 +61,7 @@ class Scan:
         self.floats(P + 0x46C, (0.0, -1.0, 0.0))
         self.floats(POINT, (-99.0,) * 3)                   # the point returned
         self.hits, self.centres, self.freed, self.calls, self.reach = [], {}, [], [], None
+        self.empty = set()                                 # geometries whose usable list is empty
         emu.hook_add(UC_HOOK_CODE, self.stub)
 
     def word(self, at, value):
@@ -117,13 +118,15 @@ class Scan:
             assert (self.read(sp + 8), self.read(sp + 12)) == (0x2DD730, 0)
             self.calls.append(("gather", self.read(sp + 4)))
             self.word(esi, self.read(sp + 4))
+            if self.read(sp + 4) in self.empty:                # begin == end: no usable object
+                self.word(esi + 4, self.read(sp + 4))
             self.returns(0, 12)
         elif address == 0x300710:
             self.calls.append(("can_use", this))
 
     def add(self, kind, point, centre=None):
         """A hit: "wall" (walkable and hittable), "walkable", "hittable", "battery", "client battery",
-        "other" (its can_use yes) or "refusing" (no)."""
+        "other" (its can_use yes), "refusing" (no) or "empty" (a geometry with no usable object)."""
         block = P + 0x10000 + len(self.hits) * 0x1000
         obj, owner, usable, table, vector, table2 = (block, block + 0x100, block + 0x300, block + 0x800,
                                                      block + 0x900, block + 0xA00)
@@ -141,6 +144,8 @@ class Scan:
         else:
             self.word(usable, table2)
             self.word(table2 + 0x30, STUB + 0x80 if kind == "refusing" else STUB + 0x60)
+        if kind == "empty":
+            self.empty.add(vector)
         self.centres[usable] = tuple(centre or point)
         self.hits.append(usable)
         return usable
@@ -256,6 +261,18 @@ def main():
     battery = scan.add("battery", (FEET[0], 9.8, FEET[2]), (FEET[0], 9.7, FEET[2]))
     assert scan.run() == battery
     checks += 1
+    # A usable hit whose geometry has no usable object (the original reads a
+    # null there): no object, its list freed, the walk goes on.
+    p = (FEET[0] + 0.5, FEET[1] + 0.3, FEET[2])
+    scan = Scan(patched)
+    scan.add("empty", p)
+    other = scan.add("other", (FEET[0] + 0.8, FEET[1] + 0.2, FEET[2]))
+    eax = scan.run()
+    assert eax == other and len(scan.freed) == 3, (hex(eax), scan.freed)
+    scan = Scan(patched)
+    scan.add("empty", p)
+    assert scan.run() == 0
+    checks += 2
     print(f"use scan: {checks} scans as expected (the original and the build)")
     if against is None:
         return
