@@ -43,7 +43,7 @@ FRIEND_SPECTATE = (150, 907)  # its right-click menu's Spectate, for a friend in
 RESULTS_SAVE = (704, 881)  # "Save replay"; the floppy at the right edge is the stock screen's own, disabled
 RESULTS_CLOSE = (812, 881)
 LEAVE_MATCH = (799, 593)
-VIEWER_PLATES, VIEWER_PLATE_Y = (1160, 1314, 1470), 972  # the kit plates in a replay's viewer
+VIEWER_PLATES, VIEWER_PLATE_Y = (999, 1156, 1310), 901  # the kit plates in a replay's viewer
 PLAYER_ROW_X = 1495  # a viewer's player list
 PLAYER_ROWS = (("ReplayTester", 560), ("SecondTester", 583))
 LIVE_DELAY = 30  # SRP_LIVE_WATCH_DELAY_S's default
@@ -111,6 +111,13 @@ def kit_bar_shown(picture) -> bool:
     """A player's kit chooser: a few near-white pixels of each plate's name. The plates are see-through, so what is behind
     them says nothing; a bright scene fills the row with many more pixels than a name has."""
     return all(3 <= (picture[1122:1136, x:x + 60].min(axis=2) > 190).sum() <= 60 for x in (610, 765, 920))
+
+
+def viewer_kits_shown(picture) -> bool:
+    """A replay viewer's kit plates, by each plate's name as in kit_bar_shown. Without the server's note of the kits (a
+    server older than the client's) the viewer plays on with no plates at all, and nothing else on the screen says so."""
+    return all(3 <= (picture[VIEWER_PLATE_Y - 7:VIEWER_PLATE_Y + 7, x - 30:x + 30].min(axis=2) > 190).sum() <= 60
+               for x in VIEWER_PLATES)
 
 
 def play_ready(picture) -> bool:
@@ -402,6 +409,7 @@ def kit_view(run: Run) -> None:
     mark = run.server.mark()
     watch_card(a)
     time.sleep(2)
+    a.wait_screen(viewer_kits_shown, "the viewer's kit plates", 15)
     a.shot("kits-3-viewer-first-player")
     a.cursor_on()
     for row, (name, y) in enumerate(PLAYER_ROWS, 4):  # the player list on the right: what follows a place
@@ -458,6 +466,7 @@ def privacy(run: Run) -> None:
         game.wait_screen(results_open, "the results screen", 25, steady=1)
         game.click(*RESULTS_CLOSE, 6)
         game.wait_screen(play_ready, "the lobby, after the results", 20, steady=1)
+        leave_old_room(game)  # back in the match's room for a while: PLAY would join it, not make a new one
     live_watch_setting(b, "on")
     room_match(b, c)
     a.expect_server(r"play begins", 40)

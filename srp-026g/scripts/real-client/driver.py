@@ -260,8 +260,12 @@ def room_released(log: str, room: str) -> bool:
     """Whether the server's log says no one is left in a room."""
     if re.search(rf"left room {room} with its session", log):
         return True
+    left_with_match = re.search(rf"and with it room {room}\b", log) is not None
     sent_back = re.search(rf"Room {room}: its match \S+ is over; back in the room", log)
-    return not sent_back and re.search(rf"and with it room {room}\b", log) is not None
+    if not sent_back:
+        return left_with_match
+    # One went with the match and the other, sent back to the room, left it: the flows' rooms have two.
+    return left_with_match and re.search(rf": left room {room}\s*$", log, re.MULTILINE) is not None
 
 
 def front_window() -> str:
