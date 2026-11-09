@@ -47,11 +47,10 @@ pub struct Upgrade {
 pub struct Reroll {
     /// The modification changed last (the window marks it); 0: none yet.
     /// Not a lock: any of the item's own may be changed (the owner's rule
-    /// of 2026-10-22, `docs/notes/reroll-keep-old.md`).
+    /// of 2026-10-22, `docs/notes/reroll-keep-old.md`). How many changes
+    /// were made is not kept: the price does not grow with them (the
+    /// owner's rule of 2026-10-25).
     pub modification: u32,
-    /// The changes paid for so far. A record only: the price does not
-    /// grow with it (the owner's rule of 2026-10-25).
-    pub count: u32,
     /// A paid change that waits for its choice: the modification it
     /// replaces and the three offered.
     pub offer: Option<(u32, [u32; 3])>,
@@ -66,9 +65,6 @@ pub struct Item {
     /// A stack's count in units (rounds of ammo), or an item's condition
     /// × 10 000 ([`FULL_CONDITION`] is 100).
     pub condition_or_stack: u32,
-    /// The Unix second from which a modification may be changed for silver
-    /// again; 0: none. Not read: rerolls have no wait (`items_rules`).
-    pub reroll_time: u32,
     /// `(id, state)`: a modification (false) or a defect (true), each of
     /// `survarium::v026g::modifications`; at most 8.
     pub modifications: Vec<(u32, bool)>,
@@ -173,10 +169,6 @@ pub struct Account {
     /// `(quest id, until)`: quests resting after being done, Unix seconds.
     pub quest_cooldowns: Vec<(u32, u64)>,
     pub next_quest_instance: u32,
-    /// The last tutorial step the client reported (`4B 01`), and whether
-    /// the tutorial is over (done or skipped, `4B 02`).
-    pub tutorial_step: u8,
-    pub tutorial_done: bool,
     /// The auto-repair box, the tutorial's steps and the daily bonus
     /// ([`super::extras`]).
     pub extras: super::extras::Extras,
@@ -322,12 +314,7 @@ impl Account {
             quests: Vec::new(),
             quest_cooldowns: Vec::new(),
             next_quest_instance: 1,
-            tutorial_step: 0,
-            tutorial_done: true,
-            extras: super::extras::Extras {
-                tutorial_flags: super::tutorial::ALL_DONE,
-                ..Default::default()
-            },
+            extras: Default::default(),
             map_plays: Vec::new(),
             room_settings: None,
             mode_introductions: Default::default(),
@@ -385,7 +372,6 @@ impl Account {
             item_id,
             dict_id,
             condition_or_stack,
-            reroll_time: 0,
             modifications: golden::starting_modifications(dict_id),
             upgrades: Vec::new(),
             reroll: Reroll::default(),
@@ -1013,7 +999,6 @@ mod tests {
             item_id: 9,
             dict_id: 9999,
             condition_or_stack: 1,
-            reroll_time: 0,
             modifications: Vec::new(),
             upgrades: Vec::new(),
             reroll: Reroll::default(),

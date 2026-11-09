@@ -63,8 +63,7 @@
 //!   Cancel button (`docs/notes/reroll-keep-old.md`). [srp, the
 //!   owner's rule of 2026-10-22] At any time: the
 //!   game's six hours between silver changes are gone, so the item's
-//!   `reroll_time` the client is told is 0. A damaged
-//!   item can not be changed (`st_reroll_message_broken_item`). The prices
+//!   `reroll_time` the client is told is 0, and none is kept. The prices
 //!   are `reroll.options`' by item level, [srp, the owner's rule of
 //!   2026-10-25] the same for every change: no growth with the changes
 //!   made (`docs/notes/flat-reroll.md`,
@@ -624,7 +623,6 @@ pub fn reroll(
     account.generic_money -= price;
     let item = account.item_mut(item_id).expect("the item was found above");
     item.reroll.modification = modification;
-    item.reroll.count = item.reroll.count.saturating_add(1);
     item.reroll.offer = Some((modification, choices));
     Ok(Rerolled {
         choices,

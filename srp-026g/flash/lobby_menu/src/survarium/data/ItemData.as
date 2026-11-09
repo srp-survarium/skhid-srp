@@ -58,7 +58,6 @@ package survarium.data
       
       public var rank:uint;
       
-      public var timeDelta:uint;
       
       public var camoAvailable:uint;
       
@@ -68,7 +67,6 @@ package survarium.data
       
       public var modifierUpgraded:uint;
       
-      public var rerollTime:uint;
       
       public var dragEnabled:Boolean = false;
       

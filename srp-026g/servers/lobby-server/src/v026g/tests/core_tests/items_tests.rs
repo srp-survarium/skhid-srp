@@ -923,7 +923,6 @@ fn another_modification_is_rerolled_after_the_first() {
             premium: 0
         }
     );
-    assert_eq!(world.account(alice).item(rifle).unwrap().reroll.count, 1);
 
     world.ask(alice, ask::choose(rifle, 2000, 0));
     let decoded = world.take(alice);

@@ -27,8 +27,6 @@ pub struct DailyBonus {
 /// See the module.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Extras {
-    /// The tutorial's steps done: [`super::tutorial::flag`].
-    pub tutorial_flags: u32,
     pub bonus: DailyBonus,
 }
 

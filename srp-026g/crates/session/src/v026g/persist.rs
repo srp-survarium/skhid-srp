@@ -653,8 +653,7 @@ impl GameRepository for SqliteGameRepository {
             let mut statement = transaction.prepare(
                 "SELECT account_id, name, clan_tag, generic_money, premium_until,
                         exp_total, quest_faction, rating, rating_before,
-                        active_kit, autobuy, next_item_id, next_quest_instance,
-                        tutorial_step, tutorial_done
+                        active_kit, autobuy, next_item_id, next_quest_instance
                  FROM g26_accounts ORDER BY account_id",
             )?;
             let rows = statement.query_map([], |row| {
@@ -681,8 +680,6 @@ impl GameRepository for SqliteGameRepository {
                         quests: Vec::new(),
                         quest_cooldowns: Vec::new(),
                         next_quest_instance: row.get(12)?,
-                        tutorial_step: row.get(13)?,
-                        tutorial_done: row.get(14)?,
                         extras: Default::default(),
                         map_plays: Vec::new(),
                         room_settings: None,
@@ -727,8 +724,9 @@ impl GameRepository for SqliteGameRepository {
             }
             {
                 let mut statement = transaction.prepare_cached(
-                    // repair_time is not read: srp has no repair.
-                    "SELECT item_id, dict_id, condition_or_stack, reroll_time,
+                    // repair_time and reroll_time are not read: srp has no
+                    // repair, and a modification change no wait.
+                    "SELECT item_id, dict_id, condition_or_stack,
                             modifications, upgrades, reroll
                      FROM g26_items WHERE account_id = ?1 ORDER BY seq",
                 )?;
@@ -738,14 +736,13 @@ impl GameRepository for SqliteGameRepository {
                             item_id: row.get(0)?,
                             dict_id: row.get(1)?,
                             condition_or_stack: row.get(2)?,
-                            reroll_time: row.get(3)?,
                             modifications: Vec::new(),
                             upgrades: Vec::new(),
                             reroll: Default::default(),
                         },
+                        row.get::<_, String>(3)?,
                         row.get::<_, String>(4)?,
                         row.get::<_, String>(5)?,
-                        row.get::<_, String>(6)?,
                     ))
                 })?;
                 for row in rows {
@@ -931,8 +928,10 @@ fn write_account(
             account.autobuy,
             account.next_item_id,
             account.next_quest_instance,
-            account.tutorial_step,
-            account.tutorial_done,
+            // The tutorial's columns: kept in the schema, unused; no
+            // tutorial (the owner, 2026-10-19), so every account is done.
+            0,
+            true,
         ],
     )?;
     extras::save(transaction, account_id, &account.extras)?;
@@ -970,9 +969,9 @@ fn write_account(
                 seq as i64,
                 item.dict_id,
                 item.condition_or_stack,
-                // repair_time: srp has no repair.
+                // repair_time and reroll_time: no repair, no wait.
                 0,
-                item.reroll_time,
+                0,
                 modifications_text(item),
                 upgrades_text(item),
                 items::reroll_text(item),
@@ -1069,8 +1068,6 @@ mod tests {
         account.add_experience(40_000);
         account.add_reputation(2, 500);
         account.autobuy = true;
-        account.tutorial_step = 3;
-        account.tutorial_done = true;
         rules::set_skills(&mut account, &[(101, 2), (201, 1)]).unwrap();
         rules::rename_kit(&mut account, 2, "Sniper").unwrap();
         rules::set_active_kit(&mut account, 2, 1_000).unwrap();
@@ -1078,7 +1075,6 @@ mod tests {
         quests::refresh(&mut account, 1_000, &mut Rng::new(4));
         account.quest_cooldowns.push((10101, 5_000));
         account.inventory[0].condition_or_stack = 654_321;
-        account.inventory[0].reroll_time = 8;
         account.inventory[0].modifications = vec![(1050, true), (7, false)];
         account.inventory[0].upgrades = vec![Upgrade {
             id: 5,
@@ -1094,7 +1090,6 @@ mod tests {
             rating: -1250,
             matches: 9,
         };
-        account.extras.tutorial_flags = 0b101;
         account.extras.bonus.day = 3;
         account.extras.bonus.last_day = 20_373;
         account.extras.bonus.wins = [3, 3, 1, 0, 0, 0, 0];

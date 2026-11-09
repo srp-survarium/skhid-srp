@@ -91,7 +91,6 @@ package survarium.messages
       
       public var itemRenderer:ItemRendererBase;
       
-      private var _rerollTimer:int = 0;
       
       protected var _rerollCost:int = 0;
       
@@ -172,8 +171,8 @@ package survarium.messages
             // modifier"): any modifier may be changed (the owner's rule of 2026-10-22).
             this.decriptionLabel.text = LocalizationData.getName("st_srp_reroll_description");
             // Skhid: no "only one attempt in 6 hours" line: silver rerolls have no wait
-            // (items_rules: Reroll, the owner's rule of 2026-10-22)
-            this.decriptionTimerLabel.text = "";
+            // (items_rules: Reroll, the owner's rule of 2026-10-22); the line stays hidden.
+            this.decriptionTimerLabel.visible = false;
             this.labelChooseModifier2.text = LocalizationData.getName("choose_modifier");
             // A change is paid in silver only: the game has no gold (the owner, 2026-11-08). Its
             // price, centred, in place of the silver checkbox (SilverPrice).
@@ -181,7 +180,6 @@ package survarium.messages
             this._price = new SilverPrice(this.checkBoxRegularCost,this.background.x + this.background.width / 2);
             this.checkBoxPremiumCost.visible = false;
             this.labelChooseModifier2.visible = this.modifiersList2.visible = false;
-            _rerollTimer = _data.rerollTime;
             this.itemRenderer.data = _data;
             _itemId = _data.itemId;
             modifiers = _data.modifiers as Array;
@@ -214,15 +212,6 @@ package survarium.messages
             this.setChooseReollOptionState(false);
          }
          this.checkAcceptButton();
-      }
-      
-      public function updateTimer(rerollInfo:Object) : void
-      {
-         if(_data && rerollInfo && _data.itemId == rerollInfo.itemId)
-         {
-            _rerollTimer = rerollInfo.rerollTime;
-            this.checkAcceptButton();
-         }
       }
       
       public function updateReroll(newModifiers:Array) : void
@@ -333,7 +322,7 @@ package survarium.messages
                btnAccept.enabled = false;
                return;
             }
-            btnAccept.enabled = this._rerollCost <= PlayerInfo.genericMoney && !this._rerollTimer;
+            btnAccept.enabled = this._rerollCost <= PlayerInfo.genericMoney;
          }
          else
          {
@@ -376,7 +365,6 @@ package survarium.messages
          this.decriptionLabel.y = top + DESCRIPTION_MARGIN;
          panel.height = textHeight + 2 * DESCRIPTION_MARGIN;
          var up:Number = oldBottom - (top + panel.height);
-         this.decriptionTimerLabel.y -= up;
          this.checkBoxRegularCost.y -= up;
       }
 
@@ -389,7 +377,6 @@ package survarium.messages
          this.decriptionLabel.visible = !choosing;
          this._price.visible = !choosing;
          this.modifiersList.enabled = !choosing;
-         this.decriptionTimerLabel.visible = !choosing;
          // While the price shows, the window ends SilverPrice.GAP under it, as the upgrade window does (the
          // owner, 2026-11-08: "there is too much empty space after 200 silver"): the stock 392 left room for
          // the taller money choice.
@@ -418,16 +405,6 @@ package survarium.messages
          {
             this.checkAcceptButton();
          }
-      }
-      
-      protected function testOptions() : void
-      {
-         this.updateReroll(this.modifiersList.dataProvider as Array);
-      }
-      
-      protected function testOptions2() : void
-      {
-         this.updateModifiers(this.modifiersList.dataProvider as Array);
       }
       
       override protected function onMessageAccept(event:ButtonEvent = null) : void

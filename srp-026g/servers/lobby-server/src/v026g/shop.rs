@@ -1,5 +1,5 @@
-//! The premium shop, the premium account, the daily bonus, the tutorial
-//! and a nickname change: the requests `dispatch` hands over, and what a
+//! The premium shop, the premium account, the daily bonus and a nickname
+//! change: the requests `dispatch` hands over, and what a
 //! sign-in and a match's results add for them.
 //!
 //! The rules are `session::v026g::{premium, bonus, tutorial, names}`; this
@@ -12,11 +12,11 @@
 //! | `47 02 <offer> <match>` (the results screen's button) | the same, and the premium half of the match: skills (`8C`), reputations (`8E`), notices |
 //! | `47 05 <offer> <discount> ..` (after `A8`) | `83 47 05` (the client's "premium activated" notice), then as above |
 //! | `47 06 <offer> <discount>` (after `A9`; offer -1 declines) | `83 47 02`, then as `47 02` |
-//! | `46 04 <item>` | `83 46 04 <item>`, the services, the inventory, the account, the money |
 //! | `49 03 <name>` | `83 49 03 <name> <ok> [reason]` |
-//! | `49 04 <name> <voucher or 0>` | `83 49 04 <voucher>`, the name (`8F`), the inventory, the account, the money |
-//! | `4B 01 <step>` | what the step paid: the inventory, the account, the money, the skills, notices |
+//! | `49 04 <name> <ignored>` | `83 49 04 0`, the name (`8F`), the inventory, the account, the money (silver; no voucher) |
 //! | `43 00` | `99` |
+//!
+//! No tutorial (2026-10-19): a step (`4B`) is not answered.
 //!
 //! A refusal is `84 <op> 00 <the game's text>`.
 //!

@@ -3,11 +3,8 @@ package survarium.controls
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.events.IEventDispatcher;
-   import flash.events.TimerEvent;
-   import flash.utils.Timer;
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
-   import survarium.Util;
    import survarium.buttons.ButtonClick;
    import survarium.buttons.ButtonProgress;
    import survarium.constants.Events;
@@ -106,21 +103,7 @@ package survarium.controls
          // No Fix button: srp has no repair (the owner, 2026-11-08). The timeline still places it.
          this.btn_item_fix.visible = false;
          this.updateData(null);
-         var timer:Timer = MainScene.getTimerInstance();
-         timer.addEventListener(TimerEvent.TIMER,this.onTimerUpdate);
          this.btnSellBig.width = this.btn_show_l.width = this.btn_show_r.width = this.btn_show_use.width = 140;
-      }
-      
-      private function onTimerUpdate(event:TimerEvent) : void
-      {
-         var timer:Timer;
-         var elapsed:uint;
-         if(this._data && this._data.rerollTime)
-         {
-            timer = MainScene.getTimerInstance();
-            elapsed = (timer.currentCount);
-            this.rerollTimer.setTime(Util.getTimeStringMinutes(Math.max(0,int(this._data.rerollTime / 60) - (elapsed - this._data.timeDelta))));
-         }
       }
       
       private function onLocalization(localizedText:String) : void
@@ -221,24 +204,9 @@ package survarium.controls
                i = ++i;
             }
          }
-         if(this._rerollable && Boolean(this._data.rerollTime))
-         {
-            if(Boolean(this._data.rerollTime))
-            {
-               this.onTimerUpdate(null);
-               this.rerollTimer.visible = true;
-               this.btn_item_reroll.label = "";
-               this.btn_item_reroll.tipEnabled = true;
-               this.btn_item_reroll.tooltipRendererName = "SrvProfileTipRenderer";
-               this.btn_item_reroll.tipData = {"name":LocalizationData.getName("reroll_timer_hint")};
-            }
-         }
-         else
-         {
-            this.btn_item_reroll.tipEnabled = false;
-            this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label");
-            this.rerollTimer.visible = false;
-         }
+         // A modification change has no wait (the owner, 2026-10-22): no timer on its button.
+         this.btn_item_reroll.tipEnabled = false;
+         this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label");
          this.btn_item_reroll.enabled = this._rerollable && !this._isShopItems;
          this.btn_item_craft.enabled = ItemFactory.isItemCraftable(this._data);
          this.btn_item_craft.tipEnabled = false;

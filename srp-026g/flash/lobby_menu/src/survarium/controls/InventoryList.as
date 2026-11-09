@@ -14,7 +14,6 @@ package survarium.controls
    import flash.text.TextLineMetrics;
    import flash.ui.Keyboard;
    import flash.utils.Dictionary;
-   import flash.utils.Timer;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.DragSlot;
@@ -1124,7 +1123,6 @@ package survarium.controls
                item.slotTarget = itemData.is_attached_to;
             }
          }
-         item.rerollTime = itemData.reroll_time;
          // No repair (the owner, 2026-11-08): an item is never locked by one.
          item.enabled = true;
          if(itemData.equipped != undefined)
@@ -1286,21 +1284,12 @@ package survarium.controls
                this.updateItem(item,itemData);
             }
             item.descriptor = ItemPlace.INVENTORY;
-            item.rerollTime = itemData.reroll_time;
             item.modifierUpgraded = itemData.rerolled_modifier;
             item.value = itemData.condition_or_stack;
             item.equipped = itemData.is_attached_to;
             item.slotTarget = itemData.is_attached_to;
             trace("IV:addItem::",item.name,"| icon:id",item.iconId,item.dictId,itemData.is_attached_to,item.itemId,item.rank,"category::",item.category,"vcat",ItemCategory.VOUCHERS,"cost::",item.cost,itemData.cost,item.icon,item.sellerIcon,item.messIcon);
             item.enabled = true;
-            if((item.rerollTime))
-            {
-               timer = QuestWindow.getTimerInstance();
-               if(!created)
-               {
-                  item.timeDelta = timer.currentCount;
-               }
-            }
             if(item.category == ItemCategory.VOUCHERS)
             {
                PlayerInfo.setVoucherCount(item.dictId,item.value,item.type,item.itemId);
@@ -1353,7 +1342,6 @@ package survarium.controls
          var item:ItemData;
          var itemId:int;
          var created:Boolean;
-         var timer:Timer;
          var victory_screen:*;
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
          dispatchEvent(new Event(Event.CHANGE));

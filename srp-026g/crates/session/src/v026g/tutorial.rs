@@ -189,8 +189,6 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     if starter_kit {
         wear_starter_kit(account, dictionary);
     }
-    account.extras.tutorial_flags = ALL_DONE;
-    account.tutorial_done = true;
 }
 
 /// What the grant owns (`NewAccount::own`), then its kits worn by the
@@ -329,7 +327,6 @@ mod tests {
         assert_eq!(account.skills, grant.skills);
         assert_eq!(account.free_skill_points(), 0);
         assert_eq!(account.quest_faction, grant.faction.id());
-        assert_eq!(account.extras.tutorial_flags, ALL_DONE);
 
         // The Scavengers at 3000 points: level 5, their highest.
         let dictionary = Dictionary::shared();

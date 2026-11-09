@@ -75,7 +75,6 @@ package survarium.controls
          rerollItem.rank = this._data.rank;
          rerollItem.value = this._data.value;
          rerollItem.factionId = this._data.factionId;
-         rerollItem.rerollTime = this._data.rerollTime;
          upgradeMessage = Message.showMessage("upgrade_item",rerollItem,true);
          ExternalInterface.call("item_reroll_opened",this._data.itemId);
       }
@@ -325,10 +324,6 @@ package survarium.controls
          else
          {
             this.checkButtonEnabled();
-         }
-         if(this.upgradeMessage)
-         {
-            this.upgradeMessage.updateTimer(this._data);
          }
       }
       

@@ -694,12 +694,9 @@ fn a_modification_is_changed_for_one_of_three() {
         item.reroll,
         Reroll {
             modification: 2000,
-            count: 1,
             offer: Some((2000, rolled.choices))
         }
     );
-    // No wait before the next silver reroll (the owner's rule of 2026-10-22).
-    assert_eq!(item.reroll_time, 0);
     // Nothing of the item changed yet.
     assert_eq!(own_modifications(item), [2000, 2010]);
     let message = lobby::permitted_reroll_result(rifle, rolled.choices, rolled.reroll_seconds);
@@ -827,7 +824,6 @@ fn a_change_may_be_given_up_for_the_old_one() {
         assert_eq!(again.paid, 0);
     }
     assert_eq!(account.generic_money, paid);
-    assert_eq!(account.item(rifle).unwrap().reroll.count, 1);
 
     // Keep the old one: named as the one being changed.
     assert_eq!(
@@ -854,7 +850,6 @@ fn a_change_may_be_given_up_for_the_old_one() {
         item.reroll,
         Reroll {
             modification: 2000,
-            count: 1,
             offer: None
         }
     );
@@ -985,7 +980,6 @@ fn every_modification_of_an_item_may_be_changed() {
         item.reroll,
         Reroll {
             modification: rolled.choices[2],
-            count: 4,
             offer: None
         }
     );
@@ -994,35 +988,27 @@ fn every_modification_of_an_item_may_be_changed() {
 
 /// The owner's rule of 2026-10-25 (`docs/notes/flat-reroll.md`): the
 /// Nth change costs what the first did, and the window shows what is
-/// taken. An item with many changes from before pays the same.
+/// taken.
 #[test]
 fn every_change_costs_the_first_ones_price() {
     let mut rng = Rng::new(3);
-    for count in [0, 1, 4, 9, 1_000, u32::MAX] {
-        {
-            let mut account = rich();
-            let rifle = give(&mut account, "ak_74m", &[2000, 2010]);
-            account.item_mut(rifle).unwrap().reroll.count = count;
-            let window = reroll_window(&account, rifle).unwrap();
-            assert_eq!(window.cost, 1200);
-            let before = account.generic_money;
-            let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
-            let taken = before - account.generic_money;
-            assert_eq!((rolled.paid, taken), (window.cost, window.cost));
-            // The count does not wrap round.
-            assert_eq!(
-                account.item(rifle).unwrap().reroll.count,
-                count.saturating_add(1)
-            );
-            // Not a coin short.
-            let mut poor = rich();
-            let rifle = give(&mut poor, "ak_74m", &[2000, 2010]);
-            poor.item_mut(rifle).unwrap().reroll.count = count;
-            poor.generic_money = 1199;
-            assert!(reroll(&mut poor, rifle, 2000, &mut rng).is_err());
-            assert_eq!(poor.generic_money, 1199);
-        }
+    let mut account = rich();
+    let rifle = give(&mut account, "ak_74m", &[2000, 2010]);
+    for _ in 0..5 {
+        let window = reroll_window(&account, rifle).unwrap();
+        assert_eq!(window.cost, 1200);
+        let before = account.generic_money;
+        let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
+        let taken = before - account.generic_money;
+        assert_eq!((rolled.paid, taken), (window.cost, window.cost));
+        choose_modifier(&mut account, rifle, 2000, KEEP_OLD_MODIFICATION).unwrap();
     }
+    // Not a coin short.
+    let mut poor = rich();
+    let rifle = give(&mut poor, "ak_74m", &[2000, 2010]);
+    poor.generic_money = 1199;
+    assert!(reroll(&mut poor, rifle, 2000, &mut rng).is_err());
+    assert_eq!(poor.generic_money, 1199);
 }
 
 #[test]
@@ -1481,7 +1467,6 @@ fn a_loaded_item_is_made_safe() {
     ];
     item.reroll = Reroll {
         modification: 2000,
-        count: 4,
         offer: Some((2000, [1, 2, 3])),
     };
     // A camouflage in a decal's slot, two in one slot, and a rifle.
@@ -1503,7 +1488,6 @@ fn a_loaded_item_is_made_safe() {
         item.reroll,
         Reroll {
             modification: 0,
-            count: 4,
             offer: None
         }
     );
