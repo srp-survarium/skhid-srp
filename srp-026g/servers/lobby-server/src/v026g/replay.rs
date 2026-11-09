@@ -5,8 +5,8 @@
 //! - The ask: `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match>`
 //!   (`victory_screen_request_player_data` with a player no account has),
 //!   to watch the match in this game from that time (0: the first view
-//!   with a player in it) with that place in view first (0xFF: anyone), or
-//!   `REPLAY_WATCH_MY_DEATHS`. Answered at once with one `R1` row
+//!   with a player in it) with that place in view first (0xFF: anyone).
+//!   Answered at once with one `R1` row
 //!   (`lobby::replay_answer`).
 //! - The polls: `3B 00 <REPLAY_START> <count>`, every second while the
 //!   prompt waits, each answered with the asker's own session's `R1` row:
@@ -60,9 +60,10 @@ impl Core<'_> {
             player.in_match.is_none() && player.connect.is_none() && player.queued_since.is_none()
         });
         // A match still being played is watched as it is (`live`).
-        let live = match ask {
-            ReplayWatchAsk::At { place, .. } if free => self.live_watch(who, match_id, place, now),
-            _ => None,
+        let live = if free {
+            self.live_watch(who, match_id, ask.place, now)
+        } else {
+            None
         };
         let status = match (live, self.replays) {
             (Some(status), _) => status,
@@ -73,12 +74,9 @@ impl Core<'_> {
                     account_id: who.account_id,
                     session_id: who.session_id,
                     match_id,
-                    from: match ask {
-                        ReplayWatchAsk::At { seconds, place } => WatchFrom::At {
-                            ms: u32::from(seconds) * 1000,
-                            place,
-                        },
-                        ReplayWatchAsk::MyDeaths => WatchFrom::MyDeaths,
+                    from: WatchFrom {
+                        ms: u32::from(ask.seconds) * 1000,
+                        place: ask.place,
                     },
                     revision: self.store.client_revision(who.session_id).unwrap_or(0),
                 },
@@ -248,9 +246,8 @@ impl Core<'_> {
 /// ten seconds after it signs in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DevAid {
-    /// `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]` or
-    /// `<match hex>,deaths`: it asks to watch that replay, as the movie
-    /// would.
+    /// `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]`: it asks to
+    /// watch that replay, as the movie would.
     Watch { match_id: u32, ask: ReplayWatchAsk },
     /// `SRP_DEV_PLAY_SOLO=1`: Play is pressed for it, and it is seated alone
     /// in a match of its own (played and recorded as any; it ends when the
@@ -270,19 +267,15 @@ impl DevAid {
     }
 }
 
-/// `SRP_DEV_REPLAY_WATCH`: `<match hex>[,<seconds>[,<place>]]`, or
-/// `<match hex>,deaths` (the asker's deaths).
+/// `SRP_DEV_REPLAY_WATCH`: `<match hex>[,<seconds>[,<place>]]`.
 fn dev_watch(value: &str) -> Option<(u32, ReplayWatchAsk)> {
     let mut parts = value.trim().split(',').map(str::trim);
     let match_id = u32::from_str_radix(parts.next()?.trim_start_matches("0x"), 16).ok()?;
-    let ask = match parts.next() {
-        Some("deaths") => ReplayWatchAsk::MyDeaths,
-        seconds => ReplayWatchAsk::At {
-            seconds: seconds.map_or(Some(0), |s| s.parse().ok())?,
-            place: match parts.next() {
-                Some(place) => Some(place.parse().ok()?),
-                None => None,
-            },
+    let ask = ReplayWatchAsk {
+        seconds: parts.next().map_or(Some(0), |s| s.parse().ok())?,
+        place: match parts.next() {
+            Some(place) => Some(place.parse().ok()?),
+            None => None,
         },
     };
     Some((match_id, ask))

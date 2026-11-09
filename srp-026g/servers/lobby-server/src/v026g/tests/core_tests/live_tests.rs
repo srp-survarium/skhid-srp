@@ -44,7 +44,7 @@ fn a_match_in_play(world: &mut World) -> (u32, [usize; 2]) {
 /// The movie's ask to watch `match_id` (a replay session's): its `R1` row.
 fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> String {
     world.take(index);
-    let ask = ReplayWatchAsk::At {
+    let ask = ReplayWatchAsk {
         seconds: 0,
         place: None,
     };
@@ -90,7 +90,7 @@ fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     // Watching: sent to the match as a spectator, 30 s behind, Bob (place
     // 1) in view first.
     world.take(carol);
-    let ask = ReplayWatchAsk::At {
+    let ask = ReplayWatchAsk {
         seconds: 0,
         place: Some(1),
     };

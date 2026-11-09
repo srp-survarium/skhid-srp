@@ -54,7 +54,7 @@ a later time asked for starts from the key frame at or before it, put as far pas
 since allow (as a seek, below).
 
 **The place to follow: the asked one, then the client's.** The server tells the game the place
-asked for (a replay's `place`, "my deaths"'s own place, a live watch's `place`: the same ask) once,
+asked for (a replay's `place`, a live watch's `place`: the same ask) once,
 in a view note (`52 03 place`, `ServerNote::View`) as soon as the game watches (its first world is
 in, so patch 121's camera has picked someone); patch 130 then follows that place, as a player list
 click does. None asked (0xFF): no note, patch 121 follows the player it followed last, else the
@@ -101,7 +101,7 @@ the replay id; srp hands the match server its accounts): a kill (kind 1, killer 
 death no kill was paired with (kind 1, no actor), a battery found or delivered (kind 2, its
 player); captures, scores and the end are not shown. A match is in the history a moment after its
 result; there is no backfill (the owner's decision): matches played before the history shipped
-have no events, so their replays get an empty events note and "my deaths" starts where the asker's
+have no events, so their replays get an empty events note and a watch starts where the asker's
 place is first in view. The session plays the newest recording of the match id.
 
 What the server does:

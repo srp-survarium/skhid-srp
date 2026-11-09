@@ -33,7 +33,7 @@ use replay_control::{KitsNote,
     Request, Speed,
 };
 use session::v026g::GameAccounts;
-use session::v026g::persist::match_events::{self, MatchEvent, Timing};
+use session::v026g::persist::match_events::{self, MatchEvent};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
 use session::v026g::replay_watch::{DEFAULT_MAX_RECORDING_MB, WatchFrom, WatchRequest};
@@ -58,8 +58,6 @@ use crate::v026g::{record, replay, sur_convert};
 const RELAY_LEAD_MS: u32 = HORIZON_MS;
 /// How often the dev control file is read (`SRP_DEV_REPLAY_CONTROL`).
 const CONTROL_EVERY: Duration = Duration::from_millis(250);
-/// "My deaths" starts this long before the death.
-const DEATH_LEAD_MS: u32 = 4_000;
 /// A paused game is pinged this often: nothing else goes to it, and a game
 /// ends a match link silent for 5 s.
 const PAUSED_PING_EVERY: Duration = Duration::from_secs(1);
@@ -75,13 +73,9 @@ pub(crate) struct Recording {
     /// The history's events of it, the viewer's timeline (none without a
     /// history, for a match not kept in it, or the tests' `.sur`).
     timeline: Vec<TimelineEvent>,
-    /// Each death in the history's events: the victim's place and the
-    /// earliest it can have been, by time.
-    deaths: Vec<(u8, u32)>,
     info: StaticInfo,
     /// Each place's account, and each place's game's patch revision (the
-    /// recording's notes): who may watch it, which games play it, and
-    /// whose deaths a player's are.
+    /// recording's notes): who may watch it and which games play it.
     accounts: Vec<Option<u32>>,
     revisions: Vec<Option<u8>>,
     /// Every place's playable kits, for the viewer's kit view.
@@ -174,7 +168,6 @@ impl Recording {
             match_id,
             kits,
             timeline: Vec::new(),
-            deaths: Vec::new(),
             info,
             accounts: Vec::new(),
             revisions: Vec::new(),
@@ -193,60 +186,15 @@ impl Recording {
         &self.worlds[after.saturating_sub(1)]
     }
 
-    /// Where a session of `account_id` asked from `from` starts.
-    ///
-    /// "My deaths": [`DEATH_LEAD_MS`] before the earliest its place's first
-    /// death can have been (a death known within a window, the window's
-    /// start), its place in view; with none known, from where its place is
-    /// first in view.
-    pub(crate) fn start(&self, from: WatchFrom, account_id: u32) -> u32 {
-        match from {
-            WatchFrom::At { ms, place } => self.start_at(ms, place),
-            WatchFrom::MyDeaths => {
-                let place = self.place_of(account_id);
-                let death = self
-                    .deaths
-                    .iter()
-                    .find(|(victim, _)| Some(*victim) == place)
-                    .map(|(_, earliest)| *earliest);
-                let at = death.map_or(0, |earliest| earliest.saturating_sub(DEATH_LEAD_MS));
-                self.start_at(at, place)
-            }
-        }
+    /// Where a session asked from `from` starts.
+    pub(crate) fn start(&self, from: WatchFrom) -> u32 {
+        self.start_at(from.ms, from.place)
     }
 
     /// The history's events of this recording's match (`events_of_replay`
-    /// of its replay id) taken as its timeline ([`timeline_of`]), and each
-    /// death's earliest time, for "my deaths".
+    /// of its replay id) taken as its timeline ([`timeline_of`]).
     pub(crate) fn take_events(&mut self, events: &[MatchEvent]) {
         self.timeline = timeline_of(events);
-        let earliest = |timing: Timing| match timing {
-            Timing::Exact(at) => at,
-            Timing::Between { after, .. } => after,
-        };
-        self.deaths = events
-            .iter()
-            .filter_map(|event| match event.kind {
-                match_events::EventKind::Kill {
-                    victim: Some(victim),
-                    ..
-                }
-                | match_events::EventKind::Death { victim } => {
-                    Some((victim.place, earliest(event.timing)))
-                }
-                _ => None,
-            })
-            .collect();
-        self.deaths.sort_by_key(|(_, at)| *at);
-    }
-
-    /// The account's place (its first, if it had two).
-    fn place_of(&self, account_id: u32) -> Option<u8> {
-        let place = self
-            .accounts
-            .iter()
-            .position(|account| *account == Some(account_id))?;
-        u8::try_from(place).ok()
     }
 
     /// Every place's account.
@@ -1014,10 +962,7 @@ impl ReplayWatch {
         );
         // The place asked to be in view (the camera follows it), as a live
         // match's spectator is told it.
-        let view = match request.from {
-            WatchFrom::At { place, .. } => place,
-            WatchFrom::MyDeaths => prepared.recording.place_of(request.account_id),
-        };
+        let view = request.from.place;
         let spectator = Spectator::connect(
             addr,
             session_id,
@@ -1105,7 +1050,7 @@ impl ReplayWatch {
     /// The recording read for the session: where it starts, told to the
     /// lobby, which sends its game.
     fn prepare(&mut self, request: WatchRequest, recording: Arc<Recording>, now: Instant) {
-        let start = recording.start(request.from, request.account_id);
+        let start = recording.start(request.from);
         if self.replays.watches().loaded(&request, start, now) {
             log::info!(
                 "Replay sessions: match {:#x} ready for account {}: from {start} ms of {} ms, {} \

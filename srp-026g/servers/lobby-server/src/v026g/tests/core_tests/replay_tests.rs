@@ -134,7 +134,7 @@ fn sessions() -> &'static Replays {
 fn ask_to_watch(world: &mut World, index: usize, seconds: u16, place: Option<u8>) -> String {
     use survarium::v026g::lobby::ReplayWatchAsk;
     world.take(index);
-    let ask = ReplayWatchAsk::At { seconds, place };
+    let ask = ReplayWatchAsk { seconds, place };
     world.ask(index, request::player_details(ask.player_id(), MATCH));
     r1(&world.take(index))
 }
@@ -199,7 +199,7 @@ fn a_replay_session_sends_the_game_to_watch_and_holds_its_room_until_it_ends() {
     );
     assert_eq!(
         request.from,
-        WatchFrom::At {
+        WatchFrom {
             ms: 75_000,
             place: Some(3)
         }
@@ -308,23 +308,6 @@ fn a_refused_replay_session_says_why_and_a_busy_player_gets_none() {
         ask_to_watch(&mut world, taras, 0, None),
         "R1;busy;1f07c8fb;0"
     );
-}
-
-/// The results screen's "Watch my deaths" (`0xC1000000`): a session from
-/// the asker's deaths, which the match server finds.
-#[test]
-fn watch_my_deaths_asks_for_a_session_from_the_askers_deaths() {
-    use session::v026g::replay_watch::WatchFrom;
-    use survarium::v026g::lobby::REPLAY_WATCH_MY_DEATHS;
-    let desk = sessions();
-    let mut world = World::new();
-    world.core.replays = Some(desk);
-    let taras = player(&mut world, "Taras", current());
-    world.take(taras);
-    world.ask(taras, request::player_details(REPLAY_WATCH_MY_DEATHS, MATCH));
-    assert_eq!(r1(&world.take(taras)), "R1;preparing;1f07c8fb;2");
-    let request = desk.watches().next_job(world.now).unwrap();
-    assert_eq!(request.from, WatchFrom::MyDeaths);
 }
 
 // ------------------------------------------------------- Save

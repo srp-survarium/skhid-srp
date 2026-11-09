@@ -151,13 +151,12 @@ pub struct WatchRequest {
 
 /// Where a session starts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WatchFrom {
-    /// At `ms` of the match (snapped to a key frame at or before it, and
-    /// never before the first view with a player in it), `place` first in
-    /// view (the start waits for its first entry; `None`: anyone's).
-    At { ms: u32, place: Option<u8> },
-    /// At the asker's first death (4 s before it), its own place in view.
-    MyDeaths,
+pub struct WatchFrom {
+    /// At this much of the match (snapped to a key frame at or before it,
+    /// and never before the first view with a player in it).
+    pub ms: u32,
+    /// First in view (the start waits for its first entry; `None`: anyone's).
+    pub place: Option<u8>,
 }
 
 /// Where a session is.
@@ -561,7 +560,7 @@ mod tests {
             account_id,
             session_id: account_id + 0x100,
             match_id: 0x1F07_C8FB,
-            from: WatchFrom::At { ms: 0, place: None },
+            from: WatchFrom { ms: 0, place: None },
             revision: 40,
         }
     }
