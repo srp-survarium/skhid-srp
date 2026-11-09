@@ -1067,7 +1067,6 @@ va	status	ref_021d	name
 0x001f29d0	inferred-high	0x00156cbf	survarium::player::initialize_player_icon
 0x001f2ad0	inferred-high	0x00156d37	survarium::player::render_name
 0x001f3070	inferred-medium	0x001570a0	survarium::player::render_model
-0x001f3480	inferred-medium	0x00157440	survarium::player::update_camera
 0x001f36d0	inferred-high	0x001575e1	survarium::player::apply_new_input
 0x001f3740	inferred-high	0x00157627	survarium::player::set_effect_presenter
 0x001f37a0	inferred-medium	0x00157645	survarium::player::set_head_visibility
@@ -1322,7 +1321,6 @@ va	status	ref_021d	name
 0x0023f9d0	inferred-medium	0x00180abc	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,survarium::damage_sound_effect>,boost::_bi::list1<boost::_bi::value<survarium::damage_sound_effect *> > > >::manager
 0x0023fb40	inferred-medium	0x00180b98	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf3<void,survarium::damage_sound_effect,char const *,enum survarium::hit_affects_type_enum,enum survarium::affect_event_type_enum>,boost::_bi::list4<boost::_bi::value<survarium::damage_sound_effect *>,boost::arg<1>,boost::arg<2>,boost::arg<3> > > >::manager
 0x0023fca0	inferred-medium	0x0017e9a0	survarium::player_input_handler::`scalar deleting destructor'
-0x002422b0	inferred-medium		survarium::player_input_handler::update_inverted_view
 0x002425c0	inferred-medium	0x0017f882	vostok::buffer_vector<enum survarium::game_action_id>::push_back
 0x00242900	inferred-medium	0x00180cfa	survarium::game_camera::get_projection_matrix
 0x00242950	inferred-medium	0x0018457c	survarium::base_network_client::base_network_client

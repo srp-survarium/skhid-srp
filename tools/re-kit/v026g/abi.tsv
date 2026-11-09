@@ -897,7 +897,7 @@ va	name	source	ret_cleanup	result
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
 0x001f2720	survarium::player::insert	manual	4	none; base_player::insert 0x2DA850 (+33Fh := 1; alive: activate_physics 0x2D9930; link 1: the world's tick lists +18860h/+18880h), then the 3D icon's and models' part (+0F4E0h := 1, 0x1F2300 with link 1); the respawn rule calls it through vtable+20h with 1 (0x316EA9)
 0x001f28e0	survarium::player::on_player_death	manual	4	none; remove_alive(this, 1), then the inventory, +33Eh := 1, +33Dh := 0
-0x001f3480	survarium::player::update_camera	manual	4	
+0x001f3480	survarium::player::update_camera	manual	4	none; the handler's view (+48h) given to camera_director::apply 0x243440 (0x1F365D); in the modes but 0 and 4 the pivot is its local [ESP+10h], the player's +40Ch raised 1.4 m (0xA2DC68) along +41Ch (client_patch.md 3.79)
 0x001f37a0	survarium::player::set_head_visibility	manual	4	
 0x001f3740	survarium::player::set_effect_presenter	manual	0	void; the old holder's presenter cleared (vfn +4), the new one's set_player (vfn +20h) to ESI, and on a change the effect player's presenter (+390h) and its effects presented again (0x2DE560)
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
@@ -986,7 +986,7 @@ va	name	source	ret_cleanup	result
 0x00241250	survarium::player_input_handler::process_first_person_mode	manual	8	
 0x002421c0	survarium::player_input_handler::process_third_person_mode	manual	0	
 0x00242200	survarium::player_input_handler::process_warmup_mode	manual	0	
-0x002422b0	survarium::player_input_handler::update_inverted_view	manual	8	
+0x002422b0	survarium::player_input_handler::update_inverted_view	manual	8	the handler's view +48h (16 f32, row-vector): the transform as is in modes 0 and 4; else turned by rotY(+34Ch) and rotX(+350h) and placed at its place + distance (+354h) x (-k + 0.2 i) of the turned rows (0x242372..0x24240B), no level test (client_patch.md 3.79)
 0x00242460	survarium::player_input_handler::action_present	manual	12	AL: boolean found; output state is queued value or2 for persistent presence; higher EAX bits unspecified
 0x00242770	survarium::game_camera::set_position_direction	manual	4	
 0x00242d50	survarium::base_network_client::spectate_next_player	manual	0	

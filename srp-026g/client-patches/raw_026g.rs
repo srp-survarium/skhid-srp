@@ -545,6 +545,15 @@ impl PlayerInputHandler {
     pub unsafe fn set_game_world(self, value: Option<GameWorld>) {
         unsafe { self.0.byte_add(0x334).cast::<Option<GameWorld>>().write_volatile(value) }
     }
+
+    /// +0x48 (f32): the camera's world transform, a row-vector 4x4 (16 f32, its place at +78h): update_inverted_view 0x2422B0 writes it (0x24243B) from the transform it is given, copied in modes 0 and 4, else orbited about it; camera_director::apply 0x243440 (0x1F365D) gives it to the view
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::game_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -1384,6 +1393,24 @@ impl Player {
     #[inline(always)]
     pub unsafe fn set_presenters(self, value: Option<PlayerPresenters>) {
         unsafe { self.0.byte_add(0xf478).cast::<Option<PlayerPresenters>>().write_volatile(value) }
+    }
+
+    /// +0xf470 (ptr<survarium::player_input_handler>): its camera's input handler (update_camera 0x1F348D: its mode +358h picks the eyes or the orbit; the view update 0x2422B0's first argument, 0x1F3649)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn input_handler(self) -> Option<PlayerInputHandler> {
+        unsafe { self.0.byte_add(0xf470).cast::<Option<PlayerInputHandler>>().read_volatile() }
+    }
+
+    /// +0xf470 (ptr<survarium::player_input_handler>): its camera's input handler (update_camera 0x1F348D: its mode +358h picks the eyes or the orbit; the view update 0x2422B0's first argument, 0x1F3649)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_input_handler(self, value: Option<PlayerInputHandler>) {
+        unsafe { self.0.byte_add(0xf470).cast::<Option<PlayerInputHandler>>().write_volatile(value) }
     }
 }
 
@@ -18239,6 +18266,30 @@ impl OutOfMemoryFrame {
     }
 }
 
+/// A survarium::update_camera_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UpdateCameraFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UpdateCameraFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (f32): player::update_camera's local [esp+10h], in the modes but 0 and 4 the transform the orbit turns about (16 f32, from 0x1F3609): the player's +40Ch with its place raised 1.4 m (0xA2DC68) along its own up row (+41Ch); not written in modes 0 and 4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pivot(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -18952,6 +19003,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// camera.orbited (0x1f3650): update_camera after the view's update (0x1F364B: 0x2422B0, or patch 46's death_view) wrote the handler's view (+48h), before camera_director::apply takes it (mov edx,[ebx+0F478h]; EBX the player, the frame's +10h the orbit's pivot in the modes but 0 and 4)
+    pub mod camera_orbited {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// the site's ESP: a survarium::update_camera_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<UpdateCameraFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(UpdateCameraFrame)
         }
     }
 

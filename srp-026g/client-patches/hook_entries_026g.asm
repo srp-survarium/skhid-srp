@@ -2377,6 +2377,45 @@ weapon_flight_on_view_replay:
     db 0xd9, 0x83, 0xb4, 0x00, 0x00, 0x00
     jmp 0x2840f8
 
+; 0x1f3650 update_camera after the view's update (0x1F364B: 0x2422B0, or patch 46's death_view) wrote the handler's view (+48h), before camera_director::apply takes it (mov edx,[ebx+0F478h]; EBX the player, the frame's +10h the orbit's pivot in the modes but 0 and 4): lohook -> camera_walls_on_orbited
+global camera_walls_on_orbited
+extern hook_camera_walls_on_orbited
+camera_walls_on_orbited:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_camera_walls_on_orbited
+    mov edx, camera_walls_on_orbited_replay
+    cmp eax, 0
+    je camera_walls_on_orbited_go
+    mov edx, 0x1f3656
+    cmp eax, 1
+    je camera_walls_on_orbited_go
+    ud2
+camera_walls_on_orbited_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+camera_walls_on_orbited_replay:
+    db 0x8b, 0x93, 0x78, 0xf4, 0x00, 0x00
+    jmp 0x1f3656
+
 ; 0x23b7a0 update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer: lohook -> consumable_activity_on_update
 global consumable_activity_on_update
 extern hook_consumable_activity_on_update
