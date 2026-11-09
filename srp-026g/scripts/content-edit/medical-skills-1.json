@@ -1,5 +1,5 @@
 {
-  "_about": "Medical tree agreed with the owner. Thresholds 0/5/10/20/25. Packed integer ranks travel in the unused native armored_trap modifier (43); client medical_skills decodes them. Supply Pocket excludes the existing equivalent and Terminator. Native gameplay hooks must ship with this content.",
+  "_about": "Medical tree agreed with the owner. Thresholds 0/3/10/15/20. Packed integer ranks travel in the unused native modifiers armored_trap (43) and can_defuse_traps (45: Numb Legs, Take Cover, Unflinching, Concentration); client medical_skills decodes them. Supply Pocket excludes the existing equivalent, Terminator and Additional Medicine; Unflinching and Concentration exclude each other. Native gameplay hooks must ship with this content.",
   "append_entry": [
     {
       "file": "gameplay/skills/skills_tree.options",
@@ -8,7 +8,7 @@
       "unique_key": "id",
       "value": {
         "id": 301,
-        "levels_amount": 5,
+        "levels_amount": 3,
         "preconditions": {
           "branch_points": 0
         },
@@ -21,40 +21,28 @@
           "description": "st_srp_medical_301_description",
           "icon": 1,
           "invert_sign": 1,
-          "postfix": "st_percent_postfix",
+          "postfix": "st_srp_medical_seconds",
           "skill_descriptions": [
             [
-              " <green>+5",
-              " 0",
+              " <green>+1% / +1.5",
+              " 0% / 0",
               "</green>",
               ""
             ],
             [
-              " <green>+5",
-              " +5",
+              " <green>+1% / +1.5",
+              " +1% / +1.5",
               "</green>",
               ""
             ],
             [
-              " <green>+5",
-              " +10",
+              " <green>+1% / +1.5",
+              " +2% / +3",
               "</green>",
               ""
             ],
             [
-              " <green>+5",
-              " +15",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+5",
-              " +20",
-              "</green>",
-              ""
-            ],
-            [
-              "<green> +25",
+              "<green> +3% / +4.5",
               0,
               "</green>",
               ""
@@ -62,12 +50,6 @@
           ]
         },
         "modifiers": [
-          {
-            "armored_trap_modifier": 1.0
-          },
-          {
-            "armored_trap_modifier": 1.0
-          },
           {
             "armored_trap_modifier": 1.0
           },
@@ -87,7 +69,7 @@
       "unique_key": "id",
       "value": {
         "id": 302,
-        "levels_amount": 5,
+        "levels_amount": 2,
         "preconditions": {
           "branch_points": 0
         },
@@ -103,32 +85,14 @@
           "postfix": "st_percent_postfix",
           "skill_descriptions": [
             [
-              " <green>+2",
+              " <green>+5",
               " 0",
               "</green>",
               ""
             ],
             [
-              " <green>+2",
-              " +2",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+2",
-              " +4",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+2",
-              " +6",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+2",
-              " +8",
+              " <green>+5",
+              " +5",
               "</green>",
               ""
             ],
@@ -146,15 +110,6 @@
           },
           {
             "armored_trap_modifier": 8.0
-          },
-          {
-            "armored_trap_modifier": 8.0
-          },
-          {
-            "armored_trap_modifier": 8.0
-          },
-          {
-            "armored_trap_modifier": 8.0
           }
         ]
       }
@@ -165,10 +120,62 @@
       "expected_count": 28,
       "unique_key": "id",
       "value": {
+        "id": 303,
+        "levels_amount": 2,
+        "preconditions": {
+          "branch_points": 10
+        },
+        "ui": {
+          "position": [
+            2,
+            3
+          ],
+          "name": "st_srp_medical_303_name",
+          "description": "st_srp_medical_303_description",
+          "icon": 9,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+20",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+20",
+              " +20",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +40",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "can_defuse_traps_modifier": 1.0
+          },
+          {
+            "can_defuse_traps_modifier": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 29,
+      "unique_key": "id",
+      "value": {
         "id": 311,
         "levels_amount": 5,
         "preconditions": {
-          "branch_points": 5
+          "branch_points": 3
         },
         "ui": {
           "position": [
@@ -241,13 +248,13 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 29,
+      "expected_count": 30,
       "unique_key": "id",
       "value": {
         "id": 312,
-        "levels_amount": 5,
+        "levels_amount": 3,
         "preconditions": {
-          "branch_points": 5
+          "branch_points": 3
         },
         "ui": {
           "position": [
@@ -257,6 +264,122 @@
           "name": "st_srp_medical_312_name",
           "description": "st_srp_medical_312_description",
           "icon": 5,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+8",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+8",
+              " +8",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+8",
+              " +16",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +24",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "armored_trap_modifier": 512.0,
+            "drug_amount_modifier": 0.08
+          },
+          {
+            "armored_trap_modifier": 512.0,
+            "drug_amount_modifier": 0.08
+          },
+          {
+            "armored_trap_modifier": 512.0,
+            "drug_amount_modifier": 0.08
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 31,
+      "unique_key": "id",
+      "value": {
+        "id": 313,
+        "levels_amount": 2,
+        "preconditions": {
+          "branch_points": 3
+        },
+        "ui": {
+          "position": [
+            3,
+            2
+          ],
+          "name": "st_srp_medical_313_name",
+          "description": "st_srp_medical_313_description",
+          "icon": 14,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+10",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +10",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +20",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "can_defuse_traps_modifier": 4.0
+          },
+          {
+            "can_defuse_traps_modifier": 4.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 32,
+      "unique_key": "id",
+      "value": {
+        "id": 321,
+        "levels_amount": 3,
+        "preconditions": {
+          "branch_points": 10
+        },
+        "ui": {
+          "position": [
+            4,
+            3
+          ],
+          "name": "st_srp_medical_321_name",
+          "description": "st_srp_medical_321_description",
+          "icon": 10,
           "invert_sign": 1,
           "postfix": "st_percent_postfix",
           "skill_descriptions": [
@@ -279,102 +402,6 @@
               ""
             ],
             [
-              " <green>+5",
-              " +15",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+5",
-              " +20",
-              "</green>",
-              ""
-            ],
-            [
-              "<green> +25",
-              0,
-              "</green>",
-              ""
-            ]
-          ]
-        },
-        "modifiers": [
-          {
-            "armored_trap_modifier": 512.0,
-            "drug_amount_modifier": 0.05
-          },
-          {
-            "armored_trap_modifier": 512.0,
-            "drug_amount_modifier": 0.05
-          },
-          {
-            "armored_trap_modifier": 512.0,
-            "drug_amount_modifier": 0.05
-          },
-          {
-            "armored_trap_modifier": 512.0,
-            "drug_amount_modifier": 0.05
-          },
-          {
-            "armored_trap_modifier": 512.0,
-            "drug_amount_modifier": 0.05
-          }
-        ]
-      }
-    },
-    {
-      "file": "gameplay/skills/skills_tree.options",
-      "list": "skills_tree",
-      "expected_count": 30,
-      "unique_key": "id",
-      "value": {
-        "id": 321,
-        "levels_amount": 5,
-        "preconditions": {
-          "branch_points": 10
-        },
-        "ui": {
-          "position": [
-            2,
-            3
-          ],
-          "name": "st_srp_medical_321_name",
-          "description": "st_srp_medical_321_description",
-          "icon": 10,
-          "invert_sign": 1,
-          "postfix": "st_percent_postfix",
-          "skill_descriptions": [
-            [
-              " <green>+3",
-              " 0",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+3",
-              " +3",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+3",
-              " +6",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+3",
-              " +9",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+3",
-              " +12",
-              "</green>",
-              ""
-            ],
-            [
               "<green> +15",
               0,
               "</green>",
@@ -391,12 +418,6 @@
           },
           {
             "armored_trap_modifier": 4096.0
-          },
-          {
-            "armored_trap_modifier": 4096.0
-          },
-          {
-            "armored_trap_modifier": 4096.0
           }
         ]
       }
@@ -404,18 +425,21 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 31,
+      "expected_count": 33,
       "unique_key": "id",
       "value": {
         "id": 322,
         "levels_amount": 1,
         "preconditions": {
-          "branch_points": 20
+          "branch_points": 20,
+          "antiskills": [
+            331
+          ]
         },
         "ui": {
           "position": [
-            4,
-            4
+            3,
+            5
           ],
           "name": "st_srp_medical_322_name",
           "description": "st_srp_medical_322_description",
@@ -431,7 +455,80 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 32,
+      "expected_count": 34,
+      "unique_key": "id",
+      "value": {
+        "id": 323,
+        "levels_amount": 4,
+        "preconditions": {
+          "branch_points": 15,
+          "antiskills": [
+            333
+          ]
+        },
+        "ui": {
+          "position": [
+            3,
+            4
+          ],
+          "name": "st_srp_medical_323_name",
+          "description": "st_srp_medical_323_description",
+          "icon": 7,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+10",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +10",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +20",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +30",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +40",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "can_defuse_traps_modifier": 16.0
+          },
+          {
+            "can_defuse_traps_modifier": 16.0
+          },
+          {
+            "can_defuse_traps_modifier": 16.0
+          },
+          {
+            "can_defuse_traps_modifier": 16.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 35,
       "unique_key": "id",
       "value": {
         "id": 331,
@@ -440,13 +537,14 @@
           "branch_points": 20,
           "antiskills": [
             111,
-            113
+            113,
+            322
           ]
         },
         "ui": {
           "position": [
             2,
-            4
+            5
           ],
           "name": "st_srp_medical_331_name",
           "description": "st_srp_medical_331_description",
@@ -464,17 +562,17 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 33,
+      "expected_count": 36,
       "unique_key": "id",
       "value": {
         "id": 332,
         "levels_amount": 5,
         "preconditions": {
-          "branch_points": 20
+          "branch_points": 15
         },
         "ui": {
           "position": [
-            3,
+            2,
             4
           ],
           "name": "st_srp_medical_332_name",
@@ -543,49 +641,25 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 34,
+      "expected_count": 37,
       "unique_key": "id",
       "value": {
-        "id": 341,
-        "levels_amount": 1,
+        "id": 333,
+        "levels_amount": 4,
         "preconditions": {
-          "branch_points": 25
+          "branch_points": 15,
+          "antiskills": [
+            323
+          ]
         },
         "ui": {
           "position": [
-            2,
-            5
+            4,
+            4
           ],
-          "name": "st_srp_medical_341_name",
-          "description": "st_srp_medical_341_description",
-          "icon": 14
-        },
-        "modifiers": [
-          {
-            "armored_trap_modifier": 1048576.0
-          }
-        ]
-      }
-    },
-    {
-      "file": "gameplay/skills/skills_tree.options",
-      "list": "skills_tree",
-      "expected_count": 35,
-      "unique_key": "id",
-      "value": {
-        "id": 342,
-        "levels_amount": 5,
-        "preconditions": {
-          "branch_points": 10
-        },
-        "ui": {
-          "position": [
-            3,
-            3
-          ],
-          "name": "st_srp_medical_342_name",
-          "description": "st_srp_medical_342_description",
-          "icon": 16,
+          "name": "st_srp_medical_333_name",
+          "description": "st_srp_medical_333_description",
+          "icon": 15,
           "invert_sign": 1,
           "postfix": "st_percent_postfix",
           "skill_descriptions": [
@@ -614,8 +688,60 @@
               ""
             ],
             [
-              " <green>+10",
-              " +40",
+              "<green> +40",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "can_defuse_traps_modifier": 128.0
+          },
+          {
+            "can_defuse_traps_modifier": 128.0
+          },
+          {
+            "can_defuse_traps_modifier": 128.0
+          },
+          {
+            "can_defuse_traps_modifier": 128.0
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 38,
+      "unique_key": "id",
+      "value": {
+        "id": 342,
+        "levels_amount": 2,
+        "preconditions": {
+          "branch_points": 10
+        },
+        "ui": {
+          "position": [
+            1,
+            3
+          ],
+          "name": "st_srp_medical_342_name",
+          "description": "st_srp_medical_342_description",
+          "icon": 16,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+25",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+25",
+              " +25",
               "</green>",
               ""
             ],
@@ -633,1406 +759,9 @@
           },
           {
             "armored_trap_modifier": 2097152.0
-          },
-          {
-            "armored_trap_modifier": 2097152.0
-          },
-          {
-            "armored_trap_modifier": 2097152.0
-          },
-          {
-            "armored_trap_modifier": 2097152.0
           }
         ]
       }
-    }
-  ],
-  "add_key": [
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Potent Painkiller"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Painkiller duration increases by 1 second per rank. Bonus to its existing pain protection:"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Starkes Schmerzmittel"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Schmerzmittel wirken pro Rang 1 Sekunde länger. Bonus auf ihren bestehenden Schmerzschutz:"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Silny środek przeciwbólowy"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Środek przeciwbólowy działa o 1 sekundę dłużej na rangę. Premia do jego obecnej ochrony przed bólem:"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Сильное обезболивающее"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Обезболивающее действует на 1 секунду дольше за каждый ранг. Бонус к его текущей защите от боли:"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Сильное обезболивающее"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Обезболивающее действует на 1 секунду дольше за каждый ранг. Бонус к его текущей защите от боли:"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Сильне знеболювальне"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Знеболювальне діє на 1 секунду довше за кожен ранг. Бонус до його поточного захисту від болю:"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Fast Bandaging"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Reduction in activation time of first-aid kits and bandages:"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Schnelles Verbinden"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Verkürzung der Aktivierungszeit von Erste-Hilfe-Sets und Verbänden:"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Szybkie bandażowanie"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Skrócenie czasu użycia apteczek i bandaży:"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Быстрая перевязка"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Сокращение времени применения аптечек и бинтов:"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Быстрая перевязка"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Сокращение времени применения аптечек и бинтов:"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Швидка перев'язка"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Скорочення часу застосування аптечок і бинтів:"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Metabolism"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Health regeneration starts this many seconds sooner:"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Stoffwechsel"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Die Gesundheitsregeneration beginnt so viele Sekunden früher:"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Metabolizm"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Regeneracja zdrowia zaczyna się o tyle sekund wcześniej:"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Метаболизм"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Регенерация здоровья начинается на столько секунд раньше:"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Метаболизм"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Регенерация здоровья начинается на столько секунд раньше:"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Метаболізм"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Регенерація здоров'я починається на стільки секунд раніше:"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Medical Training"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Bonus to health restored by first-aid kits and bandages:"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Medizinische Ausbildung"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände:"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Szkolenie medyczne"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Premia do zdrowia przywracanego przez apteczki i bandaże:"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Медицинская подготовка"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Бонус к здоровью, восстанавливаемому аптечками и бинтами:"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Медицинская подготовка"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Бонус к здоровью, восстанавливаемому аптечками и бинтами:"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Медична підготовка"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Бонус до здоров'я, відновлюваного аптечками і бинтами:"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Adrenalin"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Bonus to movement speed while health is below 20:"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Adrenalin"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Bonus auf die Bewegungsgeschwindigkeit bei weniger als 20 Gesundheit:"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Adrenalina"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Premia do prędkości ruchu przy zdrowiu poniżej 20:"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Адреналин"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Бонус к скорости передвижения при здоровье ниже 20:"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Адреналин"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Бонус к скорости передвижения при здоровье ниже 20:"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Адреналін"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Бонус до швидкості пересування за здоров'я нижче 20:"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Additional Medicine"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Each pocket containing medicine holds one extra item."
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Zusätzliche Medizin"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Jede Tasche mit Medizin fasst einen weiteren Gegenstand."
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Dodatkowe lekarstwa"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Każda kieszeń z lekarstwami mieści jeden dodatkowy przedmiot."
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Дополнительные медикаменты"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Каждый карман с медикаментами вмещает ещё один предмет."
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Дополнительные медикаменты"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Каждый карман с медикаментами вмещает ещё один предмет."
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Додаткові медикаменти"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Кожна кишеня з медикаментами вміщує ще один предмет."
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Supply Pocket"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Replaces the secondary weapon slot with an additional supply pocket."
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Vorratstasche"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Ersetzt den Platz für die Sekundärwaffe durch eine zusätzliche Vorratstasche."
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Kieszeń na zapasy"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Zastępuje miejsce na broń dodatkową dodatkową kieszenią na zapasy."
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Карман для припасов"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Заменяет ячейку дополнительного оружия дополнительным карманом для припасов."
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Карман для припасов"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Заменяет ячейку дополнительного оружия дополнительным карманом для припасов."
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Кишеня для припасів"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Замінює комірку додаткової зброї додатковою кишенею для припасів."
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Strong Bones"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Bonus to maximum health of arms and legs:"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Starke Knochen"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Bonus auf die maximale Gesundheit von Armen und Beinen:"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Mocne kości"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Premia do maksymalnego zdrowia rąk i nóg:"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Крепкие кости"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Бонус к максимальному здоровью рук и ног:"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Крепкие кости"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Бонус к максимальному здоровью рук и ног:"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Міцні кістки"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Бонус до максимального здоров'я рук і ніг:"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Medic"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "Activating Larkspur also grants its active effect to teammates within 5 metres. \"They glow, you shine\""
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Sanitäter"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "Beim Aktivieren von Lebensknochen erhalten auch Teammitglieder im Umkreis von 5 Metern dessen aktiven Effekt. \"Sie leuchten, du strahlst\""
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Medyk"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "Aktywacja Żywokostu zapewnia jego aktywny efekt również członkom drużyny w promieniu 5 metrów. \"Oni świecą, ty błyszczysz\""
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Медик"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "При активации Живокоста его активный эффект также получают союзники в радиусе 5 метров. \"Они светятся, ты сияешь\""
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Медик"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "При активации Живокоста его активный эффект также получают союзники в радиусе 5 метров. \"Они светятся, ты сияешь\""
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Медик"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "Під час активації Живокосту його активний ефект також отримують союзники в радіусі 5 метрів. \"Вони світяться, ти сяєш\""
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Brothers in Arms"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Reduction in damage received from allies:"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Waffenbrüder"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Verringerung des durch Verbündete erlittenen Schadens:"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Braterstwo broni"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Zmniejszenie obrażeń otrzymywanych od sojuszników:"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Братья по оружию"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Снижение урона, получаемого от союзников:"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Братья по оружию"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Снижение урона, получаемого от союзников:"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Брати по зброї"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Зменшення шкоди, отримуваної від союзників:"
-    },
-    {
-      "file": "localization/english/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " s"
-    },
-    {
-      "file": "localization/german/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " s"
-    },
-    {
-      "file": "localization/polish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " s"
-    },
-    {
-      "file": "localization/russian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " s"
-    },
-    {
-      "file": "localization/original/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " s"
-    },
-    {
-      "file": "localization/ukrainian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " s"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Snažan analgetik"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Analgetik traje 1 sekundu duže po rangu. Dodatak postojećoj zaštiti od bola:"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Brzo previjanje"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Smanjenje vremena upotrebe kompleta prve pomoći i zavoja:"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Metabolizam"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Obnavljanje zdravlja počinje ovoliko sekundi ranije:"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Medicinska obuka"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Dodatak zdravlju koje vraćaju kompleti prve pomoći i zavoji:"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Adrenalin"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Dodatak brzini kretanja dok je zdravlje ispod 20:"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Dodatni lekovi"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Svaki džep sa lekovima može da primi još jedan predmet."
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Džep za zalihe"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Zamenjuje mesto za sekundarno oružje dodatnim džepom za zalihe."
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Jake kosti"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Dodatak maksimalnom zdravlju ruku i nogu:"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Bolničar"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "Aktiviranje artefakta Larkspur prenosi njegov aktivni efekat i na saigrače u krugu od 5 metara. \"Oni svetle, ti blistaš\""
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Braća po oružju"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Smanjenje štete koju nanose saveznici:"
-    },
-    {
-      "file": "localization/serbian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " s"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Silné analgetikum"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Účinek analgetika trvá o 1 sekundu déle za každou úroveň. Bonus k jeho stávající ochraně před bolestí:"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Rychlé obvazování"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Zkrácení doby použití lékárniček a obvazů:"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Metabolismus"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Regenerace zdraví začíná o tento počet sekund dříve:"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Zdravotnický výcvik"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Bonus ke zdraví obnovenému lékárničkami a obvazy:"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Adrenalin"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Bonus k rychlosti pohybu při zdraví pod 20:"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Další léky"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Každá kapsa s léky pojme jeden předmět navíc."
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Zásobovací kapsa"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Nahradí slot pro sekundární zbraň další zásobovací kapsou."
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Pevné kosti"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Bonus k maximálnímu zdraví paží a nohou:"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Zdravotník"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "Aktivace artefaktu Larkspur poskytne jeho aktivní účinek také spoluhráčům do vzdálenosti 5 metrů. \"Oni září, ty zazáříš\""
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Bratři ve zbrani"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Snížení poškození od spojenců:"
-    },
-    {
-      "file": "localization/czech/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " s"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Erős fájdalomcsillapító"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "A fájdalomcsillapító hatása szintenként 1 másodperccel tovább tart. Bónusz a meglévő fájdalom elleni védelemhez:"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Gyors kötözés"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Az elsősegélycsomagok és kötszerek használati idejének csökkenése:"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Anyagcsere"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Az életerő regenerálódása ennyi másodperccel korábban kezdődik:"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Egészségügyi képzés"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Az elsősegélycsomagok és kötszerek által visszaállított életerő bónusza:"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Adrenalin"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Mozgási sebesség bónusza 20 alatti életerőnél:"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Több gyógyszer"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Minden gyógyszert tartalmazó zsebben eggyel több tárgy fér el."
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Felszerelészseb"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "A másodlagos fegyver helyét egy további felszerelészsebre cseréli."
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Erős csontok"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "A karok és lábak maximális életerejének bónusza:"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Felcser"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "A Larkspur aktiválásakor az aktív hatását az 5 méteren belüli csapattársak is megkapják. \"Ők ragyognak, te tündökölsz\""
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Fegyvertársak"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "A szövetségesektől kapott sebzés csökkenése:"
-    },
-    {
-      "file": "localization/hungarian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " mp"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Tehokas kipulääke"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Kipulääkkeen vaikutus pitenee yhdellä sekunnilla taitotasoa kohden. Lisäys sen nykyiseen suojaan kipua vastaan:"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Nopea sitominen"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Ensiapupakkausten ja siteiden käyttöajan lyhennys:"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Aineenvaihdunta"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Terveyden palautuminen alkaa näin monta sekuntia aiemmin:"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Lääkintäkoulutus"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Lisäys ensiapupakkausten ja siteiden palauttamaan terveyteen:"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Adrenaliini"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Liikkumisnopeuden lisäys, kun terveys on alle 20:"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Lisälääkkeet"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Jokaiseen lääkkeitä sisältävään taskuun mahtuu yksi esine lisää."
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Tarviketasku"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Korvaa toissijaisen aseen paikan ylimääräisellä tarviketaskulla."
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Vahvat luut"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Lisäys käsien ja jalkojen enimmäisterveyteen:"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Lääkintämies"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "Larkspurin aktivointi antaa sen aktiivisen vaikutuksen myös joukkuetovereille 5 metrin säteellä. \"He hohtavat, sinä loistat\""
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Aseveljet"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Liittolaisilta saadun vahingon vähennys:"
-    },
-    {
-      "file": "localization/finnish/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " s"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_name",
-      "text": "Моцнае абязбольвальнае"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_301_description",
-      "text": "Дзеянне абязбольвальнага доўжыцца на 1 секунду больш за кожны ранг. Бонус да яго наяўнай абароны ад болю:"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_name",
-      "text": "Хуткая перавязка"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_302_description",
-      "text": "Скарачэнне часу выкарыстання аптэчак і бінтоў:"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_name",
-      "text": "Метабалізм"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_311_description",
-      "text": "Аднаўленне здароўя пачынаецца на столькі секунд раней:"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_name",
-      "text": "Медыцынская падрыхтоўка"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_312_description",
-      "text": "Бонус да здароўя, якое аднаўляюць аптэчкі і бінты:"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_name",
-      "text": "Адрэналін"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_321_description",
-      "text": "Бонус да хуткасці руху пры здароўі ніжэй за 20:"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_name",
-      "text": "Дадатковыя лекі"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_322_description",
-      "text": "Кожная кішэня з лекамі змяшчае на адзін прадмет больш."
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_name",
-      "text": "Кішэня для прыпасаў"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_331_description",
-      "text": "Замяняе слот дадатковай зброі дадатковай кішэняй для прыпасаў."
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_name",
-      "text": "Моцныя косці"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_332_description",
-      "text": "Бонус да максімальнага здароўя рук і ног:"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_name",
-      "text": "Медык"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_341_description",
-      "text": "Пры актывацыі Жывакост таксама дае свой актыўны эфект таварышам па камандзе ў радыусе 5 метраў. \"Яны свецяцца, ты ззяеш\""
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_name",
-      "text": "Браты па зброі"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_342_description",
-      "text": "Зніжэнне шкоды ад саюзнікаў:"
-    },
-    {
-      "file": "localization/belarusian/localization",
-      "table": "strings",
-      "key": "st_srp_medical_seconds",
-      "text": " с"
     }
   ],
   "add_item": [

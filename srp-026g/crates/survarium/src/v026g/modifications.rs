@@ -5,9 +5,10 @@
 //! The game's own files, embedded as they are in 0.26g's `resources.db`:
 //!
 //! - `gameplay/items/modifications/modifications.options`: 158
-//!   `modifications`, 20 `defects` and 3 `defect_slots`;
-//! - `gameplay/items/craft/craft.options`: prices by item level and the
-//!   chances by the difference in modifications;
+//!   `modifications`, 20 `defects` and 3 `defect_slots` (not read: no item
+//!   gets a defect, as nothing wears);
+//! - `gameplay/items/craft/craft.options`: prices by item level (its
+//!   chances are not read: an upgrade always succeeds);
 //! - `gameplay/items/reroll/reroll.options`: prices by item level (its
 //!   multiplier is not used: every change costs the same);
 //!
@@ -37,8 +38,9 @@
 //! that data:
 //!
 //! - A modification's `type_mask` has one character set: its **type**
-//!   (1..=40), five strengths of a type sharing it with `drop_weight`
-//!   10, 8, 6.4, 5.12, 4.096. An item may get the types its
+//!   (1..=40 in the stock data; 41 srp's Artifact-master cooldown), five
+//!   strengths of a type sharing it with `drop_weight` 10, 8, 6.4, 5.12,
+//!   4.096. An item may get the types its
 //!   `available_modifications_mask` names; the item's mask is one character
 //!   shorter, its character `j` standing for type `j + 1` [PROVEN by the
 //!   data: only so do bolt-action rifles get "chamber a round" and automatic
@@ -61,12 +63,11 @@
 //!   three such defects take a pocket, an artefact slot or an ammo bag away
 //!   and name the ids of the modifications that give one].
 //! - `defect_slots`: three slots, `condition: [0.9, 0]`, `[0.5, 0]`,
-//!   `[0.1, 0]` and `probability: [0.1, 0.5]`, `[0.3, 0.7]`, `[0.5, 1]`.
-//!   Read as: slot `n` opens when the condition is under its first number,
-//!   and the chance of a defect in it goes from the first probability there
-//!   to the second at condition 0 [LIKELY]; when the roll is made is not in
-//!   the data [srp: once for each match that wore the item,
-//!   [`Modifications::roll_defect`]].
+//!   `[0.1, 0]` and `probability: [0.1, 0.5]`, `[0.3, 0.7]`, `[0.5, 1]`
+//!   [LIKELY: slot `n` opens under its first condition]. srp rolls no
+//!   defect: items wear nothing and nothing repairs them (the owner,
+//!   2026-11-08). The defect rows are read for what the client knows of
+//!   them ([`Modifications::is_known`]).
 //! - A modifier's `type` 1 adds its value and 2 multiplies by `1 + value`
 //!   [LIKELY: armour and slot counts are type 1 with absolute steps, damage,
 //!   weight and wear type 2 with small fractions].
@@ -77,6 +78,7 @@ use super::dictionary::Dictionary;
 use super::drops::Rng;
 use super::game_data::{GameData, GameDataError};
 use super::item_params::item_params;
+use super::prices::GOLD_IN_SILVER;
 use super::scopes::{SCOPE_SLOT, ScopeFits};
 
 /// The paths of the three files in the archive.
@@ -154,7 +156,7 @@ pub struct Modifier {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Modification {
     pub id: u32,
-    /// The character of `type_mask` that is set, 1..=40.
+    /// The character of `type_mask` that is set, 1..=41.
     pub kind: u8,
     pub drop_weight: f32,
     /// The localization key of its name (`ui_desc.name`).
@@ -216,137 +218,62 @@ pub struct Defect {
     pub kind: u8,
     pub drop_weight: f32,
     pub name: String,
-    /// Silver, gold and seconds to fix it.
-    pub fix_cost_general: u32,
-    pub fix_cost_gold: u32,
-    pub fix_time_general: u32,
     /// `required_modifications`: the item must hold a modification with an
     /// id in `low..=high`.
     pub required_modifications: Option<(u32, u32)>,
     pub modifiers: Vec<Modifier>,
 }
 
-/// A row of `defect_slots`.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct DefectSlot {
-    /// `condition`: the slot is open under the first; the second is where
-    /// the chance is highest.
-    pub condition: (f32, f32),
-    /// `probability` at those two conditions.
-    pub probability: (f32, f32),
-}
-
-impl DefectSlot {
-    /// The chance of a defect in this slot at `condition` (0..=1): none
-    /// until the slot is open.
-    pub fn chance(&self, condition: f32) -> f32 {
-        let (open, worst) = self.condition;
-        if condition >= open || open <= worst {
-            return 0.0;
-        }
-        let along = ((open - condition) / (open - worst)).clamp(0.0, 1.0);
-        self.probability.0 + (self.probability.1 - self.probability.0) * along
-    }
-}
-
-/// `craft.options`.
+/// `craft.options`, in silver: gold is gone [the owner, 2026-11-08], and the
+/// one upgrade left is the game's gold one (`craft_price_premium` times
+/// [`GOLD_IN_SILVER`]; the silver table, `craft_price_general`, is not read).
+/// [the owner, 2026-11-08: "make it 100% always"] An upgrade always adds a
+/// modification, so the file's chances are not read either.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Craft {
-    /// Silver and gold by the item's level.
-    pub price_general: [u16; PRICE_LEVELS],
-    pub price_premium: [u16; PRICE_LEVELS],
-    /// By how many more modifications the item has than its donor (0, 1,
-    /// 2): `(success %, failure %)`; the rest is "nothing happened".
-    pub chances_general: [(f32, f32); 3],
-    pub chances_premium: [(f32, f32); 3],
-}
-
-/// What an upgrade ("craft") does.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CraftOutcome {
-    /// One more modification.
-    Success,
-    /// Nothing but the donor and the price are lost.
-    Neutral,
-    /// One modification less, in the game's data; srp takes none away
-    /// (the owner's rule of 2026-10-23, `docs/notes/craft-menu.md`): the
-    /// session does what [`CraftOutcome::Neutral`] does.
-    Failure,
+    /// Silver by the item's level.
+    pub price: [u16; PRICE_LEVELS],
 }
 
 impl Craft {
-    /// The price for an item of `item_level`, in silver or in gold. A level
-    /// past the table costs the table's last.
-    pub fn price(&self, item_level: u8, gold: bool) -> u32 {
-        let table = if gold {
-            &self.price_premium
-        } else {
-            &self.price_general
-        };
-        u32::from(table[usize::from(item_level).min(PRICE_LEVELS - 1)])
-    }
-
-    /// `(success %, failure %)` for an item with `difference` more
-    /// modifications than its donor; `None` past the table (the lobby
-    /// refuses a donor with more than the item, and 3 is the most).
-    pub fn chances(&self, difference: usize, gold: bool) -> Option<(f32, f32)> {
-        let table = if gold {
-            &self.chances_premium
-        } else {
-            &self.chances_general
-        };
-        table.get(difference).copied()
-    }
-
-    /// The outcome for a point `at` of 0..100 (success first, then
-    /// failure, then nothing).
-    pub fn outcome_at(&self, difference: usize, gold: bool, at: f32) -> Option<CraftOutcome> {
-        let (success, failure) = self.chances(difference, gold)?;
-        Some(if at < success {
-            CraftOutcome::Success
-        } else if at < success + failure {
-            CraftOutcome::Failure
-        } else {
-            CraftOutcome::Neutral
-        })
+    /// The price for an item of `item_level`. A level past the table costs
+    /// the table's last.
+    pub fn price(&self, item_level: u8) -> u32 {
+        u32::from(self.price[usize::from(item_level).min(PRICE_LEVELS - 1)])
     }
 
     /// What 0x9B carries: the twelve chances as the lobby indexes them
     /// (`MessageCraftItem.updateCraftChance`: row = the difference in
     /// rank, then success and failure in silver, success and failure in
-    /// gold), and the two price tables.
+    /// gold), and the silver and gold price tables. The exe still reads
+    /// the chances (the lobby movie no longer shows them): 100 % success in
+    /// silver for every row, the rest 0; the gold prices are 0.
     pub fn tables(&self) -> ([f32; 12], [u16; PRICE_LEVELS], [u16; PRICE_LEVELS]) {
         let mut chances = [0.0; 12];
         for row in 0..3 {
-            chances[row * 4] = self.chances_general[row].0;
-            chances[row * 4 + 1] = self.chances_general[row].1;
-            chances[row * 4 + 2] = self.chances_premium[row].0;
-            chances[row * 4 + 3] = self.chances_premium[row].1;
+            chances[row * 4] = 100.0;
         }
-        (chances, self.price_general, self.price_premium)
+        (chances, self.price, [0; PRICE_LEVELS])
     }
 }
 
-/// `reroll.options`. Its `reroll_modificator_multiplicator` (1.1) is not
-/// read: [srp, the owner's rule of 2026-10-25] every change costs the same
+/// `reroll.options`, in silver: `reroll_price_premium` times
+/// [`GOLD_IN_SILVER`] (gold is gone [the owner, 2026-11-08]; the silver
+/// table, `reroll_price_general`, is not read). Its
+/// `reroll_modificator_multiplicator` (1.1) is not read either: [srp, the
+/// owner's rule of 2026-10-25] every change costs the same
 /// (`docs/notes/flat-reroll.md`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reroll {
-    pub price_general: [u16; PRICE_LEVELS],
-    pub price_premium: [u16; PRICE_LEVELS],
+    pub price: [u16; PRICE_LEVELS],
 }
 
 impl Reroll {
     /// The price of a change of a modification on an item of `item_level`:
     /// the table's, however many changes the item had (the owner's rule of
     /// 2026-10-25).
-    pub fn price(&self, item_level: u8, gold: bool) -> u32 {
-        let table = if gold {
-            &self.price_premium
-        } else {
-            &self.price_general
-        };
-        u32::from(table[usize::from(item_level).min(PRICE_LEVELS - 1)])
+    pub fn price(&self, item_level: u8) -> u32 {
+        u32::from(self.price[usize::from(item_level).min(PRICE_LEVELS - 1)])
     }
 }
 
@@ -369,7 +296,6 @@ pub struct Modifications {
     pub modifications: Vec<Modification>,
     /// By `id`.
     pub defects: Vec<Defect>,
-    pub defect_slots: Vec<DefectSlot>,
     pub craft: Craft,
     pub reroll: Reroll,
 }
@@ -378,12 +304,6 @@ fn number(value: &ConfigValue) -> Result<u32, ConfigError> {
     value
         .as_i32()
         .and_then(|number| u32::try_from(number).ok())
-        .ok_or_else(|| ConfigError("a modifications number is not one".into()))
-}
-
-fn float(value: &ConfigValue) -> Result<f32, ConfigError> {
-    value
-        .as_f32()
         .ok_or_else(|| ConfigError("a modifications number is not one".into()))
 }
 
@@ -443,45 +363,23 @@ fn shown_of(row: &ConfigValue) -> Result<Shown, ConfigError> {
     })
 }
 
-fn prices(root: &ConfigValue, key: &str) -> Result<[u16; PRICE_LEVELS], ConfigError> {
+/// A table of gold prices, `key`, in silver ([`GOLD_IN_SILVER`] a gold): what
+/// the wire carries, a u16 each (0x9B), or an error.
+fn silver_prices(root: &ConfigValue, key: &str) -> Result<[u16; PRICE_LEVELS], ConfigError> {
     let list: Vec<u16> = root
         .req(key)?
         .children()
         .into_iter()
         .map(|price| {
-            number(price).and_then(|price| {
-                u16::try_from(price).map_err(|_| ConfigError(format!("`{key}` is over a u16")))
+            number(price).and_then(|gold: u32| {
+                gold.checked_mul(GOLD_IN_SILVER)
+                    .and_then(|silver| u16::try_from(silver).ok())
+                    .ok_or_else(|| ConfigError(format!("`{key}` in silver is over a u16")))
             })
         })
         .collect::<Result<_, _>>()?;
     list.try_into()
         .map_err(|_| ConfigError(format!("`{key}` has not {PRICE_LEVELS} prices")))
-}
-
-fn chances(root: &ConfigValue, key: &str) -> Result<[(f32, f32); 3], ConfigError> {
-    let list: Vec<(f32, f32)> = root
-        .req(key)?
-        .children()
-        .into_iter()
-        .map(|row| match row.children()[..] {
-            [success, failure] => Ok((float(success)?, float(failure)?)),
-            _ => Err(ConfigError(format!("a row of `{key}` is not a pair"))),
-        })
-        .collect::<Result<_, _>>()?;
-    list.try_into()
-        .map_err(|_| ConfigError(format!("`{key}` has not 3 rows")))
-}
-
-fn pair(row: &ConfigValue, key: &str) -> Result<(f32, f32), ConfigError> {
-    match row.req(key)?.children()[..] {
-        [first, second] => Ok((float(first)?, float(second)?)),
-        _ => Err(ConfigError(format!("`{key}` is not a pair"))),
-    }
-}
-
-/// A fraction in `[0, 1)`.
-fn unit(rng: &mut Rng) -> f32 {
-    rng.below(1 << 24) as f32 / (1 << 24) as f32
 }
 
 /// A `drop_weight` as a whole weight for [`Rng::pick`] (4.096 is the
@@ -733,26 +631,12 @@ impl Modifications {
                     kind: kind_of(row)?,
                     drop_weight: row.f32_at("drop_weight")?,
                     name: name_of(row)?,
-                    fix_cost_general: number(row.req("fix_cost_general")?)?,
-                    fix_cost_gold: number(row.req("fix_cost_gold")?)?,
-                    fix_time_general: number(row.req("fix_time_general")?)?,
                     required_modifications: required,
                     modifiers: modifiers(row)?,
                 })
             })
             .collect::<Result<_, ConfigError>>()?;
         defects.sort_by_key(|defect| defect.id);
-        let defect_slots = root
-            .req("defect_slots")?
-            .children()
-            .into_iter()
-            .map(|row| {
-                Ok(DefectSlot {
-                    condition: pair(row, "condition")?,
-                    probability: pair(row, "probability")?,
-                })
-            })
-            .collect::<Result<_, ConfigError>>()?;
 
         let craft = ConfigValue::parse(craft)?;
         let craft = craft.req("parameters")?;
@@ -761,16 +645,11 @@ impl Modifications {
         Ok(Self {
             modifications: list,
             defects,
-            defect_slots,
             craft: Craft {
-                price_general: prices(craft, "craft_price_general")?,
-                price_premium: prices(craft, "craft_price_premium")?,
-                chances_general: chances(craft, "craft_probabilities_general")?,
-                chances_premium: chances(craft, "craft_probabilities_premium")?,
+                price: silver_prices(craft, "craft_price_premium")?,
             },
             reroll: Reroll {
-                price_general: prices(reroll, "reroll_price_general")?,
-                price_premium: prices(reroll, "reroll_price_premium")?,
+                price: silver_prices(reroll, "reroll_price_premium")?,
             },
         })
     }
@@ -910,101 +789,6 @@ impl Modifications {
             pool.retain(|row| row.id != picked.id);
         }
         Some(choices)
-    }
-
-    /// The defects `dict_id` may get beside those it has: of the types its
-    /// mask names, none of a type it has, and with the modification a
-    /// defect requires among `modifications` (the item's own; its defaults
-    /// are counted too).
-    pub fn defect_candidates(
-        &self,
-        dict_id: u16,
-        modifications: &[u32],
-        defects: &[u32],
-    ) -> Vec<&Defect> {
-        let Some(item) = item_mods(dict_id) else {
-            return Vec::new();
-        };
-        let defaults = item_params(dict_id).map_or(&[][..], |params| params.default_modifications);
-        let has = |low: u32, high: u32| {
-            modifications
-                .iter()
-                .chain(defaults)
-                .any(|id| (low..=high).contains(id))
-        };
-        let taken = defects
-            .iter()
-            .filter_map(|&id| self.defect(id))
-            .fold(0_u32, |mask, defect| mask | 1 << defect.kind);
-        self.defects
-            .iter()
-            .filter(|row| {
-                row.drop_weight > 0.0
-                    && item.defects & (1 << row.kind) != 0
-                    && taken & (1 << row.kind) == 0
-                    && row
-                        .required_modifications
-                        .is_none_or(|(low, high)| has(low, high))
-            })
-            .collect()
-    }
-
-    /// The chance, of 1, that an item at `condition` (0..=1) with
-    /// `defects` defects gets one more: that of the first slot it has no
-    /// defect in; 0 with every slot taken.
-    pub fn defect_chance(&self, condition: f32, defects: usize) -> f32 {
-        self.defect_slots
-            .get(defects)
-            .map_or(0.0, |slot| slot.chance(condition))
-    }
-
-    /// The roll made for an item a match wore down to `condition` (0..=1):
-    /// a defect for its first free slot, by that slot's chance, among the
-    /// defects the item may get, by drop weight.
-    pub fn roll_defect(
-        &self,
-        dict_id: u16,
-        modifications: &[u32],
-        defects: &[u32],
-        condition: f32,
-        rng: &mut Rng,
-    ) -> Option<u32> {
-        let chance = self.defect_chance(condition, defects.len());
-        if chance <= 0.0 || unit(rng) >= chance {
-            return None;
-        }
-        let candidates = self.defect_candidates(dict_id, modifications, defects);
-        let weights: Vec<u32> = candidates
-            .iter()
-            .map(|row| weight(row.drop_weight))
-            .collect();
-        rng.pick(&weights).map(|index| candidates[index].id)
-    }
-
-    /// What the item's wear is multiplied by: the product of `1 + value`
-    /// of its modifications' and defects' changes to `parameter`
-    /// (`degrade_per_match`, `degrade_per_use`, `degrade_per_death`; only
-    /// the "reliability" modifications change them). `modifications` are
-    /// the item's `{id, state}`; its defaults are counted too.
-    pub fn wear_factor(&self, dict_id: u16, modifications: &[(u32, bool)], parameter: &str) -> f32 {
-        let defaults = item_params(dict_id).map_or(&[][..], |params| params.default_modifications);
-        let path = format!("parameters/{parameter}");
-        let own = modifications.iter().copied();
-        let all = own.chain(defaults.iter().map(|&id| (id, false)));
-        let mut factor = 1.0_f32;
-        for (id, state) in all {
-            let modifiers = if state {
-                self.defect(id).map(|row| &row.modifiers)
-            } else {
-                self.modification(id).map(|row| &row.modifiers)
-            };
-            for modifier in modifiers.into_iter().flatten() {
-                if modifier.path == path && modifier.kind == 2 {
-                    factor *= 1.0 + modifier.value;
-                }
-            }
-        }
-        factor.max(0.0)
     }
 
     /// What the modifications of one item add to a match's pay: its own

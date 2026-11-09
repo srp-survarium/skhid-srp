@@ -18,6 +18,7 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.Colors;
    import survarium.constants.MessageId;
    
    public class MessagePremium extends MessageAccept
@@ -93,7 +94,13 @@ package survarium.messages
          var listSpace:int;
          var listHeight:int;
          super.configUI();
-         this.coin.gotoAndStop(2);
+         // The price in silver: its coin and the shop's price colour.
+         this.coin.gotoAndStop(1);
+         this.textFieldValue.textColor = Colors.PRICE_REG;
+         if(this.btnAddPremumMoney)
+         {
+            this.btnAddPremumMoney.visible = false;
+         }
          this.coin.x += 2;
          this.textFieldValue.x += 2;
          btnAccept.label = LocalizationData.getName("buy");
@@ -120,7 +127,7 @@ package survarium.messages
             while(i < options.length)
             {
                option = options[i];
-               affordable = PlayerInfo.premiumMoney >= option.value;
+               affordable = PlayerInfo.genericMoney >= option.value;
                option.valid = affordable;
                option.enabled = true;
                trace("configPM::",option.label,"|",option.value2);
@@ -176,11 +183,6 @@ package survarium.messages
          stage.focus = this.list;
       }
       
-      private function onPremiumMoneyAddClick(event:Event) : void
-      {
-         MessageMoneyExchange.buyGold();
-      }
-      
       private function onPremiumSelected(event:ListEvent = null) : void
       {
          if(this.dropDownlist.selectedIndex == -1)
@@ -213,18 +215,8 @@ package survarium.messages
       
       protected function onNoMoneyEnought() : void
       {
-         var messageData:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",messageData,true,MessageId.AUTO,true);
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
+         // Premium time is bought with silver: the game has no gold (the owner, 2026-11-08).
+         Message.showMessage("ok",LocalizationData.getName("not_enough_money"),true,MessageId.AUTO,true);
       }
       
       override protected function onMessageAccept(event:ButtonEvent = null) : void
@@ -234,7 +226,7 @@ package survarium.messages
             return;
          }
          var premiumId:uint = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].id;
-         var affordable:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
+         var affordable:Boolean = PlayerInfo.genericMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
          if(affordable)
          {
             super.onMessageAccept();

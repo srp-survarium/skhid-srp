@@ -155,6 +155,10 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
     for language in localization::Language::ALL {
         localization::of(data, language)?;
     }
+    parsed(
+        item_params::HIT_PARAMS,
+        item_params::body_parts_of(needed(data, item_params::HIT_PARAMS)?),
+    )?;
     let player = needed(data, item_params::PLAYER_PATH)?;
     parsed(
         item_params::PLAYER_PATH,

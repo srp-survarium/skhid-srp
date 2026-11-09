@@ -60,7 +60,8 @@ package survarium.rooms
             // of 2026-10-26).
             var info:String = win.say("st_srp_rooms_level") + " " + String(room.level)
                 + (room.pin ? "" : "  ·  " + win.say("st_srp_rooms_max") + " " + win.levelText(room.max) + "  ·  " + room.size + " v " + room.size)
-                + "  ·  " + win.say("st_srp_rooms_pool") + " " + room.pool + "  ·  " + win.say("st_srp_rooms_code_label") + " " + room.key + (room.pin ? "  ·  PIN" : "");
+                + "  ·  " + win.say("st_srp_rooms_pool") + " " + room.pool + "  ·  " + win.say("st_srp_rooms_code_label") + " " + room.key
+                + (room.bots ? "  ·  BOT" : room.pin ? "  ·  PIN" : "");
             look.text(look._content, info, 16, 50, look._w - 32, 15, RoomsLook.GREY);
             // The banner: the phase and its time.
             var band:Shape = new Shape();

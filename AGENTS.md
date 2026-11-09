@@ -33,11 +33,13 @@ base patches made outside this repo (maps, ported weapons and items), the Flash 
 - A content change is a change of its source in the PR: an edit list (new, or a retune of one), a
   movie's ActionScript, a pack's new version. A new edit list or pack also adds its row to
   `release/content.tsv` in the same PR; a movie edit or a retune needs no new row.
-- The release builds the patch: `release/build-content <revision>` builds everything the manifest
+- The release builds the patch: `release/build-content <revision> --full` builds everything the manifest
   lists, compares it with what players have (the stock db and every listed patch), and packs only the
   files that differ, printing each one and why; anything live that the manifest does not make stops
   it, save what an earlier version of a listed pack added and its new version no longer makes (left
-  as it is, listed). Then `release/release.sh --resources <that patch>`.
+  as it is, listed). Then `release/release.sh --resources <that patch>`. Without `--full` it is a quick
+  build for local tests (no check of players' files with the patch, no item tables, `QUICK-BUILD` in its
+  folder), which `release.sh` refuses.
 - Never assemble a patch folder by hand, and never build a patch from the server game data or from
   one release's files: a file left out, or taken from the wrong revision, reverts what players have.
 
@@ -80,6 +82,27 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
 - The same holds for new client-patch C code: a tagged union and one transition function, raw memory
   read once into it.
 
+## The world format and its check
+
+Every world a game uploads is checked before another game gets it: by the match server, and by each
+receiving game itself (patch 87), with the same code (`srp-validate`'s typed views over `world-frame`,
+`srp-026g/docs/notes/packet-validation.md`). That parser is the world format's one definition.
+
+- A change to what a game writes into a world changes that parser in the same PR. That covers an exe
+  patch that saves or loads state, a new item class, weapon state, map object or anomaly kind, and a
+  record or snapshot version. Each new field gets its view, its real name and its domain in the parse
+  (a closed set of values is an enum, a bool is the game's 0x00/0xFF, an index is bounded by its table).
+- Check it against real worlds. `tools/check` runs `world-check` (the server's check over the private
+  corpus of live recordings and local test matches) and `world-drift` (the game's own check against
+  the server's) for every change their inputs cover. Check the whole corpus: on 2026-11-07, 176 real
+  worlds that a sample of a third of the recordings passed were refused.
+- A change to what games write also needs worlds from a game that has it: play a local test match
+  (local runs record into the corpus) and check it before the PR is merged.
+- Never loosen a rule only to make a real world pass. Find what the game writes and why it reads it
+  safely (its reader in the exe), as #1434 did. A game bug behind it gets a board ticket.
+- Merging PRs that touch the same code: build and test the combined tree (main with each of them)
+  before the second merge. Two PRs that each pass can break main together (#1463).
+
 ## Rust changes
 
 - Design for a **pit of success**: the simplest supported use of an API should be correct by
@@ -91,18 +114,26 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   behind that owner instead of exposing competing ways to bypass it. Verify initialization,
   transitions and teardown as well as the settled state; Rust's type safety alone cannot enforce
   the lifecycle rules of an external engine.
-- For Rust changes, test and lint affected crates under `nix develop`; use workspace Clippy
-  only when shared APIs, configuration or dependencies affect multiple crates.
+- For Rust changes, test and lint affected crates under `nix develop` (`tools/check` runs the
+  `cargo:<crate>` checks of every crate your change reaches); use workspace Clippy only when
+  shared APIs, configuration or dependencies affect multiple crates.
 - A PR adds no clippy or rustc warnings: fix the ones your change causes. A lint that is noise for this
   code is allowed once in `[workspace.lints.clippy]` (`srp-026g/Cargo.toml`) with a comment why.
 
 ## Checks while iterating and before a PR
 
-- Run checks for changed behavior and its affected consumers, also before pushing or opening
-  a PR. Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated server tests.
-- Use the patch's own self-tests and Unicorn check, affected crate tests/Clippy, or the movie's
-  Ruffle harness. World save/load changes also need `check_world_roundtrip_026g.py`; content
-  changes need `release/build-content`. Reserve full suites for shared infrastructure changes
-  that affect them or release validation.
+- Run `tools/check`, also before pushing or opening a PR: it picks the checks your change affects
+  (the rows of `tools/checks.tsv` whose inputs differ from the merge-base with origin/main) and
+  skips the ones that already passed on the same inputs (a cache shared by every worktree), so a
+  clean merge from main or a trivial edit reruns nothing it does not touch. `tools/check <name>`
+  runs one check (still cached), `tools/check --list` shows what your change selects.
+- Don't run checks by hand except to debug one. When you add a check, add its row to
+  `tools/checks.tsv` with every input it reads; a changed file it reports as `not covered` has no
+  check yet (docs need none).
+- Where it has no row yet, use the patch's own self-tests and Unicorn check or the movie's
+  Ruffle harness (`selftest_026g.py` runs at a release, in `release/release.sh`: not during
+  development). Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated
+  server tests. World save/load changes also need `check_world_roundtrip_026g.py`. Reserve full
+  suites for shared infrastructure changes that affect them or release validation.
 - Broaden checks only for a concrete dependency or failure; do not repeat passing checks without
   relevant changes. Report validation limits and pre-existing failures without expanding the PR.

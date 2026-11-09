@@ -182,9 +182,13 @@ def objects(project, artefact_keys, spots=()):
     for o in client:
         if o.get("game_object_type") != "generic_anomaly_core":
             continue
+        # An anomaly with no container spawns nothing anywhere: Keeper of the Artifacts' hidden
+        # pool (content-edit/artefact-keeper-1.json) is one, and none of it is shown.
+        if not o.get("artefact_containers"):
+            continue
         ids = [a["dict_id"] for a in o.get("artefacts") or []]
         kinds = {artefact_keys[i] for i in ids if i in artefact_keys}
-        for index, name in enumerate(o.get("artefact_containers") or []):
+        for index, name in enumerate(o.get("artefact_containers")):
             kind = picked.get((o.get("full_name"), index)) if ids else None
             kinds_of[name] |= {artefact_keys[kind]} if kind in artefact_keys else kinds
     # A container's own position is its anomaly's pivot, shared by all of

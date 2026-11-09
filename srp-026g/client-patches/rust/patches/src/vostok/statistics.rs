@@ -30,7 +30,24 @@ impl ScoreEvent {
     /// 0.21d's winners' battery bonus: 0.26g counts it nowhere (its
     /// finish_match 0x2F4CF0 counts 11, 12 and 27 only; no site adds to it).
     pub const WINNING_TEAM_VI_BONUS: ScoreEvent = ScoreEvent(16);
+    /// A death, and a suicide (counted for the place's kit at the time).
+    pub const DEATH: ScoreEvent = ScoreEvent(2);
+    pub const SUICIDE: ScoreEvent = ScoreEvent(3);
 }
+
+/// The deaths and suicides the match's statistics count for `place`, in every kit; 0 for a place
+/// that is no record's.
+pub(super) fn deaths(statistics: raw::SharedStatistics, place: u8) -> u32 {
+    let Some(place) = Place::parse(place) else { return 0 };
+    [ScoreEvent::DEATH, ScoreEvent::SUICIDE]
+        .into_iter()
+        .flat_map(|event| (0..Kit::COUNT).map(move |kit| usize::from(event.0) * Kit::COUNT + kit))
+        // SAFETY: the live statistics of the hook's world; one of the 20 records, one of its 28 x 3
+        // cells.
+        .map(|cell| u32::from(unsafe { read(statistics.players().at(usize::from(place.0)).events().at(cell).count()) }))
+        .sum()
+}
+
 
 /// A place of the match: the statistics hold 20 records.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -235,26 +252,61 @@ pub struct Life {
 
 impl Life {
     pub const NEW: Life = Life { progress: Progress([None; 2]), held: Held::NONE };
+}
 
-    /// The most bytes a life takes after its record.
-    const MAX_BYTES: usize = 3 + 2 * Cell::COUNT;
+/// The save/load boundary owns this temporary value, not a second copy of
+/// the native last-taker state. on_event remains that state's live owner.
+struct SavedBattery {
+    life: Life,
+    taker: Option<Place>,
+}
 
-    /// The progress's two bytes, the count of cells holding steps, then
-    /// each one's (cell, steps), the cells in rising order
-    /// (snapshot_rules.md section 3.2).
+impl SavedBattery {
+    const EMPTY: Self = Self { life: Life::NEW, taker: None };
+    const HAS_TAKER: u8 = 0x80;
+
+    /// The most bytes after the native record.
+    const MAX_BYTES: usize = 4 + 2 * Cell::COUNT;
+
+    /// Progress, count | 0x80, last taker (FF nobody), then (cell, steps).
+    /// Legacy counts are at most 60, so the marker is unambiguous.
     fn encode(&self) -> ([u8; Self::MAX_BYTES], usize) {
         let mut bytes = [0; Self::MAX_BYTES];
-        let [zero, one] = self.progress.encode();
+        let [zero, one] = self.life.progress.encode();
         bytes[0] = zero;
         bytes[1] = one;
-        let mut length = 3;
-        for (cell, steps) in self.held.cells() {
+        bytes[2] = Self::HAS_TAKER;
+        bytes[3] = self.taker.map_or(u8::MAX, |place| place.0);
+        let mut length = 4;
+        for (cell, steps) in self.life.held.cells() {
             bytes[length] = cell.index() as u8;
             bytes[length + 1] = steps;
             length += 2;
             bytes[2] += 1;
         }
         (bytes, length)
+    }
+
+    fn read(mut byte: impl FnMut() -> Option<u8>) -> Option<Self> {
+        let progress = Progress::parse([byte()?, byte()?]);
+        let tagged_count = byte()?;
+        let count = usize::from(tagged_count & !Self::HAS_TAKER);
+        if count > Cell::COUNT {
+            return None;
+        }
+        let taker = if tagged_count & Self::HAS_TAKER == 0 {
+            None // Legacy saves cannot supply a taker: never keep a stale one.
+        } else {
+            match byte()? {
+                u8::MAX => None,
+                place => Some(Place::parse(place)?),
+            }
+        };
+        let mut pairs = [[0; 2]; Cell::COUNT];
+        for pair in &mut pairs[..count] {
+            *pair = [byte()?, byte()?];
+        }
+        Some(Self { life: Life { progress, held: Held::parse(&pairs[..count])? }, taker })
     }
 }
 
@@ -444,9 +496,11 @@ impl<'t> Saving<'t> {
         batteries.battery(self.record)
     }
 
-    /// Writes `life` after the record's own fields.
+    /// Writes the record's native last taker and `life` together.
     pub fn write(self, life: &Life) {
-        let (bytes, length) = life.encode();
+        // SAFETY: the record is live for serialize on the hook's thread.
+        let taker = Place::parse(unsafe { read(self.record.last_taker()) });
+        let (bytes, length) = SavedBattery { life: *life, taker }.encode();
         super::carry_runtime::write_bytes(self.writer, &bytes[..length]);
     }
 }
@@ -457,22 +511,15 @@ pub fn load(ctx: &Context<'_>) -> Option<(Battery, Life)> {
     use super::carry_runtime::read_bytes;
     use raw::site::battery_load as site;
     // SAFETY: deserialize's record, manager and live reader.
-    let (battery, reader) = unsafe {
-        (Batteries::of(site::manager(ctx)?).battery(site::record(ctx)?)?, site::reader(ctx))
+    let (battery, record, reader) = unsafe {
+        let record = site::record(ctx)?;
+        (Batteries::of(site::manager(ctx)?).battery(record)?, record, site::reader(ctx))
     };
-    let life = reader.and_then(|reader| {
-        let [zero, one, count] = read_bytes::<3>(reader)?;
-        let count = usize::from(count);
-        if count > Cell::COUNT {
-            return None;
-        }
-        let mut pairs = [[0; 2]; Cell::COUNT];
-        for pair in &mut pairs[..count] {
-            *pair = read_bytes::<2>(reader)?;
-        }
-        Some(Life { progress: Progress::parse([zero, one]), held: Held::parse(&pairs[..count])? })
-    });
-    Some((battery, life.unwrap_or(Life::NEW)))
+    let saved = reader.and_then(|reader| SavedBattery::read(|| Some(read_bytes::<1>(reader)?[0])))
+        .unwrap_or(SavedBattery::EMPTY);
+    // SAFETY: the native record being deserialized is live on this thread.
+    unsafe { record.last_taker().write_volatile(saved.taker.map_or(u8::MAX, |place| place.0)); }
+    Some((battery, saved.life))
 }
 
 #[cfg(test)]
@@ -513,16 +560,37 @@ mod tests {
         let cell = |place, kit| Cell::of(place, kit).unwrap();
         let held = Held::NONE.add(cell(3, 1), 4).add(cell(0, 0), 2).add(cell(3, 1), 1);
         let life = Life { progress: Progress::parse([5, 0]), held };
-        let (bytes, length) = life.encode();
-        assert_eq!(&bytes[..length], &[5, 0, 2, 0, 2, 10, 5]);
+        let (bytes, length) = SavedBattery { life, taker: Some(Place(19)) }.encode();
+        assert_eq!(&bytes[..length], &[5, 0, 0x82, 19, 0, 2, 10, 5]);
+        let mut input = bytes[..length].iter().copied();
+        let saved = SavedBattery::read(|| input.next()).unwrap();
+        assert_eq!(saved.life, life);
+        assert_eq!(saved.taker, Some(Place(19)));
         assert_eq!(Held::parse(&[[0, 2], [10, 5]]), Some(held));
-        assert_eq!(Life::NEW.encode().1, 3);
+        assert_eq!(SavedBattery::EMPTY.encode().1, 4);
         // Out of order, twice, no steps, no cell: none is a life's.
         for pairs in [&[[10, 5], [0, 2]][..], &[[0, 2], [0, 2]], &[[0, 0]], &[[60, 1]]] {
             assert_eq!(Held::parse(pairs), None, "{pairs:?}");
         }
         let all = (0..Cell::COUNT).fold(Held::NONE, |held, index| held.add(Cell::at(index).unwrap(), 255));
-        assert_eq!(Life { progress: Progress::default(), held: all }.encode().1, Life::MAX_BYTES);
+        assert_eq!(SavedBattery { life: Life { progress: Progress::default(), held: all }, taker: None }.encode().1,
+                   SavedBattery::MAX_BYTES);
+    }
+
+    #[test]
+    fn saved_taker_is_distinct_from_legacy_and_malformed_records() {
+        for bytes in [&[5, 0, 1, 3, 2][..], &[5, 0, 0x81, 255, 3, 2]] {
+            let mut input = bytes.iter().copied();
+            let saved = SavedBattery::read(|| input.next()).unwrap();
+            assert_eq!(saved.taker, None);
+            assert_eq!(saved.life.held, Held::NONE.add(Cell::at(3).unwrap(), 2));
+            assert_eq!(input.next(), None);
+        }
+        for bytes in [&[0, 0, 0x80][..], &[0, 0, 0x80, 20], &[0, 0, 61],
+                      &[0, 0, 0xC0, 255], &[0, 0, 0x81, 0, 3], &[0, 0, 0x81, 0, 3, 0]] {
+            let mut input = bytes.iter().copied();
+            assert!(SavedBattery::read(|| input.next()).is_none(), "{bytes:?}");
+        }
     }
 
     #[test]

@@ -21,6 +21,7 @@ fn world_with(max_matches: usize) -> World {
         enabled: true,
         max_matches,
         max_gear: 5,
+        ..Config::default()
     };
     World::with_settings(settings)
 }
@@ -152,7 +153,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
         .values()
         .find(|running| running.ticket.match_id == ticket)
         .unwrap();
-    assert!(running.vs_bots && running.fixed_teams);
+    assert!(running.server_bots && running.fixed_teams);
     assert_eq!(running.map.map().id, 61);
     // The play counts towards no map rotation, and no room has the player.
     assert!(world.account(alice).map_plays.is_empty());

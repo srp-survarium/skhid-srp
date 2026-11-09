@@ -47,6 +47,11 @@ pub struct GameWorld<'t> {
 }
 
 impl<'t> GameWorld<'t> {
+    /// A player's game world, on the hook's thread.
+    pub(in crate::vostok) fn of(this: raw::GameWorld, thread: &'t Thread) -> GameWorld<'t> {
+        GameWorld { this, thread }
+    }
+
     /// The world the site's code is ticking.
     pub fn at_after_move(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
         // SAFETY: the context is this site's: the game world it ticks, alive
@@ -85,6 +90,25 @@ impl<'t> NetworkClient<'t> {
     pub fn match_id(&self) -> Option<MatchId> {
         // SAFETY: the client, alive for the hook; match_options is its own.
         unsafe { raw::engine_match_options(Some(self.this)).map(|options| MatchId(read(options.seed()))) }
+    }
+
+    /// The team word of each place of the match (0 or 1 a team; its
+    /// options' record, the one a player's profile is), None past its count.
+    pub(in crate::vostok) fn place_teams(&self) -> [Option<u32>; super::types::Place::COUNT] {
+        let mut teams = [None; super::types::Place::COUNT];
+        // SAFETY: the client, alive for the hook; match_options is its own
+        // (a live or a replay client's, its vtable's), its places as long as
+        // the client; a place below the count (at most the 20 of the array)
+        // is one of them.
+        unsafe {
+            if let Some(options) = raw::engine_match_options(Some(self.this)) {
+                let places = usize::from(read(options.places())).min(teams.len());
+                for (place, team) in teams.iter_mut().enumerate().take(places) {
+                    *team = Some(read(options.first_place().at(place).team()));
+                }
+            }
+        }
+        teams
     }
 
     /// The local player, if the match has one.
@@ -216,6 +240,19 @@ pub struct SkeletonId(u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BodyId(pub(in crate::vostok) u32);
 
+/// A player modifier's index in a kit's 68 (the exe's names at 0x928448).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModifierIndex(u32);
+
+impl ModifierIndex {
+    /// `stamina_boost_interval` (29): no 0.26g code reads it (no
+    /// apply_modifier or apply_modifiers call names it) and nothing sets it
+    /// but skill 205's 0; additive (0x927E08's list). srp's: the Force
+    /// Protein's built-in modification 1330 gives 15: its carrier's
+    /// gun-stock kills push the ragdoll 1 + 15 times (shot::knocked_back).
+    pub const MELEE_KNOCKBACK: ModifierIndex = ModifierIndex(29);
+}
+
 /// A player of the match.
 #[derive(Clone, Copy)]
 pub struct Player<'t> {
@@ -249,6 +286,23 @@ impl<'t> Player<'t> {
 
     pub fn id(&self) -> PlayerId {
         PlayerId(self.this.address())
+    }
+
+    /// The sum of the player modifier `index` in its current kit (the
+    /// skills, the armour's and the carried boosters' entries:
+    /// apply_modifier 0x2D5AE0 of 0, weight 1, an additive index's sum);
+    /// None without a profile or a kit past the three.
+    pub fn kit_modifier(&self, index: ModifierIndex) -> Option<f32> {
+        // SAFETY: the live player's profile and current kit (+115h, below 3
+        // for a match player: checked), the kit's modifiers container.
+        unsafe {
+            let kit = usize::from(read(self.this.kit()));
+            if kit >= 3 {
+                return None;
+            }
+            let modifiers = self.this.profile()?.kits().at(kit).modifiers();
+            Some(raw::engine_apply_modifier(Some(modifiers), index.0, 0.0, 1.0))
+        }
     }
 
     /// The player's place in the match roster.

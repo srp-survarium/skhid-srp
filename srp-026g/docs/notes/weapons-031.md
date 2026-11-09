@@ -76,18 +76,18 @@ A default kit has three ammo bags.
   had was barely visible; the Val's `fx/weapons/9x39` is a suppressed puff, the Groza is not
   suppressed). The port now refuses a config naming a resource no archive has (resource-porter
   `resources.rs`).
-- **Groza's sights:** it took the Val's `aim_offset` (0.028) from its template; the donor has none,
-  so the port leaves it out. That moved the view only about 5 px: the cause is the model. The
-  camera sits at the `aim` locator (a render from it matches the game's view) and looks along
-  the gun. The rear sight is a solid plate with a notch on top (the ring on it is a boss, not a
-  hole), and the front post sits beyond it. 0.31a2's locator (0, 0.0868, 0.178) is at the post
-  tip's height, but the notch's floor is 2 mm lower (0.0849, 11 cm ahead of the eye). So the post
-  stood high above the notch, with the notch and ring well under the centre. The line over
-  the notch's floor to the post tip rises 0.7 degrees. The locator now sits on it at (0, 0.0836,
-  0.178) and is turned up by `locators[0].rotation` x = -0.0123 rad (the natives turn theirs the
-  same way: A-545 0.026, Vityaz 0.008). This is set in the port manifest's `file_values`. In game,
-  +0.0123 turned the view down: the notch sat 14 px above the centre and hid the post. -0.0123 is
-  the fix, and its in-game look is still to be done (game runs paused, 2026-11-01).
+- **Groza's sights (@12, shipped as @13):** it took the Val's `aim_offset` (0.028) from its template; the donor has
+  none, so the port leaves it out. The camera sits at the `aim` locator and looks along the gun
+  (the in-game view's proportions match a render from it). One sights the post through the rear
+  plate's top notch; the ring below it is a boss, as in 0.69d0. The aim locator is the donor's own,
+  (0, 0.0868, 0.178), unturned, at the front post tip's height: the post stands 16 px (of 960) in
+  the notch with its tip at the screen's centre, as 0.69d0 shows it. @6 had moved it 3 mm down
+  and turned it -0.0123 rad (0.7 degrees) up through the manifest's `file_values`. The eye then ran
+  along the notch floor to the post tip, and the plate covered the post (1 px showed; a player's
+  report: "front sight not drawn"). The port now has no `file_values` for it. 0.69d0 ships the
+  same model with the locator 13.4 cm further back (0, 0.0868, 0.3117). At 0.26g's field of view
+  that made the gun too small (@10 and @11, never released), so the eye stays where 0.31a2 put it.
+  Renders in `private/renders/groza-sights/`. Not yet seen in a game.
 
 - **Screen shake (@7):** `peer_scale.py` had scaled the shake keys too, by the M4A1, whose shake
   0.31a2 cut to 0.2/0.4 against our 0.8/1.0. That gave the SCAR-H 2.4/3.0 (3 times any live gun)
@@ -134,6 +134,9 @@ balance is the manifest's `set` (resource-porter `ports/weapons-031a2-batch1.jso
 - **SCAR-H:** the heavy round: damage and pierce as the SOCOM 16 on the same 7.62x51 (0.6 and 0.4:
   one round, one penetration, the owner, 2026-11-01), automatic at 625 with 20 rounds; the donor put it two levels over its M4A1, so the top
   level (15) beside the AK-12 and the PKP, drops 40 as the level-15 rifles.
+  Retune (the owner, 2026-11-09: nerf): damage 0.59 -> 0.54, pierce 0.4 -> 0.35. With its AP the torso
+  takes 3 hits at 10 m against armour 60 (was 2, 96 ms), still 4 at 50 m; against armour 80 still 3 at
+  10 m, 6 at 50 m (was 5).
 - **VHS-2:** a 5.56 rifle at the HK416's rate and pierce with less damage (0.5 against 0.55) and a
   tighter spread (0.1 against 0.15): the HK416's level (14), just under its price; drops 60.
 - **Minimi:** the light machine gun of the 5.56: more rounds a minute than the PKP (800 against 650),

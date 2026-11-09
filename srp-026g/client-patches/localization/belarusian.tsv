@@ -596,6 +596,8 @@ st_change_quest_label	Змяніць заданне
 st_change_weapon_speed_description	Хуткасць змены зброі:
 st_change_weapon_speed_name	Спрытныя рукі
 st_character	Уменні
+st_character_decals_1_10_name	Паляўнічы на дзікоў
+st_character_decals_1_11_name	Паляўнічы на аленяў
 st_character_decals_1_12_name	Ярыла
 st_character_decals_1_1_name	Літаратар
 st_character_decals_1_2_name	Атрад "Альфа"
@@ -605,6 +607,7 @@ st_character_decals_1_5_name	Ветэран
 st_character_decals_1_6_name	Майстар
 st_character_decals_1_7_name	Легенда
 st_character_decals_1_8_name	Лятучыя гусары
+st_character_decals_1_9_name	Музыкант
 st_character_decals_2_1_name	Навічок бадзяг
 st_character_decals_2_2_name	Ветэран бадзяг
 st_character_decals_2_3_name	Рэкрут Чорнага Рынку
@@ -751,8 +754,15 @@ st_character_decals_5_6_name	Герб Латвіі
 st_character_decals_5_7_name	Герб Літвы
 st_character_decals_5_8_name	Герб Эстоніі
 st_character_decals_5_9_name	Герб Малдовы
+st_character_decals_7_10_name	Запалкі
+st_character_decals_7_23_name	Сэрца
+st_character_decals_7_24_name	Страшны гарбуз
 st_character_decals_7_27_name	Арнамент канюшыны
 st_character_decals_7_28_name	Падкова
+st_character_decals_7_30_name	Паштовы голуб
+st_character_decals_7_31_name	Перамога
+st_character_decals_7_35_name	Крывавая рука
+st_character_decals_7_37_name	Захавальнік
 st_character_decals_7_9_name	Травы
 st_character_decals_generic_desc	Выкарыстоўвайце нашыўкі ў акне знешняга выгляду бронекамізэлек і штаноў, каб змяніць іх выгляд.
 st_characteristics_label	Характарыстыкі гульца
@@ -879,7 +889,7 @@ st_ct_max_members_count_error	Памылка дадавання. У кланав
 st_current_value	\nБягучае значэнне:
 st_cz_75_description	Чэшскі самазарадны пісталет, патрон: 9x19. Адзін з самых капіяваных пісталетаў халоднай вайны.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходзь кожны дзень і атрымлівай <highlight>x2</highlight> досведу і рэпутацыі за <highlight>першыя тры</highlight> перамогі.
+st_daily_bonus_description	Кожны дзень: <highlight>x2</highlight> досведу за <highlight>першыя тры</highlight> перамогі.
 st_daily_bonus_hint	Паказаць акно прывітання
 st_daily_bonus_label	З вяртаннем
 st_daily_bonus_progress	Ваш прагрэс за бягучы дзень
@@ -1268,6 +1278,7 @@ st_inv_additional_ammo_bags	Падсумкі для патронаў
 st_inv_ano_armor	Ізаляцыя
 st_inv_armor	Браня
 st_inv_arp	Бранябойнасць
+st_inv_artefact_recharge	Час перазарадкі артэфактаў
 st_inv_artefact_slots	Кантэйнер артэфактаў
 st_inv_buckshot	Шрот
 st_inv_clip_size	Патронаў у пачцы
@@ -1779,7 +1790,7 @@ st_ranking	Рэйтынг
 st_ranking_diff	Розніца
 st_rattle_activation_hint	Бразготка актывавана! Вашы крокі зусім не чутныя для праціўніка!
 st_rattle_pickup_hint	Артэфакт Бразготка. Памяншае гукі крокаў на 50%.
-st_rdgm_descr	Апісанне пакуль недаступнае.
+st_rdgm_descr	Ручная дымавая граната. Ставіць шчыльную заслону, якая хавае перамяшчэнне.
 st_rdgm_name	Дымавая граната РДГ-М
 st_reach_level	дасягнуў <green>Узроўню</green>
 st_ready	Гатовы
@@ -1787,6 +1798,8 @@ st_refill_ammo_btn	Ужыць
 st_refill_ammo_label	Боезапас
 st_regen_booster_description	Стары армейскі сухпаёк. Паспяхова выкарыстоўваўся арміямі краін СНД у дакрызісны перыяд. Павышае метабалізм і пры гэтым даволі смачны.
 st_regen_booster_name	Сухпаёк
+st_regen_delay_name	Затрымка рэгенерацыі
+st_regen_limit_name	Мяжа рэгенерацыі
 st_registration_str	Стварыць акаўнт
 st_regular_fix	Рамонт
 st_regular_money	Срэбра
@@ -2186,10 +2199,51 @@ st_sr3m_description	Апісанне пакуль недаступнае.
 st_sr3m_name	СР-3М "Віхор"
 st_srp_ammo069_23mm_r_desc	Патрон калібру 23 мм, снараджаны шротам, для КС-23М. Наносіць высокую шкоду па небраніраваных мэтах.
 st_srp_ammo069_23mm_r_name	23x75R, шрот
+st_srp_ammo_buckshot	Картэч
 st_srp_ammo_scar_ap_desc	Бранябойныя патроны 7.62x51 для FN SCAR-H. Кожны падсумак змяшчае 20 патронаў.
 st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 патронаў
+st_srp_ammo_slug	Куля
 st_srp_ammo_stats	Характарыстыкі патронаў
+st_srp_artefact_501_description	Час збору артэфакта:
+st_srp_artefact_501_name	Хуткія рукі
+st_srp_artefact_502_description	Ізаляцыя ад анамалій:
+st_srp_artefact_502_name	Стойкасць
+st_srp_artefact_512_description	Працягласць актыўнага эфекту артэфактаў:
+st_srp_artefact_512_name	Веданне артэфактаў
+st_srp_artefact_513_description	Пасіўныя артэфакты бачныя як ззянне на нагах гульцоў, у тым ліку вашых.
+st_srp_artefact_513_name	Артэфактны зрок
+st_srp_artefact_521_description	Матч пачынаецца з выпадковым артэфактам у кантэйнеры; від адзін на ўвесь матч.
+st_srp_artefact_521_name	Захавальнік артэфактаў
+st_srp_artefact_522_description	Адна кішэня становіцца кантэйнерам для артэфакта.
+st_srp_artefact_522_name	Кантэйнер для артэфакта
+st_srp_artefact_523_description	Шкода ад куль і аскепкаў унутры анамаліі:
+st_srp_artefact_523_name	Ахова Лесу
+st_srp_artefact_531_description	Кожная Спружына таксама паскарае перазарадку: +5% пасіўна, +15% пры актывацыі.
+st_srp_artefact_531_name	Спружына II
+st_srp_artefact_532_description	Няма шкоды ад падзення, пакуль Онікс актыўны.
+st_srp_artefact_532_name	Онікс II
+st_srp_artefact_533_description	Актывацыя Жывакосту цалкам аднаўляе вынослівасць.
+st_srp_artefact_533_name	Жывакост II
+st_srp_artefact_541_description	Пасіўныя эфекты вашых артэфактаў дзейнічаюць і на жывых саюзнікаў у радыусе 9 м.
+st_srp_artefact_541_name	Рэзананс
+st_srp_artefact_542_description	Актываваныя артэфакты дзейнічаюць і на жывых саюзнікаў у радыусе 6 м. "Яны ззяюць, а ты бліскаеш"
+st_srp_artefact_542_name	Каскад
+st_srp_artefact_points	 адз.
 st_srp_attachments	Абвес
+st_srp_ban_reason_account_trading	Продаж або спроба продажу ўліковага запісу.
+st_srp_ban_reason_administration	Рашэнне адміністрацыі.
+st_srp_ban_reason_advertising	Рэклама.
+st_srp_ban_reason_bad_language	Нецэнзурная лексіка.
+st_srp_ban_reason_cheating	Чыты або іншае забароненае ПЗ.
+st_srp_ban_reason_false_information	Распаўсюджванне ілжывай інфармацыі.
+st_srp_ban_reason_farm_pressure	Цкаванне або забойства саюзнікаў, якія не фармяць.
+st_srp_ban_reason_flood	Спам або флуд.
+st_srp_ban_reason_insults	Абразы або правакацыі.
+st_srp_ban_reason_nickname	Недапушчальнае імя.
+st_srp_ban_reason_politics	Абмеркаванне палітыкі.
+st_srp_ban_reason_racism	Расізм або нацызм.
+st_srp_ban_reason_teamkilling	Забойства саюзнікаў.
+st_srp_ban_reason_threats	Пагрозы ў рэальным жыцці.
 st_srp_crosshair_dynamic	Дынамічны прыцэл
 st_srp_crosshair_hidden	Схаваны прыцэл
 st_srp_crosshair_static	Статычны прыцэл
@@ -2380,6 +2434,8 @@ st_srp_equipment046_edge_back_6_desc	Апісанне пакуль недаст�
 st_srp_equipment046_edge_back_6_name	Заплечнік сталкера
 st_srp_equipment046_edge_back_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_edge_back_7_name	Абярэг
+st_srp_equipment046_edge_boots_6_desc	Апісанне пакуль недаступнае.
+st_srp_equipment046_edge_boots_6_name	Шнураваныя боты сталкера
 st_srp_equipment046_edge_boots_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_edge_boots_7_name	Боты вешчуна
 st_srp_equipment046_edge_gloves_5_desc	Апісанне пакуль недаступнае.
@@ -2394,6 +2450,8 @@ st_srp_equipment046_edge_legs_7_desc	Апісанне пакуль недаст�
 st_srp_equipment046_edge_legs_7_name	Штаны "Велес"
 st_srp_equipment046_edge_mask_6_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_edge_mask_6_name	ПНБ
+st_srp_equipment046_edge_mask_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment046_edge_mask_7_name	Процівагаз "Велес"
 st_srp_equipment046_edge_torso_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_edge_torso_7_name	Бронекамізэлька "Велес"
 st_srp_equipment046_renesanse_boots_3_desc	Апісанне пакуль недаступнае.
@@ -2404,6 +2462,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Апісанне пакуль нед
 st_srp_equipment046_renesanse_gloves_3_name	Пальчаткі АЗК-УВ
 st_srp_equipment046_renesanse_gloves_5_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_renesanse_gloves_5_name	Пальчаткі разведчыка
+st_srp_equipment046_renesanse_gloves_6_desc	Апісанне пакуль недаступнае.
+st_srp_equipment046_renesanse_gloves_6_name	Пальчаткі "Штурм"
 st_srp_equipment046_renesanse_gloves_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_renesanse_gloves_7_name	Пальчаткі снайпера
 st_srp_equipment046_renesanse_helmet_7_desc	Апісанне пакуль недаступнае.
@@ -2420,20 +2480,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Апісанне пакуль нед�
 st_srp_equipment046_renesanse_torso_7_name	Бронекамізэлька снайпера
 st_srp_equipment046_scavenger_boots_5_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_scavenger_boots_5_name	Боты дыверсанта
+st_srp_equipment046_scavenger_boots_6_desc	Апісанне пакуль недаступнае.
+st_srp_equipment046_scavenger_boots_6_name	Умацаваныя боты
 st_srp_equipment046_scavenger_boots_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_scavenger_boots_7_name	Боты следапыта
+st_srp_equipment069_league_shadow_mask_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_league_shadow_mask_name	Маска "Дэльта"
 st_srp_equipment069_leagues_back_2_desc	Апісанне пакуль недаступнае.
 st_srp_equipment069_leagues_back_2_name	Сумка лекара
 st_srp_equipment069_leagues_back_5_desc	Апісанне пакуль недаступнае.
 st_srp_equipment069_leagues_back_5_name	Заплечнік салдата
-st_srp_exchange_balance	Баланс
-st_srp_exchange_button	Абмяняць
-st_srp_exchange_gold	Золата
-st_srp_exchange_pay	Аддаяце
-st_srp_exchange_receive	Атрымліваеце
-st_srp_exchange_short_gold	Недастаткова золата
-st_srp_exchange_short_silver	Недастаткова срэбра
-st_srp_exchange_title	Абмен
+st_srp_equipment069_snow_20_boots_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_boots_7_name	Боты "Снег-20"
+st_srp_equipment069_snow_20_gloves_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_gloves_7_name	Пальчаткі "Снег-20"
+st_srp_equipment069_snow_20_helmet_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_helmet_7_name	Шлем "Снег-20"
+st_srp_equipment069_snow_20_legs_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
+st_srp_equipment069_snow_20_torso_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_torso_7_name	Бронекамізэлька "Снег-20"
 st_srp_hide_hit_markers_option	Схаваць хітмаркеры
 st_srp_hide_quests_option	Схаваць заданні
 st_srp_hide_scores_option	Схаваць ачкі гульцоў
@@ -2450,8 +2516,24 @@ st_srp_hud_unmute	Уключыць чат
 st_srp_hud_unmuted	Чат уключаны
 st_srp_inv_ammo_range	Далёкасць
 st_srp_inv_bullet_speed	Хуткасць кулі
+st_srp_inv_defuse_time	Час абясшкоджвання
+st_srp_inv_fuse_time	Час запалу
+st_srp_inv_material_pierce	Прабівае
 st_srp_inv_pellets	Шрацін
+st_srp_inv_pocket_units	Месца ў кішэні
+st_srp_inv_stamina_damage	Шкода вынослівасці
+st_srp_inv_throw_speed	Хуткасць кідка
 st_srp_inventory_search	Пошук
+st_srp_inventory_search_examples	+кішэня, +слот, +патрон, +10
+st_srp_inventory_search_tip_bonus	прадметы з бонусам і да патронаў, і да артэфактаў
+st_srp_inventory_search_tip_bonus_example	+патрон +артэфакт
+st_srp_inventory_search_tip_faction	тавары Арміі або Чорнага Рынку
+st_srp_inventory_search_tip_faction_example	+армія +чорны
+st_srp_inventory_search_tip_kind	шлемы або боты
+st_srp_inventory_search_tip_kind_example	+шлем +боты
+st_srp_inventory_search_tip_level	прадметы 10 або 11 узроўню
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.
 st_srp_loadout_block_ammo	Мала патронаў да зброі
@@ -2474,6 +2556,8 @@ st_srp_lobby_hangar	Ангар
 st_srp_lobby_room	Пакой
 st_srp_lobby_title	Лобі
 st_srp_login_account_hint	Акаўнт ствараецца пры першым уваходзе
+st_srp_login_ban_ends	Скончыцца а %1$s (праз %2$s).
+st_srp_login_ban_forever	Бан бестэрміновы.
 st_srp_map_chemical_plant	Хімзавод
 st_srp_map_chemical_plant_v011	Хімзавод (v0.11)
 st_srp_map_cologne	Кёльн
@@ -2511,13 +2595,56 @@ st_srp_matches_starting	старт
 st_srp_matches_title	Матчы
 st_srp_matches_versus	на
 st_srp_matches_waiting	чаканне
+st_srp_medical_301_description	Дадаецца да абароны ад болю і працягласці дзеяння абязбольвальнага:
+st_srp_medical_301_name	Моцнае абязбольвальнае
+st_srp_medical_302_description	Скарачэнне часу выкарыстання аптэчак і бінтоў:
+st_srp_medical_302_name	Хуткая перавязка
+st_srp_medical_303_description	Пакуль дзейнічае абязбольвальнае, зніжэнне выдаткаў энергіі на спрынт:
+st_srp_medical_303_name	Анямелыя ногі
+st_srp_medical_311_description	Аднаўленне здароўя пачынаецца на столькі секунд раней:
+st_srp_medical_311_name	Метабалізм
+st_srp_medical_312_description	Бонус да здароўя, якое аднаўляюць аптэчкі і бінты:
+st_srp_medical_312_name	Медыцынская падрыхтоўка
+st_srp_medical_313_description	Бонус да здароўя, якое аднаўляюць аптэчкі і бінты, у прысядзе:
+st_srp_medical_313_name	У сховішча
+st_srp_medical_321_description	Бонус да хуткасці руху пры здароўі ніжэй за 30:
+st_srp_medical_321_name	Адрэналін
+st_srp_medical_322_description	Кожная кішэня з лекамі змяшчае на адзін прадмет больш.
+st_srp_medical_322_name	Дадатковыя лекі
+st_srp_medical_323_description	Пакуль дзейнічае абязбольвальнае, зніжэнне спыняльнай сілы варожых трапленняў:
+st_srp_medical_323_name	Непахісны
+st_srp_medical_331_description	Замяняе слот дадатковай зброі дадатковай кішэняй для прыпасаў.
+st_srp_medical_331_name	Кішэня для прыпасаў
+st_srp_medical_332_description	Бонус да максімальнага здароўя рук і ног:
+st_srp_medical_332_name	Моцныя косці
+st_srp_medical_333_description	Пакуль дзейнічае абязбольвальнае, гукі наваколля цішэйшыя, а гукі ворагаў (акрамя стрэлаў) гучнейшыя на:
+st_srp_medical_333_name	Канцэнтрацыя
+st_srp_medical_342_description	Зніжэнне шкоды ад саюзнікаў:
+st_srp_medical_342_name	Браты па зброі
+st_srp_medical_seconds	 с
+st_srp_medicine_ambient_sounds	Гукі наваколля
+st_srp_medicine_crouched_healing	Лячэнне ў прысядзе
+st_srp_medicine_enemy_sounds	Гукі ворагаў
+st_srp_medicine_hit_slow	Запаволенне ад куль
+st_srp_medicine_sprint_stamina	Энергія на спрынт
+st_srp_melee_knockback	Адкідванне прыкладам
 st_srp_mode_blackout	Ахоўная прылада: блэкаўт
 st_srp_mode_chargers	Ахоўная прылада: зараднікі
 st_srp_mode_protective_device	Ахоўная прылада
 st_srp_mode_research	Даследаванне
 st_srp_mode_team_deathmatch	Камандны бой
+st_srp_mouse_lock_option	Зафіксаваць вертыкальную адчувальнасць
+st_srp_mouse_vertical_option	Вертыкальная адчувальнасць
 st_srp_optics	Оптыка
 st_srp_options_hud	Інтэрфейс бою:
+st_srp_pierce_brick	Цэгла, сталь
+st_srp_pierce_car	Аўтамабіль
+st_srp_pierce_concrete	Бетон
+st_srp_pierce_glass	Шкло
+st_srp_pierce_plywood	Фанера
+st_srp_pierce_stone	Камень
+st_srp_pierce_tinplate	Бляха
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	У атрадзе
 st_srp_pvb_at_limit	Ужо ідзе максімум матчаў з ботамі адначасова, паспрабуйце праз хвіліну
 st_srp_pvb_at_limit_count	Ужо ідзе максімум матчаў з ботамі адначасова (%1$s/%2$s), паспрабуйце праз хвіліну
@@ -2540,6 +2667,9 @@ st_srp_pvb_searching	Спачатку скасуйце пошук
 st_srp_pvb_team_size	%1$s на %2$s
 st_srp_pvb_title	Гулец супраць ботаў
 st_srp_pvb_unknown_choice	Гэтая карта або памер каманд зараз недаступныя
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Рэндар
 st_srp_replay_asking	Запытваем у сервера матча паўтор гэтага матча…
 st_srp_replay_being_made	Паўтор ствараецца з запісу матча. Так бывае, калі гэты матч глядзяць упершыню, і гэта займае крыху часу.\nГэтае акно можна закрыць: сервер працягне яго ствараць.\n\n%1$s
 st_srp_replay_busy	Сервер зараз заняты іншымі паўторамі. Паспрабуйце яшчэ раз праз хвіліну.
@@ -2570,6 +2700,7 @@ st_srp_rooms_all	Усе
 st_srp_rooms_all_rooms	Усе пакоі
 st_srp_rooms_any	Любы
 st_srp_rooms_back	Назад
+st_srp_rooms_bots	З ботамі
 st_srp_rooms_code_10	Уладальнік выдаліў вас з пакоя.
 st_srp_rooms_code_11	Спачатку выйдзіце з кланавай каманды.
 st_srp_rooms_code_12	Ваш рыштунак вышэй за макс. узровень.
@@ -2604,6 +2735,7 @@ st_srp_rooms_join_why_4	Матч запоўнены.
 st_srp_rooms_join_why_5	Хутка тэхнічныя работы: новыя ўваходы закрытыя.
 st_srp_rooms_join_why_6	Матч завяршаецца: вы згуляеце наступны.
 st_srp_rooms_join_why_7	Гэты матч дасягнуў ліміту гульцоў. Вы далучыцеся да наступнага матча.
+st_srp_rooms_join_why_8	Матч зараз не можа прыняць гульцоў. Вы далучыцеся да наступнага матча.
 st_srp_rooms_joined_room	%1$s увайшоў у пакой
 st_srp_rooms_late_hint	Хто зойдзе зараз, убачыць пакой, потым трапіць у матч.
 st_srp_rooms_leave	Выйсці
@@ -2671,12 +2803,30 @@ st_srp_skills	Навыкі
 st_srp_speed_label	Хуткасць
 st_srp_speed_title	Хуткасць руху: %1$s
 st_srp_static_minimap_option	Статычная мінікарта
+st_srp_unit_days	%1$s дз
+st_srp_unit_hours	%1$s гадз
 st_srp_unit_kg	%1$s кг
 st_srp_unit_meters	%1$sм
+st_srp_unit_minutes	%1$s хв
 st_srp_unit_mps	%1$s м/с
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Прыярытэт дыскрэтнай GPU
+st_srp_vulkan_dedicated_gpu_hint	Выбірае больш магутную відэакарту на ноўтбуках.\n+ Лепшая прадукцыйнасць на ноўтбуках\n- Траціць больш батарэі
+st_srp_vulkan_frame_limit	Абмежаванне FPS
+st_srp_vulkan_frame_limit_hint	Абмяжоўвае, колькі кадраў у секунду малюе гульня.
+st_srp_vulkan_low_latency	Знізіць затрымку ўводу
+st_srp_vulkan_low_latency_hint	Гульня хутчэй адгукаецца на мыш.\n+ Прыцэл рэагуе хутчэй\n- На некаторых ПК можа ісці менш плаўна
+st_srp_vulkan_off	Выкл.
+st_srp_vulkan_options	Налады Vulkan
+st_srp_vulkan_overlay	Аверлэй
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+графік
+st_srp_vulkan_overlay_full	Поўны
+st_srp_vulkan_overlay_hint	Паказвае хуткасць гульні на экране.
+st_srp_vulkan_tear_free	Без разрываў без V-Sync
+st_srp_vulkan_tear_free_hint	Карцінка не рвецца пры выключанай вертыкальнай сінхранізацыі.\n+ Няма рваных палос пры хуткім павароце\n- Затрымка крыху большая, чым проста без VSync
 st_srp_weapon069_akmsu_desc	Укарочаны АКМС са складным прыкладам пад патрон 7.62×39. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
 st_srp_weapon069_akmsu_name	АКМСУ
 st_srp_weapon069_famas_desc	Французская штурмавая вінтоўка схемы булпап пад боепрыпас 5.56х45. Падтрымлівае адзіночны рэжым, чэргі па тры стрэлы і аўтаматычны рэжым стральбы.
@@ -2690,7 +2840,6 @@ st_srp_weapon069_mauser_m712_name	Маўзер M.712
 st_srp_weapon069_ppsh_drum_desc	Пісталет-кулямёт Шпагіна з дыскавым магазінам на 71 патрон, патрон 7.62×25. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
 st_srp_weapon069_ppsh_drum_name	ППШ-41 «Дыск»
 st_srp_weapon_aim_zoom	Базавае павелічэнне
-st_srp_weapon_bullet_speed_varies	Розная
 st_srp_weapon_chamber	Дасыланне патрона
 st_srp_weapon_draw_time	Час даставання
 st_srp_weapon_full_damage	Поўная шкода да

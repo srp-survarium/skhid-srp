@@ -596,6 +596,8 @@ st_change_quest_label	Promeni zadatak
 st_change_weapon_speed_description	Brzina zamene oružja:
 st_change_weapon_speed_name	Vešte ruke
 st_character	Lik
+st_character_decals_1_10_name	Lovac na veprove
+st_character_decals_1_11_name	Lovac na jelene
 st_character_decals_1_12_name	Sunašce
 st_character_decals_1_1_name	Književnik
 st_character_decals_1_2_name	Odred Alfa
@@ -605,6 +607,7 @@ st_character_decals_1_5_name	Veteran
 st_character_decals_1_6_name	Majstor
 st_character_decals_1_7_name	Legenda
 st_character_decals_1_8_name	Krilati husari
+st_character_decals_1_9_name	Muzičar
 st_character_decals_2_1_name	Početnik Sakupljača
 st_character_decals_2_2_name	Veteran Sakupljača
 st_character_decals_2_3_name	Regrut Crnog tržišta
@@ -751,8 +754,15 @@ st_character_decals_5_6_name	Grb Litvanije
 st_character_decals_5_7_name	Grb Litvanije
 st_character_decals_5_8_name	Grb Estonije
 st_character_decals_5_9_name	Grb Moldavije
+st_character_decals_7_10_name	Šibice
+st_character_decals_7_23_name	Srce
+st_character_decals_7_24_name	Strašna bundeva
 st_character_decals_7_27_name	Ukras detelina
 st_character_decals_7_28_name	Potkovica
+st_character_decals_7_30_name	Poštanski golub
+st_character_decals_7_31_name	Pobeda
+st_character_decals_7_35_name	Krvava ruka
+st_character_decals_7_37_name	Čuvar
 st_character_decals_7_9_name	Bilje
 st_character_decals_generic_desc	Promenite izgled prsluka i pantalona pomoću oznaka u prozoru opreme.
 st_characteristics_label	Statistika igrača
@@ -879,7 +889,7 @@ st_ct_max_members_count_error	Tim klana već ima najveći broj igrača.
 st_current_value	\nTrenutna vrednost:
 st_cz_75_description	Češki poluautomatski pištolj, municija: 9x19. Jedan od najkopiranijih pištolja Hladnog rata.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Igrajte svakog dana i osvojite <highlight>x2</highlight> iskustvo i ugled za <highlight>prve tri</highlight> pobede.
+st_daily_bonus_description	Svakog dana: <highlight>x2</highlight> iskustva za <highlight>prve tri</highlight> pobede.
 st_daily_bonus_hint	Prikaži ekran dobrodošlice
 st_daily_bonus_label	Dobro došli nazad
 st_daily_bonus_progress	Vaš današnji napredak
@@ -1268,6 +1278,7 @@ st_inv_additional_ammo_bags	Torbice za municiju
 st_inv_ano_armor	Izolacija
 st_inv_armor	Oklop
 st_inv_arp	Probojnost oklopa
+st_inv_artefact_recharge	Vreme punjenja artefakata
 st_inv_artefact_slots	Kontejner za artefakte
 st_inv_buckshot	Sačma
 st_inv_clip_size	Metaka u paketu
@@ -1779,7 +1790,7 @@ st_ranking	Rang-lista
 st_ranking_diff	Razlika
 st_rattle_activation_hint	Zvečka je aktivirana! Neprijatelj ne može da čuje vaše korake.
 st_rattle_pickup_hint	Artefakt Zvečka. Utišava korake za 50%.
-st_rdgm_descr	Opis još nije dostupan.
+st_rdgm_descr	Ručna dimna granata. Postavlja gustu zavesu koja skriva kretanje.
 st_rdgm_name	Dimna granata RDG-M
 st_reach_level	je dostigao <green>nivo</green>
 st_ready	Spreman
@@ -1787,6 +1798,8 @@ st_refill_ammo_btn	Primeni
 st_refill_ammo_label	Municija
 st_regen_booster_description	Stari vojni obroci, korišćeni u zemljama ZND-a pre krize. Ubrzavaju metabolizam i još uvek su ukusni.
 st_regen_booster_name	Vojni obrok
+st_regen_delay_name	Kašnjenje regeneracije
+st_regen_limit_name	Granica regeneracije
 st_registration_str	Napravi nalog
 st_regular_fix	Popravka
 st_regular_money	Srebro
@@ -2186,10 +2199,51 @@ st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Metak kalibra 23 mm sa sitnom sačmom, za KS-23M. Nanosi veliku štetu neoklopljenim metama.
 st_srp_ammo069_23mm_r_name	23x75R, sačma
+st_srp_ammo_buckshot	Sačma
 st_srp_ammo_scar_ap_desc	Pancirni meci 7,62x51 za FN SCAR-H. Svaka torbica za municiju prima 20 metaka.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 metaka
+st_srp_ammo_slug	Kugla
 st_srp_ammo_stats	Osobine municije
+st_srp_artefact_501_description	Vreme sakupljanja artefakta:
+st_srp_artefact_501_name	Brze ruke
+st_srp_artefact_502_description	Izolacija od anomalija:
+st_srp_artefact_502_name	Otpornost
+st_srp_artefact_512_description	Trajanje aktivnog efekta artefakata:
+st_srp_artefact_512_name	Poznavanje artefakata
+st_srp_artefact_513_description	Pasivni artefakti vide se kao sjaj na nogama igrača, uključujući tvoje.
+st_srp_artefact_513_name	Artefaktni vid
+st_srp_artefact_521_description	Meč počinje sa nasumičnim artefaktom u kontejneru; jedna vrsta za sve u meču.
+st_srp_artefact_521_name	Čuvar artefakata
+st_srp_artefact_522_description	Jedan džep postaje kontejner za artefakt.
+st_srp_artefact_522_name	Kontejner za artefakt
+st_srp_artefact_523_description	Šteta od metaka i šrapnela unutar anomalije:
+st_srp_artefact_523_name	Zaštita Šume
+st_srp_artefact_531_description	Svaki Feder ubrzava i punjenje: +5% pasivno, +15% dok je aktivan.
+st_srp_artefact_531_name	Feder II
+st_srp_artefact_532_description	Nema štete od pada dok je Oniks aktivan.
+st_srp_artefact_532_name	Oniks II
+st_srp_artefact_533_description	Aktiviranje Živokosti vraća svu izdržljivost.
+st_srp_artefact_533_name	Živokost II
+st_srp_artefact_541_description	Pasivni efekti tvojih artefakata deluju i na žive saigrače u krugu od 9 m.
+st_srp_artefact_541_name	Rezonanca
+st_srp_artefact_542_description	Aktivirani artefakti deluju i na žive saigrače u krugu od 6 m. "Oni sijaju, ti blistaš"
+st_srp_artefact_542_name	Kaskada
+st_srp_artefact_points	 poena
 st_srp_attachments	Dodaci
+st_srp_ban_reason_account_trading	Prodaja ili pokušaj prodaje naloga.
+st_srp_ban_reason_administration	Odluka administracije.
+st_srp_ban_reason_advertising	Reklamiranje.
+st_srp_ban_reason_bad_language	Vulgaran jezik.
+st_srp_ban_reason_cheating	Čitovi ili drugi zabranjeni softver.
+st_srp_ban_reason_false_information	Širenje lažnih informacija.
+st_srp_ban_reason_farm_pressure	Maltretiranje ili ubijanje saveznika koji ne farmaju.
+st_srp_ban_reason_flood	Spam ili flood.
+st_srp_ban_reason_insults	Uvrede ili provokacije.
+st_srp_ban_reason_nickname	Nedozvoljeno ime.
+st_srp_ban_reason_politics	Rasprave o politici.
+st_srp_ban_reason_racism	Rasizam ili nacizam.
+st_srp_ban_reason_teamkilling	Ubijanje saveznika.
+st_srp_ban_reason_threats	Pretnje u stvarnom životu.
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan
 st_srp_crosshair_static	Statični nišan
@@ -2380,6 +2434,8 @@ st_srp_equipment046_edge_back_6_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_back_6_name	Stalkerski ranac
 st_srp_equipment046_edge_back_7_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_back_7_name	Amajlija
+st_srp_equipment046_edge_boots_6_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_boots_6_name	Stalkerske čizme na pertle
 st_srp_equipment046_edge_boots_7_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_boots_7_name	Vračeve čizme
 st_srp_equipment046_edge_gloves_5_desc	Opis još nije dostupan.
@@ -2394,6 +2450,8 @@ st_srp_equipment046_edge_legs_7_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_legs_7_name	Pantalone Veles
 st_srp_equipment046_edge_mask_6_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_mask_6_name	Uređaj za noćno osmatranje
+st_srp_equipment046_edge_mask_7_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_mask_7_name	Gas maska Veles
 st_srp_equipment046_edge_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_torso_7_name	Pancir Veles
 st_srp_equipment046_renesanse_boots_3_desc	Opis još nije dostupan.
@@ -2404,6 +2462,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Opis još nije dostupan.
 st_srp_equipment046_renesanse_gloves_3_name	Rukavice OZK-UV
 st_srp_equipment046_renesanse_gloves_5_desc	Opis još nije dostupan.
 st_srp_equipment046_renesanse_gloves_5_name	Izviđačke rukavice
+st_srp_equipment046_renesanse_gloves_6_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_gloves_6_name	Rukavice Šturm
 st_srp_equipment046_renesanse_gloves_7_desc	Opis još nije dostupan.
 st_srp_equipment046_renesanse_gloves_7_name	Snajperske rukavice
 st_srp_equipment046_renesanse_helmet_7_desc	Opis još nije dostupan.
@@ -2420,20 +2480,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment046_renesanse_torso_7_name	Snajperski pancir
 st_srp_equipment046_scavenger_boots_5_desc	Opis još nije dostupan.
 st_srp_equipment046_scavenger_boots_5_name	Diverzantske čizme
+st_srp_equipment046_scavenger_boots_6_desc	Opis još nije dostupan.
+st_srp_equipment046_scavenger_boots_6_name	Ojačane postavljene čizme
 st_srp_equipment046_scavenger_boots_7_desc	Opis još nije dostupan.
 st_srp_equipment046_scavenger_boots_7_name	Tragačke čizme
+st_srp_equipment069_league_shadow_mask_desc	Opis još nije dostupan.
+st_srp_equipment069_league_shadow_mask_name	Maska Delta
 st_srp_equipment069_leagues_back_2_desc	Opis još nije dostupan.
 st_srp_equipment069_leagues_back_2_name	Torba bolničara
 st_srp_equipment069_leagues_back_5_desc	Opis još nije dostupan.
 st_srp_equipment069_leagues_back_5_name	Ranac vojnika
-st_srp_exchange_balance	Stanje
-st_srp_exchange_button	Razmeni
-st_srp_exchange_gold	Zlato
-st_srp_exchange_pay	Plati
-st_srp_exchange_receive	Primi
-st_srp_exchange_short_gold	Nema dovoljno zlata
-st_srp_exchange_short_silver	Nema dovoljno srebra
-st_srp_exchange_title	Razmeni
+st_srp_equipment069_snow_20_boots_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_boots_7_name	Čizme Sneg-20
+st_srp_equipment069_snow_20_gloves_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_gloves_7_name	Rukavice Sneg-20
+st_srp_equipment069_snow_20_helmet_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_helmet_7_name	Šlem Sneg-20
+st_srp_equipment069_snow_20_legs_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_legs_7_name	Pantalone Sneg-20
+st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_torso_7_name	Pancir Sneg-20
 st_srp_hide_hit_markers_option	Sakrij oznake pogodaka
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij poene igrača
@@ -2450,8 +2516,24 @@ st_srp_hud_unmute	Uključi čet
 st_srp_hud_unmuted	Čet uključen
 st_srp_inv_ammo_range	Domet
 st_srp_inv_bullet_speed	Brzina metka
+st_srp_inv_defuse_time	Vreme deaktiviranja
+st_srp_inv_fuse_time	Vreme upaljača
+st_srp_inv_material_pierce	Probija
 st_srp_inv_pellets	Sačme
+st_srp_inv_pocket_units	Mesta u džepu
+st_srp_inv_stamina_damage	Šteta izdržljivosti
+st_srp_inv_throw_speed	Brzina bacanja
 st_srp_inventory_search	Pretraga
+st_srp_inventory_search_examples	+džep, +mesta, +torbice, +10
+st_srp_inventory_search_tip_bonus	predmeti sa bonusom za torbice i za džepove
+st_srp_inventory_search_tip_bonus_example	+torbice +džep
+st_srp_inventory_search_tip_faction	predmeti Vojske ili Crnog tržišta
+st_srp_inventory_search_tip_faction_example	+vojska +crno
+st_srp_inventory_search_tip_kind	šlemovi ili čizme
+st_srp_inventory_search_tip_kind_example	+šlem +čizme
+st_srp_inventory_search_tip_level	predmeti nivoa 10 ili 11
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_item_props_mps	m/s
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
 st_srp_loadout_block_ammo	Premalo municije za oružje
@@ -2474,6 +2556,8 @@ st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Soba
 st_srp_lobby_title	Lobi
 st_srp_login_account_hint	Nalog se pravi pri prvoj prijavi
+st_srp_login_ban_ends	Ističe u %1$s (za %2$s).
+st_srp_login_ban_forever	Zabrana je trajna.
 st_srp_map_chemical_plant	Hemijska fabrika
 st_srp_map_chemical_plant_v011	Hemijska fabrika (v0.11)
 st_srp_map_cologne	Keln
@@ -2511,13 +2595,56 @@ st_srp_matches_starting	početak
 st_srp_matches_title	Mečevi
 st_srp_matches_versus	na
 st_srp_matches_waiting	čekanje
+st_srp_medical_301_description	Dodaje se zaštiti od bola i trajanju analgetika:
+st_srp_medical_301_name	Snažan analgetik
+st_srp_medical_302_description	Smanjenje vremena upotrebe kompleta prve pomoći i zavoja:
+st_srp_medical_302_name	Brzo previjanje
+st_srp_medical_303_description	Dok analgetik deluje, smanjenje potrošnje izdržljivosti pri sprintu:
+st_srp_medical_303_name	Utrnule noge
+st_srp_medical_311_description	Obnavljanje zdravlja počinje ovoliko sekundi ranije:
+st_srp_medical_311_name	Metabolizam
+st_srp_medical_312_description	Dodatak zdravlju koje vraćaju kompleti prve pomoći i zavoji:
+st_srp_medical_312_name	Medicinska obuka
+st_srp_medical_313_description	Dodatak zdravlju koje vraćaju kompleti prve pomoći i zavoji dok čučite:
+st_srp_medical_313_name	U zaklon
+st_srp_medical_321_description	Dodatak brzini kretanja dok je zdravlje ispod 30:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Svaki džep sa lekovima može da primi još jedan predmet.
+st_srp_medical_322_name	Dodatni lekovi
+st_srp_medical_323_description	Dok analgetik deluje, smanjenje zaustavne moći neprijateljskih pogodaka:
+st_srp_medical_323_name	Nepokolebljiv
+st_srp_medical_331_description	Zamenjuje mesto za sekundarno oružje dodatnim džepom za zalihe.
+st_srp_medical_331_name	Džep za zalihe
+st_srp_medical_332_description	Dodatak maksimalnom zdravlju ruku i nogu:
+st_srp_medical_332_name	Jake kosti
+st_srp_medical_333_description	Dok analgetik deluje, zvuci okoline su tiši, a zvuci neprijatelja (osim pucnjeva) glasniji za:
+st_srp_medical_333_name	Koncentracija
+st_srp_medical_342_description	Smanjenje štete koju nanose saveznici:
+st_srp_medical_342_name	Braća po oružju
+st_srp_medical_seconds	 s
+st_srp_medicine_ambient_sounds	Zvuci okoline
+st_srp_medicine_crouched_healing	Lečenje u čučnju
+st_srp_medicine_enemy_sounds	Zvuci neprijatelja
+st_srp_medicine_hit_slow	Usporenje od metaka
+st_srp_medicine_sprint_stamina	Izdržljivost za sprint
+st_srp_melee_knockback	Odbacivanje kundakom
 st_srp_mode_blackout	Zaštitni uređaj: zamračenje
 st_srp_mode_chargers	Zaštitni uređaj: punjači
 st_srp_mode_protective_device	Zaštitni uređaj
 st_srp_mode_research	Istraživanje
 st_srp_mode_team_deathmatch	Timska eliminacija
+st_srp_mouse_lock_option	Zaključaj vertikalnu osetljivost
+st_srp_mouse_vertical_option	Vertikalna osetljivost
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Cigla, čelik
+st_srp_pierce_car	Automobil
+st_srp_pierce_concrete	Beton
+st_srp_pierce_glass	Staklo
+st_srp_pierce_plywood	Šperploča
+st_srp_pierce_stone	Kamen
+st_srp_pierce_tinplate	Lim
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	U odredu
 st_srp_pvb_at_limit	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova, pokušaj ponovo za minut
 st_srp_pvb_at_limit_count	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova (%1$s/%2$s), pokušaj ponovo za minut
@@ -2540,6 +2667,9 @@ st_srp_pvb_searching	Prvo prekini pretragu
 st_srp_pvb_team_size	%1$s protiv %2$s
 st_srp_pvb_title	Igrač protiv botova
 st_srp_pvb_unknown_choice	Ova mapa ili veličina tima trenutno nije dostupna
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Renderer
 st_srp_replay_asking	Traženje snimka ovog meča od servera…
 st_srp_replay_being_made	Snimak se pravi iz zapisa meča. To se dešava kada neko prvi put gleda ovaj meč i može da potraje.\nMožeš zatvoriti prozor: server će nastaviti izradu.\n\n%1$s
 st_srp_replay_busy	Server je trenutno zauzet drugim snimcima. Pokušaj ponovo za minut.
@@ -2570,6 +2700,7 @@ st_srp_rooms_all	Sve
 st_srp_rooms_all_rooms	Sve sobe
 st_srp_rooms_any	Bilo koji
 st_srp_rooms_back	Nazad
+st_srp_rooms_bots	Sa botovima
 st_srp_rooms_code_10	Vlasnik te je uklonio iz te sobe.
 st_srp_rooms_code_11	Prvo napusti tim klana.
 st_srp_rooms_code_12	Tvoja oprema prelazi najviši dozvoljeni nivo.
@@ -2604,6 +2735,7 @@ st_srp_rooms_join_why_4	Meč je pun.
 st_srp_rooms_join_why_5	Održavanje servera uskoro: nema novih ulazaka.
 st_srp_rooms_join_why_6	Meč se završava: igraćeš sledeći.
 st_srp_rooms_join_why_7	Ovaj meč je dostigao ograničenje broja igrača. Pridružićeš se sledećem meču.
+st_srp_rooms_join_why_8	Meč trenutno ne može da primi igrače. Pridružićeš se sledećem meču.
 st_srp_rooms_joined_room	%1$s se pridružio sobi
 st_srp_rooms_late_hint	Ko se sada pridruži, prvo vidi sobu, zatim ulazi u meč.
 st_srp_rooms_leave	Napusti
@@ -2671,12 +2803,30 @@ st_srp_skills	Veštine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s
 st_srp_static_minimap_option	Statična mini-mapa
+st_srp_unit_days	%1$s d
+st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_minutes	%1$s min
 st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Prednost namenskoj GPU
+st_srp_vulkan_dedicated_gpu_hint	Na laptopovima bira jaču grafičku karticu.\n+ Bolje performanse na laptopovima\n- Troši više baterije
+st_srp_vulkan_frame_limit	Ograničenje FPS
+st_srp_vulkan_frame_limit_hint	Ograničava koliko slika u sekundi igra crta.
+st_srp_vulkan_low_latency	Smanji kašnjenje unosa
+st_srp_vulkan_low_latency_hint	Igra brže reaguje na miš.\n+ Nišan reaguje brže\n- Na nekim računarima može biti manje glatko
+st_srp_vulkan_off	Isključeno
+st_srp_vulkan_options	Vulkan opcije
+st_srp_vulkan_overlay	Prikaz performansi
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+grafik
+st_srp_vulkan_overlay_full	Potpun
+st_srp_vulkan_overlay_hint	Prikazuje brzinu igre na ekranu.
+st_srp_vulkan_tear_free	Bez cepanja slike bez V-Sync
+st_srp_vulkan_tear_free_hint	Slika ostaje cela kada je vertikalna sinhronizacija isključena.\n+ Bez pocepanih linija pri brzom okretanju\n- Malo veće kašnjenje nego samo isključen VSync
 st_srp_weapon069_akmsu_desc	Skraćeni AKMS sa preklopnim kundakom, municija 7,62x39. Podržava pojedinačnu i automatsku paljbu.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francuska jurišna puška bulpap konstrukcije, municija 5,56x45. Podržava pojedinačnu paljbu, rafal od tri metka i automatsku paljbu.
@@ -2690,7 +2840,6 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Automat Špagin sa dobošastim okvirom za 71 metak, municija 7,62x25. Podržava pojedinačnu i automatsku paljbu.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 „Doboš“
 st_srp_weapon_aim_zoom	Osnovno uvećanje
-st_srp_weapon_bullet_speed_varies	Promenljiva
 st_srp_weapon_chamber	Vreme repetiranja
 st_srp_weapon_draw_time	Vreme vađenja
 st_srp_weapon_full_damage	Puna šteta do

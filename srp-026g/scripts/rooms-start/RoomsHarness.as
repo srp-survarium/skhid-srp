@@ -28,7 +28,8 @@ package
    // - the list (`S1;L`): a private room's row has no max level, nor its facts beside the list;
    //   an open room's has both;
    // - the create window (New room): Team size and Max level shown; a PIN typed hides both, and
-   //   clearing it shows them again.
+   //   clearing it shows them again; "With bots" always there, and with it on the modes and maps
+   //   the server's bots play none of unticked, greyed and out of the pool's count;
    // - squads (docs/notes/squads.md, the owner's of 2026-10-31): a pair both in the room shows
    //   the match's squad icon (its frame by the pair's number) after each name, ours green and
    //   another's tan, in the room's view and the list's side panel; every name keeps its place
@@ -126,6 +127,9 @@ package
          checkList("list, private chosen", ["S1;L;2;0","1001;2;0;10;3;0;0;0;1;Alice","1002;2;5;6;1;0;0;0;0;Bob"],
             "PIN · Alice", false, "Bob", true, false);
          checkList("list, open chosen", ["S1;L;1;0","1001;2;5;6;1;0;0;0;0;Bob"], null, false, "Bob", true, true);
+         // A private room with bots (`pin` 2, the owner's of 2026-11-05): BOT, not PIN.
+         checkList("list, bots room chosen", ["S1;L;2;0","1001;2;0;10;3;0;0;0;2;Carol","1002;2;5;6;1;0;0;0;0;Bob"],
+            "BOT · Carol", false, "Bob", true, false);
          checkSideStable();
          checkRoomView();
          checkQueueButton();
@@ -170,7 +174,7 @@ package
                ["open, squads", 1003, false, false, 0, null, 0, ["S;01122"]],
                ["open, squads, in match", 1003, false, false, 2, null, 0, ["S;01122"]],
                ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]]];
-            for(var why:int = 1; why <= 7; why++)
+            for(var why:int = 1; why <= 8; why++)
                states.push(["open, in match, why " + why, 1003, false, false, 2, null, 0, ["J;-1;" + why]]);
             for each(var s:Array in states)
             {
@@ -813,6 +817,22 @@ package
             if(lobby.getChildIndex(history) <= lobby.getChildIndex(room))
                failures.push("History reopened last did not stay above room");
             trace("ROOMS most recently opened window stays on top across side-panel updates");
+            // The notifications that come up by themselves (a match's report
+            // after the results) stay over the room, however it came up.
+            var popups:Object = new (domain.getDefinition("SrvNotificationList") as Class)();
+            var before:Object = lobby.notificationListTemp;
+            lobby.notificationListTemp = popups;
+            lobby.addChild(popups);
+            for(i = 0; i < 3; i++)
+            {
+               lobby.setChildIndex(room,lobby.numChildren - 1);
+               lobby.layerRoomsWindow(room);
+               if(lobby.getChildIndex(popups) <= lobby.getChildIndex(room))
+                  failures.push("a match's report popped up under the room");
+            }
+            lobby.removeChild(popups);
+            lobby.notificationListTemp = before;
+            trace("ROOMS the notifications that pop up stay over the room");
             // Use the production modal-order owner with lightweight results;
             // the full victory screen requires the game's player dictionaries.
             var Layers:Object = domain.getDefinition("survarium.rooms.RoomLayers");
@@ -1055,6 +1075,63 @@ package
             failures.push("hidden room still owns text focus");
          Object(win).show(true);
          trace("ROOMS PIN focus released before removal, restored after redraw, released on hide");
+         checkCreateBots();
+      }
+
+      // A private room with bots (the owner's of 2026-11-05): "With bots" always there; turned
+      // on, the modes and maps the bots play none of are unticked, greyed and out of the pool's
+      // count; turned off, they are back to choose, still unticked.
+      private function checkCreateBots() : void
+      {
+         if(createText("With bots") == null)
+            failures.push("create: no With bots with no bots' map");
+         tell(["S1;M;2;0", "0;61;1;1;2;0;1", "1;117;2;1;4;0;0"]);
+         var toggle:Object = createText("With bots");
+         if(toggle == null)
+         {
+            failures.push("create: no With bots for a bots' map");
+            return;
+         }
+         createGreyed("create, without bots", 0, "2 / 2");
+         toggle.parent.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+         // Team Deathmatch's row and level 2's map: the bots play neither.
+         createGreyed("create, with bots", 2, "1 / 1");
+         toggle = createText("With bots");
+         if(toggle != null)
+            toggle.parent.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+         createGreyed("create, bots off again", 0, "1 / 2");
+         trace("ROOMS create with bots: toggle, unticked and greyed modes and maps");
+      }
+
+      // The create window's text `text`, if it shows it.
+      private function createText(text:String) : Object
+      {
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var t:Object in texts)
+            if(t.text == text)
+               return t;
+         return null;
+      }
+
+      // The create window shows `count` greyed lines (a mode, a map) and the pool's count `pool`.
+      private function createGreyed(what:String, count:int, pool:String) : void
+      {
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         var greyed:int = 0;
+         var counted:Boolean = false;
+         for each(var t:Object in texts)
+         {
+            if(t.parent != null && t.parent.alpha < 1)
+               greyed++;
+            if(String(t.text).indexOf(": " + pool) > 0)
+               counted = true;
+         }
+         if(greyed != count)
+            failures.push(what + ": " + greyed + " greyed lines, not " + count);
+         if(!counted)
+            failures.push(what + ": the pool does not count " + pool);
       }
 
       // The create window's PIN field (its one input) given `pin`, as typed.

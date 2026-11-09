@@ -6,6 +6,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use artefact_carry::{Artefact, ArtefactId, ContainerIndex, Refused};
 
+
 use super::hook::Thread;
 use super::world::{read};
 use crate::raw;
@@ -40,19 +41,7 @@ impl<'t> Inventory<'t> {
     /// Native containers are a separate allocation. Their ordinal is the
     /// stable snapshot value; address-relative slots stay inside this API.
     fn containers(&self) -> Option<Containers> {
-        // SAFETY: a live inventory owns this array for the hook lifetime.
-        let (first, count) = unsafe {
-            (
-                self.this.artefact_slots_begin(),
-                read(self.this.artefact_slot_count()),
-            )
-        };
-        let first = first?;
-        if !first.address().is_multiple_of(4) || count == 0 {
-            return None;
-        }
-        first.address().checked_add(u32::from(count) * 4)?;
-        Some(Containers { first, count })
+        Containers::of(self.this)
     }
 
     pub fn container_space(&self) -> ContainerSpace {
@@ -133,6 +122,41 @@ impl<'t> Inventory<'t> {
         self.passive_item(artefact).and_then(super::carry_runtime::ArtefactDraw::of_item).map(|_| artefact)
     }
 
+    /// Keeper's gift: an unused pool artefact (state 0, in no inventory, never given: keeper's
+    /// mark) into the first empty container. It gets the count and the cooldown the anomaly's
+    /// spawn gives one (artefact_base::on_spawned 0x3134C0), then the game's own take_artefact
+    /// (as a ground pickup) puts it into the first empty container and links its passive. With a
+    /// container free take_artefact has no refusal (its first empty one at 0x2FC883, set_item
+    /// 0x2FCA32, on_taken), but it is marked given (`keeper::mark_given`) only once it is in this
+    /// inventory, so a gift is never marked and not delivered.
+    pub(super) fn take_dormant(&mut self, item: raw::Artefact) -> bool {
+        if !self.alive() || self.container_space() != ContainerSpace::Available {
+            return false;
+        }
+        if super::keeper::history(item) != crate::artefact_keeper::History::Unused {
+            return false;
+        }
+        // SAFETY: a registered artefact of the live core world; its fields are artefact_base's
+        // and inventory_item's. Retained through the take; a free container (`container_space`)
+        // keeps take_artefact off its evicting path.
+        unsafe {
+            if read(item.state()) != 0 || item.item().inventory().is_some() {
+                return false;
+            }
+            let count = match read(item.default_count()) { 0xFFFF => 1, count => count };
+            item.item().count().write_volatile(count);
+            item.cooldown_left().write_volatile(0);
+            let held = RetainedItem::new(item, self.thread);
+            let mut incoming = Some(held.this);
+            raw::engine_inventory_take_artefact(Some(self.this), &mut incoming);
+            if item.item().inventory() != Some(self.this) {
+                return false;
+            }
+            super::keeper::mark_given(item);
+        }
+        true
+    }
+
     pub(super) fn drop_carried(&mut self, expected: Artefact, drop: artefact_carry::ground::Drop) -> bool {
         let Some(item) = self.passive_item(expected) else { return false };
         let Some(ground) = super::carry_ground::GroundItem::of_item(item, self.thread) else { return false };
@@ -199,12 +223,88 @@ impl<'t> Inventory<'t> {
     }
 }
 
+/// The 23 slots of an inventory (+10Ch), by their native index (the item's +254h).
+pub(in crate::vostok) const SLOTS: u8 = 23;
+
+/// One kit's inventory at a world's load, its slots compared with the world's artefacts
+/// (`keeper::reconcile`). It writes a slot's pointer and its reference (as set_item 0x2FC620 and
+/// remove_item 0x2FC680 do), nothing else: not the weight (+180h) or its recalculation flag
+/// (+184h), which a world saves and loads for the current kit (0x2FE37A / 0x2FE39A, 0x2FE56D /
+/// 0x2FE583, a count of 0 too) and a spawn sets for the others (0x2FD2B8); no passive linked or
+/// unlinked: what a held artefact's passive is, the kit's next spawn decides (setup_from_profile's
+/// on_taken), as in a game that did not load the world.
+pub(in crate::vostok) struct KitSlots<'t> {
+    this: raw::Inventory,
+    _thread: &'t Thread,
+}
+
+impl<'t> KitSlots<'t> {
+    pub(in crate::vostok) fn of_player(player: raw::Player, thread: &'t Thread) -> Option<Self> {
+        // SAFETY: a live player of the world's places; its inventory pointer (+10Ch).
+        let this = unsafe { player.inventory()? };
+        Some(Self { this, _thread: thread })
+    }
+
+    pub(in crate::vostok) fn inventory(&self) -> raw::Inventory {
+        self.this
+    }
+
+    fn entry(&self, slot: u8) -> Option<raw::InventorySlot> {
+        // SAFETY: one of this live inventory's 23 slots (+10Ch + 4 x slot).
+        (slot < SLOTS).then(|| unsafe { self.this.slots().at(usize::from(slot)) })
+    }
+
+    /// The item in `slot`, if any.
+    pub(in crate::vostok) fn item(&self, slot: u8) -> Option<raw::Item> {
+        // SAFETY: as in `entry`.
+        unsafe { self.entry(slot)?.item() }
+    }
+
+    /// Empties `slot`, releasing its reference (as remove_item does, without its owner write:
+    /// the item's inventory is the world's, another's or none).
+    pub(in crate::vostok) fn empty(&mut self, slot: u8) {
+        let Some(entry) = self.entry(slot) else { return };
+        // SAFETY: the slot's live item and the reference the slot holds on it.
+        unsafe {
+            let Some(item) = entry.item() else { return };
+            entry.set_item(None);
+            drop(RetainedItem::adopt(item.artefact(), self._thread));
+        }
+    }
+
+    /// Puts `item` into the empty `slot`, with the slot's reference (as set_item does, without its
+    /// owner write: the world has it in this inventory at this slot already).
+    pub(in crate::vostok) fn fill(&mut self, slot: u8, item: raw::Artefact) {
+        let Some(entry) = self.entry(slot) else { return };
+        // SAFETY: an empty slot of this live inventory; a live registered artefact, retained
+        // once more for the slot.
+        unsafe {
+            if entry.item().is_some() {
+                return;
+            }
+            AtomicU32::from_ptr(item.item().references()).fetch_add(1, Ordering::AcqRel);
+            entry.set_item(Some(item.item()));
+        }
+    }
+}
+
 /// Validated allocation metadata; no address escapes the inventory owner.
 struct Containers {
     first: raw::InventorySlot,
     count: u8,
 }
 impl Containers {
+    fn of(this: raw::Inventory) -> Option<Containers> {
+        // SAFETY: a live inventory owns this array for the hook lifetime.
+        let (first, count) = unsafe { (this.artefact_slots_begin(), read(this.artefact_slot_count())) };
+        let first = first?;
+        if !first.address().is_multiple_of(4) || count == 0 {
+            return None;
+        }
+        first.address().checked_add(u32::from(count) * 4)?;
+        Some(Containers { first, count })
+    }
+
     fn entry(&self, index: ContainerIndex) -> Option<raw::InventorySlot> {
         // SAFETY: the ordinal is below the validated allocation count.
         (index.get() < self.count).then(|| unsafe { self.first.at(usize::from(index.get())) })
@@ -228,6 +328,13 @@ impl<'t> RetainedItem<'t> {
             this,
             _thread: thread,
         }
+    }
+}
+
+impl<'t> RetainedItem<'t> {
+    /// Takes over a reference the caller held (a slot's, the slot emptied).
+    fn adopt(this: raw::Artefact, thread: &'t Thread) -> Self {
+        Self { this, _thread: thread }
     }
 }
 

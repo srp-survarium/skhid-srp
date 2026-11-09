@@ -22,9 +22,11 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod baker;
 pub mod breadcrumbs;
 pub mod bullet;
 pub mod explosion;
+pub mod files;
 pub mod footstep;
 pub mod camera;
 pub mod carry_runtime;
@@ -32,6 +34,8 @@ pub mod carry_ground;
 pub mod carry_flower;
 mod cell;
 pub mod clock;
+pub mod controller;
+pub mod crc32;
 mod context;
 pub mod draw;
 pub mod headwear;
@@ -40,18 +44,25 @@ mod hud_input;
 mod input;
 pub mod inventory;
 mod keyboard;
+pub mod keyboard_layout;
 pub mod language;
 pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
+pub mod login;
+pub mod mouse;
 pub mod log;
+pub mod melee;
 mod options;
 pub mod parse;
 pub mod resources;
+pub mod renderer;
 pub mod gun_cook;
 pub mod pickup;
+pub mod ray_test;
 mod rt;
 pub mod sound;
+pub mod system;
 pub mod voices;
 pub mod settings;
 mod sync;
@@ -91,8 +102,8 @@ pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
-pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
-pub use hud_input::{Hud, HudCall, HudView};
+pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
+pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
 pub use world_load::WorldLoad;
@@ -121,4 +132,15 @@ pub mod statistics;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;
+pub mod artefact_skills;
+pub mod keeper;
+pub mod effect;
 pub mod animation_id;
+pub mod deserialize;
+pub mod effect_presenter;
+
+pub mod match_message;
+pub mod packet_recovery;
+pub mod match_close;
+
+mod world_context;

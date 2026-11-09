@@ -14,8 +14,10 @@ Everything else is a fact written once in the raw tables and read here:
                       handler our own NASM calls, cdecl, aligned as a
                       lohook), the callee it uses (an
                       engine_026g.tsv row, for the kinds that call a game
-                      function), the span it covers, its named exits (lohook)
-                      and a short `what`. The kind follows from the site, so a
+                      function), the span it covers, its named exits (a
+                      lohook's Flow targets; a code hook's jumps out of its
+                      cave other than past the site, which the self-test
+                      allows) and a short `what`. The kind follows from the site, so a
                       patch names no kind.
     engine_026g.tsv   the callee: its VA and convention (from the re-kit), and
                       a `vostok` column, the typed signature a Rust hook takes
@@ -148,7 +150,8 @@ def read_sites(path=None):
     """sites_026g.tsv as {site name: dict}. A site is a named place the game
     is hooked -- its VA, its kind, the callee row it uses (engine_026g.tsv,
     for the kinds that call a game function), the span it occupies, its named
-    exits (lohook), and a short `what`. The VAs live here (and in
+    exits (a lohook's Flow targets; a code hook's other ways out of its cave),
+    and a short `what`. The VAs live here (and in
     engine_026g.tsv), not in the patches; the re-kit (tools/re-kit/v026g) is
     the RE source a site's VA and its callee's ABI come from, as for the
     engine library."""
@@ -499,9 +502,13 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # Sharing an exact lohook site is explicit and ordered. Partial overlaps,
     # mixed kinds and implicit order remain errors. One machine save/replay
     # wraps the chain; the first non-Continue result ends it.
+    # A callback rewrites nothing (the patch hands its own entry to the
+    # game), so the handlers of one callback site are never a chain.
     grouped = {}
     for h in out:
-        grouped.setdefault(h["site_name"] if h["site"] is None else h["site"], []).append(h)
+        key = (h["entry"] if h["kind"] == "callback"
+               else h["site_name"] if h["site"] is None else h["site"])
+        grouped.setdefault(key, []).append(h)
     out = []
     for group in grouped.values():
         if len(group) == 1:
@@ -521,7 +528,8 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # The overlap audit for the Rust hooks (the whole arena's, across the asm
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
-    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out if h["site"] is not None)
+    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out
+                   if h["site"] is not None and h["kind"] != "callback")
     for (lo, hi, a), (lo2, _, b) in zip(spans, spans[1:]):
         if lo2 < hi:
             raise Bad(f"the hooks of {a} and {b} overlap at {lo2:#x} (the bytes {lo:#x}..{hi:#x})")

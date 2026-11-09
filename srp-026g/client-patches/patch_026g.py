@@ -478,7 +478,7 @@ Patches:
   passive's unused max_carried_weight node aim_time with
   `passive/aim_time_mod` and adds two active nodes, aim_time with
   `active/aim_time_mod` at +3B8h and list 42 with
-  `active/stopping_power_mod` at +3C8h (a Spring is 3D8h bytes, 0x25E7A8,
+  `active/stopping_power_mod` at +3C8h (a Spring is 3F8h bytes with Spring II's two reload nodes, 0x25E7A8,
   0x2EEA74), linked and unlinked with the active's (0x311BC0, 0x311DA0);
   the player's stagger (0x2DBCD0, at 0x2DBD89) is times max(0, 1 + list
   42), so bullets do not slow an active Spring's holder. A
@@ -544,18 +544,56 @@ Patches:
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
   grenade's 0.05 m capsule, so the capsule stops at the surface it hits
   instead of 4 cm into it. A simulation change;
+- the mouse look's pitch is 16:9's at every window, and with "Lock vertical
+  sensitivity" unticked the vertical slider's at 1:1 (patch 112, the Rust
+  patch mouse_pitch; docs/notes/mouse-pitch.md): on_mouse_move's height over
+  width (0x2402E9) is 0.5625 while locked, and unlocked the factor that
+  makes a count's pitch radians the yaw's, up and down; the death camera's
+  (patch 46) too. The input carries the turn: nothing a match computes;
+- the hud's kits and cursor start over at each match, and the main menu
+  covers the hud's cursor (patch 113, the Rust patch hud_cursor; README "The
+  hud's kits and cursor"): initialize_match's start (0x234880) hides the
+  cursor and clears the kits' state the last match left, so the first
+  showing tells the movie the match's kit; while game_options is shown the
+  hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x23A9B0, 0x201040);
+  the menu closing while its key settings await a key gives the key up first
+  (finish_binding 0x2015A0), so its own cursor movie is not taken off twice.
+  Nothing a match computes;
+- a banned account's sign-in shows srp's reason, when its ban ends and how
+  long it has left (patch 116, the Rust patch ban_time; README "A ban's
+  reason and end on the sign-in screen"): the sign-in answer (0x37FB66)
+  keeps what srp's login server sends after a ban's code
+  (crates/ban-reason), and set_status (0x21F217) writes the ban's text anew
+  from it. Nothing a match computes;
+- a character controller's step never leaves its position non-finite
+  (patch 118, the Rust patch controller_position; docs/notes/client_patch.md
+  section 3.71): at player_step's epilogue (0x7C7D7) a position (+0B0h) with
+  an infinity or a NaN goes back to m_last_pos (+50h), where the step began;
+  every other step bit for bit as before. A simulation change;
+- a game the match server kicks (0xFD) goes back to the lobby as one whose
+  link was lost does (patch 119, KICK_TO_LOBBY; docs/notes/client_patch.md
+  section 3.72): close_current_match's jump table (0x27A958) sends reason 4
+  to reason 1's lobby message and world end (0x27A930), not to the
+  function's return. Nothing a match computes;
+- a match its game never played closes too (patch 120, unplayed_match;
+  docs/notes/client_patch.md section 3.74): close_current_match's guard
+  (0x27A7A4) lets an open match through when its level is loaded, tells the
+  lobby 31 in the handshake, and while the level loads waits for
+  on_match_ready's end (0x27AEBF) to close it; on_project_loaded's abort
+  (0x1F8AF3) lets an open match's load go on. Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
-  once (patch 70, with the late join; docs/notes/baked-textures.md).
-  bake_cache_026g.asm and .c (the arena's blocks bake_cache.code and
-  .state): game::game deletes user_data/streamed_textures only when its
-  stamp file names another revision (0x1E9455), and puts its whole DDS
-  files back into the baker's list (CRC 0, the first load's taken at
-  0x131C90); game::exit's delete is gone (0x1EC832); translate_query's
-  look-up (0x12D4CD) lets a query whose path is under way wait, and the
-  texture made (0x12F18F a bake, 0x12DDB4 a load) is given to it; an owner
+  once (patch 70, with the late join; docs/notes/baked-textures.md). The
+  Rust patch bake_cache (the arena's blocks patches.code, .data and
+  .state; seven lohooks): game::game deletes user_data/streamed_textures
+  only when its stamp file names another revision (0x1E944E), and puts its
+  whole DDS files back into the baker's list (CRC 0, the first load's taken
+  at 0x131C90); game::exit's delete is gone (0x1EC832); translate_query's
+  look-up (0x12D4C5) lets a query whose path is under way wait, and the
+  texture made (0x12F194 a bake, 0x12DDB9 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
-  0xF0D00). Textures only;
+  0xF0D00); the CRC-32 step (0x42050) goes eight bytes a step. Textures
+  only;
 - a weapon's upgrades in at most three upgrade records, the weapon kit
   (patch 68, with the late join; docs/notes/weapon-kit.md): the Rust patch
   weapon_kit over the crate srp-026g/crates/weapon-kit (weapon_kit.toml).
@@ -593,6 +631,9 @@ Patches:
     hook replaces); the rest of it becomes int3. No header changes;
 - base relocations that overlap rewritten bytes become no-op (type 0)
   entries, so a rebase could not corrupt the new code;
+- DllCharacteristics gets NX_COMPAT (0x0100, DEP opted in; full patch
+  only): without it Wine on macOS maps the process's memory executable and
+  Metal crawls on it (DXMT issue #161);
 - the PE checksum is recomputed (full patch only; --cert-only keeps the
   file byte-identical to the copy installed in step 0).
 The 0.21d mode 3 battery patch is NOT ported: 0.26g serializes the
@@ -725,8 +766,8 @@ WORLD_UNPACK = (
 # server reads never ended before the time limit. What a match computes
 # changes at the first death after a team is out: a game of 11 and an
 # older one part there, so a server asks for 11. With it, a field-of-view
-# setting (FOV_PATCHES and FOV_PROJECTION_HOOK below): the video options'
-# slider is bound to uro_fov, from 50 to 100, which the camera's angle
+# setting (FOV_PATCHES and FOV_PROJECTION_HOOK below): uro_fov, from 50 to
+# 100 (the Settings' Gameplay slider, patch 83), which the camera's angle
 # follows unaimed; through a scope the angle is the original's. A camera is
 # not in what a match computes. And a battery under the floor one stands
 # on can be picked up (PICKUP_* below): a use is in what a match computes,
@@ -765,7 +806,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 48
+REVISION = 53
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1177,6 +1218,13 @@ DEATH_CAMERA_EXITS = (WARMUP_LOOK_VA, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET,
 DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK_VA),
                                       (0xE8, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET),
                                       (0xE9, DEATH_UPDATE_VA), (0xE9, DEATH_THIRD_VA)])
+# The drag's pitch (patch 112): a dword of the code (zeros in the file) the
+# build writes with patch 112's entry mouse.death_pitch, which `.turn` calls:
+# EAX 0 with "Lock vertical sensitivity" ticked (the stock step, h / w 16:9's
+# 0.5625, 0xA2D79C), EAX 1 and XMM1 the vertical sensitivity unticked (its
+# radians a count the yaw's); without the arena the call is skipped, locked.
+DEATH_CAMERA_PITCH = 0x184
+DEATH_PITCH_ENTRY = "mouse_pitch_on_death_pitch"   # the generated entry of mouse.death_pitch
 
 # The order of the archive reads (patch 33, README; client_patch.md section
 # 3.31). vostok::resources::hdd_manager_sorting_predicate::operator()
@@ -1511,6 +1559,33 @@ MOUSE_BUTTONS = (
     (0x26D059, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x26D07C mov al,1 / pop esi
     (0x28DCEE, bytes.fromhex("750e"), bytes.fromhex("7520")),   # -> 0x28DD10 mov al,1 / pop ecx
 )
+
+# A kicked game goes back to the lobby (patch 119, client_patch.md section
+# 3.72). The match server's 0xFD is instant_disconnect(4) (0x3FDF0A), whose
+# callback on_match_disconnected (0x21BE50) calls close_current_match(4)
+# (0x27A790, vtable 0x9FFB14 +58h). Past its guard (the time rule's state the
+# network client keeps, +1F1C60h, not 0) the jump table 0x27A958 had for 4 the
+# function's return (0x27A94C): the link was closed, the world never ended,
+# and the game stayed where it was. Reason 1 ("connection lost") goes to
+# 0x27A867: a log line naming the reason (1, 5, else
+# "disconnected_by_initiator"), then 0x27A930: `31 <order> FF` to the lobby
+# (discard_playing_order 0x2717E0) and the world ended (on_finish_match
+# 0x1F96F0: game_world::unload, game::switch_to_lobby). Entry 4 now names
+# 0x27A930: what reason 1 does, without a log line that would call a kick the
+# player's own leave. The stack and the registers there are the case's (the
+# log block is balanced; [esp+0Ch], its buffer's flag, is only read before
+# 0x27A930). An address: its relocation stays.
+KICK_TO_LOBBY = (0x27A968, struct.pack("<I", 0x27A94C), struct.pack("<I", 0x27A930))
+
+# The mouse look's pitch (patch 112, client_patch.md section 3.70,
+# ../docs/notes/mouse-pitch.md): the Rust patch mouse_pitch
+# (rust/patches/src/mouse_pitch.rs), a lohook at on_mouse_move's pitch step
+# (mouse.pitch_step, 0x2402E9): with "Lock vertical sensitivity" ticked (the
+# default) the stock step with h / w fixed at 16:9's 0.5625, bit for bit the
+# game at a 16:9 window; unticked, the factor making a count's pitch radians
+# the yaw's at the vertical sensitivity (1 looking up, 60/67.5 looking down,
+# pi/3 in the warmup's orbit); and an entry patch 46's drag calls through
+# its DEATH_CAMERA_PITCH dword.
 
 # "Watch replay" (patch revision 14, client_patch.md section 3.27). The
 # lobby movie's ExternalInterface call video_tutorial_link_clicked is the
@@ -1886,10 +1961,11 @@ PREGAME_PROGRESS = (PREGAME_PROGRESS_VA, bytes.fromhex("e9f4000000"),
 # menu has no instance of it either: fov_slider_026g.py adds one to
 # main_menu.swf). `uro_fov` (float at 0xA6FA28, 65.0, saved in user.cfg; the
 # console variable at 0xAA6510, its name "uro_fov" at 0xA281D0) is
-# registered with the range 0 to 100 and read by nothing. The option now
-# names it: the instruction's relocation (0x262931) stays active, an
-# address for an address.
-FOV_OPTION_NAME = (0x262930, bytes.fromhex("b89c65a000"), b"\xb8" + struct.pack("<I", 0xA281D0))
+# registered with the range 0 to 100 and read by nothing. Option 7 stays the
+# original's, dead: the Gameplay tab's slider (exe patch 83, `uro_fov` in
+# the Settings' call) sets uro_fov, its one owner in the menu (a video
+# option named it would write the value it read at the window's opening at
+# the video tab's every Apply: options_item_float::apply 0x2616E0).
 FOV_VALUE = 0xA6FA28
 # The camera's projection (FOV_PROJECTION_HOOK above; 0x242900, slot 0 of
 # the vtables of game_camera, lobby_camera, free_fly_camera, demo_camera and
@@ -1917,7 +1993,7 @@ FOV_MIN = 50.0
 FOV_MINIMUM = (0x85AE06, bytes.fromhex("0f57c0f30f11055465aa00"),
                bytes.fromhex("c7055465aa00") + struct.pack("<f", FOV_MIN) + b"\x90")
 FOV_MINIMUM_RELOC = 0x85AE0D
-FOV_PATCHES = (FOV_OPTION_NAME, FOV_MINIMUM)
+FOV_PATCHES = (FOV_MINIMUM,)
 # The high-FOV LOD compensation (patch 40; client_patch.md section 3.37,
 # ../docs/notes/fov_lod.md). The game measures a model by its size on the
 # screen, through the projection the camera gave: a static model's LOD
@@ -1958,6 +2034,7 @@ PICKUP_HOOKS = (
 )
 # The one address in what is replaced: the distance's, in the reach hook.
 PICKUP_RELOC = 0x2D84EB
+PICKUP_EXITS = (0x2D85FC,)            # a rejected candidate: the scan's next object (`.reject`)
 
 RUN_UNFOCUSED_VA = 0x1A0E1
 RUN_UNFOCUSED_BRANCH_VA = 0x1A0EE
@@ -2087,6 +2164,7 @@ UPGRADE_PREVIEW_HOOKS = (
     (0x284F7F, bytes.fromhex("80bbc9d2000000"), 0x19, 0xE8),       # on_player_ready: made
     (0x284B7C, bytes.fromhex("80bbc8d2000000"), 0x1E, 0xE8),       # setup_profile's early return: early
 )
+UPGRADE_PREVIEW_EXITS = (0x284CF8,)   # setup_profile's epilogue (upgrade_preview_026g.asm SETUP_DONE)
 WEAPON_TABLE_HOOKS = (
     (0x284020, bytes.fromhex("f30f1083c8000000"), 0x5, 0xE8),        # the camera's tick: tick
     (0x247576, bytes.fromhex("807dff007516"), 0xA, 0xE8),            # mt_draw's culled player: cull
@@ -2131,7 +2209,7 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
 # ../docs/notes/artefacts.md): artefacts_026g.asm in the arena's block
 # artefacts.code (ARENA below). Its numbers are the artefacts'
-# configs' (release/content.tsv, artefacts.tsv). It begins with eight
+# configs' (release/content.tsv, artefacts.tsv). It begins with ten
 # `jmp near`, one for each site, each a global symbol the hook jumps to:
 # - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
 #   active's third node): loader. The passive's second node (+350h,
@@ -2161,8 +2239,13 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # - Onyx's client update 0x25F640, `mov ecx,[ebx-0C30h] / push 0BB8h` at
 #   0x25F9DD (its activation hint's set_parameterized_message): the time on
 #   screen is the active's time left (the hud writes it for the hint's %s),
-#   and only the first Onyx of the slots fired by the same press shows it.
-# The two nodes are after a Spring's own fields: the two sizes of a Spring,
+#   and only the first Onyx of the slots fired by the same press shows it;
+# - Spring's passive link 0x311AD0 (`push ebx / push esi / mov esi,eax /
+#   mov eax,[esi+250h]`, the entry) and unlink 0x311D10 (`push ebx / mov
+#   ebx,[esp+8]`): Spring II's passive reload node in and out (patch 109's
+#   entry artefact_skills_on_spring_reload gives both reload nodes their values
+#   at the link); the active's reload node goes with the active's.
+# The four nodes are after a Spring's own fields: the two sizes of a Spring,
 # artefact<artefact_spring_core> (0x3B8, 0x25E7A8) and the bare core (0x398,
 # 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
 # site and no branch aims inside one; the code holds the absolute addresses
@@ -2176,10 +2259,13 @@ ARTEFACTS_HOOKS = (
     (0x2DBD89, bytes.fromhex("f30f10961c030000"), "artefacts_stagger", 0xE9),     # the player's stagger: its sum
     (0x312C03, bytes.fromhex("83b98002000003"), "artefacts_onyx", 0xE9),          # Onyx's hit callback: its state test
     (0x25F9DD, bytes.fromhex("8b8bd0f3ffff68b80b0000"), "artefacts_popup", 0xE9), # Onyx's client update: its pop-up
+    (0x311AD0, bytes.fromhex("53568bf08b8650020000"), "artefacts_link_passive", 0xE9),   # Spring's passive link
+    (0x311D10, bytes.fromhex("538b5c2408"), "artefacts_unlink_passive", 0xE9),           # Spring's passive unlink
 )
 ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91, 0x312C0A,
-                   0x25F9E8)                    # where each goes on (the pop-up's skip: 0x25F9F8)
-ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
+                   0x25F9E8, 0x311ADA, 0x311D15)  # where each goes on (the pop-up's skip: 0x25F9F8)
+ARTEFACTS_EXITS = (0x25F9F8,)                   # the Onyx pop-up's skip past set_parameterized_message (POPUP_SKIP)
+ARTEFACTS_SPRING_SIZE = 0x3F8                  # the active's two nodes at +3B8h and +3C8h, Spring II's at +3D8h, +3E8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
     (0x2EEA74, bytes.fromhex("b898030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -2327,34 +2413,12 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 
 # The baked camouflage and decal textures kept, and baked or loaded once while
 # asked for again (patch 70, README; client_patch.md section 3.57; the rules:
-# ../docs/notes/baked-textures.md): bake_cache_026g.asm and .c in the arena's
-# blocks bake_cache.code and .state (ARENA below):
-# - game::game's delete of user_data/streamed_textures (`call 0x1E8DA0`,
-#   0x1E9455): bake_cache_start, the delete only for another revision's
-#   folder, else the kept files back in the baker's list (CALLEE);
-# - check_loaded_baked_texture's `cmp eax,[edi+114h]` (0x131C90): a kept
-#   file's record takes the CRC loaded (INLINE);
-# - translate_query's look-up (`call 0x131ED0`, 0x12D4CD): a path under way
-#   waits (CALLEE);
-# - process_compression's and on_baked_texture_loaded's `call 0x420789`
-#   (0x12F18F, 0x12DDB4), the texture made: the waiting queries get it
-#   (CALLEE);
-# - finish_query's entry (0xF0D00): a path's owner ended otherwise, its
-#   waiting queries made again (ENTRY);
-# - the CRC-32 step (0x42050, a byte a step; every bake and every load of a
-#   baked texture runs it over the whole file): the same value eight bytes a
-#   step (ENTRY);
-# and game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
-# No base relocation is under a site and no branch aims inside one.
-BAKE_CACHE_HOOKS = (
-    (0x1E9455, bytes.fromhex("e846f9ffff"), "bake_cache_start", 0xE8),       # game::game's delete
-    (0x131C90, bytes.fromhex("3b8714010000"), "bake_cache_adopt", 0xE8),     # check_loaded's CRC compare
-    (0x12D4CD, bytes.fromhex("e8fe490000"), "bake_cache_lookup", 0xE8),      # translate_query's look-up
-    (0x12F18F, bytes.fromhex("e8f5152f00"), "bake_cache_baked", 0xE8),       # a bake's texture made
-    (0x12DDB4, bytes.fromhex("e8d0292f00"), "bake_cache_loaded", 0xE8),      # a load's texture made
-    (0xF0D00, bytes.fromhex("558bec83e4f8"), "bake_cache_finish", 0xE9),     # finish_query
-    (0x42050, bytes.fromhex("8b4c240457"), "bake_cache_crc32", 0xE9),        # the CRC-32 step, slice by 8
-)
+# ../docs/notes/baked-textures.md): the Rust patch bake_cache (its lohooks
+# rust/patches/src/bake_cache.toml, sites_026g.tsv bake.* and crc32.step:
+# game::game before its delete 0x1E944E, check_loaded's CRC compare
+# 0x131C90, translate_query before its look-up 0x12D4C5, the textures made
+# 0x12F194 and 0x12DDB9, finish_query 0xF0D00, the CRC-32 step 0x42050), and
+# game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
 
 
@@ -2500,6 +2564,10 @@ INSTALLS = {
                       "then the function", None, None),
     0x311DA0: (ENTRY, "remove_active_modifiers, their unlink (stdcall, the Spring): unlink_active, then the "
                       "function", None, None),
+    0x311AD0: (ENTRY, "add_passive_modifiers, the link of Spring's passive nodes (eax = the Spring): "
+                      "link_passive (Spring II's reload node), then the function", None, None),
+    0x311D10: (ENTRY, "remove_passive_modifiers, their unlink (stdcall, the Spring): unlink_passive, then the "
+                      "function", None, None),
     0x3122AA: (JUMP, "Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`: "
                      "lifebone_active", None, None),
     0x313300: (ENTRY, "artefact_base::action (thiscall: pressed, time; inventory::action's vtable +2Ch call): "
@@ -2536,22 +2604,6 @@ INSTALLS = {
                        "victim, ebp the bullet): event, which writes the cause icon, the flags and edx", None, None),
     0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
                        "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
-    # the baked textures kept and baked or loaded once, patch 70 (in `.srpx`)
-    0x1E9455: (CALLEE, "game::game's delete of user_data/streamed_textures (0x1E8DA0, eax the folder's "
-                       "buffer_string): start, which deletes it for another revision's folder only", None, None),
-    0x131C90: (INLINE, "check_loaded_baked_texture's `cmp eax,[edi+114h]` (eax the CRC loaded, edi the record): "
-                       "adopt, which gives a kept file's record (CRC 0) that CRC, then compares", None, None),
-    0x12D4CD: (CALLEE, "translate_query's look-up 0x131ED0 (eax the cook, the path; `ret 4`): lookup, which "
-                       "tail-jumps to it, or leaves translate_query at 0x12D42D (its own `ret 4`) for a path "
-                       "under way", None, None),
-    0x12F18F: (CALLEE, "process_compression's `call 0x420789` (ecx 0xAC3334) after its texture's slot: baked, "
-                       "which shares the texture and returns ecx+8", None, None),
-    0x12DDB4: (CALLEE, "on_baked_texture_loaded's `call 0x420789` (ecx 0xAC3334) after its texture's slot: "
-                       "loaded, which shares the texture and returns ecx+8", None, None),
-    0xF0D00: (ENTRY, "finish_query (stdcall: the query, the result, two more; `ret 10h`): finish, then the "
-                     "function (or the function, then the waiting queries made again)", None, None),
-    0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
-                     "value eight bytes a step", None, None),
     # the Sponge, patch 59 (in `.srpx`)
     0x25E68A: (JUMP, "the artefact cook's construct 0x25E660 at its type switch (`cmp eax,5 / ja near`, eax = "
                      "data/type - 3): sponge_construct, type 12 a sponge's (`ret 10h` as the function), else the "
@@ -2882,8 +2934,6 @@ ARENA = (
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
-    ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
-    ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
     ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 100
     ArenaBlock("audio_device.state", "state", 0x10, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # its engine
     # The Rust exe patches (the framework's example is patch 34, the
@@ -3027,6 +3077,7 @@ SPONGE_HOOKS = (
 # 0xA16A10 of the core's +4, its slot 0): sponge_links (patch_section_value;
 # the slot keeps its base relocation).
 SPONGE_SLOT = (0xA16A10, struct.pack("<I", 0x33C440), "sponge_links")
+RESEARCH_EXITS = (0x23B35B,)          # update_ui's message (research_026g.asm WELCOME_SHOW)
 # The engine-function library (engine_026g.py, client_patch.md section 0.5):
 # a cdecl thunk per engine function our code calls, each the global symbol
 # `engine_...` in the arena's block engine.code. One copy for every patch, so
@@ -3069,6 +3120,7 @@ HOOKS = [
     # on_match_packet_received, case 0xF6: cmp byte [g_debug_hash_mismatches],0
     (0x27A505, bytes.fromhex("803d2cd3f10100")),
 ]
+HOOKS_EXITS = (0x27A5AB,)             # case 0xF6: skips the rest of the message (snapshot_upload REQUEST_DONE)
 
 
 def parse_server(text):
@@ -3227,6 +3279,7 @@ class Headers:
         self.size_of_code_at = self.optional + 4
         self.size_of_image_at = self.optional + 56
         self.checksum_at = self.optional + 64
+        self.dll_characteristics_at = self.optional + 70
         self.security_at = self.optional + 96 + 8 * 4
         self.reloc_at = self.optional + 96 + 8 * 5
         self.debug_at = self.optional + 96 + 8 * 6
@@ -3242,6 +3295,9 @@ class Headers:
             vsize, rva, rsize, raw = struct.unpack_from("<IIII", data, o + 8)
             out.append((bytes(data[o:o + 8]), rva, vsize, raw, rsize, struct.unpack_from("<I", data, o + 36)[0]))
         return out
+
+
+IMAGE_DLLCHARACTERISTICS_NX_COMPAT = 0x0100
 
 
 def pe_checksum(data, checksum_at):
@@ -3614,6 +3670,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in MOUSE_BUTTONS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        # A jump table's address for another: its relocation stays.
+        patch(data, *KICK_TO_LOBBY)
         for site in ARTEFACTS_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
@@ -3638,8 +3696,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sys.exit("a base relocation under time_floating_factor's value")
         for va, expected, new in FOV_PATCHES:
             patch(data, va, expected, new)
-        # The option's name stays an address the loader adds to; the least's
-        # one replaced address must not be added to.
+        # The least's one replaced address must not be added to.
         va, expected, _ = FOV_MINIMUM
         if neutralize_relocs(data, [(va, va + len(expected))]) != [FOV_MINIMUM_RELOC]:
             sys.exit(f"{va:#x}: the base relocation under uro_fov's least is not where it was read")
@@ -4007,7 +4064,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
-            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join), death_camera,
+            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join),
+                                    with_death_pitch(death_camera, linked),
                                     DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
@@ -4015,7 +4073,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # hook's target taken from the link by its symbol.
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
+                        + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
                         + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + SPONGE_HOOKS \
                         + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
@@ -4042,6 +4100,12 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     if late_join is not None and linked is not None:
         audit_vtables(symbols=arena_symbols(linked))
     headers = Headers(data)
+    # NX_COMPAT: the game opts in to DEP. Without it Wine maps a 32-bit
+    # process's memory executable, and Metal on macOS 26+ crawls on such
+    # buffers: DXMT and DXVK sit minutes before the first frame (DXMT #161).
+    if mode != "cert-only":
+        dll = struct.unpack_from("<H", data, headers.dll_characteristics_at)[0]
+        struct.pack_into("<H", data, headers.dll_characteristics_at, dll | IMAGE_DLLCHARACTERISTICS_NX_COMPAT)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
                   f"a world of {WORLD_BUFFER_SIZE:#x} bytes hashed and unpacked, "
@@ -4272,6 +4336,18 @@ def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
 
 
+def with_death_pitch(code, linked):
+    """death_camera_026g.section.bin (`code`) with its pitch_entry dword
+    (DEATH_CAMERA_PITCH, zeros in the file) holding patch 112's entry of the
+    arena `linked`; as it is without one."""
+    if code[DEATH_CAMERA_PITCH:DEATH_CAMERA_PITCH + 4] != bytes(4):
+        sys.exit("death_camera_026g.section.bin: its pitch_entry dword is not the zeros the build fills")
+    if linked is None or DEATH_PITCH_ENTRY not in linked.symbols:
+        return code
+    target = struct.pack("<I", arena_target(linked, DEATH_PITCH_ENTRY))
+    return code[:DEATH_CAMERA_PITCH] + target + code[DEATH_CAMERA_PITCH + 4:]
+
+
 def with_kit_apply(code, linked):
     """upgrade_preview_026g.section.bin (`code`) with its kit_apply dword
     (UPGRADE_PREVIEW_KIT_APPLY, zeros in the file) holding patch 68's
@@ -4285,7 +4361,7 @@ def with_kit_apply(code, linked):
 
 
 def artefacts_backs(linked):
-    """Where each of the artefacts' eight entries (ARTEFACTS_HOOKS' symbols)
+    """Where each of the artefacts' ten entries (ARTEFACTS_HOOKS' symbols)
     goes on: the target of the first `jmp near` back into .text after the
     entry's own code, when the entry is a `jmp near`; else None."""
     block = linked.blocks["artefacts.code"]

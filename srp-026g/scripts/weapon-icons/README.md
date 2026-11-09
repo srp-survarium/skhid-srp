@@ -80,7 +80,8 @@ python3 pack_icons.py --packs /path/to/content-packs --icons icons \
 The pack builder refuses to replace an existing version. It checks every
 PNG, copies the three source packs, replaces only their listed weapon icon
 PNGs, and verifies that all other file bytes remain identical. The outputs
-are weapons-031@9, weapons-046@12 and weapons-069@14, pinned in
+are weapons-031@13 (from @12, the port with the Groza's own aim locator),
+weapons-046@12 and weapons-069@14, pinned in
 `release/content.tsv`. Ammo and kill-feed images, gameplay configs, models,
 textures and animations stay byte-identical. No simulation-change row is
 needed.
@@ -100,3 +101,13 @@ animation changes. The other eighteen PNGs retain their previous hashes.
 That pose correction shipped as weapons-069@13; comparison with version 12
 changed only the two weapon PNGs and pack metadata. The exposure correction
 retains both poses.
+
+The AKMSU correction stands for the game's own posing: the game draws a held
+weapon in its clips, not its bind pose (stock bind poses are as far off, the
+A-545's magazine bone 20 cm from its idle, and the AKMSU shows right above the
+lobby's workbench). The PPSh one corrects the input pack (weapons-069@11): its
+drum carried the quarter-turn in its vertices, in the game too, until
+weapons-069@15 placed it in the slot as 0.69d0 does. The correction turns the
+other way and about the bone, not the socket, so the icon's drum is across the
+gun as the model's but about 1 cm further along the bore (2 px). Only five
+model files differ in @15; its icons are @14's.

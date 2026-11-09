@@ -47,8 +47,7 @@ whatever else too".
   - breath vibration (gear 1210/1211) and breath holding (skill 105): where they meet the card's
     sway rows is not traced;
   - the dispersion bar (`base_dispersion`): no player modifier reaches it (its readers 0x331220,
-    0x2E2173 call no `apply_modifier`); LIKELY;
-  - movement speed (the weapon's built-in line, Bear Arms): a bonus line of the card, not a stat.
+    0x2E2173 call no `apply_modifier`); LIKELY.
 
 ## The formulas
 
@@ -71,25 +70,89 @@ shows them (time x (1 - sum)); the match's cook gives `reload_time` x (1 + sum),
 (LIKELY: the cooked config is the one 0x30B33E reads). Not changed here: the owner gave it to its
 own fix (`fix/reload-rolls`).
 
+## Movement speed under Bear Arms
+
+The owner, 2026-11-05: "when pressing alt to see final numbers, if you have bear arms, you should see
+movements speed: -5% -> 0%", "on weapons that it fixes". Held Alt, the weapon's own movement line (a
+built-in bonus line: `WeaponMovement`, prop 105 from `parameters/movement_speed_modifier`) reads
+"Movement speed: -5% -> 0%" on exactly the weapons Bear Arms cancels it on, the current value green
+(the bonus lines' green; neutral with Ctrl, as the stats' changes). Every other bonus line, and a
+bonus movement line, keeps its text.
+
+- **The game's rule** (PROVEN, read in the exe): when a weapon is put in hand,
+  `weapon_core::initialize` 0x2E2A30 (from `weapon::initialize` 0x2449E0, the vtable+14h of
+  `survarium::weapon` 0xA04174, the only class whose activation reaches it: every firearm, either
+  weapon slot) adds the weapon's movement node (+610h, value at +61Ch) to the kit's container unless
+  `apply_modifier(62, 0, 1)` (Bear Arms, skill 112; additive, so 0 + S62) is above 0 **and** the
+  value is not above 0 (0x2E2C5C..0x2E2C9C). `weapon_core::deserialize` 0x2E3490 makes the same
+  test at 0x2E37A4. So Bear Arms cancels every firearm's penalty, whichever slot; a bonus always
+  counts; a weapon without a movement line has nothing to cancel.
+- **S62 in the lobby:** the kit's own float 62 (`root.set_kit_modifiers`, the floats the Alt view
+  already has) plus the armour's modifications of 62 (none in 0.26g). The weight callback's Bear
+  Arms flag is made from the same floats (`weight_ui_026g.c`: `apply_modifier(62, 0, 1)`), so the
+  card and the speed's tooltip (`SpeedParts`) agree; no new exe call.
+- **Where:** every card with the Alt view is an `ItemInfoRenderer` (shop, inventory, kit slots, the
+  craft window's two cards); it refills its bonus lines when Alt (or Ctrl) changes.
+- **Checked:** `WeaponDetailsHarness` `bearArmsChecks` (Ruffle): a -5 % weapon with Bear Arms on and
+  off, a +3 % weapon, Ctrl, another built-in line beside it, no floats, Alt pressed and let go over
+  an open card.
+
 ## Medicines
 
 The owner, 2026-11-04: "Alt on medkits and painkillers should show final numbers, after the skills
 we implemented." Held Alt over a medicine's card (category 10: bandages, the five medkits,
 antitoxin, painkiller), each line a medical skill changes reads "original -> current", coloured as
 the weapon's. No effects line and no hint: the card has neither. The ranks come from the kit's
-float 43 (packed, `docs/notes/medical-skills.md`), parsed as the exe's `medical_skills` does (a
-refused value is no skill); Medical Training is also float 57. Every rule is the exe's
+floats 43 and 45 (packed, `docs/notes/medical-skills.md`), parsed as the exe's `medical_skills` does
+(a refused value of either is no skill); Medical Training is also float 57. Every rule is the exe's
 (`client-patches/rust/patches/src/medical_skills.rs`, `vostok/medical.rs`):
 
 | card line | in a match |
 |---|---|
-| Activation (19) | x max(0, 1 + S33) (set_active 0x33D45A), then Fast Bandaging x (1 - 0.02 x rank) on a medicine that heals (its card has a healing line: `data/influences`; antitoxin too, not the painkiller) |
-| Duration (18) | + rank s of Potent Painkiller on a pain protector (the painkiller) |
-| Pain protection (17) | c = (1 - p) x max(0, 1 + S58); Potent Painkiller: max(0, 1 - (1 - c) x (1 + 0.05 x rank)); shown 1 - c (10 % -> 12.5 % at rank 5) |
-| Healing lines (135, 136, 137, 13) | x max(0, 1 + S57) (medkit::tick 0x33D790; Medical Training +0.05 a rank), at most 100 % of the pool |
+| Activation (19) | x max(0, 1 + S33) (set_active 0x33D45A), then Fast Bandaging x (1 - 0.05 x rank) on a medicine that heals (its card has a healing line: `data/influences`; antitoxin too, not the painkiller) |
+| Duration (18) | + 1.5 s a rank of Potent Painkiller on a pain protector (the painkiller) |
+| Pain protection (17) | c = (1 - p) x max(0, 1 + S58); Potent Painkiller: max(0, c - 0.01 x rank), a percentage point a rank; shown 1 - c (10 % -> 13 % at rank 3) |
+| Healing lines (135, 136, 137, 13) | x max(0, 1 + S57) (medkit::tick 0x33D790; Medical Training +0.08 a rank), at most 100 % of the pool |
 
 Left out: S34 (`drug_activity_time`, the duration's weight): no skill or item gives it. No skill
 gives S33 or S58 either; they are there as the exe applies them.
+
+The owner, 2026-11-06: "when I press alt on painkillers I should see improvements from medical
+skills". The skills that act while a painkiller is active, or while a medicine heals, change no
+line of the card, so held Alt each one with a rank adds a line under the card's own, a share of the
+game's own value, "100 -> current %", coloured as the others (ranks from float 45, parsed with
+float 43 as above):
+
+| line (`st_srp_medicine_*`) | on | in a match |
+|---|---|---|
+| Sprint stamina (`sprint_stamina`) | a pain protector | Numb Legs: the sprint's stamina x (1 - 0.2 x rank) while it is active (100 -> 60 % at rank 2) |
+| Slow from bullets (`hit_slow`) | a pain protector | Unflinching: the hits' stopping power x (1 - 0.1 x rank) while it is active (100 -> 60 % at rank 4) |
+| Ambient sounds, Enemy sounds (`ambient_sounds`, `enemy_sounds`) | a pain protector | Concentration: the environment x (1 - 0.1 x rank), the opponents' sounds (not their shots) x (1 + 0.1 x rank) while it is active (60 % and 140 % at rank 4) |
+| Healing crouched (`crouched_healing`) | a medicine that heals | Take Cover: each heal tick x (1 + 0.1 x rank) while crouched, after Medical Training (100 -> 120 % at rank 2) |
+
+The other medical skills (Metabolism, Adrenalin, Strong Bones, Brothers in Arms, the pockets)
+do nothing a medicine's card shows.
+
+## Grenades and traps
+
+The owner, 2026-11-05: "let's add them, let's also make sure alt modifies things (I think throw
+speed?)". Held Alt over a grenade's or a trap's card (categories 24 and 11: the RGD-5, the RDG-M
+smoke, the trap), each bar a modifier changes reads "original -> current", as the medicines'. The
+cards' bars are `throwable-cards-1` (presentation only): damage is on each body hit (the RGD-5's
+`splash_max_damage` at the centre on each of its six splash bodies, the trap's on the foot), so
+prop 1's scale (150) stays the weapons'. Every rule is the exe's (`apply_modifier` 0x2D5AE0;
+none of the three indices is on the additive list 0x927E08):
+
+| card line | in a match |
+|---|---|
+| Throw speed (169, `data/throw_power`, m/s) | the grenade's velocity: the throw's forward axis x throw_power x max(0, 1 + S27) (`grenade_set_core::throw_grenade` 0x30A250, call 0x30A2DE; to `set_linear_velocity`): skill 203 Grenadier +0.1 a rank, 2 ranks (17 -> 18.7 -> 20.4 m/s) |
+| Damage (1), stopping power (132), stamina damage (167) | the grenade's splash min and max damage, stamina damage and stopping power x max(0, 1 + S11) (`grenade_set_core::splash_hit_params` 0x30A350); the trap's hit x max(0, 1 + S11) (`booby_trap_core::hit_victim` 0x304A40) |
+| Radius (23) | x max(0, 1 + S12) (0x30A350; the trap's splash 0x3055F0, unused: `is_explosive` 0) |
+
+Unchanged in a match: armour penetration (`splash_pierce`, the trap's `armor_piercing`), the fuse
+(`ttl_ms`), the trap's defuse time (no `apply_modifier` reads S9 `engineer_use_time`). Only S27 has
+a source today (Grenadier); S11 and S12 are there as the exe applies them (no skill, roll or item
+gives them). Pocket counts (S15, S17, `pocket_units` 166) are the paper doll's, not a card bar.
 
 ## How
 
@@ -105,5 +168,8 @@ gives S33 or S58 either; they are there as the exe applies them.
 - **Release:** the lobby movie and the dictionaries (content) and the exe (the floats). Nothing a
   match computes: no `simulation_changes.tsv` row.
 - **Checked:** `scripts/weapon-details/WeaponDetailsHarness.as` (Ruffle; the medicines in
-  `medicineChecks`: the seven live cards, no skill, each skill alone and all at rank 5, refused ranks,
-  no floats, Alt pressed over an open card), `check_weight_ui_026g.py` (Unicorn). Not run in a game.
+  `medicineChecks`: the seven live cards, no skill, each skill alone and all at their most ranks, refused ranks,
+  no floats, Alt pressed over an open card, the combo skills' lines on every live card at each rank
+  alone and both full sets, their colours and every language's line beside its value; the grenades and the trap in `throwableChecks`: the three
+  live cards, Grenadier ranks 1 and 2, S11 and S12, a sum below -1, no floats, Alt pressed over an
+  open grenade card), `check_weight_ui_026g.py` (Unicorn). Not run in a game.

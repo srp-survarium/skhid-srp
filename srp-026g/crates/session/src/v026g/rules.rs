@@ -20,10 +20,10 @@
 //! goes with which weapon. The client's lobby checks both before it sends.
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::item_params::{covered_slots, item_params, shop_unit};
-use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation, RepairPayment, SHOP_SLOT};
+use survarium::v026g::item_params::{covered_slots, shop_unit};
+use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation, SHOP_SLOT};
 use survarium::v026g::lobby::{
-    Bought, CONDITION_UNIT, FULL_CONDITION, Repaired, ServicePrices, limits,
+    Bought, CONDITION_UNIT, FULL_CONDITION, ServicePrices, limits,
 };
 use survarium::v026g::prices;
 use survarium::v026g::quests::FACTIONS;
@@ -31,12 +31,6 @@ use survarium::v026g::skills::{SkillError, SkillsTree};
 
 use super::account::{Account, KIT_SLOTS, KitSlot, cap_name, doubled_pockets};
 
-/// What a skills reset costs, in silver (0.21d's value) or in gold [choice:
-/// the same at the exchange rate].
-pub const REROLL_COST: u32 = 100;
-pub const REROLL_COST_PREMIUM: u32 = 1;
-/// Silver for one gold: 0.21d's rate (its web page sold gold at it).
-pub const PREMIUM_EXCHANGE_RATE: u32 = 100;
 /// Most items one purchase of an item that is no stack makes [choice,
 /// 0.21d's].
 pub const MAX_BOUGHT_AT_ONCE: u32 = 8;
@@ -44,14 +38,17 @@ pub const MAX_BOUGHT_AT_ONCE: u32 = 8;
 /// The six prices the lobby is told (0x8D). The kit's price is 0: a kit
 /// can not be bought in 0.26g at all (the lobby's `setProfileCost` does
 /// nothing). A nickname change costs `premium::Settings::rename_cost`
-/// gold (`names`); the clan's price is `clans`'.
+/// silver (`names`); the clan's price is `clans`'. A skills reset is free
+/// (the owner, 2026-11-08: "let's make skill reset free"; it was 100
+/// silver or 1 gold): its prices are 0. Nothing is paid in gold (the owner,
+/// 2026-11-08): the exchange rate is 0.
 pub fn service_prices() -> ServicePrices {
     ServicePrices {
-        reroll: REROLL_COST,
-        reroll_premium: REROLL_COST_PREMIUM,
+        reroll: 0,
+        reroll_premium: 0,
         profile: 0,
         change_name: super::premium::settings().rename_cost,
-        premium_exchange_rate: PREMIUM_EXCHANGE_RATE,
+        premium_exchange_rate: 0,
         clan_creation: super::clans::Config::shared().cost,
     }
 }
@@ -80,21 +77,12 @@ pub enum ActionError {
     /// A count of 0, or more than one purchase makes.
     BadCount,
     NotEnoughMoney,
-    NotEnoughPremiumMoney,
     /// The skills asked for break the tree's rules.
     Skills(SkillError),
     /// The skills asked for take points back (only a reset does that).
     SkillsLowered,
     /// A reset of a branch that is none, or with a payment that is none.
     BadReset,
-    /// The account has no silver for the reset.
-    NotEnoughMoneyForReset,
-    /// The item is a stack or is not worn: nothing to repair.
-    NothingToRepair,
-    /// A repair paid in gold or with a kit: those fix defects, and srp's
-    /// items have none yet.
-    NoDefects,
-    NotEnoughMoneyForRepair,
     /// Not one of the lobby's factions.
     BadFaction,
     /// The kit has no weapon.
@@ -125,15 +113,11 @@ impl ActionError {
                 "st_cannot_buy_item"
             }
             Self::NotEnoughMoney => "st_not_enougth_money",
-            Self::NotEnoughPremiumMoney => "st_cant_buy_premium_message",
             Self::Skills(SkillError::OverLevel { .. } | SkillError::TooManyPoints { .. }) => {
                 "st_wrong_skill_points_count"
             }
             Self::Skills(_) | Self::SkillsLowered => "st_player_skills_check_failed",
             Self::BadReset => "st_cannot_reroll_skills",
-            Self::NotEnoughMoneyForReset => "st_not_enougth_money_for_reroll",
-            Self::NothingToRepair | Self::NoDefects => "st_cannot_repair_item",
-            Self::NotEnoughMoneyForRepair => "st_not_enought_money_for_repair",
             Self::NoWeapon => "st_profile_check_failed_weapon",
             Self::NoAmmo => "st_profile_check_failed_weapon_ammo",
         }
@@ -554,8 +538,7 @@ pub fn shown_condition(condition: u32) -> u32 {
 
 /// `47 01`: sell `steps` of an item (clips of ammo; an item that is no
 /// stack is sold whole). The pay is what the lobby shows
-/// ([`prices::sell_price`]): a quarter of the cost a step, for a worn item
-/// times its condition.
+/// ([`prices::sell_price`]): a quarter of the cost a step.
 pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, ActionError> {
     let dictionary = Dictionary::shared();
     let index = account
@@ -576,21 +559,13 @@ pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, Act
             return Err(ActionError::BadCount);
         }
         // A step that the stack's last rounds do not fill is still a step.
-        let paid_for = amount.div_ceil(shop_unit(owned.dict_id)) * shop_unit(owned.dict_id);
+        let paid_steps = amount.div_ceil(shop_unit(owned.dict_id));
         (
             amount,
-            prices::sell_price(dictionary, owned.dict_id, paid_for, PREMIUM_EXCHANGE_RATE),
+            prices::sell_price(dictionary, owned.dict_id, paid_steps),
         )
     } else {
-        (
-            1,
-            prices::sell_price(
-                dictionary,
-                owned.dict_id,
-                shown_condition(owned.condition_or_stack),
-                PREMIUM_EXCHANGE_RATE,
-            ),
-        )
+        (1, prices::sell_price(dictionary, owned.dict_id, 1))
     };
     if is_stack && amount < owned.condition_or_stack {
         account.inventory[index].condition_or_stack -= amount;
@@ -606,100 +581,6 @@ pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, Act
         amount,
         money,
     })
-}
-
-/// `47 03`: repair an item to full. Paid in silver it costs what the
-/// repair window shows ([`prices::repair_cost`]) and is done at once: the
-/// window's time and its gold and kit payments are for an item's defects,
-/// which srp's items do not have yet. Returns what `83 47 03` carries.
-pub fn repair(
-    account: &mut Account,
-    item_id: u32,
-    payment: RepairPayment,
-) -> Result<Repaired, ActionError> {
-    let dictionary = Dictionary::shared();
-    let owned = account.item(item_id).ok_or(ActionError::NoSuchItem)?;
-    let is_stack = dictionary
-        .item(owned.dict_id)
-        .ok_or(ActionError::NoSuchItem)?
-        .is_stack;
-    if is_stack || owned.condition_or_stack >= FULL_CONDITION {
-        return Err(ActionError::NothingToRepair);
-    }
-    if payment != RepairPayment::Silver {
-        return Err(ActionError::NoDefects);
-    }
-    let cost = prices::repair_cost(
-        dictionary,
-        owned.dict_id,
-        shown_condition(owned.condition_or_stack),
-    );
-    if cost > account.generic_money {
-        return Err(ActionError::NotEnoughMoneyForRepair);
-    }
-    account.generic_money -= cost;
-    if let Some(item) = account.item_mut(item_id) {
-        item.condition_or_stack = FULL_CONDITION;
-        item.repair_time = 0;
-    }
-    Ok(Repaired::AtOnce)
-}
-
-/// Wears an item that is no stack by `fraction` of its full condition (the
-/// item configs' `degrade_per_match` and the like): for the results of a
-/// match. Returns the new condition.
-pub fn wear(account: &mut Account, item_id: u32, fraction: f32) -> Option<u32> {
-    let dictionary = Dictionary::shared();
-    let item = account.item_mut(item_id)?;
-    if dictionary.is_stack(item.dict_id) || !fraction.is_finite() || fraction <= 0.0 {
-        return Some(item.condition_or_stack);
-    }
-    let lost = (fraction.min(1.0) * FULL_CONDITION as f32) as u32;
-    item.condition_or_stack = item.condition_or_stack.saturating_sub(lost);
-    Some(item.condition_or_stack)
-}
-
-/// The wear a match puts on an item (`degrade_per_match`), as a fraction.
-pub fn wear_per_match(dict_id: u16) -> f32 {
-    item_params(dict_id).map_or(0.0, |params| params.degrade_per_match)
-}
-
-/// `47 04`: gold for silver at the rate the lobby was told. Returns the
-/// silver gained.
-pub fn exchange_premium(account: &mut Account, gold: u32) -> Result<u32, ActionError> {
-    if gold == 0 {
-        return Err(ActionError::BadCount);
-    }
-    if gold > account.premium_money {
-        return Err(ActionError::NotEnoughPremiumMoney);
-    }
-    let silver = gold
-        .checked_mul(PREMIUM_EXCHANGE_RATE)
-        .and_then(|silver| account.generic_money.checked_add(silver).map(|_| silver))
-        .ok_or(ActionError::BadCount)?;
-    account.premium_money -= gold;
-    account.generic_money += silver;
-    Ok(silver)
-}
-
-/// `47 04` from srp's exchange window: silver for gold, at the same rate.
-/// Returns the silver paid.
-pub fn buy_premium(account: &mut Account, gold: u32) -> Result<u32, ActionError> {
-    if gold == 0 {
-        return Err(ActionError::BadCount);
-    }
-    let silver = gold
-        .checked_mul(PREMIUM_EXCHANGE_RATE)
-        .ok_or(ActionError::BadCount)?;
-    if silver > account.generic_money {
-        return Err(ActionError::NotEnoughMoney);
-    }
-    account.premium_money = account
-        .premium_money
-        .checked_add(gold)
-        .ok_or(ActionError::BadCount)?;
-    account.generic_money -= silver;
-    Ok(silver)
 }
 
 /// `48 00`: the account's whole set of skills. The set must keep the
@@ -728,31 +609,21 @@ pub fn set_skills(account: &mut Account, skills: &[(u16, u8)]) -> Result<(), Act
         .collect();
     kept.sort_unstable();
     if kept != account.skills {
-        account.skills = kept;
-        // The kits carry the skills' modifiers.
-        account.bump_kits();
+        account.change_skills(kept, tree);
     }
     Ok(())
 }
 
-/// How a skills reset is paid (`reroll_ok_clicked`'s second argument).
-pub mod reset_payment {
-    pub const SILVER: u8 = 0;
-    pub const GOLD: u8 = 1;
-}
-
 /// `48 01`: take back the points of one branch of the tree (`branch` is
-/// the skills window's tab: 0 for skills 101.., 1 for 201..), for
-/// [`REROLL_COST`] silver or [`REROLL_COST_PREMIUM`] gold. Returns the
-/// points freed.
-pub fn reset_skills(account: &mut Account, branch: u8, payment: u8) -> Result<u32, ActionError> {
-    reset_skills_in_tree(account, branch, payment, SkillsTree::shared())
+/// the skills window's tab: 0 for skills 101.., 1 for 201..), free of
+/// charge (the owner, 2026-11-08). Returns the points freed.
+pub fn reset_skills(account: &mut Account, branch: u8) -> Result<u32, ActionError> {
+    reset_skills_in_tree(account, branch, SkillsTree::shared())
 }
 
 fn reset_skills_in_tree(
     account: &mut Account,
     branch: u8,
-    payment: u8,
     tree: &SkillsTree,
 ) -> Result<u32, ActionError> {
     if !tree
@@ -773,23 +644,13 @@ fn reset_skills_in_tree(
     if freed == 0 {
         return Err(ActionError::BadReset);
     }
-    match payment {
-        reset_payment::SILVER => {
-            if account.generic_money < REROLL_COST {
-                return Err(ActionError::NotEnoughMoneyForReset);
-            }
-            account.generic_money -= REROLL_COST;
-        }
-        reset_payment::GOLD => {
-            if account.premium_money < REROLL_COST_PREMIUM {
-                return Err(ActionError::NotEnoughPremiumMoney);
-            }
-            account.premium_money -= REROLL_COST_PREMIUM;
-        }
-        _ => return Err(ActionError::BadReset),
-    }
-    account.skills.retain(|&(id, _)| !in_branch(id));
-    account.bump_kits();
+    let kept = account
+        .skills
+        .iter()
+        .copied()
+        .filter(|&(id, _)| !in_branch(id))
+        .collect();
+    account.change_skills(kept, tree);
     Ok(freed)
 }
 
@@ -1002,6 +863,7 @@ const _: () = assert!(limits::KITS * limits::KIT_SLOTS == limits::ACCOUNT_ITEMS)
 mod tests {
     use super::*;
     use crate::v026g::account::Item;
+    use survarium::v026g::item_params::item_params;
     use survarium::v026g::loadouts;
 
     const NOW: u64 = 1_000;
@@ -1078,13 +940,9 @@ mod tests {
             "st_cannot_relocate_item",
             "st_cannot_buy_item",
             "st_not_enougth_money",
-            "st_cant_buy_premium_message",
             "st_wrong_skill_points_count",
             "st_player_skills_check_failed",
             "st_cannot_reroll_skills",
-            "st_not_enougth_money_for_reroll",
-            "st_cannot_repair_item",
-            "st_not_enought_money_for_repair",
             "st_profile_check_failed_weapon",
             "st_profile_check_failed_weapon_ammo",
         ];
@@ -1098,15 +956,10 @@ mod tests {
             ActionError::SellerLevel { needs: 1, has: 0 },
             ActionError::BadCount,
             ActionError::NotEnoughMoney,
-            ActionError::NotEnoughPremiumMoney,
             ActionError::Skills(SkillError::Unknown(1)),
             ActionError::Skills(SkillError::OverLevel { spent: 2, level: 1 }),
             ActionError::SkillsLowered,
             ActionError::BadReset,
-            ActionError::NotEnoughMoneyForReset,
-            ActionError::NothingToRepair,
-            ActionError::NoDefects,
-            ActionError::NotEnoughMoneyForRepair,
             ActionError::BadFaction,
             ActionError::NoWeapon,
             ActionError::NoAmmo,
@@ -2441,114 +2294,11 @@ mod tests {
     }
 
     #[test]
-    fn a_worn_item_sells_for_less_and_repairs_for_silver() {
-        let dictionary = Dictionary::shared();
-        let record = prices::price_list()
-            .iter()
-            .filter(|record| !dictionary.is_stack(record.dict_id))
-            .max_by_key(|record| record.cost)
-            .unwrap();
-        let mut account = rich(1_000_000);
-        let item_id = account.add_item(record.dict_id, FULL_CONDITION);
-        // Nothing to repair on a whole item, or on a stack.
-        assert_eq!(
-            repair(&mut account, item_id, RepairPayment::Silver),
-            Err(ActionError::NothingToRepair)
-        );
-        let ammo = account.inventory[1].item_id;
-        assert_eq!(
-            repair(&mut account, ammo, RepairPayment::Silver),
-            Err(ActionError::NothingToRepair)
-        );
-        assert_eq!(
-            repair(&mut account, 999, RepairPayment::Silver),
-            Err(ActionError::NoSuchItem)
-        );
-        // A match's wear, a few times over.
-        let per_match = wear_per_match(record.dict_id);
-        assert!(per_match > 0.0);
-        assert_eq!(wear(&mut account, item_id, 0.5), Some(FULL_CONDITION / 2));
-        assert_eq!(shown_condition(FULL_CONDITION / 2), 50);
-        let cost = prices::repair_cost(dictionary, record.dict_id, 50);
-        assert!(cost > 0);
-        // Gold and kits fix defects, which no item has.
-        assert_eq!(
-            repair(&mut account, item_id, RepairPayment::Gold),
-            Err(ActionError::NoDefects)
-        );
-        assert_eq!(
-            repair(&mut account, item_id, RepairPayment::Kit { kit_item_id: 5 }),
-            Err(ActionError::NoDefects)
-        );
-        let mut poor = account.clone();
-        poor.generic_money = cost - 1;
-        assert_eq!(
-            repair(&mut poor, item_id, RepairPayment::Silver),
-            Err(ActionError::NotEnoughMoneyForRepair)
-        );
-        let money = account.generic_money;
-        assert_eq!(
-            repair(&mut account, item_id, RepairPayment::Silver),
-            Ok(Repaired::AtOnce)
-        );
-        assert_eq!(account.generic_money, money - cost);
-        assert_eq!(
-            account.item(item_id).unwrap().condition_or_stack,
-            FULL_CONDITION
-        );
-        // Sold at half its condition: half of a quarter.
-        wear(&mut account, item_id, 0.5);
-        let sold = sell(&mut account, item_id, 1).unwrap();
-        assert_eq!(sold.money, record.cost / 4 * 50 / 100);
-        // Wear stops at nothing left, and leaves a stack alone.
-        let item_id = account.add_item(record.dict_id, FULL_CONDITION);
-        assert_eq!(wear(&mut account, item_id, 7.0), Some(0));
-        assert_eq!(wear(&mut account, ammo, 0.5), Some(50));
-        assert_eq!(wear(&mut account, 999, 0.5), None);
-    }
-
-    #[test]
-    fn gold_is_exchanged_at_the_rate() {
-        let mut account = account();
-        account.premium_money = 10;
-        let money = account.generic_money;
-        assert_eq!(exchange_premium(&mut account, 4), Ok(400));
-        assert_eq!(account.premium_money, 6);
-        assert_eq!(account.generic_money, money + 400);
-        assert_eq!(
-            exchange_premium(&mut account, 7),
-            Err(ActionError::NotEnoughPremiumMoney)
-        );
-        assert_eq!(
-            exchange_premium(&mut account, 0),
-            Err(ActionError::BadCount)
-        );
-        assert_eq!(service_prices().premium_exchange_rate, 100);
-    }
-
-    #[test]
-    fn gold_is_bought_at_the_rate() {
-        let mut account = account();
-        account.generic_money = 1_000;
-        account.premium_money = 2;
-        assert_eq!(buy_premium(&mut account, 3), Ok(300));
-        assert_eq!(account.generic_money, 700);
-        assert_eq!(account.premium_money, 5);
-        assert_eq!(
-            buy_premium(&mut account, 8),
-            Err(ActionError::NotEnoughMoney)
-        );
-        assert_eq!(account.generic_money, 700);
-        assert_eq!(buy_premium(&mut account, 0), Err(ActionError::BadCount));
-        // More gold than silver could ever pay for, and a full gold balance.
-        assert_eq!(
-            buy_premium(&mut account, u32::MAX),
-            Err(ActionError::BadCount)
-        );
-        account.generic_money = u32::MAX;
-        account.premium_money = u32::MAX;
-        assert_eq!(buy_premium(&mut account, 1), Err(ActionError::BadCount));
-        assert_eq!(account.generic_money, u32::MAX);
+    fn nothing_is_paid_in_gold() {
+        let prices = service_prices();
+        // A skills reset is free, in either currency.
+        assert_eq!((prices.reroll, prices.reroll_premium), (0, 0));
+        assert_eq!(prices.premium_exchange_rate, 0);
     }
 
     #[test]
@@ -2605,62 +2355,147 @@ mod tests {
         tree.skills.push(medical);
         let mut account = account();
         account.skills = vec![(101, 2), (301, 3)];
-        account.generic_money = REROLL_COST;
         assert_eq!(
-            reset_skills_in_tree(&mut account, 2, reset_payment::SILVER, &tree),
+            reset_skills_in_tree(&mut account, 2, &tree),
             Ok(3)
         );
         assert_eq!(account.skills, [(101, 2)]);
-        assert_eq!(account.generic_money, 0);
         assert_eq!(
-            reset_skills_in_tree(&mut account, 3, reset_payment::SILVER, &tree),
+            reset_skills_in_tree(&mut account, 3, &tree),
             Err(ActionError::BadReset)
         );
     }
 
     #[test]
-    fn a_reset_frees_one_branch_for_its_price() {
+    fn a_reset_frees_one_branch_for_nothing() {
         let mut account = account();
         account.add_experience(100_000);
-        // A new account has no money.
-        account.premium_money = 10;
-        account.generic_money = 2_000;
+        // A new account has no money, and needs none for a reset.
+        assert_eq!(account.generic_money, 0);
         set_skills(&mut account, &[(101, 2), (102, 3), (201, 1)]).unwrap();
-        let money = account.generic_money;
         // The second tab: skills 201 and on.
-        assert_eq!(reset_skills(&mut account, 1, reset_payment::SILVER), Ok(1));
+        assert_eq!(reset_skills(&mut account, 1), Ok(1));
         assert_eq!(account.skills, [(101, 2), (102, 3)]);
-        assert_eq!(account.generic_money, money - REROLL_COST);
         // Nothing left in it to reset.
         assert_eq!(
-            reset_skills(&mut account, 1, reset_payment::SILVER),
+            reset_skills(&mut account, 1),
             Err(ActionError::BadReset)
         );
-        // In gold.
-        let gold = account.premium_money;
-        assert_eq!(reset_skills(&mut account, 0, reset_payment::GOLD), Ok(5));
+        // The first tab.
+        assert_eq!(reset_skills(&mut account, 0), Ok(5));
         assert!(account.skills.is_empty());
-        assert_eq!(account.premium_money, gold - REROLL_COST_PREMIUM);
-        assert_eq!(account.generic_money, money - REROLL_COST);
+        assert_eq!(account.generic_money, 0);
 
         set_skills(&mut account, &[(101, 1)]).unwrap();
         let before = account.clone();
         assert_eq!(
-            reset_skills(&mut account, 2, reset_payment::SILVER),
+            reset_skills(&mut account, 2),
             Err(ActionError::BadReset)
         );
-        assert_eq!(reset_skills(&mut account, 0, 7), Err(ActionError::BadReset));
-        account.generic_money = REROLL_COST - 1;
-        assert_eq!(
-            reset_skills(&mut account, 0, reset_payment::SILVER),
-            Err(ActionError::NotEnoughMoneyForReset)
-        );
-        account.premium_money = 0;
-        assert_eq!(
-            reset_skills(&mut account, 0, reset_payment::GOLD),
-            Err(ActionError::NotEnoughPremiumMoney)
-        );
         assert_eq!(account.skills, before.skills);
+    }
+
+    /// What a skill opened (a pocket, a second double-handed weapon, an
+    /// extra medicine) leaves every kit and preset with the skill; taking
+    /// Deep Pockets takes the second weapon off. The inventory keeps all.
+    #[test]
+    fn a_skill_taken_back_takes_off_what_it_opened() {
+        use crate::v026g::presets::{Preset, PresetSlot};
+        use survarium::v026g::item_params::item_params;
+        use survarium::v026g::skills::slot_modifier;
+        let put = |account: &mut Account, kit: usize, slot: usize, item_id: u32, count: u32| {
+            account.kits[kit].slots[slot] = Some(KitSlot { item_id, count });
+        };
+        let mut account = account();
+        let medkit = account.add_item(dict("medkit"), 5);
+        let grenade = account.add_item(dict("rgd-5"), 4);
+        let ak = account.add_item(dict("ak_74u"), FULL_CONDITION);
+        let mosin = account.add_item(dict("mosin_nagant"), FULL_CONDITION);
+        let pistol = account.add_item(dict("tt_33"), FULL_CONDITION);
+        for (name, double) in [("ak_74u", true), ("mosin_nagant", true), ("tt_33", false)] {
+            assert_eq!(item_params(dict(name)).unwrap().double_handed, double);
+        }
+        // A torso with defect 4030: a pocket less (of the defects' table).
+        let row = survarium::v026g::modifications::Modifications::shared()
+            .defect(4030)
+            .unwrap();
+        assert_eq!(row.modifiers[0].path, "parameters/pocket_slots_modifier");
+        assert_eq!(row.modifiers[0].value, -1.0);
+        let torso = account.add_item(dict("edge_torso_5"), FULL_CONDITION);
+        account.item_mut(torso).unwrap().modifications = vec![(4030, true)];
+        let inventory = account.inventory.clone();
+
+        // Deep Pockets (113): a second pocket, and no second weapon. The
+        // torso's own pocket is taken by its defect: its kit keeps one.
+        account.skills = vec![(113, 1)];
+        put(&mut account, 0, 7, ak, 1);
+        put(&mut account, 0, 13, medkit, 1);
+        put(&mut account, 0, 14, grenade, 1);
+        put(&mut account, 2, 2, torso, 1);
+        put(&mut account, 2, 13, medkit, 1);
+        put(&mut account, 2, 14, grenade, 1);
+        let saved = |item_id, dict_id| {
+            Some(PresetSlot {
+                item_id,
+                dict_id,
+                count: 1,
+            })
+        };
+        let mut preset = Preset {
+            kits: [[None; KIT_SLOTS]; 3],
+        };
+        preset.kits[2][13] = saved(medkit, dict("medkit"));
+        preset.kits[2][14] = saved(grenade, dict("rgd-5"));
+        account.presets[1] = Some(preset);
+        let revision = account.kits[1].revision;
+        assert_eq!(reset_skills(&mut account, 0), Ok(1));
+        assert_eq!(account.kits[0].slots[13].unwrap().item_id, medkit);
+        assert_eq!(account.kits[0].slots[14], None);
+        assert_eq!(account.kits[2].slots[13].unwrap().item_id, medkit);
+        assert_eq!(account.kits[2].slots[14], None);
+        assert_eq!(account.kits[2].slots[2].unwrap().item_id, torso);
+        let preset = account.presets[1].unwrap();
+        assert_eq!(preset.kits[2][13], saved(medkit, dict("medkit")));
+        assert_eq!(preset.kits[2][14], None);
+        // The kits carry other modifiers.
+        assert_eq!(account.kits[1].revision, revision + 1);
+
+        // Terminator (111): two double-handed weapons, one kept beside a
+        // one-handed one.
+        account.skills = vec![(111, 1)];
+        put(&mut account, 0, 10, mosin, 1);
+        put(&mut account, 1, 7, ak, 1);
+        put(&mut account, 1, 10, pistol, 1);
+        assert_eq!(reset_skills(&mut account, 0), Ok(1));
+        assert_eq!(account.kits[0].slots[7].unwrap().item_id, ak);
+        assert_eq!(account.kits[0].slots[10], None);
+        assert_eq!(account.kits[1].slots[10].unwrap().item_id, pistol);
+
+        // Taking Deep Pockets takes the second weapon off.
+        account.change_skills(vec![(113, 1)], SkillsTree::shared());
+        assert_eq!(account.kits[1].slots[10], None);
+        assert_eq!(account.kits[1].slots[7].unwrap().item_id, ak);
+
+        // Additional Medicine (322, its bit of the medical ranks): one more
+        // medicine a pocket; a grenade's pocket is as it was.
+        let mut tree = SkillsTree::shared().clone();
+        let mut additional = tree.skill(101).unwrap().clone();
+        additional.id = 322;
+        additional.levels = vec![vec![(
+            slot_modifier::MEDICAL_RANKS,
+            (1 << slot_modifier::ADDITIONAL_MEDICINE_BIT) as f32,
+        )]];
+        tree.skills.push(additional);
+        account.skills = vec![(322, 1)];
+        put(&mut account, 0, 13, medkit, 2);
+        put(&mut account, 1, 13, grenade, 1);
+        assert_eq!(
+            reset_skills_in_tree(&mut account, 2, &tree),
+            Ok(1)
+        );
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+        assert_eq!(account.kits[1].slots[13].unwrap().count, 1);
+        assert_eq!(account.inventory, inventory);
     }
 
     #[test]
