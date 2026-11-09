@@ -1676,10 +1676,14 @@ mod tests {
             at(2, 1, &[0x00]).map_err(|refusal| refusal.reason),
             Err(Reason::TailWeaponAmmo { ammo: 2, count: 2 })
         ));
-        // A state past the gun's three, a throw of the grenade of slot 23:
+        // A throw with no grenade held (slot 23, exe patch 59's: a Sponge
+        // let go) reads.
+        assert_eq!(at(0, 2, &[0x00, 0, 0, 0, 23, 0]), Ok(()));
+        // A state past the gun's three, a throw of the grenade of slot 24:
         // no shape reads them (the refusal is the shape that read furthest).
         assert!(at(0, 3, &[0x00]).is_err());
-        assert!(at(0, 2, &[0x00, 0, 0, 0, 23, 0]).is_err());
+        assert!(at(0, 2, &[0x00, 0, 0, 0, 24, 0]).is_err());
+        assert!(at(0, 2, &[0x00, 0, 0, 0, 0xFF, 0]).is_err());
     }
 
     #[test]

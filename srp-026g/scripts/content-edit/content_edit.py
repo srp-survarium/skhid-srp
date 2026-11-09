@@ -68,8 +68,9 @@ Edits (edits.json):
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
                     an int, a float (a number with a point), a text, a vector (a list of 2-4
-                    numbers: a float2..float4, as a position), or an object (a named table of
-                    those); a file that has the key already is refused
+                    numbers: a float2..float4, as a position), an object (a named table of
+                    those) or a list of objects (an indexed table of them); a file that has the
+                    key already is refused
   "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
                                                        numbers (an item's `default_modifications`) or of
                                                        strings (a weapon's `death` animations); the
@@ -523,6 +524,8 @@ def value_record(buf, name_off, key, value):
     crc = zlib.crc32(key.encode()) & 0xffffffff
     if isinstance(value, EmptyList):
         return REC.pack(0, name_off, crc, T_INDEXED, 0)
+    if isinstance(value, list) and value and all(isinstance(x, dict) for x in value):
+        value = dict(enumerate(value))  # a list of tables: an indexed table
     if isinstance(value, dict) and value and all(isinstance(k, int) for k in value):
         if sorted(value) != list(range(len(value))):
             raise ValueError('%s: items %s, not 0 to %d' % (key, sorted(value), len(value) - 1))

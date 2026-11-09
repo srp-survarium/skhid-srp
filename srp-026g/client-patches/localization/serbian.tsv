@@ -268,6 +268,8 @@ st_artefact_booster_name	Majstor za artefakte
 st_artefact_no_free_slots	Nema slobodnog mesta za artefakt!
 st_artefact_search_failed	Artefakt nije pronađen
 st_artefact_search_success	Pronašli ste artefakt!
+st_artefact_sponge_description	Održava nivo toksina punim dok ga nosite. Bacite ga: pri udaru prsne ako je od izvlačenja osigurača prošlo 1,5 s, inače posle 3 s, i ostavlja goreći oblak na 15 s.
+st_artefact_sponge_name	Sunđer
 st_artefact_take_teammate	Uzmi artefakt ({USE})
 st_ash12_description	Opis još nije dostupan.
 st_ash12_name	Ash-12
@@ -2179,6 +2181,8 @@ st_spas12_name	Franchi SPAS-12
 st_special_offer	Posebna ponuda
 st_speed_booster_description	Energetsko piće sa kofeinom i taurinom. Izbor nolajfera!
 st_speed_booster_name	Energetsko piće Tornado
+st_sponge_activation_hint	Bacanje: pri udaru prsne ako je od izvlačenja osigurača prošlo 1,5 s, inače posle 3 s; goreći oblak na 15 s.
+st_sponge_pickup_hint	Artefakt Sunđer. Održava nivo toksina punim dok ga nosite. Bačen, prsne u goreći oblak.
 st_spot_action	Uočen neprijatelj
 st_spring_activation_hint	Feder je aktiviran! Brzina kretanja i nišanjenja +10%. Ubrzana obnova energije! Meci vas ne usporavaju!
 st_spring_pickup_hint	Artefakt Feder. Povećava brzinu kretanja i nišanjenja za 5%.

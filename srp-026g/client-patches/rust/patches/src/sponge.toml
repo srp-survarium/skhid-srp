@@ -1,0 +1,158 @@
+# Patch 59, the Sponge (artefact type 12, items_dict 758; docs/notes/sponge.md,
+# client_patch.md section 3.52): 0.28d0's artefact_sponge_core on 0.26g,
+# thrown and exploding as retail 0.69d0's. Its rules are the sponge crate's
+# (srp-026g/crates/sponge); its native side vostok::sponge; the hooks below
+# are the places the C version (sponge_a_026g.c/.asm) jumped from.
+name = "sponge"
+patch = 59
+
+# the artefact cook: type 12 constructed, sized and queried as a sponge
+[[hook]]
+site = "sponge.construct"
+handler = "on_construct"
+
+[[hook]]
+site = "sponge.size"
+handler = "on_size"
+
+[[hook]]
+site = "sponge.query"
+handler = "on_query"
+
+# the throw-grenade state with a sponge in the grenade slot
+[[hook]]
+site = "sponge.predicate"
+handler = "on_predicate"
+
+[[hook]]
+site = "sponge.ready"
+handler = "on_ready"
+
+[[hook]]
+site = "sponge.throw"
+handler = "on_throw"
+
+[[hook]]
+site = "sponge.pull"
+handler = "on_pull"
+
+[[hook]]
+site = "sponge.save"
+handler = "on_save"
+
+[[hook]]
+site = "sponge.load"
+handler = "on_load"
+
+# the damage zone's hits: a sponge's zone names its thrower
+[[hook]]
+site = "sponge.zone_hit"
+handler = "on_zone_hit"
+
+[[hook]]
+site = "sponge.zone_hit_done"
+handler = "on_zone_hit_done"
+
+# the owner's spots: the anomaly cook's kinds, the core's links, the spawn
+[[hook]]
+site = "sponge.artefacts"
+handler = "on_artefacts"
+
+[[hook]]
+site = "sponge.links"
+handler = "on_links"
+
+[[hook]]
+site = "sponge.spawn"
+handler = "on_spawn"
+
+# the object's vtables: Rattle's with ten slots ours, its drawable's draw,
+# grenade_core's hit inflictor's with two
+[[vtable]]
+name = "artefact"
+source = "rattle_methods"
+check = "check_sponge_026g.py"
+
+[[vtable]]
+name = "drawable"
+source = "rattle_drawable_methods"
+check = "check_sponge_026g.py"
+
+[[vtable]]
+name = "inflictor"
+source = "grenade_inflictor_methods"
+check = "check_sponge_026g.py"
+
+[[hook]]
+site = "sponge_vt.destroy"
+handler = "on_destroy"
+proof = "driven: slot 0, the destructor (flags 0), through the resource system's delete 0xFBB4E"
+
+[[hook]]
+site = "sponge_vt.action"
+handler = "on_action"
+proof = "driven: slot 11, action(pressed, time), through inventory::action 0x2FCB20"
+
+[[hook]]
+site = "sponge_vt.removed"
+handler = "on_removed"
+proof = "driven: slot 13, removed_from_inventory, through inventory::remove_item 0x2FC680"
+
+[[hook]]
+site = "sponge_vt.revived"
+handler = "on_revived"
+proof = "driven: slot 14, revived, through inventory::setup_from_profile's loop 0x2FD1A5"
+
+[[hook]]
+site = "sponge_vt.serialize"
+handler = "on_serialize"
+proof = "driven: slot 26, serialize(writer, dumper), through generic_anomaly_core::serialize's loop 0x31B074"
+
+[[hook]]
+site = "sponge_vt.deserialize"
+handler = "on_deserialize"
+proof = "driven: slot 27, deserialize(reader, a, b), through generic_anomaly_core::deserialize's loop 0x31B1A0"
+
+[[hook]]
+site = "sponge_vt.set_world"
+handler = "on_set_world"
+proof = "driven: slot 28, set_game_world_core(world), through generic_anomaly_core::spawn_artefact 0x31B965"
+
+[[hook]]
+site = "sponge_vt.tick"
+handler = "on_tick"
+proof = "driven: slot 29, tick(dt, time), through generic_anomaly_core::tick's loop 0x31B690"
+
+[[hook]]
+site = "sponge_vt.enable_passive"
+handler = "on_enable_passive"
+proof = "driven: slot 31, enable_passive, through artefact_base::added_to_inventory 0x313470"
+
+[[hook]]
+site = "sponge_vt.disable_passive"
+handler = "on_disable_passive"
+proof = "driven: slot 33, disable_passive, through artefact_base::tick 0x313200 (the holder dead)"
+
+[[hook]]
+site = "sponge_draw.draw"
+handler = "on_draw"
+proof = "driven: the drawable's draw, through the scene's loop 0x23DD41"
+
+[[hook]]
+site = "sponge_inflictor.is_grenade"
+handler = "on_is_grenade"
+proof = "driven: the inflictor's is_grenade, through the splash's hit"
+
+[[hook]]
+site = "sponge_inflictor.position"
+handler = "on_position"
+proof = "driven: the inflictor's position, through the splash's hit"
+
+# the runtime callbacks the sponge hands the game
+[[hook]]
+site = "sponge.contact"
+handler = "on_contact"
+
+[[hook]]
+site = "sponge.loaded"
+handler = "on_loaded"

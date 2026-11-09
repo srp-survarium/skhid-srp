@@ -11,7 +11,8 @@ pub use objects::{
     ActiveCore, AnomalyArtefacts, AnomalyState, ArtefactBase, ArtefactBases, ArtefactContainerCore,
     ArtefactContainerCores, ArtefactId, ArtefactState, BoobyTrapCore, DamageZoneCore,
     DamageZoneCores, GameObject, GameObjectIter, GameObjects, GenericAnomalyCore, GrenadeCore, Kit,
-    Motion, ObjectFault, Owner, PlacedTrap, ResupplyZoneCore, Thrown, TrapState,
+    Motion, ObjectFault, Owner, PlacedTrap, ResupplyZoneCore, SpongeArmed, SpongeExploded, Thrown,
+    TrapState,
     UsableObject, User, ZoneGroup, ZoneGroups, ZoneMask,
 };
 pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};

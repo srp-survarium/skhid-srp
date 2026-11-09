@@ -111,6 +111,29 @@ for _view in ("RenderVisual", "GameScene", "ObjectLight"):
         "pass": "&mut {n}", "null": "{a}",
     }
 
+# A plain word (a time, a count, a flag, an address the game only passes on).
+TYPES["u32"] = {
+    "raw": "u32", "binding": "let {n} = {a};", "orig_type": "u32", "orig_raw": "{n}", "pass": "{n}", "null": "{a}",
+}
+# Patch 59's objects (vostok::sponge): a sponge (an artefact with the Sponge's
+# vtable), its drawable and hit inflictor, the world's writer and reader its
+# slots get, its query's results.
+for _view, _raw in (("Sponge", "Artefact"), ("SpongeDrawable", "SceneDrawable"), ("SpongeInflictor", "HitInflictor"),
+                    ("SpongeWriter", "BufferWriter"), ("SpongeReader", "BufferReader"),
+                    ("SpongeResults", "QueriesResult")):
+    TYPES[_view] = {
+        "raw": f"Option<{_raw}>", "fallible": True,
+        "build": f"crate::vostok::sponge::{_view}::from_raw(&thread, {{a}})",
+        "orig_type": f"&mut crate::vostok::sponge::{_view}", "orig_raw": "Some({n}.raw())",
+        "pass": "&mut {n}", "null": "{a}",
+    }
+# ... and as a runtime callback's arguments (bindings: no Original to fall back on).
+for _view, _raw in (("SpongeCallee", "Artefact"), ("SpongeLoad", "QueriesResult")):
+    TYPES[_view] = {
+        "raw": f"Option<{_raw}>", "binding": f"let mut {{n}} = unsafe {{{{ crate::vostok::sponge::{_view}::bind(&thread, {{a}}) }}}};",
+        "orig_type": f"&mut crate::vostok::sponge::{_view}", "orig_raw": "-", "pass": "&mut {n}", "null": "{a}",
+    }
+
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
 # the Vostok type and how F's raw result `{x}` becomes it (`Original::call`),
 # and how that Vostok value `{v}` becomes the shim's u32 (EAX).

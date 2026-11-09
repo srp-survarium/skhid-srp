@@ -268,6 +268,8 @@ st_artefact_booster_name	Artefakten-Master
 st_artefact_no_free_slots	Es gibt kein Platz für Artefakten!
 st_artefact_search_failed	Artefakt ist nicht gefunden
 st_artefact_search_success	Sie haben das Artefakt erreicht!
+st_artefact_sponge_description	Hält Ihren Toxinpegel voll, solange Sie ihn tragen. Werfen Sie ihn: Ab 1,5 s nach dem Ziehen des Stifts platzt er beim Aufprall, sonst nach 3 s, und hinterlässt 15 s lang eine brennende Wolke.
+st_artefact_sponge_name	Schwamm
 st_artefact_take_teammate	Artefakt nehmen ({USE})
 st_ash12_description	Description is not ready!!!
 st_ash12_name	ASh-12
@@ -2179,6 +2181,8 @@ st_spas12_name	Franchi SPAS-12
 st_special_offer	Sonderangebot
 st_speed_booster_description	Energie Getränke mit höche Koffein -  und Taurinhaltiges Getränk.  Erfrischt!
 st_speed_booster_name	Tornado
+st_sponge_activation_hint	Wurf: platzt beim Aufprall ab 1,5 s nach dem Ziehen, sonst nach 3 s; brennende Wolke für 15 s.
+st_sponge_pickup_hint	Artefakt Schwamm. Hält Ihren Toxinpegel voll, solange Sie ihn tragen. Geworfen platzt er zu einer brennenden Wolke.
 st_spot_action	Feind markieren
 st_spring_activation_hint	Die Feder ist aktiviert! Die Geschwindigkeit der Fortbewegung und des Zielens +15 %. Es erhöht sich die Regeneration der Energie! Geschosse bremsen Sie nicht!
 st_spring_pickup_hint	Artefakt Feder. Erhöht die Geschwindigkeit der Fortbewegung und des Zielens um 5%.

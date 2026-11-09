@@ -12,6 +12,8 @@ world-frame = { workspace = true }
 weapon-pickup = { path = "../weapon-pickup" }
 # Client patch 78's carry snapshot: its size and version byte, as written.
 artefact-carry = { path = "../artefact-carry" }
+# Client patch 59's Sponge: its own fields in a world (`sponge::record`).
+sponge = { path = "../sponge" }
 
 [dev-dependencies]
 survarium = { workspace = true }

@@ -605,6 +605,18 @@ Patches:
   kit_grip; setup_inventory_data (0x2885CE) marks the items a kit names as
   attached; patch 48's apply calls weapon_kit_preview_apply through its
   dword +23h, which the build writes. Nothing a match computes changes;
+- the Sponge (patch 59, with the late join; client_patch.md section 3.52,
+  docs/notes/sponge.md): the Rust patch `sponge` (rust/patches/src/sponge.toml,
+  vostok::sponge, the sponge crate's rules) in the arena's block patches.code.
+  The Sponge, artefact type 12, is 0.28d0's thrown toxic artefact written
+  again on 0.26g (the cook's construct, size and query, the throw state, its
+  object's vtables, the damage zone's hit). It spawns only at the owner's
+  spots (each map's mode configs' `mode/artefact_spots`): the anomaly cook's
+  look-up of a core's `artefacts` (0x2E9D58) reads a copy with a unit of the
+  Sponge for each picked container, the core's resolve_links (0x33C634)
+  keeps which containers are picked, and spawn_artefact (0x31B800, the
+  container chosen) takes the Sponge at a picked container and the core's
+  own kinds elsewhere, with 0.26g's draws;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:

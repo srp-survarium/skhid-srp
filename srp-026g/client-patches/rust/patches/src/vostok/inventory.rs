@@ -117,7 +117,9 @@ impl<'t> Inventory<'t> {
         // SAFETY: the item came from a native artefact slot, not a drug slot.
         let id = ArtefactId::parse(unsafe { read(item.id()) })?;
         let artefact = Artefact { id, slot };
-        self.passive_item(artefact).map(|_| artefact)
+        // Only the kinds the carry can present (the Sponge, patch 59, has no
+        // carried model: its key throws it).
+        self.passive_item(artefact).and_then(super::carry_runtime::ArtefactDraw::of_item).map(|_| artefact)
     }
 
     /// Keeper's gift: an unused pool artefact (state 0, in no inventory, never given: keeper's

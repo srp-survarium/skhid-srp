@@ -2426,3 +2426,100 @@ va	name	source	ret_cleanup	result
 0x000fc350	vostok::tasks::thread_pool::initialize	manual	4	spawns the pool's task threads, "task #%d" (0x9E8A7C), through threading::spawn (0xFC4F1)
 0x0027f780	survarium::network_client::draw_match_stats	manual	4	network_client vtable 0x9FFB14 slot 6Ch; called by game::tick (0x1EC94C, the logic thread) only when game+5870h is set, i.e. -net_stats on the command line (key 0xA9CBE0, read in game::game 0x1E9B84). Its frame is 5ab554h bytes (5.8 MiB, __chkstk 0x429F20 at 0x27F78B): above patch 128's 2 MiB stack
 0x00429f20	_chkstk	manual	0	ESP lowered by EAX, each 4 KiB page of it touched from the top down (the CRT's _alloca_probe; `mov eax,<frame>` / `call 0x429F20` in a prologue: 1754 of them, 6 above 256 KiB)
+0x0025e660	survarium::artefact_cook::new_derived_resource	manual	16	EAX: the artefact built in the memory (0 for none)
+0x0025e770	survarium::artefact_cook::derived_resource_size	manual	4	EAX: the size by data/type (3 4B8h, 6 3B8h, 7 F40h, 8 360h), else the core cook's
+0x0025e800	survarium::artefact_cook::query_for_derived_resources	manual	12	
+0x0025fa10	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>	manual	8	EAX: the object
+0x0025fb30	survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core	manual	4	+248h the world; the drawable (+340h) at the end of [scene]+0DCh {?, head, tail}
+0x002605f0	survarium::artefact_cook::on_rattle_resources_loaded	manual	4	the results' first three resources (+12Ch, entries 2E0h apart) into +354h, +358h, +35Ch
+0x00312fd0	survarium::artefact_base::artefact_base	manual	8	EAX: this; reads data/amount, cooldown_sec, spawn_sec, pickup_hint, activation_hint
+0x002ee8d0	survarium::artefact_core_cook::finish_query	manual	0	the query's result the artefact, its size the cook's (+28h): 0xF00F0, 0xF0D00(query, 3, 1, 0)
+0x002e4090	survarium::weapon_core::can_start_throw_grenade	manual	0	AL: the grenade slot's item (inventory+17Ch) a grenade set with a grenade ready, in state 6; null dereference for any other item (vt+64h 0)
+0x0033a770	survarium::weapon_core_throw_grenade_state::throw_grenade	manual	0	
+0x003103a0	survarium::weapon_core_throw_grenade_pull_substate::initialize	manual	0	[state+180h] = pull_pin(set, [player+324h])
+0x0030a090	survarium::grenade_set_core::ready_to_throw	manual	0	AL: count (+260h) above 0 and the last grenade (+268h) not armed
+0x0030a120	survarium::grenade_set_core::pull_pin	manual	8	AL: the grenade's index; count -1, the grenade armed at the time + ttl_ms rounded up to the tick grid ([world+18FBCh] + 50k)
+0x0030a250	survarium::grenade_set_core::throw_grenade	manual	12	the grenade thrown: v = aim's z row x throw_power (+2B8h) x modifier 27
+0x00309f00	survarium::grenade_set_core::logic_transform	manual	4	EAX: &out, the holder's RightMiddle1 bone transform
+0x0030a350	survarium::grenade_set_core::explosive	manual	8	EAX: &out, +278h's 40h bytes with [0] the inflictor, modifiers 12 on the radius (+28h) and 11 on +2Ch, +30h, +38h, +3Ch
+0x003080b0	survarium::collision_sensor::insert	manual	8	+1Ch 1; each geometry's ghost into the world (its +3Ch's vt+1Ch with its group and mask)
+0x00319a70	survarium::damage_zone_core::tick	manual	12	the sensor's contacts (0x3078D0) and the hits
+0x00319d30	survarium::damage_zone_core::deactivate	manual	8	the sensor out (0x308170), +1A8h 0
+0x002f8fe0	survarium::collision_geometry::set_transform	manual	4	the ghost's world transform; its world's vt+20h (after insert)
+0x00357100	vostok::physics::create_dynamic_rigid_body	manual	0	EAX: the body (+10h the shape, +14h the Bullet body: +100h, +104h damping, +140h/+150h velocities with z negated)
+0x003577d0	vostok::physics::bullet_rigid_body::get_linear_velocity	manual	0	EAX: &out
+0x00357830	vostok::physics::bullet_rigid_body::get_angular_velocity	manual	0	EAX: &out
+0x00125790	vostok::detail::type_to_int<vostok::configs::binary_config_value>::get	manual	0	EAX: the type id a variant<32> of a config value has at +2Ch
+0x002f8be0	survarium::collision_geometry::~collision_geometry	manual	0	its ghost (+18h) destroyed (0x357BA0), its meshes vector (+0Ch) freed; the memory not freed (0x2F8BC0 deletes with operator delete)
+0x0025e960	survarium::artefact_cook::on_derived_resources_loaded	manual	12	
+0x0025ef80	survarium::artefact<survarium::artefact_lifebone_core>::artefact	manual	8	EAX: the object
+0x00248460	survarium::grenade<survarium::grenade_core>::pull_pin	manual	16	
+0x00248520	survarium::grenade<survarium::grenade_core>::throw_grenade	manual	8	
+0x00248650	survarium::grenade<survarium::grenade_core>::active_tick	manual	8	
+0x00248720	survarium::grenade<survarium::grenade_core>::explode	manual	4	
+0x00303820	survarium::grenade_core::register_in_game_world	manual	0	
+0x00303a60	survarium::grenade_core::tick	manual	12	
+0x00303b90	survarium::grenade_core::pull_pin	manual	16	
+0x00303d10	survarium::grenade_core::reset_pin	manual	0	
+0x00309ec0	survarium::grenade_set_core::register_in_game_world	manual	4	
+0x0030a4a0	survarium::grenade_set_core::on_exploded	manual	8	
+0x002d2db0	survarium::game_world_core::remove_from_tick_list	manual	4	
+0x00319af0	survarium::damage_zone_core::tick	manual		
+0x0031a410	survarium::damage_zone_core::intensity	manual		xmm0: clamp01(hit_curve(clamp01(relative distance))) x clamp01(speed_curve(the player's +334h))
+0x00062a80	vostok::curve::load	manual	32	
+0x00025f30	vostok::curve::evaluate	manual	20	xmm0: the curve's value at x
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	manual	20	
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	manual	20	
+0x0007a1b0	vostok::physics::destroy_shape	manual	0	the shape's destructor (its vt+0, flag 0), then its memory to the physics allocator ([0x1F1D384] vt+18h) by its most derived address (0x42A390)
+0x0042a390	__RTCastToVoid	manual	0	EAX: the complete object's address (0 for 0)
+0x00260860	survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor'	manual	4	EAX: this; 0x25FA60 then, with flag 1, the memory freed (0x420F17)
+0x0023fbe0	survarium::player::landing_step	manual	16	a step through step_manager::on_step (the run or jump foot material) when the speed is over [+4] and 50 ms went by since [+0Ch]
+0x00297e20	survarium::weapon_sound_effect::play_sound_callback	manual		the hud proxy (0x65100) for the user in first person, else emit_point_sound at 0x297F79 (the effect at [esp+2Ch] there)
+0x0005a6b0	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	manual		+38h, +3Ah, +3Ch m_ext_params zeroed (half 0)
+0x0005c7a0	vostok::sound::sound_scene::calculate_hdr_audio_frame	manual		each propagator's attenuated loudness (dB) +40h at 0x5C8BA, perceived +3Ch, amplitude +4Ch at 0x5CA37; no voice below 0.01 (0x5CA87)
+0x00313880	survarium::artefact_base::fill_ui_info	manual	4	out +0 the dict id, +4 the count, +6 100 - the cooldown %
+0x00311a60	survarium::artefact_spring_core::fill_ui_info	manual	4	artefact_base's, then out +2 = ceil(+394h / 1000), the active's seconds
+0x00311890	survarium::artefact_spring_core::tick_impl	manual	8	+394h -= min(+394h, dt)
+0x003118d0	survarium::artefact_spring_core::enable_active_effects	manual	4	+394h = floor(M39(+390h)) of the holder; the active nodes linked (0x311BC0)
+0x00311990	survarium::artefact_spring_core::active_effect_ended	manual	0	AL: +394h == 0
+0x00313530	survarium::artefact_base::decrement_amount	manual	0	the count down unless amount (+27Ch) is FFFFh, out of the inventory at 0; else disable_active (+88h), +28Ch = floor(M38(+274h)), state 3
+0x0015a4b0	survarium::artefact_rattle_core::tick_impl	manual	8	nothing (a shared `ret 8`: the Rattle's stub)
+0x00372420	survarium::artefact_rattle_core::active_effect_ended	manual	0	AL: 1 (a shared `mov al,1 / ret`: the Rattle's stub)
+0x0025ea90	survarium::artefact<survarium::artefact_spring_core>::~artefact<survarium::artefact_spring_core>	manual	0	its model out of the scene through the renderer (0x21F40, 0x229D0); its passive's nodes and its drawable (+398h) left in the lists they are in (nothing unlinked)
+0x0025fa60	survarium::artefact<survarium::artefact_rattle_core>::~artefact<survarium::artefact_rattle_core>	manual	0	its model out of the scene through the renderer (0x21F40, 0x229D0); its drawable (+340h) left in the scene's list (+0DCh), then artefact_base's 0x260880
+0x00303770	survarium::grenade_core::~grenade_core	manual	0	its body's shape (0x7A1B0) and the body (its vt+8, then the physics allocator's vt+18h) destroyed without taking the body out of the physics world
+0x003076a0	survarium::collision_sensor::~collision_sensor	manual	0	its lists' memory freed; its ghosts not taken out of the physics world
+0x002ea3c0	vostok::buffer_vector<survarium::`anonymous namespace'::artefact>::push_back	manual	0	the element copied to the end (12 bytes: +0 the dict id u16, +8 the count); an assert past the capacity
+0x0021f910	survarium::items_dictionary::map_descriptor_by_id	manual	0	EAX: the map's entry of the dictionary's +160h ({u32 id, mode name, the mode config resource}, 12 bytes, count +164h; the resource kept by on_map_configs_loaded 0x2C9BA0, its root at +108h), NULL (and a log) for an id it has not
+0x001f6670		manual	0	EAX: the items dictionary, [[[this+20h]+9Ch]+53A4h] (generic_anomaly_core_cook's vtable 0x9FC6DC slot 9; query_for_artefacts calls it before item_by_id 0x1F0090)
+0x001f6680		manual	0	EAX: the match seed, [[[this+20h]+9Ch]+53ACh] vt+34h (the match options) +577B0h (generic_anomaly_core_cook's slot 10); the map id is the u8 at +577B4h of the same options
+0x0031ba00	survarium::generic_anomaly_core::artefact_respawn_delay	manual	0	EAX: the next spawn's delay in ms from +130h and its variation; one draw of the core's random (+1B8h)
+0x003041b0	survarium::grenade_core::on_contact	manual	4	nothing; with +156h and +155h set: (+14Ch - the holder's time [player+324h]) >= +150h clears +156h, else (none queued, +184h FFh) the explosion queued (0x2D2D70, kind 4: a tail jump)
+0x00303d50	survarium::grenade_core::remove_physics	manual	0	+128h's function unsubscribed (vt+74h), the body out (vt+38h, 1), +148h 0
+0x00304220	boost::function<void (vostok::physics::contact_point const &)>::function<grenade_core's bound on_contact>	manual	16	EAX: the function made, vtable 0xA13FAC|1 (manager 0x3042D0, invoker 0x202300), the bind in its buffer (+8)
+0x00078310	vostok::physics::bullet_physics_world::subscribe_on_contact	manual	8	{body, &function} into the multimap at +0Ch (the function kept by pointer: it must outlive the subscription; twice is twice)
+0x000783a0	vostok::physics::bullet_physics_world::unsubscribe_from_contact	manual	8	the entry {body, the same pointer} erased
+0x002993f0	survarium::damage_zone::draw	manual	0	the state (0 off, 1 on, 2 on and hitting) against +10h's: leaving 0 play_activated then start_idle, leaving 2 stop_hitting; entering 0 stop_idle then play_deactivated, entering 2 start_hitting
+0x00298d80	survarium::damage_zone::play_activated	manual	0	the activated sounds (+424h at the sound zones' matrices +41Ch) and particles (+444h at the effect zones' +43Ch) once
+0x00298fe0	survarium::damage_zone::start_idle	manual	0	the looped sounds (+428h) and the idle particles (+448h, 0x22660) started at the zones' matrices
+0x002990d0	survarium::damage_zone::stop_idle	manual	4	the looped sounds stopped and released, the idle particles stopped (0x22860)
+0x0005cb00	vostok::sound::new_sound_propagator::new_sound_propagator	manual	4	EAX: the propagator (ESI); +8 the proxy, +0Ch the sound's interface, +18h the argument, the rest zeroed (+30h 3)
+0x0005b200	vostok::sound::sound_instance_proxy_internal::set_position	manual	4	the position as three halves at +40h (one 8-byte atomic store, 0x52F40) unless +80h; slot 4 of the point proxy's vtable 0x9E0EC0
+0x0005cea0	vostok::sound::sound_scene::emit_sound_propagators	manual	8	posts emit_sound_propagators_impl (0x5CFF0) for the proxy to the sound thread
+0x00065450	vostok::memory::new_helper<vostok::sound::sound_instance_proxy_internal>::call<vostok::memory::single_size_buffer_allocator<144,vostok::threading::multi_threading_policy> >	manual	0	EAX: a 90h block of the pool, +30h counted
+0x00065100	vostok::sound::sound_scene::new_hud_sound_instance_proxy	manual	16	EAX: the first argument, &the new hud proxy (its intrusive pointer)
+0x00245430		manual	0	AL: 1 when the weapon's record (ECX+828h) already has the sound event (EAX): on_sound_event plays it no more; else 0, recorded (0x245B70)
+0x0005a840	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	manual	16	a hud proxy (0x65100's): as 0x5A6B0 (vtable 0x9E0EC0, +38h..+3Ch m_ext_params zeroed) but +80h 3, the point proxy's 0
+0x0033a730	survarium::weapon_core_throw_grenade_state::is_grenade_slot_held	manual	4	AL: (the inventory's grenade slot +17Ch == its item's slot +254h) == the argument
+0x00364f10	vostok::particle::particle_system::construct_action<vostok::configs::binary_config_value>	manual	44	an action by the config's type_index (0x29 without one): types 3..40 through the switch 0x3663C4 (14, 16, 19..22 none), 40 particle_action_distance_attenuation (vtable 0xA20C5C, 0x365A71)
+0x000750f0	vostok::physics::bullet_physics_world::update_single_aabb	manual	4	nothing: the object's AABB updated (0x9FF40, EDI the object, ESI the dynamics world +3Ch) and its broadphase proxy (+0C8h)'s pairs cleaned (the pair cache's vt+24h with the dispatcher +18h)
+0x00356f70	vostok::physics::bt_dynamic_rigid_body::bullet_object	manual	0	EAX: [ECX+14h], the Bullet body (a folded `mov eax,[ecx+14h] / ret`, the body's slots +4 and +0Ch)
+0x00357060	vostok::physics::bt_dynamic_rigid_body::`scalar deleting destructor'	manual	4	EAX: this; the Bullet body (+14h) deleted (its vt+4 with 1), vtable 0x9E2AD0, the base's 0x70B70; with flags bit 0 the memory freed (0x420F17)
+0x003578b0	vostok::physics::bullet_rigid_body::set_transform	manual	4	nothing: the Bullet body's (+14h) world transform set from the float4x4 (0x74470, 0x70C20, 0x70C80), then 0x8C2E0 on it
+0x00357890	vostok::physics::bullet_rigid_body::get_transform	manual	4	EAX: the out pointer, filled with the Bullet body's (+14h) world transform (its +10h) as a float4x4 (0x74620)
+0x00319e30	survarium::damage_zone_core::on_deserialized	manual	4	nothing: the zone's sensor contacts rebuilt and its 20 hit records' players found again in the world (active_player_ptr 0x2D0AB0, ESI the world)
+0x000760c0	vostok::physics::bullet_physics_world::get_all_objects_in_radius	manual	20	nothing: a sphere of the radius at the centre added with the group and mask, and each collision object it overlaps appended to the vector as its +0F8h (the physics object), grown from the vector's allocator (+8, its slot +18h frees)
+0x001af330	an empty member function (a folded `ret`)	manual	0	nothing
+0x00248300	survarium::grenade_core::position	manual	0	EAX: ECX+1C0h, the grenade's position (float3)
+0x001f56b0	survarium::base_player::game_object_player (adjustor)	manual	0	EAX: ECX-118h, the player whose vostok::collision::game_object (+118h) ECX is (sub ecx,10h, then 0x1F17A0's lea eax,[ecx-108h])
+0x00300040	a folded `xor eax,eax / ret`	manual	0	EAX 0

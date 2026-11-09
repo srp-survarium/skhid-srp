@@ -2,6 +2,7 @@ symbol	va	arguments	prototype	call	vostok
 engine_cfg_child	0x0f6b10	EAX:table EDI:key	const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key)	thunk	
 engine_cfg_has	0x0f6c00	EAX:table ESI:key	unsigned int engine_cfg_has(const struct engine_cfg *table, const char *key)	thunk	
 engine_malloc	0x0e4f90	ESI:allocator EAX:size ESP+4:description	void *engine_malloc(void *allocator, unsigned int size, const void *where)	thunk	
+engine_malloc_geometry	0x0e4f90	ESI:allocator EAX:size ESP+4:description	struct collision_geometry *engine_malloc_geometry(void *allocator, unsigned int size, const void *where)	thunk	
 engine_allocated_size	0x0e5270	ECX:allocator	unsigned int engine_allocated_size(void *allocator)	thunk	
 engine_dump_statistics	0x0e1370	ESP+4:flag	void engine_dump_statistics(unsigned int flag)	thunk	
 engine_match_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	void *engine_match_rule_base(void *rule, unsigned int type)	thunk	
@@ -96,6 +97,8 @@ engine_remove_model	0x21f40	ESP+4:renderer EAX:model ESP+8:scene	void engine_rem
 engine_update_model	0x22280	ESP+4:renderer EAX:model ESP+8:scene ESP+12:first ESP+16:second	void engine_update_model(struct scene_renderer *renderer, struct scene_model_ref *model, struct scene_reference *scene, const float *first, const float *second)	thunk
 engine_static_model_bounds	0x16e420	ECX:instance ESP+4:bounds	void engine_static_model_bounds(struct static_model_instance *instance, float *bounds)	thunk
 engine_release_item	0x0e0210	ECX:instance EAX:count	void engine_release_item(struct artefact *object, unsigned int *count)	thunk
+engine_release_zone	0x0e0210	ECX:instance EAX:count	void engine_release_zone(struct damage_zone *object, unsigned int *count)	thunk
+engine_release_config	0x0e0210	ECX:instance EAX:count	void engine_release_config(struct config_resource *object, unsigned int *count)	thunk
 engine_release_model	0x0e0210	ECX:instance EAX:count	void engine_release_model(struct scene_model *object, unsigned int *count)	thunk
 engine_lobby_camera_ray	0x2844d0	EAX:camera ESI:point EDI:distance ESP+4:direction	void engine_lobby_camera_ray(struct lobby_camera *camera, const float *point, float *distance, const float *direction)	thunk	
 engine_read_file	0x870064	-	unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)	import	
@@ -182,3 +185,62 @@ engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
 engine_discard_playing_order	0x2717e0	ESP+4:lobby ESP+8:left	void engine_discard_playing_order(struct lobby_client *client, unsigned int left)	stdcall	
 engine_finish_key_binding	0x2015a0	EDI:options	void engine_finish_key_binding(struct game_options *options)	thunk	
+engine_hand_transform	0x309f00	EAX:item ESP+4:out	void engine_hand_transform(void *item, void *out)	thunk	
+engine_matrix_multiply	0x0ee700	ECX:second EDX:first ESP+4:out	void *engine_matrix_multiply(const void *second, const void *first, void *out)	thunk	
+engine_matrix_translation	0x0573c0	EAX:out ECX:float3	void *engine_matrix_translation(void *out, const float *position)	thunk	
+engine_matrix_rotation	0x0725e0	EDI:angles ESI:out	void engine_matrix_rotation(const float *angles, void *out)	thunk	
+engine_body_linear_velocity	0x3577d0	EAX:body EDX:out	void engine_body_linear_velocity(void *body, float *out)	thunk	
+engine_body_angular_velocity	0x357830	EAX:body EDX:out	void engine_body_angular_velocity(void *body, float *out)	thunk	
+engine_body_set_linear_velocity	0x3576c0	ECX:velocity ESP+4:bt_dynamic_rigid_body	void engine_body_set_linear_velocity(const float *velocity, void *body)	thunk	
+engine_body_set_angular_velocity	0x357750	ECX:velocity ESP+4:bt_dynamic_rigid_body	void engine_body_set_angular_velocity(const float *velocity, void *body)	thunk	
+engine_write_matrix	0x301de0	EAX:pointer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_matrix(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
+engine_write_float3	0x081a70	EAX:pointer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_float3(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
+engine_create_collision_shape	0x07a390	EDX:type ECX:dimensions ESP+4:scale ESP+8:material	void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int material)	thunk	
+engine_create_rigid_body	0x357100	ESP+4:description ESP+8:shape	struct bt_dynamic_rigid_body *engine_create_rigid_body(const void *description, void *shape)	thunk	
+engine_destroy_shape	0x07a1b0	ESI:shape	void engine_destroy_shape(void *shape)	thunk	
+engine_rt_cast_to_void	0x42a390	ESP+4:object	void *engine_rt_cast_to_void(void *object)	thunk	
+engine_splash_hit	0x339630	ESI:splash ESP+4:manager ESP+8:centre ESP+12:time	void engine_splash_hit(const void *parameters, void *manager, const float *centre, unsigned int time)	thunk	
+engine_scene_add_model	0x021cd0	EAX:render-model ESP+4:receiver ESP+8:scene ESP+12:first ESP+16:second	void engine_scene_add_model(void *model, void *renderer, void *scene, const void *first, const void *second)	thunk	
+engine_scene_update_model	0x022280	EAX:render-model ESP+4:receiver ESP+8:scene ESP+12:first ESP+16:second	void engine_scene_update_model(void *model, void *renderer, void *scene, const void *first, const void *second)	thunk	
+engine_scene_remove_model	0x021f40	EAX:render-model ESP+4:receiver ESP+8:scene	void engine_scene_remove_model(void *model, void *renderer, void *scene)	thunk	
+engine_damage_type_of	0x304370	ESI:name	unsigned int engine_damage_type_of(const char *name)	thunk	
+engine_rattle_construct	0x25fa10	EAX:effect ECX:root ESP+4:memory ESP+8:scene	void *engine_rattle_construct(void *effect, const void *root, void *memory, void *scene)	thunk	
+engine_rattle_loaded	0x2605f0	EDI:artefact ESP+4:queries_result	void engine_rattle_loaded(void *artefact, void *results)	thunk	
+engine_rattle_set_world	0x25fb30	ECX:artefact ESP+4:game_world_core	void engine_rattle_set_world(struct artefact *artefact, unsigned int world)	thiscall	artefact: Sponge, world: u32 ->
+engine_rattle_draw	0x25fb80	ECX:callback	void engine_rattle_draw(struct scene_drawable *drawable)	thiscall	drawable: SpongeDrawable ->
+engine_rattle_destroy	0x260860	ECX:artefact ESP+4:flags	unsigned int engine_rattle_destroy(struct artefact *artefact, unsigned int flags)	thiscall	artefact: Sponge, flags: u32 -> u32
+engine_cook_finish_query	0x2ee8d0	ECX:cook EDX:resource_ptr ESI:artefact EDI:query	void engine_cook_finish_query(void *cook, void *resource, void *artefact, void *query)	thunk	
+engine_artefact_tick	0x313200	ECX:artefact ESP+4:dt ESP+8:time	void engine_artefact_tick(struct artefact *artefact, unsigned int dt, unsigned int time)	thiscall	artefact: Sponge, dt: u32, time: u32 ->
+engine_artefact_serialize	0x313670	ECX:artefact ESP+4:writer ESP+8:optional_effect_serialization_context	void engine_artefact_serialize(struct artefact *artefact, struct buffer_writer *writer, unsigned int dumper)	thiscall	artefact: Sponge, writer: SpongeWriter, dumper: u32 ->
+engine_artefact_deserialize	0x313760	ECX:artefact ESP+4:reader ESP+8:optional_effect_deserialization_context ESP+12:third	void engine_artefact_deserialize(struct artefact *artefact, struct buffer_reader *reader, unsigned int a, unsigned int b)	thiscall	artefact: Sponge, reader: SpongeReader, a: u32, b: u32 ->
+engine_sensor_insert	0x3080b0	ESP+4:sensor ESP+8:physics	void engine_sensor_insert(void *sensor, void *physics)	thunk	
+engine_zone_deactivate	0x319d30	ESP+4:zone ESP+8:flag	void engine_zone_deactivate(void *zone, unsigned int flag)	thunk	
+engine_zone_tick	0x319a70	ECX:zone ESP+4:dt ESP+8:time ESP+12:bool	void engine_zone_tick(void *zone, unsigned int dt, unsigned int time, unsigned int on_grid)	thiscall	
+engine_geometry_load	0x2f8c30	ESP+4:geometry ESP+8:config	void engine_geometry_load(void *geometry, const void *config)	thunk	
+engine_geometry_destroy	0x2f8be0	ECX:geometry	void engine_geometry_destroy(void *geometry)	thunk	
+engine_config_variant_type	0x125790	-	unsigned int engine_config_variant_type(void)	thunk	
+engine_recompute_damage_collision_bones	0x2da5b0	ECX:player ESP+4:object	unsigned int engine_recompute_damage_collision_bones(void *player, const void *object)	thunk	
+engine_physics_update	0x0750f0	ECX:world ESP+4:object	void engine_physics_update(struct bullet_physics_world *world, struct bt_rigid_body *object)	thiscall	
+engine_physics_add_body	0x0758b0	ECX:world ESP+4:body ESP+8:group ESP+12:mask	void engine_physics_add_body(struct bullet_physics_world *world, struct bt_dynamic_rigid_body *body, unsigned int group, unsigned int mask)	thiscall	
+engine_physics_remove_body	0x075a60	ECX:world ESP+4:body ESP+8:flag	void engine_physics_remove_body(struct bullet_physics_world *world, struct bt_dynamic_rigid_body *body, unsigned int wake)	thiscall	
+engine_physics_subscribe_contact	0x078310	ECX:world ESP+4:body ESP+8:function	void engine_physics_subscribe_contact(struct bullet_physics_world *world, struct bt_dynamic_rigid_body *body, struct boost_function *function)	thiscall	
+engine_physics_unsubscribe_contact	0x0783a0	ECX:world ESP+4:body ESP+8:function	void engine_physics_unsubscribe_contact(struct bullet_physics_world *world, struct bt_dynamic_rigid_body *body, struct boost_function *function)	thiscall	
+engine_body_object	0x356f70	ECX:body	struct bt_rigid_body *engine_body_object(struct bt_dynamic_rigid_body *body)	thiscall	
+engine_body_destroy	0x357060	ECX:body ESP+4:flags	void engine_body_destroy(struct bt_dynamic_rigid_body *body, unsigned int flags)	thiscall	
+engine_body_set_transform	0x3578b0	ECX:body ESP+4:transform	void engine_body_set_transform(struct bt_dynamic_rigid_body *body, const float *transform)	thiscall	
+engine_body_get_transform	0x357890	ECX:body ESP+4:out	float *engine_body_get_transform(struct bt_dynamic_rigid_body *body, float *out)	thiscall	
+engine_geometry_set_transform	0x2f8fe0	ECX:geometry ESP+4:matrix	void engine_geometry_set_transform(struct collision_geometry *geometry, const float *transform)	thiscall	
+engine_zone_serialize	0x3193f0	ECX:subobject ESP+4:writer ESP+8:auxiliary	void engine_zone_serialize(struct zone_serializable *zone, void *writer, void *dumper)	thiscall	
+engine_zone_deserialize	0x319470	ECX:subobject ESP+4:reader ESP+8:auxiliary ESP+12:third	void engine_zone_deserialize(struct zone_serializable *zone, void *reader, void *a, void *b)	thiscall	
+engine_zone_after_load	0x319e30	ECX:subobject ESP+4:world	void engine_zone_after_load(struct zone_serializable *zone, struct core_world *world)	thiscall	
+engine_pthreads_free	0x0eb5b0	ECX:allocator ESP+4:block ESP+8:function ESP+12:file ESP+16:line	void engine_pthreads_free(struct pthreads3_allocator *allocator, void *memory, unsigned int function, unsigned int file, unsigned int line)	thiscall	
+engine_object_query	vostok::physics::world+0x60	ECX:world ESP+4:centre ESP+8:radius ESP+12:group ESP+16:mask ESP+20:found	void engine_object_query(struct bullet_physics_world *world, const float *centre, float radius, unsigned int group, unsigned int mask, struct found_objects *found)	virtual	
+engine_collision_owner	vostok::collision::game_object+0x8	ECX:owner	struct player *engine_collision_owner(struct collision_owner *owner)	virtual	
+engine_artefact_action	0x313300	ECX:artefact ESP+4:pressed ESP+8:time	void engine_artefact_action(struct artefact *artefact, unsigned int pressed, unsigned int time)	thiscall	artefact: Sponge, pressed: u32, time: u32 ->
+engine_artefact_removed	0x313490	ECX:artefact	void engine_artefact_removed(struct artefact *artefact)	thiscall	artefact: Sponge ->
+engine_artefact_added	0x313470	ECX:artefact	void engine_artefact_added(struct artefact *artefact)	thiscall	artefact: Sponge ->
+engine_nothing	0x1af330	ECX:this	void engine_nothing(struct artefact *object)	thiscall	object: Sponge ->
+engine_inflictor_is_grenade	0x246380	ECX:inflictor	unsigned int engine_inflictor_is_grenade(struct hit_inflictor *inflictor)	thiscall	inflictor: SpongeInflictor -> u32
+engine_inflictor_position	0x248300	ECX:inflictor	unsigned int engine_inflictor_position(struct hit_inflictor *inflictor)	thiscall	inflictor: SpongeInflictor -> u32
+engine_late_join_loaded	0x27aa20	ECX:client ESP+4:queries_result	void engine_late_join_loaded(struct artefact *object, struct queries_result *results)	thiscall	sponge: SpongeCallee, results: SpongeLoad ->
+engine_grenade_contact	0x3041b0	ECX:grenade_core ESP+4:point	void engine_grenade_contact(struct artefact *grenade, unsigned int point)	thiscall	sponge: SpongeCallee, point: u32 ->

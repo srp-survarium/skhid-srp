@@ -5645,6 +5645,633 @@ sound_voices_on_voice_made_replay:
     db 0x89, 0x46, 0x04, 0x85, 0xc0
     jmp 0x5cab5
 
+; 0x25e685 the artefact cook's construct 0x25E660 at its type (mov eax,[eax] / add eax,-3; EAX &data/type): a sponge (12) constructed, the function's own epilogue (pop edi/esi/ebx, ret 10h) with EAX the object: lohook -> sponge_on_construct
+global sponge_on_construct
+extern hook_sponge_on_construct
+sponge_on_construct:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_construct
+    mov edx, sponge_on_construct_replay
+    cmp eax, 0
+    je sponge_on_construct_go
+    mov edx, 0x25e68a
+    cmp eax, 1
+    je sponge_on_construct_go
+    mov edx, 0x25e74e
+    cmp eax, 2
+    je sponge_on_construct_go
+    ud2
+sponge_on_construct_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_construct_replay:
+    db 0x8b, 0x00, 0x83, 0xc0, 0xfd
+    jmp 0x25e68a
+
+; 0x25e795 the artefact cook's size 0x25E770 at its type (mov eax,[eax] / add eax,-3): a sponge's size, the function's epilogue (pop edi/esi/ebx, ret 4) with EAX the size: lohook -> sponge_on_size
+global sponge_on_size
+extern hook_sponge_on_size
+sponge_on_size:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_size
+    mov edx, sponge_on_size_replay
+    cmp eax, 0
+    je sponge_on_size_go
+    mov edx, 0x25e79a
+    cmp eax, 1
+    je sponge_on_size_go
+    mov edx, 0x25e7da
+    cmp eax, 2
+    je sponge_on_size_go
+    ud2
+sponge_on_size_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_size_replay:
+    db 0x8b, 0x00, 0x83, 0xc0, 0xfd
+    jmp 0x25e79a
+
+; 0x25e800 the artefact cook's query_for_derived_resources entry (push ebp / mov ebp,esp / and esp,-8; thiscall, ret 0Ch): a sponge's query made, its bare ret 0Ch: lohook -> sponge_on_query
+global sponge_on_query
+extern hook_sponge_on_query
+sponge_on_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_query
+    mov edx, sponge_on_query_replay
+    cmp eax, 0
+    je sponge_on_query_go
+    mov edx, 0x25e806
+    cmp eax, 1
+    je sponge_on_query_go
+    mov edx, 0x25e955
+    cmp eax, 2
+    je sponge_on_query_go
+    ud2
+sponge_on_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_query_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x25e806
+
+; 0x2e40c6 can_start_throw_grenade 0x2E4090, the grenade slot's item (mov eax,[ecx] / mov edx,[eax+64h]; before its vt+64h and 0x30A090): a sponge's answer or an empty slot's no in AL, at test al,al: lohook -> sponge_on_predicate
+global sponge_on_predicate
+extern hook_sponge_on_predicate
+sponge_on_predicate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_predicate
+    mov edx, sponge_on_predicate_replay
+    cmp eax, 0
+    je sponge_on_predicate_go
+    mov edx, 0x2e40cb
+    cmp eax, 1
+    je sponge_on_predicate_go
+    mov edx, 0x2e40d2
+    cmp eax, 2
+    je sponge_on_predicate_go
+    ud2
+sponge_on_predicate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_predicate_replay:
+    db 0x8b, 0x01, 0x8b, 0x50, 0x64
+    jmp 0x2e40cb
+
+; 0x33a66d the throw state's is_ready 0x33A650 at its grenade's index (mov al,[esi+180h]): a sponge's (its zone on) or no grenade's answer: lohook -> sponge_on_ready
+global sponge_on_ready
+extern hook_sponge_on_ready
+sponge_on_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_ready
+    mov edx, sponge_on_ready_replay
+    cmp eax, 0
+    je sponge_on_ready_go
+    mov edx, 0x33a673
+    cmp eax, 1
+    je sponge_on_ready_go
+    mov edx, 0x33a696
+    cmp eax, 2
+    je sponge_on_ready_go
+    mov edx, 0x33a692
+    cmp eax, 3
+    je sponge_on_ready_go
+    ud2
+sponge_on_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_ready_replay:
+    db 0x8a, 0x86, 0x80, 0x01, 0x00, 0x00
+    jmp 0x33a673
+
+; 0x33a7bb the throw state's throw 0x33A770 before its pushes and call 0x30A250 (mov ecx,[esi+17Ch] / add edi,44Ch): a sponge thrown, or nothing for no grenade, at pop edi: lohook -> sponge_on_throw
+global sponge_on_throw
+extern hook_sponge_on_throw
+sponge_on_throw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_throw
+    mov edx, sponge_on_throw_replay
+    cmp eax, 0
+    je sponge_on_throw_go
+    mov edx, 0x33a7c7
+    cmp eax, 1
+    je sponge_on_throw_go
+    mov edx, 0x33a7d9
+    cmp eax, 2
+    je sponge_on_throw_go
+    ud2
+sponge_on_throw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_throw_replay:
+    db 0x8b, 0x8e, 0x7c, 0x01, 0x00, 0x00, 0x81, 0xc7, 0x4c, 0x04, 0x00, 0x00
+    jmp 0x33a7c7
+
+; 0x3103c9 the pull substate's initialize 0x3103A0 before its call 0x30A120 (mov esi,[esi+138h]; EAX the player's time): a sponge's pull (index 0) or no grenade's (FFh) in AL, ESI the throw state, at pop edi: lohook -> sponge_on_pull
+global sponge_on_pull
+extern hook_sponge_on_pull
+sponge_on_pull:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_pull
+    mov edx, sponge_on_pull_replay
+    cmp eax, 0
+    je sponge_on_pull_go
+    mov edx, 0x3103cf
+    cmp eax, 1
+    je sponge_on_pull_go
+    mov edx, 0x3103dc
+    cmp eax, 2
+    je sponge_on_pull_go
+    ud2
+sponge_on_pull_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_pull_replay:
+    db 0x8b, 0xb6, 0x38, 0x01, 0x00, 0x00
+    jmp 0x3103cf
+
+; 0x33a51b the throw state's serialize 0x33A4E0 at its grenade's slot (mov ecx,[ebx+17Ch] / mov dl,[ecx+254h]): DL 17h for no grenade held: lohook -> sponge_on_save
+global sponge_on_save
+extern hook_sponge_on_save
+sponge_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_save
+    mov edx, sponge_on_save_replay
+    cmp eax, 0
+    je sponge_on_save_go
+    mov edx, 0x33a527
+    cmp eax, 1
+    je sponge_on_save_go
+    mov edx, 0x33a527
+    cmp eax, 2
+    je sponge_on_save_go
+    ud2
+sponge_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_save_replay:
+    db 0x8b, 0x8b, 0x7c, 0x01, 0x00, 0x00, 0x8a, 0x91, 0x54, 0x02, 0x00, 0x00
+    jmp 0x33a527
+
+; 0x33a5ab the throw state's deserialize 0x33A570 after its slot byte (CL; mov eax,[ebx+120h]): no item (EAX 0) for a slot past the inventory's 23: lohook -> sponge_on_load
+global sponge_on_load
+extern hook_sponge_on_load
+sponge_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_load
+    mov edx, sponge_on_load_replay
+    cmp eax, 0
+    je sponge_on_load_go
+    mov edx, 0x33a5b1
+    cmp eax, 1
+    je sponge_on_load_go
+    mov edx, 0x33a5c4
+    cmp eax, 2
+    je sponge_on_load_go
+    ud2
+sponge_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_load_replay:
+    db 0x8b, 0x83, 0x20, 0x01, 0x00, 0x00
+    jmp 0x33a5b1
+
+; 0x319ca1 damage_zone_core's hit loop before the receiver's vt+20h call's last pushes (mov edx,[esp+0B4h] / push ebx / push edx; EBX 0 the instigator pushed): a sponge's zone names its thrower, its inflictor and it: lohook -> sponge_on_zone_hit
+global sponge_on_zone_hit
+extern hook_sponge_on_zone_hit
+sponge_on_zone_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_zone_hit
+    mov edx, sponge_on_zone_hit_replay
+    cmp eax, 0
+    je sponge_on_zone_hit_go
+    mov edx, 0x319caa
+    cmp eax, 1
+    je sponge_on_zone_hit_go
+    ud2
+sponge_on_zone_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_zone_hit_replay:
+    db 0x8b, 0x94, 0x24, 0xb4, 0x00, 0x00, 0x00, 0x53, 0x52
+    jmp 0x319caa
+
+; 0x319cac the hit loop after the receiver's call (add esi,1Ch / cmp esi,ebp): EBX back to the loop's 0 after sponge.zone_hit lent it: lohook -> sponge_on_zone_hit_done
+global sponge_on_zone_hit_done
+extern hook_sponge_on_zone_hit_done
+sponge_on_zone_hit_done:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_zone_hit_done
+    mov edx, sponge_on_zone_hit_done_replay
+    cmp eax, 0
+    je sponge_on_zone_hit_done_go
+    mov edx, 0x319cb1
+    cmp eax, 1
+    je sponge_on_zone_hit_done_go
+    ud2
+sponge_on_zone_hit_done_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_zone_hit_done_replay:
+    db 0x83, 0xc6, 0x1c, 0x3b, 0xf5
+    jmp 0x319cb1
+
+; 0x2e9d58 generic_anomaly_core_cook::query_for_artefacts after its look-up of the core's artefacts (mov [ebp-0Ch],eax / movzx eax,word [eax+16h]; EAX the table): a core with spots reads a copy with the Sponge's units: lohook -> sponge_on_artefacts
+global sponge_on_artefacts
+extern hook_sponge_on_artefacts
+sponge_on_artefacts:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_artefacts
+    mov edx, sponge_on_artefacts_replay
+    cmp eax, 0
+    je sponge_on_artefacts_go
+    mov edx, 0x2e9d5f
+    cmp eax, 1
+    je sponge_on_artefacts_go
+    ud2
+sponge_on_artefacts_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_artefacts_replay:
+    db 0x89, 0x45, 0xf4, 0x0f, 0xb7, 0x40, 0x16
+    jmp 0x2e9d5f
+
+; 0x33c634 generic_anomaly_core's resolve_links 0x33C440 (its vtable 0xA16A10 slot 0) at its epilogue (pop edi/esi/ebp/ebx / add esp,1Ch): the core's picked containers kept: lohook -> sponge_on_links
+global sponge_on_links
+extern hook_sponge_on_links
+sponge_on_links:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_links
+    mov edx, sponge_on_links_replay
+    cmp eax, 0
+    je sponge_on_links_go
+    mov edx, 0x33c63b
+    cmp eax, 1
+    je sponge_on_links_go
+    ud2
+sponge_on_links_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_links_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0x83, 0xc4, 0x1c
+    jmp 0x33c63b
+
+; 0x31b800 spawn_artefact 0x31B6C0, the container chosen (xor ebx,ebx / mov [ebp-18h],ecx / mov [ebp-14h],eax, before the free list): the artefact taken (EDX, its third draw made) or none (the next delay): lohook -> sponge_on_spawn
+global sponge_on_spawn
+extern hook_sponge_on_spawn
+sponge_on_spawn:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sponge_on_spawn
+    mov edx, sponge_on_spawn_replay
+    cmp eax, 0
+    je sponge_on_spawn_go
+    mov edx, 0x31b808
+    cmp eax, 1
+    je sponge_on_spawn_go
+    mov edx, 0x31b85f
+    cmp eax, 2
+    je sponge_on_spawn_go
+    mov edx, 0x31b8c2
+    cmp eax, 3
+    je sponge_on_spawn_go
+    ud2
+sponge_on_spawn_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sponge_on_spawn_replay:
+    db 0x33, 0xdb, 0x89, 0x4d, 0xe8, 0x89, 0x45, 0xec
+    jmp 0x31b808
+
+; 0xa06124 Rattle's artefact slot 0 (scalar deleting destructor 0x260860): vtable -> sponge_on_destroy (wraps engine_rattle_destroy 0x260860)
+    RUST_THISCALL sponge_on_destroy, hook_sponge_on_destroy, 1
+
+; 0xa06150 slot 11 +2Ch, action(pressed, time): artefact_base::action 0x313300: vtable -> sponge_on_action (wraps engine_artefact_action 0x313300)
+    RUST_THISCALL sponge_on_action, hook_sponge_on_action, 2
+
+; 0xa06158 slot 13 +34h, removed_from_inventory: 0x313490: vtable -> sponge_on_removed (wraps engine_artefact_removed 0x313490)
+    RUST_THISCALL sponge_on_removed, hook_sponge_on_removed, 0
+
+; 0xa0615c slot 14 +38h, revived (the holder back from state 5): 0x313470, added_to_inventory's: vtable -> sponge_on_revived (wraps engine_artefact_added 0x313470)
+    RUST_THISCALL sponge_on_revived, hook_sponge_on_revived, 0
+
+; 0xa0618c slot 26 +68h, serialize(writer, dumper): 0x313670: vtable -> sponge_on_serialize (wraps engine_artefact_serialize 0x313670)
+    RUST_THISCALL sponge_on_serialize, hook_sponge_on_serialize, 2
+
+; 0xa06190 slot 27 +6Ch, deserialize(reader, a, b): 0x313760: vtable -> sponge_on_deserialize (wraps engine_artefact_deserialize 0x313760)
+    RUST_THISCALL sponge_on_deserialize, hook_sponge_on_deserialize, 3
+
+; 0xa06194 slot 28 +70h, set_game_world_core(world): Rattle's 0x25FB30: vtable -> sponge_on_set_world (wraps engine_rattle_set_world 0x25fb30)
+    RUST_THISCALL sponge_on_set_world, hook_sponge_on_set_world, 1
+
+; 0xa06198 slot 29 +74h, tick(dt, time): artefact_base::tick 0x313200: vtable -> sponge_on_tick (wraps engine_artefact_tick 0x313200)
+    RUST_THISCALL sponge_on_tick, hook_sponge_on_tick, 2
+
+; 0xa061a0 slot 31 +7Ch, enable_passive: Rattle's none (0x1AF330 ret): vtable -> sponge_on_enable_passive (wraps engine_nothing 0x1af330)
+    RUST_THISCALL sponge_on_enable_passive, hook_sponge_on_enable_passive, 0
+
+; 0xa061a8 slot 33 +84h, disable_passive: Rattle's none (0x1AF330 ret): vtable -> sponge_on_disable_passive (wraps engine_nothing 0x1af330)
+    RUST_THISCALL sponge_on_disable_passive, hook_sponge_on_disable_passive, 0
+
+; 0xa061b8 Rattle's drawable slot 0, its draw 0x25FB80 (the scene's loop 0x23DD41): vtable -> sponge_on_draw (wraps engine_rattle_draw 0x25fb80)
+    RUST_THISCALL sponge_on_draw, hook_sponge_on_draw, 0
+
+; 0xa13fbc grenade_core's hit_inflictor slot 1 (0x246380): vtable -> sponge_on_is_grenade (wraps engine_inflictor_is_grenade 0x246380)
+    RUST_THISCALL sponge_on_is_grenade, hook_sponge_on_is_grenade, 0
+
+; 0xa13fc0 its slot 2, the position (0x248300): vtable -> sponge_on_position (wraps engine_inflictor_position 0x248300)
+    RUST_THISCALL sponge_on_position, hook_sponge_on_position, 0
+
+; 0x3041b0 grenade_core::on_contact's convention (thiscall, the contact point; ret 4), which the physics world's boost invoker 0x202300 calls (ECX the object + adjust): the Sponge's contacts: callback -> sponge_on_contact (wraps engine_grenade_contact 0x3041b0)
+    RUST_THISCALL sponge_on_contact, hook_sponge_on_contact, 1
+
+; 0x27aa20 a member bound by 0x27D280's convention (thiscall, the queries_result; ret 4), which the resource system's boost invoker 0x202300 calls: the Sponge's resources loaded: callback -> sponge_on_loaded (wraps engine_late_join_loaded 0x27aa20)
+    RUST_THISCALL sponge_on_loaded, hook_sponge_on_loaded, 1
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:
@@ -6794,3 +7421,62 @@ lamps_light_vtable:
     dd 0x291720
     dd lamps_on_light_insert
     dd lamps_on_light_remove
+
+section .rodata
+align 4
+global sponge_artefact_vtable
+sponge_artefact_vtable:
+    dd 0xa4c044
+    dd sponge_on_destroy
+    dd 0xf1900
+    dd 0xf1f00
+    dd 0xf1f40
+    dd 0xfda90
+    dd 0xfda90
+    dd 0xfda90
+    dd 0x1af330
+    dd 0x2ffc40
+    dd 0x2ffc80
+    dd 0x243590
+    dd sponge_on_action
+    dd 0x313470
+    dd sponge_on_removed
+    dd sponge_on_revived
+    dd 0x1af330
+    dd 0x2ffce0
+    dd 0x2ffd50
+    dd 0x313880
+    dd 0x300040
+    dd 0x300040
+    dd 0x246380
+    dd 0x246380
+    dd 0x300040
+    dd 0x300040
+    dd 0x300040
+    dd sponge_on_serialize
+    dd sponge_on_deserialize
+    dd sponge_on_set_world
+    dd sponge_on_tick
+    dd 0x15a4b0
+    dd sponge_on_enable_passive
+    dd 0x75af0
+    dd sponge_on_disable_passive
+    dd 0x1af330
+    dd 0x372420
+
+section .rodata
+align 4
+global sponge_drawable_vtable
+sponge_drawable_vtable:
+    dd 0xa4c030
+    dd sponge_on_draw
+
+section .rodata
+align 4
+global sponge_inflictor_vtable
+sponge_inflictor_vtable:
+    dd 0xa5291c
+    dd 0x300040
+    dd sponge_on_is_grenade
+    dd sponge_on_position
+    dd 0x303890

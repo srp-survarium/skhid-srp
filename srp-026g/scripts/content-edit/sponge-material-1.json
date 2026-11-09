@@ -1,0 +1,6 @@
+{
+ "_about": "the Sponge's body's game material (exe patch 59 reads data/mtl_idx for its collision shape, 0x7A390's material): 45, \"grenade\", as 0.26g's RGD-5 and smoke grenade have it and 0.69d0's Sponge (game.options ammo_grenades_etc/artefact_sponge data/mtl_idx 45, its game.materials' \"grenade\"): its bounces sound as a grenade's (game_materials/material.pairs, weapons/f1 hits)",
+ "add_value": [
+  {"files": ["gameplay/items/artefacts/artefact_sponge.options"], "table": "data", "key": "mtl_idx", "value": 45}
+ ]
+}

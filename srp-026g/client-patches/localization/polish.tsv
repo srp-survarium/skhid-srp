@@ -268,6 +268,8 @@ st_artefact_booster_name	Władca artefaktów
 st_artefact_no_free_slots	Brak wolnego miejsca na zabranie artefaktu!
 st_artefact_search_failed	Nie znaleziono artefaktu
 st_artefact_search_success	Znaleziono artefakt!
+st_artefact_sponge_description	Utrzymuje pełny poziom toksyn, dopóki ją nosisz. Rzuć ją: od 1,5 s po wyciągnięciu zawleczki pęka przy uderzeniu, inaczej po 3 s, i zostawia płonącą chmurę na 15 s.
+st_artefact_sponge_name	Myjka
 st_artefact_take_teammate	Weź artefakt ({USE})
 st_ash12_description	OPIS NIE JEST GOTOWY!!!
 st_ash12_name	ASh-12
@@ -2179,6 +2181,8 @@ st_spas12_name	Franchi SPAS-12
 st_special_offer	Oferta specjalna
 st_speed_booster_description	Napój energetyczny o dużej zawartości kofeiny i tauryny. Orzeźwia i stymuluje pracę ośrodkowego układu nerwowego.
 st_speed_booster_name	Napój energetyczny "Tornado"
+st_sponge_activation_hint	Rzut: pęka przy uderzeniu od 1,5 s po wyciągnięciu zawleczki, inaczej po 3 s; płonąca chmura na 15 s.
+st_sponge_pickup_hint	Artefakt Myjka. Utrzymuje pełny poziom toksyn, dopóki ją nosisz. Rzucona pęka w płonącą chmurę.
 st_spot_action	Zauważono przeciwnika
 st_spring_activation_hint	Sprężyna aktywowana! Szybkość poruszania się i celowania zwiększona o 10%. Przyspieszona regeneracja energii! Pociski cię nie spowalniają!
 st_spring_pickup_hint	Artefakt Sprężyna. Zwiększa szybkość poruszania się i celowania o 5%.

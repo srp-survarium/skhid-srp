@@ -96,9 +96,14 @@
 //!                        three kits with a player object
 //!   when that kit has a player: u8 m_slot_id (its profile slot)
 //!   u8   m_state         0 free, 1 spawning in a container, 2 ready in
-//!                        it, 3 taken, 4 active, 5 (below); no other
+//!                        it, 3 taken, 4 active, 5 (below); a Sponge's also
+//!                        6 armed and 7 exploded (exe patch 59); no other
 //!   1, 2: u8 m_container_id; 1: u32 m_time_left_to_spawn
 //!   else: u32 m_time_left_to_cool
+//!   6: patch 78's carry record, 20 bytes (`carry.ground_save` 0x313735,
+//!      before the next field's write; read back by `carry.ground_load`
+//!      0x3137EC, before 0x3137F7): every artefact in state 6, a Sponge's
+//!      0xFF x 20 (no release: the carry never drops a Sponge)
 //!   u32  m_last_activation_time_ms
 //!   4: what its core saves of its own, by its item's data.type (the
 //!   artefact cook's switch 0x2EE95F):
@@ -106,6 +111,12 @@
 //!     6 spring (0x3119A0 / 0x3119E0): u32 m_time_left_to_deactivate
 //!     7 onyx (0x312A80 / 0x312AF0): u32 m_time_left_to_deactivate,
 //!       f32 m_damage_to_absorb
+//!   12 the Sponge (exe patch 59, `sp_serialize` / `sp_deserialize` after
+//!   artefact_base's; never 4: its enable_active is none): in every state
+//!   its own fields, as `sponge::record` reads them (m_explode_time_ms,
+//!   m_is_pin_pulled, thrown() and in the air its motion, m_contact,
+//!   m_zone_owner, m_throw_state_holds); exploded with its cloud on, then
+//!   the zone's damage_zone_core and f32 x16, the explosion's transform
 //! ```
 //!
 //! The artefact states (PROVEN where they are set): on_removed 0x313490
@@ -202,7 +213,44 @@ pub enum Artefact {
     Spring,
     /// 7 (`artefact_onyx_core`).
     Onyx,
+    /// 12 (exe patch 59's Sponge, items_dict 758): saves its own fields in
+    /// every state, and has the states 6 and 7 ([`ArtefactState`]).
+    Sponge,
 }
+
+impl Artefact {
+    /// What an untouched artefact of it (free, never activated) saves after
+    /// artefact_base's record: the Sponge's fields unarmed.
+    pub fn untouched_own(self) -> &'static [u8] {
+        match self {
+            Artefact::Lifebone | Artefact::Spring | Artefact::Onyx => &[],
+            Artefact::Sponge => &SPONGE_UNARMED,
+        }
+    }
+
+    /// The core an active one has: none for the Sponge, which is never
+    /// active.
+    fn activated(self) -> Option<Activated> {
+        match self {
+            Artefact::Lifebone => Some(Activated::Lifebone),
+            Artefact::Spring => Some(Activated::Spring),
+            Artefact::Onyx => Some(Activated::Onyx),
+            Artefact::Sponge => None,
+        }
+    }
+}
+
+/// The kinds of artefact that are ever active (state 4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Activated {
+    Lifebone,
+    Spring,
+    Onyx,
+}
+
+/// A Sponge's own fields unarmed (`sponge::record::write` of
+/// `Saved::Held`): no fuse, no pin, not thrown, no contact, nobody, no hold.
+const SPONGE_UNARMED: [u8; 9] = [0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, 0];
 
 /// An anomaly's state: its zone groups.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -224,11 +272,11 @@ pub enum Group {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ObjectFault {
     Short(Short),
-    /// A byte is none of the values its field takes.
+    /// A field (a byte, or a Sponge's u32) is none of the values it takes.
     Value {
         at: usize,
         field: &'static str,
-        value: u8,
+        value: u32,
     },
     /// A float is no number.
     NotNumber {
@@ -277,7 +325,11 @@ fn byte<T>(
 ) -> Result<T, ObjectFault> {
     let at = reader.at();
     let value = reader.u8()?;
-    parse(value).ok_or(ObjectFault::Value { at, field, value })
+    parse(value).ok_or(ObjectFault::Value {
+        at,
+        field,
+        value: value.into(),
+    })
 }
 
 /// A bool as the game's writer puts it (0x80FA0): 0x00 or 0xFF.
@@ -719,7 +771,7 @@ impl<'a> ZoneMask<'a> {
                 return Err(ObjectFault::Value {
                     at,
                     field: "current_byte_mask",
-                    value,
+                    value: value.into(),
                 });
             }
         }
@@ -939,16 +991,16 @@ pub enum ActiveCore {
 }
 
 impl ActiveCore {
-    fn read(reader: &mut Reader, core: Artefact) -> Result<Self, ObjectFault> {
+    fn read(reader: &mut Reader, core: Activated) -> Result<Self, ObjectFault> {
         let time_left_to_deactivate = reader.u32()?;
         Ok(match core {
-            Artefact::Lifebone => ActiveCore::Lifebone {
+            Activated::Lifebone => ActiveCore::Lifebone {
                 time_left_to_deactivate,
             },
-            Artefact::Spring => ActiveCore::Spring {
+            Activated::Spring => ActiveCore::Spring {
                 time_left_to_deactivate,
             },
-            Artefact::Onyx => ActiveCore::Onyx {
+            Activated::Onyx => ActiveCore::Onyx {
                 time_left_to_deactivate,
                 damage_to_absorb: number(reader, "m_damage_to_absorb")?,
             },
@@ -973,7 +1025,7 @@ impl ActiveCore {
 }
 
 /// An artefact's `m_state`, with what each saves (the module doc).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ArtefactState {
     /// 0: neither in a container nor in a kit.
     Free { time_left_to_cool: u32 },
@@ -986,43 +1038,155 @@ pub enum ArtefactState {
     Ready { container_id: u8 },
     /// 3: in a kit.
     Taken { time_left_to_cool: u32 },
-    /// 4: in a kit, its active effect on.
+    /// 4: in a kit, its active effect on (never a Sponge).
     Active {
         time_left_to_cool: u32,
         core: ActiveCore,
     },
     /// 5: its holder's player down (LIKELY, the module doc).
     Disabled { time_left_to_cool: u32 },
+    /// 6, a Sponge's only (exe patch 59): armed, its pin pulled. Patch 78's
+    /// carry record (no release) was read with it.
+    Armed {
+        time_left_to_cool: u32,
+        sponge: SpongeArmed,
+    },
+    /// 7, a Sponge's only: exploded.
+    Exploded {
+        time_left_to_cool: u32,
+        sponge: SpongeExploded,
+    },
 }
 
-/// The `m_state` byte, before what its state saves.
+/// An armed Sponge: in its holder's hand, or thrown (its body in the
+/// physics world).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SpongeArmed {
+    InHand(sponge::machine::Armed),
+    InAir(sponge::machine::Armed, sponge::record::Motion),
+}
+
+/// An exploded Sponge.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SpongeExploded {
+    /// Its damage zone on: the zone's record and the explosion's transform
+    /// follow its fields.
+    Cloud {
+        cloud: sponge::machine::Cloud,
+        zone: DamageZoneCore,
+        transform: [f32; 16],
+    },
+    /// Its cloud over while a throw state still holds it.
+    Spent,
+}
+
+/// The `m_state` byte of an artefact of its kind, before what its state
+/// saves.
 #[derive(Clone, Copy)]
 enum StateByte {
     Free,
     Spawning,
     Ready,
     Taken,
-    Active,
+    Active(Activated),
     Disabled,
+    Armed,
+    Exploded,
 }
 
 impl StateByte {
-    fn of(byte: u8) -> Option<Self> {
+    /// The state `byte` names for an artefact of `kind`: 6 and 7 are the
+    /// Sponge's only, and it is never 4.
+    fn of(byte: u8, kind: Artefact) -> Option<Self> {
+        let sponge = kind == Artefact::Sponge;
         Some(match byte {
             0 => StateByte::Free,
             1 => StateByte::Spawning,
             2 => StateByte::Ready,
             3 => StateByte::Taken,
-            4 => StateByte::Active,
+            4 => StateByte::Active(kind.activated()?),
             5 => StateByte::Disabled,
+            sponge::record::STATE_ARMED if sponge => StateByte::Armed,
+            sponge::record::STATE_EXPLODED if sponge => StateByte::Exploded,
             _ => return None,
         })
     }
 }
 
+/// Patch 78's carry record of an artefact in state 6 (`carry.ground_save`,
+/// `Drop::snapshot`, 20 bytes): a Sponge's has no release, all 0xFF
+/// (`NO_RELEASE`; its load restores none of it, `Drop::restore`).
+const CARRY_NO_RELEASE: [u8; 20] = [0xFF; 20];
+
+fn carry_no_release(reader: &mut Reader) -> Result<(), ObjectFault> {
+    let at = reader.at();
+    let record = reader.take(CARRY_NO_RELEASE.len())?;
+    match record.iter().zip(at..).find(|&(&value, _)| value != 0xFF) {
+        None => Ok(()),
+        Some((&value, at)) => Err(ObjectFault::Value {
+            at,
+            field: "carry release",
+            value: value.into(),
+        }),
+    }
+}
+
+/// A `sponge::record` fault at `at` in the message.
+fn sponge_fault(at: usize, fault: sponge::record::Fault) -> ObjectFault {
+    use sponge::record::Fault;
+    match fault {
+        Fault::Short { at: short } => ObjectFault::Short(Short {
+            at: at.saturating_add(short),
+            wanted: 1,
+        }),
+        Fault::Value {
+            at: value_at,
+            field,
+            value,
+        } => ObjectFault::Value {
+            at: at.saturating_add(value_at),
+            field,
+            value,
+        },
+        Fault::NotNumber { at: number_at, field } => ObjectFault::NotNumber {
+            at: at.saturating_add(number_at),
+            field,
+        },
+    }
+}
+
+/// A Sponge's own fields after artefact_base's record of state `base`
+/// (`sponge::record::parse`, the format's one definition).
+fn sponge_own(reader: &mut Reader, base: u8) -> Result<sponge::record::Saved, ObjectFault> {
+    let at = reader.at();
+    let (saved, len) =
+        sponge::record::parse(base, reader.rest()).map_err(|fault| sponge_fault(at, fault))?;
+    reader.skip(len)?;
+    Ok(saved)
+}
+
+/// The explosion's transform after a cloud's zone record.
+fn cloud_transform(reader: &mut Reader) -> Result<[f32; 16], ObjectFault> {
+    let at = reader.at();
+    let (transform, len) = sponge::record::parse_cloud_transform(reader.rest())
+        .map_err(|fault| sponge_fault(at, fault))?;
+    reader.skip(len)?;
+    Ok(transform)
+}
+
+/// `sponge::record::parse` answered a sponge of another state than the
+/// base's `m_state` (it never does): the state byte is refused.
+fn other_state(at: usize, base: u8) -> ObjectFault {
+    ObjectFault::Value {
+        at,
+        field: "artefact m_state",
+        value: base.into(),
+    }
+}
+
 /// An anomaly's artefact: its `inventory_item`, its `artefact_base` and,
-/// active, its core's own.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// active, its core's own; a Sponge's own fields in its state.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ArtefactBase {
     amount: u16,
     owner: Option<Owner>,
@@ -1031,7 +1195,7 @@ pub struct ArtefactBase {
 }
 
 impl ArtefactBase {
-    fn read(reader: &mut Reader, core: Artefact) -> Result<Self, ObjectFault> {
+    fn read(reader: &mut Reader, kind: Artefact) -> Result<Self, ObjectFault> {
         let amount = reader.u16()?;
         let at = reader.at();
         let place = byte(reader, "player_id", |place| match place {
@@ -1056,47 +1220,100 @@ impl ArtefactBase {
             }
         };
         // A state that is not in a container saves its cooldown; the
-        // activation time follows every state, an active one's core after.
+        // activation time follows every state, an active one's core after,
+        // a Sponge's own fields after that.
         let cooling = |reader: &mut Reader| -> Result<(u32, u32), ObjectFault> {
             Ok((reader.u32()?, reader.u32()?))
         };
-        let (state, last_activation_time_ms) =
-            match byte(reader, "artefact m_state", StateByte::of)? {
-                StateByte::Free => {
-                    let (time_left_to_cool, last) = cooling(reader)?;
-                    (ArtefactState::Free { time_left_to_cool }, last)
-                }
-                StateByte::Spawning => {
-                    let state = ArtefactState::Spawning {
-                        container_id: reader.u8()?,
-                        time_left_to_spawn: reader.u32()?,
-                    };
-                    (state, reader.u32()?)
-                }
-                StateByte::Ready => {
-                    let state = ArtefactState::Ready {
-                        container_id: reader.u8()?,
-                    };
-                    (state, reader.u32()?)
-                }
-                StateByte::Taken => {
-                    let (time_left_to_cool, last) = cooling(reader)?;
-                    (ArtefactState::Taken { time_left_to_cool }, last)
-                }
-                StateByte::Active => {
-                    let (time_left_to_cool, last) = cooling(reader)?;
-                    let core = ActiveCore::read(reader, core)?;
-                    let state = ArtefactState::Active {
-                        time_left_to_cool,
-                        core,
-                    };
-                    (state, last)
-                }
-                StateByte::Disabled => {
-                    let (time_left_to_cool, last) = cooling(reader)?;
-                    (ArtefactState::Disabled { time_left_to_cool }, last)
-                }
-            };
+        let state_at = reader.at();
+        let base = reader.u8()?;
+        let state_byte = StateByte::of(base, kind).ok_or(ObjectFault::Value {
+            at: state_at,
+            field: "artefact m_state",
+            value: base.into(),
+        })?;
+        let (state, last_activation_time_ms) = match state_byte {
+            StateByte::Free => {
+                let (time_left_to_cool, last) = cooling(reader)?;
+                (ArtefactState::Free { time_left_to_cool }, last)
+            }
+            StateByte::Spawning => {
+                let state = ArtefactState::Spawning {
+                    container_id: reader.u8()?,
+                    time_left_to_spawn: reader.u32()?,
+                };
+                (state, reader.u32()?)
+            }
+            StateByte::Ready => {
+                let state = ArtefactState::Ready {
+                    container_id: reader.u8()?,
+                };
+                (state, reader.u32()?)
+            }
+            StateByte::Taken => {
+                let (time_left_to_cool, last) = cooling(reader)?;
+                (ArtefactState::Taken { time_left_to_cool }, last)
+            }
+            StateByte::Active(core) => {
+                let (time_left_to_cool, last) = cooling(reader)?;
+                let core = ActiveCore::read(reader, core)?;
+                let state = ArtefactState::Active {
+                    time_left_to_cool,
+                    core,
+                };
+                (state, last)
+            }
+            StateByte::Disabled => {
+                let (time_left_to_cool, last) = cooling(reader)?;
+                (ArtefactState::Disabled { time_left_to_cool }, last)
+            }
+            StateByte::Armed => {
+                let time_left_to_cool = reader.u32()?;
+                carry_no_release(reader)?;
+                let last = reader.u32()?;
+                use sponge::record::Saved;
+                let sponge = match sponge_own(reader, base)? {
+                    Saved::InHand(armed) => SpongeArmed::InHand(armed),
+                    Saved::InAir(armed, motion) => SpongeArmed::InAir(armed, motion),
+                    Saved::Held { .. } | Saved::Cloud(_) | Saved::Spent => {
+                        return Err(other_state(state_at, base));
+                    }
+                };
+                let state = ArtefactState::Armed {
+                    time_left_to_cool,
+                    sponge,
+                };
+                (state, last)
+            }
+            StateByte::Exploded => {
+                let (time_left_to_cool, last) = cooling(reader)?;
+                use sponge::record::Saved;
+                let sponge = match sponge_own(reader, base)? {
+                    Saved::Cloud(cloud) => SpongeExploded::Cloud {
+                        cloud,
+                        zone: DamageZoneCore::read(reader)?,
+                        transform: cloud_transform(reader)?,
+                    },
+                    Saved::Spent => SpongeExploded::Spent,
+                    Saved::Held { .. } | Saved::InHand(_) | Saved::InAir(..) => {
+                        return Err(other_state(state_at, base));
+                    }
+                };
+                let state = ArtefactState::Exploded {
+                    time_left_to_cool,
+                    sponge,
+                };
+                (state, last)
+            }
+        };
+        // Held (0..5): a Sponge's own fields say it is unarmed.
+        let held = !matches!(state_byte, StateByte::Armed | StateByte::Exploded);
+        if held && kind == Artefact::Sponge {
+            match sponge_own(reader, base)? {
+                sponge::record::Saved::Held { .. } => {}
+                _ => return Err(other_state(state_at, base)),
+            }
+        }
         Ok(Self {
             amount,
             owner,
@@ -1190,7 +1407,7 @@ impl<'a> GenericAnomalyCore<'a> {
                     return Err(ObjectFault::Value {
                         at,
                         field: "current_state_index",
-                        value: index,
+                        value: index.into(),
                     });
                 };
                 let finish_time_ms = reader.u32()?;
@@ -1890,6 +2107,276 @@ mod tests {
                 kit: 1,
                 ..
             })
+        ));
+    }
+
+    // The Sponge (exe patch 59): an anomaly with an onyx and a Sponge.
+
+    const SPONGE_ANOMALIES: [Anomaly; 1] = [Anomaly {
+        artefacts: Some(Artefacts {
+            containers: 1,
+            artefacts: &[Artefact::Onyx, Artefact::Sponge],
+        }),
+        states: &[],
+    }];
+    const SPONGE_MAP: Map = Map {
+        damage_zones: 0,
+        resupply_zones: 0,
+        anomalies: &SPONGE_ANOMALIES,
+    };
+    const SPONGE_LIST: Objects = Objects {
+        held: &[],
+        map: &SPONGE_MAP,
+    };
+
+    /// The anomaly up to its Sponge's record: nothing pending, no state,
+    /// its container empty, its onyx free.
+    fn before_sponge() -> Vec<u8> {
+        let mut bytes = std::vec![0x00];
+        bytes.extend(0f32.to_le_bytes());
+        bytes.extend([0xFF, 0, 0, 0, 0, 0]);
+        bytes.extend([0, 0xFF, 0, 0, 0, 0]);
+        bytes.extend([1, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        bytes
+    }
+
+    /// The Sponge's own fields as the patch writes them.
+    fn own(saved: &sponge::record::Saved) -> Vec<u8> {
+        use sponge::record::Field;
+        let mut out = Vec::new();
+        sponge::record::write(saved, |field| match field {
+            Field::U32 { value, .. } => out.extend(value.to_le_bytes()),
+            Field::U8 { value, .. } => out.push(value),
+            Field::Matrix { value, .. } => value.iter().for_each(|v| out.extend(v.to_le_bytes())),
+            Field::Float3 { value, .. } => value.iter().for_each(|v| out.extend(v.to_le_bytes())),
+        });
+        out
+    }
+
+    const CLOUD_ZONE: [u8; 5] = [1, 2, 3, 4, 0xFF];
+
+    /// The section with the Sponge `saved`, its base `m_state` `base`, held
+    /// by place 1's kit 0 in slot 13.
+    fn with_sponge(saved: &sponge::record::Saved, base: u8) -> Vec<u8> {
+        use sponge::record::Saved;
+        let mut bytes = before_sponge();
+        bytes.extend([1, 0, 1, 0, 13, base]);
+        match base {
+            1 => bytes.extend([0, 0, 0, 0, 0]),
+            2 => bytes.push(0),
+            _ => bytes.extend(9u32.to_le_bytes()),
+        }
+        if base == 6 {
+            bytes.extend([0xFF; 20]);
+        }
+        bytes.extend(5u32.to_le_bytes());
+        bytes.extend(own(saved));
+        if let Saved::Cloud(_) = saved {
+            bytes.extend(CLOUD_ZONE);
+            (0..16).for_each(|n| bytes.extend((n as f32).to_le_bytes()));
+        }
+        bytes
+    }
+
+    fn sponge_state(bytes: &[u8]) -> ArtefactBase {
+        let read = GameObjects::read(&section(bytes), &SPONGE_LIST).unwrap();
+        let Some(GameObject::Anomaly(anomaly)) = read.objects().next() else {
+            panic!("an anomaly")
+        };
+        anomaly.artefacts().unwrap().artefacts().nth(1).unwrap()
+    }
+
+    fn armed(contact: sponge::machine::Contact) -> sponge::machine::Armed {
+        use sponge::machine::{Hold, Thrower};
+        sponge::machine::Armed {
+            explode_at: sponge::GameTime(103_000),
+            thrower: Thrower::Place(sponge::Place::new(1).unwrap()),
+            contact,
+            hold: Hold::ThrowState,
+        }
+    }
+
+    fn motion() -> sponge::record::Motion {
+        sponge::record::Motion {
+            transform: [0.5; 16],
+            linear: [1.0, -2.0, 3.0],
+            angular: [0.0; 3],
+        }
+    }
+
+    fn cloud() -> sponge::machine::Cloud {
+        use sponge::machine::{Hold, Thrower};
+        sponge::machine::Cloud {
+            exploded_at: sponge::GameTime(104_000),
+            thrower: Thrower::Nobody,
+            hold: Hold::Free,
+        }
+    }
+
+    #[test]
+    fn a_sponges_unarmed_record_is_the_patchs() {
+        use sponge::record::Saved;
+        assert_eq!(own(&Saved::Held { base: 0 }), SPONGE_UNARMED);
+        assert_eq!(Artefact::Sponge.untouched_own(), SPONGE_UNARMED);
+        assert_eq!(Artefact::Onyx.untouched_own(), [0u8; 0]);
+    }
+
+    #[test]
+    fn a_sponge_reads_in_every_state_the_game_writes() {
+        use sponge::machine::Contact;
+        use sponge::record::Saved;
+        // Held in any of artefact_base's states but active.
+        for base in [0, 1, 2, 3, 5] {
+            let bytes = with_sponge(&Saved::Held { base }, base);
+            assert_eq!(reason(&SPONGE_LIST, &bytes), None, "{base}");
+            let artefact = sponge_state(&bytes);
+            assert!(!matches!(
+                artefact.state(),
+                ArtefactState::Armed { .. } | ArtefactState::Exploded { .. }
+            ));
+            assert_eq!(artefact.last_activation_time_ms(), 5);
+        }
+        // Armed in the hand: patch 78's 20 bytes before the activation time.
+        let hand = armed(Contact::Waiting);
+        let bytes = with_sponge(&Saved::InHand(hand), 6);
+        let artefact = sponge_state(&bytes);
+        assert_eq!(
+            artefact.state(),
+            ArtefactState::Armed {
+                time_left_to_cool: 9,
+                sponge: SpongeArmed::InHand(hand)
+            }
+        );
+        assert_eq!(artefact.last_activation_time_ms(), 5);
+        // In the air, with each first contact.
+        for contact in [Contact::Waiting, Contact::Seen, Contact::Spent] {
+            let bytes = with_sponge(&Saved::InAir(armed(contact), motion()), 6);
+            assert_eq!(
+                sponge_state(&bytes).state(),
+                ArtefactState::Armed {
+                    time_left_to_cool: 9,
+                    sponge: SpongeArmed::InAir(armed(contact), motion())
+                }
+            );
+        }
+        // Its cloud on: the zone's record and the explosion's transform.
+        let bytes = with_sponge(&Saved::Cloud(cloud()), 7);
+        let ArtefactState::Exploded {
+            time_left_to_cool: 9,
+            sponge: SpongeExploded::Cloud {
+                cloud: read,
+                zone,
+                transform,
+            },
+        } = sponge_state(&bytes).state()
+        else {
+            panic!("a cloud")
+        };
+        assert_eq!(read, cloud());
+        assert_eq!((zone.last_hit_time_ms(), zone.hitting()), (0x0403_0201, true));
+        assert_eq!(transform[15], 15.0);
+        // Spent.
+        let bytes = with_sponge(&Saved::Spent, 7);
+        assert_eq!(
+            sponge_state(&bytes).state(),
+            ArtefactState::Exploded {
+                time_left_to_cool: 9,
+                sponge: SpongeExploded::Spent
+            }
+        );
+    }
+
+    #[test]
+    fn a_sponge_the_game_never_writes_is_refused() {
+        use sponge::machine::Contact;
+        use sponge::record::Saved;
+        let sponge_at = before_sponge().len();
+        let state_at = sponge_at + 5;
+        // Never active; 6 and 7 are no other artefact's.
+        let mut active = with_sponge(&Saved::Held { base: 0 }, 0);
+        active[state_at] = 4;
+        assert_eq!(field(&SPONGE_LIST, &active), Some("artefact m_state"));
+        let mut onyx = before_sponge();
+        onyx.truncate(onyx.len() - 12);
+        onyx.extend([1, 0, 0xFF, 6, 0, 0, 0, 0]);
+        onyx.extend([0xFF; 20]);
+        onyx.extend([0; 4]);
+        onyx.extend(with_sponge(&Saved::Held { base: 0 }, 0).split_off(sponge_at));
+        assert_eq!(field(&SPONGE_LIST, &onyx), Some("artefact m_state"));
+        onyx[before_sponge().len() - 12 + 3] = 7;
+        assert_eq!(field(&SPONGE_LIST, &onyx), Some("artefact m_state"));
+        // An armed Sponge's carry record names no release.
+        let mut carry = with_sponge(&Saved::InHand(armed(Contact::Waiting)), 6);
+        carry[state_at + 1 + 4 + 7] = 0;
+        assert!(matches!(
+            reason(&SPONGE_LIST, &carry),
+            Some(Reason::ObjectsField {
+                fault: ObjectFault::Value {
+                    field: "carry release",
+                    value: 0,
+                    at,
+                },
+                ..
+            }) if at == 0x100 + state_at + 1 + 4 + 7
+        ));
+        // Its own fields, at their place in the message: a fuse while
+        // unarmed, a pin not pulled while armed, a thrower past the 20, a
+        // hold neither 0 nor 1.
+        let own_at = |base: u8| state_at + 1 + 8 + if base == 6 { 20 } else { 0 };
+        for (base, saved, offset, value, name) in [
+            (0, Saved::Held { base: 0 }, 0, 0, "m_explode_time_ms"),
+            (6, Saved::InHand(armed(Contact::Waiting)), 4, 0, "m_is_pin_pulled"),
+            (6, Saved::InHand(armed(Contact::Waiting)), 7, 20, "m_zone_owner"),
+            (7, Saved::Cloud(cloud()), 8, 2, "m_throw_state_holds"),
+            (7, Saved::Spent, 8, 0, "m_throw_state_holds"),
+        ] {
+            let mut bytes = with_sponge(&saved, base);
+            let at = own_at(base) + offset;
+            bytes[at] = value;
+            assert!(
+                matches!(
+                    reason(&SPONGE_LIST, &bytes),
+                    Some(Reason::ObjectsField {
+                        fault: ObjectFault::Value { field, at: fault_at, .. },
+                        ..
+                    }) if field == name && fault_at == 0x100 + at
+                ),
+                "{name}: {:?}",
+                reason(&SPONGE_LIST, &bytes)
+            );
+        }
+        // A thrown Sponge's motion and a cloud's transform are numbers; the
+        // zone's m_hitting a bool.
+        let mut air = with_sponge(&Saved::InAir(armed(Contact::Seen), motion()), 6);
+        let motion_at = own_at(6) + 6;
+        air[motion_at..motion_at + 4].copy_from_slice(&f32::NAN.to_le_bytes());
+        assert_eq!(field(&SPONGE_LIST, &air), Some("m_transform"));
+        let mut cloud_bytes = with_sponge(&Saved::Cloud(cloud()), 7);
+        let zone_at = own_at(7) + 9;
+        cloud_bytes[zone_at + 4] = 1;
+        assert_eq!(field(&SPONGE_LIST, &cloud_bytes), Some("m_hitting"));
+        let mut cloud_bytes = with_sponge(&Saved::Cloud(cloud()), 7);
+        let end = cloud_bytes.len();
+        cloud_bytes[end - 4..].copy_from_slice(&f32::INFINITY.to_le_bytes());
+        assert_eq!(
+            field(&SPONGE_LIST, &cloud_bytes),
+            Some("m_damage_zone->get_collision_geometry(0)->transform()")
+        );
+        // Cut short anywhere: the section does not read to its end.
+        for saved in [Saved::Held { base: 0 }, Saved::Spent] {
+            let base = if saved == Saved::Spent { 7 } else { 0 };
+            let mut bytes = with_sponge(&saved, base);
+            bytes.pop();
+            assert!(matches!(
+                reason(&SPONGE_LIST, &bytes),
+                Some(Reason::ObjectsUnread { .. })
+            ));
+        }
+        let mut cloud_bytes = with_sponge(&Saved::Cloud(cloud()), 7);
+        cloud_bytes.truncate(cloud_bytes.len() - 64);
+        assert!(matches!(
+            reason(&SPONGE_LIST, &cloud_bytes),
+            Some(Reason::ObjectsUnread { .. })
         ));
     }
 }
