@@ -138,7 +138,12 @@ VULKAN, INSTANCE, DEVICES = 0x71000000, 0x73000000, 0x74000000
 SLOTS = {"CreateFileA": (0x870048, 7), "ReadFile": (0x870064, 5), "WriteFile": (0x870108, 5), "CloseHandle": (0x870040, 1),
          "DeleteFileA": (0x87021C, 1), "LoadLibraryA": (0x870080, 1), "GetProcAddress": (0x870084, 2),
          "FreeLibrary": (0x870088, 1), "GetModuleFileNameA": (0x87014C, 3), "SHGetFolderPathA": (0xAEFE7C, 5),
-         "GetModuleHandleA": (0x87003C, 1), "SetEnvironmentVariableA": (0x87029C, 2)}
+         "GetModuleHandleA": (0x87003C, 1), "SetEnvironmentVariableA": (0x87029C, 2),
+         "GetEnvironmentVariableA": (0x8701B4, 3)}
+# PCI vendors, and the file name of each one's 32-bit Vulkan driver manifest (VK_LOADER_DRIVERS_SELECT matches those)
+NVIDIA, AMD, INTEL, LAVAPIPE = 0x10DE, 0x1002, 0x8086, 0x10005
+MANIFESTS = {NVIDIA: "nv-vk32.json", AMD: "amd-vulkan32.json", INTEL: "igvk32.json"}
+SELECT = "VK_LOADER_DRIVERS_SELECT"
 # the game's delayed imports' module slots (__delayLoadHelper2 0xE48E0 loads nothing for one set), DXVK's DLL of each
 MODULE_SLOTS = {"dxgi.dll": 0xAF30CC, "d3d11.dll": 0xAF30D0, "d3d9.dll": 0xAF1194}
 CALLED = 0x6B000000     # a module the helper bound before patch 83 ran
@@ -187,11 +192,16 @@ class Run(language.Run):
         self.mallocs += 1
 
     def windows_world(self, user_cfg=None, present=DXVK, marker=False, vulkan=None, fails=None, windows_dxgi=False,
-                      called=None):
+                      called=None, gpus=None, env=None, ignores=False):
         """What the stubs answer: user.cfg's text (None: no file), the dxvk\\ files there, a marker left,
-        the best device's (apiVersion, type) (None: no vulkan-1.dll), a DLL whose load fails, whether Windows'
-        dxgi.dll is loaded already (the Vulkan loader's), a delayed import the game called already (its slot set)."""
-        self.user_cfg, self.present, self.marker, self.vulkan, self.fails = user_cfg, set(present), marker, vulkan, fails
+        an NVIDIA device's (apiVersion, type) (None: no vulkan-1.dll) or the GPUs, each (vendor, apiVersion, type,
+        name), a DLL whose load fails, whether Windows' dxgi.dll is loaded already (the Vulkan loader's), a delayed
+        import the game called already (its slot set), the process's environment,
+        whether the loader ignores VK_LOADER_DRIVERS_SELECT (as in an elevated process)."""
+        if gpus is None and vulkan is not None:
+            gpus = [(NVIDIA, vulkan[0], vulkan[1], "NVIDIA GeForce RTX 4080")]
+        self.user_cfg, self.present, self.marker, self.vulkan, self.fails = user_cfg, set(present), marker, gpus, fails
+        self.env, self.ignores, self.visible = dict(env or {}), ignores, []
         self.windows_dxgi, self.modules = windows_dxgi, {}
         for name, slot in MODULE_SLOTS.items():
             self.word(slot, CALLED if name == called else 0)
@@ -259,10 +269,24 @@ class Run(language.Run):
         elif name == "FreeLibrary":
             self.calls_made.append((name, arg(0)))
         elif name == "SetEnvironmentVariableA":
-            # the value whole (DXVK reads at most 259 characters)
-            value = bytes(emu.mem_read(arg(1), 260))
-            assert b"\0" in value, value
-            self.calls_made.append((name, self.text(arg(0)).decode(), value.split(b"\0")[0].decode()))
+            variable = self.text(arg(0)).decode()
+            if arg(1) == 0:
+                # no value: the variable deleted
+                self.calls_made.append((name, variable, None))
+                self.env.pop(variable, None)
+            else:
+                # the value whole (DXVK reads at most 259 characters)
+                value = bytes(emu.mem_read(arg(1), 260))
+                assert b"\0" in value, value
+                self.calls_made.append((name, variable, value.split(b"\0")[0].decode()))
+                self.env[variable] = value.split(b"\0")[0].decode()
+        elif name == "GetEnvironmentVariableA":
+            variable = self.text(arg(0)).decode()
+            self.calls_made.append((name, variable))
+            value = self.env.get(variable, "").encode()
+            if value and len(value) < arg(2):
+                emu.mem_write(arg(1), value + b"\0")
+            result = len(value) if len(value) < arg(2) else len(value) + 1
         elif name == "GetModuleFileNameA":
             emu.mem_write(arg(1), EXE_PATH + b"\0")
             result = len(EXE_PATH)
@@ -276,15 +300,23 @@ class Run(language.Run):
             result = 0
         elif name == "vkEnumeratePhysicalDevices":
             assert arg(0) == INSTANCE
-            self.word(arg(1), 2)
-            self.word(arg(2), DEVICES)
-            self.word(arg(2) + 4, DEVICES + 1)
+            # the CPU's lavapipe first (1.4.354, never DXVK's), then the GPUs whose drivers the loader took: those
+            # whose manifest VK_LOADER_DRIVERS_SELECT's glob matches (its one form here, `prefix*`), all when it is
+            # not set or the loader ignores it
+            glob = None if self.ignores else self.env.get(SELECT)
+            taken = lambda gpu: glob is None or MANIFESTS[gpu[0]].startswith(glob.rstrip("*"))
+            self.visible = [(LAVAPIPE, vk_version(1, 4, 354), 4, "llvmpipe")] + [g for g in self.vulkan if taken(g)]
+            room = self.read(arg(1))
+            for i in range(min(room, len(self.visible))):
+                self.word(arg(2) + 4 * i, DEVICES + i)
+            self.word(arg(1), min(room, len(self.visible)))
             result = 0
         elif name == "vkGetPhysicalDeviceProperties":
-            # the CPU's lavapipe first (1.4.354, never counted), then the case's device
-            api, kind = (vk_version(1, 4, 354), 4) if arg(0) == DEVICES else self.vulkan
+            vendor, api, kind, device = self.visible[arg(0) - DEVICES]
             self.word(arg(1), api)
+            self.word(arg(1) + 8, vendor)
             self.word(arg(1) + 16, kind)
+            self.emu.mem_write(arg(1) + 20, device.encode() + b"\0")
         elif name == "vkDestroyInstance":
             self.calls_made.append((name, arg(0)))
         emu.reg_write(UC_X86_REG_EAX, result)
@@ -607,37 +639,73 @@ def renderer(original, patched, expect):
     """The process's start and the login screen: the renderer (docs/notes/dxvk-option.md)."""
     on, off = b"localization english\r\nsrp_dxvk on\r\nr_fullscreen on\r\n", b"srp_dxvk off\r\n"
     good, old = (vk_version(1, 4, 303), 2), (vk_version(1, 3, 280), 2)
-    look = [("CreateFileA", "dxvk.pending", 2), ("LoadLibraryA", "vulkan-1.dll"), ("vkCreateInstance",),
-            ("vkDestroyInstance", INSTANCE), ("FreeLibrary", VULKAN)]
+    rtx = (NVIDIA, vk_version(1, 4, 303), 2, "NVIDIA GeForce RTX 4080")
+    rx = (AMD, vk_version(1, 4, 315), 2, "AMD Radeon RX 7800 XT")
+    radeon_igpu = (AMD, vk_version(1, 4, 315), 1, "AMD Radeon(TM) Graphics")
     files = [("CreateFileA", DXVK_DIR + name, 3) for name in DXVK]
     opened = [("CreateFileA", USER_CFG, 3)]
     marker = [("CreateFileA", "dxvk.pending", 3)]
+    mark = [("CreateFileA", "dxvk.pending", 2)]
     unmark = [("DeleteFileA", "dxvk.pending")]
     loads = [("GetModuleHandleA", "dxgi.dll")] + [("LoadLibraryA", DXVK_DIR + name) for name in DXVK]
     log = [("CreateFileA", "srp_patches.log", 4)]
+    # the look: the player's DXVK_FILTER_DEVICE_NAME and loader variables read, then one vendor's drivers at a time
+    reads = [("GetEnvironmentVariableA", "DXVK_FILTER_DEVICE_NAME"), ("GetEnvironmentVariableA", SELECT),
+             ("GetEnvironmentVariableA", "VK_LOADER_DRIVERS_DISABLE")]
+    one_look = [("LoadLibraryA", "vulkan-1.dll"), ("vkCreateInstance",), ("vkDestroyInstance", INSTANCE),
+                ("FreeLibrary", VULKAN)]
+    alone = lambda glob: [("SetEnvironmentVariableA", SELECT, glob)] + one_look
+    kept = lambda glob: [("SetEnvironmentVariableA", SELECT, glob)] + log
+    cleared = [("SetEnvironmentVariableA", SELECT, None)]
+    nvidia = mark + reads + alone("nv*") + kept("nv*")
     # DXVK's options before its DLLs: user.cfg without their lines prefers the dedicated GPU alone
     config = [("SetEnvironmentVariableA", "DXVK_CONFIG", "dxvk.hideIntegratedGraphics = True")] + log
     every = on + (b"srp_dxvk_frame_limit 144\r\nsrp_dxvk_low_latency on\r\nsrp_dxvk_tear_free on\r\n"
                   b"srp_dxvk_dedicated_gpu off\r\nsrp_dxvk_overlay full\r\n")
     every_config = [("SetEnvironmentVariableA", "DXVK_CONFIG", "dxvk.maxFrameRate = 144; dxvk.latencySleep = True; "
                      "dxvk.tearFree = True; dxvk.hud = fps,frametimes,gpuload,compiler,memory")] + log
+    amd_config = [("SetEnvironmentVariableA", "DXVK_CONFIG",
+                   "dxvk.hideIntegratedGraphics = True; dxvk.enableDescriptorHeap = False")] + log + log
     cases = [
         # (what, the world, the calls wanted, the marker after, the log's words)
-        ("Vulkan picked, dxvk\\ whole, a Vulkan 1.4 device: the marker first, the look (all let go), DXVK's five "
-         "by their full paths in their order", dict(user_cfg=on, vulkan=good),
-         opened + files + marker + look + config + loads + log, True, b"DXVK loaded"),
+        ("Vulkan picked, dxvk\\ whole, an NVIDIA Vulkan 1.4 device: the marker first, NVIDIA's drivers alone looked "
+         "at (all let go) and kept, DXVK's five by their full paths in their order", dict(user_cfg=on, vulkan=good),
+         opened + files + marker + nvidia + config + loads + log, True,
+         b'dxvk: Vulkan drivers: "nv*" only (VK_LOADER_DRIVERS_SELECT), DXVK\'s GPU NVIDIA GeForce RTX 4080'),
         ("Vulkan picked with every Vulkan option changed: DXVK_CONFIG says them, before the loads",
-         dict(user_cfg=every, vulkan=good), opened + files + marker + look + every_config + loads + log, True,
+         dict(user_cfg=every, vulkan=good), opened + files + marker + nvidia + every_config + loads + log, True,
          b'dxvk: DXVK_CONFIG "dxvk.maxFrameRate = 144; dxvk.latencySleep = True; dxvk.tearFree = True; '
          b'dxvk.hud = fps,frametimes,gpuload,compiler,memory"'),
+        ("an RTX beside a Radeon iGPU: NVIDIA's look finds its discrete GPU, AMD's drivers are never looked at",
+         dict(user_cfg=on, gpus=[radeon_igpu, rtx]), opened + files + marker + nvidia + config + loads + log, True,
+         b'"nv*" only'),
+        ("an RX alone: NVIDIA's look finds none, AMD's the RX; DXVK_CONFIG adds no descriptor heap, said on its line",
+         dict(user_cfg=on, gpus=[rx]),
+         opened + files + marker + mark + reads + alone("nv*") + alone("amd*") + kept("amd*") + amd_config + loads + log,
+         True, b'DXVK_CONFIG adds "dxvk.enableDescriptorHeap = False": DXVK\'s GPU is AMD\'s, AMD Radeon RX 7800 XT'),
+        ("a Radeon iGPU alone: no vendor's discrete GPU, the first integrated one, AMD's",
+         dict(user_cfg=on, gpus=[radeon_igpu]),
+         opened + files + marker + mark + reads + alone("nv*") + alone("amd*") + alone("igvk*") + kept("amd*")
+         + amd_config + loads + log, True, b'"amd*" only'),
+        ("an elevated game (the loader ignores the variable: NVIDIA's look sees AMD's GPU too): the variable deleted, "
+         "every driver looked at, as before", dict(user_cfg=on, gpus=[radeon_igpu, rtx], ignores=True),
+         opened + files + marker + mark + reads + alone("nv*") + cleared + one_look + log + config + loads + log, True,
+         b"Vulkan drivers: all (the loader ignores VK_LOADER_DRIVERS_SELECT here"),
+        ("the player's own VK_LOADER_DRIVERS_SELECT: kept, every driver it takes looked at",
+         dict(user_cfg=on, vulkan=good, env={SELECT: "nv-vk32.json"}),
+         opened + files + marker + mark + reads[:2] + one_look + log + config + loads + log, True,
+         b"the player's own VK_LOADER_DRIVERS_SELECT or _DISABLE kept"),
         ("Vulkan picked, Windows' dxgi.dll loaded already (the Vulkan loader's): the same loads, the game still "
          "bound to DXVK's, and said", dict(user_cfg=on, vulkan=good, windows_dxgi=True),
-         opened + files + marker + look + config + loads[:1] + log + loads[1:] + log, True,
+         opened + files + marker + nvidia + config + loads[:1] + log + loads[1:] + log, True,
          b"another dxgi.dll is loaded already"),
-        ("Vulkan picked, the best device 1.3: no DLL loaded, the marker taken away", dict(user_cfg=on, vulkan=old),
-         opened + files + marker + look + log + unmark, False, b"no Vulkan 1.4 device"),
-        ("Vulkan picked, no vulkan-1.dll: the same", dict(user_cfg=on),
-         opened + files + marker + look[:2] + log + unmark, False, b"no Vulkan 1.4 device"),
+        ("Vulkan picked, the best device 1.3: each vendor's look finds nothing DXVK takes, then every driver; no DLL "
+         "loaded, the variable deleted, the marker taken away", dict(user_cfg=on, vulkan=old),
+         opened + files + marker + mark + reads + alone("nv*") + alone("amd*") + alone("igvk*") + cleared + one_look
+         + log + log + unmark, False, b"no Vulkan 1.4 device"),
+        ("Vulkan picked, no vulkan-1.dll: the variable deleted, the same", dict(user_cfg=on),
+         opened + files + marker + mark + reads + [("SetEnvironmentVariableA", SELECT, "nv*"), ("LoadLibraryA", "vulkan-1.dll")]
+         + cleared + log + unmark, False, b"no Vulkan 1.4 device"),
         ("DirectX 11 picked: no look, nothing loaded, no DXVK_CONFIG", dict(user_cfg=off + every[len(on):], vulkan=good),
          opened + files + marker + unmark, False, b""),
         ("no user.cfg: DirectX 11", dict(vulkan=good), opened + files + marker + unmark, False, b""),
@@ -647,27 +715,28 @@ def renderer(original, patched, expect):
         ("Vulkan picked, a marker left: no look, nothing loaded, the marker taken away",
          dict(user_cfg=on, vulkan=good, marker=True), opened + files + marker + unmark, False, b""),
         ("Vulkan picked, d3d10core.dll does not load: the loads stop there, nothing let go, the marker kept",
-         dict(user_cfg=on, vulkan=good, fails="d3d10core.dll"), opened + files + marker + look + config + loads[:4] + log,
+         dict(user_cfg=on, vulkan=good, fails="d3d10core.dll"), opened + files + marker + nvidia + config + loads[:4] + log,
          True,
          b"stopped at DLL 2"),
         ("Vulkan picked, the game's dxgi called already (its slot set): dxgi loaded, its slot kept, the loads stop "
          "there", dict(user_cfg=on, vulkan=good, called="dxgi.dll"),
-         opened + files + marker + look + config + loads[:2] + log,
+         opened + files + marker + nvidia + config + loads[:2] + log,
          True, b"had called DLL 0"),
     ]
     for what, world, wanted, marked, words in cases:
         r = Run(patched)
-        kept, calls = r.process_start(**world)
+        kept_regs, calls = r.process_start(**world)
         bound = {name: r.read(slot) for name, slot in MODULE_SLOTS.items()}
         loaded = {name: CALLED if name == world.get("called") else r.modules.get(name, 0) for name in MODULE_SLOTS}
-        expect(kept and calls == wanted and r.marker == marked and words in r.logged and r.mallocs == 0
+        expect(kept_regs and calls == wanted and r.marker == marked and words in r.logged and r.mallocs == 0
                and bound == loaded,
                f"the process's start, {what} (no engine allocation, registers and stack as the original's; the "
                "game's delayed dxgi, d3d11 and d3d9 bound to DXVK's as each loaded, the others' slots left 0)"
-               + ("" if calls == wanted else f": {calls}") + ("" if bound == loaded else f": slots {bound}"))
+               + ("" if calls == wanted else f": {calls}") + ("" if bound == loaded else f": slots {bound}")
+               + ("" if words in r.logged else f": log {r.logged[-400:]}"))
     stock = Run(original)
-    kept, calls = stock.process_start(user_cfg=on, vulkan=good)
-    expect(kept and calls == [] and all(stock.read(slot) == 0 for slot in MODULE_SLOTS.values()),
+    kept_regs, calls = stock.process_start(user_cfg=on, vulkan=good)
+    expect(kept_regs and calls == [] and all(stock.read(slot) == 0 for slot in MODULE_SLOTS.values()),
            "the original's process start calls none of these and binds no delayed import")
 
     # a failed DXVK start: the setting off at the login screen (user.cfg has run by then), saved once

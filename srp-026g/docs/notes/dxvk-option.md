@@ -275,6 +275,49 @@ size; Settings to windowed writes the caption back itself (set_size). This holds
 DXVK (Wine too), not only AMD's. The renderer's state is a `Lock` now, by way of defence: no second
 thread reading it is shown (the start, the login screen and every Present are the main thread's).
 
+## The address space (SRP-3)
+
+**The reports** (2026-11-08/09, rev53 and rev54; RX 7800 XT twice, RX 6900 XT; AMD's Windows Vulkan driver 2.0.353 to
+2.0.416): with Vulkan on, crashes at every lobby reconnect at `d3d11.dll+0x74E17` (DXVK's, a read of 0x20), in
+`amdvlk32.dll`, and in the game's own code. The game is 32-bit: 4 GiB of address space, and DXVK on AMD fills it.
+
+- **What crashes** (PROVEN: DXVK 3.1.1's binary and source, reproduced). `0x74E17` is `DxvkBuffer::DxvkBuffer`
+  (`dxvk_buffer.cpp:34`, `assignStorage(allocateStorage())`), reached from `CreateTexture2D` making a texture with CPU
+  access its mapped buffer: `DxvkMemoryAllocator::createBufferResource` logs "Memory allocation failed" and answers
+  null when no memory can be had, and the constructor reads through it. A 32-bit program filling its address space and
+  then making 4 MiB staging textures (`D:\Code\srp\gameeportsaprobe`, not in the repo) crashes at the same
+  instruction with the same read, under DXVK on an AMD iGPU and on an RTX alike; Windows' own D3D11 refuses the texture
+  instead. The live game on a PC of an RTX 5090 and an enabled Radeon iGPU, Vulkan on: 4073 MiB used 14 s after its
+  start, then that crash, half a second after `atmosphere recalculated (... window_resized:true)` as in the report.
+- **Where it goes** (measured, a device made and presented once, nothing else): Windows' D3D11 317 MiB on the RTX, 363
+  on the AMD iGPU; DXVK 600 on the RTX, 811 to 921 on the AMD iGPU. On AMD the first Present alone takes about 213
+  MiB: AMD's Vulkan driver presents through DXGI and loads its own D3D12 driver for it (`amdxc32.dll`, 69 MiB, and the
+  D3D12 runtime). And the Vulkan loader loads every driver it knows, so a PC of two vendors' GPUs maps both (on
+  riad5's, two AMD driver packages: 94 and 85 MiB). The players' minidumps: 451 to 606 MiB of modules with DXVK, 321
+  to 330 without; BigRUS's two rev53 crashes peaked at 4062 and 4073 MiB of virtual size.
+
+**What the start does now** (patch 83, `hud_options.rs` `look_for_dxvk`):
+
+- **One vendor's drivers.** The Vulkan look asks the loader for one vendor's drivers at a time
+  (`VK_LOADER_DRIVERS_SELECT`, a glob of their manifests' names: `nv*`, `amd*`, `igvk*`), NVIDIA's, AMD's, Intel's,
+  until one has a discrete GPU that DXVK takes (`renderer.rs` `dxvk_pick`: DXVK 3.1.1's choice, discrete first, then
+  integrated, at least Vulkan 1.4, the player's `DXVK_FILTER_DEVICE_NAME` honoured); the variable stays set to that
+  vendor's, so DXVK's instance loads those alone. A look that finds another vendor's device means the loader took no
+  such variable (it ignores it in an elevated process): then every driver, as before. A player's own
+  `VK_LOADER_DRIVERS_SELECT` or `_DISABLE` is kept. `srp_patches.log`: `dxvk: Vulkan drivers: "nv*" only
+  (VK_LOADER_DRIVERS_SELECT), DXVK's GPU NVIDIA GeForce RTX 5090`, or `all (...)` with why. Measured at the user's own
+  level on that PC: AMD's D3D12 driver no longer loads with DXVK on the RTX, and the start that crashed signed in
+  (peak 3621 MiB); the excluded vendor's main driver DLL is still mapped by the loader (85 MiB for AMD's), not its
+  dependencies.
+- **No descriptor heap on AMD.** When DXVK's GPU is AMD's, `DXVK_CONFIG` gets `dxvk.enableDescriptorHeap = False`, as
+  DXVK decides by itself after 3.1.1 (doitsujin/dxvk 076922bd2, its #5837: DXVK 3 crashed at start on an RX 7900 XTX
+  with it). Logged on its own line (`DXVK_CONFIG adds ...`); DXVK's log says `Binding model: Legacy`.
+
+**What stays:** a PC of one AMD GPU gains nothing from the drivers' limit, and AMD's presentation through D3D12 is
+AMD's. The game peaks near 3.9 GB on DirectX 11 already (the arenas reserved at its start); patches 124 and 129
+(rev54) reserve more. DXVK on such a PC can still run out: no setting is switched for the player after a crash (no
+fallback that would hide which renderer failed).
+
 ## Known limits
 
 - A start that fails with DXVK costs one start; the next is DirectX 11 again by itself.
