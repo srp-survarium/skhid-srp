@@ -868,6 +868,13 @@ impl Ragdoll {
         (parts, gun, self.headwear.map(|h| h.body.pose))
     }
 
+    /// The far end of the head's capsule (from the neck to past the Head
+    /// bone): inside the skull, which the camera never leaves.
+    pub fn skull(&self) -> Vec3 {
+        let head = &self.bodies[Part::Head.index()];
+        head.shape.ends(head.pose).1
+    }
+
     /// The plane the head lies on, if it touches one.
     pub fn head_ground(&self) -> Option<(Vec3, Vec3)> {
         self.bodies[Part::Head.index()]

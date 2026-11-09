@@ -460,10 +460,20 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   bone's axis nearest the body's forward, with the hand's motion; the "Weapon" bone
   follows it, so the game draws the held item where the gun lies. Its own bounds are not
   read yet (a rifle's size for every item).
-- **The camera:** the eye ("Item") kept relative to the head at the death; followed by
-  critically damped springs (12 rad/s on its place, 9 on its forward), its up level (no
-  roll), its pitch within 55 degrees, 22 cm above the ground the head lies on at least.
-  Patch 46's drag still turns it.
+- **The camera:** the eye ("Item") kept relative to the head at the death. Its place is
+  the eye's, never trailing it: the game draws the local player's body without its head
+  (set_head_visibility, dead too), and the first build's spring on the place (12 rad/s)
+  trailed a falling head by about 0.5 m (2v/omega at 3 m/s) and its 22 cm lift above
+  the ground took it out of a head lying on the ground, so the body was seen headless
+  (the owner, 2026-11-09: "quite often it is clearly visible that the head is removed").
+  One ray of the level from the skull (the head capsule's far end) to the eye each frame
+  (none once the body has settled: the last one holds): a surface between them pulls
+  the camera back toward the skull, 8 cm short of the surface, and it is kept 8 cm off
+  that surface and the ground the head lies on, but never further from them than the
+  skull is, so it stays inside the hidden head (the owner, same day: "camera gets stuck
+  in textures": nothing kept it out of walls). Its forward follows by a critically damped
+  spring (9 rad/s), its up level (no roll), its pitch within 55 degrees. Patch 46's drag
+  still turns it.
 - **The pool:** 20 slots. A new death with none free takes the oldest settled corpse's
   slot (that corpse is drawn as the game draws it again); with none settled, the death
   keeps the game's clip (`Canned`).
@@ -576,9 +586,10 @@ takes no lock.
   body half over a ledge stays on it, one fully past it falls off.
 - **Settled:** within about 2 s of hitting the ground the body stops moving and stays as
   it lies; it is drawn even just off screen, so turning toward it shows it where it lies.
-- **Your own death:** the camera rides your own body's head as it falls, smoothly, never
-  rolling, never looking straight up or down, never below the ground; dragging still
-  turns the view (patch 46).
+- **Your own death:** the camera rides your own body's head as it falls, in the head,
+  never behind it (you never see your own body without its head); it turns smoothly,
+  never rolling, never looking straight up or down; never below the ground or inside a
+  wall; dragging still turns the view (patch 46).
 - **A respawn, or a rollback that takes the death back:** the ragdoll is gone at once.
 - **What may look off (tell me):** a body that shakes on the ground (464c's fixes, section
   12), a knock-back too strong or too weak (`tuning::DEATH_KNOCK`, `BODY_SHARE`), legs that

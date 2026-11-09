@@ -573,7 +573,11 @@ fn the_local_players_camera_follows_its_ragdoll_and_stops_at_the_respawn() {
             (eye.position - last).length() < 0.15,
             "a jump of the camera"
         );
-        assert!(eye.position.y > 0.15);
+        // on the hidden head, never trailing it (a camera off the head shows
+        // the body headless), and above the ground
+        let head = part_pose(&corpses, 1, Part::Head).position;
+        assert!((eye.position - head).length() < 0.3, "off the head: {eye:?} {head:?}");
+        assert!(eye.position.y > 0.07);
         last = eye.position;
     }
     // someone else's place: no camera
