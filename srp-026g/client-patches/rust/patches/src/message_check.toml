@@ -5,3 +5,4 @@ uses = ["packet_recovery"]
 [[hook]]
 site = "match_dispatch.message"
 handler = "on_message"
+order = 1                           # before faces.toml's late joiner

@@ -9,8 +9,10 @@
 //!   (`lobby_client.squad_member`, after `0x88`), and every place's of the
 //!   match or replay just read (`static_info.options_read`,
 //!   `replay.options_read`: srp's block entry 3 after the options, a byte a
-//!   place; no entry, every face 0). The lobby's are asked first: they are
-//!   the freshest;
+//!   place; no entry, every face 0), and a late joiner's of the match in play
+//!   (`match_dispatch.message`, after patch 114's check: the entry of its one
+//!   place after its proposal's profile). The lobby's are asked first: they
+//!   are the freshest;
 //! - the character's cook (`skin_cook.head`, profile_skin_visual_cook's
 //!   default head, reached only when no item's `remove_head_model` took the
 //!   head): the head is the player's face's, its variant by what the kit's
@@ -27,10 +29,11 @@ use core::ffi::CStr;
 
 use crate::vostok::config::{ConfigEntries, ConfigTable};
 use crate::vostok::lobby_menu::{OwnAccountRead, SquadMemberRead};
+use crate::vostok::match_message::Message;
 use crate::vostok::log::{self, Piece::*};
 use crate::vostok::parse::Reader;
 use crate::vostok::skin_cook::{Cover, HeadCook, Model};
-use crate::vostok::{Context, FacesOnHeadExit, Flow, Lock, NoExit, OptionsRead, Thread};
+use crate::vostok::{Context, FacesOnHeadExit, FacesOnMatchMessageExit, Flow, Lock, NoExit, OptionsRead, Thread};
 
 /// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`.
 const SRPX: [u8; 4] = *b"SRPX";
@@ -106,8 +109,12 @@ pub struct Name {
 
 impl Name {
     pub fn of(name: &CStr) -> Option<Name> {
-        let text = name.to_bytes();
-        if text.is_empty() || text.len() > NAME {
+        Name::of_bytes(name.to_bytes())
+    }
+
+    /// A name's bytes, without its zero (a zero in them: none).
+    pub fn of_bytes(text: &[u8]) -> Option<Name> {
+        if text.is_empty() || text.len() > NAME || text.contains(&0) {
             return None;
         }
         let mut bytes = [0; NAME];
@@ -122,7 +129,7 @@ struct Known {
     lobby: [Option<(Name, Face)>; LOBBY],
     /// The lobby entry a new name takes when every one is held.
     oldest: usize,
-    /// The last match's or replay's, by place.
+    /// The last match's or replay's, by place, its late joiners' too.
     world: [Option<(Name, Face)>; PLACES],
 }
 
@@ -131,9 +138,10 @@ impl Known {
         Known { lobby: [None; LOBBY], oldest: 0, world: [None; PLACES] }
     }
 
-    /// The face of `name`: the lobby's, else the last match's, else face 0.
+    /// The face of `name`: the lobby's, else the last match's (its latest
+    /// place: one who left and came back has a new place), else face 0.
     fn face_of(&self, name: &Name) -> Face {
-        self.lobby.iter().chain(&self.world).flatten()
+        self.lobby.iter().chain(self.world.iter().rev()).flatten()
             .find(|(known, _)| known == name)
             .map_or(Face::FIRST, |&(_, face)| face)
     }
@@ -159,13 +167,21 @@ impl Known {
             self.world[place] = name.and_then(Name::of).map(|name| (name, face));
         }
     }
+
+    /// A late joiner of the match: its place, its name and srp's face of it.
+    fn set_place(&mut self, place: usize, name: Name, face: Face) {
+        if let Some(entry) = self.world.get_mut(place) {
+            *entry = Some((name, face));
+        }
+    }
 }
 
 static KNOWN: Lock<Known> = Lock::new(Known::new());
 
-/// The faces' entry of srp's block (the bytes after the options' squads):
-/// its magic, then entries; an entry of another tag is stepped over, a cut
-/// one ends the block. None: no entry (every face 0).
+/// The faces' entry of srp's block (the bytes after the options' squads, or
+/// after a late joiner's profile): its magic, then entries; an entry of
+/// another tag is stepped over, a cut one ends the block. None: no entry
+/// (every face 0).
 pub fn faces_in(mut rest: Reader<'_>) -> Option<&[u8]> {
     if rest.array::<4>() != Some(SRPX) {
         return None;
@@ -220,6 +236,38 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// A replay's chunk 1 after its deserialize (0x1F0971).
 pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
     options_read(ctx.thread(), OptionsRead::at_replay(ctx))
+}
+
+/// srp's block after a late joiner's profile: none (face 0), or its magic
+/// and the faces entry of its one place, any byte. Anything else is no
+/// block srp sends: none.
+fn late_joiner_face(block: &[u8]) -> Option<Face> {
+    match block {
+        [] => Some(Face::FIRST),
+        [b'S', b'R', b'P', b'X', TAG_FACES, 1, face] => Some(Face::of_byte(*face)),
+        _ => None,
+    }
+}
+
+/// A match message at the dispatch (0x27A31F), after patch 114's check: a
+/// late joiner's proposal says its place's name and, in srp's block after
+/// the profile, its face. Kept before the late join's code takes the
+/// proposal and cooks its character (`lj_prepare`, the native handler after
+/// this), and the block taken off the message: that code reads the native
+/// profile to the message's end. Bytes after the profile that are no such
+/// block are left for its check to refuse the proposal.
+pub fn on_match_message(ctx: &mut Context<'_>) -> Flow<FacesOnMatchMessageExit> {
+    let Some(mut message) = Message::at_dispatch(ctx) else { return Flow::Continue };
+    let Some(proposal) = message.proposal() else { return Flow::Continue };
+    let Some(face) = late_joiner_face(proposal.block) else {
+        log::line(&[Text("faces: a late joiner's proposal ends in bytes that are no srp block; left as they are")]);
+        return Flow::Continue;
+    };
+    if let Some(name) = Name::of_bytes(proposal.name) {
+        KNOWN.with(ctx.thread(), |known| known.set_place(usize::from(proposal.place), name, face));
+    }
+    message.end_at_profile(proposal);
+    Flow::Continue
 }
 
 /// The variant of a face the cover wears.
@@ -332,6 +380,24 @@ mod tests {
     }
 
     #[test]
+    fn a_late_joiner_is_known_by_its_place_and_a_new_place_wins() {
+        let mut known = Known::new();
+        known.set_world([Some(c"you"), Some(c"back")].into_iter(), &[1, 3]);
+        known.set_place(2, name(c"late"), Face(5));
+        assert_eq!(known.face_of(&name(c"late")), Face(5));
+        assert_eq!(known.face_of(&name(c"you")), Face(1));
+        // One who left and came back is a new place: its face there.
+        known.set_place(3, name(c"back"), Face(4));
+        assert_eq!(known.face_of(&name(c"back")), Face(4));
+        // No place past the match's 20; a new match forgets them.
+        known.set_place(PLACES, name(c"none"), Face(6));
+        assert_eq!(known.face_of(&name(c"none")), Face::FIRST);
+        known.set_world([Some(c"you")].into_iter(), &[]);
+        assert_eq!(known.face_of(&name(c"late")), Face::FIRST);
+        assert!(Name::of_bytes(b"").is_none() && Name::of_bytes(b"a\0b").is_none());
+    }
+
+    #[test]
     fn the_lobby_keeps_each_name_once_and_drops_the_oldest() {
         let mut known = Known::new();
         known.learn(name(c"me"), Face(1));
@@ -358,5 +424,15 @@ mod tests {
         assert_eq!(faces_in(Reader::new(b"SRPX\x02\x01\x01\x03\x01\x09")), Some(&[9][..]));
         assert_eq!(faces_in(Reader::new(b"SRPX\x03\x03\x01")), None);
         assert_eq!(faces_in(Reader::new(b"SRPY\x03\x01\x01")), None);
+    }
+
+    #[test]
+    fn a_late_joiners_block_is_its_one_face_or_none() {
+        assert_eq!(late_joiner_face(b""), Some(Face::FIRST));
+        assert_eq!(late_joiner_face(b"SRPX\x03\x01\x09"), Some(Face(9)));
+        for other in [&b"SRPX"[..], b"SRPX\x03\x01", b"SRPX\x03\x02\x01\x01", b"SRPX\x02\x01\x01",
+                      b"SRPX\x03\x01\x01\x00", b"SRPY\x03\x01\x01", b"\x00"] {
+            assert_eq!(late_joiner_face(other), None, "{other:?}");
+        }
     }
 }

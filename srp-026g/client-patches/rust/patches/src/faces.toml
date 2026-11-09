@@ -27,3 +27,8 @@ order = 4
 site = "replay.options_read"
 handler = "on_replay_options"
 order = 4
+
+[[hook]]
+site = "match_dispatch.message"
+handler = "on_match_message"
+order = 2                           # after patch 114's check (message_check.toml)

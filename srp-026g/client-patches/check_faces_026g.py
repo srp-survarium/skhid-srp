@@ -31,7 +31,13 @@ head ends too). Checked:
   place's face by its name; a face the data does not list drawn as face 0,
   with no suffix; the lobby's face asked first; a new match without the entry
   forgets the old match's faces;
-- a `0x87` without srp's byte: logged, nothing learnt.
+- a `0x87` without srp's byte: logged, nothing learnt;
+- a late joiner's proposal at the dispatch (`match_dispatch.message`, after
+  patch 114's check, the game's own item_by_id stepping over its profile):
+  srp's block after the profile (the faces entry of its one place) gives the
+  joiner's face by its name and is taken off the message (its reader 7 bytes
+  shorter, the span replayed); without a block, face 0 and the message as it
+  was; bytes that are no block: logged, left for the late join's check.
 """
 import struct
 import sys
@@ -47,12 +53,14 @@ HEAD, MADE = 0x205662, 0x2056F0            # skin_cook.head and its join
 OWN, OWN_END = 0x27030B, 0x270313           # lobby_client.own_account, span 8
 MEMBER, MEMBER_END = 0x274C01, 0x274C07     # lobby_client.squad_member, span 6
 OPTIONS, OPTIONS_END = 0x27B92D, 0x27B932   # static_info.options_read, span 5
+DISPATCH, DISPATCH_END = 0x27A31F, 0x27A327 # match_dispatch.message, span 8 (patch 114's check first)
 THREAD_SLOT, QPC_SLOT, QPF_SLOT = 0x870118, 0x870158, 0x870150
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870108, 0x870040
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
 CONFIG, TEXTS = HEAP, HEAP + 0x40000
 COOK, PROFILE, CLIENT = HEAP + 0x80000, HEAP + 0xA0000, 0x33000000
 OPTIONS_OBJECT, MESSAGE = 0x34000000, HEAP + 0xB0000
+GAME, DICTIONARY, ITEMS = HEAP + 0xC0000, HEAP + 0xD0000, HEAP + 0xD1000
 SP, BP = STACK + 0x8000, STACK + 0xC000
 RECORD, RECORDS, COUNT, TAG = 0xC0C, 0x234, 0xF324, 0xC08
 OWN_PROFILE, PLACE = 0x1E6344, 0x45FC
@@ -216,6 +224,30 @@ class Game:
         self.word(MESSAGE + 0x88, 4 + len(srp))
         return MESSAGE + 0x80
 
+    def proposal(self, place, name, after):
+        """A late join's proposal (0xE4: the header, a profile named `name` of one kit and one item that is no
+        stack, `after`) at the dispatch, the client's game's dictionary with that item. Run the span; the reader's
+        size after it."""
+        self.word(CLIENT + 0x14, GAME)
+        self.word(GAME + 0x53A4, DICTIONARY)
+        self.word(DICTIONARY + 0x130, ITEMS)
+        self.word(DICTIONARY + 0x134, 1)
+        self.emu.mem_write(ITEMS, bytes(0x3A0))
+        self.emu.mem_write(ITEMS, struct.pack("<H", 101))
+        profile = b"\x00" + bytes([len(name)]) + name.encode() + b"\x00" + struct.pack("<IBB", 0, 1, 1)
+        profile += b"\x00" + struct.pack("<I", 1) + b"\x01K" + struct.pack("<IHH", 1, 0, 1) + bytes(16)
+        profile += struct.pack("<IH", 1, 101) + bytes(12) + b"\x00\x00"
+        payload = b"\xffLJ\x01" + struct.pack("<II", 0x80001234, 7) + bytes([place, 0]) + profile + after
+        self.emu.mem_write(MESSAGE, b"\xE4" + payload)
+        reader = MESSAGE + 0x2000
+        self.word(reader, MESSAGE)
+        self.word(reader + 4, MESSAGE + 1)
+        self.word(reader + 8, 1 + len(payload))
+        regs = {r: 0x0A0A0A0A + i for i, r in enumerate(REGS)}
+        regs.update({UC_X86_REG_EAX: 0xE4, UC_X86_REG_EBX: reader, UC_X86_REG_ESI: CLIENT, UC_X86_REG_EBP: BP})
+        after_regs, esp = self.go(DISPATCH, DISPATCH_END, regs, SP)
+        return self.read(reader + 8) - 1 - len(payload), after_regs, esp
+
     def options(self, names, srp):
         """process_static_match_info after its deserialize: the options (ESI) with places named `names`, the
         frame's reader (EBP-2Ch) at srp's block."""
@@ -250,8 +282,11 @@ def main():
         new = base.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
         check(opcode == 0xE9 and original[at:at + len(old)] == old and built[at:at + len(new)] == new,
               f"{va:#x}: {old.hex()} in the original, `jmp {symbol}` here")
-    check(sorted(h["site"] for h in ours) == sorted([HEAD, OWN, MEMBER, OPTIONS, 0x1F0971]),
-          f"faces' five hooks: its three sites and the two options reads ({len(ours)})")
+    check(sorted(h["site"] for h in ours) == sorted([HEAD, OWN, MEMBER, OPTIONS, 0x1F0971, DISPATCH]),
+          f"faces' six hooks: its three sites, the two options reads and the dispatch's chain ({len(ours)})")
+    dispatch = next(h for h in ours if h["site"] == DISPATCH)
+    check([m["patch"] for m in dispatch.get("chain", [])] == ["message_check", "faces"],
+          "the dispatch's chain: patch 114's check, then the late joiner's face")
 
     head = {"data": {"base_model": "character/human/base/base_character_head", "part_name": "black_market_01_head_s"}}
     plain = lambda game: game.node({"head": head, "bind_pose": "x"})
@@ -314,6 +349,24 @@ def main():
     check(b"without srp's face byte" in patched.logged[before:]
           and patched.cook(faces(patched), "me", [2])[0][0][:2] == ("head/face_2", "face_2"),
           "a 0x87 without srp's byte: logged, the face kept")
+
+    patched.options(["me", "you"], b"")
+    cut, after, esp = patched.proposal(2, "late", b"SRPX\x03\x01\x01")
+    check(cut == -7 and after[UC_X86_REG_EAX] == 1 and patched.read(BP + 0xC) == 0xE4 and esp == SP,
+          "a late joiner's proposal: srp's block taken off (its reader 7 bytes shorter), the span replayed "
+          "(mov [ebp+0Ch],eax / add eax,-E3h)")
+    made, skin = patched.cook(faces(patched), "late", [2])
+    check(made[0][:2] == ("head/face_1", "face_1") and skin.endswith("f1_"), "the late joiner's face, by its name")
+    check(patched.cook(faces(patched), "you", [2])[0][0][:2] == ("head/face_0", "face_0"),
+          "the match's other places as they were")
+    cut, _, _ = patched.proposal(3, "plain", b"")
+    check(cut == 0 and patched.cook(faces(patched), "plain", [2])[0][0][:2] == ("head/face_0", "face_0"),
+          "a proposal without a block: face 0, the message as it was")
+    before = len(patched.logged)
+    cut, _, _ = patched.proposal(4, "odd", b"SRPX\x03\x02\x01\x01")
+    check(cut == 0 and b"no srp block" in patched.logged[before:]
+          and patched.cook(faces(patched), "odd", [2])[0][0][:2] == ("head/face_0", "face_0"),
+          "bytes after the profile that are no block: logged, left for the late join's check, nothing learnt")
 
     if failed:
         sys.exit(f"{failed} check(s) failed")

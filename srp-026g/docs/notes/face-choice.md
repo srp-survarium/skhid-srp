@@ -27,6 +27,10 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
   the data no longer lists reads as face 0.
 - Bots: one face a bot, fixed for the match (drawn over all the faces from the second the match
   is made and the bot's number in it). [pick]
+- Every game draws every player with that face: the match's players, its late joiners, its
+  bots. The server's bots never join late (they are put in when a match is made; the registry
+  takes none into a running match); a test bot (an srp-bot account) joins as any account, with
+  its account's face.
 
 ## What is drawn
 
@@ -66,19 +70,27 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
 - `E4` (the match's options): srp's block entry tag 3, one byte a place (the roster's length),
   each place's face. Sent only when a place's face is not 0; no entry: every face 0, so older
   replays read as before.
+- `E4` (a late joiner's proposal, `FF 'L' 'J' 01`, to the games already in; `late_join.rs`):
+  after its profile, srp's block as after the options with the faces entry of its one place,
+  `SRPX 03 01 <face>`. Sent only when its face is not 0; no block: face 0. The late joiner's own
+  `E4` is the options, every place's face in it, its own too.
 
 ## Client (exe patch)
 
 - The faces are known by the player's name (the profile's +8h): the lobby's (own `87`, squad
-  `88`) and the last match's or replay's options (`E4`, chunk 1). The lobby's are asked first.
-  A name not known: face 0.
+  `88`), the last match's or replay's options (`E4`, chunk 1) and its late joiners' proposals.
+  The lobby's are asked first, then the match's by its latest place (one who left and came back
+  has a new place). A name not known: face 0.
+- A late joiner's proposal is read at the dispatch (`match_dispatch.message`, after patch 114's
+  check): its place, its name, its profile stepped over with the items dictionary, the block
+  after it. The block is then taken off the message: the late join's code (`lj_prepare`) reads
+  the native profile to the message's end, as its check wants it. Bytes after the profile that
+  are no such block are logged and left there: that check refuses the proposal.
 - The cook (`profile_skin_visual_cook::on_configs_loaded` 0x204560) makes the head's records in
   Rust (the native block 0x205659..0x2056F0 replaced, patch 123): `heads[face]`, its variant by
   the worn helmet (tag 5) and mask (tag 6) records, its base model, part and material, and a
   record for each additional model (tag 0, hidden in first person with the head); `f<face>_` is
   added to the skin's name for a face other than 0.
-- A late joiner is face 0 to the players already in (its late-join options carry no srp block),
-  but to its squad. [open]
 - Without `heads` in the data the native head is made, as today.
 
 ## Lobby
@@ -94,3 +106,5 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
 - An exe from before this release refuses an `E4` with the faces entry (its options check,
   srp-validate). The entry is sent only once a face but 0 is in play (a player's choice or a
   bot's draw), which needs the pack's `heads`: the server's data lists them only with this exe.
+  The same holds for a late joiner's proposal with the block: such an exe's late join check
+  refuses it (a failed preparation): the joiner is not let in, and the match takes no more.
