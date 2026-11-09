@@ -88,8 +88,7 @@ modifications	kind	value	op	drop_weight
 1203	reliability	-0.2	2	5.12
 1204	reliability	-0.25	2	4.096
 1210	parameters/breath_vibration_modifier	-0.2	1	0
-1211	parameters/breath_vibration_modifier	-0.25	1	0
-1212	parameters/breath_vibration_modifier	-0.1	1	0
+1211	parameters/breath_vibration_modifier	-0.1	1	0
 1220	parameters/respawn_time_modifier	-0.2	1	0
 1221	parameters/respawn_time_modifier	-0.25	1	0
 1230	parameters/money_bonus	0.1	1	0
