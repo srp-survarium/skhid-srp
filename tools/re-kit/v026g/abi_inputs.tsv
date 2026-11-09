@@ -2504,6 +2504,7 @@ va	name	location	role	basis
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+12	one-byte read/acknowledgment action	inferred
 0x0026cb80	survarium::lobby_menu::on_keyboard_action	ECX	the lobby menu (+9Ch the game, +690h the movie holder: [+108h]+4 the invoke's ECX)	observed
 0x0026cb80	survarium::lobby_menu::on_keyboard_action	entry ESP+8	the key (DIK code; 1 Esc: with [this+313Ah] set and has_active_window true, root.close_active_window)	observed
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	entry ESP+0Ch	the key's state (1: a press, then Esc as abi.tsv says; any other value goes to the movie through 0x1FDD70 at 0x26CDF8 after has_active_window was asked)	observed
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	ECX	lobby input-handler subobject receiver	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+8	raw mouse button	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+12	mouse button action	inferred
@@ -5711,6 +5712,9 @@ va	name	location	role	basis
 0x0007b7f0	vostok::physics::round_up	ESI	the float rounded in place	observed
 0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	EAX	the controller (+20h the walk, +2C710h the supporting normal)	observed
 0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	entry ESP+4	the float3 written (returned in EAX)	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	entry ESP+4	the buffer_vector (begin, end, max_end; scene_view +1DD30h from world::hide_movie 0x119014)	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	entry ESP+8	pointer to the first iterator	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	entry ESP+12	pointer to the last iterator (first + 4 from world::hide_movie)	observed
 0x002a9e70	survarium::sound_game_effect_presenter::clear	ECX	the sound presenter	observed
 0x002a9ef0	survarium::sound_game_effect_presenter::on_event	entry ESP+4	the sound presenter (EBX): +4h the world, +0Ch its player, +10h its random seed (minstd x 48271, 0x2AB6E0), +14h 1.0f, +18h..+20h its entries {begin, end, capacity}, 14h each ({+0 a loose pointer to the effect: [+0]-4 the effect, +4 its count; +4 the effect's +10h; +8 its +2Ch; +0Ch the volume; +10h the sound, its count +28h}), sixteen inline from +24h	observed
 0x002a9ef0	survarium::sound_game_effect_presenter::on_event	entry ESP+8	the sound_game_effect (vtable 0xA0D4CC; its accept, vtable +3Ch 0x2AE450, calls the presenter's +28h with it)	observed
@@ -5751,3 +5755,16 @@ va	name	location	role	basis
 0x00321820	survarium::game_world_core::bind_place	entry ESP+4	place (core slot, 30h bytes) to bind	observed
 0x002d8100	survarium::base_player::register_animations	EDI	player whose animations go into the registry	observed
 0x002d8100	survarium::base_player::register_animations	entry ESP+4	registry of animations (the pvp match's, +19238h)	observed
+0x00129bb0	vostok::buffer_string::assign_config_text	EAX	the buffer_string {begin, end, capacity} written (a cook record's base_model, part_name or material)	observed
+0x00129bb0	vostok::buffer_string::assign_config_text	ECX	a config node whose first word is its text (a type 5 node, cfg_child's result); a null text leaves the string empty	observed
+0x00204500	survarium::profile_skin_visual_cook::model_folder	EAX	the item's record (its base_model buffer_string at +0); the caller copies the result into the record's +0AF0h (0x205630, item models only, not the head's nor additional models)	observed
+0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	EBP+10h	the profile (entry ESP+12) throughout the body; its name at +8h (a lobby profile's or a match place's), patch 123's key of a face	observed
+0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	body ESP+0A8h	a 24-byte copy of gameplay/bodyparts/default's body_parts node (0x2046E2..0x20472C): `skeleton`, `bind_pose` and the head's `head/data` read from it; at the head (0x205659) ESI is still [esp+1Ch] and EDI the "head" key	observed
+0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	the head block	0x20564E: skipped (je 0x2056F0) when an item's remove_head_model took record 0; 0x205659..0x2056E6: record 0's base_model and part_name from body_parts/head/data (0x129BB0), tag 0, no material, nothing more; 0x2056F0 the join; the part records are never checked against the 20 the data holds	observed
+0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	an item's additional_models	0x2054C9..0x20561C: each entry (24-byte table nodes) a record of its own after the item's, tagged as the item (1 + slot table index), base_model_hud/part_name_hud first when both are there, else base_model/part_name, its material if any; the count +1 each	observed
+0x00270260	survarium::lobby_client::process_own_account	ESI at 0x27030B	the message's reader {begin, cursor, size}, its cursor past exp_next_level (the last field); EBX the lobby client, its account profile at +1E6344h (patch 123 reads srp's face byte there)	observed
+0x00274a00	survarium::lobby_client::on_message_received	0x88 path	0x274BCE: a lobby_player_profile constructed at [esp+280h] (0x2F73F0), the account body read into it (EDI, 0x1F1070), the revision (u32, 0x274BF6) into its +45FCh ([esp+487Ch] at 0x274C07); at 0x274C01 ESI the reader past it and EDI the profile; then on_squad_member_profile_arrived (EAX the profile, 0x274C17)	observed
+0x00222fe0	survarium::lobby_menu::on_squad_member_profile_arrived	EAX	the member's profile (0x88's, a temporary of the handler): lobby_character::setup_profile (0x284B10, 0x223029) copies it to the member's lobby character	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EAX	first	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	ESI	last	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EDI	pointer to the value (a resource_ptr: its pointer compared)	observed

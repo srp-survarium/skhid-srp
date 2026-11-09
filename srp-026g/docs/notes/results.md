@@ -379,8 +379,7 @@ What the live server's first two days showed (254 results of players who finishe
 | Change | Before | Now | Where |
 |---|---|---|---|
 | Match silver | 80 % of the original | **120 %** | `pay::DEFAULT_MONEY_RATE`, `SRP_MONEY_RATE` |
-| Wear of the weapons and armour played with | the game's (`degrade_per_match`, `degrade_per_use`), and a defect roll for a worn item | **none**; `SRP_ITEM_WEAR=on` brings the game's rule back | `pay::item_wear`, `rewards::Terms::wear` |
-| Items worn before the switch | - | made whole once: full condition, defects off, repairs over (`g26_meta` key `gear_mended`) | `GameAccounts::from_env`, `items_rules::mend_all` |
+| Wear of the weapons and armour played with | the game's (`degrade_per_match`, `degrade_per_use`), and a defect roll for a worn item | **none** (no repair either, 2026-11-08); items worn before were made whole once (`g26_meta` key `gear_mended`, 2026-10) | - |
 | Ammo | the game's `base_cost` a clip | **about half**, each price set by hand and rounded down to a multiple of 5: its `base_cost`, so it sells back for a quarter of it | `scripts/content-edit/items.tsv` |
 
 Not changed: quest silver, level rewards, the gold exchange; the prices of drugs, traps and grenades.

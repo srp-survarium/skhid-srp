@@ -887,7 +887,7 @@ st_ct_max_members_count_error	Nelze přidat další hráče. Klanový tým už j
 st_current_value	\nAktuální hodnota:
 st_cz_75_description	Česká samonabíjecí pistole, náboj: 9x19. Jedna z nejkopírovanějších pistolí studené války.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Hraj každý den a za <highlight>první tři</highlight> výhry získáš <highlight>x2</highlight> zkušenosti i pověst.
+st_daily_bonus_description	Každý den: <highlight>x2</highlight> zkušenosti za <highlight>první tři</highlight> výhry.
 st_daily_bonus_hint	Zobrazit uvítací obrazovku
 st_daily_bonus_label	Vítej zpátky
 st_daily_bonus_progress	Tvůj dnešní postup
@@ -2496,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Popis zatím není k dispozici.
 st_srp_equipment069_snow_20_legs_7_name	Kalhoty „Sníh-20“
 st_srp_equipment069_snow_20_torso_7_desc	Popis zatím není k dispozici.
 st_srp_equipment069_snow_20_torso_7_name	Neprůstřelná vesta „Sníh-20“
-st_srp_exchange_balance	Zůstatek
-st_srp_exchange_button	Směnit
-st_srp_exchange_gold	Zlato
-st_srp_exchange_pay	Zaplatíš
-st_srp_exchange_receive	Dostaneš
-st_srp_exchange_short_gold	Nedostatek zlata
-st_srp_exchange_short_silver	Nedostatek stříbra
-st_srp_exchange_title	Směnit
 st_srp_hide_hit_markers_option	Skrýt ukazatele zásahů
 st_srp_hide_quests_option	Skrýt úkoly
 st_srp_hide_scores_option	Skrýt skóre hráčů

@@ -165,6 +165,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
         ConfigValue::parse(player).and_then(|config| PlayerLimits::from_config(&config)),
     )?;
     parsed(drops::PATH, Drops::parse(needed(data, drops::PATH)?))?;
+    parsed(super::faces::PATH, super::faces::Faces::of_data(data))?;
     parsed(quests::PATH, Quests::parse(needed(data, quests::PATH)?))?;
     parsed(skills::PATH, SkillsTree::parse(needed(data, skills::PATH)?))?;
     parsed(

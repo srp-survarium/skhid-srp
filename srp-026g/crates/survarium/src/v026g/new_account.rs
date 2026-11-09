@@ -93,8 +93,8 @@ pub struct NewAccount {
     /// `(skill id, points)`, each with points; the tree allows them at
     /// [`Self::level`] ([`Self::check`]).
     pub skills: Vec<(u16, u8)>,
+    /// Its money, silver (gold is gone, the owner's of 2026-11-08).
     pub silver: u32,
-    pub gold: u32,
     /// Premium from the account's making, added as every premium is.
     pub premium_days: u32,
     /// The rounds it owns of every ammo.
@@ -197,7 +197,7 @@ impl NewAccount {
             match (key.as_str(), number) {
                 (_, Some(n)) => presets.push((n, preset(key, value)?)),
                 (
-                    "level" | "skills" | "silver" | "gold" | "premium_days" | "rounds" | "faction"
+                    "level" | "skills" | "silver" | "premium_days" | "rounds" | "faction"
                     | "reputation_level" | "own" | "own_modifications",
                     None,
                 ) => {}
@@ -237,7 +237,6 @@ impl NewAccount {
             level: byte("level")?,
             skills,
             silver: num("silver")?,
-            gold: num("gold")?,
             premium_days: num("premium_days")?,
             rounds: num("rounds")?,
             faction: QuestFaction::try_from(byte("faction")?).map_err(|id| {

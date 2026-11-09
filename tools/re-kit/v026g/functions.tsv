@@ -2168,6 +2168,7 @@ va	status	ref_021d	name
 0x000181e0	verified	0x000152cc	message_processor
 0x000f65a0	reviewed		vostok::math::float_to_half
 0x000f66d0	reviewed		vostok::math::half_to_float
+0x0015ee30	reviewed	0x000f5567	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase
 0x003b9c00	verified	0x00265b8a	vostok::input::platform::keyboard::get_dik_name
 0x003b8d20	verified	0x00265091	vostok::input::platform::keyboard::execute
 0x0027a070	observed		survarium::match_client::match_client
@@ -2217,3 +2218,4 @@ va	status	ref_021d	name
 0x00205ba0	observed		vostok::variant::type_id<survarium::player_creation_params>
 0x003218a0	observed		survarium::pvp_match::insert_place_physics
 0x00321820	observed		survarium::game_world_core::bind_place
+0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >

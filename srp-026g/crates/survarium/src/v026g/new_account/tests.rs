@@ -34,8 +34,8 @@ fn the_grant_is_the_tables() {
         Ok(())
     );
     assert_eq!(
-        (grant.silver, grant.gold, grant.premium_days),
-        (15_000, 150, 30)
+        (grant.silver, grant.premium_days),
+        (30_000, 30)
     );
     assert_eq!(
         (grant.rounds, grant.faction.id(), grant.reputation_level),

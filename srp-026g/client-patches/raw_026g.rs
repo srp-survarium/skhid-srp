@@ -1427,6 +1427,15 @@ impl PlayerProfile {
         KitSlots(unsafe { self.0.byte_add(0x98) })
     }
 
+    /// +0x8 (u8): the player's name, 64 bytes with its zero (the account body's first string, deserialize_static 0x1F1070; a match place's too, match_place +8h): patch 123's key of a face
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<u8>().as_ptr() }
+    }
+
     /// 0x4634 bytes: a profile: player_profile::player_profile (0x2F73F0) constructs 4634h bytes, operator= (0x284D10) copies them through +4632h
     pub const SIZE: usize = 0x4634;
 
@@ -3891,6 +3900,24 @@ impl BufferString {
     #[inline(always)]
     pub unsafe fn set_end(self, value: *mut u8) {
         unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<u8>): past its room (begin + 104h in a cook record, 0x20453F): buffer_string::assign 0x129BB0 copies while end < this, then writes the zero at end, so a full one has its zero at this
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<u8>): past its room (begin + 104h in a cook record, 0x20453F): buffer_string::assign 0x129BB0 copies while end < this, then writes the zero at end, so a full one has its zero at this
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_capacity(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().write_volatile(value) }
     }
 }
 
@@ -8317,6 +8344,15 @@ impl LobbyClient {
     #[inline(always)]
     pub unsafe fn status(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x1e5790).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1e6344 (obj<survarium::player_profile>): the account's profile, 0x87's account body (process_own_account 0x270277: deserialize_static's EDI)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn own_profile(self) -> PlayerProfile {
+        PlayerProfile(unsafe { self.0.byte_add(0x1e6344) })
     }
 }
 
@@ -18599,6 +18635,217 @@ impl AnimationsFrame {
     }
 }
 
+/// A survarium::skin_cook_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkinCookFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkinCookFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1c (ptr<vostok::render::skeleton_combined_cook_data>): profile_skin_visual_cook::on_configs_loaded's new combined cook data by its body's ESP (stored 0x2045B4; read at the head 0x205659 and at 0x205703)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cook_data(self) -> Option<SkeletonCombinedCookData> {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<SkeletonCombinedCookData>>().read_volatile() }
+    }
+
+    /// +0x1c (ptr<vostok::render::skeleton_combined_cook_data>): profile_skin_visual_cook::on_configs_loaded's new combined cook data by its body's ESP (stored 0x2045B4; read at the head 0x205659 and at 0x205703)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cook_data(self, value: Option<SkeletonCombinedCookData>) {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<SkeletonCombinedCookData>>().write_volatile(value) }
+    }
+
+    /// +0xa8 (obj<vostok::engine_cfg>): its copy of gameplay/bodyparts/default's body_parts node (24 bytes copied 0x2046E2..0x20472C; the head read from it at 0x205662)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn body_parts(self) -> EngineCfg {
+        EngineCfg(unsafe { self.0.byte_add(0xa8) })
+    }
+
+    /// +0x348 (obj<vostok::buffer_string>): the combined skin's name {begin, end, capacity} over [esp+354h]..[esp+458h] (made 0x204646..0x20465D; per slot its dict id `%d_` 0x2051AC, `0_` none 0x204A7A; queried by its begin at 0x205766)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skin_name(self) -> BufferString {
+        BufferString(unsafe { self.0.byte_add(0x348) })
+    }
+}
+
+/// A survarium::skin_cook_args (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkinCookArgs(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkinCookArgs {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (ptr<survarium::player_profile>): on_configs_loaded's profile by EBP (its entry ESP+12; [ebp+10h] at 0x20457B, 0x205196): the lobby's account or character profile, or a match place (match_options + place x 45FCh)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn profile(self) -> Option<PlayerProfile> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<PlayerProfile>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::player_profile>): on_configs_loaded's profile by EBP (its entry ESP+12; [ebp+10h] at 0x20457B, 0x205196): the lobby's account or character profile, or a match place (match_options + place x 45FCh)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_profile(self, value: Option<PlayerProfile>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<PlayerProfile>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::skeleton_combined_cook_data (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkeletonCombinedCookData(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkeletonCombinedCookData {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x234 (obj<vostok::render::skeleton_combined_part>): its 20 part records (constructed by 0x127CB0); record 0 the head's (0x205669)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn parts(self) -> SkeletonCombinedPart {
+        SkeletonCombinedPart(unsafe { self.0.byte_add(0x234) })
+    }
+
+    /// +0xf324 (u8): the records in use: 1 at 0x204735 (record 0 kept for the head), one more per model (0x2054C3, 0x205607); not checked against the 20
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn part_count(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xf324).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::skeleton_combined_part (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkeletonCombinedPart(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkeletonCombinedPart {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (obj<vostok::buffer_string>): the model's path (assigned 0x2056C4 for the head, 0x20541F for an item's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn base_model(self) -> BufferString {
+        BufferString(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x114 (obj<vostok::buffer_string>): the model's part (assigned 0x2056E1, 0x20543C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn part_name(self) -> BufferString {
+        BufferString(unsafe { self.0.byte_add(0x114) })
+    }
+
+    /// +0x228 (obj<vostok::buffer_string>): the item's optional `material` (0x205468, an additional model's 0x2055FE)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn material(self) -> BufferString {
+        BufferString(unsafe { self.0.byte_add(0x228) })
+    }
+
+    /// +0xc08 (u32): what the part is: 0 the head (0x2056E6), 1 + the slot table's index (0xA79870: gloves, torso, boots, pants, helmet, mask, back) for an item's model and its additional models (0x204A44, 0x205540); player::set_head_visibility 0x1F37A0 hides 0, 5, 6, 7 in first person
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn tag(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc08).cast::<u32>().as_ptr() }
+    }
+
+    /// 0xc0c bytes: a part record (0x127CB0; on_configs_loaded's n x 0C0Ch at 0x204A2F)
+    pub const SIZE: usize = 0xc0c;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::skeleton_combined_parts (0xc0c bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct SkeletonCombinedPartStorage([u8; 0xc0c]);
+
+#[allow(dead_code)]
+impl SkeletonCombinedPartStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xc0c])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> SkeletonCombinedPart {
+        SkeletonCombinedPart(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<SkeletonCombinedPart> {
+        (!rooms.is_empty()).then(|| SkeletonCombinedPart(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -21929,6 +22176,21 @@ pub mod site {
         }
     }
 
+    /// hud.cursor_hide (0x23a9b0): show_cursor's hide (mov edx,[edi+18h] / lea eax,[edi+0Ch], then the call of base_game_scene::hide_movie 0x23DC70 at 0x23A9B6; the je at 0x23A944 jumps here): kept skips the movie, the flag (+2DCh) still written at 0x23A9BB
+    pub mod hud_cursor_hide {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::game_world_ui (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn ui(machine: &impl Machine) -> Option<GameWorldUi> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(GameWorldUi)
+        }
+    }
+
     /// options.activate (0x200f50): game_options::activate's start (push ebp / mov ebp,esp / and esp,-8): the main menu about to be shown, over a match by Esc (activate_main_menu 0x1EDBDC) or over the lobby (0x28C5C9)
     pub mod options_activate {
         #[allow(unused_imports)]
@@ -22580,6 +22842,78 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn entry(machine: &impl Machine) -> Option<FirstLoadFrame> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(FirstLoadFrame)
+        }
+    }
+
+    /// skin_cook.head (0x205662): profile_skin_visual_cook::on_configs_loaded's default head, reached only when no item's remove_head_model took record 0 (the je at 0x205653), past its relocated `mov edi,9FD770h` ("head"): lea eax,[esp+0A8h] (the body_parts copy, before add esi,234h, record 0); 0x205659..0x2056E6 assign body_parts/head/data's base_model and part_name to record 0 and tag it 0; made is the join after it (0x2056F0), where every record is made and the skin's name is queried (patch 123)
+    pub mod skin_cook_head {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::skin_cook_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SkinCookFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(SkinCookFrame)
+        }
+
+        /// EBP: a survarium::skin_cook_args (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn args(machine: &impl Machine) -> Option<SkinCookArgs> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(SkinCookArgs)
+        }
+    }
+
+    /// lobby_client.own_account (0x27030b): process_own_account (0x270260, the 0x87 handler) after its last field, exp_next_level (mov esi,ebx / mov [ebx+1EA96Ch],ecx, before the items' copy 0x270320): EBX the lobby client, its account profile at +1E6344h; ESI the message's reader, its cursor past the field: srp's face byte there (patch 123)
+    pub mod lobby_client_own_account {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::lobby_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<LobbyClient> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LobbyClient)
+        }
+
+        /// ESI: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
+        }
+    }
+
+    /// lobby_client.squad_member (0x274c01): the 0x88 handler (squad member account, 0x274BCE) after its revision (mov edx,[ebx+1E56C0h], before on_squad_member_profile_arrived 0x222FE0 copies the profile to the member's lobby character): ESI the message's reader past the revision, srp's face byte there; EDI the member's profile, read by deserialize_static 0x1F1070 (patch 123)
+    pub mod lobby_client_squad_member {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
+        }
+
+        /// EDI: a survarium::player_profile (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn profile(machine: &impl Machine) -> Option<PlayerProfile> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(PlayerProfile)
         }
     }
 }

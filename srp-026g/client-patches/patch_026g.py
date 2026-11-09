@@ -554,7 +554,7 @@ Patches:
   hud's kits and cursor"): initialize_match's start (0x234880) hides the
   cursor and clears the kits' state the last match left, so the first
   showing tells the movie the match's kit; while game_options is shown the
-  hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x201040).
+  hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x23A9B0, 0x201040).
   Nothing a match computes;
 - a banned account's sign-in shows srp's reason, when its ban ends and how
   long it has left (patch 116, the Rust patch ban_time; README "A ban's
@@ -578,6 +578,12 @@ Patches:
   lobby 31 in the handshake, and while the level loads waits for
   on_match_ready's end (0x27AEBF) to close it; on_project_loaded's abort
   (0x1F8AF3) lets an open match's load go on. Nothing a match computes;
+- every player drawn with srp's face of the account (patch 123, faces;
+  docs/notes/client_patch.md section 3.75): the faces srp gives (0x87's and
+  0x88's byte, the options' entry 3) known by name; profile_skin_visual_cook's
+  head (0x205662) made from body_parts.heads[face], its mask or helmet
+  variant by the kit's models, its hair, `f<face>_` in the skin's name.
+  Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The

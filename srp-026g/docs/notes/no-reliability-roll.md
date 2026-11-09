@@ -39,7 +39,7 @@ roll. The same day: the items it left with two types to roll get a third. Code:
   takes effect, e.g. the stamina drain with an Energy-costs oxygen pack. The match applies an
   item's modifications to its config by path, and these configs carry every player-modifier key
   at 0 (LIKELY; never tried on a mask or an oxygen pack).
-- **Not changed:** what reliability does to wear where wear is on (`SRP_ITEM_WEAR=on`); the
+- **Not changed:** the
   lobby's gold for its best value (an owned 25 % one is still the best of its kind); a reroll
   offer made and paid for before this change is kept as it was.
 - **Release:** the server and a content patch (the edit list's 20 item configs).

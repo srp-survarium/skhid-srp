@@ -1,13 +1,9 @@
 package survarium.constants
 {
-   // fill_crafted_item's result (the server's 83 46 09); any other value: a modification removed.
+   // fill_crafted_item's result (the server's 83 46 09): a modification added (1), or this. The game's
+   // "nothing happened" (0) and "one fewer" are never sent: an upgrade always adds one.
    public class CraftResult
    {
-      
-      public static const NOTHING:int = 0;
-      
-      // a modification was added
-      public static const ADDED:int = 1;
       
       // the item cannot be crafted
       public static const FAILED:int = -2;

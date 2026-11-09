@@ -20,23 +20,17 @@ use super::{premium, tutorial};
 /// 0; a match's static info sets the real one].
 pub const LOBBY_TEAM: u8 = 0;
 
-/// An item as the wire describes it, by the clock.
-pub fn item_descr(item: &Item) -> ItemDescr {
-    item_descr_at(item, super::quests::now())
-}
 
-/// An item as the wire describes it at `now` (Unix seconds): its two
-/// timers are the seconds left. A modification or defect the client's
+/// An item as the wire describes it. A modification or defect the client's
 /// tables lack is left out: the client would read the row it did not find
 /// (`Account::repair` takes them off a loaded account; this is the last
 /// guard).
-pub fn item_descr_at(item: &Item, now: u64) -> ItemDescr {
+pub fn item_descr(item: &Item) -> ItemDescr {
     let table = Modifications::shared();
     ItemDescr {
         item_id: item.item_id,
         dict_id: item.dict_id,
         condition_or_stack: item.condition_or_stack,
-        repair_time: items_rules::seconds_left(item.repair_time, now),
         // no wait between rerolls (items_rules: Reroll)
         reroll_time: 0,
         modifications: item
@@ -97,7 +91,7 @@ pub fn account_body(account: &Account, now: u64) -> AccountBody {
             let item_index = match items.iter().position(|item| item.item_id == owned.item_id) {
                 Some(position) => position,
                 None => {
-                    items.push(item_descr_at(owned, now));
+                    items.push(item_descr(owned));
                     items.len() - 1
                 }
             };
@@ -124,18 +118,9 @@ pub fn account_body(account: &Account, now: u64) -> AccountBody {
     }
 }
 
-/// `89`: everything the account owns, by the clock.
+/// `89`: everything the account owns.
 pub fn inventory(account: &Account) -> Result<ServerMessage, WireError> {
-    inventory_at(account, super::quests::now())
-}
-
-/// `89`: everything the account owns, at `now` (Unix seconds).
-pub fn inventory_at(account: &Account, now: u64) -> Result<ServerMessage, WireError> {
-    let items: Vec<ItemDescr> = account
-        .inventory
-        .iter()
-        .map(|item| item_descr_at(item, now))
-        .collect();
+    let items: Vec<ItemDescr> = account.inventory.iter().map(item_descr).collect();
     lobby::inventory(&items)
 }
 
@@ -162,11 +147,11 @@ pub fn own_account(account: &Account, now: u64) -> Result<ServerMessage, WireErr
             .collect(),
         active_kit: account.active().map_or(0, |kit| kit.id),
         autobuy: account.autobuy,
-        auto_repair: account.extras.auto_repair,
         level,
         exp_total: account.exp_total.max(start),
         exp_level_start: start,
         exp_next_level: next,
+        face: account.face,
     })
 }
 
@@ -174,7 +159,7 @@ pub fn own_account(account: &Account, now: u64) -> Result<ServerMessage, WireErr
 /// it plays.
 pub fn squad_member_account(account: &Account, now: u64) -> Result<ServerMessage, WireError> {
     let revision = account.active().map_or(0, |kit| kit.revision);
-    lobby::squad_member_account(&account_body(account, now), revision)
+    lobby::squad_member_account(&account_body(account, now), revision, account.face)
 }
 
 /// `93`: the account's kits as a results screen's row shows them (the
@@ -186,7 +171,7 @@ pub fn player_gear(account: &Account, id: u32, now: u64) -> Result<ServerMessage
 
 /// `8B`.
 pub fn money(account: &Account) -> ServerMessage {
-    lobby::money(account.generic_money, account.premium_money)
+    lobby::money(account.generic_money)
 }
 
 /// `8C`.
@@ -246,18 +231,13 @@ pub fn player_elo(account: &Account, place: u32) -> ServerMessage {
     lobby::player_elo(place, account.rating, account.rating_before)
 }
 
-/// `9B`: the chances and prices of an item's upgrade ("craft"), from the
-/// game's `craft.options`. The lobby's upgrade window shows them and works
-/// its price out from them (`MessageCraftItem.updateCraftChance`).
-/// [srp, the owner's rule of 2026-10-23] An upgrade never takes a
-/// modification away ([`items_rules::craft`]): every failure ("-1 mod.")
-/// chance is sent as 0.
+/// `9B`: the chances and prices of an item's upgrade ("craft"). The lobby's
+/// upgrade window works its price out from them (`MessageCraftItem`). An
+/// upgrade always succeeds, in silver ([`Craft::tables`]).
+///
+/// [`Craft::tables`]: survarium::v026g::modifications::Craft::tables
 pub fn craft_tables() -> ServerMessage {
-    let (mut chances, general, premium) = Modifications::shared().craft.tables();
-    // Each row: success and failure in silver, success and failure in gold.
-    for failure in chances.iter_mut().skip(1).step_by(2) {
-        *failure = 0.0;
-    }
+    let (chances, general, premium) = Modifications::shared().craft.tables();
     lobby::craft_tables(&chances, &general, &premium)
 }
 
@@ -266,7 +246,7 @@ pub fn craft_tables() -> ServerMessage {
 /// The inventory comes first: the account's items are looked up in it.
 pub fn after_change(account: &Account, now: u64) -> Result<Vec<ServerMessage>, WireError> {
     Ok(vec![
-        inventory_at(account, now)?,
+        inventory(account)?,
         own_account(account, now)?,
         money(account),
     ])
@@ -321,7 +301,7 @@ pub fn sign_in_push(account: &Account, info: &SignInInfo) -> Result<Vec<ServerMe
         reputations(account)?,
         lobby::service_prices(&rules::service_prices()),
         services(account, now),
-        // The shop's list and the premium items sold for gold.
+        // The shop's list and the premium items sold one by one.
         lobby::prices(shop_offers::price_list())?,
         // The reputations again. The movie's shop list is filled only when
         // a reputations push redraws it (`GangShop.draw`), not when the
@@ -337,7 +317,7 @@ pub fn sign_in_push(account: &Account, info: &SignInInfo) -> Result<Vec<ServerMe
         push.push(lobby::shop(&settings.shop_records())?);
     }
     push.extend([
-        inventory_at(account, now)?,
+        inventory(account)?,
         own_account(account, now)?,
         level_and_skills(account)?,
         quests(account, now),
@@ -428,14 +408,15 @@ mod tests {
             1,                                      // autobuy: on for a new account
             0,                                      // level
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
+            0,                                      // srp: the face, 0 for a new account
         ]);
         assert_eq!(bytes(&own_account(&account, NOW).unwrap()), expected);
         // The stock account has no money.
         assert_eq!(bytes(&money(&account)), [0x8B, 0, 0, 0, 0, 0, 0, 0, 0]);
-        // And with gold: the second u32.
+        // With silver: the first u32; the second, gold, is always 0.
         let mut rich = account.clone();
-        rich.premium_money = 1_000;
-        assert_eq!(bytes(&money(&rich)), [0x8B, 0, 0, 0, 0, 0xE8, 0x03, 0, 0]);
+        rich.generic_money = 1_000;
+        assert_eq!(bytes(&money(&rich)), [0x8B, 0xE8, 0x03, 0, 0, 0, 0, 0, 0]);
         assert_eq!(
             bytes(&level_and_skills(&account).unwrap()),
             [0x8C, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xF4, 0x01, 0, 0, 0]
@@ -469,19 +450,19 @@ mod tests {
         );
         // The craft tables, byte for byte: the twelve chances (for an
         // item with 0, 1 and 2 more modifications than its donor: success
-        // and failure in silver, then in gold; every failure 0, the owner's
-        // rule of 2026-10-23), the sixteen prices in silver and the sixteen
-        // in gold.
+        // and failure in silver, then in gold; always 100 % success in
+        // silver), the sixteen prices in silver (the game's gold prices)
+        // and the sixteen in gold (none).
         #[rustfmt::skip]
         let mut tables: Vec<u8> = vec![
             0x9B,
-            0, 0, 0x48, 0x42,  0, 0, 0, 0,  0, 0, 0xC8, 0x42,  0, 0, 0, 0,
-            0, 0, 0xC8, 0x41,  0, 0, 0, 0,  0, 0, 0x48, 0x42,  0, 0, 0, 0,
-            0, 0, 0x48, 0x41,  0, 0, 0, 0,  0, 0, 0xC8, 0x41,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
         ];
         for price in [
-            400_u16, 400, 800, 1600, 2400, 3400, 4400, 5400, 6600, 8000, 10000, 12000, 14000,
-            16000, 18000, 20000, 2, 2, 4, 8, 12, 17, 22, 27, 33, 40, 50, 60, 70, 80, 90, 100,
+            200_u16, 200, 400, 800, 1200, 1700, 2200, 2700, 3300, 4000, 5000, 6000, 7000, 8000,
+            9000, 10000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ] {
             tables.extend(price.to_le_bytes());
         }

@@ -893,7 +893,7 @@ impl Core<'_> {
                 })
                 .into_iter()
                 .collect();
-            lobby::squad_member_account(&body, mate_revision(&account))
+            lobby::squad_member_account(&body, mate_revision(&account), account.face)
         };
         self.send_made(who.addr, message);
     }

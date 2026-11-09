@@ -655,6 +655,7 @@ mod tests {
             kits: vec![kit],
             items: vec![item(3, 1_000_000), item(7, 300), item(5, 6)],
             squad: 0,
+            face: crate::v026g::faces::Face::DEFAULT,
         }
     }
 

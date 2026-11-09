@@ -2809,6 +2809,170 @@ effect_presenters_on_particle_stop_replay:
     db 0x8b, 0x07
     jmp 0x2ac65f
 
+; 0x205662 profile_skin_visual_cook::on_configs_loaded's default head, reached only when no item's remove_head_model took record 0 (the je at 0x205653), past its relocated `mov edi,9FD770h` ("head"): lea eax,[esp+0A8h] (the body_parts copy, before add esi,234h, record 0); 0x205659..0x2056E6 assign body_parts/head/data's base_model and part_name to record 0 and tag it 0; made is the join after it (0x2056F0), where every record is made and the skin's name is queried (patch 123): lohook -> faces_on_head
+global faces_on_head
+extern hook_faces_on_head
+faces_on_head:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_head
+    mov edx, faces_on_head_replay
+    cmp eax, 0
+    je faces_on_head_go
+    mov edx, 0x205669
+    cmp eax, 1
+    je faces_on_head_go
+    mov edx, 0x2056f0
+    cmp eax, 2
+    je faces_on_head_go
+    ud2
+faces_on_head_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_head_replay:
+    db 0x8d, 0x84, 0x24, 0xa8, 0x00, 0x00, 0x00
+    jmp 0x205669
+
+; 0x27030b process_own_account (0x270260, the 0x87 handler) after its last field, exp_next_level (mov esi,ebx / mov [ebx+1EA96Ch],ecx, before the items' copy 0x270320): EBX the lobby client, its account profile at +1E6344h; ESI the message's reader, its cursor past the field: srp's face byte there (patch 123): lohook -> faces_on_own_account
+global faces_on_own_account
+extern hook_faces_on_own_account
+faces_on_own_account:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_own_account
+    mov edx, faces_on_own_account_replay
+    cmp eax, 0
+    je faces_on_own_account_go
+    mov edx, 0x270313
+    cmp eax, 1
+    je faces_on_own_account_go
+    ud2
+faces_on_own_account_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_own_account_replay:
+    db 0x8b, 0xf3
+    db 0x89, 0x8b, 0x6c, 0xa9, 0x1e, 0x00
+    jmp 0x270313
+
+; 0x274c01 the 0x88 handler (squad member account, 0x274BCE) after its revision (mov edx,[ebx+1E56C0h], before on_squad_member_profile_arrived 0x222FE0 copies the profile to the member's lobby character): ESI the message's reader past the revision, srp's face byte there; EDI the member's profile, read by deserialize_static 0x1F1070 (patch 123): lohook -> faces_on_squad_member
+global faces_on_squad_member
+extern hook_faces_on_squad_member
+faces_on_squad_member:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_squad_member
+    mov edx, faces_on_squad_member_replay
+    cmp eax, 0
+    je faces_on_squad_member_go
+    mov edx, 0x274c07
+    cmp eax, 1
+    je faces_on_squad_member_go
+    ud2
+faces_on_squad_member_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_squad_member_replay:
+    db 0x8b, 0x93, 0xc0, 0x56, 0x1e, 0x00
+    jmp 0x274c07
+
+; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
+global message_check_on_message
+extern hook_message_check_on_message_chain
+message_check_on_message:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_message_check_on_message_chain
+    mov edx, message_check_on_message_replay
+    cmp eax, 0
+    je message_check_on_message_go
+    mov edx, 0x27a327
+    cmp eax, 1
+    je message_check_on_message_go
+    mov edx, 0x27a72c
+    cmp eax, 2
+    je message_check_on_message_go
+    ud2
+message_check_on_message_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+message_check_on_message_replay:
+    db 0x89, 0x45, 0x0c
+    db 0x05, 0x1d, 0xff, 0xff, 0xff
+    jmp 0x27a327
+
 ; 0x2d1050 patch 19: game_world_core::deserialize's (0x2D0B70) call of 0x2D4AB0 in its first world's block: the current player's input at the world's time into the place's input list (EDI -> {core, time, place}; it pops nothing): lohook -> first_world_on_input
 global first_world_on_input
 extern hook_first_world_on_input
@@ -3142,6 +3306,49 @@ hud_cursor_on_cursor_shown_replay:
     db 0x8b, 0x47, 0x18
     db 0x8d, 0x77, 0x0c
     jmp 0x23a998
+
+; 0x23a9b0 show_cursor's hide (mov edx,[edi+18h] / lea eax,[edi+0Ch], then the call of base_game_scene::hide_movie 0x23DC70 at 0x23A9B6; the je at 0x23A944 jumps here): kept skips the movie, the flag (+2DCh) still written at 0x23A9BB: lohook -> hud_cursor_on_cursor_hidden
+global hud_cursor_on_cursor_hidden
+extern hook_hud_cursor_on_cursor_hidden
+hud_cursor_on_cursor_hidden:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_cursor_on_cursor_hidden
+    mov edx, hud_cursor_on_cursor_hidden_replay
+    cmp eax, 0
+    je hud_cursor_on_cursor_hidden_go
+    mov edx, 0x23a9b6
+    cmp eax, 1
+    je hud_cursor_on_cursor_hidden_go
+    mov edx, 0x23a9bb
+    cmp eax, 2
+    je hud_cursor_on_cursor_hidden_go
+    ud2
+hud_cursor_on_cursor_hidden_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_cursor_on_cursor_hidden_replay:
+    db 0x8b, 0x57, 0x18
+    db 0x8d, 0x47, 0x0c
+    jmp 0x23a9b6
 
 ; 0x200f50 game_options::activate's start (push ebp / mov ebp,esp / and esp,-8): the main menu about to be shown, over a match by Esc (activate_main_menu 0x1EDBDC) or over the lobby (0x28C5C9): lohook -> hud_cursor_on_menu_show
 global hud_cursor_on_menu_show
@@ -5706,49 +5913,6 @@ medical_skills_on_landing_stepped_replay:
     db 0x5b
     db 0x83, 0xc4, 0x08
     jmp 0x1f3bc2
-
-; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
-global message_check_on_message
-extern hook_message_check_on_message
-message_check_on_message:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_message_check_on_message
-    mov edx, message_check_on_message_replay
-    cmp eax, 0
-    je message_check_on_message_go
-    mov edx, 0x27a327
-    cmp eax, 1
-    je message_check_on_message_go
-    mov edx, 0x27a72c
-    cmp eax, 2
-    je message_check_on_message_go
-    ud2
-message_check_on_message_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-message_check_on_message_replay:
-    db 0x89, 0x45, 0x0c
-    db 0x05, 0x1d, 0xff, 0xff, 0xff
-    jmp 0x27a327
 
 ; 0x2402e9 on_mouse_move's pitch step (patch 112), after the window's two size calls: movss xmm1,[edi] / divss xmm1,[eax] (h / w) / movss xmm2,[esp+28h] (the yaw's step s) / mulss xmm1,xmm2; 0x2402FB multiplies xmm1 by the invert and 3/pi, 0x240309 the journal's path joins; XMM1 the pitch's step before them, XMM2 s for the yaw (0x240349): lohook -> mouse_pitch_on_pitch_step
 global mouse_pitch_on_pitch_step

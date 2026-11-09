@@ -125,7 +125,7 @@ fn the_x_byte_follows_the_id() {
     // Unique: `id, unique id, body`.
     assert_eq!(signed_in(0, false).wire(0x07), h("80 07 00 00"));
     // Ordered: `id, order id, body`.
-    assert_eq!(money(1, 2).wire(0x03), h("8B 03 01000000 02000000"));
+    assert_eq!(money(1).wire(0x03), h("8B 03 01000000 00000000"));
     // 0x9F is plain: no x byte.
     assert_eq!(
         online_stats(1, 2, 3).wire(0x55),
@@ -219,13 +219,12 @@ fn the_inventory_writes_gear_and_stacks_differently() {
 }
 
 /// The tail the client reads at 0x26EF40: three lists of `u32 silver,
-/// u16 dict id`.
+/// u16 dict id` (the third, repairs, always empty).
 #[test]
 fn the_inventory_ends_with_the_money_spent_after_a_match() {
     let spent = SpentMoney {
         autobuy_ammo: vec![(120, AMMO), (7, 51)],
-        autobuy_consumables: vec![],
-        repair: vec![(0x0102_0304, PISTOL)],
+        autobuy_consumables: vec![(0x0102_0304, PISTOL)],
     };
     let message = inventory_with_spent(&[ammo(2, 50)], &spent).unwrap();
     assert_bytes(
@@ -233,8 +232,8 @@ fn the_inventory_ends_with_the_money_spent_after_a_match() {
         "89 01000000
          02000000 3200 32000000 00 00
          02  78000000 3200  07000000 3300
-         00
-         01  04030201 1200",
+         01  04030201 1200
+         00",
     );
     let mut client = Client::signed_in();
     assert_eq!(
@@ -246,13 +245,12 @@ fn the_inventory_ends_with_the_money_spent_after_a_match() {
     );
 
     // One row more than a buffer of the client holds.
-    for (list, most) in [(0, 24), (1, 18), (2, 27)] {
+    for (list, most) in [(0, 24), (1, 18)] {
         let mut spent = SpentMoney::default();
         let rows = vec![(1, AMMO); most + 1];
         match list {
             0 => spent.autobuy_ammo = rows,
-            1 => spent.autobuy_consumables = rows,
-            _ => spent.repair = rows,
+            _ => spent.autobuy_consumables = rows,
         }
         assert!(matches!(
             inventory_with_spent(&[], &spent),
@@ -270,7 +268,6 @@ fn an_item_with_times_modifications_and_upgrades() {
         item_id: 0x0A0B0C0D,
         dict_id: PISTOL,
         condition_or_stack: 755_000,
-        repair_time: 60,
         reroll_time: 90,
         modifications: vec![
             Modification {
@@ -294,7 +291,7 @@ fn an_item_with_times_modifications_and_upgrades() {
         "89 01000000
          0D0C0B0A 1200
          38850B00                 condition 75.5 x 10000
-         3C000000                 repair time
+         00000000                 repair time: always 0 (no repair)
          5A000000                 reroll time
          02  B80B0000 01  D0070000 00
          01  11000000 22000000 0807060504030201 03
@@ -309,11 +306,11 @@ fn the_own_account() {
         revisions: vec![7],
         active_kit: 1,
         autobuy: true,
-        auto_repair: false,
         level: 3,
         exp_total: 1000,
         exp_level_start: 500,
         exp_next_level: 1500,
+        face: crate::v026g::faces::Faces::of_count(5).unwrap().face(3).unwrap(),
     };
     let expected = format!(
         "87 {SAMPLE_BODY}
@@ -321,7 +318,8 @@ fn the_own_account() {
          01000000                    active kit id
          01                          autobuy
          03                          level
-         E8030000 F4010000 DC050000  experience: total, level start, next level"
+         E8030000 F4010000 DC050000  experience: total, level start, next level
+         03                          srp: the face"
     );
     assert_bytes(&own_account(&account).unwrap(), &expected);
 }
@@ -343,37 +341,38 @@ fn an_account_with_no_kit_modifiers_has_an_empty_mask() {
         revisions: vec![1],
         active_kit: 5,
         autobuy: false,
-        auto_repair: false,
         level: 0,
         exp_total: 0,
         exp_level_start: 0,
         exp_next_level: 100,
+        face: crate::v026g::faces::Face::DEFAULT,
     };
     assert_bytes(
         &own_account(&account).unwrap(),
         "87 01 'Bob' 'SRP' 03000000 01 00
          02 05000000 'Sniper' 00000000
          0000000000000000 0000000000000000
-         01000000 05000000 00 00 00000000 00000000 64000000",
+         01000000 05000000 00 00 00000000 00000000 64000000 00",
     );
 }
 
 #[test]
-fn a_squad_mates_account_ends_with_its_revision() {
+fn a_squad_mates_account_ends_with_its_revision_and_face() {
     let body = body_with(vec![sample_kit()], vec![pistol(1), ammo(2, 50)]);
-    let expected = format!("88 {SAMPLE_BODY} 09000000");
-    assert_bytes(&squad_member_account(&body, 9).unwrap(), &expected);
+    let expected = format!("88 {SAMPLE_BODY} 09000000 02");
+    let face = crate::v026g::faces::Faces::of_count(3).unwrap().face(2).unwrap();
+    assert_bytes(&squad_member_account(&body, 9, face).unwrap(), &expected);
 }
 
 #[test]
 fn the_account_bodys_limits() {
     let ok = body_with(vec![sample_kit()], vec![pistol(1), ammo(2, 50)]);
-    assert!(squad_member_account(&ok, 0).is_ok());
+    assert!(squad_member_account(&ok, 0, crate::v026g::faces::Face::DEFAULT).is_ok());
 
     // A 4th kit would overwrite the item table.
     let four = body_with((1..=4).map(Kit::empty).collect(), Vec::new());
     assert_eq!(
-        squad_member_account(&four, 0),
+        squad_member_account(&four, 0, crate::v026g::faces::Face::DEFAULT),
         Err(WireError::TooMany {
             what: "kits",
             count: 4,
@@ -382,10 +381,10 @@ fn the_account_bodys_limits() {
     );
     // 69 items fit, 70 do not.
     let full = body_with(Vec::new(), (1..=69).map(pistol).collect());
-    assert!(squad_member_account(&full, 0).is_ok());
+    assert!(squad_member_account(&full, 0, crate::v026g::faces::Face::DEFAULT).is_ok());
     let over = body_with(Vec::new(), (1..=70).map(pistol).collect());
     assert!(matches!(
-        squad_member_account(&over, 0),
+        squad_member_account(&over, 0, crate::v026g::faces::Face::DEFAULT),
         Err(WireError::TooMany { most: 69, .. })
     ));
     // A slot's index is into the item table.
@@ -396,13 +395,13 @@ fn the_account_bodys_limits() {
     });
     let stale = body_with(vec![kit], vec![pistol(1)]);
     assert_eq!(
-        squad_member_account(&stale, 0),
+        squad_member_account(&stale, 0, crate::v026g::faces::Face::DEFAULT),
         Err(WireError::BadItemIndex { index: 1, items: 1 })
     );
     // A dict id the client lacks.
     let unknown = body_with(Vec::new(), vec![ItemDescr::plain(1, 9999, 1)]);
     assert_eq!(
-        squad_member_account(&unknown, 0),
+        squad_member_account(&unknown, 0, crate::v026g::faces::Face::DEFAULT),
         Err(WireError::UnknownItem(9999))
     );
     assert_eq!(
@@ -448,11 +447,11 @@ fn the_account_bodys_limits() {
         revisions: Vec::new(),
         active_kit: 1,
         autobuy: false,
-        auto_repair: false,
         level: 1,
         exp_total: 0,
         exp_level_start: 0,
         exp_next_level: 1,
+        face: crate::v026g::faces::Face::DEFAULT,
     };
     assert!(own_account(&account).is_err());
 }
@@ -469,7 +468,7 @@ fn names_are_cut_to_the_clients_buffers() {
         kits: vec![kit],
         items: Vec::new(),
     };
-    let message = squad_member_account(&body, 0).unwrap();
+    let message = squad_member_account(&body, 0, crate::v026g::faces::Face::DEFAULT).unwrap();
     let bytes = message.body();
     assert_eq!(bytes[1], 63);
     // The clan abbreviation's buffer ends where the kit count is kept.
@@ -509,7 +508,7 @@ fn prices_are_packed_as_stored_lzma2() {
 
 #[test]
 fn money_skills_and_the_small_pushes() {
-    assert_bytes(&money(2000, 1000), "8B D0070000 E8030000");
+    assert_bytes(&money(2000), "8B D0070000 00000000");
     assert_bytes(
         &level_and_skills(3, 1000, 500, 1500, &[(101, 2), (209, 1)]).unwrap(),
         "8C 03 E8030000 F4010000 DC050000 02  6500 02  D100 01",
@@ -815,7 +814,6 @@ fn inventory_action_answers() {
         &permitted_upgrade_detached(9, 4),
         "83 46 02 09000000 04000000",
     );
-    assert_bytes(&permitted_item_used(9), "83 46 04 09000000");
     assert_bytes(
         &permitted_reroll_window(1, 2, 3, None),
         "83 46 06 01000000 02000000 03000000 00",
@@ -832,18 +830,8 @@ fn inventory_action_answers() {
         &permitted_modifier_chosen(1, 2, 3, [4, 5, 6]),
         "83 46 08 01000000 02000000 03000000 04000000 05000000 06000000",
     );
-    // `u8 mode, u32 item`; the consumed item unless mode 0xFE; the
-    // modification unless mode 0.
-    assert_bytes(
-        &permitted_crafted(
-            1,
-            Crafted::Nothing {
-                consumed_item_id: 2,
-            },
-        )
-        .unwrap(),
-        "83 46 09 00 01000000 02000000",
-    );
+    // `u8 mode, u32 item`, then for mode 1 the consumed item and the
+    // modification added.
     assert_bytes(
         &permitted_crafted(
             1,
@@ -851,37 +839,13 @@ fn inventory_action_answers() {
                 consumed_item_id: 2,
                 modification: 3,
             },
-        )
-        .unwrap(),
+        ),
         "83 46 09 01 01000000 02000000 03000000",
-    );
-    assert_bytes(
-        &permitted_crafted(
-            1,
-            Crafted::Removed {
-                mode: 2,
-                consumed_item_id: 2,
-                modification: 3,
-            },
-        )
-        .unwrap(),
-        "83 46 09 02 01000000 02000000 03000000",
     );
     // Mode 0xFE: the item and nothing more.
     assert_bytes(
-        &permitted_crafted(1, Crafted::Failed).unwrap(),
+        &permitted_crafted(1, Crafted::Failed),
         "83 46 09 FE 01000000",
-    );
-    assert!(
-        permitted_crafted(
-            1,
-            Crafted::Removed {
-                mode: 0xFE,
-                consumed_item_id: 2,
-                modification: 3
-            }
-        )
-        .is_err()
     );
 }
 
@@ -915,37 +879,6 @@ fn shop_answers() {
     // No profile list after the amount any more.
     assert_bytes(&permitted_sold(2, 50), "83 47 01 02000000 32000000");
     assert_bytes(&permitted_offer_bought(), "83 47 02");
-    // `u32 item, u32 v`; only for v = 0 a kit id, and for a kit its count.
-    assert_bytes(
-        &permitted_repaired(1, Repaired::Timed { repair_time: 600 }).unwrap(),
-        "83 47 03 01000000 58020000",
-    );
-    assert_bytes(
-        &permitted_repaired(1, Repaired::AtOnce).unwrap(),
-        "83 47 03 01000000 00000000 00000000",
-    );
-    assert_bytes(
-        &permitted_repaired(
-            1,
-            Repaired::WithKit {
-                kit_item_id: 4,
-                used: 1,
-            },
-        )
-        .unwrap(),
-        "83 47 03 01000000 00000000 04000000 01",
-    );
-    assert!(permitted_repaired(1, Repaired::Timed { repair_time: 0 }).is_err());
-    assert!(
-        permitted_repaired(
-            1,
-            Repaired::WithKit {
-                kit_item_id: 0,
-                used: 1
-            }
-        )
-        .is_err()
-    );
     assert_bytes(&permitted_shop_event(4).unwrap(), "83 47 04");
     assert_bytes(&permitted_shop_event(5).unwrap(), "83 47 05");
     assert!(permitted_shop_event(0).is_err());
@@ -969,8 +902,7 @@ fn kit_and_account_answers() {
         &permitted_nickname_check("A b", Some(NameRefusal::Pattern)),
         "83 49 03 'A b' 00 05",
     );
-    assert_bytes(&permitted_nickname_changed(0), "83 49 04 00000000");
-    assert_bytes(&permitted_nickname_changed(77), "83 49 04 4D000000");
+    assert_bytes(&permitted_nickname_changed(), "83 49 04 00000000");
 }
 
 #[test]
@@ -1616,7 +1548,9 @@ fn a_kit_may_fill_every_slot_and_modifier() {
     }
     kit.modifiers = [1.0; MODIFIERS];
     let body = body_with(vec![kit], (1..=23).map(pistol).collect());
-    let bytes = squad_member_account(&body, 0).unwrap().into_body();
+    let bytes = squad_member_account(&body, 0, crate::v026g::faces::Face::DEFAULT)
+        .unwrap()
+        .into_body();
     let kit_at = 1 + 6 + 1 + 4 + 2;
     // state, id, name, the mask of 23 slots, 23 slots.
     assert_eq!(&bytes[kit_at + 6..kit_at + 10], h("FFFF7F00"));
@@ -1627,34 +1561,30 @@ fn a_kit_may_fill_every_slot_and_modifier() {
         h("0F00000000000000 FFFFFFFFFFFFFFFF")
     );
     let items_at = mask_at + 16 + 68 * 4;
-    assert_eq!(bytes.len(), items_at + 23 * 20 + 4);
+    // The revision, then the face.
+    assert_eq!(bytes.len(), items_at + 23 * 20 + 4 + 1);
 }
 
 // ---- the two boxes of the kit window, the premium shop's records, the
 // ---- offer after a match
 
 #[test]
-fn the_autobuy_and_auto_repair_boxes_are_one_number() {
+fn the_autobuy_box_is_bit_0_of_one_number() {
     use crate::v026g::lobby::client_model::Permitted;
-    // `83 49 01 <state>`: bit 0 autobuy, bit 1 auto-repair.
-    assert_bytes(&permitted_auto_state(false, false), "83 49 01 00");
-    assert_bytes(&permitted_auto_state(true, false), "83 49 01 01");
-    assert_bytes(&permitted_auto_state(false, true), "83 49 01 02");
-    assert_bytes(&permitted_auto_state(true, true), "83 49 01 03");
+    // `83 49 01 <state>`: bit 0 autobuy; bit 1, the stock auto-repair, never
+    // set (srp has no repair).
+    assert_bytes(&permitted_autobuy(false), "83 49 01 00");
+    assert_bytes(&permitted_autobuy(true), "83 49 01 01");
     let mut client = Client::signed_in();
     assert_eq!(
-        client.receive(&permitted_auto_state(true, true)).unwrap(),
-        Decoded::Permitted(Permitted::AutoRepair { autobuy: true })
-    );
-    assert_eq!(
-        client.receive(&permitted_auto_state(true, false)).unwrap(),
+        client.receive(&permitted_autobuy(true)).unwrap(),
         Decoded::Permitted(Permitted::Autobuy(true))
     );
     // The lobby ticks its boxes for 0..=3 only: `FF` would show both off.
     assert!(client.receive_raw(0x83, &[0x49, 0x01, 0xFF]).is_err());
 
     // The same number in the account (`87`), after the active kit's id.
-    let account = |autobuy, auto_repair| OwnAccount {
+    let account = |autobuy| OwnAccount {
         body: AccountBody {
             team: 0,
             name: "A".into(),
@@ -1666,19 +1596,14 @@ fn the_autobuy_and_auto_repair_boxes_are_one_number() {
         revisions: Vec::new(),
         active_kit: 1,
         autobuy,
-        auto_repair,
         level: 0,
         exp_total: 0,
         exp_level_start: 0,
         exp_next_level: 500,
+        face: crate::v026g::faces::Face::DEFAULT,
     };
-    for (autobuy, auto_repair, state) in [
-        (false, false, 0),
-        (true, false, 1),
-        (false, true, 2),
-        (true, true, 3),
-    ] {
-        let message = own_account(&account(autobuy, auto_repair)).unwrap();
+    for (autobuy, state) in [(false, 0), (true, 1)] {
+        let message = own_account(&account(autobuy)).unwrap();
         let body = message.body();
         // team, name, tag, protection, no kits, no items, the active kit.
         assert_eq!(body[..13], [0, 1, b'A', 0, 10, 0, 0, 0, 0, 0, 1, 0, 0]);
@@ -1687,7 +1612,7 @@ fn the_autobuy_and_auto_repair_boxes_are_one_number() {
         let Decoded::Account(read) = Client::signed_in().receive(&message).unwrap() else {
             panic!("not the account");
         };
-        assert_eq!((read.autobuy, read.auto_repair), (autobuy, auto_repair));
+        assert_eq!(read.autobuy, autobuy);
     }
 }
 
@@ -1705,8 +1630,8 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
         let at = record * 0xD0 + offset;
         u32::from_le_bytes(unpacked[at..at + 4].try_into().unwrap())
     };
-    // The first record: a year of premium (bundle 6), 8000 gold, kind 0,
-    // no items.
+    // The first record: a year of premium (bundle 6), 8000 gold in silver,
+    // kind 0, no items, silver (money type 0).
     assert_eq!(
         [
             u32_at(0, 0x00),
@@ -1716,9 +1641,10 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
             u32_at(0, 0x14),
             u32_at(0, 0xCC)
         ],
-        [6, 6, 0, 8_000, 0, 1]
+        [6, 6, 0, 800_000, 0, 0]
     );
-    // The ninth: the AK-74N bundle (9), kind 1, 1500 gold, two items: the
+    // The ninth: the AK-74N bundle (9), kind 1, 1500 gold in silver, two
+    // items: the
     // rifle (dict 338, 1) and its ammo (dict 7, 2000), each an item of the
     // inventory (0 at +0x20 of the item).
     assert_eq!(
@@ -1730,7 +1656,7 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
             u32_at(8, 0x14),
             u32_at(8, 0xCC)
         ],
-        [9, 9, 1, 1_500, 2, 1]
+        [9, 9, 1, 150_000, 2, 0]
     );
     assert_eq!(
         [

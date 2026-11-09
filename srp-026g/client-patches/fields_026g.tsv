@@ -998,3 +998,17 @@ survarium::spawn_frame	kit_before	0x10	u8	the respawn rule's spawn 0x316DA0 at 0
 survarium::spawn_frame	kit	0x18	u8	the new kit (0x316E06; the spawn's own test of a change at 0x316E0A)
 survarium::bind_place_frame	place	0x0	ptr<survarium::core_place>	game_world_core's call of bind_place at 0x2D3880: the place pushed
 survarium::animations_frame	registry	0x0	ptr<survarium::animations_registry>	the pvp constructor's call of register_animations at 0x2CBF9B: the registry pushed
+survarium::player_profile	name	0x8	u8	the player's name, 64 bytes with its zero (the account body's first string, deserialize_static 0x1F1070; a match place's too, match_place +8h): patch 123's key of a face
+vostok::buffer_string	capacity	0x8	ptr<u8>	past its room (begin + 104h in a cook record, 0x20453F): buffer_string::assign 0x129BB0 copies while end < this, then writes the zero at end, so a full one has its zero at this
+survarium::lobby_client	own_profile	0x1E6344	obj<survarium::player_profile>	the account's profile, 0x87's account body (process_own_account 0x270277: deserialize_static's EDI)
+survarium::skin_cook_frame	cook_data	0x1C	ptr<vostok::render::skeleton_combined_cook_data>	profile_skin_visual_cook::on_configs_loaded's new combined cook data by its body's ESP (stored 0x2045B4; read at the head 0x205659 and at 0x205703)
+survarium::skin_cook_frame	body_parts	0xA8	obj<vostok::engine_cfg>	its copy of gameplay/bodyparts/default's body_parts node (24 bytes copied 0x2046E2..0x20472C; the head read from it at 0x205662)
+survarium::skin_cook_frame	skin_name	0x348	obj<vostok::buffer_string>	the combined skin's name {begin, end, capacity} over [esp+354h]..[esp+458h] (made 0x204646..0x20465D; per slot its dict id `%d_` 0x2051AC, `0_` none 0x204A7A; queried by its begin at 0x205766)
+survarium::skin_cook_args	profile	0x10	ptr<survarium::player_profile>	on_configs_loaded's profile by EBP (its entry ESP+12; [ebp+10h] at 0x20457B, 0x205196): the lobby's account or character profile, or a match place (match_options + place x 45FCh)
+vostok::render::skeleton_combined_cook_data	parts	0x234	obj<vostok::render::skeleton_combined_part>	its 20 part records (constructed by 0x127CB0); record 0 the head's (0x205669)
+vostok::render::skeleton_combined_cook_data	part_count	0xF324	u8	the records in use: 1 at 0x204735 (record 0 kept for the head), one more per model (0x2054C3, 0x205607); not checked against the 20
+vostok::render::skeleton_combined_part	size	0xC0C	size	a part record (0x127CB0; on_configs_loaded's n x 0C0Ch at 0x204A2F)
+vostok::render::skeleton_combined_part	base_model	0x0	obj<vostok::buffer_string>	the model's path (assigned 0x2056C4 for the head, 0x20541F for an item's)
+vostok::render::skeleton_combined_part	part_name	0x114	obj<vostok::buffer_string>	the model's part (assigned 0x2056E1, 0x20543C)
+vostok::render::skeleton_combined_part	material	0x228	obj<vostok::buffer_string>	the item's optional `material` (0x205468, an additional model's 0x2055FE)
+vostok::render::skeleton_combined_part	tag	0xC08	u32	what the part is: 0 the head (0x2056E6), 1 + the slot table's index (0xA79870: gloves, torso, boots, pants, helmet, mask, back) for an item's model and its additional models (0x204A44, 0x205540); player::set_head_visibility 0x1F37A0 hides 0, 5, 6, 7 in first person

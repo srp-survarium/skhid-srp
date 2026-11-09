@@ -40,11 +40,11 @@ fn account(items: Vec<ItemDescr>) -> OwnAccount {
         revisions: vec![3],
         active_kit: 1,
         autobuy: true,
-        auto_repair: false,
         level: 4,
         exp_total: 10,
         exp_level_start: 5,
         exp_next_level: 20,
+        face: crate::v026g::faces::Face::DEFAULT,
     }
 }
 
@@ -64,7 +64,7 @@ fn forbidden_ids_never_reach_a_reader() {
 fn only_the_sign_in_answer_is_taken_first() {
     let mut client = Client::new();
     assert_eq!(
-        client.receive(&money(1, 2)),
+        client.receive(&money(1)),
         Err(ModelError::NotSignedIn(ServerId::Money))
     );
     assert_eq!(
@@ -75,7 +75,7 @@ fn only_the_sign_in_answer_is_taken_first() {
         })
     );
     assert!(client.is_signed_in());
-    assert!(client.receive(&money(1, 2)).is_ok());
+    assert!(client.receive(&money(1)).is_ok());
     assert_eq!(client.received(), 2);
 }
 
@@ -110,7 +110,7 @@ fn the_account_needs_its_items_in_the_inventory_first() {
 fn raw_accounts_the_client_would_misread() {
     let mut client = Client::signed_in();
     client.receive(&inventory(&[pistol(1)]).unwrap()).unwrap();
-    let tail = "01000000 01000000 00 01 00000000 00000000 01000000";
+    let tail = "01000000 01000000 00 01 00000000 00000000 01000000 00";
     let kit = |mask: &str, slots: &str| {
         format!("00 01000000 00 {mask} {slots} 0000000000000000 0000000000000000")
     };
@@ -173,7 +173,13 @@ fn raw_accounts_the_client_would_misread() {
         Err(ModelError::UnknownItem(9999))
     );
     // An active kit id that is none of the kits.
-    let other_kit = good.replace(tail, "01000000 09000000 00 01 00000000 00000000 01000000");
+    let other_kit = good.replace(tail, "01000000 09000000 00 01 00000000 00000000 01000000 00");
+    // A face the game data does not list (the test data has three).
+    let unlisted = good.replace(tail, "01000000 01000000 00 01 00000000 00000000 01000000 03");
+    assert!(matches!(
+        send(&mut client, &unlisted),
+        Err(ModelError::Bad(ServerId::Account, _))
+    ));
     assert!(matches!(
         send(&mut client, &other_kit),
         Err(ModelError::Bad(ServerId::Account, _))
@@ -402,52 +408,16 @@ fn the_inventory_follows_purchases_and_sales() {
 }
 
 #[test]
-fn repairs_and_drops_change_the_inventory() {
+fn drops_change_the_inventory() {
     let mut client = Client::signed_in();
-    let mut worn = pistol(1);
-    worn.condition_or_stack = 400_000;
-    // The repair kit: any stack serves the model.
     client
-        .receive(&inventory(&[worn, ammo(4, 2)]).unwrap())
+        .receive(&inventory(&[pistol(1), ammo(4, 2)]).unwrap())
         .unwrap();
-    let repaired = permitted_repaired(
-        1,
-        Repaired::WithKit {
-            kit_item_id: 4,
-            used: 1,
-        },
-    )
-    .unwrap();
-    assert_eq!(
-        client.receive(&repaired),
-        Ok(Decoded::Permitted(Permitted::Repaired {
-            item_id: 1,
-            repaired: Repaired::WithKit {
-                kit_item_id: 4,
-                used: 1
-            }
-        }))
-    );
-    assert_eq!(client.inventory(), [pistol(1), ammo(4, 1)]);
-    // A repair of an item the client lacks is read no further.
-    assert_eq!(
-        client.receive(&permitted_repaired(9, Repaired::AtOnce).unwrap()),
-        Err(ModelError::NotInInventory(9))
-    );
-    assert!(
-        client
-            .receive(&permitted_repaired(1, Repaired::Timed { repair_time: 60 }).unwrap())
-            .is_ok()
-    );
-    assert_eq!(client.inventory()[0].repair_time, 60);
 
     // A drop: the new item is added and the card's count set.
     client.receive(&drop(&pistol(7), 4, 0, 2).unwrap()).unwrap();
     assert_eq!(client.inventory().len(), 3);
     assert_eq!(client.inventory()[1].condition_or_stack, 0);
-    // One of a usable item used.
-    client.receive(&permitted_item_used(4)).unwrap();
-    assert_eq!(client.inventory().len(), 2);
     // A drop with dict id 0: the UI dereferences its dictionary entry.
     assert_eq!(
         client.receive_raw(0x98, &h("01000000 0000 00000000 00000000 00")),
@@ -509,10 +479,10 @@ fn every_core_push_reads_back() {
         },
     );
     round_trip(
-        money(5, 6),
+        money(5),
         Decoded::Money {
             generic: 5,
-            premium: 6,
+            premium: 0,
         },
     );
     round_trip(
@@ -743,8 +713,9 @@ fn item_actions_change_the_inventory() {
     client.receive(&permitted_upgrade_detached(3, 1)).unwrap();
     assert!(client.inventory()[0].upgrades.is_empty());
 
-    // Crafting: the donor goes, and a modification comes or goes.
-    let crafted = |crafted| permitted_crafted(1, crafted).unwrap();
+    // Crafting: the donor goes, and a modification comes. The game's "nothing
+    // happened" (0) and "one fewer" (others) are never sent.
+    let crafted = |crafted| permitted_crafted(1, crafted);
     assert_eq!(
         client.receive(&crafted(Crafted::Added {
             consumed_item_id: 2,
@@ -753,11 +724,21 @@ fn item_actions_change_the_inventory() {
         Err(ModelError::UnknownModification(7))
     );
     assert_eq!(
-        client.receive(&crafted(Crafted::Nothing {
-            consumed_item_id: 9
+        client.receive(&crafted(Crafted::Added {
+            consumed_item_id: 9,
+            modification: 2040,
         })),
         Err(ModelError::NotInInventory(9))
     );
+    for mode in ["00", "02"] {
+        assert!(matches!(
+            client.receive_raw(
+                0x83,
+                &h(&format!("46 09 {mode} 01000000 02000000 03000000"))
+            ),
+            Err(ModelError::Bad(ServerId::Permitted, _))
+        ));
+    }
     client
         .receive(&crafted(Crafted::Added {
             consumed_item_id: 2,
@@ -767,13 +748,11 @@ fn item_actions_change_the_inventory() {
     assert_eq!(ids(&client), [2030, 2010, 2040]);
     assert_eq!(client.inventory().len(), 2);
     client
-        .receive(&crafted(Crafted::Removed {
-            mode: 2,
+        .receive(&crafted(Crafted::Added {
             consumed_item_id: 3,
-            modification: 2010,
+            modification: 2050,
         }))
         .unwrap();
-    assert_eq!(ids(&client), [2030, 2040]);
     assert_eq!(client.inventory().len(), 1);
     // A refused craft: the item and nothing else.
     assert_eq!(
