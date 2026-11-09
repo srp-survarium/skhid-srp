@@ -891,31 +891,6 @@ impl Transport {
         Ok(serial)
     }
 
-    /// [`Self::forget`] of many: the serials ascending, as they are given
-    /// out (the queues are walked once, not once each).
-    pub fn forget_all(&mut self, serials: &[u64], now: Instant) {
-        if serials.is_empty() {
-            return;
-        }
-        let mut channels = Vec::new();
-        let mut gone = |message: &Outgoing| {
-            let found = serials.binary_search(&message.serial).is_ok();
-            if found && message.channel != Channel::None {
-                channels.push(message.channel);
-            }
-            !found
-        };
-        self.pending.retain(|message| gone(message));
-        self.unacked.retain(|(message, _)| gone(message));
-        channels.dedup();
-        for channel in channels {
-            self.retired.push_back((channel, now));
-        }
-        for serial in serials {
-            self.outstanding.remove(serial);
-        }
-    }
-
     /// Stop sending a message that is not acked yet (one kept by
     /// [`Self::send_unique_kept`] that something newer makes wrong). A copy
     /// on its way may still arrive. It counts as delivered from then on,

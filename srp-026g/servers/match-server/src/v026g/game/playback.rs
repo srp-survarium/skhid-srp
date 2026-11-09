@@ -608,7 +608,7 @@ impl Playback {
             Clock::Paused { ping, .. } => Clock::Paused { at, ping },
         };
         (self.inputs, self.events) = self.recording.due(at);
-        self.spectator.wait_again(now);
+        self.spectator.wait_again();
         self.told = None;
     }
 

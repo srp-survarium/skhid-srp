@@ -635,23 +635,6 @@ fn a_spectator_that_never_acks_piles_up_nothing() {
     bench.assert_no_faults();
 }
 
-/// A spectator so far behind it could only be one that acks nothing is let go, reported as gone
-/// so the lobby takes it out of its queue.
-#[test]
-fn a_spectator_with_too_much_queued_is_let_go() {
-    let mut bench = running();
-    let at = watching(&mut bench);
-    bench.server.games.get_mut(&bench.match_id).unwrap().flood_spectator(SPECTATOR);
-    bench.run(100);
-    assert!(!bench.game().spectator_watches(SPECTATOR));
-    assert_eq!(
-        bench.server.store().matchmaking().take_watchers_left().len(),
-        1,
-        "told as gone"
-    );
-    assert!(!bench.clients[at].told_to_leave, "no farewell: its link is gone");
-}
-
 /// Review of 2026-11-09: a delayed spectator's turn walked every relay of the match; it now reads
 /// a range, so the list has to stay in time order whatever order the inputs came in.
 #[test]
