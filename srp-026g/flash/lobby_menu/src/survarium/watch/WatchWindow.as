@@ -86,15 +86,6 @@ package survarium.watch
 
       private static const NO_ANSWER:String = "no_answer";
 
-      // the steps of the watch that returns to its view (resumeStep)
-      private static const ASKED_WATCH:String = "asked_watch";
-
-      private static const REFUSED:String = "refused";
-
-      private static const LOADED:String = "loaded";
-
-      private static const BACK:String = "back";
-
       // the shown list asked again this often (live, recent); one not answered yet once a second,
       // at most ASKS times; the live count (the top menu's badge) while Live is not shown, outside
       // matches
@@ -113,6 +104,11 @@ package survarium.watch
       // Mine asked again this long after the lobby's return: the history row of the match just
       // played is written at the server's next save, and nothing says when
       private static const BACK_ASK_MS:int = 2000;
+
+      // a watch asked this long before the game loads a match: back on its view after. The game's
+      // show_match_making(false) is no sign of the watch's end (the lobby scene going away calls it
+      // too, before the load), and no event says the load is the watch's
+      private static const RESUME_MS:int = 120000;
 
       // a friend's Spectate waits this many of the window's seconds for its match to be listed in
       // play, then says so
@@ -205,8 +201,14 @@ package survarium.watch
 
       private var _empty:TextField;
 
-      // the view to come back to around a watch asked from here ({match, view, playing}: playing
-      // once the game loaded it), null none. One transition function: resumeStep.
+      // the last watch asked from here (its match, view and time), and the view to come back to
+      // while the game is away in it
+      private var _pendingMatch:uint = 0;
+
+      private var _pendingView:Object = null;
+
+      private var _pendingAt:int = 0;
+
       private var _resume:Object = null;
 
       public function WatchWindow(panel:BottomPanel)
@@ -318,14 +320,20 @@ package survarium.watch
          return true;
       }
 
-      // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here is what it
-      // loads. (Its `watching` comes only once the game is in it, after the load began.)
+      // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here playing?
+      // Its `watching` comes only once the game is in it, after the load began.
       public static function away() : void
       {
-         if(WatchWindow.me != null)
+         var win:WatchWindow = WatchWindow.me;
+         if(win == null)
          {
-            WatchWindow.me.resumeStep(LOADED);
+            return;
          }
+         if(win._pendingView != null && getTimer() - win._pendingAt < RESUME_MS)
+         {
+            win._resume = win._pendingView;
+         }
+         win._pendingView = null;
       }
 
       // Back in the lobby (LobbyMenu.show_match_making(false)): the asker's matches asked again
@@ -338,7 +346,12 @@ package survarium.watch
             return;
          }
          win._mineDue = getTimer() + BACK_ASK_MS;
-         win.resumeStep(BACK);
+         var view:Object = win._resume;
+         if(view != null)
+         {
+            win._resume = null;
+            win.restore(view);
+         }
       }
 
       // A lobby window opened (MainScene.activeWindow): it takes the place of this one.
@@ -347,37 +360,6 @@ package survarium.watch
          if(WatchWindow.me != null && WatchWindow.me._shown)
          {
             WatchWindow.me.show(false);
-         }
-      }
-
-      // The one transition of the watch that returns to its view: the steps are ASKED_WATCH,
-      // REFUSED (no watch came of it), LOADED (the game loaded a match, or `watching`) and BACK
-      // (in the lobby again).
-      private function resumeStep(step:String, match:uint = 0, view:Object = null) : void
-      {
-         if(step == ASKED_WATCH)
-         {
-            this._resume = {"match":match,"view":view,"playing":false};
-         }
-         else if(step == REFUSED)
-         {
-            if(this._resume != null && !this._resume.playing && this._resume.match == match)
-            {
-               this._resume = null;
-            }
-         }
-         else if(step == LOADED)
-         {
-            if(this._resume != null)
-            {
-               this._resume.playing = true;
-            }
-         }
-         else if(step == BACK && this._resume != null && this._resume.playing)
-         {
-            var was:Object = this._resume.view;
-            this._resume = null;
-            this.restore(was);
          }
       }
 
@@ -964,12 +946,14 @@ package survarium.watch
          // only an ask that was taken: one under another's would never hear its end
          if(ReplayAsks.watch(match,ask))
          {
-            this.resumeStep(ASKED_WATCH,match,{
+            this._pendingMatch = match;
+            this._pendingAt = getTimer();
+            this._pendingView = {
                "tab":this._tab,
                "liveChip":this._liveChip,
                "replaysChip":this._replaysChip,
                "search":this._search
-            });
+            };
          }
       }
 
@@ -989,21 +973,13 @@ package survarium.watch
          this.watch(uint(row.match),WatchRows.watchAsk(place));
       }
 
-      // A word about a watch asked for (ReplayAsks): `watching` means the game is in it, a refusal,
-      // Close or giving up means no watch came of it; the cards are refreshed.
+      // An answer about a watch asked for (ReplayAsks): a refusal of the one asked from here plays
+      // nothing to come back from; the cards are refreshed.
       private function answered(hex:String, status:String) : void
       {
-         var match:uint = this._resume != null ? uint(this._resume.match) : 0;
-         if(this._resume != null && hex == WatchWindow.hex(match))
+         if(status != "preparing" && status != "watching" && hex == WatchWindow.hex(this._pendingMatch))
          {
-            if(status == "watching")
-            {
-               this.resumeStep(LOADED);
-            }
-            else if(status != "preparing")
-            {
-               this.resumeStep(REFUSED,match);
-            }
+            this._pendingView = null;
          }
          if(this._shown)
          {

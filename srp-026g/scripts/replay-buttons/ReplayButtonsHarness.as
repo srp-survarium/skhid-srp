@@ -39,8 +39,9 @@ package
    //   roster; a friend's Spectate watches the friend's match from the friend's place, waits while
    //   it counts down, says so when its 60 s end or the match can't be watched;
    // - one ask-and-poll loop (ReplayAsks) on the window's second: a watch polls 2200000000, a save
-   //   2210000000, both from the same tick; after a watch asked from the window, its view again once
-   //   it played (the load, `watching`) and not after a refusal, nor for an ask under another's;
+   //   2210000000, both from the same tick; after a watch asked from the window, its view again at
+   //   the return after its load (a show_match_making(false) before the load brings nothing back),
+   //   not after a refusal, nor for an ask under another's;
    //   Mine not asked at once back in the lobby (BACK_ASK_MS: the history row is not written yet);
    // - a lobby window opening (MainScene.activeWindow) or the rooms window closes Watch;
    // - Save replay (ReplayAsks): a save icon right of the code on the cards that may be watched
@@ -710,9 +711,6 @@ package
          for(var p:int = 0; p < 31; p++)
             second();
          expect(language + ": polled " + polls(2200000000) + " times",polls(2200000000) == 30);
-         W.away();
-         W.back();
-         expect(language + ": a watch with no answer brought Watch back",!win.visible);
          // the second ask goes after the first ended
          W.open("live");
          lobby.take(WatchFake.LIVE);
@@ -732,13 +730,21 @@ package
             saveAnswer("gone",OTHER);
             told();
          }
+         // the watch that played, in the game's own order: `watching`, a show_match_making(false)
+         // from the lobby scene going away (before the load: it brings nothing back), the load
+         // (set_loading_level, whose Modals.escape closes the window on top), and the return
          lobby.answer("watching",OTHER);
-         // the watch that played: on coming back the view it was asked from (Live)
          win.show(false);
+         W.back();
+         expect(language + ": Watch came back before the watch's load",!win.visible);
+         W.away();
+         expect(language + ": the load showed Watch",!win.visible);
          W.back();
          expect(language + ": not back on Live after the watch",win.visible && shownTab() == "live");
-         W.back();
+         // once: the next return to the lobby brings nothing
          win.show(false);
+         W.back();
+         expect(language + ": Watch came back a second time",!win.visible);
          // a friend's Spectate never listed: after its 60 s it says so, once
          W.spectate("Vlad");
          lobby.take(["L0;0"]);

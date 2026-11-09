@@ -30,9 +30,10 @@ Watch button wherever a match is mentioned.
   search (`find_players`, answered in `LobbyMenu.fill_players_search`, taken by `WatchWindow.found`)
   finds the account (the name in any case, or the one player found), `3D 00 <PLAYER_MATCHES_ASK> <account>`
   chooses it, and its `P1` rows list its matches (no chip chosen meanwhile; a chip ends the search;
-  the asker's own name is Mine). A watch asked from the window that comes to play (the game loads a
-  match with it asked, or `watching`) opens it on that view again at the lobby's return; a refusal,
-  no answer or the prompt's Close drops the view. A friend's Spectate whose 60 s end, or that finds a
+  the asker's own name is Mine). After a watch asked from the window plays (the game loads a match within
+  2 min of the ask) the lobby's return opens it on that view again; a refusal drops the view. It is a
+  time limit because `show_match_making(false)` also comes before the load and nothing names the
+  load's match. A friend's Spectate whose 60 s end, or that finds a
   match it can't watch, says so in a message box.
 - **Cards** (`MatchCard`): the map's render and name by the rooms' pool (`RoomsWindow.entry`: the
   map id's level and weather; a map the pool lacks: its History row's name, else "Retired map", its

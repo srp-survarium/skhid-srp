@@ -62,12 +62,7 @@ package survarium.watch
 
       private static const STILL_PREPARING:String = "st_srp_replay_still_preparing";
 
-      // The window told (match 8 hex, status) of a watch's every word: an answer's status, or
-      // GAVE_UP (no answer, or preparing too long) or CLOSED (the prompt's Close).
-      public static const GAVE_UP:String = "gave_up";
-
-      public static const CLOSED:String = "closed";
-
+      // The window told (match 8 hex, status) of each answer about a watch.
       public static var told:Function;
 
       // the watch and the save under way ({hex, match, at, polls, preparing}), null none
@@ -252,7 +247,6 @@ package survarium.watch
                var ended:Object = _watch;
                _watch = null;
                WatchPrompt.show(ended.preparing ? STILL_PREPARING : NO_ANSWER);
-               tell(ended.hex,GAVE_UP);
             }
          }
          if(_save != null && !pollAgain(_save,SAVE_START,now))
@@ -275,12 +269,7 @@ package survarium.watch
       // The prompt's Close: the watch is no longer asked for.
       private static function promptClosed() : void
       {
-         var ended:Object = _watch;
          _watch = null;
-         if(ended != null)
-         {
-            tell(ended.hex,CLOSED);
-         }
       }
 
       // The save over: saved (no text), or why not, in the game's message box.
