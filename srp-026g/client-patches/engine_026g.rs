@@ -345,6 +345,8 @@ unsafe extern "C" {
     pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
     /// the IAT slot 0x870164 (an import, stdcall): unsigned int engine_global_memory_status_ex(void *status)
     pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x870168 (an import, stdcall): unsigned int engine_virtual_query(const void *address, void *info, unsigned int size)
+    pub static engine_virtual_query: unsafe extern "stdcall" fn(*const c_void, *mut c_void, u32) -> u32;
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)

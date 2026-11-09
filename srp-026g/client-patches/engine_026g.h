@@ -463,6 +463,9 @@ void engine_release_inventory(struct inventory *object, unsigned int *count);
 /* the IAT slot 0x870164 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_global_memory_status_ex)(void * status);
 
+/* the IAT slot 0x870168 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_virtual_query)(const void * address, void * info, unsigned int size);
+
 /* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
 struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where);
 

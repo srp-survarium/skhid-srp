@@ -395,6 +395,8 @@ unsafe extern "C" {
     pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
     /// the IAT slot 0x870164 (an import, stdcall): unsigned int engine_global_memory_status_ex(void *status)
     pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x870168 (an import, stdcall): unsigned int engine_virtual_query(const void *address, void *info, unsigned int size)
+    pub static engine_virtual_query: unsafe extern "stdcall" fn(*const c_void, *mut c_void, u32) -> u32;
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
@@ -17053,6 +17055,485 @@ impl ResRenderOutput {
     }
 }
 
+/// A vostok::memory::arena_list_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArenaListSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ArenaListSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::memory::arena_list>): the arenas' fixed_vector {begin, end, capacity end} (dump_statistics: mov eax,[0A808FCh] / mov esi,[eax] / mov edi,[eax+4], 0xE1379..0xE1385)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn list(self) -> Option<ArenaList> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ArenaList>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::memory::arena_list>): the arenas' fixed_vector {begin, end, capacity end} (dump_statistics: mov eax,[0A808FCh] / mov esi,[eax] / mov edi,[eax+4], 0xE1379..0xE1385)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_list(self, value: Option<ArenaList>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ArenaList>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::memory::arena_list (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArenaList(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ArenaList {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::memory::arena_record>): the first allocator_data record
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn begin(self) -> Option<ArenaRecord> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ArenaRecord>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::memory::arena_record>): the first allocator_data record
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_begin(self, value: Option<ArenaRecord>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ArenaRecord>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::memory::arena_record>): past the last record (register_allocator's push_back moves it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn end(self) -> Option<ArenaRecord> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ArenaRecord>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::memory::arena_record>): past the last record (register_allocator's push_back moves it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_end(self, value: Option<ArenaRecord>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ArenaRecord>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<vostok::memory::arena_record>): past the room for records (a full list asserts, 0x113450)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity_end(self) -> Option<ArenaRecord> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ArenaRecord>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::memory::arena_record>): past the room for records (a full list asserts, 0x113450)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_capacity_end(self, value: Option<ArenaRecord>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ArenaRecord>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::memory::arena_record (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArenaRecord(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ArenaRecord {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::memory::base_allocator>): the arena's allocator (dump_statistics calls its vtable +8h total_size and +0Ch allocated_size)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn allocator(self) -> Option<BaseAllocator> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BaseAllocator>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::memory::base_allocator>): the arena's allocator (dump_statistics calls its vtable +8h total_size and +0Ch allocated_size)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_allocator(self, value: Option<BaseAllocator>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BaseAllocator>>().write_volatile(value) }
+    }
+
+    /// +0x8 (u32): the arena's bytes as registered (a u64: its low word)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn arena_size_low(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (u32): the arena's bytes as registered (a u64: its high word, 0 in a 32-bit process)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn arena_size_high(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): the arena's start, written once it is reserved (0.10b allocate_region: arena_address from the region); 0 for the process heap
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn arena_start(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (ptr<u8>): the arena's name, a C string of the image ("render" 0x9DB590, "resources helper allocator" 0x9E5B9C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x14).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x14 (ptr<u8>): the arena's name, a C string of the image ("render" 0x9DB590, "resources helper allocator" 0x9E5B9C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x14).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// 0x18 bytes: allocator_data: 18h bytes (dump_statistics steps 18h, 0xE13F1; 0.10b memory.cpp {allocator, u64 arena_size, arena_address, arena_id})
+    pub const SIZE: usize = 0x18;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::memory::arena_records (0x18 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ArenaRecordStorage([u8; 0x18]);
+
+#[allow(dead_code)]
+impl ArenaRecordStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x18])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ArenaRecord {
+        ArenaRecord(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ArenaRecord> {
+        (!rooms.is_empty()).then(|| ArenaRecord(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::memory::base_allocator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BaseAllocator(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BaseAllocator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the allocator's vtable: its kind (doug_lea_vtable, managed_vtable, pthreads_vtable, others)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (ptr<vostok::memory::mspace>): a doug_lea_allocator's m_arena: the mspace create_mspace_with_base 0x101280 made at the arena's start (initialize_impl 0xE4F70; total_size 0xE51F0 and allocated_size 0xE52C0 hand it to internal_mallinfo 0xFF200)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mspace(self) -> Option<Mspace> {
+        unsafe { self.0.byte_add(0x14).cast::<Option<Mspace>>().read_volatile() }
+    }
+
+    /// +0x14 (ptr<vostok::memory::mspace>): a doug_lea_allocator's m_arena: the mspace create_mspace_with_base 0x101280 made at the arena's start (initialize_impl 0xE4F70; total_size 0xE51F0 and allocated_size 0xE52C0 hand it to internal_mallinfo 0xFF200)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_mspace(self, value: Option<Mspace>) {
+        unsafe { self.0.byte_add(0x14).cast::<Option<Mspace>>().write_volatile(value) }
+    }
+
+    /// +0x28 (u32): a managed_allocator's free bytes (allocated_size 0xE0E50: [ecx+30h] - [ecx+28h]; 0.10b resources_managed_allocator.h total_size() - get_free_size())
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn managed_free(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x30 (u32): a managed_allocator's bytes (total_size 0xE0E40)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn managed_total(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x30).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::memory::mt_region (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MtRegion(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MtRegion {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the region's start
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn base(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (u32): the region's bytes (-mt_allocator, 768 MiB by patch 37)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn size(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (u32): the region's bytes not taken: a take subtracts (0x10F90B, 0x10F942), a give adds (0x10F985)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn free(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::memory::video_memory (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VideoMemory(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl VideoMemory {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the video memory detected (a u64: its low word; 0x106300's answer, 0xE9C52), the percentages' 100 %
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn detected_low(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (u32): the engine's video memory budget (a u64: its low word; its "video memory stats for engine" size)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn budget_low(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (u32): the engine's video memory budget (a u64: its high word)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn budget_high(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::memory::mspace (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Mspace(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Mspace {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (u32): dlmalloc 2.8 malloc_state.topsize: the top chunk's bytes (init_user_mstate 0x101254; internal_mallinfo 0xFF239 counts it free with the top's foot, 28h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn top_size(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (u32): malloc_state.top: the top chunk, where internal_mallinfo's walk ends (0xFF286; set at 0x101251)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn top(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1b0 (u32): malloc_state.footprint: a fixed-base mspace's capacity from its start, as max_footprint +1B4h (0x1011E8, 0x1011EE): no high-water mark
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn footprint(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1b0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1bc (u32): malloc_state.seg.base: the arena's start (0x1011E2), where the walk begins (0xFF23C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn segment(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1bc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1c0 (u32): malloc_state.seg.size: the arena's bytes (0x1011F4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn segment_size(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1c4 (u32): malloc_state.seg.next: 0 in a fixed-base mspace (the memset of 1E0h, 0x1011B6), the walk's next segment (0xFF2B7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next_segment(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c4).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x1d8 bytes: malloc_state's bytes: its chunk is 1E0h (the head 1E3h, init_user_mstate 0x1011C6), the state 8 bytes in; its last word +1D4h/+1D8h the out-of-memory callback and its parameter (0x101201, create_mspace_with_base 0x1012D4)
+    pub const SIZE: usize = 0x1d8;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::memory::mspaces (0x1d8 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct MspaceStorage([u8; 0x1d8]);
+
+#[allow(dead_code)]
+impl MspaceStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x1d8])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> Mspace {
+        Mspace(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<Mspace> {
+        (!rooms.is_empty()).then(|| Mspace(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -17528,6 +18009,36 @@ pub mod image {
 
     /// 0x3118d0 (u32, survarium::image): artefact_spring_core::enable_active_effects: +80h of the Spring core vtable 0xA1558C (its constructor 0x31185C writes it)
     pub const SPRING_ACTIVE: u32 = 0x3118d0;
+
+    /// 0xa808fc (obj<vostok::memory::arena_list_slot>, vostok::memory::image): the engine's registered arenas: the slot of a pointer to their fixed_vector of allocator_data (memory::preinitialize sets it, 0xE0F51; register_allocator 0xE21C0 appends with ESI it, dump_statistics 0xE1379 and allocate_region 0xE1128 walk it); patch 126
+    #[inline(always)]
+    pub fn arena_list() -> ArenaListSlot {
+        // SAFETY: an image VA, not 0.
+        ArenaListSlot(unsafe { NonNull::new_unchecked(0xa808fc as *mut c_void) })
+    }
+
+    /// 0x9e68dc (u32, vostok::memory::image): doug_lea_allocator's vtable (slots: +8h total_size 0xE51A0, +0Ch allocated_size 0xE5270; engine_world's constructor writes it at 0x136EC..0x1380C; shared strings, cook, resources helper in the image)
+    pub const DOUG_LEA_VTABLE: u32 = 0x9e68dc;
+
+    /// 0x9e602c (u32, vostok::memory::image): managed_allocator's vtable (+8h total_size 0xE0E40, +0Ch allocated_size 0xE0E50; its constructor 0xE0E71; the resources (managed) allocator at 0x21E51E8, which allocate_region registers at 0xE1220, its initializer 0xFCF4A)
+    pub const MANAGED_VTABLE: u32 = 0x9e602c;
+
+    /// 0x9e6000 (u32, vostok::memory::image): the multithreaded allocator's vtable ("global multithreaded", 0xA8001C: +8h total_size 0xEB5F0 the region's size, +0Ch allocated_size 0xEB630 walks ptmalloc3's arenas from 0x1BFAC90 with 0xFF200)
+    pub const PTHREADS_VTABLE: u32 = 0x9e6000;
+
+    /// 0xa2b5250 (obj<vostok::memory::mt_region>, vostok::memory::image): the multithreaded arena's region, the pages ptmalloc3 takes (0x10F8C0 under the spin lock 0x1BFAEBC, 0x106A90) and gives back (0x10F980); 0xEB437..0xEB453 set it
+    #[inline(always)]
+    pub fn mt_region() -> MtRegion {
+        // SAFETY: an image VA, not 0.
+        MtRegion(unsafe { NonNull::new_unchecked(0xa2b5250 as *mut c_void) })
+    }
+
+    /// 0x1b3a1f0 (obj<vostok::memory::video_memory>, vostok::memory::image): the engine's video memory figures (platform::allocate_arenas 0xE9580 writes them, 0xE991D..0xE9CF9; dump_statistics' "video memory stats for engine", 0xE195D..0xE198D)
+    #[inline(always)]
+    pub fn video_memory() -> VideoMemory {
+        // SAFETY: an image VA, not 0.
+        VideoMemory(unsafe { NonNull::new_unchecked(0x1b3a1f0 as *mut c_void) })
+    }
 }
 
 /// A general-purpose register at a hook's site.
