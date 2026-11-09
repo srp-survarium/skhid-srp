@@ -1,6 +1,7 @@
 //! Keeper of the Artifacts' match draw (docs/notes/artefact-skills.md "Keeper of the
-//! Artifacts"): srp draws one kind a match, uniformly over the kinds Keeper gives
-//! ([`artefact_carry::keeper::KINDS`], the one table the game takes them by too), and writes it
+//! Artifacts"): srp draws one kind a match, each kind Keeper gives for its share of the matches
+//! ([`artefact_carry::keeper::SHARES`] beside [`artefact_carry::keeper::KINDS`], the one table
+//! the game takes them by too: Larkspur 48 %, Onyx 4 %, Spring 48 %), and writes it
 //! into modifier 40 bits 9..11 of every kit of every player of the match, bots too, with the
 //! skill or without: every game knows the match's kind from the static info, and exe patch 109
 //! gives a Keeper a dormant artefact of it from the map's hidden Keeper pool. The kits of a joiner
@@ -8,7 +9,7 @@
 //! ([`LATE`], [`give_late`]): its Keeper gets the gift after its first death, the others' (a
 //! joiner taken in the countdown too) at the match's start.
 
-pub use artefact_carry::keeper::{KINDS, Kind};
+pub use artefact_carry::keeper::{KINDS, Kind, SHARES};
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
@@ -22,10 +23,19 @@ const MASK: u32 = 7 << SHIFT;
 /// Modifier 40's bit of a late joiner's kits (a profile taken into the match once in process).
 pub const LATE: u32 = 1 << 13;
 
-/// The match's kind of a random number: each kind for an equal share of the u32s but the
-/// last `u32::MAX % 3 + 1`, which a draw never sees in practice.
+/// The match's kind of a random number: each kind for its [`SHARES`] of the u32s, by the roll
+/// `random % 100` (the last `u32::MAX % 100 + 1` u32s favour the first kinds, by under one draw
+/// in 40 million).
 pub fn draw(random: u32) -> Kind {
-    KINDS[(random % KINDS.len() as u32) as usize]
+    let total: u32 = SHARES.iter().map(|&(_, share)| share).sum();
+    let mut roll = random % total;
+    for (kind, share) in SHARES {
+        if roll < share {
+            return kind;
+        }
+        roll -= share;
+    }
+    unreachable!("a roll is below the shares' sum")
 }
 
 /// Modifier 40 (`artefact_power`, the artefact tree's packed skills) of `modifiers` with
@@ -73,13 +83,35 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn the_draw_is_uniform_and_keeps_the_skills() {
+    /// How many draws of `randoms` give each kind, in [`KINDS`] order.
+    fn tally(randoms: impl Iterator<Item = u32>) -> [u32; 3] {
         let mut seen = [0u32; 3];
-        for random in 0..300 {
+        for random in randoms {
             seen[usize::from(draw(random).draw() - 1)] += 1;
         }
-        assert_eq!(seen, [100, 100, 100]);
+        seen
+    }
+
+    #[test]
+    fn the_draw_gives_each_kind_its_share_and_keeps_the_skills() {
+        // Every roll 0..100 once: exactly the shares (Larkspur, Onyx, Spring).
+        assert_eq!(tally(0..100), [48, 4, 48]);
+        // 100 000 matches of a seeded generator (splitmix64): each kind within half a point of
+        // its share (the largest standard deviation, Larkspur's and Spring's, is 0.16 points).
+        let mut state = 0x5EED_u64;
+        let randoms = std::iter::repeat_with(move || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 32) as u32
+        });
+        let seen = tally(randoms.take(100_000));
+        for (n, &(kind, share)) in SHARES.iter().enumerate() {
+            let (name, percent) = (kind.name(), f64::from(seen[n]) / 1000.0);
+            let near = (percent - f64::from(share)).abs() < 0.5;
+            assert!(near, "{name}: {percent} %");
+        }
         // Resistance 5, Keeper, Cascade (509) with each draw, an earlier draw replaced.
         for kind in KINDS {
             let value = with_draw(509.0, kind);

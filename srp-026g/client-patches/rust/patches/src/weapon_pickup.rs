@@ -75,6 +75,7 @@ use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Ins
                             RegistryId, Role, Select, Site};
 use crate::vostok::world::{GameWorld, ItemId, MatchId, Player, PlayerId, WorldKey};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread, WorldLoad};
+use crate::use_scan::rule::{use_owner, UseOwner};
 use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnLoadQuietExit, WeaponPickupOnSaveQuietExit,
                     WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
 
@@ -1667,8 +1668,9 @@ static AIMED: GameCell<Option<Aimed>> = GameCell::new(None);
 /// drew it: the eye's 2.2 m segment enters its model box (padded by 15 cm),
 /// nothing of the level in between (patch 78's ray), the drop open (its body
 /// still in the world), its gun made on this client and the rule's
-/// (`weapon_pickup::decide`, the carry rules too) yes. Remembered for Use
-/// ([`on_input_end`]).
+/// (`weapon_pickup::decide`, the carry rules too) yes, and nothing the
+/// game's own Use takes now (the use scan, `use_scan::detect`: a battery
+/// lying by the gun goes first). Remembered for Use ([`on_input_end`]).
 pub fn aim(ctx: &Context<'_>, viewer: Option<&Player<'_>>) -> Option<Prompt> {
     let found = viewer.and_then(|viewer| aimed_at(ctx, viewer));
     AIMED.set(ctx.thread(), found.and_then(|(aimed, _)| aimed));
@@ -1717,6 +1719,12 @@ fn aimed_at(ctx: &Context<'_>, viewer: &Player<'_>) -> Option<(Option<Aimed>, Pr
     // Most frames see no drop: nothing else is read then.
     let seen = SEEN.with(thread, |seen| *seen);
     if seen.iter().all(Option::is_none) {
+        return None;
+    }
+    // What Use takes in the game now (a battery by a body's gun, a
+    // container, a crate, a trap: patch 23's scan) is the game's: no gun
+    // prompt, and Use goes to the game.
+    if use_owner(crate::use_scan::detect(viewer)) == UseOwner::Game {
         return None;
     }
     let (world, sender) = located(viewer)?;

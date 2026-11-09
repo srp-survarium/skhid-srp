@@ -43,14 +43,14 @@ bandit_026_mask	Bandit balaclava	mask	8	Black Market		Face: armour 30, isolation
 edge_resp_3	Gas mask "Smaragd"	mask	8	The Fringe Settlers		Face: armour 20, isolation 65	1		Armor, Weight, Isolation	
 face_069d_balaclava_3_hole	3-Hole Balaclava	mask	8	Scavengers		Face: armour 30, isolation 5	1		Armor, Weight, Isolation	
 ren_mask_3	Respirator "Zanaves"	mask	8	The Renaissance Army		Face: armour 15, isolation 50	0.8		Armor, Weight, Isolation	
-eq046_edge_mask_6	NVD	mask	9	The Fringe Settlers		Face: armour 10, isolation 5	0.3	Sight sway -0.25	Armor, Weight, Isolation	
+eq046_edge_mask_6	NVD	mask	9	The Fringe Settlers		Face: armour 5, isolation 5	0.3	Sight sway -0.1	Armor, Weight, Isolation	
 ren_mask_2	Assault mask	mask	9	The Renaissance Army		Face: armour 40, isolation 5	1.5		Armor, Weight, Isolation	
 face_069d_protective_mask	Protective mask	mask	10	Black Market		Face: armour 40, isolation 5	1.5		Armor, Weight, Isolation	
 eq046_renesanse_mask_7	Spectrum-M Thermal vision	mask	11	The Renaissance Army		Face: armour 30, isolation 37	0.5		Armor, Weight, Isolation	
 bm_mask_8	Mask "Omicron"	mask	12	Black Market		Face: armour 35, isolation 60	0.8		Armor, Weight, Isolation	
 eq046_edge_mask_7	Veles Mask	mask	13	The Fringe Settlers		Face: armour 35, isolation 65	0.6		Armor, Weight, Isolation	
 edge_mask_5	"Keeper" mask	mask	14	The Fringe Settlers		Face: armour 50, isolation 25	2		Armor, Weight, Isolation	
-eq069_league_shadow_mask	Delta mask	mask	14	Independent traders		Face: armour 15, isolation 5	0.5	Aiming speed -8%	Armor, Weight, Isolation	
+eq069_league_shadow_mask	Delta mask	mask	14	Independent traders		Face: armour 5, isolation 5	0.5	Aiming speed -8%	Armor, Weight, Isolation	
 ren_mask_5	"PMK-7S" Gas mask	mask	14	The Renaissance Army		Face: armour 35, isolation 70	1.2		Armor, Weight, Isolation	
 scav_mask_9	Gas mask "Barrier"	mask	14	Scavengers		Face: armour 30, isolation 70	0.8		Armor, Weight, Isolation	
 eq046_bm_mask_10	Armored mask	mask	15	Black Market		Face: armour 50, isolation 15	1.2		Armor, Weight, Isolation	
@@ -93,7 +93,7 @@ edge_torso_7	Warrior jacket	body	9	The Fringe Settlers		Chest/Back/Arms: armour 
 edge_torso_7_premium	Jacket "Berserker"	body	9	The Fringe Settlers	yes	Chest/Back/Arms: armour 60, isolation 20	8	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 ren_torso_2	Body Armor Vest "Shturm"	body	9	The Renaissance Army		Chest/Back/Arms: armour 70, isolation 15	12	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_torso_7	Pathfinder bulletproof vest	body	9	Scavengers		Chest/Back/Arms: armour 65, isolation 20	9	Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-eq046_renesanse_torso_7	Sniper Vest	body	11	The Renaissance Army		Chest/Back/Arms: armour 72, isolation 20	6		Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
+eq046_renesanse_torso_7	Sniper Vest	body	11	The Renaissance Army		Chest/Back/Arms: armour 72, isolation 20	6	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 eq069_snow_20_torso_7	Snow-20 Vest	body	11	The Renaissance Army		Chest/Back/Arms: armour 70, isolation 20	7	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_torso_8	Bulletproof vest "Omicron"	body	12	Black Market		Chest/Back/Arms: armour 70, isolation 60	11.5	Item slots +1, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_torso_8_premium	Bulletproof vest "Omicron MKII"	body	12	Black Market	yes	Chest/Back/Arms: armour 70, isolation 60	11.5	Item slots +1, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
@@ -127,11 +127,11 @@ ren_back_3	Cylinder "Zarya 4N"	backpack	8	The Renaissance Army			5		Weight, Weig
 bm_back_6	Watchman backpack	backpack	9	Black Market			4	Item slots +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
 eq046_edge_back_6	Stalker's backpack	backpack	9	The Fringe Settlers			4.5	Ammo bags +1, Item slots +1	Weight, Regeneration, Weight limit	
 scav_back_7	Field radio	backpack	9	Scavengers			4	Respawn time -0.25	Weight, Regeneration, Weight limit	
+eq046_edge_back_7	Token	backpack	10	The Fringe Settlers			3	Artifact container +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
 bm_back_8	Life support system M-1	backpack	12	Black Market			5	Regeneration +12%, Stamina regeneration +8%	Weight, Weight limit	
 scav_back_8	Big backpack	backpack	12	Scavengers			6	Item slots +1, Pocket capacity +2	Weight, Regeneration, Weight limit	
-eq046_edge_back_7	Token	backpack	13	The Fringe Settlers			3	Artifact container +1	Weight, Regeneration, Weight limit	
 bm_back_9	Antiradar Veil	backpack	14	Black Market			4	Item slots +1, Respawn time -0.2	Weight, Regeneration, Weight limit	
-edge_back_5	"Wanderer" Container	backpack	14	The Fringe Settlers			4	Artifact container +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
+edge_back_5	"Wanderer" Container	backpack	14	The Fringe Settlers			4	Artifact container +1, Pocket capacity +1, Item slots +1	Weight, Regeneration, Weight limit	
 eq069_leagues_back_5	Soldier's backpack	backpack	14	Scavengers			8	Ammo bags +2, Item slots +1, Pocket capacity +2	Weight, Regeneration, Weight limit	
 ren_back_1	Assault fighter's backpack	backpack	14	The Renaissance Army			8	Item slots +2, Pocket capacity +2	Weight, Regeneration, Weight limit	
 ren_back_5	"UKV-1" cylinder	backpack	14	The Renaissance Army			8		Weight, Weight limit, Energy costs, Oxygen capacity	

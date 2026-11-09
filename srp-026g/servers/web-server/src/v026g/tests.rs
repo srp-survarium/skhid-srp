@@ -239,18 +239,17 @@ fn the_admin_changes_money_and_the_account() {
     assert_eq!(world.balance(id), 0);
     assert_eq!(world.told.changed.locked()[..], [id]);
 
-    // Premium, a level with experience on top, reputation.
+    // A level with experience on top, reputation.
     let done = world.admin(&[
         ("tab", "account"),
         ("acc_user", "tester"),
-        ("premium_hours", "+24"),
         ("level", "3"),
         ("experience", "+10"),
         ("faction", "2"),
         ("reputation", "+150"),
     ]);
     assert!(done.contains("level 3"), "{done}");
-    assert!(done.contains("24 h of premium"), "{done}");
+    assert!(!done.contains("premium"), "{done}");
     assert!(done.contains("Reputation with faction 2: 150"), "{done}");
     assert!(done.contains("value=account id=tab-account checked"));
     {
@@ -258,22 +257,19 @@ fn the_admin_changes_money_and_the_account() {
         let account = account.locked();
         assert_eq!(account.level(), 3);
         assert_eq!(account.exp_total, level_start(3) + 10);
-        assert_eq!(account.premium_hours(crate::unix_now()), Some(24));
         assert_eq!(account.reputation(2), 150);
     }
-    // Taken back; the premium ends.
+    // Taken back.
     let done = world.admin(&[
         ("tab", "account"),
         ("acc_user", "tester"),
-        ("premium_hours", "-48"),
         ("faction", "2"),
         ("reputation", "-1000"),
     ]);
-    assert!(done.contains("0 h of premium"), "{done}");
+    assert!(done.contains("Reputation with faction 2: 0"), "{done}");
     {
         let account = world.accounts.get(id).unwrap();
         let account = account.locked();
-        assert_eq!(account.premium_until, 0);
         assert_eq!(account.reputation(2), 0);
         assert_eq!(account.level(), 3);
     }

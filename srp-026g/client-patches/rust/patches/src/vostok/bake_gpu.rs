@@ -331,7 +331,7 @@ impl Drop for DdsBuffer {
     fn drop(&mut self) {
         // SAFETY: the MT memory allocated, freed once (mt_free, as the
         // descriptor's destructor frees its data).
-        unsafe { raw::engine_mt_free(self.at.as_ptr()) }
+        unsafe { raw::engine_mt_free_memory(self.at.as_ptr()) }
     }
 }
 

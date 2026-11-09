@@ -135,7 +135,7 @@ class Config:
         account = self.accounts[index]
         game = [account.executable, f"-account_name={account.name}", f"-account_password={account.password}",
                 f"-server=127.0.0.1:{self.ports[0]}",
-                "-mt_allocator=768", "-minimum_resources_memory_size=768", "-splash_screen"]
+                "-minimum_resources_memory_size=768", "-splash_screen"]
         if self.localization:
             game.insert(3, f"-localization={self.localization}")
         if self.virtual_desktop:
@@ -143,6 +143,8 @@ class Config:
         return [str(self.wine), *game]
 
     def client_environment(self, index: int) -> dict[str, str]:
+        # run.py's own environment goes on to the clients: SKHID_MEMORY_PROFILE=on there
+        # profiles them (patch 127, docs/notes/memory-profile.md); unset, nothing is set.
         return dict(os.environ, **(self.client_env | {
             "WINEPREFIX": str(self.prefix(index)), "WINEDEBUG": "-all",
             # Full-memory crash dumps (client/bugtrap/README.md, "Dump contents").

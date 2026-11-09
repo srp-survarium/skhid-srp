@@ -202,7 +202,7 @@ def at_entry(run, f, entry, pops, target=None, this=None):
     out.append((not where and run.lo <= stack[0] < run.hi,
                 f"{f['symbol']}: at {target:#x} each argument where the rows put it "
                 f"({', '.join(f['args']) or 'none'}), called from the library" + (": " + "; ".join(where) if where else "")))
-    result = {None: True, "EAX": eax == RESULT, "AL": eax == RESULT & 0xFF,
+    result = {None: True, "EAX": eax == RESULT, "AL": eax == RESULT & 0xFF, "AX": eax == RESULT & 0xFFFF,
               "EDX:EAX": eax == RESULT and run.emu.reg_read(UC_X86_REG_EDX) == RESULT_HIGH,
               "XMM0": f["result"] == "XMM0" and st0(run) == 1.5}[f["result"]]
     out.append((moved == 4 and kept == KEPT and result,

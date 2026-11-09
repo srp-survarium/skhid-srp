@@ -34,6 +34,12 @@ exe, so a site that drifted fails the build. Nothing is looked up at run time.
     python hooks_026g.py --write     writes hook_entries_026g.asm and hooks_026g.rs
     python hooks_026g.py --check     says whether they are current (the self-test runs the same)
 
+A `code` or `lohook` row with `install = "on_demand"` is linked but not
+written into the exe: its site keeps the game's bytes, and the patch writes
+the jump at run time when it decides to (vostok::hook::install_on_demand,
+from the generated `<patch>_on_demand()`: the site, its bytes, the entry),
+so a game that never asks runs the original code byte for byte.
+
 A span hook (lohook, splice, code) needs the original exe for its bytes: the
 caller's reader, else the file `--exe` or SRP_026G_EXE names (sha256
 checked); patch_026g.py passes the exe it builds from.
@@ -496,6 +502,13 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
                 out.append(entry_hook(patch, row, sites))
             else:
                 raise Bad(f"{patch['name']}: site {row['site']} has unknown kind {kind!r}")
+            install = row.get("install", "build")
+            if install not in ("build", "on_demand"):
+                raise Bad(f"{patch['name']}: a [[hook]]'s `install` is \"build\" or \"on_demand\"")
+            if install == "on_demand":
+                if kind not in ("code", "lohook") or out[-1]["install"][1] != 0xE9:
+                    raise Bad(f"{patch['name']}: only a jumping code hook or a lohook is installed on demand")
+                out[-1]["on_demand"] = True
     entries = [h["entry"] for h in out]
     if len(set(entries)) != len(entries):
         raise Bad("two hooks with the same entry symbol")
@@ -515,6 +528,8 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
             out.extend(group)
             continue
         orders = [h.get("order") for h in group]
+        if any(h.get("on_demand") for h in group):
+            raise Bad("a hook installed on demand cannot share its site")
         if (any(h["kind"] != "lohook" for h in group)
                 or any(type(order) is not int for order in orders)
                 or len(set(orders)) != len(orders)):
@@ -774,6 +789,7 @@ def rs_text(hs, tables=()):
                   f"    // arguments of {h['function']}, whose `Original` names the entry's type.",
                   f"    unsafe {{ super::hook::CallbackEntry::from_entry({h['entry']} as *const () as *const c_void) }}",
                   "}"]
+    lines += on_demand_text(hs)
     for table in tables:
         symbol, count = table["symbol"], table["count"]
         lines += ["", f'unsafe extern "C" {{ static {symbol}: [u32; {count + 1}]; }}',
@@ -782,6 +798,31 @@ def rs_text(hs, tables=()):
                   f"    unsafe {{ super::project::NativeVtable::from_address(core::ptr::addr_of!({symbol}).cast::<u32>().add(1) as usize as u32) }}",
                   "}"]
     return "\n".join(lines) + "\n"
+
+
+def on_demand_text(hs):
+    """Each patch's hooks installed on demand: `<patch>_on_demand()`, the
+    sites its patch may write at run time (vostok::hook::install_on_demand),
+    each with the game's bytes there (read from the original exe, checked
+    again before the write) and its entry's address."""
+    lines, by_patch = [], {}
+    for h in hs:
+        if h.get("on_demand"):
+            by_patch.setdefault(h["patch"], []).append(h)
+    for patch, group in by_patch.items():
+        lines += ["", f"// ---- {patch}: its hooks installed on demand ----", "",
+                  'unsafe extern "C" {'] + [f"    fn {h['entry']}();" for h in group] + ["}",
+                  f"/// {patch}'s sites that keep the game's bytes until it installs them.",
+                  f"pub fn {patch}_on_demand() -> [super::hook::OnDemand; {len(group)}] {{", "    ["]
+        for h in group:
+            original = ", ".join(f"0x{b:02x}" for b in h["original"])
+            lines += [f"        // {h['site_name']}: {h['what'][:100]}",
+                      f"        // SAFETY: the site's span as the original exe has it; {h['entry']} is the",
+                      "        // generated or linked entry for it, alive as long as the executable.",
+                      f"        unsafe {{ super::hook::OnDemand::new({h['site']:#x}, &[{original}], "
+                      f"{h['entry']} as *const () as usize as u32) }},"]
+        lines += ["    ]", "}"]
+    return lines
 
 
 def asm_text(hs, tables=(), exe=None):
@@ -843,6 +884,8 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
             continue  # a runtime copy (audited above) or a callback handed at run time: no write
         if how == "entry":
             continue  # called by our own code, through what the build writes (no image install)
+        if h.get("on_demand"):
+            continue  # written at run time by its patch, if ever (on_demand_text): the exe keeps its bytes
         if opcode is None:
             raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
                       "integrate its install before it can ship")
@@ -868,7 +911,8 @@ def lohook_sites(tomls=None, sites=None):
     tomls = read_tomls() if tomls is None else tomls
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
-            for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook"]
+            for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook"
+            and row.get("install") != "on_demand"]
 
 
 def install_sites(tomls=None, sites=None):
@@ -877,7 +921,8 @@ def install_sites(tomls=None, sites=None):
     tomls = read_tomls() if tomls is None else tomls
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"]) for patch in tomls for row in patch.get("hook", ())
-            if row.get("site") in sites and sites[row["site"]]["kind"] not in ("vtable", "callback", "entry")]
+            if row.get("site") in sites and sites[row["site"]]["kind"] not in ("vtable", "callback", "entry")
+            and row.get("install") != "on_demand"]
 
 
 def stale():

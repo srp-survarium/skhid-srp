@@ -65,6 +65,7 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 51 | Released 2026-11-07 20:47 UTC (tag `026g-rev51`, `main` 1a93e40). Shipped: #1351 web-server tests: give the stock account the silver the admin takes; #1355 build-content: cache unchanged steps (no change 54 s, lobby change 112 s, was 424 s); #1359 DXVK on Windows: bind the game's dxgi, d3d11 and d3d9 to DXVK's DLLs; #1358 release.sh: swap as soon as no match has run for 30 s; #1354 Lock vertical sensitivity: Apply keeps an unlock; the greyed slider follows set values; #1363 Patch 108: a gun-stock hit kills wherever it lands; #1368 Trap 0.55 a foot; the painkiller's pain protection covers it; #1369 Take off what a skill opened when the skills change; #1372 Patch 113: kits and cursor start over at each match; the main menu covers the hud's cursor; #1370 Item search: "+" words for levels, factions and bonuses; #1373 Everyone at level 15's last point; new accounts with five skills; #1388 release/moderate: watch registrations and sign-ins, ban, mute, close sign-ups; #1380 VSSK rifles: Vychlop gets aiming time -10 %, Dusk reload +15 % as their one built-in; #1389 Boosters: every built-in bonus shows gold on the card; #1390 Lobby: held Alt, medicine cards show Numb Legs, Unflinching, Concentration and Take Cover; #1375 Modification window: the item's card is the inventory's, at its size; #1376 PPSh-41 Drum: seat the drum in the magazine well (weapons-069@15); #1391 SVU: its iron sights raised, its eye on them (weapons-046@13); #1382 Item search follow-up: Shift+= types +, penalties are no bonus, bonus words by type; #1360 Equipment 046@9: four new pieces; the NVD as open goggles; the Sniper set at level 11 and the Veles set at level 13 (the owner's numbers); #1364 Equipment 069@5: the Snow-20 set (the level-11 Sniper's twin) and the Delta mask; #1393 Drop one-off checks of shipped changes; #1397 One Ruffle runner for the movies' harnesses; #1399 Release tests: the early swap's 30 s scale with the test's minute; #1400 build-content: read the pierce lines' files only when a list asks for one; #1402 Medical skills' texts in the language TSVs; #1395 Release: build the server image here, load it on the host; #1408 Wiki weapons: choose the round; #1412 release/moderate: reset-password, watch, give, money, fuzzy who; #1367 Graphics: Vulkan options (frame limit, overlay, low latency, tear-free, dedicated GPU); FOV to Gameplay; #1398 Fix the artefact-carry and language-option harnesses; #1407 Self-test: fix the four stale exe-patch checks (lohook dispatch, patch 96 exits, artefacts, configs.start chain); #1414 Self-test: derive the pinned checks from the declarations, run it at a release; #1415 build-content: packs keyed by the movies they edit, lamps cached, a quick build by default (--full for releases); #1180 [Packet safety v2 1/11] Shared message parsers (inert); #1434 World checks: take the worlds the game writes for a NaN player and a shooter who left; #1458 Read uploaded worlds as typed views, every field held to what the game writes; #1423 World check cost: a bench over recorded matches, sorted compatibility pairs; #1421 Packet safety v2: catch a world check that is wrong before a release, and loudly in a match; #1463 check_bench: check with the server's Roster (main does not compile); #1461 Patch 116: srp's ban reasons and the ban's end on the sign-in screen; #1466 Notes: what players' games send each other, and how it is checked; #1468 match-server: fall back to the games' own check for a kind in doubt (temporary); #1464 Send every kit to the match with its pockets packed (crash of match 0x55809714); #1467 Patch 117: a presenter ignores an event for an effect it holds no entry of (rev50 crash 2026-11-06); #1471 test(srp): fix stale v026g_web assertions; #1474 Sell the rank and faction badges in the shop; #1469 Patch 117: a character controller's step never leaves its position non-finite; #1470 tools/check: world-check and world-drift over a private world corpus; #1475 AGENTS.md: the world format and its check; #1476 World check: no NaN in a player's speed, last position or a bullet's origin (after patch 117 is live); #1477 Results screen: a map is always usable, bought on click, its item shown again; #1478 Renumber controller_position to patch 118; #1479 Lobby build: drop RESULT_SHA256; #1480 Lobby: the match pop-up over the room window, gone at the next press; #1481 simulation_changes: controller position fix is exe patch 118; #1486 Rooms: four ready Play waiters open another room (was six); #1485 Read the refusals' clock from GetTickCount, not GetCurrentProcessId; #1487 Do not count invalid inputs of a world out of step toward removal; #1490 Input safety: 100 invalid inputs in step remove a sender (was 8); #1492 match-server: never relay a refused world; give every waiting game an end; #1493 Rooms: say why a match can't take a joiner when it has no world (J;-1;8); #1494 Rooms: J;-1;8 tells the member it joins the next match; #1495 Patch 119: a kicked game goes back to the lobby as a lost connection does; #1392 Artefact skill tree: the fifth tab, its eleven skills and Forest Protection's glow; #1489 Receipts: one per event, none dropped for time; #1482 World load receipts: admit on Loaded, answer each refusal once, no receipt timer; #1498 simulation_changes: restore the separator before the patch 118 clause; #1499 Refused worlds: count only a game's own refusals; end a match with no first world by events; #1500 Receipts: number refusals per connection, a waiting slot per kind; #1501 Patch 120: a match its game never played closes too (kick/timeout/lost link while loading). Without a server sha256 `e3535b4de5d1e15d448dbb8f7cbdcc46edfa95800b4854bfb7aa22ea50b818ba`, with `--server=skhid.link:1234` `8119f24cb6f1b04b70c77ceccb8c64e6f29f0b1766b97a5615eb69d2f567eceb`. The ZIP: 16825683 bytes, sha256 `f099cafcc4a772fd0dd6257e680e934631bd6edb15335ab19ac3a9bb2a7b0dc0`; the server data: sha256 `58e09e73440042dc90a51c1fd4232eb20585e52b3d278edf1fcff8e592aba10c`. Its content: `resources.db.patch_51` (272668357 bytes, sha256 `55051281da0cd73bf3dcb95e7333625b9c2c43fb518f3970e57de8deeda8e928`) |
 | Revision 52 | Released 2026-11-07 21:40 UTC (tag `026g-rev52`, `main` 13d1b71). Shipped: #1505 Release: exe self-test beside step 2, on every core; --no-selftest; #1506 Patch 109: fix the crash at a rollback over a Keeper's respawn into another kit. Without a server sha256 `4458593de9f834f12cfc31a5f60a7116c5fa18d47bb9e513e7f07b57cd7677de`, with `--server=skhid.link:1234` `2235be3c078695b1f4d9709ce9a498506c796d6158a3faf38be5b378bb7d5ca4`. The ZIP: 16825944 bytes, sha256 `a306cb24db938fcbcb772c6f37405443ffb442e0f61242e9c92ac74a347eae02`; the server data: sha256 `58e09e73440042dc90a51c1fd4232eb20585e52b3d278edf1fcff8e592aba10c`. No content patch of its own |
 | Revision 53 | Released 2026-11-07 23:16 UTC (tag `026g-rev53`, `main` 164c311). Shipped: #1510 Patch 109: every kit's artefact slots made the world's at each world load (rev52's start crash); #1509 Cascade: every kind's activation shared (Medic's path); Resonance 9 m, Cascade 6 m. Without a server sha256 `a048ccb2671290e9bc670e792ce8217cce05779f7803265c031a7b0025b4edef`, with `--server=skhid.link:1234` `ab49f5483701c2197e2e5542a9cd427a5c01c8113a610439c2394962e3cfae9e`. The ZIP: 16833325 bytes, sha256 `92dd2e8987a14d5f34432f7d8df0b7b77b7e88ee79ea721aa6e3a777f7e6ab5c`; the server data: sha256 `d9330961e00975ec1b91baefaf97554acd8877dd0c612718318f2b4d62e2564c`. Its content: `resources.db.patch_53` (3149249 bytes, sha256 `83b504298fd2fca957b881724d4bcd9d3d48e0ba88e69b8b6dd6f1cf5d04be28`) |
+| Revision 54 | Released 2026-11-09 16:06 UTC (tag `026g-rev54`, `main` f12d76c). Shipped: #1457 feat(client): macOS support; #1526 Wiki skills: levels, their formula and a graph; #1528 Wiki: no footer, the header is enough; #1527 Wiki: quests page; #1530 Content: ten more 0.69d decals (pack decals-069d@2); #1536 Content: the "Alpha" Squad badge costs 10,000,000 silver; #1520 New accounts: the Keeper set in preset 2 (AK-12, Saiga-12); premium bonuses +20 % / +50 %; #1548 Patch 113: never take the hud's cursor movie off a scene twice (crash at exe+0x14EE8D); #1542 Local launcher: refuse an exe older than the server takes; #1549 Lobby: Esc over the results after a match closes them, not the game's menu; #1523 Silver only: remove gold from the game; #1551 Patch 83: a DXVK fullscreen window DXGI refuses becomes a popup (Vulkan on AMD); #1550 Patch 113: the main menu gives up an awaited key before it closes (a latent crash at exe+0x14EE8D); #1472 fix(updater): report progress while extracting; #1539 Nerf the SCAR-H, vz.58 and VSK-94; #1517 SV-1367 Dusk: base rarity 0, so it can craft and roll modifications; #1502 Keeper of the Artifacts: Onyx rare (48/48/4); #1518 Delta mask and NVD armour 5, NVD sway -10 %, Sniper vest pocket back; #1557 Dev shell: share one sccache across worktrees; #1519 Give the VKS Vychlop weight -15% instead of aiming speed; #1558 Hold every kit to its layout: pockets, pocket size, second weapon; #1556 Patch 124: resources helper arena 32 MiB, render arena 320 MiB by default; #1560 Artefact tree: Forest Protection and Keeper of the Artifacts go together; #1473 fix(client): Linux Calibri from a pinned mirror; #1562 Concentration: sway -5% a rank while the painkiller is active; #1563 Wiki skills: how many players took each skill; #1561 No premium account: its half again is everyone's pay; #1565 Skills: seven stock skills and Quick Hands take 3 ranks, each worth more; #1540 fix(harness): measure text with the movie's fonts; #1566 Wiki skills: plan a build by clicking skills; #1569 Patch 128: engine threads get 2 MiB stacks, not 8; #1567 Sides: strong players dealt evenly, at the start and on late joins; #1564 Patch 126: the game reports its memory headroom to the match server; #1570 Refuse a hit effect with a non-zero root-emitter registry index; #1571 Token backpack back at level 10; #1516 Token backpack: pocket capacity +1 beside its artefact container; #1491 Use: Rust detect_usable_object; a usable battery beats a dropped gun; #1568 Patch 127: a memory profiler of the engine's arenas (SKHID_MEMORY_PROFILE=on); #1572 Make the 0.21d Radar's electric anomalies hit the legs only; #1574 Use scan: deep review follow-ups; #1573 Patch 129: the multithreaded arena is at least 1024 MiB; #1579 release: the swap check reads the new srp26's whole log. Without a server sha256 `99596d9be4c8777bdd833bbcf20265150c27d0939ccf886319bce4e51955fcd3`, with `--server=skhid.link:1234` `7e534b8de1a5bfc671a054d1d3c6ceb9824937af73b941e0906bc0c6fa58aa33`. The ZIP: 16852379 bytes, sha256 `3514528737a7a5045fbaa01693cb01add74b6391b82fb9ecddcc473d101c3409`; the server data: sha256 `1b74758ae799ad13737258de9b83b1fea50888000341e53f56a51c8c9c55e64f`. Its content: `resources.db.patch_54` (73593265 bytes, sha256 `8314c83d46f7813d8f2d45620add72179b3f0aa1c956192ac1ec8c2974bcbbfa`) |
 | Revision 4 | Revision 3 with patch 10 (a start with a Documents folder the game may not write to). **In the players' download since 2026-10-13 15:36 UTC.** Made as the download is, it differs from the revision 3 exe (`ac947abd…6d7b`; without a server `eedc5b5c…cf0d`) in the four bytes at file 0x35F0B, two bytes of an address at file 0x8410C8, the revision byte and the PE checksum, and in nothing else (compared byte by byte). The built exe was started in both situations of patch 10, not past the sign-in screen, before the release; the first sign-in with revision 4 on the players' server was logged three minutes after it. It plays together with revision 3 |
 | Revision 3 | Revision 3 is revision 2 with patch 9 (the battery rule). **It was the players' download from 2026-10-13 12:22 to 15:36 UTC** (the rows below are the downloads so far): it and the revision 2 exe differ in the 13 bytes of patch 9, the revision byte and the PE checksum, and in nothing else (compared byte by byte). Its rule was run outside the game (`run_battery_rule.ps1`). Eight sign-ins with revision 3 were logged in those hours; whether one of them played a match to a team's last battery was not looked at. A game of revision 3 or later and an older one part at a team's last battery (patch 9) |
 | The players' download | `Survarium-0.26g-srp-files.zip` of skhid.link (and 026g.skhid.link), since 2026-10-13 15:36 UTC: 6 793 103 bytes, sha256 `29b2ac002a1787c1352d021065f18a87ea5caa66fb16298c8e603a5347416bb4`, 23 files, made by `make_client_026g.py --pack-zip --server=skhid.link:1234 --localization=english` of `main` dbd70f0 with `--bugtrap=` naming the build of `client/bugtrap` that had been run in the game (that DLL does not build to the same bytes twice). It differs from the download before in two files: the game exe (sha256 `ae3ddf43f38eecb9e5080b10aa6b8397ce5dbed0f133b381461c82cb17329f25`, patch revision 4: patch 10) and `bugtrap.dll` (39 936 bytes, sha256 `9e3295c1312854c455c474e1dbd457b0a792b5ae406ff0b55d3b19b4f2fc4353`: the start-up notice of `client/bugtrap/README.md`); the other 21 files are byte for byte the same. Built twice: the same ZIP. Checked after the replacement: `/api/client-files` and `/download` of both names give this sha256. No restart: nothing on the server changed |
@@ -90,8 +91,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_late_join_026g.py`, `test_late_join_runtime_026g.c` | Checks of the late-join code: the first runs the patched machine code on made-up objects (needs Unicorn 2.1.4), the second the C bookkeeping under the sanitizers |
 | `check_fov_026g.py` | Runs the original and patch 22's camera projection, the game's matrix builder included, and compares the matrices (needs Unicorn) |
 | `check_fov_lod_026g.py` | Runs patch 40 (a model's LOD and screen factor at a wider field of view are the original's): the projection's k at several settings and zooms, the game's select_lod and screen factor of the original and the build on made-up models (needs Unicorn) |
-| `pickup_below_026g.asm`, `pickup_below_026g.section.bin` | The source of patch 23's code and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `check_pickup_below_026g.py` | Runs the original and patch 23's use scan on made-up ray hits (needs Unicorn) |
+| `check_use_scan_026g.py` | Runs the original's use scan and the build's (patch 23, the Rust `use_scan`) on made-up ray hits; `--against <exe>` requires another build (the asm patch 23's) to answer every case the same (needs Unicorn) |
 | `replay_seek_026g.asm`, `replay_seek_026g.section.bin` | The source of patch 26's code (a replay's seek empties the weapons' sound queues) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `default_server_026g.asm`, `.section.bin`, `.hash-mismatch.bin` | Optional default-login-address stub, appended to the snapshot cave; source and assembled code for both placements |
 | `make_client_026g.py` | Makes the players' overlay folder or ZIP: patched exe, Rust BugTrap DLL, certificate, start file and README; with the launcher, DXVK 3.1.1's x32 DLLs (`winetricks dxvk`'s set: d3d8, d3d9, d3d10core, d3d11, dxgi) in `game/binaries/x86/dxvk/` (its release archive and DLLs pinned, downloaded once into `~/.cache/skhid`; `../docs/notes/dxvk-option.md`) |
@@ -126,6 +126,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
+| `rust/patches/src/use_scan.rs`, `src/use_scan/rule.rs`, `src/use_scan.toml`, `src/vostok/use_scan.rs`, `check_use_scan_026g.py` | Patch 23 and the use scan it lives in: `base_player::detect_usable_object` (0x2D84C0) whole in Rust, a lohook at its start leaving by its `ret 8` (section 23); the rule (`rule.rs`) is pure, the game's calls `vostok`'s; patch 85 asks it whether Use is the game's |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
@@ -140,6 +141,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
 | `rust/patches/src/unplayed_match.rs`, `src/unplayed_match.toml`, `src/vostok/match_close.rs`, `check_unplayed_match_026g.py` | Patch 120: a match its game never played (the time rule's state 0: the handshake, a level loading, a level loaded before its first world) closes too, kicked, timed out, cut off or given its farewell: five lohooks (connect_to_match's connect, the logoff, close_current_match's guard, on_project_loaded's abort test, on_match_ready's end); its check runs each from the game's code on a made-up network client, the original beside (needs Unicorn; `../docs/notes/client_patch.md` section 3.74) |
 | `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
+| `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
+| `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
+| `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -450,7 +454,7 @@ the game **from `game\binaries\x86`** (it finds the certificate by a path
 relative to where it is started):
 
 ```
-survarium_skhid.exe -localization=english -server=<host>:<login port> -mt_allocator=768 -minimum_resources_memory_size=768
+survarium_skhid.exe -localization=english -server=<host>:<login port> -minimum_resources_memory_size=768
 ```
 
 Or let `make_client_026g.py` do all of it, without touching the game folder.
@@ -1504,18 +1508,33 @@ or beyond 2 m is taken only if it is a battery whose centre is below the
 player's feet and at most 1 m from them across: down to about 2.3 m,
 through more than one floor too. Look down at the battery and press use. A battery in plain view within 2 m is taken as before; one
 seen through a wall at one's own height is not, nor is anything else
-behind a wall (containers, traps). The code (`pickup_below_026g.asm`) is
-at `.srp`+800h; `../docs/notes/client_patch.md` section 3.23 has the details.
+behind a wall (containers, traps). `../docs/notes/client_patch.md` section
+3.23 has the details.
+
+**In Rust** (2026-11-07): the whole of `detect_usable_object` is the Rust
+patch `use_scan` (`rust/patches/src/use_scan.rs`; until then
+`pickup_below_026g.asm` at `.srp`+800h, three hooks inside the native
+scan). One lohook at the function's start (`use.detect`) runs the game's
+rule and patch 23's (`use_scan/rule.rs`, no address in it) over the game's
+own calls, each the one the native makes, in its order (`vostok/use_scan.rs`:
+the world's `ray_query`, each hit's collision group and collision
+geometry, `query_objects_by_type` with the cast to usable, `can_use`, a
+battery's `get_transform`, the multithreaded allocator's frees), and leaves
+by the function's `ret 8`. Patch 85 (a dropped gun) asks the same scan
+first: what Use takes in the game now (a battery lying by a body's gun, a
+container, a crate, a trap) has no gun prompt and Use goes to the game.
 
 **Revisions.** Every game runs every player's use: a game of 11 takes a
 battery an older game leaves, so they part there; a server asks for 11
 (patch 21 already made it ask).
 
-Checked: `selftest_026g.py` check 24 (the sites, the code and where it
-leaves to, the battery's vtables), the relocation and byte checks of the
-late join; `check_pickup_below_026g.py` runs the original and the build's
+Checked: `check_use_scan_026g.py` runs the original and the build's
 scan on made-up hits (it says nothing about what the real collision world
-returns). Run in a game (2026-10-15, two games on Keln): a battery stuck
+returns); with `--against` a build of the asm patch 23 (main 87e5a379f)
+answers its 72 scans the same (the answer, the point, the ray, every call
+in order, the frees as a set; an across of 0.98 m is caught);
+`cargo test` of the rule; `check_engine_026g.py` for its seven
+functions (five virtual, their 61 vtables.tsv rows from the RTTI). Run in a game (2026-10-15, two games on Keln): a battery stuck
 under the floor was picked up, with a test build that called the base
 `get_transform` directly. **Not run:** this revision's exe; Windows.
 
@@ -2222,6 +2241,9 @@ checksum and in nothing else (compared byte by byte); `--no-late-join`,
 **Not run:** a game.
 
 ### 37. Memory defaults match the launcher
+
+(The multithreaded arena's half of this patch, at 0xE100F, was replaced by patch 129: the arena is
+at least 1024 MiB, with or without `-mt_allocator`. The resource floor below is still this patch.)
 
 When memory options are absent, the full client now defaults to a 768 MiB
 multithreaded arena and a 768 MiB resource-memory floor, matching the existing
@@ -4947,3 +4969,232 @@ for an open match never played:
 A played match (states 1-3, a resync's) and a closed one go as before (patch 119's path for a kick).
 Nothing a match computes. Checked with `check_unplayed_match_026g.py` (Unicorn) and the patch crate's
 tests. Not run in a game.
+
+## Room for the resources helper and render arenas (patch 124, unreleased)
+
+A match load with many decorated players (about 800 camouflage and decal bakes) runs out of two
+fixed engine arenas: `out of memory in arena "resources helper allocator"` (8 MiB, 93-96 % used) or
+`out of memory in arena "render"` (224 MiB). The rev54 test build, one headless client with 19 bots
+wearing live players' gear: 0 of 4 loads got through the stock sizes (2 helper, 2 render); with
+`-rh_allocator=32 -render_allocator=320` on the command line 3 of 3 were clean.
+
+**The patch** (`ARENA_DEFAULTS` in `patch_026g.py`, the builds with the late join): the two
+defaults, so every way of starting the game (the launcher, the Linux and macOS scripts, a replay)
+gets them. One immediate each:
+
+- `memory::preinitialize` (0xE0F20) stores 8 MiB in bytes as the u32 the key's reader
+  (`is_set_as_number<u32>` 0x141B0, rh_allocator 0xA80380) writes a value to:
+  `mov dword [esp+10h],800000h` at 0xE1099 becomes `2000000h`, 32 MiB. A value given is still MiB,
+  `shl eax,14h`.
+- `engine_world`'s constructor (0x13660) has 224 in EDI before the reader for render_allocator
+  (0xA7C088): `mov edi,0E0h` at 0x13A95 becomes `mov edi,140h`, 320 MiB. A value given is still
+  raised to at least 224 (the `cmp edi,0E0h` at 0x13AA7 is kept), then times 1 MiB.
+
+Past these sizes the arena's full allocation still ends the game in out_of_memory_with_crash.
+Nothing a match computes; a game with it and one without play together.
+
+**The address space.** The arenas are reserved at the start (memory::allocate_region 0xE1120,
+platform::allocate_arenas 0xE9580). The engine sums the fixed arenas and sizes the resource arenas
+and its video budget from the address space left; the resource arenas keep their 768 MiB floor
+(patch 37). In the test logs the engine's total went from 1 944 846 328 to 2 070 675 448 bytes
+(+120 MiB) of the 4 GiB of the large-address-aware process, the resource arenas stayed 512 + 256
+MiB, and the video budget (the address space left for the driver) went from 1 848 233 992 to
+1 722 507 272 bytes. Nothing else in the exe reads the old sizes: the arenas keep their size from
+the registration.
+
+`check_memory_defaults_026g.py <original exe>` (Unicorn 2.1.4) runs both spans, from the key's read to
+the registration (0xE108F..0xE10D7, 0x13A81..0x13AF4), with the native `is_set_as_number<u32>` and
+a stubbed key reader: absent or not a number, the original's 8 and 224 MiB and the build's 32 and
+320; values given (helper 4 to 64, render 100 to 512) the same size in both, 100 raised to 224.
+Against the build without it, the default build differs in the four bytes of the two immediates and
+the PE checksum. The built exe was not run in a game: the runs above gave the same sizes as options.
+
+## The game tells how much memory it has left (patch 126, unreleased)
+
+The game is a 32-bit process: its address space is cut at the start into fixed arenas and what is
+left for the video driver, and a full arena (or a driver without room) ends the game. We sized the
+arenas from a handful of crash dumps (patches 36, 37, 78, 124); these reports give the real margins
+of players' games. The rules: `../docs/notes/memory-report.md`; the reading: `../docs/notes/client_patch.md`
+section 3.76.
+
+**The patch** (`memory_report`, Rust, two lohooks; `vostok::memory`, `srp_validate::memory`). When a
+match connection's first world is in (`world_load.loaded`, order 3) and when the match closes on the
+game (close_current_match's entry, `match_recovery.close`, order 1, only after a first world), a
+snapshot: the address space's free bytes and largest free region (`VirtualQuery`), the engine's video
+budget, and every arena of the engine's list with its name, size and use: a doug_lea heap walked
+chunk by chunk (used, largest free block), the managed resources' and the multithreaded region's
+counts, unknown otherwise. Nothing of the engine's is called: its size queries walk heaps other
+threads use without a lock; ours reads only inside each arena, checked readable, and gives up on a
+torn walk (a clean one can be slightly stale). The snapshot is written to `srp_patches.log` (a line for the process, one an arena) and
+sent in the generic client-report carrier (`srp_validate::report`: 0xE0, prefix
+`ff ff ff ff ff ff 03 00`, the match id, the kind, part and parts), all parts at once or none,
+through patch 97's one 0xE0 path (`Connection::tell`).
+
+**The server.** The match server logs each part once per connection, of its own match only, to
+`logs/memory.log` (16 files of 4 MB): `<name> (account <id>), match <id>, loaded, part 1/2: process
+free <bytes> largest <bytes> video <bytes> | arena "render" size <bytes> used <bytes> largest <bytes> | ...`.
+`release/moderate memory` lists each arena, tightest first, with its least room left and least largest
+free block, and the address space's least largest free region, with who and when. An older server takes
+a carrier alone in its datagram for a chunk whose offset is past its total and ignores it, but it
+refuses a whole multi datagram that carries one (it cannot measure the carrier): the server ships in
+the same release as the patch or earlier. The transport measures the carrier with the codec's own
+`srp_validate::report::carrier_len`.
+
+Nothing a match computes. Checked with `srp-validate`'s tests, the patch crate's tests and Clippy, and
+the match server's test. Not run in a game.
+
+## Engine threads get 2 MiB stacks (patch 128, unreleased)
+
+Every thread the engine starts had an 8 MiB stack, committed: 57 of them in a 19-bot match on a
+24-thread CPU, 456 MiB of the 32-bit process's 4 GiB. The deepest touched 536 KiB, 51 of 56 never
+more than 64 KiB (2026-11-09, under Wine, the bake-stress load: map 61, 777 camouflage/decal bakes,
+about 5 minutes of play).
+
+**The patch** (`THREAD_STACKS` in `patch_026g.py`, the builds with the late join): one immediate.
+`threading::spawn` (0xE3770) gives `spawn_internal` (0xE0930) a fixed size, `mov edx,800000h` at
+0xE37BA (file 0xD2BBA), whatever the thread; `spawn_internal` passes it to CreateThread with flags
+0. It becomes `mov edx,200000h`. Every engine thread goes through it: splash, sound, network,
+logic, hdd, dvd, res_man, res_cook, process termination and the task pool's 2 x min(32, cores)
+"task #n" (the count at 0xE425E, the spawn at 0xFC4F1). The game's main thread (1 MiB, the exe's
+own reserve) and the threads of the CRT, the driver and Wine are not engine threads.
+
+On Windows the size is committed (no STACK_SIZE_PARAM_IS_A_RESERVATION) and, above the exe's 1 MiB
+reserve, is the reserve too: 6 MiB of address space and commit charge freed a thread. 150 MiB with
+8 logical CPUs, 342 with 24, 438 with 32.
+
+`platform::allocate_arenas` still counts (threads x 2 + 8) x 8 MiB of stacks into "engine(fixed)"
+(0xE98C2..0xE98CB) for its budget (patch 129 makes that term 2 MiB): kept here, so the resource arenas and the video budget are sized
+byte for byte as before and the space freed stays free. Lowering that term too would size them
+from the real stacks, and would keep a CPU with very many threads (64 and more: 1088 MiB counted
+there, without the pool's cap of 32) from failing the "Not enough memory" check at the start
+(read in the code, never seen).
+
+**Frames above 2 MiB.** Every frame over 4 KiB calls `_chkstk` (0x429F20) with its size: 1754 of
+them, 6 above 256 KiB. `network_client::draw_match_stats` (0x27F780, 5.8 MiB) runs on the logic
+thread, from game::tick, only when `-net_stats` is on the command line: with this patch that
+option overflows the logic thread's stack. Nothing we ship passes it. The other one above 2 MiB,
+`static_render_surface::add_shadow_vertices` (0x16E550, 2.4 MiB), LIKELY never runs: in 0.10b
+only `shadow_batched_geometry::build` calls it, and in 0.26g the scene's shadow geometry
+(scene+410B6Ch, the one such object) is referenced only by the scene's constructor and
+destructor. Neither ran in the measured game (a `_chkstk` touches every page of its frame). The
+rest: `on_fs_iterator_materials_ready` (0x1176E0, 560 KiB), three
+`scene::gather_streamable_textures` (276-278 KiB), none above 72 KiB after them; the 21 calls whose
+size is not a `mov eax` just before take 4 to 40 bytes. The recursion guards in the exe are
+Scaleform's (the main thread). Not proven: how deep a chain of calls or a recursion goes on an
+engine thread outside the measured game.
+
+Nothing a match computes. `check_memory_defaults_026g.py` runs threading::spawn from 0xE37BA into
+spawn_internal to its CreateThread call in both exes: 8 MiB and flags 0 in the original, 2 MiB and
+flags 0 in the build. Against the build without it, the default build differs in one byte (file
+0xD2BBD, 80h to 20h) and the PE checksum.
+
+Run in the bake-stress rig (2026-11-09, one headless client under Wine/DXVK, 19 bots, map 61,
+the build of main with it against the same build with 8 MiB): 52 or 53 stacks of 2 MiB and none of
+8 MiB, the deepest touched 540 KiB; the address space in use in the match at most 2757-2773 MiB
+against 3085 MiB. Three of four loads clean; the fourth filled the multithreaded arena 17 s after
+Play, as one of the two loads with 8 MiB did. Not run on native Windows, nor with a replay, a late
+join, the death camera or another map.
+
+## The multithreaded arena: at least 1024 MiB (patch 129, unreleased)
+
+In the bake-stress load (one headless client, 19 bots in live players' gear, map 61, an empty
+`streamed_textures`, about 780 bakes) the global multithreaded arena (768 MiB, patch 37) filled 17 s
+after Play in 2 of 6 loads, 795 and 800 of 805 MB used, `not enough memory for arena [global mt
+allocator]`, with 8 MiB stacks and with 2 MiB ones. The memory profiler (patch 127, not merged) saw
+it peak at 760 of 768 MiB in one such load, mostly one 410 MiB transient block from
+`query_result::finish_translated_query`. Patch 128 freed about 312 MiB of peak address space; this
+patch spends 256 of it on that arena.
+
+**The patch** (`MT_ARENA` in `patch_026g.py`, the builds with the late join): three immediates.
+
+- `memory::preinitialize` (0xE0F20) presets the u32 that `is_set_as_number<u32>` (0x141B0) writes
+  the key `mt_allocator` (0xA80150) to: `mov dword [esp+10h],1000000h` at 0xE0FFA. Without the key
+  the code added 360 MiB to that preset (patch 37: 752); with it, `shl esi,14h`. The preset
+  becomes 400h (1024) and the two branches (0xE100B..0xE1019) one floor: `mov eax,400h` /
+  `cmp esi,eax` / `cmovb esi,eax` / `shl esi,14h`. No key or a key that is no number: 1024 MiB; a
+  value under 1024: 1024; a larger one: itself.
+- `platform::allocate_arenas` (0xE9580) counts (threads x 2 + 8) x 8 MiB of engine-thread stacks
+  into "engine(fixed)" (`mov ecx,800000h` at 0xE98C6) before it sizes the resource arenas and the
+  video budget from the address space left. The 8 MiB becomes patch 128's `THREAD_STACK_MIB` (2):
+  the budget counts the stacks there are. "engine(fixed)" changes by 256 - 6 x (2 x threads + 8)
+  MiB: +160 on 4 threads, +112 on 8, +64 on 12, +16 on 16, less from 18 on (-80 on 24). On a
+  machine limited by its address space, the budget moves by the opposite (here, 24 threads:
+  1643 -> 1723 MiB), and machines with fewer threads start from a budget higher by the same
+  amount, so every one stays above 1 GiB. It also takes the start's "Not enough memory" check
+  away from very large CPUs (64 threads counted 1088 MiB there).
+
+**Machines limited by RAM** (read in the code, not run). `calculate_desirable_resource_arenas`
+(0xE8DC0, 0.10b `memory_win.cpp`) also bounds everything by RAM: the physical memory (0x1B3A1D0)
+less the kernel's (0x1B3A200, at least 512 MiB) less "engine(fixed)" must be at least 320 + 768
+MiB, or the game stops at its start ("Not enough memory to run Vostok Engine"); the budget is then
+at most that less the 768 MiB floor. On fewer than 18 threads "engine(fixed)" grows (above), so
+on such a machine the budget drops by the same 160, 112, 64 or 16 MiB, and patch 124 (the same
+release) adds 120 MiB on every machine. With the kernel at its 512 MiB floor, the RAM Windows
+reports where each line falls, live revision 53 -> with patch 129 -> with patches 124 and 129:
+
+| Threads | Budget under 1 GiB (auto level 3, 0x3CF260 1024 not 2048) | Under 640 MiB (0x3CF260 512) | The start refuses |
+|---|---|---|---|
+| 4 | 3519 -> 3679 -> 3799 MiB | 3135 -> 3295 -> 3415 MiB | 2815 -> 2975 -> 3095 MiB |
+| 8 | 3583 -> 3695 -> 3815 MiB | 3199 -> 3311 -> 3431 MiB | 2879 -> 2991 -> 3111 MiB |
+| 16 | 3711 -> 3727 -> 3847 MiB | 3327 -> 3343 -> 3463 MiB | 3007 -> 3023 -> 3143 MiB |
+
+So a "4 GiB" PC that reports about 3.5 to 3.8 GiB, on 16 threads or fewer, can now get the lower
+automatic level and the 1024 size where it had the higher; a "3 GiB" PC that reports about 2.8 to
+3.1 GiB can now refuse to start where it started. A larger kernel moves each line up by as much.
+On 18 or more threads patch 129 lowers the lines (patch 124 still adds its 120). No change here
+keeps today's numbers on few threads simply; it is left as it is.
+
+**The one owner of the number** is the exe (`MT_ARENA_MIB`). No launch line passes `-mt_allocator`
+any more (the launcher's arguments, the Linux and macOS scripts, `play_skhid.bat`, the updater's
+replay, `Skhid-without-updater.bat`, the local clients); they keep
+`-minimum_resources_memory_size=768`. A launcher or a script of before still passes
+`-mt_allocator=768`, which the floor raises to 1024: a new exe gets 1024 MiB with any launcher, an
+old exe (patch 37) 768 MiB with any, as today. A cert-only build (no patch 37 either) gets the
+retail 376 MiB without the key; it is no players' build.
+
+**The video budget** (u64 0x1B3A1F8, the startup dump's "video memory stats for engine") is not
+reserved: it is the address space the engine leaves for the driver. The render gets it at its
+creation (engine_world 0x15574 -> render::world -> render::engine::world 0x117820 -> device+1B0h
+and resource_manager+10h) and reads it only against thresholds: above 1 GiB or not (the automatic
+level 2 or 3, e.g. 0x1C96E0, 0x190508, 0x19377B, 0x11AB9C), 640 MiB and 1 GiB (512, 1024 or 2048,
+0x3CF260), and in the statistics (MiB, 0x13D766). 1643 or 1723 MiB is above both; a machine limited
+by RAM can fall under them (above).
+
+Nothing a match computes. `check_memory_defaults_026g.py` runs the key's read to the size stored
+in both exes (absent, not a number, 256 to 1536, 2048) and the stack term for 4 to 64 threads
+(8 MiB a stack in the original, 2 in the build). The self-test's default-build variant passes.
+
+Run in the bake-stress rig (2026-11-09, under Wine/DXVK, 24 threads, main + this patch): 6 of 6
+loads clean, about 5 minutes in the match each; 3 with the launch line without the key, 3 with the
+old `-mt_allocator=768`; all 6 logged the arena at 1 073 741 824 bytes, the engine's arenas at
+2 339 110 904 bytes (+256 MiB), the resource arenas 512 + 256 MiB, the video budget 1806.5 to
+1806.8 MB (1723 MiB, from 1643). The arena's touched extent peaked at 558 to 816 MiB (816 is past
+the old arena's end), the address space mapped below 4 GiB at 3001 to 3037 MiB (2757 to 2773 with
+768 MiB, 3085 before patch 128). With 1024 MiB a 760 MiB peak has 264 MiB to spare; the 410 MiB
+transient needs one hole of its size, so two at once would not fit. Not run on native Windows, nor
+with a replay, a late join or another map.
+
+## The memory profiler (patch 127, unreleased)
+
+What fills the engine's fixed arenas (the "render" arena full live on 2026-11-08, "ai" on 2026-10-17)
+was known from one dump walked by hand. Patch 127 counts every block of the engine's heaps to its arena
+and the place in the game that asked for it. It is the owner's tool, and a worker's when a local test
+needs it; players never set its switch: `SKHID_MEMORY_PROFILE=on` in the game's environment (the owner:
+`SKHID_MEMORY_PROFILE=on ./Skhid-local.sh launcher`; Windows: `set` it before `Skhid.bat`; run.py passes
+it on only when it is started with it).
+
+**Off** (every player's game): the exe keeps the game's bytes where the profiler hooks the allocator. Its
+five gates (dlmalloc's `mspace_malloc`, `mspace_realloc`, `mspace_free`, ptmalloc3's two frees of a mapped
+block) and its out-of-memory lohook are linked but installed on demand (`install = "on_demand"`,
+hooks_026g.py): no instruction more on any allocation or free. What runs: `memory.arenas_ready` once at
+the start, and one call per world loaded and per match closing in lohook chains other patches already
+have. **On**: at the start (`vostok::memory_profile::start`, checked to run in allocate_region's frame, once,
+while only the main thread runs) every site and page is readied, 16.8 MiB of tables reserved with VirtualAlloc,
+then the six jumps written (VirtualProtect, the write, the protection back, FlushInstructionCache); a refusal
+at any step writes nothing and gives everything back. Snapshots are
+written to `srp_memory_profile.txt` in the user data folder when a world is in, when a match closes, before
+a full arena ends the game, and at Scroll Lock (polled by the gates); the tables are behind a lock whose
+waiters yield after a few spins (`vostok::YieldingLock`). `../scripts/memory-profile/analyze.py`
+prints each arena's use, holes and top call sites by live and peak bytes (named from the re-kit) and the
+address-space budget. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
+`check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.

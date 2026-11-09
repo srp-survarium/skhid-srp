@@ -100,7 +100,7 @@ installs whenever the ZIP's checksum changes.
    "Server maintenance..." and PLAY is off. Is it back, or does it offer a
    new ZIP, the window closes and opens again by itself and updates. So
    PLAY never starts a game the server would refuse as outdated.
-6. PLAY (or Enter) starts `survarium_skhid.exe -mt_allocator=768
+6. PLAY (or Enter) starts `survarium_skhid.exe
    -minimum_resources_memory_size=768` from `game\binaries\x86`, and the
    launcher closes. Since game patch 79 (`../../docs/notes/language-option.md`)
    it passes no `-localization=`: the game's language is the one chosen in
@@ -487,7 +487,7 @@ found: `../../docs/notes/launcher.md`.
   | `file to execute` | `<the launcher's folder>\survarium_skhid.exe` |
   | `working folder` | `<the launcher's folder>` |
   | `launcher` | the launcher's own path |
-  | `arguments` | `-mt_allocator=768 -minimum_resources_memory_size=768` |
+  | `arguments` | `-minimum_resources_memory_size=768` |
   | `update server` | the site's host (the new updater does not use it) |
 
   Every other name goes on to the registry as before; these four functions

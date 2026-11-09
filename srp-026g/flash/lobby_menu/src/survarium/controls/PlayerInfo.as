@@ -13,7 +13,6 @@ package survarium.controls
    import survarium.constants.QuickSlotSize;
    import survarium.constants.ClanState;
    import survarium.constants.Faction;
-   import survarium.constants.PremiumState;
    
    public class PlayerInfo extends MovieClip
    {
@@ -73,10 +72,6 @@ package survarium.controls
       public static var clanState:uint = ClanState.RESERVE;
       
       public static var genericMoney:uint = 0;
-      
-      public static var premiumState:uint = PremiumState.NONE;
-      
-      public static var premiumLeft:String;
       
       public static var questRewardsMultiplierReputation:Number = 1;
       

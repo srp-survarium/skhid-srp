@@ -751,6 +751,36 @@ pub extern "C" fn hook_artefact_skills_on_world_loaded(frame: &mut Frame) -> u32
     }
 }
 
+// ---- memory_report (patch 126) ----
+
+/// The entry `memory_report_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_report_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_report_on_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_report::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- memory_profile (patch 127) ----
+
+/// The entry `memory_profile_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_profile_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_profile::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_async (patch 121) ----
 
 /// The named exits of bake_async::on_issue (the order the shim's Flow code
@@ -2082,21 +2112,6 @@ pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- medical_skills (patch 94) ----
-
-/// The entry `medical_skills_on_listener` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_listener(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_listener` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_listener(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
 // ---- subtick_hits (patch 103) ----
 
 /// The entry `subtick_hits_on_ray` (0x32d627, check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)) calls this with the saved machine.
@@ -2513,21 +2528,6 @@ pub extern "C" fn hook_lobby_scene_on_activate(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- medical_skills (patch 94) ----
-
-/// The entry `medical_skills_on_lobby` (0x21d2e0, lobby_menu::on_activate's start (push ebp / mov ebp,esp / and esp,-8; its vtable+0, 0x9FFE74): ECX the lobby menu, about to be shown again (after a match, or the sign-in)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_lobby(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_lobby` calls this, from the game's jump at 0x21d2e0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_lobby(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
 // ---- music (patch 88) ----
 
 /// The entry `music_on_unload` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
@@ -2775,148 +2775,118 @@ pub extern "C" fn hook_medical_skills_on_stopping(frame: &mut Frame) -> u32 {
 
 // ---- medical_skills (patch 94) ----
 
-/// The entry `medical_skills_on_voice_gain` (0x5c73e, notify_listener2 at a voice's volume (movss [esp],xmm1 after mulss xmm1,xmm0: the options' volume_k times amplitude 0x5C717 or the propagator's gain; the push before it is set_volume_impl's argument, its only caller 0x5C743, which clamps it to [0, 1]): the sound thread, EDI the propagator, XMM1 the volume) calls this with the saved machine.
+/// The entry `medical_skills_on_sway` (0x31d727, breath_vibration_calculator::tick after apply_modifier of breath_vibration (61) at 0x31D722, before it stores the result (mov eax,[ebp+0Ch] / fild dword [ebp+0Ch], then movss [esp+10h],xmm0 at 0x31D72D): XMM0 the dispersion that drives the aimed weapon's sway, B x max(0, 1 + S61); EDI the calculator (weapon+288h), EBP the tick's frame) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_voice_gain(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_voice_gain` calls this, from the game's jump at 0x5c73e,
+pub extern "C" fn hook_medical_skills_on_sway(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_sway` calls this, from the game's jump at 0x31d727,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_voice_gain(&mut ctx) {
+    match crate::medical_skills::on_sway(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
     }
 }
 
-// ---- medical_skills (patch 94) ----
+// ---- memory_profile (patch 127) ----
 
-/// The entry `medical_skills_on_proxy_allocated` (0x65484, new_helper<sound_instance_proxy_internal> after its free-list pop (0x654E0), before the count's lock xadd (mov edx,1): EAX the record for the new proxy, or 0 when every one is taken; the point, hud and spot proxies' one allocation (0x6509A, 0x65243, 0x653EA), before their constructors) calls this with the saved machine.
+/// The entry `memory_profile_on_start` (0xe12bf, allocate_region (0xE1120) after memory::initialize (0xE12D0) made each registered allocator's heap in its arena (lea esp,[ebp-58h] / pop edi / pop esi / pop ebx): every arena is where it stays while the game runs; patch 127 reads SKHID_MEMORY_PROFILE here, once) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_proxy_allocated(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_proxy_allocated` calls this, from the game's jump at 0x65484,
+pub extern "C" fn hook_memory_profile_on_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_start` calls this, from the game's jump at 0xe12bf,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_proxy_allocated(&mut ctx) {
+    match crate::memory_profile::on_start(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
     }
 }
 
-// ---- medical_skills (patch 94) ----
+// ---- memory_profile (patch 127) ----
 
-/// The entry `medical_skills_on_object_sound` (0x294a6f, object_sound::insert before it plays its looped proxy (mov edx,[esi] / mov eax,[edx] / push 0; vtable +0, mode 1): ESI the spot (emit_spot_sound 0x294981) or point (emit_point_sound 0x294A1A) proxy it keeps at +160h) calls this with the saved machine.
+/// The entry `memory_profile_on_allocated` (memory_profile.allocated, patch 127's gates (memory_profile_026g.asm) after mspace_malloc or mspace_realloc returned: cdecl, the ESP of the game's call and the memory (0 none); the caller keeps every register and pops the two) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_object_sound(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_object_sound` calls this, from the game's jump at 0x294a6f,
+pub extern "C" fn hook_memory_profile_on_allocated(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_allocated` calls this, from our own code's call (memory_profile.allocated),
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_object_sound(&mut ctx) {
+    match crate::memory_profile::on_allocated(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
     }
 }
 
-// ---- medical_skills (patch 94) ----
+// ---- memory_profile (patch 127) ----
 
-/// The entry `medical_skills_on_zone_sound` (0x298cf8, damage_zone::emit_sound after emit_point_sound (0x298CF3; mov eax,[eax] / xor ecx,ecx / test eax,eax): EAX its out slot, the new proxy or 0) calls this with the saved machine.
+/// The entry `memory_profile_on_freeing` (memory_profile.freeing, patch 127's gates before mspace_free or mspace_realloc: cdecl, the ESP of the game's call and the memory given back; the caller keeps every register and pops the two) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_zone_sound(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_zone_sound` calls this, from the game's jump at 0x298cf8,
+pub extern "C" fn hook_memory_profile_on_freeing(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_freeing` calls this, from our own code's call (memory_profile.freeing),
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_zone_sound(&mut ctx) {
+    match crate::memory_profile::on_freeing(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
     }
 }
 
-// ---- medical_skills (patch 94) ----
+// ---- memory_report (patch 126) ----
 
-/// The entry `medical_skills_on_weapon_sound` (0x297f7e, weapon_sound_effect::play_sound_callback with its new proxy (mov eax,[eax] / xor ebx,ebx / xor edi,edi), where the hud (0x297F5E) and point (0x297F79) paths join: EAX the out slot, the effect at [esp+24h]) calls this with the saved machine.
+/// The entry `memory_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_weapon_sound(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_weapon_sound` calls this, from the game's jump at 0x297f7e,
+pub extern "C" fn hook_memory_report_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_report_on_close` calls this, from the game's jump at 0x27a790,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_weapon_sound(&mut ctx) {
+    match crate::memory_report::on_close(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
     }
 }
 
-// ---- medical_skills (patch 94) ----
+// ---- packet_recovery (patch 97) ----
 
-/// The entry `medical_skills_on_once_point` (0x6587f, emit_and_play_once's point path with its new proxy (mov ebx,eax / inc dword [ebx+28h], after new_point 0x65874 and its test of 0): EAX the proxy, not yet played (vtable +0 at 0x658FD); EBP its frame) calls this with the saved machine.
+/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_once_point(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_once_point` calls this, from the game's jump at 0x6587f,
+pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_once_point(&mut ctx) {
+    match crate::packet_recovery::on_close(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
     }
 }
 
-// ---- medical_skills (patch 94) ----
+// ---- memory_profile (patch 127) ----
 
-/// The entry `medical_skills_on_foot_step` (0x2a6563, on_foot_step before step_manager::on_step (0x2A6572), its step manager found (mov edx,[esp+8] / mov eax,[esp+14h]): ESI the effect) calls this with the saved machine.
+/// The entry `memory_profile_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_foot_step(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_foot_step` calls this, from the game's jump at 0x2a6563,
+pub extern "C" fn hook_memory_profile_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_close` calls this, from the game's jump at 0x27a790,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_foot_step(&mut ctx) {
+    match crate::memory_profile::on_close(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
     }
 }
 
-// ---- medical_skills (patch 94) ----
+// ---- memory_profile (patch 127) ----
 
-/// The entry `medical_skills_on_foot_stepped` (0x2a6577, on_foot_step's return (pop edi / add esp,8 / ret 8), after on_step and on the path without a step manager (the je at 0x2A6561)) calls this with the saved machine.
+/// The entry `memory_profile_on_out_of_memory` (0xe4d70, out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug_lea_allocator, first time), a fixed arena's heap callback: it logs "out of memory in arena", dumps the statistics and FATALs; EBP the bytes asked when it returns to mspace_malloc (heap_out_of_memory_return)) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_foot_stepped(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_foot_stepped` calls this, from the game's jump at 0x2a6577,
+pub extern "C" fn hook_memory_profile_on_out_of_memory(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_out_of_memory` calls this, from the game's jump at 0xe4d70,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_foot_stepped(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- medical_skills (patch 94) ----
-
-/// The entry `medical_skills_on_landing_step` (0x1f3b97, player::on_landing before its landing step (0x23FBE0, which may call on_step at 0x23FC2C), its step manager found (mov edx,[edi+324h]): EDI the player) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_landing_step(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_landing_step` calls this, from the game's jump at 0x1f3b97,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_landing_step(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- medical_skills (patch 94) ----
-
-/// The entry `medical_skills_on_landing_stepped` (0x1f3bbb, on_landing's return (pop edi / pop esi / pop ebp / pop ebx / add esp,8), after the landing step and on the path without a step manager (0x1F3B68)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_landing_stepped(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_landing_stepped` calls this, from the game's jump at 0x1f3bbb,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_landing_stepped(&mut ctx) {
+    match crate::memory_profile::on_out_of_memory(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3078,21 +3048,6 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
     let result = unsafe { QueryResults::from_raw(&thread, a0) };
     let tag = QueryTag::from_raw(a1 as usize as u32);
     { crate::music::on_query_done(result, tag); 0 }
-}
-
-// ---- packet_recovery (patch 97) ----
-
-/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::packet_recovery::on_close(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
 }
 
 // ---- ragdoll (patch 76) ----
@@ -3436,6 +3391,26 @@ pub extern "C" fn hook_unplayed_match_on_ready(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- use_scan (patch 23) ----
+
+/// The named exits of use_scan::on_detect (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum UseScanOnDetectExit { Returned }
+/// The entry `use_scan_on_detect` (0x2d84c0, base_player::detect_usable_object's start (push ebp / mov ebp,esp / and esp,-8): every use scan (a use's start 0x2D8900, its tick 0x2D86AD, the prompt 0x246FCD); ESP+4 the player, +8 the point or 0; returned is its `ret 8` (0x2D8697), EAX the object) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_use_scan_on_detect(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `use_scan_on_detect` calls this, from the game's jump at 0x2d84c0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::use_scan::on_detect(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -3811,6 +3786,10 @@ pub extern "C" fn hook_packet_recovery_on_loaded_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_artefact_skills_on_world_loaded(frame);
     if flow != 0 { return flow; }
+    let flow = hook_memory_report_on_loaded(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_memory_profile_on_loaded(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -3926,8 +3905,6 @@ pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_lamps_on_present(frame);
     if flow != 0 { return flow; }
-    let flow = hook_medical_skills_on_listener(frame);
-    if flow != 0 { return flow; }
     0
 }
 
@@ -3943,19 +3920,21 @@ pub extern "C" fn hook_subtick_hits_on_ray_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_lobby_scene_on_activate_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_lobby_scene_on_activate(frame);
+pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_music_on_unload(frame);
     if flow != 0 { return flow; }
-    let flow = hook_medical_skills_on_lobby(frame);
+    let flow = hook_lobby_scene_on_game_closing(frame);
     if flow != 0 { return flow; }
     0
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_music_on_unload(frame);
+pub extern "C" fn hook_memory_report_on_close_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_memory_report_on_close(frame);
     if flow != 0 { return flow; }
-    let flow = hook_lobby_scene_on_game_closing(frame);
+    let flow = hook_packet_recovery_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_memory_profile_on_close(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -3985,6 +3964,46 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+// ---- memory_profile: its hooks installed on demand ----
+
+unsafe extern "C" {
+    fn memory_profile_malloc();
+    fn memory_profile_realloc();
+    fn memory_profile_free();
+    fn memory_profile_mapped_free();
+    fn memory_profile_hook_mapped_free();
+    fn memory_profile_on_out_of_memory();
+}
+/// memory_profile's sites that keep the game's bytes until it installs them.
+pub fn memory_profile_on_demand() -> [super::hook::OnDemand; 6] {
+    [
+        // memory_profile.malloc: mspace_malloc's entry (sub esp,8 / push ebx / push ebp; EAX the mspace, [esp+4] the bytes, cdecl, EA
+        // SAFETY: the site's span as the original exe has it; memory_profile_malloc is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x101330, &[0x83, 0xec, 0x08, 0x53, 0x55], memory_profile_malloc as *const () as usize as u32) },
+        // memory_profile.realloc: mspace_realloc's entry (mov ecx,[esp+8] / push esi; EAX the mspace, [esp+4] the memory, [esp+8] the 
+        // SAFETY: the site's span as the original exe has it; memory_profile_realloc is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1005a0, &[0x8b, 0x4c, 0x24, 0x08, 0x56], memory_profile_realloc as *const () as usize as u32) },
+        // memory_profile.free: mspace_free's entry (sub esp,0Ch / push edi / mov edi,eax; ESI the mspace, EAX the memory): patch 12
+        // SAFETY: the site's span as the original exe has it; memory_profile_free is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1015e0, &[0x83, 0xec, 0x0c, 0x57, 0x8b, 0xf8], memory_profile_free as *const () as usize as u32) },
+        // memory_profile.mapped_free: pt3free (0x106FC0; EAX the memory, then EDI) where a block mapped on its own (prev_foot bit 0) goes 
+        // SAFETY: the site's span as the original exe has it; memory_profile_mapped_free is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x10700a, &[0x83, 0xe2, 0xfe, 0x83, 0xe0, 0xf8], memory_profile_mapped_free as *const () as usize as u32) },
+        // memory_profile.hook_mapped_free: ptmalloc3's free hook (0x106D90, the pointer ptmalloc_init stores at 0x106E38; EAX the memory) where
+        // SAFETY: the site's span as the original exe has it; memory_profile_hook_mapped_free is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x106dac, &[0x83, 0xe3, 0xfe, 0x83, 0xe2, 0xf8], memory_profile_hook_mapped_free as *const () as usize as u32) },
+        // memory.out_of_memory: out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug
+        // SAFETY: the site's span as the original exe has it; memory_profile_on_out_of_memory is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0xe4d70, &[0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8], memory_profile_on_out_of_memory as *const () as usize as u32) },
+    ]
 }
 
 unsafe extern "C" { static lamps_visual_vtable: [u32; 3]; }

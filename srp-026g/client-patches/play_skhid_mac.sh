@@ -30,6 +30,7 @@ x86_64-windows/winemac.drv:x86_64-windows:603077293cb95f68ac9c675b5bf43f1e216587
 i386-windows/winemac.drv:i386-windows:723c6addf3c49d2a76ddfb947dc805f70adb59eae049f8a708231fee7e09d414"
 # Microsoft's PowerPoint Viewer 2007, which carries the font Calibri (the
 # game's UI asks for it); its cabinet starts at VIEWER_CAB in the file.
+# The same file as calibri_from_viewer's in play_skhid.sh: a bump changes both.
 VIEWER_URL=https://downloads.sourceforge.net/project/mscorefonts2/cabs/PowerPointViewer.exe
 VIEWER_SHA256=c4e753548d3092ffd7dd3849105e0a26d9b5a1afe46e6e667fe7c6887893701f
 VIEWER_CAB=592896
@@ -292,7 +293,7 @@ Details: game/binaries/x86/updater_skhid.log"
     fi
     check_nx_compat
     echo "Starting Survarium. Log: $log"
-    args=(-mt_allocator=768 -minimum_resources_memory_size=768)
+    args=(-minimum_resources_memory_size=768)
     [[ -z "$server" ]] || args+=("-server=$server")
     "$WINE" "$exe" "${args[@]}" >>"$log" 2>&1 || die "Game exited with an error. See $log"
 }
