@@ -1,6 +1,11 @@
 //! Growing-roster protocol: E4 prepares a profile; E0 confirms installation.
 //! Every client must support this dialect. Only matching resource ACKs release
 //! admission. E0's impossible snapshot prefix also permits multi-datagram framing.
+//!
+//! E4's proposal: `FF 'L' 'J' 01`, the match, the serial, the place, the
+//! squad, the native profile, then srp's block as after the options
+//! (`static_info::SRPX_MAGIC`) with the faces entry of the one place
+//! (`03 01 <face>`), only when its face is not 0 (`face-choice.md`).
 
 use super::super::dictionary::Dictionary;
 use super::MAX_PLAYERS;
@@ -196,6 +201,38 @@ mod tests {
             Prepare::decode(&wrong_version, dictionary),
             Err(Error::Header)
         );
+    }
+
+    #[test]
+    fn a_face_but_0_ends_the_profile_with_its_faces_entry_and_reads_back() {
+        use crate::v026g::faces::Faces;
+        let dictionary = Dictionary::shared();
+        let plain = prepare().encode(dictionary).unwrap();
+        let mut faced = prepare();
+        faced.profile.face = Faces::shared().face(2).unwrap();
+        let bytes = faced.encode(dictionary).unwrap();
+        assert_eq!(bytes[plain.len()..], b"SRPX\x03\x01\x02"[..]);
+        assert_eq!(Prepare::decode(&bytes, dictionary).unwrap(), faced);
+        // Cut in the block (cut before it, it is a profile of face 0).
+        for end in plain.len() + 1..bytes.len() {
+            assert!(Prepare::decode(&bytes[..end], dictionary).is_err(), "{end}");
+        }
+        // Another length than one place, a face the data does not list
+        // (the test data has three), the Blackout entry, the entry twice,
+        // an unknown tag: refused.
+        for bad in [
+            &b"SRPX\x03\x02\x01\x01"[..],
+            b"SRPX\x03\x01\x03",
+            b"SRPX\x02\x01\x01",
+            b"SRPX\x03\x01\x01\x03\x01\x01",
+            b"SRPX\x01\x01\x01",
+            b"SRPY\x03\x01\x01",
+        ] {
+            assert!(
+                Prepare::decode(&[&plain[..], bad].concat(), dictionary).is_err(),
+                "{bad:?}"
+            );
+        }
     }
 
     #[test]
