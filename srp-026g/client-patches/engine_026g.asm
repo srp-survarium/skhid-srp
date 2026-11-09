@@ -188,6 +188,13 @@ global engine_hide_scene_movie
 global engine_get_system_time_as_file_time
 global engine_file_time_to_local_file_time
 global engine_file_time_to_system_time
+global engine_ray_query
+global engine_collision_group
+global engine_collision_geometry
+global engine_query_usables
+global engine_can_use
+global engine_usable_transform
+global engine_mt_free
 global engine_discard_playing_order
 global engine_finish_key_binding
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
@@ -263,6 +270,7 @@ engine_set_environment_variable_a equ 0x87029c   ; the IAT slot 0x87029c (an imp
 engine_get_system_time_as_file_time equ 0x870244   ; the IAT slot 0x870244 (an import, stdcall)
 engine_file_time_to_local_file_time equ 0x870230   ; the IAT slot 0x870230 (an import, stdcall)
 engine_file_time_to_system_time equ 0x87022c   ; the IAT slot 0x87022c (an import, stdcall)
+engine_mt_free equ 0xeb5b0   ; 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
 engine_discard_playing_order equ 0x2717e0   ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
 
 engine_cfg_child:
@@ -2149,6 +2157,113 @@ engine_hide_scene_movie:
     mov eax, [esp + 20]   ; movie
     mov edx, [esp + 24]   ; scene
     call 0x23dc70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_ray_query:
+    ; virtual vostok::physics::world+0x4c (1 vtables of vtables.tsv: 0x77560): world ECX, origin ESP+4, direction ESP+8, length ESP+12, hits ESP+16, group ESP+20, mask ESP+24; pops 24
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; mask -> 24
+    push dword [esp + 44]   ; group -> 20
+    push dword [esp + 44]   ; hits -> 16
+    push dword [esp + 44]   ; length -> 12
+    push dword [esp + 44]   ; direction -> 8
+    push dword [esp + 44]   ; origin -> 4
+    mov ecx, [esp + 44]   ; world
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x4c]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_collision_group:
+    ; virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x0]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_collision_geometry:
+    ; virtual vostok::collision::game_object+0x4 (12 vtables of vtables.tsv: 0x2f8bb0, 0x300040): object ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x4]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_query_usables:
+    ; 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; offset -> 12
+    push dword [esp + 32]   ; cast -> 8
+    push dword [esp + 32]   ; geometry -> 4
+    mov esi, [esp + 32]   ; result
+    call 0x2dc390
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_can_use:
+    ; virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; user -> 4
+    mov ecx, [esp + 24]   ; usable
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x30]
+    movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_usable_transform:
+    ; virtual survarium::usable_object+0x44 (12 vtables of vtables.tsv: 0x246ed0, 0x2f8440): usable ECX, matrix ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; matrix -> 4
+    mov ecx, [esp + 24]   ; usable
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x44]
     pop edi
     pop esi
     pop ebx

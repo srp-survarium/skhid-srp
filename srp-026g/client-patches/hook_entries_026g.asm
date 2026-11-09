@@ -6119,6 +6119,48 @@ unplayed_match_on_ready_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x27aec4
 
+; 0x2d84c0 base_player::detect_usable_object's start (push ebp / mov ebp,esp / and esp,-8): every use scan (a use's start 0x2D8900, its tick 0x2D86AD, the prompt 0x246FCD); ESP+4 the player, +8 the point or 0; returned is its `ret 8` (0x2D8697), EAX the object: lohook -> use_scan_on_detect
+global use_scan_on_detect
+extern hook_use_scan_on_detect
+use_scan_on_detect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_use_scan_on_detect
+    mov edx, use_scan_on_detect_replay
+    cmp eax, 0
+    je use_scan_on_detect_go
+    mov edx, 0x2d84c6
+    cmp eax, 1
+    je use_scan_on_detect_go
+    mov edx, 0x2d8697
+    cmp eax, 2
+    je use_scan_on_detect_go
+    ud2
+use_scan_on_detect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+use_scan_on_detect_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x2d84c6
+
 ; 0x2f1776 translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F): lohook -> weapon_kit_on_query
 global weapon_kit_on_query
 extern hook_weapon_kit_on_query

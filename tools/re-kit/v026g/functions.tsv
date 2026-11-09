@@ -167,6 +167,9 @@ va	status	ref_021d	name
 0x0006f109	verified	0x00051a73	render_line0
 0x0006f181	verified	0x00051aeb	accumulate_fit
 0x0006f561	verified	0x00051ecb	inspect_error
+0x000716c0	observed		vostok::physics::bt_animated_rigid_body::get_collision_group
+0x00077560	observed		vostok::physics::bullet_physics_world::ray_query
+0x0007ab10	observed		vostok::physics::bullet_character_controller::get_collision_group
 0x0007ab30	reviewed	0x00155e22	vostok::network_core::mutable_buffer::resize
 0x0007ab70	observed		vostok::network_core::mutable_buffer::reallocate
 0x0007ac10	reviewed	0x00155ebe	vostok::network_core::buffer_writer::w
@@ -2205,6 +2208,14 @@ va	status	ref_021d	name
 0x002ac400	observed		survarium::particle_game_effect_presenter::on_event
 0x002de350	observed		survarium::game_effect_player::stop
 0x0031a210	observed		survarium::damage_zone_core::stop_effect
+0x002dc390	observed		survarium::collision_geometry::query_objects_by_type<survarium::usable_object>
+0x002dd730	observed		[thunk]:survarium::collision_geometry_subscriber::`vcall'{32}'
+0x002f8bb0	observed		survarium::collision_geometry::cast_to_collision_geometry
+0x00305070	observed		survarium::booby_trap_core::can_use
+0x00356d50	observed		vostok::physics::bt_static_rigid_body::get_collision_group
+0x00356d50	observed		vostok::physics::bt_dynamic_rigid_body::get_collision_group
+0x00357a90	observed		vostok::physics::bt_ghost_object::get_collision_group
+0x00246ed0	observed		[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'
 0x0021beb0	observed		survarium::network_client::connect_to_match
 0x0027b880	observed		survarium::network_client::process_static_match_info
 0x0027aa20	verified	0x001a25cc	survarium::network_client::on_match_ready

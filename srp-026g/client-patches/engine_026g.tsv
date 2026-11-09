@@ -189,5 +189,12 @@ engine_hide_scene_movie	0x23dc70	EAX:movie EDX:scene	void engine_hide_scene_movi
 engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_file_time(unsigned int *file_time)	import	
 engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
+engine_ray_query	vostok::physics::world+0x4c	ECX:world ESP+4:origin ESP+8:direction ESP+12:length ESP+16:hits ESP+20:group ESP+24:mask	void engine_ray_query(struct bullet_physics_world *world, const float *origin, const float *direction, float length, struct ray_hits *hits, unsigned int group, unsigned int mask)	virtual	
+engine_collision_group	vostok::physics::base_physics_object+0x0	ECX:object	unsigned int engine_collision_group(struct hit_object *object)	virtual	
+engine_collision_geometry	vostok::collision::game_object+0x4	ECX:object	struct collision_geometry *engine_collision_geometry(struct game_object *object)	virtual	
+engine_query_usables	0x2dc390	ESI:result ESP+4:geometry ESP+8:cast ESP+12:offset	void engine_query_usables(struct usable_list *result, struct collision_geometry *geometry, const void *cast, unsigned int offset)	thunk	
+engine_can_use	survarium::usable_object+0x30	ECX:usable ESP+4:user	unsigned char engine_can_use(struct usable_object *usable, struct usable_user *user)	virtual	
+engine_usable_transform	survarium::usable_object+0x44	ECX:usable ESP+4:matrix	void engine_usable_transform(struct usable_object *usable, float *matrix)	virtual	
+engine_mt_free	0x0eb5b0	ECX:allocator ESP+4:block ESP+8:function ESP+12:file ESP+16:line	void engine_mt_free(struct pthreads3_allocator *allocator, void *block, const char *function, const char *file, unsigned int line)	thiscall	
 engine_discard_playing_order	0x2717e0	ESP+4:lobby ESP+8:left	void engine_discard_playing_order(struct lobby_client *client, unsigned int left)	stdcall	
 engine_finish_key_binding	0x2015a0	EDI:options	void engine_finish_key_binding(struct game_options *options)	thunk	
