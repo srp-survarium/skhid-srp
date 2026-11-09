@@ -21409,13 +21409,13 @@ pub mod site {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(NetworkClient)
         }
 
-        /// EBX: a u32 value.
+        /// EBX: a u8 value.
         ///
         /// # Safety
         /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn place(machine: &impl Machine) -> u32 {
-            machine.register(Register::Ebx)
+        pub unsafe fn place(machine: &impl Machine) -> u8 {
+            machine.register(Register::Ebx) as u8
         }
     }
 

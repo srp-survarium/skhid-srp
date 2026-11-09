@@ -21,6 +21,7 @@
 
 use super::context::{Context, Reg};
 use super::input::Action;
+use super::types::Place;
 use super::world::{NetworkClient, Step};
 use raw::site::static_info_options_read as static_info_site;
 use crate::raw;
@@ -128,12 +129,26 @@ impl<'t> MatchLine<'t> {
     }
 }
 
+/// Who an 0xEA says left: the spectator's own end (the match server's farewell to a game with no
+/// place, place 0xFF), or a place of the match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Left {
+    Spectator,
+    Place(Place),
+}
+
+impl Left {
+    /// The 0xEA's byte, once at the boundary.
+    fn of(byte: u8) -> Option<Left> {
+        if byte == 0xFF { Some(Left::Spectator) } else { Place::new(u32::from(byte)).map(Left::Place) }
+    }
+}
+
 /// A place that left (0xEA) at `player_left.local`, after leave_match.
 pub struct PlayerLeft<'t> {
     pub client: NetworkClient<'t>,
-    /// The place the 0xEA names; 0xFF a spectator's own end (the match
-    /// server's farewell to a game with no place).
-    pub place: u8,
+    /// Who left; `None` is a place this build does not know (the game's own handling goes on).
+    pub left: Option<Left>,
 }
 
 impl<'t> PlayerLeft<'t> {
@@ -141,8 +156,8 @@ impl<'t> PlayerLeft<'t> {
         use raw::site::player_left_local as site;
         // SAFETY: the context is this site's: ESI the network client the
         // handler runs on, BL the place it read (0x27C6F9).
-        let (client, place) = unsafe { (site::client(ctx)?, site::place(ctx) as u8) };
-        Some(PlayerLeft { client: NetworkClient::of(client, ctx.thread()), place })
+        let (client, place) = unsafe { (site::client(ctx)?, site::place(ctx)) };
+        Some(PlayerLeft { client: NetworkClient::of(client, ctx.thread()), left: Left::of(place) })
     }
 }
 
@@ -168,5 +183,19 @@ impl<'c, 'm> FollowedAlive<'c, 'm> {
     /// skipped): it shows no kits and no cursor at the player's death.
     pub fn as_alive(&mut self) {
         self.ctx.set_reg8(Reg::Eax, 1);
+    }
+}
+
+#[cfg(test)]
+mod left_tests {
+    use super::{Left, Place};
+
+    #[test]
+    fn the_byte_is_a_place_or_the_spectators_own_end() {
+        assert_eq!(Left::of(0xFF), Some(Left::Spectator));
+        assert_eq!(Left::of(0), Place::new(0).map(Left::Place));
+        assert_eq!(Left::of(19), Place::new(19).map(Left::Place));
+        assert_eq!(Left::of(20), None);
+        assert_eq!(Left::of(0xFE), None);
     }
 }

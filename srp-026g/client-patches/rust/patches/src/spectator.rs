@@ -14,7 +14,7 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::replay_view::MatchClose;
-use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, MatchLine, MatchStart, PlayerLeft, SpectateKey};
+use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, Left, MatchLine, MatchStart, PlayerLeft, SpectateKey};
 use crate::vostok::world::{NetworkClient, Step};
 use crate::vostok::{
     Context, Flow, GameCell, NoExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit, SpectatorOnPlayerLeftExit,
@@ -173,20 +173,18 @@ pub fn on_player_left(ctx: &mut Context<'_>) -> Flow<SpectatorOnPlayerLeftExit> 
     if !left.client.is_spectator() {
         return Flow::Continue;
     }
-    if left.place == NO_PLACE {
-        left.client.stop_watching();
-        return Flow::Exit(SpectatorOnPlayerLeftExit::Done);
+    match left.left {
+        Some(Left::Spectator) => {
+            left.client.stop_watching();
+            Flow::Exit(SpectatorOnPlayerLeftExit::Done)
+        }
+        Some(Left::Place(place)) if left.client.local_player().is_some_and(|player| player.place() == place.get()) => {
+            camera(&left.client, ctx.thread(), Event::FollowedLeft);
+            Flow::Exit(SpectatorOnPlayerLeftExit::Done)
+        }
+        Some(Left::Place(_)) | None => Flow::Continue,
     }
-    if left.client.local_player().is_some_and(|player| player.place() == left.place) {
-        camera(&left.client, ctx.thread(), Event::FollowedLeft);
-        return Flow::Exit(SpectatorOnPlayerLeftExit::Done);
-    }
-    Flow::Continue
 }
-
-/// The place an 0xEA names for a spectator's own end: the local place it
-/// does not have.
-const NO_PLACE: u8 = 0xFF;
 
 /// `hud.followed_alive`: a spectator's hud takes the player it follows for
 /// alive, so a death shows it no kits and no cursor (a kit picked there
