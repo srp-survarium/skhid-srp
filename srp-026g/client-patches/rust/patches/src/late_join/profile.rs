@@ -9,8 +9,14 @@
 //! item, writes over memory or crashes the game. [`CheckedProfile`] is the
 //! only way to the reader: made here alone, from bytes that are none of
 //! those.
+//!
+//! After the profile comes srp's block when the newcomer's face is not 0
+//! (face-choice.md: `SRPX 03 01 <face>`, the faces entry of its one place):
+//! read here with the profile, once, into the newcomer's [`Face`] for patch
+//! 123; anything else after the profile refuses the proposal.
 
 use super::runtime::{KitMask, MAX_PROFILE};
+use crate::faces::{self, Face, Name};
 
 /// The kits of a profile body.
 const KITS: u32 = 3;
@@ -62,33 +68,61 @@ pub trait Dictionary {
     fn has_modification(&self, id: u32, kind: Modification) -> bool;
 }
 
-/// A profile the game's reader can take whole: its bytes, and the kits its
-/// players are loaded for (those whose first byte is 0: the reader keeps it
-/// as the kit's +758h, which 0 makes usable).
+/// A proposal's body the game's reader can take: the profile, which its
+/// reader takes whole, and the kits its players are loaded for (those whose
+/// first byte is 0: the reader keeps it as the kit's +758h, which 0 makes
+/// usable); its player's name and srp's face of it, from the block after.
 #[derive(Clone, Copy, Debug)]
 pub struct CheckedProfile<'a> {
-    bytes: &'a [u8],
+    /// The whole body: the profile, then srp's block if any (what a
+    /// retransmission of the proposal repeats byte for byte).
+    body: &'a [u8],
+    /// The body's front: the profile alone.
+    profile: &'a [u8],
     usable: KitMask,
+    /// What a face is known by; none for a name patch 123 cannot keep (empty,
+    /// or with a zero in it), whose face no one asks for.
+    name: Option<Name>,
+    face: Face,
 }
 
 impl<'a> CheckedProfile<'a> {
-    /// `bytes`, when they are a profile of `dictionary`'s items that fits a
-    /// profile body, with a usable kit, and nothing after it.
-    pub fn parse(bytes: &'a [u8], dictionary: &impl Dictionary) -> Option<CheckedProfile<'a>> {
-        if bytes.len() > MAX_PROFILE {
+    /// `body`, when it is a profile of `dictionary`'s items that fits a
+    /// profile body, with a usable kit, then nothing or srp's block with the
+    /// newcomer's face ([`faces::proposal_face`]).
+    pub fn parse(body: &'a [u8], dictionary: &impl Dictionary) -> Option<CheckedProfile<'a>> {
+        if body.len() > MAX_PROFILE {
             return None;
         }
-        let mut r = Reader(bytes);
-        let usable = profile(&mut r, dictionary)?;
-        r.0.is_empty().then_some(CheckedProfile { bytes, usable })
+        let mut r = Reader(body);
+        let (name, usable) = profile(&mut r, dictionary)?;
+        let block = r.0;
+        let face = faces::proposal_face(block)?;
+        let profile = &body[..body.len() - block.len()];
+        Some(CheckedProfile { body, profile, usable, name: Name::of_bytes(name), face })
     }
 
-    pub fn bytes(&self) -> &'a [u8] {
-        self.bytes
+    /// The whole body: what the proposal's storage keeps and compares.
+    pub fn body(&self) -> &'a [u8] {
+        self.body
+    }
+
+    /// The profile alone: what the game's reader takes, to its end.
+    pub fn profile(&self) -> &'a [u8] {
+        self.profile
     }
 
     pub fn usable(&self) -> KitMask {
         self.usable
+    }
+
+    pub fn name(&self) -> Option<Name> {
+        self.name
+    }
+
+    /// srp's face of the newcomer: its block's, face 0 without one.
+    pub fn face(&self) -> Face {
+        self.face
     }
 }
 
@@ -108,18 +142,18 @@ impl<'a> Reader<'a> {
     }
 
     /// A text: its length (a byte, at most `most`) and its bytes.
-    fn text(&mut self, most: u32) -> Option<()> {
+    fn text(&mut self, most: u32) -> Option<&'a [u8]> {
         let length = self.number(1)?;
         (length <= most).then_some(())?;
-        self.take(length as usize).map(drop)
+        self.take(length as usize)
     }
 }
 
-/// The profile at the reader's front: its usable kits.
-fn profile(r: &mut Reader<'_>, dictionary: &impl Dictionary) -> Option<KitMask> {
+/// The profile at the reader's front: its player's name and its usable kits.
+fn profile<'a>(r: &mut Reader<'a>, dictionary: &impl Dictionary) -> Option<(&'a [u8], KitMask)> {
     // the team: 0 or 1
     (r.number(1)? <= 1).then_some(())?;
-    r.text(NAME)?;
+    let name = r.text(NAME)?;
     r.text(CLAN)?;
     r.number(4)?; // protection
     let kits = r.number(1)?;
@@ -178,7 +212,7 @@ fn profile(r: &mut Reader<'_>, dictionary: &impl Dictionary) -> Option<KitMask> 
         (upgrades <= UPGRADES).then_some(())?;
         r.take(upgrades as usize * UPGRADE)?;
     }
-    Some(usable)
+    Some((name, usable))
 }
 
 /// An f32's exponent bits: all set is an infinity or no number.
@@ -291,6 +325,28 @@ mod tests {
         empty.extend([0, 0]);
         empty.extend(&w[items[1]..]);
         assert!(!checks(&empty));
+    }
+
+    #[test]
+    fn srps_block_after_the_profile_is_the_newcomers_face() {
+        let (w, _, _) = wire();
+        let plain = CheckedProfile::parse(&w, &Fixture).unwrap();
+        assert_eq!((plain.body(), plain.profile(), plain.face()), (&w[..], &w[..], Face::FIRST));
+        assert!(plain.name() == Name::of_bytes(b"new"));
+        let faced = [&w[..], b"SRPX\x03\x01\x05"].concat();
+        let checked = CheckedProfile::parse(&faced, &Fixture).unwrap();
+        assert_eq!((checked.body(), checked.profile()), (&faced[..], &w[..]));
+        assert_eq!((checked.face(), checked.usable().bits()), (Face::of_byte(5), 0b11));
+        // A block srp does not send: the proposal refused, as a profile with
+        // bytes after it is.
+        for other in [&b"SRPX"[..], b"SRPX\x03\x01", b"SRPX\x03\x02\x01\x01", b"SRPX\x02\x01\x01",
+                      b"SRPX\x03\x01\x01\x00", b"SRPX\x03\x01\x01\x03\x01\x01", b"SRPY\x03\x01\x01", b"\x00"] {
+            assert!(!checks(&[&w[..], other].concat()), "{other:?}");
+        }
+        // A name no face is known by (a zero in it): the profile taken, no name.
+        let mut unnamed = w.clone();
+        unnamed[3] = 0;
+        assert!(CheckedProfile::parse(&unnamed, &Fixture).unwrap().name().is_none());
     }
 
     #[test]

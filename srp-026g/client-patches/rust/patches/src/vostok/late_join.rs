@@ -264,9 +264,10 @@ impl Dictionary for ItemsDictionary<'_> {
 
 /// A proposal's storage on the game's heap: the profile body its players
 /// are loaded from (a player keeps a pointer to it, +6B8h, for its life),
-/// the profile's checked bytes, and, while the players' query runs, the
-/// query's reference on the match's world. Counted: a clone is another
-/// owner, and the last one frees it.
+/// the proposal's checked body (the profile, then srp's block if any: a
+/// retransmission is compared with all of it), and, while the players'
+/// query runs, the query's reference on the match's world. Counted: a clone
+/// is another owner, and the last one frees it.
 pub struct ProfileBox {
     header: NonNull<Header>,
 }
@@ -280,7 +281,10 @@ struct Header {
     /// The world the query holds a count on, until its callback takes it.
     /// The game's thread alone sets and takes it.
     world: Cell<Option<raw::PvpMatch>>,
+    /// The checked body's bytes.
     len: u32,
+    /// Of them, the profile's (the front): what the game's reader takes.
+    profile: u32,
     usable: u8,
 }
 
@@ -298,7 +302,7 @@ impl ProfileBox {
     /// the profile body made by the game's constructor and reader. None
     /// without memory.
     pub fn store(_: &Thread, profile: &CheckedProfile<'_>, dictionary: &ItemsDictionary<'_>) -> Option<ProfileBox> {
-        let bytes = profile.bytes();
+        let bytes = profile.body();
         let size = BODY + raw::MatchPlace::SIZE + bytes.len();
         // SAFETY: the game's allocator (set before any match) gives `size`
         // bytes, 8-aligned (doug lea), or none.
@@ -309,11 +313,12 @@ impl ProfileBox {
         let header = NonNull::new(memory.cast::<Header>())?;
         // SAFETY: ours, `size` bytes: the header, the body's room, the bytes.
         // The constructor fills the body's 45FCh bytes (it returns them); the
-        // reader takes the checked bytes alone (CheckedProfile: they fit the
-        // body and name the dictionary's items).
+        // reader takes the checked profile alone (CheckedProfile: it fits the
+        // body and names the dictionary's items; the body's front).
         unsafe {
             header.as_ptr().write(Header { owners: AtomicU32::new(1), body: None, world: Cell::new(None),
-                                           len: bytes.len() as u32, usable: profile.usable().bits() });
+                                           len: bytes.len() as u32, profile: profile.profile().len() as u32,
+                                           usable: profile.usable().bits() });
             let wire = memory.cast::<u8>().add(BODY + raw::MatchPlace::SIZE);
             core::ptr::copy_nonoverlapping(bytes.as_ptr(), wire, bytes.len());
             let Some(body) = raw::engine_profile_body_construct(memory.cast::<u8>().add(BODY).cast()) else {
@@ -336,7 +341,7 @@ impl ProfileBox {
         self.header().body.expect("stored: its body constructed")
     }
 
-    /// The profile's checked bytes.
+    /// The proposal's checked body.
     fn bytes(&self) -> &[u8] {
         // SAFETY: as header: `len` bytes after the body, written by store.
         unsafe {
@@ -345,15 +350,15 @@ impl ProfileBox {
         }
     }
 
-    /// The game's reader fills `body` (constructed) from the stored bytes.
+    /// The game's reader fills `body` (constructed) from the stored profile.
     ///
     /// # Safety
     /// `body` is a constructed profile body; `dictionary` live.
     unsafe fn read_into(&self, body: raw::MatchPlace, dictionary: raw::ItemsDictionary) {
-        let bytes = self.bytes();
+        let bytes = &self.bytes()[..self.header().profile as usize];
         let mut reader = raw::BufferReaderStorage::zeroed();
         let r = reader.handle();
-        // SAFETY: the reader {begin, cursor, size} over our checked bytes,
+        // SAFETY: the reader {begin, cursor, size} over our checked profile,
         // which store's CheckedProfile proved the reader takes whole.
         unsafe {
             r.set_begin(bytes.as_ptr().cast_mut());
@@ -373,7 +378,7 @@ impl ProfileBox {
         KitMask::parse(self.header().usable).expect("stored from a CheckedProfile")
     }
 
-    /// Whether its profile is `body`.
+    /// Whether its proposal's body is `body`.
     pub fn same_body(&self, body: &[u8]) -> bool {
         self.bytes() == body
     }

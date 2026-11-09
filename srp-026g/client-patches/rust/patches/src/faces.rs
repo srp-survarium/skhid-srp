@@ -10,9 +10,11 @@
 //!   match or replay just read (`static_info.options_read`,
 //!   `replay.options_read`: srp's block entry 3 after the options, a byte a
 //!   place; no entry, every face 0), and a late joiner's of the match in play
-//!   (`match_dispatch.message`, after patch 114's check: the entry of its one
-//!   place after its proposal's profile). The lobby's are asked first: they
-//!   are the freshest;
+//!   (the late join's proposal, patch 11: srp's block after its profile,
+//!   read with the profile by late_join/profile.rs and given here, by place
+//!   and name, before the late join stores the profile and asks for its
+//!   players: [`late_joiner`]). The lobby's are asked first: they are the
+//!   freshest;
 //! - the character's cook (`skin_cook.head`, profile_skin_visual_cook's
 //!   default head, reached only when no item's `remove_head_model` took the
 //!   head): the head is the player's face's, its variant by what the kit's
@@ -27,13 +29,13 @@
 
 use core::ffi::CStr;
 
+use crate::late_join::runtime::Place;
 use crate::vostok::config::{ConfigEntries, ConfigTable};
 use crate::vostok::lobby_menu::{OwnAccountRead, SquadMemberRead};
-use crate::vostok::match_message::Message;
 use crate::vostok::log::{self, Piece::*};
 use crate::vostok::parse::Reader;
 use crate::vostok::skin_cook::{Cover, HeadCook, Model};
-use crate::vostok::{Context, FacesOnHeadExit, FacesOnMatchMessageExit, Flow, Lock, NoExit, OptionsRead, Thread};
+use crate::vostok::{Context, FacesOnHeadExit, Flow, Lock, NoExit, OptionsRead, Thread};
 
 /// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`.
 const SRPX: [u8; 4] = *b"SRPX";
@@ -101,7 +103,7 @@ impl Suffix {
 }
 
 /// A player's name, what a face is known by: 1 to 63 bytes.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Name {
     len: u8,
     bytes: [u8; NAME],
@@ -238,10 +240,11 @@ pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
     options_read(ctx.thread(), OptionsRead::at_replay(ctx))
 }
 
-/// srp's block after a late joiner's profile: none (face 0), or its magic
-/// and the faces entry of its one place, any byte. Anything else is no
-/// block srp sends: none.
-fn late_joiner_face(block: &[u8]) -> Option<Face> {
+/// srp's block after a late joiner's profile (the late join's proposal):
+/// none (face 0), or its magic and the faces entry of its one place, any
+/// byte. Anything else is no block srp sends: none (the late join refuses
+/// the proposal).
+pub fn proposal_face(block: &[u8]) -> Option<Face> {
     match block {
         [] => Some(Face::FIRST),
         [b'S', b'R', b'P', b'X', TAG_FACES, 1, face] => Some(Face::of_byte(*face)),
@@ -249,25 +252,11 @@ fn late_joiner_face(block: &[u8]) -> Option<Face> {
     }
 }
 
-/// A match message at the dispatch (0x27A31F), after patch 114's check: a
-/// late joiner's proposal says its place's name and, in srp's block after
-/// the profile, its face. Kept before the late join's code takes the
-/// proposal and cooks its character (`lj_prepare`, the native handler after
-/// this), and the block taken off the message: that code reads the native
-/// profile to the message's end. Bytes after the profile that are no such
-/// block are left for its check to refuse the proposal.
-pub fn on_match_message(ctx: &mut Context<'_>) -> Flow<FacesOnMatchMessageExit> {
-    let Some(mut message) = Message::at_dispatch(ctx) else { return Flow::Continue };
-    let Some(proposal) = message.proposal() else { return Flow::Continue };
-    let Some(face) = late_joiner_face(proposal.block) else {
-        log::line(&[Text("faces: a late joiner's proposal ends in bytes that are no srp block; left as they are")]);
-        return Flow::Continue;
-    };
-    if let Some(name) = Name::of_bytes(proposal.name) {
-        KNOWN.with(ctx.thread(), |known| known.set_place(usize::from(proposal.place), name, face));
-    }
-    message.end_at_profile(proposal);
-    Flow::Continue
+/// A late joiner of the match in play: srp's face of `name`, the player of
+/// `place` (the late join's proposal, checked; before its players are
+/// cooked).
+pub fn late_joiner(thread: &Thread, place: Place, name: Name, face: Face) {
+    KNOWN.with(thread, |known| known.set_place(usize::from(place.get()), name, face));
 }
 
 /// The variant of a face the cover wears.
@@ -428,11 +417,11 @@ mod tests {
 
     #[test]
     fn a_late_joiners_block_is_its_one_face_or_none() {
-        assert_eq!(late_joiner_face(b""), Some(Face::FIRST));
-        assert_eq!(late_joiner_face(b"SRPX\x03\x01\x09"), Some(Face(9)));
+        assert_eq!(proposal_face(b""), Some(Face::FIRST));
+        assert_eq!(proposal_face(b"SRPX\x03\x01\x09"), Some(Face(9)));
         for other in [&b"SRPX"[..], b"SRPX\x03\x01", b"SRPX\x03\x02\x01\x01", b"SRPX\x02\x01\x01",
                       b"SRPX\x03\x01\x01\x00", b"SRPY\x03\x01\x01", b"\x00"] {
-            assert_eq!(late_joiner_face(other), None, "{other:?}");
+            assert_eq!(proposal_face(other), None, "{other:?}");
         }
     }
 }

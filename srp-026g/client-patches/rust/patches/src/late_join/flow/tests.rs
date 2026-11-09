@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
 use std::sync::{Arc, Mutex};
 
 use super::super::profile::{CheckedProfile, Dictionary, ItemRecord, Modification};
+use crate::faces::{Face, Name};
 use super::super::runtime::*;
 use super::*;
 
@@ -118,6 +119,9 @@ struct Model<'a> {
     last: Option<Ack>,
     /// The world's release destroys these players (of that profile).
     destroy_on_release: Option<ProfileKey>,
+    /// The faces patch 123 was told: (place, name, face), and the storages
+    /// made when each was told (the face comes before the profile is stored).
+    faces: Vec<(u8, Name, Face, u32)>,
 }
 
 impl Game for Model<'_> {
@@ -133,12 +137,16 @@ impl Game for Model<'_> {
             return None;
         }
         self.counts.allocations.fetch_add(1, SeqCst);
-        Some(Store(Arc::new(Body { bytes: profile.bytes().to_vec(), counts: self.counts.clone() })))
+        Some(Store(Arc::new(Body { bytes: profile.body().to_vec(), counts: self.counts.clone() })))
     }
 
     fn check<'b>(&self, dictionary: DictionaryKey, body: &'b [u8]) -> Option<CheckedProfile<'b>> {
         assert_eq!(dictionary, DICTIONARY);
         CheckedProfile::parse(body, &NoItems)
+    }
+
+    fn learn_face(&mut self, place: Place, name: Name, face: Face) {
+        self.faces.push((place.get(), name, face, self.count(|c| &c.allocations)));
     }
 
     fn query(&mut self, storage: Store, usable: KitMask, matched: MatchKey, place: Place) {
@@ -180,7 +188,8 @@ impl Game for Model<'_> {
 impl<'a> Model<'a> {
     fn new(shared: &'a Locked) -> Model<'a> {
         let model = Model { shared, counts: Arc::new(Counts::default()), allocation_fails: false, install_fails: false,
-                            query_mode: QueryMode::Later, query: None, last: None, destroy_on_release: None };
+                            query_mode: QueryMode::Later, query: None, last: None, destroy_on_release: None,
+                            faces: vec![] };
         drop(ready(shared, MatchKey { client: CLIENT, world: WORLD, seed: Seed(SEED) }, DICTIONARY, Roster(2)));
         model
     }
@@ -420,4 +429,57 @@ fn concurrent_destruction() {
         assert_eq!((m.count(|c| &c.frees), shared.with(|rt| rt.kept())), (1, 0));
         m.balanced();
     }
+}
+
+#[test]
+fn a_newcomers_face_is_learnt_before_its_profile_is_stored() {
+    let shared = locked();
+    let mut m = Model::new(&shared);
+    let name = Name::of_bytes(b"B").unwrap();
+    let faced = [&body(b'B')[..], b"SRPX\x03\x01\x05"].concat();
+    m.prepare(&packet(1, &faced));
+    // told before the storage was made; the query's storage keeps the whole
+    // body, the block too
+    assert_eq!(m.faces, [(2, name, Face::of_byte(5), 0)]);
+    assert_eq!((m.count(|c| &c.allocations), m.count(|c| &c.queries)), (1, 1));
+    assert!(m.query.as_ref().unwrap().same_body(&faced));
+    // its retransmission is the same proposal (busy), told nothing again;
+    // the profile without its block is another (failed)
+    m.prepare(&packet(1, &faced));
+    m.prepare(&packet(1, &body(b'B')));
+    assert_eq!((m.count(|c| &c.queries), m.answer().1, m.faces.len()), (1, Answer::Failed, 1));
+    m.complete(COMPLETED);
+    assert_eq!(m.answer(), (1, Answer::Installed));
+    drop(deactivate(&shared));
+    m.balanced_after_players(&shared);
+}
+
+#[test]
+fn a_proposal_without_a_block_is_face_0_and_one_with_another_is_refused() {
+    let shared = locked();
+    let mut m = Model::new(&shared);
+    m.prepare(&packet(1, &body(b'C')));
+    assert_eq!(m.faces, [(2, Name::of_bytes(b"C").unwrap(), Face::FIRST, 0)]);
+    assert_eq!(m.count(|c| &c.queries), 1);
+    m.complete(COMPLETED);
+    assert_eq!(m.answer(), (1, Answer::Installed));
+    drop(deactivate(&shared));
+    m.balanced_after_players(&shared);
+    for block in [&b"SRPX\x03\x02\x01\x01"[..], b"SRPX\x03\x01", b"SRPY\x03\x01\x01", b"\x00"] {
+        let shared = locked();
+        let mut m = Model::new(&shared);
+        m.prepare(&packet(1, &[&body(b'D')[..], block].concat()));
+        assert_eq!((m.answer().1, m.count(|c| &c.allocations), m.faces.len()), (Answer::Failed, 0, 0), "{block:?}");
+        drop(deactivate(&shared));
+        m.balanced();
+    }
+    // a name no face is known by: nothing told, the newcomer taken
+    let shared = locked();
+    let mut m = Model::new(&shared);
+    m.prepare(&packet(1, &body(0)));
+    assert_eq!((m.faces.len(), m.count(|c| &c.queries)), (0, 1));
+    m.complete(COMPLETED);
+    assert_eq!(m.answer(), (1, Answer::Installed));
+    drop(deactivate(&shared));
+    m.balanced_after_players(&shared);
 }

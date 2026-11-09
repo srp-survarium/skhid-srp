@@ -165,12 +165,12 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // stream over it, or a cut one, goes nowhere.
         // The late join's profile proposal (`late_join::Prepare`, every
         // client of the dialect): its magic, the match, the serial, the
-        // place, the squad, then the profile, which the late join's own
-        // check takes (`late_join_validate_026g.c`), and srp's block with
-        // the faces entry of the one place when its face is not 0 (read and
-        // taken off at the dispatch by the faces patch, which steps over the
-        // profile with the items dictionary: `faces.rs`). Here the header: a
-        // place the first player cannot have, under 20, a serial not 0.
+        // place, the squad, then the profile and srp's block with the faces
+        // entry of the one place when its face is not 0, which the late
+        // join's own check takes with the items dictionary
+        // (`late_join/profile.rs`, giving the face to `faces.rs`). Here the
+        // header: a place the first player cannot have, under 20, a serial
+        // not 0.
         id::STATIC_INFO if payload.starts_with(&LATE_JOIN_PREPARE) => {
             if len < LATE_JOIN_HEADER {
                 return Err(refuse(

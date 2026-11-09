@@ -81,11 +81,12 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
   `88`), the last match's or replay's options (`E4`, chunk 1) and its late joiners' proposals.
   The lobby's are asked first, then the match's by its latest place (one who left and came back
   has a new place). A name not known: face 0.
-- A late joiner's proposal is read at the dispatch (`match_dispatch.message`, after patch 114's
-  check): its place, its name, its profile stepped over with the items dictionary, the block
-  after it. The block is then taken off the message: the late join's code (`lj_prepare`) reads
-  the native profile to the message's end, as its check wants it. Bytes after the profile that
-  are no such block are logged and left there: that check refuses the proposal.
+- A late joiner's proposal is read once, by the late join (patch 11, `late_join/profile.rs`):
+  its profile checked with the items dictionary, then the block after it, into the newcomer's
+  name and face. The face is kept for its place and name before the profile is stored and its
+  players asked for, so the cook draws them with it; the game's reader takes the profile alone.
+  No block: face 0. Bytes after the profile that are no such block: the proposal refused, as a
+  profile the game cannot read (answered failed): the joiner is not let in.
 - The cook (`profile_skin_visual_cook::on_configs_loaded` 0x204560) makes the head's records in
   Rust (the native block 0x205659..0x2056F0 replaced, patch 123): `heads[face]`, its variant by
   the worn helmet (tag 5) and mask (tag 6) records, its base model, part and material, and a

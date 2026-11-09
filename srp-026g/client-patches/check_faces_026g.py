@@ -32,12 +32,14 @@ head ends too). Checked:
   with no suffix; the lobby's face asked first; a new match without the entry
   forgets the old match's faces;
 - a `0x87` without srp's byte: logged, nothing learnt;
-- a late joiner's proposal at the dispatch (`match_dispatch.message`, after
-  patch 114's check, the game's own item_by_id stepping over its profile):
-  srp's block after the profile (the faces entry of its one place) gives the
-  joiner's face by its name and is taken off the message (its reader 7 bytes
-  shorter, the span replayed); without a block, face 0 and the message as it
-  was; bytes that are no block: logged, left for the late join's check.
+- a late joiner's proposal through the late join's 0xE4 case (patch 11,
+  check_late_join_026g.py's `Join`: its match ready, the case's Rust, the
+  game's own profile reader into the proposal's storage) in the same
+  emulator, then the cook: srp's block after the profile (`SRPX 03 01
+  <face>`) gives the joiner's face by its name, the profile stored and its
+  players asked for; the match's other places as they were; without a block,
+  face 0 and the joiner taken; a block srp does not send, the proposal
+  answered failed (nothing stored, nothing learnt).
 """
 import struct
 import sys
@@ -48,19 +50,18 @@ from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, U
                                UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP, UC_X86_REG_EIP)
 
 import patch_026g as base
+import check_late_join_026g as late
 
 HEAD, MADE = 0x205662, 0x2056F0            # skin_cook.head and its join
 OWN, OWN_END = 0x27030B, 0x270313           # lobby_client.own_account, span 8
 MEMBER, MEMBER_END = 0x274C01, 0x274C07     # lobby_client.squad_member, span 6
 OPTIONS, OPTIONS_END = 0x27B92D, 0x27B932   # static_info.options_read, span 5
-DISPATCH, DISPATCH_END = 0x27A31F, 0x27A327 # match_dispatch.message, span 8 (patch 114's check first)
 THREAD_SLOT, QPC_SLOT, QPF_SLOT = 0x870118, 0x870158, 0x870150
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870108, 0x870040
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
 CONFIG, TEXTS = HEAP, HEAP + 0x40000
 COOK, PROFILE, CLIENT = HEAP + 0x80000, HEAP + 0xA0000, 0x33000000
 OPTIONS_OBJECT, MESSAGE = 0x34000000, HEAP + 0xB0000
-GAME, DICTIONARY, ITEMS = HEAP + 0xC0000, HEAP + 0xD0000, HEAP + 0xD1000
 SP, BP = STACK + 0x8000, STACK + 0xC000
 RECORD, RECORDS, COUNT, TAG = 0xC0C, 0x234, 0xF324, 0xC08
 OWN_PROFILE, PLACE = 0x1E6344, 0x45FC
@@ -77,12 +78,33 @@ def check(ok, what):
 
 
 class Game:
-    def __init__(self, data):
-        self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
+    def __init__(self, data, emu=None):
+        """The exe's sections in an emulator of their own, or in `emu`'s pages it has not mapped (a late join's
+        fixture, whose own pages and what it wrote there are kept)."""
+        fresh = emu is None
+        self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32) if fresh else emu
         for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
             start = base.IMAGE_BASE + rva
-            emu.mem_map(start, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
-            emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
+            size = (max(vsize, rsize) + 0xFFF) & ~0xFFF
+            content = bytes(data[raw:raw + min(rsize, vsize or rsize)])
+            if fresh:
+                emu.mem_map(start, size, UC_PROT_ALL)
+                emu.mem_write(start, content)
+                continue
+            taken = [(begin, end + 1) for begin, end, _ in emu.mem_regions()]
+            free = [page for page in range(start, start + size, 0x1000)
+                    if not any(begin <= page < end for begin, end in taken)]
+            runs = []                                       # the free pages, one region a run of them
+            for page in free:
+                if runs and runs[-1][1] == page:
+                    runs[-1][1] = page + 0x1000
+                else:
+                    runs.append([page, page + 0x1000])
+            for begin, end in runs:
+                emu.mem_map(begin, end - begin, UC_PROT_ALL)
+                piece = content[begin - start:end - start]
+                if piece:
+                    emu.mem_write(begin, piece)
         for at, size in ((HEAP, 0x100000), (STUBS, 0x1000), (STACK, 0x10000), (CLIENT, 0x200000),
                          (OPTIONS_OBJECT, 0x60000)):
             emu.mem_map(at, size, UC_PROT_ALL)
@@ -224,30 +246,6 @@ class Game:
         self.word(MESSAGE + 0x88, 4 + len(srp))
         return MESSAGE + 0x80
 
-    def proposal(self, place, name, after):
-        """A late join's proposal (0xE4: the header, a profile named `name` of one kit and one item that is no
-        stack, `after`) at the dispatch, the client's game's dictionary with that item. Run the span; the reader's
-        size after it."""
-        self.word(CLIENT + 0x14, GAME)
-        self.word(GAME + 0x53A4, DICTIONARY)
-        self.word(DICTIONARY + 0x130, ITEMS)
-        self.word(DICTIONARY + 0x134, 1)
-        self.emu.mem_write(ITEMS, bytes(0x3A0))
-        self.emu.mem_write(ITEMS, struct.pack("<H", 101))
-        profile = b"\x00" + bytes([len(name)]) + name.encode() + b"\x00" + struct.pack("<IBB", 0, 1, 1)
-        profile += b"\x00" + struct.pack("<I", 1) + b"\x01K" + struct.pack("<IHH", 1, 0, 1) + bytes(16)
-        profile += struct.pack("<IH", 1, 101) + bytes(12) + b"\x00\x00"
-        payload = b"\xffLJ\x01" + struct.pack("<II", 0x80001234, 7) + bytes([place, 0]) + profile + after
-        self.emu.mem_write(MESSAGE, b"\xE4" + payload)
-        reader = MESSAGE + 0x2000
-        self.word(reader, MESSAGE)
-        self.word(reader + 4, MESSAGE + 1)
-        self.word(reader + 8, 1 + len(payload))
-        regs = {r: 0x0A0A0A0A + i for i, r in enumerate(REGS)}
-        regs.update({UC_X86_REG_EAX: 0xE4, UC_X86_REG_EBX: reader, UC_X86_REG_ESI: CLIENT, UC_X86_REG_EBP: BP})
-        after_regs, esp = self.go(DISPATCH, DISPATCH_END, regs, SP)
-        return self.read(reader + 8) - 1 - len(payload), after_regs, esp
-
     def options(self, names, srp):
         """process_static_match_info after its deserialize: the options (ESI) with places named `names`, the
         frame's reader (EBP-2Ch) at srp's block."""
@@ -266,6 +264,26 @@ class Game:
         return self.go(OPTIONS, OPTIONS_END, regs, SP)
 
 
+def joiner_profile(name):
+    """A late joiner's profile named `name`: one usable kit, no items (check_late_join_026g.py's profile_wire)."""
+    wire = b"\x01" + bytes([len(name)]) + name.encode() + b"\0" + struct.pack("<I", 10) + b"\x01\x00"
+    return wire + b"\x00" + struct.pack("<I", 1) + b"\0" + bytes(20)
+
+
+def late_joiner(built, faces, name, block, places=("me", "you"), srp=b"SRPX\x03\x02\x00\x02"):
+    """A match of `places` (its options' faces `srp`), its late join ready, then the server's proposal of place 2
+    for `name`, its profile followed by `block`, through the 0xE4 case; the cook of `name` and of each place after
+    it, in the same emulator. The late join's fixture, and what each cook made (its head's record, the skin's
+    name)."""
+    join = late.Join(bytes(built))
+    game = Game(built, join.m.uc)
+    game.options(list(places), srp)
+    join.ready()
+    join.prepare(joiner_profile(name) + block)
+    drawn = {who: game.cook(faces(game), who, [2]) for who in (name, *places)}
+    return join, {who: (made[0][:2], skin) for who, (made, skin) in drawn.items()}
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -282,11 +300,8 @@ def main():
         new = base.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
         check(opcode == 0xE9 and original[at:at + len(old)] == old and built[at:at + len(new)] == new,
               f"{va:#x}: {old.hex()} in the original, `jmp {symbol}` here")
-    check(sorted(h["site"] for h in ours) == sorted([HEAD, OWN, MEMBER, OPTIONS, 0x1F0971, DISPATCH]),
-          f"faces' six hooks: its three sites, the two options reads and the dispatch's chain ({len(ours)})")
-    dispatch = next(h for h in ours if h["site"] == DISPATCH)
-    check([m["patch"] for m in dispatch.get("chain", [])] == ["message_check", "faces"],
-          "the dispatch's chain: patch 114's check, then the late joiner's face")
+    check(sorted(h["site"] for h in ours) == sorted([HEAD, OWN, MEMBER, OPTIONS, 0x1F0971]),
+          f"faces' five hooks: its three sites and the two options reads ({len(ours)})")
 
     head = {"data": {"base_model": "character/human/base/base_character_head", "part_name": "black_market_01_head_s"}}
     plain = lambda game: game.node({"head": head, "bind_pose": "x"})
@@ -350,23 +365,27 @@ def main():
           and patched.cook(faces(patched), "me", [2])[0][0][:2] == ("head/face_2", "face_2"),
           "a 0x87 without srp's byte: logged, the face kept")
 
-    patched.options(["me", "you"], b"")
-    cut, after, esp = patched.proposal(2, "late", b"SRPX\x03\x01\x01")
-    check(cut == -7 and after[UC_X86_REG_EAX] == 1 and patched.read(BP + 0xC) == 0xE4 and esp == SP,
-          "a late joiner's proposal: srp's block taken off (its reader 7 bytes shorter), the span replayed "
-          "(mov [ebp+0Ch],eax / add eax,-E3h)")
-    made, skin = patched.cook(faces(patched), "late", [2])
-    check(made[0][:2] == ("head/face_1", "face_1") and skin.endswith("f1_"), "the late joiner's face, by its name")
-    check(patched.cook(faces(patched), "you", [2])[0][0][:2] == ("head/face_0", "face_0"),
-          "the match's other places as they were")
-    cut, _, _ = patched.proposal(3, "plain", b"")
-    check(cut == 0 and patched.cook(faces(patched), "plain", [2])[0][0][:2] == ("head/face_0", "face_0"),
-          "a proposal without a block: face 0, the message as it was")
-    before = len(patched.logged)
-    cut, _, _ = patched.proposal(4, "odd", b"SRPX\x03\x02\x01\x01")
-    check(cut == 0 and b"no srp block" in patched.logged[before:]
-          and patched.cook(faces(patched), "odd", [2])[0][0][:2] == ("head/face_0", "face_0"),
-          "bytes after the profile that are no block: logged, left for the late join's check, nothing learnt")
+    face = lambda n: ((f"head/face_{n}", f"face_{n}"), "105_0_0_207_0_0_0_" + (f"f{n}_" if n else ""))
+    join, drawn = late_joiner(built, faces, "late", b"SRPX\x03\x01\x01")
+    stored = join.context + late.PROFILE_AT
+    check(join.calls == ["allocate", "query"] and join.size == late.PROFILE_AT + 0x45FC + len(joiner_profile("late")) + 7
+          and bytes(join.m.uc.mem_read(stored + 8, 5)) == b"late\0" and not join.messages,
+          "a late joiner's proposal with srp's block: taken (its body stored whole, the profile read into the "
+          "storage's body by the game's reader), its players asked for")
+    check(drawn == {"late": face(1), "me": face(0), "you": face(2)},
+          "the late joiner's face by its name (srp's block after its profile), the match's places as they were")
+    join, drawn = late_joiner(built, faces, "plain", b"")
+    check(join.calls == ["allocate", "query"] and drawn["plain"] == face(0) and drawn["you"] == face(2),
+          "a proposal without a block: face 0, the joiner taken")
+    join, drawn = late_joiner(built, faces, "you", b"SRPX\x03\x01\x01")
+    check(join.calls == ["allocate", "query"] and drawn["you"] == face(1),
+          "one who left and comes back (its old place's face 2): its new place's face")
+    for block in (b"SRPX\x03\x02\x01\x01", b"SRPX\x03\x01", b"SRPY\x03\x01\x01", b"\x00"):
+        join, drawn = late_joiner(built, faces, "odd", block)
+        check(join.calls == ["new_packet", "enqueue"] and not join.constructed
+              and join.messages == [join.ack(123, 2, 1)] and drawn["odd"] == face(0),
+              f"bytes after the profile that are no block srp sends ({block.hex()}): answered failed, nothing "
+              "stored, nothing learnt")
 
     if failed:
         sys.exit(f"{failed} check(s) failed")
