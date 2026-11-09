@@ -255,8 +255,27 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 /* How many players took the skill (src/skills.rs), on its disc's corner. */
 .skill-takers { position:absolute; z-index:2; top:calc(-4 * var(--u)); right:calc(-10 * var(--u)); padding:calc(3 * var(--u)) calc(4 * var(--u));
   font:700 calc(11 * var(--u))/1 var(--data); color:var(--panel); background:var(--skill-green); border-radius:3px }
-.skill-over,.skill-lock-red,.skill-tip { display:none }
+.skill-over,.skill-lock,.skill-lock-red,.skill-tip,.skill-now { display:none }
 .skill.open .skill-over,.skill:focus-visible .skill-over { display:block }
+/* The planner (skills.js): the lobby's lock on a row its branch has not opened, its red lock on
+   a skill a taken one excludes; a refused rank shakes the disc. */
+.skill.locked .skill-lock,.skill.closed .skill-lock,.skill.barred .skill-lock-red { display:block }
+.skill:not(.locked) { cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none }
+.skill.taken .skill-name { color:var(--accent) }
+.skill.refused .skill-disc { animation:skill-refused .3s }
+@keyframes skill-refused { 25% { translate:calc(-4 * var(--u)) } 75% { translate:calc(4 * var(--u)) } }
+@media(prefers-reduced-motion:reduce) { .skill.refused .skill-disc { animation:none } }
+.skill-branch-points { float:right; font:700 1.25rem/1.32 var(--data); color:var(--ink) }
+.skill-plan { position:sticky; top:0; z-index:10; display:flex; flex-wrap:wrap; align-items:center; gap:8px 20px; margin:18px 0 0;
+  padding:12px 16px; border:1px solid var(--rule); background:var(--panel) }
+.skill-plan[hidden] { display:none }
+.skill-plan + .skill-trees { margin-top:16px }
+.skill-plan-sum { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 20px; font:.95rem var(--body); color:var(--ink-2) }
+.skill-plan-sum b { font:700 1.35rem var(--data); color:var(--accent) }
+.skill-plan-sum [data-plan="play"] { font:.95rem var(--data) }
+.skill-plan button,.skill-steps button { background:var(--panel); color:var(--accent); border:1px solid var(--rule); font:700 .875rem var(--body); padding:6px 14px; cursor:pointer }
+.skill-plan button:disabled,.skill-steps button:disabled { color:var(--ink-3); cursor:default }
+.skill-plan-hint { margin-left:auto; font-size:.8rem; color:var(--ink-3) }
 @media(hover:hover) { .skill:hover .skill-over { display:block } }
 .skill-or { position:absolute; top:0; left:0; font:700 calc(10 * var(--u)) var(--display); text-transform:uppercase; letter-spacing:.06em;
   background:var(--panel); color:var(--bad); border:1px solid var(--bad); border-radius:2px; padding:0 calc(3 * var(--u)) }
@@ -271,6 +290,11 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .skill-float.wrap { width:250px }
 .skill-float b { display:block; color:var(--ink); padding-bottom:6px; border-bottom:1px solid var(--rule); margin-bottom:4px }
 .skill-float p { margin:0 }
+.skill-float .skill-now { display:block; margin-top:4px }
+.skill-rank { float:right; margin-left:12px; font:700 .875rem var(--data); color:var(--accent) }
+.skill-float.controls { pointer-events:auto }
+.skill-steps { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px }
+.skill-steps button { font-size:1.25rem; padding:8px }
 .skill-value { color:var(--skill-green); font-weight:700; white-space:nowrap }
 @media(max-width:560px) {
   .skill-float,.skill-float.wrap { left:16px; right:16px; bottom:16px; top:auto; width:auto; max-width:none }
