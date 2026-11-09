@@ -117,6 +117,20 @@ for _view in ("RenderVisual", "GameScene", "ObjectLight"):
         "pass": "&mut {n}", "null": "{a}",
     }
 
+# A console command of ours (patch 133's cc_delegate) and the text after its
+# name: none (a null pointer) for a line of the name alone, so not fallible.
+TYPES["ConsoleCommand"] = {
+    "raw": "Option<CcDelegate>", "fallible": True,
+    "build": "ConsoleCommand::from_raw(&thread, {a})",
+    "orig_type": "&mut ConsoleCommand", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+TYPES["ConsoleArguments"] = {
+    "raw": "*const u8",
+    "binding": "let {n} = unsafe {{ ConsoleArguments::from_raw(&thread, {a}) }};",
+    "orig_type": "&ConsoleArguments", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+}
+
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
 # the Vostok type and how F's raw result `{x}` becomes it (`Original::call`),
 # and how that Vostok value `{v}` becomes the shim's u32 (EAX).

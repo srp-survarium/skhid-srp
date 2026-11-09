@@ -3406,3 +3406,5 @@ va	status	ref_021d	name
 0x0010f8c0	inferred-high		vostok::memory::mt_region::take
 0x0010f980	inferred-high		vostok::memory::mt_region::give
 0x0001c6a0	inferred-high		vostok::memory::mt_allocator::malloc_impl
+0x00111c90	inferred-high		vostok::logging::helper::helper
+0x00111d10	inferred-high		vostok::logging::helper::write

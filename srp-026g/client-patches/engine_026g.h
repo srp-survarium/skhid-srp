@@ -21,6 +21,7 @@ struct bullet_manager;
 struct bullet_physics_world;
 struct camouflage_decal_texture_type_baker_cook;
 struct cc_bool;
+struct cc_delegate;
 struct cc_float;
 struct cc_string;
 struct closest_ray_result_callback;
@@ -59,6 +60,8 @@ struct lobby_camera;
 struct lobby_character;
 struct lobby_client;
 struct lobby_menu;
+struct log_function;
+struct log_helper;
 struct match_options;
 struct match_options_holder;
 struct match_packet;
@@ -692,5 +695,17 @@ void __attribute__((stdcall)) engine_discard_playing_order(struct lobby_client *
 
 /* 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0 */
 void engine_finish_key_binding(struct game_options *options);
+
+/* 0xec780 vostok::console_commands::cc_delegate::cc_delegate: object EDI, name EDX, delegate ESP+4, status ESP+8, kind ESP+12; pops 12 */
+void engine_cc_delegate(struct cc_delegate *object, const char *name, const void *delegate, unsigned int status, unsigned int kind);
+
+/* 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_cc_delegate_execute(struct cc_delegate *command, const char *arguments);
+
+/* 0x111c90 vostok::logging::helper::helper: function EAX, context ECX, helper ESP+4, template_helper ESP+8, file ESP+12, line ESP+16, caller ESP+20, channel ESP+24, level ESP+28; pops 28; EAX */
+struct log_helper *engine_log_helper(const struct log_function *function, unsigned int context, struct log_helper *helper, const struct log_helper *template_helper, const char *file, unsigned int line, const char *caller, const char *channel, unsigned int level);
+
+/* 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8 */
+void engine_log_write(struct log_helper *helper, const char *format, const void *arguments);
 
 #endif

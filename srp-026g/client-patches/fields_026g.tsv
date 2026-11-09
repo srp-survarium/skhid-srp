@@ -996,3 +996,20 @@ vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_mal
 vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
 vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
 vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
+vostok::console_commands::cc_delegate	size	0x60	size	a cc_delegate console command's object (cc_delegate::cc_delegate 0xEC780: the base fields as cc_value<bool>'s, +40h the delegate's copy, 20h bytes; attach_to_player's 0xA2AE350, its guard at +60h)
+vostok::console_commands::cc_delegate	vtable	0x0	u32	its vtable: cc_delegate's 0x9E7C0C as the constructor leaves it; patch 133's copy (console_where.toml) written after it
+vostok::console_commands::cc_delegate_methods	rtti	-4	u32	native complete object locator (0xA3E110)
+vostok::console_commands::cc_delegate_methods	size	0x1C	size	seven methods: the destructor 0xEC7E0, execute 0xEC830 (+4, console_commands::execute 0xEBB98), status, info, syntax, fill_command_args_list, save_to (0x15A4B0, ret 8: not saved)
+vostok::console_commands::image	cc_delegate_methods	0x9E7C0C	obj<vostok::console_commands::cc_delegate_methods>	cc_delegate's vtable including RTTI at -4 (cc_delegate::cc_delegate 0xEC7C6)
+vostok::logging::log_function	size	0x20	size	the boost::function a line is written through, as log_message's callers make it on their stack (console_commands::execute 0xEBA04..0xEBA38): empty (all 0), or the log's sink
+vostok::logging::log_function	manager	0x0	u32	its manager: LOG_FUNCTION_MANAGER | 1 (trivially copied, nothing to destroy) when [log_state+8] is set, else 0 (empty: the line goes nowhere, 0x111E4D)
+vostok::logging::log_function	sink	0x8	u32	the function itself: [log_state+8]
+vostok::logging::log_helper	size	0x248	size	a line's helper (log_message's [ebp-24Ch]): the template's 228h bytes, then the function, the context, the channel, the file, the caller, the line and the level (helper::helper 0x111C90)
+vostok::logging::log_state	filtered	0x0	u32	not 0: a line is written only when has_passed_filters (0x111860) passes its channel and level (every caller of log_message, 0xEB9E9)
+vostok::logging::log_state	context	0x4	u32	the word every caller passes as log_message's second argument (helper +230h; its meaning not established)
+vostok::logging::log_state	sink	0x8	u32	the function the game's lines go through (0 none: an empty log_function)
+vostok::logging::image	log_state	0x1F1D60C	obj<vostok::logging::log_state>	the logging globals log_message's callers read (console_commands::execute 0xEB9E9, 0xEBA09, 0xEBA3B)
+vostok::logging::image	log_template	0x21E73B8	obj<vostok::logging::log_helper>	the template helper every caller of log_message passes (its third argument, copied into the line's helper by 0x111C90)
+vostok::logging::image	log_function_manager	0x9DAF4C	u32	the log sink's boost::function manager (console_commands::execute 0xEBA28: or 1, its word +0)
+survarium::player	camera_handler	0xF470	ptr<survarium::player_input_handler>	the input handler whose camera is on this player (update_camera 0x1F348D: 0, not the camera's player, returns at once)
+survarium::player_input_handler	view	0x48	f32	the camera's transform, a row-vector 4x4 (16 f32: the rows right, up, forward and the place): update_inverted_view 0x2422B0 writes it (0x24243B), the eyes' transform in modes 0 and 4, else its third-person step
