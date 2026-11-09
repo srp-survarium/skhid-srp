@@ -97,6 +97,9 @@
           # shell's own, and NASM 2.16 (above).
           pkgs.python3
           nasm216
+          # The compile cache shared by every worktree (RUSTC_WRAPPER below);
+          # `sccache --show-stats` shows its hits.
+          pkgs.sccache
         ];
 
         # The `openssl` crate defaults to vendoring (compiling OpenSSL from
@@ -110,6 +113,13 @@
           # `cargo test --target i686-unknown-linux-gnu` in client-patches/rust
           # links its test binaries against 32-bit glibc with this.
           CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER = "${pkgs.pkgsi686Linux.stdenv.cc}/bin/cc";
+          # Every worktree has its own target folder. sccache keeps one cache
+          # for all of them (~/.cache/sccache), so each dependency crate is
+          # compiled once and a new worktree's first build reuses it. The
+          # workspace's own crates build incrementally, which sccache passes
+          # through uncached. Capped at 30 GB, oldest entries dropped first.
+          RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
+          SCCACHE_CACHE_SIZE = "30G";
         };
       };
     };
