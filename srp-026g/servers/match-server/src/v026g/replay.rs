@@ -322,6 +322,7 @@ fn header_of(
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
     Ok(Header {
+        epoch: session::v026g::replays::simulation_epoch(&revisions),
         match_id: replay_id.match_id(),
         made,
         length: end / 1000,

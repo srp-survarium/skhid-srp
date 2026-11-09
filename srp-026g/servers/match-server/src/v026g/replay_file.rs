@@ -22,7 +22,10 @@
 //! `format 1`, `match <8 lower hex>`, `made <unix s, the recording's
 //! start>`, `length <s>`, `map <maps_dict id>`, `map_slug <[A-Za-z0-9-],
 //! the English name>`, `mode <the lobby's mode number>`, `score <a> <b>`
-//! or `score - -`, `revisions <r0,r1,...>` (by place, `-` unknown), then
+//! or `score - -`, `revisions <r0,r1,...>` (by place, `-` unknown), `epoch
+//! <rev>` or `epoch -` (the simulation epoch of the recording:
+//! `session::v026g::replays::simulation_epoch`, the last change of what a
+//! match computes at or before its oldest game), then
 //! `place <n> <team> <kills> <deaths> <name>` for each place of the
 //! roster. The winner is the higher score.
 
@@ -61,6 +64,10 @@ pub struct Header {
     pub mode: u8,
     pub score: Option<[u16; 2]>,
     pub revisions: Vec<Option<u8>>,
+    /// The recording's simulation epoch (`session::v026g::replays::
+    /// simulation_epoch`): with the game's own list of simulation changes,
+    /// what an offline "recorded before a game update" is decided by.
+    pub epoch: Option<u8>,
     pub places: Vec<Place>,
 }
 
@@ -119,6 +126,10 @@ impl Header {
                     .collect::<Vec<_>>()
                     .join(",")
             ),
+            match self.epoch {
+                Some(epoch) => format!("epoch {epoch}"),
+                None => "epoch -".to_owned(),
+            },
         ];
         for (n, place) in self.places.iter().enumerate() {
             lines.push(format!(
@@ -155,6 +166,7 @@ impl Header {
         let (mut made, mut length, mut map, mut map_slug, mut mode) = (None, None, None, None, None);
         let mut score = None;
         let mut revisions = Vec::new();
+        let mut epoch = None;
         let mut places = Vec::new();
         for line in text.lines() {
             let (key, value) = line.split_once(' ').ok_or_else(|| format!("line `{line}`"))?;
@@ -195,6 +207,12 @@ impl Header {
                         })
                         .collect::<Result<_, _>>()?;
                 }
+                "epoch" => {
+                    epoch = Some(match value {
+                        "-" => None,
+                        rev => Some(small(key, rev, 255)? as u8),
+                    });
+                }
                 "place" => {
                     let mut parts = value.splitn(5, ' ');
                     let mut next = |max: u64| {
@@ -230,6 +248,7 @@ impl Header {
             mode: mode.ok_or_else(|| missing("mode"))?,
             score: score.ok_or_else(|| missing("score"))?,
             revisions,
+            epoch: epoch.ok_or_else(|| missing("epoch"))?,
             places,
         })
     }
@@ -329,6 +348,7 @@ mod tests {
                 mode: 4,
                 score: Some([87, 100]),
                 revisions: vec![Some(15), None, Some(16)],
+                epoch: Some(15),
                 places: vec![
                     Place {
                         team: 0,

@@ -124,6 +124,27 @@ pub fn oldest_replayable_here(min_patch_revision: u8) -> u8 {
     oldest_replayable(&changes, min_patch_revision)
 }
 
+/// The simulation epoch of a recording by games of `revisions` (by place):
+/// the last change of what a match computes ([`SIMULATION_CHANGES`]) at or
+/// before the oldest of those games. A saved file carries it: a game holding
+/// its own list of the changes can tell offline whether the file is one its
+/// simulation plays out alike. `None` with no known revision, or one before
+/// the first change.
+pub fn simulation_epoch(revisions: &[Option<u8>]) -> Option<u8> {
+    let oldest = revisions
+        .iter()
+        .flatten()
+        .copied()
+        .filter(|&revision| revision != 0)
+        .min()?;
+    simulation_changes(SIMULATION_CHANGES)
+        .expect("simulation_changes.tsv reads")
+        .iter()
+        .filter_map(|change| change.revision)
+        .filter(|&revision| revision <= oldest)
+        .max()
+}
+
 /// How long a save's download token lives.
 pub const TOKEN_LIFETIME: Duration = Duration::from_secs(10 * 60);
 /// The downloads one token makes (a broken download resumes with the next).
@@ -1506,6 +1527,14 @@ mod tests {
             })
         );
         assert_eq!(refusal_of(&[Some(17)], 18, 17), None);
+    }
+
+    #[test]
+    fn a_recordings_epoch_is_the_last_change_at_or_before_its_oldest_game() {
+        assert_eq!(simulation_epoch(&[Some(29), None, Some(38)]), Some(28));
+        assert_eq!(simulation_epoch(&[Some(27)]), Some(27));
+        assert_eq!(simulation_epoch(&[None, Some(0)]), None, "no known revision");
+        assert_eq!(simulation_epoch(&[Some(10)]), None, "before the first change");
     }
 
     #[test]

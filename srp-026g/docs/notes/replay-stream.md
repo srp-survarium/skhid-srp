@@ -175,6 +175,19 @@ go on. The wire: `lobby.md` 2.16.6.
 Not this setting's: finished replays. A room's "Queue and spectate" follows it: its watch of a
 match with such a player does not start (`rooms::room_watchers`); one already there goes on.
 
+## Opening a saved file (not built)
+
+Save's `.srpreplay` (`replay_file.rs`) is for a later, offline path. It is to play through the same
+machine as a kept recording: the file's `.sur` made into a [`Recording`] (`Recording::from_sur`) and
+played by a match server on the player's own machine (the launcher starting it, the game connecting
+to it as it connects to a replay session), so patch 130's viewer, its Moments and the kit view carry
+over. The `.sur` inside is not meant for the native player (`-match_replay`, `replay_sur.md`): it
+has no mode config (chunk 4), and there patch 130 stays out (`role()` is `None` when the client is
+not `network_client`), so none of the viewer would. The header's `epoch` (the last simulation change
+at or before the file's oldest game) is what that path's "recorded before a game update" is decided
+by: the game can compare it with its own epoch, which the exe does not hold yet (`simulation_changes.tsv`
+is the server's).
+
 ## Settings
 
 | setting | |
