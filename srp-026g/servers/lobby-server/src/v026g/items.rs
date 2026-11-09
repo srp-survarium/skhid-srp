@@ -1,6 +1,6 @@
 //! The requests about one item (`lobby_requests.md`): its cosmetics
 //! (`46 01`, `02`, `05`), changing a modification (`46 06`..`08`),
-//! upgrading it with a donor (`46 09`) and the repair (`47 03`). The rules
+//! upgrading it with a donor (`46 09`). The rules
 //! are `session::v026g::items_rules`; here is what the client is sent for
 //! each, and what it needs to get out of the state its window is in:
 //!
@@ -13,10 +13,9 @@
 //! | `46 07` reroll | `83 46 07` and the money | `84 46`, then `83 46 06`: the window is locked until it is filled again |
 //! | `46 08` choose | `83 46 08` (the client changes its copies itself; keeping the old one: the old one into itself) | `84 46`, then `83 46 06` (and `07`) |
 //! | `46 09` craft | `83 46 09`, then the inventory, the account and the money | `83 46 09 FE`: the window waits for a result, and shows `st_cannot_craft_item` for this one |
-//! | `47 03` repair | `83 47 03`, then the inventory (the client leaves the defects on its copy), the account and the money | `84 47` with the rule's text |
 //!
-//! A repair paid in silver for an item with defects takes time: when it is
-//! over the client is told with an important message, `#ir[<item>]`.
+//! There is no repair (the owner, 2026-11-08): `47 03` is not read
+//! (`core`'s unreadable request, `84 47 st_cannot_buy_item`).
 //!
 //! A weapon's upgrades are the weapon kit's (`items_rules`,
 //! `survarium::v026g::weapon_kit`): up to six, sent packed into three
@@ -29,8 +28,8 @@
 
 use session::LockExt;
 use session::v026g::items_rules::{self, Detached, ItemError, RerollWindow};
-use session::v026g::{quests, wire};
-use survarium::v026g::lobby::requests::{RepairPayment, id};
+use session::v026g::wire;
+use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, Crafted};
 
 use super::core::{Core, Who};
@@ -176,7 +175,6 @@ impl Core<'_> {
                 &mut account,
                 item_id,
                 modification,
-                quests::now(),
                 &mut self.rng,
             )
             .map(|rolled| (rolled, wire::money(&account)))
@@ -270,49 +268,18 @@ impl Core<'_> {
             item_id,
             donor,
             queued,
-            quests::now(),
             &mut self.rng,
         );
         match crafted {
             Ok(crafted) => {
                 log::info!("{} upgraded item {item_id} with {donor}: {crafted:?}", who.name);
-                self.send_made(who.addr, lobby::permitted_crafted(item_id, crafted));
+                self.send(who.addr, lobby::permitted_crafted(item_id, crafted));
                 self.item_changed(who);
             }
             Err(why) => {
                 log::info!("{}: an upgrade of item {item_id} refused: {why}", who.name);
-                self.send_made(who.addr, lobby::permitted_crafted(item_id, Crafted::Failed));
+                self.send(who.addr, lobby::permitted_crafted(item_id, Crafted::Failed));
             }
         }
-    }
-
-    // ---------------------------------------------------------- repair
-
-    /// `47 03 <item> <kind> [<kit item>]`.
-    pub(super) fn repair(&mut self, who: &Who, item_id: u32, payment: RepairPayment) {
-        let repaired =
-            items_rules::repair(&mut who.account.locked(), item_id, payment, quests::now());
-        match repaired {
-            Ok(repaired) => {
-                self.send_made(who.addr, lobby::permitted_repaired(item_id, repaired));
-                self.item_changed(who);
-            }
-            Err(error) => {
-                self.refuse_item(who, id::SHOP, &format!("a repair of item {item_id}"), error)
-            }
-        }
-    }
-
-    /// The pass of every tick: the repairs of a player in the lobby that
-    /// are over are told to its client (`#ir[<item>]`), which unlocks the
-    /// item.
-    pub(super) fn item_timers(&mut self, who: &Who) {
-        let done = items_rules::finish_repairs(&mut who.account.locked(), quests::now());
-        if done.is_empty() {
-            return;
-        }
-        self.accounts.mark_dirty(who.account_id);
-        let notices: Vec<_> = done.into_iter().map(items_rules::repaired_notice).collect();
-        self.notify(who, &notices);
     }
 }

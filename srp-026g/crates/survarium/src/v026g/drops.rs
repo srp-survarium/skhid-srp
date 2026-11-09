@@ -1,5 +1,6 @@
-//! What a 0.26g match, a first match, a daily bonus and a drop card give:
-//! the game's `gameplay/drops/drops.options` (0.26g's `resources.db`;
+//! What a 0.26g match, a first match and a drop card give (the daily
+//! bonus gives nothing, `daily_bonus_drop` is not read): the game's
+//! `gameplay/drops/drops.options` (0.26g's `resources.db`;
 //! `docs/notes/data.md` §5) and each item's level, drop weight
 //! and rarity ([`super::item_params`]).
 //!
@@ -136,7 +137,9 @@ pub struct Drops {
     /// After a match.
     pub generic: DropTable,
     pub new_player: DropTable,
-    pub daily_bonus: DropTable,
+    // `daily_bonus_drop` is not read: the daily bonus's seventh day gave its
+    // 50 gold and nothing else, and gives nothing now (the owner, 2026-11-08;
+    // `session::v026g::bonus`).
     /// From a drop card (the voucher `drop_card`, 153).
     pub drop_card: DropTable,
     pub playtime: PlaytimeDependence,
@@ -220,7 +223,6 @@ impl Drops {
         Ok(Self {
             generic: parse_table(root.req("generic_drop")?)?,
             new_player: parse_table(root.req("new_player_drop")?)?,
-            daily_bonus: parse_table(root.req("daily_bonus_drop")?)?,
             drop_card: parse_table(root.req("drop_card_drop")?)?,
             playtime: PlaytimeDependence {
                 play_period: number(playtime.req("play_period")?)?,
@@ -434,7 +436,6 @@ mod tests {
         for table in [
             &drops.generic,
             &drops.new_player,
-            &drops.daily_bonus,
             &drops.drop_card,
         ] {
             assert_eq!(table.levels.len(), 21);
@@ -477,13 +478,6 @@ mod tests {
         assert_eq!(drops.new_player.categories.len(), 2);
         assert_eq!(drops.new_player.rarity_points, [0.0, 0.0, 0.0, 0.0, 2.0]);
         assert_eq!(drops.new_player.item_chance(), 1.0);
-        assert_eq!(drops.daily_bonus.categories.len(), 1);
-        assert_eq!(drops.daily_bonus.categories[0].categories, [29]);
-        assert_eq!(
-            drops.daily_bonus.rarity_points,
-            [0.0, 0.0, 0.0, 0.0, 0.0, 2.0]
-        );
-        assert_eq!(drops.daily_bonus.levels[20][15], 100);
         assert_eq!(drops.drop_card.categories[0].weight, 40);
         assert_eq!(drops.drop_card.categories[0].categories, [25, 26]);
         assert_eq!(drops.drop_card.item_chance(), 1.0);
@@ -516,10 +510,9 @@ mod tests {
         assert_eq!(generic.rarity_at(1.59), 1);
         assert_eq!(generic.rarity_at(1.7), 2);
         assert_eq!(generic.rarity_at(1.95), 3);
-        // The new player's and the daily bonus's tables have one band.
+        // The new player's table has one band.
         for at in [0.0, 1.0, 1.99] {
             assert_eq!(drops.new_player.rarity_at(at), 3);
-            assert_eq!(drops.daily_bonus.rarity_at(at), 4);
         }
         // Over many rolls: half, 30 %, 15 %, 5 %.
         let mut rng = Rng::new(5);
@@ -593,7 +586,6 @@ mod tests {
             for table in [
                 &drops.generic,
                 &drops.new_player,
-                &drops.daily_bonus,
                 &drops.drop_card,
             ] {
                 for level in 0..=20 {
@@ -689,10 +681,6 @@ mod tests {
             let level = item_params(drop.dict_id).unwrap().item_level;
             assert!((1..=2).contains(&level), "{} is level {level}", item.name);
             assert_eq!(drop.rarity, 3);
-
-            // The daily bonus: its 50 gold, in silver.
-            let drop = roll(&drops.daily_bonus, dictionary, &[], 9, 0, &mut rng).unwrap();
-            assert_eq!((drop.dict_id, drop.count, drop.rarity), (214, 5_000, 4));
 
             // A drop card: a cosmetic, armour or a weapon.
             let drop = roll(&drops.drop_card, dictionary, &[], 20, 0, &mut rng).unwrap();
@@ -812,6 +800,42 @@ mod tests {
             assert!(!generic.level_independent.contains(&item.category), "{name}");
             let pool = generic.candidates(dictionary, item.category, level);
             assert!(pool.iter().any(|candidate| candidate.dict_id == item.dict_id), "{name}");
+        }
+    }
+
+    /// decals-069d's three badges on game data with the pack
+    /// (`SRP_GAME_DATA`: `release/build-content`'s server-game-data.db with
+    /// decals-069d@2): sold for 50,000 silver by seller 0 at no rank (the
+    /// owner, 2026-11-08), and no table drops them. It makes that data the
+    /// process's: run it alone.
+    #[test]
+    #[ignore = "needs game data with decals-069d@2 (SRP_GAME_DATA); run alone"]
+    fn the_069d_badges_are_sold_by_seller_0_and_never_dropped() {
+        use super::super::{game_data, prices};
+        let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
+        game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
+        let dictionary = Dictionary::shared();
+        let drops = Drops::shared();
+        let tables = [&drops.generic, &drops.new_player, &drops.drop_card];
+        for (name, dict_id) in [("decals_1_9", 1891), ("decals_1_10", 1892), ("decals_1_11", 1893)] {
+            let item = dictionary.item_named(name).unwrap_or_else(|| panic!("no {name}"));
+            let params = item_params(item.dict_id).unwrap();
+            assert_eq!(item.dict_id, dict_id, "{name}");
+            assert!(prices::is_badge(item, params), "{name}");
+            assert_eq!(prices::sellers_of(dictionary, item, params), [(0, 0)], "{name}");
+            let listed: Vec<_> = prices::price_list()
+                .iter()
+                .filter(|record| record.dict_id == dict_id)
+                .map(|record| (record.faction_id, record.level, record.cost))
+                .collect();
+            assert_eq!(listed, [(0, 0, 50_000)], "{name}");
+            assert_eq!(params.drop_weight, 0, "{name}");
+            for table in tables {
+                for level in 0..=15 {
+                    let pool = table.nearest_candidates(dictionary, item.category, level);
+                    assert!(pool.iter().all(|candidate| candidate.dict_id != dict_id), "{name}");
+                }
+            }
         }
     }
 }

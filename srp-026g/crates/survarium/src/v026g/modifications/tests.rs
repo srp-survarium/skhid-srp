@@ -16,7 +16,6 @@ fn the_three_files_parse_to_what_the_dump_shows() {
     let data = Modifications::shared();
     assert_eq!(data.modifications.len(), 158);
     assert_eq!(data.defects.len(), 20);
-    assert_eq!(data.defect_slots.len(), 3);
     // Sorted by id, each once.
     assert!(
         data.modifications
@@ -69,14 +68,7 @@ fn the_three_files_parse_to_what_the_dump_shows() {
 
     let defect = data.defect(3000).unwrap();
     assert_eq!(defect.name, "st_defect_barrel_deformation");
-    assert_eq!(
-        (
-            defect.kind,
-            defect.fix_cost_general,
-            defect.fix_time_general
-        ),
-        (1, 100, 360)
-    );
+    assert_eq!(defect.kind, 1);
     assert_eq!(defect.required_modifications, None);
     assert_eq!(defect.modifiers[0].value, -0.1);
     // The three defects that take away what a modification gave.
@@ -97,43 +89,14 @@ fn the_three_files_parse_to_what_the_dump_shows() {
     let mut kinds: Vec<u8> = data.defects.iter().map(|d| d.kind).collect();
     kinds.sort_unstable();
     assert_eq!(kinds, (1..=20).collect::<Vec<u8>>());
-    // Every defect costs and takes the same.
-    assert!(data.defects.iter().all(|d| {
-        (
-            d.fix_cost_general,
-            d.fix_time_general,
-            d.drop_weight,
-        ) == (100, 360, 10.0)
-    }));
+    assert!(data.defects.iter().all(|d| d.drop_weight == 10.0));
 
-    assert_eq!(
-        data.defect_slots,
-        [
-            DefectSlot {
-                condition: (0.9, 0.0),
-                probability: (0.1, 0.5)
-            },
-            DefectSlot {
-                condition: (0.5, 0.0),
-                probability: (0.3, 0.7)
-            },
-            DefectSlot {
-                condition: (0.1, 0.0),
-                probability: (0.5, 1.0)
-            },
-        ]
-    );
-
-    // In silver, the game's gold prices and chances (the owner, 2026-11-08):
-    // its silver ones, half the chances at twice the price, are not read.
+    // In silver, the game's gold prices (the owner, 2026-11-08): its silver
+    // ones, twice the price, are not read; nor are its chances.
     #[rustfmt::skip]
     assert_eq!(
         data.craft.price,
         [200, 200, 400, 800, 1200, 1700, 2200, 2700, 3300, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
-    );
-    assert_eq!(
-        data.craft.chances,
-        [(100.0, 0.0), (50.0, 0.0), (25.0, 25.0)]
     );
     #[rustfmt::skip]
     assert_eq!(
@@ -447,82 +410,19 @@ fn a_reroll_offers_three_on_an_item_of_few_types() {
 }
 
 #[test]
-fn defects_come_with_wear() {
-    let data = Modifications::shared();
-    // No defect at all over 90 %.
-    assert_eq!(data.defect_chance(1.0, 0), 0.0);
-    assert_eq!(data.defect_chance(0.9, 0), 0.0);
-    // The first slot: 10 % just under 90 %, 50 % at nothing.
-    assert!((data.defect_chance(0.8999, 0) - 0.1).abs() < 1e-3);
-    assert!((data.defect_chance(0.45, 0) - 0.3).abs() < 1e-5);
-    assert!((data.defect_chance(0.0, 0) - 0.5).abs() < 1e-6);
-    // The second opens under 50 %, the third under 10 %; there is no
-    // fourth.
-    assert_eq!(data.defect_chance(0.6, 1), 0.0);
-    assert!((data.defect_chance(0.25, 1) - 0.5).abs() < 1e-5);
-    assert_eq!(data.defect_chance(0.2, 2), 0.0);
-    assert!((data.defect_chance(0.0, 2) - 1.0).abs() < 1e-6);
-    assert_eq!(data.defect_chance(0.0, 3), 0.0);
-
-    let rifle = dict("ak_74m");
-    let ids = |list: Vec<&Defect>| list.iter().map(|d| d.id).collect::<Vec<u32>>();
-    // The rifle's mask: types 1..=5 and 7.
-    assert_eq!(
-        ids(data.defect_candidates(rifle, &[], &[])),
-        [3000, 3010, 3020, 3030, 3040, 3060]
-    );
-    assert_eq!(
-        ids(data.defect_candidates(rifle, &[], &[3000, 3060])),
-        [3010, 3020, 3030, 3040]
-    );
-    // Trousers with ammo bags (a default modification 1050) may lose one;
-    // those without may not.
-    let with_bags = dict("bm_legs_4");
-    assert!(ids(data.defect_candidates(with_bags, &[], &[])).contains(&4050));
-    let plain = dict("scav_legs_1");
-    assert!(item_mods(plain).unwrap().defects & (1 << 12) != 0);
-    assert!(!ids(data.defect_candidates(plain, &[], &[])).contains(&4050));
-
-    let mut rng = Rng::new(11);
-    // A whole item never breaks; one at nothing does half the time.
-    assert!((0..500).all(|_| { data.roll_defect(rifle, &[], &[], 0.95, &mut rng).is_none() }));
-    let broke = (0..4000)
-        .filter(|_| data.roll_defect(rifle, &[], &[], 0.0, &mut rng).is_some())
-        .count();
-    assert!((1800..2200).contains(&broke), "{broke}");
-    // At nothing the third slot always fills, with a defect it has not.
-    let third = data
-        .roll_defect(rifle, &[], &[3000, 3010], 0.0, &mut rng)
-        .unwrap();
-    assert!([3020, 3030, 3040, 3060].contains(&third));
-}
-
-#[test]
 fn craft_and_reroll_go_by_the_tables() {
     let data = Modifications::shared();
     assert_eq!(data.craft.price(0), 200);
     assert_eq!(data.craft.price(10), 5_000);
     // Level 16 (the highest an item has) costs the table's last.
     assert_eq!(data.craft.price(16), 10_000);
-    assert_eq!(data.craft.chances(0), Some((100.0, 0.0)));
-    assert_eq!(data.craft.chances(2), Some((25.0, 25.0)));
-    assert_eq!(data.craft.chances(3), None);
-    use CraftOutcome::{Failure, Neutral, Success};
-    assert_eq!(data.craft.outcome_at(0, 99.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(1, 49.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(1, 50.0), Some(Neutral));
-    assert_eq!(data.craft.outcome_at(2, 24.9), Some(Success));
-    assert_eq!(data.craft.outcome_at(2, 25.0), Some(Failure));
-    assert_eq!(data.craft.outcome_at(2, 49.9), Some(Failure));
-    assert_eq!(data.craft.outcome_at(2, 50.0), Some(Neutral));
-    assert_eq!(data.craft.outcome_at(3, 0.0), None);
     // The lobby's rows: silver success and failure, gold success and
-    // failure, for a difference of 0, 1 and 2; nothing in gold.
+    // failure, for a difference of 0, 1 and 2: always a success, in silver.
     let (chances, silver, gold) = data.craft.tables();
     #[rustfmt::skip]
     assert_eq!(
         chances,
-        [100.0, 0.0, 0.0, 0.0,  50.0, 0.0, 0.0, 0.0,  25.0, 25.0, 0.0, 0.0]
+        [100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0]
     );
     assert_eq!((silver[2], gold), (400, [0; 16]));
 
@@ -537,28 +437,9 @@ fn craft_and_reroll_go_by_the_tables() {
 }
 
 #[test]
-fn reliability_slows_wear_and_premium_gear_pays_more() {
+fn premium_gear_pays_more() {
     let data = Modifications::shared();
-    let rifle = dict("ak_74m");
-    assert_eq!(data.wear_factor(rifle, &[], "degrade_per_match"), 1.0);
-    // 2090: 5 % less wear; 2094: 25 %.
-    let factor = data.wear_factor(rifle, &[(2090, false)], "degrade_per_match");
-    assert!((factor - 0.95).abs() < 1e-6);
-    let factor = data.wear_factor(rifle, &[(2094, false)], "degrade_per_use");
-    assert!((factor - 0.75).abs() < 1e-6);
-    // Another modification changes nothing of it, and a defect's id is
-    // not read as a modification's.
-    assert_eq!(
-        data.wear_factor(rifle, &[(2000, false)], "degrade_per_match"),
-        1.0
-    );
-    assert_eq!(
-        data.wear_factor(rifle, &[(2090, true)], "degrade_per_match"),
-        1.0
-    );
-    // The golden rifle's 2094 default is gone (`super::super::golden`).
     let premium = dict("ak_74n_premium");
-    assert_eq!(data.wear_factor(premium, &[], "degrade_per_death"), 1.0);
 
     // Its 1230 (10 % more silver) is a modification of its own: it pays
     // as one, and without it nothing.
@@ -581,7 +462,10 @@ fn reliability_slows_wear_and_premium_gear_pays_more() {
         &[(1240, false), (1250, false)],
     );
     assert!((bonuses.reputation[0] - 0.05).abs() < 1e-6);
-    assert_eq!(data.bonuses(rifle, &[(2000, false)]), Bonuses::default());
+    assert_eq!(
+        data.bonuses(dict("ak_74m"), &[(2000, false)]),
+        Bonuses::default()
+    );
 }
 
 /// The lobby colours a bonus at the best value it rolls gold and shows its
@@ -659,22 +543,34 @@ fn the_lobby_knows_the_values_each_bonus_rolls() {
     let start = source.find("ROLLS:Object = {").expect("the lobby's ROLLS");
     let rows = &source[start + "ROLLS:Object = {".len()..];
     let rows = &rows[..rows.find("};").expect("the end of ROLLS")];
-    // `<prop id>:[<values>], // <name>` a line.
+    // `<prop id>:[<first id>,<scale>], // <name>` a line; the movie reads
+    // the five ids' values from modifications.tsv (ModificationValues),
+    // each times the scale (`ModificationRolls.rollsOf`).
+    let tsv = include_str!("../../../../../scripts/content-edit/modifications.tsv");
+    let value_of = |id: u32| -> f64 {
+        tsv.lines()
+            .find_map(|line| {
+                let cells: Vec<&str> = line.split('\t').collect();
+                (cells[0] == id.to_string()).then(|| cells[2].parse().unwrap())
+            })
+            .unwrap_or_else(|| panic!("modifications.tsv: no {id}"))
+    };
     let lobby: BTreeMap<u32, Vec<f64>> = rows
         .lines()
         .map(|line| line.split("//").next().unwrap().trim())
         .filter(|line| !line.is_empty())
         .map(|line| {
-            let (id, values) = line.split_once(':').expect("<prop id>:[values]");
-            let values = values.trim().trim_end_matches(',');
-            let values = values.trim_start_matches('[').trim_end_matches(']');
-            (
-                id.trim().parse().unwrap(),
-                values
-                    .split(',')
-                    .map(|v| v.trim().parse().unwrap())
-                    .collect(),
-            )
+            let (prop, row) = line.split_once(':').expect("<prop id>:[first id,scale]");
+            let row = row.trim().trim_end_matches(',');
+            let row = row.trim_start_matches('[').trim_end_matches(']');
+            let [first, scale] = row.split(',').map(str::trim).collect::<Vec<_>>()[..] else {
+                panic!("a ROLLS row: {line}")
+            };
+            let (first, scale): (u32, f64) = (first.parse().unwrap(), scale.parse().unwrap());
+            let values = (first..first + 5)
+                .map(|id| (value_of(id) * scale * 1e6).round() / 1e6)
+                .collect();
+            (prop.trim().parse().unwrap(), values)
         })
         .collect();
     let same = lobby.len() == expected.len()
@@ -692,7 +588,7 @@ fn the_lobby_knows_the_values_each_bonus_rolls() {
     let table = table.join(",\n");
     assert!(
         same,
-        "ModificationRolls.ROLLS should be, by this data:\n{table}"
+        "ModificationRolls.ROLLS (its runs of ids, their modifications.tsv values times the scale) should give, by this data:\n{table}"
     );
 }
 
@@ -711,20 +607,29 @@ fn the_premium_bonuses_are_the_most_their_property_gives() {
         .expect("the lobby's BONUS_UI");
     let rows = &source[start..];
     let rows = &rows[rows.find('\n').unwrap() + 1..rows.find("\n      ];").unwrap()];
-    // `[<id>,<icon>,<prop id>,"<value>"], // <name>` a line.
+    // Its values: modifications.tsv's, as the movie reads them
+    // (`ItemFactory.bonusValue`, the build's ModificationValues).
+    let table = include_str!("../../../../../scripts/content-edit/modifications.tsv");
+    let value_of = |id: &str| -> f64 {
+        table
+            .lines()
+            .find_map(|line| {
+                let cells: Vec<&str> = line.split('\t').collect();
+                (cells[0] == id).then(|| cells[2].parse().unwrap())
+            })
+            .unwrap_or_else(|| panic!("modifications.tsv: no {id}"))
+    };
+    // `[<id>,<icon>,<prop id>], // <name>` a line.
     let premium: BTreeMap<u32, f64> = rows
         .lines()
         .map(|line| {
             let row = line.split("//").next().unwrap().trim();
             let row = row.trim_end_matches(',').trim_start_matches('[');
             let fields: Vec<&str> = row.trim_end_matches(']').split(',').collect();
-            let [_, _, prop_id, value] = fields[..] else {
+            let [id, _, prop_id] = fields[..] else {
                 panic!("a BONUS_UI row: {line}")
             };
-            (
-                prop_id.trim().parse().unwrap(),
-                value.trim().trim_matches('"').parse().unwrap(),
-            )
+            (prop_id.trim().parse().unwrap(), value_of(id.trim()))
         })
         .collect();
     // Silver, experience and the four factions' reputation.
@@ -979,13 +884,19 @@ fn rollable_types(data: &Modifications, mask: u64, defaults: &[u32]) -> u32 {
 /// The masks of `armor.tsv` (its `mods` column), by config.
 fn table_masks() -> std::collections::BTreeMap<String, String> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let text = std::fs::read_to_string(root.join("srp-026g/scripts/content-edit/armor.tsv")).unwrap();
+    let text =
+        std::fs::read_to_string(root.join("srp-026g/scripts/content-edit/armor.tsv")).unwrap();
     let mut lines = text.lines().filter(|line| !line.starts_with('#'));
     let head: Vec<&str> = lines.next().unwrap().split('\t').collect();
     let mods = head.iter().position(|column| *column == "mods").unwrap();
     lines
         .map(|line| line.split('\t').collect::<Vec<_>>())
-        .map(|row| (format!("gameplay/items/armour/{}.options", row[0]), row[mods].to_owned()))
+        .map(|row| {
+            (
+                format!("gameplay/items/armour/{}.options", row[0]),
+                row[mods].to_owned(),
+            )
+        })
         .collect()
 }
 
@@ -1015,7 +926,9 @@ fn every_item_rolls_three_types_with_the_tables_masks() {
         let Some(item) = item_mods(entry.dict_id) else {
             continue;
         };
-        let mask = masks.get(&entry.cfg_name).map_or(item.modifications, |mask| bits(mask));
+        let mask = masks
+            .get(&entry.cfg_name)
+            .map_or(item.modifications, |mask| bits(mask));
         let types = rollable_types(data, mask, defaults_of(&entry.cfg_name));
         assert!(
             types == 0 || types >= 3,

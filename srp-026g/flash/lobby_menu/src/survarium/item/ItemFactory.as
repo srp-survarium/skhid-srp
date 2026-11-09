@@ -8,6 +8,7 @@ package survarium.item
    import survarium.data.ItemData;
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
+   import survarium.data.ModificationValues;
    import survarium.data.PropertiesDescriptor;
    import survarium.interfaces.IItemFactory;
    import survarium.upgrade.UpgradeWindow;
@@ -23,7 +24,6 @@ package survarium.item
    import survarium.constants.ModifierType;
    import survarium.constants.QuickSlotSize;
    import survarium.constants.SuperCategory;
-   import survarium.constants.VoucherType;
    
    public class ItemFactory implements IItemFactory
    {
@@ -192,16 +192,24 @@ package survarium.item
       
       // The bonuses srp gives a new golden item as its own first modifications
       // (golden::starting_modifications), as the exe gives the movie a modification ({state, icon,
-      // name, props} from its ui_desc; the name is unused for a modification): [id, icon, prop_id,
-      // prop_value] a line. A test holds these to the data (survarium::v026g::golden::tests).
+      // name, props} from its ui_desc; the name is unused for a modification): [id, icon, prop_id] a
+      // line, its value the game's own (bonusValue: scripts/content-edit/modifications.tsv, the one
+      // place it is written). A test holds these to the data (survarium::v026g::golden::tests).
       public static const BONUS_UI:Array = [
-         [1230,66,126,"0.10"], // +10 % silver
-         [1240,65,127,"0.05"], // +5 % experience
-         [1250,67,128,"0.05"], // +5 % reputation with the Scavengers
-         [1260,68,129,"0.05"], // +5 % reputation with the Black Market
-         [1270,69,130,"0.05"], // +5 % reputation with the Renaissance Army
-         [1280,70,131,"0.05"] // +5 % reputation with the Fringe Settlers
+         [1230,66,126], // silver
+         [1240,65,127], // experience
+         [1250,67,128], // reputation with the Scavengers
+         [1260,68,129], // reputation with the Black Market
+         [1270,69,130], // reputation with the Renaissance Army
+         [1280,70,131] // reputation with the Fringe Settlers
       ];
+      
+      // A BONUS_UI row's value, its card line's text: the modification's value (ModificationValues,
+      // made by the build from modifications.tsv), two decimals as the game's own rows (0.20).
+      public static function bonusValue(row:Array) : String
+      {
+         return Number(ModificationValues.value[String(row[0])]).toFixed(2);
+      }
       
       public static const SILVER_BONUS:int = 1230;
       
@@ -218,7 +226,7 @@ package survarium.item
                   icon:row[1],
                   props:[{
                      prop_id:row[2],
-                     prop_value:row[3]
+                     prop_value:bonusValue(row)
                   }]
                };
             }
@@ -273,7 +281,7 @@ package survarium.item
       // panel's Upgrade and the right-click menu's entry are off then (owner 2026-10-22).
       public static function isItemCraftable(value:ItemData) : Boolean
       {
-         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && value.rank < ItemRank.MAX && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
+         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && value.rank < ItemRank.MAX && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
       }
       
       public function registerItemDescriptor(link:ItemDescriptor) : void
@@ -362,7 +370,6 @@ package survarium.item
          item.oneHanded = !description.double_handed;
          item.name = description.name;
          item.dictId = dictId;
-         item.repairCostRatio = description.repair_cost_ratio;
          if(description.modifiers == undefined)
          {
             description.modifiers = [];
@@ -411,7 +418,6 @@ package survarium.item
          {
             item.clipsInBag = 1 / description.required_bags;
          }
-         item.usable = item.category == ItemCategory.VOUCHERS && (item.type == VoucherType.PREMIUM || item.type == VoucherType.RENAME);
          var ammoList:String = "";
          var ammoIds:Array;
          var unusedText:String;
@@ -478,7 +484,7 @@ package survarium.item
          }
          item.sellerIcon = sellerIcon;
          item.factionId = factionId;
-         trace("IL::create_item::",item.name,item.category,item.usable,item.type,item.category == ItemCategory.VOUCHERS,description.descr);
+         trace("IL::create_item::",item.name,item.category,item.type,item.category == ItemCategory.VOUCHERS,description.descr);
          return item;
       }
       
@@ -497,7 +503,6 @@ package survarium.item
          }
          if(itemInfo.modifiers != undefined)
          {
-            item.broken = this.getItemBroken(itemInfo.modifiers);
             item.modifiers = (itemInfo.modifiers as Array).concat(item.modifiersDefault);
          }
          if(itemInfo.rarity_level != undefined)
@@ -687,102 +692,6 @@ package survarium.item
          item.tipText = tip;
       }
       
-      protected function getFailModifiers(itemInfo:Object) : Array
-      {
-         var modifiers:Array = itemInfo.modifiers != null ? itemInfo.modifiers : [];
-         var failed:Array = [];
-         var i:uint = 0;
-         var icons:IconContainer;
-         var modifierIcon:Icon;
-         while(i < modifiers.length)
-         {
-            if(modifiers[i].state == ModificationState.DEFECT)
-            {
-               icons = IconContainer.getInstance("modifiers");
-               modifierIcon = icons.getIcon(modifiers[i].icon);
-               failed.push({
-                  name:modifiers[i].name,
-                  props:modifiers[i].props,
-                  icon:modifierIcon,
-                  state:modifiers[i].state,
-                  fix_time_general:modifiers[i].fix_time_general,
-                  fix_cost_general:modifiers[i].fix_cost_general,
-                  fix_cost_gold:modifiers[i].fix_cost_gold
-               });
-            }
-            i++;
-         }
-         this.fillModifiersNames(failed);
-         return failed;
-      }
-      
-      protected function fillModifiersNames(modifiers:Array) : void
-      {
-         var i:uint = 0;
-         var propsText:String;
-         var props:Object;
-         var prop:Object;
-         var propDesc:Object;
-         var postfix:String;
-         var sign:String;
-         var propValue:Number;
-         var color:String;
-         while(i < modifiers.length)
-         {
-            propsText = "";
-            props = modifiers[i].props;
-            trace("props::",propsText,props,this._propsDescriptor);
-            for each(prop in props)
-            {
-               propDesc = this._propsDescriptor.getPropertyDescription(prop.prop_id);
-               if(propDesc)
-               {
-                  if(propDesc.postfix == undefined)
-                  {
-                     propDesc.postfix = "";
-                  }
-                  postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
-                  sign = prop.prop_value >= 0 ? "+" : "";
-                  if(propDesc.modifier_type == undefined)
-                  {
-                     propDesc.modifier_type = ModifierType.INVALID;
-                     propDesc.modifier_type = prop.modifier_type;
-                  }
-                  if(propDesc.modifier_type == ModifierType.INVALID)
-                  {
-                     throw Error("modifier_type at modifier " + modifiers[i].name + " for prop_id " + prop.prop_id + " is invalid");
-                  }
-                  trace("propValue::",propDesc.direction,prop.direction);
-                  propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
-                  color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
-                  propsText += propDesc.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
-               }
-            }
-            modifiers[i].name = propsText;
-            i++;
-         }
-      }
-      
-      private function getItemBroken(modifiers:Array) : Boolean
-      {
-         if(!modifiers)
-         {
-            return false;
-         }
-         var count:uint = modifiers.length;
-         var i:uint = 0;
-         var modifier:Object;
-         while(i < count)
-         {
-            modifier = modifiers[i];
-            if(modifier.state)
-            {
-               return true;
-            }
-            i++;
-         }
-         return false;
-      }
    }
 }
 

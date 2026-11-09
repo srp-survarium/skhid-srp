@@ -608,7 +608,7 @@ impl<'a> Core<'a> {
             // The account is seen today: its run of days for the daily
             // bonus is brought up to the day before the pushes.
             if !bot {
-                bonus::visit(&mut game, unix, &mut self.rng);
+                bonus::visit(&mut game, unix);
             }
             let notices = quests::refresh(&mut game, unix, &mut self.rng);
             // A new account's first quests are part of its start: in its
@@ -995,10 +995,6 @@ impl<'a> Core<'a> {
                 }
             }
             self.friend_statuses(addr);
-            // A repair that is over (`items`).
-            if let Some(who) = self.who(addr) {
-                self.item_timers(&who);
-            }
             // A match that ended after its player had left it.
             let in_lobby = self
                 .player(addr)

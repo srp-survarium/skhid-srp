@@ -1529,6 +1529,26 @@ pub extern "C" fn hook_hud_cursor_on_cursor_shown(frame: &mut Frame) -> u32 {
 
 // ---- hud_cursor (patch 113) ----
 
+/// The named exits of hud_cursor::on_cursor_hidden (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HudCursorOnCursorHiddenExit { Kept }
+/// The entry `hud_cursor_on_cursor_hidden` (0x23a9b0, show_cursor's hide (mov edx,[edi+18h] / lea eax,[edi+0Ch], then the call of base_game_scene::hide_movie 0x23DC70 at 0x23A9B6; the je at 0x23A944 jumps here): kept skips the movie, the flag (+2DCh) still written at 0x23A9BB) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_cursor_on_cursor_hidden(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_cursor_on_cursor_hidden` calls this, from the game's jump at 0x23a9b0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_cursor::on_cursor_hidden(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- hud_cursor (patch 113) ----
+
 /// The entry `hud_cursor_on_menu_show` (0x200f50, game_options::activate's start (push ebp / mov ebp,esp / and esp,-8): the main menu about to be shown, over a match by Esc (activate_main_menu 0x1EDBDC) or over the lobby (0x28C5C9)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_cursor_on_menu_show(frame: &mut Frame) -> u32 {

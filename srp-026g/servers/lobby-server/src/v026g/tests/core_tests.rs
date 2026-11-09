@@ -548,32 +548,21 @@ fn buying_selling_and_moving_go_round_with_their_pushes() {
 }
 
 #[test]
-fn a_worn_item_is_repaired_and_no_gold_is_exchanged() {
+fn no_repair_and_no_gold_exchange() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     world.change(alice, |account| {
         account.generic_money = 1_000_000;
-        rules::wear(account, 1, 0.5);
     });
-    assert!(world.account(alice).item(1).unwrap().condition_or_stack < FULL_CONDITION);
-
-    world.ask(alice, request::repair(1, 0));
-    assert_eq!(world.client(alice).ids, [0x83, 0x89, 0x87, 0x8B]);
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::Repaired { item_id: 1, .. })
-    ));
-    assert_eq!(
-        world.account(alice).item(1).unwrap().condition_or_stack,
-        FULL_CONDITION
-    );
-    // Nothing left to repair: the game's own text for it.
-    world.ask(alice, request::repair(1, 0));
+    // No repair (the owner, 2026-11-08): `47 03` is no request, refused
+    // with the shop's text; nothing changes.
+    let before = world.account(alice).clone();
+    world.ask(alice, (0x47, vec![3, 1, 0, 0, 0, 0]));
     assert_eq!(
         denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_repair_item")
+        Some("st_cannot_buy_item")
     );
+    assert_eq!(*world.account(alice), before);
 
     // No exchange: gold is gone (the owner, 2026-11-08). `47 04` is no
     // request: refused with the shop's text, nothing changed.
@@ -617,7 +606,7 @@ fn skills_are_answered_with_the_skills_and_the_kits_that_carry_them() {
         Some("st_player_skills_check_failed")
     );
 
-    // A reset of the branch, in silver.
+    // A reset of the branch, free.
     let silver = world.account(alice).generic_money;
     world.ask(alice, request::reset_skills(0, 0));
     let decoded = world.take(alice);
@@ -627,7 +616,7 @@ fn skills_are_answered_with_the_skills_and_the_kits_that_carry_them() {
     ));
     assert!(decoded.iter().any(|message| matches!(
         message,
-        Decoded::Money { generic, .. } if *generic == silver - rules::REROLL_COST
+        Decoded::Money { generic, .. } if *generic == silver
     )));
     world.assert_clean();
 }
@@ -712,7 +701,9 @@ fn what_srp_does_not_have_is_refused_never_ignored() {
         (0x46, u32s(2, &[1], &[]), "st_cannot_relocate_item"),
         // A drop card, an item used.
         (0x46, u32s(3, &[5, 6], &[]), "st_cannot_use_drop_card"),
-        (0x46, u32s(4, &[5], &[]), "st_error_while_using_premium_access_voucher"),
+        // `46 04`, using an item: no usable items (the one-day premium
+        // voucher is gone), not read.
+        (0x46, u32s(4, &[5], &[]), "st_cannot_relocate_item"),
         // The reroll window of no item, a reroll of a modification the
         // pistol has not, a choice with nothing offered. (A craft that
         // can not be is answered `83 46 09 FE`: `items_tests`.)
@@ -724,9 +715,8 @@ fn what_srp_does_not_have_is_refused_never_ignored() {
         (0x47, u32s(2, &[99, 0, 0], &[]), "st_cannot_buy_item"),
         (0x47, u32s(5, &[1, 0, 0, 0, 0], &[1]), "st_cannot_buy_item"),
         (0x47, u32s(6, &[1, 0], &[]), "st_cannot_buy_item"),
-        // A repair (kind 1, the stock window's gold: silver now) of an item
-        // with nothing to repair.
-        (0x47, u32s(3, &[1], &[1]), "st_cannot_repair_item"),
+        // A repair: srp has none, not read.
+        (0x47, u32s(3, &[1], &[1]), "st_cannot_buy_item"),
         // A nickname change, a comment about a player.
         // (A name too short.)
         (0x49, bytes(&[&[4, 2], b"Al", &[0, 0, 0, 0]]), "st_change_name_error"),
@@ -2835,7 +2825,8 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
             _ => None,
         })
         .expect("the daily bonus");
-    assert_eq!(bonus, (vec![0], 214, 5_000, false, true));
+    // No reward (its gold is gone, the owner's of 2026-11-08): silver, 0.
+    assert_eq!(bonus, (vec![0], 214, 0, false, true));
     // No discount is set: none is offered.
     assert!(
         !decoded
@@ -2983,18 +2974,21 @@ fn a_bundle_and_a_premium_item_are_bought_for_silver() {
     assert!(owned.contains(&(id("ak_74n_premium"), FULL_CONDITION)));
     assert!(owned.contains(&(id("ammo_5.45x39_7n6m"), 3_000)));
 
-    // Two repair kits from the shop's list: their 50 gold in silver each.
-    world.ask(
-        alice,
-        request::buy(id("repair_voucher"), 2, 0, INVENTORY_SLOT, 1),
-    );
+    // Two drop cards from the shop's list: their 100 gold in silver each.
+    world.ask(alice, request::buy(id("drop_card"), 2, 0, INVENTORY_SLOT, 1));
     let decoded = world.take(alice);
     assert!(matches!(
         &decoded[0],
         Decoded::Permitted(Permitted::Bought(bought))
-            if bought.len() == 1 && bought[0].dict_id == id("repair_voucher") && bought[0].value == 2
+            if bought.len() == 1 && bought[0].dict_id == id("drop_card") && bought[0].value == 2
     ));
-    assert_eq!(told_money(&decoded), Some((40_000, 0)));
+    assert_eq!(told_money(&decoded), Some((30_000, 0)));
+    // A removed voucher is sold no more (the owner, 2026-11-08).
+    world.ask(
+        alice,
+        request::buy(id("repair_voucher"), 1, 0, INVENTORY_SLOT, 1),
+    );
+    assert!(denial(&world.take(alice), 0x47).is_some());
     // Not the silver for the AK-74N (its 1500 gold): the game's text for it.
     world.change(alice, |account| account.generic_money = 1_000);
     world.take(alice);
@@ -3077,59 +3071,6 @@ fn the_excluded_flags_and_emblems_are_not_sold() {
     ));
     assert!(world.account(alice).item(item_id).is_none());
     assert!(world.account(alice).generic_money > silver);
-    world.assert_clean();
-}
-
-#[test]
-fn the_premium_voucher_is_used_from_the_inventory() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    world.take(alice);
-    let voucher = Dictionary::shared()
-        .item_named(premium::PREMIUM_VOUCHER)
-        .unwrap()
-        .dict_id;
-    let mut item_id = 0;
-    world.change(alice, |account| item_id = account.add_item(voucher, 2));
-
-    world.ask(
-        alice,
-        (0x46, [vec![4], item_id.to_le_bytes().to_vec()].concat()),
-    );
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::ItemUsed { item_id: used }) if used == item_id
-    ));
-    assert_eq!(told_premium(&decoded), Some(Some(24)));
-    // One left, in the client's inventory too.
-    let left = |world: &World| {
-        world.clients[alice]
-            .1
-            .model
-            .inventory()
-            .iter()
-            .find(|item| item.item_id == item_id)
-            .map(|item| item.condition_or_stack)
-    };
-    assert_eq!(left(&world), Some(1));
-    world.ask(
-        alice,
-        (0x46, [vec![4], item_id.to_le_bytes().to_vec()].concat()),
-    );
-    assert_eq!(told_premium(&world.take(alice)), Some(Some(48)));
-    assert_eq!(left(&world), None);
-    // Used up; and the pistol is no voucher.
-    for item in [item_id, 1] {
-        world.ask(
-            alice,
-            (0x46, [vec![4], item.to_le_bytes().to_vec()].concat()),
-        );
-        assert_eq!(
-            denial(&world.take(alice), 0x46).as_deref(),
-            Some("st_error_while_using_premium_access_voucher")
-        );
-    }
     world.assert_clean();
 }
 
@@ -3387,28 +3328,22 @@ fn a_nickname_is_checked_and_changed() {
     // And she signs in as before.
     assert_eq!(world.store.account_id_by_name("Alice"), Some(alice_id));
 
-    // With a rename voucher: one is taken, no silver.
-    let voucher = Dictionary::shared()
-        .item_named(premium::RENAME_VOUCHER)
-        .unwrap()
-        .dict_id;
-    let mut item_id = 0;
-    world.change(alice, |account| item_id = account.add_item(voucher, 1));
-    world.ask(alice, rename("Alina", item_id));
+    // A voucher's id from an old window is not kept: no vouchers, silver
+    // pays (the owner, 2026-11-08), and no voucher is taken.
+    world.ask(alice, rename("Alina", 77));
     let decoded = world.take(alice);
     assert!(matches!(
         decoded[0],
-        Decoded::Permitted(Permitted::NicknameChanged { ticket_item_id }) if ticket_item_id == item_id
+        Decoded::Permitted(Permitted::NicknameChanged { ticket_item_id: 0 })
     ));
-    assert_eq!(told_money(&decoded), Some((silver - 25_000, 0)));
-    assert!(world.account(alice).item(item_id).is_none());
+    assert_eq!(told_money(&decoded), Some((silver - 50_000, 0)));
     assert_eq!(world.account(alice).name, "Alina");
     world.assert_clean();
 }
 
 /// No tutorial (`session::v026g::tutorial`): a new account is told every
 /// step is done, so its client runs none of it, and starts with 30 000
-/// silver (the table's 15 000 and its 150 gold in silver), level 15, the ammo and the starter kit
+/// silver (the table's), level 15, the ammo and the starter kit
 /// (`tutorial::tests`); a step a client sends anyway is not answered.
 #[test]
 fn a_new_account_has_no_tutorial_and_what_it_paid() {
@@ -3433,7 +3368,21 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
             (item.dict_id, ids)
         })
         .collect();
-    assert_eq!(held, [(43, vec![1183]), (42, vec![1133])]);
+    // The respirator and the gloves; the Keeper set (198-202) and the AK-12
+    // (363) with the modifications of their own (#1520's new-account.tsv).
+    assert_eq!(
+        held,
+        [
+            (43, vec![1183]),
+            (42, vec![1133]),
+            (202, vec![1004, 1064]),
+            (200, vec![1064]),
+            (199, vec![1064, 1124]),
+            (201, vec![1004, 1064, 1084]),
+            (198, vec![1004, 1064]),
+            (363, vec![2064, 2084, 2074]),
+        ]
+    );
     assert_eq!(
         world.client(alice).model.inventory().len(),
         world.account(alice).inventory.len()
@@ -3475,23 +3424,24 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
 }
 
 #[test]
-fn the_two_boxes_of_the_kit_window_are_kept() {
+fn the_autobuy_box_is_kept_and_auto_repair_is_not() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     world.take(alice);
-    // The lobby's number: 2 is auto-repair alone, 3 both, 0 neither.
+    // The lobby's number: bit 1, the stock auto-repair, is not kept (srp
+    // has no repair); bit 0 is autobuy.
     world.ask(alice, (0x49, vec![1, 2]));
     assert!(matches!(
         world.take(alice)[..],
-        [Decoded::Permitted(Permitted::AutoRepair { autobuy: false })]
+        [Decoded::Permitted(Permitted::Autobuy(false))]
     ));
-    assert!(world.account(alice).extras.auto_repair && !world.account(alice).autobuy);
+    assert!(!world.account(alice).autobuy);
     world.ask(alice, (0x49, vec![1, 3]));
     assert!(matches!(
         world.take(alice)[..],
-        [Decoded::Permitted(Permitted::AutoRepair { autobuy: true })]
+        [Decoded::Permitted(Permitted::Autobuy(true))]
     ));
-    assert!(world.account(alice).extras.auto_repair && world.account(alice).autobuy);
+    assert!(world.account(alice).autobuy);
     // The account says so when it is sent again.
     world.change(alice, |_| {});
     world.ask(alice, request::active_kit(2));
@@ -3499,12 +3449,12 @@ fn the_two_boxes_of_the_kit_window_are_kept() {
     world.ask(alice, request::move_item(2, 99, 1, 100, 7, 1));
     assert!(world.take(alice).iter().any(|message| matches!(
         message,
-        Decoded::Account(own) if own.autobuy && own.auto_repair
+        Decoded::Account(own) if own.autobuy
     )));
     world.ask(alice, (0x49, vec![1, 0]));
     assert!(matches!(
         world.take(alice)[..],
         [Decoded::Permitted(Permitted::Autobuy(false))]
     ));
-    assert!(!world.account(alice).extras.auto_repair && !world.account(alice).autobuy);
+    assert!(!world.account(alice).autobuy);
 }

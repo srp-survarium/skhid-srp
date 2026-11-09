@@ -14,11 +14,14 @@
 //!   price is the client's own arithmetic, [`discounted`].
 //! - **Premium items one by one** ([`buy_item`], `47 00` for an item of
 //!   `shop_offers::premium_price_list`): paid in silver.
-//! - **Using an item** ([`use_item`], `46 04`): the lobby sends it only
-//!   for a voucher of type 3, the one-day premium voucher
-//!   (`InventoryList` / `ItemCard`: `usable = category == 27 && (type == 3
-//!   || type == 0)`, and type 0, the rename voucher, opens the rename
-//!   window instead; PROVEN). It adds the voucher's `ttl_in_hours`, 24.
+//! - **No vouchers but the drop card** (the owner, 2026-11-08: "premium
+//!   ticket and repair kit should be removed too", "remove them
+//!   completely"): the one-day premium voucher, the rename voucher and the
+//!   repair kit are sold by no shop and dropped by no table
+//!   (`scripts/content-edit/shop.tsv`, `vouchers-removed-1.json`), nothing
+//!   uses them (`46 04`, the only request that used an item, is not read),
+//!   and the release that removed them paid their owners their price in
+//!   silver, once (`persist::SqliteGameRepository::pay_back_once`).
 //!
 //! **There is no gold** (the owner, 2026-11-08): every price that was gold
 //! is its gold times `prices::GOLD_IN_SILVER` in silver, and what gave gold
@@ -38,13 +41,10 @@ use survarium::v026g::shop_offers::{self, DEFAULT_PREMIUM_PRICES, Offer, PREMIUM
 use super::account::Account;
 use super::rules::{self, ActionError};
 
-/// The voucher `46 04` uses, and the premium time it gives
-/// (`gameplay/items/vouchers/premium_access_voucher_1d.options`:
-/// `voucher_type: 3`, `ttl_in_hours: 24`).
-pub const PREMIUM_VOUCHER: &str = "premium_voucher_1d";
-pub const PREMIUM_VOUCHER_HOURS: u32 = 24;
-/// The voucher a rename may be paid with (`voucher_type: 0`).
-pub const RENAME_VOUCHER: &str = "rename_account_voucher";
+/// Silver for a nickname change unless `SRP_RENAME_COST` says otherwise:
+/// what the rename voucher cost (its 250 gold in silver) before the
+/// vouchers were removed.
+pub const DEFAULT_RENAME_COST: u32 = 25_000;
 /// The most a discount may be, in percent: the client divides by what is
 /// left of the price (`LobbyMenu.show_premium_discount`).
 pub const MAX_DISCOUNT_PERCENT: u8 = 90;
@@ -68,7 +68,7 @@ pub struct Settings {
     /// stands (the client counts it down on its premium button).
     pub offer_seconds: u32,
     /// `SRP_RENAME_COST`: silver for a nickname change (0x8D's fourth
-    /// price). Default: what the rename voucher costs in the dictionary.
+    /// price). Default: [`DEFAULT_RENAME_COST`].
     pub rename_cost: u32,
     /// `SRP_AMMO_USE=off`: a match takes no ammo off the account
     /// ([`super::autobuy`]).
@@ -77,14 +77,11 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        let rename_cost = Dictionary::shared()
-            .item_named(RENAME_VOUCHER)
-            .map_or(0, |item| item.base_cost);
         Self {
             premium_prices: DEFAULT_PREMIUM_PRICES,
             discount_percent: 0,
             offer_seconds: 3600,
-            rename_cost,
+            rename_cost: DEFAULT_RENAME_COST,
             ammo_use: true,
         }
     }
@@ -176,10 +173,6 @@ pub enum ShopError {
     /// A discount the server did not offer.
     NotOffered,
     NotEnoughMoney,
-    /// The item is not in the inventory.
-    NoSuchItem,
-    /// The item is not one `46 04` uses.
-    NotUsable,
 }
 
 impl ShopError {
@@ -188,7 +181,6 @@ impl ShopError {
         match self {
             Self::NoSuchOffer | Self::NotOffered => "st_cannot_buy_item",
             Self::NotEnoughMoney => "st_not_enougth_money",
-            Self::NoSuchItem | Self::NotUsable => "st_error_while_using_premium_access_voucher",
         }
     }
 }
@@ -348,45 +340,6 @@ pub fn buy_item(
     Ok(bought)
 }
 
-/// What using an item did.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Used {
-    pub item_id: u32,
-    /// How many of the item are left.
-    pub left: u32,
-    /// The premium hours it added.
-    pub premium_hours: u32,
-}
-
-/// `46 04 <item>`: use one of an item. Only the one-day premium voucher is
-/// used this way (see the module).
-pub fn use_item(account: &mut Account, item_id: u32, now: u64) -> Result<Used, ShopError> {
-    let dictionary = Dictionary::shared();
-    let index = account
-        .inventory
-        .iter()
-        .position(|item| item.item_id == item_id)
-        .ok_or(ShopError::NoSuchItem)?;
-    let item = &mut account.inventory[index];
-    let voucher = dictionary.item_named(PREMIUM_VOUCHER);
-    if voucher.is_none_or(|voucher| voucher.dict_id != item.dict_id) || item.condition_or_stack == 0
-    {
-        return Err(ShopError::NotUsable);
-    }
-    item.condition_or_stack -= 1;
-    let left = item.condition_or_stack;
-    if left == 0 {
-        account.inventory.remove(index);
-        account.sync_kits();
-    }
-    add_premium(account, u64::from(PREMIUM_VOUCHER_HOURS) * 3600, now);
-    Ok(Used {
-        item_id,
-        left,
-        premium_hours: PREMIUM_VOUCHER_HOURS,
-    })
-}
-
 /// The days of the premium offer `offer_id`, if it is one.
 pub fn premium_days(offer_id: u32) -> Option<u32> {
     PREMIUM_OFFERS
@@ -421,7 +374,7 @@ mod tests {
         assert_eq!(none.premium_prices, DEFAULT_PREMIUM_PRICES);
         assert_eq!(none.discount_percent, 0);
         assert_eq!(none.offer_seconds, 3600);
-        // The rename voucher's own price: its 250 gold, in silver.
+        // What the rename voucher cost: its 250 gold, in silver.
         assert_eq!(none.rename_cost, 25_000);
         assert!(none.ammo_use);
 
@@ -470,8 +423,6 @@ mod tests {
             ShopError::NoSuchOffer,
             ShopError::NotOffered,
             ShopError::NotEnoughMoney,
-            ShopError::NoSuchItem,
-            ShopError::NotUsable,
         ] {
             assert!(error.text_key().starts_with("st_"), "{error}");
         }
@@ -624,15 +575,19 @@ mod tests {
 
     #[test]
     fn premium_items_are_bought_for_silver() {
-        let mut account = rich(40_000);
-        let voucher = dict("repair_voucher");
+        let mut account = rich(60_000);
+        let voucher = dict("drop_card");
         assert!(sells(voucher));
         assert!(!sells(dict("ak_74n_premium")) && !sells(dict("tt_33")));
-        // Three repair kits at their 50 gold in silver: one stack.
+        // The removed vouchers are sold no more (the owner, 2026-11-08).
+        for removed in ["repair_voucher", "rename_account_voucher", "premium_voucher_1d"] {
+            assert!(!sells(dict(removed)), "{removed}");
+        }
+        // Three drop cards at their 100 gold in silver: one stack.
         let bought = buy_item(&mut account, voucher, 3, INVENTORY_SLOT, 1, NOW).unwrap();
         assert_eq!(bought.len(), 1);
         assert_eq!((bought[0].dict_id, bought[0].value), (voucher, 3));
-        assert_eq!(account.generic_money, 25_000);
+        assert_eq!(account.generic_money, 30_000);
         // Two more go onto it.
         let more = buy_item(&mut account, voucher, 2, INVENTORY_SLOT, 1, NOW).unwrap();
         assert_eq!(more[0].item_id, bought[0].item_id);
@@ -640,7 +595,7 @@ mod tests {
             account.item(bought[0].item_id).unwrap().condition_or_stack,
             5
         );
-        assert_eq!(account.generic_money, 15_000);
+        assert_eq!(account.generic_money, 10_000);
         // The client takes the answer.
         let mut client = Client::signed_in();
         client
@@ -713,51 +668,7 @@ mod tests {
     }
 
     #[test]
-    fn the_premium_voucher_is_used_up() {
-        let mut account = rich(0);
-        let voucher = account.add_item(dict(PREMIUM_VOUCHER), 2);
-        let pistol = account.kits[0].slots[7].unwrap().item_id;
-        assert_eq!(
-            use_item(&mut account, voucher, NOW),
-            Ok(Used {
-                item_id: voucher,
-                left: 1,
-                premium_hours: 24
-            })
-        );
-        assert_eq!(account.premium_until, NOW + 86_400);
-        // The second day is added; the voucher is gone.
-        assert_eq!(use_item(&mut account, voucher, NOW).unwrap().left, 0);
-        assert_eq!(account.premium_until, NOW + 2 * 86_400);
-        assert!(account.item(voucher).is_none());
-        assert_eq!(
-            use_item(&mut account, voucher, NOW),
-            Err(ShopError::NoSuchItem)
-        );
-        // Nothing else is used this way.
-        let card = account.add_item(dict("drop_card"), 1);
-        for item in [pistol, card] {
-            assert_eq!(use_item(&mut account, item, NOW), Err(ShopError::NotUsable));
-        }
-        assert_eq!(account.item(card).unwrap().condition_or_stack, 1);
-        // The client's own bookkeeping of the answer: one less.
-        let mut client = Client::signed_in();
-        let mut account = rich(0);
-        let voucher = account.add_item(dict(PREMIUM_VOUCHER), 1);
-        client
-            .receive_all(&super::super::wire::after_change(&account, NOW).unwrap())
-            .unwrap();
-        use_item(&mut account, voucher, NOW).unwrap();
-        assert!(matches!(
-            client.receive(&lobby::permitted_item_used(voucher)).unwrap(),
-            Decoded::Permitted(lobby::client_model::Permitted::ItemUsed { item_id }) if item_id == voucher
-        ));
-        assert!(
-            client
-                .inventory()
-                .iter()
-                .all(|item| item.item_id != voucher)
-        );
+    fn premium_days_are_the_offers() {
         assert_eq!(premium_days(7), Some(1));
         assert_eq!(premium_days(9), None);
     }

@@ -102,15 +102,9 @@ package survarium.controls
       
       protected var _coins:int;
       
-      protected var _coinsP:int;
-      
       protected var _coinsNew:int = 0;
       
-      protected var _coinsPNew:int = 0;
-      
       protected var outTimer:Timer = new Timer(2000,1);
-      
-      protected var outTimerP:Timer = new Timer(2000,1);
       
       public var layoutData:LayoutData;
       
@@ -118,6 +112,8 @@ package survarium.controls
       
       public var playerCoins:TextField;
       
+      // playerCoinsP, playerCoinsPNew, _goldIcon: the gold balance's pieces of the symbol, which no
+      // code feeds: there is no gold (the owner, 2026-11-08).
       public var playerCoinsP:TextField;
       
       public var playerCoinsNew:TextField;
@@ -132,7 +128,6 @@ package survarium.controls
       {
          super();
          this.outTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.onTimerComplete);
-         this.outTimerP.addEventListener(TimerEvent.TIMER_COMPLETE,this.onTimerComplete);
       }
       
       public static function set commander(value:Boolean) : void
@@ -235,29 +230,6 @@ package survarium.controls
          }
       }
       
-      public function set premium_money_new(value:int) : void
-      {
-         _coinsPNew = 5000;
-         this.outTimerP.reset();
-         this.outTimerP.start();
-         this.playerCoinsPNew.alpha = 0;
-         this.playerCoinsPNew.x = 124;
-         this.playerCoinsPNew.y = 48;
-         this.playerCoinsPNew.textColor = value < 0 ? 13369344 : 6749952;
-         new Tween(500,this.playerCoinsPNew,{
-            x:124 + 15,
-            alpha:1
-         },{ease:Strong.easeOut});
-         if(value < 0)
-         {
-            this.playerCoinsPNew.text = value.toString();
-         }
-         else
-         {
-            this.playerCoinsPNew.text = "+" + value.toString();
-         }
-      }
-      
       public function set generic_money_new(value:int) : void
       {
          _coinsNew = 5000;
@@ -279,17 +251,6 @@ package survarium.controls
          {
             this.playerCoinsNew.text = "+" + value.toString();
          }
-      }
-      
-      public function set premium_money(value:int) : void
-      {
-         _coinsP = value;
-         this.playerCoinsP.text = value.toString();
-      }
-      
-      public function get premium_money() : int
-      {
-         return this._coinsP;
       }
       
       public function set generic_money(value:int) : void
@@ -321,22 +282,11 @@ package survarium.controls
       
       protected function onTimerComplete(event:Event) : void
       {
-         if(event.target == this.outTimer)
-         {
-            this.playerCoinsNew.alpha = 1;
-            new Tween(500,this.playerCoinsNew,{
-               x:124 + 30,
-               alpha:0
-            },{ease:Strong.easeOut});
-         }
-         else
-         {
-            this.playerCoinsPNew.alpha = 1;
-            new Tween(500,this.playerCoinsPNew,{
-               x:124 + 30,
-               alpha:0
-            },{ease:Strong.easeOut});
-         }
+         this.playerCoinsNew.alpha = 1;
+         new Tween(500,this.playerCoinsNew,{
+            x:124 + 30,
+            alpha:0
+         },{ease:Strong.easeOut});
       }
    }
 }

@@ -1,13 +1,11 @@
 package survarium.controls
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.events.IEventDispatcher;
-   import flash.events.TimerEvent;
-   import flash.utils.Timer;
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
-   import survarium.Util;
    import survarium.buttons.ButtonClick;
    import survarium.buttons.ButtonProgress;
    import survarium.constants.Events;
@@ -17,7 +15,6 @@ package survarium.controls
    import survarium.item.ItemFactory;
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.ItemCategory;
-   import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
@@ -104,22 +101,10 @@ package survarium.controls
          this.btnAccept.visible = false;
          this.btnCancel.visible = false;
          this.btn_show_use.visible = false;
+         // No Fix button: srp has no repair (the owner, 2026-11-08). The timeline still places it.
+         this.btn_item_fix.visible = false;
          this.updateData(null);
-         var timer:Timer = MainScene.getTimerInstance();
-         timer.addEventListener(TimerEvent.TIMER,this.onTimerUpdate);
          this.btnSellBig.width = this.btn_show_l.width = this.btn_show_r.width = this.btn_show_use.width = 140;
-      }
-      
-      private function onTimerUpdate(event:TimerEvent) : void
-      {
-         var timer:Timer;
-         var elapsed:uint;
-         if(this._data && this._data.rerollTime)
-         {
-            timer = MainScene.getTimerInstance();
-            elapsed = (timer.currentCount);
-            this.rerollTimer.setTime(Util.getTimeStringMinutes(Math.max(0,int(this._data.rerollTime / 60) - (elapsed - this._data.timeDelta))));
-         }
       }
       
       private function onLocalization(localizedText:String) : void
@@ -128,9 +113,7 @@ package survarium.controls
          this.btn_item_upgrade.data = {name:LocalizationData.getName("btn_upgrade_hint")};
          this.btn_item_sell.label = LocalizationData.getName("sell");
          this.btn_item_buy.label = LocalizationData.getName("buy");
-         this.btn_item_fix.label = LocalizationData.getName("fix");
          this.btn_show_r.label = LocalizationData.getName("sell");
-         this.btn_show_use.label = LocalizationData.getName("btn_use_item");
          this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label");
          this.btn_item_craft.label = LocalizationData.getName("btn_craft_label");
       }
@@ -141,12 +124,10 @@ package survarium.controls
          this.btn_item_sell.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick2);
          this.btn_item_buy.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick1);
          this.btnSellBig.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick1);
-         this.btn_item_fix.addEventListener(ButtonEvent.CLICK,this._itemCard.repairItem);
          this.btn_item_upgrade.addEventListener(ButtonEvent.CLICK,this.openModifiersWindow);
          this.btn_item_reroll.addEventListener(ButtonEvent.CLICK,this._itemCard.upgradeItem);
          this.btn_item_craft.addEventListener(ButtonEvent.CLICK,this.craftItem);
          this.btn_show_r.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick2);
-         this.btn_show_use.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick3);
          this.btn_show_l.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick1);
       }
       
@@ -201,7 +182,7 @@ package survarium.controls
          else
          {
             price = this._data.cost;
-            sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
+            sellPrice = price / ItemPrice.SELL_DIVISOR;
             this._cost = sellPrice;
          }
          this._step = this._data.clipSize == 0 ? 1 : int(this._data.clipSize);
@@ -209,7 +190,6 @@ package survarium.controls
          this.btn_show_l.enabled = canBuy;
          this.btn_show_r.alpha = this.btn_show_r.enabled ? 1 : 0.5;
          this.btn_show_l.alpha = this.btn_show_l.enabled ? 1 : 0.5;
-         var hasModifierToFix:Boolean = false;
          this._rerollable = false;
          if(!this._data.isStack && Boolean(this._data.modifiers))
          {
@@ -218,10 +198,6 @@ package survarium.controls
             while(i < modifierCount)
             {
                modifier = this._data.modifiers[i];
-               if(Boolean(modifier) && modifier.state == ModificationState.DEFECT)
-               {
-                  hasModifierToFix = true;
-               }
                if(Boolean(modifier) && Boolean(modifier.state == ModificationState.MODIFICATION) && !modifier.isDefault)
                {
                   this._rerollable = true;
@@ -229,46 +205,14 @@ package survarium.controls
                i = ++i;
             }
          }
-         if(this._rerollable && Boolean(this._data.rerollTime))
-         {
-            if(Boolean(this._data.rerollTime))
-            {
-               this.onTimerUpdate(null);
-               this.rerollTimer.visible = true;
-               this.btn_item_reroll.label = "";
-               this.btn_item_reroll.tipEnabled = true;
-               this.btn_item_reroll.tooltipRendererName = "SrvProfileTipRenderer";
-               this.btn_item_reroll.tipData = {"name":LocalizationData.getName("reroll_timer_hint")};
-            }
-         }
-         else
-         {
-            this.btn_item_reroll.tipEnabled = false;
-            this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label");
-            this.rerollTimer.visible = false;
-         }
-         this.btn_item_reroll.enabled = this._rerollable && !this._isShopItems && !this._data.repairTime;
+         // A modification change has no wait (the owner, 2026-10-22): no timer on its button.
+         this.btn_item_reroll.tipEnabled = false;
+         this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label");
+         this.btn_item_reroll.enabled = this._rerollable && !this._isShopItems;
          this.btn_item_craft.enabled = ItemFactory.isItemCraftable(this._data);
-         if(Boolean(this._data.repairTime))
-         {
-            if(this.rerollTimer.visible == false)
-            {
-               this.btn_item_reroll.tipEnabled = true;
-               this.btn_item_reroll.tooltipRendererName = "SrvProfileTipRenderer";
-               this.btn_item_reroll.tipData = {"name":LocalizationData.getName("cant_upgrade_while_repair_hint")};
-            }
-            this.btn_item_craft.tipEnabled = true;
-            this.btn_item_craft.tooltipRendererName = "SrvProfileTipRenderer";
-            this.btn_item_craft.tipData = {"name":LocalizationData.getName("cant_upgrade_while_repair_hint")};
-         }
-         else
-         {
-            this.btn_item_craft.tipEnabled = false;
-         }
-         this.btn_item_fix.enabled = !this._isShopItems && (this._data.value != ItemCondition.FULL || hasModifierToFix) && this._data.enabled;
+         this.btn_item_craft.tipEnabled = false;
          this.btn_item_sell.data = {"name":this.btn_item_sell.label};
          this.btn_item_buy.data = {"name":this.btn_item_buy.label};
-         this.btn_item_fix.data = {"name":this.btn_item_fix.label};
          trace("ICPData:",this._data.name,canBuy,"isShopItems::",this._isShopItems);
          this.updateButtons();
          this.btn_item_sell.tooltipRendererName = "SrvProfileTipRenderer";
@@ -287,10 +231,6 @@ package survarium.controls
          this.btn_item_upgrade.enabled = !this._isShopItems && !this._isStack && this.isUpgradeable(this._data) && this._data.enabled;
          this.btn_item_upgrade.alpha = this.btn_item_upgrade.enabled ? 1 : 0.5;
          this.btn_item_upgrade.label = UpgradeWindow.isWeaponCategory(int(this._data.category)) ? LocalizationData.getName("scope_window_title") : LocalizationData.getName("btn_upgrade_label");
-         var condition:uint = this._isShopItems ? ItemCondition.FULL : this._data.value;
-         var conditionRatio:Number = condition / ItemCondition.FULL;
-         this.btn_item_fix.progress = conditionRatio;
-         this.btn_item_fix.progressLabel = condition.toString() + "%";
          if(this._isQuickSlot || this._isStack)
          {
             this.checkButtonEnabled();
@@ -298,16 +238,6 @@ package survarium.controls
          else
          {
             this.checkButtonEnabled();
-         }
-         if(this._data.usable)
-         {
-            this.btn_show_use.enabled = true;
-            this.btn_show_use.visible = true;
-         }
-         else
-         {
-            this.btn_show_use.enabled = false;
-            this.btn_show_use.visible = false;
          }
          this.sortButton();
       }
@@ -322,7 +252,7 @@ package survarium.controls
       {
          if(!this._data)
          {
-            this.btnSellBig.enabled = this.btn_item_sell.enabled = this.btn_item_buy.enabled = this.btn_item_upgrade.enabled = this.btn_item_fix.enabled = this.btn_item_reroll.enabled = false;
+            this.btnSellBig.enabled = this.btn_item_sell.enabled = this.btn_item_buy.enabled = this.btn_item_upgrade.enabled = this.btn_item_reroll.enabled = false;
             this.btn_item_craft.enabled = false;
             this.btn_item_craft.alpha = this.btn_item_reroll.alpha = this.btn_item_upgrade.alpha = this.btn_item_buy.alpha = this.btn_item_sell.alpha = 0.5;
             return;
@@ -362,7 +292,6 @@ package survarium.controls
             this.btn_item_reroll.visible = false;
             this.btn_item_sell.visible = false;
             this.btn_item_buy.visible = false;
-            this.btn_item_fix.visible = false;
             this.btn_item_craft.visible = false;
             return;
          }
@@ -372,7 +301,6 @@ package survarium.controls
             this.btn_show_l.visible = false;
             this.btn_show_r.visible = false;
             this.btn_item_upgrade.visible = true;
-            this.btn_item_fix.visible = true;
             this.btn_item_reroll.visible = true;
             this.btn_item_craft.visible = true;
          }
@@ -384,10 +312,9 @@ package survarium.controls
             this.btn_item_buy.visible = !this.btn_item_sell.visible;
             this.btn_item_reroll.visible = true;
             this.btn_item_upgrade.visible = true;
-            this.btn_item_fix.visible = true;
             this.btn_item_craft.visible = true;
-            this.btn_item_reroll.enabled = this.btn_item_craft.enabled = this.btn_item_sell.enabled = this.btn_item_buy.enabled = this.btn_item_fix.enabled = this.btn_item_upgrade.enabled = false;
-            this.btn_item_reroll.alpha = this.btn_item_craft.alpha = this.btn_item_sell.alpha = this.btn_item_buy.alpha = this.btn_item_fix.alpha = this.btn_item_upgrade.alpha = 0.5;
+            this.btn_item_reroll.enabled = this.btn_item_craft.enabled = this.btn_item_sell.enabled = this.btn_item_buy.enabled = this.btn_item_upgrade.enabled = false;
+            this.btn_item_reroll.alpha = this.btn_item_craft.alpha = this.btn_item_sell.alpha = this.btn_item_buy.alpha = this.btn_item_upgrade.alpha = 0.5;
          }
          else if(this._isStack && !this._isQuickSlot)
          {
@@ -397,7 +324,6 @@ package survarium.controls
             this.btn_item_reroll.visible = false;
             this.btn_item_sell.visible = false;
             this.btn_item_buy.visible = false;
-            this.btn_item_fix.visible = false;
             this.btn_item_craft.visible = false;
          }
          else if(this._isQuickSlot)
@@ -407,7 +333,6 @@ package survarium.controls
             this.btn_item_upgrade.visible = false;
             this.btn_item_sell.visible = false;
             this.btn_item_buy.visible = false;
-            this.btn_item_fix.visible = false;
             this.btn_item_reroll.visible = false;
             this.btn_item_craft.visible = false;
          }
@@ -420,28 +345,68 @@ package survarium.controls
             this.btn_item_craft.visible = true;
             this.btn_item_reroll.visible = true;
             this.btn_item_upgrade.visible = true;
-            this.btn_item_fix.visible = true;
+         }
+         this.spaceItemRow();
+      }
+
+      // The item row (Upgrade, Modification, Attachments, Sell or Buy) had Fix among them; with Fix gone
+      // the visible ones grow to take the row's whole span, the stock gap between them (the owner,
+      // 2026-11-09: "there is a hole", "actually just make buttons bigger", "so the whole space is taken").
+      // The span (the first button's left edge to the last one's right edge), the gap and the order are
+      // the timeline's, read once: a later layout starts from them, not from the last one.
+      private var _rowOrder:Array;
+
+      private var _rowLeft:Number;
+
+      private var _rowRight:Number;
+
+      private var _rowGap:Number;
+
+      private function spaceItemRow() : void
+      {
+         var button:DisplayObject;
+         if(this._rowOrder == null)
+         {
+            this._rowOrder = [this.btn_item_craft,this.btn_item_reroll,this.btn_item_upgrade,this.btn_item_fix,this.btn_item_sell,this.btn_item_buy];
+            this._rowOrder.sortOn("x",Array.NUMERIC);
+            this._rowLeft = this._rowOrder[0].x;
+            this._rowRight = 0;
+            for each(button in this._rowOrder)
+            {
+               this._rowRight = Math.max(this._rowRight,button.x + button.width);
+            }
+            this._rowGap = this._rowOrder[1].x - (this._rowOrder[0].x + this._rowOrder[0].width);
+         }
+         var row:Array = [];
+         for each(button in this._rowOrder)
+         {
+            if(button.visible)
+            {
+               row.push(button);
+            }
+         }
+         if(row.length == 0)
+         {
+            return;
+         }
+         var width:Number = (this._rowRight - this._rowLeft - this._rowGap * (row.length - 1)) / row.length;
+         var x:Number = this._rowLeft;
+         for each(button in row)
+         {
+            button.x = Math.round(x);
+            button.width = Math.round(width);
+            x += width + this._rowGap;
          }
       }
-      
+
       private function sortButton() : void
       {
-         var offset:uint;
+         // Two buttons, centred: no item is used any more (the vouchers that were are gone, the owner
+         // 2026-11-08), so the stock Use button (btn_show_use) stays hidden.
+         var offset:uint = this.backgroundWidth / 2;
          this.btnSellBig.x = (this.backgroundWidth - 140) / 2;
-         if(this.btn_show_use.visible)
-         {
-            offset = 140;
-            this.btn_show_l.x = int((width - offset * 3) / 2);
-            this.btn_show_r.x = int(this.btn_show_l.x + offset + 10);
-            this.btn_show_use.x = int(this.btn_show_r.x + offset + 10);
-            this.btn_show_use.y = this.btn_show_l.y;
-         }
-         else
-         {
-            offset = this.backgroundWidth / 2;
-            this.btn_show_r.x = int(offset + 5);
-            this.btn_show_l.x = int(offset - 5 - this.btn_show_l.width);
-         }
+         this.btn_show_r.x = int(offset + 5);
+         this.btn_show_l.x = int(offset - 5 - this.btn_show_l.width);
       }
    }
 }

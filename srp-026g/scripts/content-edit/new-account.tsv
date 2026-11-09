@@ -1,23 +1,30 @@
 # What a new account is given at its first sign-in (docs/notes/no-tutorial.md), one config:
 # gameplay/srp/new_account.options. srp reads it from its game data at start: a key missing, or an
 # item, slot, modification or faction the data lacks, stops it, naming it. Only new accounts get it.
-# An item is its `items_dict` name; a slot a kit's (0..6 the armour, 7 weapon 1 and 8 its first
-# ammo, 13.. the pockets).
+# An item is its `items_dict` name; a slot a kit's (0..6 the armour, 3 the back, 7 weapon 1 and 8
+# its first ammo, 10 weapon 2 and 11 its first ammo, 13.. the pockets).
 #   level                     the level it starts at, one point short of the next (its first
 #                             match reaches it)
 #   skills/<id>               the points of a skill (skills_tree.options' id), within the level
-#   silver, gold              its money: all silver, the gold given at 100 silver a gold (gold is gone)
+#   silver                    its money (gold is gone, 2026-11-08)
 #   premium_days              premium from its making
 #   rounds                    the rounds it owns of every ammo
 #   faction                   the faction it takes quests from (1: the Scavengers), at
 #   reputation_level          this level of reputation with it (5: their highest)
 #   own/<item>                what it owns besides the kits: units of a stack, else that many items
 #                             (a kit's pockets take theirs from these stacks)
-#   all_kits/<slot>           the item each of the three kits wears there: one item, worn by all
-#   kit_<n>/<slot>            what kit n wears more: its weapon, and its ammo (the slot filled to
-#                             the most its ammo bags take)
-#   pocket_units              the units of each pocket's item
-#   own_modifications/<item>  a modification of its own a worn item has (modifications.options)
+#   preset_<p>/...            preset p's three kits (1 to 5, from 1 on; 1 is the kits, active):
+#     all_kits/<slot>         the item each of its three kits wears there: one item, worn by all
+#                             (none: nothing every kit wears; a kit of no rows is empty)
+#     kit_<n>/<slot>          what its kit n wears more: its weapons, and their ammo (the kit's
+#                             ammo bags shared: one for each ammo slot after the first, the
+#                             first the rest; a slot filled to the most its bags take)
+#     pocket_units            the units of a pocket: each pocket's item has what a pocket of
+#                             so many holds of it (a booster fills one alone: one)
+#   own_modifications/<item>[i]
+#                             the modifications of its own (modifications.options) an item it is
+#                             given has, worn or owned, after those it comes with (items.tsv
+#                             `start`): every such item has them all, at most 3 in all
 key	value
 level	15
 skills/101	5
@@ -26,7 +33,6 @@ skills/301	1
 skills/302	2
 skills/311	5
 silver	30000
-gold	0
 premium_days	30
 rounds	1000
 faction	1
@@ -36,26 +42,71 @@ own/mosin_nagant	1
 own/ppsh	1
 own/akmn	1
 own/akmsu	1
-own/drop_card	10
+own/glock_17	1
+own/drop_card	50
 own/medkit	50
 own/antitoxin	50
 own/bandages	20
-all_kits/0	novice_026_helmet
-all_kits/1	scav_resp_1
-all_kits/2	scav_torso_4
-all_kits/3	stk2_novice_026_back
-all_kits/4	scav_legs_2
-all_kits/5	scav_gloves_2
-all_kits/6	scav_boots_2
-all_kits/13	medkit
-all_kits/14	bandages
-all_kits/15	antitoxin
-kit_1/7	ak_74n
-kit_1/8	ammo_5.45x39_7n6m
-kit_2/7	rem_700
-kit_2/8	ammo_7.62x51
-kit_3/7	mp_153
-kit_3/8	ammo_12mm_buck
-pocket_units	3
-own_modifications/scav_resp_1	1183
-own_modifications/scav_gloves_2	1133
+own/speed_booster	10
+preset_1/all_kits/0	novice_026_helmet
+preset_1/all_kits/1	scav_resp_1
+preset_1/all_kits/2	scav_torso_4
+preset_1/all_kits/3	stk2_novice_026_back
+preset_1/all_kits/4	scav_legs_2
+preset_1/all_kits/5	scav_gloves_2
+preset_1/all_kits/6	scav_boots_2
+preset_1/all_kits/13	medkit
+preset_1/all_kits/14	bandages
+preset_1/all_kits/15	antitoxin
+preset_1/kit_1/7	ak_74n
+preset_1/kit_1/8	ammo_5.45x39_7n6m
+preset_1/kit_2/7	rem_700
+preset_1/kit_2/8	ammo_7.62x51
+preset_1/kit_3/7	mp_153
+preset_1/kit_3/8	ammo_12mm_buck
+preset_1/pocket_units	3
+preset_2/kit_1/0	edge_helmet_5
+preset_2/kit_1/1	edge_mask_5
+preset_2/kit_1/2	edge_torso_5_special
+preset_2/kit_1/3	edge_back_5
+preset_2/kit_1/4	edge_legs_5_special
+preset_2/kit_1/5	edge_gloves_5
+preset_2/kit_1/6	edge_boots_5
+preset_2/kit_1/7	ak_12
+preset_2/kit_1/8	ammo_6.5x39
+preset_2/kit_1/13	medkit
+preset_2/kit_1/14	speed_booster
+preset_2/kit_1/15	antitoxin
+preset_2/kit_2/0	edge_helmet_5
+preset_2/kit_2/1	edge_mask_5
+preset_2/kit_2/2	edge_torso_5_special
+preset_2/kit_2/3	edge_back_5
+preset_2/kit_2/4	edge_legs_5_special
+preset_2/kit_2/5	edge_gloves_5
+preset_2/kit_2/6	edge_boots_5
+preset_2/kit_2/7	saiga_12
+preset_2/kit_2/8	ammo_12mm_buck2
+preset_2/kit_2/13	medkit
+preset_2/kit_2/14	speed_booster
+preset_2/kit_2/15	antitoxin
+preset_2/pocket_units	2
+own_modifications/scav_resp_1[0]	1183
+own_modifications/scav_gloves_2[0]	1133
+own_modifications/edge_helmet_5[0]	1004
+own_modifications/edge_helmet_5[1]	1064
+own_modifications/edge_mask_5[0]	1064
+own_modifications/edge_gloves_5[0]	1004
+own_modifications/edge_gloves_5[1]	1064
+own_modifications/edge_gloves_5[2]	1084
+own_modifications/edge_boots_5[0]	1004
+own_modifications/edge_boots_5[1]	1064
+own_modifications/edge_back_5[0]	1064
+own_modifications/edge_back_5[1]	1124
+own_modifications/edge_torso_5_special[0]	1004
+own_modifications/edge_legs_5_special[0]	1004
+own_modifications/ak_12[0]	2064
+own_modifications/ak_12[1]	2084
+own_modifications/ak_12[2]	2074
+own_modifications/saiga_12[0]	2064
+own_modifications/saiga_12[1]	2084
+own_modifications/saiga_12[2]	2074

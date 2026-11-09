@@ -16,8 +16,9 @@
 //!
 //! `reward_type` is handed to the lobby and read by nothing of the level
 //! window; srp sends the same number as `reward_id` [GUESS: a money type]:
-//! always 0, silver (gold is gone, the owner's of 2026-11-08: a level that
-//! paid gold pays its silver, `pay::level_reward`).
+//! always 0, silver. A level that paid gold pays nothing (gold is gone and
+//! its rewards with it, the owner's of 2026-11-08, `pay::level_reward`): its
+//! money is 0, its skill point stays.
 
 use super::quests::Notice;
 
@@ -43,12 +44,12 @@ mod tests {
 
     #[test]
     fn a_level_names_its_reward() {
-        // Level 1 pays 100 gold in silver (the wiki's level 1), level 2 500
-        // silver.
-        assert_eq!(level_reached(1), (14, "[1][0][0][10000]".to_owned()));
+        // Level 1 paid 100 gold (the wiki's level 1): nothing now; level 2
+        // 500 silver.
+        assert_eq!(level_reached(1), (14, "[1][0][0][0]".to_owned()));
         assert_eq!(level_reached(2), (14, "[2][0][0][500]".to_owned()));
-        // Every fifth level of the wiki's count paid gold.
-        assert_eq!(level_reached(5), (14, "[5][0][0][10000]".to_owned()));
+        // Every fifth level of the wiki's count paid gold: nothing.
+        assert_eq!(level_reached(5), (14, "[5][0][0][0]".to_owned()));
         assert_eq!(
             levels_reached(&[2, 3]),
             [
@@ -56,8 +57,8 @@ mod tests {
                 (14, "[3][0][0][500]".to_owned())
             ]
         );
-        // The last level pays 250 gold in silver.
-        assert_eq!(level_reached(100), (14, "[100][0][0][25000]".to_owned()));
+        // The last level paid 250 gold: nothing.
+        assert_eq!(level_reached(100), (14, "[100][0][0][0]".to_owned()));
         // What the client's parser takes: four bracketed numbers.
         let text = level_reached(50).1;
         assert_eq!(text.matches('[').count(), 4);

@@ -20,7 +20,7 @@
 //! and says so ([`super::items_rules::upgrades_taken_off`]), a kept results
 //! screen loses it when restored ([`super::rewards::Results::restored`]),
 //! and the wire never sends one whose dict id the data lacks
-//! ([`super::wire::item_descr_at`]). The scope item a player owns is an
+//! ([`super::wire::item_descr`]). The scope item a player owns is an
 //! item like any other and stays checked.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -91,10 +91,6 @@ impl Lacking {
                 }
             }
         }
-        let reward = account.extras.bonus.reward_dict;
-        if reward != 0 {
-            self.item(u32::from(reward), &place);
-        }
         let quests = Quests::shared();
         let ids = account.quests.iter().map(|quest| quest.quest_id);
         for id in ids.chain(account.quest_cooldowns.iter().map(|&(id, _)| id)) {
@@ -118,9 +114,6 @@ impl Lacking {
             let reward = &player.reward;
             if let Some(drop) = &reward.drop {
                 self.item(u32::from(drop.dict_id), &place);
-            }
-            if let Some(given) = &reward.daily_reward {
-                self.item(u32::from(given.dict_id), &place);
             }
             for &(dict_id, _) in &reward.supplies_used {
                 self.item(u32::from(dict_id), &place);
@@ -188,13 +181,11 @@ impl fmt::Display for Lacking {
 }
 
 /// Every item this crate's code names (the game's files do not): the drop
-/// card, the vouchers, buckshot, the grenade of the grenade quests. See
+/// card, buckshot, the grenade of the grenade quests. See
 /// [`check_code`].
 pub fn named_items() -> Vec<Named> {
     vec![
         ("rewards::DROP_CARD", super::rewards::DROP_CARD),
-        ("premium::PREMIUM_VOUCHER", super::premium::PREMIUM_VOUCHER),
-        ("premium::RENAME_VOUCHER", super::premium::RENAME_VOUCHER),
         ("autobuy::BUCKSHOT", super::autobuy::BUCKSHOT),
         ("quests::GRENADE", super::quests::GRENADE),
     ]
@@ -216,7 +207,6 @@ pub fn check_code() -> Result<(), GameDataError> {
     let ids = [
         ("rewards::GENERIC_MONEY", super::rewards::GENERIC_MONEY),
         ("bonus::GENERIC_MONEY", super::bonus::GENERIC_MONEY),
-        ("bonus::FALLBACK", super::bonus::FALLBACK.0),
     ];
     for (place, dict_id) in ids {
         if dictionary.item(dict_id).is_none() {
@@ -239,19 +229,19 @@ mod tests {
         assert_eq!(check_code(), Ok(()));
     }
 
-    /// Data without the drop card or a voucher: named, with where.
+    /// Data without the drop card or buckshot: named, with where.
     #[test]
     fn an_item_the_lobby_code_names_and_the_data_lacks_is_named() {
         let mut dictionary = Dictionary::shared().clone();
         dictionary.items.retain(|item| {
             item.name != super::super::rewards::DROP_CARD
-                && item.name != super::super::premium::RENAME_VOUCHER
+                && item.name != super::super::autobuy::BUCKSHOT
         });
         assert_eq!(
             tables::lacking(&dictionary, &named_items()),
             [
                 "rewards::DROP_CARD drop_card",
-                "premium::RENAME_VOUCHER rename_account_voucher",
+                "autobuy::BUCKSHOT ammo_12mm_buck",
             ]
         );
     }

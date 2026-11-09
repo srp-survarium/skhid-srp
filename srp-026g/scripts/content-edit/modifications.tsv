@@ -92,11 +92,11 @@ modifications	kind	value	op	drop_weight
 1220	parameters/respawn_time_modifier	-0.2	1	0
 1221	parameters/respawn_time_modifier	-0.25	1	0
 1230	parameters/money_bonus	0.1	1	0
-1240	parameters/experience_bonus	0.05	1	0
-1250	parameters/reputation_bonus	0.05	1	0
-1260	parameters/reputation_bonus	0.05	1	0
-1270	parameters/reputation_bonus	0.05	1	0
-1280	parameters/reputation_bonus	0.05	1	0
+1240	parameters/experience_bonus	0.2	1	0
+1250	parameters/reputation_bonus	0.5	1	0
+1260	parameters/reputation_bonus	0.5	1	0
+1270	parameters/reputation_bonus	0.5	1	0
+1280	parameters/reputation_bonus	0.5	1	0
 1290	parameters/engineer_success_chance_modifier	-2	1	0
 1300	parameters/engineer_use_time_modifier	1	1	0
 1310	parameters/artefact_cooldown_modifier	-0.2	1	0

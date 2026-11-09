@@ -594,6 +594,8 @@ st_change_quest_label	Promeni zadatak
 st_change_weapon_speed_description	Brzina zamene oružja:
 st_change_weapon_speed_name	Vešte ruke
 st_character	Lik
+st_character_decals_1_10_name	Lovac na veprove
+st_character_decals_1_11_name	Lovac na jelene
 st_character_decals_1_12_name	Sunašce
 st_character_decals_1_1_name	Književnik
 st_character_decals_1_2_name	Odred Alfa
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veteran
 st_character_decals_1_6_name	Majstor
 st_character_decals_1_7_name	Legenda
 st_character_decals_1_8_name	Krilati husari
+st_character_decals_1_9_name	Muzičar
 st_character_decals_2_1_name	Početnik Sakupljača
 st_character_decals_2_2_name	Veteran Sakupljača
 st_character_decals_2_3_name	Regrut Crnog tržišta
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Grb Litvanije
 st_character_decals_5_7_name	Grb Litvanije
 st_character_decals_5_8_name	Grb Estonije
 st_character_decals_5_9_name	Grb Moldavije
+st_character_decals_7_10_name	Šibice
+st_character_decals_7_23_name	Srce
+st_character_decals_7_24_name	Strašna bundeva
 st_character_decals_7_27_name	Ukras detelina
 st_character_decals_7_28_name	Potkovica
+st_character_decals_7_30_name	Poštanski golub
+st_character_decals_7_31_name	Pobeda
+st_character_decals_7_35_name	Krvava ruka
+st_character_decals_7_37_name	Čuvar
 st_character_decals_7_9_name	Bilje
 st_character_decals_generic_desc	Promenite izgled prsluka i pantalona pomoću oznaka u prozoru opreme.
 st_characteristics_label	Statistika igrača
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Tim klana već ima najveći broj igrača.
 st_current_value	\nTrenutna vrednost:
 st_cz_75_description	Češki poluautomatski pištolj, municija: 9x19. Jedan od najkopiranijih pištolja Hladnog rata.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Igrajte svakog dana i osvojite <highlight>x2</highlight> iskustvo i ugled za <highlight>prve tri</highlight> pobede.
+st_daily_bonus_description	Svakog dana: <highlight>x2</highlight> iskustva za <highlight>prve tri</highlight> pobede.
 st_daily_bonus_hint	Prikaži ekran dobrodošlice
 st_daily_bonus_label	Dobro došli nazad
 st_daily_bonus_progress	Vaš današnji napredak

@@ -594,6 +594,8 @@ st_change_quest_label	Змінити завдання
 st_change_weapon_speed_description	Швидкість зміни зброї:
 st_change_weapon_speed_name	Спритні руки
 st_character	Вміння
+st_character_decals_1_10_name	Мисливець на кабанів
+st_character_decals_1_11_name	Мисливець на оленів
 st_character_decals_1_12_name	Ярило
 st_character_decals_1_1_name	Літератор
 st_character_decals_1_2_name	Загін "Альфа"
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Ветеран
 st_character_decals_1_6_name	Майстер
 st_character_decals_1_7_name	Легенда
 st_character_decals_1_8_name	Летючі гусари
+st_character_decals_1_9_name	Музикант
 st_character_decals_2_1_name	Новачок бродяг
 st_character_decals_2_2_name	Ветеран бродяг
 st_character_decals_2_3_name	Рекрут Чорного Ринку
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Герб Латвії
 st_character_decals_5_7_name	Герб Литви
 st_character_decals_5_8_name	Герб Естонії
 st_character_decals_5_9_name	Герб Молдови
+st_character_decals_7_10_name	Сірники
+st_character_decals_7_23_name	Серце
+st_character_decals_7_24_name	Лякаючий Гарбуз
 st_character_decals_7_27_name	Орнамент конюшини
 st_character_decals_7_28_name	Підкова
+st_character_decals_7_30_name	Поштовий голуб
+st_character_decals_7_31_name	Перемога
+st_character_decals_7_35_name	Кривава рука
+st_character_decals_7_37_name	Хранитель
 st_character_decals_7_9_name	Трави
 st_character_decals_generic_desc	Використовуйте нашивки у вікні зовнішнього вигляду бронежилетів і штанів, щоб змінити їх вигляд.
 st_characteristics_label	Характеристики гравця
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Помилка додавання. У кланов
 st_current_value	\nПоточне значення:
 st_cz_75_description	Чеський самозарядний пістолет, набій: 9x19. Один із найбільш копійованих пістолетів холодної війни.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходь щодня і отримуй <highlight>x2</highlight> досвіду і репутації за <highlight>перші три</highlight> перемоги.
+st_daily_bonus_description	Щодня: <highlight>x2</highlight> досвіду за <highlight>перші три</highlight> перемоги.
 st_daily_bonus_hint	Показати вікно привітання
 st_daily_bonus_label	Ласкаво просимо назад
 st_daily_bonus_progress	Ваш прогрес за поточний день

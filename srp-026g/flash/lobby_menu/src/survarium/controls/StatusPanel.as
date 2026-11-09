@@ -1,12 +1,14 @@
 package survarium.controls
 {
    import com.greensock.TweenLite;
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.geom.ColorTransform;
+   import flash.geom.Point;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
@@ -34,7 +36,6 @@ package survarium.controls
    import survarium.rooms.RoomsWindow;
    import survarium.constants.ClanState;
    import survarium.constants.Faction;
-   import survarium.constants.VoucherType;
    
    public class StatusPanel extends UIComponent
    {
@@ -178,6 +179,7 @@ package survarium.controls
          this.btn_add_regular_money = this.panel_player.btn_add_regular_money;
          this.btn_add_premium_money = this.panel_player.btn_add_premium_money;
          this.txGeneric = this.panel_player.btn_add_regular_money.content.txMoney;
+         this.showBalanceWithoutBox();
          this.videoTutorial = this.left_corner.videoTutorial;
          // No gold: its box in the top bar is hidden (the owner, 2026-11-08).
          this.btn_add_premium_money.visible = false;
@@ -421,6 +423,23 @@ package survarium.controls
          }
       }
       
+      // The silver balance is no button (the owner, 2026-11-08: "silver is a button, even though it
+      // doesn't do anything, it shouldn't be a button"): its coin and amount (the box's `content`) are
+      // taken out of the money box into the panel, where they were on the screen, and the box is
+      // hidden. What the box's timeline might place again stays inside the hidden box.
+      private function showBalanceWithoutBox() : void
+      {
+         var box:MovieClip = this.btn_add_regular_money as MovieClip;
+         var content:DisplayObject = box.content;
+         var at:Point = this.panel_player.globalToLocal(box.localToGlobal(new Point(content.x,content.y)));
+         content.x = at.x;
+         content.y = at.y;
+         content.scaleX *= box.scaleX;
+         content.scaleY *= box.scaleY;
+         this.panel_player.addChildAt(content,this.panel_player.getChildIndex(box) + 1);
+         box.visible = false;
+      }
+
       public function setMoneyData(generic:uint) : void
       {
          this.panel_player.hintButton.alpha = 0;
@@ -516,7 +535,6 @@ package survarium.controls
             constraints.addElement("top_menu",this._topMenu,Constraints.CENTER_H);
          }
          this.btn_lobby.addEventListener(ButtonEvent.CLICK,this.onClickLobby);
-         this.btn_add_regular_money.enabled = true;
          this.left_corner.btnKnowledgeBase.addEventListener(ButtonEvent.CLICK,this.onKnowlengeBaseClick);
          var date:Date = new Date();
          _time = getTimer() - date.milliseconds - int(date.seconds) * 1000;
@@ -535,7 +553,6 @@ package survarium.controls
          this.btn_off.tooltipRendererName = "SrvProfileTipRenderer";
          this.btnChangeName.tooltipRendererName = "SrvProfileTipRenderer";
          this.factionHint.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.btn_add_regular_money.tooltipRendererName = "SrvProfileTipRenderer";
          this.panel_player.hintButton.tooltipRendererName = "SrvProfileTipRenderer";
          this.right_corner.btnShowDailyMessage.tooltipRendererName = "SrvProfileTipRenderer";
          this.left_corner.btnKnowledgeBase.tooltipRendererName = "SrvProfileTipRenderer";
@@ -720,15 +737,11 @@ package survarium.controls
       
       public function showChangeNameMessage(e:ButtonEvent = null) : void
       {
-         var voucherId:uint = PlayerInfo.getVoucherId(VoucherType.RENAME);
          var messageData:Object = {
             nickname:PlayerInfo.nickname,
             cost:this.changeNameCost,
-            vouchersCost:1,
-            voucherId:voucherId,
             changeNameFailedDelay:this.changeNameFailedDelay,
-            changeNameDelay:this.changeNameDelay,
-            selectVoucher:Boolean(e == null)
+            changeNameDelay:this.changeNameDelay
          };
          _changeNicknameMessage = Message.showMessage("change_name",messageData);
       }
@@ -738,7 +751,6 @@ package survarium.controls
          this.btn_settings.data = {name:LocalizationData.getName("btn_settings_label")};
          this.btn_off.data = {name:LocalizationData.getName("btn_exit_label")};
          this.btnChangeName.data = {name:LocalizationData.getName("btn_change_name_label")};
-         this.btn_add_regular_money.data = {name:LocalizationData.getName("regular_money")};
          this.left_corner.btnKnowledgeBase.data = {name:LocalizationData.getName("btn_knowledge_base")};
          this.left_corner.videoTutorial.textField.text = LocalizationData.getName("youtube_video_tutorial_button");
          this.left_corner.videoTutorial.closeBtn.x = this.left_corner.videoTutorial.textField.x + this.left_corner.videoTutorial.textField.textWidth + 10;

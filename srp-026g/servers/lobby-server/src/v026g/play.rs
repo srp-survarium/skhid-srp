@@ -381,7 +381,8 @@ pub fn match_profile(account: &Account, team: u8, squad: u8, now: u64) -> MatchP
                 instance_id: item.item_id,
                 dict_id: item.dict_id,
                 condition_or_stack: item.condition_or_stack,
-                repair_time: item.repair_time,
+                // No repair (the owner, 2026-11-08).
+                repair_time: 0,
                 reroll_time: item.reroll_time,
                 modifications: item
                     .modifications
@@ -1411,8 +1412,8 @@ impl Core<'_> {
             return;
         }
         let push = if after_sign_in {
-            // The inventory once more if autobuy or auto-repair spent
-            // anything: the screen lists it from there.
+            // The inventory once more if autobuy spent anything: the
+            // screen lists it from there.
             let account = who.account.locked();
             unseen.report.screen_for(who.account_id).map(|screen| {
                 let mut push = Vec::new();

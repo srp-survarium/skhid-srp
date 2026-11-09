@@ -295,12 +295,13 @@ mod tests {
     fn premium_items_are_sold_for_their_price() {
         let dictionary = Dictionary::shared();
         let id = |name: &str| dictionary.item_named(name).unwrap().dict_id;
-        // The vouchers, at their gold price in silver (`items.tsv`).
+        // The drop card, at its gold price in silver (`items.tsv`); the
+        // other vouchers are sold no more (the owner, 2026-11-08: `shop.tsv`).
         let cost = |name: &str| premium_price(id(name)).map(|price| price.cost);
-        assert_eq!(cost("repair_voucher"), Some(5_000));
-        assert_eq!(cost("rename_account_voucher"), Some(25_000));
         assert_eq!(cost("drop_card"), Some(10_000));
-        assert_eq!(cost("premium_voucher_1d"), Some(5_000));
+        assert_eq!(cost("repair_voucher"), None);
+        assert_eq!(cost("rename_account_voucher"), None);
+        assert_eq!(cost("premium_voucher_1d"), None);
         assert_eq!(cost("ak_74n"), Some(150_000));
         // A bundle's items are the bundle's to sell; the shop's own items
         // and money are not premium.
@@ -328,9 +329,10 @@ mod tests {
         }));
     }
 
-    /// The decals no shop sells (2026-10-18, `prices::is_not_sold`): the premium
-    /// list is every premium item with a price that no bundle holds but those six, and neither list
-    /// the lobby is sent has them.
+    /// The decals no shop sells (2026-10-18, `prices::is_not_sold`) and the
+    /// three vouchers removed (2026-11-08): the premium list is every premium
+    /// item with a price that no bundle holds but those nine, and neither
+    /// list the lobby is sent has them.
     #[test]
     fn the_premium_list_leaves_out_what_is_not_sold() {
         let dictionary = Dictionary::shared();
@@ -340,7 +342,7 @@ mod tests {
             .filter(|item| item.is_premium && prices::is_not_sold(item))
             .map(|item| item.dict_id)
             .collect();
-        assert_eq!(excluded.len(), 6);
+        assert_eq!(excluded.len(), 9);
         for &dict_id in &excluded {
             assert_eq!(premium_price(dict_id), None);
             assert!(price_list().iter().all(|price| price.dict_id != dict_id));

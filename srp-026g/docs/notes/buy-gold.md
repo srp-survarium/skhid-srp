@@ -10,10 +10,11 @@ the lobby movie with gold (the owner, 2026-11-08; [silver-only.md](silver-only.m
   multiplies by the exchange rate; selling gives `cost / 4`, times the condition). The buy dialog,
   the shop's cards, the bundles and the ammo dialog check silver (`MessageAsk`, `ItemCard`,
   `ItemControlPanel`, `ItemRendererInv`, `InventoryList`, `AmmoShareLite`).
-- **Windows with a gold option** show the silver one only: the skills reset (`MessageAskReroll`),
-  a modification's change (`MessageRerollItem`), the upgrade (`MessageCraftItem`: the server sends
+- **Windows with a gold option** show the silver one only: a modification's change (`MessageRerollItem`), the upgrade (`MessageCraftItem`: the server sends
   the chances it rolls in the silver column), the repair (`MessageRepair`: no quick fix), the
-  rename (`MessageEnterName`: paid in silver at 0x8D's rename price). Each sends payment 0.
+  rename (`MessageEnterName`: paid in silver at 0x8D's rename price). Each sends payment 0. The
+  skills reset has no window: it is free and the Reset button sends it at once, payment 0
+  (`CharWindow.rerollChanges`, silver-only.md).
 - **Premium time** (`MessagePremium`, `MessagePremiumDiscount`, `MessagePostPremium`,
   `MessagePremiumProfile`) shows and checks silver; without enough the game's "Not enough money
   for the transaction." (`st_not_enough_money`) shows, with no way to a store.

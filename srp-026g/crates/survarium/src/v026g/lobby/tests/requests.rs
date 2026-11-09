@@ -182,7 +182,11 @@ fn inventory_actions() {
         read("46 03 05000000 23010000"),
         M::UseDropCard { a0: 5, a1: 0x123 }
     );
-    assert_eq!(read("46 04 05000000"), M::UseItem { item_id: 5 });
+    // No usable items: the one-day premium voucher is gone.
+    assert_eq!(
+        parse(0x46, &h("04 05000000")),
+        Err(ParseError::UnknownSubType { id: 0x46, sub: 4 })
+    );
     assert_eq!(
         read("46 05 01000000 05000000 02000000 0807060504030201"),
         M::ApplyDecal {
@@ -245,28 +249,10 @@ fn shop_actions() {
             factor: 0.0
         }
     );
-    // The kit's id only for kind 2.
+    // No repair: srp has none.
     assert_eq!(
-        read("47 03 09000000 00"),
-        M::Repair {
-            item_id: 9,
-            payment: RepairPayment::Silver
-        }
-    );
-    // The stock window's gold is silver: srp has one payment.
-    assert_eq!(
-        read("47 03 09000000 01"),
-        M::Repair {
-            item_id: 9,
-            payment: RepairPayment::Silver
-        }
-    );
-    assert_eq!(
-        read("47 03 09000000 02 0C000000"),
-        M::Repair {
-            item_id: 9,
-            payment: RepairPayment::Kit { kit_item_id: 12 }
-        }
+        parse(0x47, &h("03 09000000 00")),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 3 })
     );
     // No exchange: gold is gone.
     assert_eq!(
@@ -316,35 +302,11 @@ fn kit_and_account_actions() {
             name: "Sniper".into()
         }
     );
-    assert_eq!(
-        read("49 01 01"),
-        M::SetAutobuy {
-            on: true,
-            repair: false
-        }
-    );
-    assert_eq!(
-        read("49 01 00"),
-        M::SetAutobuy {
-            on: false,
-            repair: false
-        }
-    );
-    // The lobby's number: 2 is auto-repair alone, 3 both.
-    assert_eq!(
-        read("49 01 02"),
-        M::SetAutobuy {
-            on: false,
-            repair: true
-        }
-    );
-    assert_eq!(
-        read("49 01 03"),
-        M::SetAutobuy {
-            on: true,
-            repair: true
-        }
-    );
+    assert_eq!(read("49 01 01"), M::SetAutobuy { on: true });
+    assert_eq!(read("49 01 00"), M::SetAutobuy { on: false });
+    // The lobby's number: bit 1, the stock auto-repair, is not read.
+    assert_eq!(read("49 01 02"), M::SetAutobuy { on: false });
+    assert_eq!(read("49 01 03"), M::SetAutobuy { on: true });
     assert_eq!(read("49 02 02000000"), M::SetActiveKit { kit_id: 2 });
     assert_eq!(
         read("49 03 'Alice'"),
@@ -355,8 +317,7 @@ fn kit_and_account_actions() {
     assert_eq!(
         read("49 04 'Alice' 4D000000"),
         M::ChangeNickname {
-            nickname: "Alice".into(),
-            ticket_item_id: 77
+            nickname: "Alice".into()
         }
     );
     assert_eq!(

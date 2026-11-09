@@ -319,7 +319,10 @@ def build_movies(rows, tree, archive_of, sha_of, game, tools, work, world, cache
         if archive not in archive_of:
             raise Problem(f'{at}: movie {name}: its original is in {archive} (movie.json), which is neither the '
                           'stock resources.db nor a base row')
-        key = Cache.key('movie', name, sha_of[archive], tree_digest(movie_dir), programs, stand_in, sys.version)
+        # The repository's tables movie.json's `data` makes classes of (flash_tree.data_sources).
+        sources = files_digest(sorted(tree / path for path in spec.get('data', {}).values()))
+        key = Cache.key('movie', name, sha_of[archive], tree_digest(movie_dir), sources, programs, stand_in,
+                        sys.version)
         made = cache.get(key)
         if made:
             data = made[0][spec['movie']]

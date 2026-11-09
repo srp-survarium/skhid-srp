@@ -664,11 +664,18 @@ fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
 /// The pockets a loadout opens and how many units each holds, with no
 /// skills ([`KitLayout`]).
 pub fn pockets(loadout: &Loadout) -> (u32, u32) {
-    let modifications: Vec<(u32, bool)> = loadout
+    pockets_with(loadout, &[])
+}
+
+/// [`pockets`], its items having `own` modifications besides their
+/// defaults, `(id, defect)`.
+pub fn pockets_with(loadout: &Loadout, own: &[(u32, bool)]) -> (u32, u32) {
+    let mut modifications: Vec<(u32, bool)> = loadout
         .items
         .iter()
         .flat_map(|item| default_modifications(item.dict_id))
         .collect();
+    modifications.extend_from_slice(own);
     let layout = KitLayout::new(&modifications, &[0.0; skills::MODIFIERS]);
     (layout.pockets, layout.pocket_size)
 }

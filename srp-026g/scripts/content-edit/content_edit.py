@@ -1034,6 +1034,43 @@ def default_modification(decade):
     return Derived('default_modifications', read, write)
 
 
+def shown_value():
+    """A modification's (or a defect's) value, one place for all it shows: every modifier's `value`
+    (the cell; modifiers that differ read a|b), and, when it changes, what the lobby shows of it by the
+    same ratio: each number of `lobby_info` and each card line's `ui_desc/props_list[*]/prop_value` (its
+    text, with its decimals: 0.05 -> 0.20 for 0.05 -> 0.2; an armour line, x100 of its value, 8 for
+    0.08), as the game's own rows have them (each kind one ratio of text to value)."""
+    def read(buf, entry):
+        return '|'.join(sorted({cell_text(buf, o) for _, o in resolve(buf, 'modifiers[*]/value', entry)}))
+
+    def write(buf, entry, cell):
+        values = resolve(buf, 'modifiers[*]/value', entry)
+        olds = {value_of(buf, o) for _, o in values}
+        if len(olds) != 1 or not NUMBER.fullmatch(cell):
+            raise ValueError('a value of modifiers that differ (%s), or not a number (%r)' % (sorted(olds), cell))
+        old, written = olds.pop(), []
+        for at, o in values:
+            if not same_cell(cell, cell_text(buf, o)):
+                write_cell(buf, o, cell)
+                written.append(at)
+        if not old or same_cell(cell, '%.9g' % old):
+            return written, []
+        ratio = float(cell) / old
+        info = child(buf, entry, 'lobby_info')
+        for c in children(buf, info) if info is not None else ():
+            write_cell(buf, c, '%.6g' % (value_of(buf, c) * ratio))
+            written.append('/lobby_info/' + name_at(buf, rec(buf, c)[1]).decode())
+        for at, o in resolve(buf, 'ui_desc/props_list[*]/prop_value', entry):
+            text = cell_text(buf, o)
+            if not NUMBER.fullmatch(text):
+                raise ValueError('card line %s is %r, not a number to scale' % (at, text))
+            decimals = len(text.partition('.')[2])
+            write_cell(buf, o, '%.*f' % (decimals, float(text) * ratio))
+            written.append(at)
+        return written, []
+    return Derived('', read, write)
+
+
 def id_list(key):
     """An indexed table of ids `key` of a list entry (an items_dict entry's srp_start): its ids, a space
     between; written into an entry that lacks it."""
@@ -1227,13 +1264,13 @@ STATS = {
     },
     'modifications': {
         'configs': 'gameplay/items/modifications/modifications.options#modifications[id]',
-        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': 'modifiers[*]/value',
+        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': shown_value(),
                     'op': 'modifiers[*]/type', 'drop_weight': 'drop_weight'},
         'match': {'kind', 'value', 'op'},
     },
     'defects': {
         'configs': 'gameplay/items/modifications/modifications.options#defects[id]',
-        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': 'modifiers[*]/value',
+        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': shown_value(),
                     'op': 'modifiers[*]/type', 'drop_weight': 'drop_weight', 'fix_cost': 'fix_cost_general',
                     'fix_gold': 'fix_cost_gold', 'fix_time': 'fix_time_general'},
         'match': {'kind', 'value', 'op'},

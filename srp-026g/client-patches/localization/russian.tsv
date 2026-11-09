@@ -594,6 +594,8 @@ st_change_quest_label	Сменить задание
 st_change_weapon_speed_description	Скорость смены оружия:
 st_change_weapon_speed_name	Ловкие руки
 st_character	Умения
+st_character_decals_1_10_name	Охотник на кабанов
+st_character_decals_1_11_name	Охотник на оленей
 st_character_decals_1_12_name	Ярило
 st_character_decals_1_1_name	Литератор
 st_character_decals_1_2_name	Отряд "Альфа"
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Ветеран
 st_character_decals_1_6_name	Мастер
 st_character_decals_1_7_name	Легенда
 st_character_decals_1_8_name	Летучие гусары
+st_character_decals_1_9_name	Музыкант
 st_character_decals_2_1_name	Новичок бродяг
 st_character_decals_2_2_name	Ветеран бродяг
 st_character_decals_2_3_name	Рекрут Черного Рынка
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Герб Латвии
 st_character_decals_5_7_name	Герб Литвы
 st_character_decals_5_8_name	Герб Эстонии
 st_character_decals_5_9_name	Герб Молдовы
+st_character_decals_7_10_name	Спички
+st_character_decals_7_23_name	Сердце
+st_character_decals_7_24_name	Пугающая Тыква
 st_character_decals_7_27_name	Орнамент клевера
 st_character_decals_7_28_name	Подкова
+st_character_decals_7_30_name	Почтовый голубь
+st_character_decals_7_31_name	Победа
+st_character_decals_7_35_name	Кровавая рука
+st_character_decals_7_37_name	Хранитель
 st_character_decals_7_9_name	Травы
 st_character_decals_generic_desc	Используйте нашивки в окне внешнего вида бронежилетов и штанов, чтобы изменить их облик.
 st_characteristics_label	Характеристики игрока
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Ошибка добавления. В кланов
 st_current_value	\nТекущее значение:
 st_cz_75_description	Чешский самозарядный пистолет, патрон: 9x19. Один из самых копируемых пистолетов холодной войны.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходи каждый день, и получай <highlight>x2</highlight> опыта и репутации за <highlight>первые три</highlight> победы.
+st_daily_bonus_description	Каждый день: <highlight>x2</highlight> опыта за <highlight>первые три</highlight> победы.
 st_daily_bonus_hint	Показать окно приветствия
 st_daily_bonus_label	Добро пожаловать обратно
 st_daily_bonus_progress	Ваш прогресс за текущий день

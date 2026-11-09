@@ -1,5 +1,5 @@
-//! The premium shop, the premium account, the daily bonus, the tutorial
-//! and a nickname change: the requests `dispatch` hands over, and what a
+//! The premium shop, the premium account, the daily bonus and a nickname
+//! change: the requests `dispatch` hands over, and what a
 //! sign-in and a match's results add for them.
 //!
 //! The rules are `session::v026g::{premium, bonus, tutorial, names}`; this
@@ -12,11 +12,11 @@
 //! | `47 02 <offer> <match>` (the results screen's button) | the same, and the premium half of the match: skills (`8C`), reputations (`8E`), notices |
 //! | `47 05 <offer> <discount> ..` (after `A8`) | `83 47 05` (the client's "premium activated" notice), then as above |
 //! | `47 06 <offer> <discount>` (after `A9`; offer -1 declines) | `83 47 02`, then as `47 02` |
-//! | `46 04 <item>` | `83 46 04 <item>`, the services, the inventory, the account, the money |
 //! | `49 03 <name>` | `83 49 03 <name> <ok> [reason]` |
-//! | `49 04 <name> <voucher or 0>` | `83 49 04 <voucher>`, the name (`8F`), the inventory, the account, the money |
-//! | `4B 01 <step>` | what the step paid: the inventory, the account, the money, the skills, notices |
+//! | `49 04 <name> <ignored>` | `83 49 04 0`, the name (`8F`), the inventory, the account, the money (silver; no voucher) |
 //! | `43 00` | `99` |
+//!
+//! No tutorial (2026-10-19): a step (`4B`) is not answered.
 //!
 //! A refusal is `84 <op> 00 <the game's text>`.
 //!
@@ -318,29 +318,6 @@ impl Core<'_> {
         self.buy_offer_at(who, offer_id, self.shop.discount(), 2);
     }
 
-    /// `46 04 <item>`: use an item (the one-day premium voucher).
-    pub(super) fn use_item(&mut self, who: &Who, item_id: u32) {
-        let used = premium::use_item(&mut who.account.locked(), item_id, quests::now());
-        match used {
-            Ok(used) => {
-                log::info!(
-                    "{} used item {item_id}: {} hours of premium, {} left",
-                    who.name,
-                    used.premium_hours,
-                    used.left
-                );
-                // The client takes one off its copy; the inventory that
-                // follows agrees.
-                self.send(who.addr, lobby::permitted_item_used(item_id));
-                self.premium_changed(who);
-            }
-            Err(error) => {
-                log::info!("{}: item {item_id} not used: {error}", who.name);
-                self.deny(who.addr, id::INVENTORY, error.text_key());
-            }
-        }
-    }
-
     // ---------------------------------------------------------- nicknames
 
     /// What is wrong with `nickname` for the account, in the client's own
@@ -358,9 +335,8 @@ impl Core<'_> {
         (shown || login).then_some(NameRefusal::Taken)
     }
 
-    /// `49 04 <name> <voucher item or 0>`: a new nickname, paid with a
-    /// rename voucher or in silver.
-    pub(super) fn change_nickname(&mut self, who: &Who, nickname: &str, voucher_item_id: u32) {
+    /// `49 04 <name> <u32>`: a new nickname, paid in silver.
+    pub(super) fn change_nickname(&mut self, who: &Who, nickname: &str) {
         let nickname = nickname.trim();
         if let Some(refusal) = self.nickname_refusal(nickname, who.account_id) {
             log::info!(
@@ -370,14 +346,9 @@ impl Core<'_> {
             self.deny(who.addr, id::PROFILE, "st_change_name_error");
             return;
         }
-        let renamed = names::rename(
-            &mut who.account.locked(),
-            &self.shop,
-            nickname,
-            voucher_item_id,
-        );
-        let paid = match renamed {
-            Ok(paid) => paid,
+        let renamed = names::rename(&mut who.account.locked(), &self.shop, nickname);
+        let silver = match renamed {
+            Ok(silver) => silver,
             Err(error) => {
                 log::info!("{}: the rename is refused: {error:?}", who.name);
                 self.deny(who.addr, id::PROFILE, error.text_key());
@@ -394,16 +365,11 @@ impl Core<'_> {
             player.name = name.clone();
         }
         log::info!(
-            "{} (account {}) is now named {name} ({} silver, voucher {})",
+            "{} (account {}) is now named {name} ({silver} silver)",
             who.name,
             who.account_id,
-            paid.silver,
-            paid.voucher_item_id
         );
-        self.send(
-            who.addr,
-            lobby::permitted_nickname_changed(paid.voucher_item_id),
-        );
+        self.send(who.addr, lobby::permitted_nickname_changed());
         let ranked = self.accounts.ranking().len() as u32;
         self.send(who.addr, lobby::base_info(ranked, &name));
         self.push_account(who);

@@ -252,7 +252,6 @@ impl Core<'_> {
                 item_id, a, value, ..
             } => self.place_upgrade(who, item_id, a, value),
             M::UseDropCard { a0, a1 } => self.use_drop_card(who, a0, a1),
-            M::UseItem { item_id } => self.use_item(who, item_id),
             M::OpenReroll { item_id } => self.open_reroll(who, item_id),
             M::RerollModifier {
                 item_id,
@@ -334,7 +333,6 @@ impl Core<'_> {
                     }
                 }
             }
-            M::Repair { item_id, payment } => self.repair(who, item_id, payment),
             // The premium shop (`shop`). `47 02` with a match id is the
             // results screen's "buy premium": the match's premium half is
             // given with it.
@@ -365,16 +363,11 @@ impl Core<'_> {
                 }
                 self.push_account(who);
             }
-            // The two boxes of the kit window: autobuy and auto-repair
-            // (`session::v026g::autobuy`).
-            M::SetAutobuy { on, repair } => {
-                {
-                    let mut account = who.account.locked();
-                    rules::set_autobuy(&mut account, on);
-                    account.extras.auto_repair = repair;
-                }
+            // The kit window's autobuy box (`session::v026g::autobuy`).
+            M::SetAutobuy { on } => {
+                rules::set_autobuy(&mut who.account.locked(), on);
                 self.accounts.mark_dirty(who.account_id);
-                self.send(addr, lobby::permitted_auto_state(on, repair));
+                self.send(addr, lobby::permitted_autobuy(on));
             }
             M::SetActiveKit { kit_id } => {
                 let set = rules::set_active_kit(&mut who.account.locked(), kit_id, unix);
@@ -396,10 +389,7 @@ impl Core<'_> {
                 let refusal = self.nickname_refusal(&nickname, who.account_id);
                 self.send(addr, lobby::permitted_nickname_check(&nickname, refusal));
             }
-            M::ChangeNickname {
-                nickname,
-                ticket_item_id,
-            } => self.change_nickname(who, &nickname, ticket_item_id),
+            M::ChangeNickname { nickname } => self.change_nickname(who, &nickname),
             // Not kept, and the player is told so.
             M::CommentAboutUser { .. } => self.deny(addr, id::PROFILE, text::COMMENT),
             M::SetChatMute { nickname, mode } => self.set_chat_mute(who, &nickname, mode, now),

@@ -70,14 +70,6 @@ mod ask {
         body.push(u8::from(gold));
         (0x46, body)
     }
-
-    /// `47 03 <item> 02 <kit item>`.
-    pub fn repair_with_kit(item: u32, kit: u32) -> (u8, Vec<u8>) {
-        let mut body = body(3, &[item]);
-        body.push(2);
-        body.extend(kit.to_le_bytes());
-        (0x47, body)
-    }
 }
 
 fn dict(name: &str) -> u16 {
@@ -159,15 +151,15 @@ fn a_sign_in_brings_the_craft_tables() {
     let (chances, general, premium) = tables.expect("0x9B at sign-in");
     let craft = &Modifications::shared().craft;
     let (data, data_general, data_premium) = craft.tables();
-    assert_eq!((general, premium), (data_general, data_premium));
-    // The successes are the data's; every failure ("-1 mod.") is 0: an
-    // upgrade never takes a modification away (the owner's rule of
-    // 2026-10-23), so the window shows no such chance.
-    for (index, (&sent, &data)) in chances.iter().zip(&data).enumerate() {
-        let failure = index % 2 == 1;
-        assert_eq!(sent, if failure { 0.0 } else { data }, "{index}");
+    assert_eq!(
+        (chances, general, premium),
+        (data, data_general, data_premium)
+    );
+    // An upgrade always succeeds (the owner, 2026-11-08): 100 % in silver in
+    // every row, nothing else.
+    for (index, &sent) in chances.iter().enumerate() {
+        assert_eq!(sent, if index % 4 == 0 { 100.0 } else { 0.0 }, "{index}");
     }
-    assert!(data.iter().skip(1).step_by(2).any(|&chance| chance > 0.0));
     world.assert_clean();
 }
 
@@ -934,7 +926,6 @@ fn another_modification_is_rerolled_after_the_first() {
             premium: 0
         }
     );
-    assert_eq!(world.account(alice).item(rifle).unwrap().reroll.count, 1);
 
     world.ask(alice, ask::choose(rifle, 2000, 0));
     let decoded = world.take(alice);
@@ -1062,108 +1053,5 @@ fn an_item_is_crafted_with_a_donor() {
         );
     }
     assert_same_items(&mut world, alice);
-    world.assert_clean();
-}
-
-#[test]
-fn defects_are_repaired_in_time_or_at_once() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    let rifle = give(&mut world, alice, "ak_74m", &[]);
-    let spare = give(&mut world, alice, "ak_74m", &[]);
-    let mut kits = 0;
-    world.change(alice, |account| {
-        account.generic_money = 1_000_000;
-        kits = account.add_item(dict("repair_voucher"), 2);
-        for item_id in [rifle, spare] {
-            let item = account.item_mut(item_id).unwrap();
-            item.condition_or_stack = 500_000;
-            item.modifications.push((3000, true));
-        }
-    });
-    // The client sees the damage.
-    assert_same_items(&mut world, alice);
-    let (silver, seconds, _) =
-        items_rules::repair_quote(world.account(alice).item(rifle).unwrap());
-    assert_eq!(seconds, 360);
-
-    // In silver: six minutes a defect.
-    world.ask(alice, request::repair(rifle, 0));
-    assert_eq!(world.client(alice).ids, [0x83, 0x89, 0x87, 0x8B]);
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::Repaired {
-            repaired: survarium::v026g::lobby::Repaired::Timed { repair_time: 360 },
-            ..
-        })
-    ));
-    assert_eq!(world.account(alice).generic_money, 1_000_000 - silver);
-    assert_same_items(&mut world, alice);
-    let held = world.client(alice).model.inventory().to_vec();
-    let seen = held.iter().find(|item| item.item_id == rifle).unwrap();
-    assert_eq!(seen.condition_or_stack, FULL_CONDITION);
-    assert!(
-        (350..=360).contains(&seen.repair_time),
-        "{}",
-        seen.repair_time
-    );
-    // Not again while it lasts.
-    world.ask(alice, request::repair(rifle, 0));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_repair_item")
-    );
-
-    // The time is over: the client is told which item, once.
-    world.account(alice).item_mut(rifle).unwrap().repair_time = 1;
-    world.advance(Duration::from_millis(1500));
-    let told: Vec<String> = world
-        .take(alice)
-        .into_iter()
-        .filter_map(|message| match message {
-            Decoded::Important { kind: 6, text, .. } => Some(text),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(told, [format!("#ir[{rifle}]")]);
-    assert_eq!(world.account(alice).item(rifle).unwrap().repair_time, 0);
-    world.advance(Duration::from_millis(1500));
-    assert!(
-        !world
-            .take(alice)
-            .iter()
-            .any(|message| matches!(message, Decoded::Important { kind: 6, .. }))
-    );
-
-    // With a repair kit: at once, one a defect.
-    world.ask(alice, ask::repair_with_kit(spare, kits));
-    let decoded = world.take(alice);
-    assert_eq!(
-        decoded[0],
-        Decoded::Permitted(Permitted::Repaired {
-            item_id: spare,
-            repaired: survarium::v026g::lobby::Repaired::WithKit {
-                kit_item_id: kits,
-                used: 1
-            }
-        })
-    );
-    assert_eq!(
-        world.account(alice).item(kits).unwrap().condition_or_stack,
-        1
-    );
-    assert_same_items(&mut world, alice);
-    // No kit for an item with no defect; nothing to repair in silver either.
-    world.ask(alice, ask::repair_with_kit(spare, kits));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_repair_item")
-    );
-    world.ask(alice, request::repair(spare, 1));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_cannot_repair_item")
-    );
     world.assert_clean();
 }

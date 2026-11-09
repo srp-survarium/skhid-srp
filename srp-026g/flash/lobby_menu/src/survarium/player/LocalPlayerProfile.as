@@ -491,11 +491,6 @@ package survarium.player
                      itemData.rank = item.rank;
                      itemUpdated = true;
                   }
-                  if(itemData.broken != item.broken)
-                  {
-                     itemData.broken = item.broken;
-                     itemUpdated = true;
-                  }
                   if(itemUpdated)
                   {
                      this._playerPaperDoll.onItemUpdated(itemData.slotId);

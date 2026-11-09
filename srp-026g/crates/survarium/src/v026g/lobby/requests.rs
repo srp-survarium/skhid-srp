@@ -70,19 +70,6 @@ pub struct Relocation {
     pub count_in_inventory: u32,
 }
 
-/// How a repair is paid (`47 03`; `MessageRepair.onMessageAccept`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RepairPayment {
-    /// Kind 0: silver. Kind 1, the stock window's gold, is silver too: gold
-    /// is gone (the owner, 2026-11-08), and the silver repair is the gold
-    /// one of before, at its price in silver.
-    Silver,
-    /// Kind 2: a repair kit (voucher), by its item id.
-    Kit { kit_item_id: u32 },
-    /// Another kind byte.
-    Other(u8),
-}
-
 /// A clan request: `49 06..=23` (`social.md` §3.3). The layouts are PROVEN,
 /// the meanings LIKELY from the Flash callback names.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -241,8 +228,6 @@ pub enum ClientMessage {
     /// Flash `use_drop_card(match id, voucher id)`, written in that order
     /// by 0x288D00 -> 0x270AE0).
     UseDropCard { a0: u32, a1: u32 },
-    /// `46 04`.
-    UseItem { item_id: u32 },
     /// `46 05`: the decal editor's value for a cosmetic on an item:
     /// `item_id` the host, `a` the cosmetic's item id (PROVEN, `items.md`
     /// §3).
@@ -287,11 +272,8 @@ pub enum ClientMessage {
     Sell { item_id: u32, amount: u32 },
     /// `47 02`: buy a shop offer; `x` is 0 except from the results screen.
     BuyOffer { offer_id: u32, x: u32, factor: f32 },
-    /// `47 03`.
-    Repair {
-        item_id: u32,
-        payment: RepairPayment,
-    },
+    // `47 03`, a repair, is no request: srp has no repair (the owner,
+    // 2026-11-08: "we don't have repair in the game at all"); it is not read.
     /// `47 05`.
     AcceptPremiumWithBonuses {
         a0: u32,
@@ -316,17 +298,16 @@ pub enum ClientMessage {
     RenameKit { kit_id: u32, name: String },
     /// `49 01`: the account's two boxes, as the lobby's number
     /// (`LocalPlayerProfile.getAutoBuyState`; PROVEN): bit 0 is autobuy
-    /// (`on`), bit 1 auto-repair.
-    SetAutobuy { on: bool, repair: bool },
+    /// (`on`); bit 1, the stock auto-repair, is not read (srp has no repair).
+    SetAutobuy { on: bool },
     /// `49 02`.
     SetActiveKit { kit_id: u32 },
     /// `49 03`.
     CheckNickname { nickname: String },
-    /// `49 04`: the u32 is LIKELY the rename ticket's item id.
-    ChangeNickname {
-        nickname: String,
-        ticket_item_id: u32,
-    },
+    /// `49 04`: a new nickname, paid in silver. Its u32, the rename
+    /// voucher's item id (0 for money: `MessageEnterName`), is read and not
+    /// kept: the vouchers are gone (the owner, 2026-11-08).
+    ChangeNickname { nickname: String },
     /// `49 05`: GUESS a report or praise of a player.
     CommentAboutUser { nickname: String, a: u8, b: u8 },
     SetChatMute {
@@ -674,7 +655,6 @@ fn parse_inventory(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             a0: r.u32()?,
             a1: r.u32()?,
         },
-        0x04 => M::UseItem { item_id: r.u32()? },
         0x05 => M::ApplyDecal {
             kit_id: r.u32()?,
             item_id: r.u32()?,
@@ -731,18 +711,6 @@ fn parse_shop(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             x: r.u32()?,
             factor: r.f32()?,
         },
-        0x03 => {
-            let item_id = r.u32()?;
-            let payment = match r.u8()? {
-                0 | 1 => RepairPayment::Silver,
-                // Only this kind carries the kit's id.
-                2 => RepairPayment::Kit {
-                    kit_item_id: r.u32()?,
-                },
-                other => RepairPayment::Other(other),
-            };
-            M::Repair { item_id, payment }
-        }
         0x05 => M::AcceptPremiumWithBonuses {
             a0: r.u32()?,
             a1: r.f32()?,
@@ -771,20 +739,16 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
         }
         0x01 => {
             let state = r.u8()?;
-            return Ok(M::SetAutobuy {
-                on: state & 1 != 0,
-                repair: state & 2 != 0,
-            });
+            return Ok(M::SetAutobuy { on: state & 1 != 0 });
         }
         0x02 => return Ok(M::SetActiveKit { kit_id: r.u32()? }),
         0x03 => {
             return Ok(M::CheckNickname { nickname: r.str()? });
         }
         0x04 => {
-            return Ok(M::ChangeNickname {
-                nickname: r.str()?,
-                ticket_item_id: r.u32()?,
-            });
+            let nickname = r.str()?;
+            r.u32()?;
+            return Ok(M::ChangeNickname { nickname });
         }
         0x05 => {
             let nickname = r.str()?;
