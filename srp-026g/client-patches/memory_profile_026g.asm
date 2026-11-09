@@ -1,30 +1,31 @@
-; Patch 127 (build 2777): the memory profiler's gates on dlmalloc's three
-; entries (rust/patches/src/memory_profile.toml's `code` hooks; the profiler
-; is the Rust patch memory_profile, docs/notes/memory-profile.md).
+; Patch 127 (build 2777): the memory profiler's gates on the allocator's
+; entries (rust/patches/src/memory_profile.toml's `code` hooks, installed
+; on demand; the profiler is the Rust patch memory_profile,
+; docs/notes/memory-profile.md).
 ;
 ; Every allocation of the engine's heaps (each doug_lea arena's, ptmalloc3's
 ; "global multithreaded") ends in mspace_malloc, mspace_realloc or
-; mspace_free. Each gate tests one byte, the profiler's switch
-; (SRP_MEMORY_PROFILE, vostok::memory_profile): 0, the game's own body runs
-; (its replayed first instructions, then a jump back), and that is all a
-; game without SKHID_MEMORY_PROFILE pays. On, the gate calls the stock body
-; itself and tells the profiler through two generated entries (cdecl, each
-; saves the whole machine):
+; mspace_free, or for a block ptmalloc3 mapped on its own, in pt3free's or
+; free_starter's give-back to the region. The exe keeps the game's bytes at
+; those places: only a game started with SKHID_MEMORY_PROFILE=on has its
+; patch write the jumps here (vostok::memory_profile::install, while only
+; the main thread runs), so an off game runs the original allocator byte for
+; byte. Each gate calls the stock body (its replayed first instructions, then
+; a jump back) and tells the profiler through two generated entries (cdecl,
+; each saves the whole machine):
 ;
 ; - memory_profile_on_freeing (the game's ESP at its call, the memory) before
-;   mspace_free and mspace_realloc give a block back, so no other thread can
-;   be handed the block before the profiler forgot it;
+;   a block is given back, so no other thread can be handed the block before
+;   the profiler forgot it;
 ; - memory_profile_on_allocated (the game's ESP, the memory or 0) after
 ;   mspace_malloc and mspace_realloc returned one.
 ;
 ; What the game sees is the stock body's: its result, its registers (ECX
 ; and EDX as the body left them), its flags (the entry restores them); the
-; gate's own words are below the game's ESP. The switch is written once, at
-; the start (memory.arenas_ready), before any thread but the main one.
+; gate's own words are below the game's ESP.
 bits 32
 section .text
 
-extern SRP_MEMORY_PROFILE
 extern memory_profile_on_allocated
 extern memory_profile_on_freeing
 
@@ -34,8 +35,7 @@ extern memory_profile_on_freeing
 
 global memory_profile_malloc
 memory_profile_malloc:          ; EAX the mspace, [esp+4] the bytes; cdecl, EAX the memory or 0
-    cmp byte [SRP_MEMORY_PROFILE], 0
-    jne .on
+    jmp .on
 .stock:
     sub esp, 8
     push ebx
@@ -59,8 +59,7 @@ memory_profile_malloc:          ; EAX the mspace, [esp+4] the bytes; cdecl, EAX 
 
 global memory_profile_realloc
 memory_profile_realloc:         ; EAX the mspace, [esp+4] the memory, [esp+8] the bytes; cdecl
-    cmp byte [SRP_MEMORY_PROFILE], 0
-    jne .on
+    jmp .on
 .stock:
     mov ecx, [esp + 8]
     push esi
@@ -93,8 +92,7 @@ memory_profile_realloc:         ; EAX the mspace, [esp+4] the memory, [esp+8] th
 
 global memory_profile_free
 memory_profile_free:            ; ESI the mspace, EAX the memory
-    cmp byte [SRP_MEMORY_PROFILE], 0
-    jne .on
+    jmp .on
 .stock:
     sub esp, 0Ch
     push edi
@@ -121,8 +119,7 @@ memory_profile_free:            ; ESI the mspace, EAX the memory
 
 global memory_profile_mapped_free
 memory_profile_mapped_free:     ; ECX the chunk (the memory - 8), EAX its head, EDX its prev_foot
-    cmp byte [SRP_MEMORY_PROFILE], 0
-    jne .on
+    jmp .on
 .stock:
     and edx, 0FFFFFFFEh
     and eax, 0FFFFFFF8h
@@ -142,8 +139,7 @@ memory_profile_mapped_free:     ; ECX the chunk (the memory - 8), EAX its head, 
 
 global memory_profile_hook_mapped_free
 memory_profile_hook_mapped_free:    ; EAX the memory, ECX its chunk, EDX its head, EBX its prev_foot
-    cmp byte [SRP_MEMORY_PROFILE], 0
-    jne .on
+    jmp .on
 .stock:
     and ebx, 0FFFFFFFEh
     and edx, 0FFFFFFF8h

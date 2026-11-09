@@ -1,8 +1,9 @@
 //! Patch 127's runtime (the profiler is `patches::memory_profile`,
-//! `docs/notes/memory-profile.md`): the switch dlmalloc's gates test
-//! (memory_profile_026g.asm), the variable that sets it, room of our own
-//! for the profiler's tables, and what a gate's call tells, read once
-//! here into typed values:
+//! `docs/notes/memory-profile.md`): the variable that switches it on, its
+//! gates written into dlmalloc's and ptmalloc3's code only then
+//! ([`install`]: an off game runs the original allocator byte for byte),
+//! room of our own for the profiler's tables, the snapshot key, and what a
+//! gate's call tells, read once here into typed values:
 //!
 //! - a [`HeapCall`]: the block mspace_malloc or mspace_realloc gave, or the
 //!   one given back to mspace_free or mspace_realloc, its chunk's bytes and
@@ -22,23 +23,70 @@ use super::world::read;
 use crate::raw;
 use core::num::NonZeroU32;
 use core::ptr::null_mut;
-use core::sync::atomic::{AtomicU8, Ordering};
+use core::ffi::c_void;
+use core::ptr::NonNull;
+use core::sync::atomic::{AtomicBool, Ordering};
 
-/// The gates' switch: 0, each runs the game's own body and nothing else;
-/// 1, each tells the profiler. Its byte is the arena's symbol
-/// `SRP_MEMORY_PROFILE` (memory_profile_026g.asm `cmp byte [..], 0`); a
-/// zero static, so `patches.state`. Written once, by [`switch_on`].
-#[unsafe(no_mangle)]
-pub static SRP_MEMORY_PROFILE: AtomicU8 = AtomicU8::new(0);
+/// The profile is on: its gates are written. Set once, by [`install`].
+static ON: AtomicBool = AtomicBool::new(false);
 
-/// The gates tell the profiler.
+/// The gates are written (an event hook's one test while off).
 pub fn is_on() -> bool {
-    SRP_MEMORY_PROFILE.load(Ordering::Acquire) != 0
+    ON.load(Ordering::Acquire)
 }
 
-/// Every gate tells the profiler from now on.
-pub fn switch_on(_: &Thread) {
-    SRP_MEMORY_PROFILE.store(1, Ordering::Release);
+/// Writes the gates into the allocator's code (`memory_profile.toml`'s
+/// hooks installed on demand: dlmalloc's mspace_malloc, mspace_realloc and
+/// mspace_free, ptmalloc3's two frees of a mapped block, and
+/// out_of_memory_with_crash's entry); from then on every block is told.
+///
+/// Only at `memory.arenas_ready`: allocate_region runs on the main thread
+/// inside engine_world's constructor (its call 0x13BF0), before any other
+/// thread runs the game's code: the exe makes its threads with
+/// threading::spawn (0xE3770) and the CRT's _beginthreadex (0x422C69: for
+/// boost.asio, the renderer, Scaleform), and none is reachable from the
+/// constructor's code before that call; the crash reporter's and Wine's
+/// own threads never run the game's allocator. So no thread runs the sites'
+/// code while they are written.
+pub fn install(thread: &Thread) -> Result<(), super::InstallRefused> {
+    // SAFETY: the function's contract: called from memory.arenas_ready only
+    // (patches::memory_profile::on_start), the main thread alone.
+    let done = unsafe { super::install_on_demand(thread, &super::memory_profile_on_demand()) };
+    if done.is_ok() {
+        ON.store(true, Ordering::Release);
+    }
+    done
+}
+
+/// Scroll Lock as user32's GetAsyncKeyState tells it (the snapshot key),
+/// read from any thread.
+#[derive(Clone, Copy, Debug)]
+pub struct ScrollLock(NonNull<c_void>);
+
+// SAFETY: a function of user32, loaded for good, callable from any thread.
+unsafe impl Send for ScrollLock {}
+
+impl ScrollLock {
+    /// user32's GetAsyncKeyState (user32 loaded if it is not yet); None
+    /// when it cannot be had.
+    pub fn resolve(_: &Thread) -> Option<ScrollLock> {
+        // SAFETY: the exe's imports with NUL-ended names; LoadLibraryA of a
+        // system DLL, kept loaded.
+        unsafe {
+            let user32 = (raw::engine_load_library_a)(c"user32.dll".as_ptr().cast());
+            if user32.is_null() {
+                return None;
+            }
+            NonNull::new((raw::engine_get_proc_address)(user32, c"GetAsyncKeyState".as_ptr().cast())).map(ScrollLock)
+        }
+    }
+
+    /// The key is down now (the state's bit 8000h).
+    pub fn down(&self) -> bool {
+        const VK_SCROLL: u32 = 0x91;
+        // SAFETY: GetAsyncKeyState (resolve), one virtual-key code, no state of ours.
+        unsafe { raw::engine_get_async_key_state(self.0, VK_SCROLL) & 0x8000 != 0 }
+    }
 }
 
 /// The process's environment variable `name` (a C string: its bytes with

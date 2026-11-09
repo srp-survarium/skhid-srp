@@ -1837,21 +1837,6 @@ pub extern "C" fn hook_key_remap_on_events(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- memory_profile (patch 127) ----
-
-/// The entry `memory_profile_on_keys` (0x3b914b, keyboard::execute (0x3B8D20) after GetDeviceData filled the event buffer (every successful read joins at 0x3B9147: mov eax,[esp+14h] the count; here mov [edi+404h],eax): EDI the platform keyboard, its events at +408h, EAX their count (at most 40h); before the loop that sets each key's state and the Shift/Ctrl/Alt flags from them (0x3B9159) and process (0x3B9AF0), which hands them to the handlers) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_memory_profile_on_keys(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `memory_profile_on_keys` calls this, from the game's jump at 0x3b914b,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::memory_profile::on_keys(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
 // ---- keyboard_layout (patch 107) ----
 
 /// The entry `keyboard_layout_on_request` (0x1835f, message_processor's WM_INPUTLANGCHANGEREQUEST (50h) case (the je at 0x181F4), before the game's text-focus check (mov ecx,[edx+2D0h] after mov edx,[1F1D310h]; survarium::game slot 44h, 0x1EE7C0, false drops the request at 0x18272): the site's ESP+1Ch the requested HKL) calls this with the saved machine.
@@ -3905,15 +3890,6 @@ pub extern "C" fn hook_music_on_login_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_key_remap_on_events_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_key_remap_on_events(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_memory_profile_on_keys(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
     let flow = hook_ragdoll_on_step(frame);
     if flow != 0 { return flow; }
@@ -3989,6 +3965,46 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+// ---- memory_profile: its hooks installed on demand ----
+
+unsafe extern "C" {
+    fn memory_profile_malloc();
+    fn memory_profile_realloc();
+    fn memory_profile_free();
+    fn memory_profile_mapped_free();
+    fn memory_profile_hook_mapped_free();
+    fn memory_profile_on_out_of_memory();
+}
+/// memory_profile's sites that keep the game's bytes until it installs them.
+pub fn memory_profile_on_demand() -> [super::hook::OnDemand; 6] {
+    [
+        // memory_profile.malloc: mspace_malloc's entry (sub esp,8 / push ebx / push ebp; EAX the mspace, [esp+4] the bytes, cdecl, EA
+        // SAFETY: the site's span as the original exe has it; memory_profile_malloc is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x101330, &[0x83, 0xec, 0x08, 0x53, 0x55], memory_profile_malloc as *const () as usize as u32) },
+        // memory_profile.realloc: mspace_realloc's entry (mov ecx,[esp+8] / push esi; EAX the mspace, [esp+4] the memory, [esp+8] the 
+        // SAFETY: the site's span as the original exe has it; memory_profile_realloc is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1005a0, &[0x8b, 0x4c, 0x24, 0x08, 0x56], memory_profile_realloc as *const () as usize as u32) },
+        // memory_profile.free: mspace_free's entry (sub esp,0Ch / push edi / mov edi,eax; ESI the mspace, EAX the memory): patch 12
+        // SAFETY: the site's span as the original exe has it; memory_profile_free is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1015e0, &[0x83, 0xec, 0x0c, 0x57, 0x8b, 0xf8], memory_profile_free as *const () as usize as u32) },
+        // memory_profile.mapped_free: pt3free (0x106FC0; EAX the memory, then EDI) where a block mapped on its own (prev_foot bit 0) goes 
+        // SAFETY: the site's span as the original exe has it; memory_profile_mapped_free is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x10700a, &[0x83, 0xe2, 0xfe, 0x83, 0xe0, 0xf8], memory_profile_mapped_free as *const () as usize as u32) },
+        // memory_profile.hook_mapped_free: ptmalloc3's free hook (0x106D90, the pointer ptmalloc_init stores at 0x106E38; EAX the memory) where
+        // SAFETY: the site's span as the original exe has it; memory_profile_hook_mapped_free is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x106dac, &[0x83, 0xe3, 0xfe, 0x83, 0xe2, 0xf8], memory_profile_hook_mapped_free as *const () as usize as u32) },
+        // memory.out_of_memory: out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug
+        // SAFETY: the site's span as the original exe has it; memory_profile_on_out_of_memory is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0xe4d70, &[0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8], memory_profile_on_out_of_memory as *const () as usize as u32) },
+    ]
 }
 
 unsafe extern "C" { static lamps_visual_vtable: [u32; 3]; }

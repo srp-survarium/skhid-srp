@@ -10,23 +10,21 @@ hand. Patch 127 records it while the game runs, for the owner's own game.
 
 ## Switching it on
 
-It is in every build, players' too, and dormant. The game's environment variable
-`SKHID_MEMORY_PROFILE`, read once when the arenas are made, switches it on: `on`
-or `1` (any case); anything else, or nothing, leaves it off. The same way as
-`SKHID_CRASH_DUMP=full` (`client/bugtrap/README.md`, "Dump contents"), and the
-two go together:
+A tool for the owner, and for a worker whose local test needs it; never for
+players, who never set its variable. It is in every build and dormant: an off
+game runs the game's own allocator byte for byte (below, "What it costs"). The
+game's environment variable `SKHID_MEMORY_PROFILE`, read once when the arenas are
+made, switches it on: `on` or `1` (any case); anything else, or nothing, leaves it
+off. The same way as `SKHID_CRASH_DUMP=full` (`client/bugtrap/README.md`, "Dump
+contents"), and the two go together:
 
-- **Linux, the owner's install**: `SKHID_MEMORY_PROFILE=on SKHID_CRASH_DUMP=full ./Skhid-local.sh launcher`
-  (or `bash Skhid.sh launcher`). The launcher, the updater and Wine pass the
-  environment on to the game.
+- **The owner's own install** (Linux): `SKHID_MEMORY_PROFILE=on ./Skhid-local.sh launcher`
+  (with `SKHID_CRASH_DUMP=full` for a full dump if it crashes). The launcher, the
+  updater and Wine pass the environment on to the game.
 - **Windows**: `set SKHID_MEMORY_PROFILE=on` in the `cmd` that then starts `Skhid.bat`.
-- **Local clients** (`srp-026g/scripts/local-clients/run.py`): on for every
-  client, next to `SKHID_CRASH_DUMP=full`; `SKHID_MEMORY_PROFILE=off` in run.py's
-  own environment leaves it off.
-
-On, `srp_patches.log` (beside the exe) says `memory profile on: snapshots to
-srp_memory_profile.txt ...` with the bytes and place of its tables. Off, nothing
-is written or logged.
+- **A worker's local clients** (`srp-026g/scripts/local-clients/run.py`): off unless
+  run.py itself is started with it (`SKHID_MEMORY_PROFILE=on python3 run.py ...`),
+  as run.py's environment goes on to the clients; it sets nothing of its own.
 
 ## What it writes, and when
 
@@ -39,7 +37,7 @@ start of the game appends a `run` line, then its snapshots. A snapshot is taken:
 - when a match closes on the game, its world still there (`match_recovery.close`);
 - when a fixed arena's heap has no room, before `out_of_memory_with_crash` ends the
   game (`memory.out_of_memory`): the arena and the bytes asked;
-- when the owner presses **Scroll Lock** (in the lobby or a match; the key still goes on to the game).
+- when **Scroll Lock** goes down (in the lobby or a match; the gates poll it, the key still goes on to the game).
 
 Each snapshot has:
 
@@ -80,20 +78,36 @@ its start; ptmalloc3's "global multithreaded" arena is several in its region.
 ptmalloc3 gives a block mapped on its own (one too large for its arena's heap) back
 to the region itself, not through mspace_free: in `pt3free` (0x106FC0, at
 0x10700A) and its `free_starter` hook (0x106D90, at 0x106DAC). Each of these five
-places jumps to a gate (`memory_profile_026g.asm`, five `code` hooks) that tests
-one byte, `SRP_MEMORY_PROFILE`:
-
-- **0, off**: the replayed first instructions and a jump back. Nothing else.
-- **1, on**: the gate calls the stock body itself and tells the Rust patch through
-  two generated entries: `memory_profile.freeing` before a block is given back
-  (mspace_free, mspace_realloc's old block, ptmalloc3's mapped blocks) and `memory_profile.allocated` after one
-  is made (mspace_malloc, mspace_realloc's new block). The entries save and restore
-  the whole machine; what the game gets is the stock body's result and registers.
+places gets a gate (`memory_profile_026g.asm`, five `code` hooks), and
+`out_of_memory_with_crash`'s entry (0xE4D70) a lohook, all six **installed on
+demand** (`install = "on_demand"`, hooks_026g.py): linked into the arena, but the
+exe keeps the game's bytes at their sites.
 
 `memory.arenas_ready` (allocate_region after `memory::initialize`, 0xE12BF: every
-arena is reserved and its heap made, only the main thread runs) reads the
-variable, reserves the tables with `VirtualAlloc` (never an engine heap), records
-where each arena lies, and only then sets the byte.
+arena is reserved and its heap made) reads the variable. Off, it returns and that
+is all. On, it reserves the tables with `VirtualAlloc` (never an engine heap),
+records where each arena lies, and writes the six jumps
+(`vostok::hook::install_on_demand`: each site's bytes checked to be the game's
+first, the page made writable for the write and given its protection back, the
+instruction cache flushed). It does that while no other thread runs the game's
+code: allocate_region runs in engine_world's constructor on the main thread, and
+the exe's threads are all made by threading::spawn (0xE3770) or the CRT's
+_beginthreadex (0x422C69, for boost.asio, the renderer and Scaleform), none
+reachable from the constructor before that call (the crash reporter's and Wine's
+own threads never run the game's allocator). A site that is not the game's bytes
+writes nothing and leaves the profile off, with a line in `srp_patches.log`.
+
+A gate calls the stock body itself (its replayed first instructions and a jump
+back) and tells the Rust patch through two generated entries:
+`memory_profile.freeing` before a block is given back (mspace_free,
+mspace_realloc's old block, ptmalloc3's mapped blocks) and
+`memory_profile.allocated` after one is made (mspace_malloc, mspace_realloc's new
+block). The entries save and restore the whole machine; what the game gets is the
+stock body's result and registers.
+
+**The snapshot key** is read by the gates themselves: an allocation looks at
+Scroll Lock (user32's GetAsyncKeyState, resolved when the profile goes on) at most
+every 200 ms, and a press takes a snapshot on that thread. No keyboard hook.
 
 **Who asked.** The site of a block is the first return address out of the
 allocator layers, from the ESP of the game's call. Where the call came from a
@@ -147,15 +161,19 @@ thread changes under it is told as unknown for that snapshot.
 
 ## What it costs
 
-- **Off** (every player): each call of dlmalloc's three entries (and each mapped
-  block ptmalloc3 frees) runs 4 instructions more
-  (a jump to the gate, the byte's test, its branch, a jump back: counted by
-  `check_memory_profile_026g.py` over its calls, 1270 -> 1326 for 14 entries); the
-  byte is in our arena's state, in the cache with the rest of it. No table, no file,
-  no log line. The arena holds the code (patches.code about 9 KiB more: the gates,
-  the entries, the profiler) and its state's static (about 3 KiB of patches.data).
+- **Off** (every player's game):
+  - bytes changed in the exe for it: none at the six sites (the game's own bytes,
+    checked by `check_memory_profile_026g.py`); the arena holds the gates, the
+    entries and the profiler (patches.code about 9 KiB, patches.data about 3 KiB);
+  - instructions added on a hot path: none (the check counts the same
+    instructions as the original's over its allocations, frees and reallocations);
+  - hooks that run: `memory.arenas_ready` once at the start (one read of the
+    variable), and the profiler's handler in two lohook chains that already exist
+    for other patches, at a world loaded and a match closing (a few times a match:
+    one call that reads a byte and returns).
 - **On**: 16.8 MiB of address space; each allocation and free the gate's call of
-  the stock body, an entry (the machine saved), the lock and a probe of the tables.
+  the stock body, an entry (the machine saved), the lock and a probe of the
+  tables; a GetTickCount each allocation and a GetAsyncKeyState every 200 ms.
 
 ## The checks
 
@@ -163,10 +181,12 @@ thread changes under it is told as unknown for that snapshot.
   on a heap made with the game's `create_mspace_with_base` over 1 MiB, its
   doug_lea_allocator registered as the only arena; the same allocations, frees and
   reallocations (direct and through malloc_impl) in the original and the patched
-  exe. Unset: nothing reserved, written or logged, every result, register, flag
-  and heap byte the original's, 4 instructions more an entry. On: the tables
-  reserved, one line logged, every result, register and heap byte the original's.
-  Then an allocation the heap cannot hold: out_of_memory_with_crash's entry writes
+  exe. The built exe keeps the game's bytes at the six on-demand sites. Unset:
+  nothing reserved, written or logged, every result, register, flag and heap byte
+  the original's, and as many instructions. On: the tables reserved, the six jumps
+  written (the pages made writable and given their protection back, the cache
+  flushed), one line logged, every result, register and heap byte the original's;
+  Scroll Lock down at a gate's poll takes one snapshot. Then an allocation the heap cannot hold: out_of_memory_with_crash's entry writes
   the snapshot before the game's own body goes on, and the analyzer reads it: the
   heap's use as its walk finds it, its holes, each site's live bytes as the
   chunks say (malloc_impl's caller, a reallocation's caller; none of

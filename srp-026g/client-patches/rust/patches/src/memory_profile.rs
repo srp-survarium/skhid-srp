@@ -2,11 +2,12 @@
 //! game (`docs/notes/memory-profile.md`). Dormant unless the game starts
 //! with `SKHID_MEMORY_PROFILE=on`, read once when the arenas are made
 //! ([`Setting`]). Off, nothing is reserved, written or logged, and the
-//! allocator gates run the game's own bodies after one byte's test.
+//! allocator is the game's byte for byte: its gates are written into it
+//! only when the profile is on (`vostok::memory_profile::install`).
 //!
 //! On, every block the engine's heaps hand out or take back (dlmalloc's
 //! mspace_malloc, mspace_realloc, mspace_free: each doug_lea arena's heap and
-//! ptmalloc3's "global multithreaded") is counted to the arena it lies in
+//! ptmalloc3's "global multithreaded", its mapped blocks too) is counted to the arena it lies in
 //! and the place in the game that asked for it ([`CallSite`]), in fixed
 //! tables of our own room (VirtualAlloc, never an engine heap):
 //!
@@ -19,7 +20,7 @@
 //! A [`Moment`] writes a snapshot to `srp_memory_profile.txt` in the game's
 //! user data folder (Documents\Survarium): a world in, a match closing, a
 //! fixed arena full before out_of_memory_with_crash ends the game, and
-//! Scroll Lock. A snapshot is each arena (its heap walked: used, largest
+//! Scroll Lock (polled by the gates, [`Keys`]). A snapshot is each arena (its heap walked: used, largest
 //! free, the free blocks by size), its sites, and the address space region
 //! by region; `scripts/memory-profile/analyze.py` reads it.
 //!
@@ -30,12 +31,13 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::files::tick_count;
+use crate::vostok::memory_profile::ScrollLock;
 use crate::vostok::gun_cook::process_id;
 use crate::vostok::log::{line, Piece::*};
 use crate::vostok::memory::{placed, process, regions_map};
 use crate::vostok::memory_profile::{self as runtime, Block, CallSite, HeapCall, Room};
 use crate::vostok::trace::TraceFile;
-use crate::vostok::{Context, Dik, Flow, KeyEvents, Lock, NoExit, Thread};
+use crate::vostok::{Context, Flow, InstallRefused, Lock, NoExit, Thread};
 use srp_validate::memory::{Usage, MAX_ARENAS};
 
 /// The variable that switches the profiler on, and what it says.
@@ -518,6 +520,49 @@ fn sites_lines<W: FnMut(&[u8])>(text: &mut Text<'_, W>, profiler: &Profiler<'_>)
     }
 }
 
+/// How often the gates look at Scroll Lock at most (ms).
+const KEY_POLL_MS: u32 = 200;
+
+/// Scroll Lock as last seen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum KeyState {
+    Up,
+    Down,
+}
+
+/// The snapshot key, polled from the gates (an allocation every few
+/// milliseconds in any game), at most every [`KEY_POLL_MS`].
+struct Keys {
+    key: Option<ScrollLock>,
+    next: u32,
+    state: KeyState,
+}
+
+impl Keys {
+    /// The next state at `now`, the key read by `down` when a poll is due:
+    /// true when it went down (a snapshot).
+    fn poll(&mut self, now: u32, down: impl FnOnce(&ScrollLock) -> bool) -> bool {
+        if (now.wrapping_sub(self.next) as i32) < 0 {
+            return false;
+        }
+        self.next = now.wrapping_add(KEY_POLL_MS);
+        let Some(key) = &self.key else { return false };
+        let (state, pressed) = key_step(self.state, down(key));
+        self.state = state;
+        pressed
+    }
+}
+
+/// Scroll Lock's next state from a poll that found it `down`, and whether
+/// it went down (a snapshot).
+fn key_step(state: KeyState, down: bool) -> (KeyState, bool) {
+    match (state, down) {
+        (KeyState::Up, true) => (KeyState::Down, true),
+        (KeyState::Down, true) => (KeyState::Down, false),
+        (_, false) => (KeyState::Up, false),
+    }
+}
+
 /// The file's state.
 enum Output {
     /// Not opened yet: the first snapshot opens it (the user data folder is
@@ -536,6 +581,7 @@ struct On {
     /// The room reserved, for the report: (base, bytes) each.
     rooms: [(u32, u32); 3],
     snapshots: u32,
+    keys: Keys,
 }
 
 enum Profile {
@@ -571,10 +617,19 @@ pub fn on_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     };
     let rooms = [room(&blocks), room(&sites), room(&out)];
     let profiler = Profiler::new(blocks.items, sites.items, places(thread));
+    let keys = Keys { key: ScrollLock::resolve(thread), next: tick_count(), state: KeyState::Up };
     PROFILE.with(thread, |profile| {
-        *profile = Profile::On(On { profiler, out: out.items, output: Output::NotYet, rooms, snapshots: 0 });
+        *profile = Profile::On(On { profiler, out: out.items, output: Output::NotYet, rooms, snapshots: 0, keys });
     });
-    runtime::switch_on(thread);
+    if let Err(refused) = runtime::install(thread) {
+        PROFILE.with(thread, |profile| *profile = Profile::Off);
+        let (why, site) = match refused {
+            InstallRefused::Changed { site } => ("memory profile: the allocator's bytes are not the game's at ", site),
+            InstallRefused::Protect { site } => ("memory profile: its gate could not be written at ", site),
+        };
+        line(&[Text(why), Hex(site), Text("; off")]);
+        return Flow::Continue;
+    }
     line(&[
         Text("memory profile on: snapshots to "),
         Text(FILE),
@@ -592,11 +647,16 @@ fn room<T>(room: &Room<T>) -> (u32, u32) {
 
 pub fn on_allocated(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let HeapCall::Block { block, bytes, site } = runtime::allocated(ctx) {
-        PROFILE.with(ctx.thread(), |profile| {
-            if let Profile::On(on) = profile {
+        let pressed = PROFILE.with(ctx.thread(), |profile| match profile {
+            Profile::On(on) => {
                 on.profiler.allocated(block, bytes, site);
+                on.keys.poll(tick_count(), ScrollLock::down)
             }
+            Profile::Off => false,
         });
+        if pressed {
+            snapshot(ctx.thread(), Moment::Key);
+        }
     }
     Flow::Continue
 }
@@ -619,13 +679,6 @@ pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     snapshot(ctx.thread(), Moment::Closing);
-    Flow::Continue
-}
-
-pub fn on_keys(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if runtime::is_on() && KeyEvents::at(ctx).is_some_and(|events| events.went_down(Dik::SCROLL_LOCK)) {
-        snapshot(ctx.thread(), Moment::Key);
-    }
     Flow::Continue
 }
 
@@ -749,6 +802,27 @@ mod tests {
             *slot = Some(Place { start, end: start + size });
         }
         places
+    }
+
+    #[test]
+    fn the_key_snapshots_once_a_press_and_is_polled_when_due() {
+        let mut state = KeyState::Up;
+        let mut presses = 0;
+        for down in [false, true, true, false, true, false, false] {
+            let (next, pressed) = key_step(state, down);
+            state = next;
+            presses += usize::from(pressed);
+        }
+        assert_eq!((presses, state), (2, KeyState::Up));
+        // no key resolved (a ScrollLock is user32's, none in a test): polled when due, never pressed
+        let mut keys = Keys { key: None, next: 5000, state: KeyState::Up };
+        assert!(!keys.poll(4999, |_| true));
+        assert_eq!(keys.next, 5000, "not due: nothing read");
+        assert!(!keys.poll(5000, |_| true));
+        assert_eq!(keys.next, 5000 + KEY_POLL_MS);
+        let mut wrapping = Keys { key: None, next: 10, state: KeyState::Up };
+        assert!(!wrapping.poll(u32::MAX - 5, |_| true));
+        assert_eq!(wrapping.next, 10, "a tick just before the counter wraps is before 10");
     }
 
     #[test]

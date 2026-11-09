@@ -8,4 +8,3 @@ patch = 110
 [[hook]]
 site = "keyboard.events"
 handler = "on_events"
-order = 1

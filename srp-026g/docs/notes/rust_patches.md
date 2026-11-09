@@ -169,6 +169,17 @@ arguments and cleans up as the function did; it adds no `fxsave`.
 
 **`entry`**: the way from our own NASM into Rust (patch 48's preview apply calls patch 68's). Its generated entry saves the machine and aligns the stack as a lohook's does, so the Context's site ESP is the caller's (the return address, then the arguments), and returns with `ret`; the caller pops its arguments. Never a hand-written `#[no_mangle]` export called from NASM: rustc's i686 code keeps 16-byte locals with movaps and assumes 16 at every call, and the game's stack (our NASM's too) is aligned to 4 only, a #GP on a real CPU that Unicorn does not raise (#893's review). `check_hooks_026g.py` runs the entry from each of the four skews.
 
+**Installed on demand** (`install = "on_demand"` on a `code` hook or a lohook
+of its own site): the hook is generated and linked as any other, but the build
+does not write its site, so the exe keeps the game's bytes there. The generated
+`<patch>_on_demand()` lists the patch's such sites (the VA, the game's bytes
+read from the exe, the entry's address) and `vostok::install_on_demand` writes
+the jumps when the patch decides to: each site's bytes checked first, the page
+made writable for the write and given its protection back, the instruction
+cache flushed. Its caller must know no other thread runs those sites' code
+then. Patch 127 (the memory profiler) installs its allocator gates this way at
+the start, only when it is switched on, so an off game runs the original
+allocator.
 **Lohook chains**: handlers sharing an exact named site declare distinct
 integer `order`s. A single entry saves/restores the machine; handlers observe
 earlier Context writes and the first non-`Continue` ends the chain. A partial

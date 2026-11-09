@@ -1,6 +1,8 @@
 # Patch 127: the memory profiler, dormant unless the game is started with
 # SKHID_MEMORY_PROFILE=on (docs/notes/memory-profile.md). Only the
-# decisions: the sites and the handlers.
+# decisions: the sites and the handlers. The allocator's gates and the
+# out-of-memory hook are installed on demand: the exe keeps the game's
+# bytes there, and on_start writes the jumps only when the profile is on.
 name = "memory_profile"
 patch = 127
 
@@ -9,24 +11,27 @@ patch = 127
 site = "memory.arenas_ready"
 handler = "on_start"
 
-# dlmalloc's three entries: one byte tested, the stock body unless on
+# dlmalloc's three entries
 [[hook]]
 site = "memory_profile.malloc"
 source = "memory_profile_026g.asm"
 symbol = "memory_profile_malloc"
 limit = 64
+install = "on_demand"
 
 [[hook]]
 site = "memory_profile.realloc"
 source = "memory_profile_026g.asm"
 symbol = "memory_profile_realloc"
 limit = 96
+install = "on_demand"
 
 [[hook]]
 site = "memory_profile.free"
 source = "memory_profile_026g.asm"
 symbol = "memory_profile_free"
 limit = 48
+install = "on_demand"
 
 # ptmalloc3's two ways a block mapped on its own goes back without mspace_free
 [[hook]]
@@ -34,12 +39,14 @@ site = "memory_profile.mapped_free"
 source = "memory_profile_026g.asm"
 symbol = "memory_profile_mapped_free"
 limit = 64
+install = "on_demand"
 
 [[hook]]
 site = "memory_profile.hook_mapped_free"
 source = "memory_profile_026g.asm"
 symbol = "memory_profile_hook_mapped_free"
 limit = 64
+install = "on_demand"
 
 # the gates' two entries
 [[hook]]
@@ -52,7 +59,7 @@ handler = "on_freeing"
 
 # the snapshots: a world in (after patch 126's, order 3), the match closing
 # with its world still there (after patch 126 and 97), a fixed arena full
-# before the game ends itself, and the owner's key
+# before the game ends itself (on demand); Scroll Lock is polled by the gates
 [[hook]]
 site = "world_load.loaded"
 handler = "on_loaded"
@@ -66,8 +73,4 @@ order = 3
 [[hook]]
 site = "memory.out_of_memory"
 handler = "on_out_of_memory"
-
-[[hook]]
-site = "keyboard.events"
-handler = "on_keys"
-order = 2
+install = "on_demand"

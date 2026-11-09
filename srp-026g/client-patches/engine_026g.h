@@ -472,6 +472,9 @@ extern void * (__attribute__((stdcall)) *const engine_virtual_alloc)(void * addr
 /* the IAT slot 0x8701b4 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_environment_variable_a)(const char * name, char * buffer, unsigned int size);
 
+/* the IAT slot 0x870200 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_virtual_protect)(void * address, unsigned int size, unsigned int protect, unsigned int * old);
+
 /* 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX */
 struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where);
 

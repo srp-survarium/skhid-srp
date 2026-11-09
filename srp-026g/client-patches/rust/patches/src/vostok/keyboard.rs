@@ -52,8 +52,6 @@ impl Dik {
     pub const LEFT_ALT: Dik = Dik(0x38);
     /// DIK_RMENU: the right Alt (alt_is_held 0x241200 asks both).
     pub const RIGHT_ALT: Dik = Dik(0xB8);
-    /// DIK_SCROLL: Scroll Lock, patch 127's snapshot key (the key still goes on to the game).
-    pub const SCROLL_LOCK: Dik = Dik(0x46);
 
     /// A key code as the game passes one (a u32): None past the 256 codes.
     fn of(raw: u32) -> Option<Dik> {
@@ -309,21 +307,6 @@ impl<'t> KeyEvents<'t> {
             return None;
         }
         KeyName::of(buffer)
-    }
-
-    /// `key` went down in this poll (an event of it with dwData's bit 80h).
-    pub fn went_down(&self, key: Dik) -> bool {
-        // SAFETY: as apply: the keyboard's buffer, `count` events of it
-        // filled by this poll, on its thread; read only.
-        let events = unsafe { self.keyboard.events() };
-        (0..self.count).any(|i| {
-            // SAFETY: as above, the event `i` < count.
-            let (code, data) = unsafe {
-                let event = events.at(i);
-                (*event.key(), *event.data())
-            };
-            code == u32::from(key.0) && data & 0x80 != 0
-        })
     }
 
     /// Every event's key becomes the one `moves` says it acts as.

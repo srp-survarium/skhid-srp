@@ -3354,7 +3354,7 @@ input_check_on_change_input_replay:
 
 ; 0x3b914b keyboard::execute (0x3B8D20) after GetDeviceData filled the event buffer (every successful read joins at 0x3B9147: mov eax,[esp+14h] the count; here mov [edi+404h],eax): EDI the platform keyboard, its events at +408h, EAX their count (at most 40h); before the loop that sets each key's state and the Shift/Ctrl/Alt flags from them (0x3B9159) and process (0x3B9AF0), which hands them to the handlers: lohook -> key_remap_on_events
 global key_remap_on_events
-extern hook_key_remap_on_events_chain
+extern hook_key_remap_on_events
 key_remap_on_events:
     lea esp, [esp - 4]
     pushfd
@@ -3372,7 +3372,7 @@ key_remap_on_events:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_key_remap_on_events_chain
+    call hook_key_remap_on_events
     mov edx, key_remap_on_events_replay
     cmp eax, 0
     je key_remap_on_events_go

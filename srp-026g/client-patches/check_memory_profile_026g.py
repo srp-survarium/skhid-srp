@@ -10,15 +10,19 @@ of its own, the doug_lea_allocator over it registered as the engine's only
 arena (the list at 0xA808FC). The same allocations, frees and reallocations
 (mspace_malloc, mspace_realloc and mspace_free called as the game calls them,
 and doug_lea_allocator::malloc_impl over them) are made in both:
-1. the variable unset: allocate_region's tail (memory.arenas_ready) reserves
-   nothing, writes nothing, logs nothing, and leaves the switch 0; each call
-   gives what the original's gives, every register and flag and the heap's
-   bytes the same;
-2. SKHID_MEMORY_PROFILE=on: the tables are reserved (VirtualAlloc, stubbed),
-   one line logged, the switch 1; each call still gives the original's
-   result, registers and heap bytes (flags aside: the gate's own `add`
-   comes last);
-3. the heap asked for more than it holds: out_of_memory_with_crash's entry
+1. the built exe has the original's bytes at the six sites installed on
+   demand (the allocator's five gates, out_of_memory_with_crash's entry);
+2. the variable unset: allocate_region's tail (memory.arenas_ready) reserves
+   nothing, writes nothing, logs nothing and leaves those bytes alone; each
+   call runs the original's instructions, as many, with every register and
+   flag and the heap's bytes the same;
+3. SKHID_MEMORY_PROFILE=on: the tables are reserved (VirtualAlloc, stubbed),
+   the six jumps written (each page made writable and given its protection
+   back, the instruction cache flushed), one line logged; each call still
+   gives the original's result, registers and heap bytes (flags aside: the
+   gate's own `add` comes last);
+4. Scroll Lock down (GetAsyncKeyState, stubbed) at a gate's poll: a snapshot;
+5. the heap asked for more than it holds: out_of_memory_with_crash's entry
    (memory.out_of_memory) writes a snapshot to srp_memory_profile.txt (the
    file stubbed) before the game's own body goes on; scripts/memory-profile/
    analyze.py reads it: the arena's heap use as the walk finds it, its holes,
@@ -46,7 +50,14 @@ ARENA_LIST_SLOT, DOUG_LEA_VTABLE = 0xA808FC, 0x9E68DC
 IMPORTS = {0x8701B4: ("GetEnvironmentVariableA", 3), 0x87015C: ("VirtualAlloc", 4),
            0x870118: ("GetCurrentThreadId", 0), 0x870090: ("GetTickCount", 0),
            0x8701B8: ("GetCurrentProcessId", 0), 0x870048: ("CreateFileA", 7), 0x870108: ("WriteFile", 5),
-           0x870040: ("CloseHandle", 1), 0x870168: ("VirtualQuery", 3), 0x87008C: ("GetSystemInfo", 1)}
+           0x870040: ("CloseHandle", 1), 0x870168: ("VirtualQuery", 3), 0x87008C: ("GetSystemInfo", 1),
+           0x870200: ("VirtualProtect", 4), 0x87003C: ("GetModuleHandleA", 1), 0x870084: ("GetProcAddress", 2),
+           0x870080: ("LoadLibraryA", 1)}
+# what GetProcAddress gives: stubs of their own
+DYNAMIC = {"FlushInstructionCache": 3, "GetAsyncKeyState": 1}
+# the sites patch 127 installs on demand: the five gates, out_of_memory_with_crash's entry
+ON_DEMAND = {0x101330: 5, 0x1005A0: 5, 0x1015E0: 6, 0x10700A: 6, 0x106DAC: 6, OUT_OF_MEMORY: 6}
+KERNEL32, USER32 = 0x7B000000, 0x7B100000
 
 DATA = 0x30000000
 ALLOCATOR, LIST, RECORD, STRINGS, STUBS = (DATA + 0x1000 * i for i in range(5))
@@ -91,6 +102,13 @@ class Run:
             self.stubs[IMPORT_STUBS + 0x10 * i] = (name, count)
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=IMPORT_STUBS + 0x10 * i, end=IMPORT_STUBS + 0x10 * i)
             self.word(slot, IMPORT_STUBS + 0x10 * i)
+        self.dynamic = {}
+        for i, (name, count) in enumerate(sorted(DYNAMIC.items())):
+            at = IMPORT_STUBS + 0x800 + 0x10 * i
+            self.stubs[at] = (name, count)
+            self.dynamic[name] = at
+            emu.hook_add(UC_HOOK_CODE, self.stub, begin=at, end=at)
+        self.protects, self.flushes, self.scroll, self.tick = [], [], False, 123456
         for stop in (RETURN, CALLER_A, CALLER_B, CALLER_C, OUT_OF_MEMORY_ON):
             emu.hook_add(UC_HOOK_CODE, self.done, begin=stop, end=stop)
         emu.hook_add(UC_HOOK_CODE, self.user_data, begin=USER_DATA_DIRECTORY, end=USER_DATA_DIRECTORY)
@@ -160,8 +178,26 @@ class Run:
             self.reserved.append((result, length))
         elif name in ("GetCurrentThreadId", "GetCurrentProcessId"):
             result = 7
-        elif name == "GetTickCount":
-            result = 123456
+        elif name == "GetTickCount":                 # 250 ms a call: each gate's key poll is due
+            self.tick += 250
+            result = self.tick
+        elif name == "GetModuleHandleA":
+            result = KERNEL32 if self.string(args[0]).lower() == "kernel32.dll" else 0
+        elif name == "LoadLibraryA":
+            result = USER32 if self.string(args[0]).lower() == "user32.dll" else 0
+        elif name == "GetProcAddress":
+            result = self.dynamic.get(self.string(args[1]), 0)
+        elif name == "VirtualProtect":
+            address_, length, protect, old = args
+            self.protects.append((address_, length, protect))
+            self.word(old, 0x20)                     # PAGE_EXECUTE_READ, what the exe's code has
+            result = 1
+        elif name == "FlushInstructionCache":
+            self.flushes.append(tuple(args))
+            result = 1
+        elif name == "GetAsyncKeyState":
+            assert args == [0x91], args              # VK_SCROLL
+            result = 0x8000 if self.scroll else 0
         elif name == "CreateFileA":
             path = self.string(args[0])
             result = self.files.setdefault(path, 0x100 + 4 * len(self.files))
@@ -216,6 +252,9 @@ class Run:
         assert [self.emu.reg_read(r) for r in (UC_X86_REG_EDI, UC_X86_REG_ESI, UC_X86_REG_EBX, UC_X86_REG_EBP)] \
             == [0x1E1E1E1E, 0x15151515, 0x1B1B1B1B, 0x0019FF00]
 
+    def sites(self):
+        return {va: bytes(self.emu.mem_read(va, n)) for va, n in ON_DEMAND.items()}
+
     def heap(self):
         return bytes(self.emu.mem_read(HEAP, HEAP_SIZE))
 
@@ -267,36 +306,56 @@ def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
-    switch = base.arena().symbols["SRP_MEMORY_PROFILE"]
+    stock = Run(original).sites()
 
     old = Run(original)
     old.steps = old.gates = 0
     expected, _ = play(old)
     new = Run(bytes(built))
+    assert new.sites() == stock, "the built exe keeps the game's bytes where the gates go"
     new.start()
-    assert (new.reserved, new.files, new.emu.mem_read(switch, 1)) == ([], {}, b"\0")
+    assert (new.reserved, new.files, new.protects, new.sites()) == ([], {}, [], stock)
     new.steps = new.gates = 0
     got, _ = play(new)
     assert got == expected
-    # off, a gate is a jump to it, its test, its branch not taken and a jump back: four instructions
-    assert new.gates == old.gates and new.steps - old.steps == 4 * new.gates, (old.steps, new.steps, new.gates)
-    print("ok unset: nothing reserved, written or logged, the switch 0; every call the original's "
-          f"(registers, flags, the heap); {new.gates} entries of dlmalloc's three, each 4 instructions more "
-          f"({old.steps} -> {new.steps})")
+    assert (new.steps, new.gates) == (old.steps, old.gates), (old.steps, new.steps)
+    print(f"ok the built exe and an unset game: the original's bytes at the {len(ON_DEMAND)} sites, nothing "
+          f"reserved, written or logged; every call the original's (registers, flags, the heap) and its "
+          f"instructions, as many ({old.steps} over {old.gates} allocator entries)")
 
     on = Run(bytes(built), "on")
     on.start()
-    assert on.emu.mem_read(switch, 1) == b"\1"
     lengths = [length for _, length in on.reserved]   # 2 Mi blocks of 8 bytes, 16 Ki sites, the text
     assert len(lengths) == 3 and lengths[0] == (1 << 21) * 8 and lengths[1] % (1 << 14) == 0 \
         and lengths[2] == 1 << 16, on.reserved
+    written = on.sites()
+    linked = base.arena().symbols
+    gates = {0x101330: "memory_profile_malloc", 0x1005A0: "memory_profile_realloc", 0x1015E0: "memory_profile_free",
+             0x10700A: "memory_profile_mapped_free", 0x106DAC: "memory_profile_hook_mapped_free",
+             OUT_OF_MEMORY: "memory_profile_on_out_of_memory"}
+    for va, n in ON_DEMAND.items():
+        assert written[va] == base.hook_bytes(linked[gates[va]], va, stock[va], 0, 0xE9), (hex(va), written[va])
+    assert sorted(on.protects) == sorted([(va, n, 0x40) for va, n in ON_DEMAND.items()]
+                                         + [(va, n, 0x20) for va, n in ON_DEMAND.items()]), on.protects
+    assert sorted(on.flushes) == sorted((0xFFFFFFFF, va, n) for va, n in ON_DEMAND.items()), on.flushes
     assert list(on.files) == ["srp_patches.log"], on.files
     log = bytes(on.written[on.files["srp_patches.log"]]).decode()
     assert "memory profile on" in log and "srp_memory_profile.txt" in log, log
     got, live = play(on, flags=False)
     assert got == [(regs[:-1], heap) for regs, heap in expected]
-    print("ok on: the tables reserved, one line logged, the switch 1; every call the original's (registers, "
+    print(f"ok on: the tables reserved, the {len(ON_DEMAND)} jumps written (each page writable for it, its "
+          "protection given back, the cache flushed), one line logged; every call the original's (registers, "
           "the heap)")
+
+    profile = "C:\\Users\\test\\Documents\\Survarium\\srp_memory_profile.txt"
+    assert profile not in on.files, "no snapshot without a moment"
+    on.scroll = True
+    pressed = [on.malloc(0x20, CALLER_B)[0] for _ in range(2)]
+    on.scroll = False
+    text = bytes(on.written[on.files[profile]]).decode()
+    keyed = analyzer().parse(text)[0].snapshots
+    assert [s.moment for s in keyed] == ["key"] and keyed[0].complete, text[:300]
+    print("ok Scroll Lock down at a gate's poll: one snapshot (not one a poll while it stays down)")
 
     # what the heap holds: each live block's chunk, by who asked
     sites = {}
@@ -304,6 +363,7 @@ def main():
         what = STEPS[index][0]
         caller = {"malloc": CALLER_B, "realloc": CALLER_C, "malloc_impl": CALLER_A}[what]
         sites.setdefault(caller, []).append(on.chunk(memory))
+    sites[CALLER_B] += [on.chunk(memory) for memory in pressed]
     asked = 0x200000
     sp = STACK + 0x8000
     on.emu.mem_write(sp, struct.pack("<2I", CALLER_A, 0))
@@ -314,17 +374,17 @@ def main():
     assert on.emu.reg_read(UC_X86_REG_EIP) == OUT_OF_MEMORY_ON, hex(on.emu.reg_read(UC_X86_REG_EIP))
     text = bytes(on.written[on.files["C:\\Users\\test\\Documents\\Survarium\\srp_memory_profile.txt"]]).decode()
     runs = analyzer().parse(text)
-    assert len(runs) == 1 and runs[0].process == 7 and len(runs[0].snapshots) == 1, text[:400]
+    assert len(runs) == 1 and runs[0].process == 7 and len(runs[0].snapshots) == 2, text[:400]
     run = runs[0]
     assert sorted(run.rooms) == sorted(on.reserved), (run.rooms, on.reserved)
-    snapshot = run.snapshots[0]
+    snapshot = run.snapshots[1]
     assert snapshot.complete and snapshot.moment == "out_of_memory", snapshot
     assert snapshot.detail == {"arena": 0, "asked": asked}, snapshot.detail
     arena = snapshot.arenas[0]
     assert (arena.name, arena.start, arena.size, arena.usage) == ("test heap", HEAP, HEAP_SIZE, "heap"), arena
     in_use = sum(sum(chunks) for chunks in sites.values())
     assert arena.used == in_use, (arena.used, in_use)
-    assert arena.tracked.live == in_use and arena.tracked.blocks == len(live), arena.tracked
+    assert arena.tracked.live == in_use and arena.tracked.blocks == len(live) + len(pressed), arena.tracked
     told = {address: c.live for address, c in arena.sites}
     assert told == {caller: sum(chunks) for caller, chunks in sites.items()}, (told, sites)
     assert all(not (base.IMAGE_BASE <= address < 0x1000000) for address in told), "no allocator's own address"
