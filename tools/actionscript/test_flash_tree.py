@@ -250,6 +250,29 @@ class TreeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'a class of the tree already'):
             flash_tree.tables(self.tree)
 
+    def test_a_data_table_is_a_class_of_its_columns(self):
+        path = self.root / 'modifications.tsv'
+        path.write_text('modifications\tkind\tvalue\n1240\tparameters/experience_bonus\t0.2\n1250\tx\t0.5\n')
+        self.assertEqual(flash_tree.data_class(path, 'pkg.data', 'Values'), '''package pkg.data
+{
+   // Made by the build (tools/actionscript/flash_tree.py) from modifications.tsv (movie.json data): edit that.
+   public class Values
+   {
+      public static const kind:Object = {
+         "1240":"parameters/experience_bonus",
+         "1250":"x"
+      };
+      public static const value:Object = {
+         "1240":"0.2",
+         "1250":"0.5"
+      };
+   }
+}
+''')
+        path.write_text('m\tvalue\n1\t0.2\n1\t0.5\n')
+        with self.assertRaisesRegex(ValueError, 'a key twice'):
+            flash_tree.data_class(path, 'pkg.data', 'Values')
+
     def test_a_build_needs_the_original_movie_json_names(self):
         self.spec(movie_sha256=sha(b'MOVIE'))
         (self.root / 'o.swf').write_bytes(b'OTHER')

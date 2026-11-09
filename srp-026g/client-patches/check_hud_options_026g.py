@@ -36,6 +36,14 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   no user.cfg, a file missing, a marker left: nothing loaded, the marker
   deleted; never the engine's allocator; registers (EAX the probe's size) and
   stack as the original's, which calls none of these;
+- each Present (res_render_output::present 0x3CF7F0 to its `ret 4`, the site 0x3CF8FF right before
+  IDXGISwapChain::Present; its swap chain's GetFullscreenState and Present and user32's GetFocus,
+  ShowWindow, GetWindowLongA and SetWindowLongA stubbed): after a start with DXVK, a window DXGI
+  refuses (topmost, no frame style: DXVK's fullscreen of the game's window, the 2026-11-08 report's
+  start; set_size's style 0) made a popup (SetWindowLongA, WS_POPUP added) before the Present, which
+  sees a window DXGI takes, and said; the next Present reads only; a windowed window read only; after
+  a DirectX 11 start no style read or set; registers and stack as the original's, which presents with
+  the window as it is;
 - the Renderer's answer (root.srp_check_option) says the renderer running:
   "1" in a process that loaded DXVK at its start, "0" otherwise; a Vulkan
   option's the value DXVK was given at the start (without DXVK the saved one);
@@ -139,6 +147,30 @@ VK = {"vkCreateInstance": 3, "vkDestroyInstance": 2, "vkEnumeratePhysicalDevices
 
 def vk_version(major, minor, patch):
     return (major << 22) | (minor << 12) | patch
+
+
+# res_render_output::present (0x3CF7F0, the render output in EAX, the vsync byte at entry ESP+4, ret 4) and
+# what it reaches: its swap chain's GetFullscreenState (vtable +2Ch) and Present (+20h), user32's GetFocus and
+# ShowWindow, the renderer's options [0x2260498] (+105h a vsync byte), patch 83's GetWindowLongA / SetWindowLongA
+PRESENT, PRESENT_RET = 0x3CF7F0, 0x3CF914
+OUTPUT, SWAP_CHAIN, SWAP_VTABLE, RENDER_OPTIONS = 0x32000000, 0x32001000, 0x32002000, 0x32003000
+RENDER_OPTIONS_SLOT = 0x2260498
+WINDOW = 0x000A0B2C
+USER32 = {"GetFocus": (0xAEFF48, 0), "ShowWindow": (0xAEFEF8, 2), "GetWindowLongA": (0xAEFE8C, 2),
+          "SetWindowLongA": (0xAEFF44, 3)}
+COM = {"Present": (0x20, 3), "GetFullscreenState": (0x2C, 3)}
+GWL_STYLE, GWL_EXSTYLE = 0xFFFFFFF0, 0xFFFFFFEC
+WS_POPUP, WS_VISIBLE, WS_CLIPSIBLINGS, WS_CAPTION, WS_SYSMENU = 0x80000000, 0x10000000, 0x04000000, 0xC00000, 0x80000
+WS_EX_TOPMOST, WS_EX_WINDOWEDGE = 0x8, 0x100
+
+
+def dxgi_takes(style, extended):
+    """DXGI's rule for a swap chain's window (the debug layer's "The specified output window has a style
+    that is incompatible with DXGI", AMD in doitsujin/dxvk#5258): one of WS_POPUP, WS_BORDER, WS_CAPTION,
+    WS_SYSMENU, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_THICKFRAME, or of WS_EX_CLIENTEDGE, WS_EX_CONTEXTHELP,
+    WS_EX_DLGMODALFRAME, WS_EX_TOOLWINDOW, WS_EX_WINDOWEDGE, or not WS_EX_TOPMOST."""
+    return bool(style & (WS_POPUP | 0x800000 | WS_CAPTION | WS_SYSMENU | 0x10000 | 0x20000 | 0x40000)
+                or extended & (0x200 | 0x400 | 0x1 | 0x80 | WS_EX_WINDOWEDGE) or not extended & WS_EX_TOPMOST)
 
 
 class Run(language.Run):
@@ -309,6 +341,63 @@ class Run(language.Run):
                              {**hide.GAME, UC_X86_REG_EDI: world, UC_X86_REG_ESI: MATCH_OPTIONS - 0xC,
                               UC_X86_REG_EBP: ebp})
         return self.stopped == blackout.STATIC_PAST and esp == sp and regs[UC_X86_REG_ESI] == MATCH_OPTIONS
+
+    def presented(self, styles, vsync=0):
+        """res_render_output::present from its start to its `ret 4`, its render output's window having `styles`
+        (GWL_STYLE, GWL_EXSTYLE), focused, the swap chain fullscreen: the registers after and whether ESP is
+        back, the window's styles after, and the calls in order (Present's with the window's styles as DXGI
+        reads them then)."""
+        if not getattr(self, "window_stubs", None):
+            self.emu.mem_map(OUTPUT, 0x10000, UC_PROT_ALL)
+            self.window_stubs = {}
+            at = hide.IMPORTS + 0xA00
+            for name, (_, pops) in list(USER32.items()) + list(COM.items()):
+                self.emu.mem_write(at, b"\xC2" + struct.pack("<H", 4 * pops))
+                self.emu.hook_add(UC_HOOK_CODE, self.window_call, begin=at, end=at, user_data=name)
+                self.window_stubs[name] = at
+                at += 0x10
+        self.emu.mem_write(OUTPUT, bytes(0x4000))
+        for name, (slot, _) in USER32.items():
+            self.word(slot, self.window_stubs[name])
+        for name, (offset, _) in COM.items():
+            self.word(SWAP_VTABLE + offset, self.window_stubs[name])
+        self.word(OUTPUT + 0xCC, SWAP_CHAIN)
+        self.word(SWAP_CHAIN, SWAP_VTABLE)
+        self.word(OUTPUT + 0xE4, WINDOW)
+        self.emu.mem_write(OUTPUT + 0xED, b"\x00\x00\x01")    # fullscreen (m_windowed 0), +EFh its state applied
+        self.word(RENDER_OPTIONS_SLOT, RENDER_OPTIONS)
+        self.window, self.window_calls = list(styles), []
+        sp = hide.STACK + 0x9000
+        self.word(sp, hide.SENTINEL)
+        self.word(sp + 4, vsync)
+        regs = {**hide.GAME, UC_X86_REG_EAX: OUTPUT}
+        after, esp = self.run(PRESENT, (PRESENT_RET,), sp, regs)
+        assert self.stopped == PRESENT_RET, self.stopped
+        return (after, esp == sp), tuple(self.window), list(self.window_calls)
+
+    def window_call(self, emu, address, size, name):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        arg = lambda i: self.read(sp + 4 + 4 * i)
+        result = 0
+        if name == "GetFocus":
+            result = WINDOW
+        elif name == "ShowWindow":
+            self.window_calls.append((name, arg(0), arg(1)))
+        elif name in ("GetWindowLongA", "SetWindowLongA"):
+            assert arg(0) == WINDOW and arg(1) in (GWL_STYLE, GWL_EXSTYLE), (name, hex(arg(0)), hex(arg(1)))
+            index = 0 if arg(1) == GWL_STYLE else 1
+            result = self.window[index]
+            if name == "SetWindowLongA" and not getattr(self, "styles_stick", False):
+                self.window[index] = arg(2)
+            self.window_calls.append((name, arg(1)) + ((arg(2),) if name == "SetWindowLongA" else ()))
+        elif name == "GetFullscreenState":
+            assert arg(0) == SWAP_CHAIN
+            self.word(arg(1), 1)
+            self.word(arg(2), 0)
+        elif name == "Present":
+            assert arg(0) == SWAP_CHAIN
+            self.window_calls.append((name, arg(1), arg(2), tuple(self.window)))
+        emu.reg_write(UC_X86_REG_EAX, result)
 
     # a hud movie that refuses root.srp_hud_options (no root yet): its Invoke answers 0
     def stub(self, emu, address, size, _):
@@ -509,6 +598,7 @@ def main():
                f"{case}: " + (f"the hud told {want[0][2]}" if want else "nothing told")
                + ", after patch 65's Invokes; on into update_player_icons as the game's")
     renderer(original, patched, expect)
+    fullscreen_window(original, patched, expect)
     field_of_view(original, patched, expect)
     print("all cases passed")
 
@@ -614,6 +704,94 @@ def renderer(original, patched, expect):
         answer = [v[2:4] for _, m, v in invokes if m == "root.srp_check_option"]
         expect(answer == [want], f"{name} set to {argument} in a process that runs DXVK: saved {want[0]}, "
                f"running {want[1]}, what user.cfg had at the start ({invokes})")
+
+
+def shown(calls):
+    """The calls with their numbers in hex."""
+    hexed = lambda v: tuple(map(hexed, v)) if isinstance(v, tuple) else hex(v) if isinstance(v, int) else v
+    return [hexed(call) for call in calls]
+
+
+def fullscreen_window(original, patched, expect):
+    """Each Present of the game's swap chain (res_render_output::present 0x3CF7F0 to its ret, the site
+    0x3CF8FF right before IDXGISwapChain::Present): with DXVK, a window DXGI refuses gets WS_POPUP first
+    (docs/notes/dxvk-option.md, "The fullscreen window")."""
+    on, off = b"srp_dxvk on\r\nr_fullscreen on\r\n", b"srp_dxvk off\r\nr_fullscreen on\r\n"
+    good = (vk_version(1, 4, 303), 2)
+    # the game's window (CreateWindowExA WS_CAPTION | WS_SYSMENU at 0x186FF; Windows adds WS_CLIPSIBLINGS and
+    # WS_EX_WINDOWEDGE, show WS_VISIBLE), then DXVK 3.1.1's fullscreen of it (enterFullscreenMode: no
+    # WS_OVERLAPPEDWINDOW, no WS_EX_OVERLAPPEDWINDOW, HWND_TOPMOST): the 2026-11-08 report's start
+    windowed = (WS_VISIBLE | WS_CLIPSIBLINGS | WS_CAPTION | WS_SYSMENU, WS_EX_WINDOWEDGE)
+    dxvk_fullscreen = (WS_VISIBLE | WS_CLIPSIBLINGS, WS_EX_TOPMOST)
+    # set_size to fullscreen: SetWindowLongA(GWL_STYLE, [+E0h] 0) 0x3CFA09, SetWindowPos(HWND_TOPMOST, SWP_SHOWWINDOW)
+    set_size_fullscreen = (WS_VISIBLE, WS_EX_TOPMOST)
+    reads = [("GetWindowLongA", GWL_STYLE), ("GetWindowLongA", GWL_EXSTYLE)]
+    expect(not dxgi_takes(*dxvk_fullscreen) and not dxgi_takes(*set_size_fullscreen) and dxgi_takes(*windowed),
+           "DXGI's rule: the window in DXVK's fullscreen and in set_size's refused, the windowed one taken")
+    for what, cfg, styles, wanted in [
+        ("DXVK, the start in fullscreen (DXVK's fullscreen of the game's window, the report's)", on,
+         dxvk_fullscreen, WS_POPUP | WS_VISIBLE | WS_CLIPSIBLINGS),
+        ("DXVK, Settings to fullscreen (set_size's style 0)", on, set_size_fullscreen, WS_POPUP | WS_VISIBLE),
+        ("DXVK, windowed", on, windowed, None),
+        ("DirectX 11 (srp_dxvk off), the same fullscreen window", off, dxvk_fullscreen, None),
+    ]:
+        stock, ours = Run(original), Run(patched)
+        stock.process_start(user_cfg=cfg, vulkan=good)
+        ours.process_start(user_cfg=cfg, vulkan=good)
+        logged = len(ours.logged)
+        (a_regs, a_back), a_after, a_calls = stock.presented(styles)
+        (b_regs, b_back), b_after, b_calls = ours.presented(styles)
+        present = [call for call in b_calls if call[0] == "Present"]
+        expect(a_back and b_back and a_regs == b_regs and a_after == styles and not any(
+                   call[0].endswith("WindowLongA") for call in a_calls),
+               f"{what}: registers and stack as the original's, which reads and sets no window style")
+        expect(a_calls == [("Present", 0, 0, styles)],
+               f"{what}: the original presents with the window as it is ({shown(a_calls)})")
+        if wanted is not None:
+            expect(b_calls == reads + [("SetWindowLongA", GWL_STYLE, wanted)] + reads
+                   + [("Present", 0, 0, (wanted, styles[1]))] and b_after == (wanted, styles[1])
+                   and dxgi_takes(*b_after) and b"made a popup" in ours.logged[logged:]
+                   and b"DXGI takes it" in ours.logged[logged:],
+                   f"{what}: WS_POPUP set before the Present, which sees a window DXGI takes "
+                   f"({shown(b_calls)}; {ours.logged[logged:]})")
+            (c_regs, c_back), c_after, c_calls = ours.presented(b_after)
+            expect(c_back and c_regs == a_regs and c_calls == reads + [("Present", 0, 0, b_after)],
+                   f"{what}, the next Present: read only, nothing set ({shown(c_calls)})")
+        elif cfg is on:
+            expect(b_calls == reads + [("Present", 0, 0, styles)] and b_after == styles
+                   and ours.logged[logged:] == b"",
+                   f"{what}: read only, nothing set, nothing logged ({shown(b_calls)})")
+        else:
+            expect(b_calls == a_calls and b_after == styles and ours.logged[logged:] == b"",
+                   f"{what}: no window style read or set, the Present as the original's ({shown(b_calls)})")
+    # Settings to fullscreen, windowed, fullscreen again: the same refused styles a second time are a new state
+    ours = Run(patched)
+    ours.process_start(user_cfg=on, vulkan=good)
+    popup = (WS_POPUP | WS_VISIBLE, WS_EX_TOPMOST)
+    sets = []
+    for styles in (set_size_fullscreen, windowed, set_size_fullscreen):
+        _, after, calls = ours.presented(styles)
+        sets.append([call for call in calls if call[0] == "SetWindowLongA"])
+    expect(sets == [[("SetWindowLongA", GWL_STYLE, popup[0])], [], [("SetWindowLongA", GWL_STYLE, popup[0])]]
+           and after == popup, f"fullscreen, windowed, fullscreen again: a popup each time ({sets})")
+    # a style Windows does not take: set and said once, then each Present only reads
+    ours = Run(patched)
+    ours.process_start(user_cfg=on, vulkan=good)
+    ours.styles_stick = True
+    logged = len(ours.logged)
+    runs = [ours.presented(dxvk_fullscreen) for _ in range(3)]
+    sets = [[call for call in calls if call[0] == "SetWindowLongA"] for _, _, calls in runs]
+    told = ours.logged[logged:]
+    expect(sets == [[("SetWindowLongA", GWL_STYLE, WS_POPUP | WS_VISIBLE | WS_CLIPSIBLINGS)], [], []]
+           and told.count(b"\n") == 1 and b"DXGI still refuses it" in told,
+           f"a style that does not take: set once, said once ({sets}; {told})")
+    # vsync on reaches Present as the original's
+    stock, ours = Run(original), Run(patched)
+    stock.process_start(user_cfg=on, vulkan=good)
+    ours.process_start(user_cfg=on, vulkan=good)
+    _, _, a_calls = stock.presented(dxvk_fullscreen, vsync=1)
+    _, _, b_calls = ours.presented(dxvk_fullscreen, vsync=1)
+    expect(a_calls[-1][:3] == b_calls[-1][:3] == ("Present", 1, 0), f"vsync on: Present(1, 0) as the original's")
 
 
 # uro_fov's console variable (0xAA6510) as its static initializer 0x85ADF0 leaves it in a running game (the

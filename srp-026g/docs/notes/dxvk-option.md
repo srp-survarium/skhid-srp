@@ -194,6 +194,87 @@ window keeping its size.
   (Windows 10/11's list, the same in Wine's `Session Manager\KnownDLLs`: advapi32, gdi32, kernel32,
   ole32, shell32, user32, ...; no Direct3D DLL).
 
+## The fullscreen window
+
+**The report** (2026-11-08 23:42 +03, rev53; AMD Radeon RX 6900 XT, AMD's Vulkan driver 2.0.353,
+Windows 10.0.26100, the game started through Steam; user.cfg `r_fullscreen on`, `r_resolution
+2560x1440`, `srp_dxvk on`): DXVK loaded (`srp_patches.log`, "another dxgi.dll is loaded already"),
+its device made, and at the game's first Present its d3d11 log says `Presenter: Failed to create
+Vulkan swapchain: -13` (VK_ERROR_UNKNOWN); DXVK's Present then answers E_FAIL
+(`D3D11SwapChain::PresentImage`: a negative acquire), and the game's `renderer::render` asserts on a
+failed Present that is no device loss (`renderer.cpp` line 2175, the int3 at 0x13DDBD, after
+`res_render_output::present` 0x3CF7F0), before the login screen (the marker then makes the next
+start DirectX 11). DXVK's dxgi log has one display mode change and no restore before it: one
+fullscreen entry. The minidump has the rest: the Steam overlay's own log line,
+`Sun Nov 08 20:42:23 2026 UTC - g_IDXGIFactory2_CreateSwapChainForHWND failed, hres=887a0001`
+(DXGI_ERROR_INVALID_CALL; the dump is 20:42:24), and in the crashed thread's stack memory below the
+crash's ESP stale return addresses (a scan, not a walked chain) of amdvlk32, D3D12, D3D12Core,
+gameoverlayrenderer (Steam's DXGI hook), Windows' `System32\dxgi.dll` and amdxc32 (AMD's D3D12
+driver): AMD's Windows Vulkan driver makes a DXGI flip-model swap chain on the game's window for its
+own presentation, and DXGI refused that window. The window's styles at that moment are not in the
+dump (no heap, no DXVK window state): they are inferred from the code below.
+
+**DXGI's rule** (its debug layer: "The specified output window has a style that is incompatible with
+DXGI", which AMD quoted in doitsujin/dxvk#5258 and named the cause of the same `-13` in
+GPUOpen-Drivers/AMD-Gfx-Drivers#57, Fallout New Vegas under DXVK, where AMD confirmed that appending
+WS_POPUP works; #57 is closed as fixed in the driver, still seen with Adrenalin 26.6.4 in July 2026):
+the window needs one of WS_POPUP, WS_BORDER, WS_CAPTION, WS_SYSMENU, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
+WS_THICKFRAME, WS_EX_CLIENTEDGE, WS_EX_CONTEXTHELP, WS_EX_DLGMODALFRAME, WS_EX_TOOLWINDOW,
+WS_EX_WINDOWEDGE, or must not be WS_EX_TOPMOST.
+
+**The game's window, every way** (the exe's only GWL_STYLE writes are set_size's two; DXVK's own):
+
+- made `CreateWindowExA(0, .., WS_CAPTION | WS_SYSMENU)` (`new_window` 0x184F0, the call 0x186FF):
+  taken;
+- a start in fullscreen (`r_fullscreen on`, the report's): the render output is made fullscreen
+  (`render_output_window_cook::translate_query` 0x138030, `res_render_output` +EDh) and set_size
+  writes no style (its first call has nothing to change); `show` 0x3CF600 calls
+  SetFullscreenState(TRUE), and DXVK 3.1.1's `enterFullscreenMode` (wsi_window_win32.cpp) takes
+  away WS_OVERLAPPEDWINDOW and WS_EX_OVERLAPPEDWINDOW and makes it HWND_TOPMOST: WS_VISIBLE |
+  WS_CLIPSIBLINGS, WS_EX_TOPMOST, refused;
+- Settings to fullscreen in a running game: `set_size` 0x3CF980 sets GWL_STYLE to its +E0h, 0
+  (0x3CFA09), then SetWindowPos(HWND_TOPMOST, SWP_SHOWWINDOW): refused too;
+- Alt+Tab: the window's deactivation (message_processor 0x18307, engine_world::on_alttab 0x14020,
+  game vtable +2Ch 0x1ED450) calls res_render_output::minimize 0x3CFE80 (SetFullscreenState(FALSE,
+  the monitor's output), then ShowWindow(SW_FORCEMINIMIZE) if that succeeded; DXGI and DXVK refuse
+  FALSE with an output, DXGI_ERROR_INVALID_CALL); DXVK's GetFullscreenState and Present leave it for a
+  window not foreground for 100 ms, and present minimizes it (0x3CF8C5). Back: each engine tick
+  (0x13D58, game vtable +30h 0x1ED430) calls res_render_output::goto_fullscreen 0x3CFE20, which
+  enters fullscreen again when the window has the focus and is not minimized: the same strip,
+  refused but for a WS_POPUP already there, which the strip keeps;
+- windowed (a start, or Settings to windowed: set_size writes +DCh, WS_CAPTION | WS_SYSMENU): taken;
+- DirectX 11: the game makes its swap chain windowed (desc Windowed 1, one buffer, DISCARD) while
+  the window has its caption, and never another; Windows' DXGI keeps that swap chain through its
+  fullscreen: the rule is never met.
+
+**Where the Vulkan swap chain is made:** DXVK 3.1.1 makes it in `Presenter::recreateSwapChain` alone,
+from `acquireNextImage` (`D3D11SwapChain::PresentImage`) and `checkSwapChainStatus` (a Present with
+DXGI_PRESENT_TEST, which the game never passes): inside the game's IDXGISwapChain::Present, at its
+first one and again after a resize, a mode change or a minimize. The game presents in
+`res_render_output::present` 0x3CF7F0 alone (vtable +20h at 0x3CF90E; its callers 0x117EDF,
+0x13CA02, 0x13CB73, 0x13DD46). The report's stack has it on the game's main thread, the window's
+own: engine_world::run 0x18B30 loops over process_messages 0x18AC0 (PeekMessage, Translate,
+Dispatch) and the engine tick, which runs the render commands (set_size, `show`), the alt-tab
+re-entry above and then the render with its Present. So every style write and fullscreen entry
+named here and every Present are one thread, in order, and SetWindowLongA there is a same-thread
+call (its WM_STYLECHANGING/WM_STYLECHANGED go to the window procedure within the call).
+
+**The fix** (patch 83, `render_output.present`, a lohook at 0x3CF8FF right before that Present):
+with DXVK loaded at the start (`Renderer::Dxvk`), the window's two styles are read, and a window
+DXGI refuses gets WS_POPUP (SetWindowLongA, on the window's thread, as set_size and DXVK set it),
+said in `srp_patches.log` (`dxvk: the window DXGI refuses (style .., extended ..) made a popup:
+style .., DXGI takes it`), once per refused state: styles that stay refused (a set Windows did not
+take) are not set or said again until a Present finds a window DXGI takes. DXVK's later fullscreen
+entries keep WS_POPUP (they take away WS_OVERLAPPEDWINDOW's styles only), so each later Present
+only reads. A window DXGI takes (any windowed one) is never changed; with DirectX 11 nothing is
+read. After DXVK leaves fullscreen by
+itself (Alt+Tab) it puts back its saved styles only when the window's are what it left, so the
+window stays a popup without its caption until the next fullscreen entry: the game minimizes it
+then, unless it has the focus at that check (0x3CF8A6), when it stays a borderless popup at its last
+size; Settings to windowed writes the caption back itself (set_size). This holds for every GPU under
+DXVK (Wine too), not only AMD's. The renderer's state is a `Lock` now, by way of defence: no second
+thread reading it is shown (the start, the login screen and every Present are the main thread's).
+
 ## Known limits
 
 - A start that fails with DXVK costs one start; the next is DirectX 11 again by itself.
@@ -212,4 +293,9 @@ window keeping its size.
   `Found config env: ...`, then each of them in `Effective configuration`), not with the game
   itself; the panel and its hints in Ruffle only (Scaleform's presses, Esc, the tip's place and
   font metrics are the game's to show).
-- Not checked on Windows; not played.
+- The fullscreen window: Unicorn runs the patched `res_render_output::present` with the report's
+  window (`check_hud_options_026g.py`): WS_POPUP set before the Present, which then sees a window
+  DXGI's rule takes. That AMD's driver then makes its swap chain is AMD's word (#57, #5258), not
+  seen on this game: no Windows PC with an AMD GPU was run.
+- Not checked on Windows. Played locally under Wine (wayland driver, DXVK, fullscreen
+  2560x1440) on 2026-11-09: the window made a popup at the start, the game fine.

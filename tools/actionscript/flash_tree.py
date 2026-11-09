@@ -14,7 +14,11 @@ code) the build keeps. A bitmap the original lacks is bitmaps/<class>.png
 (lossless) or bitmaps/<class>.jpg (a baseline JPEG, as the game's own renders are: a picture)
 beside src/: the build adds it, bound to <class> (a BitmapData of the
 tree, as the original's bitmaps are). A table is tables/<package path>/<Class>.tsv beside
-src/: the build makes it the class <Class> of src/ (table_class: one Array of rows a list). The
+src/: the build makes it the class <Class> of src/ (table_class: one Array of rows a list). Data
+the movie shows that the game's data holds is not written in the tree: movie.json's `data`
+({"<package path>/<Class>": "<a table of the repository>"}, e.g. scripts/content-edit's
+modifications.tsv) makes each such table the class <Class> (data_class: one Object a column, its
+rows' cells by their first column), so the movie and the game read the same file. The
 build is one `compc` run of Apache Flex 4.16.1
 over src/ (strict, optimized, no debug information, the original's SWF
 version), against the Flash Player API (playerglobal.swc) only: every class
@@ -183,7 +187,49 @@ def table_class(path, package, name):
     return '\n'.join(source + ['   }', '}', ''])
 
 
+def data_sources(movie_dir):
+    """{<package path>/<Class>: the repository's table} of movie.json's `data`, the repository the
+    tree's (srp-026g/flash/<movie>, three levels up)."""
+    if not (movie_dir / 'movie.json').is_file():
+        return {}
+    repo = movie_dir.resolve().parents[2]
+    return {name: repo / path for name, path in load(movie_dir).get('data', {}).items()}
+
+
+def data_class(path, package, name):
+    """The ActionScript of a data table (tab-separated, `#` lines comments, the header first): a class
+    whose `public static const <column>:Object` is, for each column but the first, its cells (texts) by
+    the first column's, as the table has them."""
+    header, rows = read_table(path)
+    if any(not IDENTIFIER.match(column) for column in header[1:]):
+        raise ValueError(f'{path}: a column is not a name')
+    keys = [row[0] for row in rows]
+    if len(set(keys)) != len(keys):
+        raise ValueError(f'{path}: a key twice in its first column')
+    source = [f'package {package}', '{',
+              f'   // Made by the build (tools/actionscript/flash_tree.py) from {path.name} (movie.json data): '
+              'edit that.', f'   public class {name}', '   {']
+    for i, column in enumerate(header[1:], 1):
+        cells = ',\n'.join(f'         {json.dumps(row[0])}:{json.dumps(row[i])}' for row in rows)
+        source += [f'      public static const {column}:Object = {{', cells, '      };']
+    return '\n'.join(source + ['   }', '}', ''])
+
+
 def tables(movie_dir):
+    """{path under src/: ActionScript} of the tree's tables/<package path>/<Class>.tsv and of its
+    movie.json's data tables."""
+    out = {}
+    for name, path in data_sources(movie_dir).items():
+        relative = Path(name + '.as')
+        if not all(IDENTIFIER.match(part) for part in Path(name).parts):
+            raise ValueError(f'movie.json data {name}: not <package path>/<Class>')
+        if (movie_dir / 'src' / relative).exists():
+            raise ValueError(f'movie.json data {name}: src/{relative} is a class of the tree already')
+        out[relative] = data_class(path, '.'.join(relative.parts[:-1]), relative.stem)
+    return out | table_classes(movie_dir)
+
+
+def table_classes(movie_dir):
     """{path under src/: ActionScript} of the tree's tables/<package path>/<Class>.tsv."""
     folder = movie_dir / 'tables'
     out = {}

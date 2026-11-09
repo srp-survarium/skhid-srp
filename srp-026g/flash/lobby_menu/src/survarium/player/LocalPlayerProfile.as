@@ -39,7 +39,6 @@ package survarium.player
    import survarium.constants.AmmoView;
    import survarium.constants.ProfileSlot;
    import survarium.item.ModificationRolls;
-   import survarium.constants.MoneyType;
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
    import survarium.rooms.RoomsLook;
@@ -492,11 +491,6 @@ package survarium.player
                      itemData.rank = item.rank;
                      itemUpdated = true;
                   }
-                  if(itemData.broken != item.broken)
-                  {
-                     itemData.broken = item.broken;
-                     itemUpdated = true;
-                  }
                   if(itemUpdated)
                   {
                      this._playerPaperDoll.onItemUpdated(itemData.slotId);
@@ -691,7 +685,8 @@ package survarium.player
          LocalizationData.addButton(this.ammoContainer.btn_apply,"refill_ammo_btn");
          LocalizationData.addButton(this.checkbox_autobuy,"autobuy_button_label");
          this.checkbox_autobuy.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.ammoContainer.labelCostP.moneyType = MoneyType.PREMIUM;
+         // The total in gold and its plus: there is no gold (the owner, 2026-11-08).
+         this.ammoContainer.labelCostP.visible = this.ammoContainer.plusSprite.visible = false;
          // The auto-repair box is gone (see its declaration): Autobuy takes
          // its place at the row's start, no gap left.
          this.checkbox_autorepair.visible = false;
@@ -768,13 +763,10 @@ package survarium.player
          }
       }
       
-      private function onTotalUpdate(eRegular:Number, ePremium:Number) : void
+      private function onTotalUpdate(eRegular:Number) : void
       {
-         trace("onTotalUpdate",eRegular,ePremium);
+         trace("onTotalUpdate",eRegular);
          this.ammoContainer.labelCostR.cost = eRegular;
-         this.ammoContainer.labelCostP.visible = ePremium != 0;
-         this.ammoContainer.plusSprite.visible = this.ammoContainer.labelCostP.visible;
-         this.ammoContainer.labelCostP.cost = ePremium;
       }
       
       private function changeIndexByFilter(e:IndexEvent) : void

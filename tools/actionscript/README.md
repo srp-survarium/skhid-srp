@@ -40,6 +40,13 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   class whose static constant the cell names, compiled as `Class.NAME`). Each
   list is `public static const <list>:Array` of `{field: value}` rows, in the
   file's order. Other tools read it with `flash_tree.read_table`.
+- **Data.** What the movie shows that the game's data holds (a modification's value) is
+  not written in the tree: `movie.json`'s `data`, `{"<package path>/<Class>": "<a table of the
+  repository>"}`, makes the build write each such table as the class `<Class>`, one
+  `public static const <column>:Object` a column but the first, the cells (texts) by the first
+  column's. The lobby reads `scripts/content-edit/modifications.tsv` so
+  (`survarium.data.ModificationValues`): the movie and the game read one file. build-content
+  keys the movie's cache by those tables too.
 - The build checks what the movie needs to load: every ABC block parses, and
   every class a SymbolClass tag binds is defined, once.
 - `original` cuts the original movie (the one whose graphics the build keeps)
