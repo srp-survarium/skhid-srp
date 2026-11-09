@@ -104,7 +104,9 @@ Edits (edits.json):
   "set_entry":      [{"file", "list", "where", "from", "to"}]
                     the one entry of the indexed table `list` whose keys match `where`: each key of
                     `from` must hold that value, then takes the value in `to` (a number keeps its type,
-                    a string or a vector, a list of 2-4 numbers, is appended); a key of `from` and `to`
+                    a string or a vector, a list of 2-4 numbers, is appended; an indexed table takes
+                    the list given, made as append_entry makes one, so it may shrink or grow: a
+                    skill's `modifiers`); a key of `from` and `to`
                     may be a path in the entry (`spawned_item/position`, `collision_geometries[0]/name`)
   "append_rows":    [{"file", "path", "rows"}]         append rows of strings to an indexed UI table
   "add_item":       [{"file", "list", "where", "key", "value"}]
@@ -564,6 +566,21 @@ def insert_value(buf, toff, key, value):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
+def as_table(value, vectors=False):
+    """A JSON value for value_record: a list an indexed table; with `vectors`, a list of 2 to 4
+    numbers a native vector and an empty list an empty indexed table."""
+    if vectors and isinstance(value, list):
+        if not value:
+            return EmptyList()
+        if 2 <= len(value) <= 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in value):
+            return value
+    if isinstance(value, list):
+        return {i: as_table(item, vectors) for i, item in enumerate(value)}
+    if isinstance(value, dict):
+        return {key: as_table(item, vectors) for key, item in value.items()}
+    return value
+
+
 def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     """Append a new record, refusing stale counts and duplicate identities.
 
@@ -581,18 +598,7 @@ def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
         raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
     records = [bytes(buf[entry:entry + 24]) for entry in entries]
-    def indexed(value):
-        if vectors and isinstance(value, list):
-            if not value:
-                return EmptyList()
-            if 2 <= len(value) <= 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in value):
-                return value
-        if isinstance(value, list):
-            return {i: indexed(item) for i, item in enumerate(value)}
-        if isinstance(value, dict):
-            return {key: indexed(item) for key, item in value.items()}
-        return value
-    records.append(value_record(buf, 0, '', indexed(value)))
+    records.append(value_record(buf, 0, '', as_table(value, vectors)))
     REC.pack_into(buf, off, append_array(buf, records), name, crc, kind, count + 1)
     return count
 
@@ -1779,6 +1785,11 @@ def set_entry(buf, path, where, frm, to):
         if t == T_STR:
             new = v.encode()
             REC.pack_into(buf, c, append(buf, new + b'\0'), i, crc, t, len(new) + 1)
+        elif t == T_INDEXED:
+            if not isinstance(v, list):
+                raise ValueError('%s[%d]/%s is an indexed table: its value is a list' % (path, at, k))
+            d, _, _, _, cnt = REC.unpack(value_record(buf, 0, '', as_table(v)))
+            REC.pack_into(buf, c, d, i, crc, t, cnt)
         elif t > T_STR:
             if not isinstance(v, list) or len(v) != t - 4:
                 raise ValueError('%s[%d]/%s takes %d numbers' % (path, at, k, t - 4))
@@ -2308,9 +2319,13 @@ def main():
     for e in edits.get('set_bool', []):
         set_bool(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    remade = {}  # file -> the indexed tables set_entry made again: anything under them may differ
     for e in edits.get('set_entry', []):
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
-        allowed.setdefault(e['file'], set()).update('/%s[%d]/%s' % (e['list'], at, k) for k in e['to'])
+        paths = ['/%s[%d]/%s' % (e['list'], at, k) for k in e['to']]
+        allowed.setdefault(e['file'], set()).update(paths)
+        remade.setdefault(e['file'], set()).update(
+            q for q in paths if rec(buf(e['file']), find(buf(e['file']), q[1:]))[3] == T_INDEXED)
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
     gone = {}
     if stats is not None:
@@ -2529,6 +2544,7 @@ def main():
         grown[e['file']].setdefault(lst, 0)
         grown[e['file']][lst] -= 1
         allowed[e['file']] = {q for q in (unshifted(q, lst, at) for q in allowed.get(e['file'], ())) if q is not None}
+        remade[e['file']] = {q for q in (unshifted(q, lst, at) for q in remade.get(e['file'], ())) if q is not None}
         if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
@@ -2668,6 +2684,7 @@ def main():
             if o == n:
                 continue
             ok = (q in allowed.get(p, ()) and o and n and n[0] in (o[0], T_FLOAT)) or \
+                any(q.startswith(t + '[') for t in remade.get(p, ())) or \
                 (o and n and o[0] == n[0] == T_STR and (o[1], n[1]) in strings) or \
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \

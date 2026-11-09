@@ -269,6 +269,35 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(ce.items_of(data, 'objects[0]/containers'), ['b', 'c'])
             self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
 
+    def test_cli_set_entry_remakes_an_indexed_table(self):
+        """A skill from 5 ranks to 3 (skill-ranks-1): set_entry gives `modifiers` and the texts a
+        shorter list, whose items may change type (here a text to an int), and the read-back takes
+        it; the entry beside it stays."""
+        def skill(sid):
+            return {'id': sid, 'levels_amount': 5, 'modifiers': [{'m': 0.02}] * 5,
+                    'ui': {'rows': [['+2', ' 0'], ['+2', ' +2'], ['<max> +10', ' 8']]}}
+        edits = {'set_entry': [{
+            'file': 'tree', 'list': 'skills', 'where': {'id': 1},
+            'from': {'levels_amount': 5, 'modifiers[4]/m': 0.02},
+            'to': {'levels_amount': 3, 'modifiers': [{'m': 0.04}] * 3,
+                   'ui/rows': [['+4', ' 0'], ['<max> +12', 0]]}}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live').mkdir()
+            (root / 'live/tree').write_bytes(config({'skills': [skill(1), skill(2)]}))
+            (root / 'edits.json').write_text(json.dumps(edits))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            data = bytearray((root / 'out/tree').read_bytes())
+            self.assertEqual(ce.rec(data, ce.find(data, 'skills[0]/modifiers'))[4], 3)
+            self.assertTrue(ce.same(value(data, 'skills[0]/modifiers[2]/m'), 0.04))
+            self.assertEqual(value(data, 'skills[0]/ui/rows[1][1]'), 0)
+            self.assertEqual(ce.rec(data, ce.find(data, 'skills[1]/modifiers'))[4], 5)
+        with self.assertRaises(ValueError):  # an indexed table takes a list
+            ce.set_entry(config({'skills': [skill(1)]}), 'skills', {'id': 1}, {}, {'modifiers': 3})
+
     def test_cli_puts_each_rounds_pierce_line_for_each_of_its_weapons(self):
         """Material penetration (pierce-line-1): on each round the dictionary pairs with a weapon, for
         each such weapon by dictionary id, the hardest tier its bullet gets through (P > A, as

@@ -106,8 +106,7 @@ impl Core<'_> {
                 self.notify(who, &notices);
             }
             M::QueryServices => {
-                let services = wire::services(&who.account.locked(), unix);
-                self.send(addr, services);
+                self.send(addr, wire::services());
             }
             M::QueryUnlockedFactions => {
                 let mask = wire::unlocked_factions(&who.account.locked());
@@ -333,16 +332,8 @@ impl Core<'_> {
                     }
                 }
             }
-            // The premium shop (`shop`). `47 02` with a match id is the
-            // results screen's "buy premium": the match's premium half is
-            // given with it.
-            M::BuyOffer { offer_id, x, .. } => self.buy_offer(who, offer_id, x),
-            M::AcceptPremiumWithBonuses { a0, a1, .. } => {
-                self.accept_premium_with_bonuses(who, a0, a1);
-            }
-            M::AcceptPremiumWithDiscount { a0, a1 } => {
-                self.accept_premium_with_discount(who, a0, a1);
-            }
+            // The premium shop's bundles (`shop`).
+            M::BuyOffer { offer_id } => self.buy_offer(who, offer_id),
 
             // ---- skills (0x48): the client has no `83 48`; 0x8C is the
             // answer, and the kits carry the skills' modifiers ----

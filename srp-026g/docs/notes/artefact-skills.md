@@ -18,7 +18,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 | Tier | Needs | Id | Skill | Ranks | Per rank | Mechanism |
 |---|---:|---:|---|---:|---|---|
-| 1 | 0 | 501 | Quick Hands | 4 | collection time -6% | data: modifier 7 |
+| 1 | 0 | 501 | Quick Hands | 3 | collection time -8% | data: modifier 7 |
 | 1 | 0 | 502 | Resistance | 5 | isolation +5 | exe hook |
 | 2 | 5 | 512 | Knowledge of Artifacts | 5 | active duration +5% | data: modifier 39 |
 | 2 | 5 | 513 | Artifact Sight | 1 | passive artefacts seen as leg glows, own too | exe (patch 111's gate) |
@@ -44,11 +44,13 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 | - N X - |    Resonance or Cascade (antiskills of each other)
 ```
 
-- Points (26 ranks in all; one of Resonance and Cascade): row I holds 9, rows I-II 15, rows
-  I-III 21, rows I-IV 24, a full build 25. Without Forest Protection rows I-IV hold exactly 20.
-- Thresholds 0/5/10/15/20, the stock rows (the owner, 2026-11-07): every row opens (row I holds 9
-  for 5; rows I-IV hold 24 for 20, 20 without Forest Protection).
-- Quick Hands (the owner, 2026-11-07): 4 ranks of -6% search time (max -24%). Resistance: 5 ranks
+- Points (25 ranks in all; one of Resonance and Cascade): row I holds 8, rows I-II 14, rows
+  I-III 20, rows I-IV 23, a full build 24. Without Forest Protection rows I-IV hold 19: row V
+  needs at least one of its ranks.
+- Thresholds 0/5/10/15/20, the stock rows (the owner, 2026-11-07): every row opens (row I holds 8
+  for 5; rows I-IV hold 23 for 20, 19 without Forest Protection).
+- Quick Hands: 3 ranks of -8% search time (max -24%; the owner, 2026-11-09, "should be 3", with
+  more a rank; 4 of -6% from 2026-11-07, the saved ranks past 3 settled and refunded). Resistance: 5 ranks
   of +5 isolation (max +25; the owner, 2026-11-07, back from 4 of +6).
 - Quick Hands (501) was "Concentration", 0.69's own name for this skill
   (`st_artefact_search_time_name`, in 0.27..0.69 alike); the survival tree's 333 has that name, and
@@ -77,8 +79,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 ## Quick Hands (501)
 
-- Modifier 7 `artefact_search_time` -0.06 a rank (4 ranks, -24%): the container's search time x max(0, 1 + sum)
-  (0x31C7EF). Adds with the gloves' 1130..1134 and the Artifact-master's -25%: rank 5 with
+- Modifier 7 `artefact_search_time` -0.08 a rank (3 ranks, -24%): the container's search time x max(0, 1 + sum)
+  (0x31C7EF). Adds with the gloves' 1130..1134 and the Artifact-master's -25%: rank 3 with
   both is x0.25.
 
 ## Resistance (502)
