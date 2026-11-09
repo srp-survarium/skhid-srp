@@ -86,8 +86,9 @@ const DRIFT_REPORTS: u32 = 2;
 /// on its way would be behind what it has been fed.
 const LEAST_BEHIND: Duration = Duration::from_secs(1);
 
-/// Where a spectator's game is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Where a spectator's game is. [`Spectator::go`] alone moves it, by
+/// [`Watch::step`].
+#[derive(Debug, PartialEq, Eq)]
 enum Watch {
     /// Sent 0xE3; waits for the port probe.
     Connecting,
@@ -111,11 +112,72 @@ enum Watch {
     },
     /// It has the world (the snapshot at `from`): gets every relay and roster
     /// change. `wrong`: its reports in a row that the players' majority
-    /// contradicts ([`Game::judge_spectators`]).
-    Live { from: u32, wrong: u32 },
+    /// contradicts ([`Game::judge_spectators`]); `reports`: its hash reports
+    /// not judged yet, tick time and CRC, [`REPORTS_KEPT`] at most (they end
+    /// with the stage).
+    Live {
+        from: u32,
+        wrong: u32,
+        reports: VecDeque<(u32, u32)>,
+    },
     /// Let go by the server: its farewell sent, silent until `until`, then
     /// forgotten.
     Leaving { quiet_from: Instant, until: Instant },
+}
+
+/// What moves a spectator's game on.
+#[derive(Debug)]
+enum Step {
+    /// Its port probe: it has been sent its 0xE4.
+    Probed,
+    /// It loaded (0xDA).
+    Loaded,
+    /// A world is there: its 0xE5 went, of this echo.
+    TimeAsked { time: u32, echo: u16, now: Instant },
+    /// It answered: its world went (`serial`, the snapshot at `time`).
+    WorldSent { serial: u64, time: u32, now: Instant },
+    /// Its world is in.
+    WorldIn,
+    /// Back to wait for a world (a new generation).
+    WaitAgain,
+    /// The server lets it go: its farewell went.
+    LetGo { quiet_from: Instant, until: Instant },
+}
+
+impl Watch {
+    /// The one transition of a spectator's game; `step` not meant for this
+    /// stage leaves it as it is.
+    fn step(self, step: Step) -> Self {
+        match (self, step) {
+            (Self::Connecting, Step::Probed) => Self::Loading,
+            (Self::Loading, Step::Loaded) => Self::Waiting,
+            (Self::Waiting, Step::TimeAsked { time, echo, now }) => Self::Timing {
+                time,
+                echo,
+                last: now,
+                since: now,
+            },
+            (Self::Timing { .. }, Step::WorldSent { serial, time, now }) => Self::Syncing {
+                serial,
+                time,
+                since: now,
+            },
+            (Self::Syncing { time, .. }, Step::WorldIn) => Self::Live {
+                from: time,
+                wrong: 0,
+                reports: VecDeque::new(),
+            },
+            (
+                Self::Timing { .. } | Self::Syncing { .. } | Self::Live { .. },
+                Step::WaitAgain,
+            ) => Self::Waiting,
+            (Self::Leaving { quiet_from, until }, Step::LetGo { .. }) => {
+                Self::Leaving { quiet_from, until }
+            }
+            (_, Step::LetGo { quiet_from, until }) => Self::Leaving { quiet_from, until },
+            (stage, _) => stage,
+        }
+    }
 }
 
 /// A spectator of a match, `ms` behind it: its relays and roster changes
@@ -155,9 +217,6 @@ pub(crate) struct Spectator {
     /// The places its game has: the static info's, then each it installed.
     installed_roster: usize,
     installing: Option<Installing>,
-    /// Its hash reports not judged yet, while it is live: tick time, CRC
-    /// ([`REPORTS_KEPT`] at most).
-    reports: VecDeque<(u32, u32)>,
     /// When it was started anew for drifting, the latest
     /// [`RESYNCS_PER_MINUTE`].
     restarts: VecDeque<Instant>,
@@ -177,9 +236,6 @@ pub(super) struct Watched<'a> {
     /// The match clock: the time its game is put at.
     pub(super) clock: u32,
     pub(super) info: &'a StaticInfo,
-    /// The place its 0xE4 makes its game's own: none
-    /// ([`NO_LOCAL_PLACE`]), but for a dev experiment (`playback`).
-    pub(super) local_place: u8,
     /// The places its static info names.
     pub(super) places: usize,
     /// The places its game must have before it starts from a world.
@@ -190,11 +246,19 @@ pub(super) struct Watched<'a> {
     pub(super) inputs: &'a [(u32, usize, Relayed)],
     /// The roster changes so far: time, place, entered (else left).
     pub(super) events: &'a [(u32, usize, bool)],
-    /// Of those, what is due: up to this time (a delayed spectator's
-    /// clock and the horizon; the rest come later).
-    pub(super) until: u32,
+    /// Of those, what is due: up to this time, a delayed spectator's clock
+    /// and the horizon (the rest come later); `None`: all of it (a replay's,
+    /// whose lists are cut at what is due).
+    pub(super) until: Option<u32>,
     pub(super) compress: bool,
     pub(super) entry_state: Duration,
+}
+
+impl Watched<'_> {
+    /// Whether what is listed at `at` is due.
+    fn due(&self, at: u32) -> bool {
+        self.until.is_none_or(|until| at <= until)
+    }
 }
 
 /// What a spectator's game said that its owner has to act on.
@@ -269,7 +333,7 @@ impl Game {
     fn watched_delayed(&self, clock: u32) -> Watched<'_> {
         Watched {
             worlds: self.past.iter().filter(|world| world.time <= clock).collect(),
-            until: clock + HORIZON_MS,
+            until: Some(clock + HORIZON_MS),
             ..self.watched(clock)
         }
     }
@@ -301,7 +365,6 @@ impl Game {
             id: self.id,
             clock,
             info: &self.formed.info,
-            local_place: NO_LOCAL_PLACE,
             places: self.formed.places.len(),
             roster: self.spectator_roster(),
             worlds: [self.snapshot.as_ref(), self.recent.as_ref()]
@@ -310,7 +373,7 @@ impl Game {
                 .collect(),
             inputs: &self.inputs,
             events: &self.events,
-            until: u32::MAX,
+            until: None,
             compress: self.settings.compress_state,
             entry_state: self.settings.timing.entry_state,
         }
@@ -525,30 +588,29 @@ impl Game {
         let checked = self.hashes_checked_until;
         let keep_from = self.clock(now).saturating_sub(HASH_KEEP_MS);
         let interval = self.settings.timing.resync_interval;
-        for at in 0..self.spectators.len() {
-            let Watch::Live { from, mut wrong } = self.spectators[at].stage else {
+        let id = self.id;
+        // Taken out for the time of the judging: the majority reads the match.
+        let mut spectators = std::mem::take(&mut self.spectators);
+        for spectator in &mut spectators {
+            let Watch::Live { wrong, reports, .. } = &mut spectator.stage else {
                 continue;
             };
-            let reports = std::mem::take(&mut self.spectators[at].reports);
-            let mut kept = VecDeque::new();
-            for (time, crc) in reports {
+            let judged = std::mem::take(reports);
+            for (time, crc) in judged {
                 if time < keep_from {
                     continue;
                 }
                 if time >= checked {
-                    kept.push_back((time, crc));
+                    reports.push_back((time, crc));
                     continue;
                 }
                 match self.majority(time) {
-                    Some(right) if right == crc => wrong = 0,
-                    Some(_) => wrong += 1,
+                    Some(right) if right == crc => *wrong = 0,
+                    Some(_) => *wrong += 1,
                     None => {}
                 }
             }
-            let id = self.id;
-            let spectator = &mut self.spectators[at];
-            spectator.reports = kept;
-            spectator.stage = Watch::Live { from, wrong };
+            let wrong = *wrong;
             if wrong < DRIFT_REPORTS {
                 continue;
             }
@@ -575,6 +637,7 @@ impl Game {
             spectator.restarts.push_back(now);
             spectator.wait_again();
         }
+        self.spectators = spectators;
     }
 
     /// The next place the spectator's game lacks, asked as every game is
@@ -670,7 +733,6 @@ impl Spectator {
             generation: Generation::AT_READY,
             installed_roster: 0,
             installing: None,
-            reports: VecDeque::new(),
             restarts: VecDeque::new(),
             view,
             kits_told: Vec::new(),
@@ -699,7 +761,7 @@ impl Spectator {
             Watch::Syncing { serial, time, .. } => {
                 format!("Syncing(world {time} ms, serial {serial})")
             }
-            Watch::Live { from, wrong } => format!("Live(from {from} ms, {wrong} wrong)"),
+            Watch::Live { from, wrong, .. } => format!("Live(from {from} ms, {wrong} wrong)"),
             Watch::Leaving { .. } => "Leaving".to_owned(),
         }
     }
@@ -736,27 +798,23 @@ impl Spectator {
         match message {
             ClientMessage::PortProbe { .. } => {
                 if self.stage == Watch::Connecting {
-                    let info = watched
-                        .info
-                        .message(watched.local_place)
-                        .unwrap_or_else(|| watched.info.spectator_message());
                     log::info!(
-                        "Match {:#x}: spectator {:#x} gets the 0xE4 of {} places, its own {:#04x}",
+                        "Match {:#x}: spectator {:#x} gets the 0xE4 of {} places",
                         watched.id,
                         self.session_id,
-                        watched.places,
-                        watched.local_place
+                        watched.places
                     );
+                    let info = watched.info.spectator_message();
                     let _ = self.transport.send(info.id(), &info.payload());
                     self.installed_roster = watched.places;
-                    self.stage = Watch::Loading;
+                    self.go(Step::Probed);
                 }
             }
             ClientMessage::Ready => {
                 if self.stage == Watch::Loading {
                     // The client set its own generation to 0xFF with it.
                     self.generation = Generation::AT_READY;
-                    self.stage = Watch::Waiting;
+                    self.go(Step::Loaded);
                     log::info!(
                         "Match {:#x}: spectator {:#x} has loaded",
                         watched.id,
@@ -776,16 +834,16 @@ impl Spectator {
             // one of the match's reports.
             ClientMessage::Hash { tick, crc } => {
                 let clock = watched.clock;
-                if let Watch::Live { from, .. } = self.stage
+                if let Watch::Live { from, reports, .. } = &mut self.stage
                     && crc != FORCED_MISMATCH
                     && let Some(time) = tick_time(tick, clock)
-                    && time > from
+                    && time > *from
                     && time <= clock + HASH_MAX_AHEAD_MS
                 {
-                    if self.reports.len() == REPORTS_KEPT {
-                        self.reports.pop_front();
+                    if reports.len() == REPORTS_KEPT {
+                        reports.pop_front();
                     }
-                    self.reports.push_back((time, crc));
+                    reports.push_back((time, crc));
                 }
             }
             // Not heard from a spectator: it is no player and no witness.
@@ -809,22 +867,22 @@ impl Spectator {
         }
         let clock = watched.clock;
         let Some(world) = watched.worlds.iter().find(|world| world.time == time) else {
-            self.stage = Watch::Waiting;
+            self.go(Step::WaitAgain);
             return;
         };
         let replay: Vec<ServerMessage> = watched
             .inputs
             .iter()
-            .filter(|(at, _, _)| *at > time && *at <= watched.until)
+            .filter(|(at, _, _)| *at > time && watched.due(*at))
             .map(|(_, from, what)| relay(*from, what))
             .collect();
-        if let Some(delay) = self.delay.as_mut() {
-            delay.fed = watched.until;
+        if let (Some(delay), Some(until)) = (self.delay.as_mut(), watched.until) {
+            delay.fed = until;
         }
         let entries: Vec<ServerMessage> = watched
             .events
             .iter()
-            .filter(|(at, _, entered)| *entered && *at > time && *at <= watched.until)
+            .filter(|(at, _, entered)| *entered && *at > time && watched.due(*at))
             .map(|&(at, who, _)| ServerMessage::PlayerEntered {
                 tick: tick_byte(at),
                 player: who as u8,
@@ -858,23 +916,23 @@ impl Spectator {
                     world.time,
                     replay.len()
                 );
-                self.stage = Watch::Syncing {
+                self.go(Step::WorldSent {
                     serial,
                     time: world.time,
-                    since: now,
-                };
+                    now,
+                });
             }
-            Err(_) => self.stage = Watch::Waiting,
+            Err(_) => self.go(Step::WaitAgain),
         }
     }
 
     /// A delayed spectator's turn: the relays and roster changes its clock
     /// reached since the last, from the match's lists.
     fn feed(&mut self, view: &Watched<'_>, now: Instant) {
-        let Some(delay) = self.delay else {
+        let (Some(delay), Some(until)) = (self.delay, view.until) else {
             return;
         };
-        let (from, until) = (delay.fed, view.until);
+        let from = delay.fed;
         if until <= from {
             return;
         }
@@ -1006,30 +1064,19 @@ impl Spectator {
                 if let Some(time) = start.filter(|_| self.installed_roster >= watched.roster) {
                     self.generation = self.generation.next();
                     self.send_time(self.generation.0, echo, clock);
-                    self.stage = Watch::Timing {
-                        time,
-                        echo,
-                        last: now,
-                        since: now,
-                    };
+                    self.go(Step::TimeAsked { time, echo, now });
                 }
             }
             Watch::Timing {
-                time,
-                echo,
-                last,
-                since,
+                echo, last, since, ..
             } => {
                 if now.saturating_duration_since(since) >= TIMING_WAIT {
                     self.wait_again();
                 } else if now.saturating_duration_since(last) >= SET_TIME_EVERY {
                     self.send_time(self.generation.0, echo, clock);
-                    self.stage = Watch::Timing {
-                        time,
-                        echo,
-                        last: now,
-                        since,
-                    };
+                    if let Watch::Timing { last, .. } = &mut self.stage {
+                        *last = now;
+                    }
                 }
             }
             Watch::Syncing {
@@ -1041,7 +1088,7 @@ impl Spectator {
                     for &(at, who, _) in watched
                         .events
                         .iter()
-                        .filter(|(at, _, entered)| !*entered && *at > time && *at <= watched.until)
+                        .filter(|(at, _, entered)| !*entered && *at > time && watched.due(*at))
                     {
                         let leave = ServerMessage::PlayerLeft {
                             tick: tick_byte(at),
@@ -1049,10 +1096,7 @@ impl Spectator {
                         };
                         let _ = self.transport.send(leave.id(), &leave.payload());
                     }
-                    self.stage = Watch::Live {
-                        from: time,
-                        wrong: 0,
-                    };
+                    self.go(Step::WorldIn);
                     log::info!(
                         "Match {:#x}: spectator {:#x} watches",
                         watched.id,
@@ -1133,12 +1177,15 @@ impl Spectator {
                 .send_kept_every(message.id(), &message.payload(), WAITING_RELAY_RESEND);
     }
 
+    /// One step of its game's machine: the only place its stage is set.
+    fn go(&mut self, step: Step) {
+        let stage = std::mem::replace(&mut self.stage, Watch::Waiting);
+        self.stage = stage.step(step);
+    }
+
     /// Back to wait for a world: its next start is of a new generation.
     pub(super) fn wait_again(&mut self) {
-        if self.has_loaded() && !self.is_leaving() {
-            self.stage = Watch::Waiting;
-            self.reports.clear();
-        }
+        self.go(Step::WaitAgain);
     }
 
     /// The server lets it go: an 0xEA naming no place, its game's end, sent
@@ -1149,9 +1196,9 @@ impl Spectator {
             player: NO_LOCAL_PLACE,
         };
         let _ = self.transport.send(farewell.id(), &farewell.payload());
-        self.stage = Watch::Leaving {
+        self.go(Step::LetGo {
             quiet_from: now + FAREWELL_GOES,
             until: now + SILENCE,
-        };
+        });
     }
 }
