@@ -5829,6 +5829,10 @@ va	name	location	role	basis
 0x0027f780	survarium::network_client::draw_match_stats	ECX	the network_client	observed
 0x0027f780	survarium::network_client::draw_match_stats	entry ESP+4	the time since the last tick (game::tick: now - game+584Ch)	observed
 0x00429f20	_chkstk	EAX	the bytes to take off the stack	observed
+0x00319af0	survarium::damage_zone_core::hit_objects	EDI	the damage zone core (thunk 0x319760: ECX - 108h)	observed
+0x00319af0	survarium::damage_zone_core::hit_objects	ECX	the objects to hit (begin, end)	observed
+0x00319af0	survarium::damage_zone_core::hit_objects	entry ESP+4	now (ms)	observed
+0x00319af0	survarium::damage_zone_core::hit_objects	entry ESP+8	the time since the last tick (ms), for continuous hits	observed
 0x00101280	dlmalloc::create_mspace_with_base	entry ESP+16	the out-of-memory callback (out_of_memory_with_crash 0xE4D70 or _silent 0xE4EC0, initialize_impl 0xE4F4E)	observed
 0x00101280	dlmalloc::create_mspace_with_base	entry ESP+20	the callback's parameter (the doug_lea_allocator)	observed
 0x00101330	dlmalloc::mspace_malloc	EAX	the mspace	observed

@@ -2246,6 +2246,7 @@ va	status	ref_021d	name
 0x000fc350	observed		vostok::tasks::thread_pool::initialize
 0x0027f780	reviewed	0x001a3c98	survarium::network_client::draw_match_stats
 0x00429f20	reviewed		_chkstk
+0x00319af0	observed		survarium::damage_zone_core::hit_objects
 0x00101330	verified		dlmalloc::mspace_malloc
 0x001005a0	verified		dlmalloc::mspace_realloc
 0x001015e0	verified		dlmalloc::mspace_free
