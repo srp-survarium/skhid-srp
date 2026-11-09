@@ -97,6 +97,17 @@ pub struct Board {
     pub battles: u64,
 }
 
+/// [`GameAccounts::skill_takers`]: how many accounts have points in each skill.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SkillTakers(HashMap<u16, u32>);
+
+impl SkillTakers {
+    /// How many accounts have at least one point in `skill`.
+    pub fn of(&self, skill: u16) -> u32 {
+        self.0.get(&skill).copied().unwrap_or(0)
+    }
+}
+
 /// The 0.26g accounts of a running srp, by account id. Shared as an
 /// `Arc<GameAccounts>`; each account is handed out as `Arc<Mutex<Account>>`
 /// so a change in the lobby is seen wherever the account is held. Whoever
@@ -440,6 +451,27 @@ impl GameAccounts {
             top: rows.into_iter().map(|(_, row)| row).collect(),
             battles,
         }
+    }
+
+    /// How many accounts have at least one point in each skill, for the
+    /// wiki's skills page. Test bots ([`bots`]) are not counted. Locks each
+    /// account in turn: call it with none locked.
+    pub fn skill_takers(&self) -> SkillTakers {
+        let accounts: Vec<Arc<Mutex<Account>>> = self.accounts.locked().values().cloned().collect();
+        let bots = self.bots.locked().clone();
+        let mut takers = HashMap::new();
+        for account in accounts {
+            let account = account.locked();
+            if bots.contains(&account.name.to_ascii_lowercase()) {
+                continue;
+            }
+            for &(skill, points) in &account.skills {
+                if points > 0 {
+                    *takers.entry(skill).or_insert(0) += 1;
+                }
+            }
+        }
+        SkillTakers(takers)
     }
 
     /// The server's bots' kits of every level from the accounts' kits and
@@ -1039,6 +1071,18 @@ mod tests {
         assert_eq!(board.top.len(), 2);
         assert_eq!(board.battles, 3);
         assert_eq!(GameAccounts::new().board(10), Board::default());
+    }
+
+    #[test]
+    fn skill_takers_count_accounts_with_points_but_no_bots() {
+        let store = GameAccounts::new();
+        store.get_or_create(1, "Alice").locked().skills = vec![(101, 5), (102, 1)];
+        store.get_or_create(2, "Bob").locked().skills = vec![(101, 1), (102, 0)];
+        store.get_or_create(3, "Eve");
+        let takers = store.skill_takers();
+        assert_eq!((takers.of(101), takers.of(102), takers.of(103)), (2, 1, 0));
+        store.set_bots(&["bob".to_owned()]);
+        assert_eq!(store.skill_takers().of(101), 1);
     }
 
     fn admin_action(account_id: u32, change: &str) -> AdminAction {
