@@ -220,7 +220,52 @@ impl History {
     }
 }
 
-static CACHE: Lock<[Option<Entry>; TICKETS]> = Lock::new([const { None }; TICKETS]);
+/// Fixed slots, a scan reading those up to the last one in use (`end`:
+/// every slot past it is free).
+struct Slots<T, const N: usize> {
+    slots: [Option<T>; N],
+    end: usize,
+}
+
+impl<T, const N: usize> Slots<T, N> {
+    const fn new() -> Self {
+        Slots { slots: [const { None }; N], end: 0 }
+    }
+
+    /// The slots up to the last one in use, in order.
+    fn iter(&self) -> core::slice::Iter<'_, Option<T>> {
+        self.slots[..self.end].iter()
+    }
+
+    fn iter_mut(&mut self) -> core::slice::IterMut<'_, Option<T>> {
+        self.slots[..self.end].iter_mut()
+    }
+
+    /// `value` in the first free slot; given back when there is none.
+    fn insert(&mut self, value: T) -> Option<T> {
+        let at = self.iter().position(Option::is_none).unwrap_or(self.end);
+        let Some(free) = self.slots.get_mut(at) else { return Some(value) };
+        *free = Some(value);
+        self.end = self.end.max(at + 1);
+        None
+    }
+
+    /// The first value `gone` holds for, taken out.
+    fn take(&mut self, mut gone: impl FnMut(&T) -> bool) -> Option<T> {
+        let taken = self.iter_mut().find(|v| v.as_ref().is_some_and(&mut gone))?.take();
+        while self.end > 0 && self.slots[self.end - 1].is_none() {
+            self.end -= 1;
+        }
+        taken
+    }
+}
+
+/// The copies, a cook ticket's slot each: a scan reads a match's few, not
+/// all [`TICKETS`] (the records' loads scan them several times for each
+/// player state a tick reads).
+type Cache = Slots<Entry, TICKETS>;
+
+static CACHE: Lock<Cache> = Lock::new(Cache::new());
 
 /// A player was made (a player cook's completion) since the last move: a
 /// late joiner's install may be among the next callbacks.
@@ -912,10 +957,10 @@ fn revive(thread: &Thread, place: Place, was: impl Fn(DropOf) -> bool, recipe: R
         if cache.iter().flatten().any(|e| current(e) && e.recipe == recipe) {
             return true;
         }
-        let Some(k) = cache.iter().position(|e| e.as_ref().is_some_and(|e| ended(e) && e.recipe == recipe)) else {
+        let Some(e) = cache.iter_mut().flatten().find(|e| ended(e) && e.recipe == recipe) else {
             return false;
         };
-        if let Some(At::Drop(d)) = cache[k].as_mut().map(|e| &mut e.at) {
+        if let At::Drop(d) = &mut e.at {
             d.lies = Lies::Current;
         }
         true
@@ -1197,13 +1242,7 @@ fn ask(player: &Player<'_>, thread: &Thread, recipe: Recipe, at: At) -> Option<C
     let id = gun.id();
     let entry = Entry { gun, of, recipe, donor: player.id(), at, report: Report::Asked { memory }, history: History::Fresh,
                         last: None };
-    let leftover = CACHE.with(thread, |cache| match cache.iter_mut().find(|e| e.is_none()) {
-        Some(free) => {
-            *free = Some(entry);
-            None
-        }
-        None => Some(entry),
-    });
+    let leftover = CACHE.with(thread, |cache| cache.insert(entry));
     let kept = leftover.is_none();
     // No room (a ticket each, so never): given back outside the lock.
     drop(leftover);
@@ -1297,7 +1336,7 @@ fn release_where(thread: &Thread, mut gone: impl FnMut(&Entry) -> bool) {
     loop {
         // One at a time, each dropped outside the lock (the cooked
         // inventory's own teardown).
-        let taken = CACHE.with(thread, |cache| cache.iter_mut().find(|e| e.as_ref().is_some_and(&mut gone))?.take());
+        let taken = CACHE.with(thread, |cache| cache.take(&mut gone));
         match taken {
             Some(entry) => {
                 let address = native::gun_id(thread, entry.gun.id(), entry.recipe.slot).map_or(0, ItemId::address);
@@ -1612,7 +1651,13 @@ pub fn draw_drops(ctx: &Context<'_>, guns: &[Option<DroppedGun>; PLACES as usize
         }
     }
     DRAWN.with(thread, |all| *all = bodies);
-    let copies = CACHE.with(thread, |cache| cache.each_ref().map(|e| e.as_ref().map(|e| e.gun.id())));
+    let copies = CACHE.with(thread, |cache| {
+        let mut ids = [None; TICKETS];
+        for (id, e) in ids.iter_mut().zip(cache.iter()) {
+            *id = e.as_ref().map(|e| e.gun.id());
+        }
+        ids
+    });
     for id in copies.iter().flatten().filter(|id| !drawn.contains(&Some(**id))) {
         gun_cook::hide(thread, *id);
     }
@@ -2199,6 +2244,32 @@ pub fn on_load_ordinal(ctx: &mut Context<'_>) -> Flow<NoExit> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slots_fill_the_first_free_and_scan_up_to_the_last_in_use() {
+        let mut slots: Slots<u32, 4> = Slots::new();
+        assert_eq!(slots.iter().count(), 0);
+        for v in 1..=4 {
+            assert_eq!(slots.insert(v), None);
+        }
+        assert_eq!(slots.insert(5), Some(5), "full: given back");
+        assert_eq!(slots.take(|&v| v == 2), Some(2));
+        assert_eq!(slots.iter().count(), 4, "a hole below the last in use");
+        assert_eq!(slots.insert(6), None);
+        assert_eq!(slots.iter().flatten().copied().collect::<std::vec::Vec<_>>(), [1, 6, 3, 4]);
+        assert_eq!(slots.take(|&v| v == 4), Some(4));
+        assert_eq!(slots.take(|&v| v == 3), Some(3));
+        assert_eq!(slots.iter().count(), 2, "the free slots at the end are not scanned");
+        assert_eq!(slots.take(|&v| v == 9), None);
+        *slots.iter_mut().next().unwrap() = None;
+        assert_eq!(slots.iter().flatten().copied().collect::<std::vec::Vec<_>>(), [6]);
+        assert_eq!(slots.insert(7), None, "the first free slot, below the end");
+        assert_eq!(slots.iter().flatten().copied().collect::<std::vec::Vec<_>>(), [7, 6]);
+        assert_eq!(slots.take(|_| true), Some(7));
+        assert_eq!(slots.take(|_| true), Some(6));
+        assert_eq!(slots.iter().count(), 0);
+        assert!(slots.slots.iter().all(Option::is_none));
+    }
 
     const IDENTITY: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
 
