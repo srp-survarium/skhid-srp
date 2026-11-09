@@ -4044,7 +4044,7 @@ language_on_configs_texts_replay:
 
 ; 0x2747c3 read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here: lohook -> lobby_scene_on_squad_id
 global lobby_scene_on_squad_id
-extern hook_lobby_scene_on_squad_id
+extern hook_lobby_scene_on_squad_id_chain
 lobby_scene_on_squad_id:
     lea esp, [esp - 4]
     pushfd
@@ -4062,7 +4062,7 @@ lobby_scene_on_squad_id:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lobby_scene_on_squad_id
+    call hook_lobby_scene_on_squad_id_chain
     mov edx, lobby_scene_on_squad_id_replay
     cmp eax, 0
     je lobby_scene_on_squad_id_go
@@ -4083,7 +4083,7 @@ lobby_scene_on_squad_id_replay:
 
 ; 0x2748bc read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's two bytes there, the receiver's lobby pick and its squad commander's (lobby ids, 0 none): lohook -> lobby_scene_on_squad
 global lobby_scene_on_squad
-extern hook_lobby_scene_on_squad
+extern hook_lobby_scene_on_squad_chain
 lobby_scene_on_squad:
     lea esp, [esp - 4]
     pushfd
@@ -4101,7 +4101,7 @@ lobby_scene_on_squad:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lobby_scene_on_squad
+    call hook_lobby_scene_on_squad_chain
     mov edx, lobby_scene_on_squad_replay
     cmp eax, 0
     je lobby_scene_on_squad_go

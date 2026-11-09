@@ -136,8 +136,21 @@ impl<'t> Lobby<'t> {
         unsafe { c_string(self.client.lobby().name(), OWN_NAME_LIMIT) }
     }
 
+    /// Sends srp `3B` at one of its reserved starts (the lobby client's
+    /// ranking request, 0x270070, as the lobby movie's); not while the lobby
+    /// connection is down.
+    pub fn send_reserved(&self, start: u32) -> Result<(), NotConnected> {
+        if !self.connected() {
+            return Err(NotConnected);
+        }
+        // SAFETY: the lobby client inside the network client, on the hook's
+        // thread; the request only builds and queues a message.
+        unsafe { raw::engine_lobby_query_players_range(Some(self.client.lobby()), start, 1) }
+        Ok(())
+    }
+
     /// The lobby connection is up: a messaging sender would send now.
-    fn connected(&self) -> bool {
+    pub fn connected(&self) -> bool {
         // SAFETY: the lobby client's connection slot and connection, read as
         // every messaging sender reads them first (0x28C1B6..0x28C1D6).
         unsafe {

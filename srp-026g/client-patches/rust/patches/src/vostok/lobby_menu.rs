@@ -382,6 +382,27 @@ unsafe fn picks_at(reader: raw::BufferReader) -> Option<Picks> {
     Some(Picks { own: rest.u8()?, commander: rest.u8()? })
 }
 
+/// srp's third byte after the squad, the account's live watch setting (patch
+/// 131); none when the message ends before it (an older srp's).
+///
+/// # Safety
+/// `reader` is a live reader of the message, for the hook.
+unsafe fn live_watch_at(reader: raw::BufferReader) -> Option<u8> {
+    // SAFETY: the caller's reader.
+    let (begin, cursor, size) = unsafe { (reader.begin(), reader.cursor(), *reader.size()) };
+    let (first, at) = (begin as usize, cursor as usize);
+    let end = first.wrapping_add(size as usize);
+    if cursor.is_null() || at < first || at > end || end < first {
+        return None;
+    }
+    // SAFETY: begin..begin+size are the message's bytes, alive for the hook,
+    // and cursor..end lies inside them.
+    let mut rest = unsafe { Reader::of_memory(cursor, end - at) };
+    rest.u8()?;
+    rest.u8()?;
+    rest.u8()
+}
+
 /// Sends srp a ranking request (`3B 00 <start> 1`) of one of its reserved
 /// starts (the lobby_client's ranking request, 0x270070, as the movie's
 /// request_players_range sends it).
@@ -417,6 +438,13 @@ impl<'t> SquadId<'t> {
         unsafe { *self.client.squad_id() }
     }
 
+    /// For no squad (id 0), the account's live watch setting, srp's third
+    /// byte after the id.
+    pub fn live_watch(&self) -> Option<u8> {
+        // SAFETY: the live reader.
+        unsafe { live_watch_at(self.reader) }
+    }
+
     /// For no squad (id 0), srp's two bytes after the id (a squad's come
     /// after its members, `SquadRead`); none when the message ends short.
     pub fn picks(&self) -> Option<Picks> {
@@ -447,6 +475,12 @@ impl<'t> SquadRead<'t> {
         // message's reader, alive while the handler runs on the game's thread.
         let (client, reader) = unsafe { (site::client(ctx)?, site::reader(ctx)?) };
         Some(SquadRead { client, reader, _thread: ctx.thread() })
+    }
+
+    /// The account's live watch setting, srp's third byte after the squad.
+    pub fn live_watch(&self) -> Option<u8> {
+        // SAFETY: the live reader.
+        unsafe { live_watch_at(self.reader) }
     }
 
     /// srp's two bytes after the squad, when the message has them.

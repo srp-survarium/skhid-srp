@@ -250,6 +250,15 @@ impl<'c> OptionsCall<'c> {
         self.method
     }
 
+    /// The lobby of the game whose options these are; none without a
+    /// network client.
+    pub fn lobby(&self) -> Option<super::lobby::Lobby<'c>> {
+        // SAFETY: the options' game and its network client, alive for the
+        // call, on the hook's thread.
+        let client = unsafe { self.options.game()?.network_client()? };
+        Some(super::lobby::Lobby::of(client))
+    }
+
     /// The call's argument `index` when it is a string.
     pub fn string_argument(&self, index: u32) -> Option<&CStr> {
         // SAFETY: the callback's arguments and their count, alive for the call.

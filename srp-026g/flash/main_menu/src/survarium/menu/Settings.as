@@ -85,6 +85,13 @@ package survarium.menu
       
       private static const HUD_OPTIONS:Array = ["srp_hide_hit_markers","srp_hide_scores","srp_map_names"];
 
+      // The "Friends:" group's last row, "Allow others to watch my matches live": the account's
+      // setting, which srp keeps and the exe carries (patch 131), not this computer's. A toggle is
+      // a change of the tab as the HUD group's are; the box stays hidden until srp has said it.
+      protected var _liveWatch:SrpCheckOption;
+
+      private static const LIVE_WATCH:String = "srp_live_watch";
+
       // The HUD group's option that goes with the map's controls, over Static minimap (layoutGameplay).
       private static const MAP_OPTION:String = "srp_map_names";
       
@@ -278,6 +285,12 @@ package survarium.menu
          {
             this._renderer.answer(values);
             this.rendererChanged(null);
+            return;
+         }
+         if(values.length > 0 && values[0] == LIVE_WATCH)
+         {
+            this._liveWatch.answer(values.slice(1,3));
+            this.checkChanged(this._liveWatch);
             return;
          }
          this._hudGroup.answer(values);
@@ -588,7 +601,7 @@ package survarium.menu
             this._changed[control] = 0;
          }
          this._language.revert();
-         for each(var option:SrpCheckOption in this._hudGroup.options)
+         for each(var option:SrpCheckOption in this.checks())
          {
             option.revert();
          }
@@ -632,7 +645,8 @@ package survarium.menu
          this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
          this._hudGroup = new SrpCheckGroup(this.settings_content,this.settings_content.s_friends,HUD_OPTIONS);
-         for each(var option:SrpCheckOption in this._hudGroup.options)
+         this._liveWatch = new SrpCheckOption(this.settings_content,LIVE_WATCH,0,0);
+         for each(var option:SrpCheckOption in this.checks())
          {
             this._changed[option.box] = 0;
             option.box.addEventListener(Event.SELECT,this.onCheckSelect);
@@ -660,6 +674,7 @@ package survarium.menu
       protected function create_content(settings:Array) : void
       {
          this._hudGroup.place();
+         this._liveWatch.place();
          this._mouse.place();
          this._fov.place();
          this._renderer.place();
@@ -924,9 +939,12 @@ package survarium.menu
                "rightHeading":c.s_cross.x,"rightControl":c._setter_static_cross.x};
             _gameplaySpacing = space;
          }
-         // the left column: Friends (as the timeline has it), then Language
+         // the left column: Friends (as the timeline has it), its last row srp's "Allow others to
+         // watch my matches live", then Language
+         this._liveWatch.box.x = space.leftControl;
+         this._liveWatch.box.y = c._hide_spam.y + space.step;
          this._language.layout(c.s_friends,space.leftHeading,space.leftControl + space.dropdownX,
-            c._hide_spam.y + space.gap,space.leftFirst);
+            this._liveWatch.box.y + space.gap,space.leftFirst);
          // the right column: the HUD group, each row a step under the last (a list under a checkbox
          // as the minimap's is), a list one further right as the timeline has them; the map's rows
          // (Names on map, Static minimap, the minimap position list) last
@@ -1041,10 +1059,16 @@ package survarium.menu
          c.keysGame.height = c.s_chat_keys.y - space.listGap - c.keysGame.y;
       }
       
-      // The option of the HUD group whose checkbox `control` is, or null.
+      // srp's checkboxes of this tab: the HUD group's and "Allow others to watch my matches live".
+      protected function checks() : Array
+      {
+         return this._hudGroup.options.concat([this._liveWatch]);
+      }
+
+      // The checkbox option whose box `control` is, or null.
       protected function checkOf(control:Object) : SrpCheckOption
       {
-         for each(var option:SrpCheckOption in this._hudGroup.options)
+         for each(var option:SrpCheckOption in this.checks())
          {
             if(option.box == control)
             {
@@ -1159,7 +1183,7 @@ package survarium.menu
          _changes = 0;
          this._changed[this._language.menu] = 0;
          this._language.revert();
-         for each(var option:SrpCheckOption in this._hudGroup.options)
+         for each(var option:SrpCheckOption in this.checks())
          {
             this._changed[option.box] = 0;
             option.revert();

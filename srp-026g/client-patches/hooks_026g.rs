@@ -1802,6 +1802,26 @@ pub extern "C" fn hook_mouse_pitch_on_options_call(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- live_watch (patch 131) ----
+
+/// The named exits of live_watch::on_options_call (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LiveWatchOnOptionsCallExit { Done }
+/// The entry `live_watch_on_options_call` (0x1ff5d0, game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_live_watch_on_options_call(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `live_watch_on_options_call` calls this, from the game's jump at 0x1ff5d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::live_watch::on_options_call(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- music (patch 88) ----
 
 /// The entry `music_on_login` (0x21eac8, login_menu::on_activate after base_game_scene::on_activate (mov ecx,[esi+9Ch]; the jmp at 0x21EAC4 lands here): the login screen is shown) calls this with the saved machine.
@@ -1826,6 +1846,21 @@ pub extern "C" fn hook_hud_options_on_login(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hud_options::on_login(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- live_watch (patch 131) ----
+
+/// The entry `live_watch_on_login` (0x21eac8, login_menu::on_activate after base_game_scene::on_activate (mov ecx,[esi+9Ch]; the jmp at 0x21EAC4 lands here): the login screen is shown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_live_watch_on_login(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `live_watch_on_login` calls this, from the game's jump at 0x21eac8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::live_watch::on_login(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2338,6 +2373,21 @@ pub extern "C" fn hook_lobby_scene_on_squad_id(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- live_watch (patch 131) ----
+
+/// The entry `live_watch_on_squad_id` (0x2747c3, read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_live_watch_on_squad_id(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `live_watch_on_squad_id` calls this, from the game's jump at 0x2747c3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::live_watch::on_squad_id(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lobby_scene (patch 81) ----
 
 /// The entry `lobby_scene_on_squad` (0x2748bc, read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's two bytes there, the receiver's lobby pick and its squad commander's (lobby ids, 0 none)) calls this with the saved machine.
@@ -2347,6 +2397,21 @@ pub extern "C" fn hook_lobby_scene_on_squad(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::lobby_scene::on_squad(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- live_watch (patch 131) ----
+
+/// The entry `live_watch_on_squad` (0x2748bc, read_squad_info (0x274720, the 0xA1 squad info handler) as it keeps a squad's revision, its last field (mov [ebx+1EAAA0h],ecx; a squad's path only, squad id not 0): EBX the lobby client, ESI the message's reader, its cursor past the revision: srp's two bytes there, the receiver's lobby pick and its squad commander's (lobby ids, 0 none)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_live_watch_on_squad(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `live_watch_on_squad` calls this, from the game's jump at 0x2748bc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::live_watch::on_squad(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4119,6 +4184,8 @@ pub extern "C" fn hook_language_on_options_call_chain(frame: &mut Frame) -> u32 
     if flow != 0 { return flow; }
     let flow = hook_mouse_pitch_on_options_call(frame);
     if flow != 0 { return flow; }
+    let flow = hook_live_watch_on_options_call(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -4127,6 +4194,8 @@ pub extern "C" fn hook_music_on_login_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_login(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_login(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_live_watch_on_login(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -4149,6 +4218,24 @@ pub extern "C" fn hook_subtick_hits_on_ray_chain(frame: &mut Frame) -> u32 {
     let flow = hook_ragdoll_on_ray(frame);
     if flow != 0 { return flow; }
     let flow = hook_lamps_on_ray(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_squad_id_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lobby_scene_on_squad_id(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_live_watch_on_squad_id(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_squad_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lobby_scene_on_squad(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_live_watch_on_squad(frame);
     if flow != 0 { return flow; }
     0
 }

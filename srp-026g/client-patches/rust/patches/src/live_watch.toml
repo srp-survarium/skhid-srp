@@ -1,0 +1,28 @@
+# Patch 131: the Settings' "Allow others to watch my matches live", an account
+# setting srp keeps (docs/notes/replay-stream.md, "Live"). Only the decisions:
+# which sites, and the handlers. The sites are sites_026g.tsv's; the logic is
+# live_watch.rs. Each site is another patch's too: this hook runs after it
+# (patch 81's 0xA1 reads, order 1; patches 88, 83's login screen, 1, 2;
+# patches 79, 83, 112's options callback, 1 to 3).
+name = "live_watch"
+patch = 131
+
+[[hook]]
+site = "lobby_client.squad_id"
+handler = "on_squad_id"
+order = 2
+
+[[hook]]
+site = "lobby_client.squad_read"
+handler = "on_squad"
+order = 2
+
+[[hook]]
+site = "login_menu.activated"
+handler = "on_login"
+order = 3
+
+[[hook]]
+site = "options.callback"
+handler = "on_options_call"
+order = 4

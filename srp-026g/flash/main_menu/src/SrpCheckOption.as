@@ -65,10 +65,11 @@ package
         }
 
         // The exe's answer after the name: the label and the saved state,
-        // which is checked.
+        // which is checked; "" for a state not known (an account setting
+        // before the lobby has said it, patch 131's): no box until it is.
         public function answer(values:Array):void
         {
-            if (values.length < 2 || (values[1] != "1" && values[1] != "0"))
+            if (values.length < 2 || (values[1] != "1" && values[1] != "0" && values[1] != ""))
             {
                 return;
             }
