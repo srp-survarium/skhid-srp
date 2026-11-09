@@ -24,18 +24,15 @@
 //! 0x8000}])`). Unpacked, a block is records:
 //!
 //! ```text
-//! u8 kind (1 in, 2 out, 3 note, 4 relayed input, 5 relayed kit),
+//! u8 kind (1 in, 2 out, 3 note, 4 accepted input, 5 accepted kit),
 //! u8 place (0xFF: none),
 //! u32 LE ms since the recording began, u32 LE length, the bytes
 //! ```
 //!
 //! A note is one JSON object: the first is the header (the match, the map,
-//! the places with their accounts, `relays_noted`: every relay is a record
-//! of kind 4 or 5 at its match time and every roster change a note, so a
-//! reader takes them from there, not from the datagrams; files before that
-//! lack the key), then `places` when late joiners get places, `entered` /
-//! `left` for roster changes, `clock` when the match clock starts, `result`
-//! at the end, and `closed`. A block is written at
+//! the places with their accounts), then `places` when late joiners get
+//! places, `entered` / `left` for roster changes, `clock` when the match
+//! clock starts, `result` at the end, and `closed`. A block is written at
 //! least every [`BLOCK_EVERY`], so a server that stops loses that much at
 //! most.
 //!
@@ -65,12 +62,10 @@ pub const MAGIC: &[u8; 8] = b"SRPREC01";
 pub const IN: u8 = 1;
 pub const OUT: u8 = 2;
 pub const NOTE: u8 = 3;
-/// A relayed input, written when the server relays it: full match time
-/// (u32 LE), rotation (4 bytes), actions (u32 LE). After validation and late
-/// placement: the time and input the other games are sent.
+/// Accepted human action in PvE: full match time (u32 LE), rotation (4
+/// bytes), actions (u32 LE). Recorded after validation and late placement.
 pub const ACCEPTED_INPUT: u8 = 4;
-/// A relayed kit choice, written the same way: full match time (u32 LE),
-/// kit (u8).
+/// Accepted human kit choice in PvE: full match time (u32 LE), kit (u8).
 pub const ACCEPTED_PROFILE: u8 = 5;
 /// The place of a record that is no player's.
 pub const NO_PLACE: u8 = 0xFF;
@@ -223,7 +218,6 @@ impl Recorder {
         if let Some(object) = header.as_object_mut() {
             object.insert("note".into(), "header".into());
             object.insert("format".into(), 1.into());
-            object.insert("relays_noted".into(), true.into());
             object.insert("began_unix_ms".into(), unix_ms(started).into());
             object.insert("min_players".into(), recording.min_players.into());
             object.insert("srp".into(), env!("CARGO_PKG_VERSION").into());
@@ -290,8 +284,8 @@ impl Recording {
         self.record(OUT, place_byte(place), datagram, now);
     }
 
-    /// An input relayed at its final match time, the relay's own (a solo
-    /// bot match's has no other client to receive it, and no datagram).
+    /// A human input accepted at its final time, even when there is no
+    /// other client to receive a relay (a solo bot match).
     pub fn accepted_input(&mut self, place: usize, time: u32, input: &PlayerInput, now: Instant) {
         let mut bytes = [0; 12];
         bytes[..4].copy_from_slice(&time.to_le_bytes());

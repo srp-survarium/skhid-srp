@@ -28,7 +28,7 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    shared), and judges the asker before converting it: anyone (`SRP_REPLAY_WATCH=all`, the
    default: the owner's decision, every player may watch any replay), or only the players of the
    match and the moderators (`match`); the recording's games of the asker's simulation epoch
-   (the `incompatible` rule and refusals of `replay_watch.md`). The conversion is `sur_convert`'s, in memory: no `.sur` file, no token. A recording notes each relay when the server relays it, at its match time (records 4 and 5, header key `relays_noted`, its roster changes in the `entered`/`left` notes), and the conversion reads those; an older file is rebuilt from the datagrams' copies as before.
+   (the `incompatible` rule and refusals of `replay_watch.md`). The conversion is `sur_convert`'s, in memory: no `.sur` file, no token.
 4. The movie polls (`3B 00 <REPLAY_START> 01`): `R1;preparing;<id>;1` while it
    is read (2 while waiting), then `R1;watching;<id>;<start ms>`, or the refusal: `not_yours`
    (`match` only), `incompatible` (with the game's message box saying why, once), `gone` (no
