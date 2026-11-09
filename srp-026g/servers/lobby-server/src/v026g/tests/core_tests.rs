@@ -7,7 +7,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use session::v026g::rewards::{MatchEnd, MatchResult, PlayerResult, Results, Terms};
-use session::v026g::{Account, GameAccounts, premium, rules};
+use session::v026g::{Account, GameAccounts, rules};
 use session::{LockExt, SessionStore};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::Rng;
@@ -2739,7 +2739,7 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
             _ => None,
         })
         .expect("the shop");
-    assert_eq!(records, premium::shop_records());
+    assert_eq!(records, shop_offers::records());
     assert_eq!(records.len(), 7);
     // The price list has the premium items too.
     let prices_sent = decoded

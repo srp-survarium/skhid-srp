@@ -31,7 +31,7 @@ use std::sync::OnceLock;
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
-use survarium::v026g::lobby::{Bought, FULL_CONDITION, ShopRecord};
+use survarium::v026g::lobby::{Bought, FULL_CONDITION};
 use survarium::v026g::shop_offers;
 
 use super::account::Account;
@@ -91,11 +91,6 @@ impl Settings {
 pub fn settings() -> &'static Settings {
     static SHARED: OnceLock<Settings> = OnceLock::new();
     SHARED.get_or_init(|| Settings::read(|name| std::env::var(name).ok()))
-}
-
-/// The records of 0x95: the bundles.
-pub fn shop_records() -> Vec<ShopRecord> {
-    shop_offers::records()
 }
 
 /// Why the premium shop refuses.
@@ -299,7 +294,7 @@ mod tests {
 
     #[test]
     fn the_shop_goes_out_in_a_form_the_client_takes() {
-        let records = shop_records();
+        let records = shop_offers::records();
         let message = lobby::shop(&records).unwrap();
         let mut client = Client::signed_in();
         let Decoded::Shop(read) = client.receive(&message).unwrap() else {

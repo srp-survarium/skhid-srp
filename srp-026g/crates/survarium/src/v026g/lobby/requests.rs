@@ -270,9 +270,10 @@ pub enum ClientMessage {
     },
     /// `47 01`: sell `amount` steps of an item.
     Sell { item_id: u32, amount: u32 },
-    /// `47 02`: buy a shop offer (a bundle); `x` was the results screen's
-    /// match when the offer was premium time, which is offered no more.
-    BuyOffer { offer_id: u32, x: u32, factor: f32 },
+    /// `47 02 <offer> <u32> <f32>`: buy a shop offer (a bundle). The u32
+    /// was the results screen's match and the f32 a discount, both for
+    /// premium time, which is offered no more: read and dropped.
+    BuyOffer { offer_id: u32 },
     // `47 03`, a repair, is no request: srp has no repair (the owner,
     // 2026-11-08: "we don't have repair in the game at all"); it is not read.
     // Nor are `47 05` and `47 06`, the answers to a premium offer (`A8`,
@@ -697,11 +698,12 @@ fn parse_shop(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             item_id: r.u32()?,
             amount: r.u32()?,
         },
-        0x02 => M::BuyOffer {
-            offer_id: r.u32()?,
-            x: r.u32()?,
-            factor: r.f32()?,
-        },
+        0x02 => {
+            let offer_id = r.u32()?;
+            r.u32()?;
+            r.f32()?;
+            M::BuyOffer { offer_id }
+        }
         sub => return Err(r.unknown_sub(sub)),
     })
 }

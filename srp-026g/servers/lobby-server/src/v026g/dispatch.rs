@@ -333,7 +333,7 @@ impl Core<'_> {
                 }
             }
             // The premium shop's bundles (`shop`).
-            M::BuyOffer { offer_id, .. } => self.buy_offer(who, offer_id),
+            M::BuyOffer { offer_id } => self.buy_offer(who, offer_id),
 
             // ---- skills (0x48): the client has no `83 48`; 0x8C is the
             // answer, and the kits carry the skills' modifiers ----

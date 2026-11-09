@@ -14,7 +14,7 @@ use survarium::v026g::weapon_kit;
 
 use super::account::{Account, Item};
 use super::{items_rules, rules};
-use super::{premium, tutorial};
+use super::tutorial;
 
 /// The team byte of an account body in the lobby [as 0.21d sent it there:
 /// 0; a match's static info sets the real one].
@@ -312,7 +312,7 @@ pub fn sign_in_push(account: &Account, info: &SignInInfo) -> Result<Vec<ServerMe
     ];
     if info.need_shop_items {
         // The bundles (`shop_offers`).
-        push.push(lobby::shop(&premium::shop_records())?);
+        push.push(lobby::shop(&shop_offers::records())?);
     }
     push.extend([
         inventory(account)?,

@@ -243,11 +243,7 @@ fn shop_actions() {
     );
     assert_eq!(
         read("47 02 07000000 00000000 00000000"),
-        M::BuyOffer {
-            offer_id: 7,
-            x: 0,
-            factor: 0.0
-        }
+        M::BuyOffer { offer_id: 7 }
     );
     // No repair: srp has none.
     assert_eq!(

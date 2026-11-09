@@ -919,7 +919,8 @@ fn write_account(
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
          ON CONFLICT(account_id) DO UPDATE SET
             name = excluded.name, clan_tag = excluded.clan_tag,
-            generic_money = excluded.generic_money, exp_total = excluded.exp_total,
+            generic_money = excluded.generic_money, premium_until = excluded.premium_until,
+            exp_total = excluded.exp_total,
             quest_faction = excluded.quest_faction, rating = excluded.rating,
             rating_before = excluded.rating_before, active_kit = excluded.active_kit,
             autobuy = excluded.autobuy, next_item_id = excluded.next_item_id,
@@ -932,7 +933,8 @@ fn write_account(
             account.generic_money,
             // The gold column and the premium account's end: kept in the
             // schema and unused (gold removed 2026-11-08, premium
-            // 2026-11-09); a new row needs a value.
+            // 2026-11-09); a new row needs a value, and a saved account's
+            // old premium end is cleared.
             0,
             0,
             account.exp_total,

@@ -410,7 +410,7 @@ impl Account {
     /// client's state 2, `KIT_PREMIUM`, PROVEN; that it was the third,
     /// LIKELY); srp gives all three to everyone (the owner's choice,
     /// 2026-10-17) and has no premium account (2026-11-09), so every kit is
-    /// sent as [`KIT_READY`].
+    /// sent as `KIT_READY`.
     pub fn kit_usable(&self, index: usize, _now: u64) -> bool {
         index < self.kits.len()
     }
