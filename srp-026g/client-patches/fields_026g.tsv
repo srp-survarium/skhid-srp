@@ -431,7 +431,6 @@ vostok::sound::scene_params_variant	type_id	0x2C	u32	the value's type id, type_t
 vostok::sound::scene_params_variant	size	0x30	size	a variant<32>, as the lobby's at its [ebp-0B0h] and patch 44's
 vostok::resources::query_function	size	0x20	size	a boost::function1<void, queries_result&>: +0 vtable or 1, +8 its functor (0x176D0 fills it; query_resources copies it)
 vostok::resources::queries_result	count	0x38	u32	its m_size, the requests (constructor 0xE70B0)
-vostok::resources::queries_result	parent_query	0x20	ptr<vostok::resources::query_result_for_cook>	its m_parent_query, past its callback (a boost::function, 20h): the query whose cook asked for these (0.10b queries_result::get_parent_query; on_textures_loaded 0x12E9FF, 0x12EB0D)
 vostok::resources::queries_result	scene	0x12C	ptr<vostok::sound::sound_scene>	the first query's unmanaged resource, a sound scene for a class 38 request (lobby_menu::on_render_scenes_ready 0x220C68 reads its third, +6ECh)
 vostok::resources::queries_result	emitter	0x12C	ptr<vostok::sound::sound_emitter>	the first query's unmanaged resource, a single sound for a class 256 request (store_first_unmanaged_resource 0x14735)
 survarium::image	scene_params_helper	0x9FC7C0	u32	concrete_type_helper<sound_scene_creation_params>'s vtable (its copy_helper 0x1FA690), the variant helper of a sound scene's request (lobby_menu::query_resources 0x21E559)
@@ -798,7 +797,6 @@ vostok::render::process_compression_frame	pair	0x618	ptr<vostok::render::bake_pa
 vostok::render::process_compression_frame	value	0x61C	u32	argument 8: a value the tail forwards to create_texture_from_memory
 vostok::render::process_compression_frame	draw_ms	0x624	f32	argument 10: render_bake's ms
 vostok::render::on_textures_loaded_frame	parameters	0x18	ptr<vostok::render::bake_parameters>	[ebp+18h]: the bake's parameters (0x12E537; its +7A8h the name copied)
-vostok::render::on_textures_loaded_frame	results	0x8	ptr<vostok::resources::queries_result>	[ebp+8]: the texture queries' results it is the callback of (its +20h the bake's query: process_compression's argument 2 at 0x12E9FF, the error finish 0x12EB0D)
 vostok::render::bake_parameters_copy	name	0x13C	ptr<u8>	its name: a C string (the "%s/%s" of 0x12F052)
 vostok::render::bake_pair	first	0x0	u32	create_texture_from_memory's entry ESP+16 (0x12F09B)
 vostok::render::bake_pair	second	0x4	u32	create_texture_from_memory's entry ESP+20 (0x12F094)

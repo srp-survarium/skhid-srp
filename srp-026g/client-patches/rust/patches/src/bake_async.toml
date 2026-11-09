@@ -6,11 +6,6 @@
 name = "bake_async"
 patch = 121
 
-# on_textures_loaded about to draw a bake: put off when the GPU has no place
-[[hook]]
-site = "bake.draw"
-handler = "on_draw"
-
 # process_compression with the bake's target: the bake handed to the GPU
 [[hook]]
 site = "bake.issue"

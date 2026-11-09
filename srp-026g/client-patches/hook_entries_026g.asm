@@ -1585,48 +1585,6 @@ packet_recovery_on_loaded_replay:
     db 0x8b, 0x47, 0x04, 0x85, 0xc0
     jmp 0x27c11b
 
-; 0x12e909 on_textures_loaded with each of its checks passed, before the bake's draw (mov ebx,[ebp+1Ch] / mov eax,[ebx+38h]; then the model's +2Ch, backend::reset, the Flush 0x12E987, render_bake 0x131590, process_compression 0x12EA0D); postponed: the failed bake's end past its finish_query (0x12EB1C: the parameters' copy [esp+80h] destroyed, [ebp+0Ch]'s texture released, ret 18h), no finish; what the success path frees more ([esp+48h..54h] the targets, [esp+28h]) is set after the site: lohook -> bake_async_on_draw
-global bake_async_on_draw
-extern hook_bake_async_on_draw
-bake_async_on_draw:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_bake_async_on_draw
-    mov edx, bake_async_on_draw_replay
-    cmp eax, 0
-    je bake_async_on_draw_go
-    mov edx, 0x12e90f
-    cmp eax, 1
-    je bake_async_on_draw_go
-    mov edx, 0x12eb1c
-    cmp eax, 2
-    je bake_async_on_draw_go
-    ud2
-bake_async_on_draw_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-bake_async_on_draw_replay:
-    db 0x8b, 0x5d, 0x1c, 0x8b, 0x43, 0x38
-    jmp 0x12e90f
-
 ; 0x12eea7 process_compression with the bake's target of the type in [esp+1Ch], before the staging's create (mov esi,[esp+24h] / push 0); issued its epilogue 0x12F561 (releases [esp+10h] and [esp+1Ch], ret 28h): lohook -> bake_async_on_issue
 global bake_async_on_issue
 extern hook_bake_async_on_issue

@@ -753,26 +753,6 @@ pub extern "C" fn hook_artefact_skills_on_world_loaded(frame: &mut Frame) -> u32
 
 // ---- bake_async (patch 121) ----
 
-/// The named exits of bake_async::on_draw (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum BakeAsyncOnDrawExit { Postponed }
-/// The entry `bake_async_on_draw` (0x12e909, on_textures_loaded with each of its checks passed, before the bake's draw (mov ebx,[ebp+1Ch] / mov eax,[ebx+38h]; then the model's +2Ch, backend::reset, the Flush 0x12E987, render_bake 0x131590, process_compression 0x12EA0D); postponed: the failed bake's end past its finish_query (0x12EB1C: the parameters' copy [esp+80h] destroyed, [ebp+0Ch]'s texture released, ret 18h), no finish; what the success path frees more ([esp+48h..54h] the targets, [esp+28h]) is set after the site) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_bake_async_on_draw(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `bake_async_on_draw` calls this, from the game's jump at 0x12e909,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::bake_async::on_draw(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- bake_async (patch 121) ----
-
 /// The named exits of bake_async::on_issue (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]

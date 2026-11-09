@@ -10192,24 +10192,6 @@ impl QueriesResult {
         unsafe { self.0.byte_add(0x38).cast::<u32>().as_ptr() }
     }
 
-    /// +0x20 (ptr<vostok::resources::query_result_for_cook>): its m_parent_query, past its callback (a boost::function, 20h): the query whose cook asked for these (0.10b queries_result::get_parent_query; on_textures_loaded 0x12E9FF, 0x12EB0D)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn parent_query(self) -> Option<QueryResultForCook> {
-        unsafe { self.0.byte_add(0x20).cast::<Option<QueryResultForCook>>().read_volatile() }
-    }
-
-    /// +0x20 (ptr<vostok::resources::query_result_for_cook>): its m_parent_query, past its callback (a boost::function, 20h): the query whose cook asked for these (0.10b queries_result::get_parent_query; on_textures_loaded 0x12E9FF, 0x12EB0D)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_parent_query(self, value: Option<QueryResultForCook>) {
-        unsafe { self.0.byte_add(0x20).cast::<Option<QueryResultForCook>>().write_volatile(value) }
-    }
-
     /// +0x12c (ptr<vostok::sound::sound_scene>): the first query's unmanaged resource, a sound scene for a class 38 request (lobby_menu::on_render_scenes_ready 0x220C68 reads its third, +6ECh)
     ///
     /// # Safety
@@ -15634,24 +15616,6 @@ impl OnTexturesLoadedFrame {
     pub unsafe fn set_parameters(self, value: Option<BakeParameters>) {
         unsafe { self.0.byte_add(0x18).cast::<Option<BakeParameters>>().write_volatile(value) }
     }
-
-    /// +0x8 (ptr<vostok::resources::queries_result>): [ebp+8]: the texture queries' results it is the callback of (its +20h the bake's query: process_compression's argument 2 at 0x12E9FF, the error finish 0x12EB0D)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn results(self) -> Option<QueriesResult> {
-        unsafe { self.0.byte_add(0x8).cast::<Option<QueriesResult>>().read_volatile() }
-    }
-
-    /// +0x8 (ptr<vostok::resources::queries_result>): [ebp+8]: the texture queries' results it is the callback of (its +20h the bake's query: process_compression's argument 2 at 0x12E9FF, the error finish 0x12EB0D)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_results(self, value: Option<QueriesResult>) {
-        unsafe { self.0.byte_add(0x8).cast::<Option<QueriesResult>>().write_volatile(value) }
-    }
 }
 
 /// A vostok::render::bake_parameters_copy (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -18130,21 +18094,6 @@ impl LobbyCharacter {
     }
 }
 
-/// A vostok::resources::query_result_for_cook (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct QueryResultForCook(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl QueryResultForCook {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
 /// A vostok::memory::game_allocator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -18198,6 +18147,21 @@ pub struct ResourceManager(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl ResourceManager {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A vostok::resources::query_result_for_cook (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueryResultForCook(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl QueryResultForCook {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -21287,21 +21251,6 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<CompressMipFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(CompressMipFrame)
-        }
-    }
-
-    /// bake.draw (0x12e909): on_textures_loaded with each of its checks passed, before the bake's draw (mov ebx,[ebp+1Ch] / mov eax,[ebx+38h]; then the model's +2Ch, backend::reset, the Flush 0x12E987, render_bake 0x131590, process_compression 0x12EA0D); postponed: the failed bake's end past its finish_query (0x12EB1C: the parameters' copy [esp+80h] destroyed, [ebp+0Ch]'s texture released, ret 18h), no finish; what the success path frees more ([esp+48h..54h] the targets, [esp+28h]) is set after the site
-    pub mod bake_draw {
-        #[allow(unused_imports)]
-        use super::*;
-
-        /// EBP: a vostok::render::on_textures_loaded_frame (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<OnTexturesLoadedFrame> {
-            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(OnTexturesLoadedFrame)
         }
     }
 

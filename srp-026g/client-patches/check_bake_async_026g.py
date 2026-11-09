@@ -14,16 +14,15 @@ DXGI_ERROR_WAS_STILL_DRAWING), the textures and render targets the
 resource manager makes, the draws (apply_pass, fill_surface: nothing), the
 tail's string and path helpers, MT's allocation (which can refuse), the
 threads' ids and the clock (QueryPerformanceCounter a step a read). Run for
-real: on_textures_loaded from its draw (bake.draw) to its end, process_
-compression from its entry (its prologue, the texture getters, then
-bake.issue), the compressor's block_mip_count, data_size, write_dds_header,
-make_mips and compress_mip (with compress_mip.readback), map2D, the
-dispatch's end (resources.dispatched), engine_world::tick's start
-(engine.tick), game::exit from its start (game.exit_start), finish_query
-(patch 70's) and process_compression again (bake.resume, its tail from
-0x12F00B: the texture's slot, patch 70's sharing, the resource, the save
-descriptor (bake.save, allocate_save_descriptor), the CRC, the record,
-bake.free, finish).
+real: process_compression from its entry (its prologue, the texture
+getters, then bake.issue), the compressor's block_mip_count, data_size,
+write_dds_header, make_mips and compress_mip (with compress_mip.readback),
+map2D, the dispatch's end (resources.dispatched), engine_world::tick's
+start (engine.tick), game::exit from its start (game.exit_start),
+finish_query (patch 70's) and process_compression again (bake.resume, its
+tail from 0x12F00B: the texture's slot, patch 70's sharing, the resource,
+the save descriptor (bake.save, allocate_save_descriptor), the CRC, the
+record, bake.free, finish).
 
 - issued: process_compression returns (ret 28h) with its query not
   finished, no Map, no MT memory taken, level 0 a DEFAULT texture with no
@@ -43,24 +42,24 @@ bake.free, finish).
   copy of the game's, logged); no memory for the save's descriptor (the
   texture made, the query finished with success and no save, the DDS freed,
   logged; the game's make_save_descriptor not called);
-- a compressor that does not fit the DDS: the query failed, nothing left
-  on the GPU, no stock bake; no texture for level 0: the bake put off;
-- the places: 8 on the GPU; the 9th at its draw is put off (on_textures_
-  loaded ends by its failed bake's end, its query not finished, its model
-  held, no draw), and a 9th at its issue too (no Map, no stock bake);
-  once places are free, the put-off queries are made again (finish_query
-  4: requery), as many as the free places a frame, oldest first; patch
-  70's waiter of a put-off owner is made again with it;
-- another thread's bake while the GPU has this thread's: put off, made
-  again on its own thread once the GPU is free; its dispatches never touch
-  this thread's bakes;
-- the budget: done bakes finish while the frame's 6 ms last (one at least),
-  the rest in the next frames (engine_world::tick's start), oldest first;
-  with no tick (a wait loop) a frame counts as ended after 100 ms; a done
-  bake behind a busy one waits for it;
+- a compressor that does not fit the DDS, and no texture for level 0: the
+  query failed, nothing left on the GPU, no stock bake, not tried again;
+- the places: 8 on the GPU; a 9th completes the oldest first, on the spot
+  (its no-wait poll, then its levels read back waiting, its tail, patch
+  70's waiter given its texture), then is issued in its place (no Map of
+  its own, its query not finished); a 10th with the oldest done completes it
+  without waiting; then the rest complete at a dispatch, oldest first;
+- another thread's bake while the GPU has this thread's: the stock bake
+  (logged with both threads), its dispatches never touch this thread's
+  bakes; once this thread's are done, the other thread's next bake is
+  issued and completed on its own thread;
+- the budget: done bakes complete while the frame's 6 ms last (one at
+  least), the rest in the next frames (engine_world::tick's start), oldest
+  first; with no tick (a wait loop) a frame counts as ended after 100 ms; a
+  done bake behind a busy one waits for it;
 - game::exit from its start, through the branch that skips its delete
-  (0x1051E0 failing): every pending bake finished, every put-off query made
-  again, logged; then a bake is the stock one.
+  (0x1051E0 failing): every bake on the GPU completed, logged; then a bake
+  is the stock one.
 """
 import struct
 import sys
@@ -74,7 +73,6 @@ import check_bake_cache_026g as cache
 import patch_026g as base
 
 PROCESS, ISSUE_SITE, EPILOGUE_RET = 0x12EC40, 0x12EEA7, 0x12F59F
-DRAW_SITE, DRAW_PAST = 0x12E909, 0x12E90F            # bake.draw's span: mov ebx,[ebp+1Ch] / mov eax,[ebx+38h]
 DISPATCH_END = 0x1024FA
 TICK, TICK_PAST = 0x13CA0, 0x13CA6                   # engine_world::tick's start, past the span
 EXIT, EXIT_JOIN = 0x1EC730, 0x1EC837                 # game::exit's start; the join past its delete
@@ -96,7 +94,6 @@ TICKS_A_MS = 1000                  # QueryPerformanceFrequency's 1e6 / 1000
 COMPRESS_TIMED = 0x12F014          # past the tail's `fstp dword [esp+48h]`: the compress ms
 ELAPSED_QPC_BACK = 0x1B7C3        # elapsed_ticks's QueryPerformanceCounter returns here
 MAIN, OTHER = 0x1D0C, 0x2E1C       # two threads' ids
-REQUERY = (4, 1, 0)
 FAILED = (1, 1, 0xB)
 SUCCESS = (3, 1, 0)
 NAME = "renesanse_heavy_com_tank_01_torso_s1d"
@@ -399,17 +396,10 @@ class Bake:
         self.extent = g.new(8)
         g.word(self.extent, size)
         g.word(self.extent + 4, size)
-        # on_textures_loaded's frame (EBP): [ebp] the saved EBP, [ebp+4] its return, [ebp+8] the texture
-        # queries' results (+20h the query), [ebp+0Ch] a texture it holds, [ebp+18h] the parameters,
-        # [ebp+1Ch] what the draw reads first
+        # on_textures_loaded's frame (EBP, process_compression's saved EBP): [ebp] the saved EBP, [ebp+4]
+        # its return, [ebp+18h] the parameters
         self.caller = g.new(0x40)
-        self.results = g.new(0x40)
-        g.word(self.results + 0x20, self.query)
-        self.held = g.texture(16, 16, 0)
-        g.word(self.held + 4, 2)
-        self.drawn = g.new(0x40)
-        for at, value in ((0, 0xEB9), (4, cache.STOP), (8, self.results), (0xC, self.held), (0x18, self.parameters),
-                          (0x1C, self.drawn)):
+        for at, value in ((0, 0xEB9), (4, cache.STOP), (0x18, self.parameters)):
             g.word(self.caller + at, value)
         levels = 0
         while (size // 4) >> levels:
@@ -436,28 +426,6 @@ def process(game, bake):
     eip, esp = g.run(PROCESS, sp, regs, count=20_000_000)
     kept = all(g.emu.reg_read(r) == v for r, v in regs.items() if r != UC_X86_REG_EAX)
     return eip == cache.STOP and esp == sp + 4 + 40 and kept, g.calls[before:]
-
-
-def draw(game, bake):
-    """on_textures_loaded from bake.draw (EBP its frame, ESP its body's:
-    the saved EDI, ESI, EBX, then its locals): "drawn" (past the span, at
-    0x12E90F, EBX [ebp+1Ch]) or "postponed" (out by `ret 18h` with the
-    registers it saved), and the calls."""
-    g = game
-    sp = cache.STACK + 0xE0000
-    g.emu.mem_write(sp, bytes(0x300))
-    for at, value in ((0, 0xED1), (4, 0xE51), (8, 0xEB1)):
-        g.word(sp + at, value)
-    before = len(g.calls)
-    eip, esp = g.run(DRAW_SITE, sp, {UC_X86_REG_EBP: bake.caller, UC_X86_REG_EDI: bake.results, UC_X86_REG_EBX: 0x77,
-                                     UC_X86_REG_ESI: 0x66}, until=[DRAW_PAST], count=2_000_000)
-    calls = g.calls[before:]
-    if eip == DRAW_PAST and esp == sp and g.emu.reg_read(UC_X86_REG_EBX) == bake.drawn:
-        return "drawn", calls
-    regs = [g.emu.reg_read(r) for r in (UC_X86_REG_EDI, UC_X86_REG_ESI, UC_X86_REG_EBX, UC_X86_REG_EBP)]
-    if eip == cache.STOP and esp == bake.caller + 8 + 0x18 and regs == [0xED1, 0xE51, 0xEB1, 0xEB9]:
-        return "postponed", calls
-    return f"lost at {eip:#x}", calls
 
 
 def dispatched(game):
@@ -504,6 +472,13 @@ def finishes(calls, how):
     return [c[1] for c in names(calls, "finish") if c[2:] == how]
 
 
+def issue(game, bake):
+    """process_compression for `bake`: (back, calls, its stagings in the order made)."""
+    before = set(game.textures)
+    ok, calls = process(game, bake)
+    return ok, calls, [t for t in game.textures if t not in before and game.textures[t]["usage"] == 3]
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -534,8 +509,6 @@ def main():
     waiter_query, waiter_surface, waiter_parameters, waiter_model = cache.Objects(game).request(0)
     waiter = game.lookup(PATH, waiter_query, waiter_surface, waiter_parameters, waiter_model)
     report(owner[0] == "on" and waiter[0] == "waits", "patch 70: the bake's query owns the path, a second waits")
-    state, calls = draw(game, bake)
-    report(state == "drawn" and not names(calls, "finish"), "a place free: the draw goes on (bake.draw)")
     ok, calls = process(game, bake)
     textures = names(calls, "create texture")
     level0 = textures[0] if textures else None
@@ -682,95 +655,91 @@ def main():
     game.level0_refused = True
     bake = Bake(game)
     ok, calls = process(game, bake)
-    report(ok and not names(calls, "finish") and not names(calls, "Map") and not names(calls, "create target")
-           and game.read(bake.model + 0xD0) == 6 and any("level 0" in line for line in game.log),
-           "no texture for level 0: the bake put off (its query not finished, the model held), nothing drawn, no "
-           "Map, logged")
+    report(ok and finishes(calls, FAILED) == [bake.query] and not names(calls, "Map")
+           and not names(calls, "create target") and game.read(bake.model + 0xD0) == 5
+           and any("level 0" in line for line in game.log),
+           "no texture for level 0: the query failed (1, 1, 0Bh), nothing drawn, no Map (no stock bake), the model "
+           "let go, logged: " + "; ".join(game.log))
     game.level0_refused = False
     ok, calls = dispatched(game)
-    report(ok and finishes(calls, REQUERY) == [bake.query] and game.read(bake.model + 0xD0) == 5,
-           "the next dispatch, the GPU free: the query made again (finish_query 4), the model let go")
+    report(ok and not names(calls, "finish") and not names(calls, "Map"),
+           "the next dispatch: nothing of it is left (never tried again)")
 
-    print("the places: 8 on the GPU, the rest put off and made again")
+    print("the places: 8 on the GPU, the oldest completed for a new bake")
     game = Game(bytes(built))
-    bakes = [Bake(game, name=f"{NAME}_{i}") for i in range(12)]
-    for b in bakes[:8]:
-        draw(game, b)
-        process(game, b)
-    staged = set(game.stagings())
-    state, calls = draw(game, bakes[8])
-    report(state == "postponed" and not names(calls, "finish") and names(calls, "destroy copy")
-           == [("destroy copy", cache.STACK + 0xE0000 + 0x80)] and game.read(bakes[8].held + 4) == 1
-           and game.read(bakes[8].model + 0xD0) == 6 and any("the GPU's places are taken" in line for line in game.log),
-           "the 9th at its draw: put off (on_textures_loaded out by its failed bake's end: its parameters' copy "
-           "destroyed, its texture let go, ret 18h; no finish), its model held, logged: " + game.log[-1])
-    lookup = game.lookup(cache.PREFIX + bakes[9].name + ".dds", bakes[9].query, bakes[9].surface, bakes[9].parameters,
-                         bakes[9].model)
-    w_query, w_surface, w_parameters, w_model = cache.Objects(game).request(0)
-    waiting = game.lookup(cache.PREFIX + bakes[9].name + ".dds", w_query, w_surface, w_parameters, w_model)
-    for b in bakes[9:11]:
-        draw(game, b)
-    ok, calls = process(game, bakes[11])
-    report(ok and not names(calls, "finish") and not names(calls, "Map") and not names(calls, "create texture")
-           and game.read(bakes[11].model + 0xD0) == 6 and lookup[0] == "on" and waiting[0] == "waits",
-           "a 12th at its issue (no draw before it): put off too, its query not finished, its model held, no Map, "
-           "no stock bake")
-    ok, calls = dispatched(game)
-    report(ok and not finishes(calls, REQUERY) and len(names(calls, "Map")) == 1,
-           "a dispatch, the GPU busy: nothing made again (no place), one poll")
-    for s in staged:
-        game.done.add(s)
     game.qpc_step = 10                       # 10 us a read: every done bake inside the budget
+    bakes = [Bake(game, name=f"{NAME}_{i}") for i in range(10)]
+    oldest_path = cache.PREFIX + bakes[0].name + ".dds"
+    game.lookup(oldest_path, bakes[0].query, bakes[0].surface, bakes[0].parameters, bakes[0].model)
+    w_query, w_surface, w_parameters, w_model = cache.Objects(game).request(0)
+    waiting = game.lookup(oldest_path, w_query, w_surface, w_parameters, w_model)
+    staged = [issue(game, b)[2] for b in bakes[:8]]
+    game.log.clear()
+    ok, calls, ninth = issue(game, bakes[8])
+    staged.append(ninth)
+    maps = names(calls, "Map")
+    made = names(calls, "from memory")
+    texture = made[0][8] if made else 0
+    first_copy = next((i for i, c in enumerate(calls) if c[0] == "copy2D"), len(calls))
+    report(ok and waiting[0] == "waits" and maps and maps[0] == ("Map", staged[0][-1], NO_WAIT)
+           and sorted(m[1] for m in maps[1:]) == sorted(staged[0]) and all(m[2] == 0 for m in maps[1:])
+           and max(i for i, c in enumerate(calls) if c[0] == "Map") < first_copy
+           and bakes[0].query in finishes(calls, SUCCESS) and w_query in finishes(calls, SUCCESS)
+           and game.read(bakes[0].surface) == texture and game.read(w_surface) == texture
+           and game.read(bakes[0].model + 0xD0) == 5 and any("read back waiting" in line for line in game.log),
+           "a 9th, every place taken: the oldest completed first, on the spot (its no-wait poll busy, then its "
+           "levels read back waiting, its texture in its slot and patch 70's waiter's, both finished, its model "
+           "let go), logged: " + "; ".join(game.log))
+    report(ok and len(ninth) == bakes[8].levels and not any(m[1] in ninth for m in maps)
+           and bakes[8].query not in [c[1] for c in names(calls, "finish")] and game.read(bakes[8].model + 0xD0) == 6,
+           "then the 9th issued in its place: its levels copied to stagings, none mapped, its query not finished, "
+           "its model held")
+    game.done.update(staged[1])
+    game.log.clear()
+    ok, calls, tenth = issue(game, bakes[9])
+    staged.append(tenth)
+    maps = names(calls, "Map")
+    report(ok and maps and maps[0] == ("Map", staged[1][-1], NO_WAIT) and len(maps) == 1 + bakes[1].levels
+           and finishes(calls, SUCCESS) == [bakes[1].query] and not any(m[1] in tenth for m in maps),
+           "a 10th, the oldest done: completed without waiting (its poll maps), then the 10th issued (its line "
+           "within the second the 9th's went out is counted, not written)")
+    for s in staged:
+        game.done.update(s)
     tick(game)
     ok, calls = dispatched(game)
-    requeried = finishes(calls, REQUERY)
-    report(ok and finishes(calls, SUCCESS)[:8] == [b.query for b in bakes[:8]]
-           and requeried == [b.query for b in bakes[8:12]]
-           and ("translate", cache.COOK, w_query) in names(calls, "translate")
+    report(ok and finishes(calls, SUCCESS) == [b.query for b in bakes[2:10]]
            and all(game.read(b.model + 0xD0) == 5 for b in bakes),
-           "the GPU done: the 8 finished, oldest first, then the 4 put off made again (finish_query 4), oldest "
-           "first; patch 70's waiter of the put-off owner made again with it; every model let go")
-    state, _ = draw(game, bakes[8])
-    report(state == "drawn", "a query made again comes back to its draw: a place is free, it is drawn")
-
-    print("as many made again as there are places, a frame")
-    game = Game(bytes(built))
-    game.qpc_step = 10
-    bakes = [Bake(game, name=f"{NAME}_{i}") for i in range(20)]
-    for b in bakes[:8]:
-        process(game, b)
-    for b in bakes[8:]:
-        draw(game, b)
-    game.done.update(game.stagings())
-    tick(game)
-    ok, first = dispatched(game)
-    ok2, again = dispatched(game)
-    tick(game)
-    ok3, next_frame = dispatched(game)
-    report(ok and ok2 and ok3 and finishes(first, REQUERY) == [b.query for b in bakes[8:16]]
-           and not finishes(again, REQUERY) and finishes(next_frame, REQUERY) == [b.query for b in bakes[16:20]],
-           "12 put off, 8 places freed: 8 made again (oldest first), none more in that frame's next dispatch "
-           "(they come back to take them), the other 4 the next frame")
+           "the GPU done: the other 8 completed at a dispatch, oldest first (the 9th and 10th last); every model "
+           "let go")
 
     print("another thread's bake")
     game = Game(bytes(built))
-    mine, theirs = Bake(game, name=NAME + "_main"), Bake(game, name=NAME + "_other")
-    process(game, mine)
+    game.qpc_step = 10
+    mine, theirs, later = (Bake(game, name=NAME + what) for what in ("_main", "_other", "_later"))
+    _, _, mine_staged = issue(game, mine)
     game.thread_id = OTHER
-    state, _ = draw(game, theirs)
+    game.log.clear()
+    ok, calls = process(game, theirs)
+    maps = names(calls, "Map")
+    report(ok and len(maps) == 1 + theirs.levels and all(f == 0 for _, _, f in maps)
+           and not any(m[1] in mine_staged for m in maps) and finishes(calls, SUCCESS) == [theirs.query]
+           and any("thread 0x00002e1c while the GPU has thread 0x00001d0c" in line for line in game.log),
+           "a bake of another thread while the GPU has this thread's: the stock bake (its blocking Maps, finished), "
+           "logged with both threads: " + "; ".join(game.log))
     ok, calls = dispatched(game)
-    report(state == "postponed" and ok and not names(calls, "Map") and not names(calls, "finish")
-           and any("thread 0x00001d0c" in line for line in game.log),
-           "a bake of another thread while the GPU has this thread's: put off (logged with the owner); that "
-           "thread's dispatch touches no bake of this one's and makes nothing again (no place for it)")
+    report(ok and not names(calls, "Map") and not names(calls, "finish"),
+           "that thread's dispatch touches no bake of this one's")
     game.thread_id = MAIN
     game.done.update(game.stagings())
     ok, calls = dispatched(game)
-    report(ok and finishes(calls, SUCCESS)[:1] == [mine.query] and not finishes(calls, REQUERY),
-           "this thread's dispatch: its bake finished; the other's query not made again here")
+    report(ok and finishes(calls, SUCCESS) == [mine.query], "this thread's dispatch: its bake completed")
     game.thread_id = OTHER
+    ok, calls, later_staged = issue(game, later)
+    report(ok and not names(calls, "Map") and not names(calls, "finish") and len(later_staged) == later.levels,
+           "the GPU's places free again: the other thread's next bake issued, not waited for")
+    game.done.update(later_staged)
     ok, calls = dispatched(game)
-    report(ok and finishes(calls, REQUERY) == [theirs.query], "the other thread's next dispatch: made again there")
+    report(ok and finishes(calls, SUCCESS) == [later.query], "and completed at its own thread's dispatch")
     game.thread_id = MAIN
 
     print("the budget: 6 ms a frame, oldest first")
@@ -791,11 +760,16 @@ def main():
            and [finishes(calls, SUCCESS) for _, calls in rounds] == [[bakes[0].query], [], [bakes[1].query],
                                                                     [bakes[2].query]],
            "5 done, each finish past the 6 ms: one a frame (the frame's second dispatch none), oldest first")
-    rounds = [dispatched(game) for _ in range(40)]
+    starts, rounds = [], []
+    while len(rounds) < 100 and len([q for _, calls in rounds for q in finishes(calls, SUCCESS)]) < 2:
+        starts.append(game.qpc)
+        rounds.append(dispatched(game))
     done = [q for _, calls in rounds for q in finishes(calls, SUCCESS)]
-    report(all(ok for ok, _ in rounds) and done == [bakes[3].query, bakes[4].query],
-           "no tick (a wait loop's dispatches): the frame counts as ended after 100 ms, the rest finish, oldest "
-           "first")
+    at = [i for i, (_, calls) in enumerate(rounds) if finishes(calls, SUCCESS)]
+    gap = (starts[at[1]] - starts[at[0]]) // 1000 if len(at) == 2 else 0
+    report(all(ok for ok, _ in rounds) and done == [bakes[3].query, bakes[4].query] and at[0] > 0 and gap >= 100,
+           f"no tick (a wait loop's dispatches): the frame counts as ended after 100 ms (completions at dispatches "
+           f"{at}, {gap} ms apart), the rest finish, oldest first")
     game = Game(bytes(built))
     game.qpc_step = 10
     first, second = Bake(game, name=NAME + "_a"), Bake(game, name=NAME + "_b")
@@ -815,25 +789,21 @@ def main():
     print("game::exit")
     game = Game(bytes(built))
     game.qpc_step = 10
-    bakes = [Bake(game, name=f"{NAME}_{i}") for i in range(10)]
+    bakes = [Bake(game, name=f"{NAME}_{i}") for i in range(9)]
     for b in bakes[:8]:
         process(game, b)
-    for b in bakes[8:]:
-        draw(game, b)
     game.log.clear()
     ok, calls = exiting(game)
     report(ok and finishes(calls, SUCCESS)[:8] == [b.query for b in bakes[:8]]
-           and finishes(calls, REQUERY) == [b.query for b in bakes[8:]]
-           and any("the game exits: bakes on the GPU 8, postponed 2" in line for line in game.log)
+           and any("the game exits: bakes on the GPU 8" in line for line in game.log)
            and len([c for c in names(calls, "Map") if c[2] == 0]) >= 8,
            "game::exit from its start, through the branch that skips its delete (0x1051E0 fails): the 8 on the "
-           "GPU finished waiting, the 2 put off made again, logged")
-    state, _ = draw(game, bakes[8])
+           "GPU completed waiting, logged")
     ok, calls = process(game, bakes[8])
     maps = names(calls, "Map")
-    report(state == "drawn" and ok and len(maps) == 1 + bakes[8].levels and all(f == 0 for _, _, f in maps)
+    report(ok and len(maps) == 1 + bakes[8].levels and all(f == 0 for _, _, f in maps)
            and finishes(calls, SUCCESS) == [bakes[8].query],
-           "after the exit, a bake is the stock one (drawn, its blocking Maps, finished)")
+           "after the exit, a bake is the stock one (its blocking Maps, finished)")
     print("all cases passed" if not failed else f"{failed} case(s) failed")
     sys.exit(1 if failed else 0)
 

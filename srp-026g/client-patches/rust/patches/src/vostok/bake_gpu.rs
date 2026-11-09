@@ -6,33 +6,35 @@
 //! target back (a staging, map2D blocking), uploads those 16 MB again as the
 //! compressor's level 0, and the compressor (0x11F3F0) maps each of its 10
 //! block levels back, blocking again, before the texture is made from the
-//! DDS bytes. Here a bake is issued ([`Issue`]): level 0 is a GPU copy of the
-//! target, the levels are drawn and copied to stagings with no map
-//! ([`compress`], [`readback`] at compress_mip's map), the last copy flushed,
-//! and the bake's frame is copied ([`Job`]). A later frame asks the last
-//! staging without waiting ([`Readback::progress`]); once the GPU has done
-//! it, the DDS is allocated (MT memory, [`DdsBuffer`]) and the levels are
-//! copied into it ([`Readback::into_dds`]), and process_compression's own
-//! tail runs with the job ([`finish`]: [`resume`] at its prologue jumps to
-//! 0x12F00B). The tail's save takes that DDS with no copy ([`save`], [`free`]).
+//! DDS bytes. Here a bake is issued ([`Issue`], [`Issuing::issue`]): level 0
+//! is a GPU copy of the target, the levels are drawn and copied to stagings
+//! with no map ([`readback`] at compress_mip's map), the last copy flushed,
+//! and the bake's frame is copied into a [`Job`]. The [`Issued`] bake (the
+//! job and its stagings, one value) is asked later without waiting
+//! ([`Issued::progress`]) and completed once ([`Issued::complete`]): the DDS
+//! allocated (MT memory, [`DdsBuffer`]), the levels copied into it (waiting
+//! only when the GPU has not done them), and process_compression's own tail
+//! run with the job ([`resume`] at its prologue jumps to 0x12F00B). The
+//! tail's save takes that DDS with no copy ([`save`], [`free`]).
 //!
-//! A bake the GPU has no place for is put off before its draw ([`Draw`],
-//! [`Postponed`]): its query is left unfinished and made again later
-//! ([`Postponed::requery`]: finish_query's result 4).
+//! The query a [`Job`] holds is finished exactly once: by the tail, or with
+//! an error ([`Job::fail`], or when the job is dropped).
 //!
-//! A bake's GPU work runs on the thread that issued it (the immediate
-//! context and the render allocator are that thread's). The state the sites
-//! share ([`CAPTURE`], [`RESUMING`]) is behind a [`Lock`] and names its
-//! thread: the sites run on every thread that bakes or compresses.
+//! A bake's GPU work is the thread's that issued it (the immediate context,
+//! the render allocator and the engine's references): every value holding
+//! it is neither `Send` nor `Sync`. The state the sites share between hooks
+//! ([`CAPTURE`], [`RESUMING`]) is behind a [`Lock`], each value in it a
+//! [`ThreadBound`]: no thread but its own reaches it.
 
-use core::ops::Range;
-use core::ptr::{copy_nonoverlapping, null, NonNull};
+use core::marker::PhantomData;
+use core::ops::{Add, AddAssign, Range};
+use core::ptr::{null, NonNull};
 
 use super::baker::{Model, Texture, TextureKind};
 use super::clock;
 use super::context::{Context, Reg};
 use super::hook::Thread;
-use super::Lock;
+use super::{Lock, ThreadBound};
 use crate::raw;
 
 /// The compressor's block formats (DXGI): BC1 for diffuse, fresnel and
@@ -50,40 +52,78 @@ const LEVELS: usize = 12;
 /// The timer's scale process_compression's prologue writes ([0A70884h], 0x12EC66).
 const TIMER_SCALE: f32 = 1.0;
 
-/// What finish_query (0xF0D00, stdcall: the query, the result, assert on
-/// fail, the error type) is given; the result is cook_base::result_enum (1
-/// error, 2 postponed, 3 success, 4 requery, 5 out of memory).
-#[derive(Clone, Copy)]
-struct Finish {
-    result: u32,
-    assert_on_fail: u32,
-    error: u32,
+/// Neither `Send` nor `Sync`: a value of the engine's that its thread alone uses.
+type Local = PhantomData<*const ()>;
+
+// ---- the values ----------------------------------------------------------------
+
+/// A span of time in milliseconds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd)]
+pub struct Ms(f32);
+
+impl Ms {
+    pub const fn new(ms: f32) -> Ms {
+        Ms(ms)
+    }
+
+    /// The whole milliseconds, for a log line.
+    pub fn whole(self) -> u32 {
+        self.0 as u32
+    }
+
+    /// The game's float (its frame's and process_compression's ms).
+    fn raw(self) -> f32 {
+        self.0
+    }
 }
 
-/// As on_textures_loaded fails a bake (0x12EAED: 1, assert, type 0Bh).
-const FAILED: Finish = Finish { result: 1, assert_on_fail: 1, error: 0xB };
-/// The query made again: finish_query stores the result (+104h) and goes to
-/// finish_translated_query (0x109BD0), whose guard (+2D8h) reaches 0; then
-/// 0x103140, for result 4, clears the error type and the translated flags
-/// (4100h), sets the guard to 1 and pushes the query as a new one (0x103D10):
-/// translate_query runs again from its start. The error type 0 is "unset",
-/// as 0x103140 writes it. (Result 2, "postponed", is no "later": for a
-/// translate query 0xF0F59 stores it and the query ends there, unanswered.)
-const REQUERY: Finish = Finish { result: 4, assert_on_fail: 1, error: 0 };
+impl Add for Ms {
+    type Output = Ms;
 
-fn finish_query(query: raw::QueryResultForCook, how: Finish) {
-    // SAFETY: a query of the baker's, not finished (it waited for us); stdcall.
-    unsafe { raw::engine_finish_query(Some(query), how.result, how.assert_on_fail, how.error) }
+    fn add(self, other: Ms) -> Ms {
+        Ms(self.0 + other.0)
+    }
 }
 
-/// The block format of a texture type: BC3 for normal maps, else BC1.
-fn format(kind: TextureKind) -> u32 {
-    if kind == TextureKind::N { BC3 } else { BC1 }
+impl AddAssign for Ms {
+    fn add_assign(&mut self, other: Ms) {
+        self.0 += other.0;
+    }
+}
+
+/// A performance counter reading (QueryPerformanceCounter): a later one is
+/// larger.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Stamp(u64);
+
+impl Stamp {
+    pub fn now(thread: &Thread) -> Stamp {
+        Stamp(clock::counter(thread))
+    }
+
+    /// The time from this to `later`.
+    pub fn ms_to(self, later: Stamp, thread: &Thread) -> Ms {
+        let ticks = later.0.wrapping_sub(self.0);
+        Ms((ticks as f64 * 1000.0 / clock::frequency(thread).max(1) as f64) as f32)
+    }
+
+    /// The time since this.
+    pub fn elapsed(self, thread: &Thread) -> Ms {
+        self.ms_to(Stamp::now(thread), thread)
+    }
+
+    fn low(self) -> u32 {
+        self.0 as u32
+    }
+
+    fn high(self) -> u32 {
+        (self.0 >> 32) as u32
+    }
 }
 
 /// A bake's size in texels: both a multiple of 4, 4 to 4096.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Extent {
+struct Extent {
     width: u32,
     height: u32,
 }
@@ -95,48 +135,35 @@ impl Extent {
     }
 }
 
-/// A thread's id (GetCurrentThreadId), to keep a bake on the thread that
-/// issued it.
+/// A bake's DDS size in bytes (process_compression's argument 4): its
+/// header, its levels and one byte.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ThreadId(u32);
+pub struct DdsSize(u32);
 
-impl ThreadId {
-    pub fn current(_: &Thread) -> ThreadId {
-        ThreadId(super::sync::thread_id())
+impl DdsSize {
+    pub fn bytes(self) -> u32 {
+        self.0
     }
 
-    /// The id, for a log line.
-    pub fn id(self) -> u32 {
-        self.0
+    /// Whether `data` bytes of levels fit, with the header and the last byte.
+    fn holds(self, data: u32) -> bool {
+        (HEADER as u32).checked_add(data).and_then(|n| n.checked_add(1)).is_some_and(|needed| needed <= self.0)
     }
 }
 
-/// A performance counter reading (QueryPerformanceCounter).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Stamp(u64);
-
-impl Stamp {
-    pub fn now(thread: &Thread) -> Stamp {
-        Stamp(clock::counter(thread))
-    }
-
-    /// The milliseconds from this to `later`.
-    pub fn ms_to(self, later: Stamp, thread: &Thread) -> f32 {
-        let ticks = later.0.wrapping_sub(self.0);
-        (ticks as f64 * 1000.0 / clock::frequency(thread).max(1) as f64) as f32
-    }
-
-    /// The milliseconds since this.
-    pub fn elapsed_ms(self, thread: &Thread) -> f32 {
-        self.ms_to(Stamp::now(thread), thread)
-    }
+/// The block format of a texture type: BC3 for normal maps, else BC1.
+fn format(kind: TextureKind) -> u32 {
+    if kind == TextureKind::N { BC3 } else { BC1 }
 }
 
 // ---- references ----------------------------------------------------------------
 
 /// A texture with one reference of ours (vostok::baker's Texture), let go
-/// when dropped.
-pub struct HeldTexture(Texture);
+/// when dropped, on its thread.
+struct HeldTexture {
+    texture: Texture,
+    _local: Local,
+}
 
 impl HeldTexture {
     /// The texture with one reference more. `texture` is alive: a reference
@@ -144,11 +171,11 @@ impl HeldTexture {
     fn hold(texture: raw::ResTexture) -> HeldTexture {
         let texture = Texture::of(texture);
         texture.hold();
-        HeldTexture(texture)
+        HeldTexture { texture, _local: PhantomData }
     }
 
     fn raw(&self) -> raw::ResTexture {
-        self.0.raw()
+        self.texture.raw()
     }
 
     /// The handle, our reference given to whoever releases it.
@@ -161,26 +188,69 @@ impl HeldTexture {
 
 impl Drop for HeldTexture {
     fn drop(&mut self) {
-        self.0.release();
+        self.texture.release();
     }
 }
 
 /// A model instance with one reference of ours (vostok::baker's Model), let
 /// go when dropped: its surface stays alive while a bake for it is pending,
 /// whoever leaves.
-pub struct HeldModel(Model);
+struct HeldModel {
+    model: Model,
+    _local: Local,
+}
 
 impl HeldModel {
     fn hold(model: raw::RenderModelInstance) -> HeldModel {
         let model = Model::of(model);
         model.hold();
-        HeldModel(model)
+        HeldModel { model, _local: PhantomData }
     }
 }
 
 impl Drop for HeldModel {
     fn drop(&mut self) {
-        self.0.release();
+        self.model.release();
+    }
+}
+
+/// cook_base::result_enum (1 error, 2 postponed, 3 success, 4 requery, 5
+/// out of memory): the one this patch finishes a query with itself.
+#[derive(Clone, Copy)]
+#[repr(u32)]
+enum CookResult {
+    Error = 1,
+}
+
+/// The query's error type (+100h): as on_textures_loaded fails a bake.
+#[derive(Clone, Copy)]
+#[repr(u32)]
+enum ErrorType {
+    Bake = 0xB,
+}
+
+/// A bake's query, not finished yet: finished once, by process_compression's
+/// tail ([`into_tail`](Self::into_tail)) or with an error (when dropped, as
+/// on_textures_loaded fails a bake: patch 70 makes its waiting queries again).
+struct PendingQuery {
+    query: raw::QueryResultForCook,
+    _local: Local,
+}
+
+impl PendingQuery {
+    /// For process_compression's tail, which finishes it.
+    fn into_tail(self) -> raw::QueryResultForCook {
+        let query = self.query;
+        core::mem::forget(self);
+        query
+    }
+}
+
+impl Drop for PendingQuery {
+    fn drop(&mut self) {
+        // SAFETY: finish_query (0xF0D00, stdcall) on a query of the baker's
+        // that nothing finished (this owns it until now), as 0x12EAED fails one.
+        unsafe { raw::engine_finish_query(Some(self.query), CookResult::Error as u32, 1, ErrorType::Bake as u32) }
     }
 }
 
@@ -209,10 +279,10 @@ impl DdsOffset {
         DdsOffset(cursor as usize as u32)
     }
 
-    /// The place `bytes` past this one; none unless it is before `size`
-    /// (the DDS's last byte follows the levels).
-    fn past(self, bytes: u32, size: u32) -> Option<DdsOffset> {
-        self.0.checked_add(bytes).filter(|&end| end < size).map(DdsOffset)
+    /// The place `bytes` past this one; none unless it is before `size`'s
+    /// end (the DDS's last byte follows the levels).
+    fn past(self, bytes: u32, size: DdsSize) -> Option<DdsOffset> {
+        self.0.checked_add(bytes).filter(|&end| end < size.0).map(DdsOffset)
     }
 
     /// Its index into the DDS's bytes.
@@ -224,34 +294,36 @@ impl DdsOffset {
     fn span(self, len: usize) -> Range<usize> {
         self.index()..self.index() + len
     }
+
+    pub fn bytes(self) -> u32 {
+        self.0
+    }
 }
 
 /// A DDS's bytes in MT memory (mt_allocate with the MT allocator, as
 /// make_save_descriptor allocates its copy), ours until a save descriptor
 /// owns them ([`save`]: its destructor frees them), else freed when dropped.
-pub struct DdsBuffer {
+struct DdsBuffer {
     at: NonNull<u8>,
-    size: u32,
+    size: DdsSize,
 }
 
-// SAFETY: MT memory is any thread's to free; it is written on the bake's thread alone.
-unsafe impl Send for DdsBuffer {}
-
 impl DdsBuffer {
-    /// `size` bytes (a header and some levels), none when MT has none.
-    fn allocate(size: u32) -> Option<DdsBuffer> {
-        if size as usize <= HEADER {
+    /// `size` bytes, none when MT has none (or the size holds no header:
+    /// [`compress`] refuses that bake first).
+    fn allocate(size: DdsSize) -> Option<DdsBuffer> {
+        if size.0 as usize <= HEADER {
             return None;
         }
         // SAFETY: the game's MT allocation (ESI the size, the allocator
         // object make_save_descriptor gives it); any thread.
-        let at = unsafe { raw::engine_mt_allocate(size, Some(raw::image::mt_allocator())) };
+        let at = unsafe { raw::engine_mt_allocate(size.0, Some(raw::image::mt_allocator())) };
         NonNull::new(at).map(|at| DdsBuffer { at, size })
     }
 
     fn bytes(&mut self) -> &mut [u8] {
-        // SAFETY: the `size` bytes allocated, ours alone.
-        unsafe { core::slice::from_raw_parts_mut(self.at.as_ptr(), self.size as usize) }
+        // SAFETY: the `size` bytes allocated, ours alone (the borrow is ours).
+        unsafe { core::slice::from_raw_parts_mut(self.at.as_ptr(), self.size.0 as usize) }
     }
 }
 
@@ -263,44 +335,232 @@ impl Drop for DdsBuffer {
     }
 }
 
+// ---- the render system -------------------------------------------------------------
+
+/// The render system's objects a bake uses, read from their globals.
+#[derive(Clone, Copy)]
+struct Device {
+    /// The device's immediate context (the render device [2260478h] +180h).
+    context: raw::ImmediateContext,
+    /// The system renderer ([2260480h]), the compressor's.
+    renderer: raw::SystemRenderer,
+    /// The render backend ([2260490h]).
+    backend: raw::Backend,
+    /// The render resources' manager (create_texture2d's).
+    manager: raw::ResourceManager,
+}
+
+/// The device's immediate context, none before the render device is made.
+fn immediate_context() -> Option<raw::ImmediateContext> {
+    // SAFETY: the render device's global, a pointer the game sets once.
+    let device = unsafe { raw::image::device_global().device() }?;
+    // SAFETY: the device's +180h, its immediate context.
+    unsafe { device.context() }
+}
+
+impl Device {
+    fn read() -> Option<Device> {
+        let context = immediate_context()?;
+        // SAFETY: the system renderer's global, a pointer the game sets once.
+        let renderer = unsafe { raw::image::system_renderer_global().renderer() }?;
+        // SAFETY: the render backend's global, as renderer.
+        let backend = unsafe { raw::image::backend_global().backend() }?;
+        // SAFETY: the render resources' global, as renderer.
+        let manager = unsafe { raw::image::render_resources().manager() }?;
+        Some(Device { context, renderer, backend, manager })
+    }
+}
+
 // ---- a bake's frame --------------------------------------------------------------
 
 /// The longest name a bake has (the parameters' buffer_string, 104h with its NUL).
 const NAME: usize = 0x104;
 
+/// process_compression's frame at one of its sites (its ESP after the
+/// prologue; fields_026g.tsv process_compression_frame): alive, and this
+/// thread's alone, while the hook that read it runs (`'c`). Each read and
+/// write below is one field of it.
+#[derive(Clone, Copy)]
+struct Frame<'c> {
+    frame: raw::ProcessCompressionFrame,
+    _hook: PhantomData<&'c Thread>,
+}
+
+/// A frame word's read.
+macro_rules! frame_get {
+    ($($get:ident: $ty:ty),* $(,)?) => {$(
+        fn $get(self) -> $ty {
+            // SAFETY: a word of the frame, alive while the hook runs (Frame).
+            unsafe { *self.frame.$get() }
+        }
+    )*};
+}
+
+/// A frame word's write (`$word` the word's accessor).
+macro_rules! frame_put {
+    ($($put:ident = $word:ident: $ty:ty),* $(,)?) => {$(
+        fn $put(self, value: $ty) {
+            // SAFETY: a word of the frame, alive while the hook runs and
+            // this thread's (Frame).
+            unsafe { *self.frame.$word() = value }
+        }
+    )*};
+}
+
+impl<'c> Frame<'c> {
+    frame_get! {
+        width: u32,
+        height: u32,
+        kind: u32,
+        size: u32,
+        value: u32,
+        draw_ms: f32,
+        timer_start_low: u32,
+        timer_start_high: u32,
+    }
+
+    frame_put! {
+        put_width = width: u32,
+        put_height = height: u32,
+        put_log_object = log_object: u32,
+        put_bake_ms = bake_ms: f32,
+        put_timer_base_low = timer_base_low: u32,
+        put_timer_base_high = timer_base_high: u32,
+        put_timer_start_low = timer_start_low: u32,
+        put_timer_start_high = timer_start_high: u32,
+        put_timer_scale = timer_scale: f32,
+        put_prologue_scale = prologue_scale: f32,
+    }
+
+    fn cook(self) -> Option<raw::CamouflageDecalTextureTypeBakerCook> {
+        // SAFETY: argument 1, the cook (Frame).
+        unsafe { self.frame.cook() }
+    }
+
+    fn query(self) -> Option<raw::QueryResultForCook> {
+        // SAFETY: argument 2, the query (Frame).
+        unsafe { self.frame.query() }
+    }
+
+    /// Argument 2 emptied: the query is a [`Job`]'s now. The `issued` exit
+    /// does not read it (the epilogue releases +10h and +1Ch alone).
+    fn clear_query(self) {
+        // SAFETY: argument 2's slot (Frame).
+        unsafe { self.frame.set_query(None) }
+    }
+
+    fn surface(self) -> Option<raw::RenderSurfaceInstance> {
+        // SAFETY: argument 5, the surface (Frame).
+        unsafe { self.frame.surface() }
+    }
+
+    fn source(self) -> Option<raw::ResTexture> {
+        // SAFETY: [esp+1Ch], the bake's target of its type, a reference the
+        // frame holds until its epilogue (Frame).
+        unsafe { self.frame.source() }
+    }
+
+    /// The model instance the bake is of: on_textures_loaded's parameters'.
+    fn model(self) -> Option<raw::RenderModelInstance> {
+        // SAFETY: the saved EBP, on_textures_loaded's frame (process_
+        // compression's only caller, 0x12EA0D), alive below this one.
+        let caller = unsafe { self.frame.caller() }?;
+        // SAFETY: its [ebp+18h], the bake's parameters, alive while it runs.
+        let parameters = unsafe { caller.parameters() }?;
+        // SAFETY: the parameters' +790h, the model instance.
+        unsafe { parameters.model() }
+    }
+
+    /// Argument 7, the pair the tail forwards.
+    fn pair(self) -> Option<[u32; 2]> {
+        // SAFETY: argument 7, a pair of on_textures_loaded's (Frame).
+        let pair = unsafe { self.frame.pair() }?;
+        // SAFETY: the pair's first word.
+        let first = unsafe { *pair.first() };
+        // SAFETY: its second.
+        let second = unsafe { *pair.second() };
+        Some([first, second])
+    }
+
+    /// The bake's name (argument 6's +13Ch, a C string), NUL-ended in
+    /// [`NAME`] bytes; none when it is longer.
+    fn name(self) -> Option<[u8; NAME]> {
+        // SAFETY: argument 6, on_textures_loaded's parameters copy (Frame).
+        let copy = unsafe { self.frame.parameters() }?;
+        // SAFETY: the copy's +13Ch, its name.
+        let text = unsafe { copy.name() };
+        if text.is_null() {
+            return None;
+        }
+        let mut name = [0u8; NAME];
+        for (i, slot) in name.iter_mut().enumerate() {
+            // SAFETY: a byte of the NUL-ended name, none past its NUL (the
+            // loop ends there).
+            let byte = unsafe { text.add(i).read() };
+            if byte == 0 {
+                return Some(name);
+            }
+            if i + 1 == NAME {
+                return None;
+            }
+            *slot = byte;
+        }
+        None
+    }
+
+    /// The frame's timer start (QueryPerformanceCounter at 0x12EC8E).
+    fn timer_start(self) -> Stamp {
+        Stamp(u64::from(self.timer_start_low()) | u64::from(self.timer_start_high()) << 32)
+    }
+
+    /// The timer's place (ESI at 0x12F00B).
+    fn timer_address(self) -> u32 {
+        // SAFETY: only the place is computed, nothing read (Frame).
+        unsafe { self.frame.timer_base_low() as usize as u32 }
+    }
+
+    /// [esp+10h], the texture holder (the epilogue releases what it holds).
+    fn clear_texture(self) {
+        // SAFETY: the frame's holder (Frame).
+        unsafe { self.frame.set_texture(None) }
+    }
+
+    /// [esp+1Ch], the target, emptied (the tail's epilogue releases it).
+    fn clear_source(self) {
+        // SAFETY: the frame's target slot (Frame).
+        unsafe { self.frame.set_source(None) }
+    }
+
+    /// [esp+18h], the DDS the tail makes the texture from.
+    fn set_dds(self, dds: NonNull<u8>) {
+        // SAFETY: the frame's DDS slot (Frame).
+        unsafe { self.frame.set_dds(dds.as_ptr()) }
+    }
+}
+
 /// What process_compression's tail needs of a bake, copied out of its
 /// frame and on_textures_loaded's (whose locals are gone when it ends):
-/// the query, its surface and the model instance it is of (held), the
-/// cook, the type, the size, the name, and what the tail forwards.
+/// the query (finished once: [`PendingQuery`]), its surface and the model
+/// instance it is of (held), the cook, the type, the size, the name, and
+/// what the tail forwards.
 pub struct Job {
     cook: raw::CamouflageDecalTextureTypeBakerCook,
-    query: raw::QueryResultForCook,
+    /// Before the model: a failed query is finished, then the model let go.
+    query: PendingQuery,
     surface: raw::RenderSurfaceInstance,
     model: HeldModel,
     kind: TextureKind,
     extent: Extent,
-    size: u32,
+    size: DdsSize,
     name: [u8; NAME],
     pair: [u32; 2],
     value: u32,
-    draw_ms: f32,
-    /// The ms process_compression ran on its thread until the bake was issued.
-    issue_ms: f32,
-    thread: ThreadId,
+    draw_ms: Ms,
 }
 
-// SAFETY: a Job, its handles and its references are used only on the
-// thread that issued it (`thread`; bake_async finishes it on that thread
-// alone); the Lock it waits in moves it, never touches it, elsewhere.
-unsafe impl Send for Job {}
-
 impl Job {
-    pub fn thread(&self) -> ThreadId {
-        self.thread
-    }
-
     /// The DDS's bytes (its header, the levels and one byte).
-    pub fn size(&self) -> u32 {
+    pub fn size(&self) -> DdsSize {
         self.size
     }
 
@@ -314,18 +574,12 @@ impl Job {
         JobName(self.name)
     }
 
-    /// The bake put off: its query left unfinished, its model kept, the
-    /// rest let go.
-    pub fn postpone(self) -> Postponed {
-        Postponed { query: self.query, _model: self.model, thread: self.thread }
-    }
-
     /// A bake that cannot end well (its levels lost, MT out of room, a
     /// compressor that does not fit its DDS): its query finished with an
     /// error, as on_textures_loaded fails one (patch 70 makes its waiting
     /// queries again), then the model let go.
     pub fn fail(self) {
-        finish_query(self.query, FAILED);
+        drop(self);
     }
 }
 
@@ -344,154 +598,84 @@ impl JobName {
     }
 }
 
-/// A bake's query put off while the GPU has no place for it: before its
-/// draw (or, when its place went between the draw and the issue, after
-/// it). The query is left unfinished (patch 70's waiters for its path keep
-/// waiting), its model instance held; no GPU or MT memory is.
-pub struct Postponed {
-    query: raw::QueryResultForCook,
-    _model: HeldModel,
-    thread: ThreadId,
-}
-
-// SAFETY: as Job's: made again on `thread` alone.
-unsafe impl Send for Postponed {}
-
-impl Postponed {
-    /// The thread whose on_textures_loaded it came from: it is made again
-    /// there (patch 70 translates the waiters again on the finishing thread).
-    pub fn thread(&self) -> ThreadId {
-        self.thread
-    }
-
-    /// The query made again (finish_query, result 4: [`REQUERY`]): the
-    /// resource system asks the baker for it anew, and its draw comes again.
-    /// Patch 70 takes it out of its owners and translates its waiters again,
-    /// as for any owner's finish. Then the model let go.
-    pub fn requery(self) {
-        finish_query(self.query, REQUERY);
-    }
-}
-
-/// `bake.draw`: on_textures_loaded about to draw a bake (every check
-/// passed), its frame by EBP.
-pub struct Draw<'c, 't> {
-    ctx: &'c mut Context<'t>,
-    frame: raw::OnTexturesLoadedFrame,
-}
-
-impl<'c, 't> Draw<'c, 't> {
-    pub fn at(ctx: &'c mut Context<'t>) -> Option<Draw<'c, 't>> {
-        // SAFETY: the context is this site's: EBP is the frame.
-        let frame = unsafe { raw::site::bake_draw::frame(&*ctx)? };
-        Some(Draw { ctx, frame })
-    }
-
-    pub fn thread(&self) -> &Thread {
-        self.ctx.thread()
-    }
-
-    /// The bake put off: its query (the texture queries' parent) and its
-    /// model held; none when the frame has not both (then it is drawn).
-    pub fn postpone(&self) -> Option<Postponed> {
-        // SAFETY: on_textures_loaded's frame at the site: its results (the
-        // engine's, alive while the callback runs) and the bake's parameters.
-        unsafe {
-            let query = self.frame.results()?.parent_query()?;
-            let model = self.frame.parameters()?.model()?;
-            Some(Postponed { query, _model: HeldModel::hold(model), thread: ThreadId::current(self.thread()) })
-        }
-    }
-}
-
 /// `bake.issue`: process_compression with the bake's target of its type in
 /// [esp+1Ch], before the staging's create.
-pub struct Issue<'c, 't> {
-    ctx: &'c mut Context<'t>,
-    frame: raw::ProcessCompressionFrame,
+pub struct Issue<'c> {
+    thread: &'c Thread,
+    frame: Frame<'c>,
 }
 
-/// The bake's target of its type: alive while the hook runs (the frame
-/// holds a reference until the epilogue).
-pub struct Source<'a> {
-    texture: raw::ResTexture,
-    extent: Extent,
-    _issue: core::marker::PhantomData<&'a ()>,
-}
-
-impl<'c, 't> Issue<'c, 't> {
-    pub fn at(ctx: &'c mut Context<'t>) -> Option<Issue<'c, 't>> {
+impl<'c> Issue<'c> {
+    pub fn at(ctx: &'c Context<'_>) -> Option<Issue<'c>> {
         // SAFETY: the context is this site's: its ESP is the frame.
-        let frame = unsafe { raw::site::bake_issue::frame(&*ctx)? };
-        Some(Issue { ctx, frame })
+        let frame = unsafe { raw::site::bake_issue::frame(ctx) }?;
+        Some(Issue { thread: ctx.thread(), frame: Frame { frame, _hook: PhantomData } })
     }
 
-    pub fn thread(&self) -> &Thread {
-        self.ctx.thread()
-    }
-
-    /// The bake's job and target, parsed from the frames; none when one
-    /// is not what a bake has (then the stock path runs).
-    pub fn job(&self) -> Option<(Job, Source<'_>)> {
+    /// The bake taken from the frames: its job (the query moved out of the
+    /// frame, so a second take finds none) and its target. None when one is
+    /// not what a bake has: then nothing is taken, and the stock path runs.
+    pub fn take(self) -> Option<Issuing<'c>> {
         let f = self.frame;
-        // SAFETY: process_compression's frame at the site (its locals and
-        // arguments, alive while it runs, on its thread); its caller's frame
-        // (the saved EBP, its only caller on_textures_loaded) and the bake's
-        // parameters it holds; the copy's name a NUL-ended string inside it.
-        unsafe {
-            let extent = Extent::parse(*f.width(), *f.height())?;
-            let kind = TextureKind::from_raw(*f.kind())?;
-            let model = f.caller()?.parameters()?.model()?;
-            let pair = f.pair()?;
-            let mut name = [0u8; NAME];
-            let text = f.parameters()?.name();
-            if text.is_null() {
-                return None;
-            }
-            for (i, slot) in name.iter_mut().enumerate() {
-                let byte = text.add(i).read();
-                if byte == 0 {
-                    break;
-                }
-                if i + 1 == NAME {
-                    return None;
-                }
-                *slot = byte;
-            }
-            let job = Job {
-                cook: f.cook()?,
-                query: f.query()?,
-                surface: f.surface()?,
-                model: HeldModel::hold(model),
-                kind,
-                extent,
-                size: *f.size(),
-                name,
-                pair: [*pair.first(), *pair.second()],
-                value: *f.value(),
-                draw_ms: *f.draw_ms(),
-                issue_ms: 0.0,
-                thread: ThreadId::current(self.ctx.thread()),
-            };
-            Some((job, Source { texture: f.source()?, extent, _issue: core::marker::PhantomData }))
+        let extent = Extent::parse(f.width(), f.height())?;
+        let kind = TextureKind::from_raw(f.kind())?;
+        let model = f.model()?;
+        let pair = f.pair()?;
+        let name = f.name()?;
+        let (cook, query, surface, source) = (f.cook()?, f.query()?, f.surface()?, f.source()?);
+        f.clear_query();
+        let job = Job {
+            cook,
+            query: PendingQuery { query, _local: PhantomData },
+            surface,
+            model: HeldModel::hold(model),
+            kind,
+            extent,
+            size: DdsSize(f.size()),
+            name,
+            pair,
+            value: f.value(),
+            draw_ms: Ms(f.draw_ms()),
+        };
+        Some(Issuing { site: self, job, source })
+    }
+}
+
+/// A bake taken at its issue, not handed to the GPU yet. The hook leaves by
+/// `issued` once it is [`issue`](Self::issue)d: the frame's query is the job's.
+#[must_use]
+pub struct Issuing<'c> {
+    site: Issue<'c>,
+    job: Job,
+    /// The bake's target, alive while the hook runs (the frame holds it).
+    source: raw::ResTexture,
+}
+
+/// A bake whose compress failed: its job, to fail.
+pub struct IssueFailed {
+    pub error: CompressError,
+    pub job: Job,
+}
+
+impl Issuing<'_> {
+    pub fn name(&self) -> &str {
+        self.job.name()
+    }
+
+    /// The bake handed to the GPU ([`compress`]), the ms process_compression
+    /// ran until now kept for its log line, and the frame's texture holder
+    /// emptied (it holds the type getter's stale texture since 0x12ED0F;
+    /// the epilogue releases what it holds and the target's reference).
+    pub fn issue(self) -> Result<Issued, IssueFailed> {
+        let Issuing { site, job, source } = self;
+        let compressed = compress(site.thread, &job, source);
+        let since = Stamp::now(site.thread);
+        let issue_ms = site.frame.timer_start().ms_to(since, site.thread);
+        site.frame.clear_texture();
+        match compressed {
+            Ok(readback) => Ok(Issued { job, readback, issue_ms, since }),
+            Err(error) => Err(IssueFailed { error, job }),
         }
-    }
-
-    /// The ms since process_compression's start (its timer's start), into
-    /// the job: what the bake cost this thread before the GPU took it.
-    pub fn issued(&self, job: &mut Job) {
-        // SAFETY: the frame's timer (QueryPerformanceCounter at its start, 0x12EC8E).
-        let start = unsafe { u64::from(*self.frame.timer_start_low()) | u64::from(*self.frame.timer_start_high()) << 32 };
-        let thread = self.ctx.thread();
-        job.issue_ms = Stamp(start).ms_to(Stamp::now(thread), thread);
-    }
-
-    /// Before the `issued` exit: the frame's texture holder emptied (it holds
-    /// the type getter's stale texture since 0x12ED0F; the epilogue releases
-    /// what it holds and the target's reference).
-    pub fn leave(self) {
-        // SAFETY: the frame's slot, read by the epilogue (0x12F561) alone.
-        unsafe { self.frame.set_texture(None) }
     }
 }
 
@@ -500,19 +684,21 @@ impl<'c, 't> Issue<'c, 't> {
 /// Why [`compress`] gave no readback.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CompressError {
-    /// No render device or immediate context.
+    /// No render device, immediate context, renderer or backend.
     NoDevice,
     /// block_mip_count's levels: none, or more than a texture has.
     Levels(u32),
     /// dxt_data_size's bytes (with the header and the last byte) past the
     /// job's DDS size.
-    Size { data: u32, size: u32 },
+    Size { data: u32, size: DdsSize },
+    /// A capture of another compress is under way (it is never another's).
+    Busy,
     /// create_texture2d gave no texture for level 0 (the GPU's memory).
     Level0,
     /// A level compress_mip copied that [`readback`] could not keep.
     Capture(CaptureError),
     /// The compressor's cursor at its end not before the DDS's size.
-    End { end: u32, size: u32 },
+    End { end: DdsOffset, size: DdsSize },
 }
 
 /// Why [`readback`] did not keep a level.
@@ -524,7 +710,7 @@ pub enum CaptureError {
     TooMany,
     /// The level's blocks not inside the DDS (past its size, or before its
     /// header's end).
-    Fit { offset: u32, size: u32 },
+    Fit { offset: DdsOffset, size: DdsSize },
 }
 
 /// Where a level's blocks go in the DDS.
@@ -554,14 +740,15 @@ impl Levels {
         self.iter().count()
     }
 
-    fn push(&mut self, level: Level) -> Result<(), (Level, CaptureError)> {
+    /// The level at the end; given back when there is no room.
+    fn push(&mut self, level: Level) -> Result<(), Level> {
         let n = self.len();
         match self.0.get_mut(n) {
             Some(slot) => {
                 *slot = Some(level);
                 Ok(())
             }
-            None => Err((level, CaptureError::TooMany)),
+            None => Err(level),
         }
     }
 
@@ -572,68 +759,86 @@ impl Levels {
 
 /// A bake the GPU has: its DDS's header, each level's staging and place,
 /// and its last byte, not read back yet. No DDS memory is held.
-pub struct Readback {
+struct Readback {
     header: [u8; HEADER],
     levels: Levels,
     /// The place of the byte after the levels, and that byte (1 for diffuse).
     end: DdsOffset,
     last: u8,
-    size: u32,
 }
 
-// SAFETY: as Job's: used on the bake's thread alone.
-unsafe impl Send for Readback {}
-
-/// What `compress_mip.readback` does: nothing (the game's map: another
-/// compress, or another thread's), or keep the stagings of the compress
-/// under way on `thread`.
-enum Capture {
-    Off,
-    On { thread: ThreadId, size: u32, levels: Levels },
+/// What the compress under way on a thread keeps (`compress_mip.readback`).
+enum Kept {
+    Levels(Levels),
     /// A level could not be kept: none after it is either (none is mapped
     /// or copied: compress_mip's cursor is never written through), and
     /// compress gives `why`.
-    Broken { thread: ThreadId, why: CaptureError },
+    Broken(CaptureError),
 }
 
-// SAFETY: as Job's: its stagings are used on `thread` alone.
-unsafe impl Send for Capture {}
-
-static CAPTURE: Lock<Capture> = Lock::new(Capture::Off);
-
-/// Whether this thread's compress is capturing: no (the game's map), with
-/// the DDS's size, or broken (the level kept unmapped, nothing noted).
-#[derive(Clone, Copy)]
-enum Capturing {
-    No,
-    Yes { size: u32 },
-    Broken,
+/// A compress under way: its DDS's size and what it kept.
+struct Capture {
+    size: DdsSize,
+    kept: Kept,
 }
 
 impl Capture {
-    fn of(&self, me: ThreadId) -> Capturing {
-        match *self {
-            Capture::On { thread, size, .. } if thread == me => Capturing::Yes { size },
-            Capture::Broken { thread, .. } if thread == me => Capturing::Broken,
-            _ => Capturing::No,
-        }
+    /// A level kept; else it comes back, with the levels the capture held
+    /// when it breaks here (past [`LEVELS`]), to be let go out of the lock.
+    fn keep(&mut self, level: Level) -> Result<(), (Level, Option<Levels>)> {
+        let pushed = match &mut self.kept {
+            Kept::Levels(levels) => levels.push(level),
+            Kept::Broken(_) => return Err((level, None)),
+        };
+        pushed.map_err(|level| (level, self.broken(CaptureError::TooMany)))
     }
 
-    /// A level kept: none back. Past [`LEVELS`] the capture breaks, and the
-    /// level and what the capture held come back, to be let go out of the lock.
-    fn keep(&mut self, me: ThreadId, level: Level) -> Option<(Level, Capture)> {
-        let pushed = match self {
-            Capture::On { levels, .. } => levels.push(level),
-            Capture::Off | Capture::Broken { .. } => return Some((level, Capture::Off)),
-        };
-        pushed.err().map(|(level, why)| (level, core::mem::replace(self, Capture::Broken { thread: me, why })))
+    /// The capture broken: the levels it held, if any.
+    fn broken(&mut self, why: CaptureError) -> Option<Levels> {
+        match core::mem::replace(&mut self.kept, Kept::Broken(why)) {
+            Kept::Levels(levels) => Some(levels),
+            Kept::Broken(_) => None,
+        }
     }
 }
 
-/// The device's immediate context (the render device [2260478h] +180h).
-fn immediate_context() -> Option<raw::ImmediateContext> {
-    // SAFETY: the render device's global and its field, read on the bake's thread.
-    unsafe { raw::image::device_global().device().and_then(|device| device.context()) }
+/// The compress under way, the thread's that runs it; none (the game's map)
+/// for every other compress.
+static CAPTURE: Lock<Option<ThreadBound<Capture>>> = Lock::new(None);
+
+/// A capture this thread started ([`CAPTURE`]): ended when dropped, or by
+/// [`end`](Self::end) with what it kept.
+struct Capturing<'t> {
+    thread: &'t Thread,
+}
+
+impl<'t> Capturing<'t> {
+    /// Started for this thread, only when no capture is under way.
+    fn start(thread: &'t Thread, size: DdsSize) -> Option<Capturing<'t>> {
+        let started = CAPTURE.with(thread, |c| match c {
+            Some(_) => false,
+            None => {
+                *c = Some(ThreadBound::new(thread, Capture { size, kept: Kept::Levels(Levels::new()) }));
+                true
+            }
+        });
+        started.then_some(Capturing { thread })
+    }
+
+    /// What it kept; the capture over.
+    fn end(self) -> Option<Kept> {
+        let thread = self.thread;
+        core::mem::forget(self);
+        let taken = CAPTURE.with(thread, Option::take)?;
+        taken.into_inner(thread).ok().map(|capture| capture.kept)
+    }
+}
+
+impl Drop for Capturing<'_> {
+    fn drop(&mut self) {
+        // let go out of the lock
+        drop(CAPTURE.with(self.thread, Option::take));
+    }
 }
 
 /// The compressor run as 0x11F3F0 runs it (the DDS header, level 0 a GPU
@@ -641,88 +846,89 @@ fn immediate_context() -> Option<raw::ImmediateContext> {
 /// to a staging), but no level is mapped: [`readback`] keeps each staging,
 /// and the last copy is flushed so the GPU has it. No DDS is allocated: the
 /// header is the readback's, the cursor counts places ([`DdsOffset`]).
-pub fn compress(thread: &Thread, job: &Job, source: &Source<'_>) -> Result<Readback, CompressError> {
+fn compress(thread: &Thread, job: &Job, source: raw::ResTexture) -> Result<Readback, CompressError> {
     let Extent { width, height } = job.extent;
     let (kind, format) = (job.kind, format(job.kind));
     let normal = u32::from(kind == TextureKind::N);
-    let context = immediate_context().ok_or(CompressError::NoDevice)?;
-    // SAFETY: the compressor's pure size functions (0x11F280, 0x11F2F0).
+    let device = Device::read().ok_or(CompressError::NoDevice)?;
+    // SAFETY: block_mip_count (0x11F280), a pure function of two counts.
     let count = unsafe { raw::engine_block_mip_count(width / 4, height / 4) };
     if count == 0 || count as usize > LEVELS {
         return Err(CompressError::Levels(count));
     }
-    // SAFETY: as above.
+    // SAFETY: dxt_data_size (0x11F2F0), a pure function of its values.
     let data = unsafe { raw::engine_dxt_data_size(count, width, height, format) };
-    let needed = (HEADER as u32).checked_add(data).and_then(|n| n.checked_add(1));
-    if needed.is_none_or(|needed| needed > job.size) {
+    if !job.size.holds(data) {
         return Err(CompressError::Size { data, size: job.size });
     }
-    let level0 = level0(source).ok_or(CompressError::Level0)?;
+    let capture = Capturing::start(thread, job.size).ok_or(CompressError::Busy)?;
+    let level0 = level0(device, job.extent, source).ok_or(CompressError::Level0)?;
     let mut header = [0u8; HEADER];
+    // SAFETY: write_dds_header (0x11F350) writes its 80h bytes into ours.
+    unsafe { raw::engine_write_dds_header(header.as_mut_ptr(), format, width, height, data + 1, normal, count) };
+    // the compressor's array: level 0 one reference of its own (released
+    // below, as 0x11F544 does), make_mips puts the others
     let mut levels: [Option<raw::ResTexture>; LEVELS] = [None; LEVELS];
+    levels[0] = Some(HeldTexture::hold(level0.raw()).into_raw());
+    // SAFETY: backend::reset (0x11B740) on the render backend, as 0x11F4D7
+    // before make_mips, on the bake's thread.
+    unsafe { raw::engine_backend_reset(Some(device.backend)) };
+    // SAFETY: make_mips (0x11F8B0): levels 1..count drawn from level 0 into
+    // new targets, their references put in our array of LEVELS slots.
+    unsafe { raw::engine_make_mips(width, height, Some(device.renderer), levels.as_mut_ptr(), count) };
     let mut cursor = raw::DdsCursorStorage::zeroed();
-    let renderer = raw::image::system_renderer_global();
-    // SAFETY: the game's functions in 0x11F3F0's order with its arguments,
-    // on the bake's thread: the header into ours (80h bytes), level 0 one
-    // reference of the array's (released below as 0x11F544 does), the
-    // levels drawn, the cursor ours (a place: see DdsOffset::cursor).
-    unsafe {
-        raw::engine_write_dds_header(header.as_mut_ptr(), format, width, height, data + 1, normal, count);
-        levels[0] = Some(HeldTexture::hold(level0.raw()).into_raw());
-        raw::engine_backend_reset(raw::image::backend_global().backend());
-        raw::engine_make_mips(width, height, renderer.renderer(), levels.as_mut_ptr(), count);
-        cursor.handle().set_next(DdsOffset::LEVELS.cursor());
-    }
-    let me = ThreadId::current(thread);
-    CAPTURE.with(thread, |c| *c = Capture::On { thread: me, size: job.size, levels: Levels::new() });
+    // SAFETY: our cursor's one word: a place (DdsOffset::cursor).
+    unsafe { cursor.handle().set_next(DdsOffset::LEVELS.cursor()) };
     for level in 0..count {
-        // SAFETY: each level compressed from the array, as 0x11F3F0 loops;
-        // readback keeps its staging, so the cursor is only moved.
+        // SAFETY: compress_mip (0x11F590) on one level of the array, as
+        // 0x11F3F0 loops; readback keeps its staging, so the cursor is only
+        // moved, never written through.
         unsafe {
-            raw::engine_compress_mip(renderer.renderer(), levels.as_mut_ptr(), Some(cursor.handle()),
-                                     (width / 4) >> level, (height / 4) >> level, level, format, normal);
+            raw::engine_compress_mip(Some(device.renderer), levels.as_mut_ptr(), Some(cursor.handle()),
+                                     (width / 4) >> level, (height / 4) >> level, level, format, normal)
         }
     }
-    let captured = CAPTURE.with(thread, |c| core::mem::replace(c, Capture::Off));
-    // SAFETY: the context of the device the copies went to: the last copy
-    // (0x11F738's) flushed, as compress_mip flushes before each (0x11F71C).
-    unsafe { raw::engine_context_flush(Some(context)) }
+    let kept = capture.end();
+    // SAFETY: Flush on the immediate context the copies went to: the last
+    // copy (0x11F738's) submitted, as compress_mip flushes before each (0x11F71C).
+    unsafe { raw::engine_context_flush(Some(device.context)) }
     release_levels(&levels[..count as usize]);
     drop(level0);
-    let kept = match captured {
-        Capture::On { levels, .. } => levels,
-        Capture::Broken { why, .. } => return Err(CompressError::Capture(why)),
-        Capture::Off => return Err(CompressError::Capture(CaptureError::Site)),
+    let kept = match kept {
+        Some(Kept::Levels(levels)) => levels,
+        Some(Kept::Broken(why)) => return Err(CompressError::Capture(why)),
+        None => return Err(CompressError::Capture(CaptureError::Site)),
     };
-    // SAFETY: the cursor is ours, moved by readback alone.
+    // SAFETY: our cursor's word, moved by readback alone.
     let end = DdsOffset::of_cursor(unsafe { cursor.handle().next() });
     if end.past(0, job.size).is_none() {
-        return Err(CompressError::End { end: end.0, size: job.size });
+        return Err(CompressError::End { end, size: job.size });
     }
-    Ok(Readback { header, levels: kept, end, last: u8::from(kind == TextureKind::D), size: job.size })
+    Ok(Readback { header, levels: kept, end, last: u8::from(kind == TextureKind::D) })
 }
 
 /// Level 0 of the compressor: a texture of the target's size and format
 /// (D3D11_USAGE_DEFAULT, one level, as the compressor's own, 0x11F46D)
 /// with the target's texels copied on the GPU (copy2D, as the stock copy to
 /// the staging). Nothing is read back or uploaded.
-fn level0(source: &Source<'_>) -> Option<HeldTexture> {
-    let Extent { width, height } = source.extent;
-    // SAFETY: the game's create and copy on the bake's thread; the source is
-    // alive for the hook (Source); the texture made is held before use.
-    unsafe {
-        let manager = raw::image::render_resources().manager();
-        let texture = raw::engine_create_texture2d(width, manager, null(), height, null(), RGBA8, DEFAULT_USAGE, 1, 0)?;
-        let held = HeldTexture::hold(texture);
-        raw::engine_copy2d(width, height, Some(held.raw()), Some(source.texture));
-        Some(held)
-    }
+fn level0(device: Device, extent: Extent, source: raw::ResTexture) -> Option<HeldTexture> {
+    let Extent { width, height } = extent;
+    // SAFETY: create_texture2d (0x3BEA70) with no name and no initial data,
+    // on the bake's thread.
+    let texture = unsafe {
+        raw::engine_create_texture2d(width, Some(device.manager), null(), height, null(), RGBA8, DEFAULT_USAGE, 1, 0)
+    }?;
+    let held = HeldTexture::hold(texture);
+    // SAFETY: copy2D (0x3C0E00) of the target (alive while the hook runs:
+    // the frame holds it) into ours, both width x height.
+    unsafe { raw::engine_copy2d(width, height, Some(held.raw()), Some(source)) };
+    Some(held)
 }
 
 /// The compressor's array: each level's reference let go.
 fn release_levels(levels: &[Option<raw::ResTexture>]) {
     for texture in levels.iter().flatten() {
-        drop(HeldTexture(Texture::of(*texture)));
+        drop(HeldTexture { texture: Texture::of(*texture), _local: PhantomData });
     }
 }
 
@@ -736,24 +942,36 @@ struct Copied {
 }
 
 /// What the site holds, its blocks inside a DDS of `size` bytes.
-fn copied(ctx: &Context<'_>, size: u32) -> Result<Copied, CaptureError> {
-    // SAFETY: compress_mip's site: ESI its staging, EBX the level's blocks
-    // wide, its frame by ESP (the cursor, the blocks high, the format).
-    let (staging, wide, cursor, high, format) = unsafe {
-        let staging = raw::site::compress_mip_readback::staging(ctx).ok_or(CaptureError::Site)?;
-        let frame = raw::site::compress_mip_readback::frame(ctx).ok_or(CaptureError::Site)?;
-        let cursor = frame.cursor().ok_or(CaptureError::Site)?;
-        (staging, raw::site::compress_mip_readback::wide(ctx), cursor, *frame.high(), *frame.format())
-    };
-    let row_bytes = if format == BC3 { 16 } else { 8 } * wide;
-    // SAFETY: the cursor is compress's (ours).
+fn copied(ctx: &Context<'_>, size: DdsSize) -> Result<Copied, CaptureError> {
+    // SAFETY: compress_mip's site: ESI its staging (a reference it holds).
+    let staging = unsafe { raw::site::compress_mip_readback::staging(ctx) }.ok_or(CaptureError::Site)?;
+    // SAFETY: as staging: EBX the level's blocks wide.
+    let wide = unsafe { raw::site::compress_mip_readback::wide(ctx) };
+    // SAFETY: as staging: its frame by ESP, alive while it runs.
+    let frame = unsafe { raw::site::compress_mip_readback::frame(ctx) }.ok_or(CaptureError::Site)?;
+    // SAFETY: the frame's [esp+30h], &the cursor (compress's, ours).
+    let cursor = unsafe { frame.cursor() }.ok_or(CaptureError::Site)?;
+    // SAFETY: the frame's [esp+38h], the blocks high.
+    let high = unsafe { *frame.high() };
+    // SAFETY: the frame's [esp+40h], the format.
+    let format = unsafe { *frame.format() };
+    // SAFETY: our cursor's word (a place, moved by readback alone).
     let offset = DdsOffset::of_cursor(unsafe { cursor.next() });
-    let fit = CaptureError::Fit { offset: offset.0, size };
+    let row_bytes = if format == BC3 { 16 } else { 8 } * wide;
+    let fit = CaptureError::Fit { offset, size };
     let bytes = row_bytes.checked_mul(high).ok_or(fit)?;
     if offset < DdsOffset::LEVELS || offset.past(bytes, size).is_none() {
         return Err(fit);
     }
     Ok(Copied { staging, place: Place { offset, rows: high, row_bytes }, bytes, cursor })
+}
+
+/// Whether the compress at a `compress_mip.readback` is this thread's under
+/// [`compress`]: no (the game's map), with its DDS's size, or broken.
+enum Mine {
+    No,
+    Yes(DdsSize),
+    Broken,
 }
 
 /// `compress_mip.readback`, a level copied to its staging. During
@@ -764,26 +982,43 @@ fn copied(ctx: &Context<'_>, size: u32) -> Result<Copied, CaptureError> {
 /// (another thread's, or not ours): false, the game's map.
 pub fn readback(ctx: &mut Context<'_>) -> bool {
     let thread = ctx.thread();
-    let me = ThreadId::current(thread);
-    let size = match CAPTURE.with(thread, |c| c.of(me)) {
-        Capturing::No => return false,
-        Capturing::Broken => return true,
-        Capturing::Yes { size } => size,
+    let mine = CAPTURE.with(thread, |c| match c.as_ref().and_then(|bound| bound.get(thread)) {
+        None => Mine::No,
+        Some(Capture { kept: Kept::Broken(_), .. }) => Mine::Broken,
+        Some(Capture { size, kept: Kept::Levels(_) }) => Mine::Yes(*size),
+    });
+    let size = match mine {
+        Mine::No => return false,
+        Mine::Broken => return true,
+        Mine::Yes(size) => size,
     };
     match copied(ctx, size) {
         Ok(Copied { staging, place, bytes, cursor }) => {
             // the staging is alive at the site (compress_mip holds it until
             // its release at 0x11F871); the reference taken keeps it after
             let level = Level { staging: HeldTexture::hold(staging), place };
-            match CAPTURE.with(thread, |c| c.keep(me, level)) {
-                // SAFETY: the cursor past the level's bytes, as 0x11F863
-                // moves it (a place: never written through).
-                None => unsafe { cursor.set_next(cursor.next().wrapping_add(bytes as usize)) },
+            let refused = CAPTURE.with(thread, |c| match c.as_mut().and_then(|bound| bound.get_mut(thread)) {
+                Some(capture) => capture.keep(level).err(),
+                None => Some((level, None)),
+            });
+            match refused {
+                None => {
+                    // SAFETY: our cursor's word (a place: never written through).
+                    let next = unsafe { cursor.next() }.wrapping_add(bytes as usize);
+                    // SAFETY: the cursor past the level's bytes, as 0x11F863 moves it.
+                    unsafe { cursor.set_next(next) }
+                }
                 // let go out of the lock
                 Some(refused) => drop(refused),
             }
         }
-        Err(why) => drop(CAPTURE.with(thread, |c| core::mem::replace(c, Capture::Broken { thread: me, why }))),
+        Err(why) => {
+            let held = CAPTURE.with(thread, |c| {
+                c.as_mut().and_then(|bound| bound.get_mut(thread)).and_then(|capture| capture.broken(why))
+            });
+            // let go out of the lock
+            drop(held);
+        }
     }
     // ESI keeps the staging: the exit releases compress_mip's reference
     true
@@ -797,26 +1032,42 @@ enum Wait {
     DoNotWait,
 }
 
-/// A level mapped (map2D): its data and row pitch; unmapped when dropped,
-/// through the context and the resource it was mapped with (the immediate
-/// context's Unmap, subresource 0, as 0x11F86F).
+/// A level mapped (map2D): its rows; unmapped when dropped, through the
+/// context and the resource it was mapped with (the immediate context's
+/// Unmap, subresource 0, as 0x11F86F).
 struct Mapped<'a> {
     context: raw::ImmediateContext,
     resource: raw::HwResource,
     data: NonNull<u8>,
     pitch: u32,
+    rows: u32,
     _staging: &'a HeldTexture,
 }
 
 impl Mapped<'_> {
-    fn of(context: raw::ImmediateContext, staging: &HeldTexture, wait: Wait) -> Option<Mapped<'_>> {
-        // SAFETY: a staging we hold: its resource, read on the bake's thread.
-        let resource = unsafe { staging.raw().hw_resource()? };
+    /// The staging of a level of `rows` rows mapped; none while the GPU has
+    /// it (DoNotWait) or when it cannot be (the device lost).
+    fn of(context: raw::ImmediateContext, staging: &HeldTexture, rows: u32, wait: Wait) -> Option<Mapped<'_>> {
+        // SAFETY: a staging we hold: its +1ACh, its resource.
+        let resource = unsafe { staging.raw().hw_resource() }?;
         let mut pitch = 0;
-        // SAFETY: a staging (usage 3) we hold, on the bake's thread; map2D's
-        // byte 1 for the no-wait flag (0 back while the GPU has not done it).
+        // SAFETY: map2D (0x3D0F80) of a staging (usage 3) we hold, on the
+        // bake's thread; its byte 1 the no-wait flag (0 back while the GPU
+        // has not done it).
         let data = unsafe { raw::engine_map2d(Some(staging.raw()), &mut pitch, u32::from(wait == Wait::DoNotWait)) };
-        NonNull::new(data.cast::<u8>()).map(|data| Mapped { context, resource, data, pitch, _staging: staging })
+        NonNull::new(data.cast::<u8>()).map(|data| Mapped { context, resource, data, pitch, rows, _staging: staging })
+    }
+
+    /// The first `len` bytes of a row; none past the rows or the pitch.
+    fn row(&self, row: u32, len: u32) -> Option<&[u8]> {
+        if row >= self.rows || len > self.pitch {
+            return None;
+        }
+        // SAFETY: a mapped staging of `rows` rows holds `pitch` bytes a row
+        // (D3D11_MAPPED_SUBRESOURCE), alive until the unmap (our drop).
+        Some(unsafe {
+            core::slice::from_raw_parts(self.data.as_ptr().add(row as usize * self.pitch as usize), len as usize)
+        })
     }
 }
 
@@ -847,39 +1098,33 @@ pub enum ReadError {
 impl Readback {
     /// Whether the GPU has done the copies: the last staging maps without
     /// waiting (the GPU runs them in order). With no context or no level,
-    /// done: the readback says what is lost.
-    pub fn progress(&self) -> Progress {
+    /// done: the read says what is lost.
+    fn progress(&self) -> Progress {
         let busy = match (immediate_context(), self.levels.iter().last()) {
-            (Some(context), Some(level)) => Mapped::of(context, &level.staging, Wait::DoNotWait).is_none(),
+            (Some(context), Some(level)) => {
+                Mapped::of(context, &level.staging, level.place.rows, Wait::DoNotWait).is_none()
+            }
             _ => false,
         };
         if busy { Progress::Busy } else { Progress::Done }
     }
 
-    /// The DDS, allocated now (MT memory), with its header, each level's
-    /// blocks (the rows at the staging's pitch; waits for the GPU when it has
-    /// not done them) and its last byte; each staging let go.
-    pub fn into_dds(self) -> Result<DdsBuffer, ReadError> {
-        let Readback { header, levels, end, last, size } = self;
+    /// The DDS of `size` bytes, allocated now (MT memory), with its header,
+    /// each level's blocks (the rows at the staging's pitch; waits for the
+    /// GPU when it has not done them) and its last byte; each staging let go.
+    fn read(self, size: DdsSize) -> Result<DdsBuffer, ReadError> {
+        let Readback { header, levels, end, last } = self;
         let mut dds = DdsBuffer::allocate(size).ok_or(ReadError::NoMemory)?;
         let context = immediate_context().ok_or(ReadError::Lost)?;
         let bytes = dds.bytes();
-        bytes[..HEADER].copy_from_slice(&header);
+        bytes.get_mut(..HEADER).ok_or(ReadError::Lost)?.copy_from_slice(&header);
         for level in levels.iter() {
             let Place { offset, rows, row_bytes } = level.place;
-            let mapped = Mapped::of(context, &level.staging, Wait::Block).ok_or(ReadError::Lost)?;
-            if mapped.pitch < row_bytes {
-                return Err(ReadError::Lost);
-            }
+            let mapped = Mapped::of(context, &level.staging, rows, Wait::Block).ok_or(ReadError::Lost)?;
             for row in 0..rows {
                 let at = offset.past(row * row_bytes, size).ok_or(ReadError::Lost)?;
                 let into = bytes.get_mut(at.span(row_bytes as usize)).ok_or(ReadError::Lost)?;
-                // SAFETY: the mapped staging holds `rows` rows of `pitch`
-                // bytes, `row_bytes` of each its level's blocks.
-                unsafe {
-                    copy_nonoverlapping(mapped.data.as_ptr().add(row as usize * mapped.pitch as usize),
-                                        into.as_mut_ptr(), into.len())
-                }
+                into.copy_from_slice(mapped.row(row, row_bytes).ok_or(ReadError::Lost)?);
             }
         }
         *bytes.get_mut(end.index()).ok_or(ReadError::Lost)? = last;
@@ -887,7 +1132,76 @@ impl Readback {
     }
 }
 
-// ---- the tail, frames later ------------------------------------------------------------
+// ---- a bake on the GPU, completed ------------------------------------------------------
+
+/// A bake on the GPU: its job and its stagings (one value: the job's size is
+/// the one its DDS is read into and its tail is given), the ms its issue
+/// took and since when the GPU has it. Completed once ([`complete`](Self::complete)).
+pub struct Issued {
+    job: Job,
+    readback: Readback,
+    issue_ms: Ms,
+    since: Stamp,
+}
+
+/// How a completed bake ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outcome {
+    /// The texture made and used; the save's descriptor took the DDS.
+    Saved,
+    /// Made and used; no memory for the save's descriptor: not saved.
+    Unsaved,
+    /// The tail did not reach the save (the DDS freed here).
+    NoSave,
+    /// Its levels did not come back: the query failed.
+    Failed(ReadError),
+}
+
+/// A completed bake: its name and size, for its line, and how it ended.
+pub struct Completion {
+    pub name: JobName,
+    pub size: DdsSize,
+    pub outcome: Outcome,
+}
+
+impl Issued {
+    pub fn name(&self) -> &str {
+        self.job.name()
+    }
+
+    /// Since when the GPU has it (a smaller stamp: issued earlier).
+    pub fn since(&self) -> Stamp {
+        self.since
+    }
+
+    /// Whether the GPU has done it (one no-wait map of its last staging).
+    pub fn progress(&self) -> Progress {
+        self.readback.progress()
+    }
+
+    /// The bake completed on this thread: its DDS allocated and read back
+    /// (waiting when the GPU has not done it), then process_compression's
+    /// tail run with its job ([`resume`]): the texture made, shared, saved,
+    /// recorded, its query finished. No MT memory, or a level lost, fails
+    /// its query. Given back, untouched, while another completion is under
+    /// way (its tail: one at a time).
+    pub fn complete(self, thread: &Thread) -> Result<Completion, Issued> {
+        let Some(claim) = Claim::take(thread) else { return Err(self) };
+        let Issued { job, readback, issue_ms, .. } = self;
+        let (name, size) = (job.name_copy(), job.size);
+        let started = Stamp::now(thread);
+        let outcome = match readback.read(job.size) {
+            Ok(dds) => claim.tail(job, dds, issue_ms, started),
+            Err(error) => {
+                job.fail();
+                Outcome::Failed(error)
+            }
+        };
+        Ok(Completion { name, size, outcome })
+    }
+}
+
+// ---- the tail ----------------------------------------------------------------------
 
 /// What [`resume`] gives process_compression's frame.
 #[derive(Clone, Copy)]
@@ -895,7 +1209,7 @@ struct Resume {
     dds: NonNull<u8>,
     extent: Extent,
     kind: TextureKind,
-    issue_ms: f32,
+    issue_ms: Ms,
     started: Stamp,
 }
 
@@ -910,109 +1224,168 @@ enum Save {
     Skipped,
 }
 
-/// Where the bake [`finish`] resumes is, on `thread`: no call, the call made
-/// (its prologue not reached yet), or in its tail.
+/// A completion under way on its thread: its levels read back, the call
+/// made (its prologue not reached yet), or in its tail.
 #[derive(Clone, Copy)]
 enum Resuming {
-    Idle,
-    Calling { thread: ThreadId, resume: Resume },
-    Tail { thread: ThreadId, resume: Resume, save: Save },
+    Reading,
+    Calling(Resume),
+    Tail { resume: Resume, save: Save },
 }
 
-// SAFETY: a DDS's address, used on `thread` alone.
-unsafe impl Send for Resuming {}
-
-static RESUMING: Lock<Resuming> = Lock::new(Resuming::Idle);
-
-/// What became of a finished bake's save.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Saved {
-    /// The save's descriptor took the DDS.
-    Yes,
-    /// No descriptor (MT memory): the texture is used, not saved.
-    NoDescriptor,
-    /// The tail did not reach the save (the DDS freed here).
-    NotReached,
+/// What happens to a completion under way.
+#[derive(Clone, Copy)]
+enum Event {
+    /// Its levels read into its DDS: process_compression called with it.
+    Call(Resume),
+    /// The call's prologue reached (`bake.resume`): its tail runs.
+    Resumed,
+    /// The tail's save made, or skipped (`bake.save`).
+    Saved(Save),
 }
 
-/// A bake the GPU has done (its levels in `dds`): process_compression called
-/// again with the job, its prologue jumping to its tail ([`resume`]), which
-/// makes the texture from the DDS, puts it in the surface's slot, shares it
-/// (patch 70), saves it ([`save`]: no copy), lists it, finishes the query and
-/// logs "camouflage/decal cook" (bake: the ms its thread spent until issued,
-/// with the draw's; compress: the ms of the readback). `started`: when the
-/// readback began.
-pub fn finish(thread: &Thread, job: Job, dds: DdsBuffer, started: Stamp) -> Saved {
-    let mut parameters = raw::BakeParametersCopyStorage::zeroed();
-    let mut pair = raw::BakePairStorage::zeroed();
-    let extent = [job.extent.width, job.extent.height];
-    let resume = Resume { dds: dds.at, extent: job.extent, kind: job.kind, issue_ms: job.issue_ms, started };
-    let me = ThreadId::current(thread);
-    RESUMING.with(thread, |r| *r = Resuming::Calling { thread: me, resume });
-    // SAFETY: process_compression (its thunk: EAX the extent, the ten
-    // arguments) with the job's copies, on the bake's thread: the cook, the
-    // query (not finished: it waited), no targets (the tail does not read
-    // them: resume leaves the prologue for 0x12F00B), the size, the surface
-    // (its model held by the job), a parameters copy with the name at +13Ch,
-    // the pair and value, the type, the draw's ms. Our storage outlives the call.
-    unsafe {
-        parameters.handle().set_name(job.name.as_ptr().cast_mut());
-        *pair.handle().first() = job.pair[0];
-        *pair.handle().second() = job.pair[1];
-        raw::engine_process_compression(extent.as_ptr(), Some(job.cook), Some(job.query), null(), job.size,
-                                        Some(job.surface), Some(parameters.handle()), Some(pair.handle()), job.value,
-                                        job.kind.raw(), job.draw_ms);
+impl Resuming {
+    /// The one transition. Its start (Reading) and its end are [`Claim`]'s;
+    /// an event out of its order leaves the state as it is.
+    fn on(self, event: Event) -> Resuming {
+        match (self, event) {
+            (Resuming::Reading, Event::Call(resume)) => Resuming::Calling(resume),
+            (Resuming::Calling(resume), Event::Resumed) => Resuming::Tail { resume, save: Save::Pending },
+            (Resuming::Tail { resume, save: Save::Pending }, Event::Saved(save)) => Resuming::Tail { resume, save },
+            (state, _) => state,
+        }
     }
-    let saved = match RESUMING.with(thread, |r| core::mem::replace(r, Resuming::Idle)) {
-        Resuming::Tail { save: Save::Owned, .. } => Saved::Yes,
-        Resuming::Tail { save: Save::Skipped, .. } => Saved::NoDescriptor,
-        Resuming::Tail { save: Save::Pending, .. } | Resuming::Calling { .. } | Resuming::Idle => Saved::NotReached,
-    };
-    if saved == Saved::Yes {
-        // the descriptor frees it once written
-        core::mem::forget(dds);
+}
+
+/// The completion under way (one at a time), its thread's.
+static RESUMING: Lock<Option<ThreadBound<Resuming>>> = Lock::new(None);
+
+/// This thread's completion advanced by `event` (none: nothing).
+fn advance(thread: &Thread, event: Event) {
+    RESUMING.with(thread, |r| {
+        if let Some(state) = r.as_mut().and_then(|bound| bound.get_mut(thread)) {
+            *state = state.on(event);
+        }
+    });
+}
+
+/// The completion under way this thread holds ([`RESUMING`]), ended when dropped.
+struct Claim<'t> {
+    thread: &'t Thread,
+}
+
+impl<'t> Claim<'t> {
+    /// Taken for this thread, only when no completion is under way.
+    fn take(thread: &'t Thread) -> Option<Claim<'t>> {
+        let taken = RESUMING.with(thread, |r| match r {
+            Some(_) => false,
+            None => {
+                *r = Some(ThreadBound::new(thread, Resuming::Reading));
+                true
+            }
+        });
+        taken.then_some(Claim { thread })
     }
-    drop(job);
-    saved
+
+    fn advance(&self, event: Event) {
+        advance(self.thread, event);
+    }
+
+    /// Where the completion got to; it is over.
+    fn end(self) -> Option<Resuming> {
+        let thread = self.thread;
+        core::mem::forget(self);
+        RESUMING.with(thread, Option::take)?.into_inner(thread).ok()
+    }
+
+    /// The bake the GPU has done (its levels in `dds`): process_compression
+    /// called again with the job, its prologue jumping to its tail
+    /// ([`resume`]), which makes the texture from the DDS, puts it in the
+    /// surface's slot, shares it (patch 70), saves it ([`save`]: no copy),
+    /// lists it, finishes the query and logs "camouflage/decal cook" (bake:
+    /// the ms its thread spent until issued, with the draw's; compress: the
+    /// ms since `started`, the readback's start).
+    fn tail(self, job: Job, dds: DdsBuffer, issue_ms: Ms, started: Stamp) -> Outcome {
+        let Job { cook, query, surface, model, kind, extent, size: _, name, pair: [first, second], value, draw_ms } = job;
+        let mut parameters = raw::BakeParametersCopyStorage::zeroed();
+        let mut pair = raw::BakePairStorage::zeroed();
+        let extent_words = [extent.width, extent.height];
+        // SAFETY: our parameters copy's +13Ch: the name, NUL-ended, alive past the call.
+        unsafe { parameters.handle().set_name(name.as_ptr().cast_mut()) };
+        // SAFETY: our pair's first word.
+        unsafe { *pair.handle().first() = first };
+        // SAFETY: our pair's second word.
+        unsafe { *pair.handle().second() = second };
+        let query = query.into_tail();
+        self.advance(Event::Call(Resume { dds: dds.at, extent, kind, issue_ms, started }));
+        // SAFETY: process_compression (its thunk: EAX the extent, the ten
+        // arguments) with the job's copies, on the bake's thread: the cook,
+        // the query (not finished: the tail finishes it), no targets (the
+        // tail does not read them: resume leaves the prologue for 0x12F00B),
+        // the size `dds` was allocated with (the job's), the surface (its model held), our
+        // parameters copy and pair (alive past the call), the value, the
+        // type, the draw's ms.
+        unsafe {
+            raw::engine_process_compression(extent_words.as_ptr(), Some(cook), Some(query), null(),
+                                            dds.size.0, Some(surface), Some(parameters.handle()), Some(pair.handle()),
+                                            value, kind.raw(), draw_ms.raw())
+        }
+        let outcome = match self.end() {
+            Some(Resuming::Tail { save: Save::Owned, .. }) => Outcome::Saved,
+            Some(Resuming::Tail { save: Save::Skipped, .. }) => Outcome::Unsaved,
+            Some(Resuming::Tail { save: Save::Pending, .. } | Resuming::Calling(_) | Resuming::Reading) | None => {
+                Outcome::NoSave
+            }
+        };
+        if outcome == Outcome::Saved {
+            // the descriptor frees it once written
+            core::mem::forget(dds);
+        }
+        drop(model);
+        outcome
+    }
+}
+
+impl Drop for Claim<'_> {
+    fn drop(&mut self) {
+        drop(RESUMING.with(self.thread, Option::take));
+    }
+}
+
+/// The completion's state on this thread.
+fn resuming(thread: &Thread) -> Option<Resuming> {
+    RESUMING.with(thread, |r| r.as_ref().and_then(|bound| bound.get(thread)).copied())
 }
 
 /// `bake.resume`, process_compression's prologue done: for the call
-/// [`finish`] makes on this thread, the locals its tail reads (the DDS, no
-/// target, the size, no log object, the issue's ms, the timer started at the
-/// readback) and the registers it has at 0x12F00B (EBX no RGBA, ESI the
-/// timer, EDI the DDS, EBP the type); true to leave by `tail`. Any other
-/// call: false.
+/// [`Claim::tail`] makes on this thread, the locals its tail reads (the
+/// DDS, no target, the size, no log object, the issue's ms, the timer
+/// started at the readback) and the registers it has at 0x12F00B (EBX no
+/// RGBA, ESI the timer, EDI the DDS, EBP the type); true to leave by
+/// `tail`. Any other call: false.
 pub fn resume(ctx: &mut Context<'_>) -> bool {
     let thread = ctx.thread();
-    let me = ThreadId::current(thread);
-    let calling = RESUMING.with(thread, |r| match *r {
-        Resuming::Calling { thread, resume } if thread == me => Some(resume),
-        _ => None,
-    });
-    let Some(r) = calling else { return false };
+    let Some(Resuming::Calling(r)) = resuming(thread) else { return false };
     // SAFETY: the context is this site's: its ESP is the frame.
-    let Some(f) = (unsafe { raw::site::bake_resume::frame(&*ctx) }) else { return false };
-    // SAFETY: process_compression's frame, its locals ours to set before
-    // its tail reads them (0x12F00B on), on its thread.
-    let timer = unsafe {
-        f.set_dds(r.dds.as_ptr());
-        f.set_source(None);
-        f.set_texture(None);
-        *f.width() = r.extent.width;
-        *f.height() = r.extent.height;
-        *f.log_object() = 0;
-        *f.bake_ms() = r.issue_ms;
-        *f.timer_base_low() = 0;
-        *f.timer_base_high() = 0;
-        *f.timer_start_low() = r.started.0 as u32;
-        *f.timer_start_high() = (r.started.0 >> 32) as u32;
-        // the prologue's two 1.0s (0x12EC73, 0x12EC79), the first the
-        // timer's scale (elapsed_ticks multiplies by it)
-        *f.timer_scale() = TIMER_SCALE;
-        *f.prologue_scale() = TIMER_SCALE;
-        f.timer_base_low() as usize as u32
-    };
-    RESUMING.with(thread, |s| *s = Resuming::Tail { thread: me, resume: r, save: Save::Pending });
+    let Some(frame) = (unsafe { raw::site::bake_resume::frame(&*ctx) }) else { return false };
+    let f = Frame { frame, _hook: PhantomData };
+    f.set_dds(r.dds);
+    f.clear_source();
+    f.clear_texture();
+    f.put_width(r.extent.width);
+    f.put_height(r.extent.height);
+    f.put_log_object(0);
+    f.put_bake_ms(r.issue_ms.raw());
+    f.put_timer_base_low(0);
+    f.put_timer_base_high(0);
+    f.put_timer_start_low(r.started.low());
+    f.put_timer_start_high(r.started.high());
+    // the prologue's two 1.0s (0x12EC73, 0x12EC79), the first the timer's
+    // scale (elapsed_ticks multiplies by it)
+    f.put_timer_scale(TIMER_SCALE);
+    f.put_prologue_scale(TIMER_SCALE);
+    let timer = f.timer_address();
+    advance(thread, Event::Resumed);
     ctx.set_reg(Reg::Ebx, 0);
     ctx.set_reg(Reg::Esi, timer);
     ctx.set_reg(Reg::Edi, r.dds.as_ptr() as usize as u32);
@@ -1022,11 +1395,10 @@ pub fn resume(ctx: &mut Context<'_>) -> bool {
 
 /// The resumed bake's DDS and its save, when this thread's tail runs.
 fn tail(thread: &Thread) -> Option<(NonNull<u8>, Save)> {
-    let me = ThreadId::current(thread);
-    RESUMING.with(thread, |r| match *r {
-        Resuming::Tail { thread, resume, save } if thread == me => Some((resume.dds, save)),
-        _ => None,
-    })
+    match resuming(thread)? {
+        Resuming::Tail { resume, save } => Some((resume.dds, save)),
+        Resuming::Reading | Resuming::Calling(_) => None,
+    }
 }
 
 /// `bake.save`, the tail about to make the save's descriptor: for a resumed
@@ -1041,54 +1413,48 @@ fn tail(thread: &Thread) -> Option<(NonNull<u8>, Save)> {
 pub fn save(ctx: &mut Context<'_>) -> bool {
     let thread = ctx.thread();
     let Some((dds, Save::Pending)) = tail(thread) else { return false };
-    // SAFETY: the site's registers and frame: the two path spans and the
-    // bytes about to be saved.
-    let (physical, virtual_path, frame) = unsafe {
-        (raw::site::bake_save::physical(&*ctx), raw::site::bake_save::virtual_path(&*ctx),
-         raw::site::bake_save::frame(&*ctx))
-    };
-    let Some(frame) = frame else { return false };
     // EBX is the DDS; the bytes' data is written after the site (0x12F2E0), their size before it.
     let data = dds.as_ptr();
     if ctx.reg(Reg::Ebx) != data as usize as u32 {
         return false;
     }
-    // SAFETY: the bytes the tail pushed (&[esp+28h]): their data set as
-    // 0x12F2E0 sets it (the exit skips it), their size read; the '/' of the
-    // instruction the exit skips.
-    let size = unsafe {
-        let Some(bytes) = frame.bytes() else { return false };
-        bytes.set_data(data);
-        *frame.separator() = b'/';
-        *bytes.size()
-    };
+    // SAFETY: the site's ESP: its frame, alive while the tail runs.
+    let Some(frame) = (unsafe { raw::site::bake_save::frame(&*ctx) }) else { return false };
+    // SAFETY: the frame's [esp]: the bytes the tail pushed (&[esp+28h]).
+    let Some(bytes) = (unsafe { frame.bytes() }) else { return false };
+    // SAFETY: as the bytes: ECX the physical path.
+    let physical = unsafe { raw::site::bake_save::physical(&*ctx) };
+    // SAFETY: as the bytes: EAX the virtual path.
+    let virtual_path = unsafe { raw::site::bake_save::virtual_path(&*ctx) };
+    // SAFETY: the bytes' data, set as 0x12F2E0 sets it (the exit skips it).
+    unsafe { bytes.set_data(data) };
+    // SAFETY: the '/' of the instruction the exit skips ([esp+5F8h]).
+    unsafe { *frame.separator() = b'/' };
+    // SAFETY: the bytes' count, written by the tail (0x12F2C5).
+    let size = unsafe { *bytes.size() };
     // SAFETY: the game's allocation of a descriptor with its two paths
-    // (copied), any thread; then its fields as make_save_descriptor sets
-    // them (0x109EFD..0x109F1B), its data ours given to it.
+    // (copied), any thread.
     let (save, eax) = match unsafe { raw::engine_allocate_save_descriptor(physical, virtual_path) } {
         Some(descriptor) => {
-            // SAFETY: as above.
-            unsafe {
-                descriptor.set_data(data);
-                *descriptor.size() = size;
-                *descriptor.owns() = 1;
-            }
+            // SAFETY: the new descriptor's data, as make_save_descriptor
+            // sets it (0x109EFD): ours given to it.
+            unsafe { descriptor.set_data(data) };
+            // SAFETY: its count (0x109F0A).
+            unsafe { *descriptor.size() = size };
+            // SAFETY: its owns byte (0x109F1B): the destructor frees the data.
+            unsafe { *descriptor.owns() = 1 };
             (Save::Owned, descriptor.address())
         }
         None => (Save::Skipped, 0),
     };
-    RESUMING.with(thread, |r| {
-        if let Resuming::Tail { save: slot, .. } = r {
-            *slot = save;
-        }
-    });
+    advance(thread, Event::Saved(save));
     ctx.set_reg(Reg::Eax, eax);
     true
 }
 
 /// `bake.free`, the tail about to free the DDS to the render allocator: a
-/// resumed bake's DDS is MT memory (a descriptor's, or [`finish`] frees it),
-/// so EBX 0 skips that free.
+/// resumed bake's DDS is MT memory (a descriptor's, or [`Claim::tail`]
+/// frees it), so EBX 0 skips that free.
 pub fn free(ctx: &mut Context<'_>) {
     if let Some((dds, _)) = tail(ctx.thread())
         && ctx.reg(Reg::Ebx) == dds.as_ptr() as usize as u32
@@ -1105,9 +1471,48 @@ mod tests {
     fn places_are_offsets_from_the_dds_start() {
         let first = DdsOffset::LEVELS;
         assert_eq!(DdsOffset::of_cursor(first.cursor()), first);
-        assert_eq!(first.past(0x100, 0x181), Some(DdsOffset(0x180)));
-        assert_eq!(first.past(0x100, 0x180), None, "the last byte follows the levels");
-        assert_eq!(DdsOffset(u32::MAX).past(1, u32::MAX), None);
+        assert_eq!(first.past(0x100, DdsSize(0x181)), Some(DdsOffset(0x180)));
+        assert_eq!(first.past(0x100, DdsSize(0x180)), None, "the last byte follows the levels");
+        assert_eq!(DdsOffset(u32::MAX).past(1, DdsSize(u32::MAX)), None);
         assert_eq!(first.span(4), 0x80..0x84);
+    }
+
+    #[test]
+    fn a_dds_holds_its_header_levels_and_last_byte() {
+        assert!(DdsSize(0x181).holds(0x100));
+        assert!(!DdsSize(0x180).holds(0x100));
+        assert!(!DdsSize(u32::MAX).holds(u32::MAX));
+    }
+
+    #[test]
+    fn milliseconds_add() {
+        let mut spent = Ms::default();
+        spent += Ms::new(2.5);
+        assert_eq!(spent + Ms::new(0.5), Ms::new(3.0));
+        assert!(Ms::new(6.0) > spent);
+        assert_eq!(Ms::new(999.9).whole(), 999);
+    }
+
+    #[test]
+    fn a_completion_goes_read_call_tail_save_in_order() {
+        let resume = Resume { dds: NonNull::dangling(), extent: Extent { width: 64, height: 64 }, kind: TextureKind::D,
+                              issue_ms: Ms::new(1.0), started: Stamp(7) };
+        let tail = |state: Resuming| match state {
+            Resuming::Tail { save: Save::Pending, .. } => "pending",
+            Resuming::Tail { save: Save::Owned, .. } => "owned",
+            Resuming::Tail { save: Save::Skipped, .. } => "skipped",
+            Resuming::Calling(_) => "calling",
+            Resuming::Reading => "reading",
+        };
+        let calling = Resuming::Reading.on(Event::Call(resume));
+        assert_eq!(tail(calling), "calling");
+        assert_eq!(tail(Resuming::Reading.on(Event::Resumed)), "reading", "no prologue before the call");
+        assert_eq!(tail(calling.on(Event::Saved(Save::Owned))), "calling", "no save before the tail");
+        let running = calling.on(Event::Resumed);
+        assert_eq!(tail(running), "pending");
+        assert_eq!(tail(running.on(Event::Saved(Save::Skipped))), "skipped");
+        let saved = running.on(Event::Saved(Save::Owned));
+        assert_eq!(tail(saved.on(Event::Saved(Save::Skipped))), "owned", "saved once");
+        assert_eq!(tail(saved.on(Event::Call(resume))), "owned");
     }
 }

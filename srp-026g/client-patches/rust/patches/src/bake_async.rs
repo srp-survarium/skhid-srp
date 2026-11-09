@@ -6,353 +6,343 @@
 //! its ten compressed levels back, each time waiting for the GPU on the
 //! game's thread (the hitch of a player joining with an item nobody baked
 //! yet). Here (vostok::bake_gpu does the work):
-//! - `on_draw`: a bake the GPU has no place for (IN_FLIGHT bakes on it, or
-//!   another thread's) is put off before its draw: on_textures_loaded ends
-//!   as after a failed bake, but its query is not finished, and its model is
-//!   held. The query is made again (finish_query's result 4, requery) once a
-//!   place is free. Nothing waits for the GPU; nothing is drawn twice.
 //! - `on_issue`: the bake's target is copied on the GPU into the
 //!   compressor's level 0, the levels are drawn and copied to stagings with
 //!   no wait, the last copy flushed, and process_compression ends, its query
 //!   not finished (patch 70 keeps its waiting queries waiting). No DDS
-//!   memory is held while the GPU has the bake.
+//!   memory is held while the GPU has the bake. At most IN_FLIGHT bakes are
+//!   on the GPU: with every place taken, the oldest is completed first, on
+//!   the spot (read back, waiting only when the GPU has not done it, and its
+//!   tail run), and the new bake takes its place. A bake never waits for a
+//!   place and is never asked for again.
 //! - `on_dispatched`, each resources dispatch on the bakes' thread: the
-//!   oldest bakes whose last staging maps without waiting are read back
-//!   (their DDS allocated then, MT memory) and finished by
-//!   process_compression's own tail (`on_resume`): the texture, its sharing,
-//!   its save (`on_save`, `on_free`: the descriptor owns the DDS, no copy),
-//!   its record and the "camouflage/decal cook" line, while the frame's
-//!   BUDGET_MS lasts. One that waited LATE_MS is read back waiting, and
-//!   logged. Then the postponed queries are made again, as many as there are
-//!   free places.
+//!   oldest bakes whose last staging maps without waiting are completed
+//!   (their DDS allocated then, MT memory) by process_compression's own
+//!   tail (`on_resume`): the texture, its sharing, its save (`on_save`,
+//!   `on_free`: the descriptor owns the DDS, no copy), its record and the
+//!   "camouflage/decal cook" line, while the frame's BUDGET lasts. One the
+//!   GPU has had LATE is read back waiting, and logged.
 //! - `on_frame`, engine_world::tick: a new frame, a new budget.
-//! - `on_exit`, game::exit's start: every pending bake finished waiting and
-//!   every postponed query made again (on its thread: now, or at its next
-//!   pass); after it, bakes take the stock path.
+//! - `on_exit`, game::exit's start: every bake on the GPU completed,
+//!   waiting; after it, bakes take the stock path.
 //!
 //! A bake whose levels cannot be read back (the device lost), that finds no
-//! MT memory, or whose compressor does not fit its DDS fails its query, as a
-//! bake that fails does. Textures only: nothing a match computes changes.
+//! MT memory, whose level 0 finds no GPU memory, or whose compressor does
+//! not fit its DDS fails its query, as a bake that fails does. Textures
+//! only: nothing a match computes changes.
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::bake_gpu::{self, CaptureError, CompressError, Job, Postponed, Progress, ReadError, Readback, Saved,
-                              Stamp, ThreadId};
+use crate::vostok::bake_gpu::{self, CaptureError, Completion, CompressError, IssueFailed, Issued, Ms, Outcome,
+                              Progress, ReadError, Stamp};
 use crate::vostok::log::{line, parts, Limited, Piece};
-use crate::vostok::{BakeAsyncOnDrawExit, BakeAsyncOnIssueExit, BakeAsyncOnReadbackExit, BakeAsyncOnResumeExit,
-                    BakeAsyncOnSaveExit, Context, Flow, Lock, NoExit, Thread};
+use crate::vostok::{BakeAsyncOnIssueExit, BakeAsyncOnReadbackExit, BakeAsyncOnResumeExit, BakeAsyncOnSaveExit,
+                    Context, Flow, Lock, NoExit, Thread, ThreadBound, ThreadId};
 
 /// Bakes on the GPU at once (their stagings, up to 5.6 MB each).
 const IN_FLIGHT: usize = 8;
-/// Queries put off at once (16 bytes each, in the arena); past them a query
-/// is made again at once (its translate and texture queries again, no draw).
-const POSTPONED: usize = 512;
 /// A bake on the GPU this long is read back waiting.
-const LATE_MS: f32 = 1000.0;
-/// A frame's time for finishing done bakes (each makes its texture from its
-/// DDS, runs its CRC and saves it); the rest finish in the next frames,
-/// oldest first. A frame always starts one.
-const BUDGET_MS: f32 = 6.0;
+const LATE: Ms = Ms::new(1000.0);
+/// A frame's time for completing bakes (each makes its texture from its
+/// DDS, runs its CRC and saves it); the rest complete in the next frames,
+/// oldest first. A frame's first pass always completes one done bake.
+const BUDGET: Ms = Ms::new(6.0);
 /// A frame engine_world::tick has not ended in this long counts as ended
 /// (apc's wait loops dispatch with no tick): its budget starts again.
-const FRAME_MS: f32 = 100.0;
+const FRAME: Ms = Ms::new(100.0);
 
-/// A bake's turn: a smaller number was issued (or put off) earlier. Wraps.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Number(u32);
-
-impl Number {
-    /// How many numbers were given after this one, `next` the next to give.
-    fn age(self, next: Number) -> u32 {
-        next.0.wrapping_sub(self.0)
-    }
-
-    fn after(self) -> Number {
-        Number(self.0.wrapping_add(1))
-    }
-}
-
-/// A bake on the GPU: its job, its stagings, since when.
-struct InFlight {
-    job: Job,
-    readback: Readback,
-    since: Stamp,
-}
+// ---- the places ------------------------------------------------------------------
 
 /// A place on the GPU.
 enum Slot {
     Free,
-    /// A hook of this thread has it: a bake being issued into it, or one out
-    /// of it while a pass polls or finishes it. A [`Ticket`] holds it.
-    Taken(ThreadId),
-    Bake(Number, InFlight),
+    /// A hook of the places' thread holds it ([`Ticket`]): a bake being
+    /// issued into it, or one out of it being polled or completed.
+    Held,
+    Bake(Issued),
 }
 
-impl Slot {
-    fn thread(&self) -> Option<ThreadId> {
-        match self {
-            Slot::Free => None,
-            Slot::Taken(thread) => Some(*thread),
-            Slot::Bake(_, bake) => Some(bake.job.thread()),
+/// The GPU's places, one thread's (its immediate context does their work).
+struct Places([Slot; IN_FLIGHT]);
+
+impl Places {
+    const fn new() -> Places {
+        Places([const { Slot::Free }; IN_FLIGHT])
+    }
+
+    fn bakes(&self) -> usize {
+        self.0.iter().filter(|slot| matches!(slot, Slot::Bake(_))).count()
+    }
+
+    fn empty(&self) -> bool {
+        self.0.iter().all(|slot| matches!(slot, Slot::Free))
+    }
+
+    /// A free place, held.
+    fn hold_free(&mut self) -> Option<Hold> {
+        let at = self.0.iter().position(|slot| matches!(slot, Slot::Free))?;
+        self.0[at] = Slot::Held;
+        Some(Hold { at })
+    }
+
+    /// The oldest bake, out of its place (held).
+    fn take_oldest(&mut self) -> Option<(Hold, Issued)> {
+        let at = self.0.iter().enumerate()
+            .filter_map(|(at, slot)| match slot {
+                Slot::Bake(bake) => Some((at, bake.since())),
+                Slot::Free | Slot::Held => None,
+            })
+            .min_by_key(|&(_, since)| since)?.0;
+        match core::mem::replace(&mut self.0[at], Slot::Held) {
+            Slot::Bake(bake) => Some((Hold { at }, bake)),
+            other => {
+                self.0[at] = other;
+                None
+            }
         }
     }
-}
 
-/// Up to N values packed at the front: the first empty slot ends them.
-struct Pack<T, const N: usize>([Option<T>; N]);
-
-impl<T, const N: usize> Pack<T, N> {
-    const fn new() -> Self {
-        Pack([const { None }; N])
-    }
-
-    fn len(&self) -> usize {
-        self.iter().count()
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &T> {
-        self.0.iter().map_while(Option::as_ref)
-    }
-
-    /// The value at the end; given back when there is no room.
-    fn push(&mut self, value: T) -> Result<(), T> {
-        let n = self.len();
-        match self.0.get_mut(n) {
-            Some(slot) => {
-                *slot = Some(value);
+    /// A held place filled; the bake given back when the place is not held.
+    fn fill(&mut self, hold: Hold, bake: Issued) -> Result<(), Issued> {
+        match &mut self.0[hold.at] {
+            slot @ Slot::Held => {
+                *slot = Slot::Bake(bake);
                 Ok(())
             }
-            None => Err(value),
+            Slot::Free | Slot::Bake(_) => Err(bake),
         }
     }
 
-    /// The value at `at` taken out, the last moved into its place.
-    fn remove(&mut self, at: usize) -> Option<T> {
-        let last = self.len().checked_sub(1).filter(|&last| at <= last)?;
-        let value = self.0[at].take();
-        self.0.swap(at, last);
-        value
+    /// A held place let go.
+    fn free(&mut self, hold: Hold) {
+        if let slot @ Slot::Held = &mut self.0[hold.at] {
+            *slot = Slot::Free;
+        }
     }
 }
 
-/// Why a bake is put off.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Why {
-    /// The GPU's IN_FLIGHT places are taken.
-    Full,
-    /// The bakes on the GPU are another thread's (the immediate context is
-    /// one thread's).
-    Thread(ThreadId),
-    /// No texture for its level 0 (create_texture2d: the GPU's memory).
-    Level0,
+/// A place a hook holds ([`Slot::Held`]): the table gives it, and takes it
+/// back by fill or free.
+#[derive(Clone, Copy)]
+struct Hold {
+    at: usize,
 }
 
-/// Where a bake of this thread goes, at its draw.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Admit {
-    /// The free place at that slot.
-    Place(usize),
-    Postpone(Why),
-    /// The game exits: the stock bake.
-    Stock,
-}
-
-/// Where a bake of this thread goes, at its issue: as [`Admit`], its place
-/// taken.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Reserved {
-    Place { at: usize, number: Number },
-    Postpone(Why),
-    Stock,
-}
+// ---- the table ---------------------------------------------------------------------
 
 /// The game's state as the patch sees it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Mode {
     Playing,
-    /// game::exit started: pending bakes end, waiting; new ones are stock.
+    /// game::exit started: bakes on the GPU complete, waiting; new ones are stock.
     Exiting,
 }
 
+/// Whether a completion is under way (a pass, or a bake completed on the
+/// spot): one at a time, so none starts inside another's tail.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Work {
+    Idle,
+    Completing,
+}
+
 /// A frame's budget: when it began (engine_world::tick, or a pass that
-/// found none for FRAME_MS), the ms its passes spent finishing bakes, and
-/// the queries they made again.
+/// found none for FRAME) and the time spent completing bakes in it.
 #[derive(Clone, Copy, Debug)]
 struct Frame {
     started: Stamp,
-    spent_ms: f32,
-    requeried: usize,
+    spent: Ms,
 }
 
 impl Frame {
     fn new(now: Stamp) -> Frame {
-        Frame { started: now, spent_ms: 0.0, requeried: 0 }
+        Frame { started: now, spent: Ms::default() }
     }
 }
 
-/// Whether a pass is under way (on any thread): a dispatch reached from
-/// inside one (the tail it runs) or beside it does not start another.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Pass {
-    Idle,
-    Running,
+/// Where a bake goes at its issue.
+enum Admit {
+    /// The free place it holds.
+    Place(Hold),
+    /// Every place taken: the oldest bake out, to complete first, and its
+    /// place held for this one.
+    AfterOldest(Hold, Issued),
+    /// The stock bake.
+    Stock(Why),
 }
 
-/// The owner of the pending bakes: the GPU's places, the postponed queries
-/// (oldest first by their numbers), the frame's budget, the pass, the mode.
+/// Why a bake takes the stock path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Why {
+    /// game::exit started.
+    Exiting,
+    /// The GPU's places are another thread's (the immediate context is one
+    /// thread's).
+    Thread(ThreadId),
+    /// Every place taken while a completion is under way (a bake asked for
+    /// inside another's tail).
+    Busy,
+}
+
+/// Who has bakes on the GPU.
+enum OnGpu {
+    Nobody,
+    Me(usize),
+    Thread(ThreadId),
+}
+
+/// The owner of the pending bakes: the GPU's places (one thread's while it
+/// has any), the frame's budget, the completion under way, the mode. Every
+/// change of a place is a method here.
 struct Table {
-    slots: [Slot; IN_FLIGHT],
-    postponed: Pack<(Number, Postponed), POSTPONED>,
-    next: Number,
+    gpu: Option<ThreadBound<Places>>,
     frame: Option<Frame>,
-    pass: Pass,
+    work: Work,
     mode: Mode,
 }
 
-static TABLE: Lock<Table> = Lock::new(Table {
-    slots: [const { Slot::Free }; IN_FLIGHT],
-    postponed: Pack::new(),
-    next: Number(0),
-    frame: None,
-    pass: Pass::Idle,
-    mode: Mode::Playing,
-});
+static TABLE: Lock<Table> = Lock::new(Table { gpu: None, frame: None, work: Work::Idle, mode: Mode::Playing });
 
 impl Table {
-    /// The thread whose bakes the GPU has (one at a time).
-    fn owner(&self) -> Option<ThreadId> {
-        self.slots.iter().find_map(Slot::thread)
-    }
-
-    fn in_flight(&self) -> usize {
-        self.slots.iter().filter(|slot| !matches!(slot, Slot::Free)).count()
-    }
-
-    fn number(&mut self) -> Number {
-        let number = self.next;
-        self.next = number.after();
-        number
-    }
-
-    /// The one admission: where a bake of `me` goes now.
-    fn admit(&self, me: ThreadId) -> Admit {
-        let free = self.slots.iter().position(|slot| matches!(slot, Slot::Free));
-        match (self.mode, self.owner(), free) {
-            (Mode::Exiting, _, _) => Admit::Stock,
-            (Mode::Playing, Some(owner), _) if owner != me => Admit::Postpone(Why::Thread(owner)),
-            (Mode::Playing, _, Some(at)) => Admit::Place(at),
-            (Mode::Playing, _, None) => Admit::Postpone(Why::Full),
+    /// The one admission: where a bake of this thread goes now.
+    fn admit(&mut self, thread: &Thread) -> Admit {
+        if self.mode == Mode::Exiting {
+            return Admit::Stock(Why::Exiting);
+        }
+        let bound = self.gpu.get_or_insert_with(|| ThreadBound::new(thread, Places::new()));
+        let owner = bound.owner();
+        let Some(places) = bound.get_mut(thread) else { return Admit::Stock(Why::Thread(owner)) };
+        if let Some(hold) = places.hold_free() {
+            return Admit::Place(hold);
+        }
+        match self.work {
+            Work::Idle => match places.take_oldest() {
+                Some((hold, oldest)) => {
+                    self.work = Work::Completing;
+                    Admit::AfterOldest(hold, oldest)
+                }
+                None => Admit::Stock(Why::Busy),
+            },
+            Work::Completing => Admit::Stock(Why::Busy),
         }
     }
 
-    /// As admit, the free place taken for `me` when there is one.
-    fn reserve(&mut self, me: ThreadId) -> Reserved {
-        match self.admit(me) {
-            Admit::Place(at) => {
-                self.slots[at] = Slot::Taken(me);
-                Reserved::Place { at, number: self.number() }
+    fn places(&mut self, thread: &Thread) -> Option<&mut Places> {
+        self.gpu.as_mut().and_then(|bound| bound.get_mut(thread))
+    }
+
+    /// A held place filled; the bake given back (to let go out of the lock)
+    /// when the place is not this thread's held one.
+    fn fill(&mut self, thread: &Thread, hold: Hold, bake: Issued) -> Result<(), Issued> {
+        match self.places(thread) {
+            Some(places) => places.fill(hold, bake),
+            None => Err(bake),
+        }
+    }
+
+    /// A held place let go; with none in use, the GPU is no thread's.
+    fn free(&mut self, thread: &Thread, hold: Hold) {
+        let Some(places) = self.places(thread) else { return };
+        places.free(hold);
+        if places.empty() {
+            self.gpu = None;
+        }
+    }
+
+    /// A pass started on this thread: how it looks at its bakes. None while
+    /// a completion is under way, or when it has no bake on the GPU.
+    fn start_pass(&mut self, thread: &Thread) -> Option<Look> {
+        let mine = self.places(thread).is_some_and(|places| places.bakes() > 0);
+        (self.work == Work::Idle && mine).then(|| {
+            self.work = Work::Completing;
+            match self.mode {
+                Mode::Playing => Look::Pass,
+                Mode::Exiting => Look::Exit,
             }
-            Admit::Postpone(why) => Reserved::Postpone(why),
-            Admit::Stock => Reserved::Stock,
-        }
-    }
-
-    /// A query put off, the youngest: the count put off now, or the query
-    /// given back when there is no room.
-    fn postpone(&mut self, postponed: Postponed) -> Result<usize, Postponed> {
-        let number = self.number();
-        self.postponed.push((number, postponed)).map_err(|(_, postponed)| postponed)?;
-        Ok(self.postponed.len())
-    }
-
-    /// The frame's budget at `now`: this frame's, or a new one when none is
-    /// or it began FRAME_MS ago.
-    fn frame(&mut self, now: Stamp, thread: &Thread) -> &mut Frame {
-        let frame = self.frame.filter(|frame| frame.started.ms_to(now, thread) < FRAME_MS);
-        self.frame.insert(frame.unwrap_or(Frame::new(now)))
-    }
-
-    /// A pass started for `me` (its mode), when none runs and `me` has a
-    /// bake on the GPU or a query put off.
-    fn start_pass(&mut self, me: ThreadId) -> Option<Mode> {
-        let mine = self.slots.iter().any(|slot| matches!(slot, Slot::Bake(_, bake) if bake.job.thread() == me))
-            || self.postponed.iter().any(|(_, postponed)| postponed.thread() == me);
-        (self.pass == Pass::Idle && mine).then(|| {
-            self.pass = Pass::Running;
-            self.mode
         })
     }
 
-    /// The oldest bake of `me` on the GPU, out of its slot (taken while out).
-    fn take_oldest(&mut self, me: ThreadId) -> Option<(usize, Number, InFlight)> {
-        let next = self.next;
-        let (at, number) = self.slots.iter().enumerate()
-            .filter_map(|(at, slot)| match slot {
-                Slot::Bake(number, bake) if bake.job.thread() == me => Some((at, *number)),
-                _ => None,
-            })
-            .max_by_key(|&(_, number)| number.age(next))?;
-        match core::mem::replace(&mut self.slots[at], Slot::Taken(me)) {
-            Slot::Bake(_, bake) => Some((at, number, bake)),
-            Slot::Free | Slot::Taken(_) => None,
+    /// The pass's next bake, the oldest, out of its place: while the frame's
+    /// budget lasts (at the exit, always).
+    fn next(&mut self, thread: &Thread, now: Stamp, look: Look) -> Option<(Hold, Issued)> {
+        let budget = look == Look::Exit || self.frame(now, thread).spent < BUDGET;
+        if budget { self.places(thread)?.take_oldest() } else { None }
+    }
+
+    /// The time since `started` spent completing a bake, in its frame.
+    fn spend(&mut self, thread: &Thread, started: Stamp) {
+        let spent = started.elapsed(thread);
+        self.frame(started, thread).spent += spent;
+    }
+
+    fn end_work(&mut self) {
+        self.work = Work::Idle;
+    }
+
+    /// The frame's budget at `now`: this frame's, or a new one when none is
+    /// or it began FRAME ago.
+    fn frame(&mut self, now: Stamp, thread: &Thread) -> &mut Frame {
+        let frame = self.frame.filter(|frame| frame.started.ms_to(now, thread) < FRAME);
+        self.frame.insert(frame.unwrap_or(Frame::new(now)))
+    }
+
+    /// game::exit: who has bakes on the GPU now.
+    fn exit(&mut self, thread: &Thread) -> OnGpu {
+        self.mode = Mode::Exiting;
+        match &self.gpu {
+            None => OnGpu::Nobody,
+            Some(bound) => match bound.get(thread) {
+                Some(places) => OnGpu::Me(places.bakes()),
+                None => OnGpu::Thread(bound.owner()),
+            },
         }
-    }
-
-    /// The oldest query `me` put off, taken out.
-    fn take_postponed(&mut self, me: ThreadId) -> Option<Postponed> {
-        let next = self.next;
-        let at = self.postponed.iter().enumerate()
-            .filter(|(_, (_, postponed))| postponed.thread() == me)
-            .max_by_key(|(_, (number, _))| number.age(next))?.0;
-        self.postponed.remove(at).map(|(_, postponed)| postponed)
-    }
-
-    /// Whether a place is free this frame for a query of `me`'s put off:
-    /// a free slot (none while another thread's bakes are on the GPU) that
-    /// the queries made again this frame do not come back to take.
-    fn room(&mut self, me: ThreadId, now: Stamp, thread: &Thread) -> Room {
-        let free = match self.admit(me) {
-            Admit::Place(_) => self.slots.iter().filter(|slot| matches!(slot, Slot::Free)).count(),
-            Admit::Postpone(_) => 0,
-            Admit::Stock => return Room::Exit,
-        };
-        if free > self.frame(now, thread).requeried { Room::Free } else { Room::None }
     }
 }
 
-/// A place on the GPU this hook holds ([`Slot::Taken`]): filled with a bake,
-/// or freed when dropped. Never made or dropped inside the table's lock.
+/// A place this hook holds ([`Slot::Held`]): filled with a bake, or freed
+/// when dropped. Never dropped inside the table's lock (it takes it).
 struct Ticket<'t> {
-    at: usize,
-    number: Number,
     thread: &'t Thread,
+    hold: Hold,
 }
 
 impl Ticket<'_> {
-    fn fill(self, bake: InFlight) {
-        let (at, number) = (self.at, self.number);
-        TABLE.with(self.thread, |t| t.slots[at] = Slot::Bake(number, bake));
+    fn fill(self, bake: Issued) {
+        let (thread, hold) = (self.thread, self.hold);
         core::mem::forget(self);
+        let refused = TABLE.with(thread, |t| t.fill(thread, hold, bake));
+        // let go out of the lock (never: the place is this hook's)
+        drop(refused);
     }
 }
 
 impl Drop for Ticket<'_> {
     fn drop(&mut self) {
-        let at = self.at;
-        TABLE.with(self.thread, |t| t.slots[at] = Slot::Free);
+        let (thread, hold) = (self.thread, self.hold);
+        TABLE.with(thread, |t| t.free(thread, hold));
     }
 }
 
-// ---- the transitions ---------------------------------------------------------------
+// ---- the transition ---------------------------------------------------------------
 
-/// What a pass sees of the oldest bake on the GPU (the frame's budget not
-/// spent, or the game exiting).
+/// Why a bake on the GPU is looked at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Look {
+    /// A dispatch's pass, while the frame's budget lasts.
+    Pass,
+    /// The pass after game::exit: every bake ends.
+    Exit,
+    /// Its place is wanted by a new bake: it ends now.
+    Place,
+}
+
+/// What is seen of a bake on the GPU.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Seen {
     /// Its last staging maps without waiting: the GPU has done it.
     Done,
-    /// The GPU has not, after `waited_ms`.
-    Busy { waited_ms: f32 },
+    /// The GPU has not, after `waited`.
+    Busy { waited: Ms },
 }
 
 /// What a bake on the GPU does.
@@ -360,167 +350,163 @@ enum Seen {
 enum Step {
     /// Stays (and the ones younger with it: the GPU runs them in order).
     Wait,
-    /// Read back and finished.
-    Finish,
-    /// Read back waiting for the GPU (late: logged), then finished.
-    FinishLate,
-    /// Read back waiting at the game's exit, then finished.
-    FinishAtExit,
+    /// Read back and completed.
+    Complete,
+    /// Read back waiting for the GPU (late: logged), then completed.
+    CompleteLate,
+    /// Read back waiting for the GPU (at the exit, or for its place), then
+    /// completed.
+    CompleteWaiting,
 }
 
 /// A bake on the GPU: the one transition.
-fn step(mode: Mode, seen: Seen) -> Step {
-    match (mode, seen) {
-        (_, Seen::Done) => Step::Finish,
-        (Mode::Playing, Seen::Busy { waited_ms }) if waited_ms >= LATE_MS => Step::FinishLate,
-        (Mode::Playing, Seen::Busy { .. }) => Step::Wait,
-        (Mode::Exiting, Seen::Busy { .. }) => Step::FinishAtExit,
+fn step(look: Look, seen: Seen) -> Step {
+    match (look, seen) {
+        (_, Seen::Done) => Step::Complete,
+        (Look::Pass, Seen::Busy { waited }) if waited >= LATE => Step::CompleteLate,
+        (Look::Pass, Seen::Busy { .. }) => Step::Wait,
+        (Look::Exit | Look::Place, Seen::Busy { .. }) => Step::CompleteWaiting,
     }
 }
 
-/// What a pass sees for the oldest postponed query.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Room {
-    /// A place on the GPU is free for it this frame.
-    Free,
-    None,
-    /// The game exits.
-    Exit,
-}
-
-/// What a postponed query does.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Requery {
-    Wait,
-    Now,
-}
-
-/// A postponed query: the one transition.
-fn requery(room: Room) -> Requery {
-    match room {
-        Room::Free | Room::Exit => Requery::Now,
-        Room::None => Requery::Wait,
+fn seen(thread: &Thread, bake: &Issued) -> Seen {
+    match bake.progress() {
+        Progress::Done => Seen::Done,
+        Progress::Busy => Seen::Busy { waited: bake.since().elapsed(thread) },
     }
 }
 
 // ---- the log ---------------------------------------------------------------------
 
-/// The postponed bakes' lines (one a second, with the count between).
-static POSTPONED_LINES: Limited = Limited::new("postponed");
+/// The bakes completed for their place (one line a second, the count between).
+static FOR_PLACE: Limited = Limited::new("completed for their place");
+/// The bakes that took the stock path while playing.
+static STOCK: Limited = Limited::new("stock bakes");
 
-/// A bake put off (named when its job was read), why, and how many are now.
-fn log_postponed(thread: &Thread, name: Option<&str>, why: Why, count: usize) {
-    let owner;
-    let reason: &[Piece] = match why {
-        Why::Full => &[Piece::Text("the GPU's places are taken")],
-        Why::Level0 => &[Piece::Text("no texture for its level 0 (the GPU's memory?)")],
-        Why::Thread(thread) => {
-            owner = [Piece::Text("the GPU has the bakes of thread "), Piece::Hex(thread.id())];
-            &owner
+
+/// What a completion that did not end well says.
+fn log_completion(completion: &Completion) {
+    use Piece::{Dec, Text};
+    let name = completion.name.as_str();
+    let head: &[Piece] = &[Text("bake_async: "), Text(name)];
+    let size = completion.size.bytes();
+    match completion.outcome {
+        Outcome::Saved => {}
+        Outcome::Unsaved => parts(&[head, &[Text(": no memory for its save; used, not saved")]]),
+        Outcome::NoSave => parts(&[head, &[Text(": its tail did not reach the save")]]),
+        Outcome::Failed(ReadError::NoMemory) => {
+            parts(&[head, &[Text(": no MT memory for its DDS of "), Dec(size), Text("; failed")]])
         }
-    };
-    POSTPONED_LINES.parts(thread, &[&[Piece::Text("bake_async: "), Piece::Text(name.unwrap_or("a bake")),
-                                      Piece::Text(" postponed: ")],
-                                    reason, &[Piece::Text("; postponed now "), Piece::Dec(count as u32)]]);
-}
-
-fn log_job(job: &Job, what: &[Piece]) {
-    parts(&[&[Piece::Text("bake_async: "), Piece::Text(job.name())], what]);
+        Outcome::Failed(ReadError::Lost) => parts(&[head, &[
+            Text(": its levels could not be read back (the device?); failed, size "), Dec(size)]]),
+    }
 }
 
 /// What a compressor's failure says.
-fn compress_error(error: CompressError, write: impl FnOnce(&[Piece])) {
+fn log_failed(failed: &IssueFailed) {
     use Piece::{Dec, Text};
-    match error {
-        CompressError::NoDevice => write(&[Text(": no render device")]),
-        CompressError::Levels(n) => write(&[Text(": the compressor gives "), Dec(n), Text(" levels")]),
-        CompressError::Size { data, size } => {
-            write(&[Text(": its levels' "), Dec(data), Text(" bytes do not fit its DDS of "), Dec(size)])
+    let head: &[Piece] = &[Text("bake_async: "), Text(failed.job.name())];
+    let tail: &[Piece] = &[Text("; failed")];
+    match failed.error {
+        CompressError::NoDevice => parts(&[head, &[Text(": no render device")], tail]),
+        CompressError::Levels(n) => parts(&[head, &[Text(": the compressor gives "), Dec(n), Text(" levels")], tail]),
+        CompressError::Size { data, size } => parts(&[head, &[
+            Text(": its levels' "), Dec(data), Text(" bytes do not fit its DDS of "), Dec(size.bytes())], tail]),
+        CompressError::Busy => parts(&[head, &[Text(": another compress is being captured")], tail]),
+        CompressError::Level0 => parts(&[head, &[Text(": no texture for its level 0 (the GPU's memory?)")], tail]),
+        CompressError::Capture(CaptureError::Site) => {
+            parts(&[head, &[Text(": a level's staging or cursor missing")], tail])
         }
-        CompressError::Level0 => write(&[Text(": no texture for its level 0")]),
-        CompressError::Capture(CaptureError::Site) => write(&[Text(": a level's staging or cursor missing")]),
-        CompressError::Capture(CaptureError::TooMany) => write(&[Text(": more levels than a texture has")]),
-        CompressError::Capture(CaptureError::Fit { offset, size }) => {
-            write(&[Text(": a level at "), Dec(offset), Text(" not inside its DDS of "), Dec(size)])
+        CompressError::Capture(CaptureError::TooMany) => {
+            parts(&[head, &[Text(": more levels than a texture has")], tail])
         }
-        CompressError::End { end, size } => {
-            write(&[Text(": the levels end at "), Dec(end), Text(", past its DDS of "), Dec(size)])
-        }
+        CompressError::Capture(CaptureError::Fit { offset, size }) => parts(&[head, &[
+            Text(": a level at "), Dec(offset.bytes()), Text(" not inside its DDS of "), Dec(size.bytes())], tail]),
+        CompressError::End { end, size } => parts(&[head, &[
+            Text(": the levels end at "), Dec(end.bytes()), Text(", past its DDS of "), Dec(size.bytes())], tail]),
+    }
+}
+
+/// A bake on the stock path while playing, and why.
+fn log_stock(thread: &Thread, why: Why) {
+    use Piece::{Hex, Text};
+    let me = ThreadId::current(thread).id();
+    match why {
+        Why::Exiting => {}
+        Why::Thread(owner) => STOCK.line(thread, &[Text("bake_async: a bake of thread "), Hex(me),
+                                                   Text(" while the GPU has thread "), Hex(owner.id()),
+                                                   Text("'s: the stock bake")]),
+        Why::Busy => STOCK.line(thread, &[Text("bake_async: a bake inside another's tail, every place in use: the stock \
+                                                bake")]),
     }
 }
 
 // ---- the hooks -------------------------------------------------------------------------
 
-/// `bake.draw`: a bake the GPU has no place for now put off before its draw
-/// (on_textures_loaded left as after a failed bake, its query not
-/// finished); else drawn. With no room to keep it, it is made again at once.
-pub fn on_draw(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnDrawExit> {
-    let Some(draw) = bake_gpu::Draw::at(ctx) else { return Flow::Continue };
-    let thread = draw.thread();
-    let me = ThreadId::current(thread);
-    let why = match TABLE.with(thread, |t| t.admit(me)) {
-        Admit::Place(_) | Admit::Stock => return Flow::Continue,
-        Admit::Postpone(why) => why,
-    };
-    let Some(postponed) = draw.postpone() else { return Flow::Continue };
-    keep(thread, None, why, postponed);
-    Flow::Exit(BakeAsyncOnDrawExit::Postponed)
+/// A bake completed on this thread, logged when it did not end well;
+/// given back, untouched, while another completion is under way.
+fn complete(thread: &Thread, bake: Issued) -> Result<(), Issued> {
+    let completion = bake.complete(thread)?;
+    log_completion(&completion);
+    Ok(())
 }
 
-/// A query put off kept, or made again at once when no room is left.
-fn keep(thread: &Thread, name: Option<&str>, why: Why, postponed: Postponed) {
-    match TABLE.with(thread, |t| t.postpone(postponed)) {
-        Ok(count) => log_postponed(thread, name, why, count),
-        Err(postponed) => {
-            POSTPONED_LINES.line(thread, &[Piece::Text("bake_async: a bake made again at once: "),
-                                           Piece::Dec(POSTPONED as u32), Piece::Text(" postponed already")]);
-            postponed.requery();
-        }
-    }
+/// The oldest bake completed for its place (every place taken), waiting
+/// when the GPU has not done it; given back when it cannot be now.
+fn complete_for_place(thread: &Thread, oldest: Issued) -> Result<(), Issued> {
+    let started = Stamp::now(thread);
+    let step = step(Look::Place, seen(thread, &oldest));
+    let completed = complete(thread, oldest);
+    TABLE.with(thread, |t| {
+        t.spend(thread, started);
+        t.end_work();
+    });
+    completed?;
+    use Piece::{Dec, Text};
+    let how = if step == Step::CompleteWaiting { "read back waiting" } else { "the GPU had done it" };
+    FOR_PLACE.line(thread, &[Text("bake_async: the GPU's "), Dec(IN_FLIGHT as u32),
+                             Text(" places taken: the oldest completed for a new bake ("), Text(how), Text(", ms "),
+                             Dec(started.elapsed(thread).whole()), Text(")")]);
+    Ok(())
 }
 
 /// `bake.issue`: the bake handed to the GPU (process_compression left by its
-/// epilogue, its query not finished); put off when its place went since its
-/// draw or its level 0 found no GPU memory; failed when its compressor does
-/// not fit its DDS. The stock bake when the game exits or the bake is not
-/// one this can read.
+/// epilogue, its query not finished), in a free place or in the oldest's,
+/// completed first; failed when its compressor does not fit its DDS or its
+/// level 0 finds no GPU memory. The stock bake when the game exits, the
+/// GPU has another thread's bakes, or the bake is not one this can read.
 pub fn on_issue(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnIssueExit> {
+    let ctx: &Context<'_> = ctx;
+    let thread = ctx.thread();
     let Some(issue) = bake_gpu::Issue::at(ctx) else { return Flow::Continue };
-    let thread = issue.thread();
-    let Some((mut job, source)) = issue.job() else {
+    let ticket = match TABLE.with(thread, |t| t.admit(thread)) {
+        Admit::Place(hold) => Ticket { thread, hold },
+        Admit::AfterOldest(hold, oldest) => {
+            let ticket = Ticket { thread, hold };
+            if let Err(oldest) = complete_for_place(thread, oldest) {
+                ticket.fill(oldest);
+                log_stock(thread, Why::Busy);
+                return Flow::Continue;
+            }
+            ticket
+        }
+        Admit::Stock(why) => {
+            log_stock(thread, why);
+            return Flow::Continue;
+        }
+    };
+    let Some(bake) = issue.take() else {
         line(&[Piece::Text("bake_async: a bake whose frame this does not read; the stock bake")]);
         return Flow::Continue;
     };
-    let me = ThreadId::current(thread);
-    let ticket = match TABLE.with(thread, |t| t.reserve(me)) {
-        Reserved::Place { at, number } => Ticket { at, number, thread },
-        Reserved::Stock => return Flow::Continue,
-        Reserved::Postpone(why) => {
-            let name = job.name_copy();
-            keep(thread, Some(name.as_str()), why, job.postpone());
-            issue.leave();
-            return Flow::Exit(BakeAsyncOnIssueExit::Issued);
-        }
-    };
-    match bake_gpu::compress(thread, &job, &source) {
-        Ok(readback) => {
-            issue.issued(&mut job);
-            ticket.fill(InFlight { job, readback, since: Stamp::now(thread) });
-        }
-        Err(CompressError::Level0) => {
+    match bake.issue() {
+        Ok(issued) => ticket.fill(issued),
+        Err(failed) => {
             drop(ticket);
-            let name = job.name_copy();
-            keep(thread, Some(name.as_str()), Why::Level0, job.postpone());
-        }
-        Err(error) => {
-            drop(ticket);
-            compress_error(error, |what| {
-                parts(&[&[Piece::Text("bake_async: "), Piece::Text(job.name())], what, &[Piece::Text("; failed")]])
-            });
-            job.fail();
+            log_failed(&failed);
+            failed.job.fail();
         }
     }
-    issue.leave();
     Flow::Exit(BakeAsyncOnIssueExit::Issued)
 }
 
@@ -545,92 +531,35 @@ pub fn on_readback(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnReadbackExit> {
     if bake_gpu::readback(ctx) { Flow::Exit(BakeAsyncOnReadbackExit::Kept) } else { Flow::Continue }
 }
 
-/// A bake the GPU has (or must have) done: its DDS allocated, its levels
-/// read back and the tail run; no MT memory or a level lost fails it.
-fn complete(thread: &Thread, bake: InFlight) {
-    let started = Stamp::now(thread);
-    let InFlight { job, readback, .. } = bake;
-    match readback.into_dds() {
-        Ok(dds) => {
-            let name = job.name_copy();
-            let what: &[Piece] = match bake_gpu::finish(thread, job, dds, started) {
-                Saved::Yes => return,
-                Saved::NoDescriptor => &[Piece::Text(": no memory for its save; used, not saved")],
-                Saved::NotReached => &[Piece::Text(": its tail did not reach the save")],
-            };
-            parts(&[&[Piece::Text("bake_async: "), Piece::Text(name.as_str())], what]);
-        }
-        Err(ReadError::NoMemory) => {
-            log_job(&job, &[Piece::Text(": no MT memory for its DDS of "), Piece::Dec(job.size()), Piece::Text("; failed")]);
-            job.fail();
-        }
-        Err(ReadError::Lost) => {
-            log_job(&job, &[Piece::Text(": its levels could not be read back (the device?); failed, size "),
-                            Piece::Dec(job.size())]);
-            job.fail();
-        }
-    }
-}
-
-/// The bakes of `me` on the GPU, oldest first: each the GPU has done
-/// finished while the frame's budget lasts (at the exit every one, waiting);
-/// a busy one stops the pass, unless it is late.
-fn finish_bakes(thread: &Thread, me: ThreadId, mode: Mode) {
+/// One pass of this thread's bakes, oldest first: each the GPU has done
+/// completed while the frame's budget lasts (at the exit every one,
+/// waiting); a busy one ends the pass, unless it is late.
+fn pass(thread: &Thread) {
+    let Some(look) = TABLE.with(thread, |t| t.start_pass(thread)) else { return };
     loop {
         let now = Stamp::now(thread);
-        let taken = TABLE.with(thread, |t| {
-            let spent = t.frame(now, thread).spent_ms;
-            (mode == Mode::Exiting || spent < BUDGET_MS).then(|| t.take_oldest(me)).flatten()
-        });
-        let Some((at, number, bake)) = taken else { break };
-        let ticket = Ticket { at, number, thread };
-        let seen = match bake.readback.progress() {
-            Progress::Done => Seen::Done,
-            Progress::Busy => Seen::Busy { waited_ms: bake.since.elapsed_ms(thread) },
-        };
-        match step(mode, seen) {
+        let Some((hold, bake)) = TABLE.with(thread, |t| t.next(thread, now, look)) else { break };
+        let ticket = Ticket { thread, hold };
+        match step(look, seen(thread, &bake)) {
             Step::Wait => {
                 ticket.fill(bake);
                 break;
             }
-            Step::Finish | Step::FinishAtExit => complete(thread, bake),
-            Step::FinishLate => {
-                log_job(&bake.job, &[Piece::Text(": the GPU had it 1 s; read back waiting, ms "),
-                                     Piece::Dec(bake.since.elapsed_ms(thread) as u32)]);
-                complete(thread, bake);
+            Step::CompleteLate => {
+                parts(&[&[Piece::Text("bake_async: "), Piece::Text(bake.name()),
+                          Piece::Text(": the GPU had it 1 s; read back waiting, ms "),
+                          Piece::Dec(bake.since().elapsed(thread).whole())]]);
             }
+            Step::Complete | Step::CompleteWaiting => {}
+        }
+        if let Err(bake) = complete(thread, bake) {
+            ticket.fill(bake);
+            break;
         }
         drop(ticket);
-        let spent = now.elapsed_ms(thread);
-        TABLE.with(thread, |t| t.frame(now, thread).spent_ms += spent);
+        TABLE.with(thread, |t| t.spend(thread, now));
     }
-}
-
-/// The queries `me` put off, oldest first, made again while the frame has
-/// places for them (at the exit, every one).
-fn requery_postponed(thread: &Thread, me: ThreadId) {
-    loop {
-        let now = Stamp::now(thread);
-        let next = TABLE.with(thread, |t| match requery(t.room(me, now, thread)) {
-            Requery::Wait => None,
-            Requery::Now => {
-                let postponed = t.take_postponed(me)?;
-                t.frame(now, thread).requeried += 1;
-                Some(postponed)
-            }
-        });
-        let Some(postponed) = next else { break };
-        postponed.requery();
-    }
-}
-
-/// One pass of `thread`'s, none inside or beside another.
-fn pass(thread: &Thread) {
-    let me = ThreadId::current(thread);
-    let Some(mode) = TABLE.with(thread, |t| t.start_pass(me)) else { return };
-    finish_bakes(thread, me, mode);
-    requery_postponed(thread, me);
-    TABLE.with(thread, |t| t.pass = Pass::Idle);
+    TABLE.with(thread, Table::end_work);
 }
 
 /// `resources.dispatched`: each dispatch, a pass for the thread's bakes.
@@ -647,18 +576,19 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// `game.exit_start`: game::exit, every pending bake finished (waiting) and
-/// every postponed query made again, here when they are this thread's, else
-/// at their thread's next pass; new bakes the stock path.
+/// `game.exit_start`: game::exit, every bake on the GPU completed (waiting),
+/// here when they are this thread's, else at their thread's next pass; new
+/// bakes the stock path.
 pub fn on_exit(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    use Piece::{Dec, Hex, Text};
     let thread = ctx.thread();
-    let (in_flight, postponed) = TABLE.with(thread, |t| {
-        t.mode = Mode::Exiting;
-        (t.in_flight(), t.postponed.len())
-    });
-    if in_flight + postponed > 0 {
-        line(&[Piece::Text("bake_async: the game exits: bakes on the GPU "), Piece::Dec(in_flight as u32),
-               Piece::Text(", postponed "), Piece::Dec(postponed as u32)]);
+    match TABLE.with(thread, |t| t.exit(thread)) {
+        OnGpu::Nobody | OnGpu::Me(0) => {}
+        OnGpu::Me(n) => line(&[Text("bake_async: the game exits: bakes on the GPU "), Dec(n as u32)]),
+        OnGpu::Thread(owner) => {
+            line(&[Text("bake_async: the game exits: the GPU has the bakes of thread "), Hex(owner.id()),
+                   Text(", completed at its next pass")])
+        }
     }
     pass(thread);
     Flow::Continue
@@ -669,39 +599,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_bake_on_the_gpu_ends_when_done_late_or_at_exit() {
-        assert_eq!(step(Mode::Playing, Seen::Done), Step::Finish);
-        assert_eq!(step(Mode::Exiting, Seen::Done), Step::Finish);
-        assert_eq!(step(Mode::Playing, Seen::Busy { waited_ms: 16.0 }), Step::Wait);
-        assert_eq!(step(Mode::Playing, Seen::Busy { waited_ms: 999.9 }), Step::Wait);
-        assert_eq!(step(Mode::Playing, Seen::Busy { waited_ms: LATE_MS }), Step::FinishLate);
-        assert_eq!(step(Mode::Exiting, Seen::Busy { waited_ms: 0.0 }), Step::FinishAtExit);
-    }
-
-    #[test]
-    fn a_postponed_query_comes_again_when_there_is_room_or_at_exit() {
-        assert_eq!(requery(Room::Free), Requery::Now);
-        assert_eq!(requery(Room::Exit), Requery::Now);
-        assert_eq!(requery(Room::None), Requery::Wait);
-    }
-
-    #[test]
-    fn a_pack_keeps_its_values_at_the_front() {
-        let mut pack: Pack<u32, 3> = Pack::new();
-        assert_eq!((pack.push(1), pack.push(2), pack.push(3), pack.push(4)), (Ok(()), Ok(()), Ok(()), Err(4)));
-        assert_eq!(pack.remove(0), Some(1));
-        assert_eq!(pack.iter().copied().collect::<std::vec::Vec<_>>(), [3, 2]);
-        assert_eq!(pack.remove(1), Some(2));
-        assert_eq!(pack.remove(0), Some(3));
-        assert_eq!((pack.len(), pack.remove(0)), (0, None));
-    }
-
-    #[test]
-    fn numbers_age_across_the_wrap() {
-        let old = Number(u32::MAX);
-        let next = old.after().after();
-        assert_eq!(next, Number(1));
-        assert_eq!(old.age(next), 2);
-        assert!(old.age(next) > Number(0).age(next));
+    fn a_bake_on_the_gpu_ends_when_done_late_at_exit_or_for_its_place() {
+        let busy = |ms| Seen::Busy { waited: Ms::new(ms) };
+        for look in [Look::Pass, Look::Exit, Look::Place] {
+            assert_eq!(step(look, Seen::Done), Step::Complete);
+        }
+        assert_eq!(step(Look::Pass, busy(16.0)), Step::Wait);
+        assert_eq!(step(Look::Pass, busy(999.9)), Step::Wait);
+        assert_eq!(step(Look::Pass, busy(1000.0)), Step::CompleteLate);
+        assert_eq!(step(Look::Exit, busy(0.0)), Step::CompleteWaiting);
+        assert_eq!(step(Look::Place, busy(0.0)), Step::CompleteWaiting);
     }
 }
