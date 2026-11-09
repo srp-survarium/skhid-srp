@@ -47,6 +47,9 @@ VIEWER_PLATES, VIEWER_PLATE_Y = (1160, 1314, 1470), 972  # the kit plates in a r
 PLAYER_ROW_X = 1495  # a viewer's player list
 PLAYER_ROWS = (("ReplayTester", 560), ("SecondTester", 583))
 LIVE_DELAY = 30  # SRP_LIVE_WATCH_DELAY_S's default
+SETTINGS_GEAR = (1577, 52)
+GEAR_MENU_BACK = (799, 523)
+LIVE_WATCH_BOX, SETTINGS_APPLY, SETTINGS_CLOSE = (520, 657), (735, 823), (860, 823)
 DAILY_CLOSE = (1032, 539)  # the X of the first sign-in of a day's reward box
 # A room's three map cards: where to sample each mode label's box, and where to click to vote for the card.
 CARD_LABELS = (132, 598, 1064)
@@ -418,6 +421,57 @@ def kit_view(run: Run) -> None:
     say("watched the replay's kit view and left it")
 
 
+def live_watch_setting(game: Game, name: str) -> None:
+    """Settings by the lobby's gear: the box of live watching toggled, applied."""
+    game.click(*SETTINGS_GEAR, 8)
+    time.sleep(1.5)
+    game.shot(f"privacy-{name}-open")
+    game.click(*LIVE_WATCH_BOX, 8)
+    time.sleep(0.4)
+    game.shot(f"privacy-{name}-toggled")
+    game.click(*SETTINGS_APPLY, 8)
+    time.sleep(0.6)
+    game.click(*SETTINGS_CLOSE, 8)
+    time.sleep(0.8)
+    game.click(*GEAR_MENU_BACK, 8)  # the gear's own small menu stands behind Settings
+    game.wait_screen(play_ready, "the lobby, Settings closed", 5, steady=0.5)
+
+
+def privacy(run: Run) -> None:
+    """A player who turns live watching off: its match is on nobody's Live list; turned on again, it is."""
+    a, b, c = sign_in(run, "ReplayTester"), sign_in(run, "SecondTester"), sign_in(run, "ThirdTester")
+    live_watch_setting(b, "off")
+    room_match(b, c)
+    a.expect_server(r"play begins", 40)
+    a.click(*WATCH_MENU)
+    a.wait_screen(window_open, "the Watch window")
+    a.click(*TAB_LIVE)
+    time.sleep(4)  # the list has had its answer
+    a.shot("privacy-live-hidden")
+    if card_listed(a.picture()):
+        raise a.fail("the match of a player who turned live watching off is on the Live list")
+    say("hidden from the Live list")
+    a.click(*CLOSE_WATCH)
+    a.wait_screen(lobby_clear, "the lobby", 5)
+    end_match(run, b, c, begun=True)
+    for game in (b, c):
+        game.wait_screen(results_open, "the results screen", 25, steady=1)
+        game.click(*RESULTS_CLOSE, 6)
+        game.wait_screen(play_ready, "the lobby, after the results", 20, steady=1)
+    live_watch_setting(b, "on")
+    room_match(b, c)
+    a.expect_server(r"play begins", 40)
+    a.click(*WATCH_MENU)
+    a.wait_screen(window_open, "the Watch window")
+    a.click(*TAB_LIVE)
+    a.wait_screen(card_listed, "the match on the Live list, watching allowed again", 10)
+    a.shot("privacy-live-listed")
+    say("back on the Live list")
+    a.click(*CLOSE_WATCH)
+    a.wait_screen(lobby_clear, "the lobby", 5)
+    end_match(run, b, c, begun=True)
+
+
 def first_click(run: Run) -> None:
     """The first click on Back after Ctrl brings up the viewer's cursor must register. Regression flow: it fails while
     the viewer swallows that click."""
@@ -454,7 +508,7 @@ def first_click(run: Run) -> None:
         raise Stop(f"{misses} of 12 first clicks on Back did nothing")
 
 
-FLOWS = {"kit": kit_after_replay, "kit_view": kit_view, "live": live, "follow": follow, "save": save, "first_click": first_click}
+FLOWS = {"kit": kit_after_replay, "kit_view": kit_view, "live": live, "follow": follow, "save": save, "first_click": first_click, "privacy": privacy}
 
 
 def main() -> int:
