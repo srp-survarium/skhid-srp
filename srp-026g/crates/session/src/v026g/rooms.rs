@@ -2735,9 +2735,9 @@ mod tests {
             );
         }
         // The review of #1567: the squad's two strong (2.6 and 2.47 in it)
-        // below two strong alone (4 and 3.8). Two a side ranks no worse at
-        // the top than three against one: two a side, the two alone
-        // together against the squad, whatever the seed.
+        // below two strong alone (4 and 3.8). Three against one keeps the top
+        // two apart, but the strong count comes before the ranks: two a side,
+        // the two alone together against the squad, whatever the seed.
         let mut parties = vec![Party::new(vec![
             (1, Strength::from_milli(2000)),
             (2, Strength::from_milli(1900)),
