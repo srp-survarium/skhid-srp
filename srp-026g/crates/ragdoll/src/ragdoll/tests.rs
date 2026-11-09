@@ -688,10 +688,11 @@ fn queries_a_frame_are_bounded_and_few_on_the_ground() {
             break;
         }
     }
-    // at most both ends of every body, and fewer than one a body over the
-    // last half second (on the ground, most bodies keep their plane)
+    // at most two rays (under and beside) at both ends of every body, and
+    // fewer than one a body over the last half second (on the ground, most
+    // bodies keep their plane)
     assert!(
-        per_frame.iter().all(|&n| n <= 2 * (PARTS + 1)),
+        per_frame.iter().all(|&n| n <= 2 * 2 * (PARTS + 1)),
         "{per_frame:?}"
     );
     let tail = &per_frame[per_frame.len() - 30..];
@@ -1298,7 +1299,7 @@ fn a_lone_gun_sliding_on_the_ground_stops() {
     gun.body.pose = Pose::new(Quat::IDENTITY, Vec3::new(0.0, radius + 0.002, 0.0));
     gun.body.previous = gun.body.pose;
     gun.body.velocity = Vec3::new(0.0, 0.0, 3.0);
-    gun.body.contacts = [Contact::Plane { point: Vec3::ZERO, normal: Vec3::Y }; 2];
+    gun.body.contacts[..2].fill(Contact::Plane { point: Vec3::ZERO, normal: Vec3::Y });
     let mut ground = Ground::flat();
     let (frames, sunk) = lone_until_rest(&mut gun, &mut ground);
     let at = gun.body.pose.position;
@@ -1451,4 +1452,54 @@ fn capsules_found_apart_never_overlap() {
         far += usize::from(!overlap);
     }
     assert!(skipped > far / 4, "{skipped} of {far}");
+}
+
+/// The game's level query: a ray from the end's centre, its move plus the
+/// radius long (`GameLevel::sweep`), not a sphere's sweep: a wall beside the
+/// end is met only by a ray toward it. The floor at 0, a wall at z `wall`
+/// facing -z.
+struct RayLevel {
+    wall: f32,
+}
+
+impl Level for RayLevel {
+    fn sweep(&mut self, from: Vec3, to: Vec3, radius: f32) -> Sweep {
+        let Some(d) = (to - from).direction() else { return Sweep::Clear };
+        let reach = (to - from).length() + radius;
+        let planes = [(Vec3::ZERO, Vec3::Y), (Vec3::new(0.0, 0.0, self.wall), -Vec3::Z)];
+        planes
+            .into_iter()
+            .filter_map(|(p, n)| {
+                let facing = d.dot(n);
+                let t = (p - from).dot(n) / facing;
+                (facing < 0.0 && (0.0..=reach).contains(&t)).then_some((t, n))
+            })
+            .reduce(|a, b| if a.0 <= b.0 { a } else { b })
+            .map_or(Sweep::Clear, |(t, normal)| Sweep::Hit { point: from + d * t, normal })
+    }
+}
+
+#[test]
+fn a_body_thrown_into_a_wall_stays_out_of_it() {
+    // the owner, 2026-11-09: heads seen clipping into walls; each end asked
+    // only for the surface below it, and a ray down never meets a wall
+    let wall = 0.6;
+    for direction in [Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.6, 0.0, 0.8), Vec3::new(-0.8, 0.0, 0.6)] {
+        let now = standing(Quat::IDENTITY, Vec3::ZERO);
+        let before = driver_bones(&now);
+        let hits = [gun_stock(direction, Vec3::new(0.0, 1.3, -0.12), 15.0)];
+        let mut s = start(&now, &before, Cause::Unknown, None);
+        s.hits = &hits;
+        let mut r = Ragdoll::new(&s).unwrap();
+        let mut level = RayLevel { wall };
+        let mut deepest = 0.0f32;
+        for _ in 0..300 {
+            r.step(1.0 / 60.0, None, &mut level);
+            for b in &r.bodies {
+                let (a, e) = b.shape.ends(b.pose);
+                deepest = deepest.max(a.z.max(e.z) + b.shape.radius - wall);
+            }
+        }
+        assert!(deepest < 0.04, "{direction:?}: {deepest:.3} m into the wall");
+    }
 }
