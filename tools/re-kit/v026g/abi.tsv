@@ -2402,6 +2402,11 @@ va	name	source	ret_cleanup	result
 0x0027b110	survarium::network_client::disconnect	manual	0	none; vtable 0x9FFB14 +14h, the main menu's logoff (0x1FF736, then switch_to_login): when the time rule's state +1F1C60h is not 0, clears it, unloads the world (0x1F8B40), clears the match link's disconnect callback and disconnects it; then the lobby client's 0x26F8C0, whatever the state
 0x001ed170	survarium::game::switch_to_game_world	manual	0	none; EAX the game: the game world (game+18h) the active scene (game+539Ch; the old one's on_deactivate, vtable +4, then the world's on_activate); set_game_project's (0x1F8626), so the lobby menu's on_deactivate hides the loading screen there
 0x002203a0	survarium::lobby_menu::show_loading_screen	manual	0	none; AL the flag, EDX the lobby menu: invokes the lobby movie's root.show_loading_screen; shown by switch_to_level_loading (0x220433), hidden only by lobby_menu::on_deactivate (0x21D54A)
+0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	manual	4	
+0x003cfe20	vostok::render::res_render_output::goto_fullscreen	manual	0	
+0x003cfe80	vostok::render::res_render_output::minimize	manual	0	
+0x001ed430	survarium::game::on_fullscreen_alttab	manual	0	
+0x001ed450	survarium::game::on_alttab	manual	0	
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	manual	0	EAX: the first element equal to *EDI, or ESI (last) when none is (four-way unrolled, as stlport __find)
 0x002010e0	survarium::game_options::process_key_input	manual	4	AL: 1 the key wait ends here (Esc, DIK 1, at once 0x2010F2; a key without a conflict, given by assign_binding 0x201384), the caller then calls finish_binding or its copy; 0 it goes on (a key with no name, 0x20110F) or a conflict's message ended it (root.show_reassign_message, +10h shown, +3Ch 48h: 0x20133D..0x20134F)
 0x002015a0	survarium::game_options::finish_binding	manual	0	none; the key wait's end: root.end_keybind on the menu movie (+0Ch, 0x2015B8), the cursor movie +10h back in +30h's scene (0x2015C3), +3Ch 48h (0x2015C8)

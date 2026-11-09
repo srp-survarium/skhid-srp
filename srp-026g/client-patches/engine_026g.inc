@@ -556,6 +556,14 @@ extern engine_key_name
 ; the IAT slot 0xaeff20 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_activate_keyboard_layout
+; unsigned int engine_get_window_long_a(void *window, unsigned int index)
+; the IAT slot 0xaefe8c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_window_long_a
+; unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)
+; the IAT slot 0xaeff44 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_set_window_long_a
 ; void *engine_get_module_handle_a(const char *name)
 ; the IAT slot 0x87003c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments

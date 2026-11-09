@@ -601,6 +601,12 @@ unsigned char __attribute__((thiscall)) engine_key_name(struct keyboard *keyboar
 /* the IAT slot 0xaeff20 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_layout)(unsigned int layout, unsigned int flags);
 
+/* the IAT slot 0xaefe8c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_window_long_a)(void * window, unsigned int index);
+
+/* the IAT slot 0xaeff44 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_set_window_long_a)(void * window, unsigned int index, unsigned int value);
+
 /* the IAT slot 0x87003c (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
 

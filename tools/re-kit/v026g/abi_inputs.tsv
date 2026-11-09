@@ -5739,6 +5739,12 @@ va	name	location	role	basis
 0x001ed170	survarium::game::switch_to_game_world	EAX	the game	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	AL	the flag: 1 shown, 0 hidden	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	EDX	the lobby menu	observed
+0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	ESI	render-output receiver	observed
+0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	entry ESP+4 low byte	apply even without the focus (resize passes 1)	observed
+0x003cfe20	vostok::render::res_render_output::goto_fullscreen	ESI	render-output receiver	observed
+0x003cfe80	vostok::render::res_render_output::minimize	ESI	render-output receiver	observed
+0x001ed430	survarium::game::on_fullscreen_alttab	ECX	game receiver (+53B0h its render output window)	observed
+0x001ed450	survarium::game::on_alttab	ECX	game receiver (+53B0h its render output window)	observed
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EAX	first	observed
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	ESI	last	observed
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EDI	pointer to the value (a resource_ptr: its pointer compared)	observed
