@@ -71,3 +71,7 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
 - **No switch:** `SRP_TUTORIAL` is gone.
 - **Release:** the server, and the content patch that carries `new_account.options` (srp
   refuses data without it); no exe change.
+- **Code left of it** (2026-11-08): the server keeps no tutorial state (the accounts' tutorial
+  columns stay, written done) and still sends `ALL_DONE` in `9D`; the lobby movie's tutorial
+  classes are gone, those bound to library symbols bare (`TutorialSlide`, `TutorSlide1`,
+  `SrvTutorialNotes*`, `MessageTutorialComplete`), and the exe's tutorial entry points stubs.
