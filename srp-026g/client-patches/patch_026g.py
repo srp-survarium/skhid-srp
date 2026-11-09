@@ -2481,6 +2481,14 @@ INSTALLS = {
     0x59F8E: (JUMP, "create_sound_voice 0x59E70 after the constructor: sound_voices_built frees a voice with no "
                     "source and returns 0 by 0x59F9A, else replays push edi / add esi,2B0h and goes on at 0x59F95",
               None, None),
+    # patch 127 (the Rust patch memory_profile's three code hooks, memory_profile_026g.asm): one byte
+    # tested, then the stock body (its first instructions replayed, a jump back past them)
+    0x101330: (ENTRY, "mspace_malloc (EAX the mspace, cdecl): memory_profile_malloc, the stock body, or on calls "
+                      "it and tells memory_profile.allocated", None, None),
+    0x1005A0: (ENTRY, "mspace_realloc (EAX the mspace, cdecl): memory_profile_realloc, the stock body, or on tells "
+                      "memory_profile.freeing, calls it and tells memory_profile.allocated", None, None),
+    0x1015E0: (ENTRY, "mspace_free (ESI the mspace, EAX the memory): memory_profile_free, the stock body, or on "
+                      "tells memory_profile.freeing first", None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),

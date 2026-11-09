@@ -54,6 +54,7 @@ pub mod mouse;
 pub mod log;
 pub mod melee;
 pub mod memory;
+pub mod memory_profile;
 mod options;
 pub mod parse;
 pub mod resources;

@@ -395,6 +395,14 @@ extern engine_global_memory_status_ex
 ; the IAT slot 0x870168 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_virtual_query
+; void *engine_virtual_alloc(void *address, unsigned int size, unsigned int type, unsigned int protect)
+; the IAT slot 0x87015c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_virtual_alloc
+; unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)
+; the IAT slot 0x8701b4 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_environment_variable_a
 ; struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where)
 ; 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
 extern engine_allocate_recipe

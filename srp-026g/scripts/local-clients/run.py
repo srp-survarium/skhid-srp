@@ -147,6 +147,10 @@ class Config:
             "WINEPREFIX": str(self.prefix(index)), "WINEDEBUG": "-all",
             # Full-memory crash dumps (client/bugtrap/README.md, "Dump contents").
             "SKHID_CRASH_DUMP": "full",
+            # Patch 127's memory profiler (docs/notes/memory-profile.md): snapshots to
+            # Documents/Survarium/srp_memory_profile.txt in the prefix; SKHID_MEMORY_PROFILE=off
+            # in run.py's own environment leaves it off.
+            "SKHID_MEMORY_PROFILE": os.environ.get("SKHID_MEMORY_PROFILE", "on"),
         }))
 
 

@@ -2225,3 +2225,10 @@ va	status	ref_021d	name
 0x000ddf20	reviewed	0x000ac7b6	vostok::command_line::key::is_set_as_number
 0x000e0f20	reviewed	0x000ae85f	vostok::memory::preinitialize
 0x000e1120	reviewed	0x000ae992	vostok::memory::allocate_region
+0x00101280	verified		create_mspace_with_base
+0x00101330	verified		mspace_malloc
+0x001005a0	verified		mspace_realloc
+0x001015e0	verified		mspace_free
+0x00100750	verified		mspace_memalign
+0x00106ef0	verified		pt3malloc
+0x000eb530	reviewed		vostok::memory::mt_allocator::call_malloc

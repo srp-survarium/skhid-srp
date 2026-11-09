@@ -1,0 +1,60 @@
+# Patch 127: the memory profiler, dormant unless the game is started with
+# SKHID_MEMORY_PROFILE=on (docs/notes/memory-profile.md). Only the
+# decisions: the sites and the handlers.
+name = "memory_profile"
+patch = 127
+
+# allocate_region after every allocator's heap is made: the switch read once
+[[hook]]
+site = "memory.arenas_ready"
+handler = "on_start"
+
+# dlmalloc's three entries: one byte tested, the stock body unless on
+[[hook]]
+site = "memory_profile.malloc"
+source = "memory_profile_026g.asm"
+symbol = "memory_profile_malloc"
+limit = 64
+
+[[hook]]
+site = "memory_profile.realloc"
+source = "memory_profile_026g.asm"
+symbol = "memory_profile_realloc"
+limit = 96
+
+[[hook]]
+site = "memory_profile.free"
+source = "memory_profile_026g.asm"
+symbol = "memory_profile_free"
+limit = 48
+
+# the gates' two entries
+[[hook]]
+site = "memory_profile.allocated"
+handler = "on_allocated"
+
+[[hook]]
+site = "memory_profile.freeing"
+handler = "on_freeing"
+
+# the snapshots: a world in (after patch 126's, order 3), the match closing
+# with its world still there (after patch 126 and 97), a fixed arena full
+# before the game ends itself, and the owner's key
+[[hook]]
+site = "world_load.loaded"
+handler = "on_loaded"
+order = 4
+
+[[hook]]
+site = "match_recovery.close"
+handler = "on_close"
+order = 3
+
+[[hook]]
+site = "memory.out_of_memory"
+handler = "on_out_of_memory"
+
+[[hook]]
+site = "keyboard.events"
+handler = "on_keys"
+order = 2

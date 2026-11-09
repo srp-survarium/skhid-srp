@@ -773,6 +773,7 @@ vostok::checksum::crc32_bytes	first	0x0	u8	the first of the bytes the step goes 
 vostok::checksum::crc32_step_frame	count	0x4	u32	the step's [esp+4] at its start: how many bytes
 vostok::input::keyboard	events	0x408	obj<vostok::input::key_event>	the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
 vostok::input::key_event	key	0x0	u32	DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)
+vostok::input::key_event	data	0x4	u32	DIDEVICEOBJECTDATA.dwData: bit 80h the key went down, clear it went up (execute 0x3B9167: test byte [ecx],80h, ecx +40Ch; process 0x3B9B23)
 vostok::input::key_event	size	0x14	size	a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)
 survarium::image	d3d9_module	0xAF1194	u32	the delayed import d3d9.dll's module slot (its descriptor's hmod): __delayLoadHelper2 0xE48E0 binds the import to the module there, LoadLibrary only while it is 0 (0xE4995), then InterlockedExchange (0xE4B25); patch 83 puts DXVK's d3d9 there
 survarium::image	dxgi_module	0xAF30CC	u32	the delayed import dxgi.dll's module slot (as d3d9_module); patch 83 puts DXVK's dxgi there
@@ -946,3 +947,22 @@ vostok::memory::mspace	segment	0x1BC	u32	malloc_state.seg.base: the arena's star
 vostok::memory::mspace	segment_size	0x1C0	u32	malloc_state.seg.size: the arena's bytes (0x1011F4)
 vostok::memory::mspace	next_segment	0x1C4	u32	malloc_state.seg.next: 0 in a fixed-base mspace (the memset of 1E0h, 0x1011B6), the walk's next segment (0xFF2B7)
 vostok::memory::mspace	size	0x1D8	size	malloc_state's bytes: its chunk is 1E0h (the head 1E3h, init_user_mstate 0x1011C6), the state 8 bytes in; its last word +1D4h/+1D8h the out-of-memory callback and its parameter (0x101201, create_mspace_with_base 0x1012D4)
+vostok::memory::image	dlmalloc_start	0xFF160	u32	the first function of dlmalloc 2.8's code (the mspace functions ptmalloc3 is built on): an mspace_malloc or mspace_free called from here to dlmalloc_end is dlmalloc's own (mspace_realloc's move 0x1006DF / 0x100733 and its cut tail 0x1006CB, mspace_memalign 0x100773 / 0x1007DC, internal_memalign's leader and trailer 0x1008D6 / 0x1008F7); patch 127
+vostok::memory::image	dlmalloc_end	0x101B40	u32	past mspace_free (0x1015E0), the last of dlmalloc's code: its usage-error tail jump 0x101B37, then int3 to 0x101B40
+vostok::memory::image	malloc_impl_heap_return	0xE4FB0	u32	doug_lea_allocator::malloc_impl's (0xE4F90; ESI the allocator, EAX the bytes) return from mspace_malloc (call 0xE4FAB)
+vostok::memory::image	realloc_impl_malloc_return	0xE50E4	u32	doug_lea_allocator::realloc_impl's (0xE5050) return from mspace_malloc (call 0xE50DF: no memory given)
+vostok::memory::image	realloc_impl_realloc_return	0xE5100	u32	doug_lea_allocator::realloc_impl's return from mspace_realloc (call 0xE50FB)
+vostok::memory::image	pt_malloc_heap_return	0x106F70	u32	ptmalloc3's malloc (0x106EF0; EAX the bytes) return from mspace_malloc (call 0x106F6B, its arena's mspace at +20h)
+vostok::memory::image	mt_malloc_return	0xEB550	u32	mt_allocator::call_malloc's (0xEB530, the "global multithreaded" vtable's slot 0x9E6010) return from ptmalloc3's malloc (call 0xEB54B)
+vostok::memory::image	heap_out_of_memory_return	0x1013F8	u32	mspace_malloc's return from its arena's out-of-memory callback (call eax 0x1013F6, the mspace's +1D4h; EBP the bytes asked, 0x101335)
+vostok::memory::game_call	return_address	0x0	u32	where a call of the game returns: the word at its callee's entry ESP
+vostok::memory::game_call	malloc_impl_call	0x18	obj<vostok::memory::game_call>	at mspace_malloc's entry from malloc_impl (return malloc_impl_heap_return): malloc_impl's own call, 18h up (sub esp,8 / push ebx / push edi / push edi, 0xE4F90..0xE4FAA)
+vostok::memory::game_call	realloc_impl_malloc_call	0x18	obj<vostok::memory::game_call>	at mspace_malloc's entry from realloc_impl (return realloc_impl_malloc_return): realloc_impl's own call, 18h up (push ecx / push ebx / push esi / push edi / push ebx, 0xE5050..0xE50DA)
+vostok::memory::game_call	realloc_impl_realloc_call	0x1C	obj<vostok::memory::game_call>	at mspace_realloc's entry from realloc_impl (return realloc_impl_realloc_return): realloc_impl's own call, 1Ch up (its four pushes, then push ebx / push edx, 0xE50FA)
+vostok::memory::game_call	pt_malloc_call	0x1C	obj<vostok::memory::game_call>	at mspace_malloc's entry from ptmalloc3's malloc (return pt_malloc_heap_return): its own call, 1Ch up (sub esp,0Ch / push esi / push edi / push edi, 0x106EF0..0x106F67; the TlsGetValue and 0x106B10 calls between leave the stack as it was)
+vostok::memory::game_call	mt_malloc_call	0x10	obj<vostok::memory::game_call>	at ptmalloc3's malloc's entry from mt_allocator::call_malloc (return mt_malloc_return): call_malloc's own call, 10h up (push ecx / push edi / push esi, 0xEB530..0xEB544)
+vostok::memory::profile_frame	call	0x4	ptr<vostok::memory::game_call>	memory_profile.allocated's and .freeing's first argument (by the site ESP, the return address at +0): the ESP the game's call of mspace_malloc, mspace_realloc or mspace_free left, its return address there
+vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_malloc or mspace_realloc gave (0 for none), or the memory given back to mspace_free or mspace_realloc
+vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
+vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
+vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)

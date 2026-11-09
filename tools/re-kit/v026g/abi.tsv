@@ -2419,3 +2419,10 @@ va	name	source	ret_cleanup	result
 0x000e0f20	vostok::memory::preinitialize	manual	0	registers the arenas C runtime library, process heap, shared strings, global multithreaded (mt_allocator, 0xE0FF0..0xE1029), then with the resources manager (byte [0xA71F77]) cook allocator, resources helper allocator (rh_allocator: default 8 MiB stored in bytes in the u32 0x141B0 writes to (0xE1099), a value in MiB shl 14h; 0xE108F..0xE10D7) and resources links allocator
 0x000e1120	vostok::memory::allocate_region	manual	0	every registered arena's size summed, platform::allocate_arenas 0xE9580 (0xE11F9) reserves them and sizes the resource arenas from the address space left, then registers "resources (managed) allocator" and "resources (unmanaged) allocator"
 0x000e21c0	vostok::memory::register_allocator	manual	0	appends the 18h-byte record at EDI to the arenas' list; a full list asserts (0x113450)
+0x00101280	create_mspace_with_base	manual	0	EAX the mspace (its malloc_state 8 bytes into the base), its +1D4h/+1D8h the out-of-memory callback and its parameter
+0x00101330	mspace_malloc	manual	0	EAX the memory, 0 when the callback said give up
+0x001005a0	mspace_realloc	manual	0	EAX the memory (moved through mspace_malloc 0x1006DF and mspace_free 0x100733 when it cannot grow in place), 0 for none
+0x001015e0	mspace_free	manual	0	
+0x00106ef0	pt3malloc	manual	0	EAX the memory, from its thread's arena's mspace (mspace_malloc 0x106F6B)
+0x000eb530	vostok::memory::mt_allocator::call_malloc	manual	20	EAX the memory (pt3malloc 0xEB54B)
+0x000e4d70	out_of_memory_with_crash	manual		never returns: logs "out of memory in arena", dumps the statistics and FATALs

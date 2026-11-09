@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+"""Patch 127 (memory_profile): the memory profiler, dormant unless the game
+starts with SKHID_MEMORY_PROFILE=on (docs/notes/memory-profile.md).
+
+    python check_memory_profile_026g.py <original survarium.exe>
+
+dlmalloc's own code runs, in the original and in the patched exe, on a heap
+the check makes with the game's create_mspace_with_base (0x101280) over 1 MiB
+of its own, the doug_lea_allocator over it registered as the engine's only
+arena (the list at 0xA808FC). The same allocations, frees and reallocations
+(mspace_malloc, mspace_realloc and mspace_free called as the game calls them,
+and doug_lea_allocator::malloc_impl over them) are made in both:
+1. the variable unset: allocate_region's tail (memory.arenas_ready) reserves
+   nothing, writes nothing, logs nothing, and leaves the switch 0; each call
+   gives what the original's gives, every register and flag and the heap's
+   bytes the same;
+2. SKHID_MEMORY_PROFILE=on: the tables are reserved (VirtualAlloc, stubbed),
+   one line logged, the switch 1; each call still gives the original's
+   result, registers and heap bytes (flags aside: the gate's own `add`
+   comes last);
+3. the heap asked for more than it holds: out_of_memory_with_crash's entry
+   (memory.out_of_memory) writes a snapshot to srp_memory_profile.txt (the
+   file stubbed) before the game's own body goes on; scripts/memory-profile/
+   analyze.py reads it: the arena's heap use as the walk finds it, its holes,
+   each call site's live bytes as the heap's chunks say (malloc_impl's
+   caller, not malloc_impl; a reallocation's caller; nothing of
+   mspace_realloc's own moves), the bytes asked, the address space's regions.
+"""
+import importlib.util
+import struct
+import sys
+from pathlib import Path
+
+from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_PROT_ALL
+from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI,
+                               UC_X86_REG_EDX, UC_X86_REG_EFLAGS, UC_X86_REG_EIP, UC_X86_REG_ESI, UC_X86_REG_ESP)
+
+import patch_026g as base
+
+HERE = Path(__file__).resolve().parent
+MSPACE_MALLOC, MSPACE_REALLOC, MSPACE_FREE = 0x101330, 0x1005A0, 0x1015E0
+CREATE_MSPACE, MALLOC_IMPL = 0x101280, 0xE4F90
+ARENAS_READY, OUT_OF_MEMORY, OUT_OF_MEMORY_ON = 0xE12BF, 0xE4D70, 0xE4D76
+USER_DATA_DIRECTORY = 0x18BD0
+ARENA_LIST_SLOT, DOUG_LEA_VTABLE = 0xA808FC, 0x9E68DC
+IMPORTS = {0x8701B4: ("GetEnvironmentVariableA", 3), 0x87015C: ("VirtualAlloc", 4),
+           0x870118: ("GetCurrentThreadId", 0), 0x870090: ("GetTickCount", 0),
+           0x8701B8: ("GetCurrentProcessId", 0), 0x870048: ("CreateFileA", 7), 0x870108: ("WriteFile", 5),
+           0x870040: ("CloseHandle", 1), 0x870168: ("VirtualQuery", 3), 0x87008C: ("GetSystemInfo", 1)}
+
+DATA = 0x30000000
+ALLOCATOR, LIST, RECORD, STRINGS, STUBS = (DATA + 0x1000 * i for i in range(5))
+RETURN, CALLER_A, CALLER_B, CALLER_C = STUBS, STUBS + 0x10, STUBS + 0x20, STUBS + 0x30
+IMPORT_STUBS = STUBS + 0x100
+HEAP, HEAP_SIZE = 0x40000000, 0x100000
+ROOM, ROOM_SIZE = 0x50000000, 0x2000000
+STACK = 0x21000000
+KEPT = {UC_X86_REG_EBX: 0x0B0B0B0B, UC_X86_REG_EDI: 0x0E0E0E0E, UC_X86_REG_EBP: 0x0019FF00,
+        UC_X86_REG_ECX: 0x0C0C0C0C, UC_X86_REG_EDX: 0x0D0D0D0D}
+REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
+        UC_X86_REG_EBP, UC_X86_REG_ESP)
+FLAGS = 0x8D5                                    # CF PF AF ZF SF OF
+# the address space VirtualQuery tells: (base, size, state, protect, type)
+SPACE = [(0, HEAP, 0x10000, 1, 0), (HEAP, HEAP_SIZE, 0x1000, 4, 0x20000),
+         (HEAP + HEAP_SIZE, ROOM - HEAP - HEAP_SIZE, 0x10000, 1, 0), (ROOM, ROOM_SIZE, 0x1000, 4, 0x20000),
+         (ROOM + ROOM_SIZE, 0x7FFF0000 - ROOM - ROOM_SIZE, 0x10000, 1, 0)]
+
+
+def analyzer():
+    path = HERE.parent / "scripts" / "memory-profile" / "analyze.py"
+    spec = importlib.util.spec_from_file_location("memory_profile_analyze", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class Run:
+    def __init__(self, data, variable=None):
+        self.variable = variable
+        self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
+        for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
+            start = base.IMAGE_BASE + rva
+            emu.mem_map(start, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
+            emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
+        emu.mem_map(DATA, 0x10000, UC_PROT_ALL)
+        emu.mem_map(HEAP, HEAP_SIZE, UC_PROT_ALL)
+        emu.mem_map(ROOM, ROOM_SIZE, UC_PROT_ALL)
+        emu.mem_map(STACK, 0x10000, UC_PROT_ALL)
+        self.stubs = {}
+        for i, (slot, (name, count)) in enumerate(sorted(IMPORTS.items())):
+            self.stubs[IMPORT_STUBS + 0x10 * i] = (name, count)
+            emu.hook_add(UC_HOOK_CODE, self.stub, begin=IMPORT_STUBS + 0x10 * i, end=IMPORT_STUBS + 0x10 * i)
+            self.word(slot, IMPORT_STUBS + 0x10 * i)
+        for stop in (RETURN, CALLER_A, CALLER_B, CALLER_C, OUT_OF_MEMORY_ON):
+            emu.hook_add(UC_HOOK_CODE, self.done, begin=stop, end=stop)
+        emu.hook_add(UC_HOOK_CODE, self.user_data, begin=USER_DATA_DIRECTORY, end=USER_DATA_DIRECTORY)
+        self.room = ROOM
+        self.steps = self.gates = 0
+        emu.hook_add(UC_HOOK_CODE, self.step)
+        for gate in (MSPACE_MALLOC, MSPACE_REALLOC, MSPACE_FREE):
+            emu.hook_add(UC_HOOK_CODE, self.gate, begin=gate, end=gate)
+        self.reserved, self.files, self.written = [], {}, {}
+        emu.mem_write(STRINGS, b"test heap\0")
+        emu.mem_write(STRINGS + 0x100, b"C:\\Users\\test\\Documents\\Survarium\0")
+        # the allocator: doug_lea's vtable, its flags (crash after out of
+        # memory, no null, not out of memory, no guards), the mspace below
+        self.word(ALLOCATOR, DOUG_LEA_VTABLE)
+        emu.mem_write(ALLOCATOR + 0x28, bytes([1, 0, 0, 0]))
+        self.word(ALLOCATOR + 0x0C, STRINGS)
+        self.mspace = self.call(CREATE_MSPACE, [HEAP, HEAP_SIZE, 0, OUT_OF_MEMORY, ALLOCATOR])[0]
+        assert HEAP < self.mspace < HEAP + 0x100, hex(self.mspace)
+        self.word(ALLOCATOR + 0x14, self.mspace)
+        self.word(ARENA_LIST_SLOT, LIST)
+        emu.mem_write(LIST, struct.pack("<3I", RECORD, RECORD + 0x18, RECORD + 0x18))
+        emu.mem_write(RECORD, struct.pack("<6I", ALLOCATOR, 0, HEAP_SIZE, 0, HEAP, STRINGS))
+
+    def word(self, at, value):
+        self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
+
+    def read(self, at):
+        return struct.unpack("<I", self.emu.mem_read(at, 4))[0]
+
+    def string(self, at):
+        out = bytearray()
+        while (b := self.emu.mem_read(at + len(out), 1)[0]) != 0:
+            out.append(b)
+        return out.decode()
+
+    def step(self, emu, address, size, _):
+        self.steps += 1
+
+    def gate(self, emu, address, size, _):
+        self.gates += 1
+
+    def done(self, emu, address, size, _):
+        emu.emu_stop()
+
+    def user_data(self, emu, address, size, _):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        emu.reg_write(UC_X86_REG_EAX, STRINGS + 0x100)
+        emu.reg_write(UC_X86_REG_ESP, sp + 4)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+
+    def stub(self, emu, address, size, _):
+        name, count = self.stubs[address]
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        args = [self.read(sp + 4 + 4 * i) for i in range(count)]
+        result = 0
+        if name == "GetEnvironmentVariableA":
+            assert self.string(args[0]) == "SKHID_MEMORY_PROFILE", self.string(args[0])
+            if self.variable is not None and len(self.variable) < args[2]:
+                emu.mem_write(args[1], self.variable.encode() + b"\0")
+                result = len(self.variable)
+        elif name == "VirtualAlloc":
+            address_, length, kind, protect = args
+            assert (address_, kind, protect) == (0, 0x3000, 4), args
+            result = self.room
+            self.room += (length + 0xFFFF) & ~0xFFFF
+            assert self.room <= ROOM + ROOM_SIZE
+            self.reserved.append((result, length))
+        elif name in ("GetCurrentThreadId", "GetCurrentProcessId"):
+            result = 7
+        elif name == "GetTickCount":
+            result = 123456
+        elif name == "CreateFileA":
+            path = self.string(args[0])
+            result = self.files.setdefault(path, 0x100 + 4 * len(self.files))
+            self.written.setdefault(result, bytearray())
+        elif name == "WriteFile":
+            handle, data, length, written, _ = args
+            self.written[handle] += bytes(emu.mem_read(data, length))
+            if written:
+                self.word(written, length)
+            result = 1
+        elif name == "GetSystemInfo":                # init_mparams: the page and the granularity
+            emu.mem_write(args[0], struct.pack("<9I", 0, 0x1000, 0x10000, 0x7FFEFFFF, 1, 1, 586, 0x10000, 0))
+        elif name == "CloseHandle":
+            result = 1
+        elif name == "VirtualQuery":
+            at, info, length = args
+            assert length == 28
+            region = next((r for r in SPACE if r[0] <= at < r[0] + r[1]), None)
+            if region is not None:
+                region_base, region_size, state, protect, kind = region
+                allocation = 0 if state == 0x10000 else region_base
+                emu.mem_write(info, struct.pack("<7I", region_base, allocation, protect, region_size, state,
+                                                protect, kind))
+                result = 28
+        emu.reg_write(UC_X86_REG_EAX, result)
+        emu.reg_write(UC_X86_REG_ESP, sp + 4 + 4 * count)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+
+    def call(self, function, args, regs=None, returns=RETURN):
+        """Run one function to its return (to `returns`, the caller's): the
+        registers after it."""
+        sp = STACK + 0x8000
+        self.emu.mem_write(sp, struct.pack(f"<{1 + len(args)}I", returns, *args))
+        for reg, value in {**KEPT, UC_X86_REG_ESI: 0x05050505, UC_X86_REG_EAX: 0xA0A0A0A0, **(regs or {})}.items():
+            self.emu.reg_write(reg, value)
+        self.emu.reg_write(UC_X86_REG_ESP, sp)
+        self.emu.reg_write(UC_X86_REG_EFLAGS, 0x202)
+        self.emu.emu_start(function, 0, count=5_000_000)
+        assert self.emu.reg_read(UC_X86_REG_EIP) == returns, hex(self.emu.reg_read(UC_X86_REG_EIP))
+        return [self.emu.reg_read(reg) for reg in REGS] + [self.emu.reg_read(UC_X86_REG_EFLAGS) & FLAGS]
+
+    def start(self):
+        """allocate_region's tail, memory.arenas_ready the patched exe's: its
+        frame made up, its three pops and its return."""
+        frame = STACK + 0x4000
+        self.emu.mem_write(frame - 0x58, struct.pack("<3I", 0x1E1E1E1E, 0x15151515, 0x1B1B1B1B))
+        self.emu.mem_write(frame, struct.pack("<2I", 0x0019FF00, RETURN))
+        self.emu.reg_write(UC_X86_REG_EBP, frame)
+        self.emu.reg_write(UC_X86_REG_ESP, frame - 0x60)
+        self.emu.emu_start(ARENAS_READY, 0, count=60_000_000)
+        assert self.emu.reg_read(UC_X86_REG_EIP) == RETURN
+        assert [self.emu.reg_read(r) for r in (UC_X86_REG_EDI, UC_X86_REG_ESI, UC_X86_REG_EBX, UC_X86_REG_EBP)] \
+            == [0x1E1E1E1E, 0x15151515, 0x1B1B1B1B, 0x0019FF00]
+
+    def heap(self):
+        return bytes(self.emu.mem_read(HEAP, HEAP_SIZE))
+
+    def chunk(self, memory):
+        return self.read(memory - 4) & ~7
+
+    # the game's calls
+    def malloc(self, n, caller=CALLER_B):
+        return self.call(MSPACE_MALLOC, [n], {UC_X86_REG_EAX: self.mspace}, caller)
+
+    def realloc(self, memory, n, caller=CALLER_C):
+        return self.call(MSPACE_REALLOC, [memory, n], {UC_X86_REG_EAX: self.mspace}, caller)
+
+    def free(self, memory, caller=CALLER_B):
+        return self.call(MSPACE_FREE, [], {UC_X86_REG_ESI: self.mspace, UC_X86_REG_EAX: memory}, caller)
+
+    def malloc_impl(self, n, caller=CALLER_A):
+        return self.call(MALLOC_IMPL, [0], {UC_X86_REG_ESI: ALLOCATOR, UC_X86_REG_EAX: n}, caller)
+
+
+# (what, arguments): each result's memory named by the step's index
+STEPS = [("malloc", 0x40), ("malloc", 0x3000), ("malloc_impl", 0x200), ("malloc", 0x18), ("free", 1),
+         ("malloc_impl", 0x2000), ("realloc", (3, 0x8000)),       # grows: mspace_realloc's own move
+         ("malloc", 0x100), ("realloc", (5, 0x80)),                # shrinks: its own cut tail freed
+         ("malloc_impl", 0x10), ("free", 0), ("malloc", 0x9000), ("free", 7)]
+
+
+def play(run, flags=True):
+    """Every step: the registers and flags after it and the heap's bytes."""
+    memory, out = {}, []
+    for index, (what, value) in enumerate(STEPS):
+        if what == "free":
+            regs = run.free(memory.pop(value))
+        elif what == "realloc":
+            old, n = value
+            regs = run.realloc(memory.pop(old), n)
+        else:
+            regs = getattr(run, what)(value)
+        if what != "free":
+            memory[index] = regs[0]
+            assert regs[0], (index, what)
+        out.append((regs if flags else regs[:-1], run.heap()))
+    return out, memory
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    original = open(sys.argv[1], "rb").read()
+    code = open(base.default_bin("section"), "rb").read()
+    built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
+    switch = base.arena().symbols["SRP_MEMORY_PROFILE"]
+
+    old = Run(original)
+    old.steps = old.gates = 0
+    expected, _ = play(old)
+    new = Run(bytes(built))
+    new.start()
+    assert (new.reserved, new.files, new.emu.mem_read(switch, 1)) == ([], {}, b"\0")
+    new.steps = new.gates = 0
+    got, _ = play(new)
+    assert got == expected
+    # off, a gate is a jump to it, its test, its branch not taken and a jump back: four instructions
+    assert new.gates == old.gates and new.steps - old.steps == 4 * new.gates, (old.steps, new.steps, new.gates)
+    print("ok unset: nothing reserved, written or logged, the switch 0; every call the original's "
+          f"(registers, flags, the heap); {new.gates} entries of dlmalloc's three, each 4 instructions more "
+          f"({old.steps} -> {new.steps})")
+
+    on = Run(bytes(built), "on")
+    on.start()
+    assert on.emu.mem_read(switch, 1) == b"\1"
+    lengths = [length for _, length in on.reserved]   # 2 Mi blocks of 8 bytes, 16 Ki sites, the text
+    assert len(lengths) == 3 and lengths[0] == (1 << 21) * 8 and lengths[1] % (1 << 14) == 0 \
+        and lengths[2] == 1 << 16, on.reserved
+    assert list(on.files) == ["srp_patches.log"], on.files
+    log = bytes(on.written[on.files["srp_patches.log"]]).decode()
+    assert "memory profile on" in log and "srp_memory_profile.txt" in log, log
+    got, live = play(on, flags=False)
+    assert got == [(regs[:-1], heap) for regs, heap in expected]
+    print("ok on: the tables reserved, one line logged, the switch 1; every call the original's (registers, "
+          "the heap)")
+
+    # what the heap holds: each live block's chunk, by who asked
+    sites = {}
+    for index, memory in live.items():
+        what = STEPS[index][0]
+        caller = {"malloc": CALLER_B, "realloc": CALLER_C, "malloc_impl": CALLER_A}[what]
+        sites.setdefault(caller, []).append(on.chunk(memory))
+    asked = 0x200000
+    sp = STACK + 0x8000
+    on.emu.mem_write(sp, struct.pack("<2I", CALLER_A, 0))
+    on.emu.reg_write(UC_X86_REG_ESI, ALLOCATOR)
+    on.emu.reg_write(UC_X86_REG_EAX, asked)
+    on.emu.reg_write(UC_X86_REG_ESP, sp)
+    on.emu.emu_start(MALLOC_IMPL, 0, count=60_000_000)
+    assert on.emu.reg_read(UC_X86_REG_EIP) == OUT_OF_MEMORY_ON, hex(on.emu.reg_read(UC_X86_REG_EIP))
+    text = bytes(on.written[on.files["C:\\Users\\test\\Documents\\Survarium\\srp_memory_profile.txt"]]).decode()
+    runs = analyzer().parse(text)
+    assert len(runs) == 1 and runs[0].process == 7 and len(runs[0].snapshots) == 1, text[:400]
+    run = runs[0]
+    assert sorted(run.rooms) == sorted(on.reserved), (run.rooms, on.reserved)
+    snapshot = run.snapshots[0]
+    assert snapshot.complete and snapshot.moment == "out_of_memory", snapshot
+    assert snapshot.detail == {"arena": 0, "asked": asked}, snapshot.detail
+    arena = snapshot.arenas[0]
+    assert (arena.name, arena.start, arena.size, arena.usage) == ("test heap", HEAP, HEAP_SIZE, "heap"), arena
+    in_use = sum(sum(chunks) for chunks in sites.values())
+    assert arena.used == in_use, (arena.used, in_use)
+    assert arena.tracked.live == in_use and arena.tracked.blocks == len(live), arena.tracked
+    told = {address: c.live for address, c in arena.sites}
+    assert told == {caller: sum(chunks) for caller, chunks in sites.items()}, (told, sites)
+    assert all(not (base.IMAGE_BASE <= address < 0x1000000) for address in told), "no allocator's own address"
+    assert arena.holes and max(arena.holes) == arena.largest_free.bit_length() - 1, (arena.holes, arena.largest_free)
+    assert len(snapshot.regions) == len(SPACE) and snapshot.free == sum(r[1] for r in SPACE if r[2] == 0x10000)
+    print(f"ok out of memory: the snapshot written before the game's own end ({len(text)} bytes): "
+          f"{len(told)} sites, each its caller's live chunks (malloc_impl's caller, a reallocation's), the heap's "
+          f"use {in_use} bytes as its walk finds it, {sum(c for c, _ in arena.holes.values())} holes, the "
+          f"{asked} bytes asked, {len(snapshot.regions)} regions; the analyzer reads it")
+
+
+if __name__ == "__main__":
+    main()

@@ -397,6 +397,10 @@ unsafe extern "C" {
     pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0x870168 (an import, stdcall): unsigned int engine_virtual_query(const void *address, void *info, unsigned int size)
     pub static engine_virtual_query: unsafe extern "stdcall" fn(*const c_void, *mut c_void, u32) -> u32;
+    /// the IAT slot 0x87015c (an import, stdcall): void *engine_virtual_alloc(void *address, unsigned int size, unsigned int type, unsigned int protect)
+    pub static engine_virtual_alloc: unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32) -> *mut c_void;
+    /// the IAT slot 0x8701b4 (an import, stdcall): unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)
+    pub static engine_get_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *mut u8, u32) -> u32;
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
@@ -15229,6 +15233,15 @@ impl KeyEvent {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
 
+    /// +0x4 (u32): DIDEVICEOBJECTDATA.dwData: bit 80h the key went down, clear it went up (execute 0x3B9167: test byte [ecx],80h, ecx +40Ch; process 0x3B9B23)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn data(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
     /// 0x14 bytes: a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)
     pub const SIZE: usize = 0x14;
 
@@ -17534,6 +17547,168 @@ impl MspaceStorage {
     }
 }
 
+/// A vostok::memory::game_call (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameCall(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameCall {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): where a call of the game returns: the word at its callee's entry ESP
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn return_address(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (obj<vostok::memory::game_call>): at mspace_malloc's entry from malloc_impl (return malloc_impl_heap_return): malloc_impl's own call, 18h up (sub esp,8 / push ebx / push edi / push edi, 0xE4F90..0xE4FAA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn malloc_impl_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x18) })
+    }
+
+    /// +0x18 (obj<vostok::memory::game_call>): at mspace_malloc's entry from realloc_impl (return realloc_impl_malloc_return): realloc_impl's own call, 18h up (push ecx / push ebx / push esi / push edi / push ebx, 0xE5050..0xE50DA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn realloc_impl_malloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x18) })
+    }
+
+    /// +0x1c (obj<vostok::memory::game_call>): at mspace_realloc's entry from realloc_impl (return realloc_impl_realloc_return): realloc_impl's own call, 1Ch up (its four pushes, then push ebx / push edx, 0xE50FA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn realloc_impl_realloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x1c) })
+    }
+
+    /// +0x1c (obj<vostok::memory::game_call>): at mspace_malloc's entry from ptmalloc3's malloc (return pt_malloc_heap_return): its own call, 1Ch up (sub esp,0Ch / push esi / push edi / push edi, 0x106EF0..0x106F67; the TlsGetValue and 0x106B10 calls between leave the stack as it was)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pt_malloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x1c) })
+    }
+
+    /// +0x10 (obj<vostok::memory::game_call>): at ptmalloc3's malloc's entry from mt_allocator::call_malloc (return mt_malloc_return): call_malloc's own call, 10h up (push ecx / push edi / push esi, 0xEB530..0xEB544)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mt_malloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x10) })
+    }
+}
+
+/// A vostok::memory::profile_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProfileFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ProfileFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::memory::game_call>): memory_profile.allocated's and .freeing's first argument (by the site ESP, the return address at +0): the ESP the game's call of mspace_malloc, mspace_realloc or mspace_free left, its return address there
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn call(self) -> Option<GameCall> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameCall>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::memory::game_call>): memory_profile.allocated's and .freeing's first argument (by the site ESP, the return address at +0): the ESP the game's call of mspace_malloc, mspace_realloc or mspace_free left, its return address there
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_call(self, value: Option<GameCall>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameCall>>().write_volatile(value) }
+    }
+
+    /// +0x8 (u32): their second: the memory mspace_malloc or mspace_realloc gave (0 for none), or the memory given back to mspace_free or mspace_realloc
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn memory(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::memory::out_of_memory_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OutOfMemoryFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl OutOfMemoryFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn return_address(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (u32): its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn space(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (ptr<vostok::memory::base_allocator>): its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn allocator(self) -> Option<BaseAllocator> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BaseAllocator>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::memory::base_allocator>): its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_allocator(self, value: Option<BaseAllocator>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BaseAllocator>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -18039,6 +18214,30 @@ pub mod image {
         // SAFETY: an image VA, not 0.
         VideoMemory(unsafe { NonNull::new_unchecked(0x1b3a1f0 as *mut c_void) })
     }
+
+    /// 0xff160 (u32, vostok::memory::image): the first function of dlmalloc 2.8's code (the mspace functions ptmalloc3 is built on): an mspace_malloc or mspace_free called from here to dlmalloc_end is dlmalloc's own (mspace_realloc's move 0x1006DF / 0x100733 and its cut tail 0x1006CB, mspace_memalign 0x100773 / 0x1007DC, internal_memalign's leader and trailer 0x1008D6 / 0x1008F7); patch 127
+    pub const DLMALLOC_START: u32 = 0xff160;
+
+    /// 0x101b40 (u32, vostok::memory::image): past mspace_free (0x1015E0), the last of dlmalloc's code: its usage-error tail jump 0x101B37, then int3 to 0x101B40
+    pub const DLMALLOC_END: u32 = 0x101b40;
+
+    /// 0xe4fb0 (u32, vostok::memory::image): doug_lea_allocator::malloc_impl's (0xE4F90; ESI the allocator, EAX the bytes) return from mspace_malloc (call 0xE4FAB)
+    pub const MALLOC_IMPL_HEAP_RETURN: u32 = 0xe4fb0;
+
+    /// 0xe50e4 (u32, vostok::memory::image): doug_lea_allocator::realloc_impl's (0xE5050) return from mspace_malloc (call 0xE50DF: no memory given)
+    pub const REALLOC_IMPL_MALLOC_RETURN: u32 = 0xe50e4;
+
+    /// 0xe5100 (u32, vostok::memory::image): doug_lea_allocator::realloc_impl's return from mspace_realloc (call 0xE50FB)
+    pub const REALLOC_IMPL_REALLOC_RETURN: u32 = 0xe5100;
+
+    /// 0x106f70 (u32, vostok::memory::image): ptmalloc3's malloc (0x106EF0; EAX the bytes) return from mspace_malloc (call 0x106F6B, its arena's mspace at +20h)
+    pub const PT_MALLOC_HEAP_RETURN: u32 = 0x106f70;
+
+    /// 0xeb550 (u32, vostok::memory::image): mt_allocator::call_malloc's (0xEB530, the "global multithreaded" vtable's slot 0x9E6010) return from ptmalloc3's malloc (call 0xEB54B)
+    pub const MT_MALLOC_RETURN: u32 = 0xeb550;
+
+    /// 0x1013f8 (u32, vostok::memory::image): mspace_malloc's return from its arena's out-of-memory callback (call eax 0x1013F6, the mspace's +1D4h; EBP the bytes asked, 0x101335)
+    pub const HEAP_OUT_OF_MEMORY_RETURN: u32 = 0x1013f8;
 }
 
 /// A general-purpose register at a hook's site.
@@ -21338,6 +21537,60 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn output(machine: &impl Machine) -> Option<ResRenderOutput> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ResRenderOutput)
+        }
+    }
+
+    /// memory.out_of_memory (0xe4d70): out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug_lea_allocator, first time), a fixed arena's heap callback: it logs "out of memory in arena", dumps the statistics and FATALs; EBP the bytes asked when it returns to mspace_malloc (heap_out_of_memory_return)
+    pub mod memory_out_of_memory {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::memory::out_of_memory_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<OutOfMemoryFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(OutOfMemoryFrame)
+        }
+
+        /// EBP: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn request(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ebp)
+        }
+    }
+
+    /// memory_profile.allocated (our entry): patch 127's gates (memory_profile_026g.asm) after mspace_malloc or mspace_realloc returned: cdecl, the ESP of the game's call and the memory (0 none); the caller keeps every register and pops the two
+    pub mod memory_profile_allocated {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::memory::profile_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ProfileFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ProfileFrame)
+        }
+    }
+
+    /// memory_profile.freeing (our entry): patch 127's gates before mspace_free or mspace_realloc: cdecl, the ESP of the game's call and the memory given back; the caller keeps every register and pops the two
+    pub mod memory_profile_freeing {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::memory::profile_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ProfileFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ProfileFrame)
         }
     }
 }

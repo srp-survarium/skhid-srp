@@ -383,7 +383,15 @@ impl Mspace {
     /// a walk that does not end at the top, the fence or the segment's end
     /// on a chunk's boundary, or meets a chunk too small to be one, is
     /// `None`, never a figure.
-    pub fn usage(self, mut head: impl FnMut(u32) -> Option<u32>) -> Option<Usage> {
+    pub fn usage(self, head: impl FnMut(u32) -> Option<u32>) -> Option<Usage> {
+        self.walk(head, |_| ())
+    }
+
+    /// [`Mspace::usage`], each free block's bytes told to `free` on the
+    /// way (the top first, then each free chunk in address order; patch
+    /// 127's holes). A walk that is `None` may have told some: the caller
+    /// keeps them only with a figure.
+    pub fn walk(self, mut head: impl FnMut(u32) -> Option<u32>, mut free_block: impl FnMut(u32)) -> Option<Usage> {
         const TOP_FOOT: u32 = 0x28;
         const STATE_CHUNK: u32 = 0x1E0;
         const FENCEPOST: u32 = 7;
@@ -396,6 +404,7 @@ impl Mspace {
         let mut chunk = self.segment.checked_add(self.segment.wrapping_neg() & 7)?;
         let mut free = self.top_size.checked_add(TOP_FOOT)?;
         let mut largest_free = self.top_size;
+        free_block(self.top_size);
         let mut chunks = 0u32;
         while chunk < end && chunk != self.top {
             let word = head(chunk)?;
@@ -409,6 +418,7 @@ impl Mspace {
             if word & IN_USE == 0 {
                 free = free.checked_add(size)?;
                 largest_free = largest_free.max(size);
+                free_block(size);
             }
             chunk = chunk.checked_add(size)?;
             chunks = chunks.checked_add(1).filter(|&n| n <= Mspace::MAX_CHUNKS)?;
@@ -488,6 +498,15 @@ mod tests {
         let (fresh, heads) = heap(0x1000_0000, 0x10_0000, &[]);
         let read = |at: u32| heads.iter().find(|&&(chunk, _)| chunk == at).map(|&(_, head)| head);
         assert_eq!(fresh.usage(read), Some(Usage::Heap { used: 0, largest_free: 0x10_0000 - 0x1E0 - 0x28 }));
+    }
+
+    #[test]
+    fn a_walk_tells_each_free_block() {
+        let (mspace, heads) = heap(0x1000_0000, 0x10_0000, &[(0x100, true), (0x2_0000, false), (0x40, true), (0x18, false)]);
+        let read = |at: u32| heads.iter().find(|&&(chunk, _)| chunk == at).map(|&(_, head)| head);
+        let mut told = Vec::new();
+        assert_eq!(mspace.walk(read, |bytes| told.push(bytes)), mspace.usage(read));
+        assert_eq!(told, [mspace.top_size, 0x2_0000, 0x18]);
     }
 
     #[test]
