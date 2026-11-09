@@ -105,3 +105,7 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   refuses data without it), the container's pocket and the premium bonuses (+20 % experience,
   +50 % reputation, `premium_armour.md`; both in `simulation_changes.tsv`'s `next` row); no
   exe change.
+- **Code left of it** (2026-11-08): the server keeps no tutorial state (the accounts' tutorial
+  columns stay, written done) and still sends `ALL_DONE` in `9D`; the lobby movie's tutorial
+  classes are gone, those bound to library symbols bare (`TutorialSlide`, `TutorSlide1`,
+  `SrvTutorialNotes*`, `MessageTutorialComplete`), and the exe's tutorial entry points stubs.

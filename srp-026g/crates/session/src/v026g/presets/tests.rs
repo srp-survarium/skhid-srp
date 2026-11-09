@@ -47,12 +47,11 @@ fn owned_id(account: &Account, name: &str) -> u32 {
 
 /// What choosing may never change: the items owned (ids, types, units,
 /// modifications), the next item id and the money.
-fn owned(account: &Account) -> (Vec<Item>, u32, u32, u32) {
+fn owned(account: &Account) -> (Vec<Item>, u32, u32) {
     (
         account.inventory.clone(),
         account.next_item_id,
         account.generic_money,
-        account.premium_money,
     )
 }
 

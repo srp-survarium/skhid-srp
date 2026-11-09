@@ -10,14 +10,17 @@
 //! - **The main menu.** Esc over the kits (before the start, on the death
 //!   screen) brings the main menu with its own cursor; the hud's stayed drawn
 //!   under it where it was. While the menu is shown the hud's cursor movie is
-//!   off the screen: taken off when the menu comes, not put up when the hud
-//!   shows its cursor (a death under the menu), put back when the menu
-//!   closes over the match that still runs. The hud's cursor flag is the
-//!   game's throughout, so the mouse goes where it went.
+//!   off the screen: taken off when the menu comes, neither put up nor taken
+//!   off again when the hud shows or hides its cursor under it (a death, a
+//!   spawn, a new match), put back when the menu closes with the cursor
+//!   shown, whether the match still runs or has just ended. The hud's cursor
+//!   flag is the game's throughout, so the mouse goes where it went.
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::{Context, Flow, HudCursorOnCursorShownExit, Hud, MainMenu, NoExit};
+use crate::vostok::{
+    Context, Flow, Hud, HudCursorOnCursorHiddenExit, HudCursorOnCursorShownExit, MenuChange, NoExit,
+};
 
 pub fn on_match_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(hud) = Hud::at_match_start(ctx) {
@@ -33,18 +36,22 @@ pub fn on_cursor_shown(ctx: &mut Context<'_>) -> Flow<HudCursorOnCursorShownExit
     }
 }
 
+pub fn on_cursor_hidden(ctx: &mut Context<'_>) -> Flow<HudCursorOnCursorHiddenExit> {
+    match Hud::at_cursor_hidden(ctx) {
+        Some(hud) if hud.under_menu() => Flow::Exit(HudCursorOnCursorHiddenExit::Kept),
+        _ => Flow::Continue,
+    }
+}
+
 pub fn on_menu_show(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(cursor) = MainMenu::at_show(ctx).and_then(|menu| menu.match_cursor()) {
+    if let Some(cursor) = MenuChange::at_show(ctx).and_then(|menu| menu.shown_cursor()) {
         cursor.withdraw();
     }
     Flow::Continue
 }
 
 pub fn on_menu_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(menu) = MainMenu::at_close(ctx)
-        && menu.shown()
-        && let Some(cursor) = menu.match_cursor()
-    {
+    if let Some(cursor) = MenuChange::at_close(ctx).and_then(|menu| menu.shown_cursor()) {
         cursor.restore();
     }
     Flow::Continue

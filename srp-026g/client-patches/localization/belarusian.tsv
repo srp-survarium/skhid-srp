@@ -887,7 +887,7 @@ st_ct_max_members_count_error	Памылка дадавання. У кланав
 st_current_value	\nБягучае значэнне:
 st_cz_75_description	Чэшскі самазарадны пісталет, патрон: 9x19. Адзін з самых капіяваных пісталетаў халоднай вайны.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходзь кожны дзень і атрымлівай <highlight>x2</highlight> досведу і рэпутацыі за <highlight>першыя тры</highlight> перамогі.
+st_daily_bonus_description	Кожны дзень: <highlight>x2</highlight> досведу за <highlight>першыя тры</highlight> перамогі.
 st_daily_bonus_hint	Паказаць акно прывітання
 st_daily_bonus_label	З вяртаннем
 st_daily_bonus_progress	Ваш прагрэс за бягучы дзень
@@ -2496,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Апісанне пакуль недас
 st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
 st_srp_equipment069_snow_20_torso_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment069_snow_20_torso_7_name	Бронекамізэлька "Снег-20"
-st_srp_exchange_balance	Баланс
-st_srp_exchange_button	Абмяняць
-st_srp_exchange_gold	Золата
-st_srp_exchange_pay	Аддаяце
-st_srp_exchange_receive	Атрымліваеце
-st_srp_exchange_short_gold	Недастаткова золата
-st_srp_exchange_short_silver	Недастаткова срэбра
-st_srp_exchange_title	Абмен
 st_srp_hide_hit_markers_option	Схаваць хітмаркеры
 st_srp_hide_quests_option	Схаваць заданні
 st_srp_hide_scores_option	Схаваць ачкі гульцоў

@@ -85,7 +85,6 @@ package survarium.ammo
       
       protected var _totalPrice:uint = 0;
       
-      protected var _totalPricePremium:uint = 0;
       
       protected var _unsetted_slot:int = 0;
       
@@ -418,18 +417,10 @@ package survarium.ammo
             i++;
          }
          _totalPrice = 0;
-         _totalPricePremium = 0;
          for(i = 0; i < count; i++)
          {
             element = this._elemetns[i];
-            if(element.isPremium())
-            {
-               _totalPricePremium += element.get_required_price();
-            }
-            else
-            {
-               _totalPrice += element.get_required_price();
-            }
+            _totalPrice += element.get_required_price();
             if(element.group == GROUP_ITEMS)
             {
                continue;
@@ -459,7 +450,7 @@ package survarium.ammo
          }
          if(this._updateFunction is Function)
          {
-            this._updateFunction(this._totalPrice,this._totalPricePremium);
+            this._updateFunction(this._totalPrice);
          }
          j = 0;
          while(j < count)
@@ -569,7 +560,7 @@ package survarium.ammo
          this.clear();
          if(this._updateFunction is Function)
          {
-            this._updateFunction(0,0);
+            this._updateFunction(0);
          }
          this._btn_yes.enabled = this._btn_cancel.enabled = false;
       }
@@ -688,7 +679,7 @@ package survarium.ammo
             element = this._elemetns[i];
             if(element.index != exclude.index)
             {
-               cost += element.isPremium() ? 0 : element.get_required_price();
+               cost += element.get_required_price();
             }
             i++;
          }

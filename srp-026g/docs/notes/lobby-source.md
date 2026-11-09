@@ -19,7 +19,7 @@ ours is an edit of a tree, and a movie is built from its whole tree; nothing is 
 The owner, 2026-10-21: "we now got the source code" "and we just modify it".
 
 - Put the code in the game's class that owns the behaviour, in that class's style:
-  - Get Gold and the exchange: `MessageMoneyExchange` (`buyGold`, `open`);
+  - a window's payment: its dialog (`MessageRepair`, `MessageRerollItem`);
   - a right-click menu: the list that builds it (`InventoryList`); a dialog's buttons: the dialog
     (`MessageCraftItem`);
   - a request and its answer: the class with the answer's handler (`LobbyMenu`); the click that asks:
@@ -90,8 +90,8 @@ package of its own; no behaviour changes:
 - the craft window's Buy and Sell: `InventoryList.showCraftMenu`, `findCraftWindow`,
   `buyFromCraftMenu`; its Continue and Exit: `MessageCraftItem.offerContinue`, `onContinue`, `holds`
   (was `SrpCraftMenu`);
-- Get Gold: `MessageMoneyExchange.buyGold` (was `SrpBuyGold`); the exchange: `MessageMoneyExchange`
-  itself (was `SrpExchange`, removed from the movie);
+- Get Gold and the exchange: `MessageMoneyExchange.buyGold` and `MessageMoneyExchange` (was
+  `SrpBuyGold`, `SrpExchange`); both removed with gold (the owner, 2026-11-08: [buy-gold.md](buy-gold.md));
 - the player gear: `LobbyMenu.showPlayerInfoMenu`, the ask in flight, `takePlayerInfo`;
   `PlayerRanking.onPlayerRightClick` (was `SrpPlayerGear`);
 - the rooms: `survarium/rooms` (was `SrpRooms`, removed from the movie); their parts in `TopMenu`,
