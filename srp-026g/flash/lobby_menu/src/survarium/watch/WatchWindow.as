@@ -17,9 +17,9 @@ package survarium.watch
    import flash.utils.getTimer;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.gfx.FocusManager;
-   import scaleform.gfx.MouseEventEx;
    import survarium.constants.MatchPhase;
    import survarium.controls.BottomPanel;
+   import survarium.controls.Message;
    import survarium.controls.Modals;
    import survarium.controls.NotificationListScrollContent;
    import survarium.controls.PlayerInfo;
@@ -31,12 +31,14 @@ package survarium.watch
 
    // Watch, the one place to watch matches (research/watch-redesign.html): the top menu's Watch tab
    // (TopMenu, between Rooms and Ranking, with the live matches' count) opens it over the lobby in
-   // the rooms window's frame and look (RoomsLook); opening one closes the other. Two tabs: Live
+   // the rooms window's frame and look (RoomsLook); opening one closes the other, and a lobby
+   // window opening closes it (MainScene.activeWindow). Two tabs: Live
    // (the matches being played, friends' first; chips Everyone, Friends) and Replays (chips Mine,
    // Friends, Everyone), and a search box: a match's code watches it, a player's name lists that
-   // player's matches. Each card has one Watch, or why it cannot be watched. Every watch asks
-   // through the History's prompt (NotificationListScrollContent.replayBegin). The lobby server's
-   // rows: WatchRows.
+   // player's matches. Each card has one Watch, or why it cannot be watched; the toolbar and the
+   // cards are made once and updated in place, so a press on them outlives the refreshes. Every
+   // watch or save of a replay asks through ReplayAsks, the one loop, on this window's second. The
+   // lobby server's rows: WatchRows.
    public class WatchWindow extends Sprite
    {
       public static const LIVE_START:uint = 2240000000;
@@ -84,6 +86,15 @@ package survarium.watch
 
       private static const NO_ANSWER:String = "no_answer";
 
+      // the steps of the watch that returns to its view (resumeStep)
+      private static const ASKED_WATCH:String = "asked_watch";
+
+      private static const REFUSED:String = "refused";
+
+      private static const LOADED:String = "loaded";
+
+      private static const BACK:String = "back";
+
       // the shown list asked again this often (live, recent); one not answered yet once a second,
       // at most ASKS times; the live count (the top menu's badge) while Live is not shown, outside
       // matches
@@ -99,22 +110,8 @@ package survarium.watch
       // rows), and after a match (the asker's matches again)
       private static const FIRST_ASK_MS:int = 3000;
 
-      private static const BACK_ASK_MS:int = 2000;
-
-      // a watch asked this long before the game loads a match: back on its view after
-      private static const RESUME_MS:int = 120000;
-
-      // a friend's Spectate waits this long for its match to be listed in play
-      private static const SPECTATE_MS:int = 60000;
-
-      // a copy's code field this long
-      private static const COPIED_MS:int = 15000;
-
-      // A press whose release never came (the game left the lobby under it) keeps the list no longer.
-      private static const PRESS_MOST_MS:int = 5000;
-
-      // the lobby's windows that hide ours as they open (the rooms window's list)
-      private static const WINDOWS:Array = ["inventory_list","shop_list","ranking","charWindow","clanWindow","questWindow","modifierWindow"];
+      // a friend's Spectate gives up after this many live lists without the friend
+      private static const SPECTATE_MISSES:int = 3;
 
       private static const TOOL_Y:Number = 50;
 
@@ -160,10 +157,9 @@ package survarium.watch
 
       private var _delay:int = -1;
 
-      // a friend's Spectate waiting for the live list to say where it plays (lower case), and when
-      private var _spectate:String = null;
-
-      private var _spectateAt:int = 0;
+      // a friend's Spectate waiting for the live list to say where it plays ({name lower case,
+      // shown, misses: the lists without the friend}), null none
+      private var _spectate:Object = null;
 
       private var _asks:int = 0;
 
@@ -176,35 +172,37 @@ package survarium.watch
 
       private var _timer:Timer;
 
-      // The left button pressed in the window, to the frame after its release; null none. {at, stage,
-      // up: let go, owed: a drawing waits for it}. A drawing makes every button anew, and a CLIK button
-      // clicks only when the release finds the object the press found.
-      private var _press:Object = null;
-
       private var _box:TextField;
+
+      private var _boxHint:TextField;
 
       private var _boxText:String = "";
 
       private var _clocks:Array = [];
 
-      // the copy icon's last press ({hex, at}), and the code's field it showed
-      private var _copied:Object = null;
+      // the head's tabs by name (LIVE, REPLAYS), the chips of the tab they were made for
+      // ([{id, tab, label, w}]) and where they end, and the delay's field
+      private var _tabs:Object = null;
 
-      private var _codeField:TextField;
+      private var _chips:Array = [];
 
-      // the last watch asked from here (its match, view and time), and the view to come back to
-      // while the game is away in it
-      private var _pendingMatch:uint = 0;
+      private var _chipsTab:String = null;
 
-      private var _pendingView:Object = null;
+      private var _chipsEnd:Number = 0;
 
-      private var _pendingAt:int = 0;
+      private var _delayField:TextField;
 
+      // the list's cards by key (kind and match), the holder they scroll in, the text shown when
+      // there are none
+      private var _cards:Object = {};
+
+      private var _inner:Sprite;
+
+      private var _empty:TextField;
+
+      // the view to come back to around a watch asked from here ({match, view, playing}: playing
+      // once the game loaded it), null none. One transition function: resumeStep.
       private var _resume:Object = null;
-
-      private var _windowsSeen:Object = {};
-
-      private var _roomsSeen:Boolean = false;
 
       public function WatchWindow(panel:BottomPanel)
       {
@@ -225,16 +223,16 @@ package survarium.watch
          this.look = new RoomsLook(content,backdrop,format.font,format.bold);
          content.addEventListener(MouseEvent.MOUSE_DOWN,this.look.onContentDown);
          addEventListener(MouseEvent.MOUSE_WHEEL,this.look.onWheel,false,0,true);
-         addEventListener(Event.ENTER_FRAME,this.onFrame,false,0,true);
-         addEventListener(MouseEvent.MOUSE_DOWN,this.onWindowPress,true,0,true);
-         NotificationListScrollContent.answerListener = this.answered;
-         ReplaySave.listen(this.render);
+         ReplayAsks.told = this.answered;
+         ReplayAsks.listen(this.render);
          var now:int = getTimer();
          this._askedAt[LIVE] = now - BADGE_EVERY + FIRST_ASK_MS;
          this._mineDue = now + FIRST_ASK_MS;
          this._timer = new Timer(1000,0);
          this._timer.addEventListener(TimerEvent.TIMER,this.onTimer,false,0,true);
          this._timer.start();
+         // a dispatch of its own (the second) reaches the same work
+         addEventListener(TimerEvent.TIMER,this.onTimer);
          if(panel.parent != null)
          {
             panel.parent.addChild(this);
@@ -242,11 +240,11 @@ package survarium.watch
          this.layout();
       }
 
-      // The lobby server's rows for the window, and a save's answer (ReplaySave): taken (true) when
-      // they are these rows, whether or not it is shown (PlayerRanking's rows).
+      // The lobby server's rows for the window, and a watch's or save's answer (ReplayAsks): taken
+      // (true) when they are these rows, whether or not it is shown (PlayerRanking's rows).
       public static function take(rows:Array) : Boolean
       {
-         if(ReplaySave.take(rows))
+         if(ReplayAsks.take(rows))
          {
             return true;
          }
@@ -298,11 +296,9 @@ package survarium.watch
          {
             return;
          }
-         win._spectate = name.toLowerCase();
-         win._spectateAt = getTimer();
+         win._spectate = {"name":name.toLowerCase(),"shown":name,"misses":0};
          win._liveChip = FRIENDS;
          win.showTab(LIVE);
-         win.findSpectated();
       }
 
       // LobbyMenu.fill_players_search: the players a search by name found, when it asked (true).
@@ -317,20 +313,14 @@ package survarium.watch
          return true;
       }
 
-      // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here playing?
-      // Its `watching` comes only once the game is in it, after the load began.
+      // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here is what it
+      // loads. (Its `watching` comes only once the game is in it, after the load began.)
       public static function away() : void
       {
-         var win:WatchWindow = WatchWindow.me;
-         if(win == null)
+         if(WatchWindow.me != null)
          {
-            return;
+            WatchWindow.me.resumeStep(LOADED);
          }
-         if(win._pendingView != null && getTimer() - win._pendingAt < RESUME_MS)
-         {
-            win._resume = win._pendingView;
-         }
-         win._pendingView = null;
       }
 
       // Back in the lobby (LobbyMenu.show_match_making(false)): the asker's matches asked again
@@ -342,22 +332,61 @@ package survarium.watch
          {
             return;
          }
-         win._mineDue = getTimer() + BACK_ASK_MS;
-         var view:Object = win._resume;
-         if(view == null)
+         win.ask(MINE);
+         win.resumeStep(BACK);
+      }
+
+      // A lobby window opened (MainScene.activeWindow): it takes the place of this one.
+      public static function closeForWindow() : void
+      {
+         if(WatchWindow.me != null && WatchWindow.me._shown)
          {
-            return;
+            WatchWindow.me.show(false);
          }
-         win._resume = null;
-         win._liveChip = view.liveChip;
-         win._replaysChip = view.replaysChip;
-         win._search = view.search;
-         win.setBox(view.search != null ? view.search.name : "");
-         if(win._search != null)
+      }
+
+      // The one transition of the watch that returns to its view: the steps are ASKED_WATCH,
+      // REFUSED (no watch came of it), LOADED (the game loaded a match, or `watching`) and BACK
+      // (in the lobby again).
+      private function resumeStep(step:String, match:uint = 0, view:Object = null) : void
+      {
+         if(step == ASKED_WATCH)
          {
-            win.searchPlayer(win._search.name);
+            this._resume = {"match":match,"view":view,"playing":false};
          }
-         win.showTab(view.tab);
+         else if(step == REFUSED)
+         {
+            if(this._resume != null && !this._resume.playing && this._resume.match == match)
+            {
+               this._resume = null;
+            }
+         }
+         else if(step == LOADED)
+         {
+            if(this._resume != null)
+            {
+               this._resume.playing = true;
+            }
+         }
+         else if(step == BACK && this._resume != null && this._resume.playing)
+         {
+            var was:Object = this._resume.view;
+            this._resume = null;
+            this.restore(was);
+         }
+      }
+
+      private function restore(view:Object) : void
+      {
+         this._liveChip = view.liveChip;
+         this._replaysChip = view.replaysChip;
+         this._search = view.search;
+         this.setBox(view.search != null ? view.search.name : "");
+         if(this._search != null)
+         {
+            this.searchPlayer(this._search.name);
+         }
+         this.showTab(view.tab);
       }
 
       public function get shown() : Boolean
@@ -365,13 +394,8 @@ package survarium.watch
          return this._shown;
       }
 
-      public function get tab() : String
-      {
-         return this._tab;
-      }
-
       // The chip chosen on the shown tab; PLAYER while a searched player's matches are shown.
-      public function get chip() : String
+      private function get chip() : String
       {
          if(this._tab == LIVE)
          {
@@ -381,7 +405,7 @@ package survarium.watch
       }
 
       // The matches being played, as last listed (the top menu's badge).
-      public function get liveCount() : int
+      private function get liveCount() : int
       {
          return this.rowsOf(LIVE).length;
       }
@@ -422,7 +446,6 @@ package survarium.watch
          {
             this.releaseFocus();
             this._spectate = null;
-            this._copied = null;
             Modals.leave(this);
             return;
          }
@@ -440,6 +463,7 @@ package survarium.watch
          this._openedAt = getTimer();
          this.toTop();
          this.layout();
+         this.build();
          this.askNow();
          this.render();
       }
@@ -486,51 +510,17 @@ package survarium.watch
             {
                this.look._w = w;
                this.look._h = h;
-               this.render();
+               if(this._shown)
+               {
+                  this.build();
+                  this.render();
+               }
             }
             x = int(RoomsWindow.LEFT * k);
             y = int(this._panel.y - RoomsWindow.BOTTOM_GAP - this.look._h * k);
          }
          catch(e:Error)
          {
-         }
-      }
-
-      private function onFrame(e:Event) : void
-      {
-         this.settlePress();
-         if(topMenu != null)
-         {
-            topMenu.paintWatchTab(this.liveCount);
-         }
-         // the rooms window or a lobby window opening hides ours
-         var rooms:Boolean = RoomsWindow.me != null && RoomsWindow.me.shown;
-         if(rooms && !this._roomsSeen && this._shown)
-         {
-            this.show(false);
-         }
-         this._roomsSeen = rooms;
-         var lobby:LobbyMenu = parent as LobbyMenu;
-         if(lobby == null)
-         {
-            return;
-         }
-         for each(var key:String in WINDOWS)
-         {
-            var w:DisplayObject = null;
-            try
-            {
-               w = lobby[key] as DisplayObject;
-            }
-            catch(err:Error)
-            {
-            }
-            var open:Boolean = w != null && w.visible && w.stage != null;
-            if(open && this._windowsSeen[key] != true && this._shown)
-            {
-               this.show(false);
-            }
-            this._windowsSeen[key] = open;
          }
       }
 
@@ -609,6 +599,7 @@ package survarium.watch
       private function onTimer(e:TimerEvent) : void
       {
          var now:int = getTimer();
+         ReplayAsks.second();
          // nothing asked in a match (the lobby is not shown then)
          var free:Boolean = !MainScene.activeMatchMaking;
          if(free && this._mineDue != 0 && now >= this._mineDue)
@@ -621,11 +612,6 @@ package survarium.watch
          {
             this.ask(LIVE);
          }
-         if(this._copied != null && now - int(this._copied.at) >= COPIED_MS)
-         {
-            this._copied = null;
-            this.render();
-         }
          if(!this._shown)
          {
             return;
@@ -636,10 +622,6 @@ package survarium.watch
             if(this.answeredAt(LIVE) == 0 && now - this._openedAt >= 6000 && now - this._openedAt < 7000)
             {
                this.render();
-            }
-            if(this._spectate != null && now - this._spectateAt > SPECTATE_MS)
-            {
-               this._spectate = null;
             }
             this.tick(now);
          }
@@ -718,6 +700,11 @@ package survarium.watch
          }
          if(list == LIVE)
          {
+            // the top menu's badge: on each live list (TopMenu.paintWatchTab)
+            if(topMenu != null)
+            {
+               topMenu.paintWatchTab(this.liveCount);
+            }
             this.findSpectated();
          }
          if(this._shown)
@@ -755,10 +742,14 @@ package survarium.watch
          return list;
       }
 
-      // A friend's Spectate: the live match the list names it in, watched from its place.
+      // A friend's Spectate, on each live list the server answers (never the list from before the
+      // Spectate: it may be stale): the match it names the friend in, watched from its place. An
+      // answer without the friend counts; enough of them end it with a word. A match found that
+      // cannot be watched says why.
       private function findSpectated() : void
       {
-         if(this._spectate == null)
+         var spectate:Object = this._spectate;
+         if(spectate == null)
          {
             return;
          }
@@ -766,12 +757,13 @@ package survarium.watch
          {
             for each(var friend:Object in row.friends)
             {
-               if(String(friend.name).toLowerCase() == this._spectate)
+               if(String(friend.name).toLowerCase() == spectate.name)
                {
                   var reason:String = WatchWindow.reasonOf(row);
                   // counting down: watched once it plays
                   if(reason == "st_srp_watch_reason_starts")
                   {
+                     spectate.misses = 0;
                      return;
                   }
                   this._spectate = null;
@@ -779,9 +771,30 @@ package survarium.watch
                   {
                      this.watch(uint(row.match),WatchRows.watchAsk(int(friend.place)));
                   }
+                  else
+                  {
+                     this.tell(LocalizationData.getName(reason));
+                  }
                   return;
                }
             }
+         }
+         if(++spectate.misses >= SPECTATE_MISSES)
+         {
+            this._spectate = null;
+            this.tell(LocalizationData.format("st_srp_watch_spectate_lost",spectate.shown));
+         }
+      }
+
+      // A word for the player: the game's message box with OK.
+      private function tell(text:String) : void
+      {
+         try
+         {
+            Message.showMessage("ok",text);
+         }
+         catch(e:Error)
+         {
          }
       }
 
@@ -902,13 +915,14 @@ package survarium.watch
          this.render();
       }
 
-      // The search box's text (kept over a drawing anew, render).
+      // The search box's text, and its hint with it.
       private function setBox(text:String) : void
       {
          this._boxText = text;
          if(this._box != null)
          {
             this._box.text = text;
+            this._boxHint.visible = text == "";
          }
       }
 
@@ -940,22 +954,16 @@ package survarium.watch
          }
       }
 
-      // Asks to watch `match` with `ask` (the History's prompt); the view to come back to.
+      // Asks to watch `match` with `ask` (ReplayAsks); the view to come back to.
       private function watch(match:uint, ask:uint) : void
       {
-         var history:NotificationListScrollContent = NotificationListScrollContent.replayHolder;
-         this._pendingMatch = match;
-         this._pendingAt = getTimer();
-         this._pendingView = {
+         this.resumeStep(ASKED_WATCH,match,{
             "tab":this._tab,
             "liveChip":this._liveChip,
             "replaysChip":this._replaysChip,
             "search":this._search
-         };
-         if(history != null)
-         {
-            history.replayBegin(match,ask);
-         }
+         });
+         ReplayAsks.watch(match,ask);
       }
 
       // A card's Watch: a recorded match from the player's place (a player's list) or anyone's;
@@ -974,34 +982,25 @@ package survarium.watch
          this.watch(uint(row.match),WatchRows.watchAsk(place));
       }
 
-      // An answer about the match asked for (NotificationListScrollContent): a refusal of the
-      // one asked from here plays nothing to come back from; the cards drawn again.
+      // A word about a watch asked for (ReplayAsks): `watching` means the game is in it, a refusal,
+      // Close or giving up means no watch came of it; the cards are refreshed.
       private function answered(hex:String, status:String) : void
       {
-         if(status != "preparing" && status != "watching" && hex == WatchWindow.hex(this._pendingMatch))
+         var match:uint = this._resume != null ? uint(this._resume.match) : 0;
+         if(this._resume != null && hex == WatchWindow.hex(match))
          {
-            this._pendingView = null;
+            if(status == "watching")
+            {
+               this.resumeStep(LOADED);
+            }
+            else if(status != "preparing")
+            {
+               this.resumeStep(REFUSED,match);
+            }
          }
          if(this._shown)
          {
             this.render();
-         }
-      }
-
-      // The copy icon: the code shown selected in a field for Ctrl+C. The game's
-      // System.setClipboard takes nothing (run in a game: the system's clipboard kept what it
-      // had), while a text field's own Ctrl+C reaches it.
-      private function copy(hex:String) : void
-      {
-         this._copied = {
-            "hex":hex,
-            "at":getTimer()
-         };
-         this.draw();
-         if(this._codeField != null && stage != null)
-         {
-            stage.focus = this._codeField;
-            this._codeField.setSelection(0,this._codeField.length);
          }
       }
 
@@ -1133,72 +1132,19 @@ package survarium.watch
 
       // ---- drawing ----
 
-      private static function isLeft(e:MouseEvent) : Boolean
+      // The window's parts, made once per opening or size (`render` updates them in place).
+      private function build() : void
       {
-         var ex:MouseEventEx = e as MouseEventEx;
-         return ex == null || ex.buttonIdx == MouseEventEx.LEFT_BUTTON;
-      }
-
-      private function onWindowPress(e:MouseEvent) : void
-      {
-         if(!isLeft(e) || stage == null)
-         {
-            return;
-         }
-         this._press = {"at":getTimer(),"stage":stage,"up":false,"owed":this._press != null && this._press.owed};
-         // on the stage's both phases: a release over the stage itself has no capture phase
-         stage.addEventListener(MouseEvent.MOUSE_UP,this.onWindowRelease,true);
-         stage.addEventListener(MouseEvent.MOUSE_UP,this.onWindowRelease);
-      }
-
-      private function onWindowRelease(e:MouseEvent) : void
-      {
-         if(isLeft(e) && this._press != null)
-         {
-            this._press.up = true;
-         }
-      }
-
-      // At a frame, so after the release's CLICK, which comes after its MOUSE_UP.
-      private function settlePress() : void
-      {
-         var press:Object = this._press;
-         if(press == null || !press.up && getTimer() - int(press.at) < PRESS_MOST_MS)
-         {
-            return;
-         }
-         this._press = null;
-         press.stage.removeEventListener(MouseEvent.MOUSE_UP,this.onWindowRelease,true);
-         press.stage.removeEventListener(MouseEvent.MOUSE_UP,this.onWindowRelease);
-         if(press.owed)
-         {
-            this.draw();
-         }
-      }
-
-      // A drawing, once no press is on the buttons it would make anew.
-      private function render() : void
-      {
-         if(this._press != null && !this._press.up)
-         {
-            this._press.owed = true;
-            return;
-         }
-         this.draw();
-      }
-
-      private function draw() : void
-      {
-         if(!this._shown)
-         {
-            return;
-         }
-         var focused:Boolean = stage != null && this._box != null && stage.focus == this._box;
          if(this._box != null)
          {
             this._boxText = this._box.text;
          }
          this.releaseFocus();
+         for each(var old:MatchCard in this._cards)
+         {
+            this.dropCard(old);
+         }
+         this._cards = {};
          while(this.look._content.numChildren > 0)
          {
             this.look._content.removeChildAt(0);
@@ -1211,83 +1157,142 @@ package survarium.watch
          this.look._scrollInner = null;
          this.look._scrollThumb = null;
          this._clocks = [];
-         this._codeField = null;
+         this._chips = [];
+         this._chipsTab = null;
          this.look.frame();
          this.drawTabs();
          this.look.closeButton(this.onClose);
          this.drawSearch();
+         this._delayField = this.look.text(this.look._content,"",0,TOOL_Y + 6,20,13,RoomsLook.DIM);
+         this._delayField.name = "srpWatchDelay";
+         this.look._content.removeChild(this._delayField);
+         var w:Number = this.look._w - 28 - 10;
+         this._inner = this.look.scrollBox(14,LIST_Y,w,this.look._h - LIST_Y - 10);
+         this._empty = this.look.text(this._inner,"",0,14,w,15,RoomsLook.GREY);
+         this._empty.name = "srpWatchEmpty";
+      }
+
+      // Everything that changes, in place: no press is lost, and it can run under one.
+      private function render() : void
+      {
+         if(!this._shown || this._tabs == null)
+         {
+            return;
+         }
+         this.paintTabs();
          this.drawChips();
          this.drawList();
-         if(focused && stage != null)
-         {
-            stage.focus = this._box;
-            this._box.setSelection(this._box.length,this._box.length);
-         }
       }
 
       private function drawTabs() : void
       {
-         var count:int = this.liveCount;
-         var tabs:Array = [[LIVE,LocalizationData.getName("st_srp_watch_live") + (count > 0 ? "  " + count : "")],
-            [REPLAYS,LocalizationData.getName("st_srp_watch_replays")]];
          var tabW:Number = 220;
-         var x:Number = int((this.look._w - tabs.length * tabW) / 2);
-         for(var i:int = 0; i < tabs.length; i++)
+         var names:Array = [LIVE,REPLAYS];
+         var x:Number = int((this.look._w - names.length * tabW) / 2);
+         this._tabs = {};
+         for(var i:int = 0; i < names.length; i++)
          {
-            var tab:Sprite = this.look.headTab("srpWatchTab_" + tabs[i][0],tabs[i][1],x + i * tabW,tabW,tabs[i][0] == this._tab,function(name:String):void
+            var tab:Sprite = this.look.headTab("srpWatchTab_" + names[i],"",x + i * tabW,tabW,false,function(name:String):void
             {
                pickTab(name.substr("srpWatchTab_".length));
             });
+            this._tabs[names[i]] = tab;
+         }
+         // the red dot of live matches, left of the label
+         var dot:Shape = new Shape();
+         dot.name = "srpWatchLiveDot";
+         dot.graphics.beginFill(RED,1);
+         dot.graphics.drawCircle(0,0,4);
+         dot.graphics.endFill();
+         dot.visible = false;
+         this._tabs[LIVE].addChild(dot);
+      }
+
+      private function paintTabs() : void
+      {
+         var count:int = this.liveCount;
+         var tabW:Number = 220;
+         for each(var name:String in [LIVE,REPLAYS])
+         {
+            var tab:Sprite = this._tabs[name];
+            var word:String = LocalizationData.getName(name == LIVE ? "st_srp_watch_live" : "st_srp_watch_replays") + (name == LIVE && count > 0 ? "  " + count : "");
             var label:TextField = tab.getChildAt(0) as TextField;
-            RoomsLook.fitName(label,tabs[i][1],"");
-            if(tabs[i][0] == LIVE && count > 0)
+            this.look.paintTab(tab,tabW,name == this._tab);
+            label.textColor = name == this._tab ? 0xFFFFFF : RoomsLook.GREY;
+            RoomsLook.fitName(label,word,"");
+            if(name == LIVE)
             {
-               // the red dot of live matches, left of the label
-               var dot:Shape = new Shape();
-               dot.name = "srpWatchLiveDot";
-               dot.graphics.beginFill(RED,1);
-               dot.graphics.drawCircle(0,0,4);
-               dot.graphics.endFill();
+               var dot:DisplayObject = tab.getChildByName("srpWatchLiveDot");
+               dot.visible = count > 0;
                dot.x = int((tabW - label.textWidth) / 2) - 10;
                dot.y = label.y + int(label.height / 2) - 1;
-               tab.addChild(dot);
             }
          }
       }
 
-      // The chips at the toolbar's left (Live: and how far behind a watch is).
+      // The chips at the toolbar's left, made for their tab and painted in place (Live: and how far
+      // behind a watch is).
       private function drawChips() : void
       {
-         var chips:Array = this._tab == LIVE ? [[EVERYONE,"st_srp_watch_chip_everyone"],[FRIENDS,"st_srp_watch_chip_friends"]]
-            : [[MINE,"st_srp_watch_chip_mine"],[FRIENDS,"st_srp_watch_chip_friends"],[EVERYONE,"st_srp_watch_chip_everyone"]];
-         var x:Number = 14;
-         for each(var c:Array in chips)
+         if(this._chipsTab != this._tab)
          {
-            x = this.chipAt(c[0],LocalizationData.getName(c[1]),x,this.chip == c[0]) + 8;
+            this.makeChips();
          }
+         var current:String = this.chip;
+         for each(var c:Object in this._chips)
+         {
+            this.paintChip(c,c.id == current);
+         }
+         var delay:TextField = this._delayField;
          if(this._tab == LIVE && this._delay > 0)
          {
-            var room:Number = this._box.x - 20 - (x + 8);
-            RoomsLook.fitName(this.look.text(this.look._content,"",x + 8,TOOL_Y + 6,Math.max(20,room),13,RoomsLook.DIM),
-               LocalizationData.format("st_srp_watch_delay",this._delay),"");
-            this.look._content.getChildAt(this.look._content.numChildren - 1).name = "srpWatchDelay";
+            if(delay.parent != this.look._content)
+            {
+               this.look._content.addChild(delay);
+            }
+            delay.x = this._chipsEnd + 8;
+            delay.width = Math.max(20,this._box.x - 20 - delay.x);
+            RoomsLook.fitName(delay,LocalizationData.format("st_srp_watch_delay",this._delay),"");
+         }
+         else if(delay.parent == this.look._content)
+         {
+            this.look._content.removeChild(delay);
          }
       }
 
-      // A chip: a rounded tag, filled gold when chosen; its x end.
-      private function chipAt(id:String, label:String, x:Number, on:Boolean) : Number
+      private function makeChips() : void
+      {
+         var old:Object;
+         for each(old in this._chips)
+         {
+            this.look.unroute(old.sprite);
+            if(old.sprite.parent != null)
+            {
+               old.sprite.parent.removeChild(old.sprite);
+            }
+         }
+         this._chips = [];
+         this._chipsTab = this._tab;
+         var list:Array = this._tab == LIVE ? [[EVERYONE,"st_srp_watch_chip_everyone"],[FRIENDS,"st_srp_watch_chip_friends"]]
+            : [[MINE,"st_srp_watch_chip_mine"],[FRIENDS,"st_srp_watch_chip_friends"],[EVERYONE,"st_srp_watch_chip_everyone"]];
+         var x:Number = 14;
+         for each(var c:Array in list)
+         {
+            x = this.chipAt(c[0],LocalizationData.getName(c[1]),x) + 8;
+         }
+         this._chipsEnd = x;
+      }
+
+      // A chip: a rounded tag, filled gold when chosen (paintChip); its x end.
+      private function chipAt(id:String, label:String, x:Number) : Number
       {
          var chip:Sprite = new Sprite();
          chip.name = "srpWatchChip_" + id;
          chip.x = x;
          chip.y = TOOL_Y + 1;
-         var tf:TextField = this.look.text(chip,label,14,5,400,13,on ? 0xFFFFFF : RoomsLook.GREY);
+         var tf:TextField = this.look.text(chip,label,14,5,400,13,RoomsLook.GREY);
          tf.width = int(tf.textWidth + 6);
          var w:Number = int(tf.width + 24);
-         chip.graphics.lineStyle(1,on ? RoomsLook.GOLD : 0x3A4854);
-         chip.graphics.beginFill(on ? 0x3C2C10 : 0x0B0E11,1);
-         chip.graphics.drawRoundRect(0,0,w,CHIP_H,CHIP_H,CHIP_H);
-         chip.graphics.endFill();
          chip.buttonMode = true;
          chip.mouseChildren = false;
          chip.addEventListener(MouseEvent.CLICK,function(e:MouseEvent):void
@@ -1299,7 +1304,19 @@ package survarium.watch
          {
             pickChip(id);
          });
+         this._chips.push({"id":id,"sprite":chip,"label":tf,"w":w});
          return x + w;
+      }
+
+      private function paintChip(c:Object, on:Boolean) : void
+      {
+         var chip:Sprite = c.sprite;
+         chip.graphics.clear();
+         chip.graphics.lineStyle(1,on ? RoomsLook.GOLD : 0x3A4854);
+         chip.graphics.beginFill(on ? 0x3C2C10 : 0x0B0E11,1);
+         chip.graphics.drawRoundRect(0,0,c.w,CHIP_H,CHIP_H,CHIP_H);
+         chip.graphics.endFill();
+         TextField(c.label).textColor = on ? 0xFFFFFF : RoomsLook.GREY;
       }
 
       // The search box at the toolbar's right: its hint while empty, Enter or the magnifier searches.
@@ -1340,6 +1357,7 @@ package survarium.watch
          back.graphics.endFill();
          this.look._content.addChildAt(back,this.look._content.getChildIndex(hint));
          this._box = tf;
+         this._boxHint = hint;
          var go:Sprite = new Sprite();
          go.name = "srpWatchSearchGo";
          go.x = x + SEARCH_W - 26;
@@ -1377,25 +1395,61 @@ package survarium.watch
          return rows;
       }
 
+      // The list, card by card in place, keyed by match: a card already shown stays the same object,
+      // so its buttons keep a press under a refresh of the list; a card of a match no longer in it
+      // goes.
       private function drawList() : void
       {
          var w:Number = this.look._w - 28 - 10;
-         var inner:Sprite = this.look.scrollBox(14,LIST_Y,w,this.look._h - LIST_Y - 10);
          var rows:Array = this.shownRows();
+         var kept:Object = {};
          var y:Number = 0;
-         if(rows.length == 0)
-         {
-            this.look.text(inner,this.emptyText(),0,14,w,15,RoomsLook.GREY).name = "srpWatchEmpty";
-         }
+         this._clocks = [];
          for(var i:int = 0; i < rows.length; i++)
          {
-            var card:MatchCard = this.card(rows[i],w);
+            var row:Object = rows[i];
+            var key:String = String(row.kind) + ":" + String(row.match);
+            var card:MatchCard = this._cards[key] as MatchCard;
+            if(card != null)
+            {
+               delete this._cards[key];
+            }
+            else
+            {
+               card = new MatchCard(this.look,row,w,this.watchRow,this.routeInList);
+               this._inner.addChild(card);
+            }
+            card.show(row,WatchWindow.reasonOf(row));
             card.name = "srpWatchCard" + i;
             card.y = y;
-            inner.addChild(card);
+            kept[key] = card;
             y += MatchCard.H;
+            if(card.clock != null)
+            {
+               this._clocks.push({"field":card.clock,"row":row});
+               this.putTime(card.clock,row,getTimer());
+            }
          }
+         for each(var gone:MatchCard in this._cards)
+         {
+            this.dropCard(gone);
+         }
+         this._cards = kept;
+         this._empty.visible = rows.length == 0;
+         this._empty.text = rows.length == 0 ? this.emptyText() : "";
          this.look.scrollDone(y);
+      }
+
+      private function dropCard(card:MatchCard) : void
+      {
+         for each(var control:DisplayObject in card.routed)
+         {
+            this.look.unroute(control);
+         }
+         if(card.parent != null)
+         {
+            card.parent.removeChild(card);
+         }
       }
 
       private function emptyText() : String
@@ -1435,34 +1489,6 @@ package survarium.watch
          return LocalizationData.getName(list == FRIENDS ? "st_srp_watch_none_friends" : "st_srp_watch_none_recent");
       }
 
-      // A row's card: Watch or why not, and the copy icon by its code.
-      private function card(row:Object, w:Number) : MatchCard
-      {
-         var hexed:String = WatchWindow.hex(uint(row.match));
-         var copied:Object = this._copied != null && this._copied.hex == hexed ? this._copied : null;
-         var card:MatchCard = new MatchCard(this.look,row,w,WatchWindow.reasonOf(row),copied,function(e:Event):void
-         {
-            watchRow(row);
-         },function():void
-         {
-            copy(hexed);
-         });
-         for each(var b:* in card.presses)
-         {
-            this.routeInList(b);
-         }
-         if(card.codeField != null)
-         {
-            this._codeField = card.codeField;
-         }
-         if(card.clock != null)
-         {
-            this._clocks.push({"field":card.clock,"row":row});
-            this.putTime(card.clock,row,getTimer());
-         }
-         return card;
-      }
-
       // A control in the scrolled list: a press the content got itself clicks it, where the list
       // shows it (not scrolled away under its mask).
       private function routeInList(b:*) : void
@@ -1472,6 +1498,13 @@ package survarium.watch
             var inner:Sprite = look._scrollInner;
             if(inner != null && inner.mask != null && !inner.mask.hitTestPoint(e.stageX,e.stageY,false))
             {
+               return;
+            }
+            if(control is TextField)
+            {
+               // the code on a card: selected for Ctrl+C
+               FocusManager.setFocus(control as TextField);
+               TextField(control).setSelection(0,TextField(control).length);
                return;
             }
             if(Object(control).enabled === false)

@@ -13,9 +13,10 @@ harness_work "${2:-}"
 
 # The texts the exe gives the movie (set_localization_data), from the dictionaries.
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
-harness_compile "$here/ReplayButtonsHarness.as" 1280,720 -source-path+="$work"
-# The native Scaleform placements Ruffle refuses, so the results screen's named children exist.
-"${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
+harness_compile "$here/ReplayButtonsHarness.as" 1280,720 -source-path+="$work" -source-path+="$here/../exe-stand-in"
+# The native Scaleform placements Ruffle refuses, so the results screen's named children exist;
+# --exe: the movie's exe calls land in the harness's stand-in.
+"${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf" --exe
 harness_display "${HARNESS_DISPLAY:-1920x1300}"
 status=0
 # HARNESS_SIZES (and HARNESS_DISPLAY, room for them): other sizes, as docs/notes/ui_scale.md lists.

@@ -126,10 +126,6 @@ package survarium.controls
          {
             return;
          }
-         if(NotificationListScrollContent.replayTake(players))
-         {
-            return;
-         }
          if(MatchMakingSettings.pvbTake(players))
          {
             return;

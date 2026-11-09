@@ -67,9 +67,6 @@ package survarium.replay
       // the time of the last frame, for the hint's fade
       private var _frameAt:int;
 
-      // the last call made to the exe, "name arguments" (what a harness sees: Ruffle has no exe)
-      public var lastCall:String = "";
-
       // `texts`: Back, Moments, All, Mine, Followed, then the hint's Cursor, Pause, Filter, Hide and its
       // Ctrl and Space caps.
       public function ViewerControls(panel:DisplayObject, font:String, texts:Array)
@@ -80,7 +77,9 @@ package survarium.replay
          this._font = font;
          this._started = this._frameAt = getTimer();
          this.back = this.button("srpBack","<  " + texts[0],15);
-         this.back.addEventListener(MouseEvent.MOUSE_DOWN,this.onBack);
+         // on the click, not the press: Back ends the viewer, and the press's release must reach the
+         // movie first (the mouse goes back to the lobby's movie once the viewer has ended)
+         this.back.addEventListener(MouseEvent.CLICK,this.onBack);
          addChild(this.back);
          this.hint = new KeyHint(font,[texts[5],texts[6],texts[1],texts[7],texts[8],texts[0],texts[9],texts[10]]);
          this.hint.alpha = 0;
@@ -112,18 +111,13 @@ package survarium.replay
          this.show();
       }
 
-      public function get choice() : int
-      {
-         return this._choice;
-      }
-
       public function setCursor(shown:Boolean) : void
       {
          this._cursor = shown;
       }
 
       // The hint is to be shown: its first HINT_MS, and while the cursor is.
-      public function get hintShown() : Boolean
+      private function get hintShown() : Boolean
       {
          return this._cursor || getTimer() - this._started < HINT_MS;
       }
@@ -181,16 +175,13 @@ package survarium.replay
       private function onBack(e:MouseEvent) : void
       {
          e.stopPropagation();
-         this.lastCall = "back_clicked";
          ExternalInterface.call("back_clicked");
       }
 
       private function onChoice(e:MouseEvent) : void
       {
          e.stopPropagation();
-         var index:uint = uint(this.choices.indexOf(e.currentTarget));
-         this.lastCall = "moments_clicked " + index;
-         ExternalInterface.call("moments_clicked",index);
+         ExternalInterface.call("moments_clicked",uint(this.choices.indexOf(e.currentTarget)));
       }
 
       private function field(text:String, size:int, colour:uint) : TextField

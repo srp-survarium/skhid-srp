@@ -1,5 +1,6 @@
 package
 {
+   import survarium.watch.WatchWindow;
    import flash.display.DisplayObjectContainer;
    import flash.display.MovieClip;
    import flash.text.StyleSheet;
@@ -39,6 +40,10 @@ package
       public static function set activeWindow(value:MovieClip) : void
       {
          _activeWindow = enter(_activeWindow,value,"closeWindow");
+         if(value != null)
+         {
+            WatchWindow.closeForWindow();
+         }
       }
 
       // A popup over the windows (the attachments window, the ammo box): a modal, Esc its closePopup.

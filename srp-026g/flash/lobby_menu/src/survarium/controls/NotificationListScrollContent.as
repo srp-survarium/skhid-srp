@@ -8,16 +8,12 @@ package survarium.controls
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
-   import flash.events.TimerEvent;
-   import flash.external.ExternalInterface;
    import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
    import flash.utils.Dictionary;
-   import flash.utils.Timer;
    import flash.utils.getDefinitionByName;
-   import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.ComponentEvent;
@@ -26,14 +22,13 @@ package survarium.controls
    import survarium.data.LocalizationData;
    import survarium.constants.ImportantMessageType;
    import survarium.constants.NotificationType;
+   import survarium.watch.ReplayAsks;
    
    public class NotificationListScrollContent extends MovieClip
    {
       
       public static const HISTORY_EXTRA:int = 100;
       
-      public static const REPLAY_START:uint = 2200000000;
-
       // srp's ask to watch a match's replay in this game, as a spectator (a replay session, the
       // lobby server's REPLAY_WATCH_BASE, docs/notes/replay-stream.md): the player of
       // victory_screen_request_player_data is 0xC0000000 | place << 16 | seconds, the place in
@@ -45,54 +40,8 @@ package survarium.controls
 
       public static const REASON_GONE:String = "st_srp_watch_reason_gone";
       
-      public static const REPLAY_POLLS:int = 30;
-      
-      public static const REPLAY_PREPARE_MS:int = 180000;
-      
-      // srp's replay prompt: its state (_rpState).
-      private static const RP_IDLE:int = 0;
-      
-      // asking the match server, polling
-      private static const RP_ASKING:int = 1;
-      
-      // a final message is shown
-      private static const RP_ENDED:int = 2;
-      
-      // The prompt's texts (dictionary keys; rpShow); RP_KEY_NONE is no text shown.
-      private static const RP_KEY_NONE:String = null;
-      
+      // the prompt's word for a row's Watch (rpText)
       private static const RP_KEY_WATCH:String = "st_srp_replay_watch";
-
-      // a session's `preparing` (the match server reads the recording)
-      private static const RP_KEY_OPENING:String = "st_srp_replay_opening";
-      
-      private static const RP_KEY_CLOSE:String = "st_srp_replay_close";
-      
-      private static const RP_KEY_ASKING:String = "st_srp_replay_asking";
-      
-      // the final answers (rpFinalKey), by the server's status
-      private static const RP_FINALS:Object = {
-         "gone":"st_srp_replay_gone",
-         "not_yours":"st_srp_replay_not_yours",
-         "old_game":"st_srp_replay_old_game",
-         "incompatible":"st_srp_replay_incompatible",
-         "busy":"st_srp_replay_busy",
-         "failed":"st_srp_replay_failed",
-         "off":"st_srp_replay_off"
-      };
-      
-      private static const RP_KEY_NO_ANSWER:String = "st_srp_replay_no_answer";
-      
-      private static const RP_KEY_STILL_PREPARING:String = "st_srp_replay_still_preparing";
-      
-      // What an answer says of its match's replay (replayReason): it cannot play (a reason), or it
-      // may (null); the other answers say nothing of it (busy, failed, ...).
-      private static const RP_REASONS:Object = {
-         "watching":null,
-         "preparing":null,
-         "incompatible":REASON_OLD,
-         "gone":REASON_GONE
-      };
 
       // a row's match number (`#` and the 8 hex digits the server's rows and logs use), grey
       private static const RP_NUMBER_GREY:uint = 0x8A9096;
@@ -101,10 +50,6 @@ package survarium.controls
       private static const QUEST_MESSAGE_TYPE:int = 3;
       
       public static var replayHolder:NotificationListScrollContent;
-
-      // Told (match 8 hex, status) of each answer about the match asked for: the Watch window's
-      // cards follow.
-      public static var answerListener:Function;
 
       // match id (8 hex) -> why its replay cannot be watched, by the last word about it (an answer,
       // a Watch list's row); none: it may be (replayReason)
@@ -130,29 +75,6 @@ package survarium.controls
       
       protected var _rpRows:Dictionary;
       
-      protected var _rpState:int;
-      
-      protected var _rpMatch:uint;
-
-      // the player of the ask (REPLAY_WATCH_*)
-      protected var _rpAsk:uint;
-
-      protected var _rpPolls:int;
-      
-      protected var _rpTimer:Timer;
-      
-      protected var _rpPrepSeen:Boolean;
-      
-      protected var _rpAskAt:int;
-      
-      protected var _rpShownText:String;
-      
-      protected var _rpDialog:Object;
-      
-      protected var _rpDialogData:Object;
-      
-      protected var _rpShownKey:String;
-      
       protected var _rpPopupWait:Boolean;
       
       public function NotificationListScrollContent()
@@ -167,31 +89,6 @@ package survarium.controls
          this._scrollContent.autoScroll = true;
          this.historyInit();
          addChild(this._scrollContent);
-      }
-      
-      public static function replayTake(rows:Array) : Boolean
-      {
-         var name:String = null;
-         var taken:Boolean = false;
-         try
-         {
-            if(rows && rows.length > 0 && rows[0])
-            {
-               name = String(rows[0].nickname);
-               if(name.indexOf("R1;") == 0)
-               {
-                  taken = true;
-                  if(NotificationListScrollContent.replayHolder)
-                  {
-                     NotificationListScrollContent.replayHolder.replayAnswer(name);
-                  }
-               }
-            }
-         }
-         catch(e:Error)
-         {
-         }
-         return taken;
       }
       
       override public function set x(value:Number) : void
@@ -320,14 +217,6 @@ package survarium.controls
          var child:DisplayObject = null;
          NotificationListScrollContent.replayHolder = this;
          this._rpRows = new Dictionary(true);
-         this._rpState = RP_IDLE;
-         this._rpMatch = 0;
-         this._rpAsk = NotificationListScrollContent.REPLAY_WATCH_ALL;
-         this._rpPolls = 0;
-         this._rpPrepSeen = false;
-         this._rpAskAt = 0;
-         this._rpShownText = "";
-         this._rpShownKey = RP_KEY_NONE;
          this._scrollContent.width = 310 + NotificationListScrollContent.HISTORY_EXTRA;
          try
          {
@@ -927,13 +816,6 @@ package survarium.controls
          field.y = Number(rec.watch.y);
       }
 
-      // The last watch asked for: its match and its player (REPLAY_WATCH_*'s layout: the place in
-      // view first).
-      public function get replayAsked() : Array
-      {
-         return [this._rpMatch,this._rpAsk];
-      }
-
       // What is known of match `hex`'s replay: why it cannot be watched (REASON_*), null if it may
       // be or nothing is known.
       public static function replayReason(hex:String) : String
@@ -989,19 +871,6 @@ package survarium.controls
          }
       }
 
-      // An answer about match `hex`: what it says of the replay; the Watch window told.
-      protected function rpNote(hex:String, status:String) : void
-      {
-         if(status in RP_REASONS)
-         {
-            NotificationListScrollContent.noteReplay(hex,RP_REASONS[status] as String);
-         }
-         if(NotificationListScrollContent.answerListener != null)
-         {
-            NotificationListScrollContent.answerListener(hex,status);
-         }
-      }
-
       protected function onRpStopEvent(e:Event) : void
       {
          e.stopPropagation();
@@ -1037,19 +906,13 @@ package survarium.controls
          e.stopPropagation();
          if(id != 0)
          {
-            this.replayBegin(id,NotificationListScrollContent.REPLAY_WATCH_ALL);
+            ReplayAsks.watch(id,NotificationListScrollContent.REPLAY_WATCH_ALL);
          }
       }
 
       protected function rpText(key:String) : String
       {
          return LocalizationData.getName(key);
-      }
-      
-      protected function rpFinalKey(status:String) : String
-      {
-         var key:String = RP_FINALS[status] as String;
-         return key != null ? key : RP_KEY_NONE;
       }
       
       protected function rpHex(value:uint) : String
@@ -1062,250 +925,6 @@ package survarium.controls
          return text;
       }
       
-      // Ask to watch match `id`'s replay in this game: `ask` a REPLAY_WATCH_* player. The History's
-      // rows, the results screen and the Watch window ask through here.
-      public function replayBegin(id:uint, ask:uint) : void
-      {
-         if(this._rpState == RP_ASKING)
-         {
-            return;
-         }
-         NotificationListScrollContent.replayHolder = this;
-         this._rpMatch = id;
-         this._rpAsk = ask;
-         this._rpPolls = 0;
-         this._rpPrepSeen = false;
-         this._rpAskAt = getTimer();
-         this._rpState = RP_ASKING;
-         this.rpShow(RP_KEY_ASKING);
-         try
-         {
-            this.rpCallAsk(this._rpAsk,this._rpMatch);
-         }
-         catch(e:Error)
-         {
-         }
-         if(!this._rpTimer)
-         {
-            this._rpTimer = new Timer(1000,0);
-            this._rpTimer.addEventListener(TimerEvent.TIMER,this.onRpTimer,false,0,true);
-         }
-         this._rpTimer.reset();
-         this._rpTimer.start();
-      }
-      
-      protected function rpCallAsk(player:uint, match:uint) : void
-      {
-         ExternalInterface.call("victory_screen_request_player_data",player,match);
-      }
-      
-      protected function rpCallPoll(start:uint, count:int) : void
-      {
-         ExternalInterface.call("request_players_range",start,count);
-      }
-      
-      protected function rpStop() : void
-      {
-         if(this._rpTimer)
-         {
-            this._rpTimer.stop();
-         }
-      }
-      
-      protected function onRpTimer(e:TimerEvent) : void
-      {
-         var waited:int = 0;
-         if(this._rpState != RP_ASKING)
-         {
-            this.rpStop();
-            return;
-         }
-         this._rpPolls += 1;
-         if(this._rpPrepSeen)
-         {
-            waited = getTimer() - this._rpAskAt;
-            if(waited >= NotificationListScrollContent.REPLAY_PREPARE_MS)
-            {
-               this.rpStop();
-               this._rpState = RP_ENDED;
-               this.rpShow(RP_KEY_STILL_PREPARING);
-               return;
-            }
-            this.rpShowPreparing();
-         }
-         else if(this._rpPolls > NotificationListScrollContent.REPLAY_POLLS)
-         {
-            this.rpStop();
-            this._rpState = RP_ENDED;
-            this.rpShow(RP_KEY_NO_ANSWER);
-            return;
-         }
-         try
-         {
-            this.rpCallPoll(NotificationListScrollContent.REPLAY_START,1);
-         }
-         catch(err:Error)
-         {
-         }
-      }
-      
-      public function replayAnswer(name:String) : void
-      {
-         var fields:Array = name.split(";");
-         var status:String = fields.length > 1 ? String(fields[1]) : "";
-         var hex:String = fields.length > 2 ? String(fields[2]).toLowerCase() : "";
-         var key:String = RP_KEY_NONE;
-         if(this._rpState != RP_ASKING)
-         {
-            return;
-         }
-         if(hex != this.rpHex(this._rpMatch))
-         {
-            return;
-         }
-         this.rpNote(hex,status);
-         if(status == "watching")
-         {
-            this.rpStop();
-            // the game is in it already (the answer comes once it connected): no box over it
-            this._rpState = RP_ENDED;
-            return;
-         }
-         if(status == "preparing")
-         {
-            this._rpPrepSeen = true;
-            this.rpShowPreparing();
-            return;
-         }
-         key = this.rpFinalKey(status);
-         if(key != null)
-         {
-            this.rpStop();
-            this._rpState = RP_ENDED;
-            this.rpShow(key);
-            return;
-         }
-      }
-      
-      protected function rpPreparingText() : String
-      {
-         var seconds:int = int((getTimer() - this._rpAskAt) / 1000);
-         if(seconds < 0)
-         {
-            seconds = 0;
-         }
-         return LocalizationData.format(RP_KEY_OPENING,LocalizationData.format("st_srp_replay_waiting",seconds));
-      }
-      
-      protected function rpShowPreparing() : void
-      {
-         var text:String = this.rpPreparingText();
-         var message:Object = this._rpDialog;
-         var high:Number = 0;
-         if(this._rpShownKey != RP_KEY_OPENING || !message || !message.textField)
-         {
-            this.rpShow(RP_KEY_OPENING);
-            return;
-         }
-         if(text == this._rpShownText)
-         {
-            return;
-         }
-         try
-         {
-            high = message.textField.textHeight;
-            message.textField.text = text;
-            this._rpShownText = text;
-            if(message.textField.textHeight != high)
-            {
-               this.rpShow(RP_KEY_OPENING);
-            }
-         }
-         catch(e:Error)
-         {
-            this.rpShow(RP_KEY_OPENING);
-         }
-      }
-      
-      // The prompt with `key`'s text and Close alone.
-      protected function rpShow(key:String) : void
-      {
-         var text:String = this.rpText(key);
-         var data:Object = null;
-         var message:Object = null;
-         var format:TextFormat = null;
-         if(key == RP_KEY_OPENING)
-         {
-            text = this.rpPreparingText();
-         }
-         this.rpDropDialog();
-         this._rpShownText = text;
-         data = {
-            "text":text,
-            "label_ok":null,
-            "label_cancel":this.rpText(RP_KEY_CLOSE),
-            "onYes":this.onRpNo,
-            "onNo":this.onRpNo
-         };
-         this._rpDialogData = data;
-         this._rpShownKey = key;
-         try
-         {
-            message = Message.showMessage("apply",data,true);
-            this._rpDialog = message;
-            if(message)
-            {
-               if(text.length > 120 && message.textField)
-               {
-                  format = message.textField.defaultTextFormat;
-                  format.size = 16;
-                  message.textField.defaultTextFormat = format;
-               }
-               message.validateNow();
-               if(message.btnAccept && message.btnCancel && message.background)
-               {
-                  message.btnAccept.visible = false;
-                  message.btnAccept.enabled = false;
-                  message.btnCancel.x = int(message.background.x + (message.background.width - message.btnCancel.width) / 2);
-               }
-            }
-         }
-         catch(e:Error)
-         {
-         }
-      }
-      
-      protected function rpDropDialog() : void
-      {
-         var message:Object = this._rpDialog;
-         if(this._rpDialogData)
-         {
-            this._rpDialogData.onYes = null;
-            this._rpDialogData.onNo = null;
-         }
-         this._rpDialog = null;
-         this._rpDialogData = null;
-         this._rpShownKey = RP_KEY_NONE;
-         if(message)
-         {
-            try
-            {
-               Message.close(uint(message.getMessageId()),true);
-            }
-            catch(e:Error)
-            {
-            }
-         }
-      }
-      
-      protected function onRpNo() : void
-      {
-         this.rpStop();
-         this._rpState = RP_IDLE;
-         this._rpDialog = null;
-         this._rpDialogData = null;
-         this._rpShownKey = RP_KEY_NONE;
-      }
    }
 }
 

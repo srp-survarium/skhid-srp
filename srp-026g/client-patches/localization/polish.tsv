@@ -2830,6 +2830,10 @@ st_srp_viewer_cap_space	Spacja
 st_srp_viewer_cursor	Kursor
 st_srp_viewer_filter	Filtr
 st_srp_viewer_hide	Ukryj
+st_srp_viewer_marker_death	Śmierć
+st_srp_viewer_marker_event	Zdarzenie
+st_srp_viewer_marker_kill	Zabójstwo
+st_srp_viewer_marker_objective	Cel
 st_srp_viewer_moments	Momenty
 st_srp_viewer_moments_all	Wszystkie
 st_srp_viewer_moments_followed	Śledzony
@@ -2853,7 +2857,6 @@ st_srp_vulkan_tear_free_hint	Obraz się nie rwie, gdy synchronizacja pionowa jes
 st_srp_watch_chip_everyone	Wszyscy
 st_srp_watch_chip_friends	Znajomi
 st_srp_watch_chip_mine	Moje
-st_srp_watch_copy_keys	Ctrl+C, aby skopiować
 st_srp_watch_delay	opóźnienie %1$s s
 st_srp_watch_friends	Znajomi: %1$s
 st_srp_watch_live	Na żywo
@@ -2874,6 +2877,7 @@ st_srp_watch_reason_starts	Otworzy się, gdy rozgrywka się zacznie
 st_srp_watch_replays	Powtórki
 st_srp_watch_search_hint	Nick gracza lub kod rozgrywki
 st_srp_watch_spectate	Obserwuj
+st_srp_watch_spectate_lost	Nie znaleziono meczu gracza %1$s do oglądania. Mógł się skończyć lub jest zamknięty dla widzów.
 st_srp_watch_title	Oglądaj
 st_srp_weapon069_akmsu_desc	Skrócony AKMS ze składaną kolbą, amunicja: 7,62x39. Ogień pojedynczy i ciągły.
 st_srp_weapon069_akmsu_name	AKMSU

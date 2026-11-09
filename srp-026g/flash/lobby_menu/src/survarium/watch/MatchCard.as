@@ -19,9 +19,10 @@ package survarium.watch
 
    // One match of the Watch window's lists (WatchWindow), research/watch-redesign.html's card: the
    // map's render, then three lines (its name and mode; the score or the player's result; its age,
-   // its code with a copy icon, a save icon (ReplaySave) when it may be watched, and the friends in
-   // it) and at the right one Watch, or why it cannot be watched. The row (WatchRows' object,
-   // `kind` live, recent or played) and what Watch and the copy icon do come from the window.
+   // its code, selectable, a save icon (ReplayAsks) when it may be watched, and the friends in it)
+   // and at the right one Watch, or why it cannot be watched. A card is made once per match shown
+   // and updated in place (show) as its row changes, so a press on its controls outlives the
+   // refreshes of the list.
    public class MatchCard extends Sprite
    {
       public static const H:int = 66;
@@ -46,21 +47,43 @@ package survarium.watch
 
       private var _look:RoomsLook;
 
-      // the card's controls and what a press on each does, for the window's routes
-      public var presses:Array = [];
+      private var _w:Number;
+
+      private var _watch:Function;
+
+      private var _route:Function;
+
+      // the row shown (WatchRows' object, `kind` live, recent or played)
+      public var row:Object;
 
       // the clock's field of a live match being played, ticked by the window
       public var clock:TextField;
 
-      // the code's field shown selected after a press of the copy icon (WatchWindow.copy)
-      public var codeField:TextField;
+      // the card's text fields by name, and those this show used (the others are hidden)
+      private var _fields:Object = {};
 
-      // `reason`: why it cannot be watched (a dictionary key), null: Watch. `copied`: the copy
-      // icon's last press on this card, null none.
-      public function MatchCard(look:RoomsLook, row:Object, w:Number, reason:String, copied:Object, watch:Function, copy:Function)
+      private var _used:Object;
+
+      private var _button:*;
+
+      private var _why:TextField;
+
+      private var _saveIcon:Sprite;
+
+      private var _saveDrawn:String;
+
+      // the controls the window routes presses to; they go with the card
+      public var routed:Array = [];
+
+      // `watch`: the card's Watch was pressed (its row). `route`: the window routes presses on a
+      // control in the list (WatchWindow.routeInList).
+      public function MatchCard(look:RoomsLook, row:Object, w:Number, watch:Function, route:Function)
       {
          super();
          this._look = look;
+         this._w = w;
+         this._watch = watch;
+         this._route = route;
          graphics.beginFill(0x000000,0.01);
          graphics.drawRect(0,0,w,H - 1);
          graphics.endFill();
@@ -87,33 +110,78 @@ package survarium.watch
          thumb.x = 8;
          thumb.y = int((H - 1 - THUMB_H) / 2);
          addChild(thumb);
-         var right:Number = w - 10;
-         if(reason == null)
-         {
-            var b:* = this.button(LocalizationData.getName("st_srp_replay_watch"),watch);
-            b.x = int(right - b.width);
-            b.y = int((H - 1 - b.height) / 2);
-            right = b.x - 14;
-         }
-         else
-         {
-            var why:TextField = look.text(this,"",right - REASON_W,0,REASON_W,13,RoomsLook.GREY,"right");
-            why.name = "srpWatchReason";
-            why.wordWrap = true;
-            why.multiline = true;
-            why.text = LocalizationData.getName(reason);
-            why.height = why.textHeight + 6;
-            why.y = int((H - 1 - why.height) / 2);
-            right = right - REASON_W - 14;
-         }
+      }
+
+      // The card as `row` says now; `reason` is why it cannot be watched (a dictionary key), null:
+      // Watch.
+      public function show(row:Object, reason:String) : void
+      {
+         this.row = row;
+         this._used = {};
+         this.clock = null;
+         var right:Number = this._w - 10;
+         right = reason == null ? this.showWatch(right) : this.showWhy(reason,right);
          // line 1: the map, then its mode and teams or players
          var map:TextField = this.field(WatchWindow.mapName(row),TEXT_X,5,right - TEXT_X,16,RoomsLook.LIGHT,"srpWatchMap");
          var after:Number = TEXT_X + Math.min(map.width,map.textWidth + 4) + 8;
          this.field(this.modeLine(row),after,8,right - after,13,RoomsLook.DIM,"srpWatchMode");
          // line 2: the score or result
          this.secondLine(row,right);
-         // line 3: age or watchers, the code and its copy icon, the friends
-         this.thirdLine(row,right,copied,copy,reason == null);
+         // line 3: age or watchers, the code, the friends
+         this.thirdLine(row,right,reason == null);
+         for(var name:String in this._fields)
+         {
+            if(this._used[name] !== true)
+            {
+               var tf:TextField = this._fields[name] as TextField;
+               tf.text = "";
+               tf.visible = false;
+            }
+         }
+      }
+
+      // Watch at the right; the x left of it.
+      private function showWatch(right:Number) : Number
+      {
+         if(this._why != null && this._why.parent == this)
+         {
+            removeChild(this._why);
+         }
+         if(this._button == null)
+         {
+            this._button = this.button(LocalizationData.getName("st_srp_replay_watch"));
+         }
+         if(this._button.parent != this)
+         {
+            addChild(this._button);
+         }
+         this._button.x = int(right - this._button.width);
+         this._button.y = int((H - 1 - this._button.height) / 2);
+         return this._button.x - 14;
+      }
+
+      // Why not, at the right; the x left of it.
+      private function showWhy(reason:String, right:Number) : Number
+      {
+         if(this._button != null && this._button.parent == this)
+         {
+            removeChild(this._button);
+         }
+         if(this._why == null)
+         {
+            this._why = this._look.text(this,"",right - REASON_W,0,REASON_W,13,RoomsLook.GREY,"right");
+            this._why.name = "srpWatchReason";
+            this._why.wordWrap = true;
+            this._why.multiline = true;
+         }
+         if(this._why.parent != this)
+         {
+            addChild(this._why);
+         }
+         this._why.text = LocalizationData.getName(reason);
+         this._why.height = this._why.textHeight + 6;
+         this._why.y = int((H - 1 - this._why.height) / 2);
+         return right - REASON_W - 14;
       }
 
       private function modeLine(row:Object) : String
@@ -159,7 +227,7 @@ package survarium.watch
          this.field(RoomsText.clock(int(row.length)),x,27,right - x,13,RoomsLook.GREY,"srpWatchLength");
       }
 
-      private function thirdLine(row:Object, right:Number, copied:Object, copy:Function, saves:Boolean) : void
+      private function thirdLine(row:Object, right:Number, saves:Boolean) : void
       {
          var x:Number = TEXT_X;
          if(row.kind == "live")
@@ -169,20 +237,19 @@ package survarium.watch
             {
                x = this.next(this.field(note,x,45,right - x,12,RoomsLook.DIM,"srpWatchNote"));
             }
+            this.showSave(false);
          }
          else
          {
             x = this.next(this.field(WatchWindow.ageText(int(row.minutes)),x,45,right - x,12,RoomsLook.DIM,"srpWatchAge"));
-            var code:String = NotificationListScrollContent.matchNumberText(uint(row.match));
-            x = this.next(this.field(code,x,45,right - x,12,RoomsLook.GREY,"srpWatchNumber")) - 4;
-            x = this.copyIcon(x,46,copy) + 6;
+            x = this.next(this.codeField(row,x,right));
             if(saves)
             {
-               x = this.saveIcon(uint(row.match),x + 4,46,right) + 6;
+               x = this.saveIcon(uint(row.match),x,46,right) + 6;
             }
-            if(copied != null)
+            else
             {
-               x = this.copiedNote(code,x,right);
+               this.showSave(false);
             }
          }
          if(row.friends.length > 0)
@@ -202,49 +269,98 @@ package survarium.watch
          return tf.x + Math.min(tf.width,tf.textWidth + 4) + 10;
       }
 
-      // Two overlapping sheets, a press copies the code; its x end.
-      private function copyIcon(x:Number, y:Number, copy:Function) : Number
+      // The match's code, selectable for Ctrl+C (the game's System.setClipboard takes nothing, a text
+      // field's own Ctrl+C reaches the system's clipboard); typing changes nothing.
+      private function codeField(row:Object, x:Number, right:Number) : TextField
       {
-         var icon:Sprite = new Sprite();
-         icon.name = "srpWatchCopy";
-         icon.x = x;
-         icon.y = y;
-         icon.graphics.beginFill(0x000000,0.01);
-         icon.graphics.drawRect(-3,-3,18,18);
-         icon.graphics.endFill();
-         icon.graphics.lineStyle(1,RoomsLook.GREY);
-         icon.graphics.drawRect(0,3,8,9);
-         icon.graphics.beginFill(0x131517,1);
-         icon.graphics.drawRect(4,0,8,9);
-         icon.graphics.endFill();
-         icon.buttonMode = true;
-         icon.mouseChildren = false;
-         var press:Function = function(e:Event):void
+         var code:String = NotificationListScrollContent.matchNumberText(uint(row.match));
+         var tf:TextField = this.field(code,x,45,right - x,12,RoomsLook.GREY,"srpWatchNumber");
+         tf.width = Math.max(10,Math.min(tf.width,tf.textWidth + 6));
+         if(tf.type != TextFieldType.INPUT)
          {
-            copy();
-         };
-         // the game's press, or the window's route of one (WatchWindow.routeInList)
-         icon.addEventListener(MouseEvent.CLICK,press);
-         icon.addEventListener(ButtonEvent.CLICK,press);
-         addChild(icon);
-         this.presses.push(icon);
-         return x + 12;
+            tf.type = TextFieldType.INPUT;
+            tf.selectable = true;
+            tf.mouseEnabled = true;
+            tf.addEventListener(Event.CHANGE,this.onCodeChange);
+            tf.addEventListener(MouseEvent.MOUSE_DOWN,this.onCodePress);
+            this._route(tf);
+            this.routed.push(tf);
+         }
+         return tf;
       }
 
-      // An arrow into a tray: a press saves the replay (ReplaySave). Saving: dim, with its word;
+      private function onCodeChange(e:Event) : void
+      {
+         TextField(e.currentTarget).text = NotificationListScrollContent.matchNumberText(uint(this.row.match));
+      }
+
+      private function onCodePress(e:MouseEvent) : void
+      {
+         var tf:TextField = e.currentTarget as TextField;
+         FocusManager.setFocus(tf);
+         tf.setSelection(0,tf.length);
+      }
+
+      // An arrow into a tray: a press saves the replay (ReplayAsks). Saving: dim, with its word;
       // saved: gold, filled, with its word. Its x end.
       private function saveIcon(match:uint, x:Number, y:Number, right:Number) : Number
       {
-         var state:String = ReplaySave.stateOf(match);
-         var colour:uint = state == ReplaySave.SAVING ? RoomsLook.DIM : state == ReplaySave.SAVED ? 0x17130A : RoomsLook.GREY;
-         var icon:Sprite = new Sprite();
-         icon.name = "srpWatchSave";
+         this.showSave(true);
+         var state:String = ReplayAsks.stateOf(match);
+         var icon:Sprite = this._saveIcon;
          icon.x = x;
          icon.y = y;
+         if(state != this._saveDrawn)
+         {
+            this.paintSave(state);
+         }
+         if(state == ReplayAsks.SAVE)
+         {
+            return x + 12;
+         }
+         var word:TextField = this.field(LocalizationData.getName(state == ReplayAsks.SAVING ? "st_srp_replay_saving" : "st_srp_replay_saved"),x + 18,45,
+            Math.max(10,right - x - 18),12,state == ReplayAsks.SAVING ? RoomsLook.DIM : RoomsLook.GOLD,"srpWatchSaveState");
+         return this.next(word) - 10;
+      }
+
+      private function showSave(on:Boolean) : void
+      {
+         if(!on)
+         {
+            if(this._saveIcon != null && this._saveIcon.parent == this)
+            {
+               removeChild(this._saveIcon);
+            }
+            return;
+         }
+         if(this._saveIcon == null)
+         {
+            var icon:Sprite = new Sprite();
+            icon.name = "srpWatchSave";
+            icon.mouseChildren = false;
+            icon.addEventListener(MouseEvent.CLICK,this.onSavePress);
+            icon.addEventListener(ButtonEvent.CLICK,this.onSavePress);
+            this._saveIcon = icon;
+            this._saveDrawn = null;
+            this._route(icon);
+            this.routed.push(icon);
+         }
+         if(this._saveIcon.parent != this)
+         {
+            addChild(this._saveIcon);
+         }
+      }
+
+      private function paintSave(state:String) : void
+      {
+         this._saveDrawn = state;
+         var icon:Sprite = this._saveIcon;
+         var colour:uint = state == ReplayAsks.SAVING ? RoomsLook.DIM : state == ReplayAsks.SAVED ? 0x17130A : RoomsLook.GREY;
+         icon.graphics.clear();
          icon.graphics.beginFill(0x000000,0.01);
          icon.graphics.drawRect(-3,-3,18,18);
          icon.graphics.endFill();
-         if(state == ReplaySave.SAVED)
+         if(state == ReplayAsks.SAVED)
          {
             icon.graphics.beginFill(RoomsLook.GOLD,1);
             icon.graphics.drawRoundRect(-2,-2,16,16,4,4);
@@ -260,61 +376,40 @@ package survarium.watch
          icon.graphics.lineTo(1,11);
          icon.graphics.lineTo(11,11);
          icon.graphics.lineTo(11,8);
-         icon.buttonMode = state == ReplaySave.SAVE;
-         icon.mouseChildren = false;
-         var press:Function = function(e:Event):void
-         {
-            ReplaySave.save(match);
-         };
-         icon.addEventListener(MouseEvent.CLICK,press);
-         icon.addEventListener(ButtonEvent.CLICK,press);
-         addChild(icon);
-         this.presses.push(icon);
-         if(state == ReplaySave.SAVE)
-         {
-            return x + 12;
-         }
-         var word:TextField = this.field(LocalizationData.getName(state == ReplaySave.SAVING ? "st_srp_replay_saving" : "st_srp_replay_saved"),x + 18,45,
-            Math.max(10,right - x - 18),12,state == ReplaySave.SAVING ? RoomsLook.DIM : RoomsLook.GOLD,"srpWatchSaveState");
-         return this.next(word) - 10;
+         icon.buttonMode = state == ReplayAsks.SAVE;
       }
 
-      // After a copy: the code in a field selected for Ctrl+C and the keys to press. Its x end.
-      private function copiedNote(code:String, x:Number, right:Number) : Number
+      private function onSavePress(e:Event) : void
       {
-         var tf:TextField = this._look.text(this,code,x,43,82,12,RoomsLook.GOLD);
-         tf.name = "srpWatchCodeField";
-         tf.height = 18;
-         tf.background = true;
-         tf.backgroundColor = 0x070A0D;
-         tf.border = true;
-         tf.borderColor = 0x3A4854;
-         tf.type = TextFieldType.INPUT;
-         tf.selectable = true;
-         tf.mouseEnabled = true;
-         tf.addEventListener(MouseEvent.MOUSE_DOWN,function(e:MouseEvent):void
-         {
-            FocusManager.setFocus(e.currentTarget as TextField);
-         });
-         this.codeField = tf;
-         return this.next(this.field(LocalizationData.getName("st_srp_watch_copy_keys"),x + 90,45,right - x - 90,12,RoomsLook.GREY,"srpWatchCopyKeys"));
+         ReplayAsks.save(uint(this.row.match));
       }
 
-      // A text cut with dots to its column.
+      // A text cut with dots to its column, made once and placed anew.
       private function field(value:String, x:Number, y:Number, w:Number, size:Number, colour:uint, name:String) : TextField
       {
-         var tf:TextField = this._look.text(this,"",x,y,Math.max(1,w),size,colour);
-         tf.name = name;
+         var tf:TextField = this._fields[name] as TextField;
+         if(tf == null)
+         {
+            tf = this._look.text(this,"",x,y,Math.max(1,w),size,colour);
+            tf.name = name;
+            this._fields[name] = tf;
+         }
+         tf.x = x;
+         tf.y = y;
+         tf.width = Math.max(1,w);
+         tf.visible = true;
          RoomsLook.fitName(tf,value,"");
          if(value == "")
          {
             tf.text = "";
          }
+         tf.textColor = colour;
+         this._used[name] = true;
          return tf;
       }
 
       // The game's red framed button (the rooms window's main action), as wide as its label wants.
-      private function button(label:String, handler:Function) : *
+      private function button(label:String) : *
       {
          var b:* = null;
          try
@@ -346,9 +441,15 @@ package survarium.watch
             b.width = w;
             b.height = 32;
          }
-         b.addEventListener(ButtonEvent.CLICK,handler);
-         this.presses.push(b);
+         b.addEventListener(ButtonEvent.CLICK,this.onWatchPress);
+         this._route(b);
+         this.routed.push(b);
          return b;
+      }
+
+      private function onWatchPress(e:Event) : void
+      {
+         this._watch(this.row);
       }
    }
 }

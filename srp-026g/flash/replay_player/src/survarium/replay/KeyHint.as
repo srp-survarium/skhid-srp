@@ -111,20 +111,6 @@ package survarium.replay
          this._panel.graphics.endFill();
       }
 
-      public function get rows() : int
-      {
-         var tops:Object = {};
-         var count:int = 0;
-         for each(var group:Sprite in this.groups)
-         {
-            if(!tops[group.y])
-            {
-               tops[group.y] = true;
-               count++;
-            }
-         }
-         return count;
-      }
 
       private function group(caps:Array, action:String) : Sprite
       {

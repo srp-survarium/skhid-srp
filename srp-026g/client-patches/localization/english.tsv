@@ -2830,6 +2830,10 @@ st_srp_viewer_cap_space	Space
 st_srp_viewer_cursor	Cursor
 st_srp_viewer_filter	Filter
 st_srp_viewer_hide	Hide
+st_srp_viewer_marker_death	Death
+st_srp_viewer_marker_event	Event
+st_srp_viewer_marker_kill	Kill
+st_srp_viewer_marker_objective	Objective
 st_srp_viewer_moments	Moments
 st_srp_viewer_moments_all	All
 st_srp_viewer_moments_followed	Followed
@@ -2853,7 +2857,6 @@ st_srp_vulkan_tear_free_hint	Keeps the picture whole when vertical sync is off.\
 st_srp_watch_chip_everyone	Everyone
 st_srp_watch_chip_friends	Friends
 st_srp_watch_chip_mine	Mine
-st_srp_watch_copy_keys	Ctrl+C to copy
 st_srp_watch_delay	%1$s s behind live
 st_srp_watch_friends	Friends: %1$s
 st_srp_watch_live	Live
@@ -2874,6 +2877,7 @@ st_srp_watch_reason_starts	Opens when the match starts
 st_srp_watch_replays	Replays
 st_srp_watch_search_hint	Player name or match code
 st_srp_watch_spectate	Spectate
+st_srp_watch_spectate_lost	Couldn't find %1$s's match to watch. It may have ended or be closed to spectators.
 st_srp_watch_title	Watch
 st_srp_weapon069_akmsu_desc	Shortened AKMS with a folding stock, ammo: 7.62x39. Supports single shot and automatic fire modes.
 st_srp_weapon069_akmsu_name	AKMSU

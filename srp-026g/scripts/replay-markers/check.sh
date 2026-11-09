@@ -10,9 +10,10 @@ here=$(dirname "$(readlink -f "$0")")
 player=$(readlink -f "$1")
 . "$here/../ruffle_harness.sh"
 harness_work "${2:-}"
-harness_compile "$here/MarkersHarness.as" 1280,720
-# The native Scaleform placements Ruffle refuses, so the player's named children exist.
-"${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$player" "$work/replay_player.swf"
+harness_compile "$here/MarkersHarness.as" 1280,720 -source-path+="$here/../exe-stand-in"
+# The native Scaleform placements Ruffle refuses, so the player's named children exist; --exe: the
+# movie's exe calls land in the harness's stand-in.
+"${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$player" "$work/replay_player.swf" --exe
 # at the game's two common sizes (the controls are centred: the ticks move with them)
 harness_display 1920x1280
 for size in 1280x720 1920x1080; do

@@ -843,12 +843,6 @@ package
          }
       }
 
-      // srp's: for a harness, the panel of the kit chooser.
-      public function get spectatorKitsPanel() : MovieClip
-      {
-         return this._profilePanel;
-      }
-
       private function applySpectatorKits() : void
       {
          // A replay's chooser sits where the Tab list can reach, at a small window.

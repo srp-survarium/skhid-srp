@@ -690,7 +690,8 @@ def main():
           "frame, a viewer: the controls shown, the bar's length, the markers, its position and the play button")
     keys = ["st_srp_viewer_back", "st_srp_viewer_moments", "st_srp_viewer_moments_all", "st_srp_viewer_moments_mine",
             "st_srp_viewer_moments_followed", "st_srp_viewer_cursor", "st_srp_viewer_pause", "st_srp_viewer_filter",
-            "st_srp_viewer_hide", "st_srp_viewer_cap_ctrl", "st_srp_viewer_cap_space"]
+            "st_srp_viewer_hide", "st_srp_viewer_cap_ctrl", "st_srp_viewer_cap_space",
+            "st_srp_viewer_marker_kill", "st_srp_viewer_marker_objective", "st_srp_viewer_marker_death", "st_srp_viewer_marker_event"]
     check([c[1] for c in calls if c[0] == "translate"] == keys
           and ("root.start_viewer", (6, "st_srp_viewer_back")) in names
           and any(c[2] == "root.start_viewer" and c[3] == 11 for c in calls if c[0] == "invoke")
