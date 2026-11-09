@@ -227,16 +227,33 @@ fn tree_header(w: &mut BitW, tree: u32, nodes: u32, channels_mask: u32) {
 
 #[test]
 fn animation_validate_accepts_a_minimal_tree() {
-    // No nodes (the 11-bit header is the whole tree), no times, and the 12
-    // floats the matrix init always pops, written plainly.
+    // No nodes (the 11-bit header is the whole tree), one time (the native's
+    // unconditional duration pop at 0x3A9A64 reads it off the times buffer),
+    // and the 12 floats the matrix init always pops, written plainly.
     let mut w = BitW::new();
     tree_header(&mut w, 11, 0, 0);
-    w.put(0, 10); // times: count 0
+    w.put(1, 10).put(0, 1).put(0, 32); // times: count 1, the duration time
     w.put(0, 1).put(12, 10); // floats: not indexed, 12 of them
     for _ in 0..12 {
         w.put(0, 32);
     }
     assert_eq!(animation_validate(w.bytes()), Ok(()));
+}
+
+#[test]
+fn animation_validate_counts_the_native_duration_time_pop() {
+    // The native decode unconditionally pops one "duration" time (0x3A9A64)
+    // before any node pass. The same minimal tree with an empty times table is
+    // read one entry below the buffer by the native client, so the seal must
+    // refuse it even though nothing in the tree itself pops a time.
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(0, 10); // times: count 0 -- no duration time for the native to pop
+    w.put(0, 1).put(12, 10); // floats: not indexed, 12 of them
+    for _ in 0..12 {
+        w.put(0, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TableUnderrun));
 }
 
 #[test]
@@ -280,7 +297,7 @@ fn animation_validate_rejects_a_table_under_run() {
 fn indexed_floats(last: u32) -> Vec<u8> {
     let mut w = BitW::new();
     tree_header(&mut w, 11, 0, 0);
-    w.put(0, 10); // times: count 0
+    w.put(1, 10).put(0, 1).put(0, 32); // times: count 1, the duration time
     w.put(1, 1).put(12, 10); // floats: indexed, count 12
     w.put(2, 4); // unique = 2, in width(12) = 4 bits
     w.put(0, 32).put(0x3F80_0000, 32); // the two table floats
