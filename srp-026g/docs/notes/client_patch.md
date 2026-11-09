@@ -2124,6 +2124,20 @@ The v0.100b decompilation (`udp_match_client.cpp`) is no guide to this function:
 
 Patch 132's site retires with T4 (the Rust match socket replaces `udp_match_client::handle_receive`).
 
+### 3.79 The match sites the Rust client's T5 replaces (inventory, written 2026-11-09 for the replay viewer's PR)
+
+The replay viewer (patches 121, 130) and the patches before it reach into the native match lifecycle at these sites; the Rust client's T5 (world loads as native effects, roster events, a Rust dispatcher) replaces their functions whole, so each row retires with them. Whole-function replacements done so far: `process_player_left_match` 0x27C690 (spectator.rs, a Unicorn differential check in `check_spectator_026g.py`).
+
+| Function | Sites | Patches there | Note |
+|---|---|---|---|
+| `network_client::process_dynamic_match_info` 0x27BFF0 | 0x27C0D0, 0x27C0FF, 0x27C10A (a viewer's world loads as a seek: `as_seek`), 0x27C116 (camera after a world) | 54, 97, 109, 121, 130 | still hooked: its load path carries patch 54's and 97's hooks |
+| `network_client::close_current_match` 0x27A790 | 0x27A7A4 (guard), 0x27A7F3 (reason), caves 0x27A867, 0x27A94C | 119, 120, 121, 130 | still hooked: the log block and patch 119's caves are in the way |
+| `game_world_ui::update_local_player_state` 0x23B740 | 0x23B7A0 (quick slot activity), 0x23B7B9 (followed alive: a spectator skips the panels) | 77, 121 | still hooked |
+| `game_world::on_keyboard_action` 0x25CD00 | entry, 0x25CD1C, 0x25CD2C, 0x25CDBD | 58, 86, 121, 130 | still hooked |
+| `game_world::on_mouse_key_action` 0x25CF60 / `set_pointer` 0x25D160 | 0x25CFF3, 0x25D1E6 | 130 | still hooked |
+| `network_client::on_match_packet_received` 0x27A300 | 0x27A31F (message check), 0x27A4F4 (0xF6), the snapshot upload's asm, late join's asm at 0x27A385 | 121's check, 130 | T5's Rust dispatcher replaces it |
+| `udp_match_client::handle_receive` 0x3F2050 | 0x3F21DE | 132 | T4 retires it (the socket) |
+
 ## 0. Code-signing certificate check: required for every 0.26g client (found 2026-10-12, PROVEN live)
 
 A stock 0.26g client stops at start with "Resources archive is corrupted.
