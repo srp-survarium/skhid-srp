@@ -1,8 +1,11 @@
 //! Where a late joiner of a match being played goes ([`place_joiner`]; the
 //! owner's of 2026-10-19, after a 4 v 8): the side with fewer players; of
 //! two alike in that, the side it played on in that match before; then the
-//! one that counts for less; then side 0. A room's match (`lobby-server`'s
-//! `rooms`) takes a member who comes while it is played so, until [`LOAD_MARGIN`]
+//! one that counts for less; then side 0. A joiner with a strong player
+//! goes to the side that keeps the strong the more even, up to
+//! [`STRONG_JOIN_APART`] players ahead (the owner's of 2026-11-09). A
+//! room's match (`lobby-server`'s `rooms`) takes a member who comes while it
+//! is played so, until [`LOAD_MARGIN`]
 //! is left of it (the owner's of 2026-10-17: the queue's late joins, their
 //! scoring across matches and their patience went with the queue).
 
@@ -41,12 +44,37 @@ pub enum Closed {
     NoWorld,
 }
 
+/// The most players a side may be ahead of the other by after a strong late
+/// joiner goes to it to keep the strong even ([`place_joiner`]; the
+/// owner's of 2026-11-09: "let's allow 6vs4 (but never 7vs4)").
+pub const STRONG_JOIN_APART: usize = 2;
+
 /// A side of a match being played, or a joiner: its players and what they
-/// count for together beside being there (their K/Ds, `crate::Strength`).
+/// count for together beside being there (their K/Ds, `crate::Strength`),
+/// and how many of them are strong (`crate::v026g::level_stats::STRONG`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Worth {
     pub players: usize,
     pub strength: Strength,
+    pub strong: usize,
+}
+
+impl Worth {
+    /// The players who count for these strengths.
+    pub fn of(strengths: impl IntoIterator<Item = Strength>) -> Self {
+        strengths
+            .into_iter()
+            .fold(Self::default(), |worth, each| worth.with(each))
+    }
+
+    /// These and one more player who counts for `each`.
+    pub fn with(self, each: Strength) -> Self {
+        Self {
+            players: self.players + 1,
+            strength: self.strength + each,
+            strong: self.strong + usize::from(each >= crate::v026g::level_stats::STRONG),
+        }
+    }
 }
 
 /// How a player is put into a match being played ([`place_joiner`]).
@@ -92,13 +120,27 @@ pub struct LatePlacement {
 /// 4. then side 0.
 ///
 /// Only that side being full (`capacity`) with it, and the match's `room`,
-/// stop it.
+/// stop it. Before all that, a joiner with strong players goes only to the
+/// side that keeps the strong the more even (the owner's of 2026-11-09:
+/// "strong people being split always evenly", "strong players should wait
+/// usually for free space"), unless that would put it more than
+/// [`STRONG_JOIN_APART`] players ahead: then the side with fewer players
+/// (the owner's: "when the diff is by 2 ppl, strong player just joins the
+/// team with 2 less players"). It waits while the side it goes to is full.
 pub fn place_joiner(
     sides: [Worth; 2],
     joiner: Worth,
     previous: Option<u8>,
     rule: &LateRule,
 ) -> Option<LatePlacement> {
+    let strong_apart =
+        |side: usize| (sides[side].strong + joiner.strong).abs_diff(sides[1 - side].strong);
+    if joiner.strong > 0 && strong_apart(0) != strong_apart(1) {
+        let side = usize::from(strong_apart(1) < strong_apart(0));
+        let too_far =
+            sides[side].players + joiner.players > sides[1 - side].players + STRONG_JOIN_APART;
+        return placed(sides, joiner, if too_far { 1 - side } else { side }, rule);
+    }
     let worth = |sides: &[Worth; 2], side: usize| {
         rule.player_value.times(sides[side].players) + sides[side].strength + rule.lead[side]
     };
@@ -149,6 +191,7 @@ fn placed(sides: [Worth; 2], joiner: Worth, side: usize, rule: &LateRule) -> Opt
     let mut after = sides;
     after[side].players += joiner.players;
     after[side].strength += joiner.strength;
+    after[side].strong += joiner.strong;
     if joiner.players == 0
         || joiner.players > rule.room
         || after[side].players + rule.kept[side] > rule.capacity
@@ -171,7 +214,60 @@ mod tests {
         Worth {
             players,
             strength: Strength::from_milli(strength),
+            strong: 0,
         }
+    }
+
+    /// A side of `weak` players of 1 and these strong ones.
+    fn with_strong(weak: usize, strong: &[i64]) -> Worth {
+        Worth::of(
+            std::iter::repeat_n(Strength::from_milli(1000), weak)
+                .chain(strong.iter().map(|&milli| Strength::from_milli(milli))),
+        )
+    }
+
+    /// The owner's of 2026-11-09: "strong people being split always
+    /// evenly", "strong players should wait usually for free space". A
+    /// strong joiner goes to the side with fewer strong players, though it
+    /// played on the other or it has more players: up to 6 v 4, never 7 v
+    /// 4 ("let's allow 6vs4 (but never 7vs4)"). At 6 v 4 it goes to the 4
+    /// ("when the diff is by 2 ppl, strong player just joins the team with
+    /// 2 less players"). It waits while its side is full.
+    #[test]
+    fn a_strong_joiner_goes_to_the_side_with_fewer_strong_players() {
+        let strong = with_strong(0, &[3000]);
+        assert_eq!(strong.strong, 1);
+        assert_eq!(with_strong(1, &[]).strong, 0);
+        // 3 v 3, side 1 fewer strong: side 1, not its side of before.
+        let even = [with_strong(2, &[2500]), with_strong(3, &[])];
+        let placed = place_joiner(even, strong, Some(0), &rule()).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
+        assert_eq!(placed.sides[1].strong, 1);
+        // 4 v 5: side 1 takes it, 4 v 6.
+        let ahead = [with_strong(3, &[2500]), with_strong(5, &[])];
+        let placed = place_joiner(ahead, strong, None, &rule()).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
+        assert_eq!((placed.sides[0].players, placed.sides[1].players), (4, 6));
+        // 4 v 6: side 1 would be 7 v 4, so side 0, with the other strong
+        // one; side 0 full, it waits.
+        let sides = [with_strong(3, &[2500]), with_strong(6, &[])];
+        let placed = place_joiner(sides, strong, None, &rule()).unwrap();
+        assert_eq!(placed.assignments, [(0, 0)]);
+        let four = LateRule {
+            capacity: 4,
+            ..rule()
+        };
+        assert!(place_joiner(sides, strong, None, &four).is_none());
+        // Side 1 full: it waits, it does not go with the other strong one.
+        let full = LateRule {
+            capacity: 3,
+            ..rule()
+        };
+        assert!(place_joiner(even, strong, None, &full).is_none());
+        // The strong as many a side: the rule of before (fewer players).
+        let even = [with_strong(4, &[2500]), with_strong(3, &[2500])];
+        let placed = place_joiner(even, strong, None, &rule()).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
     }
 
     fn rule() -> LateRule {

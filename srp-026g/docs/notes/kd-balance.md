@@ -3,8 +3,9 @@
 The owner's rules (2026-11-01): "k/d equalizer + squads have their kd multiplied by 1.3"; "kd
 should take into account playing on the current match level"; the match level is "the highest
 equipment level in the match"; a rating: "we don't need that", "simpler the better"; "we can add
-small noise", so the same players do not always end up on the same side. Picks marked *(pick)*
-are the worker's, for the owner to change.
+small noise", so the same players do not always end up on the same side. Of 2026-11-09: "strong
+people being split always evenly", "strong players should wait usually for free space". Picks
+marked *(pick)* are the worker's, for the owner to change.
 
 Code: `session::v026g::level_stats` (the record, the formula), `session::v026g::rooms` (`Party`,
 `sides`, `NOISE_MILLI`), `session::v026g::rewards` (`Results::raise_match_gear`, what `settle`
@@ -17,6 +18,12 @@ schema step 12).
 - **Equalizer:** an open room's match splits its players into two sides whose strengths, summed,
   are as equal as they can be. Every split is tried (20 players at most); the sizes come first:
   no side over the room's size, the sides at most one player apart where the squads allow it.
+- **Strong players are dealt evenly first** (`level_stats::STRONG`, 2.0 *(pick)*, a squad's member
+  with its 1.3). After the sizes and before the equalizer: ranked by what they count, the strongest
+  two are on different sides, the strongest four two a side, and so on; at every rank a side is at
+  most one strong player ahead (players of one strength are one rank). A squad stays whole, so a
+  squad with two strong players has every other strong one against it. The noise only shakes the
+  equalizer's sums, never the ranks.
 - **A side counts** its players' strengths, and 1 more for each player being there
   (`SRP_BALANCE_PLAYER_KD`, default 1: an average player). So with an odd count the side with a
   player more must be the weaker in strength *(pick)*.
@@ -60,6 +67,11 @@ strength = (kills at L + 10 * overall) / (deaths at L + 10)
   its mate going in with it) counts at the level then. Players already in keep the strength they
   were seated with *(pick)*. They go where they went before (`matchmaking.md` §9): the side with
   fewer players, the side played on before, then the side that counts for less.
+- **A strong late joiner goes to the side with fewer strong players**, even with more players: up
+  to two ahead (6 v 4), never three (7 v 4; `STRONG_JOIN_APART`). At 6 v 4 it goes to the 4. With
+  the side it goes to full, it waits in the room (told the match is full) until a place opens
+  there (`matchmaking_policy::place_joiner`). With the strong as even either way, the rule above.
+  A joiner going in beside its squad mate keeps to its mate's side.
 - The kills and deaths of a match are counted at its level when it ends (the highest of everyone
   who was in it, late joiners too).
 
