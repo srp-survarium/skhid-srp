@@ -420,7 +420,7 @@ def draw_at_bench(run, weapon=True, ready=True):
     emu.reg_write(UC_X86_REG_ESP, sp)
     emu.reg_write(UC_X86_REG_EBP, frame)
     emu.reg_write(UC_X86_REG_EBX, PLAYER)
-    camo_va = base.weapon_camo_va(open(base.late_join_bin(), "rb").read())
+    camo_va = base.WEAPON_CAMO_VA
     hooks = [emu.hook_add(UC_HOOK_CODE, lambda e, a, s, u: e.emu_stop(), begin=b, end=e)
              for b, e in ((0x2477C2, 0x2477C8), (0x247794, 0x247794))]
     emu.emu_start(camo_va + base.WEAPON_TABLE_OFFSET + 0xF, 0x2477C8, count=200_000)
@@ -452,9 +452,9 @@ def expected_pick(m, origin, direction):
 
 
 def check_editor(original, build, say):
-    late_join = open(base.late_join_bin(), "rb").read()
-    preview = base.late_join_state_va(late_join) + base.WEAPON_PREVIEW_STATE_OFFSET
-    table = base.late_join_state_va(late_join) + base.WEAPON_TABLE_STATE_OFFSET
+    late_join = True
+    preview = base.LATE_JOIN_STATE_VA + base.WEAPON_PREVIEW_STATE_OFFSET
+    table = base.LATE_JOIN_STATE_VA + base.WEAPON_TABLE_STATE_OFFSET
     regs = {"eax": 0xA0A0A0A0, "ecx": 0xC0C0C0C0, "edx": 0xD0D0D0D0, "ebx": 0xB0B0B0B0, "ebp": 0xBEBEBEBE,
             "esi": CHARACTER, "edi": 0x7A7A7A7A}
     point, normal = CHARACTER + 0xD530, CHARACTER + 0xD53C
@@ -623,7 +623,7 @@ def check_editor(original, build, say):
         say(ok and all(up[r] == key_regs[r] for r in ("ebx", "esi", "edi", "ebp")) if not places else ok,
             f"{title}: " + ("the release goes on to the original's bake (1, 0, 0)" if places
                             else "the release places nothing, al 0, ret 0Ch"))
-        say(run.read(base.late_join_state_va(late_join) + base.WEAPON_DECALS_STATE_OFFSET) == 0 or not editing,
+        say(run.read(base.LATE_JOIN_STATE_VA + base.WEAPON_DECALS_STATE_OFFSET) == 0 or not editing,
             f"{title}: the press is over after the release")
 
     # The start's index.
@@ -689,7 +689,7 @@ def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     build, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), late_join=late_join)
     failures = 0
 

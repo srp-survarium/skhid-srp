@@ -160,7 +160,7 @@ def cases():
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     patched, _ = base.build(original, "section", code, None, late_join)
     checks = 0
     for data, reach, column in ((original, 2.0, 2), (patched, 4.0, 3)):

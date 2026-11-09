@@ -179,3 +179,17 @@ engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_fi
 engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
 engine_discard_playing_order	0x2717e0	ESP+4:lobby ESP+8:left	void engine_discard_playing_order(struct lobby_client *client, unsigned int left)	stdcall	
+engine_profile_body_construct	0x2f7c50	ECX:this	struct match_place *engine_profile_body_construct(void *body)	thunk	
+engine_profile_read	0x1f1070	ESI:reader EDI:profile ESP+4:dictionary	void engine_profile_read(struct buffer_reader *reader, struct match_place *profile, struct items_dictionary *dictionary)	thunk	
+engine_bind_place	0x321820	EAX:core ESP+4:place	void engine_bind_place(struct core_world *core, struct core_place *place)	thunk	
+engine_place_physics	0x3218a0	EAX:physics ESP+4:place	void engine_place_physics(struct pvp_physics *physics, struct core_place *place)	thunk	
+engine_register_animations	0x2d8100	EDI:player ESP+4:registry	void engine_register_animations(struct player *player, struct animations_registry *registry)	thunk	
+engine_animation_less	0x2ef060	EDI:right ESP+4:left	unsigned int engine_animation_less(struct animation_entry *right, struct animation_entry *left)	thunk	
+engine_animation_append	0x2ef410	ESI:vector ESP+4:entry	void engine_animation_append(struct animation_ids *vector, struct animation_entry **entry)	thunk	
+engine_player_icon	0x1f29d0	ESI:player	void engine_player_icon(struct player *player)	thunk	
+engine_player_params_type	0x205ba0	-	unsigned int engine_player_params_type(void)	thunk	
+engine_input_node	0x1fcb60	EAX:list	struct timed_node *engine_input_node(struct timed_list *list)	thunk	
+engine_insert_before	0x2d4850	EAX:node EDX:before ESP+4:list	void engine_insert_before(struct timed_node *node, struct timed_node *before, struct timed_list *list)	thunk	
+engine_release_pvp	0x011540	ECX:pointer	void engine_release_pvp(struct pvp_match **pointer)	thunk	
+engine_profile_arrived	0x014730	ESP+4:result ESP+8:value	void engine_profile_arrived(struct queries_result *result, void *value)	cdecl	result: QueryResults, arrival: ProfileArrival ->
+engine_player_destroy	0x1f2100	ECX:player	void engine_player_destroy(struct player *player)	thiscall	

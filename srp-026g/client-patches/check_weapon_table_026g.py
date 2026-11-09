@@ -237,9 +237,9 @@ class Table:
         self.box["hit"], self.box["rays"] = None, 0
         lobby.word(MENU, MENU + 0x800)                # the lobby menu's vtable: +24h is_mouse_over_ui
         lobby.word(MENU + 0x800 + 0x24, OVER_UI)
-        late_join = open(base.late_join_bin(), "rb").read()
+        late_join = True
         self.has_table = any(name == base.WEAPON_CAMO_NAME for name, *_ in base.Headers(data).sections(data))
-        self.state = base.late_join_state_va(late_join) + base.WEAPON_TABLE_STATE_OFFSET + delta
+        self.state = base.LATE_JOIN_STATE_VA + base.WEAPON_TABLE_STATE_OFFSET + delta
         # The camera as its constructor makes it: ecx = the lobby menu, the
         # collision scene on the stack.
         emu.mem_write(CAMERA, bytes(0x100))
@@ -401,7 +401,7 @@ def nearest_turn(target, yaw):
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     patched, _ = base.build(original, "section", code, None, late_join)
     checks = 0
 

@@ -107,7 +107,7 @@ READER, MESSAGE = MENU + 0xA000, MENU + 0xA100          # a 0xA1's reader {begin
 EYE_ADAPTATION = 0xAC914C                               # stage_postprocess's reset byte
 RAY = 0x2844D0                                          # the lobby camera's collision ray (`ret 4`): a stub
 # patch 45's state (weapon_table_026g.asm's STATE, .srpd) and its fields
-TABLE_STATE = base.late_join_state_va(open(base.late_join_bin(), "rb").read()) + base.WEAPON_TABLE_STATE_OFFSET
+TABLE_STATE = base.LATE_JOIN_STATE_VA + base.WEAPON_TABLE_STATE_OFFSET
 TABLE_ON, TABLE_FLIGHT, TABLE_TARGETS, TABLE_REQUEST, TABLE_ZOOM = 0x00, 0x04, 0x08, 0x2C, 0x4C
 FRAME = 1 / 60
 # the game's functions the swap reaches, stubbed: name, what it records, its pops
@@ -381,7 +381,7 @@ def project(r, track):
 def main():
     original = open(sys.argv[1], "rb").read()
     patched, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), None,
-                            open(base.late_join_bin(), "rb").read())
+                            True)
     stock, ours = Run(original), Run(patched)
     expect = lambda ok, text: print("ok", text) if ok else sys.exit("FAIL " + text)
 

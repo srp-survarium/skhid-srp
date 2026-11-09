@@ -169,6 +169,32 @@ arguments and cleans up as the function did; it adds no `fxsave`.
 
 **`entry`**: the way from our own NASM into Rust (patch 48's preview apply calls patch 68's). Its generated entry saves the machine and aligns the stack as a lohook's does, so the Context's site ESP is the caller's (the return address, then the arguments), and returns with `ret`; the caller pops its arguments. Never a hand-written `#[no_mangle]` export called from NASM: rustc's i686 code keeps 16-byte locals with movaps and assumes 16 at every call, and the game's stack (our NASM's too) is aligned to 4 only, a #GP on a real CPU that Unicorn does not raise (#893's review). `check_hooks_026g.py` runs the entry from each of the four skews.
 
+**A lohook over a call**: a span may hold a `call rel32` (only that relative
+branch): its replay makes the call again to the same absolute target, so a
+handler can stand in for a game call whose callee takes registers (Skip, or
+an exit). A site's exit may also pop what the replaced call's callee popped:
+`name@0xVA:N` jumps to VA with N bytes of its pushed arguments taken off
+(the call's own cleanup), as the late join's `late_join.bind_place` and
+`late_join.animations` (`bound@0x2D3885:4`): the handler calls the game's
+function itself (an engine row) and leaves as the call would have.
+
+**A patch's own NASM, for its Rust (`[[native]]`)**: where a typed hook cannot
+reach a game function (patch 13's lists made again: its NASM builds a frame
+of 0x234880 and goes into it), the patch's TOML declares the NASM function
+by its global symbol, convention and `raw` handle arguments:
+
+```toml
+[[native]]
+symbol = "late_join_rebuild_lists"   # late_join_026g.asm, the arena's late_join.code
+call = "stdcall"
+arguments = ["hud: GameWorldUi", "options: MatchOptions"]
+```
+
+hooks_026g.py declares it inside `vostok` alone (`pub(super)`, an extern
+the link resolves), which wraps it in a safe function
+(`vostok::late_join::Match::rebuild_lists`); the self-test lets the crate
+branch to it (test_rust_code).
+
 **Lohook chains**: handlers sharing an exact named site declare distinct
 integer `order`s. A single entry saves/restores the machine; handlers observe
 earlier Context writes and the first non-`Continue` ends the chain. A partial

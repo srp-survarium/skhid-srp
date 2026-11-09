@@ -1091,7 +1091,7 @@ def check_share_matrix(data):
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
-                            open(base.late_join_bin(), 'rb').read())
+                            True)
     assert check_resistance(patched, 0) == check_resistance(patched, 2)
     assert check_onyx(patched, 0) == check_onyx(patched, 2)
     assert check_larkspur(patched, 0) == check_larkspur(patched, 2)

@@ -434,7 +434,7 @@ def main():
         sys.exit(__doc__)
     align.install()                 # every Uc from here: aligned-SSE operands checked
     original = open(sys.argv[1], "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     built, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), None, late_join)
     linked = base.arena()
     stock, patched = Run(original), Run(bytes(built))
@@ -544,14 +544,14 @@ def main():
                        + ", registers and stack the original's")
 
     print("patch 48's apply (its kit_apply slot the build's weapon_kit_preview_apply)")
-    late = base.weapon_camo_va(late_join) + base.UPGRADE_PREVIEW_OFFSET
+    late = base.WEAPON_CAMO_VA + base.UPGRADE_PREVIEW_OFFSET
     slot = late + base.UPGRADE_PREVIEW_KIT_APPLY
     target = base.arena_target(linked, base.WEAPON_KIT_PREVIEW_APPLY)
     report(patched.u32(slot) == target, f"the slot at {slot:#x} holds weapon_kit_preview_apply ({target:#x})")
     code = bytes(patched.emu.mem_read(late, 0x1000))
     at = code.find(b"\x83\x3D" + struct.pack("<I", slot) + b"\x00")
     apply_va = late + at
-    state = base.late_join_state_va(late_join) + base.UPGRADE_PREVIEW_STATE_OFFSET
+    state = base.LATE_JOIN_STATE_VA + base.UPGRADE_PREVIEW_STATE_OFFSET
     T = 0xFF
     cases = [
         ("a camouflage on a weapon with nothing: the kit, the camouflage its own",

@@ -84,10 +84,11 @@ release's. The "Result" row is the build of the revision named in it.
 | `patch_026g.py` | Builds the patched exe from the original. Python 3, and for the arena gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`). Holds `ARENA` (the `.srpx` blocks and their sources), `INSTALLS`/`CALLBACKS`/`INSTALLED_VTABLES` (every installed function's model) and the checks of both (arena and call shapes, above; `docs/notes/client_patch.md` 0.3, 0.4) |
 | `snapshot_upload_026g.asm` | The source of the upload code (nasm) |
 | `snapshot_upload_026g.section.bin`, `.hash-mismatch.bin` | That code assembled, for the two places it can go; `patch_026g.py` reads them. Assembling the source again gives the same bytes |
-| `late_join_026g.asm`, `late_join_validate_026g.c`, `late_join_runtime_026g.c`, `late_join_install_026g.c`, `late_join_runtime_026g.h` | The source of the late-join code (patch 11): the hooks and the game's calling conventions in assembly, the checks of what the server sends and the bookkeeping in C |
-| `late_join_026g.section.bin`, `late_join_026g.section.json` | That code built, which `patch_026g.py` reads, and beside it where the C functions are that the assembly calls and what built it (gcc 13.2.0, GNU ld 2.41.90, NASM 2.16.01). The same tools give the same bytes; another C compiler gives other bytes that do the same, so the file is kept, not rebuilt for a release |
-| `late_join_026g.py` | Builds those two files (`--write-bin`), says whether they are what the sources give on this machine (`--check-bin`), or builds an exe straight from the sources for work on the code. Needs nasm, a C compiler for x86 and GNU ld |
-| `check_late_join_026g.py`, `test_late_join_runtime_026g.c` | Checks of the late-join code: the first runs the patched machine code on made-up objects (needs Unicorn 2.1.4), the second the C bookkeeping under the sanitizers |
+| `rust/patches/src/late_join.rs`, `src/late_join/` (`runtime.rs`, `flow.rs`, `profile.rs`, `animations.rs`), `src/late_join.toml`, `src/vostok/late_join.rs` | The late join (patch 11, and patch 14's place of a late place's objects) in Rust: the proposals' lifecycle as one state machine (`runtime.rs`, its steps between the game's calls `flow.rs`, their cargo tests the old C runtime test's cases), the profile parsed before the game's reader sees it (`profile.rs`), the animation ids a later place does not move, the install; the game's side in `vostok::late_join` |
+| `rust/patches/src/weapon_random.rs`, `kit_state.rs`, `first_world.rs` (and their TOML, `src/vostok/spawn.rs`, `src/vostok/timeline.rs`) | Patches 18, 20 and 19 in Rust: a spawn's weapons' random state and kept state, a first world's inputs and kit choices in time order |
+| `late_join_026g.asm` | The late join's NASM that stayed, the arena's block `late_join.code`: on_match_ready's jump into the Rust (patch 11), the histories' and the capability byte's three instructions, patch 13's lists made again (a frame of the hud's function built and gone into) and its box of a model, patch 39's scoreboard rows, patches 22 and 40's field of view (x87, every frame) |
+| `late_join_026g.py`, `late_join_test_026g.asm` | A test-session build (`--test-session N`): the default exe that passes the login by and connects straight to its server as session N, for the match server's `late_join_native` example |
+| `check_late_join_026g.py` | The late join's check: the patched machine code and the Rust run on made-up objects (needs Unicorn 2.1.4); `cargo test` in `rust/` runs the lifecycle and the profile's parse |
 | `check_fov_026g.py` | Runs the original and patch 22's camera projection, the game's matrix builder included, and compares the matrices (needs Unicorn) |
 | `check_fov_lod_026g.py` | Runs patch 40 (a model's LOD and screen factor at a wider field of view are the original's): the projection's k at several settings and zooms, the game's select_lod and screen factor of the original and the build on made-up models (needs Unicorn) |
 | `pickup_below_026g.asm`, `pickup_below_026g.section.bin` | The source of patch 23's code and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -378,32 +379,30 @@ joins.
 they keep differ. The server tells them apart by the patch revision (5 or
 later) and has a queue for each (`docs/notes/matchmaking.md` section 9).
 
-Build the code and check it (nasm, a C compiler for x86 and GNU ld; `CC` and
-`LD` name others than `cc` and `ld`):
+The late join is the Rust patch `late_join` (with patches 14, 18, 19 and 20
+beside it) and the NASM of `late_join_026g.asm`, all in the arena: a change
+of either is `python link_026g.py --write` (the lock), as for every Rust
+patch (`docs/notes/rust_patches.md`). Before the Rust port it was
+`late_join_026g.section.bin`, a fixed cave built from NASM and three C files
+by a pinned gcc. Check it (the dev shell):
 
 ```sh
-python late_join_026g.py --write-bin          # late_join_026g.section.bin and .json
-python late_join_026g.py --check-bin          # are they what the sources give here?
 python check_late_join_026g.py /path/to/survarium.exe --nasm /path/to/nasm
-cc -std=c11 -g -O1 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined \
-  late_join_runtime_026g.c test_late_join_runtime_026g.c -o /tmp/srp-late-runtime-test
-/tmp/srp-late-runtime-test
+(cd rust && cargo test -p patches late_join)  # the lifecycle (the old C runtime test's cases) and the profile's parse
 ```
 
-`patch_026g.py` and `selftest_026g.py` need none of that: they read the
-checked-in `.bin`. The self-test (check 15) assembles the 4096 bytes of
-assembly again and compares, and checks the build with the late join
-against the build without it.
+The self-test checks the build with the late join against the build
+without it, and the Rust hooks by their declarations.
 
 The machine-code checks need Unicorn 2.1.4. They cover native profile
-decoding, the query and callback conventions, slot and weapon binding,
+decoding (through the 0xE4 case), the query and callback conventions, slot and weapon binding,
 animation indexing, preparation, acknowledgement and cleanup, the fixed
 capacities, where a slot's grenades and traps are among the saved objects
 (patch 14) and the PE file. Resource scheduling, physics, animation and UI
-set-up, transport and player destruction are intercepted there. The C tests
-cover cancellation, retries, failed loads and concurrent destruction, and
-count allocations and references (where AddressSanitizer loops at start,
-run the test with `setarch -R`). Neither shows that games agree in a match.
+set-up, transport and player destruction are intercepted there. The cargo
+tests (`late_join::flow`) cover cancellation, retries, failed loads and
+concurrent destruction, and count allocations and references. Neither shows
+that games agree in a match.
 
 Server tests cover preparation retries, packet loss, stale
 acknowledgements, failed catch-up, reconnects, departures, living, dead and

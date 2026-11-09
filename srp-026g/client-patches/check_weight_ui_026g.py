@@ -137,7 +137,7 @@ class WeightGame(Game):
 
 def main():
     original=Path(sys.argv[1]).read_bytes()
-    image,_=P.build(original,'section',Path(P.default_bin('section')).read_bytes(),None,Path(P.late_join_bin()).read_bytes())
+    image,_=P.build(original,'section',Path(P.default_bin('section')).read_bytes(),None,True)
     import selftest_026g
     shapes=[]
     selftest_026g.test_call_shapes(original,image,lambda ok,text:shapes.append((ok,text)))

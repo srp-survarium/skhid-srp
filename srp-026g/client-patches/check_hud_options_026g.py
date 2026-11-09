@@ -353,7 +353,7 @@ def console_bool(r, node):
 def main():
     original = open(sys.argv[1], "rb").read()
     patched, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), None,
-                            open(base.late_join_bin(), "rb").read())
+                            True)
     stock, ours = Run(original), Run(patched)
     expect = lambda ok, text: print("ok", text) if ok else sys.exit("FAIL " + text)
 

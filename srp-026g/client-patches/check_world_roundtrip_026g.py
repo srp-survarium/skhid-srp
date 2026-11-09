@@ -126,7 +126,7 @@ OWN_CHECKS = {
                    "bytes, a capacity, no bytes of the world; check_world_sections_026g.py (a packed 0xA014-byte "
                    "world through the whole handler loads whole)",
     (0x27C07C, 5): "WORLD_UNPACK (patch 98): the decompress and mutable_buffer capacity, as 0x27C059",
-    (0x2D1050, 10): "first_load input and kit (late_join_026g.asm): the place's input and kit choice into the core's "
+    (0x2D1050, 10): "first_world.input and .kit (patch 19, first_world.rs): the place's input and kit choice into the core's "
                     "lists at a first load, no bytes of the world; check_late_join_026g.py",
     (0x2F5ACF, 6): "shared_statistics::serialize: twenty records, a constant, as its deserialize; selftest_026g.py",
     (0x2F5AF4, 6): "shared_statistics::serialize: twenty records (its second loop)",
@@ -524,7 +524,7 @@ def main():
         patched = open(args.built, "rb").read()
     else:
         patched, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), None,
-                                open(base.late_join_bin(), "rb").read())
+                                True)
         patched = bytes(patched)
     failed = 0
 

@@ -5735,3 +5735,19 @@ va	name	location	role	basis
 0x001ed170	survarium::game::switch_to_game_world	EAX	the game	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	AL	the flag: 1 shown, 0 hidden	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	EDX	the lobby menu	observed
+0x001f1070	survarium::player_profile::deserialize_static	ESI	reader of the wire {begin, cursor, size} (late join: begin and cursor its first byte)	observed
+0x001f1070	survarium::player_profile::deserialize_static	EDI	profile body to fill, constructed (0x2F7C50)	observed
+0x001f1070	survarium::player_profile::deserialize_static	entry ESP+4	items dictionary the item ids are looked up in, unchecked	observed
+0x002d4850	survarium::timed_list::insert_before	EAX	node to link (allocate_node's)	observed
+0x002d4850	survarium::timed_list::insert_before	EDX	before: the node it goes before, 0 for the newest end	observed
+0x002d4850	survarium::timed_list::insert_before	entry ESP+4	list: a place's timed list (+0 count, +4 oldest, +8 newest)	observed
+0x002ef060	survarium::animations_registry::entry_less	EDI	right entry of the comparison	observed
+0x002ef060	survarium::animations_registry::entry_less	entry ESP+4	left entry of the comparison	observed
+0x002ef410	survarium::animations_registry::append_id	ESI	vector of the registry's ids (+E044h)	observed
+0x002ef410	survarium::animations_registry::append_id	entry ESP+4	entry pointer's place to append (a pointer to the pointer)	observed
+0x003218a0	survarium::pvp_match::insert_place_physics	EAX	physics of the match (pvp_match+138h)	observed
+0x003218a0	survarium::pvp_match::insert_place_physics	entry ESP+4	place (core slot) whose three kit players go in	observed
+0x00321820	survarium::game_world_core::bind_place	EAX	core world (pvp_match+1F8h)	observed
+0x00321820	survarium::game_world_core::bind_place	entry ESP+4	place (core slot, 30h bytes) to bind	observed
+0x002d8100	survarium::base_player::register_animations	EDI	player whose animations go into the registry	observed
+0x002d8100	survarium::base_player::register_animations	entry ESP+4	registry of animations (the pvp match's, +19238h)	observed

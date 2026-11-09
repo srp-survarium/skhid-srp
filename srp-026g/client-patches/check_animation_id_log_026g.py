@@ -148,7 +148,7 @@ TAIL = [f"srp: animation_id:   registry of 1 ids; asked from 0x{CALLER:08x}\r\n"
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
+    built, _ = base.build(original, "section", code, None, True)
     stock, ours = Run(original), Run(bytes(built))
     failed = 0
 

@@ -128,7 +128,7 @@ def main():
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
+    built, _ = base.build(original, "section", code, None, True)
     va, old, new = base.KICK_TO_LOBBY
     at = base.file_offset(va)
     assert original[at:at + 4] == old and built[at:at + 4] == new

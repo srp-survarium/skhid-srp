@@ -1,0 +1,16 @@
+# Patch 19: a game's first world of a match puts its places' inputs and kit
+# choices into their lists in time order, the kit choice the world's
+# (client_patch.md section 3.19). The sites are sites_026g.tsv's; the lists
+# are vostok::timeline's; the logic is first_world.rs.
+name = "first_world"
+patch = 19
+
+# the current player's input at the world's time (0x2D4AB0's call)
+[[hook]]
+site = "first_world.input"
+handler = "on_input"
+
+# the kit the world has chosen for the place's next spawn (0x2D4B50's call)
+[[hook]]
+site = "first_world.kit"
+handler = "on_kit"

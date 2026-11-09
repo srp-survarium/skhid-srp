@@ -33,7 +33,7 @@ the recipe's gun, the bug `fix/pickup-state-length` (#1246) fixes; no separate r
 - 0x2D8100 runs at the world's load for every kit player of every place (0x2CBF9B), then
   `actualize` 0x2EF280 (0x2CBFD7) sorts the vector (0x2EF490, then 0x2EF530) and numbers
   it, once (+10050h). A late join's install registers the newcomer's kit players and appends
-  them without renumbering (`lj_native_animations`, late_join_install_026g.c).
+  them without renumbering (the client's `late_join/animations.rs`; `lj_native_animations` of late_join_install_026g.c before its Rust port).
 - `~game_world` 0x1F7100 empties it (vector end = begin, the map cleared by 0x2EF590, +10050h
   0). Nothing else removes an entry.
 - The lookup 0x2D6590 (EAX the pair, the registry pushed, ret 4; only caller

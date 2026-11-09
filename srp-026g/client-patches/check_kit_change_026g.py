@@ -948,7 +948,7 @@ def check_death(data, patched):
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     patched, _ = base.build(original, "section", code, None, late_join)
     checks = 0
     for data, is_patched in ((original, False), (patched, True)):

@@ -76,7 +76,7 @@ def main():
     args = parser.parse_args()
     original = open(args.exe,'rb').read()
     built, _ = base.build(original, 'section', open(base.default_bin('section'),'rb').read(),
-                          None, open(base.late_join_bin(),'rb').read())
+                          None, True)
     stock, ours = GuardRun(original), GuardRun(bytes(built))
     checks = 0
     for align in (0,4,8,12):

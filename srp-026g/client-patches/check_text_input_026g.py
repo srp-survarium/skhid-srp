@@ -51,7 +51,7 @@ class Run(hide.Run):
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
-                            open(base.late_join_bin(), 'rb').read())
+                            True)
     for label, raw, collectible in [('raw', AS3, 0), ('collectible', 0, AS3), ('tagged collectible', 0, AS3|1),
                                     ('raw preferred', AS3, 1), ('detached', 0, 0), ('detached GC tag', 0, 1)]:
         for char in (ord('1'), ord('w'), 0x444, 13):

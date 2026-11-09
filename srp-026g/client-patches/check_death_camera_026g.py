@@ -71,8 +71,8 @@ def bits(value):
 
 
 def state_va(data):
-    late_join = open(base.late_join_bin(), "rb").read()
-    return base.late_join_state_va(late_join) + base.DEATH_CAMERA_STATE_OFFSET
+    late_join = True
+    return base.LATE_JOIN_STATE_VA + base.DEATH_CAMERA_STATE_OFFSET
 
 
 def map_state(emu, state):
@@ -379,7 +379,7 @@ def check_geometry(original):
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     patched, _ = base.build(original, "section", code, None, late_join)
     cases = list(view_cases(original))
     checks = check_geometry(original)
@@ -389,7 +389,7 @@ def main():
     # to the player's handler, one that drags without a button, one with no
     # limit on the pitch, one that leaves a borrowed field as it set it, one
     # that never clears the turn, and one that turns a spectator's view fail.
-    view_at = base.death_camera_va(late_join) + base.DEATH_VIEW_OFFSET
+    view_at = base.DEATH_CAMERA_VA + base.DEATH_VIEW_OFFSET
     death = open(base.death_camera_bin(), "rb").read()
     at = death.index(bytes.fromhex("83b858030000000f85"), base.DEATH_VIEW_OFFSET)
     CMP_MODE = death[at:at + 13].hex()                 # the mode's test and its `jnz near`

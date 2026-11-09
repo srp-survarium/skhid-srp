@@ -1,0 +1,58 @@
+# Patch 11, the late join (client_patch.md section 3.11), and patch 14's
+# place of a late place's grenades and traps in the saved objects (3.14).
+# Only the decisions: which sites, and the handlers. The sites (VAs, kinds,
+# spans, exits, what their registers hold) are sites_026g.tsv's; the native
+# views are vostok::late_join; the logic is late_join.rs (the proposals'
+# lifecycle late_join/runtime.rs, its steps late_join/flow.rs, the
+# profile's parse late_join/profile.rs). The NASM that stayed (on_match_ready's
+# jump, the histories' and the capability byte's stubs, patch 13's lists) is
+# late_join_026g.asm, the arena's block late_join.code (patch_026g.py's
+# LATE_JOIN_HOOKS).
+name = "late_join"
+patch = 11
+
+# on_match_ready: the match the late join takes newcomers into
+[[hook]]
+site = "late_join.ready"
+handler = "on_ready"
+
+# 0xE4: the server's proposal for a newcomer (or a match's first options)
+[[hook]]
+site = "late_join.prepare"
+handler = "on_prepare"
+
+# the players' query's callback
+[[hook]]
+site = "late_join.query_done"
+handler = "on_query_done"
+
+[[hook]]
+site = "late_join.disconnect"
+handler = "on_disconnect"
+
+[[hook]]
+site = "late_join.client_destroyed"
+handler = "on_client_destroyed"
+
+# a player's destruction: its proposal lets go of it
+[[hook]]
+site = "late_join.player_destroyed"
+handler = "on_player_destroyed"
+
+# a place's ids and its grenades and traps (patch 14), at a world's start
+[[hook]]
+site = "late_join.bind_place"
+handler = "on_bind_place"
+
+# a player's animations given ids that a later place does not move
+[[hook]]
+site = "late_join.animations"
+handler = "on_animations"
+
+# patch 13's lists of players made again (the scoreboard, the enemies'
+# markers) once a newcomer has its place: late_join_026g.asm builds the hud
+# function's frame and goes into it, which no typed hook can
+[[native]]
+symbol = "late_join_rebuild_lists"
+call = "stdcall"
+arguments = ["hud: GameWorldUi", "options: MatchOptions"]

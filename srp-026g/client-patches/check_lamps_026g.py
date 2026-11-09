@@ -343,7 +343,7 @@ def main():
         built = args.patched.read_bytes()
     else:
         built, _ = base.build(original, 'section', Path(base.default_bin('section')).read_bytes(), None,
-                              Path(base.late_join_bin()).read_bytes())
+                              True)
     if args.save_built:
         args.save_built.write_bytes(built)
     g = Game(built)

@@ -284,7 +284,7 @@ def main():
         at = hide.file_at(original, va)
         assert original[at:at + len(hexbytes) // 2].hex() == hexbytes, (hex(va), original[at:at + 6].hex())
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
-                            open(base.late_join_bin(), 'rb').read())
+                            True)
 
     # A death holding slot 10's gun: one query, the gun alone.
     r = Run(patched)

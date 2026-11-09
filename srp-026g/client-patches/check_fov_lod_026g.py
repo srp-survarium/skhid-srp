@@ -137,20 +137,20 @@ def relocations(data):
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     patched, _ = base.build(original, "section", code, None, late_join)
     without, _ = base.build(original, "section", code)
-    k_va = base.late_join_state_va(late_join) + base.FOV_LOD_STATE_OFFSET
+    k_va = base.LATE_JOIN_STATE_VA + base.FOV_LOD_STATE_OFFSET
     checks = 0
 
     # The sites: a call of the original's length into the late join, and
     # the two relocations under them alone disabled.
-    for va, old, offset, _ in base.FOV_LOD_HOOKS:
+    for va, old, symbol, _ in base.FOV_LOD_HOOKS:
         at = base.file_offset(va)
         site = patched[at:at + len(old)]
         assert original[at:at + len(old)] == without[at:at + len(old)] == old, hex(va)
         assert site[0] == 0xE8 and set(site[5:]) == {0x90} and len(site) == len(old), hex(va)
-        assert va + 5 + struct.unpack_from("<i", site, 1)[0] == base.LATE_JOIN_VA + offset, hex(va)
+        assert va + 5 + struct.unpack_from("<i", site, 1)[0] == base.arena().symbols[symbol], hex(va)
         checks += 1
     before, after = relocations(without), relocations(patched)
     for va in base.FOV_LOD_RELOCS:

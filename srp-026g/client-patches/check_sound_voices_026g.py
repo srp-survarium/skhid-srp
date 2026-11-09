@@ -321,7 +321,7 @@ def main():
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    late = open(base.late_join_bin(), "rb").read()
+    late = True
     built, _ = base.build(original, "section", code, None, late)
     before, _ = base.build(original, "section", code, None, None)
     import selftest_026g as st

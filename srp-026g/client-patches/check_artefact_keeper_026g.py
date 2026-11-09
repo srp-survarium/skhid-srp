@@ -653,7 +653,7 @@ def loads(data):
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
-                            open(base.late_join_bin(), 'rb').read())
+                            True)
     check(patched)
     late_join(patched)
     loads(patched)

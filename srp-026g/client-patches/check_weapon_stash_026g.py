@@ -86,10 +86,10 @@ class Emu:
         self.pristine = {at: bytes(emu.mem_read(at, 0x10000)) for at in (SCRATCH,)}
         for at in (ITEM_BY_ID, ALLOCATION_NAME, ALLOCATE, CAN_MOVE, SETUP_BODY, CAMERA_SET):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=at, end=at)
-        self.state = base.late_join_state_va(open(base.late_join_bin(), "rb").read()) \
+        self.state = base.LATE_JOIN_STATE_VA \
             + base.WEAPON_PREVIEW_STATE_OFFSET
-        late_join = open(base.late_join_bin(), "rb").read()
-        self.stash = base.weapon_camo_va(late_join) + base.WEAPON_STASH_OFFSET
+        late_join = True
+        self.stash = base.WEAPON_CAMO_VA + base.WEAPON_STASH_OFFSET
         self.entry = self.stash + base.WEAPON_STASH_FIND
 
     def u32(self, at, value=None):
@@ -245,7 +245,7 @@ def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     build, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(),
                           late_join=late_join)
     e = Emu(build)

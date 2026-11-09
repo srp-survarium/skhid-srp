@@ -264,7 +264,7 @@ def main():
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
+    built, _ = base.build(original, "section", code, None, True)
 
     print("the hook (patched exe, player.hit_applied 0x2D9CB1)")
     h = Hook(bytes(built), stub_set_active=True)

@@ -37,6 +37,33 @@ class Hooks(unittest.TestCase):
             with self.subTest(code=code), self.assertRaisesRegex(H.Bad, "relative branch"):
                 H._branch_free(bytes.fromhex(code), "test")
 
+    def test_lohook_replays_a_call_to_its_target(self):
+        self.assertEqual(H.replay_lines(bytes.fromhex("e85b3a0000"), 0x2D1050, "test"), ["    call 0x2d4ab0"])
+        self.assertEqual(H.replay_lines(bytes.fromhex("508bc5e89bdf0400"), 0x2D387D, "test"),
+                         ["    db 0x50", "    db 0x8b, 0xc5", "    call 0x321820"])
+        for code in ("7500", "e900010000", "66e80001"):
+            with self.subTest(code=code), self.assertRaisesRegex(H.Bad, "relative branch"):
+                H.replay_lines(bytes.fromhex(code), 0x1000, "test")
+
+    def test_exits_that_pop_the_calls_arguments(self):
+        h = {"entry": "e", "shim": "s", "site": 0x2D3880, "original": bytes.fromhex("e89bdf0400"),
+             "exits": [("bound", 0x2D3885)], "pops": {"bound": 4}}
+        lines = H.lohook_entry(h)
+        self.assertIn("    mov edx, e_bound", lines)
+        at = lines.index("e_bound:")
+        self.assertEqual(lines[at + 1:at + 3], ["    lea esp, [esp + 4]", "    jmp 0x2d3885"])
+
+    def test_natives(self):
+        tomls = [{"name": "p", "patch": 1, "native": [{"symbol": "p_rebuild", "call": "stdcall",
+                                                        "arguments": ["hud: GameWorldUi", "o: MatchOptions"]}]}]
+        self.assertEqual(H.natives(tomls), [{"patch": "p", "symbol": "p_rebuild", "call": "stdcall",
+                                             "args": [("hud", "GameWorldUi"), ("o", "MatchOptions")]}])
+        self.assertIn('unsafe extern "stdcall" {', H.rs_text([], (), H.natives(tomls)))
+        for bad in ({"symbol": "other_f", "call": "stdcall"}, {"symbol": "p_f", "call": "fastcall"},
+                    {"symbol": "p_f", "call": "cdecl", "arguments": ["a: *mut u8"]}):
+            with self.subTest(bad=bad), self.assertRaises(H.Bad):
+                H.natives([{"name": "p", "patch": 1, "native": [bad]}])
+
     def test_relocation_accepts_opcode_bytes_in_operands(self):
         for code in ("b870000000", "8b80e8000000", "558bec83e4f883ec28",
                      "c70570000000e8e9eb70", "b80f850000"):

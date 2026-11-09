@@ -595,3 +595,47 @@ extern engine_file_time_to_system_time
 ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_discard_playing_order
+; struct match_place *engine_profile_body_construct(void *body)
+; 0x2f7c50 survarium::player_profile::construct_body: body ECX; pops 0; EAX
+extern engine_profile_body_construct
+; void engine_profile_read(struct buffer_reader *reader, struct match_place *profile, struct items_dictionary *dictionary)
+; 0x1f1070 survarium::player_profile::deserialize_static: reader ESI, profile EDI, dictionary ESP+4; pops 4
+extern engine_profile_read
+; void engine_bind_place(struct core_world *core, struct core_place *place)
+; 0x321820 survarium::game_world_core::bind_place: core EAX, place ESP+4; pops 4
+extern engine_bind_place
+; void engine_place_physics(struct pvp_physics *physics, struct core_place *place)
+; 0x3218a0 survarium::pvp_match::insert_place_physics: physics EAX, place ESP+4; pops 4
+extern engine_place_physics
+; void engine_register_animations(struct player *player, struct animations_registry *registry)
+; 0x2d8100 survarium::base_player::register_animations: player EDI, registry ESP+4; pops 4
+extern engine_register_animations
+; unsigned int engine_animation_less(struct animation_entry *right, struct animation_entry *left)
+; 0x2ef060 survarium::animations_registry::entry_less: right EDI, left ESP+4; pops 4; AL
+extern engine_animation_less
+; void engine_animation_append(struct animation_ids *vector, struct animation_entry **entry)
+; 0x2ef410 survarium::animations_registry::append_id: vector ESI, entry ESP+4; pops 4
+extern engine_animation_append
+; void engine_player_icon(struct player *player)
+; 0x1f29d0 survarium::player::initialize_player_icon: player ESI; pops 0
+extern engine_player_icon
+; unsigned int engine_player_params_type(void)
+; 0x205ba0 vostok::variant::type_id<survarium::player_creation_params>: no arguments; pops 0; EAX
+extern engine_player_params_type
+; struct timed_node *engine_input_node(struct timed_list *list)
+; 0x1fcb60 survarium::player_input_list::allocate_node: list EAX; pops 0; EAX
+extern engine_input_node
+; void engine_insert_before(struct timed_node *node, struct timed_node *before, struct timed_list *list)
+; 0x2d4850 survarium::timed_list::insert_before: node EAX, before EDX, list ESP+4; pops 4
+extern engine_insert_before
+; void engine_release_pvp(struct pvp_match **pointer)
+; 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+extern engine_release_pvp
+; void engine_profile_arrived(struct queries_result *result, void *value)
+; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_profile_arrived
+; void engine_player_destroy(struct player *player)
+; 0x1f2100 survarium::player::~player: player ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_player_destroy

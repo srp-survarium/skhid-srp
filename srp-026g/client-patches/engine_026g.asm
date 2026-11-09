@@ -180,6 +180,20 @@ global engine_get_system_time_as_file_time
 global engine_file_time_to_local_file_time
 global engine_file_time_to_system_time
 global engine_discard_playing_order
+global engine_profile_body_construct
+global engine_profile_read
+global engine_bind_place
+global engine_place_physics
+global engine_register_animations
+global engine_animation_less
+global engine_animation_append
+global engine_player_icon
+global engine_player_params_type
+global engine_input_node
+global engine_insert_before
+global engine_release_pvp
+global engine_profile_arrived
+global engine_player_destroy
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -245,6 +259,8 @@ engine_get_system_time_as_file_time equ 0x870244   ; the IAT slot 0x870244 (an i
 engine_file_time_to_local_file_time equ 0x870230   ; the IAT slot 0x870230 (an import, stdcall)
 engine_file_time_to_system_time equ 0x87022c   ; the IAT slot 0x87022c (an import, stdcall)
 engine_discard_playing_order equ 0x2717e0   ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+engine_profile_arrived equ 0x14730   ; 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+engine_player_destroy equ 0x1f2100   ; 0x1f2100 survarium::player::~player: player ECX; pops 0; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -2130,6 +2146,195 @@ engine_hide_scene_movie:
     mov eax, [esp + 20]   ; movie
     mov edx, [esp + 24]   ; scene
     call 0x23dc70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_profile_body_construct:
+    ; 0x2f7c50 survarium::player_profile::construct_body: body ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; body
+    call 0x2f7c50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_profile_read:
+    ; 0x1f1070 survarium::player_profile::deserialize_static: reader ESI, profile EDI, dictionary ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; dictionary -> 4
+    mov esi, [esp + 24]   ; reader
+    mov edi, [esp + 28]   ; profile
+    call 0x1f1070
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_bind_place:
+    ; 0x321820 survarium::game_world_core::bind_place: core EAX, place ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; place -> 4
+    mov eax, [esp + 24]   ; core
+    call 0x321820
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_place_physics:
+    ; 0x3218a0 survarium::pvp_match::insert_place_physics: physics EAX, place ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; place -> 4
+    mov eax, [esp + 24]   ; physics
+    call 0x3218a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_register_animations:
+    ; 0x2d8100 survarium::base_player::register_animations: player EDI, registry ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; registry -> 4
+    mov edi, [esp + 24]   ; player
+    call 0x2d8100
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_animation_less:
+    ; 0x2ef060 survarium::animations_registry::entry_less: right EDI, left ESP+4; pops 4; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; left -> 4
+    mov edi, [esp + 24]   ; right
+    call 0x2ef060
+    movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_animation_append:
+    ; 0x2ef410 survarium::animations_registry::append_id: vector ESI, entry ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; entry -> 4
+    mov esi, [esp + 24]   ; vector
+    call 0x2ef410
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_player_icon:
+    ; 0x1f29d0 survarium::player::initialize_player_icon: player ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; player
+    call 0x1f29d0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_player_params_type:
+    ; 0x205ba0 vostok::variant::type_id<survarium::player_creation_params>: no arguments; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    call 0x205ba0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_input_node:
+    ; 0x1fcb60 survarium::player_input_list::allocate_node: list EAX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; list
+    call 0x1fcb60
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_insert_before:
+    ; 0x2d4850 survarium::timed_list::insert_before: node EAX, before EDX, list ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; list -> 4
+    mov eax, [esp + 24]   ; node
+    mov edx, [esp + 28]   ; before
+    call 0x2d4850
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_pvp:
+    ; 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; pointer
+    call 0x11540
     pop edi
     pop esi
     pop ebx

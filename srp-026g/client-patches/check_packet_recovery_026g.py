@@ -24,7 +24,7 @@ def frame(run):
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('exe');args=parser.parse_args()
     original=open(args.exe,'rb').read()
-    built,_=base.build(original,'section',open(base.default_bin('section'),'rb').read(),None,open(base.late_join_bin(),'rb').read())
+    built,_=base.build(original,'section',open(base.default_bin('section'),'rb').read(),None,True)
     run=MessageRun(bytes(built));run.advance=0;run.tick_step=0;run.ticks=100
     bad=(0xeb,b'\0'*6+b'\0\0\0\x40')
     logs=0

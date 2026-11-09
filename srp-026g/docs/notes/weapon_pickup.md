@@ -289,7 +289,7 @@ local: nothing synced, no `simulation_changes` row.
   recipe (place, kit, slot): a game without a copy cooks it from that
   place's profile. That profile is the same in every game for the whole
   match: a late join never reuses a place (the install takes only the next
-  one, `options[577B5h] == place`, late_join_install_026g.c); a departure
+  one, `options[577B5h] == place`, late_join.rs's install); a departure
   keeps the place and its profile (the match server's PLAYER_LEFT; the
   games that stay destroy its players, the profile stays in the match
   options); a returning player gets the same place and the same profile
@@ -898,7 +898,7 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   its completion (late join's query_completed -> lj_complete -> install)
   binds the newcomer's slot, puts its objects in front of the saved states'
   game-objects bytes and renumbers the animation tables, "between simulation
-  updates" (late_join_install_026g.c). It comes only after its players are
+  updates" (late_join.rs's install). It comes only after its players are
   made, each by a player cook's completion (0x202DD0, the next dispatch at
   the earliest). So `player_cook.ready` marks "a player was made" and the
   frame's `after_move` clears it (a frame's own dispatch lies between); a

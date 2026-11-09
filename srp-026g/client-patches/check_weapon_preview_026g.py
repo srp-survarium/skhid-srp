@@ -180,7 +180,7 @@ class Lobby:
         for at in stubs:
             emu.hook_add(UC_HOOK_CODE, lambda e, a, z, u: CURRENT[key].stub(e, a, z, u), begin=at, end=at)
         pristine = {at + delta: bytes(emu.mem_read(at + delta, size)) for at, size in GLOBALS}
-        state = base.late_join_state_va(open(base.late_join_bin(), "rb").read()) + base.WEAPON_PREVIEW_STATE_OFFSET
+        state = base.LATE_JOIN_STATE_VA + base.WEAPON_PREVIEW_STATE_OFFSET
         if any(name == base.LATE_JOIN_STATE_NAME for name, *_ in base.Headers(data).sections(data)):
             pristine[state + delta] = bytes(base.WEAPON_PREVIEW_STATE_SIZE)
             table = state - base.WEAPON_PREVIEW_STATE_OFFSET + base.WEAPON_TABLE_STATE_OFFSET
@@ -330,7 +330,7 @@ class Lobby:
 
     def state(self, data):
         """MODE, ITEM, NEAR of the build's state (none in the original)."""
-        state = base.late_join_state_va(open(base.late_join_bin(), "rb").read()) + base.WEAPON_PREVIEW_STATE_OFFSET
+        state = base.LATE_JOIN_STATE_VA + base.WEAPON_PREVIEW_STATE_OFFSET
         return tuple(self.read(state + self.delta + 4 * i) for i in range(3))
 
 
@@ -370,7 +370,7 @@ HEIGHT, NEAR_MIN, LEAST = 1.3, 0.3, 1.5
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     patched, _ = base.build(original, "section", code, None, late_join)
     checks = 0
 
@@ -454,7 +454,7 @@ def main():
                 ("the SVD shown, a squad mate's character (no window)", 1, 0, SQUAD, 0, 0),
                 ("the SVD shown, the window closed", 1, 0, CHARACTER, 1, 1)):
             lobby = Lobby(patched, delta, KITS)
-            state = base.late_join_state_va(late_join) + base.WEAPON_PREVIEW_STATE_OFFSET + delta
+            state = base.LATE_JOIN_STATE_VA + base.WEAPON_PREVIEW_STATE_OFFSET + delta
             lobby.word(state, mode)
             lobby.word(state + 4, SVD)
             lobby.emu.mem_write(character + 0xD515, bytes([opened]))
@@ -479,7 +479,7 @@ def main():
             for offset, value in ((0xBC, target), (0xC0, current), (0xC4, delta_wheel), (0xE4, 3.0),
                                   (0xC8, 0.0), (0xCC, 0.0), (0xB4, 0.0), (0xB8, 0.0)):
                 lobby.word(ebx + offset, f32(value))
-            state = base.late_join_state_va(late_join) + base.WEAPON_PREVIEW_STATE_OFFSET + delta
+            state = base.LATE_JOIN_STATE_VA + base.WEAPON_PREVIEW_STATE_OFFSET + delta
             if data is patched:
                 lobby.word(state, mode)
                 lobby.word(state + 8, near)
@@ -532,7 +532,7 @@ def main():
                 got = []
                 for data in (original, patched):
                     lobby = Lobby(data, delta, KITS)
-                    state = base.late_join_state_va(late_join) + base.WEAPON_PREVIEW_STATE_OFFSET + delta
+                    state = base.LATE_JOIN_STATE_VA + base.WEAPON_PREVIEW_STATE_OFFSET + delta
                     if data is patched:
                         lobby.word(state, mode)
                     emu = lobby.emu

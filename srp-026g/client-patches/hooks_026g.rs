@@ -1351,6 +1351,36 @@ pub extern "C" fn hook_effect_presenters_on_particle_stop(frame: &mut Frame) -> 
     }
 }
 
+// ---- first_world (patch 19) ----
+
+/// The entry `first_world_on_input` (0x2d1050, patch 19: game_world_core::deserialize's (0x2D0B70) call of 0x2D4AB0 in its first world's block: the current player's input at the world's time into the place's input list (EDI -> {core, time, place}; it pops nothing)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_first_world_on_input(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `first_world_on_input` calls this, from the game's jump at 0x2d1050,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::first_world::on_input(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- first_world (patch 19) ----
+
+/// The entry `first_world_on_kit` (0x2d1055, patch 19: the call of 0x2D4B50 after it: the place's kit choice at the world's time into its kit choices (EDI -> {core, time, place}; it pops nothing)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_first_world_on_kit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `first_world_on_kit` calls this, from the game's jump at 0x2d1055,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::first_world::on_kit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- footsteps (patch 101) ----
 
 /// The named exits of footsteps::on_step_guard (the order the shim's Flow code
@@ -1817,6 +1847,21 @@ pub extern "C" fn hook_keyboard_layout_on_text(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- kit_state (patch 20) ----
+
+/// The entry `kit_state_on_spawn` (0x316e57, patch 20: the respawn rule's spawn 0x316DA0, the load of the call that initialises the new kit's player (mov edx,[esi] / mov edx,[edx+1Ch]): ESI the player, [esp+10h] the kit before and [esp+18h] the new one; an fldz is live on the x87 stack (the entry keeps it)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kit_state_on_spawn(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kit_state_on_spawn` calls this, from the game's jump at 0x316e57,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kit_state::on_spawn(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_bind` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
@@ -2225,6 +2270,142 @@ pub extern "C" fn hook_language_on_configs_texts(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- late_join (patch 11) ----
+
+/// The entry `late_join_on_ready` (late_join.ready, patch 11: late_join_026g.asm's late_join_ready (on_match_ready's jump at 0x27AEA1) calls this with the machine as on_match_ready has it, EBX the network client whose match is ready; then the upload code's ready hook) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_late_join_on_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `late_join_on_ready` calls this, from our own code's call (late_join.ready),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::late_join::on_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- late_join (patch 11) ----
+
+/// The entry `late_join_on_prepare` (0x27a378, patch 11: on_match_packet_received's 0xE4 case (cmp dword [esi+1F1C64h],1, the jnz 0x27A5AB after it from its flags: a stock 0xE4 in the first state, the late join's proposal in play): ESI the network client, EBX the message's reader past its id) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_late_join_on_prepare(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `late_join_on_prepare` calls this, from the game's jump at 0x27a378,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::late_join::on_prepare(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- late_join (patch 11) ----
+
+/// The convention of engine_profile_arrived (0x14730), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigProfileArrived;
+
+/// The entry `late_join_on_query_done` (a callback in engine_profile_arrived's convention, patch 11: the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked: the late join's players' query, its value the proposal's storage (vostok::late_join::ProfileArrival))
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `late_join_on_query_done`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_late_join_on_query_done(a0: Option<raw::QueriesResult>, a1: *mut c_void) -> u32 {
+    // SAFETY: only the entry `late_join_on_query_done` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let result = unsafe { QueryResults::from_raw(&thread, a0) };
+    let arrival = unsafe { ProfileArrival::from_word(&thread, a1 as usize as u32) };
+    { crate::late_join::on_query_done(result, arrival); 0 }
+}
+
+// ---- late_join (patch 11) ----
+
+/// The entry `late_join_on_disconnect` (0x27b517, patch 11: on_match_disconnected before the client lets go of its pvp match (mov ecx,[edi+1F1C40h]): EDI the network client) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_late_join_on_disconnect(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `late_join_on_disconnect` calls this, from the game's jump at 0x27b517,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::late_join::on_disconnect(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- late_join (patch 11) ----
+
+/// The entry `late_join_on_client_destroyed` (0x219e60, patch 11: network_client's destructor's start (push ebp / mov ebp,esp / and esp,-8): ECX the client, before its match client and pvp match go) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_late_join_on_client_destroyed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `late_join_on_client_destroyed` calls this, from the game's jump at 0x219e60,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::late_join::on_client_destroyed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- late_join (patch 11) ----
+
+/// The entry `late_join_on_player_destroyed` (0x1f2013, patch 11: player's scalar deleting destructor's call of player::~player 0x1F2100 (ECX = ESI the player; nothing reads EAX after it): its profile read before, the late join told after the player is gone) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_late_join_on_player_destroyed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `late_join_on_player_destroyed` calls this, from the game's jump at 0x1f2013,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::late_join::on_player_destroyed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- late_join (patch 11) ----
+
+/// The named exits of late_join::on_bind_place (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LateJoinOnBindPlaceExit { Bound }
+/// The entry `late_join_on_bind_place` (0x2d3880, patches 11 and 14: game_world_core's call of bind_place 0x321820 for each place at a world's construction (EAX = EBP the core, the place pushed at [esp], bind_place pops it); bound goes on past the call with the argument popped) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_late_join_on_bind_place(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `late_join_on_bind_place` calls this, from the game's jump at 0x2d3880,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::late_join::on_bind_place(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- late_join (patch 11) ----
+
+/// The named exits of late_join::on_animations (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LateJoinOnAnimationsExit { Registered }
+/// The entry `late_join_on_animations` (0x2cbf9b, patch 11: the pvp constructor's (0x2CBC60) call of register_animations 0x2D8100 for each kit player (EDI the player, the registry pushed at [esp], popped by it); registered goes on past the call with the argument popped) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_late_join_on_animations(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `late_join_on_animations` calls this, from the game's jump at 0x2cbf9b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::late_join::on_animations(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -3544,6 +3725,21 @@ pub extern "C" fn hook_weapon_pickup_on_load_ordinal(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_random (patch 18) ----
+
+/// The entry `weapon_random_on_spawn` (0x316ea0, patch 18: the respawn rule's spawn 0x316DA0, the load of the call that puts the new kit's player into the world (mov edx,[esi] / mov eax,[edx+20h]): ESI the player, initialised, EBP the spawn's time) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_random_on_spawn(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_random_on_spawn` calls this, from the game's jump at 0x316ea0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_random::on_spawn(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code
@@ -3788,6 +3984,15 @@ pub fn forest_glow_on_loaded_entry() -> super::hook::CallbackEntry<OrigStoreFirs
     unsafe { super::hook::CallbackEntry::from_entry(forest_glow_on_loaded as *const () as *const c_void) }
 }
 
+unsafe extern "C" { fn late_join_on_query_done(); }
+/// The entry `late_join_on_query_done`, in engine_profile_arrived's convention (patch 11: the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked: the late join's players' query, its value the proposal's storage (vostok::late_join::ProfileArrival)): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn late_join_on_query_done_entry() -> super::hook::CallbackEntry<OrigProfileArrived> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_profile_arrived, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(late_join_on_query_done as *const () as *const c_void) }
+}
+
 unsafe extern "C" { fn music_on_query_done(); }
 /// The entry `music_on_query_done`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
 /// callback the patch hands the game (no site is rewritten).
@@ -3795,6 +4000,12 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+unsafe extern "stdcall" {
+    /// late_join's NASM `late_join_rebuild_lists` (stdcall), a [[native]] of its TOML:
+    /// vostok wraps it in a safe function.
+    pub(super) fn late_join_rebuild_lists(hud: raw::GameWorldUi, options: raw::MatchOptions);
 }
 
 unsafe extern "C" { static lamps_visual_vtable: [u32; 3]; }

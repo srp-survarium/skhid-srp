@@ -10,7 +10,7 @@
 //! the four functions that append to it):
 //!
 //! 1. The places' grenades and traps ([`Held`]), the newest bound place
-//!    first (`late_join_026g.asm` `bind_slot_reserved`): a place's kits
+//!    first (the client's `late_join.rs` `bind_place`, patch 14): a place's kits
 //!    that have a player object (0x321820), each kit's 23 inventory slots
 //!    (0x2FC7D0), one object for each grenade of a grenade stack (0x309EC0
 //!    -> 0x303820) and for each trap of a trap stack (0x3067A0).

@@ -681,7 +681,7 @@ def main():
     code = None if mode == "cert-only" else Path(P.default_bin(mode)).read_bytes()
     embedded = mode != "cert-only"
     # The late join is of the default build alone (patch revision 5).
-    late_join_code = Path(P.late_join_bin()).read_bytes() if mode == "section" and late_join else None
+    late_join_code = True if mode == "section" and late_join else None
     if (revision is not None or required is not None) and late_join_code is None:
         sys.exit("--revision and --required-patches go with the default build only "
                  "(not --no-late-join, --cave=hash-mismatch or --cert-only)")

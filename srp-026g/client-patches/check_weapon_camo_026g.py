@@ -305,7 +305,7 @@ def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     build, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(),
                           late_join=late_join)
     failures = 0

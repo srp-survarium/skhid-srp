@@ -230,7 +230,7 @@ def run(data):
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     patched, _ = base.build(original, "section", code, None, late_join)
     before, _ = base.build(original, "section", code, None, None)
     va, old, new = base.BAKED_TEXTURE_MISSING

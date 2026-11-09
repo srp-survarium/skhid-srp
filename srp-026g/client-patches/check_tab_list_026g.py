@@ -63,7 +63,7 @@ class Machine(R.Machine):
     def __init__(self, data, teams, online, names=None, own_team=1):
         super().__init__(data, teams, own_team, True)
         uc = self.uc
-        self.state = P.late_join_state_va(open(P.late_join_bin(), "rb").read())
+        self.state = P.LATE_JOIN_STATE_VA
         uc.mem_map(GAME, 0x10000)
         self.w(R.HUD + 0x18, GAME)
         self.w(GAME + 0x4D4C, GAME + 0x1000)

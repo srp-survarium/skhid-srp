@@ -289,6 +289,8 @@ def run_lohook(h, stub_src, until, regs=None, flags=0x202):
     uc.reg_write(UC_X86_REG_EFLAGS, flags)
     esp = STACK + 0x80000
     uc.reg_write(UC_X86_REG_ESP, esp)
+    if h.get("replay"):                                # a replayed call's target: a `ret`
+        uc.mem_write(LOHOOK_PAST + 0x80, b"\xC3")
     uc.emu_start(labels[h["entry"]], until, count=200000)
     return {**{r: uc.reg_read(GP[r]) for r in GP}, "esp": uc.reg_read(UC_X86_REG_ESP),
             "eip": uc.reg_read(UC_X86_REG_EIP), "eflags": uc.reg_read(UC_X86_REG_EFLAGS)}
@@ -323,6 +325,19 @@ def test_lohook():
     out = run_lohook(dict(base, original=span, exits=[("there", exit_at)]), exit_stub, exit_at)
     check(out["eip"] == exit_at and out["eax"] != 0x1234,
           f"lohook Exit: control jumps to the named exit {exit_at:#x} without replaying")
+    # An exit past a call its callee popped (`name@VA:N`): ESP 4 higher there
+    out = run_lohook(dict(base, original=span, exits=[("popped", exit_at)], pops={"popped": 4}), exit_stub,
+                     exit_at)
+    check(out["eip"] == exit_at and out["esp"] == STACK + 0x80000 + 4 and all(out[r] == SENTINELS[r] for r in SAVED),
+          f"lohook Exit with pops: jumps to {exit_at:#x} with the call's argument taken off (ESP +4)")
+    # A span that is a `call rel32`: Continue makes the call again to its
+    # absolute target (a `ret` there), then the span's end
+    target = LOHOOK_PAST + 0x80
+    call = b"\xE8" + struct.pack("<i", target - LOHOOK_PAST)
+    replay = hooks_026g.replay_lines(call, site, "test")
+    blob_ret = run_lohook(dict(base, original=call, replay=replay), noop_stub, LOHOOK_PAST, regs={"eax": 0x55})
+    check(replay == [f"    call {target:#x}"] and blob_ret["eip"] == LOHOOK_PAST and blob_ret["esp"] == STACK + 0x80000,
+          f"lohook over a call: the replay calls {target:#x} again and goes on past the span")
     # A no-op handler must preserve incoming arithmetic flags on every
     # dispatch path, including when the replayed span does not set them.
     for flow, stub, until, exits in (("Continue", noop_stub, LOHOOK_PAST, []),

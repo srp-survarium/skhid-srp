@@ -39,8 +39,9 @@ from unicorn.x86_const import (
 
 import patch_026g as P
 
-REBUILD = P.LATE_JOIN_VA + 3328
-HOOK = P.LATE_JOIN_VA + 3456
+# late_join_026g.asm's entry, in the arena: the lists made again
+# (stdcall hud, options; its run ends at the jump of 0x23572B).
+REBUILD = P.arena().symbols["late_join_rebuild_lists"]
 HUD, OPTIONS, HEAP, STACK, STOP = 0x1000000, 0x4000000, 0x1100000, 0x2008000, 0x3000000
 MOVIES = {8: HUD + 0x2000, 0x10: HUD + 0x3000, 0x14: HUD + 0x4000}
 INTERFACE, VTABLE = HEAP, HEAP + 0x100
@@ -57,7 +58,7 @@ STUBS = HEAP + 0x1000                   # one made-up address for each method
 
 
 def build(original):
-    code = open(P.late_join_bin(), "rb").read()
+    code = True
     upload = open(P.default_bin("section"), "rb").read()
     return P.build(original, "section", upload, None, code)[0]
 
@@ -78,7 +79,7 @@ class Machine:
         uc.mem_map(STOP, 4096)
         # The late join's state page (.srpd, zeroed), where patch 39 keeps
         # the places the scoreboard was made with.
-        uc.mem_map(P.late_join_state_va(open(P.late_join_bin(), "rb").read()), 0x1000)
+        uc.mem_map(P.LATE_JOIN_STATE_VA, 0x1000)
         # Every place in the match (kd_stats' online in the hud's state,
         # +0C0h + 8 x place): patch 39 gives a row to those alone
         # (check_tab_list_026g.py has the others).
@@ -193,17 +194,15 @@ class Machine:
                  UC_X86_REG_ESI: 0x33333333, UC_X86_REG_EDI: 0x44444444}
         for register, was in saved.items():
             self.uc.reg_write(register, was)
-        # The return address lists_hook looks for is install_context's; the
-        # word after it there is `pop eax`, so the call is made from there.
-        back = P.LATE_JOIN_VA + 1120 + 100           # install_context.rebuild_return
-        assert bytes(self.uc.mem_read(back - 5, 1)) == b"\xE8" and \
-            back + struct.unpack("<i", self.uc.mem_read(back - 4, 4))[0] == REBUILD, "not the call of rebuild_lists"
+        # The late join's install and patch 39 call it as a stdcall
+        # function (the return address lists_hook knows is its own).
+        back = STOP
         self.uc.reg_write(UC_X86_REG_ESP, STACK)
         self.uc.mem_write(STACK - 0x1000, b"\xCC" * 0x1000)
         self.uc.mem_write(STACK, struct.pack("<III", back, hud, options))
         self.frame = STACK - FRAME
         self.uc.emu_start(REBUILD, back, count=400000)
-        assert self.uc.reg_read(UC_X86_REG_EIP) == back, "it did not come back to install_context"
+        assert self.uc.reg_read(UC_X86_REG_EIP) == back, "it did not come back to its caller"
         assert self.uc.reg_read(UC_X86_REG_ESP) == STACK + 12, "the two arguments were not taken off the stack"
         for register, was in saved.items():
             assert self.uc.reg_read(register) == was, "a register the caller keeps was changed"

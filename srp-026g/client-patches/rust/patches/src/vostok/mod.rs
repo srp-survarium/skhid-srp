@@ -45,6 +45,9 @@ mod input;
 pub mod inventory;
 mod keyboard;
 pub mod keyboard_layout;
+pub mod late_join;
+pub mod spawn;
+pub mod timeline;
 pub mod language;
 pub mod lobby;
 pub mod lobby_camera;
@@ -91,6 +94,8 @@ mod generated {
     use super::{RenderVisual, ObjectLight, GameScene};
     #[allow(unused_imports)]
     use super::resources::{QueryResults, QueryTag};
+    #[allow(unused_imports)]
+    use super::late_join::ProfileArrival;
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");

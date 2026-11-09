@@ -138,10 +138,10 @@ class Emu:
         for at in (ITEM_BY_ID, ALLOCATION_NAME, ALLOCATE, QUERY_STUB, ACCOUNT_ITEMS, LOG, LOG_FILTER, DECALS,
                    EFFECT_PRESENTER, CAN_MOVE) + tuple(STUB_AT.values()):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=at, end=at)
-        late_join = open(base.late_join_bin(), "rb").read()
-        self.preview_state = base.late_join_state_va(late_join) + base.WEAPON_PREVIEW_STATE_OFFSET
-        self.state = base.late_join_state_va(late_join) + base.UPGRADE_PREVIEW_STATE_OFFSET
-        self.code = base.weapon_camo_va(late_join) + base.UPGRADE_PREVIEW_OFFSET
+        late_join = True
+        self.preview_state = base.LATE_JOIN_STATE_VA + base.WEAPON_PREVIEW_STATE_OFFSET
+        self.state = base.LATE_JOIN_STATE_VA + base.UPGRADE_PREVIEW_STATE_OFFSET
+        self.code = base.WEAPON_CAMO_VA + base.UPGRADE_PREVIEW_OFFSET
         self.fresh_scratch = bytes(emu.mem_read(SCRATCH, 0x10000))
 
     def u32(self, at, value=None):
@@ -498,7 +498,7 @@ def main():
         sys.exit(__doc__)
     align.install()                 # every Uc from here: aligned-SSE operands checked
     original = open(sys.argv[1], "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     build, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(),
                           late_join=late_join)
     e = Emu(build)
@@ -676,7 +676,7 @@ def main():
                     "mate's nothing; the flags of the original's comparison and every register kept")
 
     # 8. the owner's quick Esc (2026-10-23): a window closed while its scratch's player is being made
-    table_state = base.late_join_state_va(late_join) + base.WEAPON_TABLE_STATE_OFFSET
+    table_state = base.LATE_JOIN_STATE_VA + base.WEAPON_TABLE_STATE_OFFSET
     early_bytes = next(old for va, old, _, _ in base.UPGRADE_PREVIEW_HOOKS if va == EARLY_SITE)
     built_bytes = bytes(e.emu.mem_read(EARLY_SITE, len(early_bytes)))
 

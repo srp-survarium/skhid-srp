@@ -101,6 +101,13 @@ TYPES["QueryTag"] = {
     "binding": "let {n} = QueryTag::from_raw({a} as usize as u32);",
     "orig_type": "QueryTag", "orig_raw": "-", "pass": "{n}", "null": "{a}",
 }
+# The late join's players' query (patch 11): its callback's value is the
+# proposal's storage the query was asked with (vostok::late_join), given back.
+TYPES["ProfileArrival"] = {
+    "raw": "*mut c_void",
+    "binding": "let {n} = unsafe {{ ProfileArrival::from_word(&thread, {a} as usize as u32) }};",
+    "orig_type": "ProfileArrival", "orig_raw": "-", "pass": "{n}", "null": "{a}",
+}
 # Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
 # the public views borrow the generated hook's thread.
 for _view in ("RenderVisual", "GameScene", "ObjectLight"):
@@ -160,15 +167,26 @@ def read_sites(path=None):
         name = row["site"].strip()
         if not re.fullmatch(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+", name):
             raise Bad(f"sites_026g.tsv: {name!r} is no site name (dotted, e.g. input_builder.spot_query)")
-        exits = [] if row["exits"].strip() in ("", "-") else [
-            (e.split("@")[0], engine_026g.number(e.split("@")[1])) for e in row["exits"].split(";")]
+        # `name@VA`, or `name@VA:N` for an exit that also pops the N bytes of
+        # arguments the site's call had pushed (a lohook over a `call` whose
+        # callee cleaned its stack goes on past it as the call did)
+        exits, pops = [], {}
+        for e in ([] if row["exits"].strip() in ("", "-") else row["exits"].split(";")):
+            label, _, where = e.partition("@")
+            where, _, pop = where.partition(":")
+            exits.append((label, engine_026g.number(where)))
+            if pop:
+                pops[label] = engine_026g.number(pop)
+                if not 0 < pops[label] < 0x100 or pops[label] % 4:
+                    raise Bad(f"sites_026g.tsv: {name}: exit {label} pops {pop}: whole dwords, under 100h")
         kind = row["kind"].strip()
         # an `entry` is called by our own code, not the game's: it has no VA
         if (row["va"].strip() == "-") != (kind == "entry"):
             raise Bad(f"sites_026g.tsv: {name}: a VA is `-` for an entry, and only for one")
         out[name] = {"site": name, "va": None if kind == "entry" else engine_026g.number(row["va"]), "kind": kind,
                      "callee": row["callee"].strip(), "span": None if row["span"].strip() in ("", "-")
-                     else engine_026g.number(row["span"]), "exits": exits, "what": row["what"].strip()}
+                     else engine_026g.number(row["span"]), "exits": exits, "pops": pops,
+                     "what": row["what"].strip()}
     return out
 
 
@@ -191,25 +209,35 @@ def _branch_free(bytes_, where):
     conditional branches and prefixed branches still need relocation.
     ndisasm prints undecodable/truncated instructions as db or lone prefixes.
     """
+    _span_instructions(bytes_, where)
+
+
+def _span_instructions(bytes_, where, va=0, calls=False):
+    """The span's whole instructions, [(bytes, text)], decoded at `va`. A
+    relative branch is refused, except with `calls` a plain `call rel32`
+    (E8): a lohook's replay makes it again to the same absolute target
+    (replay_lines), so its displacement is never copied."""
     tool = os.path.join(os.environ.get("NASM_DIR", ""), "ndisasm")
     try:
-        done = subprocess.run([tool, "-b", "32", "-"], input=bytes_, capture_output=True,
+        done = subprocess.run([tool, "-b", "32", "-o", str(va), "-"], input=bytes_, capture_output=True,
                               check=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as error:
         raise Bad(f"{where}: cannot decode the span with ndisasm: {error}") from error
     prefixes = {"o16", "o32", "a16", "a32", "lock", "rep", "repe", "repne", "repz", "repnz",
                 "cs", "ds", "es", "fs", "gs", "ss", "bnd", "xacquire", "xrelease"}
-    decoded = bytearray()
+    decoded, out = bytearray(), []
     for line in done.stdout.decode().splitlines():
         continuation = re.fullmatch(r"\s+-([0-9A-F]+)", line)
         if continuation:
             decoded.extend(bytes.fromhex(continuation[1]))
+            out[-1] = (out[-1][0] + bytes.fromhex(continuation[1]), out[-1][1])
             continue
         row = re.fullmatch(r"([0-9A-F]+)\s+([0-9A-F]+)\s+(.+)", line)
-        if row is None or int(row[1], 16) != len(decoded):
+        if row is None or int(row[1], 16) != va + len(decoded):
             raise Bad(f"{where}: cannot decode the complete span: {line!r}")
         decoded.extend(bytes.fromhex(row[2]))
         instruction = row[3].strip()
+        out.append((bytes.fromhex(row[2]), instruction))
         words = instruction.split()
         while words and words[0] in prefixes:
             words.pop(0)
@@ -217,10 +245,27 @@ def _branch_free(bytes_, where):
             raise Bad(f"{where}: the span contains an invalid or incomplete instruction: {instruction}")
         if re.search(r"\b(?:j[a-z]+|loop[a-z]*|call|xbegin)\s+"
                      r"(?:(?:near|short|word|dword)\s+)*0x[0-9a-f]+$", instruction):
-            raise Bad(f"{where}: the bytes have a relative branch; they cannot be relocated or replayed "
-                      "(use a code hook)")
+            if not (calls and len(out[-1][0]) == 5 and out[-1][0][0] == 0xE8):
+                raise Bad(f"{where}: the bytes have a relative branch; they cannot be relocated or replayed "
+                          "(use a code hook)")
     if decoded != bytes_:
         raise Bad(f"{where}: ndisasm did not decode the complete span")
+    return out
+
+
+def replay_lines(span, va, where):
+    """NASM that does what the span at `va` does, from anywhere: its bytes,
+    each `call rel32` made again to its absolute target (the arena's link
+    puts in the displacement from the replay's own address)."""
+    lines, at = [], va
+    for code, _ in _span_instructions(span, where, va, calls=True):
+        if code[0] == 0xE8 and len(code) == 5:
+            target = (at + 5 + struct.unpack("<i", code[1:])[0]) & 0xFFFFFFFF
+            lines.append(f"    call {target:#x}")
+        else:
+            lines.append("    db " + ", ".join(f"0x{b:02x}" for b in code))
+        at += len(code)
+    return lines
 
 
 def _typed(patch_name, patch_no, kind, site, handler, f):
@@ -378,10 +423,11 @@ def lohook_hook(patch, row, sites, exe=None):
     span = span_bytes(name, site, exe)
     if len(span) < 5:
         raise Bad(f"{name}: the lohook span at {site['va']:#x} is {len(span)} bytes; a jump needs 5")
-    _branch_free(span, f"{name} lohook at {site['va']:#x}")
+    replay = replay_lines(span, site["va"], f"{name} lohook at {site['va']:#x}")
     return {"patch": name, "patch_no": patch["patch"], "kind": "lohook", "site": site["va"],
             "site_name": site["site"], "original": span, "handler": row["handler"], "what": site["what"],
-            "exits": site["exits"], "order": row.get("order"), "install": ("lohook", 0xE9),
+            "exits": site["exits"], "pops": site.get("pops", {}), "replay": replay,
+            "order": row.get("order"), "install": ("lohook", 0xE9),
             "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}"}
 
 
@@ -403,12 +449,18 @@ def lohook_entry(h):
              "    cmp eax, 0", f"    je {e}_go",
              f"    mov edx, {past:#x}",                 # 1: Skip
              "    cmp eax, 1", f"    je {e}_go"]
-    for i, (_, addr) in enumerate(h["exits"]):          # 2 + i: the named exits
-        lines += [f"    mov edx, {addr:#x}", f"    cmp eax, {2 + i}", f"    je {e}_go"]
+    pops = h.get("pops", {})
+    for i, (label, addr) in enumerate(h["exits"]):      # 2 + i: the named exits
+        to = f"{e}_{label}" if label in pops else f"{addr:#x}"
+        lines += [f"    mov edx, {to}", f"    cmp eax, {2 + i}", f"    je {e}_go"]
+    replay = h.get("replay") or ["    db " + ", ".join(f"0x{b:02x}" for b in h["original"])]
     lines += ["    ud2",                                # an undeclared Flow: a bug
               f"{e}_go:", "    mov [ebp + 36], edx",
               "    fxrstor [edi]", "    mov esp, ebp", "    popad", "    popfd", "    ret",
-              f"{e}_replay:", "    db " + ", ".join(f"0x{b:02x}" for b in h["original"]), f"    jmp {past:#x}"]
+              f"{e}_replay:", *replay, f"    jmp {past:#x}"]
+    for label, addr in h["exits"]:                      # past a call whose arguments the callee popped
+        if label in pops:
+            lines += [f"{e}_{label}:", f"    lea esp, [esp + {pops[label]}]", f"    jmp {addr:#x}"]
     return lines
 
 
@@ -536,6 +588,38 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     return out
 
 
+NATIVE_CALLS = ("stdcall", "cdecl")
+
+
+def natives(tomls=None):
+    """The `[[native]]` rows: a function of a patch's own NASM (an arena
+    block's source, by its global symbol) that its Rust calls, where a typed
+    hook cannot reach (patch 13's lists made again, whose NASM builds the
+    frame of a game function it goes into). [{patch, symbol, call, args}]:
+    `call` its convention, `arguments` its parameters as `name: Type`, a
+    Type a `raw` handle kind (never null). Declared for `vostok` alone
+    (hooks_026g.rs, `pub(super)`), which wraps each in a safe function."""
+    tomls = read_tomls() if tomls is None else tomls
+    out = []
+    for patch in tomls:
+        for row in patch.get("native", ()):
+            symbol, call, arguments = row.get("symbol"), row.get("call"), row.get("arguments", [])
+            if not isinstance(symbol, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", symbol) \
+                    or not symbol.startswith(patch["name"] + "_"):
+                raise Bad(f"{patch['name']}: a [[native]] `symbol` is a NASM global named after its patch "
+                          f"({patch['name']}_...), got {symbol!r}")
+            if call not in NATIVE_CALLS:
+                raise Bad(f"{patch['name']}: {symbol}: `call` is one of {', '.join(NATIVE_CALLS)}")
+            args = []
+            for argument in arguments:
+                m = re.fullmatch(r"([a-z][a-z0-9_]*):\s*([A-Z][A-Za-z0-9]*)", argument)
+                if m is None:
+                    raise Bad(f"{patch['name']}: {symbol}: an argument is `name: Kind` (a raw handle), got {argument!r}")
+                args.append((m[1], m[2]))
+            out.append({"patch": patch["name"], "symbol": symbol, "call": call, "args": args})
+    return out
+
+
 def runtime_vtables(tomls=None, hs=None, fields=None):
     """Copies declared by name, with their layout from the raw field table.
 
@@ -611,7 +695,7 @@ def installed_vtables(tomls=None, hs=None, fields=None):
                  for t in runtime_vtables(tomls, hs, fields))
 
 
-def rs_text(hs, tables=()):
+def rs_text(hs, tables=(), native=()):
     originals = {}
     lines = [f"// The Rust hooks' glue ({GENERATED}).",
              "//",
@@ -774,6 +858,12 @@ def rs_text(hs, tables=()):
                   f"    // arguments of {h['function']}, whose `Original` names the entry's type.",
                   f"    unsafe {{ super::hook::CallbackEntry::from_entry({h['entry']} as *const () as *const c_void) }}",
                   "}"]
+    for n in native:
+        params = ", ".join(f"{name}: raw::{kind}" for name, kind in n["args"])
+        lines += ["", f'unsafe extern "{n["call"]}" {{',
+                  f"    /// {n['patch']}'s NASM `{n['symbol']}` ({n['call']}), a [[native]] of its TOML:",
+                  "    /// vostok wraps it in a safe function.",
+                  f"    pub(super) fn {n['symbol']}({params});", "}"]
     for table in tables:
         symbol, count = table["symbol"], table["count"]
         lines += ["", f'unsafe extern "C" {{ static {symbol}: [u32; {count + 1}]; }}',
@@ -821,7 +911,7 @@ def asm_text(hs, tables=(), exe=None):
 def outputs(tomls=None, functions=None, sites=None, exe=None):
     hs = hooks(tomls, functions, sites, exe)
     tables = runtime_vtables(tomls, hs)
-    return {RS: rs_text(hs, tables).encode(), ASM: asm_text(hs, tables, exe).encode()}
+    return {RS: rs_text(hs, tables, natives(tomls)).encode(), ASM: asm_text(hs, tables, exe).encode()}
 
 
 def installs(exe=None, tomls=None, functions=None, sites=None):

@@ -1,0 +1,10 @@
+# Patch 18: the weapons' random state at a spawn (client_patch.md section
+# 3.18). The site is sites_026g.tsv's; the spawn's registers, the player and
+# its weapons are vostok::spawn's; the formula is weapon_random.rs.
+name = "weapon_random"
+patch = 18
+
+# the spawn's player initialised, before it is put into the world
+[[hook]]
+site = "weapon_random.spawn"
+handler = "on_spawn"

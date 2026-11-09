@@ -327,7 +327,7 @@ def main():
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
     upload = open(base.default_bin("section"), "rb").read()
-    late_join = open(base.late_join_bin(), "rb").read()
+    late_join = True
     data, _ = base.build(original, "section", upload, None, late_join)
     needed = (1, 12, 14, 17, 255)
     requiring, _ = base.build(original, "section", upload, None, late_join, required_patches=needed)

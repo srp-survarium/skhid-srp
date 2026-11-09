@@ -294,7 +294,7 @@ def flower_lifecycle(built):
 
 def main():
     original = Path(sys.argv[1]).read_bytes()
-    built, _ = base.build(original, 'section', Path(base.default_bin('section')).read_bytes(), None, Path(base.late_join_bin()).read_bytes())
+    built, _ = base.build(original, 'section', Path(base.default_bin('section')).read_bytes(), None, True)
     flower_lifecycle(bytes(built))
     switch_items(bytes(built))
     death_drop(bytes(built), death=0x2D77C0)

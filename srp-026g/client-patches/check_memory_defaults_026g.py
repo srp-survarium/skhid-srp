@@ -175,7 +175,7 @@ def single_region_fallback(data):
 def main():
     original = Path(sys.argv[1]).read_bytes()
     built, _ = patch.build(original, 'section', Path(patch.default_bin('section')).read_bytes(),
-                           late_join=Path(patch.late_join_bin()).read_bytes())
+                           late_join=True)
     assert budgets(original, None, None) == (336 * MIB, 376 * MIB)
     assert budgets(built, None, None) == (768 * MIB, 768 * MIB)
     assert budgets(built, 99, 99, False, False) == (768 * MIB, 768 * MIB)

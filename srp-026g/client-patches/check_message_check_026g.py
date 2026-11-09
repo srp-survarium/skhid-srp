@@ -55,7 +55,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('exe');args=parser.parse_args()
     original=open(args.exe,'rb').read()
     built,_=base.build(original,'section',open(base.default_bin('section'),'rb').read(),None,
-                       open(base.late_join_bin(),'rb').read())
+                       True)
     baseline=bytearray(built)
     for _,rva,vsize,offset,rsize,_ in base.Headers(original).sections(original):
         if base.IMAGE_BASE+rva <= SITE < base.IMAGE_BASE+rva+vsize:

@@ -78,6 +78,10 @@ pub mod forest_glow;
 
 pub mod animation_id_log;
 pub mod input_check;
+pub mod late_join;
+pub mod weapon_random;
+pub mod kit_state;
+pub mod first_world;
 pub mod subtick_hits;
 pub mod keyboard_layout;
 pub mod mouse_pitch;

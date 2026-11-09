@@ -719,7 +719,7 @@ mod tests {
 
     #[test]
     fn the_seed_is_the_spawn_hooks() {
-        // late_join_026g.asm's weapon_random_hook: place 3, kit 0, slot 10 at 14 350 ms.
+        // the client's weapon_random.rs (patch 18): place 3, kit 0, slot 10 at 14 350 ms.
         let key = ((3u32 << 16) | 10).wrapping_mul(0x85EB_CA6B);
         let h = key ^ 14_350u32.wrapping_mul(0x9E37_79B1);
         assert_eq!(spawn_seed(3, 0, 10, 14_350), (h ^ (h >> 15)) % 0x7FFF_FFFE + 1);

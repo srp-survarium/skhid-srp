@@ -132,7 +132,7 @@ def main():
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
     upload = open(base.default_bin("section"), "rb").read()
-    data, _ = base.build(original, "section", upload, None, open(base.late_join_bin(), "rb").read())
+    data, _ = base.build(original, "section", upload, None, True)
     without, _ = base.build(original, "section", upload)
     stale = TEMP + "shell_32.dll"
     long_temp = "C:\\" + "t" * 254 + "\\"        # 258 letters: the name still fits

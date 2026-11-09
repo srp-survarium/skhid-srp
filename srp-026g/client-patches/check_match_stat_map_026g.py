@@ -132,5 +132,5 @@ if __name__ == "__main__":
         built = Path(sys.argv[2]).read_bytes()
     else:
         built, _ = base.build(original, "section", Path(base.default_bin("section")).read_bytes(), None,
-                              Path(base.late_join_bin()).read_bytes())
+                              True)
     checks(original, built)

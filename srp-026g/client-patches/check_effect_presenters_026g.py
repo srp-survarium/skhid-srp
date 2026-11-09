@@ -294,7 +294,7 @@ def main():
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
     built, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(),
-                          None, open(base.late_join_bin(), 'rb').read())
+                          None, True)
     check(original, bytes(built))
 
 

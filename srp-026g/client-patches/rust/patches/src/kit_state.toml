@@ -1,0 +1,11 @@
+# Patch 20: a weapon's state that a respawn kept (client_patch.md section
+# 3.20). The site is sites_026g.tsv's; the spawn's registers and stack, the
+# player and its weapons' fields are vostok::spawn's; the logic is
+# kit_state.rs.
+name = "kit_state"
+patch = 20
+
+# the new kit current, before its player's initialize
+[[hook]]
+site = "kit_state.spawn"
+handler = "on_spawn"

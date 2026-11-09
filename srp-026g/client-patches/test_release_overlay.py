@@ -370,7 +370,7 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid_mac.sh'))
 
     def test_the_default_exe_has_the_late_join_and_can_be_built_without(self):
-        code = Path(overlay.P.late_join_bin()).read_bytes()
+        code = True
         call, _ = self.build(self.root / 'with')
         self.assertEqual(call.args[1:], ('section', mock.ANY, 'release.example:2234', code))
         call, _ = self.build(self.root / 'without', '--no-late-join')
@@ -382,7 +382,7 @@ class ReleaseTests(unittest.TestCase):
     def test_a_release_names_the_revision_of_the_default_exe(self):
         call, _ = self.build(self.root / 'default')
         self.assertEqual(call.kwargs, {'revision': None, 'required_patches': None})
-        code = Path(overlay.P.late_join_bin()).read_bytes()
+        code = True
         call, _ = self.build(self.root / 'release', '--revision=17')
         self.assertEqual((call.args[1:], call.kwargs),
                          (('section', mock.ANY, 'release.example:2234', code), {'revision': 17, 'required_patches': None}))

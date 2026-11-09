@@ -130,6 +130,11 @@ impl<'t> QueryResults<'t> {
         QueryResults { results, thread }
     }
 
+    /// The game's results, for the callbacks' own readers (vostok's).
+    pub(super) fn raw(&self) -> Option<raw::QueriesResult> {
+        self.results
+    }
+
     /// The thread the callback runs on (the one that asked).
     pub fn thread(&self) -> &'t Thread {
         self.thread

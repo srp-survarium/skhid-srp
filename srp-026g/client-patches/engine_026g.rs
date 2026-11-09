@@ -233,6 +233,30 @@ unsafe extern "C" {
     pub fn engine_show_scene_movie(scene: *mut c_void, movie: *mut c_void);
     /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
     pub fn engine_hide_scene_movie(movie: *mut c_void, scene: *mut c_void);
+    /// 0x2f7c50 survarium::player_profile::construct_body: body ECX; pops 0; EAX
+    pub fn engine_profile_body_construct(body: *mut c_void) -> *mut c_void;
+    /// 0x1f1070 survarium::player_profile::deserialize_static: reader ESI, profile EDI, dictionary ESP+4; pops 4
+    pub fn engine_profile_read(reader: *mut c_void, profile: *mut c_void, dictionary: *mut c_void);
+    /// 0x321820 survarium::game_world_core::bind_place: core EAX, place ESP+4; pops 4
+    pub fn engine_bind_place(core: *mut c_void, place: *mut c_void);
+    /// 0x3218a0 survarium::pvp_match::insert_place_physics: physics EAX, place ESP+4; pops 4
+    pub fn engine_place_physics(physics: *mut c_void, place: *mut c_void);
+    /// 0x2d8100 survarium::base_player::register_animations: player EDI, registry ESP+4; pops 4
+    pub fn engine_register_animations(player: *mut c_void, registry: *mut c_void);
+    /// 0x2ef060 survarium::animations_registry::entry_less: right EDI, left ESP+4; pops 4; AL
+    pub fn engine_animation_less(right: *mut c_void, left: *mut c_void) -> u32;
+    /// 0x2ef410 survarium::animations_registry::append_id: vector ESI, entry ESP+4; pops 4
+    pub fn engine_animation_append(vector: *mut c_void, entry: *mut *mut c_void);
+    /// 0x1f29d0 survarium::player::initialize_player_icon: player ESI; pops 0
+    pub fn engine_player_icon(player: *mut c_void);
+    /// 0x205ba0 vostok::variant::type_id<survarium::player_creation_params>: no arguments; pops 0; EAX
+    pub fn engine_player_params_type() -> u32;
+    /// 0x1fcb60 survarium::player_input_list::allocate_node: list EAX; pops 0; EAX
+    pub fn engine_input_node(list: *mut c_void) -> *mut c_void;
+    /// 0x2d4850 survarium::timed_list::insert_before: node EAX, before EDX, list ESP+4; pops 4
+    pub fn engine_insert_before(node: *mut c_void, before: *mut c_void, list: *mut c_void);
+    /// 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    pub fn engine_release_pvp(pointer: *mut *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -263,6 +287,8 @@ unsafe extern "cdecl" {
     pub fn engine_xaudio2_create(engine: *mut *mut c_void, flags: u32) -> u32;
     /// 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
     pub fn engine_ray_test_single(from: *mut c_void, to: *mut c_void, object: *mut c_void, shape: *mut c_void, transform: *mut c_void, callback: *mut c_void);
+    /// 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
+    pub fn engine_profile_arrived(result: *mut c_void, value: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -309,6 +335,8 @@ unsafe extern "thiscall" {
     pub fn engine_translate_query(cook: *mut c_void, query: *mut c_void);
     /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
     pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
+    /// 0x1f2100 survarium::player::~player: player ECX; pops 0; thiscall, called directly
+    pub fn engine_player_destroy(player: *mut c_void);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

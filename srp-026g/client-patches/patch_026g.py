@@ -110,9 +110,8 @@ USAGE (this script never touches the source exe):
     NASM sources at every build
     (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
     arena_026g.lock.json's (`python link_026g.py --write` after a change).
-    The late-join code is late_join_026g.section.bin, checked in too; it is
-    made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
-    for x86 and GNU ld (--late-join-bin=<file> names another one).
+    The late join is the Rust patches' (late_join.rs and its TOML) and the
+    arena's late_join_026g.asm, linked with the rest.
 
 Port of ../srp-021d/client-patches/patch.py; the evidence for every address
 is in docs/notes/client_patch.md.
@@ -214,10 +213,10 @@ Patches:
   bytes of input masks, twenty histories and statistics records), says so
   in its match connection (0xD8), and on the server's 0xE4 loads the
   newcomer's profile and kits while the match goes on. Seven sites of the
-  game's code are rewritten and nine calls or jumps lead into new code on
-  the second page of `.srp` (late_join_026g.asm and three C files, built
-  into late_join_026g.section.bin); a writable page `.srpd` holds its
-  state. Such a game computes a match unlike every game without it: the
+  game's code are rewritten; the rest is the Rust patch late_join (its
+  hooks in late_join.toml) and its NASM stubs in the arena
+  (late_join_026g.asm); a writable page `.srpd` holds the stubs' state.
+  Such a game computes a match unlike every game without it: the
   server never puts the two in one match (client_patch.md section 3.11);
 - a game that goes on without the focus (patch revision 5, with the late
   join): engine_world::logic_tick 0x1A030 calls game::tick only while the
@@ -1362,16 +1361,12 @@ def __getattr__(name):
 # computes: the hud's lists only.
 TAB_LIST_STATE_OFFSET = 0xE40
 TAB_LIST_STATE_SIZE = 4
-TAB_ROW_OFFSET, TAB_SHOWN_OFFSET = 2480, 3600
+# (va, the original's bytes, the entry of late_join_026g.asm, the arena's
+# block late_join.code, 0xE8 call)
 TAB_LIST_HOOKS = (
-    (0x23537A, bytes.fromhex("8d442458" "50" "8b842438010000" "53" "50" "ffd2"), TAB_ROW_OFFSET, 0xE8),
-    (0x23B421, bytes.fromhex("80bfba00000000"), TAB_SHOWN_OFFSET, 0xE8),
+    (0x23537A, bytes.fromhex("8d442458" "50" "8b842438010000" "53" "50" "ffd2"), "late_join_tab_row", 0xE8),
+    (0x23B421, bytes.fromhex("80bfba00000000"), "late_join_tab_shown", 0xE8),
 )
-# The first bytes of the two entries: `call get_state` (to 2304) and `or
-# dword [eax+TAB_LIST_STATE_OFFSET],-1`; `cmp byte [edi+0BAh],0`.
-TAB_ROW_START = b"\xE8" + struct.pack("<i", 2304 - TAB_ROW_OFFSET - 5) + b"\x83\x88" + \
-    struct.pack("<I", TAB_LIST_STATE_OFFSET) + b"\xFF"
-TAB_SHOWN_START = bytes.fromhex("80bfba00000000")
 TAB_LIST_LOOP_VA = 0x23B447
 TAB_LIST_LOOP = (TAB_LIST_LOOP_VA,
                  bytes.fromhex("0fb6c3" "8bd0" "0fb684c7c0000000" "69d2fc450000" "03ca" "50" "8d4148" "83c108"
@@ -1650,16 +1645,18 @@ DROP_UPGRADE_HANDLER = 0x29A9D0
 PROCESS_DETACH_UPGRADE = 0x275220
 INVENTORY_ACTION = 0x275520
 
-# The late join (client_patch.md section 3.11). Its code is the second page
-# of `.srp` and what follows it: 4096 bytes of late_join_026g.asm, whose
-# entries are at fixed offsets, then the C code. The first page stays what
-# it is without the late join (the upload code, the default-server stub and
-# the address), so no address in the code depends on the server given at
-# patch time. Its state is one zeroed, writable page of its own, `.srpd`,
-# on the page after the code.
+# The late join (client_patch.md section 3.11). Its logic is the Rust
+# patches' (rust/patches/src/late_join.rs, its hooks in late_join.toml), its
+# NASM stubs late_join_026g.asm in the arena (the block late_join.code,
+# LATE_JOIN_HOOKS below). Before the Rust port its code was `.srp`'s
+# second page and what followed (late_join_026g.section.bin): that room
+# stays, int3 (a test-session build's direct_match goes there,
+# late_join_026g.py), so the weapon preview after it and `.srpd`, the state
+# page, keep their addresses, which the other patches' .bins hold. `.srpd`
+# is one zeroed, writable page of its own.
 LATE_JOIN_OFFSET = 0x1000
 LATE_JOIN_VA = SECTION_VA + LATE_JOIN_OFFSET
-LATE_JOIN_ASM_SIZE = 0x1000
+LATE_JOIN_STATE_VA = LATE_JOIN_VA + 0x2000         # 0xA428000: late_join_026g.asm's TAB_ROWS and FOV_LOD_K
 LATE_JOIN_STATE_NAME = b".srpd\0\0\0"
 LATE_JOIN_STATE_SIZE = 0x1000
 LATE_JOIN_STATE_CHARACTERISTICS = 0xC0000080   # uninitialized data, read, write
@@ -1708,8 +1705,7 @@ STATISTICS_COUNT = (0x26D8F3, bytes.fromhex("8a82b5770500"), b"\xb0\x14" + b"\x9
 # 1..2^31-2, then does the two instructions. A weapon is an item whose
 # vtable+70h is weapon_core's bind 0x2E30F0, which only the vtables of
 # weapon_core and the client's weapon hold.
-WEAPON_RANDOM_VA, WEAPON_RANDOM_OFFSET = 0x316EA0, 3712
-WEAPON_RANDOM_HOOK = (WEAPON_RANDOM_VA, bytes.fromhex("8b168b4220"), WEAPON_RANDOM_OFFSET, 0xE8)
+WEAPON_RANDOM_VA = 0x316EA0                   # the Rust patch weapon_random's lohook (weapon_random.toml)
 WEAPON_SPAWN_VA = 0x316DA0                    # the respawn rule's spawn
 WEAPON_BIND_VA = 0x2E30F0                     # weapon_core's bind, vtable+70h of its item
 WEAPON_RANDOM_FIELD = 0x5BC                   # weapon_core's random state
@@ -1736,8 +1732,7 @@ def weapon_random_state(place, kit, slot, time):
 # again, or set only for the weapon in hand, get the constructor's values
 # (0x2DF0D0): KIT_STATE_FIELDS. A respawn into the same kit keeps them: that
 # kit's player is in every world.
-KIT_STATE_VA, KIT_STATE_OFFSET = 0x316E57, 3168
-KIT_STATE_HOOK = (KIT_STATE_VA, bytes.fromhex("8b168b521c"), KIT_STATE_OFFSET, 0xE8)
+KIT_STATE_VA = 0x316E57                       # the Rust patch kit_state's lohook (kit_state.toml)
 KIT_STATE_TICK_FIELD = 0x5A4                  # m_last_tick_time_in_ms, -1 at every spawn
 # (weapon offset, size, the constructor's value) set at a spawn into another kit
 KIT_STATE_FIELDS = (
@@ -1776,8 +1771,7 @@ KIT_STATE_FIELDS = (
 # put before the oldest newer entry (0x2D4850), an entry of that time given
 # the value as before. With no newer entry the lists end as the game's own
 # left them, but for the kit choice's value.
-FIRST_LOAD_INPUT_HOOK = (0x2D1050, bytes.fromhex("e85b3a0000"), 3840, 0xE8)
-FIRST_LOAD_KIT_HOOK = (0x2D1055, bytes.fromhex("e8f63a0000"), 3920, 0xE8)
+FIRST_LOAD_INPUT_VA, FIRST_LOAD_KIT_VA = 0x2D1050, 0x2D1055    # the Rust patch first_world's lohooks
 FIRST_LOAD_DESERIALIZE_VA = 0x2D0B70
 
 # The replay's seek (game 0x1EE2E0: esi = game, edi = the target; it starts
@@ -1830,34 +1824,28 @@ LATE_JOIN_PATCHES = (
 # instruction, `fld dword [ecx+8Ch]`, jumps to fov_projection, which does the
 # whole projection with the angle of the field-of-view setting.
 FOV_PROJECTION_VA = 0x242900
-FOV_PROJECTION_OFFSET = 576
-FOV_PROJECTION_HOOK = (FOV_PROJECTION_VA, bytes.fromhex("d9818c000000"), FOV_PROJECTION_OFFSET, 0xE9)
+FOV_PROJECTION_HOOK = (FOV_PROJECTION_VA, bytes.fromhex("d9818c000000"), "late_join_fov_projection", 0xE9)
 # The original's whole body, which the self-test reads (int3 after it).
 FOV_PROJECTION_BODY = bytes.fromhex(
     "d9818c0000008b442408f30f1000f30f5e4004568b74240883ec0cd95c2408"
     "d98188000000d95c2404f30f110424f30f108190000000f30f5905ecd9a200"
     "e8edc4eaff83c40c8bc65ec20800cccccccc")
+# The late join's NASM stubs (late_join_026g.asm, the arena's block
+# late_join.code): (address, the original's bytes, the entry, 0xE8 call or
+# 0xE9 jmp); the rest of the original's bytes become nops. The late join's
+# other sites are the Rust patches' (late_join.toml, weapon_random.toml,
+# kit_state.toml, first_world.toml; sites_026g.tsv).
 LATE_JOIN_HOOKS = (
-    (0x2CBF9B, bytes.fromhex("e860c10000"), 3072, 0xE8),         # a player's animations: register_animations
-    (0x2D3880, bytes.fromhex("e89bdf0400"), 0, 0xE8),            # a slot's ids: bind_slot
-    (0x2D3906, bytes.fromhex("03f28d8de4e30000"), 96, 0xE9),     # twenty histories: history_capacity
-    (0x27A23D, bytes.fromhex("881c388b44241c"), 128, 0xE9),      # 0xD8's capability byte: connect_capability
-    (0x27A378, bytes.fromhex("83be641c1f0001"), 1856, 0xE9),     # the 0xE4 case: prepare_hook
-    (0x1F2013, bytes.fromhex("e8e8000000"), 2048, 0xE8),         # player's destructor: player_destroyed_hook
-    (0x27B517, bytes.fromhex("8b8f401c1f00"), 2336, 0xE9),       # on_match_disconnected: disconnect_hook
-    (0x219E60, bytes.fromhex("558bec83e4f8"), 2432, 0xE9),       # network_client's destructor: client_destroyed_hook
-    (0x23572B, bytes.fromhex("8b8c2498000000"), 3456, 0xE9),     # the hud's lists of players, made again: lists_hook
-    (0x39E52, bytes.fromhex("f30f7e00660fd64704"), 3520, 0xE9),  # a box that is no box, in the tree: box_hook
-    WEAPON_RANDOM_HOOK,                                          # a spawn's weapons' random state: weapon_random_hook
-    KIT_STATE_HOOK,                                              # a spawn's weapons' kept state: kit_state_hook
-    FIRST_LOAD_INPUT_HOOK,                                       # a first world's inputs, in time order: first_load_input
-    FIRST_LOAD_KIT_HOOK,                                         # a first world's kit choices: first_load_kit
-    FOV_PROJECTION_HOOK,                                         # the camera's angle: fov_projection
+    (0x2D3906, bytes.fromhex("03f28d8de4e30000"), "late_join_history", 0xE9),     # twenty histories
+    (0x27A23D, bytes.fromhex("881c388b44241c"), "late_join_capability", 0xE9),   # 0xD8's capability byte
+    (0x23572B, bytes.fromhex("8b8c2498000000"), "late_join_lists", 0xE9),        # the hud's lists, made again (13)
+    (0x39E52, bytes.fromhex("f30f7e00660fd64704"), "late_join_box", 0xE9),       # a box that is no box (13)
+    FOV_PROJECTION_HOOK,                                                         # the camera's angle (22)
 )
 # on_match_ready's jump (HOOKS[0], which goes to the upload code without
-# the late join) goes to ready_hook, which goes on to the upload code.
+# the late join) goes to late_join_ready, which goes on to the upload code.
 LATE_JOIN_READY_VA = 0x27AEA1
-LATE_JOIN_READY_OFFSET = 1664
+LATE_JOIN_READY = "late_join_ready"
 
 # engine_world::logic_tick 0x1A030, after the window was shown
 # (engine_world+313h): `mov edx,[ebx+8]` / `mov eax,[edx+30h]` /
@@ -2001,8 +1989,8 @@ FOV_PATCHES = (FOV_MINIMUM,)
 # address: its base relocation is disabled (FOV_LOD_RELOCS). Rendering
 # only: nothing a match computes reads either value.
 FOV_LOD_HOOKS = (
-    (0x16F2A4, bytes.fromhex("f30f5905447a9200"), 1760, 0xE8),  # select_lod's `mulss xmm0,[0x927A44]` (0.5)
-    (0x1590AF, bytes.fromhex("d80dd010a700"), 1792, 0xE8),      # the screen factor's `fmul dword [0xA710D0]` (100)
+    (0x16F2A4, bytes.fromhex("f30f5905447a9200"), "late_join_fov_lod_scale", 0xE8),  # select_lod's `mulss xmm0,[0x927A44]` (0.5)
+    (0x1590AF, bytes.fromhex("d80dd010a700"), "late_join_fov_screen_scale", 0xE8),   # the screen factor's `fmul dword [0xA710D0]` (100)
 )
 FOV_LOD_RELOCS = [0x1590B1, 0x16F2A8]
 FOV_LOD_STATE_OFFSET = 0xE50                  # after the scoreboard's (TAB_LIST_STATE_OFFSET)
@@ -2029,15 +2017,8 @@ RUN_UNFOCUSED = (RUN_UNFOCUSED_VA, bytes.fromhex("8b53088b42308d4b08ffd084c07423
                  bytes.fromhex("8b53088b42308d4b08ffd084c09090"))
 
 
-def late_join_state_va(code):
-    """Where the state page of this late-join code is: the page after it."""
-    end = LATE_JOIN_VA + len(code)
-    return (end + 0xFFF) // 0x1000 * 0x1000
-
-
-def death_camera_va(late_join):
-    """Where `.srpc` is: the page after the late join's state page."""
-    return late_join_state_va(late_join) + LATE_JOIN_STATE_SIZE
+# Where `.srpc` is: the page after the late join's state page.
+DEATH_CAMERA_VA = LATE_JOIN_STATE_VA + LATE_JOIN_STATE_SIZE
 
 
 # A weapon wears the camouflage its item holds (patch 44, client_patch.md
@@ -2409,9 +2390,8 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
 
 
-def weapon_camo_va(late_join):
-    """Where `.srpw` is: the page after `.srpc`, which is one page."""
-    return death_camera_va(late_join) + DEATH_CAMERA_SIZE
+# Where `.srpw` is: the page after `.srpc`, which is one page.
+WEAPON_CAMO_VA = DEATH_CAMERA_VA + DEATH_CAMERA_SIZE
 
 
 # Every function a patch installs: what the game calls of ours, and the shape
@@ -2703,12 +2683,6 @@ INSTALLED_VTABLES = (
 # that model, (check script, the case that calls it through the game's own
 # caller)) (the last as INSTALLED_VTABLES' slots).
 CALLBACKS = (
-    ("the late join's query: query_completed", "late_join", bytes.fromhex("6a00566a008d83"), 0x27AA20,
-     "0x27D280 makes the network client's boost member callback of its resource queries; its one other "
-     "call (0x27B04C) binds 0x27AA20, the client's own queries_completed (ecx = the client, [esp+4] the "
-     "queries_result); the marker is the `push 0 / push esi / push 0 / lea eax,[ebx+query_completed]` "
-     "before `push eax` (query_completed's VA follows the lea's `8D 83`)",
-     ("check_late_join_026g.py", "driven: query_completed through the game's boost invoker 0x202300")),
     ("a weapon's camouflage bake: bake_done", "weapon_camo", b"\xC7\x40\x08", 0x126830,
      "BIND_MANAGER 0x9ED148 binds a `void (*)(A*, B*)`; the game binds 0x126830 with it at 0x126A2C "
      "(a bake query of query_resources 0xE5B60, as weapon_camo's); the marker is bind's "
@@ -2830,7 +2804,7 @@ for _va, _owner, _what in hooks_026g.lohook_sites():
 # its source files, then `python link_026g.py --write`.
 ARENA_NAME = b".srpx\0\0\0"
 ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
-ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
+ARENA_VA = 0xA42D000                            # WEAPON_CAMO_VA + .srpw's three pages
 # The most the arena may take: a block of a runaway size (a state array, a
 # table) stops the link instead of growing the image. Raise it on purpose.
 ARENA_LIMIT = 0x100000
@@ -2848,6 +2822,9 @@ ARENA = (
     ArenaBlock("research.state", "state", 0x1000, ("research_arena/Cargo.toml",)),
     ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
+    # the late join's NASM stubs (patches 11, 13, 22, 39, 40; the logic is
+    # the Rust patches': late_join.rs)
+    ArenaBlock("late_join.code", "code", 0x10, ("late_join_026g.asm",)),
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
@@ -2973,9 +2950,6 @@ def hook_bytes(base, va, expected, offset, opcode):
     """The bytes a hook site gets: the call or jump to base+offset and nops."""
     return bytes([opcode]) + struct.pack("<i", base + offset - va - 5) + b"\x90" * (len(expected) - 5)
 
-
-def late_join_hook(va, expected, offset, opcode):
-    return hook_bytes(LATE_JOIN_VA, va, expected, offset, opcode)
 
 HOOKS = [
     # network_client::on_match_ready, ebx = network_client: mov ebx,[ebx+1F1C48h]
@@ -3330,13 +3304,13 @@ def build(*args, **kwargs):
         _BUILDING[0] = False
 
 
-def build_image(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None,
+def build_image(original, mode, code=None, server=None, late_join=False, revision=None, required_patches=None,
                 arena_blocks=None):
     """Returns (patched file, description). mode: "cert-only", "section" or
     "hash-mismatch"; code = the assembled .bin for that cave. An optional
-    server embeds a default host:port in full builds only. late_join = the
-    late-join code (late_join_026g.section.bin), in "section" builds only:
-    with it the build is patch revision REVISION, without it
+    server embeds a default host:port in full builds only. late_join: the
+    build with the late join (its Rust and NASM in the arena), in "section"
+    builds only: with it the build is patch revision REVISION, without it
     REVISION_WITHOUT_LATE_JOIN; with it the game also checks no resources.db
     signature, mounts resources.db's patches (mount_patches_026g.section.bin),
     its sign-in says whether %TEMP%\\shell_32.dll exists
@@ -3363,32 +3337,29 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         server = parse_server(server)
         if mode == "cert-only":
             sys.exit("embedding a server requires a full patch, not --cert-only")
-    if late_join is not None:
-        if mode != "section":
-            sys.exit("the late join needs the default build: its code and its state are sections of their own")
-        if len(late_join) <= LATE_JOIN_ASM_SIZE:
-            sys.exit("the late-join code is the 4096 bytes of late_join_026g.asm and the C code after them")
+    if late_join and mode != "section":
+        sys.exit("the late join needs the default build: its code and its state are sections of their own")
     if revision is not None:
-        if late_join is None:
+        if not late_join:
             sys.exit(f"--revision is of the default build, with the late join (the others say "
                      f"{REVISION_WITHOUT_LATE_JOIN}, or nothing)")
         if type(revision) is not int or not REVISION <= revision <= 255:
             sys.exit(f"--revision={revision}: a revision from {REVISION} (REVISION, the last release's) to 255")
     if required_patches is not None:
-        if late_join is None:
+        if not late_join:
             sys.exit("--required-patches is of the default build, with the late join (the patches' mount)")
         required_patches = sorted(required_patches)
         if any(type(n) is not int or not 1 <= n <= MOUNT_MAX_PATCHES for n in required_patches) \
                 or len(set(required_patches)) != len(required_patches):
             sys.exit(f"--required-patches: each patch once, a number from 1 to {MOUNT_MAX_PATCHES}: {required_patches}")
-    if late_join is None:
+    if not late_join:
         revision = REVISION_WITHOUT_LATE_JOIN
     elif revision is None:
         revision = REVISION
-    if late_join is not None:
+    if late_join:
         stale_dll = open(stale_dll_bin(), "rb").read()
         mount_patches = open(mount_patches_bin(), "rb").read()
-        state = late_join_state_va(late_join) + MOUNT_STATE_OFFSET
+        state = LATE_JOIN_STATE_VA + MOUNT_STATE_OFFSET
         if mount_patches[-4:] != struct.pack("<I", state):
             sys.exit(f"mount_patches_026g.section.bin keeps its state elsewhere: assemble it with -DSTATE={state:#x}")
         if mount_patches[MOUNTED_OFFSET:MOUNTED_OFFSET + 5] != bytes.fromhex("e800000000") \
@@ -3490,22 +3461,20 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if not cave_va <= target_va < cave_va + len(cave):
             sys.exit(f"{va:#x}: the hook jumps to {target_va:#x}, outside the cave "
                      f"(was the .bin assembled with -DCAVE={cave_va:#x}?)")
-        if late_join is not None and va == LATE_JOIN_READY_VA:
-            # The late join's ready_hook first; it jumps on to `target_va`.
+        rewritten.append((va, va + size))
+        if late_join and arena_blocks != () and va == LATE_JOIN_READY_VA:
+            # The late join's late_join_ready first (the arena's, below); it
+            # jumps on to `target_va`, late_join_026g.asm's UPLOAD_READY.
             if target_va != SECTION_VA:
                 sys.exit(f"{va:#x}: the late join expects the upload's ready hook at the cave's start")
-            hook = late_join_hook(va, original_bytes, LATE_JOIN_READY_OFFSET, 0xE9)
+            continue
         patch(data, va, original_bytes, hook)
-        rewritten.append((va, va + size))
     rewritten += [(CERT[0], CERT[0] + len(CERT[1])), (MUTEX[0], MUTEX[0] + len(MUTEX[1]))]
     relocs = neutralize_relocs(data, rewritten)
-    if late_join is not None:
+    if late_join:
         sites = []
         for va, expected, new in LATE_JOIN_PATCHES:
             patch(data, va, expected, new)
-            sites.append((va, va + len(expected)))
-        for va, expected, offset, opcode in LATE_JOIN_HOOKS:
-            patch(data, va, expected, late_join_hook(va, expected, offset, opcode))
             sites.append((va, va + len(expected)))
         patch(data, *RUN_UNFOCUSED)
         sites.append((RUN_UNFOCUSED_VA, RUN_UNFOCUSED_VA + len(RUN_UNFOCUSED[1])))
@@ -3566,16 +3535,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if FOV_LOD_STATE_OFFSET < TAB_LIST_STATE_OFFSET + TAB_LIST_STATE_SIZE \
                 or FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the FOV LOD scale does not fit after the scoreboard's state")
-        k_address = struct.pack("<I", late_join_state_va(late_join) + FOV_LOD_STATE_OFFSET)
-        for va, expected, offset, opcode in FOV_LOD_HOOKS:
-            stub = late_join[offset:offset + 32]
-            if stub[:len(expected)] != expected or stub.count(k_address) != 2:
-                sys.exit(f"the late join's code at {offset} is not patch 40's scale "
-                         f"(its k at {late_join_state_va(late_join) + FOV_LOD_STATE_OFFSET:#x})")
-            patch(data, va, expected, late_join_hook(va, expected, offset, opcode))
-        if sorted(neutralize_relocs(data, [(va, va + len(expected)) for va, expected, _, _ in FOV_LOD_HOOKS])) \
-                != FOV_LOD_RELOCS:
-            sys.exit("the base relocations under the FOV LOD sites are not where they were read")
         pickup = open(pickup_bin(), "rb").read()
         if len(cave) > PICKUP_OFFSET or PICKUP_OFFSET + len(pickup) > LATE_JOIN_OFFSET:
             sys.exit("the upload code and the pickup code do not fit before the late join")
@@ -3627,13 +3586,13 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         # drag_end, which begins `mov ecx,[ebx]`; warmup_limits begins
         # `movd eax,xmm0`.
         if warmup_look[:7] != bytes.fromhex("80b9e302000000") \
-                or warmup_look_state(warmup_look) != late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET \
+                or warmup_look_state(warmup_look) != LATE_JOIN_STATE_VA + WARMUP_LOOK_STATE_OFFSET \
                 or warmup_look_calls(warmup_look) != [WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET] \
                 or warmup_limits[WARMUP_DRAG_END_OFFSET:WARMUP_DRAG_END_OFFSET + 2] != bytes.fromhex("8b0b") \
                 or warmup_limits[WARMUP_LIMITS_ENTRY_OFFSET:WARMUP_LIMITS_ENTRY_OFFSET + 4] != bytes.fromhex("660f7ec0"):
             sys.exit(f"warmup_look_026g.section.bin or warmup_limits_026g.section.bin: their entries or the state "
                      f"are not where patch_026g.py puts them (assembled with -DCAVE={WARMUP_LOOK_VA:#x} "
-                     f"-DSTATE={late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET:#x} "
+                     f"-DSTATE={LATE_JOIN_STATE_VA + WARMUP_LOOK_STATE_OFFSET:#x} "
                      f"-DLIMITS={WARMUP_LIMITS_VA:#x} and -DCAVE={WARMUP_LIMITS_VA:#x}?)")
         if WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > WARMUP_LOOK_STATE_OFFSET \
                 or WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > LATE_JOIN_STATE_SIZE:
@@ -3644,10 +3603,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         tail = WARMUP_KEYS_HOOK[1] + b"\xE9" + struct.pack(
             "<i", WARMUP_KEYS_HOOK[0] + len(WARMUP_KEYS_HOOK[1]) - (WARMUP_KEYS_VA + len(warmup_keys)))
         if warmup_keys[:4] != bytes.fromhex("8b442408") or not warmup_keys.endswith(tail) \
-                or warmup_keys_state(warmup_keys) != late_join_state_va(late_join) + WARMUP_KEYS_STATE_OFFSET:
+                or warmup_keys_state(warmup_keys) != LATE_JOIN_STATE_VA + WARMUP_KEYS_STATE_OFFSET:
             sys.exit(f"warmup_keys_026g.section.bin: its entry, its end or its state are not where patch_026g.py "
                      f"puts them (assembled with -DCAVE={WARMUP_KEYS_VA:#x} "
-                     f"-DSTATE={late_join_state_va(late_join) + WARMUP_KEYS_STATE_OFFSET:#x}?)")
+                     f"-DSTATE={LATE_JOIN_STATE_VA + WARMUP_KEYS_STATE_OFFSET:#x}?)")
         if WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > WARMUP_KEYS_STATE_OFFSET \
                 or WARMUP_KEYS_STATE_OFFSET + WARMUP_KEYS_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the warmup keys' state is not between the warmup look's and the page's end")
@@ -3655,9 +3614,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         # to warmup_look; update_camera's call of the view's update calls
         # death_view.
         death_camera = open(death_camera_bin(), "rb").read()
-        death_va = death_camera_va(late_join)
-        death_state = late_join_state_va(late_join) + DEATH_CAMERA_STATE_OFFSET
-        look_state = late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET
+        death_va = DEATH_CAMERA_VA
+        death_state = LATE_JOIN_STATE_VA + DEATH_CAMERA_STATE_OFFSET
+        look_state = LATE_JOIN_STATE_VA + WARMUP_LOOK_STATE_OFFSET
         if death_camera[DEATH_LOOK_OFFSET:DEATH_LOOK_OFFSET + 7] != bytes.fromhex("80b9e302000000") \
                 or death_camera[DEATH_VIEW_OFFSET:DEATH_VIEW_OFFSET + 4] != bytes.fromhex("8b442404") \
                 or death_camera_exits(death_camera, death_va, DEATH_CAMERA_EXITS) != DEATH_CAMERA_EXITS_EXPECTED \
@@ -3688,20 +3647,19 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if neutralize_relocs(data, [(READ_ORDER_VA, READ_ORDER_VA + READ_ORDER_SIZE)]):
             sys.exit("a base relocation under hdd_manager_sorting_predicate")
         weapon_preview = open(weapon_preview_bin(), "rb").read()
-        if LATE_JOIN_OFFSET + len(late_join) > WEAPON_PREVIEW_OFFSET \
-                or WEAPON_PREVIEW_VA + len(weapon_preview) > late_join_state_va(late_join):
+        if WEAPON_PREVIEW_VA + len(weapon_preview) > LATE_JOIN_STATE_VA:
             sys.exit("the late join and the weapon preview do not fit before the late join's state page")
         if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > WEAPON_PREVIEW_STATE_OFFSET \
                 or WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the weapon preview's state is not between the patches' mount's and the page's end")
-        if weapon_preview_state(weapon_preview) != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET \
+        if weapon_preview_state(weapon_preview) != LATE_JOIN_STATE_VA + WEAPON_PREVIEW_STATE_OFFSET \
                 or any(weapon_preview[offset] != first for (_, _, offset, _), first
                        in zip(WEAPON_PREVIEW_HOOKS, (0x60, 0x60, 0x50, 0x50, 0x50, 0x50))):
             sys.exit(f"weapon_preview_026g.section.bin: its entries or its state are not where patch_026g.py "
                      f"puts them (assembled with -DCAVE={WEAPON_PREVIEW_VA:#x} "
-                     f"-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
-        stash_va = weapon_camo_va(late_join) + WEAPON_STASH_OFFSET
-        upgrade_preview_va = weapon_camo_va(late_join) + UPGRADE_PREVIEW_OFFSET
+                     f"-DSTATE={LATE_JOIN_STATE_VA + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
+        stash_va = WEAPON_CAMO_VA + WEAPON_STASH_OFFSET
+        upgrade_preview_va = WEAPON_CAMO_VA + UPGRADE_PREVIEW_OFFSET
         if any(weapon_preview[at] != 0xE8
                or WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", weapon_preview, at + 1)[0]
                != upgrade_preview_va + UPGRADE_PREVIEW_FIND for at in WEAPON_PREVIEW_FIND_CALLS):
@@ -3721,11 +3679,11 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 or WARMUP_LOOK_OFFSET + len(warmup_look) > STALE_DLL_OFFSET:
             sys.exit("the weapon preview's draw and the warmup look do not fit between the forward effect's "
                      "scrolling and the shell_32.dll check")
-        if weapon_draw_state(weapon_draw) != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET \
+        if weapon_draw_state(weapon_draw) != LATE_JOIN_STATE_VA + WEAPON_PREVIEW_STATE_OFFSET \
                 or weapon_draw[0] != 0x50:
             sys.exit(f"weapon_draw_026g.section.bin: its entry or its state is not where patch_026g.py puts "
                      f"them (assembled with -DCAVE={WEAPON_DRAW_VA:#x} "
-                     f"-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
+                     f"-DSTATE={LATE_JOIN_STATE_VA + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
         va, expected, offset, opcode = WEAPON_DRAW_HOOK
         patch(data, va, expected, hook_bytes(WEAPON_DRAW_VA, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -3733,19 +3691,16 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if PICKUP_OFFSET + len(pickup) > WARMUP_KEYS_OFFSET \
                 or WARMUP_KEYS_OFFSET + len(warmup_keys) > SEEK_CLEAR_OFFSET:
             sys.exit("the pickup code, the warmup keys and the seek code do not fit")
-        if late_join[TAB_ROW_OFFSET:TAB_ROW_OFFSET + len(TAB_ROW_START)] != TAB_ROW_START \
-                or late_join[TAB_SHOWN_OFFSET:TAB_SHOWN_OFFSET + len(TAB_SHOWN_START)] != TAB_SHOWN_START:
-            sys.exit("late_join_026g.section.bin: the scoreboard's entries (tab_row, tab_shown) or its state are "
-                     "not where patch_026g.py puts them")
         if WARMUP_KEYS_STATE_OFFSET + WARMUP_KEYS_STATE_SIZE > TAB_LIST_STATE_OFFSET \
                 or TAB_LIST_STATE_OFFSET + TAB_LIST_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the scoreboard's state is not between the warmup keys' and the page's end")
-        sites = []
-        for va, expected, offset, opcode in TAB_LIST_HOOKS:
-            patch(data, va, expected, late_join_hook(va, expected, offset, opcode))
-            sites.append((va, va + len(expected)))
+        # late_join_026g.asm's TAB_ROWS and FOV_LOD_K are these (it cannot be given defines)
+        if (LATE_JOIN_STATE_VA + TAB_LIST_STATE_OFFSET, LATE_JOIN_STATE_VA + FOV_LOD_STATE_OFFSET) \
+                != (0xA428E40, 0xA428E50) or FOV_LOD_STATE_OFFSET < TAB_LIST_STATE_OFFSET + TAB_LIST_STATE_SIZE \
+                or FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > LATE_JOIN_STATE_SIZE:
+            sys.exit("late_join_026g.asm's TAB_ROWS and FOV_LOD_K are not the state page's")
         patch(data, *TAB_LIST_LOOP)
-        sites.append((TAB_LIST_LOOP_VA, TAB_LIST_LOOP_VA + len(TAB_LIST_LOOP[1])))
+        sites = [(TAB_LIST_LOOP_VA, TAB_LIST_LOOP_VA + len(TAB_LIST_LOOP[1]))]
         if neutralize_relocs(data, sites):
             sys.exit("a base relocation under a site of the scoreboard's rows")
         for site in (MOUNT_QUERY, MOUNTED):
@@ -3785,7 +3740,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the shared upgrades")
         weapon_camo = open(weapon_camo_bin(), "rb").read()
-        camo_va = weapon_camo_va(late_join)
+        camo_va = WEAPON_CAMO_VA
         name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
         if not weapon_camo.startswith(WEAPON_CAMO_ENTRY) or name_at < 0 \
                 or struct.pack("<I", camo_va + name_at) not in weapon_camo[:name_at]:
@@ -3795,9 +3750,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if len(weapon_camo) > WEAPON_STASH_OFFSET or WEAPON_STASH_OFFSET + len(weapon_stash) > 0x1000:
             sys.exit("the weapon camouflage's code and the weapon stash's do not fit in .srpw's page")
         if weapon_preview_state(weapon_stash, camo_va + WEAPON_STASH_OFFSET) \
-                != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:
+                != LATE_JOIN_STATE_VA + WEAPON_PREVIEW_STATE_OFFSET:
             sys.exit(f"weapon_stash_026g.section.bin: assembled for another state "
-                     f"(-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
+                     f"(-DSTATE={LATE_JOIN_STATE_VA + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
         stash_va = camo_va + WEAPON_STASH_OFFSET
         entries = {va: (entry, preview) for va, (entry, preview) in WEAPON_STASH_ENTRIES.items()}
         jumps = [WEAPON_PREVIEW_VA + preview for _, preview in sorted(entries.values())]
@@ -3810,8 +3765,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      f"does not go on to patch 32's (-DPREVIEW={WEAPON_PREVIEW_VA:#x}?)")
         weapon_table = open(weapon_table_bin(), "rb").read()
         table_va = camo_va + WEAPON_TABLE_OFFSET
-        table_state = late_join_state_va(late_join) + WEAPON_TABLE_STATE_OFFSET
-        preview_state = late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET
+        table_state = LATE_JOIN_STATE_VA + WEAPON_TABLE_STATE_OFFSET
+        preview_state = LATE_JOIN_STATE_VA + WEAPON_PREVIEW_STATE_OFFSET
         if WEAPON_STASH_OFFSET + len(weapon_stash) > WEAPON_TABLE_OFFSET \
                 or WEAPON_TABLE_OFFSET + len(weapon_table) > WEAPON_DECALS_OFFSET:
             sys.exit("the weapon stash's code and the weapon table's do not fit before the weapon decals'")
@@ -3840,7 +3795,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if WEAPON_TABLE_OFFSET + len(weapon_table) > WEAPON_DECALS_OFFSET \
                 or WEAPON_DECALS_OFFSET + len(weapon_decals) > 0x2000:
             sys.exit("the weapon table's code and the weapon decals' do not fit before the upgrade preview's page")
-        press_state = late_join_state_va(late_join) + WEAPON_DECALS_STATE_OFFSET
+        press_state = LATE_JOIN_STATE_VA + WEAPON_DECALS_STATE_OFFSET
         if WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > WEAPON_DECALS_STATE_OFFSET \
                 or WEAPON_DECALS_STATE_OFFSET + WEAPON_DECALS_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the weapon decals' state is not between the weapon table's and the page's end")
@@ -3867,7 +3822,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         # 68's weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
         linked = arena(arena_blocks) if arena_blocks != () else None
         upgrade_preview = with_kit_apply(upgrade_preview, linked)
-        upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
+        upgrade_preview_state = LATE_JOIN_STATE_VA + UPGRADE_PREVIEW_STATE_OFFSET
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
             sys.exit("the weapon decals' code and the upgrade preview's do not fit in .srpw")
@@ -3908,7 +3863,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sys.exit("a base relocation under the spot's hook")
 
     if mode == "section":
-        if late_join is not None:
+        if late_join:
             cave = cave + b"\xCC" * (REPLAY_LINK_OFFSET - len(cave)) + replay_link
             cave = cave + b"\xCC" * (MOUNT_PATCHES_OFFSET - len(cave)) + mount_patches
             cave = cave + b"\xCC" * (SHARED_UPGRADES_OFFSET - len(cave)) + shared_upgrades
@@ -3922,25 +3877,35 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             cave = cave + b"\xCC" * (WARMUP_LOOK_OFFSET - len(cave)) + warmup_look
             cave = cave + b"\xCC" * (STALE_DLL_OFFSET - len(cave)) + stale_dll
             cave = cave + b"\xCC" * (KIT_CHANGE_OFFSET - len(cave)) + kit_change
-            cave = cave + b"\xCC" * (LATE_JOIN_OFFSET - len(cave)) + late_join
             cave = cave + b"\xCC" * (WEAPON_PREVIEW_OFFSET - len(cave)) + weapon_preview
         data = add_section(data, cave)
-        if late_join is not None:
-            add_state_section(data, late_join_state_va(late_join))
-            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join),
+        if late_join:
+            add_state_section(data, LATE_JOIN_STATE_VA)
+            data = add_code_section(data, DEATH_CAMERA_NAME, DEATH_CAMERA_VA,
                                     with_death_pitch(death_camera, linked),
                                     DEATH_CAMERA_CHARACTERISTICS)
-            data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
+            data = add_code_section(data, WEAPON_CAMO_NAME, WEAPON_CAMO_VA, weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
             # `.srpx`, the arena (linked above, with patch 48's code): each
             # hook's target taken from the link by its symbol.
             if linked is not None:
+                ready = (LATE_JOIN_READY_VA, HOOKS[0][1], LATE_JOIN_READY, 0xE9)
+                if HOOKS[0][0] != LATE_JOIN_READY_VA:
+                    sys.exit("HOOKS[0] is not on_match_ready's jump, which late_join_ready takes")
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
                         + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
-                        + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + rust_hooks(original):
+                        + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + LATE_JOIN_HOOKS \
+                        + TAB_LIST_HOOKS + (ready,) + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                # patch 40's two sites held their constant's address: its
+                # base relocation is disabled (FOV_LOD_RELOCS)
+                for va, expected, symbol, opcode in FOV_LOD_HOOKS:
+                    patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
+                if sorted(neutralize_relocs(data, [(va, va + len(expected)) for va, expected, _, _ in FOV_LOD_HOOKS])) \
+                        != FOV_LOD_RELOCS:
+                    sys.exit("the base relocations under the FOV LOD sites are not where they were read")
                 slot, old, symbol = MATCH_KEYS_POLL_SLOT
                 patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
                 for va, old, new in hide_ui_table_writes(linked):
@@ -3953,11 +3918,11 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
             data = add_arena(data, linked)
-    if arena_blocks is not None and late_join is None:
+    if arena_blocks is not None and not late_join:
         sys.exit("the arena (`.srpx`) is of the build with the late join")
     if mode != "cert-only":
         audit_installs(data, WRITES)
-    if late_join is not None and linked is not None:
+    if late_join and linked is not None:
         audit_vtables(symbols=arena_symbols(linked))
     headers = Headers(data)
     # NX_COMPAT: the game opts in to DEP. Without it Wine maps a 32-bit
@@ -3973,8 +3938,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                   "stage.focus null for a focused object without its ActionScript object, "
                   f"{upload_size} bytes of upload code {where} "
                   f"({len(relocs)} relocations disabled), {len(HOOKS)} snapshot hooks"
-                  + (f", late join ({len(late_join)} bytes of code at {LATE_JOIN_VA:#x}, "
-                     f"{len(LATE_JOIN_PATCHES)} sites rewritten, {len(LATE_JOIN_HOOKS) + 1} hooks), "
+                  + (f", late join (its Rust and NASM in the arena, {len(LATE_JOIN_PATCHES)} sites rewritten, "
+                     f"{len(LATE_JOIN_HOOKS) + len(TAB_LIST_HOOKS) + len(FOV_LOD_HOOKS) + 1} NASM hooks), "
                      "goes on without the focus, a model not in the scene stays out of it, "
                      f"the clock is brought up at {CLOCK_FACTOR:g} (time_floating_factor), "
                      "the countdown shows the match's team points, "
@@ -4026,7 +3991,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a weapon's upgrades (two decals, camouflage, scope) in at most three records (the weapon kit), "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
-                     if late_join is not None else "")
+                     if late_join else "")
                   + (f", default login server {server}" if server is not None else ""))
 
 
@@ -4293,10 +4258,6 @@ def weapon_preview_state(code, base=WEAPON_PREVIEW_VA):
     return base + at + 5 + struct.unpack_from("<i", code, at + 8)[0]
 
 
-def late_join_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "late_join_026g.section.bin")
-
-
 # vostok::trace's switch (rust/patches/src/vostok/trace.rs): "OFF\0" in
 # every build, 1 in a diagnostics build.
 DIAGNOSTICS_OFF = struct.pack("<I", int.from_bytes(b"OFF\0", "big"))
@@ -4325,7 +4286,7 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
     mode, bin_path, server, list_installs = "section", None, None, False
-    late_join, late_join_path, revision, required = True, None, None, None
+    late_join, revision, required = True, None, None
     diagnostics = False
     for option in options:
         if option == "--installs":
@@ -4334,8 +4295,6 @@ def main():
             mode = "cert-only"
         elif option == "--no-late-join":
             late_join = False
-        elif option.startswith("--late-join-bin="):
-            late_join_path = option[16:]
         elif option.startswith("--cave=") and option[7:] in CAVES:
             mode = option[7:]
         elif option.startswith("--bin="):
@@ -4360,18 +4319,14 @@ def main():
     code = None
     if mode != "cert-only":
         code = open(bin_path or default_bin(mode), "rb").read()
-    late_join_code = None
-    if mode == "section" and late_join:
-        late_join_code = open(late_join_path or late_join_bin(), "rb").read()
-    elif late_join_path:
-        sys.exit("--late-join-bin goes with the default build only")
-    if (revision is not None or required is not None) and late_join_code is None:
+    late_join = mode == "section" and late_join
+    if (revision is not None or required is not None) and not late_join:
         sys.exit("--revision and --required-patches go with the default build only "
                  "(not --no-late-join, --cave=hash-mismatch or --cert-only)")
-    data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision,
+    data, description = build(open(source, "rb").read(), mode, code, server, late_join, revision=revision,
                               required_patches=required)
     if diagnostics:
-        if late_join_code is None:
+        if not late_join:
             sys.exit("--ragdoll-trace goes with the default build only (patch 76 is in the late join's arena)")
         data = with_diagnostics(data)
         description += ", the ragdoll's diagnostics on (srp_ragdoll.csv; a local build, never a release)"

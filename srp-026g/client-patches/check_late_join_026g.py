@@ -29,6 +29,7 @@ calling convention and ID allocation, not a playable late join.
 import argparse
 import hashlib
 from pathlib import Path
+import re
 import struct
 
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE
@@ -61,6 +62,11 @@ class Machine:
         self.uc.mem_map(BASE, 0x40000)
         self.uc.mem_map(0x2000000, 0x10000)
         self.uc.mem_map(STOP, 4096)
+        # kernel32's GetCurrentThreadId (its IAT slot 0x870118): the late
+        # join's lock (vostok::Lock) asks it; one thread here.
+        self.uc.mem_map(0x870000, 4096)
+        self.uc.mem_write(STOP + 0x800, bytes.fromhex("b801000000c3"))
+        self.write(0x870118, STOP + 0x800)
 
     def read(self, address):
         return struct.unpack("<I", self.uc.mem_read(address, 4))[0]
@@ -73,6 +79,15 @@ class Machine:
         self.uc.mem_write(STACK, struct.pack("<" + "I" * (len(args) + 1), STOP, *args))
         self.uc.emu_start(address, end, count=count)
         assert self.uc.reg_read(UC_X86_REG_EIP) == end, "instruction budget exhausted"
+
+    def start_call(self, site, args=(), count=10000):
+        """The game's `call` at `site` (5 bytes) with `args` pushed, to the
+        instruction after it: the stack as start's, its return address the
+        call's own (ESP STACK + 4 + 4n after a callee that pops them)."""
+        self.uc.reg_write(UC_X86_REG_ESP, STACK + 4)
+        self.uc.mem_write(STACK, struct.pack("<" + "I" * (len(args) + 1), STOP, *args))
+        self.uc.emu_start(site, site + 5, count=count)
+        assert self.uc.reg_read(UC_X86_REG_EIP) == site + 5, "instruction budget exhausted"
 
 
 def statistics(data, roster, reading=False):
@@ -134,8 +149,7 @@ def binding(data, place, consumed, old_counter):
         uc.reg_write(UC_X86_REG_ESP, esp + 8)
 
     uc.hook_add(UC_HOOK_CODE, visit)
-    displacement = struct.unpack_from("<i", data, patch.base.file_offset(0x2D3880) + 1)[0]
-    machine.start(0x2D3885 + displacement, args=(SLOT,))
+    machine.start_call(0x2D3880, args=(SLOT,))
     assert machine.read(BASE + 0x18FB0) == COUNTER
     assert machine.read(COUNTER) == old_counter
     assert uc.reg_read(UC_X86_REG_ESP) == STACK + 8
@@ -175,8 +189,7 @@ def native_binding(data, place, kits, weapons=False, world_objects=0):
                 machine.write(weapon + 0x10, weapon_vtable)
                 machine.write(inventory + 0x10C + slot * 4, weapon + 0x10)
     uc.reg_write(UC_X86_REG_EAX, BASE)
-    displacement = struct.unpack_from("<i", data, patch.base.file_offset(0x2D3880) + 1)[0]
-    machine.start(0x2D3885 + displacement, args=(SLOT,))
+    machine.start_call(0x2D3880, args=(SLOT,), count=100000)
     first = (place + 1) << 16
     assert machine.read(SLOT + 0x28) == BASE
     assert list(uc.mem_read(SLOT + 0xC, 2)) == [min(kits)] * 2
@@ -251,8 +264,6 @@ def saved_objects(data):
     vtable = room(0x200)
     machine.write(vtable, vtable + 0x100)
     uc.mem_write(vtable + 0x100, b"\xc2\x04\x00")
-    displacement = struct.unpack_from("<i", data, patch.base.file_offset(0x2D3880) + 1)[0]
-
     def bind(place, kits):
         """kits: {kit: (grenades, traps)}. Returns the nodes the slot's
         objects have in the list, in the order the game binds them."""
@@ -294,7 +305,7 @@ def saved_objects(data):
         for register, value in saved.items():
             uc.reg_write(register, value)
         uc.reg_write(UC_X86_REG_EAX, BASE)
-        machine.start(0x2D3885 + displacement, args=(slot,), count=100000)
+        machine.start_call(0x2D3880, args=(slot,), count=100000)
         assert uc.reg_read(UC_X86_REG_ESP) == STACK + 8
         assert all(uc.reg_read(register) == value for register, value in saved.items())
         assert machine.read(BASE + 0x18FB0) == COUNTER and machine.read(COUNTER) == 73
@@ -441,65 +452,270 @@ def native_histories(data):
         assert machine.read(vector + 4) == machine.read(vector + 8)
 
 
+# The proposal's storage (vostok::late_join::ProfileBox): its header (the
+# owners' count, the body, the query's world, the bytes' length and usable
+# kits), then the profile body (45FCh), then the profile's checked bytes.
+PROFILE_AT = 24
+# The game's boost function made by 0x176D0 (vostok::resources): its vtable
+# (| 1), +8 the bound cdecl function, +12 its value; its invoker.
+FUNCTION_VTABLE, FUNCTION_INVOKER = 0x9DB9E0, 0x3AAA20
+
+
+def arena_symbol(name):
+    return patch.base.arena().symbols[name]
+
+
+def profile_wire(usable=(True, True, True)):
+    """A profile of len(usable) kits (a kit's first byte 0 when usable, 1
+    else), no items: the smallest the late join takes."""
+    wire = b"\x01\x03new\0" + struct.pack("<I", 10) + bytes([len(usable), 0])
+    for kit, ok in enumerate(usable):
+        wire += bytes([0 if ok else 1]) + struct.pack("<I", kit + 1) + b"\0" + bytes(20)
+    return wire
+
+
+class Join:
+    """The composed late join on made-up objects (native_preparation's): a
+    network client playing a match (state 2) whose world has `roster`
+    places, its options, core, statistics, rollback states, animations
+    registry and spatial tree, the game with its dictionary, the engine
+    world that names the game, the match client's transport and packet pool.
+    Native profile reading, callback invocation, slot/player/inventory
+    binding and the late join's Rust run; resource scheduling, allocation,
+    packet transport, animation/physics/UI setup and player destruction are
+    intercepted. An integration fixture, not a live resource-engine test."""
+
+    def __init__(self, data, grenades=0, traps=0, storage_end=None):
+        self.m = m = Machine(data)
+        uc = m.uc
+        self.nc, self.game, self.mc, self.options = 0x7000000, 0x8000000, 0x9000000, 0x6000000
+        nc, game, mc, options = self.nc, self.game, self.mc, self.options
+        for address, size in ((nc, 0x1F3000), (game, 0x6000), (mc, 0x59000), (options, 0x60000),
+                              (0x2260000, 4096), (0x1F1D000, 4096)):
+            uc.mem_map(address, size)
+        self.animations = animations = 0xA000000
+        uc.mem_map(animations, 0x11000)
+        animation_table(m, animations)
+        self.pvp, self.core = pvp, core = BASE, BASE + 0x1F8
+        active_objects(m, core, 130)
+        self.statistics, self.dictionary = statistics, dictionary = BASE + 0x25000, BASE + 0x2C000
+        self.reader, self.wire_at, self.results = BASE + 0x2D000, BASE + 0x2E000, BASE + 0x2F000
+        self.player, self.inventory = player, inventory = BASE + 0x34000, BASE + 0x34800
+        vtable, animation_bind = BASE + 0x38000, BASE + 0x38100
+        self.packet, pool = BASE + 0x3A000, BASE + 0x3B000
+        transport_vtable, self.functor = BASE + 0x3C000, BASE + 0x3D000
+        self.engine_world = BASE + 0x3E000
+        # the storage the allocator gives: a page of its own, its end where
+        # `storage_end` says (an overread of the profile's bytes faults)
+        uc.mem_map(0xC000000, 0x10000)
+        self.storage_end = storage_end
+        self.seed = 0x80000009
+        begin = core + 0x18464
+        self.slot = slot = begin + 2 * 48
+        for address, value in (
+            (nc + 0x14, game), (nc + 0x1F1C40, pvp), (nc + 0x1F1C48, mc),
+            (nc + 0x1F1C64, 2), (game + 0x53A4, dictionary), (game + 0x53AC, nc), (pvp + 0x124, options),
+            (0x1F1D310, self.engine_world), (self.engine_world + 0x2D0, game),
+            (pvp + 0xD0, 1), (core + 0x18458, begin), (core + 0x1845C, slot),
+            (core + 0x18460, begin + 20 * 48), (core + 0x18FA8, statistics),
+            (core + 0x18FB0, COUNTER), (COUNTER, 73), (core + 0x19034, 0xBAD00000),
+            (pvp + 0x130, 0x11223344), (pvp + 0x19238, animations),
+            (options + 0x577B0, self.seed), (mc + 0x577BC, self.seed),
+            (mc, transport_vtable), (mc + 0x578B0, pool), (pool + 0x34, 256),
+            (transport_vtable + 0x18, STOP + 0x100), (transport_vtable + 0x1C, STOP + 0x200),
+            (0x2260A58, 7), (0x1F1D9C4, 0x12340000),
+            (player + 0x10C, inventory), (player + 0x3A4, vtable),
+            (vtable, animation_bind), (player + 0xD0, 1),
+        ):
+            m.write(address, value)
+        uc.mem_write(animation_bind, b"\xc2\x04\x00")
+        # The newcomer's grenades and traps, as stacks in its inventory.
+        self.carried = carried = [BASE + 0x1A000 + index * 0x400 for index in range(grenades + traps)]
+        if grenades:
+            stack_items(m, inventory, 14, 0x309EC0, carried[:grenades], BASE + 0x35000)
+        if traps:
+            stack_items(m, inventory, 16, 0x3067A0, carried[grenades:], BASE + 0x36000)
+        self.new_nodes = [each + 0x10 for each in carried[:grenades]] + [each + 0x74 for each in carried[grenades:]]
+        # What the list of saved objects holds: an older slot's and the map's.
+        self.older, self.of_map = older, of_map = BASE + 0x1F000, BASE + 0x1F100
+        for address, value in ((core + 0x18914, older), (core + 0x18918, of_map),
+                               (older + 8, of_map), (of_map + 4, older)):
+            m.write(address, value)
+        # The states the game can roll back to, oldest first: the game-objects
+        # bytes of each, in a buffer of 0x2000 filled with a pattern. The third
+        # is all but full: no late slot's bytes go in.
+        states = 0xB000000
+        uc.mem_map(states, 0x400000)
+        self.saved = saved = (bytes(range(1, 8)), b"", bytes(index % 251 + 1 for index in range(0x1FFE)),
+                              bytes([0x44, 0x04, 0x99]))
+        self.items = items = [states + index * 0x100000 for index in range(len(saved))]
+        self.filler = filler = bytes(0xC0 + index % 61 for index in range(0x2000))
+        for index, (item, blob) in enumerate(zip(items, saved)):
+            uc.mem_write(item + 0xBBF30, blob + filler[len(blob):])
+            for offset, value in ((0xBDF30, 0), (0xBDF34, item + 0xBBF30), (0xBDF38, 0x2000),
+                                  (0xBDF3C, len(blob)), (0xC0BA8, items[index - 1] if index else 0),
+                                  (0xC0BAC, items[index + 1] if index + 1 < len(items) else 0)):
+                m.write(item + offset, value)
+        m.write(core + 0x2FB8, len(items))
+        m.write(core + 0x2FBC, items[0])
+        m.write(core + 0x2FC0, items[-1])
+        uc.mem_write(options + 0x577B5, b"\x02")
+        uc.mem_write(statistics + 8 + 0x31E0, b"\x02")
+        uc.mem_write(statistics + 0x31E0, b"\x5a")
+        self.histories_at = core + 0x2FCC
+        self.histories = b"\x7d" * (0x18458 - 0x2FCC)
+        uc.mem_write(self.histories_at, self.histories)
+        self.calls, self.messages, self.queries, self.constructed = [], [], [], []
+        self.context = None
+        uc.hook_add(UC_HOOK_CODE, self.visit)
+
+    def finish(self, pop=0, value=None):
+        uc, m = self.m.uc, self.m
+        esp = uc.reg_read(UC_X86_REG_ESP)
+        if value is not None:
+            uc.reg_write(UC_X86_REG_EAX, value)
+        uc.reg_write(UC_X86_REG_EIP, m.read(esp))
+        uc.reg_write(UC_X86_REG_ESP, esp + 4 + pop)
+
+    def visit(self, uc, address, size, _):
+        m = self.m
+        esp = uc.reg_read(UC_X86_REG_ESP)
+        if address == 0xE4F90:
+            assert uc.reg_read(UC_X86_REG_ESI) == 0x12340000
+            length = uc.reg_read(UC_X86_REG_EAX)
+            self.context = 0xC000000 if self.storage_end is None else 0xC000000 + self.storage_end - length
+            self.size = length
+            self.calls.append("allocate")
+            self.finish(4, self.context)
+        elif address == 0x1539D0:
+            assert uc.reg_read(UC_X86_REG_EAX) == self.context
+            assert uc.reg_read(UC_X86_REG_ECX) == 0x12340000
+            m.write(m.read(esp + 4), 0)
+            self.calls.append("free")
+            self.finish()
+        elif address == 0x2F7C50:
+            self.constructed.append(uc.reg_read(UC_X86_REG_ECX))
+        elif address == 0x424580:
+            dest, source, count = (m.read(esp + i) for i in (4, 8, 12))
+            if count:
+                uc.mem_write(dest, bytes(uc.mem_read(source, count)))
+            self.finish(value=dest)
+        elif address == 0xE5B60:
+            count, requests = uc.reg_read(UC_X86_REG_ECX), uc.reg_read(UC_X86_REG_EAX)
+            cb, allocator, variants, parent, asynchronous = (m.read(esp + i) for i in (4, 8, 12, 16, 20))
+            self.queries.append(dict(
+                count=count, allocator=allocator, parent=parent, asynchronous=asynchronous,
+                function=(m.read(cb), m.read(cb + 8), m.read(cb + 12)),
+                requests=[(m.read(requests + n * 8), m.read(requests + n * 8 + 4)) for n in range(count)],
+                variants=[bytes(uc.mem_read(m.read(variants + n * 4), 48)) + struct.pack("<I", m.read(variants + n * 4))
+                          for n in range(count)]))
+            uc.mem_write(self.functor, bytes(uc.mem_read(cb, 32)))
+            self.calls.append("query")
+            self.finish(value=77)
+        elif address == 0x2D8100:
+            self.calls.append(("animations", uc.reg_read(UC_X86_REG_EDI)))
+            assert m.read(esp + 4) == self.animations
+            self.finish(4)
+        elif address == 0x3218A0:
+            assert uc.reg_read(UC_X86_REG_EAX) == self.pvp + 0x138
+            assert m.read(esp + 4) == self.slot
+            self.calls.append("physics")
+            self.finish(4)
+        elif address == 0x1F29D0:
+            self.calls.append(("ready", uc.reg_read(UC_X86_REG_ESI)))
+            self.finish()
+        elif address == STOP + 0x100:
+            assert uc.reg_read(UC_X86_REG_ECX) == self.mc and m.read(esp + 4) == 0xE0
+            uc.mem_write(self.packet + 0x98, b"\x60")
+            self.calls.append("new_packet")
+            self.finish(4, self.packet)
+        elif address == 0x7AC10:
+            assert uc.reg_read(UC_X86_REG_EDI) == 20
+            assert m.read(esp + 4) == self.packet + 0x2A8
+            self.messages.append(bytes(uc.mem_read(m.read(esp + 8), 20)))
+            self.finish(8)
+        elif address == STOP + 0x200:
+            assert uc.reg_read(UC_X86_REG_ECX) == self.mc and m.read(esp + 4) == self.packet
+            assert uc.mem_read(self.packet + 0x98, 1)[0] == 0x20
+            self.calls.append("enqueue")
+            self.finish(4)
+        elif address == 0x1F2100:
+            assert uc.reg_read(UC_X86_REG_ECX) == self.destroying
+            assert bytes(uc.mem_read(self.context + PROFILE_AT + 8, 4)) == b"new\0"
+            self.calls.append("destroy")
+            self.finish()
+
+    def ready(self):
+        uc = self.m.uc
+        uc.reg_write(UC_X86_REG_EBX, self.nc)
+        self.m.start(0x27AEA1, end=patch.base.SECTION_VA, count=200000)
+        assert uc.reg_read(UC_X86_REG_EBX) == self.nc
+
+    def prepare(self, body, serial=123, place=2, squad=7, seed=None):
+        """The server's 0xE4 proposal for `place`, through the 0xE4 case."""
+        uc, m = self.m.uc, self.m
+        payload = b"\xffLJ\x01" + struct.pack("<II", self.seed if seed is None else seed, serial) \
+            + bytes([place, squad]) + body
+        uc.mem_write(self.wire_at, payload)
+        for offset, value in ((0, self.wire_at), (4, self.wire_at), (8, len(payload))):
+            m.write(self.reader + offset, value)
+        uc.reg_write(UC_X86_REG_ESI, self.nc)
+        uc.reg_write(UC_X86_REG_EBX, self.reader)
+        m.start(0x27A378, end=0x27A5AB, count=400000)
+
+    def complete(self, players):
+        """The query's end: the game's invoker of the function the late join
+        bound, with results of `players` (one a requested kit, in order)."""
+        for n, player in enumerate(players):
+            self.m.write(self.results + 0x12C + 0x2E0 * n, player)
+        self.m.write(self.results + 0x38, len(players))
+        self.m.start(FUNCTION_INVOKER, args=(self.functor + 8, self.results), count=400000)
+        assert self.m.uc.reg_read(UC_X86_REG_ESP) == STACK + 4
+
+    def ack(self, serial, place, status):
+        return b"\xff" * 6 + b"\0\0" + struct.pack("<II", self.seed, serial) + bytes([place, status]) + b"\1\0"
+
+
 def native_profile(data):
-    """Validate, then execute the original profile constructor and reader.
+    """Profiles through the 0xE4 case: the late join's check, then the
+    original profile constructor and reader into the proposal's storage
+    (only CRT memcpy intercepted; dictionary lookup and inventory vector
+    construction/readers run natively, including their inline-pointer
+    setup). The storage ends at an unmapped page, so even a one-byte
+    overread of the profile's bytes faults. A profile the check refuses is
+    answered failed and nothing is allocated or constructed."""
+    rows = []
 
-    Only CRT memcpy is intercepted; dictionary lookup and inventory vector
-    construction/readers run natively, including their inline-pointer setup.
-    The wire fixture ends at an unmapped page to detect even one-byte overreads.
-    """
-    m = Machine(data)
-    uc = m.uc
-    dictionary, rows, mods, defects = BASE + 0x8000, BASE + 0x9000, BASE + 0xB000, BASE + 0xB100
-    m.write(dictionary + 0x130, rows)
-    m.write(dictionary + 0x134, 2)
-    uc.mem_write(rows, struct.pack("<H", 101))
-    uc.mem_write(rows + 0x3A0, struct.pack("<H", 102))
-    uc.mem_write(rows + 0x3A0 + 0x22A, b"\x01")
-    m.write(dictionary + 0x140, mods)
-    m.write(dictionary + 0x144, 1)
-    m.write(mods, 1230)
-    m.write(dictionary + 0x148, defects)
-    m.write(dictionary + 0x14C, 1)
-    m.write(defects, 7)
-    uc.mem_map(0x2260000, 4096)
-    wire_page = 0x4000000
-    uc.mem_map(wire_page, 0x4000)
-    constructed = []
-
-    def visit(uc, address, size, _):
-        if address == 0x2F7C50:
-            constructed.append(uc.reg_read(UC_X86_REG_ECX))
-        if address == 0x424580:  # memcpy, cdecl(dest, source, size)
-            esp = uc.reg_read(UC_X86_REG_ESP)
-            dest, source, length = (m.read(esp + i) for i in (4, 8, 12))
-            if length:
-                uc.mem_write(dest, bytes(uc.mem_read(source, length)))
-            uc.reg_write(UC_X86_REG_EAX, dest)
-            uc.reg_write(UC_X86_REG_EIP, m.read(esp))
-            uc.reg_write(UC_X86_REG_ESP, esp + 4)
-
-    uc.hook_add(UC_HOOK_CODE, visit)
-    cave = patch.base.LATE_JOIN_VA
-    sentinel = b"\xa5" * 0x45FC
+    def dictionary(join):
+        m, uc = join.m, join.m.uc
+        dictionary, at, mods, defects = join.dictionary, BASE + 0x9000, BASE + 0xB000, BASE + 0xB100
+        m.write(dictionary + 0x130, at)
+        m.write(dictionary + 0x134, 2)
+        uc.mem_write(at, bytes(2 * 0x3A0))      # the rows' own bytes, not the fixture's histories
+        uc.mem_write(at, struct.pack("<H", 101))
+        uc.mem_write(at + 0x3A0, struct.pack("<H", 102))
+        uc.mem_write(at + 0x3A0 + 0x22A, b"\x01")
+        m.write(dictionary + 0x140, mods)
+        m.write(dictionary + 0x144, 1)
+        m.write(mods, 1230)
+        m.write(dictionary + 0x148, defects)
+        m.write(dictionary + 0x14C, 1)
+        m.write(defects, 7)
 
     def run(wire, valid):
-        source = wire_page + 0x4000 - len(wire)
-        if wire:
-            uc.mem_write(source, wire)
-        uc.mem_write(BASE, sentinel)
-        constructed.clear()
-        saved = [(UC_X86_REG_EBX, 0x1234), (UC_X86_REG_ESI, 0x2345),
-                 (UC_X86_REG_EDI, 0x3456), (UC_X86_REG_EBP, 0x4567)]
-        for reg, value in saved:
-            uc.reg_write(reg, value)
-        m.start(cave + 192, args=(source, len(wire), BASE, dictionary), count=200000)
-        assert uc.reg_read(UC_X86_REG_EAX) == int(valid), (len(wire), wire.hex())
-        assert uc.reg_read(UC_X86_REG_ESP) == STACK + 4
-        assert all(uc.reg_read(reg) == value for reg, value in saved)
-        assert constructed == ([BASE] if valid else [])
+        join = Join(data, storage_end=0x10000)
+        dictionary(join)
+        join.ready()
+        join.prepare(wire)
+        rows.append(valid)
         if not valid:
-            assert bytes(uc.mem_read(BASE, len(sentinel))) == sentinel
+            assert join.calls == ["new_packet", "enqueue"] and not join.constructed, (len(wire), wire.hex())
+            assert join.messages == [join.ack(123, 2, 1)]
+            return None
+        assert join.calls == ["allocate", "query"], (len(wire), join.calls)
+        body = join.context + PROFILE_AT
+        assert join.constructed == [body] and join.size == PROFILE_AT + 0x45FC + len(wire)
+        return join, body
 
     # Two kits, both item layouts, modification/defect tables and an upgrade.
     wire = bytearray(b"\x01\x03new\x02SR" + struct.pack("<I", 10) + b"\x02\x02")
@@ -518,15 +734,16 @@ def native_profile(data):
         wire += b"\x02" + struct.pack("<IBIB", 1230, 0, 7, 1)
         wire += b"\x01" + struct.pack("<IIQB", 31, 32, 33, 3)
     wire = bytes(wire)
-    run(wire, True)
-    assert m.read(BASE + 0x45EC) == 1
-    assert bytes(uc.mem_read(BASE + 8, 4)) == b"new\0"
-    assert bytes(uc.mem_read(BASE + 0x48, 3)) == b"SR\0"
-    assert uc.mem_read(BASE + 0x57, 1)[0] == 2
+    join, body = run(wire, True)
+    m, uc = join.m, join.m.uc
+    assert m.read(body + 0x45EC) == 1
+    assert bytes(uc.mem_read(body + 8, 4)) == b"new\0"
+    assert bytes(uc.mem_read(body + 0x48, 3)) == b"SR\0"
+    assert uc.mem_read(body + 0x57, 1)[0] == 2
     for kit in range(2):
-        assert m.read(BASE + 0xF4 + kit * 0x704 + 67 * 4) == 0x3FA00000
+        assert m.read(body + 0xF4 + kit * 0x704 + 67 * 4) == 0x3FA00000
     for index in range(69):
-        entry = BASE + 0x1568 + index * 0xB4
+        entry = body + 0x1568 + index * 0xB4
         assert m.read(entry + 0x14) == entry + 0x20
         assert m.read(entry + 0x18) == entry + 0x20 + (16 if index < 2 else 0)
         assert m.read(entry + 0x60) == entry + 0x6C
@@ -574,112 +791,122 @@ def native_profile(data):
             maximum += struct.pack("<II", 2, 3)
         maximum += b"\x08" + struct.pack("<IBIB", 1230, 0, 7, 1) * 4
         maximum += b"\x03" + struct.pack("<IIQB", 31, 32, 33, 3) * 3
-    run(bytes(maximum), True)
-    last = BASE + 0x1568 + 68 * 0xB4
-    assert m.read(last + 0x18) == last + 0x60
-    assert m.read(last + 0x64) == last + 0xB4
+    join, body = run(bytes(maximum), True)
+    last = body + 0x1568 + 68 * 0xB4
+    assert join.m.read(last + 0x18) == last + 0x60
+    assert join.m.read(last + 0x64) == last + 0xB4
     for cut in (1, 17, 52):
         run(bytes(maximum[:-cut]), False)
-
-    # The C validator is independently position-independent. Exercise a
-    # copied entry, distant from both its linked address and the native exe.
-    moved = 0x5000000
-    section = next(s for s in patch.base.Headers(data).sections(data)
-                   if patch.base.IMAGE_BASE + s[1] == patch.base.SECTION_VA)
-    _, _, _, raw, raw_size, _ = section
-    offset = patch.base.LATE_JOIN_OFFSET + patch.ASM_SIZE
-    code = bytes(data[raw + offset:raw + raw_size])
-    uc.mem_map(moved, (len(code) + 4095) & ~4095)
-    uc.mem_write(moved, code)
-    for body, valid in ((wire, True), (wire[:-1], False), (bytes(maximum), True)):
-        source = wire_page + 0x4000 - len(body)
-        uc.mem_write(source, body)
-        m.start(moved, args=(source, len(body), dictionary), count=200000)
-        assert uc.reg_read(UC_X86_REG_EAX) == int(valid)
+    print(f"  driven: {len(rows)} profiles through the 0xE4 case ({rows.count(True)} taken, the rest answered failed)")
 
 
 def native_query(data):
-    """Execute native callback construction and our resource-query adapter.
-
-    Query scheduling and C completion are intercepted at their ABI boundary;
-    this checks marshaling, not that the resource engine loads real assets.
-    """
-    cave = patch.base.LATE_JOIN_VA
+    """The players' query the late join asks for each usable kit's player
+    (masks 1..7): its requests, variants and callback as the game's own
+    queries make them; its callback, through the game's invoker of the
+    function 0x176D0 bound, puts the players of the requested kits into the
+    place, in kit order. Query scheduling is intercepted at its ABI
+    boundary: this checks marshaling, not that the resource engine loads
+    real assets."""
     for mask in range(1, 8):
-        m = Machine(data)
-        uc = m.uc
-        uc.mem_map(0x2260000, 4096)
-        m.write(0x2260A58, 7)
-        uc.mem_map(0x1F1D000, 4096)
-        m.write(0x1F1D9C4, 0x12340000)
-        m.write(BASE + 44, mask)
-        m.write(BASE + 24, 19)
-        callbacks = []
-        completions = []
-        callback = cave + 768
-        code = bytes(uc.mem_read(callback, 128))
-        call_at = callback + code.index(b"\x50\x56\xe8") + 2
-        complete = call_at + 5 + struct.unpack("<i", uc.mem_read(call_at + 1, 4))[0]
-        expected_players = [BASE + 0x10000 + i * 0x1000 if mask & (1 << i) else 0 for i in range(3)]
+        join = Join(data)
+        join.ready()
+        join.prepare(profile_wire([bool(mask & 1 << kit) for kit in range(3)]))
+        assert join.calls == ["allocate", "query"], join.calls
+        q, = join.queries
+        assert q["count"] == mask.bit_count()
+        assert (q["allocator"], q["parent"], q["asynchronous"]) == (0x12340000, 0, 1)
+        assert q["function"] == (FUNCTION_VTABLE | 1, arena_symbol("late_join_on_query_done"), join.context)
+        kits = [kit for kit in range(3) if mask & 1 << kit]
+        assert q["requests"] == [(0xA09F48, 0x54)] * len(kits)
+        for kit, variant in zip(kits, q["variants"]):
+            helper, profile, place, world, tree, dictionary, chosen = struct.unpack_from("<I4xIBxxxIIIB", variant)
+            itself, type_id, at = struct.unpack_from("<II", variant, 40) + struct.unpack_from("<I", variant, 48)
+            assert (helper, profile, place, world, tree, dictionary, chosen) == (
+                0xA09F90, join.context + PROFILE_AT, 2, join.game + 0x18, 0x11223344, join.dictionary, kit)
+            assert itself == at and type_id == 7
+        players = [0x2000000 + kit * 0x2000 for kit in kits]
+        for kit, player in zip(kits, players):
+            join.m.write(player + 0x10C, player + 0x800)
+            join.m.write(player + 0x3A4, join.m.read(join.player + 0x3A4))
+            join.m.write(player + 0xD0, 1)
+        join.complete(players)
+        assert [c for c in join.calls if isinstance(c, tuple) and c[0] == "animations"] == \
+            [("animations", player) for player in players]
+        for kit in range(3):
+            assert join.m.read(join.slot + kit * 4) == (players[kits.index(kit)] if kit in kits else 0)
+        assert join.messages == [join.ack(123, 2, 0)]
+    print("  driven: the query's callback through the game's invoker 0x3AAA20 of a 0x176D0 function (masks 1..7)")
 
-        def visit(uc, address, size, _):
-            esp = uc.reg_read(UC_X86_REG_ESP)
-            if address == 0xE5B60:
-                requests = uc.reg_read(UC_X86_REG_EAX)
-                count = uc.reg_read(UC_X86_REG_ECX)
-                assert count == mask.bit_count()
-                cb, allocator, variants, parent, asynchronous = (m.read(esp + i) for i in (4, 8, 12, 16, 20))
-                assert (allocator, parent, asynchronous) == (0x12340000, 0, 1)
-                assert m.read(cb) == 0xA09375
-                assert m.read(cb + 8) == callback
-                assert m.read(cb + 12) == 0
-                assert m.read(cb + 16) == BASE
-                assert m.read(cb + 20) == 0
-                uc.mem_write(BASE + 0x30000, bytes(uc.mem_read(cb + 8, 16)))
-                for n, kit in enumerate(i for i in range(3) if mask & (1 << i)):
-                    assert m.read(requests + n * 8) == 0xA09F48
-                    assert m.read(requests + n * 8 + 4) == 0x54
-                    variant = m.read(variants + n * 4)
-                    assert m.read(variant) == 0xA09F90
-                    assert m.read(variant + 8) == BASE + 60
-                    assert m.read(variant + 12) == 19
-                    assert m.read(variant + 16) == 0x11110000
-                    assert m.read(variant + 20) == 0x22220000
-                    assert m.read(variant + 24) == 0x33330000
-                    assert m.read(variant + 28) == kit
-                    assert m.read(variant + 40) == variant
-                    assert m.read(variant + 44) == 7
-                callbacks.append(callback)
-                uc.reg_write(UC_X86_REG_EAX, 77)
-                uc.reg_write(UC_X86_REG_EIP, m.read(esp))
-                uc.reg_write(UC_X86_REG_ESP, esp + 4)
-            elif address == complete:
-                assert m.read(esp + 4) == BASE
-                players = m.read(esp + 8)
-                assert [m.read(players + 4 * i) for i in range(3)] == expected_players
-                completions.append(1)
-                uc.reg_write(UC_X86_REG_EIP, m.read(esp))
-                uc.reg_write(UC_X86_REG_ESP, esp + 4)
 
-        uc.hook_add(UC_HOOK_CODE, visit)
-        saved = [(UC_X86_REG_EBX, 0x1234), (UC_X86_REG_ESI, 0x2345),
-                 (UC_X86_REG_EDI, 0x3456), (UC_X86_REG_EBP, 0x4567)]
-        for reg, value in saved:
-            uc.reg_write(reg, value)
-        m.start(cave + 320, args=(BASE, 0x11110000, 0x22220000, 0x33330000))
-        assert callbacks == [callback] and uc.reg_read(UC_X86_REG_EAX) == 77
-        assert uc.reg_read(UC_X86_REG_ESP) == STACK + 4
-        assert all(uc.reg_read(reg) == value for reg, value in saved)
-        results = BASE + 0x20000
-        for n, player in enumerate(p for p in expected_players if p):
-            m.write(results + 0x12C + 0x2E0 * n, player)
-        # The original boost invoker selected by vtable A09374, including
-        # its member-this adjustment and stdcall callback cleanup.
-        m.start(0x202300, args=(BASE + 0x30000, results))
-        assert completions == [1]
-        assert uc.reg_read(UC_X86_REG_ESP) == STACK + 4
-        assert all(uc.reg_read(reg) == value for reg, value in saved)
-    print("  driven: query_completed through the game's boost invoker 0x202300 (masks 1..7)")
+def native_preparation(data, grenades=0, traps=0):
+    """Exercise the composed ready -> E4 -> query -> install -> ACK -> teardown.
+
+    The newcomer's kit has `grenades` grenades and `traps` traps, bound by
+    the game's own code; the world has two saved objects already and four
+    states to roll back to (Join)."""
+    join = Join(data, grenades, traps)
+    m, uc = join.m, join.m.uc
+    core, pvp, slot, options, statistics = join.core, join.pvp, join.slot, join.options, join.statistics
+    player = join.player
+    join.ready()
+    body = profile_wire([True])
+    join.prepare(body)
+    assert join.calls == ["allocate", "query"] and not join.messages
+    assert join.size == PROFILE_AT + 0x45FC + len(body)
+    assert m.read(pvp + 0xD0) == 2 and m.read(core + 0x1845C) == slot
+    assert bytes(uc.mem_read(join.histories_at, len(join.histories))) == join.histories
+    m.write(player + 0x6B8, join.context + PROFILE_AT)
+    join.complete([player])
+    assert join.calls == ["allocate", "query", ("animations", player), "physics", ("ready", player),
+                          "new_packet", "enqueue"], join.calls
+    assert m.read(pvp + 0xD0) == 1 and m.read(player + 0xD0) == 2
+    assert m.read(core + 0x1845C) == slot + 48 and m.read(slot) == player
+    taken = grenades * 2 + traps
+    assert m.read(slot + 0x28) == core and m.read(slot + 0x20) == 0x30002 + taken
+    assert m.read(player + 0x698) == 0x30000 + taken and m.read(player + 0x6B0) == 0x30001 + taken
+    # The newcomer's objects are in front of what the list held, in the
+    # order the game bound them, and each took its ids of the place's.
+    assert saved_list(m, core) == join.new_nodes + [join.older, join.of_map]
+    for index, each in enumerate(join.carried[:grenades]):
+        assert [m.read(each + offset) for offset in (0x168, 0x180, 0x188)] == [
+            0x30000 + index * 2, 0x30001 + index * 2, core]
+    for index, each in enumerate(join.carried[grenades:]):
+        assert [m.read(each + offset) for offset in (0x234, 0x19C)] == [0x30000 + grenades * 2 + index, core]
+    # Every state it can roll back to has one zero byte for each of them in
+    # front of its game-objects bytes; the one with no room is as it was.
+    added = len(join.new_nodes)
+    for item, blob in zip(join.items, join.saved):
+        fits = len(blob) + added <= 0x2000
+        now = bytes(added) + blob if fits else blob
+        assert m.read(item + 0xBDF3C) == len(now), (hex(item), m.read(item + 0xBDF3C))
+        assert bytes(uc.mem_read(item + 0xBBF30, 0x2000)) == now + join.filler[len(now):]
+        assert [m.read(item + offset) for offset in (0xBDF30, 0xBDF34, 0xBDF38)] == [0, item + 0xBBF30, 0x2000]
+    assert [m.read(core + offset) for offset in (0x2FB8, 0x2FBC, 0x2FC0)] == [len(join.items), join.items[0],
+                                                                             join.items[-1]]
+    assert m.read(core + 0x18FB0) == COUNTER and m.read(COUNTER) == 73
+    assert bytes(uc.mem_read(join.histories_at, len(join.histories))) == join.histories
+    assert uc.mem_read(options + 0x577B5, 1)[0] == 3
+    assert uc.mem_read(statistics + 8 + 0x31E0, 1)[0] == 3
+    assert uc.mem_read(statistics + 0x31E0, 1)[0] == 0x5A
+    assert uc.mem_read(options + 0x5782C + 2, 1)[0] == 7
+    assert bytes(uc.mem_read(options + 2 * 0x45FC + 8, 4)) == b"new\0"
+    expected_ack = join.ack(123, 2, 0)
+    assert join.messages == [expected_ack]
+    # A retransmission: its answer again, nothing loaded again.
+    join.prepare(body)
+    assert join.messages == [expected_ack] * 2 and join.calls.count("query") == 1
+    # The client leaves its match: a proposal after is not answered.
+    uc.reg_write(UC_X86_REG_EDI, join.nc)
+    m.start(0x27B517, end=0x27B51D, count=200000)
+    join.prepare(body)
+    assert join.messages == [expected_ack] * 2 and "free" not in join.calls
+    # The player's destruction frees the proposal kept for it.
+    join.destroying = player
+    uc.reg_write(UC_X86_REG_ECX, player)
+    uc.reg_write(UC_X86_REG_ESI, player)
+    m.start(0x1F2013, end=0x1F2018, count=200000)
+    assert join.calls[-2:] == ["destroy", "free"]
 
 
 def animation_table(m, table):
@@ -732,235 +959,13 @@ def native_animations(data):
                 m.write(node, head if i == 0 else nodes[i - 1])
                 m.write(node + 4, 0)
                 m.write(node + 8, nodes[i + 1] if i + 1 < count else 0)
-            cave = patch.base.LATE_JOIN_VA
-            m.start(cave + 3072, args=(BASE,), count=100000)
+            # the pvp constructor's call of register_animations, EDI a kit's player
+            uc.reg_write(UC_X86_REG_EDI, BASE + 0x30000)
+            m.start_call(0x2CBF9B, args=(BASE,), count=100000)
             assert uc.reg_read(UC_X86_REG_ESP) == STACK + 8
             assert m.read(BASE + 0xE048) == BASE + 0xE050 + count * 4
             assert [m.read(BASE + 0xE050 + i * 4) for i in range(count)] == [entries[i] for i in expected]
             assert [m.read(entries[index] + 8) for index in expected] == list(range(count))
-
-
-def native_preparation(data, grenades=0, traps=0):
-    """Exercise the composed ready -> E4 -> query -> install -> ACK -> teardown.
-
-    Native profile reading, callback invocation, slot/player/inventory binding
-    and the compiled C lifecycle run. Resource scheduling, allocation, packet
-    transport, animation/physics/UI setup and player destruction are intercepted.
-    This is an integration fixture, not a live resource-engine test.
-
-    The newcomer's kit has `grenades` grenades and `traps` traps, bound by
-    the game's own code; the world has two saved objects already and four
-    states to roll back to.
-    """
-    m = Machine(data)
-    uc = m.uc
-    cave = patch.base.LATE_JOIN_VA
-    state = patch.base.IMAGE_BASE + next(rva for name, rva, _, _, _, _ in patch.base.Headers(data).sections(data)
-                                         if name == patch.base.LATE_JOIN_STATE_NAME)
-    nc, game, mc, options = 0x7000000, 0x8000000, 0x9000000, 0x6000000
-    for address, size in ((nc, 0x1F3000), (game, 0x6000), (mc, 0x59000), (options, 0x60000),
-                          (0x2260000, 4096), (0x1F1D000, 4096)):
-        uc.mem_map(address, size)
-    animations = 0xA000000
-    uc.mem_map(animations, 0x11000)
-    animation_table(m, animations)
-    pvp, core = BASE, BASE + 0x1F8
-    active_objects(m, core, 130)
-    context, statistics, dictionary = BASE + 0x20000, BASE + 0x25000, BASE + 0x2C000
-    reader, wire_at, results = BASE + 0x2D000, BASE + 0x2E000, BASE + 0x2F000
-    player, inventory = BASE + 0x34000, BASE + 0x34800
-    vtable, animation_bind, packet, pool = BASE + 0x38000, BASE + 0x38100, BASE + 0x3A000, BASE + 0x3B000
-    transport_vtable, functor = BASE + 0x3C000, BASE + 0x3D000
-    seed = 0x80000009
-    begin = core + 0x18464
-    slot = begin + 2 * 48
-    for address, value in (
-        (nc + 0x14, game), (nc + 0x1F1C40, pvp), (nc + 0x1F1C48, mc),
-        (nc + 0x1F1C64, 2), (game + 0x53A4, dictionary), (pvp + 0x124, options),
-        (pvp + 0xD0, 1), (core + 0x18458, begin), (core + 0x1845C, slot),
-        (core + 0x18460, begin + 20 * 48), (core + 0x18FA8, statistics),
-        (core + 0x18FB0, COUNTER), (COUNTER, 73), (core + 0x19034, 0xBAD00000),
-        (pvp + 0x130, 0x11223344), (pvp + 0x19238, animations),
-        (options + 0x577B0, seed), (mc + 0x577BC, seed),
-        (mc, transport_vtable), (mc + 0x578B0, pool), (pool + 0x34, 256),
-        (transport_vtable + 0x18, STOP + 0x100), (transport_vtable + 0x1C, STOP + 0x200),
-        (0x2260A58, 7), (0x1F1D9C4, 0x12340000),
-        (player + 0x10C, inventory), (player + 0x3A4, vtable),
-        (vtable, animation_bind), (player + 0xD0, 1),
-    ):
-        m.write(address, value)
-    uc.mem_write(animation_bind, b"\xc2\x04\x00")
-    # The newcomer's grenades and traps, as stacks in its inventory.
-    carried = [BASE + 0x1A000 + index * 0x400 for index in range(grenades + traps)]
-    if grenades:
-        stack_items(m, inventory, 14, 0x309EC0, carried[:grenades], BASE + 0x35000)
-    if traps:
-        stack_items(m, inventory, 16, 0x3067A0, carried[grenades:], BASE + 0x36000)
-    new_nodes = [each + 0x10 for each in carried[:grenades]] + [each + 0x74 for each in carried[grenades:]]
-    # What the list of saved objects holds: an older slot's and the map's.
-    older, of_map = BASE + 0x1F000, BASE + 0x1F100
-    for address, value in ((core + 0x18914, older), (core + 0x18918, of_map),
-                           (older + 8, of_map), (of_map + 4, older)):
-        m.write(address, value)
-    # The states the game can roll back to, oldest first: the game-objects
-    # bytes of each, in a buffer of 0x2000 filled with a pattern. The third
-    # is all but full: no late slot's bytes go in.
-    states = 0xB000000
-    uc.mem_map(states, 0x400000)
-    saved = (bytes(range(1, 8)), b"", bytes(index % 251 + 1 for index in range(0x1FFE)),
-             bytes([0x44, 0x04, 0x99]))
-    items = [states + index * 0x100000 for index in range(len(saved))]
-    filler = bytes(0xC0 + index % 61 for index in range(0x2000))
-    for index, (item, blob) in enumerate(zip(items, saved)):
-        uc.mem_write(item + 0xBBF30, blob + filler[len(blob):])
-        for offset, value in ((0xBDF30, 0), (0xBDF34, item + 0xBBF30), (0xBDF38, 0x2000),
-                              (0xBDF3C, len(blob)), (0xC0BA8, items[index - 1] if index else 0),
-                              (0xC0BAC, items[index + 1] if index + 1 < len(items) else 0)):
-            m.write(item + offset, value)
-    m.write(core + 0x2FB8, len(items))
-    m.write(core + 0x2FBC, items[0])
-    m.write(core + 0x2FC0, items[-1])
-    uc.mem_write(options + 0x577B5, b"\x02")
-    uc.mem_write(statistics + 8 + 0x31E0, b"\x02")
-    uc.mem_write(statistics + 0x31E0, b"\x5a")
-    histories_at = core + 0x2FCC
-    histories = b"\x7d" * (0x18458 - 0x2FCC)
-    uc.mem_write(histories_at, histories)
-    body = b"\x01\x03new\0" + struct.pack("<I", 10) + b"\x01\0"
-    body += b"\0" + struct.pack("<I", 1) + b"\0" + bytes(20)
-    payload = b"\xffLJ\x01" + struct.pack("<II", seed, 123) + b"\x02\x07" + body
-    uc.mem_write(wire_at, payload)
-    for offset, value in ((0, wire_at), (4, wire_at), (8, len(payload))):
-        m.write(reader + offset, value)
-    calls, messages = [], []
-
-    def finish(pop=0, value=None):
-        esp = uc.reg_read(UC_X86_REG_ESP)
-        if value is not None:
-            uc.reg_write(UC_X86_REG_EAX, value)
-        uc.reg_write(UC_X86_REG_EIP, m.read(esp))
-        uc.reg_write(UC_X86_REG_ESP, esp + 4 + pop)
-
-    def visit(uc, address, size, _):
-        esp = uc.reg_read(UC_X86_REG_ESP)
-        if address == 0xE4F90:
-            assert uc.reg_read(UC_X86_REG_ESI) == 0x12340000
-            assert uc.reg_read(UC_X86_REG_EAX) == 0x463C + len(body)
-            calls.append("allocate")
-            finish(4, context)
-        elif address == 0x1539D0:
-            assert uc.reg_read(UC_X86_REG_EAX) == context
-            assert uc.reg_read(UC_X86_REG_ECX) == 0x12340000
-            m.write(m.read(esp + 4), 0)
-            calls.append("free")
-            finish()
-        elif address == 0x424580:
-            dest, source, count = (m.read(esp + i) for i in (4, 8, 12))
-            if count:
-                uc.mem_write(dest, bytes(uc.mem_read(source, count)))
-            finish(value=dest)
-        elif address == 0xE5B60:
-            assert uc.reg_read(UC_X86_REG_ECX) == 1
-            cb, variants = m.read(esp + 4), m.read(esp + 12)
-            variant = m.read(variants)
-            assert m.read(variant + 8) == context + 60
-            assert m.read(variant + 16) == game + 0x18
-            assert m.read(variant + 20) == 0x11223344
-            assert m.read(variant + 24) == dictionary
-            uc.mem_write(functor, bytes(uc.mem_read(cb + 8, 16)))
-            calls.append("query")
-            finish(value=77)
-        elif address == 0x2D8100:
-            assert uc.reg_read(UC_X86_REG_EDI) == player
-            assert m.read(esp + 4) == animations
-            calls.append("animations")
-            finish(4)
-        elif address == 0x3218A0:
-            assert uc.reg_read(UC_X86_REG_EAX) == pvp + 0x138
-            assert m.read(esp + 4) == slot
-            calls.append("physics")
-            finish(4)
-        elif address == 0x1F29D0:
-            assert uc.reg_read(UC_X86_REG_ESI) == player
-            calls.append("ready")
-            finish()
-        elif address == STOP + 0x100:
-            assert uc.reg_read(UC_X86_REG_ECX) == mc and m.read(esp + 4) == 0xE0
-            uc.mem_write(packet + 0x98, b"\x60")
-            calls.append("new_packet")
-            finish(4, packet)
-        elif address == 0x7AC10:
-            assert uc.reg_read(UC_X86_REG_EDI) == 20
-            assert m.read(esp + 4) == packet + 0x2A8
-            messages.append(bytes(uc.mem_read(m.read(esp + 8), 20)))
-            finish(8)
-        elif address == STOP + 0x200:
-            assert uc.reg_read(UC_X86_REG_ECX) == mc and m.read(esp + 4) == packet
-            assert uc.mem_read(packet + 0x98, 1)[0] == 0x20
-            calls.append("enqueue")
-            finish(4)
-        elif address == 0x1F2100:
-            assert uc.reg_read(UC_X86_REG_ECX) == player
-            assert bytes(uc.mem_read(context + 60 + 8, 4)) == b"new\0"
-            calls.append("destroy")
-            finish()
-
-    uc.hook_add(UC_HOOK_CODE, visit)
-    uc.reg_write(UC_X86_REG_EBX, nc)
-    m.start(0x27AEA1, end=patch.base.SECTION_VA, count=200000)
-    assert m.read(state + 40) == nc and m.read(state + 56) == 2
-    uc.reg_write(UC_X86_REG_ESI, nc)
-    uc.reg_write(UC_X86_REG_EBX, reader)
-    m.start(0x27A378, end=0x27A5AB, count=200000)
-    assert calls == ["allocate", "query"] and not messages
-    assert m.read(pvp + 0xD0) == 2 and m.read(core + 0x1845C) == slot
-    assert bytes(uc.mem_read(histories_at, len(histories))) == histories
-    m.write(player + 0x6B8, context + 60)
-    m.write(results + 0x12C, player)
-    m.start(0x202300, args=(functor, results), count=200000)
-    assert calls == ["allocate", "query", "animations", "physics", "ready", "new_packet", "enqueue"]
-    assert m.read(pvp + 0xD0) == 1 and m.read(player + 0xD0) == 2
-    assert m.read(core + 0x1845C) == slot + 48 and m.read(slot) == player
-    taken = grenades * 2 + traps
-    assert m.read(slot + 0x28) == core and m.read(slot + 0x20) == 0x30002 + taken
-    assert m.read(player + 0x698) == 0x30000 + taken and m.read(player + 0x6B0) == 0x30001 + taken
-    # The newcomer's objects are in front of what the list held, in the
-    # order the game bound them, and each took its ids of the place's.
-    assert saved_list(m, core) == new_nodes + [older, of_map]
-    for index, each in enumerate(carried[:grenades]):
-        assert [m.read(each + offset) for offset in (0x168, 0x180, 0x188)] == [
-            0x30000 + index * 2, 0x30001 + index * 2, core]
-    for index, each in enumerate(carried[grenades:]):
-        assert [m.read(each + offset) for offset in (0x234, 0x19C)] == [0x30000 + grenades * 2 + index, core]
-    # Every state it can roll back to has one zero byte for each of them in
-    # front of its game-objects bytes; the one with no room is as it was.
-    added = len(new_nodes)
-    for item, blob in zip(items, saved):
-        fits = len(blob) + added <= 0x2000
-        now = bytes(added) + blob if fits else blob
-        assert m.read(item + 0xBDF3C) == len(now), (hex(item), m.read(item + 0xBDF3C))
-        assert bytes(uc.mem_read(item + 0xBBF30, 0x2000)) == now + filler[len(now):]
-        assert [m.read(item + offset) for offset in (0xBDF30, 0xBDF34, 0xBDF38)] == [0, item + 0xBBF30, 0x2000]
-    assert [m.read(core + offset) for offset in (0x2FB8, 0x2FBC, 0x2FC0)] == [len(items), items[0], items[-1]]
-    assert m.read(core + 0x18FB0) == COUNTER and m.read(COUNTER) == 73
-    assert bytes(uc.mem_read(histories_at, len(histories))) == histories
-    assert m.read(state + 56) == 3 and uc.mem_read(options + 0x577B5, 1)[0] == 3
-    assert uc.mem_read(statistics + 8 + 0x31E0, 1)[0] == 3
-    assert uc.mem_read(statistics + 0x31E0, 1)[0] == 0x5A
-    assert uc.mem_read(options + 0x5782C + 2, 1)[0] == 7
-    assert bytes(uc.mem_read(options + 2 * 0x45FC + 8, 4)) == b"new\0"
-    expected_ack = b"\xff" * 6 + b"\0\0" + struct.pack("<II", seed, 123) + b"\x02\0\x01\0"
-    assert messages == [expected_ack]
-    uc.reg_write(UC_X86_REG_ESI, nc)
-    uc.reg_write(UC_X86_REG_EBX, reader)
-    m.start(0x27A378, end=0x27A5AB, count=200000)
-    assert messages == [expected_ack] * 2 and calls.count("query") == 1
-    uc.reg_write(UC_X86_REG_EDI, nc)
-    m.start(0x27B517, end=0x27B51D, count=200000)
-    assert m.read(state + 40) == 0 and "free" not in calls
-    uc.reg_write(UC_X86_REG_ECX, player)
-    m.start(0x1F2013, end=0x1F2018, count=200000)
-    assert calls[-2:] == ["destroy", "free"] and m.read(state + 4) == 0
 
 
 def native_direct_match(data, session):
@@ -1436,25 +1441,57 @@ def weapon_random(original, changed):
     assert state == pow(48271, 3, 0x7FFFFFFF)
 
 
+def rust_function(data, name):
+    """(file offset, bytes) of a function of the arena's link in the build
+    `data`: the symbol `name` (or the one symbol containing it, for a Rust
+    function's mangled name) to the next symbol."""
+    linked = patch.base.arena()
+    found = [va for symbol, va, _, _ in linked.every if symbol == name] or \
+        [va for symbol, va, _, _ in linked.every if name in symbol]
+    assert len(set(found)) == 1, f"{name}: {len(found)} symbols"
+    start = found[0]
+    end = min(va for _, va, _, _ in linked.every if va > start)
+    for _, rva, size, raw, raw_size, _ in patch.base.Headers(data).sections(data):
+        if patch.base.IMAGE_BASE + rva <= start < patch.base.IMAGE_BASE + rva + raw_size:
+            at = raw + start - patch.base.IMAGE_BASE - rva
+            return at, bytes(data[at:at + end - start])
+    raise AssertionError(f"{name} is in no section of the build")
+
+
+def broken_rust(data, *breakages):
+    """A copy of the build with one thing broken: each (function, pattern,
+    new) a regex of bytes in that Rust function (rust_function), every match
+    made `new` (a function of the match's bytes). The pattern must be there:
+    these follow the Rust code's own instructions, so a change of that code
+    shows here first."""
+    copy = bytearray(data)
+    for name, pattern, new in breakages:
+        at, code = rust_function(data, name)
+        found = list(re.finditer(pattern, code, re.S))
+        assert found, f"{pattern!r} is not in {name}"
+        for m in found:
+            copy[at + m.start():at + m.end()] = new(m.group(0))
+    return bytes(copy)
+
+
 def weapon_random_fails(original, changed):
     """weapon_random given the original as the build, and given copies of
-    the build with one thing broken each, must fail."""
-    image = patch.base.Headers(changed)
-    _, rva, _, raw, _, _ = srp_section(changed)
-    cave = raw + patch.base.LATE_JOIN_OFFSET + patch.base.WEAPON_RANDOM_OFFSET
-    code = bytes(changed[cave:cave + 0x80])
-
-    def broken(old, new):
-        at = code.index(old)
-        copy = bytearray(changed)
-        copy[cave + at:cave + at + len(old)] = new
-        return bytes(copy)
-
+    the build with one thing broken each, must fail. The build's code is the
+    Rust patch weapon_random's (inlined into its shim): the slots' bound,
+    the spawn's time and the bind's test each changed in its instructions."""
+    shim = "hook_weapon_random_on_spawn"
     copies = {
         "the original": original,
-        "slot 10 left out (the slots end at 10)": broken(bytes.fromhex("83ff17"), bytes.fromhex("83ff0a")),
-        "the time left out": broken(bytes.fromhex("69d5b179379e"), bytes.fromhex("69d3b179379e")),
-        "every item taken for a weapon": broken(bytes.fromhex("395870753e"), bytes.fromhex("3958709090")),
+        # cmp r,17h / cmp r,16h (past the last slot, 22) -> 0Ah / 9: the walk ends at slot 10
+        "slot 10 left out (the slots end at 10)": broken_rust(
+            changed, (shim, rb"\x83[\xf8-\xff]\x17", lambda b: b[:2] + b"\x0a"),
+            (shim, rb"\x83[\xf8-\xff]\x16", lambda b: b[:2] + b"\x09")),
+        # imul r,[Regs+8] (EBP, the time),9E3779B1h: EBX's dword instead
+        "the time left out": broken_rust(
+            changed, (shim, rb"\x69[\x40-\x7f]\x08\xb1\x79\x37\x9e", lambda b: b[:2] + b"\x10" + b[3:])),
+        # cmp r,2E30F0h then jnz: never skipped
+        "every item taken for a weapon": broken_rust(
+            changed, (shim, rb"\x81[\xf8-\xff]\xf0\x30\x2e\x00\x75.", lambda b: b[:-2] + b"\x90\x90")),
     }
     for name, data in copies.items():
         try:
@@ -1541,25 +1578,26 @@ def kit_state(original, changed):
 
 def kit_state_fails(original, changed):
     """kit_state given the original as the build, and copies of the build
-    with one thing broken each, must fail."""
-    image = patch.base.Headers(changed)
-    _, rva, _, raw, _, _ = srp_section(changed)
-    cave = raw + patch.base.LATE_JOIN_OFFSET + patch.base.KIT_STATE_OFFSET
-    code = bytes(changed[cave:cave + 0x90])
-
-    def broken(old, new):
-        at = code.index(old)
-        copy = bytearray(changed)
-        copy[cave + at:cave + at + len(old)] = new
-        return bytes(copy)
-
+    with one thing broken each, must fail (the Rust patch kit_state's code,
+    inlined into its shim, changed in its instructions)."""
+    shim = "hook_kit_state_on_spawn"
     copies = {
         "the original": original,
-        "slot 10 left out (the slots end at 10)": broken(bytes.fromhex("83ff17"), bytes.fromhex("83ff0a")),
-        "the change of kit read from the wrong place": broken(bytes.fromhex("3a44243c"), bytes.fromhex("3a442438")),
-        "the fire mode left out": broken(bytes.fromhex("66896a41"), bytes.fromhex("90909090")),
-        "every spawn taken for a change of kit": broken(bytes.fromhex("0f95c0"), bytes.fromhex("b00190")),
-        "the time of the last tick left out": broken(bytes.fromhex("830aff"), bytes.fromhex("909090")),
+        # the walk's first slot: mov edx,-22 (slot 0) -> -10 (slot 12)
+        "slot 10 left out (the walk starts past it)": broken_rust(
+            changed, (shim, rb"\xba\xea\xff\xff\xff", lambda b: b"\xba\xf6\xff\xff\xff")),
+        # cmp dl,[frame+18h] (the new kit) -> [frame+14h]
+        "the change of kit read from the wrong place": broken_rust(
+            changed, (shim, rb"\x3a[\x40-\x7f]\x18", lambda b: b[:2] + b"\x14")),
+        # mov word [weapon+5E5h],0 (the magazine and the fire mode) -> nops
+        "the fire mode left out": broken_rust(
+            changed, (shim, rb"\x66\x89[\x80-\xbf]\xd5\x05\x00\x00", lambda b: b"\x90" * len(b))),
+        # setnz al (a change of kit) -> mov al,1
+        "every spawn taken for a change of kit": broken_rust(
+            changed, (shim, rb"\x0f\x95\xc0", lambda b: b"\xb0\x01\x90")),
+        # mov dword [weapon+5A4h],-1 -> nops
+        "the time of the last tick left out": broken_rust(
+            changed, (shim, rb"\xc7[\x80-\xbf]\x94\x05\x00\x00\xff\xff\xff\xff", lambda b: b"\x90" * len(b))),
     }
     for name, data in copies.items():
         try:
@@ -1761,23 +1799,21 @@ def first_world(original, changed):
 
 def first_world_fails(original, changed):
     """first_world given the original as the build, and copies of the build
-    with one thing broken each, must fail."""
-    image = patch.base.Headers(changed)
-    _, _, _, raw, _, _ = srp_section(changed)
-    cave = raw + patch.base.LATE_JOIN_OFFSET + patch.base.FIRST_LOAD_INPUT_HOOK[2]
-    code = bytes(changed[cave:cave + 0xC0])
-
-    def broken(old, new):
-        at = code.index(old)
-        copy = bytearray(changed)
-        copy[cave + at:cave + at + len(old)] = new
-        return bytes(copy)
-
+    with one thing broken each, must fail (the Rust patch first_world's
+    code changed in its instructions: its kit hook's shim, its search)."""
+    search = "first_world13entry_at_time"
     copies = {
         "the original": original,
-        "the kit in use for the world's choice": broken(bytes.fromhex("8a580d"), bytes.fromhex("8a580c")),
-        "at the newest end (as the game's own)": broken(bytes.fromhex("394a207205"), bytes.fromhex("394a20eb05")),
-        "an entry of the same time not found": broken(bytes.fromhex("394820743272"), bytes.fromhex("394820909072")),
+        # mov r8,[place+0Dh] (the world's next kit) -> +0Ch (the kit in use)
+        "the kit in use for the world's choice": broken_rust(
+            changed, ("hook_first_world_on_kit", rb"\x8a[\x44\x4c\x54\x5c\x64\x6c\x74\x7c].\x0d",
+                      lambda b: b[:3] + b"\x0c")),
+        # the older entries' walk: cmp r,r / jc (an older one found) -> jmp: before the newest's newer
+        "at the newest end (as the game's own)": broken_rust(
+            changed, (search, rb"\x39[\xc0-\xff]\x72", lambda b: b[:2] + b"\xeb")),
+        # the search: cmp r,r / jz (the same time) -> nops
+        "an entry of the same time not found": broken_rust(
+            changed, (search, rb"\x39[\xc0-\xff]\x74.", lambda b: b[:2] + b"\x90\x90")),
     }
     for name, data in copies.items():
         try:
@@ -1894,7 +1930,7 @@ def seek_clear(original, changed):
 def check(original, nasm):
     assert hashlib.sha256(original).hexdigest() == patch.base.EXE_SHA256
     changed = patch.build(original, nasm)
-    assert Machine(changed).uc.mem_read(0x380866, 1) == bytes([patch.PATCH_REVISION])
+    assert Machine(changed).uc.mem_read(0x380866, 1) == bytes([patch.base.REVISION])
     assert Machine(changed).uc.mem_read(0x27a1d1, 2) == bytes.fromhex("33c0")
     native_direct_match(patch.build(original, nasm, test_session=0x1002), 0x1002)
     native_animations(changed)

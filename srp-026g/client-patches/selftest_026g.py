@@ -13,7 +13,7 @@ a build changed is what build() recorded (patch_026g.py APPLIED: every write
 a named instance's), so a patch that declares its writes needs no line here.
  - the checked-in .bin files are what nasm makes today, the engine library's
    and the hooks' generated files what their tables give, the arena the
-   lock's (test_bins, test_late_join_bin);
+   lock's (test_bins);
  - the PE parses: the section table, alignments, SizeOfImage, the data
    directories, the certificate table last and the original's (test_pe and
    the sections of test_late_join);
@@ -221,7 +221,7 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
     path = P.mount_patches_bin()
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.MOUNT_STATE_OFFSET
+    state = P.LATE_JOIN_STATE_VA + P.MOUNT_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.MOUNT_PATCHES_VA:#x}", f"-DSTATE={state:#x}",
@@ -235,7 +235,7 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.kit_change_bin(), "rb").read(),
           f"{os.path.basename(P.kit_change_bin())} is current ({len(fresh)} bytes)")
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WARMUP_LOOK_STATE_OFFSET
+    state = P.LATE_JOIN_STATE_VA + P.WARMUP_LOOK_STATE_OFFSET
     for source, defines, path in (
             ("warmup_look_026g.asm", [f"-DCAVE={P.WARMUP_LOOK_VA:#x}", f"-DSTATE={state:#x}",
                                       f"-DLIMITS={P.WARMUP_LIMITS_VA:#x}"], P.warmup_look_bin()),
@@ -249,11 +249,11 @@ def test_bins():
                            check=True, timeout=60)
             fresh = open(out, "rb").read()
         check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
-    late_join = open(P.late_join_bin(), "rb").read()
+    late_join = True
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.death_camera_va(late_join):#x}",
-                        f"-DSTATE={P.late_join_state_va(late_join) + P.DEATH_CAMERA_STATE_OFFSET:#x}",
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.DEATH_CAMERA_VA:#x}",
+                        f"-DSTATE={P.LATE_JOIN_STATE_VA + P.DEATH_CAMERA_STATE_OFFSET:#x}",
                         f"-DLOOK={P.WARMUP_LOOK_VA:#x}", f"-DLOOK_STATE={state:#x}",
                         f"-DDRAG_END={P.WARMUP_LIMITS_VA + P.WARMUP_DRAG_END_OFFSET:#x}",
                         os.path.join(HERE, "death_camera_026g.asm"), "-o", out], check=True, timeout=60)
@@ -288,12 +288,12 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.read_order_bin(), "rb").read(),
           f"{os.path.basename(P.read_order_bin())} is current ({len(fresh)} bytes)")
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_PREVIEW_STATE_OFFSET
+    state = P.LATE_JOIN_STATE_VA + P.WEAPON_PREVIEW_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
-        stash = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
-        table = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_OFFSET
-        upgrades = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.UPGRADE_PREVIEW_OFFSET
+        stash = P.WEAPON_CAMO_VA + P.WEAPON_STASH_OFFSET
+        table = P.WEAPON_CAMO_VA + P.WEAPON_TABLE_OFFSET
+        upgrades = P.WEAPON_CAMO_VA + P.UPGRADE_PREVIEW_OFFSET
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_PREVIEW_VA:#x}", f"-DSTATE={state:#x}",
                         f"-DFIND={upgrades + P.UPGRADE_PREVIEW_FIND:#x}", f"-DCAMERA={table:#x}",
                         os.path.join(HERE, "weapon_preview_026g.asm"), "-o", out], check=True, timeout=60)
@@ -308,7 +308,7 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_stash_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_stash_bin())} is current ({len(fresh)} bytes)")
-    table_state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET
+    table_state = P.LATE_JOIN_STATE_VA + P.WEAPON_TABLE_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={table:#x}", f"-DSTATE={table_state:#x}",
@@ -317,7 +317,7 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_table_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_table_bin())} is current ({len(fresh)} bytes)")
-    camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
+    camo_va = P.WEAPON_CAMO_VA
     decals = camo_va + P.WEAPON_DECALS_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
@@ -328,7 +328,7 @@ def test_bins():
           f"{os.path.basename(P.weapon_camo_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
-        press = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_DECALS_STATE_OFFSET
+        press = P.LATE_JOIN_STATE_VA + P.WEAPON_DECALS_STATE_OFFSET
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={decals:#x}", f"-DPREVIEW={state:#x}",
                         f"-DTABLE={table_state:#x}", f"-DPRESS={press:#x}",
                         os.path.join(HERE, "weapon_decals_026g.asm"), "-o", out],
@@ -336,7 +336,7 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_decals_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_decals_bin())} is current ({len(fresh)} bytes)")
-    upgrade_state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.UPGRADE_PREVIEW_STATE_OFFSET
+    upgrade_state = P.LATE_JOIN_STATE_VA + P.UPGRADE_PREVIEW_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={upgrades:#x}", f"-DSTATE={upgrade_state:#x}",
@@ -596,35 +596,6 @@ def test_revision(original, image, mode, revision, late_join=False):
           f'the version field is "0.26g0", a zero, the revision {revision} in byte 7, '
           + ("the shell_32.dll check's flags in byte 8 and three zero bytes" if stale_dll else "four zero bytes")
           + "; the EULA flag follows as before")
-
-
-def test_late_join_bin():
-    print("late-join code (late_join_026g.section.bin)")
-    code = open(P.late_join_bin(), "rb").read()
-    kept = json.load(open(os.path.splitext(P.late_join_bin())[0] + ".json", encoding="utf-8"))
-    check(kept["size"] == len(code) and kept["sha256"] == hashlib.sha256(code).hexdigest(),
-          f"the .bin is the one its .json describes ({len(code)} bytes, built with {kept['built_with']['cc']})")
-    names = {"LJ_COMPLETE": "lj_complete", "LJ_PREPARE": "lj_prepare", "LJ_ACTIVATE": "lj_activate",
-             "LJ_DEACTIVATE": "lj_deactivate", "LJ_DESTROYED": "lj_player_destroyed",
-             "LJ_INSTALL": "lj_native_install", "LJ_ANIMATIONS": "lj_native_animations"}
-    c_code = P.LATE_JOIN_VA + P.LATE_JOIN_ASM_SIZE
-    defines = [f"-DCAVE={P.LATE_JOIN_VA}", f"-DC_CODE={c_code}"]
-    defines += [f"-D{define}={c_code + kept['symbols'][name]}" for define, name in names.items()]
-    defines += [f"-DSTATE_VA={P.late_join_state_va(code)}", f"-DUPLOAD_READY={P.SECTION_VA}"]
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", *defines, os.path.join(HERE, "late_join_026g.asm"), "-o", out],
-                       check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(len(fresh) == P.LATE_JOIN_ASM_SIZE and fresh == code[:P.LATE_JOIN_ASM_SIZE],
-          f"its first {P.LATE_JOIN_ASM_SIZE} bytes are what nasm makes of late_join_026g.asm today")
-    check(all(0 < offset < len(code) - P.LATE_JOIN_ASM_SIZE for offset in kept["symbols"].values()),
-          "the C functions the assembly calls are inside the C code")
-    entries = sorted({offset for _, _, offset, _ in P.LATE_JOIN_HOOKS + P.TAB_LIST_HOOKS + P.FOV_LOD_HOOKS}
-                     | {P.LATE_JOIN_READY_OFFSET})
-    check(all(code[offset] != 0xCC and (offset == 0 or code[offset - 1] == 0xCC) for offset in entries),
-          f"the {len(entries)} entries the hooks go to start code after int3 padding")
-    return code
 
 
 def instruction(image, va):
@@ -1022,16 +993,18 @@ def test_rust_code(original, image, before):
     # them. The final ELF's full symbol map includes the selected weak
     # definitions; the public map intentionally contains strong globals only.
     runtime = {va for name, va, _, _ in linked.every if name in ("memcpy", "memmove", "memset")}
-    allowed = library | runtime | known_targets(original)
+    natives = {sym[n["symbol"]] for n in P.hooks_026g.natives()}     # a patch's own NASM ([[native]])
+    allowed = library | runtime | natives | known_targets(original)
     check(outside and set(outside) <= allowed,
           "the crate's direct branches out of patches.code: the engine library's functions, the arena's memcpy, "
-          "memmove and memset, and known targets (the imports go by pointer)"
+          "memmove and memset, its patches' own NASM functions ([[native]]) and known targets (the imports go "
+          "by pointer)"
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]
     # an `::image` row in our own `.srpd` is an older patch's state the crate shares (patch 45's
     # weapon_table: its FLIGHT word, weapon_flight.rs's alone): a field of that row's kind
-    srpd = P.late_join_state_va(open(P.late_join_bin(), "rb").read())
+    srpd = P.LATE_JOIN_STATE_VA
     shared = [(x["offset"], x["target"]) for x in engine_026g.fields() if x["module"] == "image"
               and srpd <= x["offset"] < srpd + P.LATE_JOIN_STATE_SIZE]
     shared_fields = {base + x["offset"] for base, kind in shared for x in engine_026g.fields() if x["kind"] == kind}
@@ -1072,7 +1045,7 @@ def test_weapon_camo(original, image, before):
     """Check 44: a weapon wears the camouflage its item holds (patch 44).
     check_weapon_camo_026g.py runs the site and the code on made-up configs
     and models."""
-    camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
+    camo_va = P.WEAPON_CAMO_VA
     check_piece(original, image, "weapon_camo_026g.section.bin", camo_va, open(P.weapon_camo_bin(), "rb").read())
 
 
@@ -1080,13 +1053,13 @@ def test_weapon_table(original, image, before):
     """Check 45: a weapon's upgrade window shows it in the air above the
     lobby's workbench (patch 45, WEAPON_TABLE_HOOKS). check_weapon_table_026g.py
     runs the camera's handlers and tick and mt_draw's two sites."""
-    table_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_OFFSET
+    table_va = P.WEAPON_CAMO_VA + P.WEAPON_TABLE_OFFSET
     code = open(P.weapon_table_bin(), "rb").read()
     listing = check_piece(original, image, "the weapon table", table_va, code,
                           code.index(struct.pack("<4f", -0.5, 0.5, -0.5, 0.0)), P.WEAPON_TABLE_ENTRIES)
     check(not [t for _, _, t in listing if re.search(r"\[(?:dword )?0x", t)]
           and P.weapon_preview_state(code, table_va)
-          == P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET,
+          == P.LATE_JOIN_STATE_VA + P.WEAPON_TABLE_STATE_OFFSET,
           f"the weapon table's state is at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd, and no operand of it is an "
           "absolute address")
 
@@ -1094,7 +1067,7 @@ def test_weapon_table(original, image, before):
 def test_weapon_decals(original, image, before):
     """Check 47: decals on a weapon (patch 47, WEAPON_DECALS_HOOKS).
     check_weapon_decals_026g.py runs the bake and the four editor sites."""
-    camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
+    camo_va = P.WEAPON_CAMO_VA
     decals_va = camo_va + P.WEAPON_DECALS_OFFSET
     code = open(P.weapon_decals_bin(), "rb").read()
     # A packed SSE operation on a 16-byte memory operand faults (#GP) unless the
@@ -1125,11 +1098,11 @@ def test_upgrade_preview(original, image, before):
     """Check 48: a weapon's upgrade window shows an upgrade dropped on the
     weapon at once (patch 48, UPGRADE_PREVIEW_HOOKS). check_upgrade_preview_026g.py
     runs the sites with the game's setup_profile, profile copy and config lookups."""
-    late_join = open(P.late_join_bin(), "rb").read()
-    code_va = P.weapon_camo_va(late_join) + P.UPGRADE_PREVIEW_OFFSET
-    stash_find = P.weapon_camo_va(late_join) + P.WEAPON_STASH_OFFSET + P.WEAPON_STASH_FIND
-    state = P.late_join_state_va(late_join) + P.UPGRADE_PREVIEW_STATE_OFFSET
-    preview_state = P.late_join_state_va(late_join) + P.WEAPON_PREVIEW_STATE_OFFSET
+    late_join = True
+    code_va = P.WEAPON_CAMO_VA + P.UPGRADE_PREVIEW_OFFSET
+    stash_find = P.WEAPON_CAMO_VA + P.WEAPON_STASH_OFFSET + P.WEAPON_STASH_FIND
+    state = P.LATE_JOIN_STATE_VA + P.UPGRADE_PREVIEW_STATE_OFFSET
+    preview_state = P.LATE_JOIN_STATE_VA + P.WEAPON_PREVIEW_STATE_OFFSET
     code = open(P.upgrade_preview_bin(), "rb").read()
     listing = ndisasm(code[:code.index(b"srp_scope_fit\0")], code_va)
     starts = {a for a, _, _ in listing}
@@ -1208,10 +1181,11 @@ def test_research(original, image, before):
 
 
 def test_fov(original, image, before):
-    """Check 23: the field-of-view setting (patch 22): fov_projection, which
-    the projection's first instruction jumps to, writes no XMM register but
+    """Check 23: the field-of-view setting (patch 22): fov_projection
+    (late_join_026g.asm, the arena's late_join.code), which the
+    projection's first instruction jumps to, writes no XMM register but
     xmm0 (its `ret` against the original's is test_call_shapes')."""
-    entry = P.LATE_JOIN_VA + P.FOV_PROJECTION_HOOK[2]
+    entry = P.arena().symbols[P.FOV_PROJECTION_HOOK[2]]
     rows = ndisasm(image.read(entry, 0xC0), entry)
     texts = [text for _, _, text in rows[:next(i for i, (_, _, text) in enumerate(rows) if text.startswith("ret")) + 1]]
     check(not any("xmm" in text and "xmm0" not in text for text in texts),
@@ -1223,21 +1197,24 @@ def test_fov_lod(original, image, before):
     are the original's (patch 40): each stub does the instruction its call
     replaced, then the same by k when k is not 0; fov_projection alone
     writes k."""
-    k = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.FOV_LOD_STATE_OFFSET
+    k = P.LATE_JOIN_STATE_VA + P.FOV_LOD_STATE_OFFSET
+    linked = P.arena()
     pack = lambda value: struct.pack("<I", value)
     plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
-    for va, old, offset, _ in P.FOV_LOD_HOOKS:
-        stub = image.read(P.LATE_JOIN_VA + offset, 32)
+    for va, old, symbol, _ in P.FOV_LOD_HOOKS:
+        entry = linked.symbols[symbol]
+        stub = image.read(entry, 32)
         times = b"\xf3\x0f\x59\x05" if old[0] == 0xF3 else b"\xd8\x0d"
         expected = old + b"\x83\x3d" + pack(k) + b"\x00" + bytes([0x74, len(times) + 4]) + times + pack(k) + b"\xc3"
-        check(stub.startswith(expected) and set(stub[len(expected):]) <= {0xCC},
-              f"{va:#x}: calls {P.LATE_JOIN_VA + offset:#x}: `{old.hex()}`, then by k ({k:#x}) when it is not 0, ret")
-    body = image.read(P.SECTION_VA, P.late_join_state_va(open(P.late_join_bin(), "rb").read()) - P.SECTION_VA)
+        check(stub.startswith(expected),
+              f"{va:#x}: calls {symbol} ({entry:#x}): `{old.hex()}`, then by k ({k:#x}) when it is not 0, ret")
+    block = linked.blocks["late_join.code"]
+    body = image.read(block.va, block.size)
     found = [m.start() for m in re.finditer(re.escape(pack(k)), body)]
-    entry = P.LATE_JOIN_VA + P.FOV_PROJECTION_OFFSET
+    entry = linked.symbols[P.FOV_PROJECTION_HOOK[2]]
     texts = [plain(t) for _, _, t in ndisasm(image.read(entry, 0xC0), entry)]
     check(len(found) == 5 and f"fstp [{k:#x}]" in texts,
-          f"k ({k:#x}) is named five times in .srp: written by fov_projection alone, read by the two scales")
+          f"k ({k:#x}) is named five times in late_join.code: written by fov_projection alone, read by the two scales")
     check(P.FOV_LOD_STATE_OFFSET >= P.TAB_LIST_STATE_OFFSET + P.TAB_LIST_STATE_SIZE
           and P.FOV_LOD_STATE_OFFSET % 4 == 0
           and P.FOV_LOD_STATE_OFFSET + P.FOV_LOD_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE,
@@ -1250,96 +1227,6 @@ def test_pickup(original, image, before):
     code = open(P.pickup_bin(), "rb").read()
     check_piece(original, image, "the pickup code", P.PICKUP_VA, code, len(code) - 4)
     check(code[-4:] == struct.pack("<f", P.PICKUP_ACROSS ** 2), f"its distance across is {P.PICKUP_ACROSS:g} m")
-
-
-def test_weapon_random(original, image, before):
-    """Check 19: a spawn gives the new kit's weapons a random state of the
-    match's own: its hook keeps every register, does the two instructions
-    it replaced and writes the state alone."""
-    entry = P.LATE_JOIN_VA + P.WEAPON_RANDOM_HOOK[2]
-    rows = lambda blob, at, size: ndisasm(blob.read(at, size), at)
-    hook = rows(image, entry, 0x80)
-    hook = hook[:next(i for i, (_, _, text) in enumerate(hook) if text == "ret") + 1]
-    hook_texts = [text for _, _, text in hook]
-    pc = next(i for i, (_, _, text) in enumerate(hook) if text.startswith("call"))
-    add = re.match(r"add ebx,0x([0-9a-f]+)$", hook_texts[pc + 2])
-    stores = [text for text in hook_texts if re.match(r"mov \[", text)]
-    inside = all(entry <= branch_target(text) < hook[-1][0] + 1 for text in hook_texts
-                 if branch_target(text) is not None)
-    check(hook_texts[0] == "pusha" and hook_texts[-4:] == ["popa", "mov edx,[esi]", "mov eax,[edx+0x20]", "ret"]
-          and hook_texts[pc + 1] == "pop ebx" and branch_target(hook_texts[pc]) == hook[pc + 1][0]
-          and add is not None and (hook[pc + 1][0] + int(add.group(1), 16)) & 0xFFFFFFFF == P.WEAPON_BIND_VA
-          and stores == [f"mov [eax+0x{P.WEAPON_RANDOM_FIELD - 0x10:x}],edx"] and inside,
-          f"weapon_random_hook ({entry:#x}): pushad; for the 23 slots of the player's inventory, an item whose "
-          f"vtable+70h is {P.WEAPON_BIND_VA:#x} (taken relative to the code) gets a state at item+5ACh (weapon+5BCh) "
-          "and nothing else is written; popad, the two instructions, ret; no branch leaves it")
-
-def test_kit_state(original, image, before):
-    """Check 21: a spawn gives the new kit's weapons the state a weapon
-    every game has alike: its hook keeps every register, does the two
-    instructions it replaced and writes KIT_STATE_FIELDS alone."""
-    entry = P.LATE_JOIN_VA + P.KIT_STATE_HOOK[2]
-    rows = lambda blob, at, size: ndisasm(blob.read(at, size), at)
-    hook = rows(image, entry, 0xA0)
-    hook = hook[:next(i for i, (_, _, text) in enumerate(hook) if text == "ret") + 1]
-    hook_texts = [text for _, _, text in hook]
-    pc = next(i for i, (_, _, text) in enumerate(hook) if text.startswith("call"))
-    add = re.match(r"add ebx,0x([0-9a-f]+)$", hook_texts[pc + 2])
-    base = 0x594 + 0x10
-    stores = {}
-    for text in hook_texts:
-        match = re.match(r"(or|mov) (byte |dword )?\[edx(?:\+0x([0-9a-f]+))?\],(.*)$", text)
-        if not match:
-            continue
-        field = base + int(match.group(3) or "0", 16)
-        operand = match.group(4)
-        if operand == "byte -0x1":
-            stores[field] = (4, 0xFFFFFFFF)
-        elif operand == "bp":
-            stores[field], stores[field + 1] = (1, 0), (1, 0)
-        elif operand == "ebp":
-            stores[field] = (4, 0)
-        elif match.group(2) == "byte " and operand == "0x0":
-            stores[field] = (1, 0)
-        elif match.group(2) == "dword ":
-            stores[field] = (4, int(operand, 16))
-        else:
-            stores[field] = None
-    wanted = {offset: (size, value) for offset, size, value in P.KIT_STATE_FIELDS}
-    wanted[P.KIT_STATE_TICK_FIELD] = (4, 0xFFFFFFFF)
-    inside = all(entry <= branch_target(text) < hook[-1][0] + 1 for text in hook_texts
-                 if branch_target(text) is not None)
-    other_writes = [text for text in hook_texts if re.match(r"(mov|or|and|add|sub|xor|inc|dec) [a-z ]*\[", text)
-                    and "[edx" not in text]
-    check(hook_texts[0] == "pusha" and hook_texts[-4:] == ["popa", "mov edx,[esi]", "mov edx,[edx+0x1c]", "ret"]
-          and hook_texts[pc + 1] == "pop ebx" and branch_target(hook_texts[pc]) == hook[pc + 1][0]
-          and add is not None and (hook[pc + 1][0] + int(add.group(1), 16)) & 0xFFFFFFFF == P.WEAPON_BIND_VA
-          and stores == wanted and not other_writes and inside,
-          f"kit_state_hook ({entry:#x}): pushad; for the 23 slots of the player's inventory, an item whose "
-          f"vtable+70h is {P.WEAPON_BIND_VA:#x} gets -1 at weapon+5A4h and, when the kit before (the spawn's "
-          "[esp+10h]) is not the new one ([esp+18h]), KIT_STATE_FIELDS; nothing else is written; popad, the two "
-          "instructions, ret; no branch leaves it")
-
-
-def test_first_load(original, image, before):
-    """Check 20: a first world's inputs and kit choices, in time order:
-    first_load_input and first_load_kit call the game's allocator and the
-    list's insert and their own search alone, write a node's value and time
-    alone, and no branch leaves them."""
-    sites = [P.LATE_JOIN_VA + P.FIRST_LOAD_INPUT_HOOK[2], P.LATE_JOIN_VA + P.FIRST_LOAD_KIT_HOOK[2]]
-    code = ndisasm(image.read(sites[0], 0xC0), sites[0])
-    code = code[:next(i for i, (address, _, text) in enumerate(code)
-                      if text == "ret" and address > sites[1] + 0x2E) + 1]
-    code_texts = [text for _, _, text in code]
-    end = code[-1][0] + 1
-    leaving = [text for text in code_texts if branch_target(text) is not None and not text.startswith("call")
-               and not sites[0] <= branch_target(text) < end]
-    stores = sorted({text for text in code_texts if text.startswith("mov [")})
-    check(any(address == sites[1] for address, _, _ in code) and not unknown_targets(original, image.data, code)
-          and not leaving and stores == ["mov [eax+0x20],ecx", "mov [eax+0x8],bl", "mov [eax+0x8],ebx",
-                                         "mov [eax+0xc],ebp"],
-          f"first_load_input ({sites[0]:#x}) and first_load_kit ({sites[1]:#x}): their calls known, a node's value "
-          "and time their only writes, no branch leaving them")
 
 
 def test_stale_dll(original, image, before):
@@ -1376,8 +1263,8 @@ def test_mount_patches(original, image, before):
     code = open(P.mount_patches_bin(), "rb").read()
     entry, mounted = P.MOUNT_PATCHES_VA + P.MOUNT_ALL_OFFSET, P.MOUNT_PATCHES_VA + P.MOUNTED_OFFSET
     state = struct.unpack_from("<I", code, len(code) - 4)[0]
-    late_join = open(P.late_join_bin(), "rb").read()
-    page = P.late_join_state_va(late_join)
+    late_join = True
+    page = P.LATE_JOIN_STATE_VA
     size = P.MOUNT_STATE_SIZE
     check(state == page + P.MOUNT_STATE_OFFSET and P.MOUNT_STATE_OFFSET + size <= P.LATE_JOIN_STATE_SIZE,
           f"its state is {size} bytes at {state:#x}, +{P.MOUNT_STATE_OFFSET:#x} of the late join's state page "
@@ -1467,14 +1354,11 @@ def test_kit_change(original, image, before):
     # rule's key (from the core's counter, from 0) comes before the places'
     # and a kit choice for a tick is played at the next one. Nothing
     # declares that order: these bytes of the late join's are its guard.
-    late = open(P.late_join_bin(), "rb").read()[:P.LATE_JOIN_ASM_SIZE]
-    own_keys = bytes.fromhex("0fb6462c40c1e0108945f08b83b08f01008945f48d45f08983b08f0100")
-    given_back = bytes.fromhex("8b45f48983b08f0100")
     rows = ndisasm(image.read(0x2D3880, 5), 0x2D3880)
-    check(late.count(own_keys) == 1 and late.find(given_back) > late.find(own_keys)
-          and branch_target(rows[0][2]) == P.LATE_JOIN_VA,
-          "the core's bind (0x2D3880) goes to the late join's bind_slot, which keys each place (place+1) << 16 "
-          "from a counter of its own and gives the core's counter back: the respawn rule's key comes first")
+    check(rows[0][2].startswith("jmp") and branch_target(rows[0][2]) == P.arena().symbols["late_join_on_bind_place"],
+          "the core's bind (0x2D3880) goes to the late join's bind_place (late_join.rs, its lohook), which keys "
+          "each place (place+1) << 16 from a counter of its own and gives the core's counter back "
+          "(check_late_join_026g.py's bindings): the respawn rule's key comes first")
     code = open(P.kit_change_bin(), "rb").read()
     rows = [row for row in ndisasm(code, P.KIT_CHANGE_VA) if row[2] != "int3"]
     stores = sorted({text for _, _, text in rows if re.match(r"^mov \[", text)})
@@ -1491,7 +1375,7 @@ def test_warmup_look(original, image, before):
     state where patch_026g.py puts it."""
     look = open(P.warmup_look_bin(), "rb").read()
     limits = open(P.warmup_limits_bin(), "rb").read()
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WARMUP_LOOK_STATE_OFFSET
+    state = P.LATE_JOIN_STATE_VA + P.WARMUP_LOOK_STATE_OFFSET
     for code, base, rets, name in ((look, P.WARMUP_LOOK_VA, ["ret 0x10"], "warmup_look"),
                                    (limits, P.WARMUP_LIMITS_VA, ["ret", "ret"], "warmup_limits")):
         listing = check_piece(original, image, name, base, code)
@@ -1510,7 +1394,7 @@ def test_warmup_keys(original, image, before):
     not the player's until it is let go (WARMUP_KEYS_*).
     check_kit_change_026g.py runs the code on made-up events."""
     code = open(P.warmup_keys_bin(), "rb").read()
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WARMUP_KEYS_STATE_OFFSET
+    state = P.LATE_JOIN_STATE_VA + P.WARMUP_KEYS_STATE_OFFSET
     listing = check_piece(original, image, "warmup_keys", P.WARMUP_KEYS_VA, code)
     calls = [text for address, _, text in listing if text.startswith("call")
              and not (branch_target(text) == address + 5 and text.startswith("call 0x"))]
@@ -1529,10 +1413,10 @@ def test_death_camera(original, image, before):
     check_death_camera_026g.py runs it on made-up moves and views."""
     stock = Image(original)
     texts = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
-    late_join = open(P.late_join_bin(), "rb").read()
-    death_va = P.death_camera_va(late_join)
-    state = P.late_join_state_va(late_join) + P.DEATH_CAMERA_STATE_OFFSET
-    look_state = P.late_join_state_va(late_join) + P.WARMUP_LOOK_STATE_OFFSET
+    late_join = True
+    death_va = P.DEATH_CAMERA_VA
+    state = P.LATE_JOIN_STATE_VA + P.DEATH_CAMERA_STATE_OFFSET
+    look_state = P.LATE_JOIN_STATE_VA + P.WARMUP_LOOK_STATE_OFFSET
     drag_end = P.WARMUP_LIMITS_VA + P.WARMUP_DRAG_END_OFFSET
     # The view's update, whose start death_view replays before its jump to
     # the third-person step.
@@ -1609,7 +1493,7 @@ def test_weapon_flight(original, image, before):
     `weapon_flight`: patch 45's state is its interface (fields_026g.tsv's
     weapon_table, the NASM's STATE). check_weapon_table_026g.py flies it with
     the game's tick."""
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET
+    state = P.LATE_JOIN_STATE_VA + P.WEAPON_TABLE_STATE_OFFSET
     row = [x for x in engine_026g.fields() if x["module"] == "image" and x["field"] == "weapon_table"]
     check(len(row) == 1 and row[0]["offset"] == state,
           f"fields_026g.tsv's weapon_table is patch 45's STATE ({state:#x}, .srpd+{P.WEAPON_TABLE_STATE_OFFSET:#x})")
@@ -1899,30 +1783,30 @@ def imports(image):
 
 def test_tab_list(original, image, before):
     """Check 39: the scoreboard shows the places in the match and no place
-    whose player left (patch 39, TAB_LIST_*). check_tab_list_026g.py runs
-    the rows' refresh and the lists made again on made-up huds."""
-    code = open(P.late_join_bin(), "rb").read()
-    for offset, start, size, wanted in ((P.TAB_ROW_OFFSET, P.TAB_ROW_START, 0x2F, {P.LATE_JOIN_VA + 2304}),
-                                        (P.TAB_SHOWN_OFFSET, P.TAB_SHOWN_START, 0x62,
-                                         {P.LATE_JOIN_VA + 2304, P.LATE_JOIN_VA + 3328})):
-        at = P.LATE_JOIN_VA + offset
-        listing = ndisasm(code[offset:offset + size], at)
+    whose player left (patch 39, TAB_LIST_*; late_join_026g.asm in the
+    arena). check_tab_list_026g.py runs the rows' refresh and the lists made
+    again on made-up huds."""
+    linked = P.arena()
+    rows_va, rebuild = P.LATE_JOIN_STATE_VA + P.TAB_LIST_STATE_OFFSET, linked.symbols["late_join_rebuild_lists"]
+    for (va, old, symbol, opcode), wanted in zip(P.TAB_LIST_HOOKS, (set(), {rebuild})):
+        at = linked.symbols[symbol]
+        listing = ndisasm(image.read(at, 0x70), at)
+        listing = listing[:next(i for i, (_, _, t) in enumerate(listing) if t == "ret") + 1]
+        size = listing[-1][0] + 1 - at
         calls = {branch_target(text) for _, _, text in listing if text.startswith("call 0x")}
         leaving = [text for _, _, text in listing if branch_target(text) is not None
                    and not text.startswith("call") and not at <= branch_target(text) < at + size]
-        check(code[offset:offset + len(start)] == start and image.read(at, size) == code[offset:offset + size]
-              and calls == wanted and not leaving and listing[-1][2] == "ret"
-              and not [t for _, _, t in listing if re.search(r"\[(?:dword )?0x", t)],
-              f"{at:#x}: the code calls get_state{' and rebuild_lists' if len(wanted) > 1 else ''} alone, leaves "
-              "by its `ret`, and holds no absolute address (the state page is found from its own address)")
-    hook = ndisasm(code[3456:3520], P.LATE_JOIN_VA + 3456)
-    back = P.LATE_JOIN_VA + P.TAB_SHOWN_OFFSET + code[P.TAB_SHOWN_OFFSET:].index(bytes.fromhex("57e8")) + 6
-    pc = P.LATE_JOIN_VA + 3456 + 5
-    adds = [int(text.split(",")[1], 16) for _, _, text in hook if text.startswith("add ecx,")]
-    check(len(adds) == 2 and (pc + adds[0]) & 0xFFFFFFFF == P.LATE_JOIN_VA + 1120 + 100
-          and (pc + adds[0] + adds[1]) & 0xFFFFFFFF == back and code[back - P.LATE_JOIN_VA:][:2] == b"\x8f\x06",
-          "lists_hook ends a run of the lists whose return address is install_context's or tab_shown's (the "
-          "instruction after its call of rebuild_lists)")
+        absolute = {int(m, 16) for _, _, t in listing for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)}
+        check(image.read(va, 5) == P.hook_bytes(at, va, old, 0, opcode)[:5] and calls == wanted and not leaving
+              and absolute == {rows_va},
+              f"{va:#x}: calls {symbol} ({at:#x}), which calls {'nothing' if not wanted else 'the lists made again'}, "
+              f"leaves by its `ret` and names no address but the state page's dword ({rows_va:#x})")
+    hook, back = linked.symbols["late_join_lists"], P.arena_symbols(linked)["late_join.code"]["late_join_rebuilt"]
+    listing = ndisasm(image.read(hook, 0x20), hook)
+    check(listing[0][2] == f"cmp dword [esp+0x5e4],{back:#x}"
+          and image.read(back - 5, 1) == b"\xE8" and back + struct.unpack("<i", image.read(back - 4, 4))[0]
+          == next(t for t in (branch_target(x) for _, _, x in ndisasm(image.read(rebuild, 0x10), rebuild)) if t),
+          "lists_hook ends a run of the lists whose return address is late_join_rebuild_lists' own call's")
 
 
 def test_replay_link(original, image, before):
@@ -2000,7 +1884,7 @@ def test_weapon_preview(original, image, before):
     WEAPON_PREVIEW_HOOKS). check_weapon_preview_026g.py runs the original's
     and the build's code on a made-up lobby."""
     code = open(P.weapon_preview_bin(), "rb").read()
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_PREVIEW_STATE_OFFSET
+    state = P.LATE_JOIN_STATE_VA + P.WEAPON_PREVIEW_STATE_OFFSET
     check(image.read(P.WEAPON_PREVIEW_VA, len(code)) == code and P.weapon_preview_state(code) == state,
           f"the weapon preview at {P.WEAPON_PREVIEW_VA:#x} is weapon_preview_026g.section.bin ({len(code)} bytes), "
           f"its state at {state:#x} (0x{P.WEAPON_PREVIEW_STATE_OFFSET:X} of .srpd, after the patches' mount's)")
@@ -2008,9 +1892,9 @@ def test_weapon_preview(original, image, before):
     targets = {branch_target(text) for _, _, text in listing if branch_target(text) is not None}
     outside = {t for t in targets if not P.WEAPON_PREVIEW_VA <= t < P.WEAPON_PREVIEW_VA + len(code)}
     starts = {address for address, _, _ in listing}
-    stash_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
-    table_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_OFFSET
-    find_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.UPGRADE_PREVIEW_OFFSET \
+    stash_va = P.WEAPON_CAMO_VA + P.WEAPON_STASH_OFFSET
+    table_va = P.WEAPON_CAMO_VA + P.WEAPON_TABLE_OFFSET
+    find_va = P.WEAPON_CAMO_VA + P.UPGRADE_PREVIEW_OFFSET \
         + P.UPGRADE_PREVIEW_FIND
     check(not unknown_targets(original, image.data, listing) and all(t in starts for t in targets - outside)
           and all(P.WEAPON_PREVIEW_VA + offset in starts for _, _, offset, _ in P.WEAPON_PREVIEW_HOOKS)
@@ -2059,7 +1943,7 @@ def test_weapon_preview(original, image, before):
 def test_revision_override(original, default, server):
     """Check 30: a release's --revision=<n> against the default build of the
     same server: the revision byte and the PE checksum, nothing else."""
-    code = open(P.late_join_bin(), "rb").read()
+    code = True
     upload = open(P.default_bin("section"), "rb").read()
     byte, checksum_at = P.file_offset(P.REVISION_VA) + 4, P.Headers(default).checksum_at
     for revision in (P.REVISION + 1, 255):
@@ -2083,7 +1967,7 @@ def test_revision_override(original, default, server):
 def test_required_patches(original, default, server):
     """Check 49: a release's --required-patches= against the default build
     of the same server: the mount's bitmap and the PE checksum, nothing else."""
-    code = open(P.late_join_bin(), "rb").read()
+    code = True
     upload = open(P.default_bin("section"), "rb").read()
     mount = open(P.mount_patches_bin(), "rb").read()
     needed = len(mount) - 4 - P.MOUNT_REQUIRED_SIZE
@@ -2451,7 +2335,7 @@ def test_call_shapes_negative(original):
     model = read32(0xA15DA4 + 4 * 16)
     want = popped(image, model, model + 0x400)
     code = open(P.default_bin("section"), "rb").read()
-    late_join = open(P.late_join_bin(), "rb").read()
+    late_join = True
     slots = [f"{read32(0xA15DA4 + 4 * i):#x}" for i in range(20)]
     slots[16] = "fake_deserialize"
     for wrong, name in ((bytes.fromhex("c20400"), "pops 4"), (bytes.fromhex("c20800"), "pops 8")):
@@ -2568,7 +2452,7 @@ def test_arena(original):
     not the lock's."""
     print("  the arena (.srpx)")
     code = open(P.default_bin("section"), "rb").read()
-    late_join = open(P.late_join_bin(), "rb").read()
+    late_join = True
     without, _ = P.build(original, "section", code, None, late_join)
     none, _ = P.build(original, "section", code, None, late_join, arena_blocks=())
     check([s[0] for s in Image(none).headers.sections(none)] == [s[0] for s in Image(without).headers.sections(without)][:-1]
@@ -2822,7 +2706,7 @@ def test_late_join(original, without, server, source):
     """The default build with the late join against `without`, the build
     of the same server without it (checked by everything above)."""
     print(f"  the late join on top (patch revision {P.REVISION})")
-    code = open(P.late_join_bin(), "rb").read()
+    code = True
     upload = open(P.default_bin("section"), "rb").read()
     data, description = P.build(original, "section", upload, server, code)
     print("  " + description)
@@ -2839,7 +2723,7 @@ def test_late_join(original, without, server, source):
     check(name == P.SECTION_NAME and rva == P.SECTION_RVA and flags == P.SECTION_CHARACTERISTICS
           and vsize == P.WEAPON_PREVIEW_OFFSET + len(weapon_preview)
           and rsize == align(vsize, headers.file_alignment) and raw == old_sections[-1][3],
-          f".srp: virtual {vsize:#x} = one page, the {len(code)} bytes of late-join code and the weapon preview's "
+          f".srp: virtual {vsize:#x} = one page, the late join's room (int3) and the weapon preview's "
           f"{len(weapon_preview)} at +{P.WEAPON_PREVIEW_OFFSET:#x}, file {raw:#x}+{rsize:#x}")
     body = bytes(data[raw:raw + rsize])
     pickup = open(P.pickup_bin(), "rb").read()
@@ -2869,9 +2753,9 @@ def test_late_join(original, without, server, source):
               (P.WARMUP_LOOK_OFFSET, len(warmup_look), "the warmup look"),
               (P.STALE_DLL_OFFSET, len(stale_dll), "the shell_32.dll check"),
               (P.KIT_CHANGE_OFFSET, len(kit_change), "the kit change"),
-              (P.LATE_JOIN_OFFSET, len(code), "the late-join code"),
+              (P.LATE_JOIN_OFFSET, 0, "the late join's room (int3; the test sessions' stub)"),
               (P.WEAPON_PREVIEW_OFFSET, len(weapon_preview), "the weapon preview"),
-              (P.late_join_state_va(code) - P.SECTION_VA, 0, "the state page")]
+              (P.LATE_JOIN_STATE_VA - P.SECTION_VA, 0, "the state page")]
     overlaps = [f"{a[2]} ends at {a[0] + a[1]:#x}, past {b[2]} at {b[0]:#x}"
                 for a, b in zip(pieces, pieces[1:]) if a[0] + a[1] > b[0]]
     check(not overlaps, "the first page's code does not overlap: " + ", ".join(
@@ -2903,9 +2787,7 @@ def test_late_join(original, without, server, source):
           and body[P.STALE_DLL_OFFSET:P.STALE_DLL_OFFSET + len(stale_dll)] == stale_dll
           and set(body[P.STALE_DLL_OFFSET + len(stale_dll):P.KIT_CHANGE_OFFSET]) <= {0xCC}
           and body[P.KIT_CHANGE_OFFSET:P.KIT_CHANGE_OFFSET + len(kit_change)] == kit_change
-          and set(body[P.KIT_CHANGE_OFFSET + len(kit_change):P.LATE_JOIN_OFFSET]) <= {0xCC}
-          and body[P.LATE_JOIN_OFFSET:P.LATE_JOIN_OFFSET + len(code)] == code
-          and set(body[P.LATE_JOIN_OFFSET + len(code):P.WEAPON_PREVIEW_OFFSET]) <= {0xCC}
+          and set(body[P.KIT_CHANGE_OFFSET + len(kit_change):P.WEAPON_PREVIEW_OFFSET]) <= {0xCC}
           and body[P.WEAPON_PREVIEW_OFFSET:P.WEAPON_PREVIEW_OFFSET + len(weapon_preview)] == weapon_preview
           and set(body[P.WEAPON_PREVIEW_OFFSET + len(weapon_preview):]) <= {0xCC},
           f"its first page is the build's without the late join ({len(first_page)} bytes, then int3) with the "
@@ -2916,19 +2798,19 @@ def test_late_join(original, without, server, source):
           f"code at +{P.SEEK_CLEAR_OFFSET:#x}, the warmup camera's limits at +{P.WARMUP_LIMITS_OFFSET:#x}, the forward effect's scrolling at +{P.FORWARD_SCROLL_OFFSET:#x}, "
           f"the weapon preview's draw at +{P.WEAPON_DRAW_OFFSET:#x}, the warmup look at +{P.WARMUP_LOOK_OFFSET:#x}, "
           f"the shell_32.dll check at +{P.STALE_DLL_OFFSET:#x} "
-          f"and the kit change at +{P.KIT_CHANGE_OFFSET:#x}, the late-join code follows, then int3 padding, "
+          f"and the kit change at +{P.KIT_CHANGE_OFFSET:#x}, then int3 padding (the late join's room), "
           f"the weapon preview at +{P.WEAPON_PREVIEW_OFFSET:#x} and int3 padding")
     name, state_rva, state_size, state_raw, state_rsize, flags = sections[-4]
     check(name == P.LATE_JOIN_STATE_NAME and flags == P.LATE_JOIN_STATE_CHARACTERISTICS
           and state_size == P.LATE_JOIN_STATE_SIZE and (state_raw, state_rsize) == (0, 0)
           and state_rva == align(rva + vsize, headers.section_alignment)
-          and P.IMAGE_BASE + state_rva == P.late_join_state_va(code),
+          and P.IMAGE_BASE + state_rva == P.LATE_JOIN_STATE_VA,
           f".srpd at VA {P.IMAGE_BASE + state_rva:#x}: one page, uninitialized | read | write, no bytes in the "
           "file, on the page after the code (where the code looks for it)")
     death = open(P.death_camera_bin(), "rb").read()
     name_c, rva_c, vsize_c, raw_c, rsize_c, flags_c = sections[-3]
     check(name_c == P.DEATH_CAMERA_NAME and flags_c == P.DEATH_CAMERA_CHARACTERISTICS
-          and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.death_camera_va(code)
+          and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.DEATH_CAMERA_VA
           and vsize_c == len(death) and raw_c == raw + rsize and rsize_c == align(vsize_c, headers.file_alignment)
           and bytes(data[raw_c:raw_c + vsize_c]) == P.with_death_pitch(death, P.arena())
           and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
@@ -2943,7 +2825,7 @@ def test_late_join(original, without, server, source):
         + P.with_kit_apply(open(P.upgrade_preview_bin(), "rb").read(), P.arena())
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-2]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
-          and rva_w == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
+          and rva_w == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_w == P.WEAPON_CAMO_VA
           and vsize_w == len(camo) and raw_w == raw_c + rsize_c and rsize_w == align(vsize_w, headers.file_alignment)
           and bytes(data[raw_w:raw_w + vsize_w]) == camo and set(data[raw_w + vsize_w:raw_w + rsize_w]) <= {0xCC},
           f".srpw at VA {P.IMAGE_BASE + rva_w:#x}: weapon_camo_026g.section.bin, int3 padding, "
@@ -2981,19 +2863,19 @@ def test_late_join(original, without, server, source):
 
     test_writes(original, data, list(P.APPLIED), "the default build")
 
-    ready = ndisasm(image.read(P.LATE_JOIN_VA + P.LATE_JOIN_READY_OFFSET, 128), P.LATE_JOIN_VA + P.LATE_JOIN_READY_OFFSET)
-    onward = [branch_target(text) for _, _, text in ready if text.startswith("jmp")]
-    check(ready[0][2] == "pusha" and onward[:1] == [P.SECTION_VA],
-          f"the ready hook's code starts with pushad and jumps on to the upload code at {P.SECTION_VA:#x}")
+    entry = P.arena().symbols[P.LATE_JOIN_READY]
+    ready = ndisasm(image.read(entry, 10), entry)
+    check(branch_target(ready[0][2]) == P.arena().symbols["late_join_on_ready"] and ready[0][2].startswith("call")
+          and ready[1][2].startswith("jmp") and branch_target(ready[1][2]) == P.SECTION_VA
+          and image.read(P.LATE_JOIN_READY_VA, 5) == P.hook_bytes(entry, P.LATE_JOIN_READY_VA, b"\0" * 5, 0, 0xE9),
+          f"on_match_ready's jump ({P.LATE_JOIN_READY_VA:#x}) goes to late_join_ready, which calls the Rust "
+          f"entry late_join.ready and jumps on to the upload code at {P.SECTION_VA:#x}")
 
     test_clock_factor(original, image, before)
     test_fov(original, image, before)
     test_fov_lod(original, image, before)
     test_weapon_camo(original, image, before)
     test_pickup(original, image, before)
-    test_weapon_random(original, image, before)
-    test_kit_state(original, image, before)
-    test_first_load(original, image, before)
     test_seek_clear(original, image, before)
     test_stale_dll(original, image, before)
     test_mount_patches(original, image, before)
@@ -3177,7 +3059,7 @@ def main():
     variants = [(mode, None) for mode in ("cert-only", "section", "hash-mismatch")]
     variants += [(mode, "026g.skhid.link:1234") for mode in P.CAVES]
     variants += [(mode, "a" * 63 + ":65535") for mode in P.CAVES]
-    PARTS[:] = [test_late_join_bin, lambda: test_server_options(original), lambda: test_calls(original)]
+    PARTS[:] = [lambda: test_server_options(original), lambda: test_calls(original)]
     PARTS.extend(lambda mode=mode, server=server: test_variant(original, source, mode, server)
                  for mode, server in variants)
     sys.stdout.flush()

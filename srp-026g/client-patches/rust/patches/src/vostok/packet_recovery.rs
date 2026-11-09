@@ -17,7 +17,7 @@
 use super::{Context, GameCell, Thread};
 use super::world::read;
 use crate::raw;
-use srp_validate::recovery::{Outcome, Receipt, SIZE};
+use srp_validate::recovery::{Outcome, Receipt};
 
 /// Receipts the pool had no room for, the newest of each kind: one kind
 /// never makes another moot (a handshake or unreadable refusal is no
@@ -141,23 +141,7 @@ impl<'a> Connection<'a> {
         // already. A numbered refusal is an event of its own.
         let numbered = matches!(receipt.outcome, Outcome::OptionsRejected | Outcome::Unreadable);
         if !numbered && budget.told == Some(receipt) { return; }
-        // SAFETY: the connection and pool remain live during this synchronous
-        // hook. Check headroom BEFORE begin, which asserts on an exhausted pool.
-        let sent = unsafe {
-            let room = self.holder.packet_pool()
-                .is_some_and(|pool| read(pool.used()).checked_add(17).is_some_and(|used| used <= read(pool.capacity())));
-            match room.then(|| raw::engine_match_packet_begin(Some(self.holder), 0xe0)).flatten() {
-                Some(packet) => {
-                    let flags = read(packet.flags()) & !0x40;
-                    packet.flags().write_volatile(flags);
-                    let bytes = receipt.encode();
-                    raw::engine_append_packet_bytes(Some(packet.writer()), bytes.as_ptr(), SIZE as u32);
-                    raw::engine_match_packet_send(Some(self.holder), Some(packet));
-                    true
-                }
-                None => false,
-            }
-        };
+        let sent = send_plain(self.holder, &receipt.encode());
         if sent {
             // A newer receipt of its kind makes an older one that waited
             // moot: the server waits for the answer to its newest offer.
@@ -167,5 +151,31 @@ impl<'a> Connection<'a> {
             *budget.waiting.slot(receipt.outcome) = Some(receipt);
         }
         BUDGET.set(self.thread, Some(budget));
+    }
+}
+
+
+/// Sends `bytes` as a plain 0xE0 (no reliable resend of the transport's own:
+/// flag 40h off), when the match client's packet pool has room for one
+/// more; whether it went. The pool's room is checked before the packet is
+/// begun, which asserts on an exhausted pool. Every 0xE0 our patches send
+/// goes here: the world's receipts and the late join's answers.
+pub(super) fn send_plain(holder: raw::MatchOptionsHolder, bytes: &[u8]) -> bool {
+    // SAFETY: the holder is the live client's (its match client), for the
+    // synchronous hook that sends; its pool's two counts, the packet it
+    // begins and sends.
+    unsafe {
+        let room = holder.packet_pool()
+            .is_some_and(|pool| read(pool.used()).checked_add(17).is_some_and(|used| used <= read(pool.capacity())));
+        match room.then(|| raw::engine_match_packet_begin(Some(holder), 0xe0)).flatten() {
+            Some(packet) => {
+                let flags = read(packet.flags()) & !0x40;
+                packet.flags().write_volatile(flags);
+                raw::engine_append_packet_bytes(Some(packet.writer()), bytes.as_ptr(), bytes.len() as u32);
+                raw::engine_match_packet_send(Some(holder), Some(packet));
+                true
+            }
+            None => false,
+        }
     }
 }

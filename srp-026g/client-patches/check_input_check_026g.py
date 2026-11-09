@@ -127,7 +127,7 @@ def main():
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
+    built, _ = base.build(original, "section", code, None, True)
     built = bytes(built)
     linked = base.arena()
     block = linked.blocks["patches.code"]

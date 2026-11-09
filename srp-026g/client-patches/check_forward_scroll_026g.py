@@ -329,7 +329,7 @@ def main():
     original = open(args[0], "rb").read()
     upload = open(base.default_bin("section"), "rb").read()
     server = options.get("server")
-    data, _ = base.build(original, "section", upload, server, open(base.late_join_bin(), "rb").read())
+    data, _ = base.build(original, "section", upload, server, True)
     srp = base.SECTION_VA + base.FORWARD_SCROLL_OFFSET
     code = open(base.forward_scroll_bin(), "rb").read()
     failed = 0

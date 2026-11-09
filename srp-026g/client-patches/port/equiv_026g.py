@@ -125,7 +125,10 @@ def build_into(out_dir, spec_path):
     import patch_026g as base
     original = open(os.environ["EQUIV_ORIGINAL"], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
-    built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
+    # the build with the late join: its .bin's bytes before the Rust port
+    # (an old tree's), a flag since (the Rust port's)
+    late_join = open(base.late_join_bin(), "rb").read() if hasattr(base, "late_join_bin") else True
+    built, _ = base.build(original, "section", code, None, late_join)
     spec = load_spec(spec_path)
     linked = base.arena()
     meta = {"ranges": [list(r) for r in spec.ranges(base, linked)],
