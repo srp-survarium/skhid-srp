@@ -63,8 +63,12 @@ impl Core<'_> {
         let limited = self
             .replays
             .is_some_and(|replays| replays.watches().limited(who.account_id, now));
+        // One thing at a time: with a replay session on, `start` says `busy`.
+        let in_session = self
+            .replays
+            .is_some_and(|replays| replays.watches().holds(who.account_id));
         // A match still being played is watched as it is (`live`).
-        let live = if free && !limited {
+        let live = if free && !limited && !in_session {
             self.live_watch(who, match_id, ask.place, now)
         } else {
             None

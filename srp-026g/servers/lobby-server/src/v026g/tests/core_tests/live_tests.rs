@@ -93,6 +93,26 @@ fn a_live_watcher_watches_no_more_when_its_session_ends() {
     assert_eq!(world.store.matchmaking().watched(session), None);
 }
 
+/// A player with a replay session on (its recording still being read, so
+/// its game is free in the lobby) does not also become a spectator.
+#[test]
+fn a_replay_session_keeps_its_player_from_watching_a_match_too() {
+    use session::v026g::replay_watch::WatchSettings;
+    use session::v026g::replays::Replays;
+    let desk: &'static Replays =
+        Box::leak(Box::new(Replays::new(None).with_watch(WatchSettings::default())));
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    assert!(ask_to_watch(&mut world, carol, 0x1F07_C8FB).starts_with("R1;preparing;"));
+    assert_eq!(
+        ask_to_watch(&mut world, carol, ticket),
+        format!("R1;busy;{ticket:08x};0")
+    );
+    assert_eq!(world.store.matchmaking().watched(world.ids[carol].1), None);
+}
+
 /// Past the limit of lookups of unknown matches, an ask says nothing of a
 /// match being played either: asking was how to tell a running private
 /// match from no match at all.
