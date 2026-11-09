@@ -887,7 +887,7 @@ st_ct_max_members_count_error	Fehler beim Hinzufügen. In der Klan Mannschaft be
 st_current_value	\nAktueller Wert
 st_cz_75_description	Tschechische Selbstladepistole, Munition: 9x19. Eine der meistkopierten Pistolen des Kalten Krieges.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Komm jeden Tag, und bekomm <highlight> x2 </highlight> der Erfahrung und der Reputation für <highlight> erste drei </highlight> die Siege.
+st_daily_bonus_description	Jeden Tag: <highlight>x2</highlight> Erfahrung für die <highlight>ersten drei</highlight> Siege.
 st_daily_bonus_hint	Begrüßungs Fenster zeigen
 st_daily_bonus_label	Willkommen zurück
 st_daily_bonus_progress	Ihr Progress vom Tag
@@ -2496,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_snow_20_legs_7_name	Schnee-20 Hose
 st_srp_equipment069_snow_20_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_snow_20_torso_7_name	Schnee-20 Panzerweste
-st_srp_exchange_balance	Guthaben
-st_srp_exchange_button	Tauschen
-st_srp_exchange_gold	Gold
-st_srp_exchange_pay	Sie zahlen
-st_srp_exchange_receive	Sie erhalten
-st_srp_exchange_short_gold	Nicht genug Gold
-st_srp_exchange_short_silver	Nicht genug Silber
-st_srp_exchange_title	Tausch
 st_srp_hide_hit_markers_option	Trefferanzeige ausblenden
 st_srp_hide_quests_option	Aufgaben ausblenden
 st_srp_hide_scores_option	Spielerpunkte ausblenden

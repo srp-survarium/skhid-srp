@@ -11,6 +11,7 @@
 
 use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::faces::Face;
 use survarium::v026g::golden;
 use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
@@ -47,11 +48,10 @@ pub struct Upgrade {
 pub struct Reroll {
     /// The modification changed last (the window marks it); 0: none yet.
     /// Not a lock: any of the item's own may be changed (the owner's rule
-    /// of 2026-10-22, `docs/notes/reroll-keep-old.md`).
+    /// of 2026-10-22, `docs/notes/reroll-keep-old.md`). How many changes
+    /// were made is not kept: the price does not grow with them (the
+    /// owner's rule of 2026-10-25).
     pub modification: u32,
-    /// The changes paid for so far. A record only: the price does not
-    /// grow with it (the owner's rule of 2026-10-25).
-    pub count: u32,
     /// A paid change that waits for its choice: the modification it
     /// replaces and the three offered.
     pub offer: Option<(u32, [u32; 3])>,
@@ -66,11 +66,6 @@ pub struct Item {
     /// A stack's count in units (rounds of ammo), or an item's condition
     /// × 10 000 ([`FULL_CONDITION`] is 100).
     pub condition_or_stack: u32,
-    /// The Unix second its repair ends at, and the one from which a
-    /// modification may be changed for silver again; 0: none. (The wire
-    /// carries the seconds left, `wire::item_descr_at`.)
-    pub repair_time: u32,
-    pub reroll_time: u32,
     /// `(id, state)`: a modification (false) or a defect (true), each of
     /// `survarium::v026g::modifications`; at most 8.
     pub modifications: Vec<(u32, bool)>,
@@ -139,8 +134,9 @@ pub struct Account {
     pub name: String,
     /// The clan abbreviation; empty without a clan.
     pub clan_tag: String,
+    /// Silver, the one currency (gold was removed 2026-11-08: the balances
+    /// were paid back in silver once, `persist::SqliteGameRepository::pay_back_once`).
     pub generic_money: u32,
-    pub premium_money: u32,
     /// When the premium account runs out, Unix seconds; 0 without.
     pub premium_until: u64,
     /// All the experience earned; the level follows from it ([`level_at`]).
@@ -174,10 +170,6 @@ pub struct Account {
     /// `(quest id, until)`: quests resting after being done, Unix seconds.
     pub quest_cooldowns: Vec<(u32, u64)>,
     pub next_quest_instance: u32,
-    /// The last tutorial step the client reported (`4B 01`), and whether
-    /// the tutorial is over (done or skipped, `4B 02`).
-    pub tutorial_step: u8,
-    pub tutorial_done: bool,
     /// The auto-repair box, the tutorial's steps and the daily bonus
     /// ([`super::extras`]).
     pub extras: super::extras::Extras,
@@ -200,6 +192,9 @@ pub struct Account {
     pub presets: [Option<super::presets::Preset>; super::presets::PRESETS],
     /// The preset the kits are, 1 to 5.
     pub active_preset: u8,
+    /// The face it is drawn with, one an account (`face-choice.md`): 0 until
+    /// it chooses one in the lobby.
+    pub face: Face,
 }
 
 /// The pockets of a kit's `slots` ([`POCKET_SLOTS`]) holding an item type
@@ -304,7 +299,6 @@ impl Account {
             name: cap_name(name),
             clan_tag: String::new(),
             generic_money: 0,
-            premium_money: 0,
             premium_until: 0,
             exp_total: 0,
             skills: Vec::new(),
@@ -324,18 +318,14 @@ impl Account {
             quests: Vec::new(),
             quest_cooldowns: Vec::new(),
             next_quest_instance: 1,
-            tutorial_step: 0,
-            tutorial_done: true,
-            extras: super::extras::Extras {
-                tutorial_flags: super::tutorial::ALL_DONE,
-                ..Default::default()
-            },
+            extras: Default::default(),
             map_plays: Vec::new(),
             room_settings: None,
             mode_introductions: Default::default(),
             drop_cards: Vec::new(),
             presets: [None; super::presets::PRESETS],
             active_preset: super::presets::FIRST_PRESET,
+            face: Face::DEFAULT,
         };
         for worn in &loadout.items {
             let Some(entry) = dictionary.item(worn.dict_id) else {
@@ -387,8 +377,6 @@ impl Account {
             item_id,
             dict_id,
             condition_or_stack,
-            repair_time: 0,
-            reroll_time: 0,
             modifications: golden::starting_modifications(dict_id),
             upgrades: Vec::new(),
             reroll: Reroll::default(),
@@ -555,6 +543,20 @@ impl Account {
         }
         off.sort_unstable();
         off
+    }
+
+    /// The account drawn with `face` from now on (`face-choice.md`): every
+    /// kit's revision bumped, so the lobby draws its characters again.
+    /// Whether it was another face.
+    pub fn choose_face(&mut self, face: Face) -> bool {
+        if self.face == face {
+            return false;
+        }
+        self.face = face;
+        for kit in &mut self.kits {
+            kit.revision = kit.revision.wrapping_add(1);
+        }
+        true
     }
 
     /// Takes off, to the inventory, every item [`Self::covered_items`]
@@ -789,7 +791,7 @@ impl Account {
             super::items_rules::make_safe(item);
             item.modifications.truncate(limits::MODIFICATIONS);
             // A weapon's six logical slots go to the client packed into
-            // three records (wire::item_descr_at); any other item's three.
+            // three records (wire::item_descr); any other item's three.
             item.upgrades
                 .truncate(super::items_rules::upgrade_capacity(item.dict_id));
         }
@@ -904,7 +906,7 @@ mod tests {
         assert!(account.kits[1].slots.iter().all(Option::is_none));
         assert_eq!(account.next_item_id, 6);
         // No money: what a player starts with is the grant's (`tutorial`).
-        assert_eq!((account.generic_money, account.premium_money), (0, 0));
+        assert_eq!(account.generic_money, 0);
         assert_eq!((account.rating, account.rating_before), (100, 100));
         assert_eq!(account.reputations, [(1, 0), (2, 0), (3, 0), (4, 0)]);
         // No faction chosen: the client asks.
@@ -987,6 +989,20 @@ mod tests {
     }
 
     #[test]
+    fn a_face_chosen_redraws_every_kit() {
+        let mut account = Account::new("Alice");
+        let face = survarium::v026g::faces::Faces::shared().face(1).unwrap();
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(account.choose_face(face));
+        assert_eq!(account.face, face);
+        let bumped: Vec<u32> = revisions.iter().map(|revision| revision + 1).collect();
+        assert_eq!(account.kits.iter().map(|kit| kit.revision).collect::<Vec<_>>(), bumped);
+        // The same face again: nothing to draw.
+        assert!(!account.choose_face(face));
+        assert_eq!(account.kits.iter().map(|kit| kit.revision).collect::<Vec<_>>(), bumped);
+    }
+
+    #[test]
     fn kits_follow_the_inventory() {
         let mut account = Account::new("Alice");
         let ammo = account.kits[0].slots[8].unwrap().item_id;
@@ -1016,8 +1032,6 @@ mod tests {
             item_id: 9,
             dict_id: 9999,
             condition_or_stack: 1,
-            repair_time: 0,
-            reroll_time: 0,
             modifications: Vec::new(),
             upgrades: Vec::new(),
             reroll: Reroll::default(),

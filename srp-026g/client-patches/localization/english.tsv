@@ -887,7 +887,7 @@ st_ct_max_members_count_error	Error adding new players. The clan team already ha
 st_current_value	\nCurrent value:
 st_cz_75_description	Czech self-loading pistol, ammo: 9x19. One of the most copied pistols of the Cold War.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Play everyday and get <highlight>x2</highlight> experience and reputation for the <highlight>first three</highlight> victories.
+st_daily_bonus_description	Every day: <highlight>x2</highlight> experience for the <highlight>first three</highlight> victories.
 st_daily_bonus_hint	Show the welcoming screen
 st_daily_bonus_label	Welcome back
 st_daily_bonus_progress	Your progress for the current day
@@ -2496,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_legs_7_name	Snow-20 Pants
 st_srp_equipment069_snow_20_torso_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_torso_7_name	Snow-20 Vest
-st_srp_exchange_balance	Balance
-st_srp_exchange_button	Exchange
-st_srp_exchange_gold	Gold
-st_srp_exchange_pay	Pay
-st_srp_exchange_receive	Receive
-st_srp_exchange_short_gold	Not enough gold
-st_srp_exchange_short_silver	Not enough silver
-st_srp_exchange_title	Exchange
 st_srp_hide_hit_markers_option	Hide hit markers
 st_srp_hide_quests_option	Hide quests
 st_srp_hide_scores_option	Hide player scores

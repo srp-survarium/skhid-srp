@@ -1011,6 +1011,21 @@ pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -1065,6 +1080,21 @@ pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::music::on_replay(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1351,6 +1381,56 @@ pub extern "C" fn hook_effect_presenters_on_particle_stop(frame: &mut Frame) -> 
     }
 }
 
+// ---- faces (patch 123) ----
+
+/// The named exits of faces::on_head (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FacesOnHeadExit { Made }
+/// The entry `faces_on_head` (0x205662, profile_skin_visual_cook::on_configs_loaded's default head, reached only when no item's remove_head_model took record 0 (the je at 0x205653), past its relocated `mov edi,9FD770h` ("head"): lea eax,[esp+0A8h] (the body_parts copy, before add esi,234h, record 0); 0x205659..0x2056E6 assign body_parts/head/data's base_model and part_name to record 0 and tag it 0; made is the join after it (0x2056F0), where every record is made and the skin's name is queried (patch 123)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_head(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_head` calls this, from the game's jump at 0x205662,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_head(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_own_account` (0x27030b, process_own_account (0x270260, the 0x87 handler) after its last field, exp_next_level (mov esi,ebx / mov [ebx+1EA96Ch],ecx, before the items' copy 0x270320): EBX the lobby client, its account profile at +1E6344h; ESI the message's reader, its cursor past the field: srp's face byte there (patch 123)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_own_account(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_own_account` calls this, from the game's jump at 0x27030b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_own_account(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_squad_member` (0x274c01, the 0x88 handler (squad member account, 0x274BCE) after its revision (mov edx,[ebx+1E56C0h], before on_squad_member_profile_arrived 0x222FE0 copies the profile to the member's lobby character): ESI the message's reader past the revision, srp's face byte there; EDI the member's profile, read by deserialize_static 0x1F1070 (patch 123)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_squad_member(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_squad_member` calls this, from the game's jump at 0x274c01,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_squad_member(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- first_world (patch 19) ----
 
 /// The entry `first_world_on_input` (0x2d1050, patch 19: game_world_core::deserialize's (0x2D0B70) call of 0x2D4AB0 in its first world's block: the current player's input at the world's time into the place's input list (EDI -> {core, time, place}; it pops nothing)) calls this with the saved machine.
@@ -1551,6 +1631,26 @@ pub extern "C" fn hook_hud_cursor_on_cursor_shown(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hud_cursor::on_cursor_shown(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- hud_cursor (patch 113) ----
+
+/// The named exits of hud_cursor::on_cursor_hidden (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HudCursorOnCursorHiddenExit { Kept }
+/// The entry `hud_cursor_on_cursor_hidden` (0x23a9b0, show_cursor's hide (mov edx,[edi+18h] / lea eax,[edi+0Ch], then the call of base_game_scene::hide_movie 0x23DC70 at 0x23A9B6; the je at 0x23A944 jumps here): kept skips the movie, the flag (+2DCh) still written at 0x23A9BB) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_cursor_on_cursor_hidden(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_cursor_on_cursor_hidden` calls this, from the game's jump at 0x23a9b0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_cursor::on_cursor_hidden(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -3828,6 +3928,8 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_faces_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -3840,6 +3942,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     let flow = hook_hud_options_on_replay_options(frame);
     if flow != 0 { return flow; }
     let flow = hook_music_on_replay(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_faces_on_replay_options(frame);
     if flow != 0 { return flow; }
     0
 }

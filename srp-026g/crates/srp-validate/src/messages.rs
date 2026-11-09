@@ -165,9 +165,12 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // stream over it, or a cut one, goes nowhere.
         // The late join's profile proposal (`late_join::Prepare`, every
         // client of the dialect): its magic, the match, the serial, the
-        // place, the squad, then the profile, which the late join's own
-        // check takes (`late_join_validate_026g.c`). Here the header: a
-        // place the first player cannot have, under 20, a serial not 0.
+        // place, the squad, then the profile and srp's block with the faces
+        // entry of the one place when its face is not 0, which the late
+        // join's own check takes with the items dictionary
+        // (`late_join/profile.rs`, giving the face to `faces.rs`). Here the
+        // header: a place the first player cannot have, under 20, a serial
+        // not 0.
         id::STATIC_INFO if payload.starts_with(&LATE_JOIN_PREPARE) => {
             if len < LATE_JOIN_HEADER {
                 return Err(refuse(
@@ -417,7 +420,9 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     }
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
-    // Shipped patch 65 appends an SRPX block for Blackout matches.
+    // srp's block: patch 65's Blackout entry (tag 2, one byte 1) and the
+    // faces patch's (tag 3, a byte a place of the roster; any byte is a
+    // face to the exe, which draws one it does not know as face 0).
     // Keep this in sync with static_info::read_srp_block on the server.
     if !reader.is_done() {
         let at = reader.at();
@@ -435,12 +440,18 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         reader.skip(4).map_err(short)?;
         while !reader.is_done() {
             let at = reader.at();
-            let entry = reader.array::<3>().map_err(short)?;
-            if entry != [2, 1, 1] {
+            let [tag, len] = reader.array::<2>().map_err(short)?;
+            let entry = reader.take(usize::from(len)).map_err(short)?;
+            let known = match tag {
+                2 => entry == [1],
+                3 => len == roster,
+                _ => false,
+            };
+            if !known {
                 return Err(refuse(
                     at,
                     Reason::OptionsTrailing {
-                        len: reader.rest().len().saturating_add(3),
+                        len: reader.rest().len().saturating_add(2).saturating_add(entry.len()),
                     },
                 ));
             }

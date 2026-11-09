@@ -456,13 +456,6 @@ pub mod request {
         (0x47, body)
     }
 
-    /// `47 03`, paid in silver (0) or gold (1).
-    pub fn repair(item_id: u32, kind: u8) -> (u8, Vec<u8>) {
-        let mut body = vec![3];
-        body.extend(item_id.to_le_bytes());
-        body.push(kind);
-        (0x47, body)
-    }
 
     pub fn exchange(gold: u32) -> (u8, Vec<u8>) {
         let mut body = vec![4];

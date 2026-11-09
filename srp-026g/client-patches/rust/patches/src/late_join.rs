@@ -8,10 +8,12 @@
 //! the newcomer's players in the background, installs them into the
 //! roster's next place without making them enter, and answers (0xE0:
 //! installed, failed or busy); the server lets the newcomer in when every
-//! game has. The proposals' lifecycle is [`runtime`] (one state machine:
-//! the activation they belong to, each proposal's phase), its steps between
-//! the game's calls `flow`; this module is the hooks and the game's side
-//! of those steps (`Native`).
+//! game has. The face srp gives the newcomer (its block after the profile)
+//! goes to patch 123 before the players are asked for
+//! (`faces::late_joiner`). The proposals' lifecycle is [`runtime`] (one
+//! state machine: the activation they belong to, each proposal's phase), its
+//! steps between the game's calls `flow`; this module is the hooks and the
+//! game's side of those steps (`Native`).
 //!
 //! The hooks (late_join.toml): `on_ready` (on_match_ready: the match the late
 //! join is for), `on_prepare` (0xE4), `on_query_done` (the players' query's
@@ -32,6 +34,7 @@ use flow::{Game, Shared, Storage};
 use profile::CheckedProfile;
 use runtime::{Ack, ClientKey, DictionaryKey, KitMask, KitPlayers, MatchKey, Place, PlayerKey, ProfileKey, Runtime, Squad};
 
+use crate::faces::{self, Face, Name};
 use crate::vostok::late_join::{
     AnimationRegistry, Client, Connection, Core, Destroyed, ItemsDictionary, LoadedPlayer, PlaceSlot, ProfileArrival,
     ProfileBox,
@@ -93,6 +96,10 @@ impl<'r> Game for Native<'_, 'r> {
 
     fn check<'a>(&self, dictionary: DictionaryKey, body: &'a [u8]) -> Option<CheckedProfile<'a>> {
         CheckedProfile::parse(body, &self.dictionary(dictionary)?)
+    }
+
+    fn learn_face(&mut self, place: Place, name: Name, face: Face) {
+        faces::late_joiner(self.thread, place, name, face);
     }
 
     fn store(&mut self, profile: &CheckedProfile<'_>) -> Option<ProfileBox> {

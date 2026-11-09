@@ -165,6 +165,29 @@ fn a_genuinely_new_player_waits_for_resources_then_gets_a_post_barrier_snapshot(
     bench.assert_no_faults();
 }
 
+/// A newcomer whose account has face 2 (`face-choice.md`).
+fn faced(place: usize) -> MatchPlayer {
+    let mut player = player(place);
+    player.profile.face = survarium::v026g::faces::Faces::shared().face(2).unwrap();
+    player
+}
+
+#[test]
+fn a_newcomers_face_reaches_the_games_in_with_its_proposal_and_its_own_with_the_options() {
+    let mut bench = running();
+    let face = faced(0).profile.face;
+    let place = reserve_as(&mut bench, faced);
+    bench.clients[place].connect();
+    assert!(bench.until(1_000, |b| b.clients[place].model.options.is_some()));
+    let options = bench.clients[place].model.options.clone().unwrap();
+    assert_eq!(options.players[place].face, face);
+    bench.clients[place].ready();
+    assert!(bench.until(1_000, |b| !b.clients[1].prepares.is_empty()));
+    assert_eq!(bench.clients[1].prepares[0].profile.face, face);
+    assert!(bench.until(8_000, |b| b.stages() == "LLL"));
+    bench.assert_no_faults();
+}
+
 #[test]
 fn a_roster_grows_across_both_mask_boundaries_and_stops_at_twenty() {
     let mut bench = running();

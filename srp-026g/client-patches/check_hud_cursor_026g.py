@@ -8,19 +8,25 @@ The original and the patched exe run on a made-up game (its game world inside
 it at +18h, the hud at the world's +1FCh, the main menu at +57F4h), the
 scene's movie calls (base_game_scene::show_movie 0x23DC00, hide_movie
 0x23DC70) stubbed to record what they were given:
-1. show_cursor (0x23A930) whole: with the menu closed both show the hud's
-   cursor movie; with it shown only the original does; both keep the flag;
+1. show_cursor (0x23A930) whole: with the menu closed both show and hide the
+   hud's cursor movie; with it shown only the original does; both keep the flag;
 2. game_options::activate's start (0x200F50, to the end of the span its hook
-   replays): over a running match with the hud's cursor shown the patched exe
-   hides the cursor movie; not with the cursor hidden, nor when the game world
-   is not active (the lobby);
-3. game_options::deactivate's start (0x201040, to its je): a shown menu over
-   a running match with the cursor shown puts the movie back; nothing when the
-   menu is not shown, the world not active (a match's end), the cursor hidden
-   or its movie not loaded; the flags of its cmp as the original's;
+   replays): a closed menu with the hud's cursor shown, in a match or not,
+   hides the cursor movie in the patched exe; nothing with the cursor hidden
+   or the menu already shown (activate returns at once then);
+3. game_options::deactivate's start (0x201040, to its je): a shown menu with
+   the cursor shown puts the movie back, in a running match and at a match's
+   end (the world no longer active); nothing when the menu is not shown, the
+   cursor hidden or its movie not loaded; the flags of its cmp as the original's;
 4. initialize_match's start (0x234880): the patched exe hides the cursor
    (the movie, +2DCh 0) and the kits (+2DFh 0) the last match left;
-5. every span returns where the original's does, the registers as its.
+5. every span returns where the original's does, the registers as its;
+6. the sequences, a scene's movie list kept from the calls: the menu over the
+   kits, then a match's end, the next match's start (the 2026-11-07 and
+   2026-11-09 crashes at exe+0x14EE8D: the movie taken off twice), a spawn or
+   a death under the menu, Esc again: the patched exe never takes off a movie
+   the scene does not hold, nor puts one in twice, and the movie is in the
+   scene exactly when the flag is set and the menu closed.
 """
 import struct
 import sys
@@ -152,24 +158,30 @@ def main():
     assert old.show_cursor(1) == SHOWN
     assert new.show_cursor(1) == []
     assert old.read_byte(HUD + 0x2DC) == 1 and new.read_byte(HUD + 0x2DC) == 1
+    old.state(menu=True, active=True, cursor=True)
+    new.state(menu=True, active=True, cursor=True)
+    assert old.show_cursor(0) == HIDDEN and new.show_cursor(0) == []
+    assert old.read_byte(HUD + 0x2DC) == 0 and new.read_byte(HUD + 0x2DC) == 0
     for run in (old, new):
+        run.state(menu=False, active=True, cursor=True)
         assert run.show_cursor(0) == HIDDEN and run.read_byte(HUD + 0x2DC) == 0
-    print("ok show_cursor: the movie shown with the menu closed by both, kept off under the menu by the "
-          "patched exe; the flag and the hide as the original's")
+    print("ok show_cursor: the movie shown and hidden with the menu closed by both, left alone under the menu "
+          "by the patched exe; the flag as the original's")
 
-    def activate(run, **state):
-        run.state(menu=False, **state)
+    def activate(run, menu=False, **state):
+        run.state(menu=menu, **state)
         return run.start(ACTIVATE, [RETURN, 0x5C5C5C5C], {UC_X86_REG_EAX: OPTIONS, UC_X86_REG_ESI: 0x05050505},
                          ACTIVATE_AFTER)
 
     for state, expected in (({"active": True, "cursor": True}, HIDDEN),
                             ({"active": True, "cursor": False}, []),
-                            ({"active": False, "cursor": True}, [])):
+                            ({"active": False, "cursor": True}, HIDDEN),
+                            ({"menu": True, "active": True, "cursor": True}, [])):
         o, n = activate(old, **state), activate(new, **state)
         assert o[0] == [] and n[0] == expected, (state, n[0])
         same_registers(o, n, f"activate {state}")
-    print("ok the menu shown: the cursor movie off over a running match with the cursor shown; nothing with "
-          "it hidden or over the lobby")
+    print("ok the menu shown: the cursor movie off with the cursor shown, in a match or not; nothing with it "
+          "hidden or the menu shown already")
 
     def deactivate(run, **state):
         run.state(**state)
@@ -178,18 +190,18 @@ def main():
 
     for state, expected in (({"menu": True, "active": True, "cursor": True}, SHOWN),
                             ({"menu": False, "active": True, "cursor": True}, []),
-                            ({"menu": True, "active": False, "cursor": True}, []),
+                            ({"menu": True, "active": False, "cursor": True}, SHOWN),
                             ({"menu": True, "active": True, "cursor": False}, []),
                             ({"menu": True, "active": True, "cursor": True, "holder": False}, [])):
         o, n = deactivate(old, **state), deactivate(new, **state)
         assert o[0] == [] and n[0] == expected, (state, n[0])
         same_registers(o, n, f"deactivate {state}")
         assert o[2] & ZF == n[2] & ZF == (0 if state["menu"] else ZF), "the cmp's flags for the je"
-    print("ok the menu closed: the cursor movie back over a running match with the cursor shown and loaded; "
-          "nothing else; the je's flags as the original's")
+    print("ok the menu closed: the cursor movie back with the cursor shown and loaded, over a running match "
+          "and at its end; nothing else; the je's flags as the original's")
 
-    def initialize(run, **state):
-        run.state(menu=False, active=True, **state)
+    def initialize(run, menu=False, **state):
+        run.state(menu=menu, active=True, **state)
         return run.start(INITIALIZE, [RETURN, HUD, 0x0F0F0F0F], {UC_X86_REG_ESI: 0x05050505}, INITIALIZE_AFTER)
 
     for state, expected in (({"cursor": True, "kits": 1}, HIDDEN), ({"cursor": False, "kits": 0}, [])):
@@ -202,6 +214,66 @@ def main():
         same_registers(o, n, f"initialize {state}")
     print("ok a new match: the last match's kits and cursor put away by the patched exe, kept by the original")
     print("ok every span ended where the original's does, the registers as its")
+
+    sequences(new, activate, deactivate, initialize)
+
+
+def sequences(run, activate, deactivate, initialize):
+    """The game's own order of calls on one patched exe, its game state carried over, the scene's movie list
+    kept as world::hide_movie and show_movie would (a hide of a movie not there is the crash at exe+0x14EE8D:
+    remove_movie erases the end std::find returns)."""
+
+    def play(steps):
+        run.state(menu=False, active=True, cursor=False)
+        scene = []
+        for step in steps:
+            menu, active = run.read_byte(OPTIONS + 0x44), run.read_byte(WORLD + 0xD4)
+            cursor, holder = run.read_byte(HUD + 0x2DC), struct.unpack("<I", run.emu.mem_read(CURSOR_MOVIE, 4))[0]
+            if step == "kits":            # show_profiles_selector's show_cursor(1)
+                calls = run.show_cursor(1)
+            elif step == "spawn":         # the kits hidden, show_cursor(0)
+                calls = run.show_cursor(0)
+            elif step == "esc":           # game_options::activate, then its shown byte (0x200F86)
+                calls = activate(run, menu=bool(menu), active=bool(active), cursor=bool(cursor),
+                                 holder=bool(holder))[0]
+                run.byte(OPTIONS + 0x44, 1)
+            elif step == "resume":        # game_options::deactivate to its je, then its clear (0x201067)
+                calls = deactivate(run, menu=bool(menu), active=bool(active), cursor=bool(cursor),
+                                   holder=bool(holder))[0]
+                run.byte(OPTIONS + 0x44, 0)
+            elif step == "end":           # game_world::on_deactivate: active cleared (0x1F952B), the menu closed
+                run.byte(WORLD + 0xD4, 0)
+                calls = deactivate(run, menu=bool(menu), active=False, cursor=bool(cursor), holder=bool(holder))[0]
+                run.byte(OPTIONS + 0x44, 0)
+            elif step == "match":         # the next match: active again, initialize_match (the lobby's menu open or not)
+                run.byte(WORLD + 0xD4, 1)
+                calls = initialize(run, menu=bool(menu), cursor=bool(cursor), kits=run.read_byte(HUD + 0x2DF))[0]
+            else:
+                raise ValueError(step)
+            for call in calls:
+                if call[0] == "show":
+                    assert CURSOR_MOVIE not in scene, (steps, step, "shown twice")
+                    scene.append(CURSOR_MOVIE)
+                else:
+                    assert CURSOR_MOVIE in scene, (steps, step, "taken off a scene without it: exe+0x14EE8D")
+                    scene.remove(CURSOR_MOVIE)
+            shown, under = run.read_byte(HUD + 0x2DC), run.read_byte(OPTIONS + 0x44)
+            assert (CURSOR_MOVIE in scene) == bool(shown and not under), (steps, step, scene, shown, under)
+        return scene
+
+    for steps in (["kits", "esc", "end", "match"],                       # 2026-11-09: left before the start
+                  ["kits", "esc", "end", "kits", "match"],
+                  ["kits", "esc", "spawn", "resume"],                    # spawned under the menu
+                  ["kits", "esc", "spawn", "end", "match", "kits"],
+                  ["esc", "kits", "resume", "spawn"],                    # died under the menu
+                  ["esc", "kits", "end", "match", "kits", "spawn"],
+                  ["kits", "esc", "esc", "resume", "spawn"],             # activate twice
+                  ["kits", "esc", "resume", "esc", "end", "match", "esc", "resume"],
+                  ["kits", "end", "esc", "resume", "match", "kits", "esc", "spawn", "resume"],
+                  ["kits", "end", "esc", "match", "kits", "resume", "spawn"]):   # a match starts under the lobby's menu
+        play(steps)
+    print("ok the sequences: no movie taken off a scene without it, none put in twice; the movie in the scene "
+          "exactly when the cursor is shown and the menu closed")
 
 
 if __name__ == "__main__":

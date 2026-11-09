@@ -1,9 +1,10 @@
 //! The admin's account moderation on the 0.26g page
 //! (`docs/notes/account-moderation.md`). The owner, 2026-10-20: "we need the
-//! ability to take away items in the admin panel", and the silver (gold for
-//! one of them) that players farmed taken out again.
+//! ability to take away items in the admin panel", and the silver that
+//! players farmed taken out again (the one currency: gold is gone, the
+//! owner's of 2026-11-08).
 //!
-//! - The Money tab: an account's silver and/or gold changed by a signed
+//! - The Money tab: an account's silver changed by a signed
 //!   amount, never below 0; a take of more than it has takes what it has,
 //!   and the page says how much that was.
 //! - The Take items tab: the account's items listed (name, dictionary id,
@@ -126,7 +127,6 @@ struct Card {
 pub(crate) struct MoneyView {
     user: String,
     silver: String,
-    gold: String,
     reason: String,
     shown: Option<MoneyShown>,
 }
@@ -307,7 +307,6 @@ impl Web {
         let mut view = MoneyView {
             user: request.field("user").to_owned(),
             silver: request.field("silver").to_owned(),
-            gold: request.field("gold").to_owned(),
             reason: request.field("money_reason").to_owned(),
             shown: None,
         };
@@ -322,11 +321,11 @@ impl Web {
             Ok(found) => found,
             Err(message) => return (message, view),
         };
-        let (Some(silver), Some(gold)) = (delta(&view.silver), delta(&view.gold)) else {
+        let Some(silver) = delta(&view.silver) else {
             return (
                 lang.tr(
-                    "Silver and gold are whole numbers, + or -, or empty.",
-                    "Срібло і золото — цілі числа, + або -, або порожньо.",
+                    "Silver is a whole number, + or -, or empty.",
+                    "Срібло — ціле число, + або -, або порожньо.",
                 ),
                 view,
             );
@@ -341,7 +340,7 @@ impl Web {
         };
         let (change, applied) = {
             let mut account = account.locked();
-            let change = MoneyChange::plan(account_id, &account, silver, gold);
+            let change = MoneyChange::plan(account_id, &account, silver);
             let apply = confirm
                 && reason.is_some()
                 && !change.is_nothing()
@@ -372,34 +371,27 @@ impl Web {
             let note = written_note(lang, &done);
             written = Some(done);
             view.silver.clear();
-            view.gold.clear();
             view.reason.clear();
             lang.tr(
                 &format!(
-                    "{}: silver {} → {} ({}), gold {} → {} ({}).",
+                    "{}: silver {} → {} ({}).",
                     card.name,
                     grouped(change.silver.0.into()),
                     grouped(change.silver.1.into()),
                     signed(change.silver_change()),
-                    grouped(change.gold.0.into()),
-                    grouped(change.gold.1.into()),
-                    signed(change.gold_change()),
                 ),
                 &format!(
-                    "{}: срібло {} → {} ({}), золото {} → {} ({}).",
+                    "{}: срібло {} → {} ({}).",
                     card.name,
                     grouped(change.silver.0.into()),
                     grouped(change.silver.1.into()),
                     signed(change.silver_change()),
-                    grouped(change.gold.0.into()),
-                    grouped(change.gold.1.into()),
-                    signed(change.gold_change()),
                 ),
             ) + &note
-        } else if silver == 0 && gold == 0 {
+        } else if silver == 0 {
             lang.tr(
-                "Type the silver and/or gold to add (+) or take (-). The balance is below.",
-                "Введіть срібло та/або золото, щоб додати (+) чи забрати (-). Баланс нижче.",
+                "Type the silver to add (+) or take (-). The balance is below.",
+                "Введіть срібло, щоб додати (+) чи забрати (-). Баланс нижче.",
             )
         } else if change.is_nothing() {
             lang.tr(
@@ -981,7 +973,7 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
             };
             format!(
                 "<h3>{}</h3><table>{}\
-                 <tr><th>{}</th><td>{}</td></tr><tr><th>{}</th><td>{}</td></tr></table>\
+                 <tr><th>{}</th><td>{}</td></tr></table>\
                  {}{button}{}",
                 if shown.applied {
                     lang.tr("Done", "Зроблено")
@@ -994,14 +986,7 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
                     change.silver.0,
                     change.silver.1,
                     change.silver_change(),
-                    change.asked.0
-                )),
-                lang.tr("Gold", "Золото"),
-                escape(&line(
-                    change.gold.0,
-                    change.gold.1,
-                    change.gold_change(),
-                    change.asked.1
+                    change.asked
                 )),
                 shown
                     .plan
@@ -1017,7 +1002,6 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
         "<div class=\"panel p-money\">\
          <label for=u>{}</label><input id=u name=user maxlength=99 value=\"{}\">\
          <label for=s>{}</label><input id=s name=silver placeholder=-100000 value=\"{}\">\
-         <label for=g>{}</label><input id=g name=gold placeholder=+500 value=\"{}\">\
          <label for=mr>{}</label><input id=mr name=money_reason maxlength=200 value=\"{}\">\
          <small>{}</small><br><button>{}</button>{shown}</div>",
         lang.tr(
@@ -1027,8 +1011,6 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
         escape(&money.user),
         lang.tr("Silver, + or -", "Срібло, + або -"),
         escape(&money.silver),
-        lang.tr("Gold, + or -", "Золото, + або -"),
-        escape(&money.gold),
         lang.tr(
             "Reason (required; only admins see it)",
             "Причина (обов'язково; бачать лише адміни)"

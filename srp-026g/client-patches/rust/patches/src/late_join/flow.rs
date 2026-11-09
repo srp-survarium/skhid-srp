@@ -10,6 +10,7 @@ use super::runtime::{
     Ack, Admission, Answer, ClientKey, Completion, Dead, DictionaryKey, KitMask, KitPlayers, MatchKey, Outcome,
     Place, PlayerKey, Prepare, ProfileKey, Roster, Runtime, Squad, KITS,
 };
+use crate::faces::{Face, Name};
 
 /// The runtime behind its lock (the game's `vostok::Lock`, the tests' mutex).
 pub trait Shared<S> {
@@ -35,6 +36,8 @@ pub trait Game {
     fn store(&mut self, profile: &CheckedProfile<'_>) -> Option<Self::Storage>;
     /// The match's dictionary checks the body.
     fn check<'a>(&self, dictionary: DictionaryKey, body: &'a [u8]) -> Option<CheckedProfile<'a>>;
+    /// Patch 123 learns srp's face of the newcomer of `place`, named `name`.
+    fn learn_face(&mut self, place: Place, name: Name, face: Face);
     /// Asks for the players of the kits `usable` (it holds the storage and
     /// the match's world until its callback); its callback may come at once.
     fn query(&mut self, storage: Self::Storage, usable: KitMask, matched: MatchKey, place: Place);
@@ -61,8 +64,9 @@ pub fn retire<S>(shared: &impl Shared<S>, client: ClientKey) -> Dead<S> {
 }
 
 /// The server's proposal for a newcomer (an E4 of the late join's, from
-/// `client` while it plays): answered, or its profile checked, stored and
-/// its players asked for.
+/// `client` while it plays): answered, or its profile checked, its face
+/// learnt, the profile stored and its players asked for (the face known
+/// before the players' cook draws them).
 pub fn prepare<G: Game>(shared: &impl Shared<G::Storage>, game: &mut G, client: ClientKey, bytes: &[u8]) {
     let Some(prepare) = Prepare::parse(bytes) else { return };
     let admitted = match shared.with(|rt| rt.propose(client, &prepare, |storage, body| storage.same_body(body))) {
@@ -73,6 +77,9 @@ pub fn prepare<G: Game>(shared: &impl Shared<G::Storage>, game: &mut G, client: 
     let Some(checked) = game.check(admitted.dictionary, prepare.body) else {
         return game.ack(client, admitted.refused(Answer::Failed));
     };
+    if let Some(name) = checked.name() {
+        game.learn_face(admitted.place, name, checked.face());
+    }
     let Some(storage) = game.store(&checked) else {
         return game.ack(client, admitted.refused(Answer::Busy));
     };

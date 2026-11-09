@@ -887,7 +887,7 @@ st_ct_max_members_count_error	Ошибка добавления. В кланов
 st_current_value	\nТекущее значение:
 st_cz_75_description	Чешский самозарядный пистолет, патрон: 9x19. Один из самых копируемых пистолетов холодной войны.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходи каждый день, и получай <highlight>x2</highlight> опыта и репутации за <highlight>первые три</highlight> победы.
+st_daily_bonus_description	Каждый день: <highlight>x2</highlight> опыта за <highlight>первые три</highlight> победы.
 st_daily_bonus_hint	Показать окно приветствия
 st_daily_bonus_label	Добро пожаловать обратно
 st_daily_bonus_progress	Ваш прогресс за текущий день
@@ -2496,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Описание пока недосту
 st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
 st_srp_equipment069_snow_20_torso_7_desc	Описание пока недоступно.
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Снег-20"
-st_srp_exchange_balance	Баланс
-st_srp_exchange_button	Обменять
-st_srp_exchange_gold	Золото
-st_srp_exchange_pay	Отдаёте
-st_srp_exchange_receive	Получаете
-st_srp_exchange_short_gold	Недостаточно золота
-st_srp_exchange_short_silver	Недостаточно серебра
-st_srp_exchange_title	Обмен
 st_srp_hide_hit_markers_option	Скрыть хитмаркеры
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
