@@ -156,6 +156,14 @@ pub enum Held {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerId(u32);
 
+#[cfg(test)]
+impl PlayerId {
+    /// A made-up player's, for a patch's host tests.
+    pub fn for_test(address: u32) -> PlayerId {
+        PlayerId(address)
+    }
+}
+
 /// An inventory item (or an active object, a weapon) as a value kept between
 /// hooks: its address, compared, never read through. Made only from its
 /// handle.

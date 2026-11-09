@@ -98,12 +98,6 @@ impl<'t> Orbit<'t> {
         place(&self.view())
     }
 
-    /// The view's right and up (its rows i and j).
-    pub fn axes(&self) -> (Vec3, Vec3) {
-        let v = self.view();
-        (Vec3::new(v[0], v[1], v[2]), Vec3::new(v[4], v[5], v[6]))
-    }
-
     /// Puts the eye at `eye`, the view's turn kept; the view the director
     /// gives on is this one.
     pub fn set_eye(&mut self, eye: Vec3) {

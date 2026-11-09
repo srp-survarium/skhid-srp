@@ -42,7 +42,8 @@ README patch 31, `client_patch.md` section 3.29; the server: `TimelimitRule::bef
     up or down (so it starts at 1.5, the stock warmup's 1.0 being nearer than the lobby's);
   - the camera stays on the player's side of the level (patch 132, the owner, 2026-11-09:
     "quite often it is inside textures", "camera | thin wall | character"): the eye 0.2 m in
-    front of the first wall between the pivot and it, the distance the wheel set kept;
+    front of the first wall between the pivot and it, the distance the wheel set kept; it
+    goes in and out smoothly, never at once ("I wish the transition was more smooth");
   - on the death screen: patch 46's free look (`death-camera.md`), the wheel nothing;
   - a button pressed while the cursor is shown (a drag, a pick on the death screen) and still
     held when the cursor goes (the start, the respawn) does nothing, held or let go: no

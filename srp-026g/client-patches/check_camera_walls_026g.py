@@ -6,20 +6,24 @@ default build beside the original, on a made-up player.
 
 Requires Python `unicorn`. The exe's sections are loaded as they are, and
 player::update_camera (0x1F3480, `ret 4`: the player) is entered as the game
-world enters it; the game's own code makes the pivot and runs the view's
-update (0x2422B0, in the build through patch 46's death_view), the math
-included. A run stops at camera_director::apply (0x243440), which gives the
-handler's view (+48h) to the view. ray_test (0x75E20) is a stand-in: a plane
-across the orbit, or nothing.
+world enters it, a frame a call; the game's own code makes the pivot and
+runs the view's update (0x2422B0, in the build through patch 46's
+death_view), the math included. A run stops at camera_director::apply
+(0x243440), which gives the handler's view (+48h) to the view. ray_test
+(0x75E20) is a stand-in: a plane square to the orbit, or nothing; the
+performance counter is a clock of ours (1000 ticks a second).
 
 - The warmup mode (3), nothing in the way: the view is the original's, bit
-  for bit; five rays, each from within 0.1 m of the pivot (the player's place
-  raised 1.4 m), along the unit way to the original's eye, 0.2 m longer than
-  the orbit, on the player's physics world with the lobby camera's filter
-  (group 10h, mask 8, no delegate).
-- The warmup mode, a wall across the orbit: the view's turn is the
-  original's, its eye 0.2 m in front of the wall on the way to the
-  original's eye; a wall nearer than 0.2 m to the pivot puts the eye at it.
+  for bit; one ray, from the pivot (the player's place raised 1.4 m) along
+  the unit way to the original's eye, 0.2 m longer than the orbit, on the
+  player's physics world with the lobby camera's filter (group 10h, mask 8,
+  no delegate).
+- A new orbit (after a frame in the first person) with a wall across it:
+  the view's turn is the original's, its eye at once 0.2 m in front of the
+  wall on the way to the original's eye; a wall nearer than 0.2 m to the
+  pivot puts the eye at it.
+- An orbit going on: a wall that comes pulls the eye in by 1 - e^(-8 t) of
+  the way in t s, one that goes lets it out by 1 - e^(-3 t).
 - The first person (0) and a spectator (4): the view is the original's (the
   eyes' transform), no ray.
 - A player with no physics world: the original's view, no ray.
@@ -40,7 +44,7 @@ import patch_026g as base
 
 UPDATE_CAMERA, SITE, APPLY, RAY_TEST = 0x1F3480, 0x1F3650, 0x243440, 0x75E20
 SPAN = bytes.fromhex("8b9378f40000")                       # mov edx,[ebx+0F478h]
-THREAD_SLOT = 0x870118
+THREAD_SLOT, QPC_SLOT, QPF_SLOT = 0x870118, 0x870158, 0x870150
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
 PLAYER, HANDLER, PRESENTERS = HEAP, HEAP + 0x10000, HEAP + 0x20000
 PHYSICS = 0x5A5A0000                                      # a made-up physics world (ray_test's ECX)
@@ -49,7 +53,7 @@ SP = STACK + 0x8000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP, UC_X86_REG_ESP)
 STEADY = dict(zip(REGS[:7], (0x0A0A0A0A, 0x0B0B0B0B, 0x0C0C0C0C, 0x0D0D0D0D, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
-MARGIN, RADIUS, UP = 0.2, 0.1, 1.4
+MARGIN, UP, IN_RATE, OUT_RATE = 0.2, 1.4, 8.0, 3.0
 
 # the player: turned 30 degrees about up, its feet at (100, 5, -50)
 C, S = math.cos(math.radians(30)), math.sin(math.radians(30))
@@ -92,7 +96,13 @@ class Game:
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         self.u32(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
+        # QueryPerformanceCounter / Frequency (stdcall 1): our clock, 1000 ticks a second
+        for slot, stub, hook in ((QPC_SLOT, STUBS + 0x90, self.counter), (QPF_SLOT, STUBS + 0xA0, self.frequency)):
+            self.u32(slot, stub)
+            emu.mem_write(stub, b"\xC2\x04\x00")
+            emu.hook_add(UC_HOOK_CODE, hook, begin=stub, end=stub)
         emu.hook_add(UC_HOOK_CODE, self.ray_test, begin=RAY_TEST, end=RAY_TEST)
+        self.ms = 1000
         self.wall = None
         self.rays = []
 
@@ -103,6 +113,14 @@ class Game:
 
     def floats(self, at, n):
         return struct.unpack(f"<{n}f", self.emu.mem_read(at, 4 * n))
+
+    def counter(self, emu, *_):
+        self.emu.mem_write(self.u32(emu.reg_read(UC_X86_REG_ESP) + 4), struct.pack("<q", self.ms))
+        emu.reg_write(UC_X86_REG_EAX, 1)
+
+    def frequency(self, emu, *_):
+        self.emu.mem_write(self.u32(emu.reg_read(UC_X86_REG_ESP) + 4), struct.pack("<q", 1000))
+        emu.reg_write(UC_X86_REG_EAX, 1)
 
     def ray_test(self, emu, *_):
         """bullet_physics_world::ray_test (thiscall, `ret 20h`): the wall, a
@@ -125,9 +143,11 @@ class Game:
         emu.reg_write(UC_X86_REG_ESP, esp + 4 + 0x20)
         emu.reg_write(UC_X86_REG_EIP, ret)
 
-    def update_camera(self, mode, physics=PHYSICS, wall=None):
-        """(the handler's view at camera_director::apply, the registers there, the rays)."""
+    def update_camera(self, mode, physics=PHYSICS, wall=None, ms=None):
+        """A frame at `ms` (16 ms after the last by default): (the handler's
+        view at camera_director::apply, the registers there, the rays)."""
         emu = self.emu
+        self.ms = self.ms + 16 if ms is None else ms
         emu.mem_write(HEAP, bytes(0x30000))
         self.u32(PLAYER + 0xF470, HANDLER)
         self.u32(PLAYER + 0xF478, PRESENTERS)
@@ -170,34 +190,53 @@ def main():
     s_view, s_regs, s_rays = stock.update_camera(3)
     o_view, o_regs, rays = ours.update_camera(3)
     eye = s_view[12:15]
+    distance = math.dist(eye, PIVOT)
     way = unit(sub(eye, PIVOT))
-    reach = math.dist(eye, PIVOT) + MARGIN
-    check(s_regs[UC_X86_REG_EIP] == APPLY and not s_rays and math.dist(eye, PIVOT) > 2.9,
-          f"the original's warmup orbit: eye {tuple(round(x, 3) for x in eye)}, {math.dist(eye, PIVOT):.3f} m "
+    check(s_regs[UC_X86_REG_EIP] == APPLY and not s_rays and distance > 2.9,
+          f"the original's warmup orbit: eye {tuple(round(x, 3) for x in eye)}, {distance:.3f} m "
           "from the pivot, no ray")
     check(o_view == s_view and o_regs == s_regs, "warmup, nothing in the way: the original's view and registers")
-    check(len(rays) == 5 and all(r[0] == PHYSICS and r[4:] == (0x10, 0x08, 0) for r in rays)
-          and math.dist(rays[0][1], PIVOT) < 1e-4
-          and all(math.dist(r[1], PIVOT) < RADIUS + 1e-4 and math.dist(r[2], way) < 1e-4
-                  and abs(r[3] - reach) < 1e-4 for r in rays),
-          "five rays from the pivot toward the eye, the orbit and 0.2 m long, group 10h mask 8 on its world")
+    check(len(rays) == 1 and rays[0][0] == PHYSICS and rays[0][4:] == (0x10, 0x08, 0)
+          and math.dist(rays[0][1], PIVOT) < 1e-4 and math.dist(rays[0][2], way) < 1e-4
+          and abs(rays[0][3] - (distance + MARGIN)) < 1e-4,
+          "one ray from the pivot toward the eye, the orbit and 0.2 m long, group 10h mask 8 on its world")
 
-    # A wall square to the way: a side ray, from `o` off the pivot, meets it
-    # o.way sooner (the eye is a fifth of the distance to the view's right,
-    # so its way is not square to the right); the eye stops at the soonest.
-    right, up = s_view[0:3], s_view[4:7]
-    offsets = [(0, 0, 0)] + [tuple(a * s * RADIUS for a in axis) for axis in (right, up) for s in (1, -1)]
+    def wall_at(at):
+        return tuple(p + w * at for p, w in zip(PIVOT, way)), tuple(-w for w in way)
+
+    def eye_out(view):
+        return math.dist(view[12:15], PIVOT)
+
+    def on_way(view):
+        return math.dist(unit(sub(view[12:15], PIVOT)), way) < 1e-4
+
     for at in (1.5, 2.9, 3.1, 0.1):
-        expect = max(0.0, min(at - dot(o, way) for o in offsets) - MARGIN)
-        wall = (tuple(p + w * at for p, w in zip(PIVOT, way)), tuple(-w for w in way))
-        o_view, o_regs, rays = ours.update_camera(3, wall=wall)
-        want = tuple(p + w * expect for p, w in zip(PIVOT, way))
-        check(o_view[:12] == s_view[:12] and o_view[15] == s_view[15] and math.dist(o_view[12:15], want) < 1e-3
-              and o_regs == s_regs and len(rays) == 5,
-              f"warmup, a wall {at} m out: the eye {expect:.3f} m out on the original's way, its turn the original's")
-    o_view, _, rays = ours.update_camera(3, wall=(tuple(p + w * 3.3 for p, w in zip(PIVOT, way)),
-                                                   tuple(-w for w in way)))
-    check(o_view == s_view and len(rays) == 5, "warmup, a wall past the eye and its margin: the original's view")
+        ours.update_camera(0)                                    # the orbit ends: the next is new
+        expect = max(0.0, at - MARGIN)
+        o_view, o_regs, rays = ours.update_camera(3, wall=wall_at(at))
+        check(o_view[:12] == s_view[:12] and o_view[15] == s_view[15] and abs(eye_out(o_view) - expect) < 1e-3
+              and (expect == 0 or on_way(o_view)) and o_regs == s_regs and len(rays) == 1,
+              f"a new orbit, a wall {at} m out: the eye at once {expect:.2f} m out on the original's way, "
+              "its turn the original's")
+    ours.update_camera(0)
+    o_view, _, rays = ours.update_camera(3, wall=wall_at(distance + MARGIN + 0.05))
+    check(o_view == s_view and len(rays) == 1, "a wall past the eye and its margin: the original's view")
+
+    # an orbit going on: a wall comes 100 ms after a free frame, then goes
+    ours.update_camera(0)
+    ours.update_camera(3, ms=5000)
+    wanted = distance - (1.5 - MARGIN)
+    o_view, o_regs, _ = ours.update_camera(3, wall=wall_at(1.5), ms=5100)
+    pulled = wanted * (1 - math.exp(-IN_RATE * 0.1))
+    check(abs(eye_out(o_view) - (distance - pulled)) < 2e-3 and on_way(o_view) and o_regs == s_regs,
+          f"a wall comes: in 100 ms the eye {pulled:.3f} of {wanted:.3f} m in (1 - e^-0.8), not at once")
+    o_view, _, _ = ours.update_camera(3, ms=5200)
+    left = pulled * math.exp(-OUT_RATE * 0.1)
+    check(abs(eye_out(o_view) - (distance - left)) < 2e-3 and on_way(o_view),
+          f"it goes: in 100 ms the eye {left:.3f} m in (e^-0.3 of it), not out at once")
+    for n in range(200):
+        o_view, _, _ = ours.update_camera(3)
+    check(o_view == s_view, "after a while with nothing in the way: the original's view again, bit for bit")
 
     for mode in (0, 4):
         s_view, s_regs, _ = stock.update_camera(mode)
