@@ -988,8 +988,7 @@ pub(crate) struct Game {
     past: VecDeque<Snapshot>,
     requested_at: Option<Instant>,
     candidates: Vec<Candidate>,
-    /// Everything relayed: its time, whose it is, what. In time order
-    /// (`Game::keep_relayed`): a spectator's turn reads a range of it.
+    /// Everything relayed: its time, whose it is, what.
     inputs: Vec<(u32, usize, Relayed)>,
     /// Roster changes: time, place, entered (else left).
     events: Vec<(u32, usize, bool)>,
@@ -3800,14 +3799,7 @@ impl Game {
         self.observe_input(index, relayed_time, &relayed);
         let what = Relayed::Input(relayed);
         self.relay_to_others(index, &what, relayed_time, now);
-        self.keep_relayed(relayed_time, index, what);
-    }
-
-    /// A relay, kept for those who start from a world later. In time order:
-    /// the players' inputs come at the server in arrival order.
-    fn keep_relayed(&mut self, time: u32, index: usize, what: Relayed) {
-        let at = self.inputs.partition_point(|(other, _, _)| *other <= time);
-        self.inputs.insert(at, (time, index, what));
+        self.inputs.push((relayed_time, index, what));
     }
 
     /// 0xDE: LIKELY the kit the player picks for its next respawn. Relayed
@@ -3882,7 +3874,7 @@ impl Game {
             value,
         };
         self.relay_to_others(index, &what, relayed_time, now);
-        self.keep_relayed(relayed_time, index, what);
+        self.inputs.push((relayed_time, index, what));
     }
 
     /// A kit choice of the player at `index`, relayed for `time`: counted
@@ -6769,12 +6761,6 @@ impl Game {
 
     pub fn resyncs(&self, index: usize) -> u32 {
         self.peers[index].as_ref().map_or(0, |peer| peer.resyncs)
-    }
-
-    /// The times of what the match has relayed, as it keeps them.
-    #[cfg(test)]
-    pub(crate) fn relayed_times(&self) -> Vec<u32> {
-        self.inputs.iter().map(|(time, _, _)| *time).collect()
     }
 
     /// The roster changes so far: when, who, entered or left.

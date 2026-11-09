@@ -223,6 +223,9 @@ pub(crate) struct Spectator {
     view: Option<u8>,
     /// The mask of kits it has been told of each place (a live match's chooser).
     kits_told: Vec<u8>,
+    /// How often [`Self::feed`] walked the match's lists.
+    #[cfg(test)]
+    list_walks: u32,
 }
 
 /// What a spectator's machine is shown of what it watches, as of `clock`: a
@@ -240,7 +243,7 @@ pub(super) struct Watched<'a> {
     pub(super) roster: usize,
     /// The worlds a start may be from.
     pub(super) worlds: Vec<&'a Snapshot>,
-    /// Everything relayed so far, in time order: its time, whose it is, what.
+    /// Everything relayed so far: its time, whose it is, what.
     pub(super) inputs: &'a [(u32, usize, Relayed)],
     /// The roster changes so far: time, place, entered (else left).
     pub(super) events: &'a [(u32, usize, bool)],
@@ -698,6 +701,14 @@ impl Game {
     }
 
     #[cfg(test)]
+    pub(crate) fn spectator_list_walks(&self, session_id: u32) -> Option<u32> {
+        self.spectators
+            .iter()
+            .find(|spectator| spectator.session_id == session_id)
+            .map(|spectator| spectator.list_walks)
+    }
+
+    #[cfg(test)]
     pub(crate) fn spectator_generation(&self, session_id: u32) -> Option<u8> {
         self.spectators
             .iter()
@@ -742,6 +753,8 @@ impl Spectator {
             restarts: VecDeque::new(),
             view,
             kits_told: Vec::new(),
+            #[cfg(test)]
+            list_walks: 0,
         }
     }
 
@@ -876,10 +889,10 @@ impl Spectator {
             self.go(Step::WaitAgain);
             return;
         };
-        let first = watched.inputs.partition_point(|(at, _, _)| *at <= time);
-        let replay: Vec<ServerMessage> = watched.inputs[first..]
+        let replay: Vec<ServerMessage> = watched
+            .inputs
             .iter()
-            .take_while(|(at, _, _)| watched.due(*at))
+            .filter(|(at, _, _)| *at > time && watched.due(*at))
             .map(|(_, from, what)| relay(*from, what))
             .collect();
         if let (Some(delay), Some(until)) = (self.delay.as_mut(), watched.until) {
@@ -939,8 +952,15 @@ impl Spectator {
             return;
         };
         let from = delay.fed;
-        if until <= from {
+        // Once a tick: the lists are walked whole, and this runs for every
+        // datagram the server takes. What is due has its lead (`HORIZON_MS`)
+        // to spare.
+        if until / TICK_MS <= from / TICK_MS {
             return;
+        }
+        #[cfg(test)]
+        {
+            self.list_walks += 1;
         }
         for &(time, place, entered) in view.events {
             if time > from && time <= until {
@@ -958,14 +978,10 @@ impl Spectator {
                 self.roster_change(place, entered, time, &message, now);
             }
         }
-        // In time order: only its range is read, here on each of the
-        // server's polls.
-        let first = view.inputs.partition_point(|(time, _, _)| *time <= from);
-        for (time, place, what) in &view.inputs[first..] {
-            if *time > until {
-                break;
+        for (time, place, what) in view.inputs {
+            if *time > from && *time <= until {
+                self.relay(*place, &relay(*place, what), *time, view.clock, now);
             }
-            self.relay(*place, &relay(*place, what), *time, view.clock, now);
         }
         if let Some(delay) = self.delay.as_mut() {
             delay.fed = until;

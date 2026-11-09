@@ -634,7 +634,7 @@ impl Game {
                 self.note_kit_choice(index, time);
             }
             self.relay_to_others(index, &what, time, now);
-            self.keep_relayed(time, index, what);
+            self.inputs.push((time, index, what));
         }
     }
 }

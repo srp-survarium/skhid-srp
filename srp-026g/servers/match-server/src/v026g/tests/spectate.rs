@@ -635,18 +635,17 @@ fn a_spectator_that_never_acks_piles_up_nothing() {
     bench.assert_no_faults();
 }
 
-/// Review of 2026-11-09: a delayed spectator's turn walked every relay of the match; it now reads
-/// a range, so the list has to stay in time order whatever order the inputs came in.
+/// Review of 2026-11-09: a spectator's turn walked all the match's relays on every poll, and a
+/// poll follows every datagram the server takes. Once a tick is as often as anything comes due.
 #[test]
-fn a_matchs_relays_are_kept_in_time_order() {
+fn a_spectator_walks_the_matchs_relays_once_a_tick() {
     let mut bench = running();
-    bench.clients[0].input(200, 0x21);
-    bench.run(10);
-    bench.clients[1].input(100, 0x22);
-    bench.run(300);
-    let times = bench.game().relayed_times();
-    assert!(times.len() >= 2);
-    assert!(times.windows(2).all(|pair| pair[0] <= pair[1]), "{times:?}");
+    let at = watching(&mut bench);
+    let before = bench.game().spectator_list_walks(SPECTATOR).unwrap();
+    bench.run(5_000);
+    let walks = bench.game().spectator_list_walks(SPECTATOR).unwrap() - before;
+    assert!((90..=101).contains(&walks), "{walks} walks in 5 s");
+    assert!(bench.clients[at].model.is_synced());
     bench.assert_no_faults();
 }
 
