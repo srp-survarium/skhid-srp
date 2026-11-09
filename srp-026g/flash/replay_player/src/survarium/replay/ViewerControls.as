@@ -18,7 +18,9 @@ package survarium.replay
    // the exe owns the choice and shows it with set_moments, M steps it) and the key hint (KeyHint)
    // centred above the bottom panel, shown for the first HINT_MS and while the hud's cursor is
    // (set_cursor_shown), fading in and out over FADE_MS. Their texts are the exe's, from the
-   // dictionaries; they take the mouse while the cursor shows (Ctrl).
+   // dictionaries; they take the mouse while the cursor shows (Ctrl). Under Back, read-only, the
+   // kit view: the kits the player in view used in the match (the exe's texts, a line a kit), hidden
+   // for a place with none.
    public class ViewerControls extends Sprite
    {
       public static const ALL:int = 0;
@@ -41,6 +43,9 @@ package survarium.replay
 
       private static const BACK_FILL:uint = 0x0B0F12;
 
+      // the kit view's plate
+      private static const KIT_WIDTH:Number = 340;
+
       private var _font:String;
 
       // the bottom panel the switch sits beside
@@ -61,6 +66,17 @@ package survarium.replay
 
       private var _cursor:Boolean = false;
 
+      // the kit view: its plate and text, the texts by place, and the place shown
+      public var kitPanel:Sprite;
+
+      public var kitTitle:TextField;
+
+      public var kitText:TextField;
+
+      private var _kits:Object = {};
+
+      private var _watched:int = 255;
+
       private var _started:int;
 
       // the time of the last frame, for the hint's fade
@@ -70,7 +86,7 @@ package survarium.replay
       public var lastCall:String = "";
 
       // `texts`: Back, Moments, All, Mine, Followed, then the hint's Cursor, Pause, Filter, Hide and its
-      // Ctrl and Space caps.
+      // Ctrl and Space caps, and the kit view's title.
       public function ViewerControls(panel:DisplayObject, font:String, texts:Array)
       {
          super();
@@ -99,8 +115,63 @@ package survarium.replay
             this.moments.addChild(choice);
          }
          addChild(this.moments);
+         this.kitPanel = new Sprite();
+         this.kitPanel.name = "srpKits";
+         this.kitPanel.mouseEnabled = this.kitPanel.mouseChildren = false;
+         this.kitPanel.visible = false;
+         this.kitTitle = this.field(texts[11],13,Colors.SOFT_GRAY);
+         this.kitTitle.x = 8;
+         this.kitTitle.y = 4;
+         this.kitText = this.field("",13,Colors.WHITE);
+         this.kitText.autoSize = TextFieldAutoSize.NONE;
+         this.kitText.wordWrap = this.kitText.multiline = true;
+         this.kitText.width = KIT_WIDTH - 16;
+         this.kitText.x = 8;
+         this.kitPanel.addChild(new Sprite());
+         this.kitPanel.addChild(this.kitTitle);
+         this.kitPanel.addChild(this.kitText);
+         addChild(this.kitPanel);
          this.show();
          addEventListener(Event.ENTER_FRAME,this.onFrame);
+      }
+
+      // Forgets every place's kits (a new match).
+      public function resetKits() : void
+      {
+         this._kits = {};
+         this.showKits();
+      }
+
+      // A place's used kits, as the exe writes them (a line a kit).
+      public function setKits(place:int, text:String) : void
+      {
+         this._kits[place] = text;
+         this.showKits();
+      }
+
+      // The place in view (255: none), whose kits are shown.
+      public function setWatched(place:int) : void
+      {
+         this._watched = place;
+         this.showKits();
+      }
+
+      private function showKits() : void
+      {
+         var text:String = this._kits[this._watched];
+         this.kitPanel.visible = text != null;
+         if(text == null)
+         {
+            return;
+         }
+         this.kitText.text = text;
+         this.kitText.y = this.kitTitle.y + this.kitTitle.height;
+         this.kitText.height = this.kitText.textHeight + 6;
+         var plate:Sprite = Sprite(this.kitPanel.getChildAt(0));
+         plate.graphics.clear();
+         plate.graphics.beginFill(BACK_FILL,0.85);
+         plate.graphics.drawRoundRect(0,0,KIT_WIDTH,this.kitText.y + this.kitText.height + 4,6,6);
+         plate.graphics.endFill();
       }
 
       // The choice the exe has (0 All, 1 Mine, 2 Followed), Mine offered only to a viewer who played.
@@ -169,6 +240,8 @@ package survarium.replay
          // right of the hud's minimap: the game gives the hud the mouse over its own pieces
          this.back.x = int(width * MINIMAP_END);
          this.back.y = MARGIN;
+         this.kitPanel.x = this.back.x;
+         this.kitPanel.y = this.back.y + this.back.height + 6;
          var bar:Rectangle = this._panel.getBounds(parent);
          this.hint.layout(width - 2 * MARGIN);
          this.hint.x = int((width - this.hint.width) / 2);

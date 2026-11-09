@@ -246,6 +246,31 @@ pub fn pointer_client<'t>(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>> {
     mouse_client(unsafe { raw::site::hud_mouse_replay_pointer::world(ctx) }, ctx.thread())
 }
 
+/// `ui`'s kit chooser and quick slots hidden (root.show_profiles_selector(false),
+/// root.show_slots(false)): a spectator picks no kit and uses no slot, and the
+/// game shows both to it (the kits before the start and on a death screen, the
+/// slots of the player followed, 0x239C8D), the kits with the followed
+/// player's three, used or not.
+fn hide_player_panels(ui: raw::GameWorldUi) {
+    // SAFETY: the hud's own movie, alive with the hud on its thread.
+    if let Some(hud) = unsafe { super::ui::movie_of(ui.hud_movie()) } {
+        hud.invoke_bool(c"root.show_profiles_selector", false);
+        hud.invoke_bool(c"root.show_slots", false);
+    }
+}
+
+/// `ui`'s cursor as asked (show_cursor 0x23A930, when the hud's +2DCh says otherwise): the
+/// kits show it before the start, and a spectator has none to pick. While the Tab list is up,
+/// patch 86's cursor is left as it is.
+fn keep_cursor(ui: raw::GameWorldUi, shown: bool) {
+    // SAFETY: the hud's own bytes and its own call, on its thread.
+    unsafe {
+        if *ui.list_shown() == 0 && (*ui.cursor_shown() != 0) != shown {
+            raw::engine_show_cursor(Some(ui), u32::from(shown));
+        }
+    }
+}
+
 /// The replay controls (replay_player.swf) over a viewer's hud.
 pub struct Overlay<'t> {
     ui: raw::GameWorldUi,
@@ -282,16 +307,43 @@ impl<'t> Overlay<'t> {
         self.movie.invoke_bool(c"root.set_play_state", paused);
     }
 
-    /// The hud's kit chooser and quick slots hidden
-    /// (root.show_profiles_selector(false), root.show_slots(false)): a viewer
-    /// picks no kit and uses no slot, and the game shows both over the
-    /// controls' bar (the kits before the start and on a death screen, the
-    /// slots of the player followed, 0x239C8D).
+    /// The hud's kit chooser and quick slots hidden: a viewer's.
     pub fn hide_player_panels(&self) {
-        // SAFETY: the hud's own movie, alive with the hud on its thread.
-        if let Some(hud) = unsafe { super::ui::movie_of(self.ui.hud_movie()) } {
-            hud.invoke_bool(c"root.show_profiles_selector", false);
-            hud.invoke_bool(c"root.show_slots", false);
+        hide_player_panels(self.ui);
+    }
+
+    /// The hud's cursor as the viewer wants it.
+    pub fn keep_cursor(&self, shown: bool) {
+        keep_cursor(self.ui, shown);
+    }
+
+    /// The text of dictionary key `key` in the running language.
+    pub fn translate<'o>(&self, key: &CStr, room: &'o mut [u8; 0x200]) -> &'o CStr {
+        super::ui::GameWorldUi::of(self.ui).translate(key, room)
+    }
+
+    /// The kit view forgets every place's kits (root.reset_player_kits: a new match's).
+    pub fn reset_kits(&self) {
+        self.movie.invoke_uints(c"root.reset_player_kits", &[]);
+    }
+
+    /// `place`'s kits' text (root.set_player_kits: place, text).
+    pub fn set_player_kits(&self, place: u8, text: &CStr) {
+        let mut digits = [0u8; 4];
+        let mut len = 0;
+        let (mut left, mut divisor) = (place, 100);
+        while divisor > 0 {
+            let digit = left / divisor;
+            if digit > 0 || len > 0 || divisor == 1 {
+                digits[len] = b'0' + digit;
+                len += 1;
+            }
+            left %= divisor;
+            divisor /= 10;
+        }
+        digits[len] = 0;
+        if let Ok(number) = CStr::from_bytes_until_nul(&digits) {
+            self.movie.invoke_strings(c"root.set_player_kits", &[number, text]);
         }
     }
 
@@ -306,17 +358,9 @@ impl<'t> Overlay<'t> {
         }
     }
 
-    /// The hud's cursor as the viewer wants it (show_cursor 0x23A930, when the
-    /// hud's +2DCh says otherwise): the kits show it before the start, and a
-    /// viewer has none to pick. While the Tab list is up, patch 86's cursor
-    /// is left as it is.
-    pub fn keep_cursor(&self, shown: bool) {
-        // SAFETY: the hud's own bytes and its own call, on its thread.
-        unsafe {
-            if *self.ui.list_shown() == 0 && (*self.ui.cursor_shown() != 0) != shown {
-                raw::engine_show_cursor(Some(self.ui), u32::from(shown));
-            }
-        }
+    /// The place whose kits the kit view shows (root.set_watched_place), none (255) for no player.
+    pub fn set_watched_place(&self, place: Option<u8>) {
+        self.movie.invoke_uints(c"root.set_watched_place", &[place.map_or(255, u32::from)]);
     }
 
     /// The speed stepper's value, as a percent (root.set_replay_speed: 25 to
@@ -376,6 +420,17 @@ impl HudFrame {
     pub fn at(ctx: &Context<'_>) -> Option<HudFrame> {
         // SAFETY: the context is this site's: EAX the hud, alive while it updates on the game's thread.
         Some(HudFrame { ui: unsafe { raw::site::hud_update::ui(ctx) }? })
+    }
+
+    /// The hud's kit chooser and quick slots hidden, for a spectator of a live match, who may
+    /// not have the replay controls' movie.
+    pub fn hide_player_panels(&self) {
+        hide_player_panels(self.ui);
+    }
+
+    /// The hud's cursor kept off: the kits show it, and a spectator has none to pick.
+    pub fn keep_cursor_off(&self) {
+        keep_cursor(self.ui, false);
     }
 
     /// Its game's network client.

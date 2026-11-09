@@ -2837,6 +2837,7 @@ st_srp_viewer_cap_space	Space
 st_srp_viewer_cursor	Kurzor
 st_srp_viewer_filter	Szűrő
 st_srp_viewer_hide	Elrejtés
+st_srp_viewer_kits	Használt összeállítások
 st_srp_viewer_moments	Pillanatok
 st_srp_viewer_moments_all	Mind
 st_srp_viewer_moments_followed	Követett

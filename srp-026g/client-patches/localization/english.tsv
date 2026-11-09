@@ -2837,6 +2837,7 @@ st_srp_viewer_cap_space	Space
 st_srp_viewer_cursor	Cursor
 st_srp_viewer_filter	Filter
 st_srp_viewer_hide	Hide
+st_srp_viewer_kits	Kits used
 st_srp_viewer_moments	Moments
 st_srp_viewer_moments_all	All
 st_srp_viewer_moments_followed	Followed

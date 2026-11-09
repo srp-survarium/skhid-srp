@@ -116,18 +116,18 @@ package
       }
 
       // start_viewer's texts in the 10 languages (the dictionaries' st_srp_viewer_*): Back, Moments,
-      // All, Mine, Followed, Cursor, Pause, Filter, Hide, the Ctrl and Space caps.
+      // All, Mine, Followed, Cursor, Pause, Filter, Hide, the Ctrl and Space caps, the kit view's title.
       private static const TEXTS:Array = [
-         ["Back","Moments","All","Mine","Followed","Cursor","Pause","Filter","Hide","Ctrl","Space"],
-         ["Назад","Моменти","Усі","Мої","Відстежуваний","Курсор","Пауза","Фільтр","Сховати","Ctrl","Space"],
-         ["Назад","Моменты","Все","Мои","Отслеживаемый","Курсор","Пауза","Фильтр","Скрыть","Ctrl","Space"],
-         ["Назад","Моманты","Усе","Мае","Адсочваны","Курсор","Паўза","Фільтр","Схаваць","Ctrl","Space"],
-         ["Zurück","Momente","Alle","Meine","Verfolgt","Cursor","Pause","Filter","Ausblenden","Strg","Leertaste"],
-         ["Wstecz","Momenty","Wszystkie","Moje","Śledzony","Kursor","Pauza","Filtr","Ukryj","Ctrl","Spacja"],
-         ["Nazad","Momenti","Svi","Moji","Praćeni","Kursor","Pauza","Filter","Sakrij","Ctrl","Space"],
-         ["Zpět","Momenty","Vše","Moje","Sledovaný","Kurzor","Pauza","Filtr","Skrýt","Ctrl","Space"],
-         ["Vissza","Pillanatok","Mind","Saját","Követett","Kurzor","Szünet","Szűrő","Elrejtés","Ctrl","Space"],
-         ["Takaisin","Hetket","Kaikki","Omat","Seurattu","Kursori","Tauko","Suodatin","Piilota","Ctrl","Space"]];
+         ["Back","Moments","All","Mine","Followed","Cursor","Pause","Filter","Hide","Ctrl","Space","Kits used"],
+         ["Назад","Моменти","Усі","Мої","Відстежуваний","Курсор","Пауза","Фільтр","Сховати","Ctrl","Space","Використані комплекти"],
+         ["Назад","Моменты","Все","Мои","Отслеживаемый","Курсор","Пауза","Фильтр","Скрыть","Ctrl","Space","Использованные комплекты"],
+         ["Назад","Моманты","Усе","Мае","Адсочваны","Курсор","Паўза","Фільтр","Схаваць","Ctrl","Space","Выкарыстаныя камплекты"],
+         ["Zurück","Momente","Alle","Meine","Verfolgt","Cursor","Pause","Filter","Ausblenden","Strg","Leertaste","Verwendete Ausrüstung"],
+         ["Wstecz","Momenty","Wszystkie","Moje","Śledzony","Kursor","Pauza","Filtr","Ukryj","Ctrl","Spacja","Użyte zestawy"],
+         ["Nazad","Momenti","Svi","Moji","Praćeni","Kursor","Pauza","Filter","Sakrij","Ctrl","Space","Korišćeni kompleti"],
+         ["Zpět","Momenty","Vše","Moje","Sledovaný","Kurzor","Pauza","Filtr","Skrýt","Ctrl","Space","Použité výbavy"],
+         ["Vissza","Pillanatok","Mind","Saját","Követett","Kurzor","Szünet","Szűrő","Elrejtés","Ctrl","Space","Használt összeállítások"],
+         ["Takaisin","Hetket","Kaikki","Omat","Seurattu","Kursori","Tauko","Suodatin","Piilota","Ctrl","Space","Käytetyt varustesetit"]];
 
       private static function texts(i:int, first:String = null) : Array
       {
@@ -188,6 +188,21 @@ package
          expect("a press on Followed calls '" + calls(v,v.choices[2]) + "'",calls(v,v.choices[2]) == "moments_clicked 2");
          expect("a press on All calls '" + calls(v,v.choices[0]) + "'",calls(v,v.choices[0]) == "moments_clicked 0");
          expect("the hint takes the mouse",!v.hint.mouseEnabled);
+         // The kit view: read-only, the kits of the place in view, none for a place with none.
+         expect("the kit view takes no mouse",!v.kitPanel.mouseEnabled && !v.kitPanel.mouseChildren);
+         expect("no kit view before a place",!v.kitPanel.visible);
+         root.set_player_kits("2","1: Rifle, Medkit\n3: Sniper");
+         expect("no kit view for a place not in view",!v.kitPanel.visible);
+         root.set_watched_place(2);
+         expect("the kit view shows the place in view ('" + v.kitText.text + "')",v.kitPanel.visible && v.kitText.text.indexOf("Rifle") == 3 && v.kitText.text.indexOf("Sniper") > 0);
+         expect("the kit view's title is the exe's ('" + v.kitTitle.text + "')",v.kitTitle.text == texts(0)[11]);
+         root.set_watched_place(5);
+         expect("a place with no kits hides the view",!v.kitPanel.visible);
+         root.set_player_kits("5","2: Pistol");
+         root.set_watched_place(5);
+         expect("the view follows the place in view ('" + v.kitText.text + "')",v.kitPanel.visible && v.kitText.text == "2: Pistol");
+         root.reset_player_kits();
+         expect("a new match's reset empties the view",!v.kitPanel.visible);
          root.set_moments(1,1);
          trace("MARKERS viewer: start_viewer once, set_moments fades the ticks it does not light, Back and the switch call the exe");
       }

@@ -19,13 +19,17 @@
 //!   patch 121's.
 //!
 //! A spectator's game, a live match's too, follows the place its watcher asked
-//! for when the server names it (a view note). A live match's spectator (no
-//! playback note) and a player's game are not touched otherwise: every key
-//! goes on to the game. Nothing a match computes changes:
-//! the clock's pace is the server's to keep, the world the recording's.
+//! for when the server names it (a view note), and has no kits: the game would show a
+//! spectator the kit chooser with the followed player's three kits, used or not, so it is kept
+//! hidden, the keys 1 to 3 and a pick of the chooser go nowhere. A replay's viewer sees instead,
+//! read-only in the controls' movie, the kits the player in view used (a kits note per place:
+//! the kit it started with and the kits it picked). A live match's spectator (no playback
+//! note) and a player's game are not touched otherwise: every other key goes on to the game.
+//! Nothing a match computes changes: the clock's pace is the server's to keep, the world the
+//! recording's.
 #![forbid(unsafe_code)]
 
-use replay_control::{newer, Event, EventKind, EventsNote, MatchMs, Op, Playback, Request, ServerNote, Speed};
+use replay_control::{newer, Event, EventKind, EventsNote, ITEM_NAME_MAX, KitsNote, MatchMs, Op, Playback, Request, ServerNote, Speed};
 
 use core::ffi::CStr;
 
@@ -424,8 +428,53 @@ impl Events {
     }
 }
 
+/// The room of the kits notes kept (a replay's used kits, a note a place at most).
+const KITS_ROOM: usize = 16 * 1024;
+
+/// The kits notes of a replay as the server sent them, kept whole in the order they came
+/// (each a u16 length and the payload), for the controls' kit view: the movie may not be ready
+/// when one comes. A note past the room is dropped.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Kits {
+    bytes: [u8; KITS_ROOM],
+    len: usize,
+}
+
+impl Kits {
+    const NONE: Kits = Kits { bytes: [0; KITS_ROOM], len: 0 };
+
+    fn take(mut self, payload: &[u8]) -> Kits {
+        let end = self.len + 2 + payload.len();
+        if end <= KITS_ROOM && let Ok(length) = u16::try_from(payload.len()) {
+            self.bytes[self.len..self.len + 2].copy_from_slice(&length.to_le_bytes());
+            self.bytes[self.len + 2..end].copy_from_slice(payload);
+            self.len = end;
+        }
+        self
+    }
+
+    /// The notes kept, in order.
+    fn notes(&self) -> impl Iterator<Item = &[u8]> {
+        let mut rest = &self.bytes[..self.len];
+        core::iter::from_fn(move || {
+            let (head, tail) = rest.split_first_chunk::<2>()?;
+            let (note, after) = tail.split_at_checked(usize::from(u16::from_le_bytes(*head)))?;
+            rest = after;
+            Some(note)
+        })
+    }
+}
+
 static SESSION: GameCell<Session> = GameCell::new(Session::Live);
 static EVENTS: GameCell<Events> = GameCell::new(Events::NONE);
+static KITS: GameCell<Kits> = GameCell::new(Kits::NONE);
+/// The kits notes kept: [`KITS`] is only read when this is ahead of what the movie has.
+static KITS_COUNT: GameCell<u16> = GameCell::new(0);
+
+/// Whether `key` is one of the kit keys (patch 58's 1, 2 and 3).
+fn is_kit_key(key: Dik) -> bool {
+    matches!(key, Dik::KEY_1 | Dik::KEY_2 | Dik::KEY_3)
+}
 
 /// `match_packet.server_note`: an 0xF6. One of ours (its first byte 'R') is
 /// taken here whatever it holds, and acted on only in a spectator's game; any
@@ -452,6 +501,10 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
             }
         }
         Some(ServerNote::Events(note)) => EVENTS.update(thread, |events| events.take(&note)),
+        Some(ServerNote::Kits(_)) => {
+            KITS.update(thread, |kits| kits.take(site.payload));
+            KITS_COUNT.update(thread, |count| count.wrapping_add(1));
+        }
         // The place its watcher asked to see (a replay's or a live match's
         // spectator, once its first world is in): followed, as a player list
         // click does.
@@ -464,12 +517,19 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
 /// `tab_cursor.key` (after patch 86's): a viewer's keys, taken; every other
 /// key, and every key of a game that is no viewer, go on.
 pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
-    let session = SESSION.get(ctx.thread());
+    let Some(key) = GameWorldKey::at_start(ctx) else { return Flow::Continue };
+    let thread = key.thread();
+    // A spectator has no kits: its 1 to 3 pick nothing (before patch 58's key, further in this
+    // function; the key would reach the kit chooser the game shows it).
+    if is_kit_key(key.key()) && key.kind() == KeyKind::Down
+        && key.hud().client(thread).is_some_and(|client| client.role() == Some(Role::Spectator)) {
+        key.take();
+        return Flow::Exit(ReplayViewerOnKeyExit::Taken);
+    }
+    let session = SESSION.get(thread);
     if session == Session::Live {
         return Flow::Continue;
     }
-    let Some(key) = GameWorldKey::at_start(ctx) else { return Flow::Continue };
-    let thread = key.thread();
     let shift = matches!(key.key(), Dik::LEFT | Dik::RIGHT) && key.shift_down();
     let Some(replay_key) = Command::of(key.key(), shift) else { return Flow::Continue };
     if key.kind() != KeyKind::Down {
@@ -513,6 +573,8 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let (next, act) = step(SESSION.get(thread), Input::MatchEnded, &EVENTS.get(thread));
     SESSION.set(thread, next);
     EVENTS.set(thread, Events::NONE);
+    KITS.set(thread, Kits::NONE);
+    KITS_COUNT.set(thread, 0);
     FED.set(thread, Fed::NOTHING);
     if let (Act::Restore, Some(clock)) = (act, GameClock::of(&close.client)) {
         clock.restore();
@@ -537,6 +599,8 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let (next, _) = step(SESSION.get(thread), Input::NewMatch, &EVENTS.get(thread));
     SESSION.set(thread, next);
     EVENTS.set(thread, Events::NONE);
+    KITS.set(thread, Kits::NONE);
+    KITS_COUNT.set(thread, 0);
     FED.set(thread, Fed::NOTHING);
     Flow::Continue
 }
@@ -622,19 +686,24 @@ struct Fed {
     /// The switch's choice it shows, and the cursor it shows the key hint for.
     moments: Option<Moments>,
     cursor: Option<Ui>,
+    /// The kits notes the movie has been given, and the place its kit view shows.
+    kits: u16,
+    kits_place: Option<Option<u8>>,
 }
 
 impl Fed {
-    const NOTHING: Fed = Fed { movie: None, revision: None, markers: None, ui: None, moments: None, cursor: None };
+    const NOTHING: Fed = Fed { movie: None, revision: None, markers: None, ui: None, moments: None, cursor: None, kits: 0, kits_place: None };
 }
 
 /// The dictionary keys of the viewer's own controls, in root.start_viewer's
 /// order: the Back button, the Moments switch and its choices, the key hint's
 /// actions and its Ctrl and Space caps.
-const VIEWER_TEXTS: [&CStr; 11] = [c"st_srp_viewer_back", c"st_srp_viewer_moments", c"st_srp_viewer_moments_all",
+/// the kit view's title.
+const VIEWER_TEXTS: [&CStr; 12] = [c"st_srp_viewer_back", c"st_srp_viewer_moments", c"st_srp_viewer_moments_all",
                                    c"st_srp_viewer_moments_mine", c"st_srp_viewer_moments_followed",
                                    c"st_srp_viewer_cursor", c"st_srp_viewer_pause", c"st_srp_viewer_filter",
-                                   c"st_srp_viewer_hide", c"st_srp_viewer_cap_ctrl", c"st_srp_viewer_cap_space"];
+                                   c"st_srp_viewer_hide", c"st_srp_viewer_cap_ctrl", c"st_srp_viewer_cap_space",
+                                   c"st_srp_viewer_kits"];
 
 /// The markers' sources: the events' version, and the player watched (whose
 /// deaths are their own kind).
@@ -653,8 +722,9 @@ static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
 /// position and play button every frame (as the replay client's tick does,
 /// 0x218C16 / 0x218C27), the hud's kit chooser and quick slots kept hidden,
 /// and its cursor kept as Ctrl left it.
-fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) -> Fed {
+fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed, thread: &crate::vostok::Thread) -> Fed {
     let Some(overlay) = Overlay::of(client) else { return fed };
+    let new_movie = fed.movie != Some(overlay.id());
     let Playback { revision, paused, speed, start, end } = viewer.playback;
     let movie = Some(overlay.id()).filter(|&id| fed.movie == Some(id) || overlay.start_viewer(&VIEWER_TEXTS));
     if fed.ui != Some(viewer.ui) {
@@ -683,6 +753,7 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) 
     overlay.set_paused(paused);
     overlay.hide_player_panels();
     overlay.keep_cursor(viewer.cursor == Ui::Shown);
+    let kits = feed_kits(&overlay, &fed, new_movie, watched, thread);
     Fed {
         movie,
         revision: Some(revision),
@@ -690,17 +761,88 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed) 
         ui: Some(viewer.ui),
         moments: Some(viewer.moments),
         cursor: Some(viewer.cursor),
+        kits,
+        kits_place: Some(watched),
     }
+}
+
+/// The movie's kit view brought up to date: the kits notes it has not been given (the first
+/// ones after a new match or a new movie), and the place it shows. The notes it has been given.
+fn feed_kits(overlay: &Overlay<'_>, fed: &Fed, new_movie: bool, watched: Option<u8>, thread: &crate::vostok::Thread) -> u16 {
+    if new_movie {
+        overlay.reset_kits();
+    }
+    let (from, count) = (if new_movie { 0 } else { fed.kits }, KITS_COUNT.get(thread));
+    if count != from {
+        let kits = KITS.get(thread);
+        for note in kits.notes().skip(usize::from(from)) {
+            if let Some(ServerNote::Kits(note)) = ServerNote::parse(note) {
+                let mut room = [0; MARKERS_ROOM];
+                let text = kit_text(&note, |name, text| {
+                    let mut key = [0u8; KEY_ROOM];
+                    let Some(key) = item_name_key(name, &mut key) else { return text.push(name) };
+                    let mut translated = [0; 0x200];
+                    let shown = overlay.translate(key, &mut translated).to_bytes();
+                    text.push(if shown.is_empty() { name } else { shown })
+                }, &mut room);
+                overlay.set_player_kits(note.place, text);
+            }
+        }
+    }
+    if new_movie || fed.kits_place != Some(watched) {
+        overlay.set_watched_place(watched);
+    }
+    count
+}
+
+/// A dictionary key's room: `st_`, a name of at most [`ITEM_NAME_MAX`], `_name` and its zero.
+const KEY_ROOM: usize = 3 + ITEM_NAME_MAX + 5 + 1;
+
+/// The dictionary key of an item (`st_<name>_name`), as the game's own texts name it.
+fn item_name_key<'o>(name: &[u8], room: &'o mut [u8; KEY_ROOM]) -> Option<&'o CStr> {
+    if name.len() > ITEM_NAME_MAX {
+        return None;
+    }
+    room[..3].copy_from_slice(b"st_");
+    room[3..3 + name.len()].copy_from_slice(name);
+    room[3 + name.len()..3 + name.len() + 5].copy_from_slice(b"_name");
+    room[3 + name.len() + 5] = 0;
+    CStr::from_bytes_until_nul(&room[..]).ok()
+}
+
+/// The kit view's text of `note`: a line a kit, `<kit number>: <item>, <item>`, each item as
+/// `label` writes it (the running language's name).
+fn kit_text<'o>(note: &KitsNote<'_>, mut label: impl FnMut(&[u8], &mut Text<'_>) -> bool, out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
+    let mut text = Text { out, len: 0 };
+    for (lines, kit) in note.kits().enumerate() {
+        if (lines > 0 && !text.push(b"\n")) || !text.number(u32::from(kit.kit) + 1) || !text.push(b": ") {
+            break;
+        }
+        for (at, name) in kit.items().enumerate() {
+            if (at > 0 && !text.push(b", ")) || !label(name, &mut text) {
+                return text.finish();
+            }
+        }
+    }
+    text.finish()
 }
 
 /// `hud.update` (game_world_ui::update_ui, every frame of the hud): a
 /// viewer's controls fed for this frame.
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let Session::Replay(viewer) = SESSION.get(thread) else { return Flow::Continue };
-    let Some(client) = HudFrame::at(ctx).and_then(|hud| hud.client(thread)) else { return Flow::Continue };
-    let fed = feed(&client, &viewer, &EVENTS.get(thread), FED.get(thread));
-    FED.set(thread, fed);
+    let Some(hud) = HudFrame::at(ctx) else { return Flow::Continue };
+    let Some(client) = hud.client(thread) else { return Flow::Continue };
+    match SESSION.get(thread) {
+        Session::Replay(viewer) => FED.set(thread, feed(&client, &viewer, &EVENTS.get(thread), FED.get(thread), thread)),
+        // A live match's spectator: the kit chooser and the slots stay hidden (it may not have
+        // the replay controls' movie, whose Overlay a viewer's frame goes through).
+        Session::Live if client.role() == Some(Role::Spectator) => {
+            hud.hide_player_panels();
+            hud.keep_cursor_off();
+        }
+        Session::Live => {}
+    }
     Flow::Continue
 }
 
@@ -796,6 +938,12 @@ impl ControlCall {
 /// A replay client's, and every other call, go on as the game's.
 pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
     let Some(call) = HudCall::at(ctx) else { return Flow::Continue };
+    // A spectator picks no kit: the chooser's pick of a spectator's game is dropped (the movie
+    // would tell the game profile_changed).
+    if call.method().to_bytes() == b"profile_changed" {
+        let spectator = call.hud().client(call.thread()).is_some_and(|client| client.role() == Some(Role::Spectator));
+        return if spectator { Flow::Exit(ReplayViewerOnHudCallExit::Done) } else { Flow::Continue };
+    }
     let Some(control) = ControlCall::of(&call) else { return Flow::Continue };
     let thread = call.thread();
     let Some(client) = call.hud().client(thread).filter(|client| client.role().is_some()) else {
@@ -1051,6 +1199,44 @@ mod tests {
         let text = many.markers(MatchMs(0), Own(0), None, names, &mut room).to_bytes();
         assert!(text.len() < MARKERS_ROOM && text.ends_with(b"Ada > Bob,"), "{}", text.len());
         assert_eq!(Events::NONE.markers(MatchMs(0), Own(0), None, names, &mut room).to_bytes(), b"");
+    }
+
+    fn note(place: u8, kits: &[(u8, &[&[u8]])]) -> ([u8; 256], usize) {
+        let mut room = [0; 256];
+        let len = KitsNote::encode(place, kits, &mut room).unwrap();
+        (room, len)
+    }
+
+    #[test]
+    fn kits_notes_are_kept_in_their_order_and_a_note_past_the_room_is_dropped() {
+        let (first, first_len) = note(1, &[(0, &[b"ak"])]);
+        let (second, second_len) = note(2, &[(1, &[b"svd"])]);
+        let kits = Kits::NONE.take(&first[..first_len]).take(&second[..second_len]);
+        let notes: [&[u8]; 2] = {
+            let mut it = kits.notes();
+            [it.next().unwrap(), it.next().unwrap()]
+        };
+        assert_eq!(notes, [&first[..first_len], &second[..second_len]]);
+        assert_eq!(kits.notes().count(), 2);
+        let full = Kits::NONE.take(&[0; KITS_ROOM - 2]);
+        assert_eq!(full.take(&[1]).notes().count(), 1);
+    }
+
+    #[test]
+    fn the_kit_text_is_a_line_a_kit_of_translated_items() {
+        let (bytes, len) = note(3, &[(0, &[b"ak", b"medkit"]), (2, &[b"svd"])]);
+        let Some(ServerNote::Kits(note)) = ServerNote::parse(&bytes[..len]) else { panic!() };
+        let mut room = [0; MARKERS_ROOM];
+        let text = kit_text(&note, |name, text: &mut Text<'_>| text.push(b"<") && text.push(name) && text.push(b">"), &mut room);
+        assert_eq!(text.to_bytes(), b"1: <ak>, <medkit>\n3: <svd>");
+    }
+
+    #[test]
+    fn an_item_name_makes_its_dictionary_key() {
+        let mut room = [0; KEY_ROOM];
+        assert_eq!(item_name_key(b"base_medkit", &mut room).unwrap().to_bytes(), b"st_base_medkit_name");
+        assert_eq!(item_name_key(&[b'x'; ITEM_NAME_MAX], &mut room).unwrap().to_bytes().len(), KEY_ROOM - 1);
+        assert!(item_name_key(&[b'x'; ITEM_NAME_MAX + 1], &mut room).is_none());
     }
 
     #[test]

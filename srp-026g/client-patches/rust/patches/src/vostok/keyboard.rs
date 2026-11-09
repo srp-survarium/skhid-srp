@@ -53,6 +53,10 @@ impl Dik {
     /// DIK_RMENU: the right Alt (alt_is_held 0x241200 asks both).
     pub const RIGHT_ALT: Dik = Dik(0xB8);
     pub const ESCAPE: Dik = Dik(0x01);
+    /// The keys 1, 2 and 3 of the top row (patch 58's kits).
+    pub const KEY_1: Dik = Dik(0x02);
+    pub const KEY_2: Dik = Dik(0x03);
+    pub const KEY_3: Dik = Dik(0x04);
     pub const LEFT_BRACKET: Dik = Dik(0x1A);
     pub const RIGHT_BRACKET: Dik = Dik(0x1B);
     pub const H: Dik = Dik(0x23);

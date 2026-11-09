@@ -476,15 +476,42 @@ package replay_player_fla
       // hint (ViewerControls), with their texts in the running language: Back, the switch's label and
       // its choices All, Mine, Followed, the hint's actions Cursor, Pause, Filter, Hide and its Ctrl and
       // Space caps.
-      public function start_viewer(back:String, moments:String, all:String, mine:String, followed:String, cursor:String, pause:String, filter:String, hide:String, ctrl:String, space:String) : void
+      public function start_viewer(back:String, moments:String, all:String, mine:String, followed:String, cursor:String, pause:String, filter:String, hide:String, ctrl:String, space:String, kits:String = "") : void
       {
          if(this.viewer != null)
          {
             return;
          }
-         this.viewer = new ViewerControls(this.bottomPanel,this.freeViewButton.textField.getTextFormat().font,[back,moments,all,mine,followed,cursor,pause,filter,hide,ctrl,space]);
+         this.viewer = new ViewerControls(this.bottomPanel,this.freeViewButton.textField.getTextFormat().font,[back,moments,all,mine,followed,cursor,pause,filter,hide,ctrl,space,kits]);
          addChild(this.viewer);
          this.viewer.place();
+      }
+
+      // srp's: the viewer's kit view forgets every place's kits (a new match).
+      public function reset_player_kits() : void
+      {
+         if(this.viewer != null)
+         {
+            this.viewer.resetKits();
+         }
+      }
+
+      // srp's: a place's used kits' text, a line a kit (from the exe).
+      public function set_player_kits(place:String, text:String) : void
+      {
+         if(this.viewer != null)
+         {
+            this.viewer.setKits(int(place),text);
+         }
+      }
+
+      // srp's: the place in view, whose kits the kit view shows (255: none).
+      public function set_watched_place(place:int) : void
+      {
+         if(this.viewer != null)
+         {
+            this.viewer.setWatched(place);
+         }
       }
 
       // srp's: the Moments switch's choice (0 All, 1 Mine, 2 Followed; Mine offered when `mine` is not

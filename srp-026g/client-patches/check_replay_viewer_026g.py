@@ -357,6 +357,15 @@ def request(seq, op, value):
     return b"\xff" * 6 + struct.pack("<4BI", 0x52, 0, seq, op, value)   # replay_control::REQUEST_HEAD, seq, op, value
 
 
+def kits_note(place, kits):
+    body = struct.pack("<4B", 0x52, 4, place, len(kits))
+    for kit, names in kits:
+        body += struct.pack("<2B", kit, len(names))
+        for name in names:
+            body += struct.pack("<B", len(name)) + name
+    return body
+
+
 def events(first, total, items):
     return struct.pack("<2B2H", 0x52, 2, first, total) + b"".join(
         struct.pack("<I3B", t, kind, a, v) for t, kind, a, v in items)
@@ -534,7 +543,27 @@ def main():
     check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls,
           "call, a live spectator, update_position: taken with nothing done (the game's would seek with no reader)")
     state, _, calls = control(ours, "profile_changed", (4, 1, 0))
-    check(state[UC_X86_REG_EIP] == SITES["call"][2], "call, a live spectator, profile_changed (the hud's own): on as the game's")
+    check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls,
+          "call, a live spectator, profile_changed (the kit chooser's pick): taken, nothing done")
+    ours.setup(2)
+    state, _, calls = control(ours, "profile_changed", (4, 1, 0))
+    check(state[UC_X86_REG_EIP] == SITES["call"][2] and not calls, "call, a player, profile_changed: on as the game's")
+    state, _, calls = frame(ours)
+    check(not calls, "frame, a player's game: nothing done, its kits its own")
+    state, _, calls = key(ours, 0x03)
+    check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls, "key, a player, 2: on to the game (patch 58's kit key)")
+    ours.setup(0xFF)
+    ours.word(WORLD_UI + 0x8, HUD_HOLDER)        # this hud has its hud movie (a viewer's frames test without it)
+    state, _, calls = frame(ours)
+    names = [c[2] for c in calls if c[0] == "invoke"]
+    check(names == ["root.show_profiles_selector", "root.show_slots"] and [c[4] for c in calls] == [(2, 0), (2, 0)],
+          "frame, a live spectator: the kit chooser and the slots hidden through the hud movie, nothing else")
+    state, _, calls = key(ours, 0x03)
+    check(state[UC_X86_REG_EIP] == SITES["key"][3] and state[UC_X86_REG_EAX] & 0xFF == 1 and not calls,
+          "key, a live spectator, 2: taken, nothing called (no kit pick)")
+    state, _, calls = key(ours, 0x04, kind=HELD)
+    check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls, "key, a live spectator, 3 held: on as the game's (only a key going down picks)")
+    ours.word(WORLD_UI + 0x8, 0)                 # back to no hud movie for the viewer's frames below
     ours.run("note", note_regs(ours, playback(1, 0, 100)))
     for site, name in (("button", "a button"), ("pointer", "the pointer")):
         stock.setup(0xFF)
@@ -560,17 +589,28 @@ def main():
           "frame, a viewer: the controls shown, the bar's length, the markers, its position and the play button")
     keys = ["st_srp_viewer_back", "st_srp_viewer_moments", "st_srp_viewer_moments_all", "st_srp_viewer_moments_mine",
             "st_srp_viewer_moments_followed", "st_srp_viewer_cursor", "st_srp_viewer_pause", "st_srp_viewer_filter",
-            "st_srp_viewer_hide", "st_srp_viewer_cap_ctrl", "st_srp_viewer_cap_space"]
+            "st_srp_viewer_hide", "st_srp_viewer_cap_ctrl", "st_srp_viewer_cap_space", "st_srp_viewer_kits"]
     check([c[1] for c in calls if c[0] == "translate"] == keys
           and ("root.start_viewer", (6, "st_srp_viewer_back")) in names
-          and any(c[2] == "root.start_viewer" and c[3] == 11 for c in calls if c[0] == "invoke")
+          and any(c[2] == "root.start_viewer" and c[3] == 12 for c in calls if c[0] == "invoke")
           and ("root.set_moments", (4, 0)) in names and ("root.set_cursor_shown", (2, 0)) in names,
-          "frame, a viewer: the controls made a viewer's (root.start_viewer with its 11 texts translated), "
+          "frame, a viewer: the controls made a viewer's (root.start_viewer with its 12 texts translated), "
           "the Moments switch at All (the viewer did not play), the cursor hidden")
     state, _, calls = frame(ours)
     names = [c[2] for c in calls if c[0] == "invoke"]
     check(names == ["root.set_position", "root.set_play_state"] and not [c for c in calls if c[0] != "invoke"],
           "frame, a viewer, the next frame: only the position and the play button")
+    kit = kits_note(1, [(0, [b"ak74m", b"base_medkit"])])
+    state, _, calls = ours.run("note", note_regs(ours, kit))
+    check(state[UC_X86_REG_EIP] == exit_ and not calls, "note, a place's kits: kept, nothing called yet")
+    state, _, calls = frame(ours)
+    ks = [c for c in calls if c[0] == "invoke" and c[2] == "root.set_player_kits"]
+    tr = [c[1] for c in calls if c[0] == "translate"]
+    check(ks and tr == ["st_ak74m_name", "st_base_medkit_name"] and ks[0][3] == 2,
+          "frame, a viewer, after a kits note: its items translated (st_<item>_name), root.set_player_kits(place, text)")
+    state, _, calls = frame(ours)
+    check(not [c for c in calls if c[0] == "invoke" and c[2] == "root.set_player_kits"],
+          "frame, a viewer, the next frame: the kits not given again")
     state, _, calls = control(ours, "moments_clicked", (4, 2, 0))
     check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls, "call, a viewer, moments_clicked(2): taken, nothing sent")
     state, _, calls = frame(ours)
@@ -587,7 +627,7 @@ def main():
           "call, a viewer, back_clicked: a leave request (the server's farewell ends the world), no close here")
     close(ours, 0)
     state, _, calls = frame(ours)
-    check(not calls, "frame, after the match's end: nothing fed")
+    check(not calls, "frame, after the match's end: nothing fed (this hud has no hud movie)")
     state, _, calls = mouse(ours, "button")
     check(state[UC_X86_REG_EIP] == SITES["button"][3] and not calls, "button, after the match's end: to the hud movie again")
 
