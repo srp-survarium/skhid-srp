@@ -7,8 +7,6 @@
 //! are built like them, from the released game, into a page of the wiki's.
 //! The quests ([`crate::quests`]) come from the server's game data and pay rules.
 
-use session::v026g::rewards::PerMatch;
-
 use crate::{
     ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, quests, skills,
 };
@@ -48,13 +46,13 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 
 /// The wiki's page at `path` in `lang` under `header`; `query`: the
 /// request's text after `?` (the modifiers page's chosen item);
-/// `per_match`: what a match is now, for the skills page.
+/// `now`: what the skills page shows of the running server.
 pub(crate) fn page(
     path: &str,
     query: &str,
     lang: Lang,
     header: &str,
-    per_match: Option<PerMatch>,
+    now: &skills::Now,
 ) -> Response {
     let (title, body) = if path == WEAPONS {
         let body = match lang {
@@ -63,7 +61,7 @@ pub(crate) fn page(
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
     } else if path == skills::PATH {
-        (lang.tr("Skills", "Навички"), skills::body(lang, per_match))
+        (lang.tr("Skills", "Навички"), skills::body(lang, now))
     } else if path == quests::PATH {
         (lang.tr("Quests", "Завдання"), quests::body(lang))
     } else if path == EQUIPMENT {
@@ -168,7 +166,7 @@ mod tests {
     #[test]
     fn both_languages_have_weapon_stats_and_comparison() {
         for lang in [Lang::En, Lang::Uk] {
-            let page = page(WEAPONS, "", lang, "site header", None);
+            let page = page(WEAPONS, "", lang, "site header", &skills::Now::default());
             assert!(page.body.contains("site header"));
             assert!(page.body.contains("id=\"wpn_ak_74m\""));
             assert!(page.body.contains("class=\"weapon-details\""));
@@ -182,7 +180,13 @@ mod tests {
     #[test]
     fn the_skills_page_names_only_files_it_serves() {
         for lang in [Lang::En, Lang::Uk] {
-            let page = page(skills::PATH, "", lang, "site header", None);
+            let page = page(
+                skills::PATH,
+                "",
+                lang,
+                "site header",
+                &skills::Now::default(),
+            );
             assert!(page.body.contains("site header"));
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("class=\"skill-branch\""));
