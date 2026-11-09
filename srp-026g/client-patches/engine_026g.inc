@@ -395,6 +395,30 @@ extern engine_global_memory_status_ex
 ; the IAT slot 0x870168 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_virtual_query
+; void *engine_virtual_alloc(void *address, unsigned int size, unsigned int type, unsigned int protect)
+; the IAT slot 0x87015c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_virtual_alloc
+; unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)
+; the IAT slot 0x8701b4 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_environment_variable_a
+; unsigned int engine_virtual_protect(void *address, unsigned int size, unsigned int protect, unsigned int *old)
+; the IAT slot 0x870200 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_virtual_protect
+; unsigned int engine_virtual_free(void *address, unsigned int size, unsigned int type)
+; the IAT slot 0x870160 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_virtual_free
+; unsigned int engine_switch_to_thread(void)
+; the IAT slot 0x870120 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_switch_to_thread
+; void engine_sleep(unsigned int milliseconds)
+; the IAT slot 0x87011c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_sleep
 ; struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where)
 ; 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
 extern engine_allocate_recipe

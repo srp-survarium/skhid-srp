@@ -54,6 +54,7 @@ pub mod mouse;
 pub mod log;
 pub mod melee;
 pub mod memory;
+pub mod memory_profile;
 mod options;
 pub mod parse;
 pub mod resources;
@@ -99,10 +100,10 @@ mod generated {
 }
 
 pub use cell::GameCell;
-pub use sync::Lock;
+pub use sync::{Lock, YieldingLock};
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
-pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
+pub use hook::{CallbackEntry, Handle, InstallRefused, OnDemand, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
 pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};

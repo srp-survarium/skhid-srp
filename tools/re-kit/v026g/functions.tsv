@@ -2247,3 +2247,12 @@ va	status	ref_021d	name
 0x0027f780	reviewed	0x001a3c98	survarium::network_client::draw_match_stats
 0x00429f20	reviewed		_chkstk
 0x00319af0	observed		survarium::damage_zone_core::hit_objects
+0x00101330	verified		dlmalloc::mspace_malloc
+0x001005a0	verified		dlmalloc::mspace_realloc
+0x001015e0	verified		dlmalloc::mspace_free
+0x00100750	verified		dlmalloc::mspace_memalign
+0x00106ef0	verified		pt3malloc
+0x000eb530	reviewed		vostok::memory::mt_allocator::call_malloc
+0x00106d70	verified		ptmalloc3::memalign_starter
+0x00106d90	verified		ptmalloc3::free_starter
+0x00106fc0	verified		pt3free

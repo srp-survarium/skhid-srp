@@ -143,6 +143,8 @@ class Config:
         return [str(self.wine), *game]
 
     def client_environment(self, index: int) -> dict[str, str]:
+        # run.py's own environment goes on to the clients: SKHID_MEMORY_PROFILE=on there
+        # profiles them (patch 127, docs/notes/memory-profile.md); unset, nothing is set.
         return dict(os.environ, **(self.client_env | {
             "WINEPREFIX": str(self.prefix(index)), "WINEDEBUG": "-all",
             # Full-memory crash dumps (client/bugtrap/README.md, "Dump contents").

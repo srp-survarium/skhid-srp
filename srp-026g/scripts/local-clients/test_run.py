@@ -45,6 +45,14 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(self.config.client_environment(1)["WINEPREFIX"], str(self.config.prefix(1)))
         self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
 
+    def test_the_memory_profile_reaches_a_client_only_when_run_py_has_it(self):
+        # patch 127's switch (docs/notes/memory-profile.md): off unless the one starting run.py sets it
+        with patch.dict(run.os.environ, {}, clear=False):
+            run.os.environ.pop("SKHID_MEMORY_PROFILE", None)
+            self.assertNotIn("SKHID_MEMORY_PROFILE", self.config.client_environment(0))
+        with patch.dict(run.os.environ, {"SKHID_MEMORY_PROFILE": "on"}):
+            self.assertEqual(self.config.client_environment(0)["SKHID_MEMORY_PROFILE"], "on")
+
     def test_clients_start_directly_unless_a_virtual_desktop_is_asked_for(self):
         command = self.config.client_command(0)
         self.assertEqual(command[1], "survarium_skhid.exe")
