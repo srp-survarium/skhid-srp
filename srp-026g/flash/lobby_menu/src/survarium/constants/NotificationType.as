@@ -14,9 +14,6 @@ package survarium.constants
       // a match result
       public static const MATCH:int = 3;
       
-      // premium activated (NotificationPremDiscount)
-      public static const PREMIUM:int = 4;
-      
       public static const FACTION_RANK:int = 8;
       
       // a skill level

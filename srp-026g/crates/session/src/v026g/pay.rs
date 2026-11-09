@@ -130,25 +130,33 @@ pub fn cell(plain: f64, k: f64) -> f64 {
     (plain * k + 1e-6).floor().max(0.0)
 }
 
+/// What the premium account added to a match's rows, half again of each
+/// of its three kinds, is in the three rates below for every account since
+/// 2026-11-09 (the owner: "essentially we should just increase numbers
+/// premium does"; there is no premium account, `docs/notes/premium.md`).
+///
 /// The owner's choice (2026-10-14): the percent of the original's silver a
 /// match's rows pay, by the match's level: 150 to level 5, ten more each
-/// level after, 220 from level 12. The kits' prices grow faster than
-/// `money_k` does (`progression_pace.md`: a tier's kit was 20 to 26
-/// matches of silver up to tier 6 and 53 to 72 from tier 12), and past 220
-/// the faction's rank is what a player waits for. It was 120 at every level
+/// level after, 220 from level 12; then half again of each (premium's).
+/// The kits' prices grow faster than `money_k` does
+/// (`progression_pace.md`: a tier's kit was 20 to 26 matches of silver up
+/// to tier 6 and 53 to 72 from tier 12), and past the top rate the
+/// faction's rank is what a player waits for. It was 120 at every level
 /// from 2026-10-13 and 80 from the start.
 pub const MONEY_RATES: [u32; 13] = [
-    150, 150, 150, 150, 150, 150, 160, 170, 180, 190, 200, 210, 220,
+    225, 225, 225, 225, 225, 225, 240, 255, 270, 285, 300, 315, 330,
 ];
 /// The owner's choice (2026-10-14): a match's experience is paid twice
-/// over. The account level was the longest road by far
-/// (`progression_pace.md`: level 20 after 67 hours of play, the top kit
-/// after 72). It was the original's pace, 1, from 2026-10-12.
-pub const DEFAULT_EXPERIENCE_RATE: u32 = 2;
+/// over; then half again (premium's): three times. The account level was
+/// the longest road by far (`progression_pace.md`: level 20 after 67 hours
+/// of play, the top kit after 72). It was the original's pace, 1, from
+/// 2026-10-12.
+pub const DEFAULT_EXPERIENCE_RATE: u32 = 3;
 /// The owner's choice (2026-10-14, "increase reputation a bit for all"; the
-/// 120 is srp's reading of "a bit"): the percent of the original's
-/// reputation a match's rows and its quests pay.
-pub const DEFAULT_REPUTATION_RATE: u32 = 120;
+/// 120 is srp's reading of "a bit"), then half again (premium's): the
+/// percent of the original's reputation a match's rows and its quests pay.
+/// The quests were no premium's, but share the rate.
+pub const DEFAULT_REPUTATION_RATE: u32 = 180;
 
 /// The percent of the original's silver the rows of a match pay.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -184,8 +192,7 @@ fn setting(name: &str, default: u32, most: u32) -> u32 {
 
 /// `SRP_MONEY_RATE`: one percent of the original's silver for the three
 /// rows of a match at every level, 1 to 1000; unset, [`MONEY_RATES`] by
-/// the match's level. Premium's half is counted from the rows, so it
-/// follows. Read once.
+/// the match's level. Read once.
 pub fn money_rate() -> MoneyRate {
     static RATE: std::sync::OnceLock<MoneyRate> = std::sync::OnceLock::new();
     *RATE.get_or_init(|| match std::env::var("SRP_MONEY_RATE") {
@@ -203,7 +210,7 @@ pub fn money_rate() -> MoneyRate {
 }
 
 /// `SRP_EXPERIENCE_RATE`: what a match's experience is multiplied by, 1 to
-/// 100 (default 2; 1 is the original's pace). The reputation has its own
+/// 100 (default 3; 1 is the original's pace). The reputation has its own
 /// rate ([`reputation_rate`]); until 2026-10-14 this one multiplied it too.
 /// Read once.
 pub fn experience_rate() -> u32 {
@@ -213,7 +220,7 @@ pub fn experience_rate() -> u32 {
 
 /// `SRP_REPUTATION_RATE`: the percent of the original's reputation the
 /// rows of a match and the quests completed in it pay, 1 to 1000 (default
-/// 120). Read once.
+/// 180). Read once.
 pub fn reputation_rate() -> u32 {
     static RATE: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
     *RATE.get_or_init(|| setting("SRP_REPUTATION_RATE", DEFAULT_REPUTATION_RATE, 1000))
@@ -329,19 +336,28 @@ mod tests {
     fn the_silver_rate_rises_with_the_match_level() {
         let by_level = MoneyRate::ByLevel;
         for level in 0..=5 {
-            assert_eq!(by_level.at(level), 150);
+            assert_eq!(by_level.at(level), 225);
         }
         assert_eq!(
             (6..=12).map(|level| by_level.at(level)).collect::<Vec<_>>(),
-            [160, 170, 180, 190, 200, 210, 220]
+            [240, 255, 270, 285, 300, 315, 330]
         );
+        // Half again of the owner's 150 to 220: what premium paid.
+        let before = [
+            150, 150, 150, 150, 150, 150, 160, 170, 180, 190, 200, 210, 220,
+        ];
+        for (rate, before) in MONEY_RATES.iter().zip(before) {
+            assert_eq!(*rate * 2, before * 3);
+        }
+        assert_eq!(DEFAULT_EXPERIENCE_RATE * 2, 2 * 3);
+        assert_eq!(DEFAULT_REPUTATION_RATE * 2, 120 * 3);
         // Every level of the data past 12 pays as 12 does.
         let levels = survarium::v026g::dictionary::Dictionary::shared()
             .match_levels
             .len() as u16;
         assert!(levels > 13);
         for level in 12..levels + 5 {
-            assert_eq!(by_level.at(level), 220);
+            assert_eq!(by_level.at(level), 330);
         }
         assert_eq!(MoneyRate::Flat(80).at(0), 80);
         assert_eq!(MoneyRate::Flat(80).at(20), 80);

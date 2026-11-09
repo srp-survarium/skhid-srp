@@ -267,14 +267,12 @@ fn the_page_changes_an_account_and_its_open_game_is_told() {
         silver
     );
 
-    // The admin: premium time, a level, reputation. The game gets its
-    // account again and its services (the premium hours).
+    // The admin: a level, reputation. The game gets its account again.
     let changed = admin(
         web,
         &[
             ("tab", "account"),
             ("acc_user", "WebAlice"),
-            ("premium_hours", "+24"),
             ("level", "20"),
             ("faction", "1"),
             ("reputation", "+40"),
@@ -287,15 +285,6 @@ fn the_page_changes_an_account_and_its_open_game_is_told() {
                 // A new account's 3000 with the Scavengers and the 40.
                 matches!(message, Decoded::Reputations { reputations, .. }
                     if reputations.contains(&(1, 3_040)))
-            })
-            && game.has(|message| {
-                matches!(
-                    message,
-                    // A new account's month (720 hours) and the 24.
-                    Decoded::Services {
-                        premium_hours: Some(744)
-                    }
-                )
             })
     });
     alice.forget();

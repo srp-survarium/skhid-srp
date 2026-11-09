@@ -1379,7 +1379,6 @@ mod tests {
     #[test]
     fn the_third_kit_needs_no_premium() {
         let mut account = account();
-        assert!(!account.is_premium(NOW));
         let pistol = account.inventory[0].clone();
         let third_kit = account.kits[2].id;
         let moves = [relocation(&pistol, INVENTORY_SLOT, 7, 1)];

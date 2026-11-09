@@ -384,7 +384,8 @@ package
          this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
-         this.pregameInfo.premiumMembers.visible = false;
+         // The stock "premium players in the match" box: srp has no premium (the owner, 2026-11-09)
+         this.pregameInfo.premiumMembers.parent.removeChild(this.pregameInfo.premiumMembers);
          this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
          addChild(this._modeNotice);
          damageDebug = new SrvDebugDamage();
@@ -1445,29 +1446,15 @@ package
          }
       }
       
+      // The exe's "premium players in the match" (their drop bonus): srp has no premium account.
       public function show_premium_players(value:String, prefix:String = "", postfix:String = "", bonus:uint = 20) : void
       {
-         var style:StyleSheet = new StyleSheet();
-         var styleObject:Object;
-         styleObject = new Object();
-         styleObject.color = Colors.PLAYER_ST;
-         style.setStyle("yellow",styleObject);
-         this.pregameInfo.premiumMembers.textField.autoSize = TextFieldAutoSize.LEFT;
-         this.pregameInfo.premiumMembers.textField.styleSheet = style;
-         var players:String = value;
-         this.pregameInfo.premiumMembers.visible = true;
-         this.pregameInfo.premiumMembers.textField.text = prefix + "\n" + Util.styledChar(value,"yellow") + "\n" + postfix + Util.styledChar("+" + bonus.toString() + "%","yellow");
-         this.pregameInfo.premiumMembers.background.height = this.pregameInfo.premiumMembers.textField.textHeight + 25;
       }
       
       public function show_pregame(bool:Boolean) : void
       {
          this.pregameInfo.visible = bool;
          this._modeNotice.update(getTimer(),true,bool);
-         if(bool == false)
-         {
-            this.pregameInfo.premiumMembers.visible = false;
-         }
          this.placeResearchCountdowns();
       }
       
@@ -1479,12 +1466,10 @@ package
          if(this.pregameInfo.contextText.width > 400)
          {
             this.pregameInfo.contextText.x = 0;
-            this.pregameInfo.premiumMembers.x = (this.pregameInfo.contextText.textWidth - this.pregameInfo.premiumMembers.width) / 2;
          }
          else
          {
             this.pregameInfo.contextText.x = (400 - this.pregameInfo.contextText.textWidth) / 2;
-            this.pregameInfo.premiumMembers.x = 55;
          }
          this.placeResearchCountdowns();
       }

@@ -261,9 +261,9 @@ pub enum Decoded {
         discarded: FullResult,
         player: AccountBody,
     },
-    Services {
-        premium_hours: Option<u32>,
-    },
+    /// `94`: the account's services; srp sends none (there is no premium
+    /// account).
+    Services,
     Shop(Vec<ShopRecord>),
     UnlockedFactions(u8),
     MatchStats {
@@ -341,12 +341,6 @@ pub enum Decoded {
     },
     AdminText(String, String),
     AdminTextClear,
-    PremiumStore {
-        seconds: u32,
-        values: [u32; 4],
-        factor: f32,
-    },
-    PremiumDiscount(f32),
     SignedOut,
 }
 
@@ -1281,7 +1275,9 @@ impl Client {
         }
         let daily = self.read_bonus(r)?;
         let premium_items = self.read_bonus(r)?;
-        let premium = self.read_bonus(r)?;
+        // The premium account's block, which the client reads and does not
+        // show.
+        self.read_bonus(r)?;
         let elo_before = r.u16()?;
         let elo_after = r.u16()?;
         let quest_money = r.u32()?;
@@ -1300,7 +1296,6 @@ impl Client {
             components,
             daily,
             premium_items,
-            premium,
             elo_before,
             elo_after,
             quest_money,
@@ -1717,18 +1712,14 @@ impl Client {
                 player: self.read_account_body(r)?,
             },
             ServerId::Services => {
-                let count = r.u8()?;
-                let mut premium_hours = None;
-                for _ in 0..count {
-                    let kind = r.u8()?;
+                // `u8 count`, then each `u8 type, u8, u32, u32`.
+                for _ in 0..r.u8()? {
                     r.u8()?;
-                    let a = r.u32()?;
+                    r.u8()?;
                     r.u32()?;
-                    if kind == 0 {
-                        premium_hours = Some(a);
-                    }
+                    r.u32()?;
                 }
-                Decoded::Services { premium_hours }
+                Decoded::Services
             }
             ServerId::Shop => {
                 let count = r.u32()? as usize;
@@ -2016,29 +2007,10 @@ impl Client {
                 r.u8()?;
                 Decoded::AdminTextClear
             }
-            ServerId::PremiumStore => {
-                let seconds = r.u32()?;
-                let values = [r.u32()?, r.u32()?, r.u32()?, r.u32()?];
-                let factor = r.f32()?;
-                // 0x28A547: every premium offer is priced
-                // `value * (1 - factor)`.
-                if !(0.0..1.0).contains(&factor) {
-                    return Err(r.bad("a premium offer whose discount is no share under 1"));
-                }
-                Decoded::PremiumStore {
-                    seconds,
-                    values,
-                    factor,
-                }
-            }
-            ServerId::PremiumDiscount => {
-                let discount = r.f32()?;
-                // `LobbyMenu.show_premium_discount` divides by
-                // `1 - discount` for the old price.
-                if !(0.0..1.0).contains(&discount) {
-                    return Err(r.bad("a premium discount that is no share under 1"));
-                }
-                Decoded::PremiumDiscount(discount)
+            // There is no premium account: a premium offer is no message
+            // of srp's.
+            ServerId::PremiumStore | ServerId::PremiumDiscount => {
+                return Err(r.bad("a premium offer, which srp never sends"));
             }
             ServerId::SignedOut => Decoded::SignedOut,
         })

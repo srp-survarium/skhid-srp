@@ -243,11 +243,7 @@ fn shop_actions() {
     );
     assert_eq!(
         read("47 02 07000000 00000000 00000000"),
-        M::BuyOffer {
-            offer_id: 7,
-            x: 0,
-            factor: 0.0
-        }
+        M::BuyOffer { offer_id: 7 }
     );
     // No repair: srp has none.
     assert_eq!(
@@ -259,20 +255,17 @@ fn shop_actions() {
         parse(0x47, &h("04 64000000")),
         Err(ParseError::UnknownSubType { id: 0x47, sub: 4 })
     );
+    // No premium account: its offers' answers are not read.
     assert_eq!(
-        read("47 05 01000000 0000003F 02000000 03000000 04000000 02"),
-        M::AcceptPremiumWithBonuses {
-            a0: 1,
-            a1: 0.5,
-            a2: 2,
-            a3: 3,
-            a4: 4,
-            faction: 2
-        }
+        parse(
+            0x47,
+            &h("05 01000000 0000003F 02000000 03000000 04000000 02")
+        ),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 5 })
     );
     assert_eq!(
-        read("47 06 01000000 0000803E"),
-        M::AcceptPremiumWithDiscount { a0: 1, a1: 0.25 }
+        parse(0x47, &h("06 01000000 0000803E")),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 6 })
     );
 }
 
