@@ -600,14 +600,14 @@ def main():
     names = [c[2] for c in calls if c[0] == "invoke"]
     check(names == ["root.set_position", "root.set_play_state"] and not [c for c in calls if c[0] != "invoke"],
           "frame, a viewer, the next frame: only the position and the play button")
-    kit = kits_note(1, [(0, [b"ak74m", b"base_medkit"])])
+    kit = kits_note(1, [(0, [b"st_ak74m_name", b"st_base_medkit_name"])])
     state, _, calls = ours.run("note", note_regs(ours, kit))
     check(state[UC_X86_REG_EIP] == exit_ and not calls, "note, a place's kits: kept, nothing called yet")
     state, _, calls = frame(ours)
     ks = [c for c in calls if c[0] == "invoke" and c[2] == "root.set_player_kits"]
     tr = [c[1] for c in calls if c[0] == "translate"]
     check(ks and tr == ["st_ak74m_name", "st_base_medkit_name"] and ks[0][3] == 2,
-          "frame, a viewer, after a kits note: its items translated (st_<item>_name), root.set_player_kits(place, text)")
+          "frame, a viewer, after a kits note: its items' text keys translated, root.set_player_kits(place, text)")
     state, _, calls = frame(ours)
     check(not [c for c in calls if c[0] == "invoke" and c[2] == "root.set_player_kits"],
           "frame, a viewer, the next frame: the kits not given again")

@@ -780,7 +780,7 @@ fn feed_kits(overlay: &Overlay<'_>, fed: &Fed, new_movie: bool, watched: Option<
                 let mut room = [0; MARKERS_ROOM];
                 let text = kit_text(&note, |name, text| {
                     let mut key = [0u8; KEY_ROOM];
-                    let Some(key) = item_name_key(name, &mut key) else { return text.push(name) };
+                    let Some(key) = text_key(name, &mut key) else { return text.push(name) };
                     let mut translated = [0; 0x200];
                     let shown = overlay.translate(key, &mut translated).to_bytes();
                     text.push(if shown.is_empty() { name } else { shown })
@@ -795,18 +795,16 @@ fn feed_kits(overlay: &Overlay<'_>, fed: &Fed, new_movie: bool, watched: Option<
     count
 }
 
-/// A dictionary key's room: `st_`, a name of at most [`ITEM_NAME_MAX`], `_name` and its zero.
-const KEY_ROOM: usize = 3 + ITEM_NAME_MAX + 5 + 1;
+/// A dictionary key's room: the longest a note carries and its zero.
+const KEY_ROOM: usize = ITEM_NAME_MAX + 1;
 
-/// The dictionary key of an item (`st_<name>_name`), as the game's own texts name it.
-fn item_name_key<'o>(name: &[u8], room: &'o mut [u8; KEY_ROOM]) -> Option<&'o CStr> {
-    if name.len() > ITEM_NAME_MAX {
+/// A note's text key as the game's translation takes it, zero-terminated.
+fn text_key<'o>(key: &[u8], room: &'o mut [u8; KEY_ROOM]) -> Option<&'o CStr> {
+    if key.len() > ITEM_NAME_MAX {
         return None;
     }
-    room[..3].copy_from_slice(b"st_");
-    room[3..3 + name.len()].copy_from_slice(name);
-    room[3 + name.len()..3 + name.len() + 5].copy_from_slice(b"_name");
-    room[3 + name.len() + 5] = 0;
+    room[..key.len()].copy_from_slice(key);
+    room[key.len()] = 0;
     CStr::from_bytes_until_nul(&room[..]).ok()
 }
 
@@ -1232,11 +1230,11 @@ mod tests {
     }
 
     #[test]
-    fn an_item_name_makes_its_dictionary_key() {
+    fn a_notes_text_key_is_zero_terminated_for_the_game() {
         let mut room = [0; KEY_ROOM];
-        assert_eq!(item_name_key(b"base_medkit", &mut room).unwrap().to_bytes(), b"st_base_medkit_name");
-        assert_eq!(item_name_key(&[b'x'; ITEM_NAME_MAX], &mut room).unwrap().to_bytes().len(), KEY_ROOM - 1);
-        assert!(item_name_key(&[b'x'; ITEM_NAME_MAX + 1], &mut room).is_none());
+        assert_eq!(text_key(b"st_ak74n_name", &mut room).unwrap().to_bytes(), b"st_ak74n_name");
+        assert_eq!(text_key(&[b'x'; ITEM_NAME_MAX], &mut room).unwrap().to_bytes().len(), KEY_ROOM - 1);
+        assert!(text_key(&[b'x'; ITEM_NAME_MAX + 1], &mut room).is_none());
     }
 
     #[test]

@@ -38,6 +38,7 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
 use session::v026g::replay_watch::{DEFAULT_MAX_RECORDING_MB, WatchFrom, WatchRequest};
 use session::v026g::replays::{Refusal, ReplayId, Replays, Status};
+use survarium::v026g::item_params::item_params;
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::static_info::{self, KIT_USABLE, MatchProfile, NO_LOCAL_PLACE, StaticInfo};
@@ -176,7 +177,7 @@ impl Recording {
                 Relayed::Input(_) => None,
             })
             .collect();
-        let kits = used_kits(&options.players, &first_kits(&worlds, &options.players), &picks, dictionary);
+        let kits = used_kits(&options.players, &first_kits(&worlds, &options.players), &picks);
         Ok(Self {
             match_id,
             kits,
@@ -943,14 +944,11 @@ fn first_kits(worlds: &[Snapshot], profiles: &[MatchProfile]) -> Vec<Option<u8>>
 
 /// The kits each place used: the kit it started with and every kit it picked (an accepted kit
 /// choice, `event.profiles`), as the history counts a kit used, never another. A kit the
-/// profile cannot play is left out; a place with no used kit has no entry. The item names,
-/// in the kit's order and once each, are those a kits note carries.
-fn used_kits(
-    profiles: &[MatchProfile],
-    first: &[Option<u8>],
-    picks: &[(usize, u8)],
-    dictionary: &Dictionary,
-) -> Vec<PlaceKits> {
+/// profile cannot play is left out; a place with no used kit has no entry. An item is named by
+/// its text key (`ui_desc.text_descriptions.name`), the only name the game can translate: its
+/// dictionary name is not one (`ak_74n`'s text is `st_ak74n_name`, `medkit`'s
+/// `st_base_medkit_name`). In the kit's order and once each; an item with no text is left out.
+fn used_kits(profiles: &[MatchProfile], first: &[Option<u8>], picks: &[(usize, u8)]) -> Vec<PlaceKits> {
     let mut out = Vec::new();
     for (place, profile) in profiles.iter().enumerate() {
         let picked = picks.iter().filter(|(player, _)| *player == place).map(|(_, kit)| *kit);
@@ -965,17 +963,17 @@ fn used_kits(
                 if count == 0 {
                     continue;
                 }
-                let name = profile
+                let key = profile
                     .items
                     .get(usize::from(item))
-                    .and_then(|item| dictionary.item(item.dict_id))
-                    .map(|item| item.name.clone())
-                    .filter(|name| replay_control::is_item_name(name.as_bytes()));
-                if let Some(name) = name
-                    && !names.contains(&name)
+                    .and_then(|item| item_params(item.dict_id))
+                    .and_then(|params| params.name_key)
+                    .filter(|key| replay_control::is_item_name(key.as_bytes()));
+                if let Some(key) = key
+                    && !names.iter().any(|name| name == key)
                     && names.len() < ITEMS_PER_KIT
                 {
-                    names.push(name);
+                    names.push(key.to_owned());
                 }
             }
             used.push((number, names));
@@ -1367,20 +1365,35 @@ mod kit_tests {
         }
     }
 
-    fn dict_with_names() -> (&'static Dictionary, [u16; 3], [String; 3]) {
-        let dictionary = Dictionary::shared();
-        let mut named = dictionary.items.iter().filter(|item| replay_control::is_item_name(item.name.as_bytes()));
-        let mut next = || named.next().expect("an item with a plain name");
+    /// Three items with a text key, and the keys.
+    fn items_with_keys() -> ([u16; 3], [String; 3]) {
+        let mut keyed = Dictionary::shared().items.iter().filter_map(|item| {
+            let key = item_params(item.dict_id)?.name_key?;
+            replay_control::is_item_name(key.as_bytes()).then_some((item.dict_id, key.to_owned()))
+        });
+        let mut next = || keyed.next().expect("an item with a text key");
         let (a, b, c) = (next(), next(), next());
-        (dictionary, [a.dict_id, b.dict_id, c.dict_id], [a.name.clone(), b.name.clone(), c.name.clone()])
+        ([a.0, b.0, c.0], [a.1, b.1, c.1])
+    }
+
+    #[test]
+    fn an_item_is_named_by_its_text_key_and_not_its_dictionary_name() {
+        let dictionary = Dictionary::shared();
+        for (name, key) in [("ak_74n", "st_ak74n_name"), ("medkit", "st_base_medkit_name"), ("bandages", "st_base_bandages_name")] {
+            let item = dictionary.item_named(name).expect(name);
+            let mut one = profile([item.dict_id; 3]);
+            one.kits.truncate(1);
+            let used = used_kits(&[one], &[Some(0)], &[]);
+            assert_eq!(used[0].kits[0].1, vec![key.to_owned()]);
+        }
     }
 
     #[test]
     fn only_the_starting_and_picked_kits_are_used_and_a_locked_kit_is_never_shown() {
-        let (dictionary, ids, names) = dict_with_names();
+        let (ids, names) = items_with_keys();
         let profiles = [profile(ids), profile(ids)];
         // Place 0 started in kit 0 and picked 1 and the locked 2; place 1 started in 1, no picks.
-        let used = used_kits(&profiles, &[Some(0), Some(1)], &[(0, 1), (0, 2), (0, 1)], dictionary);
+        let used = used_kits(&profiles, &[Some(0), Some(1)], &[(0, 1), (0, 2), (0, 1)]);
         assert_eq!(used.len(), 2);
         assert_eq!(used[0], PlaceKits { place: 0, kits: vec![(0, vec![names[0].clone()]), (1, vec![names[1].clone()])] });
         assert_eq!(used[1], PlaceKits { place: 1, kits: vec![(1, vec![names[1].clone()])] });
@@ -1388,15 +1401,15 @@ mod kit_tests {
 
     #[test]
     fn a_place_unseen_and_without_picks_has_no_entry() {
-        let (dictionary, ids, _) = dict_with_names();
+        let (ids, _) = items_with_keys();
         let profiles = [profile(ids)];
-        assert_eq!(used_kits(&profiles, &[None], &[], dictionary), vec![]);
+        assert_eq!(used_kits(&profiles, &[None], &[]), vec![]);
     }
 
     #[test]
     fn the_note_of_a_recordings_kits_parses() {
-        let (dictionary, ids, names) = dict_with_names();
-        let used = used_kits(&[profile(ids)], &[Some(1)], &[], dictionary);
+        let (ids, names) = items_with_keys();
+        let used = used_kits(&[profile(ids)], &[Some(1)], &[]);
         let items: Vec<&[u8]> = used[0].kits[0].1.iter().map(|name| name.as_bytes()).collect();
         let mut room = [0; KITS_NOTE_ROOM];
         let len = KitsNote::encode(used[0].place, &[(used[0].kits[0].0, items.as_slice())], &mut room).unwrap();

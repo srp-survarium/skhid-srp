@@ -24,7 +24,7 @@
 //!   - `52 04 place count`, then `count` kits of `kit items` and each item's
 //!     `len name`: the [`KitsNote`], the kits a place used in the replay,
 //!     for the viewer's read-only kit view. The names are the items' own
-//!     (`st_<name>_name` the game's translation of each).
+//!     (each the item's text key, which the game translates).
 //! - Game -> server, an 0xE0 (reliable and plain: it is resent every 500 ms
 //!   until acked, and may come twice or late), a [`Request`]:
 //!   [`REQUEST_HEAD`] then `seq op value:u32` (14 bytes). The game's
@@ -307,8 +307,8 @@ pub const ITEMS_PER_KIT: usize = 32;
 /// The longest item name a note carries.
 pub const ITEM_NAME_MAX: usize = 48;
 
-/// An item name as a note carries it: 1 to [`ITEM_NAME_MAX`] of ASCII letters, digits, `_` and `-`
-/// (what makes a dictionary key, `st_<name>_name`, and nothing else).
+/// An item's text key as a note carries it (its config's `ui_desc.text_descriptions.name`, such as
+/// `st_ak74n_name`): 1 to [`ITEM_NAME_MAX`] of ASCII letters, digits, `_` and `-`.
 pub fn is_item_name(name: &[u8]) -> bool {
     (1..=ITEM_NAME_MAX).contains(&name.len())
         && name.iter().all(|&b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
