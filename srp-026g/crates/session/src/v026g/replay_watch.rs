@@ -20,7 +20,7 @@
 //! While it is not over its player is in none of its room's matches
 //! ([`Watches::holds`]). The movie's polls get its answer
 //! ([`Watches::answer`]): `preparing`, `watching` with the time it starts
-//! at, or why it was refused (an `incompatible` one told once why).
+//! at, or why it was refused.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
@@ -195,8 +195,6 @@ pub struct WatchAnswer {
     /// With [`Status::Watching`], the match time it starts at; with
     /// [`Status::Preparing`], 1 being read now, 2 waiting; else 0.
     pub figure: u32,
-    /// With [`Status::Incompatible`], why: once.
-    pub refusal: Option<Refusal>,
 }
 
 struct Session {
@@ -277,22 +275,21 @@ impl Watches {
         let mut sessions = self.sessions.locked();
         let session = sessions.get(&account_id)?;
         let match_id = session.request.match_id;
-        let (status, figure, refusal) = match session.stage {
-            Stage::Queued => (Status::Preparing, 2, None),
-            Stage::Loading => (Status::Preparing, 1, None),
+        let (status, figure) = match session.stage {
+            Stage::Queued => (Status::Preparing, 2),
+            Stage::Loading => (Status::Preparing, 1),
             Stage::Ready { start_ms } | Stage::Sent { start_ms } | Stage::Playing { start_ms } => {
-                (Status::Watching, start_ms, None)
+                (Status::Watching, start_ms)
             }
-            Stage::Refused { status, refusal } => {
+            Stage::Refused { status, .. } => {
                 sessions.remove(&account_id);
-                (status, 0, refusal)
+                (status, 0)
             }
         };
         Some(WatchAnswer {
             status,
             match_id,
             figure,
-            refusal,
         })
     }
 
@@ -686,11 +683,7 @@ mod tests {
         watches.refuse(&alice, Status::Incompatible, Some(why), now);
         assert!(!watches.holds(ALICE));
         assert_eq!(watches.start(request(MOD), now), Status::Preparing);
-        let answer = watches.answer(ALICE).unwrap();
-        assert_eq!(
-            (answer.status, answer.refusal),
-            (Status::Incompatible, Some(why))
-        );
+        assert_eq!(watches.answer(ALICE).unwrap().status, Status::Incompatible);
         assert_eq!(watches.answer(ALICE), None);
     }
 

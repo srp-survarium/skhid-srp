@@ -395,9 +395,6 @@ pub struct Answer {
     pub place: u32,
     /// With [`Status::Ready`].
     pub ready: Option<Ready>,
-    /// With [`Status::Incompatible`], why: in the first answer of the ask
-    /// only (the lobby tells the player once each time it asks).
-    pub refusal: Option<Refusal>,
 }
 
 impl Answer {
@@ -455,8 +452,6 @@ struct Ask {
     revision: u8,
     /// Whether the asker played it, while the lobby keeps its report.
     played: Option<bool>,
-    /// Why it is [`Status::Incompatible`], until an answer carries it.
-    refusal: Option<Refusal>,
     /// When it was last looked at; `None`: at the next poll (the writer or
     /// the job has news of its match).
     checked: Option<Instant>,
@@ -1011,13 +1006,12 @@ impl Replays {
                     ready: None,
                     revision,
                     played,
-                    refusal: None,
                     checked: Some(at),
                 },
             );
             return Status::Busy;
         }
-        let (status, ready, refusal) =
+        let (status, ready) =
             self.evaluate(&mut inner, account_id, match_id, revision, played, now);
         inner.asks.insert(
             account_id,
@@ -1028,7 +1022,6 @@ impl Replays {
                 ready,
                 revision,
                 played,
-                refusal,
                 checked: Some(now),
             },
         );
@@ -1051,7 +1044,6 @@ impl Replays {
                 match_id: 0,
                 place: 0,
                 ready: None,
-                refusal: None,
             };
         };
         let (match_id, status, revision, played) =
@@ -1060,19 +1052,14 @@ impl Replays {
             .checked
             .is_none_or(|at| now.saturating_duration_since(at) >= RECHECK_EVERY);
         if status == Status::Preparing && due {
-            let (status, ready, refusal) =
+            let (status, ready) =
                 self.evaluate(&mut inner, account_id, match_id, revision, played, now);
             if let Some(ask) = inner.asks.get_mut(&account_id) {
                 ask.status = status;
                 ask.ready = ready;
-                ask.refusal = refusal;
                 ask.checked = Some(now);
             }
         }
-        let refusal = inner
-            .asks
-            .get_mut(&account_id)
-            .and_then(|ask| ask.refusal.take());
         let ask = &inner.asks[&account_id];
         Answer {
             status: ask.status,
@@ -1083,11 +1070,10 @@ impl Replays {
                 0
             },
             ready: ask.ready.clone(),
-            refusal,
         }
     }
 
-    /// [`Self::look`], with why it is [`Status::Incompatible`] when it is.
+    /// [`Self::look`], the why of a [`Status::Incompatible`] logged.
     fn evaluate(
         &self,
         inner: &mut Inner,
@@ -1096,16 +1082,16 @@ impl Replays {
         revision: u8,
         played: Option<bool>,
         now: Instant,
-    ) -> (Status, Option<Ready>, Option<Refusal>) {
+    ) -> (Status, Option<Ready>) {
         match self.look(inner, account_id, match_id, revision, played, now) {
-            Ok((status, ready)) => (status, ready, None),
+            Ok((status, ready)) => (status, ready),
             Err(refusal) => {
                 log::info!(
                     "Save: account {account_id} is not given match {match_id:#x} for its game \
                      revision {revision}: {refusal:?} (the oldest given: {})",
                     self.oldest
                 );
-                (Status::Incompatible, None, Some(refusal))
+                (Status::Incompatible, None)
             }
         }
     }
@@ -1813,31 +1799,18 @@ mod tests {
     }
 
     #[test]
-    fn a_refused_save_says_why_once_an_ask_and_gives_no_token() {
+    fn a_refused_save_gives_no_token() {
         let root = temp("why");
         let replays = on(&root).with_oldest_revision(17);
         made_by(&replays, MATCH, vec![Some(16), None]);
-        let mut now = Instant::now();
+        let now = Instant::now();
         assert_eq!(
             replays.save_ask(ALICE, MATCH, Some(17), Some(true), now),
             Status::Incompatible
         );
         let first = replays.save_answer(ALICE, now);
-        assert_eq!(
-            first.refusal,
-            Some(Refusal::Older {
-                from: 16,
-                to: 16,
-                oldest: 17
-            })
-        );
+        assert_eq!(first.status, Status::Incompatible);
         assert!(first.link().is_none());
-        // The movie's next polls: the status, the why said already.
-        let again = replays.save_answer(ALICE, now);
-        assert_eq!((again.status, again.refusal), (Status::Incompatible, None));
-        now += ASK_EVERY;
-        replays.save_ask(ALICE, MATCH, Some(17), Some(true), now);
-        assert!(replays.save_answer(ALICE, now).refusal.is_some());
         assert!(replays.inner.locked().tokens.is_empty());
         let _ = std::fs::remove_dir_all(&root);
     }

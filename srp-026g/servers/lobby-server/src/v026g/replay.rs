@@ -14,13 +14,10 @@
 //!   with the match time it starts at (ms) once its game is sent, or why
 //!   not (`not_yours` under `SRP_REPLAY_WATCH=match`, `incompatible`,
 //!   `gone`, `failed`, `busy`, `old_game`, `off`).
-//! - A replay refused for its recording's games (`incompatible`: older
-//!   than the last change of what a match computes, of no known revision,
-//!   or newer than the asker's game): the first answer also opens the
-//!   game's message box (`84 49 00 <text>`, `social.md` §9.1) saying why in
-//!   the game's language ([`refusal_text`]): recorded before a game update,
-//!   which no game plays yet; or recorded by a newer game, with its
-//!   revisions, and to update.
+//! - A replay refused for its recording's games (`incompatible`) is said by
+//!   the movie, in the game's language, from the localization tables: the
+//!   prompt's `st_srp_replay_incompatible`, the card's
+//!   `st_srp_watch_reason_old`. The server only logs why.
 //!
 //! The game goes to the match server as a spectator does (`85` "found",
 //! then `82` with its session) and is shown the replay there; its player
@@ -38,10 +35,9 @@
 use std::time::Instant;
 
 use session::v026g::replay_watch::{WatchFrom, WatchRequest};
-use session::v026g::replays::{Answer, Refusal, Status};
+use session::v026g::replays::{Answer, Status};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::ReplayWatchAsk;
-use survarium::v026g::lobby::requests::id;
 
 use super::core::{Core, Who};
 
@@ -172,9 +168,6 @@ impl Core<'_> {
             u64::from(answer.figure),
         );
         self.send_made(who.addr, row);
-        if let Some(refusal) = answer.refusal {
-            self.tell_refusal(who, answer.match_id, refusal);
-        }
     }
 
     /// `3D 00 <SAVE_ASK> <match_id>`: the asker wants that match's replay
@@ -216,7 +209,6 @@ impl Core<'_> {
                 match_id: 0,
                 place: 0,
                 ready: None,
-                refusal: None,
             },
         };
         if let Some(link) = answer.link() {
@@ -224,21 +216,6 @@ impl Core<'_> {
         }
         let row = lobby::save_answer(answer.status.word(), answer.match_id, answer.figure());
         self.send_made(who.addr, row);
-        if let Some(refusal) = answer.refusal {
-            self.tell_refusal(who, answer.match_id, refusal);
-        }
-    }
-
-    /// The game's message box says why a replay is not given.
-    fn tell_refusal(&mut self, who: &Who, match_id: u32, refusal: Refusal) {
-        let language = self.player(who.addr).and_then(|player| player.language);
-        log::info!(
-            "{} is told why the replay of match {match_id:#x} is not given: {refusal:?}",
-            who.name
-        );
-        // 0x49: the message box and nothing else, whatever the client is
-        // doing.
-        self.deny(who.addr, id::PROFILE, &refusal_text(refusal, language));
     }
 }
 
@@ -279,42 +256,4 @@ fn dev_watch(value: &str) -> Option<(u32, ReplayWatchAsk)> {
         },
     };
     Some((match_id, ask))
-}
-
-/// `a` or `a-b`: the revisions of a recording's games.
-fn span(from: u8, to: u8) -> String {
-    if from == to {
-        from.to_string()
-    } else {
-        format!("{from}-{to}")
-    }
-}
-
-/// What the message box says of a refused replay, in the game's language
-/// (`4F`'s byte: 0 English, 1 Russian, 2 Ukrainian, 3 German, 4 Polish;
-/// English for any other, or none yet): at most 255 bytes (`84`'s string).
-pub(super) fn refusal_text(refusal: Refusal, language: Option<u8>) -> String {
-    let language = language.filter(|&n| n < 5).unwrap_or(0);
-    match refusal {
-        // No game a player has plays it (nothing installs an older one).
-        // No date of the update: the server has none
-        // (`simulation_changes.tsv` keeps revisions only).
-        Refusal::Older { .. } | Refusal::Unknown => match language {
-            1 => "Этот повтор записан до обновления игры; повторы из старых версий пока нельзя воспроизвести.".into(),
-            2 => "Цей повтор записано до оновлення гри; повтори зі старих версій поки не можна відтворити.".into(),
-            3 => "Diese Wiederholung wurde vor einem Spielupdate aufgenommen; Wiederholungen älterer Versionen lassen sich noch nicht abspielen.".into(),
-            4 => "Ta powtórka została nagrana przed aktualizacją gry; powtórek ze starszych wersji nie można jeszcze odtworzyć.".into(),
-            _ => "This replay was recorded before a game update; replays from older versions can't be played yet.".into(),
-        },
-        Refusal::Newer { from, to } => {
-            let revisions = span(from, to);
-            match language {
-                1 => format!("Этот повтор записан более новой версией игры (ревизия {revisions}). Обновите игру: запустите её снова через лаунчер."),
-                2 => format!("Цей повтор записано новішою версією гри (ревізія {revisions}). Оновіть гру: запустіть її знову через лаунчер."),
-                3 => format!("Diese Wiederholung wurde mit einer neueren Spielversion (Revision {revisions}) aufgenommen. Aktualisiere das Spiel: Starte es erneut über den Launcher."),
-                4 => format!("Ta powtórka została nagrana nowszą wersją gry (rewizja {revisions}). Zaktualizuj grę: uruchom ją ponownie przez launcher."),
-                _ => format!("This replay was recorded with a newer version of the game (revision {revisions}). Update the game: start it again through the launcher."),
-            }
-        }
-    }
 }
