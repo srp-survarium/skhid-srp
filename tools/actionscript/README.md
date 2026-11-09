@@ -141,7 +141,7 @@ rows made again; and Blackout (the list kept hidden): none on screen.
 
 ### Face picker
 
-`srp-026g/scripts/face-picker/check.sh <lobby_menu.swf> [work dir]` checks the Character panel's face picker (`docs/notes/face-choice.md`: hidden until srp answers and with one face, its place beside the helmet's slot under the ammo window, picks shown at once with the last one kept while a choice is asked, a refusal, the round, every language's word fitting) and prints `FACE RESULT pass` or `FACE RESULT fail: ...`.
+`srp-026g/scripts/face-picker/check.sh <lobby_menu.swf> [work dir]` checks the player panel's FACE button and its chooser (`docs/notes/face-choice.md`: hidden until srp answers and with one face, the LOBBY button's size and look left of it, every language's word fitting, the chooser under it as a transient window, a tile a face with srp's framed gold, picks shown at once with the last one kept while a choice is asked, a refusal, fewer faces, the faces pack's atlas cells as pictures and the number without one) and prints `FACE RESULT pass` or `FACE RESULT fail: ...`.
 
 ### Item search
 

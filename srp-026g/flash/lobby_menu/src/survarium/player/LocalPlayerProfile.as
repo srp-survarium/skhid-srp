@@ -41,7 +41,7 @@ package survarium.player
    import survarium.item.ModificationRolls;
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
-   import survarium.face.FacePicker;
+   import survarium.face.FaceChoice;
    import survarium.rooms.RoomsLook;
    import survarium.rooms.RoomsWindow;
    
@@ -249,9 +249,6 @@ package survarium.player
       // The kits locked (as the paper doll and the ammo button): no preset
       // chosen.
       private var _presetsLocked:Boolean = false;
-      
-      // The account's face (face-choice.md): beside the head's slots.
-      private var _facePicker:FacePicker;
       
       public function LocalPlayerProfile()
       {
@@ -712,23 +709,6 @@ package survarium.player
          this.ammoContainer.shift = -575;
          this.ammoContainer.addEventListener(Event.CLOSE,this.onAmmoButtonSwitch);
          this.makePresets();
-         this.makeFacePicker();
-      }
-      
-      // The face picker in the room left of the helmet's slot, its height:
-      // from the doll's inner edge (FACE_INSET in from the back's column
-      // below, which starts at the frame) to 4 px before the slot; under the
-      // ammo window, which slides over the doll.
-      private static const FACE_INSET:Number = 12;
-      
-      private function makeFacePicker() : void
-      {
-         var head:DisplayObject = profileItems.slotHead;
-         var left:Number = profileItems.slotBack.x + FACE_INSET;
-         this._facePicker = new FacePicker(head.x - 4 - left,head.height,this._presetFont,this._presetBold);
-         this._facePicker.x = profileItems.x + left;
-         this._facePicker.y = profileItems.y + head.y;
-         addChildAt(this._facePicker,getChildIndex(profileItems) + 1);
       }
       
       private function onAutoBuy(e:Event) : void
@@ -1105,7 +1085,7 @@ package survarium.player
          me._reasonsFallback.addEventListener(TimerEvent.TIMER_COMPLETE,me.onReasonsFallback);
          me._reasonsFallback.start();
          me.askPresets();
-         FacePicker.lobbyLive();
+         FaceChoice.lobbyLive();
       }
       
       // StatusPanel: Play greyed from its start until the reasons are known.
@@ -1263,10 +1243,6 @@ package survarium.player
       // A press on the title opens or closes the list.
       private function onPanelPress(e:MouseEvent) : void
       {
-         if(this._facePicker != null && (e.target == this || e.target == this._facePicker))
-         {
-            this._facePicker.press(e.stageX,e.stageY);
-         }
          if(this._presetTitle == null || e.target != this && e.target != this._presetTitle)
          {
             return;

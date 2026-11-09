@@ -169,7 +169,7 @@ package
       // game's roll-over and release play their sound through, so those two are not driven here.)
       private function states(b:Object) : void
       {
-         var Button:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.lobbypick.LobbyButton");
+         var Button:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.PanelButton");
          var pieces:Array = ["btnBackUp", "btnBackHover", "btnBackDown", "btnBackDisabled"];
          if(b.totalFrames != 1)
             failures.push("the lobby button has " + b.totalFrames + " frames");
@@ -205,7 +205,7 @@ package
                names.push(getQualifiedClassName(b.getChildAt(i)) + ":" + b.getChildAt(i).name);
             trace("FADE lobby button " + step[0] + ": " + b.shown + " [" + names.join(", ") + "]");
             if(b.numChildren != 2 || getQualifiedClassName(b.getChildAt(0)) != b.shown || pieces.indexOf(b.shown) < 0
-               || b.getChildAt(1).name != "lobbyLabel" || (step[2] != null && b.shown != step[2]))
+               || b.getChildAt(1).name != "panelLabel" || (step[2] != null && b.shown != step[2]))
                failures.push("the lobby button " + step[0] + ": " + names.join(", "));
          }
          if(b.tooltipRendererName || b.data != null)
@@ -230,7 +230,7 @@ package
             dictionary.setData(HarnessText.DATA[language]);
             panel = new Panel() as Sprite;
             var b:Object = panel.getChildByName("btn_lobby");
-            var label:Object = b != null ? b.getChildByName("lobbyLabel") : null;
+            var label:Object = b != null ? b.getChildByName("panelLabel") : null;
             if(panel.getChildByName("btn_premium") != null)
                failures.push("the premium button still in the player panel");
             if(b == null || b != Object(panel).btn_lobby || label == null)
