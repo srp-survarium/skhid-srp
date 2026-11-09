@@ -66,6 +66,7 @@
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
+use session::v026g::rooms::ChatLine;
 use session::v026g::{Account, quests, wire};
 use session::{LockExt, Squad, SquadError};
 use survarium::v026g::lobby::requests::{ClientMessage, FriendshipAction, id};
@@ -197,6 +198,13 @@ impl Core<'_> {
             .is_some_and(|account| account.locked().ignored.contains(&sender))
     }
 
+    /// How `recipient` mutes `sender`'s chat, if it does.
+    pub(super) fn chat_mute(&self, recipient: u32, sender: u32) -> Option<lobby::ChatMuteMode> {
+        self.store
+            .account(recipient)
+            .and_then(|account| account.locked().ignored.mode(sender))
+    }
+
     /// Apply the recipient's policy before constructing a packet. Placeholder
     /// recipients never receive the original text, on any chat channel.
     pub(super) fn chat_body<'a>(
@@ -205,11 +213,7 @@ impl Core<'_> {
         sender: u32,
         body: &'a str,
     ) -> Option<&'a str> {
-        let mode = self
-            .store
-            .account(recipient)
-            .and_then(|account| account.locked().ignored.mode(sender));
-        match mode {
+        match self.chat_mute(recipient, sender) {
             None => Some(body),
             Some(lobby::ChatMuteMode::Hidden) => None,
             Some(lobby::ChatMuteMode::Placeholder) => Some(lobby::MUTED_CHAT_TEXT),
@@ -333,7 +337,7 @@ impl Core<'_> {
         }
         // A room's own channel: its members (`room_chat`).
         if channel == channel::ROOM {
-            self.room_say(who, body);
+            self.room_say(who, body, now);
             return;
         }
 
@@ -381,28 +385,20 @@ impl Core<'_> {
             return;
         }
         let tag = self.clan_tag_of(who.account_id);
-        let mut reached = 0;
-        for (addr, account_id) in recipients {
-            let Some(body) = self.chat_body(account_id, who.account_id, body) else {
-                continue;
-            };
-            self.send(
-                addr,
-                lobby::chat_text(
-                    sender::ACCOUNT,
-                    who.account_id,
-                    &who.name,
-                    &tag,
-                    channel,
-                    body,
-                ),
-            );
-            reached += 1;
-        }
         log::info!(
-            "Chat from {} on channel {channel} reached {reached} player(s)",
-            who.name
+            "Chat from {} on channel {channel} for {} player(s)",
+            who.name,
+            recipients.len()
         );
+        // In each reader's language when translation is on, as its mute of
+        // the sender says (`chat_out`).
+        let said = ChatLine {
+            from: who.account_id,
+            name: who.name.clone(),
+            tag,
+            body: body.to_owned(),
+        };
+        self.say(said, channel, recipients, now);
     }
 
     // ------------------------------------------------- important messages

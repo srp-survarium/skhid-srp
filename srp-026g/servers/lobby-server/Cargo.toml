@@ -11,10 +11,14 @@ default = []
 
 [dependencies]
 bytemuck = { workspace = true }
+binary-config-parser = { workspace = true }
+encoding_rs = { workspace = true }
 openssl = { workspace = true }
 thiserror = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
+serde_json = { workspace = true }
+ureq = { workspace = true }
 
 session = { workspace = true }
 vostok = { workspace = true }

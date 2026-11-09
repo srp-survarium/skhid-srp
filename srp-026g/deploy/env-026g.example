@@ -157,6 +157,26 @@ RUST_LOG=info
 # playable maps_dict ids a creator may add besides SRP_MATCH_MAPS (the rooms'
 # numbers: gameplay/srp/rooms.options, scripts/content-edit/rooms.tsv).
 # SRP_ROOMS_EXTRA_MAPS=
+
+# Chat translation (docs/notes/chat-translation.md): each reader gets a
+# player's chat line in its game language. Off by default. `grok` sends the
+# line's text (no name) to xAI (Grok); the key comes from here only, a key of
+# its own with a spend limit.
+# SRP_CHAT_TRANSLATE=grok
+# XAI_API_KEY=
+# (or SRP_CHAT_TRANSLATE=claude with ANTHROPIC_API_KEY)
+# SRP_CHAT_TRANSLATE_TIMEOUT_MS=2000
+# The server's list of what never leaves srp (sexual content involving
+# children; never in a repository), required by translation and the sample:
+# without it both stay off. Rows: lang (or *), a tab, the phrase.
+# SRP_CHAT_BLOCKED=/srv/srp/data/chat-blocked.tsv
+
+# A nameless sample of the public channels' lines, to find slang for the
+# translation's glossary. Off until the players are told (the note says
+# what); files older than the days kept are deleted.
+# SRP_CHAT_SAMPLE_DIR=/srv/srp/data/chat-sample
+# SRP_CHAT_SAMPLE_KEEP_DAYS=14
+
 # The bots' maps (docs/notes/player_bots_mapdata.md section 6): the
 # <project>.mapdata files, copied by hand into the data volume (game data:
 # never into a repository). Compose default /srv/srp/data/mapdata; `off`:

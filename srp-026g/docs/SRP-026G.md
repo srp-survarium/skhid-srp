@@ -212,6 +212,12 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_MATCH_MODES` | `2,3,4,5,6` | The modes played, by their lobby numbers (5: Research, 6: Blackout; each on data with its maps) |
 | `SRP_MATCH_MAPS` | every playable map of those modes | `maps_dict` ids, e.g. `117` (Team Deathmatch on level_01) for a first test: a room's pool by default, and what a clan team's match is drawn from |
 | `SRP_ROOMS_EXTRA_MAPS` | none | Playable `maps_dict` ids a room's maker may add to its pool besides `SRP_MATCH_MAPS` (the experimental maps) |
+| `SRP_CHAT_TRANSLATE` | off | `grok`: each reader gets a player's chat line in its game language, through xAI Grok with the key of `XAI_API_KEY`; `claude`: through Claude Haiku with the key of `ANTHROPIC_API_KEY` (never in a file of the repository); no key: off, said in the log. The line's text leaves the server; no name goes with it (`notes/chat-translation.md`) |
+| `SRP_CHAT_TRANSLATE_MODEL` | `grok-4.20-0309-non-reasoning` (grok), `claude-haiku-5-5` (claude) | The model |
+| `SRP_CHAT_TRANSLATE_TIMEOUT_MS` | 2000 | The longest a line waits for its translation, 200 to 10000; then, or on any error, the original goes |
+| `SRP_CHAT_BLOCKED` | none (translation and the sample stay off) | The server's list of what never leaves srp: a file on the data volume, never in a repository; rows `lang` (or `*`), a tab, the phrase. A line on it is never sent nor kept (`notes/chat-translation.md`, "What never leaves srp") |
+| `SRP_CHAT_SAMPLE_DIR` | off | A folder (on the data volume) where the public channels' lines are kept without any name, one file a UTC day, to find slang for the glossary (`srp-chat-glossary slang`). Off until the owner turns it on, after the players are told |
+| `SRP_CHAT_SAMPLE_KEEP_DAYS` | 14 | Older sample files are deleted, 1 to 90 |
 | `SRP_LOBBY_LINK_TIMEOUT_SECONDS` | 30 | A client silent this long loses its lobby link: offline for its friends (its room keeps its place while its session waits) |
 | `SRP_LOBBY_MATCH_LINK_TIMEOUT_SECONDS` | 120 | The same for a player in a match that runs (its level may be loading); never less than the one above |
 | `SRP_LOBBY_SESSION_GRACE_SECONDS` | 60 | How long the session of a link that went silent waits for its client to connect again (the client tries by itself, every 5 s); for a player in a match, counted from the match's end. 0: the session ends with the link |
