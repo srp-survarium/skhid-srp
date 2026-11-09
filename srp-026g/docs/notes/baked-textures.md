@@ -106,14 +106,32 @@ asynchronous, the cost is the GPU work the game waited for.
   (map2D's no-wait byte, as the occlusion manager polls). Once the GPU has done it, the DDS is
   allocated, the levels are copied into it and the game's own tail completes the bake: the texture,
   the slot, patch 70's sharing, the save, the record, the query, the "camouflage/decal cook" line.
-  The line's "bake" is the ms the game's thread spent until the bake was issued (the draw's with
-  it); its "compress" the ms of the readback.
-- **A frame's budget:** done bakes are completed while the frame's 6 ms last (each makes its texture
-  from its DDS, runs its CRC, saves it; a frame's first pass completes one). The time of a bake
-  completed for its place counts in it too. The rest wait in their places for the next frames,
-  oldest first; a done bake behind one the GPU has not done waits for it. A frame is
-  engine_world::tick (once a frame, the main loop's); a dispatch with no tick for 100 ms (apc's wait
-  loops) starts a new budget.
+  The line's "bake" was meant to be the ms the game's thread spent until the bake was issued (the
+  draw's with it; resume writes it at +40h), but in the 2026-11-09 run it read 0.3-1 s for fresh
+  bakes and up to 65 s for stale ones, about the time from the issue to the completion: not
+  explained yet (the log's operands at 0x12F4C0..0x12F4E4 are not read). Its "compress" is the ms of
+  the readback.
+- **A frame's budget, on the thread that ticks frames:** done bakes are completed while the frame's
+  6 ms last (each makes its texture from its DDS, runs its CRC, saves it; a frame's first pass
+  completes one). The time of a bake completed for its place counts in it too. The rest wait in their
+  places for the next frames, oldest first; a done bake behind one the GPU has not done waits for it.
+  A frame is engine_world::tick (once a frame, the main loop's); a dispatch with no tick for 100 ms
+  (apc's wait loops) starts a new budget.
+- **The bakes are not the frame thread's** (measured 2026-11-09, the third version: 19 bots, ~800
+  bakes). No pass ever saw a bake for minutes: not one "the GPU had it 1 s" line, bakes completed
+  only for a new bake's place or at the end of a burst's dispatch, and the last 8 of a burst stayed
+  on the GPU until the next burst, up to ~65 s (gear without its camouflage meanwhile). The main
+  thread dispatches three times a frame (engine_world::tick 0x13CE0, 0x13D0E, 0x13D1F through
+  0xE5AB0) and the cooker thread at least every 300 ms (0x1BEA0, 0x103398), so the bakes' thread
+  is neither: it dispatches only while its callbacks come. Which thread it is, is not read from the
+  code yet (the baker's translate thread is the one its static constructor ran on, 0x12CD1B), and
+  `srp_patches.log` now names it. So: a dispatch of a thread that does not tick frames (or any,
+  before the first frame) completes all of its bakes before it ends, waiting for the GPU where it
+  has not done them; that thread may not dispatch again for minutes. The pipelining within a burst
+  stays (8 on the GPU, the oldest completed for a new one); only the last of a dispatch's bakes are
+  waited for. Lines, one a second with the count between: "thread X ticks no frames (the frame
+  thread Y): its N bakes completed at its dispatch's end, M read back waiting", and, on the frame
+  thread, "the GPU's bakes are thread X's, not the frame thread Y's".
 - A bake the GPU has had 1 s is read back waiting, and a line goes to `srp_patches.log`.
 - The model instance a bake is for is held until the bake ends: a player who leaves meanwhile only
   delays its release. Patch 70's owner row of its path ends with it (at most 8 bakes later, or 1 s).
@@ -138,9 +156,13 @@ asynchronous, the cost is the GPU work the game waited for.
   screen, is a separate change.
 - The stock bake (after game::exit, another thread's bake while the places are one thread's, or a bake
   whose frame patch 121 does not read) still waits for the GPU, and its save still copies the DDS.
-- Patch 121 as reworked is not measured in a game: the owner compares the frame times (over 100 ms, the
-  longest) and the "camouflage/decal cook" and `bake_async` lines with `streamed_textures` emptied, in
-  the match load of 2026-11-08, before and after. The 6 ms budget and the 8 places are the knobs.
+- Patch 121 with the drain is not measured in a game: the owner compares the frame times (over 100
+  ms, the longest), the "camouflage/decal cook" lines (none long after its burst) and the
+  `bake_async` lines (which thread the bakes are, how many each dispatch waited for) with
+  `streamed_textures` emptied, in the match load of 2026-11-08. The 6 ms budget and the 8 places are
+  the knobs. If the bakes' thread turns out to have a regular point of its own, its pass can move
+  there and wait less.
+- Which thread bakes, and why it dispatches only while its callbacks come, is not read from the code.
 - An issue's own cost (level 0's copy, the mips, the compress draws, and the oldest's completion when
   the places are full) is not budgeted a frame: a burst is throttled by the completions alone.
   Bounding it would mean holding the query back, which is the postponing that ran out of memory.

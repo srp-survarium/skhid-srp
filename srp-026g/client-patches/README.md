@@ -3671,6 +3671,9 @@ dispatch) gave nothing in a match load (2026-11-08: 19 bots in live players' gea
 second (2026-11-08) put a bake with no place off before its draw and made its query again
 (finish_query's requery) once one was free; in the same load those requeries piled up and the game
 died with "out of memory in arena 'resources helper allocator'" (2026-11-09).
+The third (c00b9fe6c, the design below without its drain) completed no bake in a pass between bursts:
+the bakes' thread is not the one that ticks frames and dispatches only while its callbacks come,
+so a burst's last bakes stayed on the GPU until the next burst, up to ~65 s (2026-11-09).
 
 **The patch** (the Rust patch `bake_async`, `rust/patches/src/bake_async.rs` and `.toml`, over
 `vostok::bake_gpu`; eight lohooks of `sites_026g.tsv`):
@@ -3696,9 +3699,13 @@ died with "out of memory in arena 'resources helper allocator'" (2026-11-09).
   complete while the frame's 6 ms last (one at least; a bake completed for its place counts too);
   the rest in the next frames, oldest first. A bake the GPU has had 1 s is read back waiting
   (logged); one whose levels cannot be mapped, or that finds no MT memory for its DDS, fails its
-  query (logged).
-- `engine.tick` 0x13CA0 (engine_world::tick's start, once a frame): a new frame's budget. A
-  frame with no tick for 100 ms (apc's wait loops dispatch without one) counts as ended.
+  query (logged). That is on the thread that ticks frames. A thread that ticks none (or any,
+  before the first frame) may not dispatch again for minutes: its pass completes all its bakes
+  before the dispatch ends, waiting where the GPU has not done them (logged, a line a second, with
+  both threads; the frame thread's dispatches log whose the bakes are).
+- `engine.tick` 0x13CA0 (engine_world::tick's start, once a frame): a new frame's budget, and
+  its thread the one that ticks frames. A frame with no tick for 100 ms (apc's wait loops dispatch
+  without one) counts as ended.
 - `game.exit_start` 0x1EC730 (game::exit's start, before every branch): every bake on the GPU
   completed waiting, on its thread (now, or at its next pass); later bakes are the stock ones.
 - Types: the job and its stagings are one value (`Issued`), completed once (`complete(self)`); the
@@ -3726,7 +3733,9 @@ no save descriptor; a DDS too small and no level 0 (failed, no stock bake, not t
 the GPU, a 9th completing the oldest first on the spot (read back waiting, patch 70's waiter given
 its texture) and issued in its place, a 10th completing the done oldest without waiting, the rest
 at a dispatch, oldest first; another thread's bake the stock one while the places are this
-thread's, then issued on its own thread once they are free; one completion a frame past the
+thread's, then issued on its own thread once they are free; the bakes of a thread that ticks no
+frames untouched by the frame thread's dispatch (logged) and all completed at its own dispatch's
+end, waiting for the ones the GPU had not done (this case fails on c00b9fe6c); one completion a frame past the
 budget, the frame ended after 100 ms with no tick; a done bake behind a busy one; game::exit
 through 0x1051E0's failing branch (every bake on the GPU completed), then the stock bake.
 `cargo test` covers the transitions, the places in the DDS and the thread-bound values.

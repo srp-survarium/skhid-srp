@@ -642,6 +642,7 @@ va	status	ref_021d	name
 0x00102370	inferred-medium	0x000c68a6	vostok::resources::resources_manager::dispatch_callbacks
 0x00102510	inferred-medium	0x000c69c8	vostok::resources::resources_manager::dispatch_fs_tasks_callbacks
 0x00102e30	inferred-medium	0x000c6f92	vostok::resources::resources_manager::unregister_cook
+0x00103380	inferred-medium		vostok::resources::resources_manager::cooker_thread_tick
 0x001033d0	inferred-medium	0x000c7210	vostok::buffer_vector<vostok::resources::cook_base *>::push_back
 0x00103ff0	inferred-medium	0x000c7ba6	vostok::journaling::journal::journal
 0x001044f0	inferred-medium	0x000c7fd9	vostok::resources::query_result_for_cook::query_result_for_cook

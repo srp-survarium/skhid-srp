@@ -53,6 +53,11 @@ record, bake.free, finish).
   (logged with both threads), its dispatches never touch this thread's
   bakes; once this thread's are done, the other thread's next bake is
   issued and completed on its own thread;
+- the bakes of a thread that ticks no frames (engine_world::tick is MAIN's):
+  the frame thread's dispatches touch none of them (logged with both
+  threads); that thread's next dispatch completes every one before it ends,
+  waiting for the GPU where it has not done them (logged); before the first
+  frame, any thread's dispatch does the same;
 - the budget: done bakes complete while the frame's 6 ms last (one at
   least), the rest in the next frames (engine_world::tick's start), oldest
   first; with no tick (a wait loop) a frame counts as ended after 100 ms; a
@@ -449,6 +454,14 @@ def tick(game):
     return eip == TICK_PAST and game.emu.reg_read(UC_X86_REG_EBP) == sp - 4
 
 
+def fresh(built):
+    """A game of the build whose main thread has ticked a frame (engine_world::
+    tick's start): the thread that ticks frames is MAIN."""
+    game = Game(bytes(built))
+    assert tick(game)
+    return game
+
+
 def exiting(game):
     """game::exit from its start (ECX the game, its argument) to the join
     past its delete, through the branch 0x1EC7AE takes when 0x1051E0 fails
@@ -503,7 +516,7 @@ def main():
            "finishes the query")
 
     print("issued, polled busy, polled done (the build)")
-    game = Game(bytes(built))
+    game = fresh(built)
     bake = Bake(game)
     owner = game.lookup(PATH, bake.query, bake.surface, bake.parameters, bake.model)
     waiter_query, waiter_surface, waiter_parameters, waiter_model = cache.Objects(game).request(0)
@@ -594,14 +607,14 @@ def main():
            "the model's reference let go (5), every staging let go (0)")
 
     print("late, lost, no MT memory, no save descriptor")
-    game = Game(bytes(built))
+    game = fresh(built)
     bake = Bake(game)
     process(game, bake)
     game.qpc += 2_000_000
     ok, calls = dispatched(game)
     report(ok and names(calls, "from memory") and any("1 s" in line for line in game.log),
            "busy 2 s: read back waiting, finished, logged: " + "; ".join(game.log))
-    game = Game(bytes(built))
+    game = fresh(built)
     bake = Bake(game)
     game.lookup(PATH, bake.query, bake.surface, bake.parameters, bake.model)
     w_query, w_surface, w_parameters, w_model = cache.Objects(game).request(0)
@@ -616,7 +629,7 @@ def main():
            and any("could not be read back" in line for line in game.log),
            "the device lost: the query finished with an error (1, 1, 0Bh), patch 70 makes the waiter again, the "
            "DDS freed (MT), the model let go, logged")
-    game = Game(bytes(built))
+    game = fresh(built)
     bake = Bake(game)
     process(game, bake)
     game.done.update(game.stagings())
@@ -627,7 +640,7 @@ def main():
            and any("no MT memory for its DDS of " + str(bake.dds_size) in line for line in game.log),
            "no MT memory for the DDS at the readback: the query failed, nothing mapped past the poll, no texture, "
            "no copy of the game's, the model let go, logged")
-    game = Game(bytes(built))
+    game = fresh(built)
     bake = Bake(game)
     process(game, bake)
     game.done.update(game.stagings())
@@ -643,7 +656,7 @@ def main():
            "and no save (+0E0h 0, make_save_descriptor not called), the DDS freed, logged")
 
     print("a compressor that does not fit, no texture for level 0")
-    game = Game(bytes(built))
+    game = fresh(built)
     bake = Bake(game, dds_size=0x100)
     ok, calls = process(game, bake)
     report(ok and finishes(calls, FAILED) == [bake.query] and not names(calls, "Map")
@@ -651,7 +664,7 @@ def main():
            and any("do not fit its DDS of 256" in line for line in game.log),
            "a DDS too small for its levels: the query failed (1, 1, 0Bh), no texture made, no Map (no stock bake), "
            "the model let go, logged: " + "; ".join(game.log))
-    game = Game(bytes(built))
+    game = fresh(built)
     game.level0_refused = True
     bake = Bake(game)
     ok, calls = process(game, bake)
@@ -666,7 +679,7 @@ def main():
            "the next dispatch: nothing of it is left (never tried again)")
 
     print("the places: 8 on the GPU, the oldest completed for a new bake")
-    game = Game(bytes(built))
+    game = fresh(built)
     game.qpc_step = 10                       # 10 us a read: every done bake inside the budget
     bakes = [Bake(game, name=f"{NAME}_{i}") for i in range(10)]
     oldest_path = cache.PREFIX + bakes[0].name + ".dds"
@@ -713,7 +726,7 @@ def main():
            "let go")
 
     print("another thread's bake")
-    game = Game(bytes(built))
+    game = fresh(built)
     game.qpc_step = 10
     mine, theirs, later = (Bake(game, name=NAME + what) for what in ("_main", "_other", "_later"))
     _, _, mine_staged = issue(game, mine)
@@ -742,8 +755,43 @@ def main():
     report(ok and finishes(calls, SUCCESS) == [later.query], "and completed at its own thread's dispatch")
     game.thread_id = MAIN
 
+    print("the bakes of a thread that ticks no frames")
+    game = fresh(built)                      # MAIN ticks frames
+    game.qpc_step = 10
+    game.thread_id = OTHER
+    bakes = [Bake(game, name=f"{NAME}_other_{i}") for i in range(3)]
+    staged = [issue(game, b)[2] for b in bakes]
+    game.thread_id = MAIN
+    game.log.clear()
+    ok, calls = dispatched(game)
+    report(ok and not names(calls, "Map") and not names(calls, "finish")
+           and any("thread 0x00002e1c's, not the frame thread 0x00001d0c's" in line for line in game.log),
+           "3 bakes issued on a thread that ticks no frames: the frame thread's dispatch touches none of them, "
+           "logged with both threads: " + "; ".join(game.log))
+    game.thread_id = OTHER
+    game.done.update(staged[0])              # the GPU has done the first only
+    game.log.clear()
+    ok, calls = dispatched(game)
+    blocking = [m for m in names(calls, "Map") if m[2] == 0]
+    report(ok and finishes(calls, SUCCESS) == [b.query for b in bakes]
+           and sorted(m[1] for m in blocking) == sorted(s for each in staged for s in each)
+           and all(game.read(b.model + 0xD0) == 5 for b in bakes)
+           and any("ticks no frames" in line and "its 3 bakes completed at its dispatch's end, 2 read back waiting"
+                   in line for line in game.log),
+           "that thread's next dispatch: all 3 completed before it ends (the 2 the GPU had not done read back "
+           "waiting), oldest first, not left for a dispatch that may not come: " + "; ".join(game.log))
+    ok, calls = dispatched(game)
+    report(ok and not names(calls, "Map") and not names(calls, "finish"), "nothing of them left after it")
+    game = Game(bytes(built))                # no frame ticked yet: no thread is known to come back
+    bake = Bake(game)
+    _, _, mine = issue(game, bake)
+    ok, calls = dispatched(game)
+    report(ok and finishes(calls, SUCCESS) == [bake.query] and sorted(m[1] for m in names(calls, "Map")
+                                                                      if m[2] == 0) == sorted(mine),
+           "before the first frame, a dispatch completes its thread's bakes too (read back waiting)")
+
     print("the budget: 6 ms a frame, oldest first")
-    game = Game(bytes(built))
+    game = fresh(built)
     bakes = [Bake(game, name=f"{NAME}_{i}") for i in range(5)]
     for b in bakes:
         process(game, b)
@@ -770,7 +818,7 @@ def main():
     report(all(ok for ok, _ in rounds) and done == [bakes[3].query, bakes[4].query] and at[0] > 0 and gap >= 100,
            f"no tick (a wait loop's dispatches): the frame counts as ended after 100 ms (completions at dispatches "
            f"{at}, {gap} ms apart), the rest finish, oldest first")
-    game = Game(bytes(built))
+    game = fresh(built)
     game.qpc_step = 10
     first, second = Bake(game, name=NAME + "_a"), Bake(game, name=NAME + "_b")
     process(game, first)
@@ -787,7 +835,7 @@ def main():
            "the older first")
 
     print("game::exit")
-    game = Game(bytes(built))
+    game = fresh(built)
     game.qpc_step = 10
     bakes = [Bake(game, name=f"{NAME}_{i}") for i in range(9)]
     for b in bakes[:8]:

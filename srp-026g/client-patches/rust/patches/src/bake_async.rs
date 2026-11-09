@@ -21,8 +21,13 @@
 //!   tail (`on_resume`): the texture, its sharing, its save (`on_save`,
 //!   `on_free`: the descriptor owns the DDS, no copy), its record and the
 //!   "camouflage/decal cook" line, while the frame's BUDGET lasts. One the
-//!   GPU has had LATE is read back waiting, and logged.
-//! - `on_frame`, engine_world::tick: a new frame, a new budget.
+//!   GPU has had LATE is read back waiting, and logged. That is when the
+//!   bakes' thread ticks frames (it comes back every frame). A thread that
+//!   ticks none may not dispatch again for minutes (measured 2026-11-09:
+//!   bakes left on the GPU a minute, until new ones came), so its bakes all
+//!   complete before its dispatch ends, waiting if the GPU has not done them.
+//! - `on_frame`, engine_world::tick: a new frame, a new budget, and the
+//!   thread that ticks frames.
 //! - `on_exit`, game::exit's start: every bake on the GPU completed,
 //!   waiting; after it, bakes take the stock path.
 //!
@@ -191,17 +196,30 @@ enum OnGpu {
     Thread(ThreadId),
 }
 
+/// What a dispatch's pass does.
+enum Start {
+    /// It looks at this thread's bakes so.
+    Pass(Look),
+    /// Nothing: no bake of this thread's on the GPU, or a completion under way.
+    Nothing,
+    /// The GPU's bakes are this thread's: only it completes them.
+    Theirs(ThreadId),
+}
+
 /// The owner of the pending bakes: the GPU's places (one thread's while it
-/// has any), the frame's budget, the completion under way, the mode. Every
-/// change of a place is a method here.
+/// has any), the thread that ticks frames, the frame's budget, the
+/// completion under way, the mode. Every change of a place is a method here.
 struct Table {
     gpu: Option<ThreadBound<Places>>,
+    /// The thread engine_world::tick last ran on (none before a frame).
+    ticker: Option<ThreadId>,
     frame: Option<Frame>,
     work: Work,
     mode: Mode,
 }
 
-static TABLE: Lock<Table> = Lock::new(Table { gpu: None, frame: None, work: Work::Idle, mode: Mode::Playing });
+static TABLE: Lock<Table> =
+    Lock::new(Table { gpu: None, ticker: None, frame: None, work: Work::Idle, mode: Mode::Playing });
 
 impl Table {
     /// The one admission: where a bake of this thread goes now.
@@ -249,23 +267,37 @@ impl Table {
         }
     }
 
-    /// A pass started on this thread: how it looks at its bakes. None while
-    /// a completion is under way, or when it has no bake on the GPU.
-    fn start_pass(&mut self, thread: &Thread) -> Option<Look> {
-        let mine = self.places(thread).is_some_and(|places| places.bakes() > 0);
-        (self.work == Work::Idle && mine).then(|| {
-            self.work = Work::Completing;
-            match self.mode {
-                Mode::Playing => Look::Pass,
-                Mode::Exiting => Look::Exit,
-            }
+    /// A pass started on this thread: how it looks at its bakes. With
+    /// game::exit started, every one ends. A thread that ticks frames comes
+    /// back every frame, so its bakes wait for the frame's budget; any other
+    /// (or any, before a frame is ticked) may not dispatch again for long,
+    /// so its bakes end with its dispatch. Not started while a completion is
+    /// under way or the thread has no bake on the GPU; the owner named when
+    /// the GPU's bakes are another thread's.
+    fn start_pass(&mut self, thread: &Thread) -> Start {
+        let me = ThreadId::current(thread);
+        let bakes = match &self.gpu {
+            None => 0,
+            Some(bound) => match bound.get(thread) {
+                Some(places) => places.bakes(),
+                None => return Start::Theirs(bound.owner()),
+            },
+        };
+        if self.work != Work::Idle || bakes == 0 {
+            return Start::Nothing;
+        }
+        self.work = Work::Completing;
+        Start::Pass(match (self.mode, self.ticker) {
+            (Mode::Exiting, _) => Look::Exit,
+            (Mode::Playing, Some(ticker)) if ticker == me => Look::Pass,
+            (Mode::Playing, _) => Look::Drain,
         })
     }
 
     /// The pass's next bake, the oldest, out of its place: while the frame's
-    /// budget lasts (at the exit, always).
+    /// budget lasts (a pass that drains its thread's bakes, or the exit's: always).
     fn next(&mut self, thread: &Thread, now: Stamp, look: Look) -> Option<(Hold, Issued)> {
-        let budget = look == Look::Exit || self.frame(now, thread).spent < BUDGET;
+        let budget = look != Look::Pass || self.frame(now, thread).spent < BUDGET;
         if budget { self.places(thread)?.take_oldest() } else { None }
     }
 
@@ -328,8 +360,12 @@ impl Drop for Ticket<'_> {
 /// Why a bake on the GPU is looked at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Look {
-    /// A dispatch's pass, while the frame's budget lasts.
+    /// A dispatch's pass on the thread that ticks frames, while the frame's
+    /// budget lasts: what it leaves comes back the next frame.
     Pass,
+    /// A dispatch's pass on a thread that ticks no frames (or before a
+    /// frame): it may not dispatch again for long, so every bake ends now.
+    Drain,
     /// The pass after game::exit: every bake ends.
     Exit,
     /// Its place is wanted by a new bake: it ends now.
@@ -354,7 +390,8 @@ enum Step {
     Complete,
     /// Read back waiting for the GPU (late: logged), then completed.
     CompleteLate,
-    /// Read back waiting for the GPU (at the exit, or for its place), then
+    /// Read back waiting for the GPU (draining a thread that ticks no
+    /// frames, at the exit, or for its place), then
     /// completed.
     CompleteWaiting,
 }
@@ -365,7 +402,7 @@ fn step(look: Look, seen: Seen) -> Step {
         (_, Seen::Done) => Step::Complete,
         (Look::Pass, Seen::Busy { waited }) if waited >= LATE => Step::CompleteLate,
         (Look::Pass, Seen::Busy { .. }) => Step::Wait,
-        (Look::Exit | Look::Place, Seen::Busy { .. }) => Step::CompleteWaiting,
+        (Look::Drain | Look::Exit | Look::Place, Seen::Busy { .. }) => Step::CompleteWaiting,
     }
 }
 
@@ -382,6 +419,33 @@ fn seen(thread: &Thread, bake: &Issued) -> Seen {
 static FOR_PLACE: Limited = Limited::new("completed for their place");
 /// The bakes that took the stock path while playing.
 static STOCK: Limited = Limited::new("stock bakes");
+/// The dispatches of a thread whose bakes are another's.
+static THEIRS: Limited = Limited::new("such dispatches");
+/// The passes that drained a thread that ticks no frames.
+static DRAINED: Limited = Limited::new("such passes");
+
+/// A dispatch of a thread that ticks frames while the GPU's bakes are
+/// another thread's (only that one completes them, at its own dispatches).
+fn log_theirs(thread: &Thread, owner: ThreadId) {
+    use Piece::{Hex, Text};
+    let me = ThreadId::current(thread);
+    if TABLE.with(thread, |t| t.ticker) == Some(me) {
+        THEIRS.line(thread, &[Text("bake_async: the GPU's bakes are thread "), Hex(owner.id()),
+                              Text("'s, not the frame thread "), Hex(me.id()),
+                              Text("'s: they complete at that thread's dispatches")]);
+    }
+}
+
+/// A pass of a thread that ticks no frames: its bakes completed before its
+/// dispatch ends, `waited` of them read back waiting for the GPU.
+fn log_drained(thread: &Thread, drained: u32, waited: u32) {
+    use Piece::{Dec, Hex, Text};
+    let me = ThreadId::current(thread).id();
+    let ticker = TABLE.with(thread, |t| t.ticker).map_or(0, ThreadId::id);
+    DRAINED.line(thread, &[Text("bake_async: thread "), Hex(me), Text(" ticks no frames (the frame thread "),
+                           Hex(ticker), Text("): its "), Dec(drained), Text(" bakes completed at its dispatch's end, "),
+                           Dec(waited), Text(" read back waiting")]);
+}
 
 
 /// What a completion that did not end well says.
@@ -532,15 +596,22 @@ pub fn on_readback(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnReadbackExit> {
 }
 
 /// One pass of this thread's bakes, oldest first: each the GPU has done
-/// completed while the frame's budget lasts (at the exit every one,
-/// waiting); a busy one ends the pass, unless it is late.
+/// completed while the frame's budget lasts, a busy one ending the pass
+/// unless it is late; on a thread that ticks no frames, or at the exit,
+/// every one, waiting.
 fn pass(thread: &Thread) {
-    let Some(look) = TABLE.with(thread, |t| t.start_pass(thread)) else { return };
+    let look = match TABLE.with(thread, |t| t.start_pass(thread)) {
+        Start::Pass(look) => look,
+        Start::Nothing => return,
+        Start::Theirs(owner) => return log_theirs(thread, owner),
+    };
+    let (mut drained, mut waited) = (0u32, 0u32);
     loop {
         let now = Stamp::now(thread);
         let Some((hold, bake)) = TABLE.with(thread, |t| t.next(thread, now, look)) else { break };
         let ticket = Ticket { thread, hold };
-        match step(look, seen(thread, &bake)) {
+        let step = step(look, seen(thread, &bake));
+        match step {
             Step::Wait => {
                 ticket.fill(bake);
                 break;
@@ -558,8 +629,13 @@ fn pass(thread: &Thread) {
         }
         drop(ticket);
         TABLE.with(thread, |t| t.spend(thread, now));
+        drained += 1;
+        waited += u32::from(step == Step::CompleteWaiting);
     }
     TABLE.with(thread, Table::end_work);
+    if look == Look::Drain && drained > 0 {
+        log_drained(thread, drained, waited);
+    }
 }
 
 /// `resources.dispatched`: each dispatch, a pass for the thread's bakes.
@@ -568,11 +644,16 @@ pub fn on_dispatched(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// `engine.tick`: engine_world::tick, a new frame and its budget.
+/// `engine.tick`: engine_world::tick, a new frame and its budget, and the
+/// thread that ticks frames (its bakes wait for the next frame's budget).
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let now = Stamp::now(thread);
-    TABLE.with(thread, |t| t.frame = Some(Frame::new(now)));
+    let me = ThreadId::current(thread);
+    TABLE.with(thread, |t| {
+        t.frame = Some(Frame::new(now));
+        t.ticker = Some(me);
+    });
     Flow::Continue
 }
 
@@ -601,12 +682,13 @@ mod tests {
     #[test]
     fn a_bake_on_the_gpu_ends_when_done_late_at_exit_or_for_its_place() {
         let busy = |ms| Seen::Busy { waited: Ms::new(ms) };
-        for look in [Look::Pass, Look::Exit, Look::Place] {
+        for look in [Look::Pass, Look::Drain, Look::Exit, Look::Place] {
             assert_eq!(step(look, Seen::Done), Step::Complete);
         }
         assert_eq!(step(Look::Pass, busy(16.0)), Step::Wait);
         assert_eq!(step(Look::Pass, busy(999.9)), Step::Wait);
         assert_eq!(step(Look::Pass, busy(1000.0)), Step::CompleteLate);
+        assert_eq!(step(Look::Drain, busy(0.0)), Step::CompleteWaiting);
         assert_eq!(step(Look::Exit, busy(0.0)), Step::CompleteWaiting);
         assert_eq!(step(Look::Place, busy(0.0)), Step::CompleteWaiting);
     }
