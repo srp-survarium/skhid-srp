@@ -332,13 +332,18 @@ fn replays(table: &HashMap<u32, Watching>) -> impl Iterator<Item = &ReplaySessio
 }
 
 /// The account's replay session, and its session id.
-fn of_account(table: &mut HashMap<u32, Watching>, account_id: u32) -> Option<(u32, &mut ReplaySession)> {
-    table.iter_mut().find_map(|(session_id, watching)| match watching {
-        Watching::Replay(replay) if replay.request.account_id == account_id => {
-            Some((*session_id, replay))
-        }
-        _ => None,
-    })
+fn of_account(
+    table: &mut HashMap<u32, Watching>,
+    account_id: u32,
+) -> Option<(u32, &mut ReplaySession)> {
+    table
+        .iter_mut()
+        .find_map(|(session_id, watching)| match watching {
+            Watching::Replay(replay) if replay.request.account_id == account_id => {
+                Some((*session_id, replay))
+            }
+            _ => None,
+        })
 }
 
 /// The replay session of `session_id`.
@@ -424,14 +429,20 @@ impl Watches {
         let Some(settings) = &self.settings else {
             return Status::Off;
         };
-        if !request.revision.is_some_and(|revision| revision >= MIN_REVISION) {
+        if !request
+            .revision
+            .is_some_and(|revision| revision >= MIN_REVISION)
+        {
             return Status::OldGame;
         }
         let mut table = self.table.lock();
         // A session watches one thing at a time, an account one replay.
-        if table.get(&request.session_id).is_some_and(Watching::is_open)
-            || replays(&table)
-                .any(|session| session.request.account_id == request.account_id && session.is_open())
+        if table
+            .get(&request.session_id)
+            .is_some_and(Watching::is_open)
+            || replays(&table).any(|session| {
+                session.request.account_id == request.account_id && session.is_open()
+            })
         {
             return Status::Busy;
         }
@@ -498,8 +509,9 @@ impl Watches {
     /// Whether the session's game is on its way to the match server or
     /// watches there: its lobby link may be quiet while it loads.
     pub fn in_replay(&self, session_id: u32) -> bool {
-        of_session(&mut self.table.lock(), session_id)
-            .is_some_and(|session| matches!(session.stage, Stage::Sent { .. } | Stage::Playing { .. }))
+        of_session(&mut self.table.lock(), session_id).is_some_and(|session| {
+            matches!(session.stage, Stage::Sent { .. } | Stage::Playing { .. })
+        })
     }
 
     /// Whether the request's session is read and its game not here yet
@@ -854,7 +866,10 @@ mod tests {
         assert_eq!(watches.next_job(now), Some(alice));
         assert!(watches.loaded(&alice, 14_500, now));
         watches.sent(ALICE, now);
-        assert_eq!(watches.connected(alice.session_id, now), Some((alice, 14_500)));
+        assert_eq!(
+            watches.connected(alice.session_id, now),
+            Some((alice, 14_500))
+        );
         // At the match server too: the game quit while connecting.
         assert!(watches.game_back(alice.session_id));
         assert!(!watches.holds(ALICE));
@@ -915,7 +930,10 @@ mod tests {
         assert!(!watches.holds(ALICE));
         assert_eq!(mm.stop_watching(alice.session_id), Some(watcher));
         assert_eq!(watches.start(alice, now), Status::Preparing);
-        assert!(!mm.watch(alice.session_id, watcher), "a replay session is on");
+        assert!(
+            !mm.watch(alice.session_id, watcher),
+            "a replay session is on"
+        );
         assert_eq!(mm.stop_watching(alice.session_id), None, "it is no match");
         assert!(watches.holds(ALICE));
         watches.ended(&alice);
