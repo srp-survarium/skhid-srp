@@ -83,6 +83,18 @@ services:
       # Replay sessions (docs/notes/replay-stream.md) read the recordings;
       # a larger one than this many MB is not read (default 24).
       - SRP_REPLAY_MAX_RECORDING_MB
+      # Who may watch one: `all` (default), or `match` (its players and
+      # SRP_REPLAY_MODERATORS, account ids, comma-separated). How many at
+      # once (default 4).
+      - SRP_REPLAY_WATCH
+      - SRP_REPLAY_MODERATORS
+      - SRP_REPLAY_WATCH_MAX
+      # The Live window's spectators: seconds behind the match (0 to 58,
+      # default 30), at most so many of a match (default 4) and in all
+      # (default 8).
+      - SRP_LIVE_WATCH_DELAY_S
+      - SRP_LIVE_WATCH_PER_MATCH
+      - SRP_LIVE_WATCH_MAX
       # Save (the Watch window's save icon, the results screen's Save
       # replay): a kept recording is made into a .srpreplay file in
       # SRP_REPLAY_DIR (a folder of its own, never inside the recordings')

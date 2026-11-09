@@ -353,6 +353,24 @@ impl Core<'_> {
 mod delay_tests {
     use super::*;
 
+    /// Compose passes its environment by name: a setting it does not list
+    /// never reaches the server on the live host.
+    #[test]
+    fn compose_passes_the_watch_settings_on() {
+        let compose = include_str!("../../../../docker-compose.yml");
+        for name in [
+            "SRP_REPLAY_WATCH",
+            "SRP_REPLAY_MODERATORS",
+            "SRP_REPLAY_WATCH_MAX",
+            "SRP_LIVE_WATCH_DELAY_S",
+            "SRP_LIVE_WATCH_PER_MATCH",
+            "SRP_LIVE_WATCH_MAX",
+        ] {
+            let line = format!("- {name}");
+            assert!(compose.lines().any(|l| l.trim() == line), "{name}");
+        }
+    }
+
     #[test]
     fn a_delay_up_to_the_longest_a_match_can_serve_is_taken() {
         for (value, seconds) in [("0", 0), ("30", 30), (" 45 ", 45), ("58", 58)] {
