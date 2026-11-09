@@ -24,15 +24,16 @@ use super::scopes::WEAPON_CATEGORIES;
 /// `start`.
 pub const SILVER_BONUS: u32 = 1230;
 
-/// Modification 1240: `parameters/experience_bonus` +0.05, first of the
-/// premium armour's `start`.
+/// Modification 1240: `parameters/experience_bonus` +0.2 (0.05 in 0.26g;
+/// the owner, 2026-11-08), first of the premium armour's `start`.
 pub const EXPERIENCE_BONUS: u32 = 1240;
 
-/// Modification 1250: `parameters/reputation_bonus` +0.05 with the
-/// Scavengers (`scav_rep_booster`), on the Survivor pieces.
+/// Modification 1250: `parameters/reputation_bonus` +0.5 (0.05 in 0.26g;
+/// the owner, 2026-11-08) with the Scavengers (`scav_rep_booster`), on
+/// the Survivor pieces.
 pub const SCAVENGER_REPUTATION_BONUS: u32 = 1250;
 
-/// Modification 1260: `parameters/reputation_bonus` +0.05 with the Black
+/// Modification 1260: `parameters/reputation_bonus` +0.5 with the Black
 /// Market (`bm_rep_booster`), on the Bandit pieces.
 pub const BLACK_MARKET_REPUTATION_BONUS: u32 = 1260;
 

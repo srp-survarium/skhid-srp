@@ -14,6 +14,7 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.Colors;
    import survarium.constants.MessageId;
    
    public class MessagePremiumProfile extends UIComponent
@@ -41,7 +42,9 @@ package survarium.messages
       override protected function configUI() : void
       {
          super.configUI();
-         this.coin.gotoAndStop(2);
+         // The price in silver: its coin and the shop's price colour.
+         this.coin.gotoAndStop(1);
+         this.textFieldValue.textColor = Colors.PRICE_REG;
          this.textFieldValue.mouseEnabled = false;
          tabEnabled = true;
          this.btnAccept.enabled = false;
@@ -68,7 +71,7 @@ package survarium.messages
             while(i < options.length)
             {
                option = options[i];
-               affordable = PlayerInfo.premiumMoney >= option.value;
+               affordable = PlayerInfo.genericMoney >= option.value;
                option.valid = affordable;
                option.enabled = true;
                trace("configPM::",option.label,"|",option.value2,option.discount_value);
@@ -123,18 +126,8 @@ package survarium.messages
       
       protected function onNoMoneyEnought() : void
       {
-         var messageData:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",messageData,true,MessageId.AUTO,true);
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
+         // Premium time is bought with silver: the game has no gold (the owner, 2026-11-08).
+         Message.showMessage("ok",LocalizationData.getName("not_enough_money"),true,MessageId.AUTO,true);
       }
       
       protected function onMessageAccept(event:ButtonEvent = null) : void
@@ -143,7 +136,7 @@ package survarium.messages
          {
             return;
          }
-         var affordable:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
+         var affordable:Boolean = PlayerInfo.genericMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
          var premiumId:uint;
          if(affordable)
          {

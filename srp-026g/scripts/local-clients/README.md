@@ -73,6 +73,13 @@ to the game's `binaries/x86/` directory; omitted entries use
 `survarium_skhid.exe`. This lets two windows use different executables while
 sharing game resources and retaining separate profiles.
 
+`start` reads the patch revision of each window's executable and prints it. When
+the server's env sets `SRP_MIN_PATCH_REVISION`, an account whose executable is
+older (or unpatched) stops the start before anything launches, naming the
+account and the file: the login server would otherwise refuse it only at its
+sign-in. A configuration shared between tests drifts; point the accounts at the
+build under test.
+
 To use a server that is already running, use `start --clients-only --count 2`.
 It must listen on the configured local login port. This launcher will not stop
 that server. A different setup can use `--config /path/to/config.json` **before**

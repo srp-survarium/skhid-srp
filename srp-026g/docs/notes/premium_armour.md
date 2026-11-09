@@ -2,11 +2,15 @@
 
 The owner's rule of 2026-10-22: give the premium armour the golden weapons' treatment
 ([golden_weapons.md](golden_weapons.md)), so that the Modification (reroll) button works on it. Code:
-`survarium::v026g::golden`, `session::v026g::items_rules`
-(`give_premium_armour_bonuses`), `Account::add_item`; the data:
+`survarium::v026g::golden`, `session::v026g::items_rules`, `Account::add_item` (owned pieces got
+their bonuses once in 2026-10); the data:
 `scripts/content-edit/armor.tsv` (rarity 0, no experience or reputation cell), `items.tsv` (`like`,
 `start`); the lobby: `ItemDictId.PREMIUM_ARMOUR*`,
 `ItemFactory` (`isGolden`, `plainOf`, `startingModifiers`, `BONUS_UI`).
+
+**The bonuses' values** (the owner's of 2026-11-08, "a general update to those types of bonuses"):
+experience +20 % (1240) and reputation +50 % (1250 to 1280), each +5 % in 0.26g; every item that
+holds one, the Keeper of the Sun's too (`modifications.tsv`). The +5 % below is the 0.26g value.
 
 - **The items:** every armour piece with a base rarity in the game's data, the jackets and trousers
   of the Bandit (8) and Survivor (14) bundles. Nothing else gold-sold is armour with premium bonuses:

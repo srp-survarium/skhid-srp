@@ -1,5 +1,6 @@
-//! What a 0.26g match, a first match, a daily bonus and a drop card give:
-//! the game's `gameplay/drops/drops.options` (0.26g's `resources.db`;
+//! What a 0.26g match, a first match and a drop card give (the daily
+//! bonus gives nothing, `daily_bonus_drop` is not read): the game's
+//! `gameplay/drops/drops.options` (0.26g's `resources.db`;
 //! `docs/notes/data.md` §5) and each item's level, drop weight
 //! and rarity ([`super::item_params`]).
 //!
@@ -42,7 +43,7 @@
 //!    (`[0, 0, 0, 0, 2]`) always give rarity 3 and the daily bonus
 //!    (`[0, 0, 0, 0, 0, 2]`) always rarity 4, and money is the one item with
 //!    five rarities: the daily bonus, which only has premium money, is then
-//!    its fifth, 50 gold].
+//!    its fifth, 50 gold; srp pays it in silver, [`dropped`]].
 //! 6. A stack's count from the item's `rarity` pair for that rarity (its
 //!    last pair if it has fewer), in whole clips for ammo (every ammo's pair
 //!    is 2 to 5 clips); gear gets the rarity level of its `rarity` list
@@ -65,6 +66,7 @@ use binary_config_parser::tree::{ConfigError, ConfigValue};
 
 use super::dictionary::Dictionary;
 use super::item_params::{ItemParams, item_params, shop_unit};
+use super::prices::GOLD_IN_SILVER;
 use super::scopes::SCOPE_CATEGORY;
 pub use crate::v021d::drops::Rng;
 
@@ -135,12 +137,21 @@ pub struct Drops {
     /// After a match.
     pub generic: DropTable,
     pub new_player: DropTable,
-    pub daily_bonus: DropTable,
+    // `daily_bonus_drop` is not read: the daily bonus's seventh day gave its
+    // 50 gold and nothing else, and gives nothing now (the owner, 2026-11-08;
+    // `session::v026g::bonus`).
     /// From a drop card (the voucher `drop_card`, 153).
     pub drop_card: DropTable,
     pub playtime: PlaytimeDependence,
     pub game_mode: GameModeParams,
 }
+
+/// The dictionary's money items: silver, and gold, which srp no longer gives
+/// [the owner, 2026-11-08]: gold a table gives is paid in silver,
+/// [`GOLD_IN_SILVER`] a gold ([`dropped`]). The client keeps neither in its
+/// inventory.
+pub const SILVER_ITEM: &str = "generic_money";
+pub const GOLD_ITEM: &str = "premium_money";
 
 /// One dropped item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -212,7 +223,6 @@ impl Drops {
         Ok(Self {
             generic: parse_table(root.req("generic_drop")?)?,
             new_player: parse_table(root.req("new_player_drop")?)?,
-            daily_bonus: parse_table(root.req("daily_bonus_drop")?)?,
             drop_card: parse_table(root.req("drop_card_drop")?)?,
             playtime: PlaytimeDependence {
                 play_period: number(playtime.req("play_period")?)?,
@@ -321,6 +331,20 @@ fn droppable(
 /// What a roll that picked `params` gives, at a rarity from the table
 /// (steps 5 and 6).
 fn dropped(table: &DropTable, dictionary: &Dictionary, params: &ItemParams, rng: &mut Rng) -> Drop {
+    let drop = rolled(table, dictionary, params, rng);
+    let named = |name| dictionary.item_named(name).map(|item| item.dict_id);
+    match (named(GOLD_ITEM), named(SILVER_ITEM)) {
+        (Some(gold), Some(silver)) if drop.dict_id == gold => Drop {
+            dict_id: silver,
+            count: drop.count.saturating_mul(GOLD_IN_SILVER),
+            ..drop
+        },
+        _ => drop,
+    }
+}
+
+/// What the table gives of `params` ([`dropped`] pays its gold in silver).
+fn rolled(table: &DropTable, dictionary: &Dictionary, params: &ItemParams, rng: &mut Rng) -> Drop {
     let rarity = usize::from(table.roll_rarity(rng));
     if dictionary.is_stack(params.dict_id) {
         let pairs = params.stack_rarity;
@@ -412,7 +436,6 @@ mod tests {
         for table in [
             &drops.generic,
             &drops.new_player,
-            &drops.daily_bonus,
             &drops.drop_card,
         ] {
             assert_eq!(table.levels.len(), 21);
@@ -455,13 +478,6 @@ mod tests {
         assert_eq!(drops.new_player.categories.len(), 2);
         assert_eq!(drops.new_player.rarity_points, [0.0, 0.0, 0.0, 0.0, 2.0]);
         assert_eq!(drops.new_player.item_chance(), 1.0);
-        assert_eq!(drops.daily_bonus.categories.len(), 1);
-        assert_eq!(drops.daily_bonus.categories[0].categories, [29]);
-        assert_eq!(
-            drops.daily_bonus.rarity_points,
-            [0.0, 0.0, 0.0, 0.0, 0.0, 2.0]
-        );
-        assert_eq!(drops.daily_bonus.levels[20][15], 100);
         assert_eq!(drops.drop_card.categories[0].weight, 40);
         assert_eq!(drops.drop_card.categories[0].categories, [25, 26]);
         assert_eq!(drops.drop_card.item_chance(), 1.0);
@@ -494,10 +510,9 @@ mod tests {
         assert_eq!(generic.rarity_at(1.59), 1);
         assert_eq!(generic.rarity_at(1.7), 2);
         assert_eq!(generic.rarity_at(1.95), 3);
-        // The new player's and the daily bonus's tables have one band.
+        // The new player's table has one band.
         for at in [0.0, 1.0, 1.99] {
             assert_eq!(drops.new_player.rarity_at(at), 3);
-            assert_eq!(drops.daily_bonus.rarity_at(at), 4);
         }
         // Over many rolls: half, 30 %, 15 %, 5 %.
         let mut rng = Rng::new(5);
@@ -571,7 +586,6 @@ mod tests {
             for table in [
                 &drops.generic,
                 &drops.new_player,
-                &drops.daily_bonus,
                 &drops.drop_card,
             ] {
                 for level in 0..=20 {
@@ -593,6 +607,8 @@ mod tests {
         let generic = &Drops::shared().generic;
         let mut rng = Rng::new(7);
         let (mut drops, mut gear, mut money) = (0u32, 0u32, 0u32);
+        // Gold is paid in silver: its counts times 100, by its own pairs.
+        let gold = item_params(dictionary.item_named(GOLD_ITEM).unwrap().dict_id).unwrap();
         for _ in 0..10_000 {
             let Some(drop) = roll(generic, dictionary, &[], 5, 0, &mut rng) else {
                 continue;
@@ -603,9 +619,14 @@ mod tests {
             assert!(params.drop_weight > 0, "{}", item.name);
             if item.is_stack {
                 assert!(drop.count >= 1);
-                let (least, most) = params.stack_rarity[usize::from(drop.rarity)];
+                let within = |pairs: &[(u32, u32)], times: u32| {
+                    pairs
+                        .get(usize::from(drop.rarity))
+                        .is_some_and(|&(least, most)| (least * times..=most * times).contains(&drop.count))
+                };
                 assert!(
-                    (least..=most).contains(&drop.count),
+                    within(params.stack_rarity, 1)
+                        || (item.name == SILVER_ITEM && within(gold.stack_rarity, GOLD_IN_SILVER)),
                     "{} × {}",
                     item.name,
                     drop.count
@@ -621,11 +642,12 @@ mod tests {
                     // Match level 5 gives item levels 3..=6.
                     assert!((3..=6).contains(&params.item_level), "{}", item.name);
                 }
+                // Silver, and gold paid in silver (10 to 40 gold): no gold.
                 28 => {
                     money += 1;
                     assert!((1000..=10_000).contains(&drop.count), "{}", drop.count);
                 }
-                29 => assert!([10, 20, 30, 40].contains(&drop.count), "{}", drop.count),
+                29 => panic!("gold dropped: {drop:?}"),
                 _ => {}
             }
         }
@@ -659,10 +681,6 @@ mod tests {
             let level = item_params(drop.dict_id).unwrap().item_level;
             assert!((1..=2).contains(&level), "{} is level {level}", item.name);
             assert_eq!(drop.rarity, 3);
-
-            // The daily bonus: 50 gold.
-            let drop = roll(&drops.daily_bonus, dictionary, &[], 9, 0, &mut rng).unwrap();
-            assert_eq!((drop.dict_id, drop.count, drop.rarity), (215, 50, 4));
 
             // A drop card: a cosmetic, armour or a weapon.
             let drop = roll(&drops.drop_card, dictionary, &[], 20, 0, &mut rng).unwrap();
@@ -798,7 +816,7 @@ mod tests {
         game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
         let dictionary = Dictionary::shared();
         let drops = Drops::shared();
-        let tables = [&drops.generic, &drops.new_player, &drops.daily_bonus, &drops.drop_card];
+        let tables = [&drops.generic, &drops.new_player, &drops.drop_card];
         for (name, dict_id) in [("decals_1_9", 1891), ("decals_1_10", 1892), ("decals_1_11", 1893)] {
             let item = dictionary.item_named(name).unwrap_or_else(|| panic!("no {name}"));
             let params = item_params(item.dict_id).unwrap();

@@ -4,7 +4,6 @@ package survarium.item
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
-   import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
    import flash.text.TextFieldAutoSize;
    import flash.utils.Timer;
@@ -13,7 +12,6 @@ package survarium.item
    import scaleform.clik.events.DragEvent;
    import scaleform.clik.managers.DragManager;
    import scaleform.gfx.MouseEventEx;
-   import survarium.Util;
    import survarium.constants.Events;
    import survarium.controls.ItemRendererCore;
    import survarium.controls.ListDragSlot;
@@ -35,7 +33,6 @@ package survarium.item
       
       protected var _isBundle:Boolean = false;
       
-      protected var _hasListener:Boolean = false;
       
       protected var _startTime:uint = 0;
       
@@ -65,29 +62,12 @@ package survarium.item
       
       override public function setData(data:Object) : void
       {
-         var timer:Timer;
          this.data = data;
          trace("itemSetData",name);
          if(_data)
          {
             _descriptor = _data.descriptor;
             _isBundle = _data.descriptor == ItemPlace.BUNDLE;
-         }
-         if(_data && _data.repairTime)
-         {
-            if(!this._hasListener)
-            {
-               _hasListener = true;
-               timer = MainScene.getTimerInstance();
-               timer.addEventListener(TimerEvent.TIMER,this.updateRepairTime);
-               this.updateRepairTime();
-               trace("addTimerEventListener::",this.updateRepairTime,_data.repairTime);
-            }
-         }
-         else if(this._hasListener)
-         {
-            _hasListener = false;
-            MainScene.getTimerInstance().removeEventListener(TimerEvent.TIMER,this.updateRepairTime);
          }
          this.setState(_state);
       }
@@ -279,28 +259,6 @@ package survarium.item
          }
       }
       
-      protected function updateRepairTime(e:Event = null) : void
-      {
-         var _itemData:ItemData = this._data as ItemData;
-         if(_itemData.descriptor == ItemPlace.INVENTORY)
-         {
-            trace("updateRTfor::",_itemData.name,_itemData.repairTime,_itemData.repairTimeDelta,MainScene.getTimerInstance().currentCount);
-            var delta:int = MainScene.getTimerInstance().currentCount - _itemData.repairTimeDelta;
-            if(_itemData.repairTime != 0)
-            {
-               this.lockedText.visible = true;
-               this.lockedText.textFieldLock.autoSize = TextFieldAutoSize.LEFT;
-               this.lockedText.textFieldLock.text = LocalizationData.getName("repair_time") + ": " + Util.getTimeString(_itemData.repairTime - delta);
-               this.lockedText.textFieldLock.width = Math.min(this.lockedText.textFieldLock.textWidth + 5,157);
-               this.lockedText.x = (181 - this.lockedText.width) / 2;
-            }
-            else
-            {
-               this.lockedText.visible = false;
-            }
-         }
-      }
-      
       override protected function updateSlot() : void
       {
          var locked:Boolean = false;
@@ -308,7 +266,7 @@ package survarium.item
          if(Boolean(_itemData))
          {
             locked = _itemData.descriptor == ItemPlace.SHOP && !_itemData.canBuy;
-            this.lockedText.visible = locked || _itemData.repairTime != 0;
+            this.lockedText.visible = locked;
             if(locked)
             {
                this.lockedText.textFieldLock.autoSize = TextFieldAutoSize.LEFT;
@@ -343,7 +301,7 @@ package survarium.item
          if(Boolean(this.itemRenderer) && Boolean(_data))
          {
             _itemData = this._data as ItemData;
-            locked = _itemData.descriptor == ItemPlace.SHOP && !_itemData.canBuy || _itemData.repairTime != 0 || UpgradeWindow.greyed(_itemData);
+            locked = _itemData.descriptor == ItemPlace.SHOP && !_itemData.canBuy || UpgradeWindow.greyed(_itemData);
             this.itemRenderer.alpha = UpgradeWindow.greyed(_itemData) ? 0.35 : 1;
             if(locked)
             {
@@ -401,7 +359,7 @@ package survarium.item
                return;
             }
             locked = _itemData.descriptor == ItemPlace.SHOP && !_itemData.canBuy && (!_itemData.isStack || _itemData.isStack && _itemData.value == 0);
-            dragEnabled = !_itemData.repairTime && !locked && _itemData.descriptor != ItemPlace.NONE && !UpgradeWindow.greyed(_itemData);
+            dragEnabled = !locked && _itemData.descriptor != ItemPlace.NONE && !UpgradeWindow.greyed(_itemData);
          }
       }
       
