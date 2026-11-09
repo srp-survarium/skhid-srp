@@ -2221,6 +2221,12 @@ va	status	ref_021d	name
 0x002015e0	reviewed	0x0015f619	survarium::game_options::on_keyboard_action
 0x002016d0	reviewed	0x0015f6bb	survarium::game_options::on_mouse_key_action
 0x002017a0	reviewed	0x0015f73e	survarium::game_options::on_mouse_move
+0x0031d6e0	observed		survarium::breath_vibration_calculator::tick
+0x00013660	reviewed	0x00012735	vostok::engine::engine_world::engine_world
+0x000141b0	reviewed	0x00012ef0	vostok::command_line::key::is_set_as_number<unsigned int>
+0x000ddf20	reviewed	0x000ac7b6	vostok::command_line::key::is_set_as_number
+0x000e0f20	reviewed	0x000ae85f	vostok::memory::preinitialize
+0x000e1120	reviewed	0x000ae992	vostok::memory::allocate_region
 0x001f8360	reviewed		survarium::game_world::switch_to_spectator_camera
 0x00242d50	reviewed		survarium::base_network_client::spectate_next_player
 0x00242f00	reviewed		survarium::base_network_client::spectate_previous_player

@@ -7,7 +7,7 @@
 //! is outstanding; with one (issued on the closed socket, so it completes with
 //! WSAEBADF) it took the aborted receive (995) for a lost link: the game was
 //! told the match ended (reason 1) as the new connection was being made.
-//! client_patch.md section 3.77.
+//! client_patch.md section 3.78.
 
 #![forbid(unsafe_code)]
 

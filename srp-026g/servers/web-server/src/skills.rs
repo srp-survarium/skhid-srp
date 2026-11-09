@@ -7,12 +7,14 @@
 //! Above the trees, the levels that give the points ([`levels`]): drawn from the
 //! server's own table (`session::v026g::account::level_start`), not the build,
 //! with what a match is now (`Results::per_match`) and so how many matches and
-//! hours of play a level is.
+//! hours of play a level is. On each skill, how many players took it
+//! (`GameAccounts::skill_takers`), counted when the page is asked for.
 
 use std::fmt::Write;
 #[cfg(test)]
 use std::num::NonZeroU32;
 
+use session::v026g::SkillTakers;
 use session::v026g::account::{MAX_LEVEL, level_start};
 use session::v026g::rewards::PerMatch;
 
@@ -46,9 +48,23 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 /// Where the built body's trees start: the levels go before them.
 const TREES: &str = "<div class=\"skill-trees\"";
 
-/// The page's body in `lang`, for the wiki's page; `per_match`: what a
-/// match gives now (`None`: no match to go by yet, and no number of matches).
-pub(crate) fn body(lang: Lang, per_match: Option<PerMatch>) -> String {
+/// Where a skill of the built body starts, its id next; its disc follows.
+const SKILL: &str = "<div class=\"skill\" tabindex=\"0\" data-skill=\"";
+const DISC: &str = "<span class=\"skill-disc\">";
+
+/// What the page shows of the running server.
+#[derive(Default)]
+pub(crate) struct Now {
+    /// What a match gives now (`None`: no match to go by yet, and no number
+    /// of matches).
+    pub(crate) per_match: Option<PerMatch>,
+    /// How many players took each skill.
+    pub(crate) takers: SkillTakers,
+}
+
+/// The page's body in `lang`, for the wiki's page, with what it shows of
+/// the server `now`.
+pub(crate) fn body(lang: Lang, now: &Now) -> String {
     let built = match lang {
         Lang::En => include_str!("../skills/skills.en.html"),
         Lang::Uk => include_str!("../skills/skills.uk.html"),
@@ -59,9 +75,33 @@ pub(crate) fn body(lang: Lang, per_match: Option<PerMatch>) -> String {
     format!(
         "{}{}{}",
         &built[..at],
-        levels(lang, per_match),
-        &built[at..]
+        levels(lang, now.per_match),
+        with_takers(lang, &built[at..], &now.takers)
     )
+}
+
+/// `trees` with, on each skill's disc, how many players took it.
+fn with_takers(lang: Lang, trees: &str, takers: &SkillTakers) -> String {
+    let mut out = String::with_capacity(trees.len() + 4096);
+    let mut rest = trees;
+    while let Some(at) = rest.find(SKILL) {
+        let (head, tail) = rest.split_at(at + SKILL.len());
+        let id = tail
+            .split_once('"')
+            .and_then(|(id, _)| id.parse().ok())
+            .expect("a built skill's id");
+        let disc = tail.find(DISC).expect("a built skill's disc") + DISC.len();
+        out.push_str(head);
+        out.push_str(&tail[..disc]);
+        let _ = write!(
+            out,
+            "<span class=skill-takers>{}</span>",
+            thousands(lang, takers.of(id))
+        );
+        rest = &tail[disc..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// `n` with its thousands apart, as `lang` writes them.
@@ -253,6 +293,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_skill_shows_how_many_players_took_it() {
+        let accounts = session::v026g::GameAccounts::new();
+        for id in 1..=1234 {
+            accounts
+                .get_or_create(id, &format!("p{id}"))
+                .lock()
+                .unwrap()
+                .skills = vec![(101, 1)];
+        }
+        let now = Now {
+            takers: accounts.skill_takers(),
+            ..Now::default()
+        };
+        for lang in [Lang::En, Lang::Uk] {
+            let page = body(lang, &now);
+            let badges = page.matches("<span class=skill-takers>").count();
+            assert_eq!(badges, page.matches(SKILL).count(), "{lang:?}");
+            assert!(badges > 40, "{lang:?}");
+        }
+        let page = body(Lang::En, &now);
+        let quick = &page[page.find(&format!("{SKILL}101\"")).unwrap()..];
+        assert!(quick.contains(&format!("{DISC}<span class=skill-takers>1,234</span>")));
+        let other = &page[page.find(&format!("{SKILL}102\"")).unwrap()..];
+        assert!(other.contains(&format!("{DISC}<span class=skill-takers>0</span>")));
+    }
+
+    #[test]
     fn the_formula_is_the_servers_table() {
         let (first, step) = (cost(1), cost(2) - cost(1));
         assert!(step.is_multiple_of(2), "the formula halves the step");
@@ -269,7 +336,7 @@ mod tests {
     #[test]
     fn levels_go_before_the_trees_in_both_languages() {
         for lang in [Lang::En, Lang::Uk] {
-            let page = body(lang, None);
+            let page = body(lang, &Now::default());
             let levels = page.find("<section class=levels>").expect("the levels");
             assert!(levels < page.find(TREES).expect("the trees"));
             assert!(page.contains(&thousands(lang, level_start(MAX_LEVEL))));
@@ -281,7 +348,13 @@ mod tests {
             experience: NonZeroU32::new(1000).unwrap(),
             seconds: NonZeroU32::new(720).unwrap(),
         };
-        let page = body(Lang::En, Some(per_match));
+        let page = body(
+            Lang::En,
+            &Now {
+                per_match: Some(per_match),
+                ..Now::default()
+            },
+        );
         assert!(page.contains("<td>1,287,500</td><td>≈ 1,288</td><td>≈ 258</td>"));
         assert!(page.contains("<th>1</th><td>500</td><td>500</td><td>≈ 1</td><td>≈ 0.1</td>"));
         assert_eq!(hours(Lang::Uk, 25_000, per_match), "5,0");

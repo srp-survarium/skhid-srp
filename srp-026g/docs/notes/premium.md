@@ -1,5 +1,35 @@
 # 0.26g: premium, the shop's offers, daily bonus, tutorial, nickname, autobuy
 
+> **Since 2026-11-09 there is no premium account** (the owner: "let's do the same with premium" as
+> with repair, "it should be on by default", "no premium state anywhere should exist", "essentially
+> we should just increase numbers premium does"). The rules:
+>
+> - **Pay**: what premium added, half again of a match's three rows (silver, experience,
+>   reputation), is in srp's rates for every account: `pay::MONEY_RATES` 150..220 % -> 225..330 %,
+>   `SRP_EXPERIENCE_RATE` default 2 -> 3, `SRP_REPUTATION_RATE` default 120 -> 180. The live server
+>   sets none of the three (checked 2026-11-09). The daily bonus and the premium items' bonus are
+>   counted from the rows, so they grow with them; the quests' reputation shares the reputation rate
+>   and grows too (premium never paid it). A match against bots pays its share of the new rows.
+> - **No state**: the account has no premium time (`Account::premium_until` is gone; the
+>   `g26_accounts.premium_until` column stays in the schema unused, dropped with the gold column);
+>   a new account gets no premium days (`new-account.tsv`); the admin page has no premium hours.
+> - **Nothing sells or offers it**: the shop's records (0x95) are the seven item bundles only (the
+>   premium-time bundles 1..7 are no record); `47 02` of a premium time is refused
+>   (`st_cannot_buy_item`); `A8` / `A9` are never sent and `47 05` / `47 06` are not read;
+>   `SRP_PREMIUM_PRICES`, `SRP_PREMIUM_DISCOUNT` and `SRP_PREMIUM_OFFER_SECONDS` are gone.
+> - **The wire**: `94` lists no service; every kit goes out as state 0 (never 2); the results
+>   screen's premium bonus block goes out empty and its premium drop part is 0.
+> - **The lobby movie** shows no premium anywhere: no premium button, timer, offer or discount
+>   window, no premium row or "activate premium" button on the results screen (whose totals are the
+>   rows, the daily and the items blocks), no premium-only kit; the HUD's pregame "premium players"
+>   box is gone.
+> - **Kept**: premium items (golden weapons, premium armour, decals, the bundles and their
+>   bonuses) are items and stay.
+> - Release: no compensation; an account with premium time left loses nothing it was paid (every
+>   account is now paid as premium was). Replays are not affected (pay is not the simulation).
+>
+> The rest of this note is the client's reading as it was found.
+
 > **Since 2026-11-08 there is no gold** ([silver-only.md](silver-only.md)): every gold price and
 > amount below is paid or given in silver at 100 silver a gold, the shop's records carry money type 0,
 > and the exchange is gone. What follows is the client's reading as it was found.

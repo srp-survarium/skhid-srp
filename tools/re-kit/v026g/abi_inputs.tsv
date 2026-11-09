@@ -5793,6 +5793,18 @@ va	name	location	role	basis
 0x002016d0	survarium::game_options::on_mouse_key_action	entry ESP+12	the button's action: 0 a press	observed
 0x002017a0	survarium::game_options::on_mouse_move	ECX	the main menu (game_options)	observed
 0x002017a0	survarium::game_options::on_mouse_move	entry ESP+16	the wheel's turn: 0 none, above 0 up (159h), else down (15Ah)	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	EDI	the calculator (weapon+288h; +38h the weapon, +3Ch the holder set by set_user 0x2E29F3, 0 after deactivate 0x2E2EBE)	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	entry ESP+4	float, the weapon's dispersion now: m_weapon_dispersion +418h plus m_character_dispersion +404h (weapon_core::tick 0x2E0A23, only while aimed +5E8h); the base value of modifier 61	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	entry ESP+8	the ms elapsed since the weapon's last tick (weapon_core::tick: now - +5A4h), unsigned (fild then +2^32 when negative)	observed
+0x00013660	vostok::engine::engine_world::engine_world	entry ESP+4	the engine_world being built (EBP in the body; the render arena's allocator at +228h)	observed
+0x000141b0	vostok::command_line::key::is_set_as_number<unsigned int>	ESI	the command-line key (0xA80380 rh_allocator, 0xA7C088 render_allocator, 0xA80150 mt_allocator; its name at +210h)	observed
+0x000141b0	vostok::command_line::key::is_set_as_number<unsigned int>	entry ESP+4	the u32 the value goes to	observed
+0x000ddf20	vostok::command_line::key::is_set_as_number	ESI	the command-line key (name +210h, float value +20Ch, state +224h)	observed
+0x000ddf20	vostok::command_line::key::is_set_as_number	EDI	the float the value goes to, or 0	observed
+0x000e1120	vostok::memory::allocate_region	entry ESP+4	additional memory size (u64; 320 MiB with an editor, else 0)	observed
+0x000e1120	vostok::memory::allocate_region	entry ESP+12	additional address space (u64; the same value)	observed
+0x000e21c0	vostok::memory::register_allocator	ESI	the arenas' list ([0xA808FC]: +4 end, +8 capacity end)	observed
+0x000e21c0	vostok::memory::register_allocator	EDI	the record: +0 allocator, +8 arena size (u64), +10h arena address (0), +14h name	observed
 0x0025cd00	survarium::game_world::on_keyboard_action	at 0x25CE1C	the actions' switch (jump table 0x25CF30, action - 11h): 11h cam_1 (F1) vtable+80h, 12h cam_2 (F2, the replay's free view) +84h, 13h cam_3 (F3) +8Ch, each only with AL (vtable+70h, false in a network client, 0x397C20); 14h..16h the plain return 0x25CF0D; 17h next_player (F6) +64h and 18h prev_player (F5) +68h only with BL (vtable+74h, the client's +0Dh); 19h toggle_replay_ui (F11) the hud's cursor. The binder is asked with the kind mask 1 (EDI at 0x25CD5F), which category 5 (the action table's camera rows 0xA74C1C..0xA74CBC) has	observed
 0x0026e000	survarium::base_local_network_client::switch_to_free_view	ECX	the replay client: vtable+84h, its free view (F2, the hud's select_free_view): vtable+60h, detach_from_player (0x242CC0); `ret 4` (the game world, not read)	observed
 0x001ed590	survarium::game::toggle_pause	ESI	the game: does nothing when its network client's vtable+20h says so (0x1ED59C; network_client's 0x372420 answers 1, so a live match never pauses), else resume (0x1ED650) when paused (0x1F1DA3C), pause (0x1ED5C0) otherwise; the hud's button_play_clicked calls it (0x233E02)	observed

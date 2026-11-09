@@ -1657,10 +1657,15 @@ fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
     let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
     let query = target.split_once('?').map_or("", |(_, query)| query);
-    let per_match = (path == skills::PATH)
-        .then(|| game.results.per_match())
-        .flatten();
-    wiki::page(path, query, lang, &format!("{header}{notice}"), per_match)
+    let now = if path == skills::PATH {
+        skills::Now {
+            per_match: game.results.per_match(),
+            takers: game.accounts.skill_takers(),
+        }
+    } else {
+        skills::Now::default()
+    };
+    wiki::page(path, query, lang, &format!("{header}{notice}"), &now)
 }
 
 /// The site's header over a wiki page of its own look (the calculator's, the
@@ -2260,7 +2265,6 @@ fn admin_extras_026g(
     let panels = format!(
         "<div class=\"panel p-account\">\
          <label for=au>{}</label><input id=au name=acc_user maxlength=99>\
-         <label for=ph>{}</label><input id=ph name=premium_hours placeholder=+24>\
          <label for=lv>{}</label><input id=lv name=level inputmode=numeric>\
          <label for=xp>{}</label><input id=xp name=experience placeholder=+500>\
          <label for=fa>{}</label><input id=fa name=faction inputmode=numeric>\
@@ -2277,7 +2281,6 @@ fn admin_extras_026g(
          <small>{}</small><br>\
          <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}{}",
         lang.tr("User name", "Ім'я користувача"),
-        lang.tr("Premium hours, + or -", "Години преміуму, + або -"),
         lang.tr(
             &format!("Set the level (0 to {})", session::v026g::account::MAX_LEVEL),
             &format!("Встановити рівень (0–{})", session::v026g::account::MAX_LEVEL)

@@ -345,46 +345,8 @@ pub fn admin_text_clear() -> ServerMessage {
     Writer::new().u8(0).done(ServerId::AdminTextClear)
 }
 
-/// `A8`: the premium discount store / the offer after a match
-/// (`social.md` §5): `u32 seconds` (shown in hours), four u32 and an f32
-/// whose meanings are not known.
-pub fn premium_store(seconds: u32, values: [u32; 4], factor: f32) -> ServerMessage {
-    let mut writer = Writer::new();
-    writer.u32(seconds);
-    for value in values {
-        writer.u32(value);
-    }
-    writer.f32(factor).done(ServerId::PremiumStore)
-}
-
-/// `A8`, named: the offer a player without premium gets after a match
-/// (`social.md` §5; client 0x274FF8 → 0x28A400, PROVEN). The client lists
-/// every premium offer of the shop (0x95, kind 0) at
-/// `round(value * (1 - discount))` (`root.set_premium_discount_store`) and
-/// opens `root.show_premium_post_reward(money, experience, reputation,
-/// hours, time_left, discount, faction)`: "buy premium now and get these
-/// too", with the faction the client holds. `premium_seconds` reaches the
-/// window in whole hours; `time_left` (seconds) runs down on the premium
-/// button. The answer is `47 05`. `discount` is a share, 0.0..1.0.
-pub fn premium_post_reward(
-    premium_seconds: u32,
-    money: u32,
-    experience: u32,
-    reputation: u32,
-    time_left: u32,
-    discount: f32,
-) -> ServerMessage {
-    premium_store(
-        premium_seconds,
-        [money, experience, reputation, time_left],
-        discount,
-    )
-}
-
-/// `A9`: shows a premium discount.
-pub fn premium_discount(discount: f32) -> ServerMessage {
-    Writer::new().f32(discount).done(ServerId::PremiumDiscount)
-}
+// `A8` and `A9`, the premium offers (`social.md` §5), are never sent:
+// there is no premium account (the owner, 2026-11-09).
 
 /// `AA`: signs the client out to its login screen with
 /// `st_login_menu_status_sign_in_already_online`: for the connection an

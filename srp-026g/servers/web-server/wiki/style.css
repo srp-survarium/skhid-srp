@@ -252,6 +252,9 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
   outline:none; cursor:default; -webkit-tap-highlight-color:transparent }
 .skill-disc { position:relative; width:calc(56 * var(--disc) * var(--u)); height:calc(56 * var(--disc) * var(--u)) }
 .skill-disc img { position:absolute; inset:0; width:100%; height:100% }
+/* How many players took the skill (src/skills.rs), on its disc's corner. */
+.skill-takers { position:absolute; z-index:2; top:calc(-4 * var(--u)); right:calc(-10 * var(--u)); padding:calc(3 * var(--u)) calc(4 * var(--u));
+  font:700 calc(11 * var(--u))/1 var(--data); color:var(--panel); background:var(--skill-green); border-radius:3px }
 .skill-over,.skill-lock-red,.skill-tip { display:none }
 .skill.open .skill-over,.skill:focus-visible .skill-over { display:block }
 @media(hover:hover) { .skill:hover .skill-over { display:block } }

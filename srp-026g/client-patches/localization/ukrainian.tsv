@@ -2616,15 +2616,14 @@ st_srp_medical_331_description	Замінює комірку додатково�
 st_srp_medical_331_name	Кишеня для припасів
 st_srp_medical_332_description	Бонус до максимального здоров'я рук і ніг:
 st_srp_medical_332_name	Міцні кістки
-st_srp_medical_333_description	Поки діє знеболювальне, звуки довкілля тихіші, а звуки ворогів (крім пострілів) гучніші на:
+st_srp_medical_333_description	Поки діє знеболювальне, зменшення розгойдування прицілу:
 st_srp_medical_333_name	Зосередженість
 st_srp_medical_342_description	Зменшення шкоди, отримуваної від союзників:
 st_srp_medical_342_name	Брати по зброї
 st_srp_medical_seconds	 s
-st_srp_medicine_ambient_sounds	Звуки довкілля
 st_srp_medicine_crouched_healing	Лікування в присяді
-st_srp_medicine_enemy_sounds	Звуки ворогів
 st_srp_medicine_hit_slow	Сповільнення кулями
+st_srp_medicine_sight_sway	Розгойдування
 st_srp_medicine_sprint_stamina	Енергія на спринт
 st_srp_melee_knockback	Відкидання прикладом
 st_srp_mode_blackout	Захисний пристрій: блекаут

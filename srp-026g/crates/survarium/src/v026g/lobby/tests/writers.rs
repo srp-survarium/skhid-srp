@@ -785,10 +785,8 @@ fn quests_are_twenty_byte_records() {
 }
 
 #[test]
-fn services_list_only_the_premium_account() {
-    assert_bytes(&services(None), "94 00");
-    // `u8 type 0, u8, u32 hours, u32`.
-    assert_bytes(&services(Some(48)), "94 01  00 00 30000000 00000000");
+fn services_are_none() {
+    assert_bytes(&services(), "94 00");
 }
 
 #[test]
@@ -1103,11 +1101,6 @@ fn the_other_small_pushes() {
     assert_eq!(long.body().len(), 1 + 2 + 245 * 2);
     assert_bytes(&admin_text("a", "bc"), "A5 'a' 'bc'");
     assert_bytes(&admin_text_clear(), "A6 00");
-    assert_bytes(
-        &premium_store(7200, [1, 2, 3, 4], 0.5),
-        "A8 201C0000 01000000 02000000 03000000 04000000 0000003F",
-    );
-    assert_bytes(&premium_discount(0.25), "A9 0000803E");
     assert_bytes(&signed_out(), "AA");
 }
 
@@ -1649,58 +1642,45 @@ fn the_autobuy_box_is_bit_0_of_one_number() {
 #[test]
 fn a_shop_record_is_laid_out_as_the_client_reads_it() {
     use crate::v026g::shop_offers;
-    let records = shop_offers::records(&shop_offers::DEFAULT_PREMIUM_PRICES);
+    let records = shop_offers::records();
     let message = shop(&records).unwrap();
     let body = message.body();
     assert_eq!(message.id_byte(), 0x95);
-    assert_eq!(body[..4], 14_u32.to_le_bytes());
+    assert_eq!(body[..4], 7_u32.to_le_bytes());
     let unpacked = crate::v026g::lzma2::unstore(&body[8..]).unwrap();
-    assert_eq!(unpacked.len(), 14 * 0xD0);
+    assert_eq!(unpacked.len(), 7 * 0xD0);
     let u32_at = |record: usize, offset: usize| {
         let at = record * 0xD0 + offset;
         u32::from_le_bytes(unpacked[at..at + 4].try_into().unwrap())
     };
-    // The first record: a year of premium (bundle 6), 8000 gold in silver,
-    // kind 0, no items, silver (money type 0).
+    // The second: the AK-74N bundle (9), kind 1, 1500 gold in silver
+    // (money type 0), two items: the rifle (dict 338, 1) and its ammo
+    // (dict 7, 2000), each an item of the inventory (0 at +0x20 of the
+    // item).
     assert_eq!(
         [
-            u32_at(0, 0x00),
-            u32_at(0, 0x04),
-            u32_at(0, 0x0C),
-            u32_at(0, 0x10),
-            u32_at(0, 0x14),
-            u32_at(0, 0xCC)
-        ],
-        [6, 6, 0, 800_000, 0, 0]
-    );
-    // The ninth: the AK-74N bundle (9), kind 1, 1500 gold in silver, two
-    // items: the
-    // rifle (dict 338, 1) and its ammo (dict 7, 2000), each an item of the
-    // inventory (0 at +0x20 of the item).
-    assert_eq!(
-        [
-            u32_at(8, 0x00),
-            u32_at(8, 0x04),
-            u32_at(8, 0x0C),
-            u32_at(8, 0x10),
-            u32_at(8, 0x14),
-            u32_at(8, 0xCC)
+            u32_at(1, 0x00),
+            u32_at(1, 0x04),
+            u32_at(1, 0x0C),
+            u32_at(1, 0x10),
+            u32_at(1, 0x14),
+            u32_at(1, 0xCC)
         ],
         [9, 9, 1, 150_000, 2, 0]
     );
     assert_eq!(
         [
-            u32_at(8, 0x18),
-            u32_at(8, 0x18 + 0x0C),
-            u32_at(8, 0x18 + 0x20)
+            u32_at(1, 0x18),
+            u32_at(1, 0x18 + 0x0C),
+            u32_at(1, 0x18 + 0x20)
         ],
         [338, 1, 0]
     );
     assert_eq!(
         [
-            u32_at(8, 0x3C),
-            u32_at(8, 0x3C + 0x0C),
-            u32_at(8, 0x3C + 0x20)
+            u32_at(1, 0x3C),
+            u32_at(1, 0x3C + 0x0C),
+            u32_at(1, 0x3C + 0x20)
         ],
         [7, 2_000, 0]
     );
@@ -1717,7 +1697,7 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
     no_bundle.ui_key = 99;
     let mut odd_kind = records[0].clone();
     odd_kind.kind = 2;
-    let mut unknown_item = records[8].clone();
+    let mut unknown_item = records[1].clone();
     unknown_item.items[0].dict_id = 9_999;
     for bad in [no_bundle, odd_kind, unknown_item] {
         let message = shop(&[bad]).unwrap();
@@ -1725,36 +1705,3 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
     }
 }
 
-#[test]
-fn the_premium_offers_of_a8_and_a9() {
-    // `A8`: the premium seconds, the money, experience and reputation
-    // premium would add, the seconds the offer stands, the discount.
-    let message = premium_post_reward(0, 150, 60, 45, 3_600, 0.25);
-    assert_bytes(
-        &message,
-        "A8 00000000 96000000 3C000000 2D000000 100E0000 0000803E",
-    );
-    assert_eq!(
-        Client::signed_in().receive(&message).unwrap(),
-        Decoded::PremiumStore {
-            seconds: 0,
-            values: [150, 60, 45, 3_600],
-            factor: 0.25
-        }
-    );
-    assert_bytes(&premium_discount(0.25), "A9 0000803E");
-    // The client prices an offer at `value * (1 - discount)` and divides
-    // by what is left for the old price: a whole discount is refused.
-    for bad in [1.0, 1.5, -0.1, f32::NAN] {
-        assert!(
-            Client::signed_in().receive(&premium_discount(bad)).is_err(),
-            "{bad}"
-        );
-        assert!(
-            Client::signed_in()
-                .receive(&premium_post_reward(0, 1, 1, 1, 60, bad))
-                .is_err(),
-            "{bad}"
-        );
-    }
-}

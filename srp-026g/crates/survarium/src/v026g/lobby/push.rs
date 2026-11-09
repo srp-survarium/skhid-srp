@@ -1155,19 +1155,11 @@ pub fn quests(records: &[QuestRecord]) -> ServerMessage {
     writer.done(ServerId::Quests)
 }
 
-/// `94`: the account's services (`lobby.md` §2.17). Only the premium
-/// account (type 0, its hours left) is read; `None` sends none.
-pub fn services(premium_hours: Option<u32>) -> ServerMessage {
-    let mut writer = Writer::new();
-    match premium_hours {
-        Some(hours) => {
-            writer.u8(1).u8(0).u8(0).u32(hours).u32(0);
-        }
-        None => {
-            writer.u8(0);
-        }
-    }
-    writer.done(ServerId::Services)
+/// `94`: the account's services (`lobby.md` §2.17): none. The only one
+/// the client reads is the premium account (type 0, its hours left), and
+/// there is no premium account (the owner, 2026-11-09).
+pub fn services() -> ServerMessage {
+    Writer::new().u8(0).done(ServerId::Services)
 }
 
 /// An item of a shop record: 0x24 bytes (`premium.md` §1; the offsets are

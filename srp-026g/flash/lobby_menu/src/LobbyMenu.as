@@ -81,9 +81,7 @@ package
    import survarium.constants.MoneyType;
    import survarium.constants.NotificationType;
    import survarium.constants.PlayButtonState;
-   import survarium.constants.PremiumState;
    import survarium.constants.ProfileSlot;
-   import survarium.constants.ProfileState;
    import survarium.constants.QuestStatus;
    import survarium.constants.QuickSlotSize;
    import survarium.constants.Reward;
@@ -141,7 +139,6 @@ package
    import survarium.messages.MessageCreateChar;
    import survarium.messages.MessageExit;
    import survarium.messages.MessageNoClose;
-   import survarium.messages.MessagePostPremium;
    import survarium.messages.MessageQuestInfo;
    import survarium.messages.MessageRerollItem;
    import survarium.paperdoll.PaperDollBase;
@@ -374,8 +371,6 @@ package
       
       protected var _playerRequestTarget:MovieClip;
       
-      private var _premiumStoreDiscount:Array = [];
-      
       protected var lastClick:Number = 0;
       
       protected var messageIndex:uint = 0;
@@ -424,11 +419,7 @@ package
       private var _lobbyState:Array;
       
       protected var _tempIndex:uint = 0;
-      
-      private var _postRewardData:Object;
-      
-      private var _discountTimer:Timer;
-      
+
       private var toggle:Boolean = false;
       
       private var toggleIndex:int = 0;
@@ -1037,7 +1028,6 @@ package
          this.notificationList.registerRenderer(NotificationType.QUEST,NotificationQuestRendererSkinned);
          this.notificationList.registerRenderer(NotificationType.INVITED_REWARD,NotificationInvitedRewardRenderer);
          this.notificationList.registerRenderer(NotificationType.MATCH,NotificationMatchRenderer);
-         this.notificationList.registerRenderer(NotificationType.PREMIUM,NotificationPremDiscount);
          this.notificationList.registerRenderer(NotificationType.FACTION_RANK,FactionRankNotif);
          this.notificationList.registerRenderer(NotificationType.PLAYER_RANK,PlayerRankNotif);
          this.notificationList.visible = false;
@@ -1045,7 +1035,6 @@ package
          this.notificationListTemp.registerRenderer(NotificationType.QUEST,NotificationQuestRendererSkinned);
          this.notificationListTemp.registerRenderer(NotificationType.INVITED_REWARD,NotificationInvitedRewardRenderer);
          this.notificationListTemp.registerRenderer(NotificationType.MATCH,NotificationMatchRenderer);
-         this.notificationListTemp.registerRenderer(NotificationType.PREMIUM,NotificationPremDiscount);
          this.notificationListTemp.registerRenderer(NotificationType.FACTION_RANK,FactionRankNotif);
          this.notificationListTemp.registerRenderer(NotificationType.PLAYER_RANK,PlayerRankNotif);
          this.notificationListTemp.visible = true;
@@ -1124,9 +1113,6 @@ package
          DragManager.init(this.stage,this._overlay);
          Message.registerMessage("ask",MessageAsk);
          Message.registerMessage("askr",MessageAskRelocate);
-         Message.registerMessage("premium",SrvMessagePremium);
-         Message.registerMessage("post_premium",SrvMessagePremiumLost);
-         Message.registerMessage("premium_discount",SrvMessagePremiumDiscount);
          Message.registerMessage("asks",MessageAskSell);
          Message.registerMessage("debug",MessageBox);
          Message.registerMessage("anno",MessageAnnounce);
@@ -1257,24 +1243,7 @@ package
          var mouseIdx:uint = sfEvent == null ? MouseEventEx.LEFT_BUTTON : sfEvent.buttonIdx;
          var options:Array;
          trace("mouseIdx",mouseIdx,sfEvent.mouseIdx,sfEvent.buttonIdx);
-         if(mouseIdx == MouseEventEx.LEFT_BUTTON && e.target is Button)
-         {
-            trace("onProfileIndexChange");
-            Util.logObject(e.target.data);
-            if(e.target.data.state == ProfileState.PREMIUM_ONLY)
-            {
-               if(this.player_profile.buyPremium.visible == false)
-               {
-                  this.player_profile.buyPremium.visible = true;
-                  this.player_profile.buyPremium.setData({options:this.statusPanel.getPremiumStore()});
-               }
-            }
-            else
-            {
-               this.player_profile.buyPremium.visible = false;
-            }
-         }
-         else if(mouseIdx == MouseEventEx.RIGHT_BUTTON && e.target is Button && (e.target.enabled))
+         if(mouseIdx == MouseEventEx.RIGHT_BUTTON && e.target is Button && (e.target.enabled))
          {
             options = [];
             options.push({
@@ -2295,37 +2264,16 @@ package
          _playerRequestTarget = e.target as MovieClip;
       }
       
+      // No premium account (the owner, 2026-11-09: "no premium state anywhere should exist"; what it
+      // paid is in every match's rows): the game still hands the lobby the account's premium (0x94)
+      // and the shop's premium times (0x95, none sent), and nothing shows them. The offers after a
+      // match and at sign-in (A8, A9: show_premium_post_reward, show_premium_discount) are never sent.
       public function set_premium_state(state:uint, label:String) : void
       {
-         PlayerInfo.premiumState = state;
-         PlayerInfo.premiumLeft = label;
-         if(state != PremiumState.NONE && (this.statusPanel.premiumDiscount))
-         {
-            this.statusPanel.premiumDiscount = 0;
-            this.updatePremiumDiscountTime();
-         }
-         if(state != PremiumState.NONE && this.player_profile.buyPremium.visible == true)
-         {
-            this.player_profile.buyPremium.visible = false;
-         }
-         if(this.victory_screen.visible)
-         {
-            this.victory_screen.updatePremiumState();
-         }
       }
-      
-      public function set_premium_discount_store(value:Array) : void
-      {
-         trace("set_premium_discount_store::",value);
-         _premiumStoreDiscount = value;
-         this.statusPanel.setPremiumStoreDiscount(value);
-      }
-      
+
       public function set_premium_store(value:Array) : void
       {
-         value.reverse();
-         this.statusPanel.setPremiumStore(value);
-         this.victory_screen.setPremiumStore(value);
       }
       
       public function set_squad_commander_mode(value:Boolean) : void
@@ -3784,25 +3732,6 @@ package
             this.friendsMenu.setInvites(this._friendInvites);
             this.bottom_panel.btnFriends.invites = this._friendInvites.length;
          }
-         else if(value.type == ImportantMessageType.PREMIUM_ACTIVATED)
-         {
-            value.label = LocalizationData.getName("action_premium_activated");
-            value.notificationType = NotificationType.PREMIUM;
-            value.reward = [{
-               type:Reward.MONEY,
-               amount:this._postRewardData.money,
-               param:MoneyType.REGULAR
-            },{
-               type:Reward.EXPERIENCE,
-               amount:this._postRewardData.experience
-            },{
-               type:Reward.REPUTATION,
-               amount:this._postRewardData.reputation,
-               param:this._postRewardData.factionId
-            }];
-            value.hideTimer = 15000;
-            this.add_notification(value);
-         }
          else if(value.type == ImportantMessageType.REFERRAL_REWARD)
          {
             value.label = Util.styledChar(value.nickname,"gray_highlight") + "\n" + LocalizationData.getName("reach_level") + " " + Util.styledChar(value.level,"green");
@@ -5053,86 +4982,6 @@ package
          if(this._playState == PlayButtonState.PLAY && play.enabled && play.visible)
          {
             play.dispatchEvent(new ButtonEvent(ButtonEvent.CLICK));
-         }
-      }
-      
-      public function show_premium_discount(dataObject:Object) : void
-      {
-         var data:Array;
-         var discount:Number;
-         var messData:Object;
-         var i:uint;
-         var discount_data:Object;
-         data = dataObject.items;
-         discount = (dataObject.discount);
-         trace("show_premium_discount",data,discount);
-         messData = {};
-         for(i = 0; i < data.length; i++)
-         {
-            discount_data = data[i];
-            discount_data.discount_value = discount;
-            discount_data.value_old = Math.floor(discount_data.value / (1 - discount));
-         }
-         messData.options = data;
-         Message.showMessage("premium_discount",messData);
-      }
-      
-      public function show_premium_post_reward(money:uint, exp:uint, rep:uint, hours:uint = 0, timeLeft:uint = 3600.0, discount:Number = 1, factionId:int = Faction.ANY) : void
-      {
-         var messData:Object;
-         var notif:Object;
-         trace("show_premium_post_reward",money,exp,rep,hours,timeLeft,discount,factionId);
-         if(factionId == Faction.ANY)
-         {
-            factionId = PlayerInfo.activeFaction;
-         }
-         MessagePostPremium.discount = discount;
-         messData = {
-            money:money,
-            experience:exp,
-            reputation:rep,
-            factionId:factionId,
-            options:this._premiumStoreDiscount
-         };
-         _postRewardData = messData;
-         Message.showMessage("post_premium",messData);
-         notif = {
-            notificationType:NotificationType.PLAIN,
-            label:LocalizationData.getName("premium_post_reward_label")
-         };
-         this._postRewardData.startTime = getTimer();
-         if(!this._discountTimer)
-         {
-            _discountTimer = new Timer(1000);
-            this._discountTimer.start();
-            this._discountTimer.addEventListener(TimerEvent.TIMER,this.updatePremiumDiscountTime);
-         }
-         this.statusPanel.postRewardData = this._postRewardData;
-         this.statusPanel.premiumDiscount = timeLeft;
-         this.add_notification(notif);
-      }
-      
-      private function updatePremiumDiscountTime(e:TimerEvent = null) : void
-      {
-         var curTime:int;
-         var delta:int;
-         if(this.statusPanel.premiumDiscount > 0)
-         {
-            curTime = getTimer();
-            delta = Math.round((curTime - this._postRewardData.startTime) / 1000);
-            trace("delta::",delta,"diff::",getTimer() - this._postRewardData.startTime);
-            if(delta > 0)
-            {
-               this._postRewardData.startTime = curTime;
-               this.statusPanel.premiumDiscount = Math.max(this.statusPanel.premiumDiscount - delta,0);
-            }
-         }
-         if(this.statusPanel.premiumDiscount <= 0)
-         {
-            if((this._discountTimer))
-            {
-               this._discountTimer.removeEventListener(TimerEvent.TIMER,this.updatePremiumDiscountTime);
-            }
          }
       }
       

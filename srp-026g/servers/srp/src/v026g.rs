@@ -35,11 +35,10 @@ use std::time::Duration;
 use lobby_server::v026g::{self as lobby, Inbox, Lobby, MatchFinished, MatchHost};
 use login_server::v026g::{self as login, Endpoint, RevisionGate};
 use match_server::v026g::{self as matches, MatchRegistry};
-use session::LockExt;
 use session::SessionStore;
 use session::v026g::replays::Replays;
 use session::v026g::rewards::{self, Results, Terms};
-use session::v026g::{GameAccounts, quests, wire};
+use session::v026g::{GameAccounts, quests};
 use survarium::v026g::drops::Rng;
 
 /// Delay before restarting a server that exited, to avoid a hot crash loop.
@@ -371,21 +370,14 @@ impl Settler {
 
 /// The web page's word to the lobby.
 pub struct WebLink {
-    accounts: Arc<GameAccounts>,
     inbox: Arc<Inbox>,
 }
 
 impl web_server::LobbyLink for WebLink {
     /// The client is sent its account again (`Inbox::account_changed`:
-    /// inventory, account, money, level and skills, reputations, quests),
-    /// then its services (0x90: the premium time), which that does not
-    /// carry and the admin page can change.
+    /// inventory, account, money, level and skills, reputations, quests).
     fn account_changed(&self, account_id: u32) {
         self.inbox.account_changed(account_id);
-        if let Some(account) = self.accounts.get(account_id) {
-            let services = wire::services(&account.locked(), quests::now());
-            self.inbox.push(account_id, vec![services]);
-        }
     }
 
     fn set_admin_text(&self, first: &str, second: &str) {
@@ -668,7 +660,6 @@ impl Stack {
             accounts: self.accounts.clone(),
             matches: Arc::new(RegistryHost(self.registry.clone())),
             lobby: Arc::new(WebLink {
-                accounts: self.accounts.clone(),
                 inbox: self.inbox.clone(),
             }),
             downloads: Arc::new(web_server::Downloads::new(

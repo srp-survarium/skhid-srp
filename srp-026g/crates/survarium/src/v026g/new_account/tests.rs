@@ -33,17 +33,11 @@ fn the_grant_is_the_tables() {
         SkillsTree::shared().validate(grant.level, &grant.skills[..2]),
         Ok(())
     );
-    assert_eq!(
-        (grant.silver, grant.premium_days),
-        (30_000, 30)
-    );
+    assert_eq!(grant.silver, 30_000);
     assert_eq!(
         (grant.rounds, grant.faction.id(), grant.reputation_level),
         (1000, 1, 5)
     );
-    // A month of premium, the shop's (`PREMIUM_OFFERS` id 3).
-    let month = (3, grant.premium_days);
-    assert!(super::super::shop_offers::PREMIUM_OFFERS.contains(&month));
     let gear = [
         (0, "novice_026_helmet"),
         (1, "scav_resp_1"),

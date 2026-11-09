@@ -244,9 +244,9 @@ package {
    check(shown[331].data.newValue==0,"Supply Pocket taken back");
    check(take(322,2)==1,"Additional Medicine at 20, one rank");
    check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
-   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 26 ranks in all; two
-   // either/or pairs, Forest Protection or Keeper in row III, Resonance or Cascade in row V: a
-   // build is 24 with Forest Protection, 21 with Keeper (its rows I-IV hold exactly 20).
+   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 26 ranks in all; one
+   // either/or pair, Resonance or Cascade in row V (Keeper and Forest Protection go together in
+   // row III): a full build is 25; without Forest Protection rows I-IV hold exactly 20.
    stage_="artefact tab";win.skillsTabPage.selectedIndex=4;shown=renderers(win,Renderer);
    var tree5:Object={501:[2,1,4,0],502:[3,1,5,0],512:[3,2,5,5],513:[4,2,1,5],521:[2,3,1,10],
     522:[3,3,1,10],523:[1,3,4,10],531:[1,4,1,15],532:[2,4,1,15],533:[3,4,1,15],541:[2,5,1,20],542:[3,5,1,20]};
@@ -262,15 +262,15 @@ package {
    check(ranks5==26,"26 artefact ranks");
    check(artefacts[541].preconditions.antiskills[0]==542 && artefacts[542].preconditions.antiskills[0]==541,
     "Resonance and Cascade exclude each other");
-   check(artefacts[521].preconditions.antiskills[0]==523 && artefacts[523].preconditions.antiskills[0]==521,
-    "Keeper and Forest Protection exclude each other");
+   check(artefacts[521].preconditions.antiskills==null && artefacts[523].preconditions.antiskills==null,
+    "Keeper and Forest Protection go together");
    check(shown[301]==null && shown[101]==null,"only the artefact tree on its tab");
    check(described(artefacts[501].ui,4)[4].indexOf("<green> -24%</green>")>=0,"Quick Hands maximum");
    check(described(artefacts[502].ui,5)[2].indexOf("Current value: +10 points")>=0,"Resistance current value");
    check(described(artefacts[502].ui,5)[5].indexOf("<green> +25 points</green>")>=0,"Resistance maximum");
    check(described(artefacts[521].ui,1).length==1,"Keeper: the description alone");
    check(described(artefacts[513].ui,1).length==1,"Artifact Sight: the description alone");
-   // The Keeper path: every rank of rows I-IV is 20, row V's threshold.
+   // Every rank of rows I-IV but Forest Protection's is 20, row V's threshold.
    bar(1,"artefact at 0");
    check(take(512,1)==0,"artefact tier 2 refused at 0");
    check(take(501,6)==4,"Quick Hands stops at 4");
@@ -283,7 +283,6 @@ package {
    check(take(512,4)==4,"10 points");
    bar(11,"artefact tier 3 mark at 10");
    check(take(521,2)==1,"Keeper at 10, one rank");
-   check(take(523,1)==0,"Forest Protection refused beside Keeper");
    check(take(522,2)==1,"Artifact Container at 10, one rank: 12 points");
    check(take(531,1)==0,"artefact tier 4 refused at 12");
    check(take(502,3)==4,"15 points");
@@ -292,21 +291,19 @@ package {
    check(take(541,1)==0 && take(542,1)==0,"artefact tier 5 refused at 18");
    check(take(502,2)==5,"Resistance stops at 5");
    check(take(541,1)==0,"artefact tier 5 refused at 19");
-   check(take(512,2)==5,"Knowledge of Artifacts stops at 5: the Keeper path's rows I-IV hold 20");
+   check(take(512,2)==5,"Knowledge of Artifacts stops at 5: rows I-IV without Forest Protection hold 20");
    bar(21,"artefact tier 5 mark at 20");
    check(take(541,2)==1,"Resonance at 20, one rank");
    bar(26,"artefact full with the last tier taken");
    check(take(542,1)==0,"Cascade refused beside Resonance");
    click(541,true);
    check(shown[541].data.newValue==0,"Resonance taken back");
-   check(take(542,2)==1,"Cascade at 20, one rank: a Keeper build is 21");
+   check(take(542,2)==1,"Cascade at 20, one rank: 21");
    check(take(541,1)==0,"Resonance refused beside Cascade");
-   // The Forest path: Keeper taken back, Forest Protection in its place.
-   click(521,true);
-   check(shown[521].data.newValue==0,"Keeper taken back");
-   check(take(523,5)==4,"Forest Protection stops at 4: a Forest build is 24");
-   check(take(521,1)==0,"Keeper refused beside Forest Protection");
-   bar(26,"artefact full on the Forest path");
+   // Forest Protection beside Keeper: a full build is 25.
+   check(take(523,5)==4,"Forest Protection beside Keeper, stops at 4: a full build is 25");
+   check(shown[521].data.newValue==1,"Keeper kept beside Forest Protection");
+   bar(26,"artefact full with Keeper and Forest Protection");
    // The tab bar's icons (SkillBranchTabCh, its icon a MovieClip whose frame is the tab, set by
    // updateText): a selected tab's keyframes place another icon symbol than the others, so each tab's
    // glyph is checked in every state against the one it shows up (placements.tsv puts the fifth right).

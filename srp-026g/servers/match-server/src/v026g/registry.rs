@@ -562,6 +562,7 @@ impl MatchRegistry {
                 format!(", {driven} of them the server's own bots (SRP_SERVER_BOTS)")
             }
         );
+        log::info!("Match {match_id:#x} keeper draw: {}", keeper.name());
         Ok(MatchTicket {
             match_id,
             host: self.host.clone(),
@@ -894,7 +895,9 @@ fn open_at(admitting: Option<&Admitting>, now: Instant) -> bool {
     matches!(admitting, Some(Admitting { admission: Ok(deadline), .. }) if now < *deadline)
 }
 
-/// A number that differs from run to run, for the first match id.
+/// A number that differs from run to run and call to call, for the first match id and each
+/// match's Keeper draw: SipHash of the clock's nanoseconds under a fresh `RandomState` (keys
+/// from the OS once a thread, the first one stepped at each call).
 fn random() -> u32 {
     use std::hash::{BuildHasher, Hasher};
     let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
@@ -1045,5 +1048,27 @@ impl ResultsSink for std::sync::mpsc::Sender<MatchResult> {
 impl<F: FnMut(MatchResult) + Send> ResultsSink for F {
     fn match_ended(&mut self, result: MatchResult) {
         self(result);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The draws of matches made one after another, from the registry's own random numbers:
+    /// each kind near its share (Onyx 4 %: now and then, not every match).
+    #[test]
+    fn keeper_draws_of_successive_matches_land_near_their_shares() {
+        const MATCHES: u32 = 20_000;
+        let mut seen = [0u32; 3];
+        for _ in 0..MATCHES {
+            seen[usize::from(keeper::draw(random()).draw() - 1)] += 1;
+        }
+        for (n, &(kind, share)) in keeper::SHARES.iter().enumerate() {
+            let (name, percent) = (kind.name(), f64::from(seen[n]) * 100.0 / f64::from(MATCHES));
+            // The largest standard deviation over 20 000 matches (Larkspur, Spring) is 0.35 points.
+            let near = (percent - f64::from(share)).abs() < 2.0;
+            assert!(near, "{name}: {percent} %");
+        }
     }
 }

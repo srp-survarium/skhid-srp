@@ -57,9 +57,6 @@ package survarium.controls
       // the lobby button: the player panel's (topPanelLeftContainer_56)
       public var btn_lobby:LobbyButton;
 
-      // the premium offer after a match (LobbyMenu.show_premium_post_reward): its seconds left, 0 none
-      public var premiumDiscount:int = 0;
-      
       private var _show_query:Boolean = true;
       
       private var _time:int;
@@ -140,13 +137,7 @@ package survarium.controls
       
       public var changeNameCost:int;
       
-      public var postRewardData:Object;
-      
       protected var _topMenu:MovieClip;
-      
-      protected var _premiumOptions:Array = [];
-      
-      protected var _premiumOptionsDiscount:Array = [];
       
       protected var _changeNicknameMessage:MessageEnterName;
       
@@ -361,21 +352,6 @@ package survarium.controls
          this.newItemsIcon.x = this._topMenu.x + ((this._topMenu.tabPage as ButtonBar).buttonWidth + (this._topMenu.tabPage as ButtonBar).spacing) * ((this._topMenu as TopMenu).SHOP_INDEX + 1) - 45;
          this.newItemsIcon.y = this._topMenu.y + 20;
          addChild(this.newItemsIcon);
-      }
-      
-      public function setPremiumStore(value:Array) : void
-      {
-         _premiumOptions = value;
-      }
-      
-      public function setPremiumStoreDiscount(value:Array) : void
-      {
-         _premiumOptionsDiscount = value;
-      }
-      
-      public function getPremiumStore() : Array
-      {
-         return this._premiumOptions;
       }
       
       public function setTopMenu(value:MovieClip) : void
@@ -862,33 +838,6 @@ package survarium.controls
       protected function goToKnowledgeBase() : void
       {
          ExternalInterface.call("go_to_knowledge_base");
-      }
-      
-      public function showPremium(value:Object = null) : void
-      {
-         var messData:Object = null;
-         if((value))
-         {
-            messData = value;
-         }
-         else
-         {
-            messData = new Object();
-         }
-         if(!this.premiumDiscount)
-         {
-            messData.options = this._premiumOptions;
-            Message.showMessage("premium",messData,true);
-         }
-         else
-         {
-            messData.options = this._premiumOptionsDiscount;
-            messData.money = this.postRewardData.money;
-            messData.experience = this.postRewardData.experience;
-            messData.reputation = this.postRewardData.reputation;
-            messData.factionId = this.postRewardData.factionId;
-            Message.showMessage("post_premium",messData,true);
-         }
       }
       
       // Play in a room or a room's queue (survarium.rooms): "Leave room" or

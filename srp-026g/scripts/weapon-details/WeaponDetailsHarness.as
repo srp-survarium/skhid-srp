@@ -569,17 +569,17 @@ package {
    // Take Cover, Unflinching, Concentration): lines below the card's own, in % of the game's own,
    // each as medical_skills.rs applies it; none without a rank, none once Alt is let go.
    var E:Object=HarnessText.DATA.english;
-   var sprint:String=E.st_srp_medicine_sprint_stamina,slow:String=E.st_srp_medicine_hit_slow,ambient:String=E.st_srp_medicine_ambient_sounds;
-   var enemy:String=E.st_srp_medicine_enemy_sounds,crouched:String=E.st_srp_medicine_crouched_healing;
+   var sprint:String=E.st_srp_medicine_sprint_stamina,slow:String=E.st_srp_medicine_hit_slow,sway:String=E.st_srp_medicine_sight_sway;
+   var crouched:String=E.st_srp_medicine_crouched_healing;
    // [float 45, the painkiller's lines, every other medicine's (each heals)].
    var combos:Array=[
     [0,[],[]],
     [1,[sprint+"=100 -> 80%"],[]],[2,[sprint+"=100 -> 60%"],[]],
     [1<<2,[],[crouched+"=100 -> 110%"]],[2<<2,[],[crouched+"=100 -> 120%"]],
     [1<<4,[slow+"=100 -> 90%"],[]],[3<<4,[slow+"=100 -> 70%"],[]],[4<<4,[slow+"=100 -> 60%"],[]],
-    [1<<7,[ambient+"=100 -> 90%",enemy+"=100 -> 110%"],[]],[4<<7,[ambient+"=100 -> 60%",enemy+"=100 -> 140%"],[]],
+    [1<<7,[sway+"=100 -> 95%"],[]],[4<<7,[sway+"=100 -> 80%"],[]],
     [74,[sprint+"=100 -> 60%",slow+"=100 -> 60%"],[crouched+"=100 -> 120%"]],
-    [522,[sprint+"=100 -> 60%",ambient+"=100 -> 60%",enemy+"=100 -> 140%"],[crouched+"=100 -> 120%"]]
+    [522,[sprint+"=100 -> 60%",sway+"=100 -> 80%"],[crouched+"=100 -> 120%"]]
    ];
    for each(var combo:Array in combos){
     profile.setKitModifiers(kitFloats({43:3|2<<3,45:combo[0]}));
@@ -594,9 +594,9 @@ package {
    // Refused ranks (Unflinching beside Concentration) add no line, as in a match.
    profile.setKitModifiers(kitFloats({45:(4<<4)|(4<<7)}));d=medicine("painkiller");Scene.isAlt=true;shows(d,other);
    require(cardLines(cards[0]).join()==released.painkiller,"refused combo: no skill line");
-   // Better is green: less stamina and slow, quieter surroundings, louder enemies, more healing.
+   // Better is green: less stamina, slow and sway, more healing.
    profile.setKitModifiers(kitFloats({45:522}));shows(d,other);
-   for each(var label:String in [sprint,ambient,enemy])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
+   for each(var label:String in [sprint,sway])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
    profile.setKitModifiers(kitFloats({45:74}));shows(d,other);
    require(changeColours(nativeField(cards[0],slow)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),slow+" is green");
    d=medicine("bandages");shows(d,other);

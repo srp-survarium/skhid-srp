@@ -7,9 +7,9 @@
 //!   in players' hands opens, says so in the launcher's language
 //!   ([`no_gold`]); nothing else of an exchange is left.
 //! - The admin's tabs: money and items taken away (`crate::moderation`: a
-//!   reason, a preview and a confirm), the account (premium time,
-//!   experience or level, reputation), an item by its `items_dict` id or
-//!   name, and the operator's text (`A5` / `A6`) for everyone in the lobby.
+//!   reason, a preview and a confirm), the account (experience or level,
+//!   reputation; no premium time: there is no premium account), an item by
+//!   its `items_dict` id or name, and the operator's text (`A5` / `A6`) for everyone in the lobby.
 //!   Bans, maintenance and registration are the store's, which the 0.26g
 //!   login server and lobby read: they are the same code as for 0.21d.
 
@@ -22,7 +22,7 @@ use session::v026g::account::{self, Account, MAX_LEVEL};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::lobby::FULL_CONDITION;
 
-use super::{AdminView, Form, Lang, Request, Response, Stats, Web, apply, delta, page, unix_now};
+use super::{AdminView, Form, Lang, Request, Response, Stats, Web, apply, delta, page};
 
 /// What the page tells the 0.26g lobby. srp joins it to the lobby's inbox
 /// (`lobby_server::v026g::Inbox`); this crate does not know the lobby.
@@ -228,8 +228,8 @@ impl Web {
         game.lobby.account_changed(account_id);
     }
 
-    /// Premium time, experience or level, reputation: each field that is
-    /// filled is applied; nothing is when one of them is wrong.
+    /// Experience or level, reputation: each field that is filled is
+    /// applied; nothing is when one of them is wrong.
     pub(crate) fn admin_account_026g(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
         let Some(game) = &self.game else {
@@ -242,16 +242,15 @@ impl Web {
         };
         let bad = lang.tr(
             &format!(
-                "Premium hours, experience and reputation are whole numbers, + or -; the level \
-                 is 0 to {MAX_LEVEL}; the faction is 1 to 4."
+                "Experience and reputation are whole numbers, + or -; the level is 0 to \
+                 {MAX_LEVEL}; the faction is 1 to 4."
             ),
             &format!(
-                "Години преміуму, досвід і репутація — цілі числа, + або -; рівень від 0 до \
-                 {MAX_LEVEL}; фракція від 1 до 4."
+                "Досвід і репутація — цілі числа, + або -; рівень від 0 до {MAX_LEVEL}; фракція \
+                 від 1 до 4."
             ),
         );
-        let (Some(hours), Some(experience), Some(reputation)) = (
-            delta(request.field("premium_hours")),
+        let (Some(experience), Some(reputation)) = (
             delta(request.field("experience")),
             delta(request.field("reputation")),
         ) else {
@@ -271,7 +270,6 @@ impl Web {
                 _ => return bad,
             },
         };
-        let now = unix_now();
         let summary = {
             let mut account = account.locked();
             let mut changed = account.clone();
@@ -286,14 +284,6 @@ impl Web {
                      skills in the game first.",
                     "Цей рівень нижчий за витрачені очки навичок; спершу скиньте навички в грі.",
                 );
-            }
-            if hours != 0 {
-                let until = i64::try_from(changed.premium_until.max(now)).unwrap_or(i64::MAX);
-                let until = until.saturating_add(hours.saturating_mul(3600));
-                changed.premium_until = u64::try_from(until)
-                    .ok()
-                    .filter(|at| *at > now)
-                    .unwrap_or(0);
             }
             if let Some(faction) = faction {
                 if reputation >= 0 {
@@ -310,22 +300,18 @@ impl Web {
             (
                 account.level(),
                 account.exp_total,
-                account.premium_hours(now).unwrap_or(0),
                 faction.map(|faction| (faction, account.reputation(faction))),
             )
         };
         self.changed_026g(game, account_id);
-        let (level_now, exp_now, premium_now, reputation_now) = summary;
+        let (level_now, exp_now, reputation_now) = summary;
         log::info!(
-            "Admin from {peer}: {user:?} premium {hours:+} h, experience {experience:+}, level \
-             {level:?}, reputation {reputation:+} with {faction:?} (now level {level_now}, \
-             {exp_now} experience, {premium_now} h premium)"
+            "Admin from {peer}: {user:?} experience {experience:+}, level {level:?}, reputation \
+             {reputation:+} with {faction:?} (now level {level_now}, {exp_now} experience)"
         );
         let mut message = lang.tr(
-            &format!(
-                "{user}: level {level_now} ({exp_now} experience), {premium_now} h of premium."
-            ),
-            &format!("{user}: рівень {level_now} ({exp_now} досвіду), {premium_now} год преміуму."),
+            &format!("{user}: level {level_now} ({exp_now} experience)."),
+            &format!("{user}: рівень {level_now} ({exp_now} досвіду)."),
         );
         if let Some((faction, points)) = reputation_now {
             message += &lang.tr(

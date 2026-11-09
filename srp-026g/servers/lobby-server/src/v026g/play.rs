@@ -375,7 +375,7 @@ pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength 
 /// held one put the game's artefact slots over the held one, and the next
 /// read of that player's state ended the game (match 0x55809714).
 pub fn match_profile(account: &Account, team: u8, squad: u8, now: u64) -> MatchProfile {
-    let body = wire::account_body(account, now);
+    let body = wire::account_body(account);
     MatchProfile {
         team,
         name: body.name,
@@ -1643,9 +1643,8 @@ impl Core<'_> {
             None => {}
         }
         self.notify(&who, &unseen.notices);
-        // The daily bonus as the match left it, and a premium offer
-        // (`shop`).
-        self.after_results(&who, &unseen.report);
+        // The daily bonus as the match left it (`shop`).
+        self.after_results(&who);
     }
 
     /// The team of a player in the match it was sent to.
