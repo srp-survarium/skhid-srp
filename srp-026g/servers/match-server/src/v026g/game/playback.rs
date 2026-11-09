@@ -47,7 +47,7 @@ use udp_transport::table::{Direction, Table};
 use udp_transport::wire;
 
 use super::kit_view::all_kits;
-use super::spectate::{Heard, Spectator, Watched};
+use super::spectate::{Heard, Spectator, SpectatorAt, Watched};
 use super::*;
 use crate::v026g::sur::{self, record_type};
 use crate::v026g::{record, replay, sur_convert};
@@ -922,6 +922,9 @@ pub(crate) struct ReplayWatch {
     /// Read, their games not here yet: by session.
     ready: HashMap<u32, Prepared>,
     playbacks: HashMap<SocketAddr, Playback>,
+    /// The games whose farewell was acked: their sessions are over, only
+    /// their silence is left (`Spectator::farewell_heard`).
+    left: HashMap<SocketAddr, Spectator>,
     dev_control: Option<DevControl>,
 }
 
@@ -955,13 +958,14 @@ impl ReplayWatch {
             reading: None,
             ready: HashMap::new(),
             playbacks: HashMap::new(),
+            left: HashMap::new(),
             dev_control,
         }
     }
 
     /// The addresses of the games shown a recording.
     pub(crate) fn addrs(&self) -> impl Iterator<Item = SocketAddr> + '_ {
-        self.playbacks.keys().copied()
+        self.playbacks.keys().chain(self.left.keys()).copied()
     }
 
     /// The sessions whose games watch: seen, as a match's players are.
@@ -971,8 +975,21 @@ impl ReplayWatch {
             .map(|playback| playback.spectator.session_id())
     }
 
-    pub(crate) fn owns(&self, addr: SocketAddr) -> bool {
-        self.playbacks.contains_key(&addr)
+    /// The game at `addr`, if it is one of these: what it is to the routing.
+    pub(crate) fn at(&self, addr: SocketAddr) -> Option<SpectatorAt> {
+        self.playbacks
+            .get(&addr)
+            .map(|playback| playback.spectator.at())
+            .or_else(|| self.left.get(&addr).map(Spectator::at))
+    }
+
+    /// The game at `addr` is another thing now (its session got a seat, and
+    /// it connects as a player): forgotten at once.
+    pub(crate) fn drop_game(&mut self, addr: SocketAddr) {
+        self.left.remove(&addr);
+        if let Some(playback) = self.playbacks.remove(&addr) {
+            self.replays.watches().ended(&playback.request);
+        }
     }
 
     /// The game at `addr` of `session_id` connects: shown its session's
@@ -1040,13 +1057,15 @@ impl ReplayWatch {
 
     /// A datagram of the game at `addr`.
     pub(crate) fn receive(&mut self, addr: SocketAddr, datagram: &[u8], now: Instant) {
+        // One let go is silent until it is forgotten, but its acks are read
+        // (`Spectator::farewell_heard`).
+        if let Some(spectator) = self.left.get_mut(&addr) {
+            spectator.receive(datagram, now);
+            return;
+        }
         let Some(playback) = self.playbacks.get_mut(&addr) else {
             return;
         };
-        // One let go is silent until it is forgotten.
-        if playback.spectator.is_leaving() {
-            return;
-        }
         if playback.receive(datagram, now).is_some()
             && let Some(playback) = self.playbacks.remove(&addr)
         {
@@ -1065,8 +1084,9 @@ impl ReplayWatch {
         self.ready
             .retain(|_, prepared| watches.waits_for_game(&prepared.request));
         let mut datagrams = Vec::new();
+        let mut heard = Vec::new();
         let replays = &self.replays;
-        self.playbacks.retain(|_, playback| {
+        self.playbacks.retain(|addr, playback| {
             let (out, ended) = playback.poll(now);
             datagrams.extend(out);
             let kept = ended != Some(Ended::Left)
@@ -1074,9 +1094,23 @@ impl ReplayWatch {
                 && replays.watches().is_open(&playback.request);
             if !kept {
                 replays.watches().ended(&playback.request);
+            } else if playback.spectator.farewell_heard() {
+                heard.push(*addr);
             }
             kept
         });
+        // Its game has the farewell: its session is over now, not when its
+        // silence ends (the account would stay `busy` 7 s more).
+        for addr in heard {
+            if let Some(playback) = self.playbacks.remove(&addr) {
+                self.replays.watches().ended(&playback.request);
+                self.left.insert(addr, playback.spectator);
+            }
+        }
+        for spectator in self.left.values_mut() {
+            datagrams.extend(spectator.poll(now));
+        }
+        self.left.retain(|_, spectator| !spectator.is_forgotten(now));
         datagrams
     }
 

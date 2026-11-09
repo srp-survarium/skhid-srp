@@ -127,9 +127,13 @@ enum Watch {
         wrong: u32,
         reports: VecDeque<(u32, u32)>,
     },
-    /// Let go by the server: its farewell sent, silent until `until`, then
-    /// forgotten.
-    Leaving { quiet_from: Instant, until: Instant },
+    /// Let go by the server: its farewell (`farewell`, its serial) sent, silent
+    /// until `until`, then forgotten.
+    Leaving {
+        farewell: Option<u64>,
+        quiet_from: Instant,
+        until: Instant,
+    },
 }
 
 /// What moves a spectator's game on.
@@ -153,7 +157,11 @@ enum Step {
     /// Back to wait for a world (a new generation).
     WaitAgain { now: Instant },
     /// The server lets it go: its farewell went.
-    LetGo { quiet_from: Instant, until: Instant },
+    LetGo {
+        farewell: Option<u64>,
+        quiet_from: Instant,
+        until: Instant,
+    },
 }
 
 /// What a [`Step`] leaves for its owner to do.
@@ -201,10 +209,19 @@ impl Watch {
                 return (Self::Waiting, Action::Forget { kept, now });
             }
             (Self::Timing { .. } | Self::Live { .. }, Step::WaitAgain { .. }) => Self::Waiting,
-            (Self::Leaving { quiet_from, until }, Step::LetGo { .. }) => {
-                Self::Leaving { quiet_from, until }
-            }
-            (_, Step::LetGo { quiet_from, until }) => Self::Leaving { quiet_from, until },
+            (stage @ Self::Leaving { .. }, Step::LetGo { .. }) => stage,
+            (
+                _,
+                Step::LetGo {
+                    farewell,
+                    quiet_from,
+                    until,
+                },
+            ) => Self::Leaving {
+                farewell,
+                quiet_from,
+                until,
+            },
             (stage, _) => stage,
         };
         (stage, Action::Nothing)
@@ -1287,10 +1304,26 @@ impl Spectator {
             tick: tick_byte(clock),
             player: NO_LOCAL_PLACE,
         };
-        let _ = self.transport.send(farewell.id(), &farewell.payload());
+        // Lasting its whole silence: an ack seen before that is heard
+        // (`farewell_heard`), however late; it is no more sent past
+        // `FAREWELL_GOES`, the silence's start.
+        let serial = self
+            .transport
+            .send_lasting(farewell.id(), &farewell.payload(), SILENCE)
+            .ok();
         self.go(Step::LetGo {
+            farewell: serial,
             quiet_from: now + FAREWELL_GOES,
             until: now + SILENCE,
         });
+    }
+
+    /// Let go, and its game acked the farewell: what it was doing here is
+    /// over, whatever the silence still has to run.
+    pub(super) fn farewell_heard(&self) -> bool {
+        matches!(
+            self.stage,
+            Watch::Leaving { farewell: Some(serial), .. } if self.transport.is_delivered(serial)
+        )
     }
 }

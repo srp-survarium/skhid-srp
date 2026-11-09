@@ -275,11 +275,19 @@ impl Server {
     }
 
     pub fn receive(&mut self, addr: SocketAddr, datagram: &[u8], now: Instant) {
-        if let Some(watch) = self.replay_watch.as_mut()
-            && watch.owns(addr)
-        {
-            watch.receive(addr, datagram, now);
-            return;
+        if let Some(watch) = self.replay_watch.as_mut() {
+            match watch.at(addr) {
+                // Let go, and its session got a seat meanwhile: its game
+                // connects as the player, as a live spectator's does below.
+                Some(SpectatorAt::LetGo(session)) if self.registry.seat(session).is_some() => {
+                    watch.drop_game(addr);
+                }
+                Some(_) => {
+                    watch.receive(addr, datagram, now);
+                    return;
+                }
+                None => {}
+            }
         }
         if let Some(&match_id) = self.spectator_routes.get(&addr) {
             let registry = &self.registry;
@@ -291,8 +299,9 @@ impl Server {
                     }
                     // Let go: silent (its game's match link ends by it),
                     // until its game connects again from there as the
-                    // player its session is seated as now.
+                    // player its session is seated as now. Its acks are read.
                     Some(SpectatorAt::LetGo(session)) if registry.seat(session).is_none() => {
+                        game.spectator_receive(addr, datagram, now);
                         return;
                     }
                     Some(SpectatorAt::LetGo(_)) | None => game.drop_spectator(addr),
