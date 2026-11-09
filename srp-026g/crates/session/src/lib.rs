@@ -92,6 +92,17 @@ fn random_session_id() -> u32 {
     OsRng.next_u32() % 0x7FFE_0000 + 0x1_0000
 }
 
+/// A new match id: random, from the operating system's secure generator,
+/// from 1 to 0x7FFF_FFFF (the top bit is the static info's, `static_id` in
+/// the match server). A match's id is also the code its replay is watched
+/// and saved by, a private room's too, so one id must say nothing of any
+/// other (they used to be steps of one sequence, so that any public match's
+/// id gave its neighbours').
+pub fn random_match_id() -> u32 {
+    use password_hash::rand_core::{OsRng, RngCore};
+    OsRng.next_u32() % 0x7FFF_FFFF + 1
+}
+
 /// The wall clock, Unix seconds.
 fn unix_now() -> u64 {
     SystemTime::now()
