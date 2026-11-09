@@ -19,11 +19,12 @@ schema step 12).
   are as equal as they can be. Every split is tried (20 players at most); the sizes come first:
   no side over the room's size, the sides at most one player apart where the squads allow it.
 - **Strong players are dealt evenly first** (`level_stats::STRONG`, 2.0 *(pick)*, a squad's member
-  with its 1.3). After the sizes and before the equalizer: ranked by what they count, the strongest
-  two are on different sides, the strongest four two a side, and so on; at every rank a side is at
-  most one strong player ahead (players of one strength are one rank). A squad stays whole, so a
-  squad with two strong players has every other strong one against it. The noise only shakes the
-  equalizer's sums, never the ranks.
+  with its 1.3). After the sizes and before the equalizer: as many strong a side as can be (one
+  apart at most); then, ranked by what they count, the strongest two are on different sides, the
+  strongest four two a side, and so on; at every rank a side is at most one strong player ahead
+  (players of one strength are one rank). A squad stays whole, so a squad with two strong players
+  has every other strong one against it. The noise only shakes the equalizer's sums, never the
+  ranks.
 - **A side counts** its players' strengths, and 1 more for each player being there
   (`SRP_BALANCE_PLAYER_KD`, default 1: an average player). So with an odd count the side with a
   player more must be the weaker in strength *(pick)*.

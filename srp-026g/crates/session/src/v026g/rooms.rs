@@ -1560,11 +1560,12 @@ pub const NOISE_MILLI: u32 = 50;
 /// 1. one that fits the sizes, its sides the fewest players apart past one;
 /// 2. **the strong players dealt evenly** (the owner's of 2026-11-09: "strong
 ///    people being split always evenly"): of the players who count
-///    [`level_stats::STRONG`] or more, ranked by what they count, the
-///    strongest two are apart, the strongest four two a side, and so on,
-///    a side never more than one strong player ahead at any rank (players
-///    of one strength are one rank). A squad stays whole, so one with two
-///    strong players has every other strong one against it;
+///    [`level_stats::STRONG`] or more, first as many a side as can be
+///    (one apart at most); then, ranked by what they count, the strongest
+///    two apart, the strongest four two a side, and so on, a side never
+///    more than one strong player ahead at any rank (players of one
+///    strength are one rank). A squad stays whole, so one with two strong
+///    players has every other strong one against it;
 /// 3. the one whose sides count the most alike (`player` a player, and the
 ///    strengths: the owner's "k/d equalizer", so with an odd count the
 ///    stronger players are the side of fewer). For this alone each party's
@@ -1609,8 +1610,8 @@ pub fn sides(parties: &[Party], size: usize, player: Strength, seed: u32) -> [Ve
             players[side_of(index)] += members.len();
             strength[side_of(index)] += *each;
         }
-        // How far past one strong player a side is ahead, summed over the
-        // ranks.
+        // How far past one strong player a side is ahead in all, then the
+        // same summed over the ranks.
         let mut ahead = 0_i64;
         let mut uneven = 0_u64;
         for (rank, &(index, each)) in strong.iter().enumerate() {
@@ -1625,6 +1626,7 @@ pub fn sides(parties: &[Party], size: usize, player: Strength, seed: u32) -> [Ve
         (
             over,
             apart.saturating_sub(1),
+            ahead.unsigned_abs().saturating_sub(1),
             uneven,
             worth(0).abs_diff(worth(1)),
         )
@@ -2727,6 +2729,33 @@ mod tests {
             assert!(
                 other.contains(&3) && other.contains(&4),
                 "{squad:?} {other:?}"
+            );
+        }
+        // The review of #1567: the squad's two strong (2.6 and 2.47 in it)
+        // below two strong alone (4 and 3.8). Two a side ranks no worse at
+        // the top than three against one: two a side, the two alone
+        // together against the squad, whatever the seed.
+        let mut parties = vec![Party::new(vec![
+            (1, Strength::from_milli(2000)),
+            (2, Strength::from_milli(1900)),
+        ])];
+        parties.extend(
+            [
+                (3, 4000),
+                (4, 3800),
+                (5, 0),
+                (6, 1750),
+                (7, 1750),
+                (8, 1750),
+            ]
+            .map(|(id, s)| party(&[id], s)),
+        );
+        for seed in 0..200 {
+            let [a, b] = sides(&parties, 4, KD, seed);
+            let (squad, other) = if a.contains(&1) { (a, b) } else { (b, a) };
+            assert!(
+                other.contains(&3) && other.contains(&4),
+                "seed {seed}: {squad:?} {other:?}"
             );
         }
     }
