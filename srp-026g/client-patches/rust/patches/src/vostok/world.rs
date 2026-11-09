@@ -15,6 +15,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use super::cell::GameCell;
 use super::context::Context;
 use super::hook::Thread;
+use super::types::Place;
 use crate::raw;
 
 /// Reads a field's place (raw's accessor gives it).
@@ -108,9 +109,9 @@ impl<'t> NetworkClient<'t> {
     }
 
     /// The local player's place, if it has a player.
-    pub fn local_place(&self) -> Option<u8> {
+    pub fn local_place(&self) -> Option<Place> {
         // SAFETY: the client's local player, alive for the hook.
-        unsafe { Some(read(self.this.local_player()?.place())) }
+        unsafe { Place::new(u32::from(read(self.this.local_player()?.place()))) }
     }
 
     /// The place the static info marked the local player's (its profile's
@@ -210,7 +211,7 @@ impl<'t> NetworkClient<'t> {
     /// when no other player can be followed (the camera stays), or the game
     /// is no spectator (a player's camera is never moved: its client's
     /// input would go to the player followed).
-    pub fn follow(&self, step: Step) -> Option<u8> {
+    pub fn follow(&self, step: Step) -> Option<Place> {
         if !self.is_spectator() {
             return None;
         }
@@ -218,11 +219,11 @@ impl<'t> NetworkClient<'t> {
         // (+8, which detach_from_player keeps; its reference keeps it alive).
         // SAFETY: the client's +8, a player it holds a reference to.
         let last = unsafe { self.this.last_followed() }.map(|this| Player { this, thread: self.thread });
-        let current = self.local_player().or(last).map(|player| player.place());
+        let current = self.local_player().or(last).and_then(|player| Place::new(u32::from(player.place())));
         let mut found = None;
         let mut any = None;
         for place in spectate_order(self.places(), current, step) {
-            let Some(player) = self.player(place) else { continue };
+            let Some(player) = self.player(u32::from(place.get())) else { continue };
             if !player.inserted() {
                 continue;
             }
@@ -241,13 +242,13 @@ impl<'t> NetworkClient<'t> {
         // reference (it releases its argument, 0x242C8B); the game world is
         // the client's game's own, the one spectate_next_player gives it.
         unsafe {
-            raw::engine_active_player(Some(self.this), &mut out, place);
+            raw::engine_active_player(Some(self.this), &mut out, u32::from(place.get()));
             let player = out?;
             raw::engine_follow_player(Some(self.this), Some(player));
             let world = self.this.game()?.world();
             raw::engine_spectator_camera(Some(world));
         }
-        u8::try_from(place).ok()
+        Some(place)
     }
 }
 
@@ -257,11 +258,11 @@ impl NetworkClient<'_> {
     /// set_followed_player and the attached spectator's camera. Whether it
     /// follows that player now (not a spectator, no such player, or one not
     /// in the match: nothing).
-    pub fn follow_place(&self, place: u8) -> bool {
+    pub fn follow_place(&self, place: Place) -> bool {
         if !self.is_spectator() {
             return false;
         }
-        if !self.player(u32::from(place)).is_some_and(|player| player.inserted()) {
+        if !self.player(u32::from(place.get())).is_some_and(|player| player.inserted()) {
             return false;
         }
         let mut out = None;
@@ -269,7 +270,7 @@ impl NetworkClient<'_> {
         // player with a reference added, which set_followed_player takes;
         // the game world is the client's game's own.
         unsafe {
-            raw::engine_active_player(Some(self.this), &mut out, u32::from(place));
+            raw::engine_active_player(Some(self.this), &mut out, u32::from(place.get()));
             let Some(player) = out else { return false };
             raw::engine_follow_player(Some(self.this), Some(player));
             let Some(game) = self.this.game() else { return true };
@@ -319,14 +320,14 @@ const WORLD_ENDED: u32 = 0;
 /// place it follows (`current`), of `places`: a first camera every place
 /// from 0; the next or the previous one every other place from the one after
 /// (before) it, round, the one it follows left out (from none: as a first).
-pub fn spectate_order(places: u32, current: Option<u8>, step: Step) -> impl Iterator<Item = u32> {
-    let current = current.map(u32::from).filter(|&place| place < places);
+pub fn spectate_order(places: u32, current: Option<Place>, step: Step) -> impl Iterator<Item = Place> {
+    let current = current.map(|place| u32::from(place.get())).filter(|&place| place < places);
     let (from, count, back) = match (step, current) {
         (Step::Next, Some(place)) => (place, places.saturating_sub(1), false),
         (Step::Previous, Some(place)) => (place, places.saturating_sub(1), true),
         _ => (places.saturating_sub(1), places, false),
     };
-    (1..=count).map(move |k| if back { (from + places - k) % places } else { (from + k) % places })
+    (1..=count).filter_map(move |k| Place::new(if back { (from + places - k) % places } else { (from + k) % places }))
 }
 
 /// What a game is in its match: a player (its 0xE4 named a place its own) or a spectator (it named

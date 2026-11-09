@@ -22,6 +22,7 @@ use replay_control::{MatchMs, Request};
 
 use super::context::Context;
 use super::hook::Thread;
+use super::types::Place;
 use super::world::{read, NetworkClient};
 use crate::raw;
 
@@ -281,6 +282,27 @@ pub struct KitChooser<'t> {
     movie: super::ui::Movie<'t>,
 }
 
+/// The kit chooser's place and whether it shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChooserMode {
+    Hidden,
+    /// In the game's own place (a live spectator's).
+    Live,
+    /// Above a replay viewer's controls.
+    Replay,
+}
+
+impl ChooserMode {
+    /// root.srp_spectator_kits_show's argument.
+    fn value(self) -> u32 {
+        match self {
+            ChooserMode::Hidden => 0,
+            ChooserMode::Live => 1,
+            ChooserMode::Replay => 2,
+        }
+    }
+}
+
 impl<'t> KitChooser<'t> {
     pub fn of(client: &NetworkClient<'t>) -> Option<KitChooser<'t>> {
         // SAFETY: as Overlay::of.
@@ -309,10 +331,9 @@ impl<'t> KitChooser<'t> {
         self.movie.invoke_uints(c"root.srp_spectator_current_kit", &[u32::from(kit)]);
     }
 
-    /// The chooser's place and whether it shows (root.srp_spectator_kits_show): 0 hidden,
-    /// 1 the game's own place (live), 2 above a replay viewer's controls.
-    pub fn show(&self, mode: u32) {
-        self.movie.invoke_uints(c"root.srp_spectator_kits_show", &[mode]);
+    /// The chooser's place and whether it shows (root.srp_spectator_kits_show).
+    pub fn show(&self, mode: ChooserMode) {
+        self.movie.invoke_uints(c"root.srp_spectator_kits_show", &[mode.value()]);
     }
 
     /// The pointer, for the hover list (root.srp_spectator_pointer).
@@ -359,15 +380,15 @@ fn keep_cursor(ui: raw::GameWorldUi, shown: bool) {
 
 impl<'t> NetworkClient<'t> {
     /// Kit `number` of `place`, when the options have it (read from the game's own copy).
-    pub fn kit_data(&self, place: u8, number: u8) -> Option<KitData<'t>> {
+    pub fn kit_data(&self, place: Place, number: u8) -> Option<KitData<'t>> {
         // SAFETY: the client's options and their places live with the client on its thread; the
         // indices are bounded by the counts the options give.
         unsafe {
             let options = self.raw().options_holder()?.options();
-            if u32::from(place) >= u32::from(*options.places()) {
+            if u32::from(place.get()) >= u32::from(*options.places()) {
                 return None;
             }
-            let record = options.first_place().at(usize::from(place));
+            let record = options.first_place().at(place.index());
             if number >= *record.kit_count() {
                 return None;
             }
@@ -390,9 +411,9 @@ impl<'t> NetworkClient<'t> {
     }
 
     /// The kit `place` has now (its client record's current player object).
-    pub fn current_kit(&self, place: u8) -> Option<u8> {
+    pub fn current_kit(&self, place: Place) -> Option<u8> {
         // SAFETY: the match's table of its places' records, a place below the options' count.
-        unsafe { Some(read(self.raw().pvp_match()?.clients()?.at(usize::from(place)).current_kit())) }
+        unsafe { Some(read(self.raw().pvp_match()?.clients()?.at(place.index()).current_kit())) }
     }
 }
 
@@ -497,15 +518,45 @@ impl<'t> Overlay<'t> {
         self.movie.invoke_strings(c"root.start_viewer", &texts)
     }
 
-    /// The Moments switch's choice (root.set_moments: 0 All, 1 Mine, 2
-    /// Followed), its Mine shown only to a viewer who played.
-    pub fn set_moments(&self, choice: u32, mine: bool) {
-        self.movie.invoke_uints(c"root.set_moments", &[choice, u32::from(mine)]);
+    /// The Moments switch's choice (root.set_moments), its Mine shown only to a viewer who played.
+    pub fn set_moments(&self, choice: Moments, mine: bool) {
+        self.movie.invoke_uints(c"root.set_moments", &[choice.value(), u32::from(mine)]);
     }
 
     /// The hud's cursor shown: the key hint with it (root.set_cursor_shown).
     pub fn set_cursor_shown(&self, shown: bool) {
         self.movie.invoke_bool(c"root.set_cursor_shown", shown);
+    }
+}
+
+/// Which of a viewer's events the Moments switch lights.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Moments {
+    All,
+    /// The viewer's own: it played in the match.
+    Mine,
+    /// The player in view's.
+    Followed,
+}
+
+impl Moments {
+    /// The switch's index of the choice, as the movie has it (root.set_moments, moments_clicked).
+    fn value(self) -> u32 {
+        match self {
+            Moments::All => 0,
+            Moments::Mine => 1,
+            Moments::Followed => 2,
+        }
+    }
+
+    /// A choice the movie clicked (moments_clicked).
+    pub fn of_value(index: u32) -> Option<Moments> {
+        Some(match index {
+            0 => Moments::All,
+            1 => Moments::Mine,
+            2 => Moments::Followed,
+            _ => return None,
+        })
     }
 }
 
@@ -595,8 +646,8 @@ impl<'t> Names<'t> {
     }
 
     /// The name of the player at `place`, when the match has one.
-    pub fn of_place(&self, place: u8) -> Option<&[u8]> {
-        let name = self.lobby.place_name(super::types::Place::new(u32::from(place))?)?;
+    pub fn of_place(&self, place: Place) -> Option<&[u8]> {
+        let name = self.lobby.place_name(place)?;
         Some(name.to_bytes()).filter(|name| !name.is_empty())
     }
 

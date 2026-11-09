@@ -16,6 +16,7 @@
 use crate::vostok::replay_view::MatchClose;
 use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, Left, MatchLine, MatchStart, PlayerLeft, SpectateKey};
 use crate::vostok::world::{NetworkClient, Step};
+use crate::vostok::types::Place;
 use crate::vostok::{
     Context, Flow, GameCell, NoExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit, SpectatorOnPlayerLeftExit,
     SpectatorOnWorldCameraExit, Thread,
@@ -83,7 +84,7 @@ fn camera(client: &NetworkClient<'_>, thread: &Thread, event: Event) {
 
 /// The replay controls' player list (patch 130): the camera follows the
 /// player of `place`, as F6/F5 would reach it.
-pub fn view_player(client: &NetworkClient<'_>, thread: &Thread, place: u8) {
+pub fn view_player(client: &NetworkClient<'_>, thread: &Thread, place: Place) {
     if client.follow_place(place) {
         CAMERA.set(thread, Camera::Follows);
     }
@@ -203,6 +204,7 @@ mod tests {
     use super::{step, Act, Camera, Event};
     use crate::vostok::spectate::CameraKey;
     use crate::vostok::world::{spectate_order, Step};
+    use crate::vostok::types::Place;
     use std::vec::Vec;
 
     #[test]
@@ -232,8 +234,8 @@ mod tests {
         assert_eq!(step(Camera::Follows, Event::FollowedLeft), (Camera::Follows, Act::Follow(Step::Next)));
     }
 
-    fn order(places: u32, current: Option<u8>, step: Step) -> Vec<u32> {
-        spectate_order(places, current, step).collect()
+    fn order(places: u32, current: Option<u32>, step: Step) -> Vec<u32> {
+        spectate_order(places, current.and_then(Place::new), step).map(|place| u32::from(place.get())).collect()
     }
 
     #[test]
