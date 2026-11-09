@@ -652,6 +652,21 @@ fn a_spectator_with_too_much_queued_is_let_go() {
     assert!(!bench.clients[at].told_to_leave, "no farewell: its link is gone");
 }
 
+/// Review of 2026-11-09: a delayed spectator's turn walked every relay of the match; it now reads
+/// a range, so the list has to stay in time order whatever order the inputs came in.
+#[test]
+fn a_matchs_relays_are_kept_in_time_order() {
+    let mut bench = running();
+    bench.clients[0].input(200, 0x21);
+    bench.run(10);
+    bench.clients[1].input(100, 0x22);
+    bench.run(300);
+    let times = bench.game().relayed_times();
+    assert!(times.len() >= 2);
+    assert!(times.windows(2).all(|pair| pair[0] <= pair[1]), "{times:?}");
+    bench.assert_no_faults();
+}
+
 /// Every place stands in every game's next worlds with `kit` as its current one.
 fn in_the_world(bench: &mut Bench, kit: u8) {
     for client in &mut bench.clients {

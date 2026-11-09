@@ -273,7 +273,7 @@ pub(super) struct Watched<'a> {
     pub(super) roster: usize,
     /// The worlds a start may be from.
     pub(super) worlds: Vec<&'a Snapshot>,
-    /// Everything relayed so far: its time, whose it is, what.
+    /// Everything relayed so far, in time order: its time, whose it is, what.
     pub(super) inputs: &'a [(u32, usize, Relayed)],
     /// The roster changes so far: time, place, entered (else left).
     pub(super) events: &'a [(u32, usize, bool)],
@@ -922,10 +922,10 @@ impl Spectator {
             self.go(Step::WaitAgain { now });
             return;
         };
-        let replay: Vec<ServerMessage> = watched
-            .inputs
+        let first = watched.inputs.partition_point(|(at, _, _)| *at <= time);
+        let replay: Vec<ServerMessage> = watched.inputs[first..]
             .iter()
-            .filter(|(at, _, _)| *at > time && watched.due(*at))
+            .take_while(|(at, _, _)| watched.due(*at))
             .map(|(_, from, what)| relay(*from, what))
             .collect();
         if let (Some(delay), Some(until)) = (self.delay.as_mut(), watched.until) {
@@ -1010,10 +1010,14 @@ impl Spectator {
                 self.roster_change(place, entered, time, &message, now);
             }
         }
-        for (time, place, what) in view.inputs {
-            if *time > from && *time <= until {
-                self.relay(*place, &relay(*place, what), *time, view.clock, now);
+        // In time order: only its range is read, here on each of the
+        // server's polls.
+        let first = view.inputs.partition_point(|(time, _, _)| *time <= from);
+        for (time, place, what) in &view.inputs[first..] {
+            if *time > until {
+                break;
             }
+            self.relay(*place, &relay(*place, what), *time, view.clock, now);
         }
         if let Some(delay) = self.delay.as_mut() {
             delay.fed = until;
