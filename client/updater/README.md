@@ -421,12 +421,15 @@ that is killed takes it along and it does not write on by itself. The
 room asked for is the room still needed: an archive that is already
 downloaded is not counted again.
 
-What the extractor prints (its messages and its errors, as UTF-8) goes to
-`updater_skhid.7zr.txt` beside the updater while it runs. When it has ended,
-whatever its exit number, the updater copies those lines into
-`updater_skhid.log`, each after `7zr:`, and deletes the file: a failed
-extraction then says in the log which file could not be written and why,
-not "exit 2" alone. A file left by a killed updater is copied and deleted
+What the extractor prints (its messages, its errors and its percentage,
+`-bsp1`, as UTF-8) goes to `updater_skhid.7zr.txt` beside the updater while
+it runs. Meanwhile the updater reads the last percentage there for the
+launcher's bar ("Extracting file Survarium 0.26g", over the five files'
+bytes). When it has ended, whatever its exit number, the updater copies
+those lines into `updater_skhid.log`, each after `7zr:` (a line its
+percentage rewrote with `\r` or `\b` as its last text only), and deletes
+the file: a failed extraction then says in the log which file could not
+be written and why, not "exit 2" alone. A file left by a killed updater is copied and deleted
 at the next start. When the file cannot be made, the extractor runs all the
 same.
 

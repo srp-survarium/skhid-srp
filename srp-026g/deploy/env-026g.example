@@ -124,11 +124,6 @@ RUST_LOG=info
 # The percent of the original's reputation a match and its quests pay (the
 # owner's choice: 120).
 # SRP_REPUTATION_RATE=120
-# Whether a match wears the weapons and armour played with (the game's own
-# rule; a worn item may then get a defect). Off by the owner's choice: an
-# item stays as it is. The first start with it off makes every worn item of
-# every account whole, once.
-# SRP_ITEM_WEAR=off
 # The daily bonus (double experience and reputation for a day's first three
 # victories, a reward for seven such days). off: none of it. A bonus day
 # starts at this hour of UTC (0 to 23).

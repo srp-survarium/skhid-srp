@@ -559,6 +559,14 @@ extern engine_key_name
 ; the IAT slot 0xaeff20 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_activate_keyboard_layout
+; unsigned int engine_get_window_long_a(void *window, unsigned int index)
+; the IAT slot 0xaefe8c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_window_long_a
+; unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)
+; the IAT slot 0xaeff44 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_set_window_long_a
 ; void *engine_get_module_handle_a(const char *name)
 ; the IAT slot 0x87003c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
@@ -598,6 +606,9 @@ extern engine_file_time_to_system_time
 ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_discard_playing_order
+; void engine_finish_key_binding(struct game_options *options)
+; 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+extern engine_finish_key_binding
 ; void engine_follow_player(struct network_client *client, struct player *player)
 ; 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says

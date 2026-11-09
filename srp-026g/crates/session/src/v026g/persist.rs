@@ -148,9 +148,13 @@ const MIGRATIONS: &[&str] = &[
     level_stats::MIGRATION,
     // 13: per-mode onboarding allowances.
     mode_intro::MIGRATION,
-    // 14: the match history and its totals (`history`).
+    // 14: none. It was the gold-to-silver conversion of #1523, which never
+    // shipped; that is the one-off pay-back at the release's first start now
+    // ([`SqliteGameRepository::pay_back_once`]). The number stays.
+    "",
+    // 15: the match history and its totals (`history`).
     history::MIGRATION,
-    // 15: each match's events (`match_events`).
+    // 16: each match's events (`match_events`).
     match_events::MIGRATION,
 ];
 
@@ -224,17 +228,6 @@ pub trait GameRepository: Send {
     ) -> Result<Vec<AdminAction>, PersistError> {
         Ok(Vec::new())
     }
-    /// Whether what is done to the accounts once under `key` was done and
-    /// its accounts written ([`Self::mark_done`]). (A repository that keeps
-    /// no marks: never.)
-    fn is_done(&mut self, _key: &str) -> Result<bool, PersistError> {
-        Ok(false)
-    }
-    /// Marks `key` done: called only after the accounts it changed were
-    /// written, so a crash between leaves it to be done again, whole.
-    fn mark_done(&mut self, _key: &str) -> Result<(), PersistError> {
-        Ok(())
-    }
     /// Keeps a finished match in the history ([`history`]). (A repository
     /// that keeps no history: nothing.)
     fn record_match(&mut self, _record: &history::MatchRecord) -> Result<(), PersistError> {
@@ -264,8 +257,6 @@ pub struct MemoryGameRepository {
     gate: Arc<Mutex<()>>,
     /// Account writes waiting at the gate now.
     held: Arc<std::sync::atomic::AtomicUsize>,
-    /// The keys marked done ([`GameRepository::mark_done`]).
-    done: Arc<Mutex<std::collections::BTreeSet<String>>>,
 }
 
 impl MemoryGameRepository {
@@ -332,15 +323,6 @@ impl GameRepository for MemoryGameRepository {
         let mut inner = self.inner.locked();
         inner.0.insert(account_id, account.clone());
         inner.1 += 1;
-        Ok(())
-    }
-
-    fn is_done(&mut self, key: &str) -> Result<bool, PersistError> {
-        Ok(self.done.locked().contains(key))
-    }
-
-    fn mark_done(&mut self, key: &str) -> Result<(), PersistError> {
-        self.done.locked().insert(key.to_owned());
         Ok(())
     }
 
@@ -468,37 +450,141 @@ impl SqliteGameRepository {
         schema_version(&self.connection)
     }
 
-    /// Whether this is the first call with `key` in the database's life:
-    /// the key is written to `g26_meta`, so every later call says no. For
-    /// what is done to the accounts once ([`GEAR_MENDED`]).
-    pub fn first_time(&mut self, key: &str) -> Result<bool, PersistError> {
-        let written = self.connection.execute(
-            "INSERT OR IGNORE INTO g26_meta (key, value) VALUES (?1, 1)",
-            [key],
+    /// The one-off pay-back of the release that removed gold and the
+    /// vouchers but the drop card (the owner, 2026-11-08: "we should have
+    /// release script which will give players silver back for gold they
+    /// had", "remove them completely and for players just give back them in
+    /// silver"), once in the database's life ([`PAID_BACK`]), at the first
+    /// start of that release: after srp's own copy of srp.db, which a
+    /// rollback puts back, and before the accounts are loaded. In one
+    /// transaction with its mark:
+    ///
+    /// - a gold balance is silver at 100 a gold
+    ///   (`survarium::v026g::prices::GOLD_IN_SILVER`) and the gold column 0,
+    ///   which nothing reads or writes after it (kept in the schema, unused:
+    ///   the owner's of 2026-11-08);
+    /// - each repair kit, rename voucher and one-day premium voucher held
+    ///   ([`PAID_BACK_VOUCHERS`]) is its shop price in silver, and is taken
+    ///   out of the inventory, the kits and the presets.
+    ///
+    /// A balance stops at the most silver holds. Returns what each account
+    /// was given; `None` when it was done before.
+    /// `scripts/silver-only/preview.py` shows it for a copy of the file.
+    ///
+    /// Before it changes anything it copies the file to
+    /// `<backups>/srp-<unix>-before-pay-back.db`; without that copy it does
+    /// nothing and fails, so srp does not start and a rollback finds the
+    /// file as it was (a failed backup at the start only warns).
+    pub fn pay_back_once(&mut self, backups: &Path) -> Result<Option<Vec<PaidBack>>, PersistError> {
+        if self.paid_back()? {
+            return Ok(None);
+        }
+        std::fs::create_dir_all(backups).map_err(|error| PersistError::Io(backups.to_path_buf(), error))?;
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let copy = backups.join(format!("srp-{stamp}-before-pay-back.db"));
+        self.connection.execute("VACUUM INTO ?1", [copy.to_string_lossy()])?;
+        log::info!("Copied the database to {} before the pay-back", copy.display());
+        let transaction = self.connection.transaction()?;
+        let held = |dict_id: u16| {
+            format!(
+                "COALESCE((SELECT SUM(condition_or_stack) FROM g26_items i \
+                 WHERE i.account_id = a.account_id AND i.dict_id = {dict_id}), 0)"
+            )
+        };
+        let [kit, rename, premium] = PAID_BACK_VOUCHERS.map(|(dict_id, _)| held(dict_id));
+        let mut paid = Vec::new();
+        {
+            let mut rows = transaction.prepare(&format!(
+                "SELECT a.account_id, a.name, a.premium_money, {kit}, {rename}, {premium}
+                 FROM g26_accounts a ORDER BY a.account_id"
+            ))?;
+            let found = rows.query_map([], |row| {
+                Ok(PaidBack {
+                    account_id: row.get(0)?,
+                    name: row.get(1)?,
+                    gold: row.get(2)?,
+                    vouchers: [row.get(3)?, row.get(4)?, row.get(5)?],
+                })
+            })?;
+            for account in found {
+                let account = account?;
+                if account.gold != 0 || account.vouchers != [0; 3] {
+                    paid.push(account);
+                }
+            }
+        }
+        for account in &paid {
+            transaction.execute(
+                "UPDATE g26_accounts SET generic_money = MIN(generic_money + ?2, 4294967295),
+                    premium_money = 0
+                 WHERE account_id = ?1",
+                params![account.account_id, account.silver().min(i64::MAX as u64) as i64],
+            )?;
+        }
+        let ids = PAID_BACK_VOUCHERS.map(|(dict_id, _)| dict_id.to_string()).join(", ");
+        transaction.execute_batch(&format!(
+            "DELETE FROM g26_kit_slots WHERE EXISTS (
+                SELECT 1 FROM g26_items i WHERE i.account_id = g26_kit_slots.account_id
+                    AND i.item_id = g26_kit_slots.item_id AND i.dict_id IN ({ids}));
+             DELETE FROM g26_preset_slots WHERE EXISTS (
+                SELECT 1 FROM g26_items i WHERE i.account_id = g26_preset_slots.account_id
+                    AND i.item_id = g26_preset_slots.item_id AND i.dict_id IN ({ids}));
+             DELETE FROM g26_items WHERE dict_id IN ({ids});"
+        ))?;
+        transaction.execute(
+            "INSERT INTO g26_meta (key, value) VALUES (?1, 1)",
+            [PAID_BACK],
         )?;
-        Ok(written == 1)
+        transaction.commit()?;
+        Ok(Some(paid))
+    }
+
+    /// Whether [`Self::pay_back_once`] was done ([`PAID_BACK`]).
+    fn paid_back(&self) -> Result<bool, PersistError> {
+        Ok(self.connection.query_row(
+            "SELECT EXISTS (SELECT 1 FROM g26_meta WHERE key = ?1)",
+            [PAID_BACK],
+            |row| row.get(0),
+        )?)
     }
 }
 
-/// The `g26_meta` key that says the accounts' weapons and armour were made
-/// whole when wear was switched off (`GameAccounts::from_env`).
-pub const GEAR_MENDED: &str = "gear_mended";
+/// The vouchers [`SqliteGameRepository::pay_back_once`] takes away, by dict
+/// id, with the silver each is worth: its shop price, its gold price times
+/// 100 (`scripts/content-edit/items.tsv`). The repair kit, the rename
+/// voucher, the one-day premium voucher.
+pub const PAID_BACK_VOUCHERS: [(u16, u64); 3] = [(151, 5_000), (152, 25_000), (213, 5_000)];
 
-/// The `g26_meta` key that says the golden weapons owned got the silver
-/// bonus as their own modification, and the accounts were written
-/// (`GameAccounts::give_golden_silver_once`): it is written after them.
-pub const GOLDEN_SILVER_GIVEN: &str = "golden_silver_given";
+/// The `g26_meta` key that says the gold and the removed vouchers were paid
+/// back in silver ([`SqliteGameRepository::pay_back_once`]).
+pub const PAID_BACK: &str = "silver_only_paid_back";
 
-/// The `g26_meta` key that says the premium armour owned got its premium
-/// bonuses as its own modifications, and the accounts were written
-/// (`GameAccounts::give_premium_armour_bonuses_once`): it is written after
-/// them.
-pub const PREMIUM_ARMOUR_GIVEN: &str = "premium_armour_given";
+/// What [`SqliteGameRepository::pay_back_once`] found of an account.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PaidBack {
+    pub account_id: u32,
+    pub name: String,
+    /// Its gold balance.
+    pub gold: u64,
+    /// How many of each of [`PAID_BACK_VOUCHERS`] it held.
+    pub vouchers: [u64; 3],
+}
 
-/// The `g26_meta` key that says every account's autobuy was turned on, and
-/// the accounts were written (`GameAccounts::turn_autobuy_on_once`): it is
-/// written after them.
-pub const AUTOBUY_TURNED_ON: &str = "autobuy_turned_on";
+impl PaidBack {
+    /// The silver its balance gains (before the balance's cap).
+    pub fn silver(&self) -> u64 {
+        let vouchers: u64 = self
+            .vouchers
+            .iter()
+            .zip(PAID_BACK_VOUCHERS)
+            .map(|(&count, (_, each))| count.saturating_mul(each))
+            .sum();
+        self.gold.saturating_mul(100).saturating_add(vouchers)
+    }
+}
 
 fn schema_version(connection: &Connection) -> Result<i64, PersistError> {
     connection.execute_batch(
@@ -598,10 +684,9 @@ impl GameRepository for SqliteGameRepository {
         let mut accounts: Vec<(u32, Account)> = Vec::new();
         {
             let mut statement = transaction.prepare(
-                "SELECT account_id, name, clan_tag, generic_money, premium_money,
-                        premium_until, exp_total, quest_faction, rating, rating_before,
-                        active_kit, autobuy, next_item_id, next_quest_instance,
-                        tutorial_step, tutorial_done
+                "SELECT account_id, name, clan_tag, generic_money, premium_until,
+                        exp_total, quest_faction, rating, rating_before,
+                        active_kit, autobuy, next_item_id, next_quest_instance
                  FROM g26_accounts ORDER BY account_id",
             )?;
             let rows = statement.query_map([], |row| {
@@ -611,26 +696,23 @@ impl GameRepository for SqliteGameRepository {
                         name: row.get(1)?,
                         clan_tag: row.get(2)?,
                         generic_money: row.get(3)?,
-                        premium_money: row.get(4)?,
-                        premium_until: row.get::<_, i64>(5)?.max(0) as u64,
-                        exp_total: row.get(6)?,
+                        premium_until: row.get::<_, i64>(4)?.max(0) as u64,
+                        exp_total: row.get(5)?,
                         skills: Vec::new(),
                         reputations: Vec::new(),
-                        quest_faction: row.get(7)?,
-                        rating: row.get(8)?,
-                        rating_before: row.get(9)?,
+                        quest_faction: row.get(6)?,
+                        rating: row.get(7)?,
+                        rating_before: row.get(8)?,
                         balance: Default::default(),
                         level_stats: Default::default(),
                         kits: Vec::new(),
-                        active_kit: row.get(10)?,
-                        autobuy: row.get(11)?,
+                        active_kit: row.get(9)?,
+                        autobuy: row.get(10)?,
                         inventory: Vec::new(),
-                        next_item_id: row.get(12)?,
+                        next_item_id: row.get(11)?,
                         quests: Vec::new(),
                         quest_cooldowns: Vec::new(),
-                        next_quest_instance: row.get(13)?,
-                        tutorial_step: row.get(14)?,
-                        tutorial_done: row.get(15)?,
+                        next_quest_instance: row.get(12)?,
                         extras: Default::default(),
                         map_plays: Vec::new(),
                         room_settings: None,
@@ -675,7 +757,9 @@ impl GameRepository for SqliteGameRepository {
             }
             {
                 let mut statement = transaction.prepare_cached(
-                    "SELECT item_id, dict_id, condition_or_stack, repair_time, reroll_time,
+                    // repair_time and reroll_time are not read: srp has no
+                    // repair, and a modification change no wait.
+                    "SELECT item_id, dict_id, condition_or_stack,
                             modifications, upgrades, reroll
                      FROM g26_items WHERE account_id = ?1 ORDER BY seq",
                 )?;
@@ -685,15 +769,13 @@ impl GameRepository for SqliteGameRepository {
                             item_id: row.get(0)?,
                             dict_id: row.get(1)?,
                             condition_or_stack: row.get(2)?,
-                            repair_time: row.get(3)?,
-                            reroll_time: row.get(4)?,
                             modifications: Vec::new(),
                             upgrades: Vec::new(),
                             reroll: Default::default(),
                         },
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
                         row.get::<_, String>(5)?,
-                        row.get::<_, String>(6)?,
-                        row.get::<_, String>(7)?,
                     ))
                 })?;
                 for row in rows {
@@ -783,22 +865,6 @@ impl GameRepository for SqliteGameRepository {
         self.path.display().to_string()
     }
 
-    fn is_done(&mut self, key: &str) -> Result<bool, PersistError> {
-        Ok(self
-            .connection
-            .query_row("SELECT 1 FROM g26_meta WHERE key = ?1", [key], |_| Ok(()))
-            .optional()?
-            .is_some())
-    }
-
-    fn mark_done(&mut self, key: &str) -> Result<(), PersistError> {
-        self.connection.execute(
-            "INSERT OR IGNORE INTO g26_meta (key, value) VALUES (?1, 1)",
-            [key],
-        )?;
-        Ok(())
-    }
-
     fn load_clans(&mut self) -> Result<Vec<Clan>, PersistError> {
         clans::load(&mut self.connection)
     }
@@ -878,7 +944,7 @@ fn write_account(
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
          ON CONFLICT(account_id) DO UPDATE SET
             name = excluded.name, clan_tag = excluded.clan_tag,
-            generic_money = excluded.generic_money, premium_money = excluded.premium_money,
+            generic_money = excluded.generic_money,
             premium_until = excluded.premium_until, exp_total = excluded.exp_total,
             quest_faction = excluded.quest_faction, rating = excluded.rating,
             rating_before = excluded.rating_before, active_kit = excluded.active_kit,
@@ -890,7 +956,9 @@ fn write_account(
             account.name,
             account.clan_tag,
             account.generic_money,
-            account.premium_money,
+            // The gold column: kept in the schema and unused (the owner,
+            // 2026-11-08); a new row needs a value.
+            0,
             account.premium_until.min(i64::MAX as u64) as i64,
             account.exp_total,
             account.quest_faction,
@@ -900,8 +968,10 @@ fn write_account(
             account.autobuy,
             account.next_item_id,
             account.next_quest_instance,
-            account.tutorial_step,
-            account.tutorial_done,
+            // The tutorial's columns: kept in the schema, unused; no
+            // tutorial (the owner, 2026-10-19), so every account is done.
+            0,
+            true,
         ],
     )?;
     extras::save(transaction, account_id, &account.extras)?;
@@ -939,8 +1009,9 @@ fn write_account(
                 seq as i64,
                 item.dict_id,
                 item.condition_or_stack,
-                item.repair_time,
-                item.reroll_time,
+                // repair_time and reroll_time: no repair, no wait.
+                0,
+                0,
                 modifications_text(item),
                 upgrades_text(item),
                 items::reroll_text(item),
@@ -1037,8 +1108,6 @@ mod tests {
         account.add_experience(40_000);
         account.add_reputation(2, 500);
         account.autobuy = true;
-        account.tutorial_step = 3;
-        account.tutorial_done = true;
         rules::set_skills(&mut account, &[(101, 2), (201, 1)]).unwrap();
         rules::rename_kit(&mut account, 2, "Sniper").unwrap();
         rules::set_active_kit(&mut account, 2, 1_000).unwrap();
@@ -1046,8 +1115,6 @@ mod tests {
         quests::refresh(&mut account, 1_000, &mut Rng::new(4));
         account.quest_cooldowns.push((10101, 5_000));
         account.inventory[0].condition_or_stack = 654_321;
-        account.inventory[0].repair_time = 7;
-        account.inventory[0].reroll_time = 8;
         account.inventory[0].modifications = vec![(1050, true), (7, false)];
         account.inventory[0].upgrades = vec![Upgrade {
             id: 5,
@@ -1056,7 +1123,6 @@ mod tests {
             param: 9,
         }];
         // What the later steps added: all of it must come back too.
-        account.premium_money = 321;
         account.rating = 137;
         account.rating_before = 125;
         account.map_plays = vec![(1, 4), (6, 2)];
@@ -1064,13 +1130,9 @@ mod tests {
             rating: -1250,
             matches: 9,
         };
-        account.extras.auto_repair = true;
-        account.extras.tutorial_flags = 0b101;
         account.extras.bonus.day = 3;
         account.extras.bonus.last_day = 20_373;
         account.extras.bonus.wins = [3, 3, 1, 0, 0, 0, 0];
-        account.extras.bonus.reward_dict = 77;
-        account.extras.bonus.reward_count = 50;
         account.extras.bonus.completed = true;
         account.extras.bonus.shown_day = 20_373;
         account.room_settings = Some(crate::v026g::room_settings::RoomSettings {
@@ -1205,37 +1267,114 @@ mod tests {
         ));
     }
 
+    /// The pay-back: gold is silver at 100 a gold, each removed voucher is
+    /// its price in silver and is gone; the drop card and the rest stay; a
+    /// balance stops at its most; a second start pays nothing.
     #[test]
-    fn a_first_time_is_once_in_the_databases_life() {
-        let temp = TempDb::new("first-time");
+    fn gold_and_the_removed_vouchers_are_paid_back_once() {
+        let temp = TempDb::new("pay-back");
         let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert!(repository.first_time(GEAR_MENDED).unwrap());
-        assert!(!repository.first_time(GEAR_MENDED).unwrap());
-        assert!(repository.first_time("another").unwrap());
-        // It outlives the repository, and the schema's own row is as it was.
-        let version = repository.version().unwrap();
+        repository
+            .connection
+            .execute_batch(
+                "INSERT INTO g26_accounts (
+                    account_id, name, clan_tag, generic_money, premium_money,
+                    premium_until, exp_total, quest_faction, rating, rating_before,
+                    active_kit, autobuy, next_item_id, next_quest_instance,
+                    tutorial_step, tutorial_done
+                 ) VALUES
+                 (5, 'Carol', '', 1000, 150, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1),
+                 (6, 'Dave', '', 4294967000, 10, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1),
+                 (7, 'Erin', '', 70, 0, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1);
+                 INSERT INTO g26_items (
+                    account_id, item_id, seq, dict_id, condition_or_stack,
+                    repair_time, reroll_time, modifications, upgrades
+                 ) VALUES
+                 (5, 1, 0, 151, 3, 0, 0, '', ''),
+                 (5, 2, 1, 152, 2, 0, 0, '', ''),
+                 (5, 3, 2, 213, 1, 0, 0, '', ''),
+                 (5, 4, 3, 153, 4, 0, 0, '', ''),
+                 (6, 1, 0, 152, 1, 0, 0, '', ''),
+                 (7, 1, 0, 153, 1, 0, 0, '', '');",
+            )
+            .unwrap();
+        let backups = temp.path().with_extension("backups");
+        let paid = repository.pay_back_once(&backups).unwrap().unwrap();
+        // The copy made before it, with the gold still there.
+        let copies: Vec<_> = std::fs::read_dir(&backups).unwrap().collect();
+        assert_eq!(copies.len(), 1);
+        let silver: Vec<_> = paid.iter().map(|account| (account.account_id, account.silver())).collect();
+        // Carol: 150 gold, 3 kits and a premium day at 5,000, 2 rename
+        // vouchers at 25,000. Dave: 10 gold and a rename voucher. Erin: none.
+        assert_eq!(silver, [(5, 15_000 + 4 * 5_000 + 2 * 25_000), (6, 1_000 + 25_000)]);
+        assert_eq!((paid[0].gold, paid[0].vouchers), (150, [3, 2, 1]));
+        let state = |repository: &mut SqliteGameRepository| {
+            repository
+                .load_all()
+                .unwrap()
+                .into_iter()
+                .map(|(id, account)| {
+                    let owned: Vec<_> = account
+                        .inventory
+                        .iter()
+                        .map(|item| (item.dict_id, item.condition_or_stack))
+                        .collect();
+                    (id, account.generic_money, owned)
+                })
+                .collect::<Vec<_>>()
+        };
+        let expected = vec![
+            (5, 1000 + 85_000, vec![(153, 4)]),
+            (6, u32::MAX, vec![]),
+            (7, 70, vec![(153, 1)]),
+        ];
+        assert_eq!(state(&mut repository), expected);
+        let gold: i64 = repository
+            .connection
+            .query_row("SELECT SUM(premium_money) FROM g26_accounts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(gold, 0);
+        // Saving an account leaves the gold column alone.
+        let (_, carol) = repository.load_all().unwrap().remove(0);
+        repository.save(5, &carol).unwrap();
         drop(repository);
+        // A second start: nothing is paid twice.
         let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert!(!repository.first_time(GEAR_MENDED).unwrap());
-        assert_eq!(repository.version().unwrap(), version);
+        assert_eq!(repository.pay_back_once(&backups).unwrap(), None);
+        assert_eq!(state(&mut repository), expected);
+        std::fs::remove_dir_all(&backups).unwrap();
     }
 
+    /// Without its copy the pay-back changes nothing and fails: srp does not
+    /// start, and the file is as it was for a rollback.
     #[test]
-    fn a_mark_done_is_read_back_and_outlives_the_repository() {
-        let temp = TempDb::new("mark-done");
+    fn no_pay_back_without_its_copy() {
+        let temp = TempDb::new("pay-back-no-copy");
         let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert!(!repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
-        // Reading it marks nothing.
-        assert!(!repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
-        repository.mark_done(GOLDEN_SILVER_GIVEN).unwrap();
-        repository.mark_done(GOLDEN_SILVER_GIVEN).unwrap();
-        assert!(repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
-        assert!(!repository.is_done("another").unwrap());
-        let version = repository.version().unwrap();
-        drop(repository);
-        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert!(repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
-        assert_eq!(repository.version().unwrap(), version);
+        repository
+            .connection
+            .execute_batch(
+                "INSERT INTO g26_accounts (
+                    account_id, name, clan_tag, generic_money, premium_money,
+                    premium_until, exp_total, quest_faction, rating, rating_before,
+                    active_kit, autobuy, next_item_id, next_quest_instance,
+                    tutorial_step, tutorial_done
+                 ) VALUES (5, 'Carol', '', 1000, 150, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1);",
+            )
+            .unwrap();
+        // A file where the backups folder should be: no copy can be made.
+        let blocked = temp.path().with_extension("blocked");
+        std::fs::write(&blocked, b"").unwrap();
+        assert!(repository.pay_back_once(&blocked).is_err());
+        let (gold, silver): (i64, i64) = repository
+            .connection
+            .query_row("SELECT premium_money, generic_money FROM g26_accounts", [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .unwrap();
+        assert_eq!((gold, silver), (150, 1000));
+        assert!(!repository.paid_back().unwrap());
+        std::fs::remove_file(&blocked).unwrap();
     }
 
     #[test]

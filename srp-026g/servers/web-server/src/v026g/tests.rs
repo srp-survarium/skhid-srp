@@ -124,10 +124,8 @@ impl World {
         id
     }
 
-    fn balances(&self, id: u32) -> (u32, u32) {
-        let account = self.accounts.get(id).unwrap();
-        let account = account.locked();
-        (account.generic_money, account.premium_money)
+    fn balance(&self, id: u32) -> u32 {
+        self.accounts.get(id).unwrap().locked().generic_money
     }
 
     fn admin(&self, fields: &[(&str, &str)]) -> String {
@@ -161,10 +159,10 @@ fn get(path: &str) -> Request {
 }
 
 #[test]
-fn the_exchange_is_in_the_game_now() {
+fn the_exchange_page_says_there_is_no_gold() {
     let world = world();
     let id = world.player("fighter", "secret");
-    let (silver, gold) = world.balances(id);
+    let silver = world.balance(id);
     // The launcher's SHOP button: `/exchange?lang=<its code>`.
     let shop = |code: &str| {
         let mut request = get("/exchange");
@@ -173,15 +171,11 @@ fn the_exchange_is_in_the_game_now() {
         world.web.route(&request, "t")
     };
     for (code, lang, text) in [
-        ("en", "en", "Silver and gold are exchanged in the game now"),
-        ("ua", "uk", "Срібло й золото тепер обмінюються в грі"),
-        ("ru", "ru", "Серебро и золото теперь обмениваются в игре"),
-        (
-            "de",
-            "de",
-            "Silber und Gold werden jetzt im Spiel getauscht",
-        ),
-        ("pl", "pl", "Srebro i złoto wymienia się teraz w grze"),
+        ("en", "en", "There is no gold any more"),
+        ("ua", "uk", "Золота більше немає"),
+        ("ru", "ru", "Золота больше нет"),
+        ("de", "de", "Gold gibt es nicht mehr"),
+        ("pl", "pl", "Złota już nie ma"),
     ] {
         let answer = shop(code);
         assert_eq!(answer.status, "200 OK", "{code}");
@@ -197,7 +191,7 @@ fn the_exchange_is_in_the_game_now() {
     // Without a code: the page's own language.
     let mut browser = get("/exchange");
     browser.lang = Lang::Uk;
-    assert!(world.web.route(&browser, "t").body.contains("Тепер у грі"));
+    assert!(world.web.route(&browser, "t").body.contains("Лише срібло"));
     // A form sent as the old page sent it is a page that is not there, and
     // changes nothing.
     let sent = world.web.route(
@@ -208,7 +202,7 @@ fn the_exchange_is_in_the_game_now() {
         "t",
     );
     assert_eq!(sent.status, "404 Not Found");
-    assert_eq!(world.balances(id), (silver, gold));
+    assert_eq!(world.balance(id), silver);
     assert!(world.told.changed.locked().is_empty());
 }
 
@@ -218,32 +212,31 @@ fn the_admin_changes_money_and_the_account() {
     let id = world.player("tester", "secret");
     // The stock account has no money (#1108): silver to take.
     world.accounts.get(id).unwrap().locked().generic_money = 2_000;
-    let (silver, gold) = world.balances(id);
+    let silver = world.balance(id);
     let refused = world.web.route(
         &post(
             "/hidden",
-            &[("token", "bad"), ("user", "tester"), ("gold", "+9")],
+            &[("token", "bad"), ("user", "tester"), ("silver", "+9")],
         ),
         "t",
     );
     assert!(refused.body.contains("Wrong token"));
-    assert_eq!(world.balances(id), (silver, gold));
+    assert_eq!(world.balance(id), silver);
 
     // Money is moderation's: a preview, then the confirm (`moderation`).
     let asked = [
         ("user", "tester"),
-        ("gold", "+500"),
         ("silver", "-999999999"),
         ("money_reason", "test"),
     ];
     let preview = world.admin(&asked);
-    assert_eq!(world.balances(id), (silver, gold));
+    assert_eq!(world.balance(id), silver);
     let plan = hidden(&preview, "money_plan");
     let mut confirm = asked.to_vec();
     confirm.extend([("money_plan", plan.as_str()), ("confirm", "1")]);
     let done = world.admin(&confirm);
     assert!(done.contains("tester: silver 2 000 → 0 (-2 000)"), "{done}");
-    assert_eq!(world.balances(id), (0, gold + 500));
+    assert_eq!(world.balance(id), 0);
     assert_eq!(world.told.changed.locked()[..], [id]);
 
     // Premium, a level with experience on top, reputation.
@@ -1297,9 +1290,8 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
     let id = world.player("pain", "secret");
     let other = world.player("bystander", "secret");
     world.accounts.get(id).unwrap().locked().generic_money = 480_000;
-    world.accounts.get(id).unwrap().locked().premium_money = 7;
     world.accounts.flush();
-    let others = world.balances(other);
+    let others = world.balance(other);
     let asked = [
         ("user", "pain"),
         ("silver", "-500000"),
@@ -1313,7 +1305,6 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
         preview.contains("480 000 → 0 (-480 000); -500 000 asked, never below 0"),
         "{preview}"
     );
-    assert!(preview.contains("7 → 7 (0)"), "{preview}");
     assert!(preview.contains("no: it sees the change at its next sign-in"));
     assert!(
         preview.contains("name=confirm value=1>Apply to pain"),
@@ -1322,35 +1313,35 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
     // Enter in a field presses the form's first button: the preview's.
     let first = preview.find("<button").unwrap();
     assert!(preview[first..].starts_with("<button>"), "{preview}");
-    assert_eq!(world.balances(id), (480_000, 7));
+    assert_eq!(world.balance(id), 480_000);
     let plan = hidden(&preview, "money_plan");
 
     // The confirm without the plan, or with another, is a preview again.
     for wrong in ["", "00"] {
         let body = world.admin(&confirmed(&asked, "money_plan", wrong));
         assert!(body.contains("nothing was changed"), "{body}");
-        assert_eq!(world.balances(id), (480_000, 7));
+        assert_eq!(world.balance(id), 480_000);
     }
     // Without a reason nothing is applied.
     let no_reason = [("user", "pain"), ("silver", "-500000")];
     let body = world.admin(&confirmed(&no_reason, "money_plan", &plan));
     assert!(body.contains("A reason is required"), "{body}");
     assert!(!body.contains("name=confirm value=1"));
-    assert_eq!(world.balances(id), (480_000, 7));
+    assert_eq!(world.balance(id), 480_000);
     assert!(world.told.changed.locked().is_empty());
 
     // A confirm uses its token up, applied or not: a new preview's.
     let used = world.admin(&confirmed(&asked, "money_plan", &plan));
     assert!(used.contains("used already or is older"), "{used}");
-    assert_eq!(world.balances(id), (480_000, 7));
+    assert_eq!(world.balance(id), 480_000);
     let plan = hidden(&used, "money_plan");
     let done = world.admin(&confirmed(&asked, "money_plan", &plan));
     assert!(
-        done.contains("pain: silver 480 000 → 0 (-480 000), gold 7 → 7 (0)."),
+        done.contains("pain: silver 480 000 → 0 (-480 000)."),
         "{done}"
     );
     assert!(!done.contains("name=confirm value=1"));
-    assert_eq!(world.balances(id), (0, 7));
+    assert_eq!(world.balance(id), 0);
     // Written at once, with its audit row; the open game is told.
     assert_eq!(repository.get(id).unwrap().generic_money, 0);
     let actions = repository.all_admin_actions();
@@ -1358,15 +1349,15 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
     assert_eq!(actions[0].account_id, id);
     assert_eq!(actions[0].kind, "money");
     assert_eq!(actions[0].reason, "farmed silver");
-    assert_eq!(actions[0].change, "silver -480000 (asked -500000), gold +0");
-    assert_eq!(actions[0].before, "480000 silver, 7 gold");
-    assert_eq!(actions[0].after, "0 silver, 7 gold");
+    assert_eq!(actions[0].change, "silver -480000 (asked -500000)");
+    assert_eq!(actions[0].before, "480000 silver");
+    assert_eq!(actions[0].after, "0 silver");
     assert_eq!(world.told.changed.locked()[..], [id]);
 
     // A reload of the confirm changes nothing more.
     let reload = world.admin(&confirmed(&asked, "money_plan", &plan));
     assert!(reload.contains("nothing was changed") || reload.contains("Nothing would change"));
-    assert_eq!(world.balances(id), (0, 7));
+    assert_eq!(world.balance(id), 0);
     assert_eq!(repository.all_admin_actions().len(), 1);
     // The audit trail is shown with the account.
     assert!(
@@ -1375,18 +1366,18 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
     );
     assert!(reload.contains("farmed silver"));
 
-    // Gold by id, the other account untouched.
-    let gold = [
+    // Silver by id, the other account untouched.
+    let given = [
         ("user", &*format!("#{id}")),
-        ("gold", "-10"),
-        ("money_reason", "farmed gold"),
+        ("silver", "+10"),
+        ("money_reason", "a refund"),
     ];
-    let preview = world.admin(&gold);
+    let preview = world.admin(&given);
     let plan = hidden(&preview, "money_plan");
-    let done = world.admin(&confirmed(&gold, "money_plan", &plan));
-    assert!(done.contains("gold 7 → 0 (-7)"), "{done}");
-    assert_eq!(world.balances(id), (0, 0));
-    assert_eq!(world.balances(other), others);
+    let done = world.admin(&confirmed(&given, "money_plan", &plan));
+    assert!(done.contains("silver 0 → 10 (+10)"), "{done}");
+    assert_eq!(world.balance(id), 10);
+    assert_eq!(world.balance(other), others);
     assert_eq!(repository.all_admin_actions().len(), 2);
 }
 
@@ -1398,28 +1389,28 @@ fn money_of_an_online_account_reaches_its_game() {
     let _held = world.web.store.hold(session).unwrap();
     let asked = [
         ("user", "mandalorienc"),
-        ("gold", "-100"),
-        ("money_reason", "farmed gold"),
+        ("silver", "-100"),
+        ("money_reason", "farmed silver"),
     ];
-    world.accounts.get(id).unwrap().locked().premium_money = 250;
+    world.accounts.get(id).unwrap().locked().generic_money = 250;
     let preview = world.admin(&asked);
     assert!(
         preview.contains("yes: its game is sent the change at once"),
         "{preview}"
     );
     let plan = hidden(&preview, "money_plan");
-    // The game spends gold between the preview and the confirm: the plan
+    // The game spends silver between the preview and the confirm: the plan
     // no longer fits, and nothing is taken.
-    world.accounts.get(id).unwrap().locked().premium_money = 240;
+    world.accounts.get(id).unwrap().locked().generic_money = 240;
     let late = world.admin(&confirmed(&asked, "money_plan", &plan));
     assert!(
         late.contains("The account changed since the preview"),
         "{late}"
     );
-    assert_eq!(world.balances(id).1, 240);
+    assert_eq!(world.balance(id), 240);
     let plan = hidden(&late, "money_plan");
     world.admin(&confirmed(&asked, "money_plan", &plan));
-    assert_eq!(world.balances(id).1, 140);
+    assert_eq!(world.balance(id), 140);
     assert_eq!(world.told.changed.locked()[..], [id]);
 }
 
@@ -1428,7 +1419,7 @@ fn moderation_needs_the_token_the_address_and_a_known_account() {
     let world = world();
     let id = world.player("tester", "secret");
     world.accounts.get(id).unwrap().locked().generic_money = 2_000;
-    let before = world.balances(id);
+    let before = world.balance(id);
     let asked = [("user", "tester"), ("silver", "-5"), ("money_reason", "x")];
     let plan = hidden(&world.admin(&asked), "money_plan");
     let mut fields = vec![("token", "bad")];
@@ -1463,7 +1454,7 @@ fn moderation_needs_the_token_the_address_and_a_known_account() {
     let mut elsewhere = post("/hidden", &fields);
     elsewhere.client = "203.0.113.5".parse().ok();
     assert_eq!(world.web.route(&elsewhere, "t").status, "404 Not Found");
-    assert_eq!(world.balances(id), before);
+    assert_eq!(world.balance(id), before);
     assert!(
         world
             .accounts
@@ -1644,7 +1635,7 @@ fn a_moderation_the_database_refused_says_so() {
         done.contains("Error: the change stands in memory only"),
         "{done}"
     );
-    assert_eq!(world.balances(id).0, 1_900);
+    assert_eq!(world.balance(id), 1_900);
     // The saver writes it once the database takes it again.
     repository.fail_saves(false);
     world.accounts.flush();
@@ -1665,12 +1656,12 @@ fn a_used_confirm_changes_nothing_even_once_the_account_is_back() {
     let plan = hidden(&world.admin(&asked), "money_plan");
     let confirm = confirmed(&asked, "money_plan", &plan);
     world.admin(&confirm);
-    assert_eq!(world.balances(id).0, 400);
+    assert_eq!(world.balance(id), 400);
     // The game gives the 100 back: the account is as at the preview.
     world.accounts.get(id).unwrap().locked().generic_money = 500;
     let again = world.admin(&confirm);
     assert!(again.contains("used already or is older"), "{again}");
-    assert_eq!(world.balances(id).0, 500);
+    assert_eq!(world.balance(id), 500);
     assert_eq!(repository.all_admin_actions().len(), 1);
 
     // Items alike: part of a stack, the stack made whole again.
@@ -1732,7 +1723,7 @@ fn a_used_confirm_changes_nothing_even_once_the_account_is_back() {
     assert!(late.contains("older than 10 minutes"), "{late}");
     let late = world.admin(&confirmed(&asked, "items_plan", &items_plan));
     assert!(late.contains("older than 10 minutes"), "{late}");
-    assert_eq!(world.balances(id).0, 500);
+    assert_eq!(world.balance(id), 500);
     assert_eq!(stack(), units);
     assert_eq!(repository.all_admin_actions().len(), 2);
 }
@@ -1846,7 +1837,7 @@ fn a_moderation_waits_for_a_busy_saver_once_only() {
         drop(held);
         saver.join().unwrap();
     });
-    assert_eq!(world.balances(id).0, 1_900);
+    assert_eq!(world.balance(id), 1_900);
     world.accounts.flush();
     assert_eq!(repository.get(id).unwrap().generic_money, 1_900);
     assert_eq!(repository.all_admin_actions().len(), 1);

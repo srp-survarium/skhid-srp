@@ -220,13 +220,9 @@ package survarium.controls
       
       protected var _autobuy_money_consulables:int = 0;
       
-      protected var _autorepair_money:int = 0;
-      
       protected var _autobuy_money_ammo_arr:Array = [];
       
       protected var _autobuy_money_consulables_arr:Array = [];
-      
-      protected var _autorepair_money_arr:Array = [];
       
       public var treasureItem:MovieClip;
       
@@ -430,7 +426,7 @@ package survarium.controls
          this.totalScore.section_2.scorePremium.label.text = LocalizationData.getName("statistics_score_premium");
          this.totalScore.section_3.scoreWasted.label.text = LocalizationData.getName("wasted");
          this.totalScore.section_3.scoreTotal.label.text = LocalizationData.getName("total");
-         this.totalScore.section_3.wastedRepair.label.text = LocalizationData.getName("autorepair_money");
+         this.hideRepairRow();
          this.totalScore.section_3.wastedAmmo.label.text = LocalizationData.getName("autobuy_money_ammo");
          this.totalScore.section_3.wastedItems.label.text = LocalizationData.getName("autobuy_money_consulabels");
          this.totalScore.columns.textFieldMoney.text = LocalizationData.getName("money");
@@ -855,7 +851,6 @@ package survarium.controls
          this.progressIndicator.gotoAndStop(1);
          _data = null;
          _autobuy_money_ammo = 0;
-         _autorepair_money = 0;
          bonusMatchId = 0;
          _rewardsMultiplied = false;
       }
@@ -946,10 +941,8 @@ package survarium.controls
          this.buyTreasureMaps.visible = false;
          this.treasureTextfield.text = LocalizationData.getName("treasure_map_advert");
          this.dropChanceValueLabel.text = "0";
-         this.totalScore.section_3.wastedRepair.tooltipRendererName = "SrvProfileTipRendererStyled";
          this.totalScore.section_3.wastedAmmo.tooltipRendererName = "SrvProfileTipRendererStyled";
          this.totalScore.section_3.wastedItems.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.totalScore.section_3.wastedRepair.mouseChildren = false;
          this.totalScore.section_3.wastedAmmo.mouseChildren = false;
          this.totalScore.section_3.wastedItems.mouseChildren = false;
       }
@@ -1095,16 +1088,13 @@ package survarium.controls
          hintStr = this.addToHint(hintStr,this._data.statistics_money.premium_items_money,"statistics_equipment_bonus",false);
          hintStr = this.addToHint(hintStr,this._autobuy_money_ammo,"autobuy_money_ammo",false);
          hintStr = this.addToHint(hintStr,this._autobuy_money_consulables,"autobuy_money_consulabels",false);
-         hintStr = this.addToHint(hintStr,this._autorepair_money,"autorepair_money",false);
-         var statistics_money:int = int(this._data.statistics_money.match_money) + int(this._data.statistics_money.quest_money) + int(this._data.statistics_money.premium_bonus_exp) + int(this._data.statistics_money.premium_bonus_money) + int(this._data.statistics_money.premium_items_money) + int(this._autorepair_money) + int(this._autobuy_money_consulables) + int(this._autobuy_money_ammo);
-         trace("VS:updateMoney",statistics_money,this._data.statistics_money.autobuy_money,this._data.statistics_money.autorepair_money,this._autobuy_money_ammo);
-         var wasted:int = this._autorepair_money + this._autobuy_money_ammo + this._autobuy_money_consulables;
+         var statistics_money:int = int(this._data.statistics_money.match_money) + int(this._data.statistics_money.quest_money) + int(this._data.statistics_money.premium_bonus_exp) + int(this._data.statistics_money.premium_bonus_money) + int(this._data.statistics_money.premium_items_money) + int(this._autobuy_money_consulables) + int(this._autobuy_money_ammo);
+         var wasted:int = this._autobuy_money_ammo + this._autobuy_money_consulables;
          var totalmoney:int = this.updateTotalScore(this._data.statistics_money,"money");
          this.totalScore.section_3.scoreTotal.money.text = (totalmoney + wasted).toString();
          this._data.money = totalmoney + wasted;
          this.set_score_value(this.score_container.score_3,totalmoney + wasted,(totalmoney + wasted) * premiumMultilplier,SCORE_ICON_MONEY);
          this.totalScore.section_3.scoreWasted.money.text = wasted.toString();
-         this.totalScore.section_3.wastedRepair.value.text = this._autorepair_money;
          this.totalScore.section_3.wastedAmmo.value.text = this._autobuy_money_ammo;
          this.totalScore.section_3.wastedItems.value.text = this._autobuy_money_consulables;
          this.updateScroreLayout();
@@ -1326,7 +1316,43 @@ package survarium.controls
          }
       }
       
-      public function setSpendMoneyDetailed(autobuy_ammo:Array, autobuy_consulables:Array, repair:Array) : void
+      // No "Repair cost" row (srp has no repair, the owner 2026-11-08): the stock row of the money spent
+      // is hidden, and the rows under it in its section move up by its height.
+      private function hideRepairRow() : void
+      {
+         var section:MovieClip = this.totalScore.section_3;
+         var row:DisplayObject = section.wastedRepair;
+         if(!row.visible)
+         {
+            return;
+         }
+         row.visible = false;
+         var step:Number = Number.MAX_VALUE;
+         var i:int;
+         var other:DisplayObject;
+         for(i = 0; i < section.numChildren; i++)
+         {
+            other = section.getChildAt(i);
+            if(other != row && other.y > row.y)
+            {
+               step = Math.min(step,other.y - row.y);
+            }
+         }
+         if(step == Number.MAX_VALUE)
+         {
+            return;
+         }
+         for(i = 0; i < section.numChildren; i++)
+         {
+            other = section.getChildAt(i);
+            if(other != row && other.y > row.y)
+            {
+               other.y -= step;
+            }
+         }
+      }
+      
+      public function setSpendMoneyDetailed(autobuy_ammo:Array, autobuy_consulables:Array) : void
       {
          if(!autobuy_ammo)
          {
@@ -1336,13 +1362,8 @@ package survarium.controls
          {
             autobuy_consulables = [];
          }
-         if(!repair)
-         {
-            repair = [];
-         }
          _autobuy_money_ammo_arr = autobuy_ammo;
          _autobuy_money_consulables_arr = autobuy_consulables;
-         _autorepair_money_arr = repair;
          this.calculateSpendMoney();
       }
       
@@ -1368,29 +1389,24 @@ package survarium.controls
          _itemdescriptor = ItemDescriptor.getItemDescriptor("InventoryItems");
          _autobuy_money_ammo = fillWastedData(this._autobuy_money_ammo_arr,this.totalScore.section_3.wastedAmmo);
          _autobuy_money_consulables = fillWastedData(this._autobuy_money_consulables_arr,this.totalScore.section_3.wastedItems);
-         _autorepair_money = fillWastedData(this._autorepair_money_arr,this.totalScore.section_3.wastedRepair);
-         trace("calculateSpendMoney",this._autobuy_money_ammo,this._autobuy_money_consulables,this._autorepair_money);
+
          if(this._data && this._data.statistics_money)
          {
             this._data.statistics_money.autobuy_money_ammo_arr = this._autobuy_money_ammo_arr;
             this._data.statistics_money.autobuy_money_consulables_arr = this._autobuy_money_consulables_arr;
-            this._data.statistics_money.autorepair_money_arr = this._autorepair_money_arr;
             this._data.statistics_money.autobuy_money_ammo = this._autobuy_money_ammo;
             this._data.statistics_money.autobuy_money_consulables = this._autobuy_money_consulables;
-            this._data.statistics_money.autorepair_money = this._autorepair_money;
          }
          this.updateMoney();
       }
       
-      public function setSpendMoney(autobuy:int, repair:int) : void
+      public function setSpendMoney(autobuy:int) : void
       {
          _autobuy_money_ammo = autobuy;
-         _autorepair_money = repair;
          if(this._data && this._data.statistics_money)
          {
             this._data.statistics_money.autobuy_money_ammo = autobuy;
             this._data.statistics_money.autobuy_money_consulables = autobuy;
-            this._data.statistics_money.autorepair_money = repair;
             this.updateMoney();
          }
       }
@@ -1449,10 +1465,6 @@ package survarium.controls
          if(this._autobuy_money_consulables != 0)
          {
             value.statistics_money.autobuy_money_consulables = this._autobuy_money_consulables;
-         }
-         if(this._autorepair_money != 0)
-         {
-            value.statistics_money.autorepair_money = this._autorepair_money;
          }
          this.totalScore.visible = true;
          this.buyTreasureMaps.visible = true;

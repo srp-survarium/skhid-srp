@@ -887,7 +887,7 @@ st_ct_max_members_count_error	Błąd dodawania. Drużyna klanu osiągnęła już
 st_current_value	\nBieżąca wartość:
 st_cz_75_description	Czeski pistolet samopowtarzalny, amunicja: 9x19. Jeden z najczęściej kopiowanych pistoletów zimnej wojny.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Graj każdego dnia i otrzymaj <highlight>x2</highlight> więcej doświadczenia i reputacji za <highlight>pierwsze trzy</highlight> zwycięstwa.
+st_daily_bonus_description	Codziennie: <highlight>x2</highlight> doświadczenia za <highlight>pierwsze trzy</highlight> zwycięstwa.
 st_daily_bonus_hint	Wyświetl ekran powitalny
 st_daily_bonus_label	Witaj z powrotem
 st_daily_bonus_progress	Twój dzisiejszy postęp
@@ -2497,14 +2497,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment069_snow_20_legs_7_name	Spodnie "Śnieg-20"
 st_srp_equipment069_snow_20_torso_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment069_snow_20_torso_7_name	Kamizelka kuloodporna "Śnieg-20"
-st_srp_exchange_balance	Saldo
-st_srp_exchange_button	Wymień
-st_srp_exchange_gold	Złoto
-st_srp_exchange_pay	Płacisz
-st_srp_exchange_receive	Otrzymujesz
-st_srp_exchange_short_gold	Za mało złota
-st_srp_exchange_short_silver	Za mało srebra
-st_srp_exchange_title	Wymiana
 st_srp_hide_hit_markers_option	Ukryj znaczniki trafień
 st_srp_hide_quests_option	Ukryj misje
 st_srp_hide_scores_option	Ukryj wyniki graczy

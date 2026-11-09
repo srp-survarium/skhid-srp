@@ -287,19 +287,17 @@ name belongs to whoever registers it first, as any name does.
 | `SRP_EXPERIENCE_RATE` | 2 | What a match's experience is multiplied by (1 to 100). 1 is the original's pace; 2 is the owner's choice of 2026-10-14 (it was 1 from 2026-10-12 and 3 before). Until 2026-10-14 it multiplied the reputation too, which now has `SRP_REPUTATION_RATE` |
 | `SRP_MONEY_RATE` | unset: by match level | The percent of the original's silver a match's three rows pay; premium's half follows. Unset, it goes by the match's level (the owner's choice of 2026-10-14): 150 at levels 0 to 5, ten more each level, 220 from level 12. Set (1 to 1000), it is that percent at every level (it was 120 from 2026-10-13, 80 before) |
 | `SRP_REPUTATION_RATE` | 120 | The percent of the original's reputation a match's rows and the quests completed in it pay (1 to 1000). 120 is the owner's choice of 2026-10-14 |
-| `SRP_ITEM_WEAR` | off | `on`: a match wears the weapons and armour of the kits played, as the game's data says, and a worn item may get a defect. Off is the owner's choice (2026-10-13): an item stays as it is. The first start of a database with it off makes every worn weapon and armour piece whole, once |
 | `SRP_DAILY_BONUS` | on | `off`: no doubled victories, no seven-day reward, and no daily bonus message to the client |
 | `SRP_DAILY_BONUS_RESET_HOUR` | 0 | The hour of UTC (0 to 23) a daily bonus day starts at |
-| `SRP_PREMIUM_PRICES` | `100,200,400,1000,2500,4500,8000` | Gold for premium time, shortest first: a day, 3 days, a week, a month, 90 days, 180 days, a year. 90 days = 2,500 is from a January 2015 sale notice; the rest is the owner's choice (2026-10-12). |
+| `SRP_PREMIUM_PRICES` | `10000,20000,40000,100000,250000,450000,800000` | Silver for premium time (gold is gone, 2026-11-08: the gold prices times 100), shortest first: a day, 3 days, a week, a month, 90 days, 180 days, a year. 90 days = 2,500 is from a January 2015 sale notice; the rest is the owner's choice (2026-10-12). |
 | `SRP_CLAN_COST` | 50000 | Silver to register a clan (owner's choice) |
 | `SRP_CLAN_MAX_MEMBERS` | 30 | Most members of a clan (owner's choice) |
 | `SRP_CLAN_PLAYERS_REQUIRED` | 1 | Players who must accept before a clan is registered. The game's text says 5: the example `.env` sets 5 for the live server |
 | `SRP_CLAN_TEAM_MIN`, `SRP_CLAN_TEAM_MAX` | 1, 10 | Players a clan team presses Play with |
 | `SRP_PREMIUM_DISCOUNT` | 0 | Percent off premium time for a player without premium (0 to 90); 0 offers none |
 | `SRP_PREMIUM_OFFER_SECONDS` | 3600 | How long the premium offer after a match stands (the client counts it down) |
-| `SRP_RENAME_COST` | the rename voucher's price in the game's dictionary | Gold for a nickname change |
+| `SRP_RENAME_COST` | the rename voucher's price in the game's dictionary | Silver for a nickname change |
 | `SRP_AMMO_USE` | on | `off`: a match takes no ammo off the account |
-| `SRP_ITEM_DEFECTS` | on | `off`: items get no defects |
 
 ### Web page (`servers/web-server`)
 

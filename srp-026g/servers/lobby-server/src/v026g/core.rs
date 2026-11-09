@@ -88,8 +88,8 @@ pub(super) struct Player<'a> {
     /// The squad info (0xA1 body) the client has, and its send.
     pub squad_sent: Option<Vec<u8>>,
     pub squad_serial: Option<u64>,
-    /// The balance the client has.
-    pub money_sent: (u32, u32),
+    /// The silver the client has.
+    pub money_sent: u32,
     /// The count of ranked players the client's ranking page has.
     pub ranked_sent: u32,
     /// The ranking pages it was sent, newest last, as (the index of the
@@ -420,7 +420,7 @@ impl<'a> Core<'a> {
             let account = who.account.locked();
             (
                 wire::after_change(&account, quests::now()),
-                (account.generic_money, account.premium_money),
+                account.generic_money,
             )
         };
         self.accounts.mark_dirty(who.account_id);
@@ -632,7 +632,7 @@ impl<'a> Core<'a> {
             // The account is seen today: its run of days for the daily
             // bonus is brought up to the day before the pushes.
             if !bot {
-                bonus::visit(&mut game, unix, &mut self.rng);
+                bonus::visit(&mut game, unix);
             }
             let notices = quests::refresh(&mut game, unix, &mut self.rng);
             // A new account's first quests are part of its start: in its
@@ -661,7 +661,7 @@ impl<'a> Core<'a> {
             };
             (
                 wire::sign_in_push(&game, &info),
-                (game.generic_money, game.premium_money),
+                game.generic_money,
             )
         };
         let mut push = match push {
@@ -990,10 +990,7 @@ impl<'a> Core<'a> {
             let Some(player) = self.player(addr) else {
                 continue;
             };
-            let balance = {
-                let account = player.account.locked();
-                (account.generic_money, account.premium_money)
-            };
+            let balance = player.account.locked().generic_money;
             // Somebody registered: the ranking page asks for rows by the
             // count it has, so it is told the new one before it is opened
             // (`8F` stores it, the `9D` after it hands it to the page;
@@ -1021,7 +1018,7 @@ impl<'a> Core<'a> {
                 .is_none_or(|at| now.saturating_duration_since(at) >= ONLINE_STATS_EVERY);
             // The web page, or a match's rewards, changed the balance.
             if balance != money_sent {
-                self.send(addr, lobby::money(balance.0, balance.1));
+                self.send(addr, lobby::money(balance));
             }
             if online != online_sent || stats_due {
                 self.send(addr, lobby::online_stats(online.0, online.1, online.2));
@@ -1034,10 +1031,6 @@ impl<'a> Core<'a> {
                 }
             }
             self.friend_statuses(addr);
-            // A repair that is over (`items`).
-            if let Some(who) = self.who(addr) {
-                self.item_timers(&who);
-            }
             // A match that ended after its player had left it.
             let in_lobby = self
                 .player(addr)

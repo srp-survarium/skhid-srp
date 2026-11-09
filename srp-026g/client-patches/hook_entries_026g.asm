@@ -2995,6 +2995,48 @@ hud_cursor_on_cursor_shown_replay:
     db 0x8b, 0x47, 0x18, 0x8d, 0x77, 0x0c
     jmp 0x23a998
 
+; 0x23a9b0 show_cursor's hide (mov edx,[edi+18h] / lea eax,[edi+0Ch], then the call of base_game_scene::hide_movie 0x23DC70 at 0x23A9B6; the je at 0x23A944 jumps here): kept skips the movie, the flag (+2DCh) still written at 0x23A9BB: lohook -> hud_cursor_on_cursor_hidden
+global hud_cursor_on_cursor_hidden
+extern hook_hud_cursor_on_cursor_hidden
+hud_cursor_on_cursor_hidden:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_cursor_on_cursor_hidden
+    mov edx, hud_cursor_on_cursor_hidden_replay
+    cmp eax, 0
+    je hud_cursor_on_cursor_hidden_go
+    mov edx, 0x23a9b6
+    cmp eax, 1
+    je hud_cursor_on_cursor_hidden_go
+    mov edx, 0x23a9bb
+    cmp eax, 2
+    je hud_cursor_on_cursor_hidden_go
+    ud2
+hud_cursor_on_cursor_hidden_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_cursor_on_cursor_hidden_replay:
+    db 0x8b, 0x57, 0x18, 0x8d, 0x47, 0x0c
+    jmp 0x23a9b6
+
 ; 0x200f50 game_options::activate's start (push ebp / mov ebp,esp / and esp,-8): the main menu about to be shown, over a match by Esc (activate_main_menu 0x1EDBDC) or over the lobby (0x28C5C9): lohook -> hud_cursor_on_menu_show
 global hud_cursor_on_menu_show
 extern hook_hud_cursor_on_menu_show
@@ -3150,6 +3192,45 @@ hud_options_on_process_start_go:
 hud_options_on_process_start_replay:
     db 0xb8, 0xa8, 0x11, 0x00, 0x00
     jmp 0xe9585
+
+; 0x3cf8ff res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow: lohook -> hud_options_on_present
+global hud_options_on_present
+extern hook_hud_options_on_present
+hud_options_on_present:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_present
+    mov edx, hud_options_on_present_replay
+    cmp eax, 0
+    je hud_options_on_present_go
+    mov edx, 0x3cf905
+    cmp eax, 1
+    je hud_options_on_present_go
+    ud2
+hud_options_on_present_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_present_replay:
+    db 0x8b, 0xb6, 0xcc, 0x00, 0x00, 0x00
+    jmp 0x3cf905
 
 ; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
 global language_on_options_call

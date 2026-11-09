@@ -18,11 +18,16 @@
 //! - Selling gives a quarter: `cost / 4`, times `condition / 100` for an item
 //!   that is no stack (`InventoryList.sellObject`, `ItemCard`). PROVEN (what
 //!   the client shows; the server pays).
-//! - A repair costs `(1 - condition / 100) * repair_cost_ratio * cost`, plus
-//!   the fix costs of the item's defects (`MessageRepair.init`). PROVEN.
-//! - A premium item's `cost` is in gold: the lobby multiplies it by the
-//!   premium exchange rate (service price 4, `lobby.md` §2.13) before
-//!   taking the quarter.
+//! - There is no repair (the owner, 2026-11-08): the stock one cost
+//!   `(1 - condition / 100) * repair_cost_ratio * cost` plus the defects'
+//!   fix costs (`MessageRepair.init`, PROVEN).
+//! - Every `cost` is silver, a premium item's too [srp, the owner's rule of
+//!   2026-11-08: silver is the one currency]. The stock lobby read a
+//!   premium item's `cost` as gold and multiplied it by the exchange rate
+//!   (service price 4, `lobby.md` §2.13) before taking the quarter; srp's
+//!   lobby movie does not, and the live data has every premium item's
+//!   `base_cost` at its gold price times [`GOLD_IN_SILVER`]
+//!   (`scripts/content-edit/items.tsv`).
 //!
 //! The price list (lobby 0x8A, `lobby.md` §2.10) is records of
 //! `u32 cost, u16 dict_id, u8 level, u8 faction_id`. `GangShop.setupShopItems`
@@ -85,10 +90,10 @@
 //!   `base_cost` [the owner's choice, 2026-11-07: vanity, so dear];
 //! - not listed: anything else with `base_cost` 0 (their ammo is listed at
 //!   no cost, see [`sellers_of_in`]; artefacts, money, the New Year 2015 camouflage), premium
-//!   items (their cost is gold; they belong to the premium shop, 0x95, or
-//!   are sold one by one for gold, `shop_offers`), artefacts (as 0.21d), vouchers,
+//!   items (they belong to the premium shop, 0x95, or are sold one by one
+//!   by seller 0, `shop_offers`), artefacts (as 0.21d), vouchers,
 //!   the other decals and the drop camouflages;
-//! - not sold at all, neither for silver nor for gold ([`ShopRule::NotSold`]): the
+//! - not sold at all, neither by a faction nor one by one ([`ShopRule::NotSold`]): the
 //!   Russian and Belarusian flags and coats of arms, the flag of the USSR
 //!   and the red star [the owner's choice, 2026-10-18]. srp does not touch
 //!   copies an account already owns (the owner removes them by hand);
@@ -103,8 +108,16 @@
 use binary_config_parser::tree::ConfigValue;
 
 use super::dictionary::{Dictionary, Item};
-use super::item_params::{ItemParams, item_params};
+use super::item_params::ItemParams;
 use super::scopes::{SCOPE_CATEGORY, ScopeFits};
+
+/// Silver for one gold: the game's exchange rate (0.21d's web page sold gold
+/// at it, and 0.26g's lobby was told it). Gold is gone [the owner,
+/// 2026-11-08]; at this rate: the balances, paid back once at the release
+/// (`session` `SqliteGameRepository::pay_back_once`), the premium items'
+/// prices (`items.tsv`), the premium shop's, the upgrade's and the
+/// modification change's prices, and gold a drop table rolls.
+pub const GOLD_IN_SILVER: u32 = 100;
 
 /// 0.26g faction ids (`factions_dict`), as 0.21d's.
 pub use crate::prices::faction;
@@ -122,7 +135,7 @@ const DECAL: u8 = 26;
 /// The `type` of a badge: a decal the game unlocked by a player's rank or
 /// a faction's (`char_decal_1_*`, `char_decal_2_*`), sold as gear
 /// ([`is_badge`]). The others are `drp_decl` (drops) and `prm_decl`
-/// (premium, for gold).
+/// (premium, `shop_offers`).
 pub const BADGE: &str = "unl_decl";
 
 /// Whether `item` is a badge: a decal of `type` [`BADGE`] that is not
@@ -133,7 +146,7 @@ pub fn is_badge(item: &Item, params: &ItemParams) -> bool {
 
 /// The `type` of a faction's own camouflage: a "stock" camouflage, sold for
 /// silver. The others are `drp_camo` (drops, `base_cost` 1) and `prm_camo`
-/// (premium, for gold; the New Year 2015 one costs nothing).
+/// (premium, `shop_offers`; the New Year 2015 one costs nothing).
 pub const SHOP_CAMO: &str = "stk_camo";
 
 /// The folder the camouflages' configs are filed in, one folder a faction.
@@ -220,7 +233,7 @@ pub enum ShopRule {
     /// `(seller, reputation level)`, by seller: an ammo's levels are not
     /// asked for ([`AMMO_NEEDS_RANK`]).
     Sellers(Vec<(u8, u8)>),
-    /// No shop sells it, neither for silver nor for gold.
+    /// No shop sells it, neither a faction nor the premium list.
     NotSold,
 }
 
@@ -495,50 +508,20 @@ pub fn buy_cost(dict_id: u16, steps: u32) -> Option<u64> {
     price(dict_id).map(|price| u64::from(price.cost) * u64::from(steps))
 }
 
-/// An item's `base_cost` in generic money: a premium item's gold times
-/// `premium_exchange_rate` (the rate the server gave the lobby).
-fn cost_in_generic_money(item: &Item, premium_exchange_rate: u32) -> u64 {
-    let cost = u64::from(item.base_cost);
-    if item.is_premium {
-        cost * u64::from(premium_exchange_rate)
-    } else {
-        cost
-    }
-}
-
-/// What the lobby shows for selling `dict_id`: a quarter of its cost, for a
-/// stack a step (`count` units are `count / shop_unit` steps), else times
-/// its condition (0..=100).
-pub fn sell_price(
-    dictionary: &Dictionary,
-    dict_id: u16,
-    condition_or_count: u32,
-    premium_exchange_rate: u32,
-) -> u64 {
-    let Some(item) = dictionary.item(dict_id) else {
-        return 0;
-    };
-    let quarter = cost_in_generic_money(item, premium_exchange_rate) / 4;
-    if item.is_stack {
-        quarter * u64::from(condition_or_count / super::item_params::shop_unit(dict_id))
-    } else {
-        quarter * u64::from(condition_or_count.min(100)) / 100
-    }
-}
-
-/// What the lobby shows for repairing `dict_id` from `condition` (0..=100)
-/// to full, without its defects' fix costs.
-pub fn repair_cost(dictionary: &Dictionary, dict_id: u16, condition: u32) -> u32 {
-    let (Some(item), Some(params)) = (dictionary.item(dict_id), item_params(dict_id)) else {
-        return 0;
-    };
-    let worn = 1.0 - condition.min(100) as f32 / 100.0;
-    (worn * (params.repair_cost_ratio * item.base_cost as f32)) as u32
+/// What the lobby shows for selling `steps` of `dict_id`: a quarter of its
+/// cost a step (a step: a clip of ammo, else one item;
+/// [`super::item_params::shop_unit`]). Items never wear (no repair, the
+/// owner 2026-11-08), so their condition counts for nothing.
+pub fn sell_price(dictionary: &Dictionary, dict_id: u16, steps: u32) -> u64 {
+    dictionary
+        .item(dict_id)
+        .map_or(0, |item| u64::from(item.base_cost) / 4 * u64::from(steps))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::v026g::item_params::item_params;
     use crate::v026g::game_data::key_value_config;
 
     #[test]
@@ -935,7 +918,11 @@ mod tests {
         for n in 1..=7 {
             let name = format!("decals_1_{n}");
             assert_eq!(sold_by(&name), [(0, 0)], "{name}");
-            let price = if n == 1 { 50_000 } else { 1_000_000 };
+            let price = match n {
+                1 => 50_000,
+                2 => 10_000_000,
+                _ => 1_000_000,
+            };
             assert_eq!(cost(&name), price, "{name}");
         }
         assert_eq!(sold_by("decals_1_8"), [(0, 0)]);
@@ -987,7 +974,8 @@ mod tests {
         for &(dict_id, _) in &reviewed {
             let item = dictionary.item(dict_id).unwrap();
             let params = item_params(dict_id).unwrap();
-            assert!(item.is_premium && item.base_cost == 300 && params.kind == "prm_decl");
+            // 300 gold, in silver.
+            assert!(item.is_premium && item.base_cost == 30_000 && params.kind == "prm_decl");
             assert!(is_not_sold(item));
             assert!(sellers(dict_id).is_empty() && buy_cost(dict_id, 1).is_none());
             // Were it no premium item, still no seller.
@@ -996,8 +984,8 @@ mod tests {
                 ..item.clone()
             };
             assert_eq!(sellers_of(dictionary, &silver, params), []);
-            // An owned one sells back for a quarter of its 300 gold.
-            assert_eq!(sell_price(dictionary, dict_id, 100, 100), 7_500);
+            // An owned one sells back for a quarter of its price.
+            assert_eq!(sell_price(dictionary, dict_id, 1), 7_500);
         }
         // The other flags and coats of arms are not in it, the coat of arms
         // of Lithuania (the Vytis) included.
@@ -1007,21 +995,16 @@ mod tests {
     }
 
     #[test]
-    fn selling_gives_a_quarter_and_repair_goes_by_the_wear() {
+    fn selling_gives_a_quarter_a_step() {
         let dictionary = Dictionary::shared();
-        // The AK-74M at full condition and at 40.
-        assert_eq!(sell_price(dictionary, 3, 100, 100), 11875);
-        assert_eq!(sell_price(dictionary, 3, 40, 100), 4750);
+        // The AK-74M.
+        assert_eq!(sell_price(dictionary, 3, 1), 11875);
         // Two clips of 5.45: 7 a clip (a quarter of 30).
-        assert_eq!(sell_price(dictionary, 7, 60, 100), 14);
-        // A premium item's cost is gold: the Uzi, 500 gold at 100 a gold.
+        assert_eq!(sell_price(dictionary, 7, 2), 14);
+        // A premium item's cost is silver as any other's: the Uzi's 500 gold
+        // is 50,000 (`items.tsv`).
         let uzi = dictionary.item_named("uzi_premium").unwrap().dict_id;
-        assert_eq!(sell_price(dictionary, uzi, 100, 100), 12500);
-        // Repair: ratio 0.1 of 47500 for the whole, a half for a half.
-        assert_eq!(repair_cost(dictionary, 3, 0), 4750);
-        assert_eq!(repair_cost(dictionary, 3, 50), 2375);
-        assert_eq!(repair_cost(dictionary, 3, 100), 0);
-        assert_eq!(repair_cost(dictionary, 7, 0), 0);
+        assert_eq!(sell_price(dictionary, uzi, 1), 12_500);
     }
 
     /// The owner's choice: the starting Mosin carbine and PPSh-41 (2026-10-18,
@@ -1041,7 +1024,7 @@ mod tests {
             assert_eq!(records, [(0, 0, cost)], "{name}");
             assert_eq!(buy_cost(dict_id, 1), Some(u64::from(cost)), "{name}");
             let quarter = u64::from(cost / 4);
-            assert_eq!(sell_price(dictionary, dict_id, 100, 100), quarter, "{name}");
+            assert_eq!(sell_price(dictionary, dict_id, 1), quarter, "{name}");
         }
     }
 
@@ -1271,7 +1254,7 @@ mod tests {
             assert_eq!(dictionary.item(dict_id).unwrap().base_cost, cost);
             // Selling back pays a quarter, as the client shows.
             assert_eq!(
-                sell_price(&dictionary, dict_id, 100, 100),
+                sell_price(&dictionary, dict_id, 1),
                 u64::from(cost / 4)
             );
         }

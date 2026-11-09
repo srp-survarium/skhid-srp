@@ -396,10 +396,7 @@ package survarium.friends
          _data.sended = true;
          dispatchEvent(new Event(Event.CONNECT,true));
          var messageType:uint = (_data.type);
-         if(data.id != LobbyMenu.TEST_IMPORTANT_MESSAGE_ID)
-         {
-            ExternalInterface.call("important_message_read",data.id,answer,messageType);
-         }
+         ExternalInterface.call("important_message_read",data.id,answer,messageType);
       }
       
       protected function deselect(event:Event = null) : void

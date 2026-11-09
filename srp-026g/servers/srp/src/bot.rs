@@ -273,7 +273,7 @@ struct Lobby {
     faults_told: usize,
     /// The kit the account plays, and what it was told it has.
     kit: Option<u32>,
-    money: Option<(u32, u32)>,
+    money: Option<u32>,
     /// The room it is in and its members, as last told, so that only
     /// changes are printed; and when it last asked.
     room: Option<(u32, u32)>,
@@ -447,7 +447,8 @@ impl Bot {
                         .or(kits.first())
                         .map(|kit| kit.id);
                 }
-                Decoded::Money { generic, premium } => lobby.money = Some((*generic, *premium)),
+                // Its second number, gold, is always 0: gold is gone.
+                Decoded::Money { generic, .. } => lobby.money = Some(*generic),
                 Decoded::ClientState { state, .. } => {
                     lobby.in_lobby = *state == ClientState::Lobby;
                     if let ClientState::InQueue { order_id, .. }
@@ -526,9 +527,7 @@ impl Bot {
             Stage::SignedOut(_) | Stage::Done => {}
             Stage::SigningIn(since) => {
                 if in_lobby && kit.is_some() {
-                    let money = money.map_or(String::new(), |(silver, gold)| {
-                        format!(", {silver} silver and {gold} gold")
-                    });
+                    let money = money.map_or(String::new(), |silver| format!(", {silver} silver"));
                     self.say(&format!(
                         "in the lobby: the account has kit {}{money}",
                         kit.unwrap_or(0)

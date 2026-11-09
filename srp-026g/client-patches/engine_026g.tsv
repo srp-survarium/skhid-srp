@@ -169,6 +169,8 @@ engine_ray_needs_collision	0x075bd0	ECX:this ESP+4:proxy	unsigned char engine_ra
 engine_ray_test_single	0x0a02d0	ESP+4:rayFromTrans ESP+8:rayToTrans ESP+12:object ESP+16:shape ESP+20:transform ESP+24:callback	void engine_ray_test_single(struct bt_transform *from, struct bt_transform *to, struct bt_collision_object *object, struct bt_collision_shape *shape, struct bt_transform *transform, struct closest_ray_result_callback *callback)	cdecl	
 engine_key_name	0x3b9c00	ECX:keyboard ESP+4:key ESP+8:buffer ESP+12:size	unsigned char engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size)	thiscall	
 engine_activate_keyboard_layout	0xaeff20	-	unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)	import	
+engine_get_window_long_a	0xaefe8c	-	unsigned int engine_get_window_long_a(void *window, unsigned int index)	import	
+engine_set_window_long_a	0xaeff44	-	unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)	import	
 engine_get_module_handle_a	0x87003c	-	void *engine_get_module_handle_a(const char *name)	import	
 engine_match_packet_begin	survarium::match_client+0x18	ECX:client ESP+4:id	struct match_packet *engine_match_packet_begin(struct match_options_holder *client, unsigned int id)	virtual
 engine_match_packet_send	survarium::match_client+0x1c	ECX:client ESP+4:packet	void engine_match_packet_send(struct match_options_holder *client, struct match_packet *packet)	virtual
@@ -180,6 +182,7 @@ engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_fi
 engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
 engine_discard_playing_order	0x2717e0	ESP+4:lobby ESP+8:left	void engine_discard_playing_order(struct lobby_client *client, unsigned int left)	stdcall	
+engine_finish_key_binding	0x2015a0	EDI:options	void engine_finish_key_binding(struct game_options *options)	thunk	
 engine_follow_player	0x242b90	ECX:client ESP+4:player	void engine_follow_player(struct network_client *client, struct player *player)	thiscall
 engine_spectator_camera	0x1f8360	EDX:world	void engine_spectator_camera(struct game_world *world)	thunk
 engine_detach_player	0x242cc0	ECX:client	void engine_detach_player(struct network_client *client)	thiscall	
