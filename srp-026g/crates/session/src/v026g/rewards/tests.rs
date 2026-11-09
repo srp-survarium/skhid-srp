@@ -3506,7 +3506,14 @@ fn a_drop_card_on_a_pve_match_rolls_at_level_seven() {
 
 /// The history's records made so far and not written.
 fn history_of(results: &Results) -> Vec<MatchRecord> {
-    results.inner.locked().changes.history.clone()
+    results
+        .inner
+        .locked()
+        .changes
+        .history
+        .iter()
+        .map(|pending| pending.record.clone())
+        .collect()
 }
 
 #[test]
@@ -3793,6 +3800,68 @@ fn a_research_match_keeps_captures_not_batteries() {
     results.settle(&result, &store, &terms(), &mut Rng::new(1));
     let counters = history_of(&results)[0].players[0].line.counters;
     assert_eq!((counters.capture_hundredths, counters.batteries), (150, 0));
+}
+
+/// A repository that cannot write a match to the history (a row that breaks
+/// one of its CHECKs would do).
+struct HistoryFails {
+    inner: MemoryGameRepository,
+}
+
+impl GameRepository for HistoryFails {
+    fn load_all(&mut self) -> Result<Vec<(u32, Account)>, crate::persist::PersistError> {
+        self.inner.load_all()
+    }
+    fn save(
+        &mut self,
+        account_id: u32,
+        account: &Account,
+    ) -> Result<(), crate::persist::PersistError> {
+        self.inner.save(account_id, account)
+    }
+    fn describe(&self) -> String {
+        "history fails".to_owned()
+    }
+    fn load_results(&mut self) -> Result<Vec<(String, String)>, crate::persist::PersistError> {
+        self.inner.load_results()
+    }
+    fn save_result(&mut self, key: &str, body: &str) -> Result<(), crate::persist::PersistError> {
+        self.inner.save_result(key, body)
+    }
+    fn delete_result(&mut self, key: &str) -> Result<(), crate::persist::PersistError> {
+        self.inner.delete_result(key)
+    }
+    fn record_match(
+        &mut self,
+        _record: &history::MatchRecord,
+    ) -> Result<(), crate::persist::PersistError> {
+        Err(crate::persist::PersistError::GameData("a CHECK".to_owned()))
+    }
+}
+
+/// A match that cannot be written is tried again a bounded number of times,
+/// then dropped: it does not stay in the changes for ever.
+#[test]
+fn a_match_the_history_cannot_take_is_dropped_after_its_tries() {
+    let players = alice_and_bob();
+    let store =
+        GameAccounts::with_repository(Box::new(MemoryGameRepository::default())).unwrap();
+    for player in &players {
+        store.get_or_create(player.account_id, &player.name);
+    }
+    let results = Results::attached(&store);
+    results.settle(&result(players), &store, &terms(), &mut Rng::new(1));
+    assert_eq!(history_of(&results).len(), 1);
+    let mut repository = HistoryFails {
+        inner: MemoryGameRepository::default(),
+    };
+    for _ in 1..RECORD_TRIES {
+        results.save_changes(&mut repository);
+        assert_eq!(history_of(&results).len(), 1, "retried");
+    }
+    results.save_changes(&mut repository);
+    assert!(history_of(&results).is_empty(), "dropped");
+    assert!(results.inner.locked().changes.is_empty());
 }
 
 #[test]
