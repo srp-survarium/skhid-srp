@@ -10,12 +10,18 @@ from unittest.mock import patch
 
 import run
 
+# The exe reader itself, for the test of the revision check; the other tests have no exe files.
+READ_REVISION = run.exe_revision
+
 
 class LauncherTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        revision = patch.object(run, "exe_revision", return_value=None)
+        revision.start()
+        self.addCleanup(revision.stop)
         self.path = self.root / "config.json"
         self.data = {
             "id": "12345678-1234-1234-1234-123456789abc",
@@ -172,6 +178,48 @@ class LauncherTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     run.start(self.config, {"id": self.config.identity, "clients": {}}, count, False)
             launch.assert_not_called()
+
+    def exe(self, name, revision):
+        """A minimal PE whose one section holds the revision site (None: the original's bytes)."""
+        image_base, rva, raw = 0x10000, 0x1000, 0x200
+        site = run.REVISION_ORIGINAL if revision is None else bytes([0xC6, 0x44, 0x24, 0x27, revision, 0x90])
+        data = bytearray(raw + 0x400000)
+        data[0x3C:0x40] = (0x80).to_bytes(4, "little")
+        data[0x80:0x84] = b"PE\0\0"
+        data[0x86:0x88] = (1).to_bytes(2, "little")
+        data[0x94:0x96] = (0xE0).to_bytes(2, "little")
+        data[0x98 + 28:0x98 + 32] = image_base.to_bytes(4, "little")
+        section = 0x98 + 0xE0
+        for offset, value in [(8, 0x400000), (12, rva), (16, 0x400000), (20, raw)]:
+            data[section + offset:section + offset + 4] = value.to_bytes(4, "little")
+        at = raw + run.REVISION_VA - image_base - rva
+        data[at:at + 6] = site
+        path = self.root / "game with spaces/binaries/x86" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+    @patch.object(run, "exe_revision", READ_REVISION)
+    def test_an_exe_older_than_the_server_takes_is_refused_before_anything_starts(self):
+        self.data["server"]["env"] = {"SRP_MIN_PATCH_REVISION": "54"}
+        self.data["accounts"][0]["executable"] = "new.exe"
+        self.data["accounts"][1]["executable"] = "old.exe"
+        self.exe("new.exe", 54)
+        self.exe("old.exe", 51)
+        config = self.load()
+        self.assertEqual([revision for _, revision in run.check_revisions(config, 1)], [54])
+        with self.assertRaisesRegex(ValueError, "Bob plays old.exe \\(patch revision 51\\)"):
+            run.check_revisions(config, 2)
+        self.exe("old.exe", None)
+        with self.assertRaisesRegex(ValueError, "Bob plays old.exe"):
+            run.check_revisions(config, 2)
+        with patch.object(run, "preflight"), patch.object(run, "prepare_prefix"), \
+                patch.object(run, "launch") as launch:
+            with self.assertRaises(ValueError):
+                run.start(config, {"id": config.identity, "clients": {}}, 2, False)
+            launch.assert_not_called()
+        # No least revision configured: anything starts, as the server takes anything.
+        del self.data["server"]["env"]
+        self.assertEqual([revision for _, revision in run.check_revisions(self.load(), 2)], [54, None])
 
 
 if __name__ == "__main__":

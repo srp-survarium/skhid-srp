@@ -3,7 +3,7 @@
 //! must hold what the account does.
 
 use survarium::v026g::lobby::client_model::Client;
-use survarium::v026g::lobby::{self, ItemDescr, ServerMessage};
+use survarium::v026g::lobby::{self, FULL_CONDITION, ItemDescr, ServerMessage};
 
 use super::*;
 use crate::v026g::account::{KitSlot, Reroll};
@@ -28,7 +28,6 @@ fn decal() -> u16 {
 fn rich() -> Account {
     let mut account = Account::new("Alice");
     account.generic_money = 1_000_000;
-    account.premium_money = 1_000;
     account
 }
 
@@ -62,7 +61,7 @@ fn takes(client: &mut Client, message: &ServerMessage, account: &Account) {
     let held: Vec<ItemDescr> = account
         .inventory
         .iter()
-        .map(|item| wire::item_descr_at(item, NOW))
+        .map(wire::item_descr)
         .collect();
     let mut seen = client.inventory().to_vec();
     // The order of an item's upgrades is the client's own.
@@ -385,7 +384,7 @@ fn a_cosmetic_put_on_another_item_stays_on_the_first() {
 /// owned item: 0.26g's own Leupold (69) and PSO-1 (304) stand for two
 /// shop scopes. The variants' stand-ins are other ids the dictionary has
 /// (the 1P69 and two rifles): the wire sends only a record whose dict id is
-/// an item of the game data (`wire::item_descr_at`).
+/// an item of the game data (`wire::item_descr`).
 const SCOPE: u16 = 69;
 const OTHER_SCOPE: u16 = 304;
 const AK_VARIANT: u16 = 362;
@@ -638,7 +637,7 @@ fn a_wrong_scope_record_is_taken_off() {
 #[test]
 fn a_modification_is_changed_for_one_of_three() {
     let mut account = rich();
-    // A level 10 rifle: 2400 silver or 12 gold a change.
+    // A level 10 rifle: 1200 silver a change (its 12 gold of the game's data).
     let rifle = give(&mut account, "ak_74m", &[2000, 2010]);
     let mut client = client_of(&account);
     let mut rng = Rng::new(5);
@@ -649,48 +648,42 @@ fn a_modification_is_changed_for_one_of_three() {
         window,
         RerollWindow {
             item_id: rifle,
-            regular_cost: 2400,
-            premium_cost: 12,
+            cost: 1200,
             changed: None,
             offer: None
         }
     );
-    let message = lobby::permitted_reroll_window(rifle, 2400, 12, None);
+    let message = lobby::permitted_reroll_window(rifle, 1200, 0, None);
     let mut expected = vec![0x83, 0x46, 0x06];
     expected.extend(rifle.to_le_bytes());
-    expected.extend([0x60, 0x09, 0, 0, 12, 0, 0, 0, 0]);
+    expected.extend([0xB0, 0x04, 0, 0, 0, 0, 0, 0, 0]);
     assert_eq!(bytes(&message), expected);
     takes(&mut client, &message, &account);
     assert!(reroll_window(&account, 999).is_err());
 
     // A modification it has not, and a defect's id.
     assert_eq!(
-        reroll(&mut account, rifle, 2020, false, NOW, &mut rng),
+        reroll(&mut account, rifle, 2020, &mut rng),
         Err(ItemError::Reroll("the item has no such modification"))
     );
     // Not without the silver.
     let mut poor = account.clone();
-    poor.generic_money = 2399;
+    poor.generic_money = 1199;
     assert_eq!(
-        reroll(&mut poor, rifle, 2000, false, NOW, &mut rng),
+        reroll(&mut poor, rifle, 2000, &mut rng),
         Err(ItemError::NotEnoughMoney)
     );
     assert_eq!(poor, {
         let mut same = account.clone();
-        same.generic_money = 2399;
+        same.generic_money = 1199;
         same
     });
-    poor.premium_money = 11;
-    assert_eq!(
-        reroll(&mut poor, rifle, 2000, true, NOW, &mut rng),
-        Err(ItemError::NotEnoughGold)
-    );
 
     // Paid in silver: three are offered, and silver does not wait (the owner's rule of 2026-10-22).
-    let rolled = reroll(&mut account, rifle, 2000, false, NOW, &mut rng).unwrap();
-    assert_eq!(rolled.paid, (2400, 0));
+    let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
+    assert_eq!(rolled.paid, 1200);
     assert_eq!(rolled.reroll_seconds, 0);
-    assert_eq!(account.generic_money, 1_000_000 - 2400);
+    assert_eq!(account.generic_money, 1_000_000 - 1200);
     let table = Modifications::shared();
     for &choice in &rolled.choices {
         assert!(table.fits(dict("ak_74m"), &[2010], choice));
@@ -701,12 +694,9 @@ fn a_modification_is_changed_for_one_of_three() {
         item.reroll,
         Reroll {
             modification: 2000,
-            count: 1,
             offer: Some((2000, rolled.choices))
         }
     );
-    // No wait before the next silver reroll (the owner's rule of 2026-10-22).
-    assert_eq!(item.reroll_time, 0);
     // Nothing of the item changed yet.
     assert_eq!(own_modifications(item), [2000, 2010]);
     let message = lobby::permitted_reroll_result(rifle, rolled.choices, rolled.reroll_seconds);
@@ -721,11 +711,11 @@ fn a_modification_is_changed_for_one_of_three() {
 
     // Asked again before the choice (the client came back): the same
     // three, and nothing more is taken.
-    let again = reroll(&mut account, rifle, 2000, true, NOW + 60, &mut rng).unwrap();
+    let again = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
     assert_eq!(again.choices, rolled.choices);
-    assert_eq!(again.paid, (0, 0));
+    assert_eq!(again.paid, 0);
     assert_eq!(again.reroll_seconds, 0);
-    assert_eq!(account.premium_money, 1_000);
+    assert_eq!(account.generic_money, 1_000_000 - 1200);
     let window = reroll_window(&account, rifle).unwrap();
     assert_eq!(window.offer, Some(rolled.choices));
     assert_eq!(window.changed, Some((2000, 0)));
@@ -747,8 +737,7 @@ fn a_modification_is_changed_for_one_of_three() {
         chosen.window,
         RerollWindow {
             item_id: rifle,
-            regular_cost: 2400,
-            premium_cost: 12,
+            cost: 1200,
             changed: Some((rolled.choices[1], 0)),
             offer: None
         }
@@ -758,12 +747,12 @@ fn a_modification_is_changed_for_one_of_three() {
     assert_eq!(own_modifications(item), [rolled.choices[1], 2010]);
     assert_eq!(item.reroll.offer, None);
     let message =
-        lobby::permitted_modifier_chosen(rifle, 2000, chosen.new_modification, [2400, 12, 0]);
+        lobby::permitted_modifier_chosen(rifle, 2000, chosen.new_modification, [1200, 0, 0]);
     let mut expected = vec![0x83, 0x46, 0x08];
     expected.extend(rifle.to_le_bytes());
     expected.extend(2000_u32.to_le_bytes());
     expected.extend(chosen.new_modification.to_le_bytes());
-    expected.extend([0x60, 0x09, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0]);
+    expected.extend([0xB0, 0x04, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     assert_eq!(bytes(&message), expected);
     takes(&mut client, &message, &account);
     assert_eq!(
@@ -771,18 +760,17 @@ fn a_modification_is_changed_for_one_of_three() {
         Err(ItemError::Reroll("nothing was offered"))
     );
 
-    // The new one may be changed again, in gold or silver at once (no
+    // The new one may be changed again at once (no
     // wait: the owner's rule of 2026-10-22); so may the others
     // (`every_modification_of_an_item_may_be_changed`).
     let new = chosen.new_modification;
-    let rolled = reroll(&mut account, rifle, new, true, NOW + 100, &mut rng).unwrap();
-    assert_eq!(rolled.paid, (0, 12));
-    assert_eq!(account.premium_money, 1_000 - 12);
+    let rolled = reroll(&mut account, rifle, new, &mut rng).unwrap();
+    assert_eq!(rolled.paid, 1200);
+    assert_eq!(account.generic_money, 1_000_000 - 2 * 1200);
     assert_eq!(rolled.reroll_seconds, 0);
     let chosen = choose_modifier(&mut account, rifle, new, 0).unwrap();
-    assert_eq!(chosen.window.regular_cost, 2400);
+    assert_eq!(chosen.window.cost, 1200);
     // Silver pays again at once.
-    let later = NOW + 200;
     assert_eq!(reroll_window(&account, rifle).unwrap().changed, {
         Some((chosen.new_modification, 0))
     });
@@ -790,38 +778,15 @@ fn a_modification_is_changed_for_one_of_three() {
         &mut account,
         rifle,
         chosen.new_modification,
-        false,
-        later,
         &mut rng,
     )
     .unwrap();
-    assert_eq!(rolled.paid, (2400, 0));
+    assert_eq!(rolled.paid, 1200);
 
-    // A damaged item, a stack and an item in repair can not be changed.
+    // A stack can not be changed.
     let mut account = rich();
-    let broken = give(&mut account, "ak_74m", &[2000]);
-    account
-        .item_mut(broken)
-        .unwrap()
-        .modifications
-        .push((3000, true));
-    assert_eq!(
-        reroll(&mut account, broken, 2000, false, NOW, &mut rng),
-        Err(ItemError::RerollBroken)
-    );
-    assert_eq!(
-        ItemError::RerollBroken.text_key(),
-        "st_reroll_message_broken_item"
-    );
     let ammo = account.kits[0].slots[8].unwrap().item_id;
-    assert!(reroll(&mut account, ammo, 2000, false, NOW, &mut rng).is_err());
-    let busy = give(&mut account, "ak_74m", &[2000]);
-    account.item_mut(busy).unwrap().repair_time = (NOW + 10) as u32;
-    assert_eq!(
-        reroll(&mut account, busy, 2000, true, NOW, &mut rng),
-        Err(ItemError::Reroll("the item is in repair"))
-    );
-    assert!(reroll(&mut account, busy, 2000, true, NOW + 10, &mut rng).is_ok());
+    assert!(reroll(&mut account, ammo, 2000, &mut rng).is_err());
 }
 
 /// `docs/notes/reroll-keep-old.md`.
@@ -834,10 +799,10 @@ fn a_change_may_be_given_up_for_the_old_one() {
 
     // Paid when the three are offered; the item keeps the old one until
     // the choice.
-    let rolled = reroll(&mut account, rifle, 2000, false, NOW, &mut rng).unwrap();
-    assert_eq!(rolled.paid, (2400, 0));
+    let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
+    assert_eq!(rolled.paid, 1200);
     let paid = account.generic_money;
-    assert_eq!(paid, 1_000_000 - 2400);
+    assert_eq!(paid, 1_000_000 - 1200);
     let item = account.item(rifle).unwrap();
     assert_eq!(own_modifications(item), [2000, 2010]);
     takes(
@@ -848,21 +813,17 @@ fn a_change_may_be_given_up_for_the_old_one() {
 
     // A pending offer is saved with the item and kept by the load (a
     // restart, the client gone): the same three come back, and no second
-    // change is made or paid for until it is answered, in silver or gold.
+    // change is made or paid for until it is answered.
     let mut loaded = account.item(rifle).unwrap().clone();
     make_safe(&mut loaded);
     assert_eq!(loaded.reroll.offer, Some((2000, rolled.choices)));
     // (Whichever modification is named: the window shows the offer.)
-    for (modification, gold) in [(2000, false), (2000, true), (2010, true)] {
-        let again = reroll(&mut account, rifle, modification, gold, NOW + 30, &mut rng).unwrap();
+    for modification in [2000, 2000, 2010] {
+        let again = reroll(&mut account, rifle, modification, &mut rng).unwrap();
         assert_eq!(again.choices, rolled.choices);
-        assert_eq!(again.paid, (0, 0));
+        assert_eq!(again.paid, 0);
     }
-    assert_eq!(
-        (account.generic_money, account.premium_money),
-        (paid, 1_000)
-    );
-    assert_eq!(account.item(rifle).unwrap().reroll.count, 1);
+    assert_eq!(account.generic_money, paid);
 
     // Keep the old one: named as the one being changed.
     assert_eq!(
@@ -878,8 +839,7 @@ fn a_change_may_be_given_up_for_the_old_one() {
         kept.window,
         RerollWindow {
             item_id: rifle,
-            regular_cost: 2400,
-            premium_cost: 12,
+            cost: 1200,
             changed: Some((2000, 0)),
             offer: None
         }
@@ -890,7 +850,6 @@ fn a_change_may_be_given_up_for_the_old_one() {
         item.reroll,
         Reroll {
             modification: 2000,
-            count: 1,
             offer: None
         }
     );
@@ -900,7 +859,7 @@ fn a_change_may_be_given_up_for_the_old_one() {
     expected.item_mut(rifle).unwrap().reroll.offer = None;
     assert_eq!(account, expected);
     // The client's copies stay as they were.
-    let message = lobby::permitted_modifier_chosen(rifle, 2000, 2000, [2400, 12, 0]);
+    let message = lobby::permitted_modifier_chosen(rifle, 2000, 2000, [1200, 0, 0]);
     takes(&mut client, &message, &account);
 
     // Answered once: neither a choice nor keeping it again.
@@ -912,21 +871,17 @@ fn a_change_may_be_given_up_for_the_old_one() {
     }
     assert_eq!(account, expected);
 
-    // The next change is paid again (gold now: silver waits), and its
+    // The next change is paid again, and its
     // choice takes the new one in the old one's place.
-    let rolled = reroll(&mut account, rifle, 2000, true, NOW + 60, &mut rng).unwrap();
-    assert_eq!(rolled.paid, (0, 12));
-    assert_eq!(account.premium_money, 1_000 - 12);
+    let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
+    assert_eq!(rolled.paid, 1200);
     let chosen = choose_modifier(&mut account, rifle, 2000, 2).unwrap();
     assert_eq!(chosen.new_modification, rolled.choices[2]);
     assert_eq!(
         own_modifications(account.item(rifle).unwrap()),
         [rolled.choices[2], 2010]
     );
-    assert_eq!(
-        (account.generic_money, account.premium_money),
-        (paid, 1_000 - 12)
-    );
+    assert_eq!(account.generic_money, paid - 1200);
 }
 
 /// The owner's rule of 2026-10-22: any modification of an item may be
@@ -937,13 +892,13 @@ fn a_change_may_be_given_up_for_the_old_one() {
 #[test]
 fn every_modification_of_an_item_may_be_changed() {
     let mut account = rich();
-    // A level 10 rifle: 2400 silver or 12 gold a change.
+    // A level 10 rifle: 1200 silver a change (its 12 gold of the game's data).
     let rifle = give(&mut account, "ak_74m", &[2000, 2010, 2020]);
     let mut client = client_of(&account);
     let mut rng = Rng::new(11);
     let table = Modifications::shared();
-    let mut change = |account: &mut Account, client: &mut Client, old: u32, gold, choice| {
-        let rolled = reroll(account, rifle, old, gold, NOW, &mut rng).unwrap();
+    let mut change = |account: &mut Account, client: &mut Client, old: u32, choice| {
+        let rolled = reroll(account, rifle, old, &mut rng).unwrap();
         let others: Vec<u32> = own_modifications(account.item(rifle).unwrap())
             .into_iter()
             .filter(|&id| id != old)
@@ -965,7 +920,7 @@ fn every_modification_of_an_item_may_be_changed() {
                 rifle,
                 old,
                 chosen.new_modification,
-                [window.regular_cost, window.premium_cost, 0],
+                [window.cost, 0, 0],
             ),
             account,
         );
@@ -973,28 +928,27 @@ fn every_modification_of_an_item_may_be_changed() {
     };
 
     // The first: 2000, in silver.
-    let (paid, first, window) = change(&mut account, &mut client, 2000, false, 0);
-    assert_eq!(paid, (2400, 0));
+    let (paid, first, window) = change(&mut account, &mut client, 2000, 0);
+    assert_eq!(paid, 1200);
     assert_eq!(window.changed, Some((first, 0)));
-    assert_eq!((window.regular_cost, window.premium_cost), (2400, 12));
+    assert_eq!(window.cost, 1200);
 
     // The second, another one: not locked out, and the same price.
-    let (paid, second, window) = change(&mut account, &mut client, 2010, false, 1);
-    assert_eq!(paid, (2400, 0));
+    let (paid, second, window) = change(&mut account, &mut client, 2010, 1);
+    assert_eq!(paid, 1200);
     assert_eq!(window.changed, Some((second, 0)));
-    assert_eq!((window.regular_cost, window.premium_cost), (2400, 12));
+    assert_eq!(window.cost, 1200);
     assert_eq!(
         own_modifications(account.item(rifle).unwrap()),
         [first, second, 2020]
     );
 
-    // The third, in gold, kept: paid all the same.
-    let (paid, kept, window) =
-        change(&mut account, &mut client, 2020, true, KEEP_OLD_MODIFICATION);
-    assert_eq!(paid, (0, 12));
+    // The third, kept: paid all the same.
+    let (paid, kept, window) = change(&mut account, &mut client, 2020, KEEP_OLD_MODIFICATION);
+    assert_eq!(paid, 1200);
     assert_eq!(kept, 2020);
     assert_eq!(window.changed, Some((2020, 0)));
-    assert_eq!((window.regular_cost, window.premium_cost), (2400, 12));
+    assert_eq!(window.cost, 1200);
     assert_eq!(
         own_modifications(account.item(rifle).unwrap()),
         [first, second, 2020]
@@ -1002,10 +956,10 @@ fn every_modification_of_an_item_may_be_changed() {
 
     // The first changed again. While it is offered, naming another one
     // shows the same three and takes nothing: one offer at a time.
-    let rolled = reroll(&mut account, rifle, first, false, NOW, &mut rng).unwrap();
-    assert_eq!(rolled.paid, (2400, 0));
-    let again = reroll(&mut account, rifle, second, true, NOW, &mut rng).unwrap();
-    assert_eq!((again.choices, again.paid), (rolled.choices, (0, 0)));
+    let rolled = reroll(&mut account, rifle, first, &mut rng).unwrap();
+    assert_eq!(rolled.paid, 1200);
+    let again = reroll(&mut account, rifle, second, &mut rng).unwrap();
+    assert_eq!((again.choices, again.paid), (rolled.choices, 0));
     assert_eq!((rolled.replaced, rolled.again), (first, false));
     assert_eq!((again.replaced, again.again), (first, true));
     assert_eq!(
@@ -1018,10 +972,7 @@ fn every_modification_of_an_item_may_be_changed() {
         own_modifications(account.item(rifle).unwrap()),
         [rolled.choices[2], second, 2020]
     );
-    assert_eq!(
-        (chosen.window.regular_cost, chosen.window.premium_cost),
-        (2400, 12)
-    );
+    assert_eq!(chosen.window.cost, 1200);
 
     // Four changes, each paid once.
     let item = account.item(rifle).unwrap();
@@ -1029,130 +980,95 @@ fn every_modification_of_an_item_may_be_changed() {
         item.reroll,
         Reroll {
             modification: rolled.choices[2],
-            count: 4,
             offer: None
         }
     );
-    assert_eq!(
-        (account.generic_money, account.premium_money),
-        (1_000_000 - 3 * 2400, 1_000 - 12)
-    );
+    assert_eq!(account.generic_money, 1_000_000 - 4 * 1200);
 }
 
 /// The owner's rule of 2026-10-25 (`docs/notes/flat-reroll.md`): the
 /// Nth change costs what the first did, and the window shows what is
-/// taken. An item with many changes from before pays the same.
+/// taken.
 #[test]
 fn every_change_costs_the_first_ones_price() {
     let mut rng = Rng::new(3);
-    for count in [0, 1, 4, 9, 1_000, u32::MAX] {
-        for gold in [false, true] {
-            let mut account = rich();
-            let rifle = give(&mut account, "ak_74m", &[2000, 2010]);
-            account.item_mut(rifle).unwrap().reroll.count = count;
-            let window = reroll_window(&account, rifle).unwrap();
-            assert_eq!((window.regular_cost, window.premium_cost), (2400, 12));
-            let shown = if gold {
-                window.premium_cost
-            } else {
-                window.regular_cost
-            };
-            let before = (account.generic_money, account.premium_money);
-            let rolled = reroll(&mut account, rifle, 2000, gold, NOW, &mut rng).unwrap();
-            let taken = (
-                before.0 - account.generic_money,
-                before.1 - account.premium_money,
-            );
-            let expected = if gold { (0, shown) } else { (shown, 0) };
-            assert_eq!((rolled.paid, taken), (expected, expected));
-            // The count does not wrap round.
-            assert_eq!(
-                account.item(rifle).unwrap().reroll.count,
-                count.saturating_add(1)
-            );
-            // Not a coin short.
-            let mut poor = rich();
-            let rifle = give(&mut poor, "ak_74m", &[2000, 2010]);
-            poor.item_mut(rifle).unwrap().reroll.count = count;
-            poor.generic_money = 2399;
-            poor.premium_money = 11;
-            assert!(reroll(&mut poor, rifle, 2000, gold, NOW, &mut rng).is_err());
-            assert_eq!((poor.generic_money, poor.premium_money), (2399, 11));
-        }
+    let mut account = rich();
+    let rifle = give(&mut account, "ak_74m", &[2000, 2010]);
+    for _ in 0..5 {
+        let window = reroll_window(&account, rifle).unwrap();
+        assert_eq!(window.cost, 1200);
+        let before = account.generic_money;
+        let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
+        let taken = before - account.generic_money;
+        assert_eq!((rolled.paid, taken), (window.cost, window.cost));
+        choose_modifier(&mut account, rifle, 2000, KEEP_OLD_MODIFICATION).unwrap();
     }
+    // Not a coin short.
+    let mut poor = rich();
+    let rifle = give(&mut poor, "ak_74m", &[2000, 2010]);
+    poor.generic_money = 1199;
+    assert!(reroll(&mut poor, rifle, 2000, &mut rng).is_err());
+    assert_eq!(poor.generic_money, 1199);
 }
 
 #[test]
 fn an_item_is_upgraded_with_a_donor() {
     let table = Modifications::shared();
-    let (mut added, mut nothing) = (0, 0);
-    // An item with one modification and a donor with none: in silver a
-    // quarter gain one; the rest (the data's quarter of "-1 mod." too) keep
-    // what they had (the owner's rule of 2026-10-23).
-    for seed in 0..400 {
+    // An item with one modification and a donor with none: always one more
+    // (the owner, 2026-11-08: "make it 100% always").
+    for seed in 0..40 {
         let mut account = rich();
         let rifle = give(&mut account, "ak_74m", &[2000]);
         let donor = give(&mut account, "ak_74m", &[]);
         let mut client = client_of(&account);
         let mut rng = Rng::new(seed * 7 + 1);
-        let crafted = craft(&mut account, rifle, donor, false, false, NOW, &mut rng).unwrap();
-        // The price of a level 10 item, and the donor is gone.
-        assert_eq!(account.generic_money, 1_000_000 - 10_000);
+        let crafted = craft(&mut account, rifle, donor, false, &mut rng).unwrap();
+        // The price of a level 10 item (its 50 gold), and the donor is gone.
+        assert_eq!(account.generic_money, 1_000_000 - 5_000);
         assert!(account.item(donor).is_none());
         let held = own_modifications(account.item(rifle).unwrap());
-        match crafted {
-            Crafted::Added {
-                consumed_item_id,
-                modification,
-            } => {
-                added += 1;
-                assert_eq!(consumed_item_id, donor);
-                assert_eq!(held, [2000, modification]);
-                assert!(table.fits(dict("ak_74m"), &[2000], modification));
-            }
-            Crafted::Nothing { consumed_item_id } => {
-                nothing += 1;
-                assert_eq!(consumed_item_id, donor);
-                assert_eq!(held, [2000]);
-            }
-            other => panic!("{other:?}"),
-        }
-        let message = lobby::permitted_crafted(rifle, crafted).unwrap();
+        let Crafted::Added {
+            consumed_item_id,
+            modification,
+        } = crafted
+        else {
+            panic!("{crafted:?}");
+        };
+        assert_eq!(consumed_item_id, donor);
+        assert_eq!(held, [2000, modification]);
+        assert!(table.fits(dict("ak_74m"), &[2000], modification));
+        let message = lobby::permitted_crafted(rifle, crafted);
         takes(&mut client, &message, &account);
     }
-    assert!((60..140).contains(&added), "{added} gained");
-    assert_eq!(added + nothing, 400);
 
-    // In gold with as many modifications as the donor: always one more.
+    // With as many modifications as the donor: always one more.
     let mut account = rich();
     let rifle = give(&mut account, "ak_74m", &[2000]);
     let donor = give(&mut account, "ak_74m", &[2011]);
     let mut rng = Rng::new(9);
-    let crafted = craft(&mut account, rifle, donor, true, false, NOW, &mut rng).unwrap();
+    let crafted = craft(&mut account, rifle, donor, false, &mut rng).unwrap();
     let Crafted::Added { modification, .. } = crafted else {
         panic!("{crafted:?}");
     };
-    assert_eq!(account.premium_money, 1_000 - 50);
-    assert_eq!(account.generic_money, 1_000_000);
+    assert_eq!(account.generic_money, 1_000_000 - 5_000);
     // Byte for byte: mode 1, the item, the donor, the modification.
     let mut expected = vec![0x83, 0x46, 0x09, 1];
     expected.extend(rifle.to_le_bytes());
     expected.extend(donor.to_le_bytes());
     expected.extend(modification.to_le_bytes());
     assert_eq!(
-        bytes(&lobby::permitted_crafted(rifle, crafted).unwrap()),
+        bytes(&lobby::permitted_crafted(rifle, crafted)),
         expected
     );
 }
 
-/// The owner's rule of 2026-10-23 ("remove chance for bonus removal during
-/// combination"): an upgrade never takes a modification away. Whatever the
-/// item holds (one or two, reliability, a golden weapon's silver bonus,
-/// premium armour's bonuses), the donor and the price go, exactly, and the
-/// item keeps every modification it had: one more on a success, as before
-/// (the data's success chances), and none fewer.
+/// The owner's rules of 2026-10-23 ("remove chance for bonus removal during
+/// combination") and 2026-11-08 ("make it 100% always"): whatever the item
+/// holds (one or two, reliability, a golden weapon's silver bonus, premium
+/// armour's bonuses) and the donor's difference, the donor and the price go,
+/// exactly, and the item keeps every modification it had and gains one.
 #[test]
-fn an_upgrade_never_takes_a_modification_away() {
+fn an_upgrade_always_adds_a_modification_and_takes_none() {
     let table = Modifications::shared();
     let (golden_rifle, premium_legs) = (dict("ak_74n_premium"), dict("bm_legs_4_premium"));
     // (item, its modifications, the donor's): the item's own ones are
@@ -1170,9 +1086,8 @@ fn an_upgrade_never_takes_a_modification_away() {
         (premium_legs, &[], &[]),
     ];
     for (dict_id, own, donor_held) in cases {
-        for gold in [false, true] {
-            let (mut added, mut nothing) = (0_u32, 0_u32);
-            for seed in 0..300 {
+        {
+            for seed in 0..20 {
                 let mut account = rich();
                 let item_id = account.add_item(dict_id, FULL_CONDITION);
                 account
@@ -1193,16 +1108,14 @@ fn an_upgrade_never_takes_a_modification_away() {
                 let before = account.clone();
                 let item_before = before.item(item_id).unwrap().clone();
                 let held_before = own_modifications(&item_before);
-                let price = table.craft.price(item_level(dict_id), gold);
+                let price = table.craft.price(item_level(dict_id));
                 let mut client = client_of(&account);
                 let mut rng = Rng::new(seed * 11 + 3);
                 let crafted =
-                    craft(&mut account, item_id, donor, gold, false, NOW, &mut rng).unwrap();
+                    craft(&mut account, item_id, donor, false, &mut rng).unwrap();
 
-                // The price, in the money chosen, and nothing else.
-                let (silver, golds) = if gold { (0, price) } else { (price, 0) };
-                assert_eq!(account.generic_money, before.generic_money - silver);
-                assert_eq!(account.premium_money, before.premium_money - golds);
+                // The price, and nothing else.
+                assert_eq!(account.generic_money, before.generic_money - price);
                 // The donor is gone; nothing else is made or lost.
                 assert!(account.item(donor).is_none());
                 assert_eq!(account.inventory.len(), before.inventory.len() - 1);
@@ -1216,50 +1129,22 @@ fn an_upgrade_never_takes_a_modification_away() {
                 let held = own_modifications(item);
                 assert_eq!(held[..held_before.len()], held_before[..]);
                 let mut expected = item_before.clone();
-                match crafted {
-                    Crafted::Added {
-                        consumed_item_id,
-                        modification,
-                    } => {
-                        added += 1;
-                        assert_eq!(consumed_item_id, donor);
-                        assert!(!held_before.contains(&modification));
-                        expected.modifications.push((modification, false));
-                    }
-                    Crafted::Nothing { consumed_item_id } => {
-                        nothing += 1;
-                        assert_eq!(consumed_item_id, donor);
-                    }
-                    other => panic!("{other:?}"),
-                }
+                let Crafted::Added {
+                    consumed_item_id,
+                    modification,
+                } = crafted
+                else {
+                    panic!("{dict_id} {own:?} {donor_held:?}: {crafted:?}");
+                };
+                assert_eq!(consumed_item_id, donor);
+                assert!(!held_before.contains(&modification));
+                expected.modifications.push((modification, false));
                 assert_eq!(item, &expected);
-                let message = lobby::permitted_crafted(item_id, crafted).unwrap();
+                let message = lobby::permitted_crafted(item_id, crafted);
                 takes(&mut client, &message, &account);
-            }
-            // The success chance is the data's, as before; the rest leave
-            // the item as it was.
-            let difference = held_before_len(dict_id, own) - donor_held.len();
-            let (success, failure) = table.craft.chances(difference, gold).unwrap();
-            let expected = 300.0 * success / 100.0;
-            let slack = 4.0 * (300.0 * success / 100.0 * (1.0 - success / 100.0)).sqrt() + 1.0;
-            assert!(
-                (f64::from(added) - f64::from(expected)).abs() <= f64::from(slack),
-                "{dict_id} {own:?} {donor_held:?} gold {gold}: {added} of 300, {success} %"
-            );
-            assert_eq!(added + nothing, 300);
-            if failure > 0.0 {
-                assert!(nothing > 0);
             }
         }
     }
-}
-
-/// How many modifications an item of `dict_id` holds with `own` given
-/// after the bonuses it is made with.
-fn held_before_len(dict_id: u16, own: &[u32]) -> usize {
-    let mut account = rich();
-    let item_id = account.add_item(dict_id, FULL_CONDITION);
-    own_modifications(account.item(item_id).unwrap()).len() + own.len()
 }
 
 #[test]
@@ -1269,69 +1154,52 @@ fn a_craft_the_lobby_would_not_offer_is_refused() {
     let rifle = give(&mut account, "ak_74m", &[2000]);
     let donor = give(&mut account, "ak_74m", &[]);
     let before = account.clone();
-    let mut refused = |account: &mut Account, item, donor, gold, queued| {
-        let result = craft(account, item, donor, gold, queued, NOW, &mut rng);
+    let mut refused = |account: &mut Account, item, donor, queued| {
+        let result = craft(account, item, donor, queued, &mut rng);
         result.expect_err("refused")
     };
     assert_eq!(
-        refused(&mut account, rifle, rifle, false, false),
+        refused(&mut account, rifle, rifle, false),
         "an item is its own donor"
     );
     assert_eq!(
-        refused(&mut account, rifle, 999, false, false),
+        refused(&mut account, rifle, 999, false),
         "no such donor"
     );
     assert_eq!(
-        refused(&mut account, 999, donor, false, false),
+        refused(&mut account, 999, donor, false),
         "no such item"
     );
     // Another item as the donor, and things that take no modifications.
     let pistol = account.kits[0].slots[7].unwrap().item_id;
     let ammo = account.kits[0].slots[8].unwrap().item_id;
     assert_eq!(
-        refused(&mut account, rifle, pistol, false, false),
+        refused(&mut account, rifle, pistol, false),
         "the donor is another item"
     );
     assert_eq!(
-        refused(&mut account, ammo, ammo + 100, false, false),
+        refused(&mut account, ammo, ammo + 100, false),
         "no such donor"
     );
     assert_eq!(
-        refused(&mut account, ammo, rifle, false, false),
+        refused(&mut account, ammo, rifle, false),
         "not an item with modifications"
     );
     // A donor with more modifications.
     let better = give(&mut account, "ak_74m", &[2000, 2010]);
     assert_eq!(
-        refused(&mut account, rifle, better, false, false),
+        refused(&mut account, rifle, better, false),
         "the donor has more modifications"
     );
     // Three is the most.
     let full = give(&mut account, "ak_74m", &[2000, 2010, 2020]);
     assert_eq!(
-        refused(&mut account, full, donor, false, false),
+        refused(&mut account, full, donor, false),
         "the most modifications already"
     );
     assert_eq!(
-        refused(&mut account, full, full - 1, false, false),
+        refused(&mut account, full, full - 1, false),
         "the most modifications already"
-    );
-    // Damaged, or in repair.
-    let broken = give(&mut account, "ak_74m", &[]);
-    account
-        .item_mut(broken)
-        .unwrap()
-        .modifications
-        .push((3000, true));
-    assert_eq!(
-        refused(&mut account, rifle, broken, false, false),
-        "a damaged item"
-    );
-    let busy = give(&mut account, "ak_74m", &[]);
-    account.item_mut(busy).unwrap().repair_time = (NOW + 1) as u32;
-    assert_eq!(
-        refused(&mut account, rifle, busy, false, false),
-        "an item in repair"
     );
     // An equipped item while the account waits for a match.
     let slot = (0..23)
@@ -1342,23 +1210,17 @@ fn a_craft_the_lobby_would_not_offer_is_refused() {
         count: 1,
     });
     assert_eq!(
-        refused(&mut account, rifle, donor, false, true),
+        refused(&mut account, rifle, donor, true),
         "an equipped item while waiting for a match"
     );
     // No money.
-    account.generic_money = 9_999;
+    account.generic_money = 4_999;
     assert_eq!(
-        refused(&mut account, rifle, donor, false, false),
-        "not enough money"
-    );
-    account.premium_money = 49;
-    assert_eq!(
-        refused(&mut account, rifle, donor, true, false),
+        refused(&mut account, rifle, donor, false),
         "not enough money"
     );
     // Nothing was taken by any of it.
     account.generic_money = before.generic_money;
-    account.premium_money = before.premium_money;
     assert_eq!(account.item(rifle), before.item(rifle));
     assert_eq!(account.item(donor), before.item(donor));
 
@@ -1367,16 +1229,14 @@ fn a_craft_the_lobby_would_not_offer_is_refused() {
         &mut account,
         rifle,
         donor,
-        true,
         false,
-        NOW,
         &mut Rng::new(1),
     );
     assert!(crafted.is_ok());
     assert_eq!(account.kits[1].slots[usize::from(slot)], None);
 
     // The client is told with mode 0xFE: the item and nothing else.
-    let message = lobby::permitted_crafted(rifle, Crafted::Failed).unwrap();
+    let message = lobby::permitted_crafted(rifle, Crafted::Failed);
     let mut expected = vec![0x83, 0x46, 0x09, 0xFE];
     expected.extend(rifle.to_le_bytes());
     assert_eq!(bytes(&message), expected);
@@ -1385,270 +1245,9 @@ fn a_craft_the_lobby_would_not_offer_is_refused() {
 }
 
 #[test]
-fn a_repair_mends_the_wear_and_the_defects() {
-    let dictionary = Dictionary::shared();
-    let mut account = rich();
-    let rifle = give(&mut account, "ak_74m", &[2000]);
-    let kits = account.add_item(dict("repair_voucher"), 3);
-    account.item_mut(rifle).unwrap().condition_or_stack = 400_000;
-    let wear = prices::repair_cost(dictionary, dict("ak_74m"), 40);
-    assert!(wear > 0);
-
-    // Wear alone: silver, at once; gold and kits are for defects.
-    assert_eq!(repair_quote(account.item(rifle).unwrap()), (wear, 0, 0, 0));
-    assert_eq!(
-        repair(&mut account.clone(), rifle, RepairPayment::Gold, NOW),
-        Err(ItemError::Repair("no defects to pay gold for"))
-    );
-    assert_eq!(
-        repair(
-            &mut account.clone(),
-            rifle,
-            RepairPayment::Kit { kit_item_id: kits },
-            NOW
-        ),
-        Err(ItemError::Repair("no defects to use a kit on"))
-    );
-    let mut whole = account.clone();
-    let mut client = client_of(&whole);
-    assert_eq!(
-        repair(&mut whole, rifle, RepairPayment::Silver, NOW),
-        Ok(Repaired::AtOnce)
-    );
-    assert_eq!(whole.generic_money, 1_000_000 - wear);
-    assert_eq!(
-        whole.item(rifle).unwrap().condition_or_stack,
-        FULL_CONDITION
-    );
-    let message = lobby::permitted_repaired(rifle, Repaired::AtOnce).unwrap();
-    let mut expected = vec![0x83, 0x47, 0x03];
-    expected.extend(rifle.to_le_bytes());
-    expected.extend([0; 8]);
-    assert_eq!(bytes(&message), expected);
-    takes(&mut client, &message, &whole);
-    assert_eq!(
-        repair(&mut whole, rifle, RepairPayment::Silver, NOW),
-        Err(ItemError::Repair("nothing to repair"))
-    );
-
-    // Two defects: 100 silver and six minutes each on top, or 50 gold
-    // each, or a kit each.
-    let item = account.item_mut(rifle).unwrap();
-    item.modifications.extend([(3000, true), (3010, true)]);
-    assert_eq!(
-        repair_quote(account.item(rifle).unwrap()),
-        (wear + 200, 100, 720, 2)
-    );
-
-    // Silver: the item is whole and has no defect at once, and is locked
-    // for twelve minutes.
-    let mut slow = account.clone();
-    let mut client = client_of(&slow);
-    let repaired = repair(&mut slow, rifle, RepairPayment::Silver, NOW).unwrap();
-    assert_eq!(repaired, Repaired::Timed { repair_time: 720 });
-    assert_eq!(slow.generic_money, 1_000_000 - wear - 200);
-    let item = slow.item(rifle).unwrap();
-    assert_eq!(item.condition_or_stack, FULL_CONDITION);
-    assert_eq!(item.modifications, [(2000, false)]);
-    assert_eq!(u64::from(item.repair_time), NOW + 720);
-    let message = lobby::permitted_repaired(rifle, repaired).unwrap();
-    let mut expected = vec![0x83, 0x47, 0x03];
-    expected.extend(rifle.to_le_bytes());
-    expected.extend([0xD0, 0x02, 0, 0]);
-    assert_eq!(bytes(&message), expected);
-    // The answer leaves the client's defects: the inventory takes them.
-    client.receive(&message).unwrap();
-    let at = slow
-        .inventory
-        .iter()
-        .position(|item| item.item_id == rifle)
-        .unwrap();
-    assert_eq!(client.inventory()[at].modifications.len(), 3);
-    assert_eq!(client.inventory()[at].repair_time, 720);
-    let push = wire::after_change(&slow, NOW).unwrap();
-    takes(&mut client, &push[0], &slow);
-    // Not twice.
-    assert_eq!(
-        repair(&mut slow, rifle, RepairPayment::Silver, NOW + 1),
-        Err(ItemError::Repair("already in repair"))
-    );
-    // The seconds left go out, and the end is told once.
-    assert_eq!(
-        wire::item_descr_at(slow.item(rifle).unwrap(), NOW + 700).repair_time,
-        20
-    );
-    assert!(finish_repairs(&mut slow, NOW + 719).is_empty());
-    assert_eq!(finish_repairs(&mut slow, NOW + 720), [rifle]);
-    assert_eq!(slow.item(rifle).unwrap().repair_time, 0);
-    assert!(finish_repairs(&mut slow, NOW + 721).is_empty());
-    assert_eq!(repaired_notice(rifle), (6, format!("#ir[{rifle}]")));
-
-    // Gold: at once.
-    let mut quick = account.clone();
-    let mut client = client_of(&quick);
-    assert_eq!(
-        repair(&mut quick, rifle, RepairPayment::Gold, NOW),
-        Ok(Repaired::AtOnce)
-    );
-    assert_eq!((quick.generic_money, quick.premium_money), (1_000_000, 900));
-    let item = quick.item(rifle).unwrap();
-    assert_eq!(
-        (item.condition_or_stack, item.repair_time),
-        (FULL_CONDITION, 0)
-    );
-    assert_eq!(item.modifications, [(2000, false)]);
-    client
-        .receive(&lobby::permitted_repaired(rifle, Repaired::AtOnce).unwrap())
-        .unwrap();
-    let push = wire::after_change(&quick, NOW).unwrap();
-    takes(&mut client, &push[0], &quick);
-    quick.premium_money = 0;
-    quick
-        .item_mut(rifle)
-        .unwrap()
-        .modifications
-        .push((3000, true));
-    assert_eq!(
-        repair(&mut quick, rifle, RepairPayment::Gold, NOW),
-        Err(ItemError::NotEnoughGold)
-    );
-
-    // Kits: one a defect.
-    let mut kitted = account.clone();
-    let mut client = client_of(&kitted);
-    let repaired = repair(
-        &mut kitted,
-        rifle,
-        RepairPayment::Kit { kit_item_id: kits },
-        NOW,
-    )
-    .unwrap();
-    assert_eq!(
-        repaired,
-        Repaired::WithKit {
-            kit_item_id: kits,
-            used: 2
-        }
-    );
-    assert_eq!(kitted.item(kits).unwrap().condition_or_stack, 1);
-    assert_eq!(kitted.generic_money, 1_000_000);
-    assert!(defects(kitted.item(rifle).unwrap()).is_empty());
-    let message = lobby::permitted_repaired(rifle, repaired).unwrap();
-    let mut expected = vec![0x83, 0x47, 0x03];
-    expected.extend(rifle.to_le_bytes());
-    expected.extend([0, 0, 0, 0]);
-    expected.extend(kits.to_le_bytes());
-    expected.push(2);
-    assert_eq!(bytes(&message), expected);
-    client.receive(&message).unwrap();
-    let push = wire::after_change(&kitted, NOW).unwrap();
-    takes(&mut client, &push[0], &kitted);
-    // One kit left for two defects, an item that is no kit, and no item.
-    kitted
-        .item_mut(rifle)
-        .unwrap()
-        .modifications
-        .extend([(3000, true), (3010, true)]);
-    for kit_item_id in [kits, rifle, 0, 999] {
-        assert_eq!(
-            repair(&mut kitted, rifle, RepairPayment::Kit { kit_item_id }, NOW),
-            Err(ItemError::NoRepairKit)
-        );
-    }
-    // The last kit used up is gone from the inventory.
-    kitted.item_mut(rifle).unwrap().modifications.pop();
-    assert!(
-        repair(
-            &mut kitted,
-            rifle,
-            RepairPayment::Kit { kit_item_id: kits },
-            NOW
-        )
-        .is_ok()
-    );
-    assert!(kitted.item(kits).is_none());
-
-    // No silver, a stack, nothing, another kind.
-    let mut poor = account.clone();
-    poor.generic_money = wear + 199;
-    assert_eq!(
-        repair(&mut poor, rifle, RepairPayment::Silver, NOW),
-        Err(ItemError::NotEnoughMoneyForRepair)
-    );
-    assert_eq!(poor.item(rifle), account.item(rifle));
-    assert!(repair(&mut account, kits, RepairPayment::Silver, NOW).is_err());
-    assert!(repair(&mut account, 999, RepairPayment::Silver, NOW).is_err());
-    assert!(repair(&mut account, rifle, RepairPayment::Other(7), NOW).is_err());
-    for (error, key) in [
-        (ItemError::Repair(""), "st_cannot_repair_item"),
-        (ItemError::NoRepairKit, "st_you_have_no_voucher_for_repair"),
-        (
-            ItemError::NotEnoughMoneyForRepair,
-            "st_not_enought_money_for_repair",
-        ),
-        (ItemError::NotEnoughGold, "st_cant_buy_premium_message"),
-        (ItemError::NotEnoughMoney, "st_not_enougth_money"),
-        (
-            ItemError::Reroll(""),
-            "st_cannot_select_rerolled_modification",
-        ),
-    ] {
-        assert_eq!(error.text_key(), key);
-    }
-}
-
-#[test]
-fn a_worn_item_may_get_a_defect() {
-    let mut rng = Rng::new(2);
-    let mut account = rich();
-    let rifle = give(&mut account, "ak_74m", &[]);
-    // Over 90 % nothing breaks.
-    account.item_mut(rifle).unwrap().condition_or_stack = 950_000;
-    for _ in 0..200 {
-        let worn = [(rifle, 960_000, 950_000)];
-        assert!(roll_defects(&mut account, &worn, &mut rng).is_empty());
-    }
-    // An item that did not wear is not rolled for.
-    assert!(roll_defects(&mut account, &[(rifle, 100, 100)], &mut rng).is_empty());
-    // Worn out, match after match: three defects at most, each of another
-    // kind and one the rifle may have, and the client takes them.
-    let mut broke = Vec::new();
-    for _ in 0..200 {
-        broke.extend(roll_defects(&mut account, &[(rifle, 1000, 0)], &mut rng));
-    }
-    assert_eq!(broke.len(), 3);
-    let ids = defects(account.item(rifle).unwrap());
-    assert_eq!(ids.len(), 3);
-    for &(item_id, defect) in &broke {
-        assert_eq!(item_id, rifle);
-        assert!([3000, 3010, 3020, 3030, 3040, 3060].contains(&defect));
-        assert_eq!(ids.iter().filter(|&&id| id == defect).count(), 1);
-    }
-    let client = client_of(&account);
-    assert_eq!(client.inventory().last().unwrap().modifications.len(), 3);
-    // A damaged item's rank is still its modifications.
-    assert_eq!(rank(account.item(rifle).unwrap()), 0);
-    // Half worn: the first slot about one match in three (10 % at 90 %
-    // to 50 % at nothing).
-    let mut count = 0;
-    for _ in 0..2000 {
-        let mut account = rich();
-        let rifle = give(&mut account, "ak_74m", &[]);
-        count += roll_defects(&mut account, &[(rifle, 460_000, 450_000)], &mut rng).len();
-    }
-    assert!((500..700).contains(&count), "{count}");
-}
-
-#[test]
-fn wear_drops_and_pay_follow_the_modifications() {
+fn drops_and_pay_follow_the_modifications() {
     let mut rng = Rng::new(4);
     let mut account = rich();
-    // Reliability: a fifth less wear with 2093.
-    let plain = give(&mut account, "ak_74m", &[]);
-    let reliable = give(&mut account, "ak_74m", &[2093]);
-    assert_eq!(wear_factor(&account, plain), 1.0);
-    assert!((wear_factor(&account, reliable) - 0.8).abs() < 1e-6);
-    assert_eq!(wear_factor(&account, 999), 1.0);
 
     // A drop of rarity n has n modifications, and that is its rank.
     for rarity in 0..=3 {
@@ -1657,7 +1256,6 @@ fn wear_drops_and_pay_follow_the_modifications() {
         assert_eq!(shown, rarity);
         let item = account.item(item_id).unwrap();
         assert_eq!(rank(item), usize::from(rarity));
-        assert!(defects(item).is_empty());
     }
     // A camouflage takes none.
     let camo = account.add_item(dict("camo_city"), FULL_CONDITION);
@@ -1698,12 +1296,8 @@ fn is_reliability(id: u32) -> bool {
 }
 
 /// What the account holds, money and items, for the sums.
-fn holdings(account: &Account) -> (u32, u32, usize) {
-    (
-        account.generic_money,
-        account.premium_money,
-        account.inventory.len(),
-    )
+fn holdings(account: &Account) -> (u32, usize) {
+    (account.generic_money, account.inventory.len())
 }
 
 /// The owner's rule of 2026-10-23 (docs/notes/no-reliability-roll.md): an
@@ -1712,20 +1306,20 @@ fn holdings(account: &Account) -> (u32, u32, usize) {
 #[test]
 fn an_upgrade_never_gains_reliability() {
     let table = Modifications::shared();
-    // In gold with as many as the donor, always one more: never reliability.
+    // With as many as the donor, always one more: never reliability.
     for seed in 0..300 {
         let mut account = rich();
         let rifle = give(&mut account, "ak_74m", &[2000]);
         let donor = give(&mut account, "ak_74m", &[2011]);
         let before = holdings(&account);
         let mut rng = Rng::new(seed);
-        let crafted = craft(&mut account, rifle, donor, true, false, NOW, &mut rng).unwrap();
+        let crafted = craft(&mut account, rifle, donor, false, &mut rng).unwrap();
         let Crafted::Added { modification, .. } = crafted else {
             panic!("{crafted:?}");
         };
         assert!(!is_reliability(modification), "{modification}");
         assert!(table.fits(dict("ak_74m"), &[2000], modification));
-        assert_eq!(holdings(&account), (before.0, before.1 - 50, before.2 - 1));
+        assert_eq!(holdings(&account), (before.0 - 5_000, before.1 - 1));
     }
     // A backpack of the stock data (the unit tests' archive, without the edit
     // lists that give it a third type on live): of its three types,
@@ -1735,7 +1329,7 @@ fn an_upgrade_never_gains_reliability() {
         let backpack = give(&mut account, "scav_back_1", &[1062]);
         let donor = give(&mut account, "scav_back_1", &[1063]);
         let mut rng = Rng::new(seed);
-        let crafted = craft(&mut account, backpack, donor, true, false, NOW, &mut rng).unwrap();
+        let crafted = craft(&mut account, backpack, donor, false, &mut rng).unwrap();
         let Crafted::Added { modification, .. } = crafted else {
             panic!("{crafted:?}");
         };
@@ -1747,25 +1341,15 @@ fn an_upgrade_never_gains_reliability() {
     let backpack = give(&mut account, "scav_back_1", &[1062, 1120]);
     let donor = give(&mut account, "scav_back_1", &[1063]);
     let before = account.clone();
-    for gold in [false, true] {
-        assert_eq!(
-            craft(
-                &mut account,
-                backpack,
-                donor,
-                gold,
-                false,
-                NOW,
-                &mut Rng::new(1)
-            ),
-            Err("nothing left to roll for the item")
-        );
-    }
+    assert_eq!(
+        craft(&mut account, backpack, donor, false, &mut Rng::new(1)),
+        Err("nothing left to roll for the item")
+    );
     assert_eq!(account, before);
     let mut client = client_of(&account);
     takes(
         &mut client,
-        &lobby::permitted_crafted(backpack, Crafted::Failed).unwrap(),
+        &lobby::permitted_crafted(backpack, Crafted::Failed),
         &account,
     );
     // One with reliability from before still takes its other type.
@@ -1776,9 +1360,7 @@ fn an_upgrade_never_gains_reliability() {
         &mut account,
         backpack,
         donor,
-        true,
         false,
-        NOW,
         &mut Rng::new(2),
     );
     let Ok(Crafted::Added { modification, .. }) = crafted else {
@@ -1803,8 +1385,8 @@ fn a_reroll_never_offers_reliability_and_changes_it() {
         let mut client = client_of(&account);
         let mut rng = Rng::new(seed);
         let before = holdings(&account);
-        let rolled = reroll(&mut account, rifle, 2093, false, NOW, &mut rng).unwrap();
-        assert_eq!(rolled.paid, (2400, 0));
+        let rolled = reroll(&mut account, rifle, 2093, &mut rng).unwrap();
+        assert_eq!(rolled.paid, 1200);
         for &choice in &rolled.choices {
             assert!(!is_reliability(choice), "{choice}");
             assert!(table.fits(dict("ak_74m"), &[2000], choice));
@@ -1820,9 +1402,9 @@ fn a_reroll_never_offers_reliability_and_changes_it() {
             own_modifications(account.item(rifle).unwrap()),
             [chosen.new_modification, 2000]
         );
-        assert_eq!(holdings(&account), (before.0 - 2400, before.1, before.2));
+        assert_eq!(holdings(&account), (before.0 - 1200, before.1));
         // Another of its modifications: never reliability either.
-        let rolled = reroll(&mut account, rifle, 2000, true, NOW, &mut rng).unwrap();
+        let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
         assert!(rolled.choices.iter().all(|&choice| !is_reliability(choice)));
     }
     // A full backpack of the stock data: its reliability has nothing to turn
@@ -1831,12 +1413,12 @@ fn a_reroll_never_offers_reliability_and_changes_it() {
     let backpack = give(&mut account, "scav_back_1", &[1062, 1120, 1201]);
     let before = account.clone();
     assert_eq!(
-        reroll(&mut account, backpack, 1201, false, NOW, &mut Rng::new(3)),
+        reroll(&mut account, backpack, 1201, &mut Rng::new(3)),
         Err(ItemError::Reroll("nothing to offer for the item"))
     );
     assert_eq!(account, before);
     // Its others are offered other strengths of their own type.
-    let rolled = reroll(&mut account, backpack, 1120, false, NOW, &mut Rng::new(3)).unwrap();
+    let rolled = reroll(&mut account, backpack, 1120, &mut Rng::new(3)).unwrap();
     assert!(rolled.choices.iter().all(|&choice| {
         !is_reliability(choice) && table.modification(choice).unwrap().kind == 24
     }));
@@ -1885,7 +1467,6 @@ fn a_loaded_item_is_made_safe() {
     ];
     item.reroll = Reroll {
         modification: 2000,
-        count: 4,
         offer: Some((2000, [1, 2, 3])),
     };
     // A camouflage in a decal's slot, two in one slot, and a rifle.
@@ -1907,7 +1488,6 @@ fn a_loaded_item_is_made_safe() {
         item.reroll,
         Reroll {
             modification: 0,
-            count: 4,
             offer: None
         }
     );
@@ -1965,43 +1545,30 @@ fn a_golden_weapon_is_upgraded_like_its_plain_weapon() {
     let (golden_rifle, plain_rifle) = (dict("ak_74n_premium"), dict("ak_74n"));
     // The plain weapon's price: the same item level.
     assert_eq!(item_level(golden_rifle), item_level(plain_rifle));
-    let price = table.craft.price(item_level(plain_rifle), false);
-    let (mut added, mut nothing) = (0, 0);
+    let price = table.craft.price(item_level(plain_rifle));
     // The golden rifle (the silver bonus: rank 1) with a plain one as the
-    // donor (rank 0).
-    for seed in 0..400 {
+    // donor (rank 0): always one more, the silver bonus kept.
+    for seed in 0..40 {
         let mut account = rich();
         let rifle = account.add_item(golden_rifle, FULL_CONDITION);
         let donor = account.add_item(plain_rifle, FULL_CONDITION);
         let mut client = client_of(&account);
         let mut rng = Rng::new(seed * 7 + 1);
-        let crafted = craft(&mut account, rifle, donor, false, false, NOW, &mut rng).unwrap();
+        let crafted = craft(&mut account, rifle, donor, false, &mut rng).unwrap();
         assert_eq!(account.generic_money, 1_000_000 - price);
         assert!(account.item(donor).is_none());
         // It stays the golden rifle.
         let item = account.item(rifle).unwrap();
         assert_eq!(item.dict_id, golden_rifle);
         let held = own_modifications(item);
-        match crafted {
-            Crafted::Added { modification, .. } => {
-                added += 1;
-                assert_eq!(held, [SILVER, modification]);
-                assert!(table.fits(plain_rifle, &[], modification));
-            }
-            // A failure keeps the silver bonus, as any modification (the
-            // owner's rule of 2026-10-23).
-            Crafted::Nothing { .. } => {
-                nothing += 1;
-                assert_eq!(held, [SILVER]);
-            }
-            other => panic!("{other:?}"),
-        }
-        let message = lobby::permitted_crafted(rifle, crafted).unwrap();
+        let Crafted::Added { modification, .. } = crafted else {
+            panic!("{crafted:?}");
+        };
+        assert_eq!(held, [SILVER, modification]);
+        assert!(table.fits(plain_rifle, &[], modification));
+        let message = lobby::permitted_crafted(rifle, crafted);
         takes(&mut client, &message, &account);
     }
-    // The chances of a plain rifle with one modification and a plain donor.
-    assert!((60..140).contains(&added), "{added} gained");
-    assert_eq!(added + nothing, 400);
 
     let mut rng = Rng::new(9);
     let mut account = rich();
@@ -2009,25 +1576,25 @@ fn a_golden_weapon_is_upgraded_like_its_plain_weapon() {
     // 2026-10-22): the golden one is used up, the rifle stays plain.
     let plain = give(&mut account, "ak_74n", &[2000]);
     let golden = account.add_item(golden_rifle, FULL_CONDITION);
-    assert!(craft(&mut account, plain, golden, true, false, NOW, &mut rng).is_ok());
+    assert!(craft(&mut account, plain, golden, false, &mut rng).is_ok());
     assert!(account.item(golden).is_none());
     assert_eq!(account.item(plain).unwrap().dict_id, dict("ak_74n"));
     // Two golden rifles, as two plain ones.
     let golden = account.add_item(golden_rifle, FULL_CONDITION);
     let other = account.add_item(golden_rifle, FULL_CONDITION);
-    assert!(craft(&mut account, golden, other, true, false, NOW, &mut rng).is_ok());
+    assert!(craft(&mut account, golden, other, false, &mut rng).is_ok());
     // Another weapon's plain copy is not its kin.
     let golden = account.add_item(golden_rifle, FULL_CONDITION);
     let ak_74m = give(&mut account, "ak_74m", &[]);
     assert_eq!(
-        craft(&mut account, golden, ak_74m, false, false, NOW, &mut rng),
+        craft(&mut account, golden, ak_74m, false, &mut rng),
         Err("the donor is another item")
     );
     // The silver bonus counts as a modification: a donor with two is
     // more, and two more make three, the most.
     let better = give(&mut account, "ak_74n", &[2000, 2010]);
     assert_eq!(
-        craft(&mut account, golden, better, false, false, NOW, &mut rng),
+        craft(&mut account, golden, better, false, &mut rng),
         Err("the donor has more modifications")
     );
     let full = account.add_item(golden_rifle, FULL_CONDITION);
@@ -2037,12 +1604,12 @@ fn a_golden_weapon_is_upgraded_like_its_plain_weapon() {
         .modifications
         .extend([(2000, false), (2010, false)]);
     assert_eq!(
-        craft(&mut account, full, ak_74m, false, false, NOW, &mut rng),
+        craft(&mut account, full, ak_74m, false, &mut rng),
         Err("the donor is another item")
     );
     let donor = give(&mut account, "ak_74n", &[]);
     assert_eq!(
-        craft(&mut account, full, donor, false, false, NOW, &mut rng),
+        craft(&mut account, full, donor, false, &mut rng),
         Err("the most modifications already")
     );
 }
@@ -2056,15 +1623,9 @@ fn the_silver_bonus_of_a_golden_weapon_rerolls_like_any_modification() {
     // The plain weapon's prices.
     let level = item_level(dict("ak_74n"));
     let window = reroll_window(&account, rifle).unwrap();
-    assert_eq!(
-        (window.regular_cost, window.premium_cost),
-        (
-            table.reroll.price(level, false),
-            table.reroll.price(level, true)
-        )
-    );
+    assert_eq!(window.cost, table.reroll.price(level));
     let mut client = client_of(&account);
-    let rolled = reroll(&mut account, rifle, SILVER, true, NOW, &mut rng).unwrap();
+    let rolled = reroll(&mut account, rifle, SILVER, &mut rng).unwrap();
     // Three of the plain weapon's, none of them the silver bonus (it never
     // rolls: drop weight 0).
     for choice in rolled.choices {
@@ -2079,64 +1640,6 @@ fn the_silver_bonus_of_a_golden_weapon_rerolls_like_any_modification() {
     assert_eq!(own_modifications(item), [rolled.choices[2]]);
     // And without it, no more silver.
     assert_eq!(table.bonuses(item.dict_id, &item.modifications).money, 0.0);
-}
-
-#[test]
-fn golden_weapons_owned_before_get_the_silver_bonus_once() {
-    let mut account = rich();
-    let golden_rifle = dict("ak_74n_premium");
-    // As the store had them before the rule: no modification of their own
-    // (the silver bonus was the config's).
-    let owned = |account: &mut Account, modifications: &[u32]| {
-        let item_id = account.add_item(golden_rifle, FULL_CONDITION);
-        account.item_mut(item_id).unwrap().modifications =
-            modifications.iter().map(|&id| (id, false)).collect();
-        item_id
-    };
-    let bare = owned(&mut account, &[]);
-    let one = owned(&mut account, &[2000]);
-    let full = owned(&mut account, &[2000, 2010, 2020]);
-    let has = owned(&mut account, &[SILVER]);
-    let damaged = owned(&mut account, &[]);
-    account
-        .item_mut(damaged)
-        .unwrap()
-        .modifications
-        .push((3000, true));
-    let plain = give(&mut account, "ak_74n", &[]);
-    let vss = account.add_item(dict("vss_premium"), FULL_CONDITION);
-    account.item_mut(vss).unwrap().modifications.clear();
-    // A kit wearing one: it shows another item.
-    let slot = (0..23)
-        .find(|&slot| Dictionary::shared().fits(golden_rifle, slot))
-        .unwrap();
-    account.kits[1].slots[usize::from(slot)] = Some(KitSlot {
-        item_id: bare,
-        count: 1,
-    });
-    let revision = account.kits[1].revision;
-
-    let done = give_golden_silver(&mut account);
-    assert_eq!(done.given, [bare, one, damaged, vss]);
-    assert_eq!(done.full, [full]);
-    let mods = |account: &Account, item_id| account.item(item_id).unwrap().modifications.clone();
-    assert_eq!(mods(&account, bare), [(SILVER, false)]);
-    assert_eq!(mods(&account, one), [(SILVER, false), (2000, false)]);
-    assert_eq!(
-        mods(&account, full),
-        [(2000, false), (2010, false), (2020, false)]
-    );
-    assert_eq!(mods(&account, has), [(SILVER, false)]);
-    assert_eq!(mods(&account, damaged), [(SILVER, false), (3000, true)]);
-    assert_eq!(mods(&account, vss), [(SILVER, false)]);
-    assert!(mods(&account, plain).is_empty());
-    assert_ne!(account.kits[1].revision, revision);
-    // The client takes it all.
-    client_of(&account);
-    // Once: a second run changes nothing.
-    let again = account.clone();
-    assert_eq!(give_golden_silver(&mut account).given, Vec::<u32>::new());
-    assert_eq!(account, again);
 }
 
 // ------------------------------------------------------- premium armour
@@ -2196,7 +1699,7 @@ fn a_premium_armour_piece_is_upgraded_and_rerolled_like_its_plain_piece() {
         let legs = account.add_item(premium, FULL_CONDITION);
         let donor = account.add_item(plain, FULL_CONDITION);
         let mut rng = Rng::new(seed * 5 + 2);
-        let crafted = craft(&mut account, legs, donor, false, false, NOW, &mut rng).unwrap();
+        let crafted = craft(&mut account, legs, donor, false, &mut rng).unwrap();
         assert!(account.item(donor).is_none());
         let item = account.item(legs).unwrap();
         assert_eq!(item.dict_id, premium);
@@ -2218,20 +1721,20 @@ fn a_premium_armour_piece_is_upgraded_and_rerolled_like_its_plain_piece() {
     let plain_legs = account.add_item(plain, FULL_CONDITION);
     let held = account.item(legs).unwrap().modifications.clone();
     account.item_mut(plain_legs).unwrap().modifications = held;
-    let crafted = craft(&mut account, plain_legs, legs, true, false, NOW, &mut rng);
+    let crafted = craft(&mut account, plain_legs, legs, false, &mut rng);
     assert!(crafted.is_ok(), "{crafted:?}");
     assert!(account.item(legs).is_none());
     let legs = account.add_item(premium, FULL_CONDITION);
     let other = give(&mut account, "scav_legs_4", &[]);
     assert_eq!(
-        craft(&mut account, legs, other, false, false, NOW, &mut rng),
+        craft(&mut account, legs, other, false, &mut rng),
         Err("the donor is another item")
     );
 
     // A premium bonus rerolls like any modification: three of the plain
     // piece's offered, never a premium bonus (drop weight 0).
     let mut client = client_of(&account);
-    let rolled = reroll(&mut account, legs, BM_REPUTATION, false, NOW, &mut rng).unwrap();
+    let rolled = reroll(&mut account, legs, BM_REPUTATION, &mut rng).unwrap();
     for choice in rolled.choices {
         assert!(choice != EXPERIENCE && choice != BM_REPUTATION);
         assert!(table.fits(plain, &[], choice), "{choice}");
@@ -2245,81 +1748,6 @@ fn a_premium_armour_piece_is_upgraded_and_rerolled_like_its_plain_piece() {
         table.bonuses(item.dict_id, &item.modifications).reputation[1],
         0.0
     );
-}
-
-#[test]
-fn premium_armour_owned_before_gets_its_bonuses_once() {
-    let mut account = rich();
-    let jacket = dict("scav_torso_4_premium");
-    let scav_reputation = golden::SCAVENGER_REPUTATION_BONUS;
-    // As the store had them before the rule: no modification of their own
-    // (the bonuses were the config's).
-    let owned = |account: &mut Account, modifications: &[u32]| {
-        let item_id = account.add_item(jacket, FULL_CONDITION);
-        account.item_mut(item_id).unwrap().modifications =
-            modifications.iter().map(|&id| (id, false)).collect();
-        item_id
-    };
-    let bare = owned(&mut account, &[]);
-    let one = owned(&mut account, &[1090]);
-    let two = owned(&mut account, &[1090, 1100]);
-    let full = owned(&mut account, &[1090, 1100, 1110]);
-    let has = owned(&mut account, &[EXPERIENCE, scav_reputation]);
-    let half = owned(&mut account, &[scav_reputation]);
-    let damaged = owned(&mut account, &[]);
-    account
-        .item_mut(damaged)
-        .unwrap()
-        .modifications
-        .push((3000, true));
-    let plain = give(&mut account, "scav_torso_4", &[]);
-    let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
-    account.item_mut(rifle).unwrap().modifications.clear();
-    // A kit wearing one: it shows another item.
-    let slot = (0..23)
-        .find(|&slot| Dictionary::shared().fits(jacket, slot))
-        .unwrap();
-    account.kits[1].slots[usize::from(slot)] = Some(KitSlot {
-        item_id: bare,
-        count: 1,
-    });
-    let revision = account.kits[1].revision;
-
-    let done = give_premium_armour_bonuses(&mut account);
-    assert_eq!(done.given, [bare, one, two, half, damaged]);
-    assert_eq!(done.full, [two, full]);
-    let mods = |account: &Account, item_id| -> Vec<u32> {
-        account
-            .item(item_id)
-            .unwrap()
-            .modifications
-            .iter()
-            .map(|&(id, _)| id)
-            .collect()
-    };
-    assert_eq!(mods(&account, bare), [EXPERIENCE, scav_reputation]);
-    assert_eq!(mods(&account, one), [EXPERIENCE, scav_reputation, 1090]);
-    // Room for one: the first.
-    assert_eq!(mods(&account, two), [EXPERIENCE, 1090, 1100]);
-    assert_eq!(mods(&account, full), [1090, 1100, 1110]);
-    assert_eq!(mods(&account, has), [EXPERIENCE, scav_reputation]);
-    assert_eq!(mods(&account, half), [EXPERIENCE, scav_reputation]);
-    assert_eq!(mods(&account, damaged), [EXPERIENCE, scav_reputation, 3000]);
-    assert!(mods(&account, plain).is_empty());
-    // Not a golden weapon's silver: that is the other grant's.
-    assert!(mods(&account, rifle).is_empty());
-    assert_ne!(account.kits[1].revision, revision);
-    client_of(&account);
-    // A second run changes nothing; nor does the silver grant to armour.
-    let again = account.clone();
-    assert_eq!(
-        give_premium_armour_bonuses(&mut account).given,
-        Vec::<u32>::new()
-    );
-    let silver = give_golden_silver(&mut account);
-    assert_eq!(silver.given, [rifle]);
-    account.item_mut(rifle).unwrap().modifications.clear();
-    assert_eq!(account.inventory, again.inventory);
 }
 
 #[test]
@@ -2390,7 +1818,7 @@ fn a_weapons_upgrades_go_to_the_client_packed_in_the_weapon_kit() {
         value: 0,
         param: 3,
     }];
-    let sent = wire::item_descr_at(account.item(rifle).unwrap(), NOW).upgrades;
+    let sent = wire::item_descr(account.item(rifle).unwrap()).upgrades;
     let kit = u64::from(KIT_MAGIC) << 56 | 3 << 48 | u64::from(dict("camo_city"));
     assert_eq!(
         sent.iter()
@@ -2412,7 +1840,7 @@ fn a_weapons_upgrades_go_to_the_client_packed_in_the_weapon_kit() {
         ]
     );
     // the vest's camouflage as it is (slot 3, value 0: no kit)
-    let vest_sent = wire::item_descr_at(account.item(vest).unwrap(), NOW).upgrades;
+    let vest_sent = wire::item_descr(account.item(vest).unwrap()).upgrades;
     assert_eq!((vest_sent[0].param, vest_sent[0].value), (3, 0));
     assert!(!weapon_kit::is_kit(&vest_sent[0]));
     // the client takes it; the account was not rewritten

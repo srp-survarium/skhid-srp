@@ -887,7 +887,7 @@ st_ct_max_members_count_error	Pelaajien lisääminen epäonnistui. Klaanijoukkue
 st_current_value	\nNykyinen arvo:
 st_cz_75_description	Tšekkiläinen itselataava pistooli, ammus: 9x19. Yksi kylmän sodan kopioiduimmista pistooleista.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Pelaa päivittäin ja saat <highlight>kolmesta ensimmäisestä</highlight> voitosta <highlight>x2</highlight> kokemusta ja mainetta.
+st_daily_bonus_description	Joka päivä: <highlight>x2</highlight> kokemusta <highlight>kolmesta ensimmäisestä</highlight> voitosta.
 st_daily_bonus_hint	Näytä tervetuloruutu
 st_daily_bonus_label	Tervetuloa takaisin
 st_daily_bonus_progress	Tämän päivän edistymisesi
@@ -2496,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment069_snow_20_legs_7_name	Lumi-20-housut
 st_srp_equipment069_snow_20_torso_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment069_snow_20_torso_7_name	Lumi-20-suojaliivi
-st_srp_exchange_balance	Saldo
-st_srp_exchange_button	Vaihda
-st_srp_exchange_gold	Kulta
-st_srp_exchange_pay	Maksat
-st_srp_exchange_receive	Saat
-st_srp_exchange_short_gold	Ei tarpeeksi kultaa
-st_srp_exchange_short_silver	Ei tarpeeksi hopeaa
-st_srp_exchange_title	Vaihda
 st_srp_hide_hit_markers_option	Piilota osumamerkit
 st_srp_hide_quests_option	Piilota tehtävät
 st_srp_hide_scores_option	Piilota pelaajien pisteet
