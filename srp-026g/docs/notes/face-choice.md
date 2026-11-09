@@ -3,13 +3,20 @@
 The owner, 2026-11-08: "some survarium version added the ability to change faces, can we do the
 same?", "we want faces from 069 + stk2 faces", "we need to make sure they all fit fine in all
 helmets, or how this is done", "let's do that good"; 2026-11-09: "no need for loner" (no
-neutral_03_head). A line marked [pick] is a worker's choice the owner may change.
+neutral_03_head), "remove bandit stk2 face completely", "novice face shouldn't have a hat on
+top", "let's first make faces look correct ... render them in 0.69 and iterate until they are
+exact", "it should be the most thorough and full version", "with all features ported". A line
+marked [pick] is a worker's choice the owner may change.
 
 ## The faces
 
-- The eight 0.69d0 faces (head_default, head_01..07, each with its base, helmet and mask
-  variants, and hair where 0.69 has it).
-- Two bare STK2 faces: bandit_01_head_03, neutral_01_head.
+- The eight 0.69d0 faces (head_default, head_01..07), exactly as 0.69d0 draws them: its meshes,
+  all its bone weights, its own base, helmet and mask variants and hair, its materials input for
+  input (only what 0.26g's renderer needs to give the same light: the smoothness map baked to
+  0.26g's roughness curve, the metalness as 0.26g's Fresnel). No subsurface scattering: 0.69d0
+  has none.
+- One STK2 face: the Novice (neutral_01_head), his knit cap taken off and a bare scalp grafted on
+  that looks like his own (the one deliberate change to a donor face). No STK2 bandit face.
 - Face 0 is today's 0.26g head, for everyone who has not chosen. [pick] If 0.69's head_default
   is the same face, it may replace face 0; the content worker decides by look.
 - The list is game data, never code: `gameplay/bodyparts/default`, `body_parts.heads[i]`, in the
@@ -45,11 +52,14 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
 
 ## Fit
 
-- Every face variant clears every live helmet and mask it can be worn with, helmet+mask pairs and
-  every torso collar included, with clearance, in the bind pose and the test poses.
-- An offline gate in the pack build checks every face against every item; a failure stops the
+- The faces are never reshaped to fit: the look is 0.69d0's first.
+- They fit our items 0.69d0's way: its generic helmet and mask variants, and its per-face item
+  models (`models.head_N`) for the items that have them. What else our live items need is the
+  owner's call (the next step).
+- An offline report in the pack build measures every face against every live helmet, mask,
+  helmet+mask pair and torso collar, in the bind pose and the test poses; it does not stop the
   pack.
-- The owner judges the fit by look, front and back.
+- The owner judges the look and the fit by eye, front and back.
 
 ## Wire
 
