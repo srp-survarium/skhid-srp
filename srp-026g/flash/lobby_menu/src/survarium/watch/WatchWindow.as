@@ -205,6 +205,9 @@ package survarium.watch
       // while the game is away in it
       private var _pendingMatch:uint = 0;
 
+      // Enter went down in the search box, and has not come up
+      private var _boxEnter:Boolean = false;
+
       private var _pendingView:Object = null;
 
       private var _pendingAt:int = 0;
@@ -997,10 +1000,22 @@ package survarium.watch
          this.show(false);
       }
 
+      // Sent as Enter comes up: the game's message box takes Enter's key up as its button, so the
+      // same press would close the prompt it had just opened, and end the ask. Only a press begun
+      // here: the key up of the Enter that closed a box would ask again.
       private function onBoxKey(e:KeyboardEvent) : void
       {
-         if(e.keyCode == Keyboard.ENTER)
+         if(e.keyCode != Keyboard.ENTER)
          {
+            return;
+         }
+         if(e.type == KeyboardEvent.KEY_DOWN)
+         {
+            this._boxEnter = true;
+         }
+         else if(this._boxEnter)
+         {
+            this._boxEnter = false;
             this.typed();
          }
       }
@@ -1325,6 +1340,7 @@ package survarium.watch
             hint.visible = tf.text == "";
          });
          tf.addEventListener(KeyboardEvent.KEY_DOWN,this.onBoxKey,false,0,true);
+         tf.addEventListener(KeyboardEvent.KEY_UP,this.onBoxKey,false,0,true);
          tf.addEventListener(MouseEvent.MOUSE_DOWN,function(e:MouseEvent):void
          {
             FocusManager.setFocus(e.currentTarget as TextField);

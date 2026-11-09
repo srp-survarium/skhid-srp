@@ -503,6 +503,7 @@ package
          var box:TextField = find(win,"srpWatchSearch") as TextField;
          box.text = text;
          box.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_DOWN,true,false,0,Keyboard.ENTER));
+         box.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_UP,true,false,0,Keyboard.ENTER));
       }
 
       private function search(language:String) : void
@@ -514,6 +515,18 @@ package
             typeIn(code);
             expect(language + ": the code '" + code + "' asked " + asked(),asked()[0] == MATCH && asked()[1] == 0xC0FF0000);
          }
+         idle();
+         // Enter's press alone asks nothing (its release would close the prompt), nor does a release
+         // begun elsewhere (the one that closed a box)
+         var calls:int = ExternalInterface.calls.length;
+         var box:TextField = find(win,"srpWatchSearch") as TextField;
+         box.text = "1ce45cbe";
+         box.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_UP,true,false,0,Keyboard.ENTER));
+         expect(language + ": a release alone sent the code",ExternalInterface.calls.length == calls);
+         box.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_DOWN,true,false,0,Keyboard.ENTER));
+         expect(language + ": Enter's press sent the code",ExternalInterface.calls.length == calls);
+         box.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_UP,true,false,0,Keyboard.ENTER));
+         expect(language + ": Enter did not send the code",asked()[0] == MATCH && ExternalInterface.calls.length > calls);
          idle();
          // a name: the player found, then its matches
          var Info:* = domain.getDefinition("survarium.controls.PlayerInfo");
