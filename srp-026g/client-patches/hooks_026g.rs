@@ -1667,6 +1667,21 @@ pub extern "C" fn hook_hud_options_on_process_start(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_present` (0x3cf8ff, res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_present(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_present` calls this, from the game's jump at 0x3cf8ff,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- language (patch 79) ----
 
 /// The named exits of language::on_options_call (the order the shim's Flow code

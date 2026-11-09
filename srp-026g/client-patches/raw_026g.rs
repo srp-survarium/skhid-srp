@@ -419,6 +419,10 @@ unsafe extern "C" {
     pub static engine_find_close: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0xaeff20 (an import, stdcall): unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
     pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
+    /// the IAT slot 0xaefe8c (an import, stdcall): unsigned int engine_get_window_long_a(void *window, unsigned int index)
+    pub static engine_get_window_long_a: unsafe extern "stdcall" fn(*mut c_void, u32) -> u32;
+    /// the IAT slot 0xaeff44 (an import, stdcall): unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)
+    pub static engine_set_window_long_a: unsafe extern "stdcall" fn(*mut c_void, u32, u32) -> u32;
     /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)
     pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
     /// the IAT slot 0x87029c (an import, stdcall): unsigned int engine_set_environment_variable_a(const char *name, const char *value)
@@ -17014,6 +17018,30 @@ impl MatchReadyFrame {
     }
 }
 
+/// A vostok::render::res_render_output (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResRenderOutput(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ResRenderOutput {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xe4 (u32): the output window, an HWND (res_render_output::res_render_output 0x3CF4F0 writes it from EDX at 0x3CF540; set_size's SetWindowLongA 0x3CFA09/0x3CFA55 and SetWindowPos 0x3CFA20/0x3CFAD8, present's ShowWindow 0x3CF8C5 take it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn window(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xe4).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -20773,6 +20801,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn world(machine: &impl Machine) -> Option<CoreWorld> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CoreWorld)
+        }
+    }
+
+    /// render_output.present (0x3cf8ff): res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow
+    pub mod render_output_present {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::res_render_output (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn output(machine: &impl Machine) -> Option<ResRenderOutput> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ResRenderOutput)
         }
     }
 }
