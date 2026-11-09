@@ -2497,6 +2497,7 @@ st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
 st_srp_equipment069_snow_20_torso_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment069_snow_20_torso_7_name	Бронекамізэлька "Снег-20"
 st_srp_face	Твар
+st_srp_face_card	Твар %1$s
 st_srp_hide_hit_markers_option	Схаваць хітмаркеры
 st_srp_hide_quests_option	Схаваць заданні
 st_srp_hide_scores_option	Схаваць ачкі гульцоў

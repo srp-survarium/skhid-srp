@@ -26,6 +26,7 @@ package survarium.controls
    import survarium.Util;
    import survarium.data.IconContainer;
    import survarium.data.LocalizationData;
+   import survarium.face.FaceButton;
    import survarium.gsearch.LobbyGameSearch;
    import survarium.gsearch.MatchMakingSettings;
    import survarium.messages.MessageBase;
@@ -53,8 +54,15 @@ package survarium.controls
       // lobby window opened or closed (LobbyMenu, exe patch 81, docs/notes/lobby-scenes.md)
       public static const LOBBY_WINDOW:String = "lobbyWindow";
 
+      // dispatched by the face button (left of the lobby button): the faces' window opened or
+      // closed (LobbyMenu, docs/notes/face-choice.md)
+      public static const FACE_WINDOW:String = "faceWindow";
+
       // the lobby button: the player panel's (topPanelLeftContainer_56)
       public var btn_lobby:PanelButton;
+
+      // the face button: the player panel's, left of the lobby button
+      public var btn_face:FaceButton;
 
       // the premium offer after a match (LobbyMenu.show_premium_post_reward): its seconds left, 0 none
       public var premiumDiscount:int = 0;
@@ -173,6 +181,7 @@ package survarium.controls
          super();
          trace("StatusPanel",this.panel_player,this.right_corner);
          this.btn_lobby = this.panel_player.btn_lobby;
+         this.btn_face = this.panel_player.btn_face;
          this.right_corner = this.panelFaction;
          this.icon_generic = this.panel_player.icon_generic;
          this.btn_add_regular_money = this.panel_player.btn_add_regular_money;
@@ -534,6 +543,7 @@ package survarium.controls
             constraints.addElement("top_menu",this._topMenu,Constraints.CENTER_H);
          }
          this.btn_lobby.addEventListener(ButtonEvent.CLICK,this.onClickLobby);
+         this.btn_face.addEventListener(ButtonEvent.CLICK,this.onClickFace);
          this.left_corner.btnKnowledgeBase.addEventListener(ButtonEvent.CLICK,this.onKnowlengeBaseClick);
          var date:Date = new Date();
          _time = getTimer() - date.milliseconds - int(date.seconds) * 1000;
@@ -811,6 +821,11 @@ package survarium.controls
       private function onClickLobby(e:ButtonEvent) : void
       {
          dispatchEvent(new Event(LOBBY_WINDOW));
+      }
+
+      private function onClickFace(e:ButtonEvent) : void
+      {
+         dispatchEvent(new Event(FACE_WINDOW));
       }
 
       private function onClickSettings() : void

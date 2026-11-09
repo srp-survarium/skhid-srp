@@ -2497,6 +2497,7 @@ st_srp_equipment069_snow_20_legs_7_name	„Hó-20” nadrág
 st_srp_equipment069_snow_20_torso_7_desc	A leírás még nem érhető el.
 st_srp_equipment069_snow_20_torso_7_name	„Hó-20” golyóálló mellény
 st_srp_face	Arc
+st_srp_face_card	Arc %1$s
 st_srp_hide_hit_markers_option	Találatjelzők elrejtése
 st_srp_hide_quests_option	Feladatok elrejtése
 st_srp_hide_scores_option	Pontszámok elrejtése

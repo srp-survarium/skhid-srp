@@ -2,24 +2,18 @@ package survarium.lobbypick
 {
    import flash.display.Bitmap;
    import flash.display.BitmapData;
-   import flash.display.DisplayObject;
-   import flash.display.Shape;
-   import flash.display.Sprite;
-   import flash.events.Event;
-   import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
-   import flash.text.TextField;
    import flash.utils.getDefinitionByName;
    import survarium.data.LocalizationData;
+   import survarium.rooms.CardWindow;
    import survarium.rooms.RoomsLook;
 
    // The lobby window (exe patch 81, docs/notes/lobby-scenes.md): four cards as the rooms' map vote
-   // draws its own (RoomsRoom), the lobby's render over the whole card, its name on a dark band. A
+   // draws its own (CardWindow), the lobby's render over the whole card, its name on a dark band. A
    // click on one picks that lobby: srp is told (its 3B at PICK_BASE + id, the lobby's id), gives
    // the pick back in 0xA1, and the exe shows that lobby behind its fade. The pick has the gold frame.
-   // What it shows the exe tells it (`state`, from root.srp_lobby_state). A press Scaleform gives the
-   // window itself goes to the card under it (RoomsLook.route), as in the rooms window.
-   public class LobbyWindow extends Sprite
+   // What it shows the exe tells it (`state`, from root.srp_lobby_state).
+   public class LobbyWindow extends CardWindow
    {
       public static const PICK_BASE:int = 2095000000;
 
@@ -30,73 +24,35 @@ package survarium.lobbypick
       // a vote card's size (RoomsRoom: a third of the rooms window less its margins, 190 high), two by two
       private static const CARD_W:int = 280;
       private static const CARD_H:int = 190;
-      private static const GAP:int = 14;
-      private static const PAD:int = 16;
-      private static const TITLE_H:int = 44;
+      private static const BAND_H:int = 58;
+      private static const NAME_SIZE:int = 21;
 
       // what the exe said: the pick (id)
       private var _pick:int = 1;
       // a click's pick, until the exe says it
       private var _asked:int = 0;
 
-      private var _look:RoomsLook;
-      private var _frames:Array = [];
-      private var _names:Array = [];
-      private var _title:TextField;
-
-      // what closes it (the lobby's: the modal left)
-      public var onClose:Function;
-
-      public function LobbyWindow(font:String, bold:Object)
+      public function LobbyWindow()
       {
-         super();
+         super(CARD_W,CARD_H,BAND_H,NAME_SIZE);
          name = "srpLobbyWindow";
-         this._look = new RoomsLook(this,this,font,bold);
-         var w:Number = PAD * 2 + CARD_W * 2 + GAP;
-         var h:Number = TITLE_H + CARD_H * 2 + GAP + PAD;
-         graphics.beginFill(0x0E1214,0.96);
-         graphics.drawRect(0,0,w,h);
-         graphics.endFill();
-         graphics.lineStyle(1,0x3A4248);
-         graphics.drawRect(0,0,w,h);
-         this._title = this._look.text(this,"",PAD,14,w - PAD * 2,16,RoomsLook.LIGHT);
-         for(var i:int = 0; i < 4; i++)
+         var pictures:Array = [];
+         for each(var picture:String in PICTURES)
          {
-            var cell:Sprite = new Sprite();
-            cell.x = PAD + i % 2 * (CARD_W + GAP);
-            cell.y = TITLE_H + int(i / 2) * (CARD_H + GAP);
-            var cls:Class = getDefinitionByName(PICTURES[i]) as Class;
-            cell.addChild(new Bitmap(RoomsLook.cover(new cls() as BitmapData,CARD_W,CARD_H)));
-            var shade:Shape = new Shape();
-            shade.graphics.beginFill(0,0.01);
-            shade.graphics.drawRect(0,0,CARD_W,CARD_H);
-            shade.graphics.endFill();
-            shade.graphics.beginFill(0,0.62);
-            shade.graphics.drawRect(0,CARD_H - 58,CARD_W,58);
-            shade.graphics.endFill();
-            cell.addChild(shade);
-            var frame:Shape = new Shape();
-            cell.addChild(frame);
-            this._frames.push(frame);
-            this._names.push(this._look.text(cell,"",12,CARD_H - 54,CARD_W - 24,21,0xFFFFFF));
-            cell.buttonMode = true;
-            cell.mouseChildren = false;
-            cell.name = String(i + 1);
-            cell.addEventListener(MouseEvent.CLICK,this.onCard,false,0,true);
-            this._look.route(cell,this.onRouted);
-            addChild(cell);
+            var cls:Class = getDefinitionByName(picture) as Class;
+            pictures.push(new Bitmap(RoomsLook.cover(new cls() as BitmapData,CARD_W,CARD_H)));
          }
+         build(pictures,2);
          LocalizationData.addCallback(this.labels,"st_srp_lobby_title");
-         addEventListener(MouseEvent.MOUSE_DOWN,this._look.onContentDown);
          this.redraw();
       }
 
       private function labels(title:String) : void
       {
-         this._title.text = title.toUpperCase();
-         for(var i:int = 0; i < 4; i++)
+         setTitle(title.toUpperCase());
+         for(var i:int = 0; i < NAMES.length; i++)
          {
-            TextField(this._names[i]).text = LocalizationData.getName(NAMES[i]);
+            setLabel(i,LocalizationData.getName(NAMES[i]));
          }
       }
 
@@ -116,44 +72,22 @@ package survarium.lobbypick
          return this._asked != 0 ? this._asked : this._pick;
       }
 
-      // The pick framed gold (3 px), the others as a vote card is (1 px).
       private function redraw() : void
       {
-         for(var i:int = 0; i < 4; i++)
-         {
-            var mine:Boolean = i + 1 == this.marked();
-            var frame:Shape = this._frames[i];
-            frame.graphics.clear();
-            frame.graphics.lineStyle(mine ? 3 : 1,mine ? RoomsLook.GOLD : 0x26323C);
-            frame.graphics.drawRect(0,0,CARD_W,CARD_H);
-         }
-      }
-
-      private function onCard(e:Event) : void
-      {
-         this.press(e.currentTarget as DisplayObject);
-      }
-
-      private function onRouted(control:DisplayObject, e:MouseEvent) : void
-      {
-         this.press(control);
+         mark(this.marked() - 1);
       }
 
       // A card pressed: its lobby picked (not the pick already), and the window closed.
-      private function press(card:DisplayObject) : void
+      override protected function pressed(card:int) : void
       {
-         RoomsLook.clickSound();
-         var id:int = int(card.name);
+         var id:int = card + 1;
          if(id != this.marked())
          {
             this._asked = id;
             this.redraw();
             ExternalInterface.call("request_players_range",PICK_BASE + id,1);
          }
-         if(this.onClose != null)
-         {
-            this.onClose();
-         }
+         close();
       }
    }
 }

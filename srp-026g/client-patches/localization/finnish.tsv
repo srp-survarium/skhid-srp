@@ -2497,6 +2497,7 @@ st_srp_equipment069_snow_20_legs_7_name	Lumi-20-housut
 st_srp_equipment069_snow_20_torso_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment069_snow_20_torso_7_name	Lumi-20-suojaliivi
 st_srp_face	Kasvot
+st_srp_face_card	Kasvot %1$s
 st_srp_hide_hit_markers_option	Piilota osumamerkit
 st_srp_hide_quests_option	Piilota tehtävät
 st_srp_hide_scores_option	Piilota pelaajien pisteet

@@ -2497,6 +2497,7 @@ st_srp_equipment069_snow_20_legs_7_name	Pantalone Sneg-20
 st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_torso_7_name	Pancir Sneg-20
 st_srp_face	Lice
+st_srp_face_card	Lice %1$s
 st_srp_hide_hit_markers_option	Sakrij oznake pogodaka
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij poene igrača

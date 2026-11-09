@@ -8,7 +8,7 @@ package survarium.face
    import flash.utils.getTimer;
 
    // The account's face (face-choice.md) as srp says it and as the player picks it: the one owner
-   // of that state, which the Face button and its chooser show (Event.CHANGE at each change).
+   // of that state, which the Face button and the faces' window show (Event.CHANGE at each change).
    //
    // srp's wire (face-choice.md, Wire): the ranking request at FACES_FIRST (the state) and
    // FACE_CHOOSE + face (a choice), each answered by one row at FACES_FIRST,

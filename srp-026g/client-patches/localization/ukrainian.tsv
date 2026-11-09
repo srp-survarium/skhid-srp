@@ -2497,6 +2497,7 @@ st_srp_equipment069_snow_20_legs_7_name	Штани "Сніг-20"
 st_srp_equipment069_snow_20_torso_7_desc	Опис поки недоступний.
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Сніг-20"
 st_srp_face	Обличчя
+st_srp_face_card	Обличчя %1$s
 st_srp_hide_hit_markers_option	Приховати хітмаркери
 st_srp_hide_quests_option	Приховати завдання
 st_srp_hide_scores_option	Приховати очки гравців

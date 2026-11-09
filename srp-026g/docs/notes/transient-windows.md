@@ -11,7 +11,6 @@ A **transient window** is a pop-up that lives only until the player turns to som
 - **History** (the bottom bar's button: match history and replays);
 - **the match settings under Play** (the arrow beside "PvP": PvP, clan, bot matches);
 - **the character panel's presets list** (its title: the five presets);
-- **the face chooser** (the player panel's FACE button: the faces, `face-choice.md`);
 - **a dropdown's open list** (every CLIK `DropdownMenu` of the lobby: the bot-match size, mode and
   map, the premium boxes').
 
