@@ -40,6 +40,7 @@ use std::fmt;
 
 pub mod client_model;
 pub mod client_rules;
+pub mod live_watch;
 pub mod lobby_pick;
 pub mod player_matches;
 pub mod presets;
@@ -58,6 +59,7 @@ pub use push::*;
 pub use requests::{ClientMessage, ParseError, parse};
 pub use results::*;
 pub use social::*;
+pub use live_watch::LiveWatch;
 pub use lobby_pick::LobbyPick;
 
 /// The first and last id the client's lobby table takes from the server

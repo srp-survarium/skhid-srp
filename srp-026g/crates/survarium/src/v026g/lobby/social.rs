@@ -1,6 +1,7 @@
 //! Chat, friends, squads and clans on the lobby link, and the small pushes
 //! (`social.md`, `login_chat.md` §5).
 
+use super::live_watch::LiveWatch;
 use super::lobby_pick::LobbyPick;
 use super::push::{NameRefusal, write_name_check};
 use super::requests::id;
@@ -225,12 +226,14 @@ pub fn important_message(
         .done(ServerId::Important)
 }
 
-/// The lobby picks `0xA1` carries: the receiver's own and its squad
-/// commander's (none out of a squad, or not picked).
+/// What `0xA1` carries for the receiver: the lobby picks, its own and its
+/// squad commander's (none out of a squad, or not picked), and its account's
+/// live watch setting.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SquadPicks {
     pub own: Option<LobbyPick>,
     pub commander: Option<LobbyPick>,
+    pub live_watch: LiveWatch,
 }
 
 /// One member in a squad info (0xA1).
@@ -253,10 +256,12 @@ pub struct SquadMember {
 /// `A1`: the player's squad (`social.md` §2.1), or none for `squad_id` 0
 /// (then nothing else is sent). `commander_index` is the commander's place
 /// in `members`: a soldier's Play is locked while that member is ready.
-/// srp's own last two bytes, after the squad (after the id alone for none):
+/// srp's own last three bytes, after the squad (after the id alone for none):
 /// the receiver's own lobby pick and its commander's (0 none; no squad,
 /// none), for exe patch 81 (`lobby-scenes.md`): every member is shown its
-/// commander's lobby. The stock reader stops before them.
+/// commander's lobby; and the receiver's live watch setting
+/// ([`LiveWatch::id`]), for the Settings window (exe patch 131). The stock
+/// reader stops before them.
 pub fn squad_info(
     squad_id: u32,
     members: &[SquadMember],
@@ -268,7 +273,7 @@ pub fn squad_info(
     let mut writer = Writer::new();
     writer.u32(squad_id);
     if squad_id == 0 {
-        writer.u8(LobbyPick::byte(picks.own)).u8(0);
+        writer.u8(LobbyPick::byte(picks.own)).u8(0).u8(picks.live_watch.id());
         return Ok(writer.done(ServerId::SquadInfo));
     }
     at_most("squad members", members.len(), limits::SQUAD_MEMBERS)?;
@@ -289,7 +294,8 @@ pub fn squad_info(
         .bool(i_am_commander)
         .u32(revision)
         .u8(LobbyPick::byte(picks.own))
-        .u8(LobbyPick::byte(picks.commander));
+        .u8(LobbyPick::byte(picks.commander))
+        .u8(picks.live_watch.id());
     Ok(writer.done(ServerId::SquadInfo))
 }
 

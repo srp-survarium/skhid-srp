@@ -5,7 +5,9 @@
 //! their default, 0.
 
 use rusqlite::{Connection, OptionalExtension, params};
+use survarium::v026g::lobby::LiveWatch;
 
+use super::bad_row;
 use crate::persist::PersistError;
 use crate::v026g::extras::{DailyBonus, Extras};
 
@@ -35,16 +37,25 @@ pub(super) const MIGRATION: &str = "
         FROM g26_accounts;
     ";
 
+/// The step that adds the live watch setting: every account of before may be
+/// watched, as one saved later without a row is
+/// ([`survarium::v026g::lobby::LiveWatch::id`]: 1 allowed, 2 hidden).
+pub(super) const LIVE_WATCH_MIGRATION: &str = "
+    ALTER TABLE g26_extras ADD COLUMN
+        live_watch INTEGER NOT NULL DEFAULT 1 CHECK(live_watch IN (1, 2));
+    ";
+
 /// The account's row; the defaults for an account with none.
 pub(super) fn load(connection: &Connection, account_id: u32) -> Result<Extras, PersistError> {
-    let extras = connection
+    let row = connection
         .query_row(
             "SELECT bonus_day, bonus_last_day, bonus_wins,
-                    bonus_completed, bonus_shown_day
+                    bonus_completed, bonus_shown_day, live_watch
              FROM g26_extras WHERE account_id = ?1",
             [account_id],
             |row| {
-                Ok(Extras {
+                let extras = Extras {
+                    live_watch: LiveWatch::default(),
                     bonus: DailyBonus {
                         day: row.get(0)?,
                         last_day: row.get::<_, i64>(1)?.max(0) as u64,
@@ -52,11 +63,17 @@ pub(super) fn load(connection: &Connection, account_id: u32) -> Result<Extras, P
                         completed: row.get(3)?,
                         shown_day: row.get::<_, i64>(4)?.max(0) as u64,
                     },
-                })
+                };
+                Ok((extras, row.get::<_, u8>(5)?))
             },
         )
         .optional()?;
-    Ok(extras.unwrap_or_default())
+    let Some((extras, live_watch)) = row else {
+        return Ok(Extras::default());
+    };
+    let live_watch = LiveWatch::of_id(live_watch)
+        .ok_or_else(|| bad_row(account_id, "live watch setting", &live_watch.to_string()))?;
+    Ok(Extras { live_watch, ..extras })
 }
 
 pub(super) fn save(
@@ -71,13 +88,14 @@ pub(super) fn save(
     connection.execute(
         "INSERT INTO g26_extras (
             account_id, bonus_day, bonus_last_day, bonus_wins,
-            bonus_completed, bonus_shown_day
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            bonus_completed, bonus_shown_day, live_watch
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(account_id) DO UPDATE SET
             bonus_day = excluded.bonus_day, bonus_last_day = excluded.bonus_last_day,
             bonus_wins = excluded.bonus_wins,
             bonus_completed = excluded.bonus_completed,
-            bonus_shown_day = excluded.bonus_shown_day",
+            bonus_shown_day = excluded.bonus_shown_day,
+            live_watch = excluded.live_watch",
         params![
             account_id,
             extras.bonus.day,
@@ -85,6 +103,7 @@ pub(super) fn save(
             extras.bonus.packed_wins(),
             extras.bonus.completed,
             day(extras.bonus.shown_day),
+            extras.live_watch.id(),
         ],
     )?;
     Ok(())
@@ -116,6 +135,7 @@ mod tests {
         let mut repository = SqliteGameRepository::open(&dir.join(DB_FILE)).unwrap();
         let mut account = Account::new("Alice");
         account.extras = Extras {
+            live_watch: LiveWatch::Hidden,
             bonus: DailyBonus {
                 day: 4,
                 last_day: 20_371,
@@ -135,6 +155,149 @@ mod tests {
         repository.save(7, &account).unwrap();
         assert_eq!(repository.load_all().unwrap()[0].1, account);
         drop(repository);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A file of the version before the live watch step keeps its accounts,
+    /// each of them watchable; a hidden one comes back hidden after a restart
+    /// (a reopened file), and an account without a row is allowed.
+    #[test]
+    fn the_live_watch_setting_defaults_to_allowed_and_survives_a_restart() {
+        let dir = temp_dir("live-watch");
+        let path = dir.join(DB_FILE);
+        let step = MIGRATIONS
+            .iter()
+            .position(|step| *step == LIVE_WATCH_MIGRATION)
+            .expect("the live watch step is one of the migrations");
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
+                )
+                .unwrap();
+            for earlier in &MIGRATIONS[..step] {
+                connection.execute_batch(earlier).unwrap();
+            }
+            connection
+                .execute(
+                    "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
+                    [step as i64],
+                )
+                .unwrap();
+            connection
+                .execute_batch(
+                    "INSERT INTO g26_accounts (
+                        account_id, name, clan_tag, generic_money, premium_money, premium_until,
+                        exp_total, quest_faction, rating, rating_before, active_kit, autobuy,
+                        next_item_id, next_quest_instance, tutorial_step, tutorial_done
+                     ) VALUES
+                        (5, 'Alice', '', 777, 12, 0, 0, 0, 1000, 1000, 1, 1, 1, 1, 0, 0),
+                        (6, 'Bob', '', 1, 2, 0, 0, 0, 1000, 1000, 1, 0, 1, 1, 3, 0);
+                     INSERT INTO g26_extras (account_id, bonus_day) VALUES (5, 4);",
+                )
+                .unwrap();
+        }
+        let mut alice = {
+            let mut repository = SqliteGameRepository::open(&path).unwrap();
+            let loaded = repository.load_all().unwrap();
+            assert_eq!(loaded.len(), 2);
+            assert_eq!(loaded[0].1.extras.live_watch, LiveWatch::Allowed);
+            assert_eq!(loaded[0].1.extras.bonus.day, 4, "the row of before is kept");
+            assert_eq!(loaded[1].1.extras.live_watch, LiveWatch::Allowed);
+            let mut alice = loaded[0].1.clone();
+            alice.extras.live_watch = LiveWatch::Hidden;
+            repository.save(5, &alice).unwrap();
+            alice
+        };
+        let mut repository = SqliteGameRepository::open(&path).unwrap();
+        assert_eq!(repository.load_all().unwrap()[0].1, alice);
+        // A new account has the default, and on again is kept too.
+        repository.save(9, &Account::new("Carol")).unwrap();
+        assert_eq!(
+            repository.load_all().unwrap()[2].1.extras.live_watch,
+            LiveWatch::Allowed
+        );
+        alice.extras.live_watch = LiveWatch::Allowed;
+        repository.save(5, &alice).unwrap();
+        drop(repository);
+        let mut repository = SqliteGameRepository::open(&path).unwrap();
+        assert_eq!(repository.load_all().unwrap()[0].1, alice);
+        drop(repository);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A value the table cannot hold by its CHECK, written past it, is refused
+    /// rather than read as either state.
+    #[test]
+    fn a_bad_live_watch_value_is_refused() {
+        let dir = temp_dir("live-watch-bad");
+        let path = dir.join(DB_FILE);
+        let mut repository = SqliteGameRepository::open(&path).unwrap();
+        repository.save(5, &Account::new("Alice")).unwrap();
+        drop(repository);
+        let connection = Connection::open(&path).unwrap();
+        connection.execute_batch("PRAGMA ignore_check_constraints = ON;").unwrap();
+        connection.execute("UPDATE g26_extras SET live_watch = 7", []).unwrap();
+        drop(connection);
+        let mut repository = SqliteGameRepository::open(&path).unwrap();
+        assert!(repository.load_all().is_err());
+        drop(repository);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A real file at schema 16 (the step before the setting, whose number
+    /// has shipped) comes up at 17 with every account on: the column's own
+    /// default for a row of before, and the default for an account with none.
+    #[test]
+    fn a_file_at_schema_16_comes_up_at_17_with_live_watch_on() {
+        let dir = temp_dir("schema-16-to-17");
+        let path = dir.join(DB_FILE);
+        assert_eq!(
+            MIGRATIONS.iter().position(|step| *step == LIVE_WATCH_MIGRATION),
+            Some(16),
+            "the setting's step is the 17th"
+        );
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
+                )
+                .unwrap();
+            for earlier in &MIGRATIONS[..16] {
+                connection.execute_batch(earlier).unwrap();
+            }
+            connection
+                .execute("INSERT INTO g26_meta (key, value) VALUES ('schema', 16)", [])
+                .unwrap();
+            connection
+                .execute_batch(
+                    "INSERT INTO g26_accounts (
+                        account_id, name, clan_tag, generic_money, premium_money, premium_until,
+                        exp_total, quest_faction, rating, rating_before, active_kit, autobuy,
+                        next_item_id, next_quest_instance, tutorial_step, tutorial_done
+                     ) VALUES
+                        (5, 'Alice', '', 777, 12, 0, 0, 0, 1000, 1000, 1, 1, 1, 1, 0, 0),
+                        (6, 'Bob', '', 1, 2, 0, 0, 0, 1000, 1000, 1, 0, 1, 1, 3, 0);
+                     INSERT INTO g26_extras (account_id, bonus_day) VALUES (5, 4);",
+                )
+                .unwrap();
+        }
+        {
+            let mut repository = SqliteGameRepository::open(&path).unwrap();
+            assert!(repository.version().unwrap() >= 17);
+            let loaded = repository.load_all().unwrap();
+            assert_eq!(loaded[0].1.extras.live_watch, LiveWatch::Allowed);
+            assert_eq!(loaded[0].1.extras.bonus.day, 4);
+            assert_eq!(loaded[1].1.extras.live_watch, LiveWatch::Allowed);
+        }
+        let connection = Connection::open(&path).unwrap();
+        let stored: u8 = connection
+            .query_row("SELECT live_watch FROM g26_extras WHERE account_id = 5", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(stored, LiveWatch::Allowed.id(), "the row of before holds the default");
+        drop(connection);
         let _ = std::fs::remove_dir_all(dir);
     }
 

@@ -735,7 +735,8 @@ pub fn ranking_flush(top: &[Ranked]) -> Option<Result<ServerMessage, WireError>>
 /// [`SAVE_START`]) and the
 /// player pop-up's matches (`player_matches::PLAYER_MATCHES_START`) are
 /// answered (a lobby pick, `lobby_pick::LOBBY_PICK_BASE` + id, is kept and
-/// shown back in `0xA1`, not answered); every other one gets no answer (the "matches now" list and
+/// shown back in `0xA1`, not answered, as is a live watch setting,
+/// `live_watch::LIVE_WATCH_BASE` + id); every other one gets no answer (the "matches now" list and
 /// its JOIN, at 2 000 000 000 and from 2 100 000 000, went with the queue:
 /// the owner's of 2026-10-17).
 pub const RESERVED_START: u32 = 2_000_000_000;

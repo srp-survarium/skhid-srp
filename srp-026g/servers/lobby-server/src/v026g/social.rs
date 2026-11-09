@@ -917,8 +917,12 @@ impl Core<'_> {
     /// The squad info for one member's client.
     fn squad_message(&self, me: u32, squad: Option<&Squad>) -> Result<ServerMessage, WireError> {
         let own = self.lobby_pick_of(me);
+        let live_watch = self
+            .accounts
+            .get(me)
+            .map_or_else(Default::default, |account| account.locked().extras.live_watch);
         let Some(squad) = squad else {
-            return lobby::squad_info(0, &[], 0, false, 0, SquadPicks { own, commander: None });
+            return lobby::squad_info(0, &[], 0, false, 0, SquadPicks { own, commander: None, live_watch });
         };
         let members: Vec<SquadMember> = squad
             .members
@@ -960,7 +964,7 @@ impl Core<'_> {
             0,
             squad.commander() == me,
             squad.revision,
-            SquadPicks { own, commander },
+            SquadPicks { own, commander, live_watch },
         )
     }
 

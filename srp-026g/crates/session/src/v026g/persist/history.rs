@@ -1826,10 +1826,12 @@ mod tests {
             let mut repository = SqliteGameRepository::open(&dir.db()).unwrap();
             repository.save(10, &Account::new("Alice")).unwrap();
             let connection = Connection::open(dir.db()).unwrap();
-            // Back to the step before: the history's tables gone.
+            // Back to the step before: the history's tables gone, and the
+            // later steps' changes undone (`extras`' live watch column).
             connection
                 .execute_batch(
-                    "DROP TABLE g26_match_events;
+                    "ALTER TABLE g26_extras DROP COLUMN live_watch;
+                     DROP TABLE g26_match_events;
                      DROP TABLE g26_match_kit_items; DROP TABLE g26_match_kits;
                      DROP TABLE g26_player_items; DROP TABLE g26_match_players;
                      DROP TABLE g26_matches;

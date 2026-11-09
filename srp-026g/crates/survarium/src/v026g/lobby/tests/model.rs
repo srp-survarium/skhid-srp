@@ -930,7 +930,7 @@ fn chat_friends_and_squads_read_back() {
         ready: false,
     }];
     assert_eq!(
-        client.receive(&squad_info(9, &members, 0, true, 4, SquadPicks { own: Some(LobbyPick::Room), commander: Some(LobbyPick::Basement) }).unwrap()),
+        client.receive(&squad_info(9, &members, 0, true, 4, SquadPicks { own: Some(LobbyPick::Room), commander: Some(LobbyPick::Basement), ..SquadPicks::default() }).unwrap()),
         Ok(Decoded::SquadInfo {
             squad_id: 9,
             members,
@@ -938,6 +938,7 @@ fn chat_friends_and_squads_read_back() {
             i_am_commander: true,
             revision: 4,
             picks: [1, 2],
+            live_watch: 1,
         })
     );
     assert!(

@@ -466,6 +466,14 @@ The Character panel's title, the switcher of five kit presets, one active (`pres
 
 The list: `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>` (`done` 0 the list, 1 chosen, 2 refused: the asker is in a match, or a kit rule refused; `preset` the one it was about, 0 for the list; `active` the active preset), then `<blocks>`: why no room may be entered now, bits (the reasons table of `presets.md`: 1 to 16 the kit a match would take, `rules::kits_play_blocks`; 32 the maintenance rule, `maintenance_is_near`; 0 none), by which the movie greys Play, Join, Queue and New room and lists the reasons in their tip; then `<minutes>` to a planned maintenance (-1: none); then a row a preset, 1 first: `<preset>;<saved>;<level>` (`saved` 1: it holds something, the active one when the kits do; `level` the gear level its kits give now, the rooms' measure; -1: empty, or none of its kits can play), then the items the presets use, `U;<item id>:<presets>,...` (`presets` bit n - 1 for preset n; the active one's: the kits' items; another's: the items it would put on now), as many to a row as a name holds (63 bytes), item ids rising, rows past 2 090 000 099 left out (`presets::uses`, `lobby::presets::preset_list`). The movie asks before a sale of one of them (`MessageAskSell`). P1 (until 2026-10-23) had `<empty>` before `<active>`, the slots a choice left empty, for a notice the owner removed. No exe change: the movie sends and reads it as the rooms' wire.
 
+#### 2.16.6 The live watch setting, on `3B`: srp's own (2026-11-09)
+
+The Settings' "Allow others to watch my matches live" (exe patch 131, `replay-stream.md` "Who may be watched"):
+start **2 096 000 000 + id**, the id 1 allowed or 2 hidden (`live_watch.rs`, `LIVE_WATCH_BASE`, `LiveWatch`). The exe
+sends it when the box is applied; a stock game never does. No `91` answers it: srp keeps it with the account and
+sends it back as `0xA1`'s last srp byte, every client whose `0xA1` changed again; that byte, sent at each sign-in, is
+how the exe learns the state. Any other id is no setting: refused, the account unchanged, not answered.
+
 #### 2.16.5 The lobby pick, on `3B`: srp's own (2026-10-30)
 
 The lobby window's pick (`lobby-scenes.md`, exe patch 81): start **2 095 000 000 + id**, the lobby's id 1 to 4 (1 the Room, 2 the Basement, 3 the Bunker, 4 the Hangar; `lobby_pick.rs`, `LOBBY_PICK_BASE`): above the presets, inside an `int`. The movie sends it at a card's click, the exe the saved pick when srp has none (the sign-in: `0xA1`'s own byte 0). No `91` answers it: srp keeps the pick for the session (`Player::lobby_pick`, in memory) and sends it back in `0xA1`'s two srp bytes (2.x `0xA1`: after the squad, after the id alone for none: the receiver's own pick, its commander's, 0 none), every client whose `0xA1` changed again. A start past the four is no pick (not answered).

@@ -160,6 +160,18 @@ is a `91` row at the request's start plus its index.
   delay of the match is not shown; a late joiner who entered within the delay has a place in its
   0xE4 before the world shows it (as a replay's late install).
 
+### Who may be watched
+
+"Allow others to watch my matches live" (the Settings window's Gameplay tab, under "Friends:", ticked by default)
+is the account's, kept in `g26_extras.live_watch` (schema step 17: 1 allowed, the default; 2 hidden). Unticked, a
+match with that player seated in it, one who left it included until it ends, is not listed, has no roster, is
+answered `not_yours` to a watch ask and gives no friend's `F1` row, as a private room's match. Nothing names the
+player. The list and the ask read it when they run, so a change applies from then on; spectators already watching
+go on. The wire: `lobby.md` 2.16.6.
+
+Not this setting's: finished replays, and a room's "Queue and spectate" (`WatchKind::Queued`,
+`queue-spectate.md`), which shows the room's own match to someone in its queue.
+
 ## Settings
 
 | setting | |

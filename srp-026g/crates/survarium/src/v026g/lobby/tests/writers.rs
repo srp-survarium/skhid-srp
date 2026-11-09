@@ -1052,9 +1052,9 @@ fn important_messages() {
 #[test]
 fn squad_info_layout() {
     // No squad: only the id.
-    let picks = SquadPicks { own: Some(LobbyPick::Hangar), commander: Some(LobbyPick::Bunker) };
+    let picks = SquadPicks { own: Some(LobbyPick::Hangar), commander: Some(LobbyPick::Bunker), live_watch: LiveWatch::Hidden };
     // No squad: the id and srp's bytes, the own pick alone.
-    assert_bytes(&squad_info(0, &[], 0, false, 0, picks).unwrap(), "A1 00000000 04 00");
+    assert_bytes(&squad_info(0, &[], 0, false, 0, picks).unwrap(), "A1 00000000 04 00 02");
     let members = [
         SquadMember {
             account_id: 1,
@@ -1082,7 +1082,8 @@ fn squad_info_layout() {
          02000000 02000080 09000000 'Bob' 01 00
          01                      i am the commander
          03000000                revision
-         04 03                   srp's: the own pick, the commander's",
+         04 03                   srp's: the own pick, the commander's
+         02                      srp's: the account's live watch setting",
     );
     // Three slots; a commander among them.
     let four = vec![members[0].clone(); 4];

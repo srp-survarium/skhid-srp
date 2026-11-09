@@ -312,6 +312,8 @@ pub enum Decoded {
         /// srp's last two bytes: the receiver's lobby pick and its
         /// commander's (0 none).
         picks: [u8; 2],
+        /// srp's last byte: the account's `LiveWatch` id.
+        live_watch: u8,
     },
     ChatText {
         sender_type: u8,
@@ -1886,6 +1888,7 @@ impl Client {
                         i_am_commander: false,
                         revision: 0,
                         picks: [r.u8()?, r.u8()?],
+                        live_watch: r.u8()?,
                     });
                 }
                 let count = usize::from(r.u8()?);
@@ -1912,6 +1915,7 @@ impl Client {
                     i_am_commander: r.bool()?,
                     revision: r.u32()?,
                     picks: [r.u8()?, r.u8()?],
+                    live_watch: r.u8()?,
                 }
             }
             ServerId::ChatText => {
