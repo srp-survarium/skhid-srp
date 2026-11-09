@@ -124,6 +124,12 @@ global engine_profile_destroy
 global engine_release_inventory
 global engine_global_memory_status_ex
 global engine_virtual_query
+global engine_virtual_alloc
+global engine_get_environment_variable_a
+global engine_virtual_protect
+global engine_virtual_free
+global engine_switch_to_thread
+global engine_sleep
 global engine_allocate_recipe
 global engine_get_current_process_id
 global engine_bind_member_callback
@@ -224,6 +230,12 @@ engine_close_current_match equ 0x27a790   ; 0x27a790 survarium::network_client::
 engine_gfx_set_member equ 0x7c6a20   ; 0x7c6a20 Scaleform::GFx::AS3ValueObjectInterface::SetMember: interface ECX, target ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; thiscall, called directly
 engine_global_memory_status_ex equ 0x870164   ; the IAT slot 0x870164 (an import, stdcall)
 engine_virtual_query equ 0x870168   ; the IAT slot 0x870168 (an import, stdcall)
+engine_virtual_alloc equ 0x87015c   ; the IAT slot 0x87015c (an import, stdcall)
+engine_get_environment_variable_a equ 0x8701b4   ; the IAT slot 0x8701b4 (an import, stdcall)
+engine_virtual_protect equ 0x870200   ; the IAT slot 0x870200 (an import, stdcall)
+engine_virtual_free equ 0x870160   ; the IAT slot 0x870160 (an import, stdcall)
+engine_switch_to_thread equ 0x870120   ; the IAT slot 0x870120 (an import, stdcall)
+engine_sleep equ 0x87011c   ; the IAT slot 0x87011c (an import, stdcall)
 engine_get_current_process_id equ 0x8701b8   ; the IAT slot 0x8701b8 (an import, stdcall)
 engine_weapon_set_user equ 0x2445e0   ; 0x2445e0 survarium::weapon::set_user: weapon ECX, player ESP+4; pops 4; thiscall, called directly
 engine_weapon_initialize equ 0x2449e0   ; 0x2449e0 survarium::weapon::initialize: weapon ECX; pops 0; thiscall, called directly

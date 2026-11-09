@@ -10,7 +10,9 @@
 //!   a managed allocator's and the multithreaded region's counts.
 //!
 //! [`process`] and [`arenas`] are the reader, for any caller on the game's
-//! thread; [`snapshot`] is the report's.
+//! thread; [`snapshot`] is the report's. Patch 127's profiler reads the
+//! same arenas with where they lie and their heaps' free blocks
+//! ([`placed`]), and the address space region by region ([`regions_map`]).
 //!
 //! Nothing is called in the engine: its own size queries walk a heap
 //! another thread may be using with no lock (internal_mallinfo 0xFF200),
@@ -127,13 +129,18 @@ impl Record {
     }
 
     fn usage(&self) -> Usage {
+        self.usage_with(|_| ())
+    }
+
+    /// Its usage, a heap's free blocks told to `free` on the way.
+    fn usage_with(&self, free: impl FnMut(u32)) -> Usage {
         // SAFETY: an allocator the engine registered: a static object of
         // the image or one of engine_world's, alive while the game runs;
         // its vtable word tells which kind's fields it has.
         unsafe {
             let Some(allocator) = self.record.allocator() else { return Usage::Unknown };
             match read(allocator.vtable()) {
-                raw::image::DOUG_LEA_VTABLE => allocator.mspace().map_or(Usage::Unknown, |mspace| self.heap(mspace)),
+                raw::image::DOUG_LEA_VTABLE => allocator.mspace().map_or(Usage::Unknown, |mspace| self.heap(mspace, free)),
                 raw::image::MANAGED_VTABLE => Usage::Counted {
                     used: read(allocator.managed_total()).saturating_sub(read(allocator.managed_free())),
                 },
@@ -147,7 +154,7 @@ impl Record {
     }
 
     /// A doug_lea arena's heap, walked inside the arena alone.
-    fn heap(&self, mspace: raw::Mspace) -> Usage {
+    fn heap(&self, mspace: raw::Mspace, free: impl FnMut(u32)) -> Usage {
         let (start, end) = (self.start, self.end);
         let at = mspace.address() as usize;
         let state_end = at.saturating_add(raw::Mspace::SIZE);
@@ -175,7 +182,7 @@ impl Record {
                 unsafe { (word as *const u32).read_volatile() }
             })
         };
-        state.usage(head).unwrap_or(Usage::Unknown)
+        state.walk(head, free).unwrap_or(Usage::Unknown)
     }
 }
 
@@ -196,6 +203,67 @@ fn records() -> impl Iterator<Item = Record> {
     (0..count.min(MAX_ARENAS)).filter_map(move |index| {
         // SAFETY: `index` is below the list's count, from its begin.
         begin.map(|begin| Record::of(unsafe { begin.at(index) }))
+    })
+}
+
+/// An arena of the engine's list with where it lies (patch 127).
+pub struct Placed<'t> {
+    record: Record,
+    thread: core::marker::PhantomData<&'t Thread>,
+}
+
+impl Placed<'_> {
+    pub fn name(&self) -> Name {
+        self.record.name()
+    }
+
+    /// Its first byte (0 for one with no place of its own: the process heap).
+    pub fn start(&self) -> u32 {
+        self.record.start as u32
+    }
+
+    /// Its bytes, as registered.
+    pub fn size(&self) -> u32 {
+        self.record.size()
+    }
+
+    /// Its usage as [`arenas`] reads it, a heap's free blocks told to
+    /// `free` on the way ([`Mspace::walk`](srp_validate::memory::Mspace::walk):
+    /// all of them only when the usage is a heap's).
+    pub fn usage_with(&self, free: impl FnMut(u32)) -> Usage {
+        self.record.usage_with(free)
+    }
+}
+
+/// Each arena of the engine's list, in its order, with where it lies.
+pub fn placed(_: &Thread) -> impl Iterator<Item = Placed<'_>> + '_ {
+    records().map(|record| Placed { record, thread: core::marker::PhantomData })
+}
+
+/// A region of the address space, as `VirtualQuery` tells it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Region {
+    pub base: u32,
+    pub size: u32,
+    /// Where the reservation it is part of starts (0 for a free one).
+    pub allocation: u32,
+    /// MEM_COMMIT 1000h, MEM_RESERVE 2000h, MEM_FREE 10000h.
+    pub state: u32,
+    /// Its pages' protection (PAGE_GUARD 100h with it: a thread stack's guard).
+    pub protect: u32,
+    /// MEM_PRIVATE 20000h, MEM_MAPPED 40000h, MEM_IMAGE 1000000h.
+    pub kind: u32,
+}
+
+/// The address space from 0 region by region, at most `most` of them.
+pub fn regions_map(_: &Thread, most: usize) -> impl Iterator<Item = Region> + '_ {
+    regions(0, most).map(|info| Region {
+        base: info.base as u32,
+        size: info.size as u32,
+        allocation: info.allocation as u32,
+        state: info.state,
+        protect: info.protect,
+        kind: info.kind,
     })
 }
 
