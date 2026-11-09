@@ -1186,6 +1186,7 @@ va	status	ref_021d	name
 0x0020efd0	inferred-medium	0x001673f7	survarium::network_stats_packets_sequence::network_stats_packets_sequence
 0x0020f230	inferred-medium	0x00167581	survarium::network_stats_packets_sequence::hide_movie
 0x0020fe90	inferred-medium	0x00167bea	survarium::network_stats_packets_sequence::fill_data
+0x0020ff90	observed		survarium::tick_wrap_delta
 0x002100a0	inferred-medium	0x00167d49	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,survarium::network_stats_packets_sequence,char const *>,boost::_bi::list2<boost::_bi::value<survarium::network_stats_packets_sequence *>,boost::arg<1> > > >::manage
 0x002100d0	inferred-medium	0x00167d84	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,survarium::network_stats_packets_sequence,char const *>,boost::_bi::list2<boost::_bi::value<survarium::network_stats_packets_sequence *>,boost::arg<1> > > >::manager
 0x00210470	inferred-medium	0x00167fe6	survarium::network_stats_ports::initialize_header_impl

@@ -14,7 +14,7 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::replay_view::MatchClose;
-use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, Left, MatchLine, MatchStart, PlayerLeft, SpectateKey};
+use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, Left, MatchLine, MatchStart, PlayerLeft, PlayerLeftEvent, SpectateKey};
 use crate::vostok::world::{NetworkClient, Step};
 use crate::vostok::types::Place;
 use crate::vostok::{
@@ -161,29 +161,34 @@ pub fn on_match_line(ctx: &mut Context<'_>) -> Flow<SpectatorOnMatchLineExit> {
     Flow::Exit(SpectatorOnMatchLineExit::Plain)
 }
 
-/// `player_left.local`: an 0xEA, after leave_match. A spectator's game
-/// takes one naming place 0xFF as its own end (the server's farewell: it is
-/// taken in as a player, or its match ended) and goes back to the lobby with
-/// no results screen; one naming the player it follows moves its camera to
-/// the next. Every other 0xEA, and every player's game, go on as the game's
-/// (a spectator's: nothing, 0x27C734).
+/// `player_left.entry`: process_player_left_match (0x27C690) whole, in Rust. For every game the
+/// 0xEA read and its leave and stats, as the game does them; then a player's game takes it the
+/// game's way ([`PlayerLeft::finish_player_left`]: its own end with the results, or the followed
+/// player's leave). A spectator's game takes one naming place 0xFF as its own end (the server's
+/// farewell) and goes back to the lobby with no results screen; one naming the player it follows
+/// moves its camera to the next; any other, nothing.
 pub fn on_player_left(ctx: &mut Context<'_>) -> Flow<SpectatorOnPlayerLeftExit> {
-    let Some(left) = PlayerLeft::at(ctx) else {
+    let Some(event) = PlayerLeftEvent::at(ctx) else {
         return Flow::Continue;
     };
+    if let PlayerLeftEvent::Left(left) = event {
+        finish_left(ctx.thread(), left);
+    }
+    Flow::Exit(SpectatorOnPlayerLeftExit::Done)
+}
+
+/// The game's or the spectator's reaction to an 0xEA.
+fn finish_left(thread: &Thread, left: PlayerLeft<'_>) {
     if !left.client.is_spectator() {
-        return Flow::Continue;
+        left.client.finish_player_left(left.place);
+        return;
     }
     match left.left {
-        Some(Left::Spectator) => {
-            left.client.stop_watching();
-            Flow::Exit(SpectatorOnPlayerLeftExit::Done)
-        }
+        Some(Left::Spectator) => left.client.stop_watching(),
         Some(Left::Place(place)) if left.client.local_player().is_some_and(|player| player.place() == place.get()) => {
-            camera(&left.client, ctx.thread(), Event::FollowedLeft);
-            Flow::Exit(SpectatorOnPlayerLeftExit::Done)
+            camera(&left.client, thread, Event::FollowedLeft);
         }
-        Some(Left::Place(_)) | None => Flow::Continue,
+        Some(Left::Place(_)) | None => {}
     }
 }
 

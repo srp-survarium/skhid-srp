@@ -249,6 +249,10 @@ unsafe extern "C" {
     pub fn engine_show_replay_controls(hud: Option<GameWorldUi>, shown: u32);
     /// 0x2f79a0 survarium::player_profile::kit_level: kit EAX, place ESP+4, config ESP+8; pops 0; EAX
     pub fn engine_kit_level(kit: u32, place: Option<MatchPlace>, config: Option<KitLevelConfig>) -> u32;
+    /// 0x2d18a0 survarium::game_world_core::leave_match: requested_time_ms EAX, world ESP+4, place ESP+8; pops 8; EAX
+    pub fn engine_leave_match(requested_time_ms: u32, world: Option<CoreWorld>, place: u32) -> u32;
+    /// 0x27c1f0 survarium::network_client::register_message_in_stats: result EAX, network_client EDX, message ESP+4; pops 4
+    pub fn engine_register_message_stats(result: u32, network_client: Option<NetworkClient>, message: u32);
 }
 
 #[allow(dead_code)]
@@ -279,6 +283,8 @@ unsafe extern "cdecl" {
     pub fn engine_xaudio2_create(engine: *mut *mut c_void, flags: u32) -> u32;
     /// 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
     pub fn engine_ray_test_single(from: Option<BtTransform>, to: Option<BtTransform>, object: Option<BtCollisionObject>, shape: Option<BtCollisionShape>, transform: Option<BtTransform>, callback: Option<ClosestRayResultCallback>);
+    /// 0x20ff90 survarium::tick_wrap_delta: a ESP+4, b ESP+8; pops 0; EAX; cdecl, called directly
+    pub fn engine_tick_wrap_delta(a: *const u8, b: *const u8) -> u32;
 }
 
 #[allow(dead_code)]
@@ -333,6 +339,10 @@ unsafe extern "thiscall" {
     pub fn engine_game_pause(game: Option<Game>);
     /// 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
     pub fn engine_game_resume(game: Option<Game>);
+    /// 0x27a980 survarium::network_client::get_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
+    pub fn engine_get_player(client: Option<NetworkClient>, out: *mut Option<Player>, place: u32) -> *mut Option<Player>;
+    /// 0x242d50 survarium::base_network_client::spectate_next_player: client ECX; pops 0; thiscall, called directly
+    pub fn engine_spectate_next_player(client: Option<NetworkClient>);
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -17198,6 +17208,39 @@ impl PauseState {
     }
 }
 
+/// A survarium::player_left_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerLeftFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerLeftFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::buffer_reader>): process_player_left_match's stack argument (stdcall 0x27C690, ret 4): the 0xEA's reader
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reader(self) -> Option<BufferReader> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<BufferReader>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::buffer_reader>): process_player_left_match's stack argument (stdcall 0x27C690, ret 4): the 0xEA's reader
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_reader(self, value: Option<BufferReader>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<BufferReader>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::time_scale (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -18260,6 +18303,12 @@ pub mod image {
 
     /// 0x9ffb14 (u32, survarium::image): network_client's vtable (its constructor 0x2199C6): a live match's client, whose +1F1C44h is its local place
     pub const NETWORK_CLIENT_VTABLE: u32 = 0x9ffb14;
+
+    /// 0xa8394c (u32, survarium::image): the journal replay's pointer pair present (non-zero: a journal replay is running or may be; tested with journal_state by process_player_left_match 0x27C73A)
+    pub const JOURNAL_PRESENT: u32 = 0xa8394c;
+
+    /// 0xa83948 (u32, survarium::image): the address of the journal's state word: 2 a journal replaying the game (no lobby order sent, 0x27C74C)
+    pub const JOURNAL_POINTER: u32 = 0xa83948;
 
     /// 0x1f1da3c (obj<survarium::pause_state>, survarium::image): the game's paused flag (one for the process: game::pause 0x1ED5D4, game::resume 0x1ED667)
     #[inline(always)]
@@ -21516,8 +21565,8 @@ pub mod site {
         }
     }
 
-    /// player_left.local (0x27c72c): process_player_left_match (0xEA) after leave_match (0x27C720) and its count (0x27C727): mov al,[esi+1F1C44h] / cmp al,0FFh, then je 0x27C79F (no local place: nothing), the local place's own end (0x27C73A: `31 <order> FF` to the lobby, close_current_match(3), the results screen) or a followed player's leave (0x27C776); done is the handler's epilogue (0x27C79F, `ret 4`). ESI the network client, BL the place that left
-    pub mod player_left_local {
+    /// player_left.entry (0x27c690): process_player_left_match's start (mov ecx,[esi+1F1C40h]; called from the dispatch's table with ESI the network client, [esp+4] the reader, ret 4): patch 121's whole-function replacement in Rust (same behaviour for every player, the spectator's branch in Rust); done is its `ret 4` at 0x27C7A5 with nothing pushed
+    pub mod player_left_entry {
         #[allow(unused_imports)]
         use super::*;
 
@@ -21530,13 +21579,13 @@ pub mod site {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(NetworkClient)
         }
 
-        /// EBX: a u8 value.
+        /// the site's ESP: a survarium::player_left_frame (None for 0).
         ///
         /// # Safety
         /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn place(machine: &impl Machine) -> u8 {
-            machine.register(Register::Ebx) as u8
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PlayerLeftFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(PlayerLeftFrame)
         }
     }
 

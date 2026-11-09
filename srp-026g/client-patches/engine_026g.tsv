@@ -190,3 +190,8 @@ engine_game_pause	0x1ed5c0	ECX:game	void engine_game_pause(struct game *game)	th
 engine_game_resume	0x1ed650	ECX:game	void engine_game_resume(struct game *game)	thiscall	
 engine_show_replay_controls	0x23a9d0	EDI:hud ESP+4:shown	void engine_show_replay_controls(struct game_world_ui *hud, unsigned int shown)	thunk	
 engine_kit_level	0x2f79a0	EAX:kit ESP+4:place ESP+8:config	unsigned int engine_kit_level(unsigned int kit, const struct match_place *place, const struct kit_level_config *config)	thunk	
+engine_tick_wrap_delta	0x20ff90	ESP+4:a ESP+8:b	unsigned int engine_tick_wrap_delta(const unsigned char *a, const unsigned char *b)	cdecl	
+engine_leave_match	0x2d18a0	EAX:requested_time_ms ESP+4:world ESP+8:place	unsigned int engine_leave_match(unsigned int requested_time_ms, struct core_world *world, unsigned int place)	thunk	
+engine_register_message_stats	0x27c1f0	EAX:result EDX:network_client ESP+4:message	void engine_register_message_stats(unsigned int result, struct network_client *network_client, unsigned int message)	thunk	
+engine_get_player	0x27a980	ECX:client ESP+4:out ESP+8:place	struct player **engine_get_player(struct network_client *client, struct player **out, unsigned int place)	thiscall	
+engine_spectate_next_player	0x242d50	ECX:client	void engine_spectate_next_player(struct network_client *client)	thiscall	

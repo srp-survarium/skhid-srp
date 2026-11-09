@@ -26,9 +26,10 @@ handler = "on_match_line"
 site = "hud.followed_alive"
 handler = "on_followed_alive"
 
-# An 0xEA: a spectator's own end (place 0xFF), or the leave of the player it follows.
+# An 0xEA: process_player_left_match, whole, in Rust (same for every player; a spectator's own
+# end, place 0xFF, or the leave of the player it follows, its branch of it).
 [[hook]]
-site = "player_left.local"
+site = "player_left.entry"
 handler = "on_player_left"
 
 # A match's options read (after patches 65, 86 and 58): a new match: its role

@@ -3437,10 +3437,10 @@ pub extern "C" fn hook_spectator_on_followed_alive(frame: &mut Frame) -> u32 {
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum SpectatorOnPlayerLeftExit { Done }
-/// The entry `spectator_on_player_left` (0x27c72c, process_player_left_match (0xEA) after leave_match (0x27C720) and its count (0x27C727): mov al,[esi+1F1C44h] / cmp al,0FFh, then je 0x27C79F (no local place: nothing), the local place's own end (0x27C73A: `31 <order> FF` to the lobby, close_current_match(3), the results screen) or a followed player's leave (0x27C776); done is the handler's epilogue (0x27C79F, `ret 4`). ESI the network client, BL the place that left) calls this with the saved machine.
+/// The entry `spectator_on_player_left` (0x27c690, process_player_left_match's start (mov ecx,[esi+1F1C40h]; called from the dispatch's table with ESI the network client, [esp+4] the reader, ret 4): patch 121's whole-function replacement in Rust (same behaviour for every player, the spectator's branch in Rust); done is its `ret 4` at 0x27C7A5 with nothing pushed) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_spectator_on_player_left(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `spectator_on_player_left` calls this, from the game's jump at 0x27c72c,
+    // SAFETY: only the entry `spectator_on_player_left` calls this, from the game's jump at 0x27c690,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::spectator::on_player_left(&mut ctx) {

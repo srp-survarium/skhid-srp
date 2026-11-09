@@ -671,4 +671,19 @@ void engine_show_replay_controls(struct game_world_ui *hud, unsigned int shown);
 /* 0x2f79a0 survarium::player_profile::kit_level: kit EAX, place ESP+4, config ESP+8; pops 0; EAX */
 unsigned int engine_kit_level(unsigned int kit, const struct match_place *place, const struct kit_level_config *config);
 
+/* 0x20ff90 survarium::tick_wrap_delta: a ESP+4, b ESP+8; pops 0; EAX; cdecl, called directly */
+unsigned int __attribute__((cdecl)) engine_tick_wrap_delta(const unsigned char *a, const unsigned char *b);
+
+/* 0x2d18a0 survarium::game_world_core::leave_match: requested_time_ms EAX, world ESP+4, place ESP+8; pops 8; EAX */
+unsigned int engine_leave_match(unsigned int requested_time_ms, struct core_world *world, unsigned int place);
+
+/* 0x27c1f0 survarium::network_client::register_message_in_stats: result EAX, network_client EDX, message ESP+4; pops 4 */
+void engine_register_message_stats(unsigned int result, struct network_client *network_client, unsigned int message);
+
+/* 0x27a980 survarium::network_client::get_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly */
+struct player **__attribute__((thiscall)) engine_get_player(struct network_client *client, struct player **out, unsigned int place);
+
+/* 0x242d50 survarium::base_network_client::spectate_next_player: client ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_spectate_next_player(struct network_client *client);
+
 #endif

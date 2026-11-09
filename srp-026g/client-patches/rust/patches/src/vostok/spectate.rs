@@ -22,7 +22,7 @@
 use super::context::Context;
 use super::input::Action;
 use super::types::Place;
-use super::world::{NetworkClient, Step};
+use super::world::{read, NetworkClient, Step};
 use raw::site::static_info_options_read as static_info_site;
 use crate::raw;
 
@@ -144,22 +144,110 @@ impl Left {
     }
 }
 
-/// A place that left (0xEA) at `player_left.local`, after leave_match.
+/// An 0xEA, taken in by Rust at process_player_left_match's start (0x27C690, replaced whole): the
+/// message read and its leave and statistics done, as the game's own code does them, up to what
+/// the game does with the leave (the branch the spectator's game takes its own end from).
 pub struct PlayerLeft<'t> {
     pub client: NetworkClient<'t>,
-    /// Who left; `None` is a place this build does not know (the game's own handling goes on).
+    /// The byte the 0xEA named (as the game read it).
+    pub place: u8,
+    /// Who it says left; `None` is a place this build does not know.
     pub left: Option<Left>,
 }
 
-impl<'t> PlayerLeft<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<PlayerLeft<'t>> {
-        use raw::site::player_left_local as site;
-        // SAFETY: the context is this site's: ESI the network client the
-        // handler runs on, BL the place it read (0x27C6F9).
-        let (client, place) = unsafe { (site::client(ctx)?, site::place(ctx)) };
-        Some(PlayerLeft { client: NetworkClient::of(client, ctx.thread()), left: Left::of(place) })
+/// An 0xEA with no match (no pvp_match, 0x27C6A2): the game read it to its end and told its stats.
+pub enum PlayerLeftEvent<'t> {
+    NoMatch,
+    Left(PlayerLeft<'t>),
+}
+
+impl<'t> PlayerLeftEvent<'t> {
+    /// The 0xEA, handled up to the leave: at `player_left.entry`, run once.
+    pub fn at(ctx: &'t Context<'_>) -> Option<PlayerLeftEvent<'t>> {
+        use raw::site::player_left_entry as site;
+        // SAFETY: the context is this site's: ESI the network client the handler runs on, its ESP
+        // process_player_left_match's frame (the reader its argument), alive while it runs on
+        // the game's thread.
+        let (client, reader) = unsafe { (site::client(ctx)?, site::frame(ctx)?.reader()?) };
+        let game_client = NetworkClient::of(client, ctx.thread());
+        // SAFETY: the client's match, alive for the hook.
+        let Some(pvp) = (unsafe { client.pvp_match() }) else {
+            // 0x27C6A4..0x27C6C0: the message read to its end, then its stats (5 for no match).
+            // SAFETY: the reader {begin, cursor, size} the handler was given; the stats call is
+            // the game's own, on its thread, its arguments the registers it takes.
+            unsafe {
+                reader.set_cursor(reader.begin().add(*reader.size() as usize));
+                raw::engine_register_message_stats(5, Some(client), LEFT_MESSAGE);
+            }
+            return Some(PlayerLeftEvent::NoMatch);
+        };
+        // 0x27C6C5..0x27C727: `EA <tick byte> <place>`: leave_match at the tick the message names
+        // (its low byte, widened by the wrap against the world's own tick) and the message's stats.
+        // SAFETY: as above: the message's two bytes; the world core and the time are the game's
+        // match's; leave_match and the stats are the game's own, the arguments as it passes them.
+        let place = unsafe {
+            let cursor = reader.cursor();
+            let (tick, place) = (*cursor, *cursor.add(1));
+            reader.set_cursor(cursor.add(2));
+            let ticks = read(pvp.core().time()) / TICK_MS;
+            let low = ticks as u8;
+            let delta = raw::engine_tick_wrap_delta(&tick, &low) as i32;
+            let requested = (ticks as i32 + delta).wrapping_mul(TICK_MS as i32) as u32;
+            let result = raw::engine_leave_match(requested, Some(pvp.core()), u32::from(place));
+            raw::engine_register_message_stats(result, Some(client), LEFT_MESSAGE);
+            place
+        };
+        Some(PlayerLeftEvent::Left(PlayerLeft { client: game_client, place, left: Left::of(place) }))
     }
 }
+
+/// The 0xEA.
+const LEFT_MESSAGE: u32 = 0xEA;
+/// The simulation's step in ms (world time / this is a tick; 0x51EB851F's division, 0x27C6CA).
+const TICK_MS: u32 = 50;
+
+impl NetworkClient<'_> {
+    /// A player's game, an 0xEA of `place` taken (its match's end): the game's own branch from
+    /// 0x27C72C on. Its own leave: `31 <order> FF` to the lobby (unless a journal replays), then
+    /// close_current_match(3), the results. The followed player's leave: follow its place again and
+    /// step to the next (0x27C776..0x27C79D). Else nothing. A game with no local place returns.
+    pub fn finish_player_left(&self, place: u8) {
+        // SAFETY: the client's fields, on its thread; its local player, alive for the hook; the
+        // journal's flag and state cells, plain words of the image, read on the game's thread.
+        unsafe {
+            let this = self.raw();
+            let local = read(this.local_place());
+            if local == NO_PLACE {
+                return;
+            }
+            if local == place {
+                let present = (raw::image::JOURNAL_PRESENT as usize as *const u32).read_volatile();
+                let state = (raw::image::JOURNAL_POINTER as usize as *const *const u32).read_volatile();
+                let replaying = present != 0 && state.read_volatile() == JOURNAL_REPLAYING;
+                if !replaying {
+                    raw::engine_discard_playing_order(Some(this.lobby()), 1);
+                }
+                raw::engine_close_current_match(Some(this), CLOSE_LEFT);
+                return;
+            }
+            let Some(followed) = this.local_player() else { return };
+            if read(followed.place()) != place {
+                return;
+            }
+            let mut out = None;
+            raw::engine_get_player(Some(this), &mut out, u32::from(local));
+            raw::engine_follow_player(Some(this), out);
+            raw::engine_spectate_next_player(Some(this));
+        }
+    }
+}
+
+/// The local place byte's "none".
+const NO_PLACE: u8 = 0xFF;
+/// journal_state: replaying.
+const JOURNAL_REPLAYING: u32 = 2;
+/// close_current_match's reason 3: the local player left, the results shown.
+const CLOSE_LEFT: u32 = 3;
 
 /// The hud's read of the followed player's life at `hud.followed_alive`.
 pub struct FollowedAlive<'c, 'm> {

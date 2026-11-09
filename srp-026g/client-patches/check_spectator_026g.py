@@ -49,10 +49,13 @@ import patch_026g as base
 
 NC_VTABLE, REPLAY_VTABLE = 0x9FFB14, 0x9FF344
 GET_ACTIVE, FOLLOW, CAMERA, CLOSE, DETACH = 0x27A9C0, 0x242B90, 0x1F8360, 0x27A790, 0x242CC0
+LEAVE_MATCH, STATS, DISCARD, GET_PLAYER, SPECTATE_NEXT = 0x2D18A0, 0x27C1F0, 0x2717E0, 0x27A980, 0x242D50
+RET_STUB = 0x51000F00                       # where a run of the 0xEA's handler returns
 THREAD_SLOT = 0x870118
 NC, GAME, OBJECTS, STUBS, STACK = 0x40000000, 0x48000000, 0x50000000, 0x51000000, 0x52000000
 HOLDER, UI = OBJECTS + 0x0, OBJECTS + 0x60000
 PLAYERS = [OBJECTS + 0x70000 + 0x1000 * i for i in range(4)]
+PVP = OBJECTS + 0x40000
 SP = STACK + 0x8000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP)
@@ -62,8 +65,9 @@ SITES = {
     "key": (0x25CDBD, bytes.fromhex("8bb3ac530000"), 0x25CDC3, 0x25CEAE),
     "chat": (0x208D77, bytes.fromhex("0fb686441c1f00"), 0x208D7E, 0x208DE2),
     "hud": (0x23B7B9, bytes.fromhex("8a853c030000"), 0x23B7BF, 0x23B7FC),
-    "left": (0x27C72C, bytes.fromhex("8a86441c1f003cff"), 0x27C734, 0x27C79F),
 }
+# process_player_left_match (0xEA): replaced whole at its start (mov ecx,[esi+1F1C40h]); its `ret 4` the exit.
+LEFT = (0x27C690, bytes.fromhex("8b8e401c1f00"), 0x27C7A5)
 STATIC = (0x27B92D, bytes.fromhex("8b178b4240"), 0x27B932, None)
 
 failed = 0
@@ -93,8 +97,11 @@ class Game:
         self.word(0x870158, STUBS + 0x90)
         self.word(0x870150, STUBS + 0x90)
         self.calls = []
+        self.natural_leave = False                  # the game's own leave_match runs (the real one's own test below)
         for va, how in ((GET_ACTIVE, self.get_active), (FOLLOW, self.follow), (CAMERA, self.camera),
-                        (CLOSE, self.close), (DETACH, self.detach)):
+                        (CLOSE, self.close), (DETACH, self.detach), (LEAVE_MATCH, self.leave_match),
+                        (STATS, self.stats), (DISCARD, self.discard), (GET_PLAYER, self.get_player),
+                        (SPECTATE_NEXT, self.spectate_next)):
             emu.hook_add(UC_HOOK_CODE, how, begin=va, end=va)
 
     def word(self, at, value, size=4):
@@ -140,6 +147,39 @@ class Game:
         self.calls.append(("close_current_match", emu.reg_read(UC_X86_REG_ECX), self.read(sp + 4)))
         self.ret(4)
 
+    def leave_match(self, emu, *_):
+        if self.natural_leave:
+            return
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.calls.append(("leave_match", emu.reg_read(UC_X86_REG_EAX), self.read(sp + 4), self.read(sp + 8) & 0xFF))
+        emu.reg_write(UC_X86_REG_EAX, 7)
+        self.ret(8)
+
+    def stats(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.calls.append(("stats", emu.reg_read(UC_X86_REG_EAX), emu.reg_read(UC_X86_REG_EDX), self.read(sp + 4)))
+        self.ret(4)
+
+    def discard(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.calls.append(("discard_playing_order", self.read(sp + 4), self.read(sp + 8) & 0xFF))
+        self.ret(8)
+
+    def get_player(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        out, place = self.read(sp + 4), self.read(sp + 8) & 0xFF
+        player = self.players.get(place, 0)
+        if player:
+            self.word(player + 0xD0, self.read(player + 0xD0) + 1)
+        self.word(out, player)
+        self.calls.append(("get_player", emu.reg_read(UC_X86_REG_ECX), place))
+        emu.reg_write(UC_X86_REG_EAX, out)
+        self.ret(8)
+
+    def spectate_next(self, emu, *_):
+        self.calls.append(("spectate_next_player", emu.reg_read(UC_X86_REG_ECX)))
+        self.ret(0)
+
     def camera(self, emu, *_):
         self.calls.append(("switch_to_spectator_camera", emu.reg_read(UC_X86_REG_EDX)))
         self.ret(0)
@@ -152,6 +192,8 @@ class Game:
         emu.mem_write(OBJECTS, bytes(0x80000))
         self.word(NC, vtable)
         self.word(NC + 0x14, GAME)
+        self.word(NC + 0x1F1C40, PVP)
+        self.word(PVP + 0x191B8, 3000)          # the match's time: tick 60
         self.word(NC + 0x1F1C48, HOLDER)
         self.word(HOLDER + 0xC + 0x577B5, len(PLAYERS), 1)
         self.word(NC + 0x1F1C44, local, 1)
@@ -174,6 +216,34 @@ class Game:
         regs = dict(zip(REGS, (0, 0, 0, 0, HOLDER + 0xC, NC, frame)))
         self.run("static", regs)
         self.calls = []
+
+    def left(self, message, *, no_match=False, local_byte=None):
+        """Run process_player_left_match (0xEA `message`, its reader's) from its start to its return,
+        ESI the client: the calls, the reader's cursor after, the callee-saved registers."""
+        reader, data = STUBS + 0x2100, STUBS + 0x2000
+        self.emu.mem_write(data, message)
+        self.word(reader, data)
+        self.word(reader + 4, data)
+        self.word(reader + 8, len(message))
+        if no_match:
+            self.word(NC + 0x1F1C40, 0)
+        if local_byte is not None:
+            self.word(NC + 0x1F1C44, local_byte, 1)
+        emu = self.emu
+        emu.mem_write(STACK, bytes(0x10000))
+        emu.mem_write(SP, struct.pack("<2I", RET_STUB, reader))
+        for reg, value in zip(REGS, (0x11, 0x22, 0x33, 0x44, NC, 0x66, 0x77)):
+            emu.reg_write(reg, value)
+        emu.reg_write(UC_X86_REG_ESP, SP)
+        emu.reg_write(UC_X86_REG_EFLAGS, 0x202)
+        self.calls = []
+        hook = emu.hook_add(UC_HOOK_CODE, lambda e, a, *_: e.emu_stop() if a == RET_STUB else None)
+        emu.emu_start(LEFT[0], 0, count=500000)
+        emu.hook_del(hook)
+        return {"eip": emu.reg_read(UC_X86_REG_EIP), "esp": emu.reg_read(UC_X86_REG_ESP),
+                "saved": [emu.reg_read(r) for r in (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP)],
+                "cursor": self.read(reader + 4) - data, "nc4": self.read(NC + 4), "nc8": self.read(NC + 8),
+                "references": [self.read(q + 0xD0) for q in self.players.values()]}, list(self.calls)
 
     def stale_observer(self):
         """A player whose client watched before and whose match's close was skipped: a new match
@@ -255,6 +325,14 @@ def main():
         check(opcode == 0xE9 and old == span and original[at:at + len(span)] == span
               and built[at:at + len(new)] == new and block.va <= linked.symbols[symbol] < block.va + block.size,
               f"{site}: {va:#x} {old.hex()} in the original, `jmp {symbol}` (patches.code) here")
+    va, old, symbol, opcode = installs[LEFT[0]]
+    at = base.file_offset(va)
+    new = base.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
+    check(opcode == 0xE9 and old == LEFT[1] and original[at:at + len(LEFT[1])] == LEFT[1]
+          and built[at:at + len(new)] == new,
+          f"left: {va:#x} {old.hex()} in the original, `jmp {symbol}` (patches.code) here")
+    ret4 = base.file_offset(LEFT[2])
+    check(original[ret4:ret4 + 3] == bytes.fromhex("c20400"), "0x27C7A5 is process_player_left_match's `ret 4`")
     epilogue = base.file_offset(0x25CEAE)
     check(original[epilogue:epilogue + 9] == bytes.fromhex("32c05f5e5b8be55dc2"),
           "0x25CEAE is on_keyboard_action's `xor al,al` and epilogue (its next/prev player's return)")
@@ -264,13 +342,14 @@ def main():
     for vtable, local, name in ((NC_VTABLE, 2, "a player (local place 2)"),
                                 (REPLAY_VTABLE, 0xFF, "a replay's client")):
         for site in SITES:
-            values = {"key": (0x17, 0x18, 0x12, 0x11), "left": (2, 0xFF, 1, 3)}.get(site, (0x17,))
+            values = {"key": (0x17, 0x18, 0x12, 0x11)}.get(site, (0x17,))
             for action in values:
-                case = {"key": f"{name}, action {action:#x}", "left": f"{name}, 0xEA of place {action:#x}"}
+                case = {"key": f"{name}, action {action:#x}"}
                 both(stock, ours, site, case.get(site, name),
                      site_regs(site, action), struct.pack("<20I", *range(0x100, 0x114)),
                      vtable=vtable, local=local, followed=1, players=MATCH)
 
+    stock.natural_leave = True
     # leave_match (0x2D18A0, before the handler's local test: every game
     # runs it) of place 0xFF, the game's own code on a made-up core whose
     # history has one item at the leave's tick, all twenty places entered:
@@ -330,6 +409,8 @@ def main():
           and ours.read(NC + 0xC, 1) == 0 and not o[2],
           "world, a player whose client watched a match before (+0Ch 1): +0Ch 0, the rest as the original")
 
+    stock.natural_leave = False
+
     # A spectator's game.
     def spectator(site, followed, players=MATCH, action=0x17, stack=b""):
         ours.setup(vtable=NC_VTABLE, local=0xFF, followed=followed, players=players)
@@ -373,22 +454,50 @@ def main():
           and ours.read(SP + 0x48) == 0 and state[UC_X86_REG_ESI] == NC,
           "chat, a spectator: [esp+48h] 0, at 0x208DE2 (a plain line), ESP as at the site, nothing called")
 
-    state, _, done = spectator("left", 1, action=0xFF)
-    check(state[UC_X86_REG_EIP] == 0x27C79F and done == [("close_current_match", NC, 0)]
-          and state[UC_X86_REG_ESP] == SP and state[UC_X86_REG_ESI] == NC,
-          "left, a spectator, 0xEA of place 0xFF: close_current_match(0) (the world ended, no results), "
-          "then the handler's return 0x27C79F")
-    state, _, done = spectator("left", 1, action=1)
+    # process_player_left_match, replaced whole: a player's game the original's, a spectator's its branch.
+    def message(tick, place):
+        return bytes((tick & 0xFF, place))
+
+    def player_left(case, *, no_match=False, local=2, followed=1, local_byte=None, journal=False):
+        for game in (stock, ours):
+            game.setup(vtable=NC_VTABLE, local=local, followed=followed, players=MATCH)
+            game.word(0xA8394C, 1 if journal else 0)
+            game.word(0xA83948, STUBS + 0x2200)
+            game.word(STUBS + 0x2200, 2 if journal else 0)
+        s = stock.left(case[1], no_match=no_match, local_byte=local_byte)
+        o = ours.left(case[1], no_match=no_match, local_byte=local_byte)
+        check(s == o and s[0]["eip"] == RET_STUB and s[0]["esp"] == SP + 8,
+              f"left, a player, {case[0]}: as the original (calls {s[1]}), returned with `ret 4`, callee-saved kept, cursor {s[0]['cursor']}")
+
+    t = 60                                      # the match's tick (time 3000)
+    player_left(("no match (0x27C6A2)", message(t, 3)), no_match=True)
+    player_left(("another place left (3)", message(t, 3)))
+    player_left(("the tick one ahead, then behind", message(t + 1, 3)))
+    player_left(("the tick behind", message(t - 1, 3)))
+    player_left(("its own leave (2): the lobby told, the results", message(t, 2)))
+    player_left(("its own leave, a journal replaying: no lobby order", message(t, 2)), journal=True)
+    player_left(("the followed player's leave (1): its own place again, then the next", message(t, 1)))
+    player_left(("a byte of 0xFF (a player's game before on_match_ready): nothing", message(t, 0xFF)), local_byte=0xFF)
+
+    def spectator_left(place, followed=1):
+        ours.setup(vtable=NC_VTABLE, local=0xFF, followed=followed, players=MATCH)
+        ours.word(0xA8394C, 0)
+        return ours.left(message(t, place))
+
+    state, done = spectator_left(0xFF)
     made = [c for c in done if c[0] != "get_active_player"]
-    check(state[UC_X86_REG_EIP] == 0x27C79F
-          and made == [("set_followed_player", NC, PLAYERS[3]), ("switch_to_spectator_camera", world)],
-          "left, a spectator, 0xEA of the place it follows (1): the next living player (3), then 0x27C79F")
-    ours.setup(vtable=NC_VTABLE, local=0xFF, followed=1, players=MATCH)
-    stock.setup(vtable=NC_VTABLE, local=0xFF, followed=1, players=MATCH)
-    stock.word(NC + 0xC, 1, 1)                  # the +0Ch the build's static info set
-    s, o = stock.run("left", site_regs("left", 3)), ours.run("left", site_regs("left", 3))
-    check(s == o and s[0][UC_X86_REG_EIP] == 0x27C734,
-          "left, a spectator, 0xEA of another place (3): at 0x27C734 as the original (its je: nothing)")
+    check(state["eip"] == RET_STUB and made == [("leave_match", 3000, PVP + 0x1F8, 0xFF), ("stats", 7, NC, 0xEA), ("close_current_match", NC, 0)],
+          f"left, a spectator, 0xEA of place 0xFF: leave and stats, close_current_match(0), no results, the handler's return ({made})")
+    state, done = spectator_left(1)
+    made = [c for c in done if c[0] != "get_active_player"]
+    check(state["eip"] == RET_STUB
+          and made == [("leave_match", 3000, PVP + 0x1F8, 1), ("stats", 7, NC, 0xEA),
+                       ("set_followed_player", NC, PLAYERS[3]), ("switch_to_spectator_camera", world)],
+          f"left, a spectator, 0xEA of the place it follows (1): the next living player (3), then the return ({made})")
+    state, done = spectator_left(3)
+    made = [c for c in done if c[0] != "get_active_player"]
+    check(state["eip"] == RET_STUB and made == [("leave_match", 3000, PVP + 0x1F8, 3), ("stats", 7, NC, 0xEA)],
+          f"left, a spectator, 0xEA of another place (3): nothing more, the return ({made})")
 
     state, _, done = spectator("hud", 1)
     check(state[UC_X86_REG_EIP] == 0x23B7FC and not done
@@ -411,9 +520,9 @@ def main():
     check(state[UC_X86_REG_EIP] == 0x27C1B9 and not made(done) and ours.read(NC + 4) == 0,
           "detach: a world's load keeps the flight (nobody followed, nothing called), at 0x27C1B9")
     ours.calls = []
-    state, _, done = ours.run("left", site_regs("left", 1))
-    check(state[UC_X86_REG_EIP] == 0x27C734 and not made(done),
-          "detach: an 0xEA of the last one followed (1): the original's je (nothing), still flying")
+    state, done = ours.left(message(60, 1))
+    check(state["eip"] == RET_STUB and not [c for c in done if c[0] not in ("leave_match", "stats", "get_active_player")],
+          "detach: an 0xEA of the last one followed (1): leave and stats, nothing more, still flying")
     ours.calls = []
     state, _, done = ours.run("key", site_regs("key", 0x17))
     check(state[UC_X86_REG_EIP] == 0x25CEAE

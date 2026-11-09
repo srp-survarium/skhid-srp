@@ -243,6 +243,10 @@ unsafe extern "C" {
     pub fn engine_show_replay_controls(hud: *mut c_void, shown: u32);
     /// 0x2f79a0 survarium::player_profile::kit_level: kit EAX, place ESP+4, config ESP+8; pops 0; EAX
     pub fn engine_kit_level(kit: u32, place: *const c_void, config: *const c_void) -> u32;
+    /// 0x2d18a0 survarium::game_world_core::leave_match: requested_time_ms EAX, world ESP+4, place ESP+8; pops 8; EAX
+    pub fn engine_leave_match(requested_time_ms: u32, world: *mut c_void, place: u32) -> u32;
+    /// 0x27c1f0 survarium::network_client::register_message_in_stats: result EAX, network_client EDX, message ESP+4; pops 4
+    pub fn engine_register_message_stats(result: u32, network_client: *mut c_void, message: u32);
 }
 
 #[allow(dead_code)]
@@ -273,6 +277,8 @@ unsafe extern "cdecl" {
     pub fn engine_xaudio2_create(engine: *mut *mut c_void, flags: u32) -> u32;
     /// 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
     pub fn engine_ray_test_single(from: *mut c_void, to: *mut c_void, object: *mut c_void, shape: *mut c_void, transform: *mut c_void, callback: *mut c_void);
+    /// 0x20ff90 survarium::tick_wrap_delta: a ESP+4, b ESP+8; pops 0; EAX; cdecl, called directly
+    pub fn engine_tick_wrap_delta(a: *const u8, b: *const u8) -> u32;
 }
 
 #[allow(dead_code)]
@@ -327,6 +333,10 @@ unsafe extern "thiscall" {
     pub fn engine_game_pause(game: *mut c_void);
     /// 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
     pub fn engine_game_resume(game: *mut c_void);
+    /// 0x27a980 survarium::network_client::get_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
+    pub fn engine_get_player(client: *mut c_void, out: *mut *mut c_void, place: u32) -> *mut *mut c_void;
+    /// 0x242d50 survarium::base_network_client::spectate_next_player: client ECX; pops 0; thiscall, called directly
+    pub fn engine_spectate_next_player(client: *mut c_void);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

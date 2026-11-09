@@ -191,6 +191,11 @@ global engine_game_pause
 global engine_game_resume
 global engine_show_replay_controls
 global engine_kit_level
+global engine_tick_wrap_delta
+global engine_leave_match
+global engine_register_message_stats
+global engine_get_player
+global engine_spectate_next_player
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -262,6 +267,9 @@ engine_follow_player equ 0x242b90   ; 0x242b90 survarium::base_network_client::s
 engine_detach_player equ 0x242cc0   ; 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
 engine_game_pause equ 0x1ed5c0   ; 0x1ed5c0 survarium::game::pause: game ECX; pops 0; thiscall, called directly
 engine_game_resume equ 0x1ed650   ; 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
+engine_tick_wrap_delta equ 0x20ff90   ; 0x20ff90 survarium::tick_wrap_delta: a ESP+4, b ESP+8; pops 0; EAX; cdecl, called directly
+engine_get_player equ 0x27a980   ; 0x27a980 survarium::network_client::get_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
+engine_spectate_next_player equ 0x242d50   ; 0x242d50 survarium::base_network_client::spectate_next_player: client ECX; pops 0; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -2227,6 +2235,40 @@ engine_kit_level:
     mov eax, [esp + 28]   ; kit
     call 0x2f79a0
     add esp, 8                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_leave_match:
+    ; 0x2d18a0 survarium::game_world_core::leave_match: requested_time_ms EAX, world ESP+4, place ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; place -> 8
+    push dword [esp + 28]   ; world -> 4
+    mov eax, [esp + 28]   ; requested_time_ms
+    call 0x2d18a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_register_message_stats:
+    ; 0x27c1f0 survarium::network_client::register_message_in_stats: result EAX, network_client EDX, message ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; message -> 4
+    mov eax, [esp + 24]   ; result
+    mov edx, [esp + 28]   ; network_client
+    call 0x27c1f0
     pop edi
     pop esi
     pop ebx
