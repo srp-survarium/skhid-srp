@@ -547,8 +547,9 @@ pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
 /// The entry of a Blackout map's options ([`maps::GameMode::Blackout`]): one byte, 1.
 pub const SRPX_BLACKOUT: u8 = 2;
 /// The faces entry (exe patch `faces`, `face-choice.md`): one byte a place,
-/// the roster's length, each place's face. Sent only when a face is not 0:
-/// no entry is every face 0.
+/// each place's face: the roster's in the options, the one place's after a
+/// late joiner's profile (`late_join::Prepare`). Sent only when a face is
+/// not 0: no entry is every face 0.
 pub const SRPX_FACES: u8 = 3;
 
 /// Why options cannot go to a client, or why bytes are no options.
@@ -811,8 +812,10 @@ fn write_profile(profile: &MatchProfile, dictionary: &Dictionary, out: &mut Vec<
     }
 }
 
-/// A single validated native profile body, without its squad byte.
-/// Used by the experimental growing-roster protocol as well as static info.
+/// A late joiner's profile (the growing-roster protocol, `late_join`): the
+/// native body, without its squad byte, then srp's block with the faces
+/// entry of its one place when its face is not 0 ([`write_srp_block`], as
+/// after the options).
 pub(super) fn profile_bytes(
     player: usize,
     profile: &MatchProfile,
@@ -821,21 +824,46 @@ pub(super) fn profile_bytes(
     check_sent(player, profile, dictionary)?;
     let mut bytes = Vec::new();
     write_profile(profile, dictionary, &mut bytes);
+    write_srp_block(false, std::slice::from_ref(profile), &mut bytes);
     Ok(bytes)
 }
 
+/// [`profile_bytes`]' reader: a block with another entry than the faces
+/// one is refused.
 pub(super) fn parse_profile(
     bytes: &[u8],
     player: usize,
     dictionary: &Dictionary,
 ) -> Result<MatchProfile, StaticInfoError> {
     let mut reader = Reader { bytes };
-    let profile = read_profile(&mut reader, player, dictionary)?;
-    if !reader.bytes.is_empty() {
-        return Err(StaticInfoError::Trailing(reader.bytes.len()));
+    let mut profile = read_profile(&mut reader, player, dictionary)?;
+    let block = read_srp_block(&mut reader, 1)?;
+    if block.blackout {
+        return Err(StaticInfoError::SrpBlock);
+    }
+    if let Some(faces) = block.faces {
+        profile.face = faces[0];
     }
     check_profile(player, &profile, dictionary)?;
     Ok(profile)
+}
+
+/// srp's block after the native bytes of `players` (the options' roster,
+/// or a late joiner's one place): its magic and entries; nothing when it
+/// has none. The faces entry goes only when a face is not 0.
+fn write_srp_block(blackout: bool, players: &[MatchProfile], out: &mut Vec<u8>) {
+    let mut block = Vec::new();
+    if blackout {
+        block.extend([SRPX_BLACKOUT, 1, 1]);
+    }
+    if players.iter().any(|profile| profile.face != Face::DEFAULT) {
+        block.extend([SRPX_FACES, players.len() as u8]);
+        block.extend(players.iter().map(|profile| profile.face.index()));
+    }
+    if !block.is_empty() {
+        out.extend(SRPX_MAGIC);
+        out.extend(block);
+    }
 }
 
 /// The options' bytes, before LZMA2. `dictionary` must be the client's:
@@ -868,18 +896,11 @@ pub fn options_bytes(
         *squad = profile.squad;
     }
     out.extend(squads);
-    let mut block = Vec::new();
-    if options.map.mode() == maps::GameMode::Blackout {
-        block.extend([SRPX_BLACKOUT, 1, 1]);
-    }
-    if options.players.iter().any(|profile| profile.face != Face::DEFAULT) {
-        block.extend([SRPX_FACES, roster as u8]);
-        block.extend(options.players.iter().map(|profile| profile.face.index()));
-    }
-    if !block.is_empty() {
-        out.extend(SRPX_MAGIC);
-        out.extend(block);
-    }
+    write_srp_block(
+        options.map.mode() == maps::GameMode::Blackout,
+        &options.players,
+        &mut out,
+    );
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
     }
@@ -1151,16 +1172,20 @@ struct SrpEntries {
     faces: Option<Vec<Face>>,
 }
 
-/// srp's block after the options, if any: as the patches' readers read it,
-/// but strict (an unknown tag, a short entry, a faces entry of another
-/// length than the `roster` or with a face the data does not list is
-/// refused, so a test sees it).
+/// srp's block after the options or a late joiner's profile, if any: as
+/// the patches' readers read it, but strict (an unknown tag, a short entry,
+/// a faces entry of another length than the `roster` (1 for a late
+/// joiner) or with a face the data does not list is refused, so a test
+/// sees it).
 fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, StaticInfoError> {
     let mut block = SrpEntries::default();
     if reader.bytes.is_empty() {
         return Ok(block);
     }
-    if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
+    // The block goes only with an entry.
+    if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC
+        || reader.bytes.is_empty()
+    {
         return Err(StaticInfoError::SrpBlock);
     }
     while !reader.bytes.is_empty() {
@@ -1344,9 +1369,10 @@ mod tests {
         );
         assert_eq!(parse_options(&bytes, dictionary()), Ok(with_blackout));
         // Another length than the roster's, a face the data does not list
-        // (the test data has three), twice: refused.
+        // (the test data has three), twice, a block with no entry: refused.
         for bad in [
-            &b"SRPX\x03\x01\x02"[..],
+            &b"SRPX"[..],
+            b"SRPX\x03\x01\x02",
             &b"SRPX\x03\x03\x00\x02\x01"[..],
             &b"SRPX\x03\x02\x00\x03"[..],
             &b"SRPX\x03\x02\x00\x01\x03\x02\x00\x01"[..],
