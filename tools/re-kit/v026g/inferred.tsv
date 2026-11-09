@@ -3404,3 +3404,11 @@ va	status	ref_021d	name
 0x0010f8c0	inferred-high		vostok::memory::mt_region::take
 0x0010f980	inferred-high		vostok::memory::mt_region::give
 0x0001c6a0	inferred-high		vostok::memory::mt_allocator::malloc_impl
+0x001c8cd0	inferred-high	0x0013d3b4	vostok::render::render_surface_texture_instance_proxy::bound_sphere
+0x001c8b80	inferred-high	0x0013d363	vostok::render::render_surface_texture_instance_proxy::last_render_time
+0x001c8d40	inferred-high	0x0013d3ca	vostok::render::grass_patch_texture_instance_proxy::bound_sphere
+0x001c8d20	inferred-high	0x0013d402	vostok::render::grass_patch_texture_instance_proxy::last_render_time
+0x001c8d20	inferred-high	0x0013d402	vostok::render::decal_texture_instance_proxy::last_render_time
+0x001c8d30	inferred-high	0x0013d3c7	vostok::render::grass_patch_texture_instance_proxy::texel_factor
+0x001c8e00	inferred-high	0x0013d45d	vostok::render::decal_texture_instance_proxy::bound_sphere
+0x001c8d80	inferred-high	0x0013d405	vostok::render::decal_texture_instance_proxy::texel_factor

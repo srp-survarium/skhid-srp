@@ -3154,6 +3154,46 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- texture_streaming (patch 134) ----
+
+/// The named exits of texture_streaming::on_update (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TextureStreamingOnUpdateExit { Returned }
+/// The entry `texture_streaming_on_update` (0x155980, scene::update_streaming_data's start (sub esp,18h / push ebx / mov ebx,[eax+12615Ch]), every frame from process_streaming (0x1540DE) while the scene has streamable textures: EAX the scene; returned is its `ret` (0x1559FE)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_streaming_on_update(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_streaming_on_update` calls this, from the game's jump at 0x155980,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_streaming::on_update(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- texture_streaming (patch 134) ----
+
+/// The named exits of texture_streaming::on_texture_memory (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TextureStreamingOnTextureMemoryExit { Returned }
+/// The entry `texture_streaming_on_texture_memory` (0x3be280, resource_manager::get_texture_video_memory_size's start (push ebx / push esi / mov esi,[eax+880A4h]), every frame from renderer::render's statistics (0x13D73E): EAX the resource manager; returned is its `ret` (0x3BE2C7), EAX the sum in bytes) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_streaming_on_texture_memory(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_streaming_on_texture_memory` calls this, from the game's jump at 0x3be280,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_streaming::on_texture_memory(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- unplayed_match (patch 120) ----
 
 /// The entry `unplayed_match_on_connect` (0x21c07c, network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120)) calls this with the saved machine.

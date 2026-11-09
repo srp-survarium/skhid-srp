@@ -2461,3 +2461,13 @@ va	name	source	ret_cleanup	result
 0x00106d90	ptmalloc3::free_starter	manual	0	
 0x00106fc0	pt3free	manual	0	
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	manual	0	EAX the memory (pt3malloc 0x1C6B4), 0 when the allocator is closed ([0x1F1D61B])
+0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: 16 bytes copied from [[ECX+0Ch]+10h] (the surface instance's sphere: centre, radius)
+0x001c8b80	vostok::render::render_surface_texture_instance_proxy::last_render_time	manual	0	ST0: [[ECX+0Ch]+48h]
+0x001c8b90	vostok::render::render_surface_texture_instance_proxy::texel_factor	manual	0	ST0: [[[ECX+0Ch]+38h]+4Ch] x the largest length (math::sqrt 0x38960 each) of the first three rows of the matrix at [[ECX+0Ch]+50h]: the second against the third by fcomip, the first against that by comiss
+0x001c8cb0	vostok::render::render_surface_texture_instance_proxy (vtable +14h)	manual	0	byte [[ECX+0Ch]+4Ch] = 0
+0x001c8d40	vostok::render::grass_patch_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: centre (0, 0, 0), radius [0xA2D8A0] (3000.0)
+0x001c8d20	vostok::render::grass_patch_texture_instance_proxy::last_render_time	manual	0	ST0: 0.0 (fldz); the decal proxy's too
+0x001c8d30	vostok::render::grass_patch_texture_instance_proxy::texel_factor	manual	0	ST0: 1.0 (fld1)
+0x001c8e00	vostok::render::decal_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: the centre of the box at [[ECX+0Ch]+74h] (min, max: (max + min) x 0.5) and its distance to the min (math::sqrt 0x38960)
+0x001c8d80	vostok::render::decal_texture_instance_proxy::texel_factor	manual	0	ST0: max((max.x - min.x) x 0.5, (max.z - min.z) x 0.5) x 0.5 of the box at [[ECX+0Ch]+74h]
+0x00153d90	vostok::render::streaming_texture_instance (constructor)	manual	0	EAX = EDI the record: proxy ESI, next 0, owner [ESI+4], then its bound_sphere, last_render_time and texel_factor (gather_streamable_textures 0x1552B7)

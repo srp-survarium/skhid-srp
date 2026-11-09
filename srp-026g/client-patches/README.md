@@ -144,6 +144,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
+| `rust/patches/src/texture_streaming.rs`, `src/texture_streaming.toml`, `src/vostok/streaming.rs`, `check_texture_streaming_026g.py` | Patch 134: texture streaming's per-frame bookkeeping in Rust, the same values: scene::update_streaming_data (every streaming record from its proxy, the three proxy classes' virtuals read once by their vtable, one square root a surface) and resource_manager::get_texture_video_memory_size (the registry's texture memory without the "$user$" names, searched 16 bytes at a time); two lohooks, each the whole function; its check runs both functions on made-up scenes and registries in both exes, every byte the same, and counts their instructions (needs Unicorn; `../docs/notes/client_patch.md` section 3.79) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -5107,3 +5108,25 @@ waiters yield after a few spins (`vostok::YieldingLock`). `../scripts/memory-pro
 prints each arena's use, holes and top call sites by live and peak bytes (named from the re-kit) and the
 address-space budget. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
+
+## Texture streaming's bookkeeping in Rust (patch 134, unreleased)
+
+Two functions the render thread runs every frame took about 8 % of it in the profiles of the owner's live
+revision-54 game: scene::update_streaming_data rewrites the record of every object drawn with a streamable
+texture from the object's proxy through four virtual calls (the texel factor with three x87 square roots),
+and resource_manager::get_texture_video_memory_size sums the registry's texture memory for the renderer's
+statistics, searching every texture's name for "$user$" a byte at a time. The more textures our content
+loads, the more both cost.
+
+**The patch** (`texture_streaming`, Rust, two lohooks, each the whole function, leaving by its `ret`;
+`vostok::streaming`). The records are walked in the game's order; each proxy is read once by its vtable
+(the exe's three classes: a model surface, a decal, a grass patch) and the record made by the classes'
+methods ported, one square root for a surface. The registry is walked as the game's map iterator walks
+it, each name searched 16 bytes at a time (SSE2). Every value written is the game's bit for bit, the x87's
+NaN rules included. Nothing a match computes.
+
+Checked with `check_texture_streaming_026g.py` (Unicorn: both functions on made-up scenes and registries
+in both exes, every byte the same) and the patch crate's tests (the search against strstr, the x87 model
+against this CPU's x87). In a match's size: update_streaming_data 74 % of the instructions and 56 to 75 %
+of the cycles, get_texture_video_memory_size 48 % of the instructions and 34 to 68 % of the cycles
+(`../docs/notes/client_patch.md` section 3.79): about 2 to 4 % of the render thread. Not run in a game.
