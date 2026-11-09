@@ -938,6 +938,7 @@ va	name	source	ret_cleanup	result
 0x00209f60	survarium::chat_handler::close_conversation	manual	0	
 0x00209ff0	survarium::chat_handler::add_squad_tab	manual	0	
 0x0020a070	survarium::chat_handler::remove_squad_tab	manual	0	
+0x0020ff90	survarium::tick_wrap_delta	manual	0	EAX: the signed distance of *a from *b in -128..127 (wrap of two ticks' low bytes; cdecl)
 0x00219990	survarium::network_client::match_options	manual	0	EAX = [client+1F1C48h]+0Ch, the match options (+577B5h the places' count, u8); the network client's vtable 0x9FFB14 +34h
 0x0021c970	survarium::lobby_menu::input_handler	manual	0	EAX: Null-preserving input-handler subobject pointer adjustment
 0x0021d2e0	survarium::lobby_menu::on_activate	manual	0	
@@ -1144,7 +1145,7 @@ va	name	source	ret_cleanup	result
 0x002d0b70		auto	16	
 0x002d1100		auto	20	
 0x002d1470	survarium::game_world_core::enter_match	manual	8	
-0x002d18a0	survarium::game_world_core::leave_match	manual	8	
+0x002d18a0	survarium::game_world_core::leave_match	manual	8	EAX: the leave's result, the message stats' selector (0x27C1F0)
 0x002d1e20	survarium::game_world_core::atomic_tick	manual	8	
 0x002d1ef0		auto	12	
 0x002d2040		auto	12	

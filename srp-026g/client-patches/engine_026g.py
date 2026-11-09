@@ -445,15 +445,15 @@ def site_holds(kinds_, path=None):
             continue
         holds = []
         for token in text.split():
-            match = re.fullmatch(rf"([a-z][a-z0-9_]*)=(EAX|ECX|EDX|EBX|ESP|EBP|ESI|EDI):({KIND}|u32)", token)
-            value = match is not None and match.group(3) == "u32"
+            match = re.fullmatch(rf"([a-z][a-z0-9_]*)=(EAX|ECX|EDX|EBX|ESP|EBP|ESI|EDI):({KIND}|u32|u8)", token)
+            value = match is not None and match.group(3) in ("u32", "u8")
             if not match or (value and match.group(2) == "ESP") \
                     or (not value and (module_of(match.group(3)) not in kinds_
                                        or kinds_[module_of(match.group(3))]["kind"] != match.group(3))) \
                     or match.group(1) in [h[0] for h in holds]:
                 raise Refused(f"sites_026g.tsv: {row['site']}: holds {token!r}: name=REGISTER:kind, a kind of "
                               "fields_026g.tsv, or name=REGISTER:u32 (not ESP), each name once")
-            holds.append((match.group(1), match.group(2), None if value else module_of(match.group(3))))
+            holds.append((match.group(1), match.group(2), match.group(3) if value else module_of(match.group(3))))
         out.append((row["site"].strip(), None if row["va"].strip() == "-" else number(row["va"]),
                     row["what"].strip(), holds))
     return out
@@ -784,12 +784,13 @@ def raw_text(fs, fields_, sites=None):
         lines += ["", f"    /// {site} ({'our entry' if va is None else f'{va:#x}'}): {what}", f"    pub mod {site.replace('.', '_')} {{",
                   "        #[allow(unused_imports)]", "        use super::*;"]
         for name, location, module in regs:
-            if module is None:
-                lines += ["", f"        /// {location}: a u32 value.",
+            if module in ("u32", "u8"):
+                value = f"machine.register(Register::{location.title()})" + (" as u8" if module == "u8" else "")
+                lines += ["", f"        /// {location}: a {module} value.",
                           "        ///", "        /// # Safety", "        /// `machine` is at this site.",
                           "        #[inline(always)]",
-                          f"        pub unsafe fn {name}(machine: &impl Machine) -> u32 {{",
-                          f"            machine.register(Register::{location.title()})", "        }"]
+                          f"        pub unsafe fn {name}(machine: &impl Machine) -> {module} {{",
+                          f"            {value}", "        }"]
                 continue
             t = kinds_[module]["type"]
             value = "machine.site_esp()" if location == "ESP" else f"machine.register(Register::{location.title()})"

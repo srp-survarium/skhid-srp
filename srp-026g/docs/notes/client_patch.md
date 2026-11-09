@@ -2106,7 +2106,7 @@ A server cannot tell one patched exe from another: nothing a client sends depend
 6. Mode 3 in 0.26g: confirm live that batteries stay without a patch.
 7. Function map: game-code coverage is only about 30 %. More could come from matching the recompiled structure with constants and struct offsets masked, or from 0.26g's own `__FUNCSIG__` / log strings (244 FUNCSIG strings name 0.26g functions directly, including ones 0.21d lacks).
 
-### 3.78 The connect that replaced the match link's socket is no lost link (written 2026-11-09, README patch 132, the next release's revision) — PROVEN in the code; the failure's order runs with Unicorn in both exes; not run in a game
+### 3.78 The connect that replaced the match link's socket is no lost link (written 2026-11-09, README patch 132, the next release's revision) — PROVEN: the failure's order runs with Unicorn in both exes; on a real client (2026-11-09, forced socket errors on each start): 12 of 12 starts, 11 of 11 forced errors and 0 quits with this patch, a failure at the second start without it
 
 Symptom: about 3 replay starts in 100 connect and quit 0.5 s later; the last log lines of the failing connect were `error during reading from socket( 995 ): ...`, `error during writing to socket: The file handle supplied is not valid`, then `connecting from ...` and `--udp_match_connection::connect`, all in the same millisecond.
 
@@ -2121,6 +2121,26 @@ Patch 132 (`match_link.receive_failed`, lohook at 0x3F21DE, the state test after
 `duplicate_packet_send_handler` (0x3F30D0) only counts down and never runs the connect, but only `udp_network_flow_emulator` duplicates packets (`packet+98h` bit 80h, 0x3F807C..), and +1CF0h (the emulator) exists only when match_client_impl's constructor builds one (its flag, tested at 0x385971).
 
 The v0.100b decompilation (`udp_match_client.cpp`) is no guide to this function: there `connect` closes and reopens the socket at once and `on_error` disconnects for every error; the wait at +1280h, the send count and the 995/10061 test are 0.26g's, read in the exe. Its `start_send_to_op` and asio's are the same on a closed socket: completed at once with `bad_descriptor`.
+
+Patch 132's site retires with T4 (the Rust match socket replaces `udp_match_client::handle_receive`).
+
+### 3.79 T5 site inventory, T4 retirements (written 2026-11-09 for the replay viewer's PR)
+
+Kept here because `RUST-CLIENT-WORK.md` and `PLAN-RUST-CLIENT.md`, where these lists belong, could not be found in this repository's default branch; move this section there when they are.
+
+The replay viewer (patches 121, 130) and the patches before it reach into the native match lifecycle at these sites; the Rust client's T5 (world loads as native effects, roster events, a Rust dispatcher) replaces their functions whole, so each row retires with them. Whole-function replacements done so far: `process_player_left_match` 0x27C690 (spectator.rs, a Unicorn differential check in `check_spectator_026g.py`).
+
+The rows marked still hooked stay hooks on purpose until T5: a port of each would carry its patches' hooks and edge cases along with it.
+
+| Function | Sites | Patches there | Note |
+|---|---|---|---|
+| `network_client::process_dynamic_match_info` 0x27BFF0 | 0x27C0D0, 0x27C0FF, 0x27C10A (a viewer's world loads as a seek: `as_seek`), 0x27C116 (camera after a world) | 54, 97, 109, 121, 130 | still hooked: its load path carries patch 54's and 97's hooks |
+| `network_client::close_current_match` 0x27A790 | 0x27A7A4 (guard), 0x27A7F3 (reason), caves 0x27A867, 0x27A94C | 119, 120, 121, 130 | still hooked: the log block and patch 119's caves are in the way |
+| `game_world_ui::update_local_player_state` 0x23B740 | 0x23B7A0 (quick slot activity), 0x23B7B9 (followed alive: a spectator skips the panels) | 77, 121 | still hooked |
+| `game_world::on_keyboard_action` 0x25CD00 | entry, 0x25CD1C, 0x25CD2C, 0x25CDBD | 58, 86, 121, 130 | still hooked |
+| `game_world::on_mouse_key_action` 0x25CF60 / `set_pointer` 0x25D160 | 0x25CFF3, 0x25D1E6 | 130 | still hooked |
+| `network_client::on_match_packet_received` 0x27A300 | 0x27A31F (message check), 0x27A4F4 (0xF6), the snapshot upload's asm, late join's asm at 0x27A385 | 121's check, 130 | T5's Rust dispatcher replaces it |
+| `udp_match_client::handle_receive` 0x3F2050 | 0x3F21DE | 132 | T4 retires it (the socket) |
 
 ## 0. Code-signing certificate check: required for every 0.26g client (found 2026-10-12, PROVEN live)
 

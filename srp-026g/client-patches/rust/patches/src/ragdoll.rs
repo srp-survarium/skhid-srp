@@ -480,7 +480,7 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
     let mut physics = None;
     if let Some(client) = client {
         count = (client.places() as usize).min(MAX_PLACES);
-        let local_place = client.local_place().map(usize::from);
+        let local_place = client.local_place().map(|place| place.index());
         for place in 0..count {
             let Some(player) = client.player(place as u32) else {
                 state.deaths[place] = None;

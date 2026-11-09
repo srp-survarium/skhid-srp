@@ -466,10 +466,20 @@ package replay_player_fla
          this.markerTicks().draw(labels);
       }
       
-      // srp's: the markers as one string from the exe, `time_ms:kind:whose:label;...` (ReplayText.markers).
+      // srp's: the markers as one string from the exe, `time_ms:kind:whose:actor:victim;...`, their
+      // labels from set_marker_names' list (ReplayText.markers).
       public function set_markers_text(value:String) : void
       {
-         this.set_markers_list(ReplayText.markers(value));
+         this.set_markers_list(ReplayText.markers(value,this.markerNames));
+      }
+
+      private var markerNames:Array = [];
+
+      // srp's: the names by place the markers show, `place:name;...` (ReplayText.names), told before
+      // set_markers_text.
+      public function set_marker_names(value:String) : void
+      {
+         this.markerNames = ReplayText.names(value);
       }
 
       // srp's: the controls a replay viewer's (the exe, once): its Back button, Moments switch and key

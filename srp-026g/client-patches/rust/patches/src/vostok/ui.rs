@@ -289,27 +289,25 @@ fn held_buttons(mask: u32) -> impl Iterator<Item = u32> {
     (0..MOUSE_BUTTONS).filter(move |button| mask >> button & 1 != 0)
 }
 
-/// GFx::MouseEvent, as 0x2AF610 fills it for HandleEvent.
-#[repr(C)]
-struct MouseEvent {
-    kind: u32,
-    modifiers: u32,
-    x: f32,
-    y: f32,
-    scroll: f32,
-    button: u32,
-    mouse: u32,
-}
+/// GFx::MouseEvent's Event::MouseUp.
+const MOUSE_UP: u32 = 3;
 
-impl MouseEvent {
-    /// Event::MouseUp.
-    const UP: u32 = 3;
-
-    /// A button let go off the stage: over no control, so a press in progress ends (MOUSE_UP on the
-    /// stage, release outside on what was pressed) and nothing is clicked.
-    fn release_off_stage(button: u32) -> MouseEvent {
-        MouseEvent { kind: Self::UP, modifiers: 0, x: -1.0, y: -1.0, scroll: 0.0, button, mouse: 0 }
+/// `button` let go off the stage, into `room` (GFx::MouseEvent, as 0x2AF610 fills it): over no
+/// control, so a press in progress ends (MOUSE_UP on the stage, release outside on what was
+/// pressed) and nothing is clicked.
+fn release_off_stage(room: &mut raw::GfxMouseEventStorage, button: u32) -> raw::GfxMouseEvent {
+    let event = room.handle();
+    // SAFETY: our own event, its fields' places.
+    unsafe {
+        *event.kind() = MOUSE_UP;
+        *event.modifiers() = 0;
+        *event.x() = -1.0;
+        *event.y() = -1.0;
+        *event.scroll() = 0.0;
+        *event.button() = button;
+        *event.mouse() = 0;
     }
+    event
 }
 
 impl Movie<'_> {
@@ -320,9 +318,10 @@ impl Movie<'_> {
         // SAFETY: a live movie on the hook's thread; its first MouseState's buttons, a plain dword.
         let mask = unsafe { self.this.mouse_buttons().read() };
         for button in held_buttons(mask) {
-            let event = MouseEvent::release_off_stage(button);
+            let mut room = raw::GfxMouseEventStorage::zeroed();
+            let event = release_off_stage(&mut room, button);
             // SAFETY: a live movie on its thread; the event outlives the call, which copies what it needs.
-            unsafe { raw::engine_movie_handle_event(Some(self.this), (&raw const event).cast()) };
+            unsafe { raw::engine_movie_handle_event(Some(self.this), Some(event)) };
         }
     }
 }
@@ -348,10 +347,13 @@ mod mouse_release_tests {
 
     #[test]
     fn the_event_is_the_one_the_game_builds() {
-        assert_eq!(core::mem::size_of::<MouseEvent>(), 0x1C);
-        let event = MouseEvent::release_off_stage(2);
-        // SAFETY: a repr(C) struct of 7 dwords, no padding.
-        let words: [u32; 7] = unsafe { core::mem::transmute(event) };
+        assert_eq!(raw::GfxMouseEvent::SIZE, 0x1C);
+        let mut room = raw::GfxMouseEventStorage::zeroed();
+        let event = release_off_stage(&mut room, 2);
+        // SAFETY: the event just built in `room`.
+        let words = unsafe {
+            [*event.kind(), *event.modifiers(), (*event.x()).to_bits(), (*event.y()).to_bits(), (*event.scroll()).to_bits(), *event.button(), *event.mouse()]
+        };
         assert_eq!(words, [3, 0, (-1.0f32).to_bits(), (-1.0f32).to_bits(), 0, 2, 0]);
     }
 }

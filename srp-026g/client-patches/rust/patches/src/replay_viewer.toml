@@ -21,6 +21,7 @@ order = 1
 [[hook]]
 site = "close_match.reason"
 handler = "on_close"
+order = 0
 
 # A new match's options (after patches 65, 86, 83 and 103): no replay yet.
 [[hook]]

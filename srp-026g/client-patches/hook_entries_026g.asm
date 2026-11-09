@@ -2107,7 +2107,7 @@ battery_progress_on_load_replay:
     db 0x8b, 0x85, 0x38, 0x0a, 0x00, 0x00
     jmp 0x3350d6
 
-; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
+; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch], EDI the network client ([ebp+8], kept since 0x27B8DB), [ebp-5] the 0xE4's first byte, the local place: lohook -> blackout_on_static_info
 global blackout_on_static_info
 extern hook_blackout_on_static_info_chain
 blackout_on_static_info:
@@ -5656,7 +5656,7 @@ tab_cursor_on_key_replay:
 
 ; 0x27a7f3 close_current_match before its reason's jump (mov ebx,[ebp+8] / cmp ebx,5, then ja / jmp [table]): EDI the network client, past its guard (+1F1C60h 0 returns, 0x27A7A4; patch 120's played exit comes on to here); every reason then ends the world (0x1F96F0 at 0x27A947 or 0x27A80C; reason 4, a kick, by patch 119's reason 1 path): lohook -> replay_viewer_on_close
 global replay_viewer_on_close
-extern hook_replay_viewer_on_close
+extern hook_replay_viewer_on_close_chain
 replay_viewer_on_close:
     lea esp, [esp - 4]
     pushfd
@@ -5674,7 +5674,7 @@ replay_viewer_on_close:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_replay_viewer_on_close
+    call hook_replay_viewer_on_close_chain
     mov edx, replay_viewer_on_close_replay
     cmp eax, 0
     je replay_viewer_on_close_go
@@ -6269,7 +6269,7 @@ spectator_on_match_line_replay:
     db 0x0f, 0xb6, 0x86, 0x44, 0x1c, 0x1f, 0x00
     jmp 0x208d7e
 
-; 0x23b7b9 update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7): lohook -> spectator_on_followed_alive
+; 0x23b7b9 update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7); kept is the reference's release at their end, nothing shown or hidden: lohook -> spectator_on_followed_alive
 global spectator_on_followed_alive
 extern hook_spectator_on_followed_alive
 spectator_on_followed_alive:
@@ -6296,6 +6296,9 @@ spectator_on_followed_alive:
     mov edx, 0x23b7bf
     cmp eax, 1
     je spectator_on_followed_alive_go
+    mov edx, 0x23b7fc
+    cmp eax, 2
+    je spectator_on_followed_alive_go
     ud2
 spectator_on_followed_alive_go:
     mov [ebp + 36], edx
@@ -6308,7 +6311,7 @@ spectator_on_followed_alive_replay:
     db 0x8a, 0x85, 0x3c, 0x03, 0x00, 0x00
     jmp 0x23b7bf
 
-; 0x27c72c process_player_left_match (0xEA) after leave_match (0x27C720) and its count (0x27C727): mov al,[esi+1F1C44h] / cmp al,0FFh, then je 0x27C79F (no local place: nothing), the local place's own end (0x27C73A: `31 <order> FF` to the lobby, close_current_match(3), the results screen) or a followed player's leave (0x27C776); done is the handler's epilogue (0x27C79F, `ret 4`). ESI the network client, BL the place that left: lohook -> spectator_on_player_left
+; 0x27c690 process_player_left_match's start (mov ecx,[esi+1F1C40h]; called from the dispatch's table with ESI the network client, [esp+4] the reader, ret 4): patch 121's whole-function replacement in Rust (same behaviour for every player, the spectator's branch in Rust); done is its `ret 4` at 0x27C7A5 with nothing pushed: lohook -> spectator_on_player_left
 global spectator_on_player_left
 extern hook_spectator_on_player_left
 spectator_on_player_left:
@@ -6332,10 +6335,10 @@ spectator_on_player_left:
     mov edx, spectator_on_player_left_replay
     cmp eax, 0
     je spectator_on_player_left_go
-    mov edx, 0x27c734
+    mov edx, 0x27c696
     cmp eax, 1
     je spectator_on_player_left_go
-    mov edx, 0x27c79f
+    mov edx, 0x27c7a5
     cmp eax, 2
     je spectator_on_player_left_go
     ud2
@@ -6347,8 +6350,8 @@ spectator_on_player_left_go:
     popfd
     ret
 spectator_on_player_left_replay:
-    db 0x8a, 0x86, 0x44, 0x1c, 0x1f, 0x00, 0x3c, 0xff
-    jmp 0x27c734
+    db 0x8b, 0x8e, 0x40, 0x1c, 0x1f, 0x00
+    jmp 0x27c696
 
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot

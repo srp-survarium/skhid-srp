@@ -33,8 +33,10 @@ use replay_control::{newer, Event, EventKind, EventsNote, MatchMs, Op, Playback,
 use core::ffi::CStr;
 
 use crate::spectator;
-use crate::vostok::replay_view::{button_client, pointer_at, pointer_client, query_network, take_network, CoreLoad, GameClock, HudFrame, KitChooser, KitData, KitFeed, MatchClose, Names, Overlay, ServerNoteSite};
-use crate::vostok::world::{NetworkClient, Role};
+use crate::vostok::log::{line, Piece};
+use crate::vostok::replay_view::{button_client, pointer_at, pointer_client, query_network, take_network, ChooserMode, CoreLoad, GameClock, HudFrame, KitChooser, KitData, KitFeed, MatchClose, Moments, Names, Overlay, ServerNoteSite};
+use crate::vostok::types::Place;
+use crate::vostok::world::NetworkClient;
 use crate::vostok::{
     Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, NoExit, ReplayViewerOnHudCallExit,
     ReplayViewerOnKeyExit, ReplayViewerOnMouseButtonExit, ReplayViewerOnMousePointerExit, ReplayViewerOnMovieQueryExit, ReplayViewerOnSetupProfilesExit, Reg,
@@ -96,17 +98,6 @@ const MOMENT_LEAD_MS: u32 = 4_000;
 /// A moment this near the clock (once led) is the one just seen, not the next or the previous.
 const MOMENT_MARGIN_MS: u32 = 1_000;
 
-/// Which of the events the Moments switch lights: their ticks on the bar
-/// (the others faded) and Shift+Left/Right's steps.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Moments {
-    All,
-    /// The viewer's own: it played in the match ([`Own`]).
-    Mine,
-    /// The player in view's.
-    Followed,
-}
-
 impl Moments {
     /// The first choice: Mine when the viewer played, else All.
     fn first(own: Own) -> Moments {
@@ -128,32 +119,13 @@ impl Moments {
         if wanted == Moments::Mine && !own.played() { self } else { wanted }
     }
 
-    /// The switch's index of the choice (the movie's set_moments and
-    /// moments_clicked: 0 All, 1 Mine, 2 Followed).
-    fn index(self) -> u32 {
-        match self {
-            Moments::All => 0,
-            Moments::Mine => 1,
-            Moments::Followed => 2,
-        }
-    }
-
-    fn of_index(index: u32) -> Option<Moments> {
-        Some(match index {
-            0 => Moments::All,
-            1 => Moments::Mine,
-            2 => Moments::Followed,
-            _ => return None,
-        })
-    }
-
     /// Whether this choice lights `event`, of the viewer's own places `own`
     /// and with `watched` in view.
-    fn lights(self, event: &Event, own: Own, watched: Option<u8>) -> bool {
+    fn lights(self, event: &Event, own: Own, watched: Option<Place>) -> bool {
         match self {
             Moments::All => true,
             Moments::Mine => own.in_event(event),
-            Moments::Followed => watched.is_some_and(|place| [event.actor, event.victim].contains(&Some(place))),
+            Moments::Followed => watched.is_some_and(|place| [event.actor, event.victim].contains(&Some(place.get()))),
         }
     }
 }
@@ -166,11 +138,12 @@ struct Own(u32);
 impl Own {
     /// The places among `places` whose name is `own` (ignoring ASCII case, as
     /// the lobby finds an account).
-    fn by_name<'n>(own: Option<&[u8]>, places: u32, name: impl Fn(u8) -> Option<&'n [u8]>) -> Own {
+    fn by_name<'n>(own: Option<&[u8]>, places: u32, name: impl Fn(Place) -> Option<&'n [u8]>) -> Own {
         let Some(own) = own.filter(|own| !own.is_empty()) else { return Own(0) };
-        let mask = (0..places.min(32) as u8)
+        let mask = Place::all()
+            .take_while(|&place| u32::from(place.get()) < places)
             .filter(|&place| name(place).is_some_and(|name| name.eq_ignore_ascii_case(own)))
-            .fold(0, |mask, place| mask | 1 << place);
+            .fold(0, |mask, place| mask | 1 << place.get());
         Own(mask)
     }
 
@@ -249,7 +222,7 @@ enum Input {
     Playback { playback: Playback, own: Own },
     /// A key went down or the controls were used; the match's clock, when
     /// the game has a world, and the player in view.
-    Command { command: Command, now: Option<MatchMs>, watched: Option<u8> },
+    Command { command: Command, now: Option<MatchMs>, watched: Option<Place> },
 }
 
 /// What the game does for an input.
@@ -313,7 +286,7 @@ impl Act {
 }
 
 impl Viewer {
-    fn command(self, command: Command, now: Option<MatchMs>, watched: Option<u8>, events: &Events) -> (Viewer, Act) {
+    fn command(self, command: Command, now: Option<MatchMs>, watched: Option<Place>, events: &Events) -> (Viewer, Act) {
         let (start, end) = (self.playback.start, self.playback.end);
         let seek = |time: Option<MatchMs>| time.map(|time| Op::Seek(time.within(start, end)));
         let lit = |event: &Event| self.moments.lights(event, self.own, watched);
@@ -349,62 +322,88 @@ impl Viewer {
     }
 }
 
-/// The most events a replay's list keeps here.
-const MAX_EVENTS: usize = 256;
+/// The most events a viewer keeps: more than any real match's, whose kills and
+/// objectives are 20 players' for 15 minutes (the arena is nearly full: each
+/// slot is 12 bytes), and the rest are only the bar's marks. A replay with
+/// more: [`Events::take`] tells the log.
+const MAX_EVENTS: usize = 512;
 
 /// The replay's events as the server sent them (by their index in its
 /// list), for the keys' previous and next moment. Kept apart from the session:
 /// a note may come before the first playback note (the transport reorders).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Events {
     slots: [Option<Event>; MAX_EVENTS],
     /// Counts the notes taken (the controls' markers follow it).
     version: u16,
+    /// Whether this match's line about events past [`MAX_EVENTS`] was written.
+    capacity: Capacity,
+}
+
+/// Events past [`MAX_EVENTS`]: none, or some and told once a match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Capacity {
+    Enough,
+    Exceeded,
+}
+
+/// A replay with events past [`MAX_EVENTS`] ([`Events::take`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TooManyEvents {
+    total: u16,
 }
 
 impl Events {
-    const NONE: Events = Events { slots: [None; MAX_EVENTS], version: 0 };
+    const NONE: Events = Events { slots: [None; MAX_EVENTS], version: 0, capacity: Capacity::Enough };
 
-    fn take(mut self, note: &EventsNote<'_>) -> Events {
+    /// Takes a note. `Err` the first time a note names an event past
+    /// [`MAX_EVENTS`]: its marks are lost and the log must say so.
+    fn take(&mut self, note: &EventsNote<'_>) -> Result<(), TooManyEvents> {
+        let mut over = false;
         for (index, event) in note.events() {
-            if let Some(slot) = self.slots.get_mut(usize::from(index)) {
-                *slot = event;
+            match self.slots.get_mut(usize::from(index)) {
+                Some(slot) => *slot = event,
+                None => over = true,
             }
         }
         self.version = self.version.wrapping_add(1);
-        self
+        if over && self.capacity == Capacity::Enough {
+            self.capacity = Capacity::Exceeded;
+            return Err(TooManyEvents { total: note.total });
+        }
+        Ok(())
     }
 
-    /// The controls' markers text (`time_ms:kind:whose:label;...`, the time
-    /// from the replay's `start`), up to the room of `out`; an event before
-    /// the start is left out. The kind is the movie's tick: 1 a kill, 2 an
-    /// objective, 3 a death of the player `watched`; whose, what the Moments
-    /// switch lights it under: 1 one of the viewer's `own` places in it, 2 the
-    /// player `watched`, 3 both, 0 neither; the label its players by `name`
-    /// (`Ada > Bob`, the victim alone for a death no one made, the actor of an
-    /// objective), at most [`LABEL_MAX`] bytes.
-    fn markers<'o, 'n>(&self, start: MatchMs, own: Own, watched: Option<u8>, name: impl Fn(u8) -> Option<&'n [u8]>,
-                       out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
-        let mut text = Text { out, len: 0 };
+    /// The controls' markers text (`time_ms:kind:whose:actor:victim;...`, the
+    /// time from the replay's `start`), whole ([`MARKERS_ROOM`] is sized for
+    /// [`MAX_EVENTS`]); an event before the start is left out. The kind is the
+    /// movie's tick: 1 a kill, 2 an objective, 3 a death of the player
+    /// `watched`; whose, what the Moments switch lights it under: 1 one of the
+    /// viewer's `own` places in it, 2 the player `watched`, 3 both, 0 neither;
+    /// actor and victim its places, named by the movie's list
+    /// (root.set_marker_names), empty for none (a death no one made has only a
+    /// victim, an objective only an actor).
+    fn markers<'o>(&self, start: MatchMs, own: Own, watched: Option<Place>, out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
+        let mut text = Text::new(out);
         for event in self.slots.iter().flatten() {
             let Some(offset) = event.time.0.checked_sub(start.0) else { continue };
             let kind = match event.kind {
-                EventKind::Kill if event.victim.is_some() && event.victim == watched => 3,
+                EventKind::Kill if event.victim.is_some() && event.victim == watched.map(Place::get) => 3,
                 EventKind::Kill => 1,
                 EventKind::Objective => 2,
             };
-            let (first, second) = match event.kind {
-                EventKind::Kill => (event.actor.and_then(&name), event.victim.and_then(&name)),
-                EventKind::Objective => (event.actor.and_then(&name), None),
+            let (actor, victim) = match event.kind {
+                EventKind::Kill => (event.actor, event.victim),
+                EventKind::Objective => (event.actor, None),
             };
             let whose = u32::from(Moments::Mine.lights(event, own, watched))
                 | u32::from(Moments::Followed.lights(event, own, watched)) << 1;
-            let mark = text.len;
             let fits = (text.len == 0 || text.push(b";")) && text.number(offset) && text.push(b":")
                 && text.number(kind) && text.push(b":") && text.number(whose) && text.push(b":")
-                && text.label(first, second);
+                && text.place(actor) && text.push(b":") && text.place(victim);
+            // MARKERS_ROOM holds MAX_EVENTS at their longest (a test proves it).
+            debug_assert!(fits);
             if !fits {
-                text.len = mark;
                 break;
             }
         }
@@ -442,22 +441,66 @@ struct KitMasks {
 impl KitMasks {
     const NONE: KitMasks = KitMasks { masks: [0; MAX_PLACES], version: 0 };
 
-    fn take(mut self, place: u8, mask: u8) -> KitMasks {
-        if let Some(slot) = self.masks.get_mut(usize::from(place)) {
-            *slot = mask;
-            self.version = self.version.wrapping_add(1);
-        }
+    fn take(mut self, place: Place, mask: u8) -> KitMasks {
+        self.masks[place.index()] = mask;
+        self.version = self.version.wrapping_add(1);
         self
     }
 
-    fn of(&self, place: u8) -> u8 {
-        self.masks.get(usize::from(place)).copied().unwrap_or(0)
+    fn of(&self, place: Place) -> u8 {
+        self.masks[place.index()]
     }
 }
 
-static SESSION: GameCell<Session> = GameCell::new(Session::Live);
-static EVENTS: GameCell<Events> = GameCell::new(Events::NONE);
-static MASKS: GameCell<KitMasks> = GameCell::new(KitMasks::NONE);
+/// Why a match's state goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reset {
+    /// A match's options (0xE4): a new match, nothing fed yet.
+    NewMatch,
+    /// close_current_match past its guard: nothing is fed any more until the next.
+    Ended,
+}
+
+/// The replay viewer's state: one owner, one reset.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Viewing {
+    session: Session,
+    events: Events,
+    masks: KitMasks,
+    feeding: Feeding,
+}
+
+impl Viewing {
+    const INITIAL: Viewing = Viewing { session: Session::Live, events: Events::NONE, masks: KitMasks::NONE, feeding: Feeding::Running(Fed::NOTHING) };
+
+    /// A new match or the match's end, whichever it is: the session steps (a viewer's restores the
+    /// clock, [`Act::Restore`]), everything of the match's goes.
+    fn reset(&mut self, reset: Reset) -> Act {
+        let input = match reset {
+            Reset::NewMatch => Input::NewMatch,
+            Reset::Ended => Input::MatchEnded,
+        };
+        let (session, act) = step(self.session, input, &self.events);
+        self.session = session;
+        self.events = Events::NONE;
+        self.masks = KitMasks::NONE;
+        self.feeding = match reset {
+            Reset::NewMatch => Feeding::Running(Fed::NOTHING),
+            Reset::Ended => Feeding::Ended,
+        };
+        act
+    }
+}
+
+static VIEWING: GameCell<Viewing> = GameCell::new(Viewing::INITIAL);
+
+fn session(thread: &crate::vostok::Thread) -> Session {
+    VIEWING.with(thread, |viewing| viewing.session)
+}
+
+fn set_session(thread: &crate::vostok::Thread, session: Session) {
+    VIEWING.with(thread, |viewing| viewing.session = session);
+}
 /// Whether `key` is one of the kit keys (patch 58's 1, 2 and 3).
 fn is_kit_key(key: Dik) -> bool {
     matches!(key, Dik::KEY_1 | Dik::KEY_2 | Dik::KEY_3)
@@ -472,7 +515,7 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
         return Flow::Continue;
     }
     let thread = ctx.thread();
-    if site.client.role() != Some(Role::Spectator) {
+    if !site.client.is_spectator() {
         // Never sent to a player's game: dropped, its keys stay the game's.
         return Flow::Exit(ReplayViewerOnServerNoteExit::Done);
     }
@@ -480,19 +523,33 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
         Some(ServerNote::Playback(playback)) => {
             let names = Names::of(&site.client);
             let own = Own::by_name(names.own(), site.client.places(), |place| names.of_place(place));
-            let (next, act) = step(SESSION.get(thread), Input::Playback { playback, own }, &EVENTS.get(thread));
-            SESSION.set(thread, next);
+            let (next, act) = VIEWING.with(thread, |viewing| step(viewing.session, Input::Playback { playback, own }, &viewing.events));
+            set_session(thread, next);
+            site.client.become_replay_viewer();
             if let (Act::Play { paused, speed }, Some(clock)) = (act, GameClock::of(&site.client)) {
                 clock.set_paused(paused);
                 clock.set_speed(speed.factor());
             }
         }
-        Some(ServerNote::Events(note)) => EVENTS.update(thread, |events| events.take(&note)),
-        Some(ServerNote::Kits(note)) => MASKS.update(thread, |masks| masks.take(note.place, note.mask)),
+        Some(ServerNote::Events(note)) => {
+            if let Err(TooManyEvents { total }) = VIEWING.with(thread, |viewing| viewing.events.take(&note)) {
+                line(&[Piece::Text("replay_viewer: the replay has "), Piece::Dec(u32::from(total)),
+                       Piece::Text(" events, the viewer keeps "), Piece::Dec(MAX_EVENTS as u32), Piece::Text(": the rest have no marks")]);
+            }
+        }
+        Some(ServerNote::Kits(note)) => {
+            if let Some(place) = Place::new(u32::from(note.place)) {
+                VIEWING.with(thread, |viewing| viewing.masks = viewing.masks.take(place, note.mask));
+            }
+        }
         // The place its watcher asked to see (a replay's or a live match's
         // spectator, once its first world is in): followed, as a player list
         // click does.
-        Some(ServerNote::View(place)) => spectator::view_player(&site.client, thread, place),
+        Some(ServerNote::View(place)) => {
+            if let Some(place) = Place::new(u32::from(place)) {
+                spectator::view_player(&site.client, thread, place);
+            }
+        }
         None => {}
     }
     Flow::Exit(ReplayViewerOnServerNoteExit::Done)
@@ -506,12 +563,12 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
     // A spectator has no kits: its 1 to 3 pick nothing (before patch 58's key, further in this
     // function; the key would reach the kit chooser the game shows it).
     if is_kit_key(key.key()) && key.kind() == KeyKind::Down
-        && key.hud().client(thread).is_some_and(|client| client.role() == Some(Role::Spectator)) {
+        && key.hud().client(thread).is_some_and(|client| client.is_spectator()) {
         key.take();
         return Flow::Exit(ReplayViewerOnKeyExit::Taken);
     }
-    let session = SESSION.get(thread);
-    if session == Session::Live {
+    let viewing_session = session(thread);
+    if viewing_session == Session::Live {
         return Flow::Continue;
     }
     let shift = matches!(key.key(), Dik::LEFT | Dik::RIGHT) && key.shift_down();
@@ -524,8 +581,8 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
     let client = key.hud().client(thread);
     let now = client.as_ref().and_then(|client| client.clock());
     let watched = client.as_ref().and_then(|client| client.local_place());
-    let (next, act) = step(session, Input::Command { command: replay_key, now, watched }, &EVENTS.get(thread));
-    SESSION.set(thread, next);
+    let (next, act) = VIEWING.with(thread, |viewing| step(viewing_session, Input::Command { command: replay_key, now, watched }, &viewing.events));
+    set_session(thread, next);
     match act {
         Act::Ask(request) => {
             if let Some(client) = &client {
@@ -553,17 +610,12 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
 /// replay's viewing; the game's clock runs again at 1 before the world ends.
 pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(close) = MatchClose::at(ctx) else { return Flow::Continue };
-    let thread = ctx.thread();
-    let (next, act) = step(SESSION.get(thread), Input::MatchEnded, &EVENTS.get(thread));
-    SESSION.set(thread, next);
-    EVENTS.set(thread, Events::NONE);
-    MASKS.set(thread, KitMasks::NONE);
     // A world may tick on after this: nothing is shown again until the next match.
-    FED.set(thread, Fed::ENDED);
-    if close.client.role() == Some(Role::Spectator)
+    let act = VIEWING.with(ctx.thread(), |viewing| viewing.reset(Reset::Ended));
+    if close.client.is_spectator()
         && let Some(chooser) = KitChooser::of(&close.client)
     {
-        chooser.show(CHOOSER_HIDDEN);
+        chooser.show(ChooserMode::Hidden);
     }
     if let (Act::Restore, Some(clock)) = (act, GameClock::of(&close.client)) {
         clock.restore();
@@ -584,12 +636,7 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// `static_info.options_read` (after patches 65, 86, 83 and 103's): a new
 /// match starts as no replay, with no events.
 pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let thread = ctx.thread();
-    let (next, _) = step(SESSION.get(thread), Input::NewMatch, &EVENTS.get(thread));
-    SESSION.set(thread, next);
-    EVENTS.set(thread, Events::NONE);
-    MASKS.set(thread, KitMasks::NONE);
-    FED.set(thread, Fed::NOTHING);
+    VIEWING.with(ctx.thread(), |viewing| viewing.reset(Reset::NewMatch));
     Flow::Continue
 }
 
@@ -605,24 +652,34 @@ pub fn on_setup_profiles(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnSetupProfi
     Flow::Continue
 }
 
-/// The markers text's room, its zero included: a match's events with their
-/// names (an entry is at most about 80 bytes).
-const MARKERS_ROOM: usize = 4096;
-/// A marker's label at most (the movie's helper cuts one longer).
-const LABEL_MAX: usize = 63;
-/// A name in a label at most: two and the arrow fit [`LABEL_MAX`].
+/// One marker at most: `4294967295:3:3:255:255;`.
+const MARKER_MAX: usize = 10 + 1 + 1 + 1 + 1 + 1 + 3 + 1 + 3 + 1;
+/// The markers text's room, its zero included: every event of the list.
+const MARKERS_ROOM: usize = MAX_EVENTS * MARKER_MAX + 1;
+/// A name the movie is given at most (it never cuts one): two and the arrow fit its label.
 const NAME_MAX: usize = 30;
+/// One place of the names text at most: `255:name;`.
+const NAME_ENTRY_MAX: usize = 3 + 1 + NAME_MAX + 1;
+/// The names text's room, its zero included: every place.
+const NAMES_ROOM: usize = MAX_PLACES * NAME_ENTRY_MAX + 1;
+/// The hud chooser's text's room: its three kits at their most (a name of 64
+/// bytes, 23 items of `65535:255:65535,`) with their fields.
+const CHOOSER_ROOM: usize = KIT_NUMBERS as usize * (3 + 1 + 10 + 1 + 5 + 1 + 64 + 1 + 23 * (5 + 1 + 3 + 1 + 5 + 1) + 1) + 1;
 
 /// A text written into a fixed room, kept one byte short for its zero.
 struct Text<'o> {
-    out: &'o mut [u8; MARKERS_ROOM],
+    out: &'o mut [u8],
     len: usize,
 }
 
 impl<'o> Text<'o> {
+    fn new(out: &'o mut [u8]) -> Text<'o> {
+        Text { out, len: 0 }
+    }
+
     fn push(&mut self, bytes: &[u8]) -> bool {
         let end = self.len + bytes.len();
-        if end >= MARKERS_ROOM {
+        if end >= self.out.len() {
             return false;
         }
         self.out[self.len..end].copy_from_slice(bytes);
@@ -644,30 +701,40 @@ impl<'o> Text<'o> {
         self.push(&digits[at..])
     }
 
-    /// A marker's label: `first > second`, or the one there is, each name
-    /// cut to [`NAME_MAX`] bytes on a character's start; a `;` (the entries'
-    /// separator) becomes `,`.
-    fn label(&mut self, first: Option<&[u8]>, second: Option<&[u8]>) -> bool {
-        let start = self.len;
-        let name = |text: &mut Text<'o>, name: &[u8]| {
-            let mut cut = name.len().min(NAME_MAX);
-            while cut > 0 && cut < name.len() && name[cut] & 0xC0 == 0x80 {
-                cut -= 1;
-            }
-            name[..cut].iter().all(|&b| text.push(&[if b == b';' { b',' } else { b }]))
-        };
-        let fits = match (first, second) {
-            (Some(a), Some(b)) => name(self, a) && self.push(b" > ") && name(self, b),
-            (Some(one), None) | (None, Some(one)) => name(self, one),
-            (None, None) => true,
-        };
-        fits && self.len - start <= LABEL_MAX
+    /// A place's number, or nothing for none.
+    fn place(&mut self, place: Option<u8>) -> bool {
+        place.is_none_or(|place| self.number(u32::from(place)))
+    }
+
+    /// A name, cut to [`NAME_MAX`] bytes on a character's start; a `;` (the
+    /// entries' separator) becomes `,`.
+    fn name(&mut self, name: &[u8]) -> bool {
+        let mut cut = name.len().min(NAME_MAX);
+        while cut > 0 && cut < name.len() && name[cut] & 0xC0 == 0x80 {
+            cut -= 1;
+        }
+        name[..cut].iter().all(|&b| self.push(&[if b == b';' { b',' } else { b }]))
     }
 
     fn finish(self) -> &'o CStr {
         self.out[self.len] = 0;
         CStr::from_bytes_until_nul(&self.out[..]).unwrap_or(c"")
     }
+}
+
+/// The names the movie's markers show, by place: `place:name;...`.
+fn names_text<'o, 'n>(places: u32, name: impl Fn(Place) -> Option<&'n [u8]>, out: &'o mut [u8; NAMES_ROOM]) -> &'o CStr {
+    let mut text = Text::new(out);
+    for place in Place::all().take_while(|&place| u32::from(place.get()) < places) {
+        if let Some(name) = name(place) {
+            let fits = (text.len == 0 || text.push(b";")) && text.number(u32::from(place.get())) && text.push(b":") && text.name(name);
+            debug_assert!(fits, "NAMES_ROOM holds every place");
+            if !fits {
+                break;
+            }
+        }
+    }
+    text.finish()
 }
 
 /// What the replay controls were last given (they are fed each frame from
@@ -686,14 +753,20 @@ struct Fed {
     /// The switch's choice it shows, and the cursor it shows the key hint for.
     moments: Option<Moments>,
     cursor: Option<Ui>,
-    /// What the hud's kit chooser has been given, and whether the match has ended.
+    /// What the hud's kit chooser has been given.
     chooser: Option<ChooserFed>,
-    ended: MatchEnd,
 }
 
 impl Fed {
-    const NOTHING: Fed = Fed { movie: None, revision: None, markers: None, ui: None, moments: None, cursor: None, chooser: None, ended: MatchEnd::Running };
-    const ENDED: Fed = Fed { ended: MatchEnd::Ended, ..Fed::NOTHING };
+    const NOTHING: Fed = Fed { movie: None, revision: None, markers: None, ui: None, moments: None, cursor: None, chooser: None };
+}
+
+/// Whether the frames that remain still belong to a running match, fed so far by [`Fed`]; once
+/// ended, nothing is fed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Feeding {
+    Running(Fed),
+    Ended,
 }
 
 /// The dictionary keys of the viewer's own controls, in root.start_viewer's
@@ -711,31 +784,18 @@ const VIEWER_TEXTS: [&CStr; 15] = [c"st_srp_viewer_back", c"st_srp_viewer_moment
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct MarkersOf {
     events: u16,
-    watched: Option<u8>,
-}
-
-/// Whether the frames that remain still belong to a running match.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum MatchEnd {
-    Running,
-    Ended,
+    watched: Option<Place>,
 }
 
 /// What the hud's kit chooser shows: the place, the notes' version and the current kit it was
 /// given.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct ChooserFed {
-    place: Option<u8>,
+    place: Option<Place>,
     version: u16,
     current: Option<u8>,
+    mode: ChooserMode,
 }
-
-/// The chooser's modes (`HUD.srp_spectator_kits_show`).
-const CHOOSER_HIDDEN: u32 = 0;
-const CHOOSER_LIVE: u32 = 1;
-const CHOOSER_REPLAY: u32 = 2;
-
-static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
 
 /// The controls of a viewer's game, brought to the session: made a viewer's
 /// once (Back, the Moments switch, the key hint), shown or hidden with the
@@ -744,7 +804,7 @@ static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
 /// position and play button every frame (as the replay client's tick does,
 /// 0x218C16 / 0x218C27), the hud's kit chooser and quick slots kept hidden,
 /// and its cursor kept as Ctrl left it.
-fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed, thread: &crate::vostok::Thread) -> Fed {
+fn feed(client: &NetworkClient<'_>, viewer: &Viewer, fed: Fed, thread: &crate::vostok::Thread) -> Fed {
     let Some(overlay) = Overlay::of(client) else { return fed };
     let Playback { revision, paused, speed, start, end } = viewer.playback;
     let movie = Some(overlay.id()).filter(|&id| fed.movie == Some(id) || overlay.start_viewer(&VIEWER_TEXTS));
@@ -756,14 +816,17 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed, 
         overlay.set_speed(speed.percent());
     }
     let watched = client.local_place();
-    let markers = MarkersOf { events: events.version, watched };
+    let markers = MarkersOf { events: VIEWING.with(thread, |viewing| viewing.events.version), watched };
     if fed.markers != Some(markers) || fed.revision.is_none() {
-        let mut room = [0; MARKERS_ROOM];
         let names = Names::of(client);
-        overlay.set_markers(events.markers(start, viewer.own, watched, |place| names.of_place(place), &mut room));
+        let mut names_room = [0; NAMES_ROOM];
+        overlay.set_marker_names(names_text(client.places(), |place| names.of_place(place), &mut names_room));
+        let mut room = [0; MARKERS_ROOM];
+        let text = VIEWING.with(thread, |viewing| viewing.events.markers(start, viewer.own, watched, &mut room));
+        overlay.set_markers(text);
     }
     if fed.moments != Some(viewer.moments) {
-        overlay.set_moments(viewer.moments.index(), viewer.own.played());
+        overlay.set_moments(viewer.moments, viewer.own.played());
     }
     if fed.cursor != Some(viewer.cursor) {
         overlay.set_cursor_shown(viewer.cursor == Ui::Shown);
@@ -772,9 +835,14 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed, 
         overlay.set_position(now.within(start, end).0 - start.0);
     }
     overlay.set_paused(paused);
-    overlay.hide_player_panels();
+    if fed.chooser.is_none() {
+        // The game shows them for the player followed only at a change of its life; a spectator's
+        // never does (spectator's followed_alive): hidden once for the match.
+        overlay.hide_player_panels();
+    }
+    // Ctrl's cursor, each frame: the Tab list (patch 86) may have moved it.
     overlay.keep_cursor(viewer.cursor == Ui::Shown);
-    let chooser = feed_chooser(client, fed.chooser, CHOOSER_REPLAY, thread);
+    let chooser = feed_chooser(client, fed.chooser, ChooserMode::Replay, thread);
     Fed {
         movie,
         revision: Some(revision),
@@ -783,22 +851,20 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, events: &Events, fed: Fed, 
         moments: Some(viewer.moments),
         cursor: Some(viewer.cursor),
         chooser,
-        ended: MatchEnd::Running,
     }
 }
 
 /// The hud's chooser brought up to date with the place in view: its kits (only those a note
 /// allows, read from the game's own copy) when the place or the notes changed, the kit that place
-/// has now, and its place on the screen (each frame: the game's own show_profiles_selector calls
-/// would hide or show it).
-fn feed_chooser(client: &NetworkClient<'_>, fed: Option<ChooserFed>, mode: u32, thread: &crate::vostok::Thread) -> Option<ChooserFed> {
+/// has now, and its place on the screen when that changed.
+fn feed_chooser(client: &NetworkClient<'_>, fed: Option<ChooserFed>, mode: ChooserMode, thread: &crate::vostok::Thread) -> Option<ChooserFed> {
     let chooser = KitChooser::of(client)?;
     let place = client.local_place();
-    let masks = MASKS.get(thread);
+    let masks = VIEWING.with(thread, |viewing| viewing.masks);
     // New plates lose the highlight, so it is told again; a kit without a plate has none to move to.
     let new_plates = fed.map(|fed| (fed.place, fed.version)) != Some((place, masks.version));
     if new_plates {
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         let mut names = [[0; 0x200]; KIT_NUMBERS as usize];
         let named = &chooser;
         chooser.set_kits(chooser_text(place.map(|place| {
@@ -811,14 +877,18 @@ fn feed_chooser(client: &NetworkClient<'_>, fed: Option<ChooserFed>, mode: u32, 
     if let (Some(kit), true) = (current, new_plates || fed.map(|fed| fed.current) != Some(current)) {
         chooser.set_current(kit);
     }
-    chooser.show(mode);
-    Some(ChooserFed { place, version: masks.version, current })
+    // Once: the game never hides or shows it for a spectator (show_profiles_selector, the kits at a
+    // death, is only called for its own player: the hud's followed_alive hook skips it).
+    if fed.map(|fed| fed.mode) != Some(mode) {
+        chooser.show(mode);
+    }
+    Some(ChooserFed { place, version: masks.version, current, mode })
 }
 
 /// The kits' text for the hud's chooser: `<kit>|<state>|<level>|<name>|<dict>:<slot>:<count>,...;`
 /// a kit; a name's `|`, `;`, `,` and `:` are spaces.
-fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'o mut [u8; MARKERS_ROOM]) -> &'o CStr {
-    let mut text = Text { out, len: 0 };
+fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'o mut [u8; CHOOSER_ROOM]) -> &'o CStr {
+    let mut text = Text::new(out);
     for kit in kits.into_iter().flatten() {
         let mark = text.len;
         let fits = text.number(u32::from(kit.number)) && text.push(b"|") && text.number(kit.state) && text.push(b"|")
@@ -830,6 +900,7 @@ fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'
                     && text.push(b":") && text.number(u32::from(count))
             })
             && text.push(b";");
+        debug_assert!(fits, "CHOOSER_ROOM holds the kits at their longest");
         if !fits {
             text.len = mark;
             break;
@@ -838,22 +909,32 @@ fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'
     text.finish()
 }
 
-/// `hud.update` (game_world_ui::update_ui, every frame of the hud): a
+/// `hud.update`(game_world_ui::update_ui, every frame of the hud): a
 /// viewer's controls fed for this frame.
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some(hud) = HudFrame::at(ctx) else { return Flow::Continue };
     let Some(client) = hud.client(thread) else { return Flow::Continue };
-    match SESSION.get(thread) {
-        Session::Replay(viewer) => FED.set(thread, feed(&client, &viewer, &EVENTS.get(thread), FED.get(thread), thread)),
+    let (now, feeding) = VIEWING.with(thread, |viewing| (viewing.session, viewing.feeding));
+    match now {
+        Session::Replay(viewer) => {
+            let fed = match feeding {
+                Feeding::Running(fed) => fed,
+                Feeding::Ended => Fed::NOTHING,
+            };
+            let fed = feed(&client, &viewer, fed, thread);
+            VIEWING.with(thread, |viewing| viewing.feeding = Feeding::Running(fed));
+        }
         // A live match's spectator: the kit chooser and the slots stay hidden (it may not have
         // the replay controls' movie, whose Overlay a viewer's frame goes through).
-        Session::Live if client.role() == Some(Role::Spectator) => {
-            hud.hide_player_panels();
-            hud.keep_cursor_off();
-            let fed = FED.get(thread);
-            if fed.ended == MatchEnd::Running {
-                FED.set(thread, Fed { chooser: feed_chooser(&client, fed.chooser, CHOOSER_LIVE, thread), ..fed });
+        Session::Live if client.is_spectator() => {
+            if let Feeding::Running(fed) = feeding {
+                if fed.chooser.is_none() {
+                    // Once for the match: nothing shows them for a spectator (spectator's followed_alive).
+                    hud.hide_player_panels();
+                }
+                let chooser = feed_chooser(&client, fed.chooser, ChooserMode::Live, thread);
+                VIEWING.with(thread, |viewing| viewing.feeding = Feeding::Running(Fed { chooser, ..fed }));
             }
         }
         Session::Live => {}
@@ -867,7 +948,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// loads one, its pending inputs and masks cleared; an older world loaded as
 /// a network one crashed the game (0x2D0DA4). A live game's go on as its own.
 fn load_as_seek(load: Option<CoreLoad>, thread: &crate::vostok::Thread) {
-    if let (Session::Replay(_), Some(load)) = (SESSION.get(thread), load) {
+    if let (Session::Replay(_), Some(load)) = (session(thread), load) {
         load.as_seek();
     }
 }
@@ -898,7 +979,7 @@ pub fn on_movie_take(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMovieTakeExit>
 /// viewer's, so a player's kits and a live spectator's hud keep it. The
 /// game's own replay client goes on as the game's.
 fn mouse_to_hud(client: Option<NetworkClient<'_>>, thread: &crate::vostok::Thread) -> bool {
-    client.is_some() && !matches!(SESSION.get(thread), Session::Replay(_))
+    client.is_some() && !matches!(session(thread), Session::Replay(_))
 }
 
 /// `hud_mouse.replay_button`.
@@ -912,7 +993,7 @@ pub fn on_mouse_pointer(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMousePointe
     let client = pointer_client(ctx);
     // A viewer's pointer goes to the controls; while the Ctrl cursor is up, the hud's chooser is
     // told where it is too, for its hover list.
-    if let (Some(client), Session::Replay(Viewer { cursor: Ui::Shown, .. }), Some((x, y))) = (&client, SESSION.get(thread), pointer_at(ctx))
+    if let (Some(client), Session::Replay(Viewer { cursor: Ui::Shown, .. }), Some((x, y))) = (&client, session(thread), pointer_at(ctx))
         && let Some(chooser) = KitChooser::of(client)
     {
         chooser.pointer(x, y);
@@ -929,7 +1010,7 @@ enum ControlCall {
     Play,
     Position(u32),
     Speed(f64),
-    Player(u8),
+    Player(Place),
     FreeView,
     /// The Moments switch's choice clicked (srp's).
     Moments(Moments),
@@ -945,9 +1026,9 @@ impl ControlCall {
             b"button_play_clicked" => ControlCall::Play,
             b"update_position" => number(0).map_or(ControlCall::Other, |n| ControlCall::Position(n.min(f64::from(u32::MAX)) as u32)),
             b"update_play_speed" => number(0).map_or(ControlCall::Other, ControlCall::Speed),
-            b"select_player" => number(0).filter(|&n| n < 256.0).map_or(ControlCall::Other, |n| ControlCall::Player(n as u8)),
+            b"select_player" => number(0).filter(|&n| n < 256.0).and_then(|n| Place::new(n as u32)).map_or(ControlCall::Other, ControlCall::Player),
             b"select_free_view" => ControlCall::FreeView,
-            b"moments_clicked" => number(0).and_then(|n| Moments::of_index(n as u32)).map_or(ControlCall::Other, ControlCall::Moments),
+            b"moments_clicked" => number(0).and_then(|n| Moments::of_value(n as u32)).map_or(ControlCall::Other, ControlCall::Moments),
             b"back_clicked" => ControlCall::Back,
             b"camera_smooth_changed" => ControlCall::Other,
             _ => return None,
@@ -965,16 +1046,16 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
     // A spectator picks no kit: the chooser's pick of a spectator's game is dropped (the movie
     // would tell the game profile_changed).
     if call.method().to_bytes() == b"profile_changed" {
-        let spectator = call.hud().client(call.thread()).is_some_and(|client| client.role() == Some(Role::Spectator));
+        let spectator = call.hud().client(call.thread()).is_some_and(|client| client.is_spectator());
         return if spectator { Flow::Exit(ReplayViewerOnHudCallExit::Done) } else { Flow::Continue };
     }
     let Some(control) = ControlCall::of(&call) else { return Flow::Continue };
     let thread = call.thread();
-    let Some(client) = call.hud().client(thread).filter(|client| client.role().is_some()) else {
+    let Some(client) = call.hud().client(thread).filter(|client| client.is_match_client()) else {
         return Flow::Continue;
     };
-    let session = SESSION.get(thread);
-    if session == Session::Live {
+    let viewing_session = session(thread);
+    if viewing_session == Session::Live {
         return Flow::Exit(ReplayViewerOnHudCallExit::Done);
     }
     let command = match control {
@@ -995,8 +1076,8 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
     };
     if let Some(command) = command {
         let input = Input::Command { command, now: client.clock(), watched: client.local_place() };
-        let (next, act) = step(session, input, &EVENTS.get(thread));
-        SESSION.set(thread, next);
+        let (next, act) = VIEWING.with(thread, |viewing| step(viewing_session, input, &viewing.events));
+        set_session(thread, next);
         if let Act::Ask(request) = act {
             client.send_request(request);
         }
@@ -1021,12 +1102,33 @@ mod tests {
         step(Session::Live, played(playback(3, false, Speed::Normal)), &Events::NONE).0
     }
 
+    fn place(n: u32) -> Option<Place> {
+        Place::new(n)
+    }
+
     fn key(session: Session, key: Command, now: u32, events: &Events) -> (Session, Act) {
         step(session, Input::Command { command: key, now: Some(MatchMs(now)), watched: None }, events)
     }
 
     fn kill(time: u32) -> Option<Event> {
         Some(Event { time: MatchMs(time), kind: EventKind::Kill, actor: Some(1), victim: Some(2) })
+    }
+
+    #[test]
+    fn a_reset_clears_the_match_and_tells_the_clock() {
+        let mut viewing = Viewing::INITIAL;
+        viewing.session = viewer();
+        viewing.events.slots[0] = kill(5);
+        viewing.masks = viewing.masks.take(Place::new(1).unwrap(), 1);
+        viewing.feeding = Feeding::Running(Fed { revision: Some(3), ..Fed::NOTHING });
+        assert_eq!(viewing.reset(Reset::Ended), Act::Restore);
+        assert_eq!(viewing.session, Session::Live);
+        assert_eq!(viewing.events.slots[0], None);
+        assert_eq!(viewing.masks, KitMasks::NONE);
+        assert_eq!(viewing.feeding, Feeding::Ended);
+        assert_eq!(viewing.reset(Reset::Ended), Act::Pass, "again: nothing");
+        assert_eq!(viewing.reset(Reset::NewMatch), Act::Pass);
+        assert_eq!(viewing.feeding, Feeding::Running(Fed::NOTHING), "a new match feeds again");
     }
 
     #[test]
@@ -1109,13 +1211,13 @@ mod tests {
         };
         let seek = |seq, ms| Act::Ask(Request { seq, op: Op::Seek(MatchMs(ms)) });
         // Mine: its death and its kill, not 1's kill of 3.
-        let (player, act) = step_at(player, Command::NextMoment, 30_000, Some(3));
+        let (player, act) = step_at(player, Command::NextMoment, 30_000, place(3));
         assert_eq!(act, seek(0, 46_000));
-        assert_eq!(step_at(player, Command::NextMoment, 46_000, Some(3)).1, Act::Nothing);
+        assert_eq!(step_at(player, Command::NextMoment, 46_000, place(3)).1, Act::Nothing);
         // M: Followed (3 in view: both its deaths), then All, then Mine again.
-        let (player, _) = step_at(player, Command::NextMoments, 46_000, Some(3));
+        let (player, _) = step_at(player, Command::NextMoments, 46_000, place(3));
         assert!(matches!(player, Session::Replay(Viewer { moments: Moments::Followed, .. })));
-        assert_eq!(step_at(player, Command::NextMoment, 46_000, Some(3)).1, seek(1, 66_000));
+        assert_eq!(step_at(player, Command::NextMoment, 46_000, place(3)).1, seek(1, 66_000));
         assert_eq!(step_at(player, Command::NextMoment, 10_000, None).1, Act::Nothing);
         let (all, _) = step_at(player, Command::NextMoments, 0, None);
         assert!(matches!(all, Session::Replay(Viewer { moments: Moments::All, .. })));
@@ -1132,7 +1234,7 @@ mod tests {
 
     #[test]
     fn own_places_are_those_of_the_accounts_name() {
-        let names = |place: u8| match place {
+        let names = |place: Place| match place.get() {
             0 => Some(&b"Ada"[..]),
             1 => Some(&b"replaytester"[..]),
             3 => Some(&b"ReplayTester"[..]),
@@ -1193,45 +1295,70 @@ mod tests {
         events.slots[1] = kill(75_500);
         events.slots[2] = Some(Event { time: MatchMs(611_000), kind: EventKind::Objective, actor: None, victim: None });
         events.slots[3] = Some(Event { time: MatchMs(90_000), kind: EventKind::Kill, actor: None, victim: Some(1) });
-        let names = |place: u8| match place {
+        let names = |place: Place| match place.get() {
             1 => Some(&b"Ada"[..]),
             2 => Some(&b"Bob;"[..]),
             _ => None,
         };
         let mut room = [0; MARKERS_ROOM];
         // Kill 1 > 2, the objective (nobody), a death of 1 no one made.
-        assert_eq!(events.markers(MatchMs(10_000), Own(0), None, names, &mut room).to_bytes(),
-                   b"65500:1:0:Ada > Bob,;601000:2:0:;80000:1:0:Ada");
+        assert_eq!(events.markers(MatchMs(10_000), Own(0), None, &mut room).to_bytes(),
+                   b"65500:1:0:1:2;601000:2:0::;80000:1:0::1");
         // Watching 2: its death is kind 3, followed; watching 1: the lone death and its kill.
-        assert_eq!(events.markers(MatchMs(10_000), Own(0), Some(2), names, &mut room).to_bytes(),
-                   b"65500:3:2:Ada > Bob,;601000:2:0:;80000:1:0:Ada");
-        assert_eq!(events.markers(MatchMs(10_000), Own(0), Some(1), names, &mut room).to_bytes(),
-                   b"65500:1:2:Ada > Bob,;601000:2:0:;80000:3:2:Ada");
+        assert_eq!(events.markers(MatchMs(10_000), Own(0), place(2), &mut room).to_bytes(),
+                   b"65500:3:2:1:2;601000:2:0::;80000:1:0::1");
+        assert_eq!(events.markers(MatchMs(10_000), Own(0), place(1), &mut room).to_bytes(),
+                   b"65500:1:2:1:2;601000:2:0::;80000:3:2::1");
         // The viewer was 1, watching 2: its kill is both, its death its own.
-        assert_eq!(events.markers(MatchMs(10_000), Own(1 << 1), Some(2), names, &mut room).to_bytes(),
-                   b"65500:3:3:Ada > Bob,;601000:2:0:;80000:1:1:Ada");
-        // Long names (UTF-8) cut on a character, the label within 63 bytes.
-        let long = |_: u8| Some("ЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖ".as_bytes());
-        let text = events.markers(MatchMs(10_000), Own(0), None, long, &mut room).to_bytes();
-        let first = text.split(|&b| b == b';').next().unwrap();
-        let label = &first[first.iter().rposition(|&b| b == b':').unwrap() + 1..];
-        assert!(label.len() <= LABEL_MAX && core::str::from_utf8(label).is_ok(), "{}", label.len());
+        assert_eq!(events.markers(MatchMs(10_000), Own(1 << 1), place(2), &mut room).to_bytes(),
+                   b"65500:3:3:1:2;601000:2:0::;80000:1:1::1");
+        assert_eq!(Events::NONE.markers(MatchMs(0), Own(0), None, &mut room).to_bytes(), b"");
+        // The names are told apart, a `;` of one replaced, long ones (UTF-8) cut on a character.
+        let long = |_: Place| Some("ЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖЖ".as_bytes());
+        let mut names_room = [0; NAMES_ROOM];
+        assert_eq!(names_text(3, names, &mut names_room).to_bytes(), b"1:Ada;2:Bob,");
+        let text = names_text(1, long, &mut names_room).to_bytes();
+        let name = &text[2..];
+        assert!(name.len() <= NAME_MAX && core::str::from_utf8(name).is_ok(), "{}", name.len());
+    }
+
+    #[test]
+    fn a_full_list_of_the_longest_markers_fits_whole() {
         let mut many = Events::NONE;
-        for (i, slot) in many.slots.iter_mut().enumerate() {
-            *slot = kill(1_000_000 + i as u32);
+        for slot in many.slots.iter_mut() {
+            *slot = Some(Event { time: MatchMs(u32::MAX), kind: EventKind::Kill, actor: Some(255), victim: Some(255) });
         }
-        let text = many.markers(MatchMs(0), Own(0), None, names, &mut room).to_bytes();
-        assert!(text.len() < MARKERS_ROOM && text.ends_with(b"Ada > Bob,"), "{}", text.len());
-        assert_eq!(Events::NONE.markers(MatchMs(0), Own(0), None, names, &mut room).to_bytes(), b"");
+        let mut room = [0; MARKERS_ROOM];
+        let text = many.markers(MatchMs(0), Own(u32::MAX), place(19), &mut room).to_bytes();
+        assert_eq!(text.split(|&b| b == b';').count(), MAX_EVENTS);
+        assert!(text.len() < MARKERS_ROOM, "{}", text.len());
+        // And the last one is whole.
+        assert!(text.ends_with(b"4294967295:1:0:255:255"), "{}", core::str::from_utf8(&text[text.len() - 30..]).unwrap());
+    }
+
+    #[test]
+    fn events_past_the_cap_are_told_once() {
+        let kill = Event { time: MatchMs(1), kind: EventKind::Kill, actor: None, victim: None };
+        let mut events = Events::NONE;
+        let mut take = |first, total| {
+            let mut bytes = [0u8; 13];
+            let len = EventsNote::encode(first, total, &[kill], &mut bytes).unwrap();
+            let Some(ServerNote::Events(note)) = ServerNote::parse(&bytes[..len]) else { panic!() };
+            events.take(&note)
+        };
+        assert_eq!(take(5, 2000), Ok(()));
+        assert_eq!(take(MAX_EVENTS as u16, 2000), Err(TooManyEvents { total: 2000 }));
+        assert_eq!(take(MAX_EVENTS as u16 + 1, 2000), Ok(()), "told once a match");
+        assert_eq!(events.capacity, Capacity::Exceeded);
     }
 
     #[test]
     fn a_place_s_note_replaces_its_mask() {
-        let masks = KitMasks::NONE.take(3, 0b001).take(4, 0b010);
-        assert_eq!((masks.of(3), masks.of(4), masks.version), (0b001, 0b010, 2));
-        let masks = masks.take(3, 0b011);
-        assert_eq!((masks.of(3), masks.of(4), masks.version), (0b011, 0b010, 3));
-        assert_eq!(masks.of(200), 0);
+        let at = |n| Place::new(n).unwrap();
+        let masks = KitMasks::NONE.take(at(3), 0b001).take(at(4), 0b010);
+        assert_eq!((masks.of(at(3)), masks.of(at(4)), masks.version), (0b001, 0b010, 2));
+        let masks = masks.take(at(3), 0b011);
+        assert_eq!((masks.of(at(3)), masks.of(at(4)), masks.version), (0b011, 0b010, 3));
     }
 
     fn kit(number: u8, name: &'static [u8], items: &[(u16, u8, u16)]) -> KitData<'static> {
@@ -1244,19 +1371,19 @@ mod tests {
 
     #[test]
     fn the_chooser_text_has_only_the_kits_given() {
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         let kits = [kit(0, b"Alpha", &[(7, 0, 1), (8, 3, 2)]), kit(2, b"", &[(9, 1, 1)])];
         let text = chooser_text(Some(kits.into_iter()), &mut room);
         assert_eq!(text.to_bytes(), b"0|0|7|Alpha|7:0:1,8:3:2;2|0|7||9:1:1;");
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         assert_eq!(chooser_text(Some(core::iter::empty::<KitData<'static>>()), &mut room).to_bytes(), b"");
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         assert_eq!(chooser_text(None::<core::iter::Empty<KitData<'static>>>, &mut room).to_bytes(), b"");
     }
 
     #[test]
     fn a_kit_name_cannot_break_the_text() {
-        let mut room = [0; MARKERS_ROOM];
+        let mut room = [0; CHOOSER_ROOM];
         let kits = [kit(1, b"a|b;c,d:e", &[])];
         assert_eq!(chooser_text(Some(kits.into_iter()), &mut room).to_bytes(), b"1|0|7|a b c d e|;");
     }

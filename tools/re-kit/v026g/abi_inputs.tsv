@@ -2257,6 +2257,8 @@ va	name	location	role	basis
 0x00209ff0	survarium::chat_handler::add_squad_tab	EAX	chat handler	inferred
 0x00209ff0	survarium::chat_handler::add_squad_tab	EDI	channel selector	inferred
 0x0020a070	survarium::chat_handler::remove_squad_tab	EDX	chat handler	inferred
+0x0020ff90	survarium::tick_wrap_delta	entry ESP+4	a: the first byte's address (a tick's low byte)	observed
+0x0020ff90	survarium::tick_wrap_delta	entry ESP+8	b: the other byte's address	observed
 0x00219990	survarium::network_client::match_options	ECX	the network client	observed
 0x0021c970	survarium::lobby_menu::input_handler	ECX	lobby receiver	inferred
 0x0021d2e0	survarium::lobby_menu::on_activate	ECX	lobby receiver	inferred
@@ -4884,8 +4886,8 @@ va	name	location	role	basis
 0x00352830	vostok::network_core::sending_message_stats::select	DL	message ID	observed
 0x00352830	vostok::network_core::sending_message_stats::select	entry ESP+4	output pair of pointers	observed
 0x00352830	vostok::network_core::sending_message_stats::select	entry ESP+8	minimum regular message ID, low byte	observed
-0x0027c1f0	survarium::network_client::register_message_in_stats	entry return27C32D	single ordinary relay completed: EDX client, ESI decoded input, EAX placement status, entry ESP+14 effective time (output Base+C from27C2F4); native stack still contains message ID	observed
-0x0027c1f0	survarium::network_client::register_message_in_stats	entry return27C5CD	batch ordinary relay completed: EDX client, ESI decoded input, EAX placement status, caller EBP-10 effective time (initialized27C5B5); one callback per input	observed
+0x0027c1f0	survarium::network_client::register_message_in_stats	entry at 0x27C32D	single ordinary relay completed: EDX client, ESI decoded input, EAX placement status, entry ESP+14 effective time (output Base+C from27C2F4); native stack still contains message ID	observed
+0x0027c1f0	survarium::network_client::register_message_in_stats	entry at 0x27C5CD	batch ordinary relay completed: EDX client, ESI decoded input, EAX placement status, caller EBP-10 effective time (initialized27C5B5); one callback per input	observed
 0x0027c280	survarium::network_client::receive_player_input	site27C2E7	EDI client, ESI decoded input before native placement; original six-byte world-wrapper load	observed
 0x00279fe0	survarium::match_client::new_packet	ECX	client: concrete match transport	observed
 0x00279fe0	survarium::match_client::new_packet	entry ESP+4	message: unsigned message id forwarded to37A0E0	observed
@@ -5553,7 +5555,7 @@ va	name	location	role	basis
 0x00242a70	survarium::base_network_client::followed_team	EAX	the network client (+4 the followed player)	observed
 0x001f8070	survarium::game_world::select_profile	EDI	the game world: change_input<profile_input> (0x1FB730) of the network client's followed player (+4, its place +114h) at the next tick: the hud's profile_changed callback (0x233F23) its only caller	observed
 0x001f8070	survarium::game_world::select_profile	entry ESP+4	the kit (byte)	observed
-0x00242d50	survarium::base_network_client::spectate_next_player	at 0x242D63	from the followed player's (+4, none: returns at once) place +1 modulo the places (options +577B5h), the first a get_active_player (vtable+50h) gives that may_spectate (0x2430F0) takes, else back to the followed; then set_followed_player (vtable+5Ch) and with vtable+20h switch_to_spectator_camera (mode 4). game_world::on_keyboard_action calls it for the binding next_player (action 17h, default F6; prev_player 18h F5, the action table 0xA74C80) only while the client's +0Dh is set (0x25CDBD..0x25CDE3, 0x25CEA1)	observed
+0x00242d50	survarium::base_network_client::spectate_next_player	entry at 0x242D63	from the followed player's (+4, none: returns at once) place +1 modulo the places (options +577B5h), the first a get_active_player (vtable+50h) gives that may_spectate (0x2430F0) takes, else back to the followed; then set_followed_player (vtable+5Ch) and with vtable+20h switch_to_spectator_camera (mode 4). game_world::on_keyboard_action calls it for the binding next_player (action 17h, default F6; prev_player 18h F5, the action table 0xA74C80) only while the client's +0Dh is set (0x25CDBD..0x25CDE3, 0x25CEA1)	observed
 0x0027b880	survarium::network_client::process_static_match_info	first byte of the 0xE4 payload	the local place ([EBP-5], 0x27B8A0): each place's is_local (+45F0h) = (place == it) at 0x27BE5F, so 0xFF (or any value past the places) names no place local: a spectator's game (queue-spectate.md). The network client's +1F1C44h is then never set by on_match_ready (0x27AD89 only for an is_local place) and stays 0xFF	observed
 0x0027aa20	survarium::network_client::on_match_ready	at 0x27AD7B	for the place whose is_local (+45F0h) is set: the client's local place +1F1C44h = it, the core's +191D4h = it, +191C4h/+191C8h = -1; none set for a game with no local place	observed
 0x0027bff0	survarium::network_client::process_dynamic_match_info	at 0x27C116	after every world's load (and the stale world's skip, 0x27C0E3/0x27C0E7): the camera back to the local place: unless the followed player (+4) is the local place's, get_player(local place) (vtable+4Ch, 0x27A980: an unchecked slot-table index, 0xFF reads 2FD0h bytes past the table) and set_followed_player (vtable+5Ch); then the warmup camera (0x1F8190) before state 3 (+1F1C60h), or in it get_player(local place) again, its +340h, vtable+78h or switch_to_player_camera(1); 0x27C1B9 the join. With no local place (0xFF) it follows a garbage pointer: patch 121 makes a spectator's game follow a player instead	observed

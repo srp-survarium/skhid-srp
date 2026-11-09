@@ -13,11 +13,13 @@
 //! it; the sites move the camera and the hud alone.
 #![forbid(unsafe_code)]
 
-use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, MatchLine, PlayerLeft, SpectateKey};
-use crate::vostok::world::{NetworkClient, Role, Step};
+use crate::vostok::replay_view::MatchClose;
+use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, Left, MatchLine, MatchStart, PlayerLeft, PlayerLeftEvent, SpectateKey};
+use crate::vostok::world::{NetworkClient, Step};
+use crate::vostok::types::Place;
 use crate::vostok::{
-    Context, Flow, GameCell, NoExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit, SpectatorOnPlayerLeftExit,
-    SpectatorOnWorldCameraExit, Thread,
+    Context, Flow, GameCell, NoExit, SpectatorOnFollowedAliveExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit,
+    SpectatorOnPlayerLeftExit, SpectatorOnWorldCameraExit, Thread,
 };
 
 /// A spectator's camera, kept between hooks: it follows a player (the
@@ -82,7 +84,7 @@ fn camera(client: &NetworkClient<'_>, thread: &Thread, event: Event) {
 
 /// The replay controls' player list (patch 130): the camera follows the
 /// player of `place`, as F6/F5 would reach it.
-pub fn view_player(client: &NetworkClient<'_>, thread: &Thread, place: u8) {
+pub fn view_player(client: &NetworkClient<'_>, thread: &Thread, place: Place) {
     if client.follow_place(place) {
         CAMERA.set(thread, Camera::Follows);
     }
@@ -95,9 +97,21 @@ pub fn view_free(client: &NetworkClient<'_>, thread: &Thread) {
 
 /// `static_info.options_read` (after patches 65, 86 and 58's): a new match.
 pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(start) = MatchStart::at(ctx) {
+        start.client.begin_match(start.local_place, start.places);
+    }
     // A new match's camera does nothing yet (Act::Nothing): its first world
     // finds it a player.
     CAMERA.update(ctx.thread(), |camera| step(camera, Event::NewMatch).0);
+    Flow::Continue
+}
+
+/// `close_match.reason`, after patch 130's (which reads the role): the match is
+/// over, its role with it and a spectator's input off for the next match.
+pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(close) = MatchClose::at(ctx) {
+        close.client.end_match();
+    }
     Flow::Continue
 }
 
@@ -110,14 +124,12 @@ pub fn on_world_camera(ctx: &mut Context<'_>) -> Flow<SpectatorOnWorldCameraExit
     let Some(client) = world_camera_client(ctx) else {
         return Flow::Continue;
     };
-    match client.take_role() {
-        Some(Role::Spectator) => {
-            let followed_in_match = client.local_player().is_some_and(|player| player.inserted());
-            camera(&client, ctx.thread(), Event::World { followed_in_match });
-            Flow::Exit(SpectatorOnWorldCameraExit::Done)
-        }
-        Some(Role::Player) | None => Flow::Continue,
+    if !client.is_spectator() {
+        return Flow::Continue;
     }
+    let followed_in_match = client.local_player().is_some_and(|player| player.inserted());
+    camera(&client, ctx.thread(), Event::World { followed_in_match });
+    Flow::Exit(SpectatorOnWorldCameraExit::Done)
 }
 
 /// `keyboard.spectate`: a spectator's F6 and F5 move its camera to the next
@@ -127,8 +139,8 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<SpectatorOnKeyExit> {
     let Some(key) = SpectateKey::at(ctx) else {
         return Flow::Continue;
     };
-    match (key.client.role(), key.key) {
-        (Some(Role::Spectator), Some(camera_key)) => {
+    match (key.client.is_spectator(), key.key) {
+        (true, Some(camera_key)) => {
             camera(&key.client, ctx.thread(), Event::Key(camera_key));
             Flow::Exit(SpectatorOnKeyExit::Taken)
         }
@@ -142,53 +154,54 @@ pub fn on_match_line(ctx: &mut Context<'_>) -> Flow<SpectatorOnMatchLineExit> {
     let Some(line) = MatchLine::at(ctx) else {
         return Flow::Continue;
     };
-    match line.client.role() {
-        Some(Role::Spectator) => {
-            line.as_plain();
-            Flow::Exit(SpectatorOnMatchLineExit::Plain)
-        }
-        Some(Role::Player) | None => Flow::Continue,
+    if !line.client.is_spectator() {
+        return Flow::Continue;
     }
+    line.as_plain();
+    Flow::Exit(SpectatorOnMatchLineExit::Plain)
 }
 
-/// `player_left.local`: an 0xEA, after leave_match. A spectator's game
-/// takes one naming place 0xFF as its own end (the server's farewell: it is
-/// taken in as a player, or its match ended) and goes back to the lobby with
-/// no results screen; one naming the player it follows moves its camera to
-/// the next. Every other 0xEA, and every player's game, go on as the game's
-/// (a spectator's: nothing, 0x27C734).
+/// `player_left.entry`: process_player_left_match (0x27C690) whole, in Rust. For every game the
+/// 0xEA read and its leave and stats, as the game does them; then a player's game takes it the
+/// game's way ([`PlayerLeft::finish_player_left`]: its own end with the results, or the followed
+/// player's leave). A spectator's game takes one naming place 0xFF as its own end (the server's
+/// farewell) and goes back to the lobby with no results screen; one naming the player it follows
+/// moves its camera to the next; any other, nothing.
 pub fn on_player_left(ctx: &mut Context<'_>) -> Flow<SpectatorOnPlayerLeftExit> {
-    let Some(left) = PlayerLeft::at(ctx) else {
+    let Some(event) = PlayerLeftEvent::at(ctx) else {
         return Flow::Continue;
     };
-    if left.client.role() != Some(Role::Spectator) {
-        return Flow::Continue;
+    if let PlayerLeftEvent::Left(left) = event {
+        finish_left(ctx.thread(), left);
     }
-    if left.place == NO_PLACE {
-        left.client.stop_watching();
-        return Flow::Exit(SpectatorOnPlayerLeftExit::Done);
-    }
-    if left.client.local_player().is_some_and(|player| player.place() == left.place) {
-        camera(&left.client, ctx.thread(), Event::FollowedLeft);
-        return Flow::Exit(SpectatorOnPlayerLeftExit::Done);
-    }
-    Flow::Continue
+    Flow::Exit(SpectatorOnPlayerLeftExit::Done)
 }
 
-/// The place an 0xEA names for a spectator's own end: the local place it
-/// does not have.
-const NO_PLACE: u8 = 0xFF;
+/// The game's or the spectator's reaction to an 0xEA.
+fn finish_left(thread: &Thread, left: PlayerLeft<'_>) {
+    if !left.client.is_spectator() {
+        left.client.finish_player_left(left.place);
+        return;
+    }
+    match left.left {
+        Some(Left::Spectator) => left.client.stop_watching(),
+        Some(Left::Place(place)) if left.client.local_player().is_some_and(|player| player.place() == place.get()) => {
+            camera(&left.client, thread, Event::FollowedLeft);
+        }
+        Some(Left::Place(_)) | None => {}
+    }
+}
 
-/// `hud.followed_alive`: a spectator's hud takes the player it follows for
-/// alive, so a death shows it no kits and no cursor (a kit picked there
-/// would be the followed player's, in its own world alone).
-pub fn on_followed_alive(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let mut site = FollowedAlive::at(ctx);
-    if site.client().and_then(|client| client.role()) != Some(Role::Spectator) {
+/// `hud.followed_alive`: a spectator's hud has no quick slots, stamina or kits of the player it
+/// follows to show or hide at a death or a spawn (a kit picked there would be the followed
+/// player's, in its own world alone): the game's change of those panels is skipped, once for
+/// all, here. The slots hide themselves at a match's start (0x23B565) and nothing shows them.
+pub fn on_followed_alive(ctx: &mut Context<'_>) -> Flow<SpectatorOnFollowedAliveExit> {
+    let site = FollowedAlive::at(ctx);
+    if !site.client().is_some_and(|client| client.is_spectator()) {
         return Flow::Continue;
     }
-    site.as_alive();
-    Flow::Skip
+    Flow::Exit(SpectatorOnFollowedAliveExit::Kept)
 }
 
 #[cfg(test)]
@@ -196,6 +209,7 @@ mod tests {
     use super::{step, Act, Camera, Event};
     use crate::vostok::spectate::CameraKey;
     use crate::vostok::world::{spectate_order, Step};
+    use crate::vostok::types::Place;
     use std::vec::Vec;
 
     #[test]
@@ -225,8 +239,8 @@ mod tests {
         assert_eq!(step(Camera::Follows, Event::FollowedLeft), (Camera::Follows, Act::Follow(Step::Next)));
     }
 
-    fn order(places: u32, current: Option<u8>, step: Step) -> Vec<u32> {
-        spectate_order(places, current, step).collect()
+    fn order(places: u32, current: Option<u32>, step: Step) -> Vec<u32> {
+        spectate_order(places, current.and_then(Place::new), step).map(|place| u32::from(place.get())).collect()
     }
 
     #[test]
