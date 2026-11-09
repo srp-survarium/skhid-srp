@@ -198,7 +198,8 @@ package
          expect("a press on Followed calls '" + calls(v.choices[2],MouseEvent.MOUSE_DOWN) + "'",calls(v.choices[2],MouseEvent.MOUSE_DOWN) == "moments_clicked 2");
          expect("a press on All calls '" + calls(v.choices[0],MouseEvent.MOUSE_DOWN) + "'",calls(v.choices[0],MouseEvent.MOUSE_DOWN) == "moments_clicked 0");
          // the markers' words: the exe's, by kind (a kill, an objective, a death)
-         root.set_markers_text("30000:1:1:Me > Bob;120000:2:0:Battery;90000:3:3:");
+         root.set_marker_names(MARKER_NAMES);
+         root.set_markers_text("30000:1:1:0:1;120000:2:0:4:;90000:3:3::");
          var kinds:Array = [[0,"0'30  Kill  Me > Bob"],[1,"1'30  Death"],[2,"2'00  Objective  Battery"]];
          for each(var kind:Array in kinds)
          {
@@ -208,7 +209,7 @@ package
             expect("the marker word says '" + said + "', not '" + kind[1] + "'",said == kind[1]);
             tickAt(root,kind[0]).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
          }
-         root.set_markers_text("30000:1:1:Me > Bob;60000:1:2:Ada > Eve;90000:3:3:Me > Eve;120000:2:0:Battery");
+         root.set_markers_text("30000:1:1:0:1;60000:1:2:2:3;90000:3:3:0:3;120000:2:0:4:");
          expect("the hint takes the mouse",!v.hint.mouseEnabled);
          root.set_moments(1,1);
          trace("MARKERS viewer: start_viewer once, set_moments fades the ticks it does not light, Back and the switch call the exe");
