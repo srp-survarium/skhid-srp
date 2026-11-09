@@ -134,7 +134,7 @@ pub struct Account {
     /// The clan abbreviation; empty without a clan.
     pub clan_tag: String,
     /// Silver, the one currency (gold was removed 2026-11-08: the balances
-    /// were converted, `persist` migration 14).
+    /// were paid back in silver once, `persist::SqliteGameRepository::pay_back_once`).
     pub generic_money: u32,
     /// When the premium account runs out, Unix seconds; 0 without.
     pub premium_until: u64,

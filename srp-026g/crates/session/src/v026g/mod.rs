@@ -247,7 +247,9 @@ impl GameAccounts {
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {
-                if let Some(paid) = repository.pay_back_once()? {
+                if let Some(paid) =
+                    repository.pay_back_once(&crate::persist::data_dir().join("backups"))?
+                {
                     log_paid_back(&paid);
                 }
                 Self::with_repository(Box::new(repository))
@@ -724,7 +726,7 @@ fn log_paid_back(paid: &[persist::PaidBack]) {
     for account in paid {
         log::info!(
             "Paid back {} (account {}): {} gold, {} repair kits, {} rename vouchers, {} \
-             premium-day vouchers: +{} silver",
+             premium-day vouchers: worth {} silver (a balance stops at 4294967295)",
             account.name,
             account.account_id,
             account.gold,

@@ -113,10 +113,10 @@ use super::scopes::{SCOPE_CATEGORY, ScopeFits};
 
 /// Silver for one gold: the game's exchange rate (0.21d's web page sold gold
 /// at it, and 0.26g's lobby was told it). Gold is gone [the owner,
-/// 2026-11-08]; whatever had a gold price or gave gold was converted at
-/// this rate, once: the balances (`session` persist migration 14), the
-/// premium items' prices (`items.tsv`), the premium shop's, the upgrade's
-/// and the modification change's prices, the gold the levels and drops gave.
+/// 2026-11-08]; at this rate: the balances, paid back once at the release
+/// (`session` `SqliteGameRepository::pay_back_once`), the premium items'
+/// prices (`items.tsv`), the premium shop's, the upgrade's and the
+/// modification change's prices, and gold a drop table rolls.
 pub const GOLD_IN_SILVER: u32 = 100;
 
 /// 0.26g faction ids (`factions_dict`), as 0.21d's.

@@ -454,16 +454,24 @@ impl SqliteGameRepository {
     /// A balance stops at the most silver holds. Returns what each account
     /// was given; `None` when it was done before.
     /// `scripts/silver-only/preview.py` shows it for a copy of the file.
-    pub fn pay_back_once(&mut self) -> Result<Option<Vec<PaidBack>>, PersistError> {
-        let transaction = self.connection.transaction()?;
-        let done: bool = transaction.query_row(
-            "SELECT EXISTS (SELECT 1 FROM g26_meta WHERE key = ?1)",
-            [PAID_BACK],
-            |row| row.get(0),
-        )?;
-        if done {
+    ///
+    /// Before it changes anything it copies the file to
+    /// `<backups>/srp-<unix>-before-pay-back.db`; without that copy it does
+    /// nothing and fails, so srp does not start and a rollback finds the
+    /// file as it was (a failed backup at the start only warns).
+    pub fn pay_back_once(&mut self, backups: &Path) -> Result<Option<Vec<PaidBack>>, PersistError> {
+        if self.paid_back()? {
             return Ok(None);
         }
+        std::fs::create_dir_all(backups).map_err(|error| PersistError::Io(backups.to_path_buf(), error))?;
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let copy = backups.join(format!("srp-{stamp}-before-pay-back.db"));
+        self.connection.execute("VACUUM INTO ?1", [copy.to_string_lossy()])?;
+        log::info!("Copied the database to {} before the pay-back", copy.display());
+        let transaction = self.connection.transaction()?;
         let held = |dict_id: u16| {
             format!(
                 "COALESCE((SELECT SUM(condition_or_stack) FROM g26_items i \
@@ -516,6 +524,15 @@ impl SqliteGameRepository {
         )?;
         transaction.commit()?;
         Ok(Some(paid))
+    }
+
+    /// Whether [`Self::pay_back_once`] was done ([`PAID_BACK`]).
+    fn paid_back(&self) -> Result<bool, PersistError> {
+        Ok(self.connection.query_row(
+            "SELECT EXISTS (SELECT 1 FROM g26_meta WHERE key = ?1)",
+            [PAID_BACK],
+            |row| row.get(0),
+        )?)
     }
 }
 
@@ -1257,7 +1274,11 @@ mod tests {
                  (7, 1, 0, 153, 1, 0, 0, '', '');",
             )
             .unwrap();
-        let paid = repository.pay_back_once().unwrap().unwrap();
+        let backups = temp.path().with_extension("backups");
+        let paid = repository.pay_back_once(&backups).unwrap().unwrap();
+        // The copy made before it, with the gold still there.
+        let copies: Vec<_> = std::fs::read_dir(&backups).unwrap().collect();
+        assert_eq!(copies.len(), 1);
         let silver: Vec<_> = paid.iter().map(|account| (account.account_id, account.silver())).collect();
         // Carol: 150 gold, 3 kits and a premium day at 5,000, 2 rename
         // vouchers at 25,000. Dave: 10 gold and a rename voucher. Erin: none.
@@ -1295,8 +1316,41 @@ mod tests {
         drop(repository);
         // A second start: nothing is paid twice.
         let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        assert_eq!(repository.pay_back_once().unwrap(), None);
+        assert_eq!(repository.pay_back_once(&backups).unwrap(), None);
         assert_eq!(state(&mut repository), expected);
+        std::fs::remove_dir_all(&backups).unwrap();
+    }
+
+    /// Without its copy the pay-back changes nothing and fails: srp does not
+    /// start, and the file is as it was for a rollback.
+    #[test]
+    fn no_pay_back_without_its_copy() {
+        let temp = TempDb::new("pay-back-no-copy");
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        repository
+            .connection
+            .execute_batch(
+                "INSERT INTO g26_accounts (
+                    account_id, name, clan_tag, generic_money, premium_money,
+                    premium_until, exp_total, quest_faction, rating, rating_before,
+                    active_kit, autobuy, next_item_id, next_quest_instance,
+                    tutorial_step, tutorial_done
+                 ) VALUES (5, 'Carol', '', 1000, 150, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1);",
+            )
+            .unwrap();
+        // A file where the backups folder should be: no copy can be made.
+        let blocked = temp.path().with_extension("blocked");
+        std::fs::write(&blocked, b"").unwrap();
+        assert!(repository.pay_back_once(&blocked).is_err());
+        let (gold, silver): (i64, i64) = repository
+            .connection
+            .query_row("SELECT premium_money, generic_money FROM g26_accounts", [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .unwrap();
+        assert_eq!((gold, silver), (150, 1000));
+        assert!(!repository.paid_back().unwrap());
+        std::fs::remove_file(&blocked).unwrap();
     }
 
     #[test]

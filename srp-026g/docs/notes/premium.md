@@ -154,7 +154,7 @@ PROVEN: the state becomes `state_choose_faction` when the account has no quest f
 
 | variable | default | |
 |---|---|---|
-| `SRP_PREMIUM_PRICES` | `100,200,400,1000,2500,4500,8000` (90 days sourced, the rest the owner's choice 2026-10-12) | gold for a day, 3 days, a week, a month, 3, 6 months, a year |
+| `SRP_PREMIUM_PRICES` | `10000,20000,40000,100000,250000,450000,800000` (the gold prices of 2026-10-12 times 100; gold is gone, 2026-11-08) | silver for a day, 3 days, a week, a month, 3, 6 months, a year |
 | `SRP_PREMIUM_DISCOUNT` | 0 | percent off premium time, offered by `A9` / `A8`; 0 offers none |
 | `SRP_PREMIUM_OFFER_SECONDS` | 3600 | how long the offer after a match stands |
 | `SRP_RENAME_COST` | 25000 | silver for a nickname change |
