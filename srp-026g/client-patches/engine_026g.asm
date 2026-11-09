@@ -2187,7 +2187,7 @@ engine_ray_query:
 
     align 16, db 0xCC
 engine_collision_group:
-    ; virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; EAX
+    ; virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; AX
     push ebp
     push ebx
     push esi
@@ -2195,6 +2195,7 @@ engine_collision_group:
     mov ecx, [esp + 20]   ; object
     mov eax, [ecx]                   ; this's vtable
     call [eax + 0x0]
+    movzx eax, ax
     pop edi
     pop esi
     pop ebx

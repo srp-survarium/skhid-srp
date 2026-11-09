@@ -2388,10 +2388,10 @@ va	name	source	ret_cleanup	result
 0x002de350	survarium::game_effect_player::stop	manual	0	none; finds the playing item whose +0 is ECX in the list +2Ch (next at +4Ch; none: a null read at 0x2DE36D), deactivates it (its vtable +20h), sets its state +44h to 2 and sends its events to the presenter (0x2DE3A0)
 0x0031a210	survarium::damage_zone_core::stop_effect	manual	0	none; the player's place (+114h) slot at ECX+1D8h + 0Ch x place {effect, +4, +8}: an effect there is stopped on the player's game_effect_player (+358h, game_effect_player::stop 0x2DE350) and the slot reset (+4 0, +8 -1); called at 0x31A342 by 0x31A300, a loop over the objects the zone's collision sensor saw leave (collision_sensor::notify_and_erase_left_objects 0x307CF0 -> 0x3198C5 -> 0x31A300), a player removed from the world too
 0x00077560	vostok::physics::bullet_physics_world::ray_query	manual	24	
-0x000716c0	vostok::physics::bt_animated_rigid_body::get_collision_group	manual	0	EAX: AX the collision group (+30h's +0C8h's +4); the high half of EAX is not set
-0x0007ab10	vostok::physics::bullet_character_controller::get_collision_group	manual	0	EAX: AX the collision group (+2C6FCh); the high half of EAX is not set
-0x00356d50	vostok::physics::bt_static_rigid_body::get_collision_group	manual	0	EAX: AX the collision group (+14h's +0C8h's +4); the high half of EAX is not set
-0x00357a90	vostok::physics::bt_ghost_object::get_collision_group	manual	0	EAX: AX the collision group (+18h's +0C8h's +4); the high half of EAX is not set
+0x000716c0	vostok::physics::bt_animated_rigid_body::get_collision_group	manual	0	AX: the collision group (+30h's +0C8h's +4); the high half of EAX is not set
+0x0007ab10	vostok::physics::bullet_character_controller::get_collision_group	manual	0	AX: the collision group (+2C6FCh); the high half of EAX is not set
+0x00356d50	vostok::physics::bt_static_rigid_body::get_collision_group	manual	0	AX: the collision group (+14h's +0C8h's +4); the high half of EAX is not set
+0x00357a90	vostok::physics::bt_ghost_object::get_collision_group	manual	0	AX: the collision group (+18h's +0C8h's +4); the high half of EAX is not set
 0x002f8bb0	survarium::collision_geometry::cast_to_collision_geometry	manual	0	EAX: ECX - 4, the collision_geometry whose collision::game_object ECX is
 0x00300040		manual	0	EAX: 0 (xor eax,eax / ret: one body for many virtuals that return nothing, e.g. cast_to_collision_geometry and cast_to_usable of the classes that are no such thing)
 0x00246380		manual	0	EAX: ECX (mov eax,ecx / ret: one body for many virtuals that return this, e.g. a usable object's cast_to_usable)

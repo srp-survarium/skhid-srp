@@ -5745,7 +5745,6 @@ va	name	location	role	basis
 0x00300710	survarium::victory_item_core::can_use	entry ESP+4	the user (usable_object_user_data*: +0 the player)	observed
 0x00305070	survarium::booby_trap_core::can_use	ECX	the usable object (this: the trap's usable_object)	observed
 0x00305070	survarium::booby_trap_core::can_use	entry ESP+4	the user (usable_object_user_data*: +0 the player)	observed
-0x0031c6b0	survarium::artefact_container_core::can_use	ECX	the usable object (this)	observed
 0x0031c6b0	survarium::artefact_container_core::can_use	entry ESP+4	the user (usable_object_user_data*: +0 the player)	observed
 0x0031cb10	survarium::victory_items_container_core::can_use	ECX	the usable object (this)	observed
 0x0031cb10	survarium::victory_items_container_core::can_use	entry ESP+4	the user (usable_object_user_data*: +0 the player)	observed

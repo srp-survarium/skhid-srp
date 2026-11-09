@@ -2528,10 +2528,7 @@ INSTALLS = {
                "the site's `push eax / push ebx / push eax / call edx` is SetElement(data, place, row), thiscall, "
                "`ret 0Ch`: no stack effect, as tab_row's PushBack (vtable+3Ch) or SetElement"),
     0x23B421: (INLINE, "the scoreboard's refresh: tab_shown", None, None),
-    # patch 23, 26, 25, 31, 34, 32, 46
-    0x2D84E9: (INLINE, "the use scan's ray length: reach", None, None),
-    0x2D861C: (JUMP, "the use scan's wall or floor: solid", None, None),
-    0x2D85BE: (JUMP, "the use scan's usable object: candidate", None, None),
+    # patch 26, 25, 31, 34, 32, 46 (patch 23 is the Rust use_scan, a lohook)
     0x1EE3A3: (JUMP, "the replay's seek: seek_clear", None, None),
     0x380889: (INLINE, "the version field's last writes: stale_dll", None, None),
     0x316820: (ENTRY, "the respawn rule's tick: kit_change", None, None),

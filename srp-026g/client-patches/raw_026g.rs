@@ -241,8 +241,8 @@ unsafe extern "C" {
     pub fn engine_hide_scene_movie(movie: Option<MovieSlot>, scene: Option<GameWorld>);
     /// virtual vostok::physics::world+0x4c (1 vtables of vtables.tsv: 0x77560): world ECX, origin ESP+4, direction ESP+8, length ESP+12, hits ESP+16, group ESP+20, mask ESP+24; pops 24
     pub fn engine_ray_query(world: Option<BulletPhysicsWorld>, origin: *const f32, direction: *const f32, length: f32, hits: Option<RayHits>, group: u32, mask: u32);
-    /// virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; EAX
-    pub fn engine_collision_group(object: Option<HitObject>) -> u32;
+    /// virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; AX
+    pub fn engine_collision_group(object: Option<HitObject>) -> u16;
     /// virtual vostok::collision::game_object+0x4 (12 vtables of vtables.tsv: 0x2f8bb0, 0x300040): object ECX; pops 0; EAX
     pub fn engine_collision_geometry(object: Option<GameObject>) -> Option<CollisionGeometry>;
     /// 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12
@@ -15936,22 +15936,13 @@ impl CollisionGeometry {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0xc (ptr<survarium::usable_slot>): its subscribers' begin (+10h the end), which query_objects_by_type 0x2DC39A walks
+    /// +0xc (u32): its subscribers' begin (+10h the end): collision_geometry_subscriber pointers (damage and effect zones, sensors, players_checker, usable objects), not all usable; query_objects_by_type 0x2DC39A walks them through the cast it is given
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn subscribers(self) -> Option<UsableSlot> {
-        unsafe { self.0.byte_add(0xc).cast::<Option<UsableSlot>>().read_volatile() }
-    }
-
-    /// +0xc (ptr<survarium::usable_slot>): its subscribers' begin (+10h the end), which query_objects_by_type 0x2DC39A walks
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_subscribers(self, value: Option<UsableSlot>) {
-        unsafe { self.0.byte_add(0xc).cast::<Option<UsableSlot>>().write_volatile(value) }
+    pub unsafe fn subscribers(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
     }
 }
 

@@ -190,7 +190,7 @@ engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_fi
 engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
 engine_ray_query	vostok::physics::world+0x4c	ECX:world ESP+4:origin ESP+8:direction ESP+12:length ESP+16:hits ESP+20:group ESP+24:mask	void engine_ray_query(struct bullet_physics_world *world, const float *origin, const float *direction, float length, struct ray_hits *hits, unsigned int group, unsigned int mask)	virtual	
-engine_collision_group	vostok::physics::base_physics_object+0x0	ECX:object	unsigned int engine_collision_group(struct hit_object *object)	virtual	
+engine_collision_group	vostok::physics::base_physics_object+0x0	ECX:object	unsigned short engine_collision_group(struct hit_object *object)	virtual	
 engine_collision_geometry	vostok::collision::game_object+0x4	ECX:object	struct collision_geometry *engine_collision_geometry(struct game_object *object)	virtual	
 engine_query_usables	0x2dc390	ESI:result ESP+4:geometry ESP+8:cast ESP+12:offset	void engine_query_usables(struct usable_list *result, struct collision_geometry *geometry, const void *cast, unsigned int offset)	thunk	
 engine_can_use	survarium::usable_object+0x30	ECX:usable ESP+4:user	unsigned char engine_can_use(struct usable_object *usable, struct usable_user *user)	virtual	

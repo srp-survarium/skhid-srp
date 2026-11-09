@@ -235,8 +235,8 @@ unsafe extern "C" {
     pub fn engine_hide_scene_movie(movie: *mut c_void, scene: *mut c_void);
     /// virtual vostok::physics::world+0x4c (1 vtables of vtables.tsv: 0x77560): world ECX, origin ESP+4, direction ESP+8, length ESP+12, hits ESP+16, group ESP+20, mask ESP+24; pops 24
     pub fn engine_ray_query(world: *mut c_void, origin: *const f32, direction: *const f32, length: f32, hits: *mut c_void, group: u32, mask: u32);
-    /// virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; EAX
-    pub fn engine_collision_group(object: *mut c_void) -> u32;
+    /// virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; AX
+    pub fn engine_collision_group(object: *mut c_void) -> u16;
     /// virtual vostok::collision::game_object+0x4 (12 vtables of vtables.tsv: 0x2f8bb0, 0x300040): object ECX; pops 0; EAX
     pub fn engine_collision_geometry(object: *mut c_void) -> *mut c_void;
     /// 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12

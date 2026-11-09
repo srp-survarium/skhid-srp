@@ -304,6 +304,15 @@ mod tests {
     }
 
     #[test]
+    fn the_strict_tests_at_their_boundaries() {
+        // exactly at the reach (2 m across from the eye) is not beyond it (ja)
+        let at = [14.0, 11.7, -7.0];
+        assert_eq!(run(vec![usable(1, at, true)]).0, Some(Found::Usable(Spot { object: 1, at })));
+        // a battery centre exactly at the feet's height is not below them (jbe)
+        assert_eq!(run(vec![wall(10.0), battery(1, [12.0, 9.9, -7.0], [12.0, 10.0, -7.0], true)]).0, None);
+    }
+
+    #[test]
     fn the_game_is_asked_in_its_order() {
         let (_, asked) = run(vec![wall(10.0), battery(1, [12.0, 9.8, -7.0], [12.0, 9.7, -7.0], false)]);
         assert_eq!(asked, ["group", "group", "usable", "centre", "can_use"]);
