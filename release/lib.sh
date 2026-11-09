@@ -1310,7 +1310,9 @@ check_server() {
         return 1
     fi
     say "srp26: ${state#ok }"
-    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix --tail=500 srp26 2>&1 | grep 'game data:' | tail -n 1" || true)
+    # The whole log of the container just made: a first start can log hundreds of
+    # lines after the game data line (rev54: the silver pay-back, a line an account).
+    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix srp26 2>&1 | grep 'game data:' | tail -n 1" || true)
     count=$(grep -c . <<<"$OFFERED" || true)
     if [[ $line != *"; $count patch(es) offered at /patches"* ]]; then
         say "srp26's log has no game data line of the new server data ($count patch(es)): ${line:-none}"
