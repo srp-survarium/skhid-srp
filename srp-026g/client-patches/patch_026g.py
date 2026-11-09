@@ -2489,6 +2489,11 @@ INSTALLS = {
                       "memory_profile.freeing, calls it and tells memory_profile.allocated", None, None),
     0x1015E0: (ENTRY, "mspace_free (ESI the mspace, EAX the memory): memory_profile_free, the stock body, or on "
                       "tells memory_profile.freeing first", None, None),
+    0x10700A: (JUMP, "pt3free 0x106FC0, a block mapped on its own back to the region (ECX the chunk): "
+                     "memory_profile_mapped_free tells memory_profile.freeing when on, replays and goes on at "
+                     "0x107010", None, None),
+    0x106DAC: (JUMP, "ptmalloc3's free hook 0x106D90, the same (EAX the memory): memory_profile_hook_mapped_free, "
+                     "on at 0x106DB2", None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),

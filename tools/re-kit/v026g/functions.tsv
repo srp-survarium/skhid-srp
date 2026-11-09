@@ -2232,3 +2232,6 @@ va	status	ref_021d	name
 0x00100750	verified		mspace_memalign
 0x00106ef0	verified		pt3malloc
 0x000eb530	reviewed		vostok::memory::mt_allocator::call_malloc
+0x00106d70	verified		memalign_starter
+0x00106d90	verified		free_starter
+0x00106fc0	verified		pt3free

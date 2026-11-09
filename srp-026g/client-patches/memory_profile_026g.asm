@@ -111,3 +111,51 @@ memory_profile_free:            ; ESI the mspace, EAX the memory
     pop edx
     pop ecx
     jmp .stock                  ; the body returns to the game's caller itself
+
+; ptmalloc3's free gives a block mapped on its own (one too large for its
+; arena's heap) back to the region itself (0x106AD0), never through
+; mspace_free: pt3free (0x106FC0) and its free hook (0x106D90) each have
+; that path, gated here the same way.
+%define PT_MAPPED_FREE_ON 0x107010      ; pt3free after and edx,-2 / and eax,-8
+%define HOOK_MAPPED_FREE_ON 0x106DB2    ; the hook after and ebx,-2 / and edx,-8
+
+global memory_profile_mapped_free
+memory_profile_mapped_free:     ; ECX the chunk (the memory - 8), EAX its head, EDX its prev_foot
+    cmp byte [SRP_MEMORY_PROFILE], 0
+    jne .on
+.stock:
+    and edx, 0FFFFFFFEh
+    and eax, 0FFFFFFF8h
+    jmp PT_MAPPED_FREE_ON
+.on:
+    push ecx
+    push edx
+    lea edx, [esp + 18h]        ; pt3free's entry ESP (sub esp,8 / push edi / push esi, then these two)
+    lea ecx, [ecx + 8]          ; the memory
+    push ecx
+    push edx
+    call memory_profile_on_freeing
+    add esp, 8
+    pop edx
+    pop ecx
+    jmp .stock
+
+global memory_profile_hook_mapped_free
+memory_profile_hook_mapped_free:    ; EAX the memory, ECX its chunk, EDX its head, EBX its prev_foot
+    cmp byte [SRP_MEMORY_PROFILE], 0
+    jne .on
+.stock:
+    and ebx, 0FFFFFFFEh
+    and edx, 0FFFFFFF8h
+    jmp HOOK_MAPPED_FREE_ON
+.on:
+    push ecx
+    push edx
+    lea ecx, [esp + 10h]        ; the hook's entry ESP (push ebx / push esi, then these two)
+    push eax
+    push ecx
+    call memory_profile_on_freeing
+    add esp, 8
+    pop edx
+    pop ecx
+    jmp .stock

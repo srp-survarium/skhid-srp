@@ -28,6 +28,19 @@ source = "memory_profile_026g.asm"
 symbol = "memory_profile_free"
 limit = 48
 
+# ptmalloc3's two ways a block mapped on its own goes back without mspace_free
+[[hook]]
+site = "memory_profile.mapped_free"
+source = "memory_profile_026g.asm"
+symbol = "memory_profile_mapped_free"
+limit = 64
+
+[[hook]]
+site = "memory_profile.hook_mapped_free"
+source = "memory_profile_026g.asm"
+symbol = "memory_profile_hook_mapped_free"
+limit = 64
+
 # the gates' two entries
 [[hook]]
 site = "memory_profile.allocated"

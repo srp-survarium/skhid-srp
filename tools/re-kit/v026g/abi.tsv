@@ -2426,3 +2426,6 @@ va	name	source	ret_cleanup	result
 0x00106ef0	pt3malloc	manual	0	EAX the memory, from its thread's arena's mspace (mspace_malloc 0x106F6B)
 0x000eb530	vostok::memory::mt_allocator::call_malloc	manual	20	EAX the memory (pt3malloc 0xEB54B)
 0x000e4d70	out_of_memory_with_crash	manual		never returns: logs "out of memory in arena", dumps the statistics and FATALs
+0x00106d90	free_starter	manual	0	
+0x00106fc0	pt3free	manual	0	
+0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	manual	0	EAX the memory (pt3malloc 0x1C6B4), 0 when the allocator is closed ([0x1F1D61B])

@@ -77,13 +77,16 @@ Every block of the engine's heaps is made and given back by dlmalloc 2.8's three
 entries: `mspace_malloc` (0x101330), `mspace_realloc` (0x1005A0) and `mspace_free`
 (0x1015E0). Each doug_lea arena (render, ai, the helpers, ...) is one mspace at
 its start; ptmalloc3's "global multithreaded" arena is several in its region.
-Each entry's first instructions jump to a gate (`memory_profile_026g.asm`, three
-`code` hooks) that tests one byte, `SRP_MEMORY_PROFILE`:
+ptmalloc3 gives a block mapped on its own (one too large for its arena's heap) back
+to the region itself, not through mspace_free: in `pt3free` (0x106FC0, at
+0x10700A) and its `free_starter` hook (0x106D90, at 0x106DAC). Each of these five
+places jumps to a gate (`memory_profile_026g.asm`, five `code` hooks) that tests
+one byte, `SRP_MEMORY_PROFILE`:
 
 - **0, off**: the replayed first instructions and a jump back. Nothing else.
 - **1, on**: the gate calls the stock body itself and tells the Rust patch through
   two generated entries: `memory_profile.freeing` before a block is given back
-  (mspace_free, mspace_realloc's old block) and `memory_profile.allocated` after one
+  (mspace_free, mspace_realloc's old block, ptmalloc3's mapped blocks) and `memory_profile.allocated` after one
   is made (mspace_malloc, mspace_realloc's new block). The entries save and restore
   the whole machine; what the game gets is the stock body's result and registers.
 
@@ -95,9 +98,21 @@ where each arena lies, and only then sets the byte.
 **Who asked.** The site of a block is the first return address out of the
 allocator layers, from the ESP of the game's call. Where the call came from a
 known wrapper, its frame is unwound by the offsets `fields_026g.tsv` gives
-(`vostok::memory::game_call`): doug_lea_allocator::malloc_impl (0xE4F90, 665
-callers) and realloc_impl (0xE5050) to their caller; ptmalloc3's malloc
-(`pt3malloc` 0x106EF0) to mt_allocator::call_malloc (0xEB530) to its caller. A
+(`vostok::memory::game_call`), up to six levels:
+
+| wrapper | its call of | return |
+|---|---|---|
+| doug_lea_allocator::malloc_impl 0xE4F90 (665 callers) | mspace_malloc | 0xE4FB0 |
+| doug_lea_allocator::realloc_impl 0xE5050 | mspace_malloc, mspace_realloc | 0xE50E4, 0xE5100 |
+| doug_lea_allocator::call_malloc 0xE5120, call_realloc 0xE5140 (the virtuals) | malloc_impl, realloc_impl | 0xE5131, 0xE5156 |
+| pt3malloc 0x106EF0 | mspace_malloc | 0x106F70 |
+| pt3realloc 0x107070 | mspace_realloc | 0x10710A |
+| mt_allocator's malloc_impl 0x1C6A0 | pt3malloc | 0x1C6B9 |
+| mt_allocator::call_malloc 0xEB530 | pt3malloc | 0xEB550 |
+| mt_allocator's realloc 0xEB470 | pt3realloc (or pt3malloc by its tail jump) | 0xEB4F8 |
+| mt_allocator::call_realloc 0xEB590 | 0xEB470 | 0xEB5A5 |
+
+A wrapper not listed shows up as a site of its own; it is one row more. A
 place that inlined malloc_impl (about 50 more callers of mspace_malloc) is its own site.
 dlmalloc's own calls of mspace_malloc and mspace_free (mspace_realloc's move and
 its cut tail, mspace_memalign's; return addresses 0xFF160..0x101B40) are left out:
@@ -132,7 +147,8 @@ thread changes under it is told as unknown for that snapshot.
 
 ## What it costs
 
-- **Off** (every player): each call of the three entries runs 4 instructions more
+- **Off** (every player): each call of dlmalloc's three entries (and each mapped
+  block ptmalloc3 frees) runs 4 instructions more
   (a jump to the gate, the byte's test, its branch, a jump back: counted by
   `check_memory_profile_026g.py` over its calls, 1270 -> 1326 for 14 entries); the
   byte is in our arena's state, in the cache with the rest of it. No table, no file,

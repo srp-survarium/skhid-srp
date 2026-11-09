@@ -146,9 +146,9 @@ fn heap_call(frame: Option<raw::ProfileFrame>) -> HeapCall {
     }
 }
 
-/// Wrappers unwound at most (malloc_impl over mspace_malloc, ptmalloc3's
-/// malloc under mt_allocator's call_malloc: two).
-const UNWOUND: usize = 4;
+/// Wrappers unwound at most (the deepest known: mt_allocator::call_realloc,
+/// its realloc, pt3realloc over mspace_realloc: three).
+const UNWOUND: usize = 6;
 
 /// The first return address out of the allocator layers the game's call
 /// went through.
@@ -166,6 +166,12 @@ unsafe fn caller(mut call: raw::GameCall) -> u32 {
                 raw::image::REALLOC_IMPL_REALLOC_RETURN => call.realloc_impl_realloc_call(),
                 raw::image::PT_MALLOC_HEAP_RETURN => call.pt_malloc_call(),
                 raw::image::MT_MALLOC_RETURN => call.mt_malloc_call(),
+                raw::image::CALL_MALLOC_RETURN => call.call_malloc_call(),
+                raw::image::CALL_REALLOC_RETURN => call.call_realloc_call(),
+                raw::image::PT_REALLOC_HEAP_RETURN => call.pt_realloc_call(),
+                raw::image::MT_REALLOC_RETURN => call.mt_realloc_call(),
+                raw::image::MT_CALL_REALLOC_RETURN => call.mt_call_realloc_call(),
+                raw::image::MT_MALLOC_IMPL_RETURN => call.mt_malloc_impl_call(),
                 site => return site,
             }
         };

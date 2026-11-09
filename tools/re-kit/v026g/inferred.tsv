@@ -3402,3 +3402,4 @@ va	status	ref_021d	name
 0x003cfdb0	inferred-medium		vostok::render::res_render_output::apply_fullscreen_state
 0x003cfe20	inferred-medium		vostok::render::res_render_output::goto_fullscreen
 0x003cfe80	inferred-medium	0x00274fc2	vostok::render::res_render_output::minimize
+0x0001c6a0	inferred-high		vostok::memory::mt_allocator::malloc_impl

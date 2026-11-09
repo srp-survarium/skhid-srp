@@ -17614,6 +17614,60 @@ impl GameCall {
     pub unsafe fn mt_malloc_call(self) -> GameCall {
         GameCall(unsafe { self.0.byte_add(0x10) })
     }
+
+    /// +0xc (obj<vostok::memory::game_call>): at malloc_impl's entry from call_malloc (return call_malloc_return): call_malloc's own call, 0Ch up (push esi / push eax, 0xE5124..0xE5125)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn call_malloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0xc) })
+    }
+
+    /// +0x10 (obj<vostok::memory::game_call>): at realloc_impl's entry from call_realloc (return call_realloc_return): call_realloc's own call, 10h up (push ecx / push edx / push ecx, 0xE514A..0xE5150)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn call_realloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x10) })
+    }
+
+    /// +0x1c (obj<vostok::memory::game_call>): at mspace_realloc's entry from pt3realloc (return pt_realloc_heap_return): its own call, 1Ch up (sub esp,8 / push ebp / push esi / push ebp / push edi, 0x107075..0x107104; TlsSetValue's two arguments popped by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pt_realloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x1c) })
+    }
+
+    /// +0x14 (obj<vostok::memory::game_call>): at pt3realloc's (or pt3malloc's) entry from mt_allocator's realloc (return mt_realloc_return): its own call, 14h up (push ecx / push ebx / push edi / push esi, 0xEB470..0xEB4F2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mt_realloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x14) })
+    }
+
+    /// +0x14 (obj<vostok::memory::game_call>): at mt_allocator's realloc's entry from call_realloc (return mt_call_realloc_return): call_realloc's own call, 14h up (push esi / push eax / push edx / push ecx, 0xEB598..0xEB59F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mt_call_realloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x14) })
+    }
+
+    /// +0xc (obj<vostok::memory::game_call>): at pt3malloc's entry from mt_allocator's malloc_impl (return mt_malloc_impl_return): its own call, 0Ch up (sub esp,8, 0x1C6A0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mt_malloc_impl_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0xc) })
+    }
 }
 
 /// A vostok::memory::profile_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -18221,23 +18275,41 @@ pub mod image {
     /// 0x101b40 (u32, vostok::memory::image): past mspace_free (0x1015E0), the last of dlmalloc's code: its usage-error tail jump 0x101B37, then int3 to 0x101B40
     pub const DLMALLOC_END: u32 = 0x101b40;
 
-    /// 0xe4fb0 (u32, vostok::memory::image): doug_lea_allocator::malloc_impl's (0xE4F90; ESI the allocator, EAX the bytes) return from mspace_malloc (call 0xE4FAB)
+    /// 0xe4fb0 (u8, vostok::memory::image): doug_lea_allocator::malloc_impl's (0xE4F90; ESI the allocator, EAX the bytes) return from mspace_malloc (call 0xE4FAB)
     pub const MALLOC_IMPL_HEAP_RETURN: u32 = 0xe4fb0;
 
-    /// 0xe50e4 (u32, vostok::memory::image): doug_lea_allocator::realloc_impl's (0xE5050) return from mspace_malloc (call 0xE50DF: no memory given)
+    /// 0xe50e4 (u8, vostok::memory::image): doug_lea_allocator::realloc_impl's (0xE5050) return from mspace_malloc (call 0xE50DF: no memory given)
     pub const REALLOC_IMPL_MALLOC_RETURN: u32 = 0xe50e4;
 
-    /// 0xe5100 (u32, vostok::memory::image): doug_lea_allocator::realloc_impl's return from mspace_realloc (call 0xE50FB)
+    /// 0xe5100 (u8, vostok::memory::image): doug_lea_allocator::realloc_impl's return from mspace_realloc (call 0xE50FB)
     pub const REALLOC_IMPL_REALLOC_RETURN: u32 = 0xe5100;
 
-    /// 0x106f70 (u32, vostok::memory::image): ptmalloc3's malloc (0x106EF0; EAX the bytes) return from mspace_malloc (call 0x106F6B, its arena's mspace at +20h)
+    /// 0x106f70 (u8, vostok::memory::image): ptmalloc3's malloc (0x106EF0; EAX the bytes) return from mspace_malloc (call 0x106F6B, its arena's mspace at +20h)
     pub const PT_MALLOC_HEAP_RETURN: u32 = 0x106f70;
 
-    /// 0xeb550 (u32, vostok::memory::image): mt_allocator::call_malloc's (0xEB530, the "global multithreaded" vtable's slot 0x9E6010) return from ptmalloc3's malloc (call 0xEB54B)
+    /// 0xeb550 (u8, vostok::memory::image): mt_allocator::call_malloc's (0xEB530, the "global multithreaded" vtable's slot 0x9E6010) return from ptmalloc3's malloc (call 0xEB54B)
     pub const MT_MALLOC_RETURN: u32 = 0xeb550;
 
-    /// 0x1013f8 (u32, vostok::memory::image): mspace_malloc's return from its arena's out-of-memory callback (call eax 0x1013F6, the mspace's +1D4h; EBP the bytes asked, 0x101335)
+    /// 0x1013f8 (u8, vostok::memory::image): mspace_malloc's return from its arena's out-of-memory callback (call eax 0x1013F6, the mspace's +1D4h; EBP the bytes asked, 0x101335)
     pub const HEAP_OUT_OF_MEMORY_RETURN: u32 = 0x1013f8;
+
+    /// 0xe5131 (u8, vostok::memory::image): doug_lea_allocator::call_malloc's (0xE5120, the vtable's slot 0x9E68EC) return from malloc_impl (call 0xE512C)
+    pub const CALL_MALLOC_RETURN: u32 = 0xe5131;
+
+    /// 0xe5156 (u8, vostok::memory::image): doug_lea_allocator::call_realloc's (0xE5140, slot 0x9E68F0) return from realloc_impl (call 0xE5151)
+    pub const CALL_REALLOC_RETURN: u32 = 0xe5156;
+
+    /// 0x10710a (u8, vostok::memory::image): pt3realloc's (0x107070) return from mspace_realloc (call 0x107105)
+    pub const PT_REALLOC_HEAP_RETURN: u32 = 0x10710a;
+
+    /// 0xeb4f8 (u8, vostok::memory::image): mt_allocator's realloc (0xEB470, ESI the memory) return from pt3realloc (call 0xEB4F3), and from pt3malloc when pt3realloc's no memory jumps there (0x107099)
+    pub const MT_REALLOC_RETURN: u32 = 0xeb4f8;
+
+    /// 0xeb5a5 (u8, vostok::memory::image): mt_allocator::call_realloc's (0xEB590) return from its realloc 0xEB470 (call 0xEB5A0)
+    pub const MT_CALL_REALLOC_RETURN: u32 = 0xeb5a5;
+
+    /// 0x1c6b9 (u8, vostok::memory::image): mt_allocator's malloc_impl (0x1C6A0; ESI the bytes, [esp+4] the allocator, 0xA8001C) return from pt3malloc (call 0x1C6B4)
+    pub const MT_MALLOC_IMPL_RETURN: u32 = 0x1c6b9;
 }
 
 /// A general-purpose register at a hook's site.
