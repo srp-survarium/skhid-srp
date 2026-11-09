@@ -24,6 +24,7 @@ import ctypes
 import json
 import os
 import re
+import shutil
 import subprocess
 import threading
 import time
@@ -293,17 +294,28 @@ class Game:
         if user32.GetForegroundWindow() != window:
             # Allowed to change the foreground by sharing the input queue of the thread that has it. Not by a tap of Alt,
             # the usual trick: that lands on the game in front and puts its window in menu mode.
-            own, front = kernel32.GetCurrentThreadId(), user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), None)
-            user32.AttachThreadInput(own, front, True)
-            try:
-                user32.ShowWindow(window, 9)
-                user32.SetForegroundWindow(window)
-            finally:
-                user32.AttachThreadInput(own, front, False)
-            end = time.time() + 2
+            def bring_front() -> None:
+                own, front = kernel32.GetCurrentThreadId(), user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), None)
+                user32.AttachThreadInput(own, front, True)
+                try:
+                    user32.ShowWindow(window, 9)
+                    user32.SetForegroundWindow(window)
+                finally:
+                    user32.AttachThreadInput(own, front, False)
+
+            # A window whose thread is still starting the renderer cannot take the activation: first it has to answer.
+            answer = ctypes.c_size_t()
+            if not user32.SendMessageTimeoutW(window, 0, 0, 0, 0, 60000, ctypes.byref(answer)):  # WM_NULL, SMTO_NORMAL
+                raise self.fail("the game's window did not answer for 60 s")
+            end = time.time() + 5
+            bring_front()
+            asked = time.time()
             while user32.GetForegroundWindow() != window:
                 if time.time() > end:
                     raise self.fail("could not take the foreground")
+                if time.time() - asked > 0.25:  # a window still being made can refuse, and asks are not queued
+                    bring_front()
+                    asked = time.time()
                 time.sleep(0.02)
             # Input sent now would be lost: the game takes its mouse and keyboard back when it has handled the activation.
             # A message to its window returns once its thread has got that far, and a frame or two later it reads input.
@@ -472,6 +484,10 @@ class Game:
             shot = self.shot(f"FAILED-{self.account}-{int(time.time())}")
         except Exception as error:
             shot = f"(no shot: {error})"
+        try:  # the game writes this file over at its next start, and its piped log loses what is still buffered at a kill
+            shutil.copy(self.run.game_log().path, Path(shot).with_suffix(".log"))
+        except Exception as error:
+            print(f"    no copy of the game's log: {error}", flush=True)
         crashes = self.run.new_crashes()
         crashed = f"; THE GAME CRASHED: {', '.join(crashes)}" if crashes else ""
         return Stop(f"{self.account}: {why}; screen in {shot}{crashed}")
@@ -567,7 +583,8 @@ class Run:
         end = time.time() + 150
         while True:
             since_kill, whole = self.server.since(mark), self.server.since(self.began)
-            held = {a for a in accounts if not re.search(rf"{re.escape(a)} \(account \d+\) left the lobby", since_kill)}
+            signed_in = {a for a in accounts if re.search(rf"{re.escape(a)} \(account \d+\)", whole)}  # a game killed before that holds nothing
+            held = {a for a in signed_in if not re.search(rf"{re.escape(a)} \(account \d+\) left the lobby", since_kill)}
             rooms = {room for room in re.findall(r"made room (\d+)", whole) if not room_released(whole, room)}
             if not held and not rooms:
                 return

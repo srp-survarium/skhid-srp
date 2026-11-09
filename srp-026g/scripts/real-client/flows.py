@@ -43,6 +43,9 @@ FRIEND_SPECTATE = (150, 907)  # its right-click menu's Spectate, for a friend in
 RESULTS_SAVE = (704, 881)  # "Save replay"; the floppy at the right edge is the stock screen's own, disabled
 RESULTS_CLOSE = (812, 881)
 LEAVE_MATCH = (799, 593)
+PLAYER_ROW_X = 1495  # a viewer's player list
+PLAYER_ROWS = (("ReplayTester", 560), ("SecondTester", 583))
+DAILY_CLOSE = (1032, 539)  # the X of the first sign-in of a day's reward box
 # A room's three map cards: where to sample each mode label's box, and where to click to vote for the card.
 CARD_LABELS = (132, 598, 1064)
 CARD_LABEL_Y = 337
@@ -82,6 +85,21 @@ def leave_box_open(picture) -> bool:
     """The box's second line of text runs along the same row, wider."""
     width, left = third_row_text(picture)
     return 112 <= width <= 134 and 730 <= left <= 745
+
+
+def daily_box_open(picture) -> bool:
+    """The reward box of an account's first sign-in of a day: modal, so a press anywhere else does nothing. Its title
+    band is darker than a window's and its footer nearly black."""
+    title, footer = picture[530:548, 556:680], picture[652:670, 552:572]
+    return bool(8 < title.mean() < 19 and title.std() < 6 and 1 < footer.mean() < 5 and footer.std() < 2)
+
+
+def close_daily_box(game: Game) -> None:
+    if daily_box_open(game.picture()):
+        game.shot(f"daily-box-{game.account}")
+        game.click(*DAILY_CLOSE, 8)
+        game.wait_screen(lambda picture: not daily_box_open(picture), "the daily reward box closed", 3)
+        say(f"{game.account} closed the daily reward box")
 
 
 def play_ready(picture) -> bool:
@@ -160,9 +178,11 @@ def sign_in(run: Run, account: str) -> Game:
 
 
 def leave_old_room(game: Game) -> None:
-    """A room outlives a killed game, and the server tells the account about it a few seconds after it signs in."""
-    end = time.time() + 3.5
+    """A room outlives a killed game, and the server tells the account about it a few seconds after it signs in; a new
+    day's reward box comes the same way."""
+    end = time.time() + 6
     while time.time() < end:
+        close_daily_box(game)
         if in_room(game.picture()):
             mark = game.run.server.mark()
             game.click(*PLAY, 6)
@@ -190,6 +210,8 @@ def watch_card(game: Game, row: int = 0) -> str:
 def room_match(host: Game, guest: Game) -> int:
     """A real match of two: the host's PLAY makes a room, the guest joins it from the list."""
     mark = host.run.server.mark()
+    close_daily_box(host)
+    close_daily_box(guest)
     host.click(*PLAY, 6)
     host.expect_server(r"made room \d+", 20, mark)
     host.wait_screen(window_open, "the room")
@@ -268,6 +290,9 @@ def live(run: Run) -> None:
     for frame in range(1, 5):
         time.sleep(1.5)
         a.shot(f"live-4-watching-{frame}")
+    a.key("2")  # a spectator has no kits: the game's own key must not bring up or pick one
+    time.sleep(0.5)
+    a.shot("live-5-after-kit-key")
     leave_match(a)  # on a live match, unlike a replay, Esc is the game's own menu
     a.wait_screen(window_open, "the Watch window, after watching", 25, steady=1.5)
     a.shot("live-6-back-in-window")
@@ -335,6 +360,42 @@ def save(run: Run) -> None:
     say(f"saved from the results screen: {new}")
 
 
+def kit_view(run: Run) -> None:
+    """A replay's viewer sees, read-only, the kits the player in view used: the one it started with and any it picked.
+    Shots of each player in view; what they list is compared with the kits picked here."""
+    a, b = sign_in(run, "ReplayTester"), sign_in(run, "SecondTester")
+    if room_match(a, b) == BLACKOUT:
+        end_match(run, a, b)
+        raise Again("the room drew Blackout, which has no kit bar")
+    a.shot("kits-1-countdown")
+    a.click(*PROFILE_2, 8)
+    a.shot("kits-2-picked-second")
+    a.expect_server(r"play begins", 40)
+    time.sleep(25)  # long enough a replay to look at both players in it
+    end_match(run, a, b, begun=True)
+    a.wait_screen(results_open, "the results screen", 20, steady=1)
+    a.click(*RESULTS_CLOSE, 6)
+    a.wait_screen(play_ready, "the lobby, after the results", 20, steady=1)
+    open_replays(a)
+    a.wait_screen(card_listed, "a card on the Replays tab")
+    mark = run.server.mark()
+    watch_card(a)
+    time.sleep(2)
+    a.shot("kits-3-viewer-first-player")
+    a.cursor_on()
+    for row, (name, y) in enumerate(PLAYER_ROWS, 4):  # the player list on the right: what follows a place
+        a.click(PLAYER_ROW_X, y, 10)
+        time.sleep(1.5)
+        a.shot(f"kits-{row}-viewer-{name}")
+    a.click(*BACK, 10)
+    a.expect_server(r": Leave at \d+ ms", 6, mark)
+    a.expect_server(r"session of match 0x[0-9a-f]+ is over", 20, mark)
+    a.wait_screen(window_open, "the Watch window, after the replay", 20, steady=1.5)
+    a.click(*CLOSE_WATCH, 6)
+    a.wait_screen(lobby_clear, "the lobby", 5)
+    say("watched the replay's kit view and left it")
+
+
 def first_click(run: Run) -> None:
     """The first click on Back after Ctrl brings up the viewer's cursor must register. Regression flow: it fails while
     the viewer swallows that click."""
@@ -364,7 +425,7 @@ def first_click(run: Run) -> None:
         raise Stop(f"{misses} of 12 first clicks on Back did nothing")
 
 
-FLOWS = {"kit": kit_after_replay, "live": live, "follow": follow, "save": save, "first_click": first_click}
+FLOWS = {"kit": kit_after_replay, "kit_view": kit_view, "live": live, "follow": follow, "save": save, "first_click": first_click}
 
 
 def main() -> int:
