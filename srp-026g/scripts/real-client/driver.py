@@ -264,6 +264,15 @@ def room_released(log: str, room: str) -> bool:
     return not sent_back and re.search(rf"and with it room {room}\b", log) is not None
 
 
+def front_window() -> str:
+    """What has the foreground, for a failure's message."""
+    handle = user32.GetForegroundWindow()
+    title, owner = ctypes.create_unicode_buffer(120), wintypes.DWORD()
+    user32.GetWindowTextW(handle, title, 120)
+    user32.GetWindowThreadProcessId(handle, ctypes.byref(owner))
+    return f"window {handle}, '{title.value}', process {owner.value}"
+
+
 class Game:
     def __init__(self, run: "Run", account: str, process: subprocess.Popen) -> None:
         self.run, self.account, self.process = run, account, process
@@ -295,6 +304,9 @@ class Game:
             # Allowed to change the foreground by sharing the input queue of the thread that has it. Not by a tap of Alt,
             # the usual trick: that lands on the game in front and puts its window in menu mode.
             def bring_front() -> None:
+                # With only the desktop in front there is no input queue worth sharing; Windows lets the process that made
+                # the last input event take the foreground, and a move of nothing reaches no game.
+                send(mouse(0, 0, MOVE))
                 own, front = kernel32.GetCurrentThreadId(), user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), None)
                 user32.AttachThreadInput(own, front, True)
                 try:
@@ -307,12 +319,14 @@ class Game:
             answer = ctypes.c_size_t()
             if not user32.SendMessageTimeoutW(window, 0, 0, 0, 0, 60000, ctypes.byref(answer)):  # WM_NULL, SMTO_NORMAL
                 raise self.fail("the game's window did not answer for 60 s")
+            self.run.note(f"{self.account} asks for the foreground, held by {front_window()}")
             end = time.time() + 5
             bring_front()
             asked = time.time()
             while user32.GetForegroundWindow() != window:
                 if time.time() > end:
-                    raise self.fail("could not take the foreground")
+                    raise self.fail(f"could not take the foreground for window {window}: it is with {front_window()}")
+                window = self.window  # a game on a cold first start makes its window again while it starts its renderer
                 if time.time() - asked > 0.25:  # a window still being made can refuse, and asks are not queued
                     bring_front()
                     asked = time.time()

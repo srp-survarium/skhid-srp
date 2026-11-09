@@ -43,8 +43,10 @@ FRIEND_SPECTATE = (150, 907)  # its right-click menu's Spectate, for a friend in
 RESULTS_SAVE = (704, 881)  # "Save replay"; the floppy at the right edge is the stock screen's own, disabled
 RESULTS_CLOSE = (812, 881)
 LEAVE_MATCH = (799, 593)
+VIEWER_PLATES, VIEWER_PLATE_Y = (1160, 1314, 1470), 972  # the kit plates in a replay's viewer
 PLAYER_ROW_X = 1495  # a viewer's player list
 PLAYER_ROWS = (("ReplayTester", 560), ("SecondTester", 583))
+LIVE_DELAY = 30  # SRP_LIVE_WATCH_DELAY_S's default
 DAILY_CLOSE = (1032, 539)  # the X of the first sign-in of a day's reward box
 # A room's three map cards: where to sample each mode label's box, and where to click to vote for the card.
 CARD_LABELS = (132, 598, 1064)
@@ -100,6 +102,12 @@ def close_daily_box(game: Game) -> None:
         game.click(*DAILY_CLOSE, 8)
         game.wait_screen(lambda picture: not daily_box_open(picture), "the daily reward box closed", 3)
         say(f"{game.account} closed the daily reward box")
+
+
+def kit_bar_shown(picture) -> bool:
+    """A player's kit chooser: a few near-white pixels of each plate's name. The plates are see-through, so what is behind
+    them says nothing; a bright scene fills the row with many more pixels than a name has."""
+    return all(3 <= (picture[1122:1136, x:x + 60].min(axis=2) > 190).sum() <= 60 for x in (610, 765, 920))
 
 
 def play_ready(picture) -> bool:
@@ -256,6 +264,7 @@ def kit_after_replay(run: Run) -> None:
         end_match(run, a, b)
         raise Again("the room drew Blackout, which has no kit bar")
     a.shot("kit-1-next-match-before")
+    a.wait_screen(kit_bar_shown, "a player's kit bar in the countdown", 10)
     a.click(*PROFILE_2, 8)
     a.shot("kit-2-after-click")
     say("clicked the second kit")
@@ -274,6 +283,7 @@ def live(run: Run) -> None:
     a, b, c = sign_in(run, "ReplayTester"), sign_in(run, "SecondTester"), sign_in(run, "ThirdTester")
     room_match(b, c)
     a.expect_server(r"play begins", 40)
+    begun = time.time()
     a.focus()
     a.shot("live-1-lobby-badge")
     a.click(*WATCH_MENU)
@@ -293,6 +303,9 @@ def live(run: Run) -> None:
     a.key("2")  # a spectator has no kits: the game's own key must not bring up or pick one
     time.sleep(0.5)
     a.shot("live-5-after-kit-key")
+    # The spectator is 30 s behind: only past that is the followed player spawned, and its kit used.
+    time.sleep(max(0, begun + LIVE_DELAY + 8 - time.time()))
+    a.shot("live-7-past-the-start")
     leave_match(a)  # on a live match, unlike a replay, Esc is the game's own menu
     a.wait_screen(window_open, "the Watch window, after watching", 25, steady=1.5)
     a.shot("live-6-back-in-window")
@@ -308,6 +321,7 @@ def follow(run: Run) -> None:
     a, b, c = sign_in(run, "ReplayTester"), sign_in(run, "SecondTester"), sign_in(run, "ThirdTester")
     room_match(b, c)
     a.expect_server(r"play begins", 40)
+    begun = time.time()
     a.click(*WATCH_MENU)
     a.wait_screen(window_open, "the Watch window")
     a.click(*CLOSE_WATCH)
@@ -326,6 +340,9 @@ def follow(run: Run) -> None:
     for frame in range(1, 3):
         time.sleep(2)
         a.shot(f"live-9-following-{frame}")
+    # 30 s behind: past the start the followed friend has spawned, so the one kit it used is shown, and no other.
+    time.sleep(max(0, begun + LIVE_DELAY + 8 - time.time()))
+    a.shot("live-9-following-past-the-start")
     leave_match(a)
     a.wait_screen(lambda picture: window_open(picture) or play_ready(picture), "the lobby, after following", 25, steady=1.5)
     a.shot("live-10-back-from-following")
@@ -368,6 +385,7 @@ def kit_view(run: Run) -> None:
         end_match(run, a, b)
         raise Again("the room drew Blackout, which has no kit bar")
     a.shot("kits-1-countdown")
+    a.wait_screen(kit_bar_shown, "a player's kit bar in the countdown", 10)
     a.click(*PROFILE_2, 8)
     a.shot("kits-2-picked-second")
     a.expect_server(r"play begins", 40)
@@ -387,6 +405,10 @@ def kit_view(run: Run) -> None:
         a.click(PLAYER_ROW_X, y, 10)
         time.sleep(1.5)
         a.shot(f"kits-{row}-viewer-{name}")
+    for plate, x in enumerate(VIEWER_PLATES, 1):  # read-only, but with the Ctrl cursor up a plate still lists its kit's items
+        a.move(x, VIEWER_PLATE_Y, 20)
+        time.sleep(0.6)
+        a.shot(f"kits-6-viewer-hover-{plate}")
     a.click(*BACK, 10)
     a.expect_server(r": Leave at \d+ ms", 6, mark)
     a.expect_server(r"session of match 0x[0-9a-f]+ is over", 20, mark)
