@@ -21,5 +21,16 @@ class AppendEntry(unittest.TestCase):
             buf=self.config();before=bytes(buf)
             with self.assertRaises(ValueError):ce.append_entry(buf,'skills_tree',count,'id',value)
             self.assertEqual(bytes(buf),before)
+    def test_vectors_and_empty_lists_as_the_games_objects_have_them(self):
+        buf=self.config()
+        value={'id':302,'position':[0.0,-1000.0,0.0],'containers':[],'pool':[{'dict_id':54,'count':20}]}
+        ce.append_entry(buf,'skills_tree',1,'id',value,vectors=True)
+        self.assertEqual(ce.rec(buf,ce.find(buf,'skills_tree[1]/position'))[3],ce.T_INDEXED+3)
+        self.assertEqual(ce.rec(buf,ce.find(buf,'skills_tree[1]/containers'))[3:],(ce.T_INDEXED,0))
+        self.assertEqual(ce.rec(buf,ce.find(buf,'skills_tree[1]/pool'))[3:],(ce.T_INDEXED,1))
+        # Without vectors, as before: a list is an indexed table of numbers.
+        buf=self.config()
+        ce.append_entry(buf,'skills_tree',1,'id',value)
+        self.assertEqual(ce.rec(buf,ce.find(buf,'skills_tree[1]/position'))[3:],(ce.T_INDEXED,3))
 
 if __name__=='__main__':unittest.main()

@@ -594,6 +594,8 @@ st_change_quest_label	Aufgabe wechseln
 st_change_weapon_speed_description	Geschwindigkeit der Waffen Wechselung:
 st_change_weapon_speed_name	Gewandten Hände
 st_character	Charakter
+st_character_decals_1_10_name	Wildschweinjäger
+st_character_decals_1_11_name	Hirschjäger
 st_character_decals_1_12_name	Jarilo
 st_character_decals_1_1_name	Literat
 st_character_decals_1_2_name	Trupp "Alpha"
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veteran
 st_character_decals_1_6_name	Meister
 st_character_decals_1_7_name	Legende
 st_character_decals_1_8_name	Flüchtigen Husaren
+st_character_decals_1_9_name	Musiker
 st_character_decals_2_1_name	Landstreicher Neuling
 st_character_decals_2_2_name	Landstreicher Veteran
 st_character_decals_2_3_name	Rekrut des schwarzen Marktes
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Wappen von Lettland
 st_character_decals_5_7_name	Wappen von Litauen
 st_character_decals_5_8_name	Wappen von Estland
 st_character_decals_5_9_name	Wappen von Moldova
+st_character_decals_7_10_name	Streichhölzer
+st_character_decals_7_23_name	Herz
+st_character_decals_7_24_name	Schrecklicher Kürbis
 st_character_decals_7_27_name	Kleeornament
 st_character_decals_7_28_name	Hufeisen
+st_character_decals_7_30_name	Brieftaube
+st_character_decals_7_31_name	Sieg
+st_character_decals_7_35_name	Blutige Hand
+st_character_decals_7_37_name	Der Hüter
 st_character_decals_7_9_name	Kräuter
 st_character_decals_generic_desc	Verwenden Sie die Litzen im Erscheinungsbild Fenster der kugelsicheren Westen und Hosen , um Aussehen zu verändern.
 st_characteristics_label	Die Charakteristiken des Spielers
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Fehler beim Hinzufügen. In der Klan Mannschaft be
 st_current_value	\nAktueller Wert
 st_cz_75_description	Tschechische Selbstladepistole, Munition: 9x19. Eine der meistkopierten Pistolen des Kalten Krieges.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Komm jeden Tag, und bekomm <highlight> x2 </highlight> der Erfahrung und der Reputation für <highlight> erste drei </highlight> die Siege.
+st_daily_bonus_description	Jeden Tag: <highlight>x2</highlight> Erfahrung für die <highlight>ersten drei</highlight> Siege.
 st_daily_bonus_hint	Begrüßungs Fenster zeigen
 st_daily_bonus_label	Willkommen zurück
 st_daily_bonus_progress	Ihr Progress vom Tag
@@ -2190,6 +2200,31 @@ st_srp_ammo_scar_ap_desc	Panzerbrechende Patronen 7,62x51 für das FN SCAR-H. Je
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 Schuss
 st_srp_ammo_slug	Flintenkugel
 st_srp_ammo_stats	Munitionswerte
+st_srp_artefact_501_description	Zeit zum Einsammeln eines Artefakts:
+st_srp_artefact_501_name	Flinke Hände
+st_srp_artefact_502_description	Isolierung gegen Anomalien:
+st_srp_artefact_502_name	Widerstand
+st_srp_artefact_512_description	Dauer der aktiven Artefaktwirkung:
+st_srp_artefact_512_name	Artefaktwissen
+st_srp_artefact_513_description	Passive Artefakte leuchten an den Beinen der Spieler, auch an deinen.
+st_srp_artefact_513_name	Artefaktsicht
+st_srp_artefact_521_description	Das Match beginnt mit einem zufälligen Artefakt im Behälter; eine Art für alle im Match.
+st_srp_artefact_521_name	Hüter der Artefakte
+st_srp_artefact_522_description	Eine Tasche wird zu einem Artefaktbehälter.
+st_srp_artefact_522_name	Artefaktbehälter
+st_srp_artefact_523_description	Schaden durch Kugeln und Splitter in einer Anomalie:
+st_srp_artefact_523_name	Schutz des Waldes
+st_srp_artefact_531_description	Jede Feder beschleunigt auch das Nachladen: +5% passiv, +15% solange aktiv.
+st_srp_artefact_531_name	Feder II
+st_srp_artefact_532_description	Kein Fallschaden, solange ein Onyx aktiv ist.
+st_srp_artefact_532_name	Onyx II
+st_srp_artefact_533_description	Das Aktivieren eines Lebknochens stellt die ganze Ausdauer wieder her.
+st_srp_artefact_533_name	Lebknochen II
+st_srp_artefact_541_description	Die passiven Wirkungen deiner Artefakte wirken auch auf lebende Teamkameraden im Umkreis von 9 m.
+st_srp_artefact_541_name	Resonanz
+st_srp_artefact_542_description	Aktivierte Artefakte wirken auch auf lebende Teamkameraden im Umkreis von 6 m. "Sie leuchten, du strahlst"
+st_srp_artefact_542_name	Kaskade
+st_srp_artefact_points	 Punkte
 st_srp_attachments	Anbauteile
 st_srp_ban_reason_account_trading	Verkauf oder versuchter Verkauf eines Kontos.
 st_srp_ban_reason_administration	Entscheidung der Administration.
@@ -2461,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_snow_20_legs_7_name	Schnee-20 Hose
 st_srp_equipment069_snow_20_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_snow_20_torso_7_name	Schnee-20 Panzerweste
-st_srp_exchange_balance	Guthaben
-st_srp_exchange_button	Tauschen
-st_srp_exchange_gold	Gold
-st_srp_exchange_pay	Sie zahlen
-st_srp_exchange_receive	Sie erhalten
-st_srp_exchange_short_gold	Nicht genug Gold
-st_srp_exchange_short_silver	Nicht genug Silber
-st_srp_exchange_title	Tausch
 st_srp_hide_hit_markers_option	Trefferanzeige ausblenden
 st_srp_hide_quests_option	Aufgaben ausblenden
 st_srp_hide_scores_option	Spielerpunkte ausblenden
@@ -2704,6 +2731,7 @@ st_srp_rooms_join_why_4	Das Match ist voll.
 st_srp_rooms_join_why_5	Bald Wartung: keine neuen Beitritte.
 st_srp_rooms_join_why_6	Das Match endet: du spielst das nächste.
 st_srp_rooms_join_why_7	Dieses Match hat sein Spielerlimit erreicht. Du spielst im nächsten Match.
+st_srp_rooms_join_why_8	Das Match kann gerade keine Spieler aufnehmen. Du spielst im nächsten Match.
 st_srp_rooms_joined_room	%1$s ist dem Raum beigetreten
 st_srp_rooms_late_hint	Wer jetzt beitritt, sieht den Raum, dann geht es ins Match.
 st_srp_rooms_leave	Verlassen

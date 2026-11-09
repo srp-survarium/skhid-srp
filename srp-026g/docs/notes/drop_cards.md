@@ -33,11 +33,24 @@ The rules the code and the tests follow. Code: `crates/session/src/v026g/rewards
   Now a `debug` or `ok` box (the lobby's refusals and errors) is drawn at once over the
   screen (`VictoryScreen.messageOver`), and the message layer is made visible first (a
   match's loading hides it); so is it for the screen's premium and player windows.
-- **The original's rule:** one card per results screen. `VictoryScreen.as` (lobby movie):
-  `onTreasureMapClick` sends `use_drop_card(_match_id, voucher id)` and hides the search icon;
-  `setDropItem` puts the card's item in the slot, and `updateVoucherCount` makes the slot
-  clickable again only while it holds no item, never on a cached (reopened) screen (`_cache`),
-  never when the screen's data has `allow_drop_card == false`.
+- **The slot** (the owner's of 2026-11-07; `VictoryScreen.as`, checked in Ruffle by
+  `scripts/drop-card-slot/check.sh`): one state per screen (`setData`), whatever the screen (a
+  match just ended or a report reopened from the list) and whatever the match dropped
+  (`allow_drop_card` is not read):
+  - the card's item, when a card gave this match one: the report keeps it
+    (`LobbyMenu.fill_victory_screen_drop_item` sets `treasureItem` on the screen's data), so a
+    report reopened shows it again (before: an empty slot);
+  - grey, once a card was used or refused for the match this session (`_cardsDone`, above);
+  - else **open**: the search icon shown, the slot clickable. A click with a card uses it
+    (`use_drop_card(_match_id, voucher id)`). A click with none opens the shop's buy dialog
+    for a card (`try_buy_map_to_use` -> `LobbyMenu.onBuyMapToUse`); on its yes the slot waits
+    (`cardBought`), and as soon as the card comes (`updateVoucherCount`, the lobby's inventory
+    update) it is used on that match; on its no nothing waits. A box over the screen while waiting
+    for the bought card (the buy refused) opens the slot again; one while a card is asked is
+    the card's refusal (grey). A card bought for one screen is not used on another.
+  - Before (the original's rule): the slot was clickable only with a card, never on a reopened
+    screen (`_cache`) or a match with no drop (`allow_drop_card == false`, most matches), so a
+    card bought from the screen could not be used there.
 - **Request:** `46 03 <match id> <card item id>` (`results.md` §3). The other order is still
   tried after; the proven order's reason is the one logged.
 - **Accepted** only when all hold, in this order: the match's report is kept (the last 64, and

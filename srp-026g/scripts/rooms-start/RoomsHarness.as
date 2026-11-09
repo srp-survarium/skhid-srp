@@ -174,7 +174,7 @@ package
                ["open, squads", 1003, false, false, 0, null, 0, ["S;01122"]],
                ["open, squads, in match", 1003, false, false, 2, null, 0, ["S;01122"]],
                ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]]];
-            for(var why:int = 1; why <= 7; why++)
+            for(var why:int = 1; why <= 8; why++)
                states.push(["open, in match, why " + why, 1003, false, false, 2, null, 0, ["J;-1;" + why]]);
             for each(var s:Array in states)
             {
@@ -817,6 +817,22 @@ package
             if(lobby.getChildIndex(history) <= lobby.getChildIndex(room))
                failures.push("History reopened last did not stay above room");
             trace("ROOMS most recently opened window stays on top across side-panel updates");
+            // The notifications that come up by themselves (a match's report
+            // after the results) stay over the room, however it came up.
+            var popups:Object = new (domain.getDefinition("SrvNotificationList") as Class)();
+            var before:Object = lobby.notificationListTemp;
+            lobby.notificationListTemp = popups;
+            lobby.addChild(popups);
+            for(i = 0; i < 3; i++)
+            {
+               lobby.setChildIndex(room,lobby.numChildren - 1);
+               lobby.layerRoomsWindow(room);
+               if(lobby.getChildIndex(popups) <= lobby.getChildIndex(room))
+                  failures.push("a match's report popped up under the room");
+            }
+            lobby.removeChild(popups);
+            lobby.notificationListTemp = before;
+            trace("ROOMS the notifications that pop up stay over the room");
             // Use the production modal-order owner with lightweight results;
             // the full victory screen requires the game's player dictionaries.
             var Layers:Object = domain.getDefinition("survarium.rooms.RoomLayers");

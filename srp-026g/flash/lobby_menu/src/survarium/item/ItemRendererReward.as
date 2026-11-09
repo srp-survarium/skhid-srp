@@ -79,7 +79,7 @@ package survarium.item
          }
          else
          {
-            isMoney = _data.category == ItemCategory.PREMIUM_MONEY || _data.category == ItemCategory.GENERIC_MONEY;
+            isMoney = _data.category == ItemCategory.GENERIC_MONEY;
             isVoucher = _data.superCategory == SuperCategory.UPGRADES;
             this._textFieldFormat.align = isVoucher ? TextFormatAlign.CENTER : TextFormatAlign.RIGHT;
             this.textField.defaultTextFormat = this._textFieldFormat;
@@ -91,7 +91,7 @@ package survarium.item
             {
                this.textField.text = isVoucher ? Util.getMoneyString(_data.value) + " " + String(_data.name) : "x" + Util.getMoneyString(_data.value);
             }
-            this.textField.textColor = isVoucher ? (_data.category == ItemCategory.PREMIUM_MONEY ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
+            this.textField.textColor = isVoucher ? Colors.REGULAR : Colors.SILVER;
          }
       }
    }

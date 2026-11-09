@@ -2,11 +2,10 @@
 //! 0.26g accounts ([`GameAccounts`]) and tells the lobby, so an open game
 //! shows the change.
 //!
-//! - Silver and gold are exchanged in the game only: the lobby's exchange
-//!   window (`client-patches/exchange`, `47 04`, `rules::exchange_premium`
-//!   and `rules::buy_premium`). `GET /exchange`, which the SHOP button of
-//!   the launchers already in players' hands opens, says so in the
-//!   launcher's language ([`in_the_game_now`]); nothing else of it is left.
+//! - There is no gold (the owner, 2026-11-08): everything is bought with
+//!   silver. `GET /exchange`, which the SHOP button of the launchers already
+//!   in players' hands opens, says so in the launcher's language
+//!   ([`no_gold`]); nothing else of an exchange is left.
 //! - The admin's tabs: money and items taken away (`crate::moderation`: a
 //!   reason, a preview and a confirm), the account (premium time,
 //!   experience or level, reputation), an item by its `items_dict` id or
@@ -122,6 +121,9 @@ pub struct Game {
     /// takes (`session::v026g::replays`); `None`: every such request is
     /// "not found".
     pub replays: Option<Arc<session::v026g::replays::Replays>>,
+    /// The matches the lobby keeps the results of: what a match gives now,
+    /// for the skills page's levels ([`crate::skills`]).
+    pub results: Arc<session::v026g::rewards::Results>,
 }
 
 /// The longest line of the operator's text: the client's buffers are 64
@@ -480,40 +482,36 @@ pub(crate) fn launcher_code(request: &Request) -> &'static str {
     }
 }
 
-/// `/exchange`: the exchange is in the game now. The launchers already in
-/// players' hands open this address with their SHOP button, so it answers
-/// in the launcher's five languages (`code` of [`launcher_code`]).
-pub(crate) fn in_the_game_now(code: &str) -> String {
+/// `/exchange`: there is no gold to exchange; everything is bought with
+/// silver. The launchers already in players' hands open this address with
+/// their SHOP button, so it answers in the launcher's five languages (`code`
+/// of [`launcher_code`]).
+pub(crate) fn no_gold(code: &str) -> String {
     let (code, title, text) = match code {
         "uk" => (
             "uk",
-            "Тепер у грі",
-            "Срібло й золото тепер обмінюються в грі: у лобі натисніть на своє золото чи \
-             срібло вгорі екрана.",
+            "Лише срібло",
+            "Золота більше немає: усе в грі купується за срібло.",
         ),
         "ru" => (
             "ru",
-            "Теперь в игре",
-            "Серебро и золото теперь обмениваются в игре: в лобби нажмите на своё золото или \
-             серебро вверху экрана.",
+            "Только серебро",
+            "Золота больше нет: всё в игре покупается за серебро.",
         ),
         "de" => (
             "de",
-            "Jetzt im Spiel",
-            "Silber und Gold werden jetzt im Spiel getauscht: Klicke in der Lobby oben auf dein \
-             Gold oder Silber.",
+            "Nur Silber",
+            "Gold gibt es nicht mehr: Im Spiel wird alles mit Silber gekauft.",
         ),
         "pl" => (
             "pl",
-            "Teraz w grze",
-            "Srebro i złoto wymienia się teraz w grze: w lobby kliknij swoje złoto lub srebro u \
-             góry ekranu.",
+            "Tylko srebro",
+            "Złota już nie ma: w grze wszystko kupuje się za srebro.",
         ),
         _ => (
             "en",
-            "In the game now",
-            "Silver and gold are exchanged in the game now: in the lobby, click your gold or \
-             silver at the top of the screen.",
+            "Silver only",
+            "There is no gold any more: everything in the game is bought with silver.",
         ),
     };
     format!("<section class=card lang={code}><h1>{title}</h1><p>{text}</p></section>")

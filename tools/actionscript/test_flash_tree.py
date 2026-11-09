@@ -168,6 +168,22 @@ class MovieTests(unittest.TestCase):
             flash_tree.check(flash_tree.assemble(original, [do_abc('x', 'A', 'pkg.B'), do_abc('y', 'A')]))
 
 
+    def test_a_placement_is_put_right_in_its_sprite_frame_and_depth(self):
+        def place(depth, cid):
+            return swf.tag(swf.PLACE_OBJECT2, bytes([0x02]) + struct.pack('<HH', depth, cid))
+        show, end = swf.tag(swf.SHOW_FRAME, b''), swf.tag(swf.END, b'')
+        inner = place(1, 7) + show + place(1, 8) + show + end
+        sprite = swf.tag(swf.DEFINE_SPRITE, struct.pack('<HH', 9, 2) + inner)
+        shapes = [(2, swf.tag(2, struct.pack('<H', c))) for c in (7, 8, 6)]
+        tags = shapes + [(swf.DEFINE_SPRITE, sprite)]
+        fixed = flash_tree.placed_right(tags, [flash_tree.Placement(9, 2, 1, 8, 6)])
+        sub = swf.tags_of(swf.payload(fixed[-1][1])[4:])
+        self.assertEqual([swf.placed(raw) for kind, raw in sub if kind == swf.PLACE_OBJECT2], [(1, 7), (1, 6)])
+        for wrong in (flash_tree.Placement(9, 1, 1, 8, 6), flash_tree.Placement(9, 2, 1, 8, 99)):
+            with self.assertRaises(ValueError):
+                flash_tree.placed_right(tags, [wrong])
+
+
 class TreeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -233,6 +249,29 @@ class TreeTests(unittest.TestCase):
         (self.tree / 'src/pkg/data/Rows.as').write_text('')
         with self.assertRaisesRegex(ValueError, 'a class of the tree already'):
             flash_tree.tables(self.tree)
+
+    def test_a_data_table_is_a_class_of_its_columns(self):
+        path = self.root / 'modifications.tsv'
+        path.write_text('modifications\tkind\tvalue\n1240\tparameters/experience_bonus\t0.2\n1250\tx\t0.5\n')
+        self.assertEqual(flash_tree.data_class(path, 'pkg.data', 'Values'), '''package pkg.data
+{
+   // Made by the build (tools/actionscript/flash_tree.py) from modifications.tsv (movie.json data): edit that.
+   public class Values
+   {
+      public static const kind:Object = {
+         "1240":"parameters/experience_bonus",
+         "1250":"x"
+      };
+      public static const value:Object = {
+         "1240":"0.2",
+         "1250":"0.5"
+      };
+   }
+}
+''')
+        path.write_text('m\tvalue\n1\t0.2\n1\t0.5\n')
+        with self.assertRaisesRegex(ValueError, 'a key twice'):
+            flash_tree.data_class(path, 'pkg.data', 'Values')
 
     def test_a_build_needs_the_original_movie_json_names(self):
         self.spec(movie_sha256=sha(b'MOVIE'))

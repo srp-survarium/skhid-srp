@@ -59,9 +59,8 @@ Ask, in this order:
    file the manifest does not make stops it (what made it?), nothing is
    written; one an earlier version of a pack row added, byte for byte
    (`$SKHID_PACKS_DIR/<id>-<n>`), is listed as `left`, not packed. "nothing to ship" means no
-   `--resources`. **Show the owner the file list** (and the lobby build's
-   line: whether it is `RESULT_SHA256`, the movie last checked in the game);
-   ship only movies the owner checked. Never put a patch folder together by
+   `--resources`. **Show the owner the file list**; ship only movies the owner
+   checked. Never put a patch folder together by
    hand (`release/build-patch` is the step build-content runs). A merged PR
    with a new edit list or pack that has no manifest row stops build-content:
    the PR adds the row.
@@ -279,8 +278,16 @@ release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
                    [--revision <n>] [--server-code auto|yes|no]
                    [--minutes <n> | --no-maintenance] [--now]
                    [--match-wait <minutes>] [--label <word>] [--ref <branch>]
-                   [--no-bot-data] [--worlds <folder>] [--dry-run] [--yes --i-know]
+                   [--no-bot-data] [--worlds <folder>] [--no-selftest]
+                   [--dry-run] [--yes --i-know]
 ```
+
+`--no-selftest` skips the exe patches' self-test (step 2), for a **quick fix
+release** only (an urgent fix that cannot wait for it); the default runs it.
+It is said as a WARNING in the preflight, the plan, the step-2 output and the
+summary, and written in the tag's message and the record's commit ("Shipped
+WITHOUT the exe patches' self-test"), so it stays visible which release went
+without it.
 
 After the preflight it **prepares and stages everything before the go**,
 which players don't see (a patch no list offers yet, the release folder,
@@ -358,12 +365,14 @@ The order, as it runs:
    kept), copy its recording from the test volume's `recordings/`, and
    give `--worlds <folder>`. Then
    `build-zip` (of the commit checked in step 1); then the **exe patches'
-   self-test** of that commit (`srp-026g/client-patches/selftest_026g.py`,
-   its Linux part, on `$SKHID_GAME`'s `survarium.exe`, in the commit's dev
-   shell with nixpkgs' Python unicorn, about 15 min, ~0.4 GB; log
-   `selftest.log` in the run's work folder): a failed check stops the
-   release here, before anything is staged (the patch's fix is a PR, then a
-   new run). It is the release's check of the exe's general rules (no byte
+   self-test** of that commit started in the background
+   (`srp-026g/client-patches/selftest_026g.py`, its Linux part, on
+   `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
+   Python unicorn, its builds on every core, about 5 min, ~0.4 GB; log
+   `selftest.log` in the run's work folder), while the rest of this step
+   runs; its result is waited for last, before the go: a failed check stops
+   the release there like any failure of this step (the patch's fix is a
+   PR, then a new run; `--no-selftest`: none, see above). It is the release's check of the exe's general rules (no byte
    changed undeclared, no relocation or branch into a rewritten byte, every
    hooked function's ABI, every branch target known): nobody runs it by hand
    before a release, and it is not a check of each PR. The checks of `deploy`
@@ -376,7 +385,9 @@ The order, as it runs:
    source's `src.tar`, sha256 checked there; the running image tagged
    `srp-026g:before-rev<rev>-<stamp>` by its ID, then `docker load` makes
    the new one `srp-026g:latest` (the running container is not touched).
-   The local builds run at nice 10. A failure here stops before the go: the staged files removed, the
+   Then the self-test's result (`waiting for the exe patches' self-test`).
+   The local builds run at nice 10. A failure here (a stop too: it kills
+   the self-test still running) stops before the go: the staged files removed, the
    image tag put back, nothing planned, and the new patch's row taken out
    of the list again (no server offered it). The file goes from the
    patches server too when this run uploaded it, so the revision can be
@@ -592,9 +603,9 @@ preflight: look at its `release.log`, finish or roll it back, then write
 ### What to watch
 
 - The preflight: every line `ok`.
-- Before the go: the builds, the self-test (`the exe patches' self-test:
-  all checks passed`) and the staging (`2. ...`), then `3. waiting for the
-  go`.
+- Before the go: the builds and the staging (`2. ...`), the self-test
+  beside them, its result last (`the exe patches' self-test: all checks
+  passed`), then `3. waiting for the go`.
 - After the go: the plan's line at once, with its minutes and where they
   come from (`/api/stats`, the launcher page, or a whole match), and the
   launcher countdown (none with `--no-maintenance` or `--now`); then `5.

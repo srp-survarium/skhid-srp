@@ -15,24 +15,18 @@ package survarium.controls
       
       public var moveIcon:Boolean = true;
       
-      protected var _moneyType:uint = 0;
-      
       public function LabelCost()
       {
          super();
-         if(!this.costBack)
-         {
-            moveIcon = false;
-         }
-      }
-      
-      public function set moneyType(value:uint) : void
-      {
-         _moneyType = value;
-         this.icon.gotoAndStop(value ? 2 : 1);
+         // Always silver, the icon's and back's first frame: there is no gold (the owner, 2026-11-08).
+         this.icon.gotoAndStop(1);
          if(this.costBack)
          {
-            this.costBack.gotoAndStop(value ? 2 : 1);
+            this.costBack.gotoAndStop(1);
+         }
+         else
+         {
+            moveIcon = false;
          }
       }
       
@@ -45,7 +39,7 @@ package survarium.controls
          }
          if(this.moveIcon)
          {
-            this.icon.x = this.textField.x + (this.textField.width - this.textField.textWidth) - this.icon.width - 5 + (this._moneyType ? 14 : 0);
+            this.icon.x = this.textField.x + (this.textField.width - this.textField.textWidth) - this.icon.width - 5;
          }
       }
    }

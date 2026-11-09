@@ -4,7 +4,8 @@
 //! matches whose recordings are given with them.
 //!
 //! ```text
-//! srp-world-check --data <server-game-data.db> [--save <dir>] [--revision <n>] <file or folder>...
+//! srp-world-check --data <server-game-data.db> [--save <dir>] [--revision <n>]
+//!                 [--worlds <dir> [--one-in <n>]] <file or folder>...
 //! ```
 //!
 //! A folder stands for the `*.srprec` and `match026g_*.bin` files in it.
@@ -12,11 +13,16 @@
 //! release's own). `--revision <n>`: only recordings that games of revision
 //! `n` played (the others are listed as skipped). `--save <dir>`: each
 //! refused world written there under the server's dump name, to check again
-//! later or read. Exit 0 when every world passed and at least one was
+//! later or read. `--worlds <dir>`: the uploads of the recordings checked
+//! written there too, passed or not, one in `--one-in <n>` of each
+//! recording's (its first, then every n-th; default every one), as
+//! `match026g_<id>_<time>_p<place>_u<k>.bin`: the kept worlds srp-validate's
+//! `drift_dump` reads (`tools/checks/worlds.sh drift`). Exit 0 when every world passed and at least one was
 //! checked; 1 when a world was refused, or could not be checked, or none
 //! was; 2 for a usage error.
 
 use std::collections::{BTreeMap, HashMap};
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -30,11 +36,18 @@ fn main() -> ExitCode {
     let mut data = None;
     let mut save = None;
     let mut revision = None;
+    let mut worlds = None;
+    let mut one_in = None;
     let mut inputs = Vec::new();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--data" => data = args.next(),
             "--save" => save = args.next().map(PathBuf::from),
+            "--worlds" => worlds = args.next().map(PathBuf::from),
+            "--one-in" => match args.next().and_then(|n| n.parse::<NonZeroUsize>().ok()) {
+                Some(n) => one_in = Some(n),
+                None => return usage("--one-in takes a number above 0"),
+            },
             "--revision" => match args.next().and_then(|n| n.parse::<u64>().ok()) {
                 Some(n) => revision = Some(n),
                 None => return usage("--revision takes a number"),
@@ -44,6 +57,14 @@ fn main() -> ExitCode {
             _ => inputs.push(PathBuf::from(arg)),
         }
     }
+    let kept = match (worlds, one_in) {
+        (Some(dir), one_in) => Some(Kept {
+            dir,
+            one_in: one_in.unwrap_or(NonZeroUsize::MIN),
+        }),
+        (None, Some(_)) => return usage("--one-in is of --worlds <dir>"),
+        (None, None) => None,
+    };
     let Some(data) = data else {
         return usage(
             "--data <server-game-data.db> is needed: the check reads the maps and items from it",
@@ -63,11 +84,11 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     }
-    if let Some(dir) = &save
-        && let Err(error) = std::fs::create_dir_all(dir)
-    {
-        eprintln!("{}: {error}", dir.display());
-        return ExitCode::FAILURE;
+    for dir in save.iter().chain(kept.as_ref().map(|kept| &kept.dir)) {
+        if let Err(error) = std::fs::create_dir_all(dir) {
+            eprintln!("{}: {error}", dir.display());
+            return ExitCode::FAILURE;
+        }
     }
 
     let mut tally = Tally::default();
@@ -113,7 +134,13 @@ fn main() -> ExitCode {
             continue;
         }
         let mut file = FileTally::default();
-        for upload in &recording.uploads {
+        for (k, upload) in recording.uploads.iter().enumerate() {
+            if let Some(kept) = &kept
+                && let Err(error) = kept.write(&recording, k, upload)
+            {
+                eprintln!("{}: {error}", kept.dir.display());
+                return ExitCode::FAILURE;
+            }
             let refused = file.note(&recording, &upload.body, upload.time, || {
                 format!("p{} t{}", upload.place, upload.time)
             });
@@ -207,9 +234,36 @@ fn usage(why: &str) -> ExitCode {
         eprintln!("{why}");
     }
     eprintln!(
-        "usage: srp-world-check --data <server-game-data.db> [--save <dir>] [--revision <n>] <recording, dump or folder>..."
+        "usage: srp-world-check --data <server-game-data.db> [--save <dir>] [--revision <n>] [--worlds <dir> [--one-in <n>]] <recording, dump or folder>..."
     );
     ExitCode::from(2)
+}
+
+/// `--worlds`: where the recordings' uploads are written, and which.
+struct Kept {
+    dir: PathBuf,
+    /// A recording's uploads 0, n, 2n, ... are written.
+    one_in: NonZeroUsize,
+}
+
+impl Kept {
+    /// Writes `upload`, the `k`-th of `recording`, if it is one of those kept.
+    fn write(
+        &self,
+        recording: &Recording,
+        k: usize,
+        upload: &world_check::Upload,
+    ) -> std::io::Result<()> {
+        if k % self.one_in != 0 {
+            return Ok(());
+        }
+        let id = recording.match_id.unwrap_or(0);
+        let name = format!(
+            "match026g_{id:08x}_{}_p{}_u{k}.bin",
+            upload.time, upload.place
+        );
+        std::fs::write(self.dir.join(name), &upload.body)
+    }
 }
 
 /// The recordings and dumps of `input`: itself, or a folder's (not its

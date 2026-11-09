@@ -245,6 +245,12 @@ extern engine_effects_stop
 ; void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener)
 ; 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
 extern engine_effect_play
+; void engine_set_effect_presenter(struct player *player, struct effect_presenter_holder *holder)
+; 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0
+extern engine_set_effect_presenter
+; void engine_effect_player_represent(struct game_effect_player *player)
+; 0x2de560 survarium::game_effect_player::represent: player ESP+4; pops 4
+extern engine_effect_player_represent
 ; struct game_effect_slot *engine_emitter_emit(struct pure_game_effect_emitter *emitter, struct game_effect_slot *out, float first, float second)
 ; virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
 extern engine_emitter_emit
@@ -550,6 +556,14 @@ extern engine_key_name
 ; the IAT slot 0xaeff20 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_activate_keyboard_layout
+; unsigned int engine_get_window_long_a(void *window, unsigned int index)
+; the IAT slot 0xaefe8c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_window_long_a
+; unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)
+; the IAT slot 0xaeff44 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_set_window_long_a
 ; void *engine_get_module_handle_a(const char *name)
 ; the IAT slot 0x87003c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
@@ -563,10 +577,6 @@ extern engine_match_packet_send
 ; void engine_append_packet_bytes(struct buffer_writer *buffer_writer, const unsigned char *source_bytes, unsigned int byte_count)
 ; 0x7ac10 vostok::network_core::buffer_writer::w: buffer_writer ESP+4, source_bytes ESP+8, byte_count EDI; pops 8
 extern engine_append_packet_bytes
-; unsigned int engine_tick_count(void)
-; the IAT slot 0x8701b8 (an import, stdcall)
-; `call [symbol]`: stdcall, it pops its arguments
-extern engine_tick_count
 ; unsigned int engine_set_environment_variable_a(const char *name, const char *value)
 ; the IAT slot 0x87029c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
@@ -589,3 +599,10 @@ extern engine_file_time_to_local_file_time
 ; the IAT slot 0x87022c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_file_time_to_system_time
+; void engine_discard_playing_order(struct lobby_client *client, unsigned int left)
+; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_discard_playing_order
+; void engine_finish_key_binding(struct game_options *options)
+; 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+extern engine_finish_key_binding

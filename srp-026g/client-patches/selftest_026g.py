@@ -1,8 +1,9 @@
 """Self-test of patch_026g.py. Builds every variant from the ORIGINAL 0.26g
 exe (read only), writes the results to SRP_026G_SCRATCH (never the game
-folder) and checks them. Nothing is run and nothing is installed. A
-release runs it (release/release.sh, step 2, its Linux part); it is not a
-check of every change.
+folder) and checks them, each build (and the checks of the tools) in a
+process of its own, on every core (main). Nothing is run and nothing is
+installed. A release runs it (release/release.sh, step 2, its Linux part);
+it is not a check of every change.
 
     python selftest_026g.py [<survarium.exe>]
 
@@ -78,6 +79,7 @@ import itertools
 import csv
 import json
 import math
+import multiprocessing
 import os
 import re
 import shutil
@@ -85,6 +87,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import traceback
 
 import engine_026g
 import patch_026g as P
@@ -426,8 +429,10 @@ def test_pe(original, image, mode):
               "code | execute | read")
     characteristics = struct.unpack_from("<H", data, headers.pe + 22)[0]
     dll = struct.unpack_from("<H", data, headers.optional + 70)[0]
-    check(characteristics == 0x122 and dll == 0x8000,
-          "file characteristics 0x122, DLL characteristics 0x8000 (no ASLR flag), as the original")
+    nx = 0 if mode == "cert-only" else P.IMAGE_DLLCHARACTERISTICS_NX_COMPAT
+    check(characteristics == 0x122 and dll == 0x8000 | nx,
+          f"file characteristics 0x122, DLL characteristics {0x8000 | nx:#x} (the original's 0x8000, no ASLR "
+          "flag; NX_COMPAT except in cert-only)")
 
 
 def test_code(original, image, mode, cave):
@@ -822,10 +827,12 @@ def changed_runs(original, write):
 def bookkeeping(headers):
     """The file offsets of the PE header's counters the section adders keep
     (not a patch's write): the count, SizeOfCode, SizeOfUninitializedData,
-    SizeOfImage, the checksum, the certificate directory."""
+    SizeOfImage, the checksum, the certificate directory, and DllCharacteristics
+    (its NX_COMPAT bit, set by every full build)."""
     out = set()
     for at, size in ((headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
-                     (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 8)):
+                     (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 8),
+                     (headers.dll_characteristics_at, 2)):
         out.update(range(at, at + size))
     return out
 
@@ -2147,7 +2154,7 @@ def lib_required_patches(data):
     is read on the release's Linux machine)."""
     if shutil.which("bash") is None or os.name == "nt":
         return None
-    path = os.path.join(SCRATCH, "required-patches.exe")
+    path = os.path.join(SCRATCH, f"required-patches.{os.getpid()}.exe")   # one per part (main's)
     with open(path, "wb") as out:
         out.write(data)
     lib = os.path.join(HERE, "..", "..", "release", "lib.sh")
@@ -3066,6 +3073,89 @@ def test_windows(path, original_path, mode):
           f"original's ({len(ours or b'')} bytes, sha1 {hashlib.sha1(ours or b'').hexdigest()})")
 
 
+def test_variant(original, source, mode, server):
+    """One build: `mode` with the embedded `server` (or none), checked and
+    written to SCRATCH."""
+    print(f"variant {mode}, embedded server {server}")
+    code = None if mode == "cert-only" else open(P.default_bin(mode), "rb").read()
+    data, description = P.build(original, mode, code, server)
+    print("  " + description)
+    if mode != "cert-only":                            # the variant's own installs, for the stale check
+        P.audit_installs(data, P.WRITES)
+        INSTALLED_SEEN.update(P.installs_of(data, P.WRITES))
+    check(hashlib.sha256(original).hexdigest() == P.EXE_SHA256, "the original in memory is untouched")
+    image = Image(data)
+    cave = b"" if code is None else P.split_code(code)[0]
+    payload = cave if server is None else cave + open(P.default_server_bin(mode), "rb").read() + server.encode("ascii") + b"\0"
+    test_pe(original, image, mode)
+    test_writes(original, data, list(P.APPLIED), f"{mode}, server {server}")
+    if mode == "section":
+        raw, rsize = image.sections[-1][3:5]
+        check(bytes(data[raw:raw + rsize]) == payload + b"\xCC" * (rsize - len(payload)),
+              f"the new section's file data is the cave ({len(payload)} bytes) + int3 padding")
+    test_default_server(original, image, mode, server)
+    test_revision(original, image, mode, P.REVISION_WITHOUT_LATE_JOIN)
+    if mode == "cert-only":
+        if os.path.exists(INSTALLED_CERT_ONLY):
+            check(open(INSTALLED_CERT_ONLY, "rb").read() == bytes(data),
+                  "identical to the survarium_srp.exe installed in step 0 (read only)")
+    else:
+        test_code(original, image, mode, cave)
+    if mode == "section":
+        test_late_join(original, data, server, source)
+    suffix = "" if server is None else (".embedded-max" if len(server) > 63 else ".embedded")
+    path = os.path.join(SCRATCH, f"survarium_srp.{mode}{suffix}.exe")
+    with open(path, "wb") as out:
+        out.write(data)
+    print(f"  written: {path} (sha256 {hashlib.sha256(data).hexdigest()})")
+    test_windows(path, source, mode)
+
+
+def test_calls(original):
+    print("variant section, the arena and the call shapes")
+    test_arena(original)
+    test_engine(original)
+    test_hook_kinds(original)
+    test_apply(original)
+    test_call_shapes_negative(original)
+
+
+# main's checks after test_bins, each in a process of its own (_run_part).
+PARTS = []
+
+
+def install_rows():
+    """The sites of patch_026g.py's install tables and of every Rust hook, as
+    they are now (a build adds to them)."""
+    rows = {row[0] for name, value in vars(P).items() if name.isupper() for row in P._install_rows(value)}
+    return rows | {va for va, _ in P.hooks_026g.install_sites()}
+
+
+def _run_part(index):
+    """PARTS[index], in a process forked from main's after test_bins (so with
+    its caches: the Rust sysroot, the arena's objects): what it printed (fd 1
+    and 2, the tools' output too), its failures, the sites it saw installed
+    and written, the install rows its builds left (install_rows) and its
+    traceback when it stopped."""
+    failures.clear()
+    INSTALLED_SEEN.clear()
+    WRITTEN_SEEN.clear()
+    with tempfile.TemporaryFile() as out:
+        os.dup2(out.fileno(), 1)
+        os.dup2(out.fileno(), 2)
+        # New streams: the forked ones may hold main's unwritten text.
+        sys.stdout = sys.stderr = open(1, "w", buffering=1, encoding="utf-8", closefd=False)
+        stopped = None
+        try:
+            PARTS[index]()
+        except BaseException:                          # sys.exit too: a refusal of build()
+            stopped = traceback.format_exc()
+        sys.stdout.flush()
+        out.seek(0)
+        text = out.read().decode("utf-8", "replace")
+    return text, list(failures), set(INSTALLED_SEEN), set(WRITTEN_SEEN), install_rows(), stopped
+
+
 def main():
     source = sys.argv[1] if len(sys.argv) > 1 else ORIGINAL
     os.environ["SRP_026G_EXE"] = os.path.abspath(source)     # the Rust span hooks' bytes (hooks_026g.py)
@@ -3078,57 +3168,36 @@ def main():
         inside = False
     if inside:
         sys.exit("the scratch directory must not be inside the game folder")
+    # test_bins here first: it links the arena (the Rust sysroot built once,
+    # the objects cached), which every part forked after it then has. The
+    # parts share nothing else but what _run_part hands back (each writes
+    # its own files in SCRATCH): they run on every core, a fresh fork each,
+    # their output printed in this order.
     test_bins()
-    test_late_join_bin()
-    test_server_options(original)
-    print("variant section, the arena and the call shapes")
-    test_arena(original)
-    test_engine(original)
-    test_hook_kinds(original)
-    test_apply(original)
-    test_call_shapes_negative(original)
     variants = [(mode, None) for mode in ("cert-only", "section", "hash-mismatch")]
     variants += [(mode, "026g.skhid.link:1234") for mode in P.CAVES]
     variants += [(mode, "a" * 63 + ":65535") for mode in P.CAVES]
-    for mode, server in variants:
-        print(f"variant {mode}, embedded server {server}")
-        code = None if mode == "cert-only" else open(P.default_bin(mode), "rb").read()
-        data, description = P.build(original, mode, code, server)
-        print("  " + description)
-        if mode != "cert-only":                            # the variant's own installs, for the stale check
-            P.audit_installs(data, P.WRITES)
-            INSTALLED_SEEN.update(P.installs_of(data, P.WRITES))
-        check(hashlib.sha256(original).hexdigest() == P.EXE_SHA256, "the original in memory is untouched")
-        image = Image(data)
-        cave = b"" if code is None else P.split_code(code)[0]
-        payload = cave if server is None else cave + open(P.default_server_bin(mode), "rb").read() + server.encode("ascii") + b"\0"
-        test_pe(original, image, mode)
-        test_writes(original, data, list(P.APPLIED), f"{mode}, server {server}")
-        if mode == "section":
-            raw, rsize = image.sections[-1][3:5]
-            check(bytes(data[raw:raw + rsize]) == payload + b"\xCC" * (rsize - len(payload)),
-                  f"the new section's file data is the cave ({len(payload)} bytes) + int3 padding")
-        test_default_server(original, image, mode, server)
-        test_revision(original, image, mode, P.REVISION_WITHOUT_LATE_JOIN)
-        if mode == "cert-only":
-            if os.path.exists(INSTALLED_CERT_ONLY):
-                check(open(INSTALLED_CERT_ONLY, "rb").read() == bytes(data),
-                      "identical to the survarium_srp.exe installed in step 0 (read only)")
-        else:
-            test_code(original, image, mode, cave)
-        if mode == "section":
-            test_late_join(original, data, server, source)
-        suffix = "" if server is None else (".embedded-max" if len(server) > 63 else ".embedded")
-        path = os.path.join(SCRATCH, f"survarium_srp.{mode}{suffix}.exe")
-        with open(path, "wb") as out:
-            out.write(data)
-        print(f"  written: {path} (sha256 {hashlib.sha256(data).hexdigest()})")
-        test_windows(path, source, mode)
+    PARTS[:] = [test_late_join_bin, lambda: test_server_options(original), lambda: test_calls(original)]
+    PARTS.extend(lambda mode=mode, server=server: test_variant(original, source, mode, server)
+                 for mode, server in variants)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    workers = min(len(PARTS), len(os.sched_getaffinity(0)))
+    with multiprocessing.get_context("fork").Pool(workers, maxtasksperchild=1) as pool:
+        rows = install_rows()
+        for text, failed, installed, written, built, stopped in pool.imap(_run_part, range(len(PARTS))):
+            sys.stdout.write(text)
+            failures.extend(failed)
+            INSTALLED_SEEN.update(installed)
+            WRITTEN_SEEN.update(written)
+            rows |= built
+            if stopped:
+                sys.stdout.write(stopped)
+                check(False, f"stopped: {stopped.strip().splitlines()[-1]} (the traceback above)")
+            sys.stdout.flush()
     stale = sorted(set(P.INSTALLS) - INSTALLED_SEEN)
     check(not stale, f"every INSTALLS row is installed by some variant built here ({len(INSTALLED_SEEN)} sites)"
           + (": stale " + ", ".join(f"{va:#x}" for va in stale) if stale else ""))
-    rows = {row[0] for name, value in vars(P).items() if name.isupper() for row in P._install_rows(value)}
-    rows |= {va for va, _ in P.hooks_026g.install_sites()}
     unwritten = sorted(rows - WRITTEN_SEEN)
     check(not unwritten, f"every row of patch_026g.py's install tables and every Rust hook ({len(rows)}) is written "
           "by some build here" + (": not " + ", ".join(f"{va:#x}" for va in unwritten) if unwritten else ""))

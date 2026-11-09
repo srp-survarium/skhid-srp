@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Storage
 st_aniso_filtering_option	Anisotrope filtering
 st_anomaly_damage_corr_perc_name	Anomaly damage
-st_anomaly_skills_label	Knowledge of the Forest.
+st_anomaly_skills_label	Knowledge of the Forest
 st_antialiasing_option	Antialiasing
 st_antitoxin_description	A complex medicine designed to neutralize poisons and toxins in the human body. To maximize the effect, consume prior to harmful impact. 
 st_antitoxin_name	Antitoxin
@@ -594,6 +594,8 @@ st_change_quest_label	Change task
 st_change_weapon_speed_description	Change weapon swap speed:
 st_change_weapon_speed_name	Deft hands
 st_character	Character
+st_character_decals_1_10_name	Boar hunter
+st_character_decals_1_11_name	Deer hunter
 st_character_decals_1_12_name	Jarilo
 st_character_decals_1_1_name	Literator
 st_character_decals_1_2_name	"Alpha" Squad
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veteran
 st_character_decals_1_6_name	Master
 st_character_decals_1_7_name	Legend
 st_character_decals_1_8_name	Flying Hussars
+st_character_decals_1_9_name	Musician
 st_character_decals_2_1_name	Scavengers rookie
 st_character_decals_2_2_name	Scavengers veteran
 st_character_decals_2_3_name	Black Market Recruit
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Coat of arms of Lithuania
 st_character_decals_5_7_name	Coat of arms of Lithuania
 st_character_decals_5_8_name	Coat of arms of Estonia
 st_character_decals_5_9_name	Coat of arms of Moldova
+st_character_decals_7_10_name	Matchsticks
+st_character_decals_7_23_name	Heart
+st_character_decals_7_24_name	Frightening Pumpkin
 st_character_decals_7_27_name	Clover ornament
 st_character_decals_7_28_name	Horseshoe
+st_character_decals_7_30_name	Homing pigeon
+st_character_decals_7_31_name	Victory
+st_character_decals_7_35_name	Bloody Hand
+st_character_decals_7_37_name	The Keeper
 st_character_decals_7_9_name	Herbs
 st_character_decals_generic_desc	Use decals in the vests and pants window to change their appearance.
 st_characteristics_label	Player stats
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Error adding new players. The clan team already ha
 st_current_value	\nCurrent value:
 st_cz_75_description	Czech self-loading pistol, ammo: 9x19. One of the most copied pistols of the Cold War.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Play everyday and get <highlight>x2</highlight> experience and reputation for the <highlight>first three</highlight> victories.
+st_daily_bonus_description	Every day: <highlight>x2</highlight> experience for the <highlight>first three</highlight> victories.
 st_daily_bonus_hint	Show the welcoming screen
 st_daily_bonus_label	Welcome back
 st_daily_bonus_progress	Your progress for the current day
@@ -2190,6 +2200,31 @@ st_srp_ammo_scar_ap_desc	Armour-piercing 7.62x51 cartridges for the FN SCAR-H. E
 st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20-round pack
 st_srp_ammo_slug	Slug
 st_srp_ammo_stats	Ammo stats
+st_srp_artefact_501_description	Time to collect an artifact:
+st_srp_artefact_501_name	Quick Hands
+st_srp_artefact_502_description	Isolation against anomalies:
+st_srp_artefact_502_name	Resistance
+st_srp_artefact_512_description	Duration of active artifact effects:
+st_srp_artefact_512_name	Knowledge of Artifacts
+st_srp_artefact_513_description	See passive artifacts as a glow on players' legs, your own included.
+st_srp_artefact_513_name	Artifact Sight
+st_srp_artefact_521_description	Start the match with a random artifact in a container; one kind for everyone in the match.
+st_srp_artefact_521_name	Keeper of the Artifacts
+st_srp_artefact_522_description	One pocket becomes an artifact container.
+st_srp_artefact_522_name	Artifact Container
+st_srp_artefact_523_description	Bullet and fragment damage taken inside an anomaly:
+st_srp_artefact_523_name	Forest Protection
+st_srp_artefact_531_description	Each Spring also speeds up reloading: +5% passive, +15% while active.
+st_srp_artefact_531_name	Spring II
+st_srp_artefact_532_description	No fall damage while an Onyx is active.
+st_srp_artefact_532_name	Onyx II
+st_srp_artefact_533_description	Activating a Larkspur restores all energy.
+st_srp_artefact_533_name	Larkspur II
+st_srp_artefact_541_description	Your artifacts' passive effects also work on living teammates within 9 m.
+st_srp_artefact_541_name	Resonance
+st_srp_artefact_542_description	Activated artifacts also work on living teammates within 6 m. "They glow, you shine"
+st_srp_artefact_542_name	Cascade
+st_srp_artefact_points	 points
 st_srp_attachments	Attachments
 st_srp_ban_reason_account_trading	Selling or trying to sell an account.
 st_srp_ban_reason_administration	Decision of the administration.
@@ -2461,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_legs_7_name	Snow-20 Pants
 st_srp_equipment069_snow_20_torso_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_torso_7_name	Snow-20 Vest
-st_srp_exchange_balance	Balance
-st_srp_exchange_button	Exchange
-st_srp_exchange_gold	Gold
-st_srp_exchange_pay	Pay
-st_srp_exchange_receive	Receive
-st_srp_exchange_short_gold	Not enough gold
-st_srp_exchange_short_silver	Not enough silver
-st_srp_exchange_title	Exchange
 st_srp_hide_hit_markers_option	Hide hit markers
 st_srp_hide_quests_option	Hide quests
 st_srp_hide_scores_option	Hide player scores
@@ -2704,6 +2731,7 @@ st_srp_rooms_join_why_4	The match is full.
 st_srp_rooms_join_why_5	Server maintenance soon: no new joins.
 st_srp_rooms_join_why_6	The match is ending: you'll play the next one.
 st_srp_rooms_join_why_7	This match has reached its player limit. You'll join the next match.
+st_srp_rooms_join_why_8	The match can't take players now. You'll join the next match.
 st_srp_rooms_joined_room	%1$s joined the room
 st_srp_rooms_late_hint	Who joins now sees the room, then goes into the match.
 st_srp_rooms_leave	Leave

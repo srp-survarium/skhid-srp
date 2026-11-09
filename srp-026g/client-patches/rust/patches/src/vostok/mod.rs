@@ -34,6 +34,7 @@ pub mod carry_ground;
 pub mod carry_flower;
 mod cell;
 pub mod clock;
+pub mod controller;
 pub mod crc32;
 mod context;
 pub mod draw;
@@ -102,7 +103,7 @@ pub use generated::*;
 pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
-pub use hud_input::{Hud, HudCall, HudView, MainMenu, MatchCursor};
+pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
 pub use world_load::WorldLoad;
@@ -131,11 +132,15 @@ pub mod statistics;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;
+pub mod artefact_skills;
+pub mod keeper;
+pub mod effect;
 pub mod animation_id;
 pub mod deserialize;
 pub mod effect_presenter;
 
 pub mod match_message;
 pub mod packet_recovery;
+pub mod match_close;
 
 mod world_context;

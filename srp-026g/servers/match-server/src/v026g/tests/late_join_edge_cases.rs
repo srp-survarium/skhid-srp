@@ -268,3 +268,57 @@ fn a_growing_roster_prepares_and_catches_up_over_real_udp() {
     }
     net.assert_no_faults();
 }
+
+/// Keeper of the Artifacts' kind is drawn once for the match: every kit of every profile has it
+/// in modifier 40 bits 9..11, a joiner's too, so every game knows it from the static info. The
+/// kits of a joiner taken once the match is in process also carry bit 13 (late: its gift after
+/// its first death); one taken in the countdown chooses its kit as everyone does, so not.
+#[test]
+fn every_profile_and_a_joiner_carry_the_matchs_keeper_draw_the_late_one_bit_13() {
+    fn keeper_bits(bench: &Bench) -> Vec<u32> {
+        let formed = bench.registry.formed(bench.match_id).unwrap();
+        let at = survarium::v026g::skills::modifier_index("artefact_power").unwrap();
+        let draw = u32::from(formed.keeper.draw()) << 9;
+        assert_eq!(formed.profiles.len(), 3);
+        formed
+            .profiles
+            .iter()
+            .map(|profile| {
+                let bits = profile.kits[0].modifiers[at] as u32;
+                let same = profile.kits.iter().all(|kit| kit.modifiers[at] as u32 == bits);
+                assert!(same, "{}", profile.name);
+                assert_eq!(bits & !survarium::v026g::keeper::LATE, draw, "{}", profile.name);
+                bits & survarium::v026g::keeper::LATE
+            })
+            .collect()
+    }
+    let late = survarium::v026g::keeper::LATE;
+
+    // Taken in the countdown: no late joiner.
+    let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    assert!(bench.until(30_000, |b| {
+        b.game().rule_state() == state::COUNTDOWN && b.game().admitting()
+    }));
+    reserve(&mut bench);
+    assert_eq!(keeper_bits(&bench), [0, 0, 0]);
+
+    // Taken in process: late.
+    let mut bench = running();
+    reserve(&mut bench);
+    assert_eq!(keeper_bits(&bench), [0, 0, late]);
+
+    // The phase a join reads is the one the match was in when it said its admission, in the same
+    // record: an admission said in the countdown takes a joiner as the countdown's, whatever
+    // the match says of itself after it.
+    let mut bench = running();
+    let roster = bench.registry.formed(bench.match_id).unwrap().places.len();
+    bench.registry.set_admitting(
+        bench.match_id,
+        roster,
+        Ok(bench.now() + std::time::Duration::from_secs(600)),
+        crate::v026g::registry::LivePhase::Countdown,
+    );
+    reserve(&mut bench);
+    assert_eq!(keeper_bits(&bench), [0, 0, 0]);
+}

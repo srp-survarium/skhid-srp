@@ -72,8 +72,8 @@ vsk_94	VSK-94	Sniper rifles	14		50	30	20	50	60	600	20	2.6	0.3	2.8	0.3–0.4	-0.2
 vsk_94_premium	VSK-94 Guardian	Sniper rifles	14	yes	50	30	20	50	60	600	20	2.6	0.3	2.8	0.3–0.4	-0.2–0.2	0.4	0.15	2	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 svd	SVD	Sniper rifles	15		100	50	30	100	60	250	5	3.1	0.35	4.5	3	0	1	0.05	5	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 svu_a	SVU	Sniper rifles	15		93	50	25	90	60	300	5	3.1	0.28	4.4	2–3	-1–1	1	0.05	5	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
-vssk	VSSK "Vychlop"	Sniper rifles	15		175	70	30	100	60	250	5	4	0.4	7	3	0	1	0.05	10	20	5		Damage, Distance, Dispersion, Reload speed, Chambering time, Weight, Aiming speed, Weapon recoil, Armor penetration
-vssk_camo	SV-1367 Dusk	Sniper rifles	15		175	70	30	100	60	250	5	4	0.4	7	3	0	1	0.05	10	20	5	Chambering time -15%, Aiming speed -10%	Damage, Distance, Dispersion, Reload speed, Weight, Weapon recoil, Armor penetration
+vssk	VSSK "Vychlop"	Sniper rifles	15		175	70	30	100	60	250	5	4	0.4	7	3	0	1	0.05	10	20	5	Aiming speed -10%	Damage, Distance, Dispersion, Reload speed, Chambering time, Weight, Weapon recoil, Armor penetration
+vssk_camo	SV-1367 Dusk	Sniper rifles	15		175	70	30	100	60	250	5	4	0.4	7	3	0	1	0.05	10	20	5	Reload speed +15%	Damage, Distance, Dispersion, Chambering time, Weight, Aiming speed, Weapon recoil, Armor penetration
 toz_34	TOZ-34	Shotguns	1		100	10	10	30	60	240	2	2.5	0.3	3.2	3	0	1	1	2	20	10		Damage, Distance, Dispersion, Weight, Aiming speed, Weapon recoil, Armor penetration
 toz_66	TOZ-66	Shotguns	1		100	10	10	30	60	300	2	2	0.2	1.8	1.5	0	0.5	2	5	10	15		Damage, Distance, Dispersion, Weight, Aiming speed, Weapon recoil, Armor penetration
 izh_27_lancaster	MP-27M Lancaster	Shotguns	2		100	10	10	30	60	240	2	2	0.3	3.2	3	0	1	1	2	20	10		Damage, Distance, Dispersion, Weight, Aiming speed, Weapon recoil, Armor penetration

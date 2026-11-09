@@ -11,6 +11,11 @@ pub enum Outcome {
     Loaded,
     Rejected,
     OptionsRejected,
+    /// A world was refused whose generation could not be read (its reader
+    /// outside its buffer, or no payload). Its `generation` byte is the
+    /// refusal's number on the connection, counted with the handshake
+    /// refusals: the server tells a copy from a new one by it.
+    Unreadable,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,7 +31,7 @@ impl Receipt {
         bytes[..8].copy_from_slice(&MAGIC);
         bytes[8..12].copy_from_slice(&self.match_id.to_le_bytes());
         bytes[12] = self.generation;
-        bytes[13] = match self.outcome { Outcome::Loaded => 0, Outcome::Rejected => 1, Outcome::OptionsRejected => 2 };
+        bytes[13] = match self.outcome { Outcome::Loaded => 0, Outcome::Rejected => 1, Outcome::OptionsRejected => 2, Outcome::Unreadable => 3 };
         bytes[14] = 1;
         bytes
     }
@@ -39,7 +44,7 @@ impl Receipt {
         Some(Self {
             match_id: u32::from_le_bytes(bytes[8..12].try_into().ok()?),
             generation: bytes[12],
-            outcome: match bytes[13] { 0 => Outcome::Loaded, 1 => Outcome::Rejected, 2 => Outcome::OptionsRejected, _ => return None },
+            outcome: match bytes[13] { 0 => Outcome::Loaded, 1 => Outcome::Rejected, 2 => Outcome::OptionsRejected, 3 => Outcome::Unreadable, _ => return None },
         })
     }
 }
@@ -49,7 +54,7 @@ mod tests {
     use super::*;
     #[test]
     fn receipts_are_exact_and_separate_from_uploads_and_resource_acks() {
-        for outcome in [Outcome::Loaded, Outcome::Rejected, Outcome::OptionsRejected] {
+        for outcome in [Outcome::Loaded, Outcome::Rejected, Outcome::OptionsRejected, Outcome::Unreadable] {
             for generation in [0, 127, 128, 255] {
                 let receipt = Receipt { match_id: 0x81234567, generation, outcome };
                 let bytes = receipt.encode();

@@ -21,6 +21,8 @@ REGISTER['ebp']=UC_X86_REG_EBP
 def bits(value): return struct.unpack('<I',struct.pack('<f',value))[0]
 def close(a,b): assert abs(a-b)<0.0001,(a,b)
 
+LOG_OPEN_SLOT = 0x870048                  # CreateFileA's import slot (the patches' log)
+
 class MedicalGame(Game):
     def __init__(self,data,padding=0):
         super().__init__(data)
@@ -34,6 +36,8 @@ class MedicalGame(Game):
         self.emu.mem_write(self.emit_stub,b'\xc2\x0c\x00')
         self.emu.hook_add(UC_HOOK_CODE,self.emit,begin=self.emit_stub,end=self.emit_stub)
         self.emu.hook_add(UC_HOOK_CODE,self.effect,begin=0x2de090,end=0x2de090)
+        # The patches' log (srp_patches.log): CreateFileA fails (mov eax,-1; ret 1Ch), nothing written.
+        self.emu.mem_write(STOP+0x2100,b'\xb8\xff\xff\xff\xff\xc2\x1c\x00');self.word(LOG_OPEN_SLOT,STOP+0x2100)
         self.core=self.block(0x19000)
         self.places=self.block(20*0x30)
         self.word(self.core+0x18458,self.places)
@@ -133,8 +137,8 @@ def check_particle_capacity(data):
     g.word(query+0xf8,fallback)
     for requested,override,initial,expected in [
         ('artefact_lifebone',None,1,20),('artefact_lifebone',None,30,30),
-        ('artefact_onyx',None,1,1),('artefact_lifebone','artefact_spring',1,1),
-        ('unused','artefact_lifebone',1,20)]:
+        ('artefact_onyx',None,1,20),('artefact_lifebone','artefact_spring',1,20),('artefact_spring',None,1,20),
+        ('artefact_rattle',None,1,1),('unused','artefact_lifebone',1,20)]:
         g.emu.mem_write(fallback,requested.encode()+b'\0')
         g.word(query+0xfc,resolved if override else 0)
         if override:g.emu.mem_write(resolved,override.encode()+b'\0')
@@ -230,7 +234,8 @@ def run(data,padding=0,kit=0):
     assert g.emu.mem_read(PLAYER+0x33e,1)==b'\1'
     g.emu.mem_write(PLAYER+0x33e,b'\0');g.step(0x32a28b,8,xmm=.1,ebp=body)
     assert g.emu.mem_read(PLAYER+0x33e,1)==b'\1'
-    ally=g.player(1,0,(3,4,0));far=g.player(2,0,(5.01,0,0));enemy=g.player(3,1,(1,0,0));dead=g.player(4,0,(1,0,0))
+    # Medic is Cascade's Larkspur share: Cascade's 6 m (was 5 m), the edge included.
+    ally=g.player(1,0,(0,6,0));far=g.player(2,0,(6.01,0,0));enemy=g.player(3,1,(1,0,0));dead=g.player(4,0,(1,0,0))
     g.emu.mem_write(dead+0x33c,b'\0')
     hit=g.block(0x50);owner=g.block(0x20);g.word(hit+0x20,owner)
     g.ranks(2<<21)

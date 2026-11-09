@@ -500,6 +500,7 @@ checksum = "7277c9742229dc25243236d578b6471a798c554512c6f6a04365ec2e87c2a3bb"
 name = "mapdata"
 version = "0.1.0"
 dependencies = [
+ "artefact-carry",
  "binary-config-parser",
  "clap",
  "resources-db 0.1.0 (git+https://github.com/srp-survarium/vostok-resources-db?rev=9498aca14014ef74460429f51eb41a6af333522c)",
@@ -832,6 +833,7 @@ dependencies = [
 name = "srp"
 version = "0.1.0"
 dependencies = [
+ "ban-reason",
  "ctrlc",
  "lobby-server",
  "log",

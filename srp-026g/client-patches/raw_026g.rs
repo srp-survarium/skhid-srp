@@ -123,6 +123,10 @@ unsafe extern "C" {
     pub fn engine_effects_stop(effects: Option<GameEffectList>);
     /// 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
     pub fn engine_effect_play(player: Option<GameEffectPlayer>, effect: Option<GameEffectSlot>, second: u32, third: u32, fourth: u32, listener: Option<GameEffectListener>);
+    /// 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0
+    pub fn engine_set_effect_presenter(player: Option<Player>, holder: Option<EffectPresenterHolder>);
+    /// 0x2de560 survarium::game_effect_player::represent: player ESP+4; pops 4
+    pub fn engine_effect_player_represent(player: Option<GameEffectPlayer>);
     /// virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
     pub fn engine_emitter_emit(emitter: Option<PureGameEffectEmitter>, out: Option<GameEffectSlot>, first: f32, second: f32) -> Option<GameEffectSlot>;
     /// virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4
@@ -235,6 +239,8 @@ unsafe extern "C" {
     pub fn engine_show_scene_movie(scene: Option<GameWorld>, movie: Option<MovieSlot>);
     /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
     pub fn engine_hide_scene_movie(movie: Option<MovieSlot>, scene: Option<GameWorld>);
+    /// 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+    pub fn engine_finish_key_binding(options: Option<GameOptions>);
 }
 
 #[allow(dead_code)]
@@ -249,6 +255,8 @@ unsafe extern "stdcall" {
     pub fn engine_detach_voice(propagator: Option<NewSoundPropagator>);
     /// 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
     pub fn engine_finish_query(query: Option<QueryResultForCook>, result: u32, assert_on_fail: u32, error: u32);
+    /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+    pub fn engine_discard_playing_order(client: Option<LobbyClient>, left: u32);
 }
 
 #[allow(dead_code)]
@@ -413,10 +421,12 @@ unsafe extern "C" {
     pub static engine_find_close: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0xaeff20 (an import, stdcall): unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
     pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
+    /// the IAT slot 0xaefe8c (an import, stdcall): unsigned int engine_get_window_long_a(void *window, unsigned int index)
+    pub static engine_get_window_long_a: unsafe extern "stdcall" fn(*mut c_void, u32) -> u32;
+    /// the IAT slot 0xaeff44 (an import, stdcall): unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)
+    pub static engine_set_window_long_a: unsafe extern "stdcall" fn(*mut c_void, u32, u32) -> u32;
     /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)
     pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
-    /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_tick_count(void)
-    pub static engine_tick_count: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x87029c (an import, stdcall): unsigned int engine_set_environment_variable_a(const char *name, const char *value)
     pub static engine_set_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *const u8) -> u32;
     /// the IAT slot 0x870244 (an import, stdcall): void engine_get_system_time_as_file_time(unsigned int *file_time)
@@ -563,6 +573,15 @@ impl GameWorld {
     pub unsafe fn ui(self) -> GameWorldUi {
         GameWorldUi(unsafe { self.0.byte_add(0x1fc) })
     }
+
+    /// +0x4e20 (u8): 1 while a level loads: game_world::load sets it (0x1F8CB4), set_game_project clears it after switch_to_game_world (0x1F862F), and on_project_loaded's abort (0x1F8B14)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn loading(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4e20).cast::<u8>().as_ptr() }
+    }
 }
 
 /// A survarium::game (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -660,7 +679,7 @@ impl Game {
         unsafe { self.0.byte_add(0x53a4).cast::<Option<ItemsDictionary>>().write_volatile(value) }
     }
 
-    /// +0x18 (obj<survarium::game_world>): the game world, inside the game: game::game constructs it in place (lea eax,[ebx+18h] / call 0x1F67B0 at 0x1E909F); the same one every match
+    /// +0x18 (obj<survarium::game_world>): the game world, inside the game: game::game constructs it in place (lea eax,[ebx+18h] / call 0x1F67B0 at 0x1E909F); the same one every match; its match (+4D4Ch, a counted reference) is 0 from the constructor (0x1F68A2), set at 0x1F9766 and 0 again at 0x1F8B64, for a live and a replay match alike
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -772,6 +791,33 @@ impl NetworkClient {
     #[inline(always)]
     pub unsafe fn world_generation(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x1f1c68).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x14 (ptr<survarium::game>): the game (on_finish_match's world is [this+14h]+18h, close_current_match 0x27A941; switch_to_level_loading's lobby menu [+14h]+5390h, 0x27BE95)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game(self) -> Option<Game> {
+        unsafe { self.0.byte_add(0x14).cast::<Option<Game>>().read_volatile() }
+    }
+
+    /// +0x14 (ptr<survarium::game>): the game (on_finish_match's world is [this+14h]+18h, close_current_match 0x27A941; switch_to_level_loading's lobby menu [+14h]+5390h, 0x27BE95)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game(self, value: Option<Game>) {
+        unsafe { self.0.byte_add(0x14).cast::<Option<Game>>().write_volatile(value) }
+    }
+
+    /// +0x1f1c60 (u32): the time rule's state the client keeps: 0 until the first tick played after the first world (written by the time rule at 0x267AFB), 1 waiting, 2 the countdown, 3 in play; 0 again at a close (0x27A7CF, 0x27B12C); close_current_match does nothing while it is 0 (0x27A7A4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn play_state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1f1c60).cast::<u32>().as_ptr() }
     }
 }
 
@@ -1243,6 +1289,42 @@ impl Player {
     #[inline(always)]
     pub unsafe fn look_pitch(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x48c).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x6c0 (obj<survarium::player_stamina>): the embedded stamina (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn stamina(self) -> PlayerStamina {
+        PlayerStamina(unsafe { self.0.byte_add(0x6c0) })
+    }
+
+    /// +0x2e4 (u8): the damage zones it is inside: damage_zone_core's enter adds one (inc 0x319967), its leave takes one (dec 0x31980B); a hit with an owner reads it (0x332833) before incoming_weapon_damage_in_anomaly (modifier 41) multiplies the damage
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn damage_zones(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2e4).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xf478 (ptr<survarium::player_presenters>): where the places' third-person presenters are held (player::initialize 0x1F256D: +22CCh + place x 220h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn presenters(self) -> Option<PlayerPresenters> {
+        unsafe { self.0.byte_add(0xf478).cast::<Option<PlayerPresenters>>().read_volatile() }
+    }
+
+    /// +0xf478 (ptr<survarium::player_presenters>): where the places' third-person presenters are held (player::initialize 0x1F256D: +22CCh + place x 220h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_presenters(self, value: Option<PlayerPresenters>) {
+        unsafe { self.0.byte_add(0xf478).cast::<Option<PlayerPresenters>>().write_volatile(value) }
     }
 }
 
@@ -4864,6 +4946,42 @@ impl GameEffectPlayer {
     pub unsafe fn effects(self) -> GameEffectList {
         GameEffectList(unsafe { self.0.byte_add(0x8) })
     }
+
+    /// +0x2c (ptr<survarium::medical_effect_node>): the first of the effects it plays (add 0x2DE090 links a new one after +30h's, remove 0x2DE350 walks them from here)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> Option<MedicalEffectNode> {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<MedicalEffectNode>>().read_volatile() }
+    }
+
+    /// +0x2c (ptr<survarium::medical_effect_node>): the first of the effects it plays (add 0x2DE090 links a new one after +30h's, remove 0x2DE350 walks them from here)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first(self, value: Option<MedicalEffectNode>) {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<MedicalEffectNode>>().write_volatile(value) }
+    }
+
+    /// +0x38 (ptr<survarium::effect_presenter_holder>): where the effects it plays are presented: the holder set_effect_presenter 0x1F3740 last gave (its owner player's +390h; the owner's own default +3A8h before any)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn presenter(self) -> Option<EffectPresenterHolder> {
+        unsafe { self.0.byte_add(0x38).cast::<Option<EffectPresenterHolder>>().read_volatile() }
+    }
+
+    /// +0x38 (ptr<survarium::effect_presenter_holder>): where the effects it plays are presented: the holder set_effect_presenter 0x1F3740 last gave (its owner player's +390h; the owner's own default +3A8h before any)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_presenter(self, value: Option<EffectPresenterHolder>) {
+        unsafe { self.0.byte_add(0x38).cast::<Option<EffectPresenterHolder>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::game_effect (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -4914,6 +5032,24 @@ impl GameEffect {
     #[inline(always)]
     pub unsafe fn length(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x24).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x10 (ptr<survarium::medical_effect_resource>): the game effect resource that emitted it (game_effect_resource::emit 0x329072)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> Option<MedicalEffectResource> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<MedicalEffectResource>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::medical_effect_resource>): the game effect resource that emitted it (game_effect_resource::emit 0x329072)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_resource(self, value: Option<MedicalEffectResource>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
     }
 }
 
@@ -5631,6 +5767,78 @@ impl Artefact {
     #[inline(always)]
     pub unsafe fn rattle_callback(self) -> ArtefactClient {
         ArtefactClient(unsafe { self.0.byte_add(0x340) })
+    }
+
+    /// +0x0 (ptr<survarium::medical_vtable>): an inventory slot's artefact's (core) virtual table: its +80h enable_active names the kind (Onyx 0x3128C0, Lifebone 0x312250)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> Option<MedicalVtable> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MedicalVtable>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::medical_vtable>): an inventory slot's artefact's (core) virtual table: its +80h enable_active names the kind (Onyx 0x3128C0, Lifebone 0x312250)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_vtable(self, value: Option<MedicalVtable>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MedicalVtable>>().write_volatile(value) }
+    }
+
+    /// +0x0 (obj<survarium::skill_spring>): itself as a Spring: only after its vtable's enable_active is Spring's (0x3118D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn spring(self) -> SkillSpring {
+        SkillSpring(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x0 (obj<survarium::skill_lifebone>): itself as a Lifebone: only after its vtable's enable_active is Lifebone's (0x312250)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn lifebone(self) -> SkillLifebone {
+        SkillLifebone(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x0 (obj<survarium::skill_onyx>): itself as an Onyx: only after its vtable's enable_active is Onyx's (0x3128C0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn onyx(self) -> SkillOnyx {
+        SkillOnyx(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x27c (u16): the count the anomaly's spawn gives it (artefact_base::on_spawned 0x3134C0: 0xFFFF is 1); set by the constructor from its config (0x3130C4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn default_count(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x27c).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x28c (u32): ms of its cooldown left (tick 0x313213 counts it down outside state 4; action 0x313313 needs 0); the spawn sets 0 (0x313518)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cooldown_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x2a0 (u32): the time its active began: the constructor writes u32::MAX (0x313059), action writes the time (0x313333); read only in state 4 (deserialize 0x313860), in every world in every state (serialize 0x313735, deserialize 0x3137F7), no other code writes it; patch 109 writes 0 at a Keeper gift (its mark: given)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_since(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2a0).cast::<u32>().as_ptr() }
     }
 }
 
@@ -6546,6 +6754,15 @@ impl CoreWorld {
     #[inline(always)]
     pub unsafe fn set_statistics(self, value: Option<BaseGameStatisticsHandler>) {
         unsafe { self.0.byte_add(0x18fa8).cast::<Option<BaseGameStatisticsHandler>>().write_volatile(value) }
+    }
+
+    /// +0x18fe4 (u32): the time rule's state: 1 waiting, 2 the countdown, 3 in process (written at each change, 0x317EFC / 0x318291 / 0x31816B, and by deserialize 0x318025)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time_state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18fe4).cast::<u32>().as_ptr() }
     }
 
     /// +0x18b4c (ptr<survarium::inventory_slot>): the active objects by registry id (a buffer_vector's begin: bind_to_game_core 0x2E3102 appends; base_player::deserialize resolves held 0x2DB644)
@@ -7846,6 +8063,15 @@ impl LobbyClient {
     #[inline(always)]
     pub unsafe fn messaging(self) -> MessagingClient {
         MessagingClient(unsafe { self.0.byte_add(0x1e56c4) })
+    }
+
+    /// +0x1e5790 (u32): what the lobby says the client is: the 0x85's first byte (read_status_info 0x270112: 0 the lobby, 1 the queue, 2 in a match), 2 at the 0x82 connect (0x274A95), 4 from the constructor (0x26F182); on_project_loaded aborts the load at 0 (0x1F8AF3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn status(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1e5790).cast::<u32>().as_ptr() }
     }
 }
 
@@ -9980,6 +10206,24 @@ impl QueriesResult {
     pub unsafe fn results(self) -> QueryResult {
         QueryResult(unsafe { self.0.byte_add(0x12c) })
     }
+
+    /// +0x12c (ptr<survarium::medical_effect_resource>): the first query's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources 0x311396 reads its own result there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn effect(self) -> Option<MedicalEffectResource> {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<MedicalEffectResource>>().read_volatile() }
+    }
+
+    /// +0x12c (ptr<survarium::medical_effect_resource>): the first query's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources 0x311396 reads its own result there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_effect(self, value: Option<MedicalEffectResource>) {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::allocator_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -10526,6 +10770,24 @@ impl QueryResult {
     #[inline(always)]
     pub unsafe fn set_inventory(self, value: Option<Inventory>) {
         unsafe { self.0.byte_add(0x0).cast::<Option<Inventory>>().write_volatile(value) }
+    }
+
+    /// +0x0 (ptr<survarium::medical_effect_resource>): the result's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources reads its own result there, 0x311396)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn effect(self) -> Option<MedicalEffectResource> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MedicalEffectResource>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::medical_effect_resource>): the result's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources reads its own result there, 0x311396)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_effect(self, value: Option<MedicalEffectResource>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
     }
 
     /// 0x2e0 bytes: 2E0h bytes a result
@@ -11579,6 +11841,24 @@ impl PlayerParamsModifiersContainer {
     pub unsafe fn combo_ranks(self) -> *mut f32 {
         unsafe { self.0.byte_add(0xb4).cast::<f32>().as_ptr() }
     }
+
+    /// +0xa0 (f32): modifier 40 artefact_power (no getter call, no code reference to its name, no config sets it): the artefact tree's packed skills; artefact-skills.md
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn artefact_ranks(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xa0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x110 (obj<survarium::modifier_list>): its node lists, the index's at +110h + index x 14h (the getters 0x2D5AE0, 0x2D5BC0; a Spring links its nodes there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn lists(self) -> ModifierList {
+        ModifierList(unsafe { self.0.byte_add(0x110) })
+    }
 }
 
 /// A survarium::medical_hit (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -11815,6 +12095,24 @@ impl MedicalPool {
     #[inline(always)]
     pub unsafe fn previous_health(self) -> *mut f32 {
         unsafe { self.0.byte_add(0xb4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x80 (ptr<u8>): the part's name, a C string (find_pool 0x2E58C0 compares it; body_part::regenerate hands it to each regeneration modifier at 0x32A505)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x80).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x80 (ptr<u8>): the part's name, a C string (find_pool 0x2E58C0 compares it; body_part::regenerate hands it to each regeneration modifier at 0x32A505)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x80).cast::<*mut u8>().write_volatile(value) }
     }
 }
 
@@ -12376,6 +12674,42 @@ impl MedicalEffectNode {
     pub unsafe fn start(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
     }
+
+    /// +0x4c (ptr<survarium::medical_effect_node>): the next effect of its player (0 the last; add 0x2DE32E, remove 0x2DE364)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<MedicalEffectNode> {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<MedicalEffectNode>>().read_volatile() }
+    }
+
+    /// +0x4c (ptr<survarium::medical_effect_node>): the next effect of its player (0 the last; add 0x2DE32E, remove 0x2DE364)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<MedicalEffectNode>) {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<MedicalEffectNode>>().write_volatile(value) }
+    }
+
+    /// +0x30 (ptr<survarium::game_effect_listener>): the time calculator it was added with (add's last argument, the node's constructor 0x2DD7C3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn calculator(self) -> Option<GameEffectListener> {
+        unsafe { self.0.byte_add(0x30).cast::<Option<GameEffectListener>>().read_volatile() }
+    }
+
+    /// +0x30 (ptr<survarium::game_effect_listener>): the time calculator it was added with (add's last argument, the node's constructor 0x2DD7C3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_calculator(self, value: Option<GameEffectListener>) {
+        unsafe { self.0.byte_add(0x30).cast::<Option<GameEffectListener>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::medical_clock_result (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -12441,6 +12775,24 @@ impl PlayerStamina {
     #[inline(always)]
     pub unsafe fn player(self) -> Player {
         Player(unsafe { self.0.byte_sub(0x6c0) })
+    }
+
+    /// +0x0 (f32): the most stamina: player_stamina::regenerate clamps current to it (0x329925 movss xmm1,[edi])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn maximum(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x6c (f32): the stamina now, 0..maximum (regenerate writes it at 0x329938 / 0x32994F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn current(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x6c).cast::<f32>().as_ptr() }
     }
 }
 
@@ -14992,6 +15344,33 @@ impl GenericAnomalyCore {
     pub unsafe fn set_states_end(self, value: *mut u8) {
         unsafe { self.0.byte_add(0x6c).cast::<*mut u8>().write_volatile(value) }
     }
+
+    /// +0x140 (u32): its artefact containers' vector begin (spawn_artefact 0x31B70B: (end - begin) / 4 containers); equal to the end: no container, it never spawns an artefact
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn containers_begin(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x140).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x144 (u32): its artefact containers' vector end (spawn_artefact 0x31B70B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn containers_end(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x144).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1b4 (u32): its pool's artefacts (register_artefacts 0x31B8EB, 0x31B97F): the cook makes count of each config artefacts entry, registered in that order
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pool_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1b4).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::rule_entry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -15272,6 +15651,15 @@ impl GameOptions {
     pub unsafe fn set_game(self, value: Option<Game>) {
         unsafe { self.0.byte_add(0x34).cast::<Option<Game>>().write_volatile(value) }
     }
+
+    /// +0x3c (u32): the action whose key the menu's key-binding settings wait for: start_bind_key sets it (scaleform_callback 0x1FF8A3, as it takes the menu's cursor movie +10h off the scene at 0x1FF8A9), finish_binding (0x2015A0), its copies (0x201722, 0x201800) and a conflict's message (0x20134F) set it to 48h, none, as the constructor does (0x1FFA13); deactivate leaves it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn awaited_action(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x3c).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::movie_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -15499,6 +15887,1172 @@ impl LoginStatusFrame {
     }
 }
 
+/// A survarium::spring_reload_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpringReloadFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SpringReloadFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::skill_spring>): artefact.spring_reload's argument (by the site ESP, the return address at +0): the Spring whose passive is linked
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn spring(self) -> Option<SkillSpring> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<SkillSpring>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::skill_spring>): artefact.spring_reload's argument (by the site ESP, the return address at +0): the Spring whose passive is linked
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_spring(self, value: Option<SkillSpring>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<SkillSpring>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::artefact_fire_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArtefactFireFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ArtefactFireFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::artefact>): artefact.fire's first argument (by the site ESP, the return address at +0): a copy patch 54's press would fire (state 3, cooldown 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn artefact(self) -> Option<Artefact> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Artefact>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::artefact>): artefact.fire's first argument (by the site ESP, the return address at +0): a copy patch 54's press would fire (state 3, cooldown 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_artefact(self, value: Option<Artefact>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Artefact>>().write_volatile(value) }
+    }
+
+    /// +0x8 (u32): its second: pushed 1; 0 written for a copy past the 4 of its kind that count for its holder (it does not fire and stays ready)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn fires(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::skill_spring (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkillSpring(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkillSpring {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (obj<survarium::item>): the Spring's inventory item (its inventory +250h, holder +174h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn item(self) -> Item {
+        Item(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x394 (u32): its active's milliseconds: enable_active 0x3118D0 writes trunc(+390h config x modifier 39) at 0x31193B, disable_active 0x311970 zeroes it; set when artefact_base::action's activation hook (0x313333) runs
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x394).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x3e4 (f32): Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn passive_reload(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x3e4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x3f4 (f32): Spring II's active reload node's value (patch 54's node at +3E8h, list 13)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_reload(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x3f4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x340 (obj<survarium::modifier_node>): its config's five native nodes (the loader 0x33ACF0, ESI = +340h): +340h and +350h the passive's (movement 4; aim 49, patch 54's), +360h, +370h, +380h the active's (4, 3, 19)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first_node(self) -> ModifierNode {
+        ModifierNode(unsafe { self.0.byte_add(0x340) })
+    }
+
+    /// +0x3b8 (obj<survarium::modifier_node>): patch 54's four nodes (artefacts_026g.asm): +3B8h and +3C8h the active's (aim 49, stopping 42), +3D8h the passive's reload (13), +3E8h the active's reload (13)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn added_node(self) -> ModifierNode {
+        ModifierNode(unsafe { self.0.byte_add(0x3b8) })
+    }
+}
+
+/// A vostok::engine::engine_world_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EngineWorldSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EngineWorldSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::engine::engine_world>): the engine world (0 before the engine runs and after)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world(self) -> Option<EngineWorld> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<EngineWorld>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::engine::engine_world>): the engine world (0 before the engine runs and after)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_world(self, value: Option<EngineWorld>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<EngineWorld>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::engine::engine_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EngineWorld(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EngineWorld {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x2d0 (ptr<survarium::game>): the game: 0 from the constructor (0x138D6), the game module's factory's result at 0x19E58; message_processor calls its slot 44h (game::is_text_input_focused 0x1EE7C0, ECX the game, its +586Ch) through it at 0x1835F
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game(self) -> Option<Game> {
+        unsafe { self.0.byte_add(0x2d0).cast::<Option<Game>>().read_volatile() }
+    }
+
+    /// +0x2d0 (ptr<survarium::game>): the game: 0 from the constructor (0x138D6), the game module's factory's result at 0x19E58; message_processor calls its slot 44h (game::is_text_input_focused 0x1EE7C0, ECX the game, its +586Ch) through it at 0x1835F
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game(self, value: Option<Game>) {
+        unsafe { self.0.byte_add(0x2d0).cast::<Option<Game>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::modifier_node (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModifierNode(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ModifierNode {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): the index of the kit list it is linked into (+110h + index x 14h; the getter 0x2D5AE0 sums a list's values)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn index(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (f32): its value (0x2D5B20 adds it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x4 (ptr<survarium::modifier_node>): the next node of its list, 0 after the last (the getter's loop 0x2D5B25)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<ModifierNode> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ModifierNode>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::modifier_node>): the next node of its list, 0 after the last (the getter's loop 0x2D5B25)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<ModifierNode>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ModifierNode>>().write_volatile(value) }
+    }
+
+    /// 0x10 bytes: a node {prev, next, index, value} (the loader writes one each 10h from +340h)
+    pub const SIZE: usize = 0x10;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::modifier_nodes (0x10 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ModifierNodeStorage([u8; 0x10]);
+
+#[allow(dead_code)]
+impl ModifierNodeStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x10])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ModifierNode {
+        ModifierNode(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ModifierNode> {
+        (!rooms.is_empty()).then(|| ModifierNode(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::modifier_list (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModifierList(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ModifierList {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::modifier_node>): a kit list's first node, 0 for none (apply_modifier 0x2D5B0C, apply_modifiers 0x2D5C46)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> Option<ModifierNode> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ModifierNode>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::modifier_node>): a kit list's first node, 0 for none (apply_modifier 0x2D5B0C, apply_modifiers 0x2D5C46)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first(self, value: Option<ModifierNode>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ModifierNode>>().write_volatile(value) }
+    }
+
+    /// 0x14 bytes: one of a kit's 68 node lists, 14h each from its modifiers' +110h (0x2D5AF2 lea edi,[eax+ecx*4+110h], ecx index x 5)
+    pub const SIZE: usize = 0x14;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::modifier_lists (0x14 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ModifierListStorage([u8; 0x14]);
+
+#[allow(dead_code)]
+impl ModifierListStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x14])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ModifierList {
+        ModifierList(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ModifierList> {
+        (!rooms.is_empty()).then(|| ModifierList(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::skill_lifebone (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkillLifebone(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkillLifebone {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x494 (u32): its active's milliseconds (medical_artefact's active_remaining, set by enable_active before the effect at 0x312362)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x494).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x354 (ptr<survarium::lifebone_regeneration>): its passive's records begin, one a part (enable_passive_effects 0x3121F0: each record's part found by its name, a node at +490h + i x 28h linked into the part's regeneration modifiers +2E8h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn regeneration(self) -> Option<LifeboneRegeneration> {
+        unsafe { self.0.byte_add(0x354).cast::<Option<LifeboneRegeneration>>().read_volatile() }
+    }
+
+    /// +0x354 (ptr<survarium::lifebone_regeneration>): its passive's records begin, one a part (enable_passive_effects 0x3121F0: each record's part found by its name, a node at +490h + i x 28h linked into the part's regeneration modifiers +2E8h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_regeneration(self, value: Option<LifeboneRegeneration>) {
+        unsafe { self.0.byte_add(0x354).cast::<Option<LifeboneRegeneration>>().write_volatile(value) }
+    }
+
+    /// +0x358 (ptr<survarium::lifebone_regeneration>): their end (34h a record, 0x3121BC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn regeneration_end(self) -> Option<LifeboneRegeneration> {
+        unsafe { self.0.byte_add(0x358).cast::<Option<LifeboneRegeneration>>().read_volatile() }
+    }
+
+    /// +0x358 (ptr<survarium::lifebone_regeneration>): their end (34h a record, 0x3121BC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_regeneration_end(self, value: Option<LifeboneRegeneration>) {
+        unsafe { self.0.byte_add(0x358).cast::<Option<LifeboneRegeneration>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::lifebone_regeneration (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LifeboneRegeneration(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LifeboneRegeneration {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<u8>): the part's name (enable_passive_effects 0x3121F6 finds the part by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): the part's name (enable_passive_effects 0x3121F6 finds the part by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x1c (f32): the callback 0x312590 (body_part::regenerate's rate, delay, limit at 0x32A530): rate = (rate + this) x rate_mul
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rate_add(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x1c).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x20 (f32): the rate's factor
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rate_mul(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x20).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x24 (f32): seconds: delay = (delay + this x 1000 (0xA746B8)) x delay_mul, truncated (0x3125AD..0x3125E7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn delay_add(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x24).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x28 (f32): the delay's factor
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn delay_mul(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x28).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x2c (f32): limit = (limit + this) x limit_mul (0x3125EA..0x3125FD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn limit_add(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x2c).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x30 (f32): the limit's factor
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn limit_mul(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x30).cast::<f32>().as_ptr() }
+    }
+
+    /// 0x34 bytes: a record (0x3121CD's /34h, 0x312232 add ebp,34h)
+    pub const SIZE: usize = 0x34;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::lifebone_regenerations (0x34 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct LifeboneRegenerationStorage([u8; 0x34]);
+
+#[allow(dead_code)]
+impl LifeboneRegenerationStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x34])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> LifeboneRegeneration {
+        LifeboneRegeneration(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<LifeboneRegeneration> {
+        (!rooms.is_empty()).then(|| LifeboneRegeneration(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::skill_onyx (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkillOnyx(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkillOnyx {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc90 (ptr<survarium::onyx_part>): its config's protected parts begin (enable_passive_effects 0x312860: each part found by its name gets a protector of protect 0x312BF0 at +340h + i x 70h, linked into the part's protectors +0BCh)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn parts(self) -> Option<OnyxPart> {
+        unsafe { self.0.byte_add(0xc90).cast::<Option<OnyxPart>>().read_volatile() }
+    }
+
+    /// +0xc90 (ptr<survarium::onyx_part>): its config's protected parts begin (enable_passive_effects 0x312860: each part found by its name gets a protector of protect 0x312BF0 at +340h + i x 70h, linked into the part's protectors +0BCh)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_parts(self, value: Option<OnyxPart>) {
+        unsafe { self.0.byte_add(0xc90).cast::<Option<OnyxPart>>().write_volatile(value) }
+    }
+
+    /// +0xc94 (ptr<survarium::onyx_part>): their end (1Ch a part, the constructor 0x31273C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn parts_end(self) -> Option<OnyxPart> {
+        unsafe { self.0.byte_add(0xc94).cast::<Option<OnyxPart>>().read_volatile() }
+    }
+
+    /// +0xc94 (ptr<survarium::onyx_part>): their end (1Ch a part, the constructor 0x31273C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_parts_end(self, value: Option<OnyxPart>) {
+        unsafe { self.0.byte_add(0xc94).cast::<Option<OnyxPart>>().write_volatile(value) }
+    }
+
+    /// +0xf14 (u32): its active's milliseconds left: enable_active 0x3128C0 writes trunc(+F10h x modifier 39), tick_impl 0x3127E0 counts it down; patch 54's fire_kind adds 1 s for each other Onyx fired after every activation of the press
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xf14).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xee8 (u32): the hit type it protects against (protect 0x312BF0 compares the hit's +1Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn hit_kind(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xee8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xeec (f32): its passive (state 3): damage = (damage + this) x passive_damage_mul (0x312C10)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn passive_damage_add(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xeec).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xef0 (f32): the passive's damage factor
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn passive_damage_mul(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xef0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xef4 (f32): piercing = (piercing + this) x passive_piercing_mul (0x312C2C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn passive_piercing_add(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xef4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xef8 (f32): the passive's piercing factor
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn passive_piercing_mul(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xef8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xefc (f32): its active: damage - min(absorb, damage - (damage + this) x active_damage_mul) (0x312C47..0x312C99)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_damage_add(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xefc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xf00 (f32): the active's damage factor
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_damage_mul(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xf00).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xf04 (f32): piercing = (piercing + this) x active_piercing_mul (0x312CA1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_piercing_add(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xf04).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xf08 (f32): the active's piercing factor
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_piercing_mul(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xf08).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xf18 (f32): the most an active takes off a hit: absorb_total (+0F0Ch) from enable_active (0x312934), only read by protect (0x312C77)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn absorb(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xf18).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::onyx_part (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OnyxPart(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl OnyxPart {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<u8>): the part's name (enable_passive_effects 0x31286A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): the part's name (enable_passive_effects 0x31286A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// 0x1c bytes: a part's record (0x312736..0x31274B: /1Ch)
+    pub const SIZE: usize = 0x1c;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::onyx_parts (0x1c bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct OnyxPartStorage([u8; 0x1c]);
+
+#[allow(dead_code)]
+impl OnyxPartStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x1c])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> OnyxPart {
+        OnyxPart(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<OnyxPart> {
+        (!rooms.is_empty()).then(|| OnyxPart(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::damage_cell (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DamageCell(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DamageCell {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (f32): a hit's damage or piercing, a float the caller owns (body_part_parameters::hit_by_type's &damage EBX, &piercing ESP+144h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::protectors_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProtectorsFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ProtectorsFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x144 (ptr<survarium::damage_cell>): hit_by_type's &piercing argument by the ESP of its protectors' loop (0x32A042 mov edx,[esp+144h], 0x32A058)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn piercing(self) -> Option<DamageCell> {
+        unsafe { self.0.byte_add(0x144).cast::<Option<DamageCell>>().read_volatile() }
+    }
+
+    /// +0x144 (ptr<survarium::damage_cell>): hit_by_type's &piercing argument by the ESP of its protectors' loop (0x32A042 mov edx,[esp+144h], 0x32A058)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_piercing(self, value: Option<DamageCell>) {
+        unsafe { self.0.byte_add(0x144).cast::<Option<DamageCell>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::keeper_register_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeeperRegisterFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KeeperRegisterFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::generic_anomaly_core>): register_artefacts 0x31B8E0's first argument (by the site ESP, the return address at +0): the anomaly whose pool it registers
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn anomaly(self) -> Option<GenericAnomalyCore> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GenericAnomalyCore>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::generic_anomaly_core>): register_artefacts 0x31B8E0's first argument (by the site ESP, the return address at +0): the anomaly whose pool it registers
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_anomaly(self, value: Option<GenericAnomalyCore>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GenericAnomalyCore>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<survarium::core_world>): its second: the core world, whose artefact vector (+18940h) the pool is pushed onto, each id its index then
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::core_world>): its second: the core world, whose artefact vector (+18940h) the pool is pushed onto, each id its index then
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_world(self, value: Option<CoreWorld>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<CoreWorld>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::player_presenters (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerPresenters(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerPresenters {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x22cc (obj<survarium::effect_presenter_holder>): each place's third-person presenter's holder, 220h apart (player::initialize 0x1F2579; the camera's detach gives it back, 0x242D06)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn third_person(self) -> EffectPresenterHolder {
+        EffectPresenterHolder(unsafe { self.0.byte_add(0x22cc) })
+    }
+}
+
+/// A survarium::effect_presenter_holder (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EffectPresenterHolder(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EffectPresenterHolder {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::third_person_game_effects_presenter>): the presenter it holds (a place's holder: its third-person presenter, made by 0x297570)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn presenter(self) -> Option<ThirdPersonGameEffectsPresenter> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ThirdPersonGameEffectsPresenter>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::third_person_game_effects_presenter>): the presenter it holds (a place's holder: its third-person presenter, made by 0x297570)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_presenter(self, value: Option<ThirdPersonGameEffectsPresenter>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ThirdPersonGameEffectsPresenter>>().write_volatile(value) }
+    }
+
+    /// 0x220 bytes: the places' holders step 220h (player::initialize 0x1F2573)
+    pub const SIZE: usize = 0x220;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::effect_presenter_holders (0x220 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct EffectPresenterHolderStorage([u8; 0x220]);
+
+#[allow(dead_code)]
+impl EffectPresenterHolderStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x220])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> EffectPresenterHolder {
+        EffectPresenterHolder(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<EffectPresenterHolder> {
+        (!rooms.is_empty()).then(|| EffectPresenterHolder(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::third_person_game_effects_presenter (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ThirdPersonGameEffectsPresenter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ThirdPersonGameEffectsPresenter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (ptr<survarium::player>): the player its particles play on (its particle presenter +8h's +8h; set_player 0x297750 writes it and the sound presenter's +0C0h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::player>): the player its particles play on (its particle presenter +8h's +8h; set_player 0x297750 writes it and the sound presenter's +0C0h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<Player>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::medical_effect_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MedicalEffectResource(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MedicalEffectResource {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xd0 (u32): its reference count (locked; damage_zone_core_cook::process_resources takes one, 0x3113BF, and gives it back through 0x0E0210 at 0, 0x311438)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::game_effect_listener (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameEffectListener(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameEffectListener {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x394 (obj<survarium::player>): the player whose own effect calculator (+394h) it is: meaningful only for that one (hit effects are played with it, 0x32A37A; Forest Protection's glow too)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn owner(self) -> Player {
+        Player(unsafe { self.0.byte_sub(0x394) })
+    }
+}
+
+/// A survarium::close_match_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CloseMatchFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CloseMatchFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): close_current_match's argument by EBP (mov ebx,[ebp+8] at 0x27A7F3): the reason, jump table 0x27A958
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reason(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::match_ready_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchReadyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MatchReadyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x18 (ptr<survarium::network_client>): on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn client(self) -> Option<NetworkClient> {
+        unsafe { self.0.byte_add(0x18).cast::<Option<NetworkClient>>().read_volatile() }
+    }
+
+    /// +0x18 (ptr<survarium::network_client>): on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_client(self, value: Option<NetworkClient>) {
+        unsafe { self.0.byte_add(0x18).cast::<Option<NetworkClient>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::res_render_output (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResRenderOutput(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ResRenderOutput {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xe4 (u32): the output window, an HWND (res_render_output::res_render_output 0x3CF4F0 writes it from EDX at 0x3CF540; set_size's SetWindowLongA 0x3CFA09/0x3CFA55 and SetWindowPos 0x3CFA20/0x3CFAD8, present's ShowWindow 0x3CF8C5 take it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn window(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xe4).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -15582,21 +17136,6 @@ pub struct TextTranslator(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl TextTranslator {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A survarium::game_effect_listener (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GameEffectListener(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl GameEffectListener {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -15732,21 +17271,6 @@ pub struct CriticalSection(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl CriticalSection {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A survarium::medical_effect_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MedicalEffectResource(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl MedicalEffectResource {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -15991,6 +17515,19 @@ pub mod image {
 
     /// 0xa16084 (u32, survarium::image): client respawn rule vtable
     pub const RESPAWN_CLIENT_RULE_VTABLE: u32 = 0xa16084;
+
+    /// 0x3128c0 (u32, survarium::image): artefact_onyx_core::enable_active_effects (vtable +80h; abi_inputs 0x3128C0)
+    pub const ONYX_ACTIVE: u32 = 0x3128c0;
+
+    /// 0x1f1d310 (obj<vostok::engine::engine_world_slot>, survarium::image): the engine world's global: set by the engine's run at 0x1881A (mov [1F1D310h],ebp), 0 again at 0x1898F; message_processor reads its game at 0x18359
+    #[inline(always)]
+    pub fn engine_world() -> EngineWorldSlot {
+        // SAFETY: an image VA, not 0.
+        EngineWorldSlot(unsafe { NonNull::new_unchecked(0x1f1d310 as *mut c_void) })
+    }
+
+    /// 0x3118d0 (u32, survarium::image): artefact_spring_core::enable_active_effects: +80h of the Spring core vtable 0xA1558C (its constructor 0x31185C writes it)
+    pub const SPRING_ACTIVE: u32 = 0x3118d0;
 }
 
 /// A general-purpose register at a hook's site.
@@ -18819,6 +20356,21 @@ pub mod site {
         }
     }
 
+    /// hud.cursor_hide (0x23a9b0): show_cursor's hide (mov edx,[edi+18h] / lea eax,[edi+0Ch], then the call of base_game_scene::hide_movie 0x23DC70 at 0x23A9B6; the je at 0x23A944 jumps here): kept skips the movie, the flag (+2DCh) still written at 0x23A9BB
+    pub mod hud_cursor_hide {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::game_world_ui (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn ui(machine: &impl Machine) -> Option<GameWorldUi> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(GameWorldUi)
+        }
+    }
+
     /// options.activate (0x200f50): game_options::activate's start (push ebp / mov ebp,esp / and esp,-8): the main menu about to be shown, over a match by Esc (activate_main_menu 0x1EDBDC) or over the lobby (0x28C5C9)
     pub mod options_activate {
         #[allow(unused_imports)]
@@ -18894,6 +20446,387 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<LoginStatusFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(LoginStatusFrame)
+        }
+    }
+
+    /// artefact.isolation (0x32a083): body_part_parameters::hit_by_type: XMM0 the part's summed armour for the hit's type (movss [eax+8] at 0x32A07E), XMM1 the piercing, EDI the hit type; replayed: xorps xmm2,xmm2; subss xmm0,xmm1, then the clamp to [0, 1] and D x (1 - it)
+    pub mod artefact_isolation {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::medical_pool (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn pool(machine: &impl Machine) -> Option<MedicalPool> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(MedicalPool)
+        }
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn kind(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
+        }
+    }
+
+    /// artefact.landing (0x2d8220): base_player::on_physical_controller_landing's start (movss xmm2,[esp+4]; ECX the player, the landing speed at the site's ESP+4): all it does is the fall damage hit (fatal above +30Ch, scaled above +310h, modifier 30); done is its ret 4 at 0x2D84AE with nothing pushed
+    pub mod artefact_landing {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// artefact.spring_reload (our entry): patch 54's Spring passive link (artefacts_026g.asm link_passive, 0x311AD0) before it links the passive's reload node: cdecl, the Spring; the caller keeps every register and pops the one
+    pub mod artefact_spring_reload {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::spring_reload_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SpringReloadFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(SpringReloadFrame)
+        }
+    }
+
+    /// artefact.fire (our entry): patch 54's press (artefacts_026g.asm ready, from fire_kind at artefact_base::action 0x313300) for each copy in its passive with no cooldown it would fire: cdecl, the artefact and its fires (in/out, pushed 1, made 0 for a copy past the 4 of its kind that count for its holder); the caller keeps every register and pops the two
+    pub mod artefact_fire {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::artefact_fire_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ArtefactFireFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ArtefactFireFrame)
+        }
+    }
+
+    /// artefact.shared_modifier (0x2d5ae6): apply_modifier after it reads the kit's own float (movss xmm0,[eax+esi*4] at 0x2D5AE1): XMM0 that float, to which the list's nodes are added (0x2D5B33) before the index's rule (additive by 0x927E08, else max(0, 1 + k x S)); replayed: lea ecx,[esi+esi*4]; cmp byte [eax+ecx*4+120h],0 (the sorted flag the jne at 0x2D5AFF reads)
+    pub mod artefact_shared_modifier {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::player_params_modifiers_container (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn modifiers(machine: &impl Machine) -> Option<PlayerParamsModifiersContainer> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(PlayerParamsModifiersContainer)
+        }
+
+        /// ESI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn index(machine: &impl Machine) -> u32 {
+            machine.register(Register::Esi)
+        }
+    }
+
+    /// artefact.shared_modifiers (0x2d5c18): apply_modifiers 0x2D5BC0 (a weighted sum of several indices) in its loop, after one index's own float (movss xmm0,[ebx+eax*4] at 0x2D5C13, stored at 0x2D5C2A): XMM0 that float, to which the list's nodes are added (0x2D5C69); replayed: lea eax,[eax+eax*4]; cmp byte [ebx+eax*4+120h],0
+    pub mod artefact_shared_modifiers {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player_params_modifiers_container (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn modifiers(machine: &impl Machine) -> Option<PlayerParamsModifiersContainer> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(PlayerParamsModifiersContainer)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn index(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// artefact.shared_protection (0x32a020): body_part_parameters::hit_by_type after apply_hit_modifiers (0x32A01B returns here), before the part's protectors (+0C4h, each a delegate called by 0x3FE2C0 with the hit, &damage, &piercing: Onyx's protect 0x312BF0): EBX &damage, ESP+144h &piercing; replayed: mov esi,[ebp+0C4h]
+    pub mod artefact_shared_protection {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::medical_pool (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn pool(machine: &impl Machine) -> Option<MedicalPool> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(MedicalPool)
+        }
+
+        /// EDI: a survarium::medical_hit (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<MedicalHit> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(MedicalHit)
+        }
+
+        /// EBX: a survarium::damage_cell (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn damage(machine: &impl Machine) -> Option<DamageCell> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(DamageCell)
+        }
+
+        /// the site's ESP: a survarium::protectors_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ProtectorsFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ProtectorsFrame)
+        }
+    }
+
+    /// artefact.own_modifier (0x2d5b0c): apply_modifier before it sums its list's nodes (both ways from the sorted flag's test join here; mov eax,[edi+4] / xorps xmm2,xmm2, then the loop 0x2D5B20 adds each node's +0Ch into XMM1 as value + sum): EDI the kit's list of the index ESI; summed is the loop's end (pop edi / test eax,eax / je 0x2D5B33 addss xmm0,xmm1) with EAX 0, XMM1 the sum and XMM2 the 0 the rule compares with
+    pub mod artefact_own_modifier {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::modifier_list (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn list(machine: &impl Machine) -> Option<ModifierList> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ModifierList)
+        }
+
+        /// ESI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn index(machine: &impl Machine) -> u32 {
+            machine.register(Register::Esi)
+        }
+    }
+
+    /// artefact.own_modifiers (0x2d5c46): apply_modifiers 0x2D5BC0's loop before it sums one index's list (mov eax,[edi+4] / movaps xmm2,xmm3, XMM3 0; the loop 0x2D5C50 adds each node's +0Ch into XMM2): EBX the kit's modifiers, EDI the list (ESI there is the pair's counter, not the index); summed is the loop's end (0x2D5C63 mov ecx,[esp+20h], then addss xmm0,xmm2 at 0x2D5C69) with XMM2 the sum
+    pub mod artefact_own_modifiers {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player_params_modifiers_container (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn modifiers(machine: &impl Machine) -> Option<PlayerParamsModifiersContainer> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(PlayerParamsModifiersContainer)
+        }
+
+        /// EDI: a survarium::modifier_list (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn list(machine: &impl Machine) -> Option<ModifierList> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ModifierList)
+        }
+    }
+
+    /// artefact.own_onyx (0x312bf0): artefact_onyx_core::protect's start (mov eax,[ecx+0EE8h], the hit type it protects against; thiscall: the hit, &damage, &piercing; one protector of it in each protected part's list): ECX the Onyx; done is its ret 0Ch with nothing pushed, the hit as it was (the other hit type's way, 0x312BFD)
+    pub mod artefact_own_onyx {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::artefact (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn onyx(machine: &impl Machine) -> Option<Artefact> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Artefact)
+        }
+    }
+
+    /// artefact.own_lifebone (0x312590): artefact_lifebone_core::regeneration_modifier's start (mov ecx,[esp+8] / mov edx,[esp+4]: the record, the frame {rate, delay, limit}): ECX the Lifebone, the object its regeneration_modifiers subscriber's invoker 0x312640 calls it on (this = the functor's +4 plus +8, the Lifebone the passive's subscription 0x311F4C binds); done is its ret 8 (0x312605, after add esp,8: nothing pushed), the frame as it was
+    pub mod artefact_own_lifebone {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::artefact (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn lifebone(machine: &impl Machine) -> Option<Artefact> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Artefact)
+        }
+    }
+
+    /// keeper.register (0x31b8e0): generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty)
+    pub mod keeper_register {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::keeper_register_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<KeeperRegisterFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(KeeperRegisterFrame)
+        }
+    }
+
+    /// controller.step_end (0x7c7d7): bullet_character_controller::player_step (0x7BDA0) epilogue, which every path joins (pop edi / pop esi / pop ebx / mov esp,ebp; the skip at 0x7C1B5 too), after round_up: EDI the controller, its position +0B0h where this step left it, m_last_pos +50h where it began (0x7BE84)
+    pub mod controller_step_end {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::physics::bullet_character_controller (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn controller(machine: &impl Machine) -> Option<BulletCharacterController> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletCharacterController)
+        }
+    }
+
+    /// unplayed.connect (0x21c07c): network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120)
+    pub mod unplayed_connect {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(NetworkClient)
+        }
+    }
+
+    /// unplayed.sign_off (0x27b110): network_client::disconnect's start (0x27B110, vtable 0x9FFB14 +14h; push ebp / mov ebp,esp / and esp,-8): the main menu's logoff (0x1FF736) before switch_to_login; ECX the network client (patch 120)
+    pub mod unplayed_sign_off {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(NetworkClient)
+        }
+    }
+
+    /// unplayed.close_guard (0x27a7a4): close_current_match's guard (cmp [edi+1F1C60h],ebx with EBX 0; the je 0x27A94C after it returns for every reason while the time rule's state is 0); played is the code past the guard (0x27A7B0: the statistics option, the state cleared, the reason's jump table); EDI the network client, [EBP+8] the reason (patch 120)
+    pub mod unplayed_close_guard {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NetworkClient)
+        }
+
+        /// EBP: a survarium::close_match_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CloseMatchFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CloseMatchFrame)
+        }
+    }
+
+    /// unplayed.load_end (0x1f8af3): game_world::on_project_loaded's abort test (cmp [eax+1E5790h],0: the lobby client's status, 0 the lobby; the jne after it goes on to the load's callback, on_match_ready, at 0x1F8B24, else 0x1F8AFC unloads the world and returns without it); EAX the lobby client (patch 120)
+    pub mod unplayed_load_end {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::lobby_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn lobby(machine: &impl Machine) -> Option<LobbyClient> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(LobbyClient)
+        }
+    }
+
+    /// unplayed.ready_end (0x27aebf): network_client::on_match_ready's epilogue after its 0xDA (pop edi / pop esi / pop ebx / mov esp,ebp, then pop ebp / ret 4): the level loaded, the match core set, the game world shown; [ESP+18h] the network client (stored at 0x27AA39) (patch 120)
+    pub mod unplayed_ready_end {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::match_ready_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MatchReadyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(MatchReadyFrame)
+        }
+    }
+
+    /// keeper.world_loaded (0x2d2d5d): game_world_core::deserialize's end (mov byte [ebp+18FE0h],0 after pop edi / pop esi; the je at 0x2D2CBB and the loop's end join at 0x2D2D5B): every place's current kit and its inventory loaded, every object (the anomalies, their artefacts with their inventory and slot) loaded, every active place put into the world; EBP the core world. Every world load passes here: a rollback's (move 0x2D2FF0, 0x2D357A), a joiner's or a resync's (0x2D0B70 -> 0x2D0FB9), a replay's seek
+    pub mod keeper_world_loaded {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CoreWorld)
+        }
+    }
+
+    /// render_output.present (0x3cf8ff): res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow
+    pub mod render_output_present {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::res_render_output (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn output(machine: &impl Machine) -> Option<ResRenderOutput> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ResRenderOutput)
         }
     }
 }

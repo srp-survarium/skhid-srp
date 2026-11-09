@@ -59,7 +59,11 @@ Edits (edits.json):
                     declare source .b-spline and .bones_names dependencies in _inputs.
   "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
                     append a new indexed record, refusing stale counts and duplicate identities;
-                    arrays in the new value are indexed tables, leaving existing records intact
+                    arrays in the new value are indexed tables, leaving existing records intact;
+                    "files" and "expected_counts" (two lists, a count a file) in place of
+                    "file" and "expected_count" append the same record to each file; with
+                    "vectors": true a list of 2 to 4 numbers is a native vector (a position)
+                    and [] an empty indexed table, as the game's own objects have them
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
@@ -507,10 +511,16 @@ def add_key(buf, table, key, text):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
+class EmptyList:
+    """An empty indexed table (an empty dict is an empty named one)."""
+
+
 def value_record(buf, name_off, key, value):
     """A 24-byte record of `value` named `key` (its name at `name_off`); a table's children and
     texts are appended."""
     crc = zlib.crc32(key.encode()) & 0xffffffff
+    if isinstance(value, EmptyList):
+        return REC.pack(0, name_off, crc, T_INDEXED, 0)
     if isinstance(value, dict) and value and all(isinstance(k, int) for k in value):
         if sorted(value) != list(range(len(value))):
             raise ValueError('%s: items %s, not 0 to %d' % (key, sorted(value), len(value) - 1))
@@ -554,11 +564,12 @@ def insert_value(buf, toff, key, value):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
-def append_entry(buf, path, expected_count, unique_key, value):
+def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     """Append a new record, refusing stale counts and duplicate identities.
 
-    New JSON lists are indexed tables. This operation never replaces an
-    existing value, so existing native vectors and scalar types stay intact.
+    New JSON lists are indexed tables; with `vectors`, a list of 2 to 4 numbers is a native vector
+    and an empty list an empty indexed table. This operation never replaces an existing value, so
+    existing native vectors and scalar types stay intact.
     """
     off = find(buf, path)
     _, name, crc, kind, count = rec(buf, off)
@@ -571,6 +582,11 @@ def append_entry(buf, path, expected_count, unique_key, value):
         raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
     records = [bytes(buf[entry:entry + 24]) for entry in entries]
     def indexed(value):
+        if vectors and isinstance(value, list):
+            if not value:
+                return EmptyList()
+            if 2 <= len(value) <= 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in value):
+                return value
         if isinstance(value, list):
             return {i: indexed(item) for i, item in enumerate(value)}
         if isinstance(value, dict):
@@ -1018,6 +1034,43 @@ def default_modification(decade):
     return Derived('default_modifications', read, write)
 
 
+def shown_value():
+    """A modification's (or a defect's) value, one place for all it shows: every modifier's `value`
+    (the cell; modifiers that differ read a|b), and, when it changes, what the lobby shows of it by the
+    same ratio: each number of `lobby_info` and each card line's `ui_desc/props_list[*]/prop_value` (its
+    text, with its decimals: 0.05 -> 0.20 for 0.05 -> 0.2; an armour line, x100 of its value, 8 for
+    0.08), as the game's own rows have them (each kind one ratio of text to value)."""
+    def read(buf, entry):
+        return '|'.join(sorted({cell_text(buf, o) for _, o in resolve(buf, 'modifiers[*]/value', entry)}))
+
+    def write(buf, entry, cell):
+        values = resolve(buf, 'modifiers[*]/value', entry)
+        olds = {value_of(buf, o) for _, o in values}
+        if len(olds) != 1 or not NUMBER.fullmatch(cell):
+            raise ValueError('a value of modifiers that differ (%s), or not a number (%r)' % (sorted(olds), cell))
+        old, written = olds.pop(), []
+        for at, o in values:
+            if not same_cell(cell, cell_text(buf, o)):
+                write_cell(buf, o, cell)
+                written.append(at)
+        if not old or same_cell(cell, '%.9g' % old):
+            return written, []
+        ratio = float(cell) / old
+        info = child(buf, entry, 'lobby_info')
+        for c in children(buf, info) if info is not None else ():
+            write_cell(buf, c, '%.6g' % (value_of(buf, c) * ratio))
+            written.append('/lobby_info/' + name_at(buf, rec(buf, c)[1]).decode())
+        for at, o in resolve(buf, 'ui_desc/props_list[*]/prop_value', entry):
+            text = cell_text(buf, o)
+            if not NUMBER.fullmatch(text):
+                raise ValueError('card line %s is %r, not a number to scale' % (at, text))
+            decimals = len(text.partition('.')[2])
+            write_cell(buf, o, '%.*f' % (decimals, float(text) * ratio))
+            written.append(at)
+        return written, []
+    return Derived('', read, write)
+
+
 def id_list(key):
     """An indexed table of ids `key` of a list entry (an items_dict entry's srp_start): its ids, a space
     between; written into an entry that lacks it."""
@@ -1211,13 +1264,13 @@ STATS = {
     },
     'modifications': {
         'configs': 'gameplay/items/modifications/modifications.options#modifications[id]',
-        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': 'modifiers[*]/value',
+        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': shown_value(),
                     'op': 'modifiers[*]/type', 'drop_weight': 'drop_weight'},
         'match': {'kind', 'value', 'op'},
     },
     'defects': {
         'configs': 'gameplay/items/modifications/modifications.options#defects[id]',
-        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': 'modifiers[*]/value',
+        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': shown_value(),
                     'op': 'modifiers[*]/type', 'drop_weight': 'drop_weight', 'fix_cost': 'fix_cost_general',
                     'fix_gold': 'fix_cost_gold', 'fix_time': 'fix_time_general'},
         'match': {'kind', 'value', 'op'},
@@ -1320,7 +1373,7 @@ STATS = {
     # of its own a new item comes with. srp reads both from the dictionary.
     'items': {
         'configs': DICTIONARY + '#items_dict[dict_id]',
-        'columns': {'name': 'name', 'base_cost': 'base_cost', 'gold': 'is_premium', 'like': 'srp_like',
+        'columns': {'name': 'name', 'base_cost': 'base_cost', 'premium': 'is_premium', 'like': 'srp_like',
                     'start': id_list('srp_start')},
         'add': {'like'},
         'match': set(),
@@ -2410,13 +2463,19 @@ def main():
             grown[p][lst] += 1
         print('entry %s after %s: %d files' % (e['list'], e['after'], n))
     for e in edits.get('append_entry', []):
-        p = e['file']
-        at = append_entry(buf(p), e['list'], e['expected_count'], e['unique_key'], e['value'])
-        table = '/' + e['list']
-        added.setdefault(p, []).append('%s[%d]' % (table, at))
-        grown.setdefault(p, {}).setdefault(table, 0)
-        grown[p][table] += 1
-        print('append %s[%d]' % (e['list'], at))
+        if 'files' in e:
+            if len(e['files']) != len(e['expected_counts']):
+                raise ValueError('append_entry: %d files, %d expected counts' % (len(e['files']), len(e['expected_counts'])))
+            targets = list(zip(e['files'], e['expected_counts']))
+        else:
+            targets = [(e['file'], e['expected_count'])]
+        for p, expected in targets:
+            at = append_entry(buf(p), e['list'], expected, e['unique_key'], e['value'], e.get('vectors', False))
+            table = '/' + e['list']
+            added.setdefault(p, []).append('%s[%d]' % (table, at))
+            grown.setdefault(p, {}).setdefault(table, 0)
+            grown[p][table] += 1
+            print('append %s %s[%d]' % (p, e['list'], at))
     for e in edits.get('add_key', []):
         add_key(buf(e['file']), e['table'], e['key'], e['text'])
         added.setdefault(e['file'], []).append('/%s/%s' % (e['table'], e['key']))
