@@ -3404,3 +3404,4 @@ va	status	ref_021d	name
 0x0010f8c0	inferred-high		vostok::memory::mt_region::take
 0x0010f980	inferred-high		vostok::memory::mt_region::give
 0x0001c6a0	inferred-high		vostok::memory::mt_allocator::malloc_impl
+0x003cfaf0	inferred-medium		vostok::render::res_render_output::fullscreen_output

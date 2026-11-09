@@ -275,6 +275,44 @@ size; Settings to windowed writes the caption back itself (set_size). This holds
 DXVK (Wine too), not only AMD's. The renderer's state is a `Lock` now, by way of defence: no second
 thread reading it is shown (the start, the login screen and every Present are the main thread's).
 
+## Refresh rate and fullscreen exits
+
+**The game asks for no refresh rate.** Its one swap chain (`res_render_output` 0x3CF4F0) has
+RefreshRate 0/0 (0x3CF5C1), Flags 0 (no ALLOW_MODE_SWITCH, 0x3CF5ED), windowed, one DISCARD
+buffer. Every fullscreen entry is `SetFullscreenState(TRUE, output)` on it, the output
+`fullscreen_output` 0x3CFAF0 (r_monitor_index): `show` 0x3CF600 (the start), `apply_fullscreen_state`
+0x3CFDB0 (from `resize` 0x3CFB30: Settings' Apply, `end_render_options_changing` 0x1181CF, and the
+window's first size, 0x119972) and `goto_fullscreen` 0x3CFE20 (each tick, back after a focus loss).
+The exe has no ResizeTarget call, no ChangeDisplaySettings import and no refresh setting (`r_resolution`,
+`r_fullscreen`, `r_monitor_index`; `r_vsync` is options +105h, off by default, 0x3CD74A, the Graphics
+checkbox; Present's sync interval is it or the caller's flag, 0x3CF8E0). Lobby and match changes call
+none of these. So every path is fullscreen at that output's current desktop mode: DXVK 3.1.1's
+`ChangeDisplayMode` zeroes the size without ALLOW_MODE_SWITCH and `FindClosestMatchingMode1` takes the
+active mode's refresh rate for 0/0, so a player with a 144 Hz panel and a 60 Hz desktop gets 60 Hz in
+fullscreen under DXVK (Windows' own DXGI resolves unspecified fields towards the desktop mode too, as
+documented for FindClosestMatchingMode; not run here).
+
+**What DXVK's dxgi log says.** `Setting display mode` is written twice per entry (`setWindowMode`, then
+`setMonitorDisplayMode`); a leave restores every monitor (`EnumDisplayMonitors`), each one a
+`Restoring display mode` (its registry mode) and a `Setting display mode`. `setMonitorDisplayMode`
+returns without `ChangeDisplaySettingsExW` when the mode is already the current one. The report of
+2026-11-09 (RTX 5070 Ti, Windows, DXVK, `dxvk.latencySleep`) repeats, 17 times: an entry at @300, a
+restore of one monitor at @300 and of another at @60. That is two monitors, the game's at 300 Hz
+(every entry finds 300 as the current mode, also after each restore), the other at 60 Hz: no entry
+at 60 Hz and no real mode change (DXVK's d3d11 log made its Vulkan swap chain once in the whole run,
+and its limiter line is "refresh rate of ~300 Hz").
+
+**What leaves fullscreen.** Not the game's code: `minimize` 0x3CFE80 (the focus lost) calls
+`SetFullscreenState(FALSE, output)`, which DXGI and DXVK refuse. DXVK leaves by itself when another
+window has been the foreground one for 100 ms (`isOccluded`, from the GetFullscreenState of each
+present, 0x3CF832, and from Present); the game then minimizes its window (0x3CF8C5) when it lacks
+the focus, and `goto_fullscreen` enters again when it has it. So the 17 exits are 17 times another
+window was in front (Alt+Tab, the other monitor). The popup style above sets nothing DXVK reacts to.
+With `dxvk.latencySleep` and vsync on, DXVK sets its own limiter to the refresh rate of the window's
+monitor at a windowed Present and keeps it in fullscreen (`UpdateTargetFrameRate`): a window left on
+a 60 Hz monitor at such a Present would hold the game at 60 fps afterwards. The report's log does not
+show it (one limiter line, ~300 Hz).
+
 ## Known limits
 
 - A start that fails with DXVK costs one start; the next is DirectX 11 again by itself.
