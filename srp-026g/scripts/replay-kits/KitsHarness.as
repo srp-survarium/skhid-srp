@@ -1,6 +1,7 @@
 package {
  import flash.display.*;
  import flash.events.*;
+ import flash.geom.Point;
  import flash.geom.Rectangle;
  import flash.net.URLRequest;
  import flash.system.*;
@@ -81,6 +82,18 @@ package {
    hud.srp_spectator_current_kit(2);
    expect("the highlight on kit 2's plate",selector.tabPage.selectedIndex == 1);
    expect("its glow shown",selector.selectedTabGlow.visible);
+   var shown:Function = function(at:int):Boolean {
+    var button:* = selector.tabPage.getButtonAt(at);
+    return button != null && button.selected && button.currentLabel != null && button.currentLabel.indexOf("selected_") == 0;
+   };
+   expect("kit 2's plate shows selected (" + selector.tabPage.getButtonAt(1).currentLabel + ")",shown(1));
+   // A plate that lost its selected state, the bar's index still on it (what the bar's own setter would skip).
+   selector.tabPage.getButtonAt(1).selected = false;
+   hud.srp_spectator_kits_show(1);
+   expect("the plate's selected state restored on the next frame's show (" + selector.tabPage.getButtonAt(1).currentLabel + ")",shown(1));
+   selector.tabPage.getButtonAt(1).gotoAndPlay("up");
+   hud.srp_spectator_kits_show(1);
+   expect("the plate's selected frame restored on the next frame's show (" + selector.tabPage.getButtonAt(1).currentLabel + ")",shown(1));
    hud.select_player_profile(0);
    expect("the game's own select does not move a spectator's highlight",selector.tabPage.selectedIndex == 1);
    selector.selectProfile(0);
@@ -99,7 +112,7 @@ package {
    expect("the hud laid out: the ammo counter at the bottom right " + rect(hud.ammoInd),rect(hud.ammoInd).right > w - 100 && rect(hud.ammoInd).bottom > h - 100);
    hud.show_slots(false);                 // what the exe holds, every frame, for both
    expect("the quick slots hidden",!hud.quick_slots.visible);
-   for each(var shown:String in ["minimap","ammoInd","chat"]) hud[shown].visible = true;
+   for each(var drawn:String in ["minimap","ammoInd","chat"]) hud[drawn].visible = true;
    for each(var mode:int in [1,2]) {
     hud.srp_spectator_kits_show(mode);
     hud.show_player_list(true);
@@ -132,6 +145,29 @@ package {
    hud.srp_spectator_kits("0|0|7|Alpha|;1|0|5||;2|0|5||;");
    hud.srp_spectator_kits_show(2);
    var plate:Rectangle = rect(selector.tabPage);
+   hud.srp_spectator_current_kit(0);
+   var list:* = panel.getChildAt(panel.numChildren - 1);   // the hover list
+   trace("KITS bar scaleX=" + selector.tabPage.scaleX + " width=" + selector.tabPage.width + " on the stage " + plate + " plate 1's middle local " + selector.tabPage.globalToLocal(new Point(plate.x + plate.width / 2,plate.y + 10)));
+   for(var at:int = 0; at < 3; at++) {
+    hud.srp_spectator_pointer(uint(plate.x + plate.width * (at + 0.5) / 3),uint(plate.y + 10));
+    var wanted:Number = selector.x + at * 187;
+    trace("KITS hover plate " + at + " list.x=" + list.x + " wanted=" + wanted);
+    expect("hover: plate " + at + " shows the list",list.visible);
+    if(at < 2) expect("hover: the list opens above plate " + at + " (x " + list.x + ", wanted " + wanted + ")",Math.abs(list.x - wanted) < 1);
+    else expect("hover: the list reaches the last plate (x " + list.x + " to " + (list.x + 435) + ")",list.x > selector.x + 187 - 20 && list.x + 435 >= wanted + 187);
+    var kept:Number = list.x;
+    hud.srp_spectator_kits_show(2);
+    expect("hover: the frame's show leaves the list on plate " + at,list.visible && list.x == kept);
+    expect("hover: the highlight stays on the kit in use",selector.tabPage.selectedIndex == 0 && shown(0));
+   }
+   // The hud's own mouse (the game's handler for a player) does not take a spectator's list.
+   var heldAt:Number = list.x;
+   selector.tabPage.getButtonAt(0).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER,true));
+   expect("hover: the game's own mouse-over does not move a spectator's list (x " + list.x + ")",list.x == heldAt);
+   selector.tabPage.getButtonAt(0).dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OUT,true));
+   expect("hover: the game's own mouse-out does not hide a spectator's list",list.visible);
+   hud.srp_spectator_pointer(uint(plate.x + 20),uint(plate.y - 200));
+   expect("hover: off the plates the list goes",!list.visible);
    var viewer:* = player.viewer;
    try {
     hud.srp_spectator_pointer(uint(plate.x + plate.width * 5 / 6),uint(plate.y + 10));   // the last plate, the list's furthest right

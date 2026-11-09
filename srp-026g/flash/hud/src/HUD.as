@@ -122,7 +122,10 @@ package
 
       // srp's: a spectator's kit chooser: its mode (0 none), kit number -> plate, plates, hover.
       private static const SPECTATOR_PLATE_WIDTH:Number = 187;
-      private static const SPECTATOR_REPLAY_RIGHT:int = 622;
+      private static const SPECTATOR_REPLAY_RIGHT:int = 632;
+
+      // The hover list's own width, its two columns: its `width` while it lays itself out is more.
+      private static const SPECTATOR_HOVER_WIDTH:int = 435;
 
       private static const SPECTATOR_REPLAY_ABOVE_AMMO:int = 200;
 
@@ -750,6 +753,11 @@ package
       {
          var index:int;
          var enabled:Boolean;
+         // srp's: a spectator's hover list is the exe's pointer's alone (srp_spectator_pointer).
+         if(this._spectatorMode != 0)
+         {
+            return;
+         }
          trace("onProfileChanged",e.target);
          if(e.target is Button)
          {
@@ -1008,13 +1016,29 @@ package
       }
 
       // Told once a change, and its plates can be rebuilt or reselected after: kept on it each frame.
+      // What shows is the plate's frame, so that is what is checked, not only the bar's index.
       private function holdSpectatorHighlight() : void
       {
          var plate:* = this._spectatorKitIndex[this._spectatorKit];
-         var selector:* = this._profilePanel.profileSelector;
-         if(plate != undefined && (selector.tabPage.selectedIndex != plate || !selector.selectedTabGlow.visible))
+         if(plate == undefined)
          {
+            return;
+         }
+         var selector:* = this._profilePanel.profileSelector;
+         var tabs:* = selector.tabPage;
+         var button:* = tabs.getButtonAt(plate);
+         if(tabs.selectedIndex != plate || !selector.selectedTabGlow.visible || button == null || !button.selected)
+         {
+            if(tabs.selectedIndex == plate)
+            {
+               tabs.selectedIndex = -1; // the bar's setter skips the same index, and its plate is to be told again
+            }
             selector.selectProfile(uint(plate));
+            button = tabs.getButtonAt(plate);
+         }
+         if(button != null && (button.currentLabel == null || button.currentLabel.indexOf("selected_") != 0))
+         {
+            button.gotoAndPlay("selected_up");
          }
       }
 
@@ -1035,11 +1059,15 @@ package
       public function srp_spectator_pointer(x:uint, y:uint) : void
       {
          var tabs:* = this._profilePanel.profileSelector.tabPage;
-         var at:Point = tabs.globalToLocal(new Point(x,y));
-         var index:int = at.x < 0 ? -1 : int(at.x / SPECTATOR_PLATE_WIDTH);
-         if(!this._profilePanel.visible || index < 0 || index >= this._spectatorKitCount || at.y < 0 || at.y >= tabs.height)
+         // By each plate's own bounds on the stage: the bar's local measures are not its plates'.
+         var index:int = -1;
+         for(var plate:int = 0; this._profilePanel.visible && index < 0 && plate < this._spectatorKitCount; plate++)
          {
-            index = -1;
+            var button:* = tabs.getButtonAt(plate);
+            if(button != null && button.getBounds(stage).contains(x,y))
+            {
+               index = plate;
+            }
          }
          if(index == this._spectatorHover)
          {
@@ -1050,7 +1078,7 @@ package
          if(index >= 0)
          {
             this.fill_player_profile_items(this._profilePanel.profileSelector.getProfileData(index));
-            this._hudPlayerProfile.x = Math.min(this._profilePanel.profileSelector.x + index * SPECTATOR_PLATE_WIDTH,this.stageWidth - this._profilePanel.x - this._hudPlayerProfile.width);
+            this._hudPlayerProfile.x = Math.min(this._profilePanel.profileSelector.x + index * SPECTATOR_PLATE_WIDTH,this.stageWidth - this._profilePanel.x - SPECTATOR_HOVER_WIDTH);
          }
       }
 
