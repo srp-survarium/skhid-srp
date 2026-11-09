@@ -56,8 +56,6 @@ use crate::v026g::{record, replay, sur_convert};
 /// gets a player's input about this much before its tick (the server's
 /// event horizon, [`HORIZON_MS`]).
 const RELAY_LEAD_MS: u32 = HORIZON_MS;
-/// How often the dev control file is read (`SRP_DEV_REPLAY_CONTROL`).
-const CONTROL_EVERY: Duration = Duration::from_millis(250);
 /// "My deaths" starts this long before the death.
 const DEATH_LEAD_MS: u32 = 4_000;
 /// A paused game is pinged this often: nothing else goes to it, and a game
@@ -380,26 +378,6 @@ fn countdown_end(worlds: &[Snapshot], options: &static_info::MatchOptions) -> Op
 /// Match ms in `elapsed` of the wall clock at `speed`.
 fn played(speed: Speed, elapsed: Duration) -> u32 {
     (elapsed.as_millis() * u128::from(speed.percent()) / 100) as u32
-}
-
-/// A line of the dev control file (`SRP_DEV_REPLAY_CONTROL`): `pause`,
-/// `play`, `speed 0.25|0.5|1|2|4|8`, `seek <seconds>`.
-pub(crate) fn dev_control(line: &str) -> Option<Op> {
-    let mut words = line.split_whitespace();
-    let op = match (words.next()?, words.next()) {
-        ("pause", None) => Op::Pause(true),
-        ("play", None) => Op::Pause(false),
-        ("speed", Some(factor)) => {
-            let factor: f64 = factor.parse().ok()?;
-            Op::Speed(Speed::of_percent((factor * 100.0).round() as u16)?)
-        }
-        ("seek", Some(seconds)) => {
-            let seconds: f64 = seconds.parse().ok().filter(|s: &f64| *s >= 0.0)?;
-            Op::Seek(MatchMs((seconds * 1000.0) as u32))
-        }
-        _ => return None,
-    };
-    words.next().is_none().then_some(op)
 }
 
 /// The playback clock: match time, by the wall clock.
@@ -901,13 +879,6 @@ struct Reading {
     answer: Receiver<Result<Recording, Refused>>,
 }
 
-/// `SRP_DEV_REPLAY_CONTROL` (dev aid): controls written to a file, a line
-/// each, to every playback.
-struct DevControl {
-    path: PathBuf,
-    next: Instant,
-}
-
 /// The replay sessions this match server plays (the module's doc): their
 /// recordings read, the games of the ones read not here yet, and those
 /// that watch.
@@ -925,7 +896,6 @@ pub(crate) struct ReplayWatch {
     /// The games whose farewell was acked: their sessions are over, only
     /// their silence is left (`Spectator::farewell_heard`).
     left: HashMap<SocketAddr, Spectator>,
-    dev_control: Option<DevControl>,
 }
 
 impl ReplayWatch {
@@ -934,7 +904,6 @@ impl ReplayWatch {
         record_dir: PathBuf,
         port: u16,
         settings: &Settings,
-        now: Instant,
     ) -> Self {
         let max_recording_bytes = replays
             .watches()
@@ -942,13 +911,6 @@ impl ReplayWatch {
             .map_or(DEFAULT_MAX_RECORDING_MB << 20, |settings| {
                 settings.max_recording_bytes
             });
-        let dev_control = settings.replay_control.clone().map(|path| {
-            log::warn!(
-                "SRP_DEV_REPLAY_CONTROL: every replay takes the controls of {}",
-                path.display()
-            );
-            DevControl { path, next: now }
-        });
         Self {
             replays,
             record_dir,
@@ -959,7 +921,6 @@ impl ReplayWatch {
             ready: HashMap::new(),
             playbacks: HashMap::new(),
             left: HashMap::new(),
-            dev_control,
         }
     }
 
@@ -1078,7 +1039,6 @@ impl ReplayWatch {
     pub(crate) fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
         self.take_read(now);
         self.read_next(now);
-        self.dev_controls(now);
         // A session the lobby gave up (its game never came) keeps nothing.
         let watches = self.replays.watches();
         self.ready
@@ -1215,30 +1175,6 @@ impl ReplayWatch {
                 self.replays
                     .watches()
                     .refuse(&request, Status::Failed, None, now);
-            }
-        }
-    }
-
-    fn dev_controls(&mut self, now: Instant) {
-        let Some(dev) = self.dev_control.as_mut() else {
-            return;
-        };
-        if now < dev.next {
-            return;
-        }
-        dev.next = now + CONTROL_EVERY;
-        let Ok(text) = std::fs::read_to_string(&dev.path) else {
-            return;
-        };
-        let _ = std::fs::remove_file(&dev.path);
-        for line in text.lines().filter(|line| !line.trim().is_empty()) {
-            match dev_control(line) {
-                Some(op) => {
-                    for playback in self.playbacks.values_mut() {
-                        playback.control(op, now);
-                    }
-                }
-                None => log::warn!("SRP_DEV_REPLAY_CONTROL: no such control: {line:?}"),
             }
         }
     }

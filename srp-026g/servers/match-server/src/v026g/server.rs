@@ -249,7 +249,6 @@ impl Server {
                 record.dir.clone(),
                 port,
                 &settings,
-                now,
             ))
         });
         Self {

@@ -40,8 +40,9 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    recording through #1285's spectator machine: 0xE3, 0xE4 naming 0xFF with every place of the
    recording, the key frame, then the relays and roster changes at their recorded times.
 6. It ends when the game leaves (0xE0, Esc), its link goes, or the recording ends (0xEA naming
-   0xFF, then 7 s of silence; patch 121 takes the game back to the lobby). The session is over
-   once the match server forgets the game.
+   0xFF; patch 121 takes the game back to the lobby). The session is over when its game acks that
+   0xEA; the address stays silent the 7 s a game whose 0xEA was lost needs to end its link by
+   itself (`SILENCE`), and a session seated meanwhile connects from it at once.
 
 **The start** (`Recording::start`): the replay opens where the action is, at the end of the
 match's countdown (`Recording::opening`: the start of the time rule's "in process" in the first key
@@ -183,24 +184,6 @@ match with such a player does not start (`rooms::room_watchers`); one already th
 | `SRP_REPLAY_MODERATORS` | account ids, comma-separated, that may watch any match |
 | `SRP_REPLAY_WATCH_MAX` | sessions at once (default 4: the host has 1 vCPU and 512 MB; each costs about one player's traffic and its recording in memory, a few MB to a few tens) |
 | `SRP_REPLAY_MAX_RECORDING_MB` | a larger recording is not read (`failed`; default 24): reading one keeps it in memory with what is made of it |
-| `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]`, or `<match hex>,deaths` | dev aid: each game that signs in asks for that replay 10 s later, as the movie would |
-| `SRP_DEV_PLAY_SOLO=1` | dev aid: each game that signs in is seated alone in a match of its own 10 s later (no room, no bots), played and recorded as any (with `SRP_RECORD_MIN_PLAYERS=1`); it ends when the game leaves the match or closes: a fresh recording made with the exe being tested |
-| `SRP_DEV_REPLAY_CONTROL=<file>` | dev aid: lines `pause`, `play`, `speed 0.25|0.5|1|2|4|8`, `seek <seconds>` to every playback, read every 250 ms and removed |
-
-## How to try it with a real game
-
-The game needs #1285's patch 121. On the dev server, with recordings on and a match recorded
-with the same exe (`SRP_RECORD_DIR`, `SRP_RECORD_MIN_PLAYERS=1` for a solo match):
-
-```sh
-# with the dev server's usual settings (SRP_GAME_DATA, SRP_DATA_DIR, ...):
-SRP_RECORD_DIR=/tmp/srp-local/recordings \
-SRP_DEV_REPLAY_WATCH=<match id hex> SRP_DEV_REPLAY_CONTROL=/tmp/srp-local/replay.control \
-  ./target/release/srp
-```
-
-Sign in; 10 s later the game loads the replay. `echo "seek 60" > /tmp/srp-local/replay.control`
-seeks. Esc or the recording's end returns to the lobby.
 
 ## Not known until a game runs it
 

@@ -248,9 +248,6 @@ pub(super) struct Core<'a> {
     /// A member (or one queued) whose game started anew, until its new
     /// game is told the room: by then, or it loses the place (`rooms`).
     pub room_unseen: HashMap<u32, Instant>,
-    /// `Settings::dev_aid`: games signed in, and when it is done for them
-    /// (`replay`).
-    pub dev_due: HashMap<SocketAddr, Instant>,
     /// The match each account's Live window asked the roster of (`live`).
     pub live_roster: HashMap<u32, u32>,
 }
@@ -317,7 +314,6 @@ impl<'a> Core<'a> {
             room_join_at: HashMap::new(),
             room_seen: HashMap::new(),
             room_unseen: HashMap::new(),
-            dev_due: HashMap::new(),
             live_roster: HashMap::new(),
         }
     }
@@ -745,12 +741,6 @@ impl<'a> Core<'a> {
             self.send_made(from, flush);
         }
         log::info!("{name} (account {account_id}) signed in to the lobby from {from}");
-        if self.settings.dev_aid.is_some() {
-            // Its lobby movie loaded first.
-            self.dev_due
-                .insert(from, now + std::time::Duration::from_secs(10));
-        }
-
         // What needs other accounts: the friend and ignore lists, which the
         // client never asks for, friend requests that waited, the squad.
         if let Some(who) = self.who(from) {

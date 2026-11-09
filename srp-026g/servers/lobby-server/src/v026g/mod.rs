@@ -207,9 +207,6 @@ pub struct Settings {
     pub rooms: rooms::Config,
     /// The Live window's watching (`SRP_LIVE_WATCH_*`; `live`).
     pub live: live::Config,
-    /// A dev aid for tests that cannot click the lobby: what each game
-    /// that signs in does ten seconds later (`replay::DevAid`).
-    pub dev_aid: Option<replay::DevAid>,
 }
 
 impl Settings {
@@ -312,7 +309,6 @@ impl Settings {
             pvb: pvb::Config::from_env(),
             live: live::Config::from_env(),
             rooms: rooms::Config::from_env(),
-            dev_aid: replay::DevAid::from_env(),
             balance,
             min_patch_revision,
             bind: config.bind_addr(),
@@ -343,7 +339,6 @@ impl Settings {
             pvb: pvb::Config::default(),
             live: live::Config::default(),
             rooms: rooms::Config::default(),
-            dev_aid: None,
         }
     }
 }

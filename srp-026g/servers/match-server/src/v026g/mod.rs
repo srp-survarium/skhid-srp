@@ -271,10 +271,6 @@ pub(crate) struct Settings {
     /// `SRP_MAPDATA_DIR`: the bots' maps, shared by every match.
     pub maps: Option<Arc<bots::maps::Maps>>,
     pub timing: Timing,
-    /// `SRP_DEV_REPLAY_CONTROL` (dev aid): a file whose lines (`pause`,
-    /// `play`, `speed 2`, `seek 60`) go to every replay session
-    /// (`game::playback`), read every 250 ms and removed.
-    pub replay_control: Option<PathBuf>,
     /// The srp process's 0.26g accounts, whose match history a replay
     /// session's timeline is read from (`game::playback`). Set by
     /// [`run_on_with_replays`]; `None` from the environment alone.
@@ -313,7 +309,6 @@ impl Default for Settings {
             pack: Config::for_table(Table::Match).gather,
             maps: None,
             timing: Timing::default(),
-            replay_control: None,
             accounts: None,
         }
     }
@@ -414,9 +409,6 @@ impl Settings {
                     ..Timing::default()
                 }
             },
-            replay_control: var("SRP_DEV_REPLAY_CONTROL")
-                .filter(|path| !path.trim().is_empty())
-                .map(PathBuf::from),
             accounts: None,
         }
     }

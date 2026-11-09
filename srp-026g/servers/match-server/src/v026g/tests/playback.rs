@@ -25,7 +25,7 @@ use survarium::v026g::match_msgs::static_info::{MatchOptions, SCORE_WEIGHTS, Sta
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, TICK_MS, WireTime, id};
 
 use super::*;
-use crate::v026g::game::{ReplayRecording, dev_control};
+use crate::v026g::game::ReplayRecording;
 use crate::v026g::record::{self, Desk, RecordSettings};
 use crate::v026g::sur;
 use replay_control::{MatchMs, Op, Request, ServerNote, Speed};
@@ -664,20 +664,6 @@ fn a_leave_request_lets_the_game_go() {
     bench.assert_no_faults();
 }
 
-#[test]
-fn dev_controls_read_as_written() {
-    assert_eq!(dev_control("pause"), Some(Op::Pause(true)));
-    assert_eq!(dev_control(" play "), Some(Op::Pause(false)));
-    assert_eq!(dev_control("speed 0.25"), Some(Op::Speed(Speed::Quarter)));
-    assert_eq!(dev_control("speed 8"), Some(Op::Speed(Speed::Octuple)));
-    assert_eq!(dev_control("seek 65.5"), Some(Op::Seek(MatchMs(65_500))));
-    for wrong in ["speed 3", "seek", "seek -1", "pause now", "stop"] {
-        assert_eq!(dev_control(wrong), None, "{wrong}");
-    }
-}
-
-/// A live match of the two players of a bench recorded into `dir`, its
-/// games of today's revision: its match id, once its file is closed.
 fn recorded_live(dir: &Path) -> (u32, PathBuf) {
     let settings = Settings {
         record: Some(RecordSettings {

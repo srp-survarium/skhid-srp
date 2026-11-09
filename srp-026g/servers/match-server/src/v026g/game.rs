@@ -140,7 +140,7 @@ mod start;
 use late_join::{Admission, LoadingProfile};
 pub(crate) use playback::ReplayWatch;
 #[cfg(test)]
-pub(crate) use playback::{Recording as ReplayRecording, dev_control};
+pub(crate) use playback::Recording as ReplayRecording;
 pub(crate) use spectate::SpectatorAt;
 
 /// A tick is final this long after it: the server's event horizon.
