@@ -22,9 +22,9 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 | 1 | 0 | 502 | Resistance | 5 | isolation +5 | exe hook |
 | 2 | 5 | 512 | Knowledge of Artifacts | 5 | active duration +5% | data: modifier 39 |
 | 2 | 5 | 513 | Artifact Sight | 1 | passive artefacts seen as leg glows, own too | exe (patch 111's gate) |
-| 3 | 10 | 521 | Keeper of the Artifacts | 1 | starts with a random artefact; or Forest Protection | server + exe |
+| 3 | 10 | 521 | Keeper of the Artifacts | 1 | starts with a random artefact | server + exe |
 | 3 | 10 | 522 | Artifact Container | 1 | a pocket becomes an artefact container | data: modifiers 14, 15 |
-| 3 | 10 | 523 | Forest Protection | 4 | bullet and fragment damage -5% in an anomaly; or Keeper | data: modifier 41 |
+| 3 | 10 | 523 | Forest Protection | 4 | bullet and fragment damage -5% in an anomaly | data: modifier 41 |
 | 4 | 15 | 531 | Spring II | 1 | Spring: reload +5% passive, +15% active | exe (patch 54's Spring) |
 | 4 | 15 | 532 | Onyx II | 1 | no fall damage while Onyx is active | exe (patch 54's Onyx) |
 | 4 | 15 | 533 | Larkspur II | 1 | activation restores all energy | exe |
@@ -34,22 +34,20 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Layout, four columns (1..4) (the owner, 2026-11-06: Artifact Container beside Keeper, Resonance
   and Cascade an either/or pair in row V, as every tree's last row; 2026-11-07: Artifact Sight in
   row II, Forest Protection moved to row III (511 became 523), beside Keeper as an either/or
-  pair):
+  pair; 2026-11-09: Forest Protection and Keeper no longer exclude each other):
 
 ```text
 | - Q R - |    Quick Hands, Resistance
 | - - K S |    Knowledge of Artifacts, Artifact Sight
-| F P A - |    Forest Protection or Keeper of the Artifacts (antiskills of each other), Artifact Container
+| F P A - |    Forest Protection, Keeper of the Artifacts, Artifact Container
 | S O L - |    Spring II, Onyx II, Larkspur II
 | - N X - |    Resonance or Cascade (antiskills of each other)
 ```
 
-- Points (26 ranks in all; one of each pair): row I holds 9, rows I-II 15. With Keeper: rows
-  I-III 17, rows I-IV 20, a full build 21. With Forest Protection: rows I-III 20, rows I-IV 23,
-  a full build 24.
-- Thresholds 0/5/10/15/20, the stock rows (the owner, 2026-11-07): every row opens on both paths
-  (row I holds 9 for 5; rows I-IV hold 20 for 20 with Keeper, so row V needs every point below
-  it, and 23 with Forest Protection).
+- Points (26 ranks in all; one of Resonance and Cascade): row I holds 9, rows I-II 15, rows
+  I-III 21, rows I-IV 24, a full build 25. Without Forest Protection rows I-IV hold exactly 20.
+- Thresholds 0/5/10/15/20, the stock rows (the owner, 2026-11-07): every row opens (row I holds 9
+  for 5; rows I-IV hold 24 for 20, 20 without Forest Protection).
 - Quick Hands (the owner, 2026-11-07): 4 ranks of -6% search time (max -24%). Resistance: 5 ranks
   of +5 isolation (max +25; the owner, 2026-11-07, back from 4 of +6).
 - Quick Hands (501) was "Concentration", 0.69's own name for this skill
@@ -98,8 +96,9 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 ## Forest Protection (523)
 
-- Row III, one or the other with Keeper of the Artifacts (the owner, 2026-11-07: each the other's
-  `antiskills`, as Resonance and Cascade; srp refuses both, the lobby locks the other in red).
+- Row III, beside Keeper of the Artifacts. It was Keeper's either/or (the owner, 2026-11-07:
+  each the other's `antiskills`); the owner took the pair away on 2026-11-09, so both can be
+  taken. A saved set holds at most one of them, so no account is settled by it.
   It was 511 in row II; nothing in the exe names the id (patch 111 reads modifier 41).
 - Modifier 41 `incoming_weapon_damage_in_anomaly` -0.05 a rank (4 ranks, -20%) (0x332810, before armour): a hit
   with an owner (hit+20h) on a player whose damage-zone count (player+2E4h, damage_zone_core's

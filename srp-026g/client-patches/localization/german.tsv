@@ -2613,15 +2613,14 @@ st_srp_medical_331_description	Ersetzt den Platz für die Sekundärwaffe durch e
 st_srp_medical_331_name	Vorratstasche
 st_srp_medical_332_description	Bonus auf die maximale Gesundheit von Armen und Beinen:
 st_srp_medical_332_name	Starke Knochen
-st_srp_medical_333_description	Solange ein Schmerzmittel wirkt, sind Umgebungsgeräusche leiser und feindliche Geräusche (außer Schüssen) lauter um:
+st_srp_medical_333_description	Solange ein Schmerzmittel wirkt, Verringerung des Verwackelns des Zielfernrohrs:
 st_srp_medical_333_name	Konzentration
 st_srp_medical_342_description	Verringerung des durch Verbündete erlittenen Schadens:
 st_srp_medical_342_name	Waffenbrüder
 st_srp_medical_seconds	 s
-st_srp_medicine_ambient_sounds	Umgebungsgeräusche
 st_srp_medicine_crouched_healing	Heilung in der Hocke
-st_srp_medicine_enemy_sounds	Feindgeräusche
 st_srp_medicine_hit_slow	Trefferverlangsamung
+st_srp_medicine_sight_sway	Verwackeln
 st_srp_medicine_sprint_stamina	Sprint-Energie
 st_srp_melee_knockback	Kolbenschlag-Wucht
 st_srp_mode_blackout	Schutzeinrichtung: Blackout

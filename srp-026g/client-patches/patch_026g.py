@@ -888,6 +888,29 @@ MEMORY_DEFAULTS = (
      b"\xb8" + struct.pack("<I", MEMORY_DEFAULT_MIB)),
 )
 
+# Patch 124: two fixed arenas' defaults, for a match load of many baked
+# camouflages and decals (rev54 test, 19 decorated bots: 0 of 4 loads got
+# through the stock sizes, 3 of 3 with these as options). The full arena
+# still ends the game in out_of_memory_with_crash.
+# - "resources helper allocator": memory::preinitialize (0xE0F20) stores the
+#   default in bytes, 8 MiB, as the output of
+#   command_line::key::is_set_as_number<u32> (0x141B0) for the key
+#   rh_allocator (0xA80380); a value given is MiB, `shl eax,14h`. 32 MiB.
+# - "render": engine_world's constructor (0x13660) has the default in MiB,
+#   224, in EDI before is_set_as_number<u32> for render_allocator
+#   (0xA7C088); a value given is raised to at least 224 (the cmp at
+#   0x13AA7, kept), then times 1 MiB. 320 MiB.
+# Numbers, no relocation under either. The engine takes the fixed arenas'
+# total out of the address space before it sizes the rest (the resource
+# arenas keep their 768 MiB floor, patch 37).
+ARENA_HELPER_MIB, ARENA_RENDER_MIB = 32, 320
+ARENA_DEFAULTS = (
+    (0xE1099, bytes.fromhex("c744241000008000"),
+     bytes.fromhex("c7442410") + struct.pack("<I", ARENA_HELPER_MIB << 20)),
+    (0x13A95, bytes.fromhex("bfe0000000"),
+     b"\xbf" + struct.pack("<I", ARENA_RENDER_MIB)),
+)
+
 # replay_network_client's "is this place mine" (vtable 0x9FF344, slot +0x54
 # at 0x9FF398) is 0x54E10, `xor al,al` / `ret 4`. The client respawn rule's
 # kit change (0x2678E0) asks it and re-attaches the camera to the place's
@@ -3519,7 +3542,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((BAKED_TEXTURE_MISSING[0], BAKED_TEXTURE_MISSING[0] + len(BAKED_TEXTURE_MISSING[1])))
         patch(data, *AI_ARENA)
         sites.append((AI_ARENA_VA, AI_ARENA_VA + len(AI_ARENA[1])))
-        for site in MEMORY_DEFAULTS:
+        for site in MEMORY_DEFAULTS + ARENA_DEFAULTS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         for site in SOUND_POOLS:
@@ -3999,6 +4022,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a drag turns the warmup camera and the wheel moves it while the kits are shown, "
                      "the archive reads' order is a strict weak ordering, "
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
+                     f"the resources helper and render arenas {ARENA_HELPER_MIB} and {ARENA_RENDER_MIB} MiB by default, "
                      f"the game world's sound scene has {SOUND_INSTANCES} sound instances and propagators, "
                      "a history item's six world sections grow on the heap, "
                      "a weapon's upgrade window shows the weapon, "
