@@ -595,13 +595,15 @@ Patches:
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
   Rust patch bake_cache (the arena's blocks patches.code, .data and
   .state; seven lohooks): game::game deletes user_data/streamed_textures
-  only when its stamp file names another revision (0x1E944E), and puts its
+  only when its stamp file names another bake format or other game data
+  (a fingerprint of the patches' files a bake reads) (0x1E944E), and puts its
   whole DDS files back into the baker's list (CRC 0, the first load's taken
   at 0x131C90); game::exit's delete is gone (0x1EC832); translate_query's
   look-up (0x12D4C5) lets a query whose path is under way wait, and the
   texture made (0x12F194 a bake, 0x12DDB9 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
-  0xF0D00); the CRC-32 step (0x42050) goes eight bytes a step. Textures
+  0xF0D00); the CRC-32 step (0x42050) goes 64 bytes a step (PCLMULQDQ)
+  or eight bytes a step. Textures
   only;
 - a weapon's upgrades in at most three upgrade records, the weapon kit
   (patch 68, with the late join; docs/notes/weapon-kit.md): the Rust patch

@@ -10,11 +10,15 @@
 //! listed only when its bake is done, so the player objects of one player
 //! that ask for the same texture together bake it once each. Here:
 //! - the game's start: the folder is kept while its stamp file says this
-//!   revision; its files of a whole DDS go back into the list (CRC 0: the
-//!   first load takes the CRC of what it reads, `on_check_crc`), at most
-//!   SEED_FILES and SEED_BYTES of them, the rest deleted. Another revision,
-//!   or no stamp: the stock delete, then the stamp (game::exit's delete is
-//!   a byte write: patch_026g.py BAKE_CACHE_KEEP);
+//!   bake format (BAKE_FORMAT) and the fingerprint of the game data a bake
+//!   reads (`inputs`: the patches of resources.db that have models,
+//!   materials, textures, shaders or camouflage and decal items), so across
+//!   releases until one of them changes; its files of a whole DDS go back
+//!   into the list (CRC 0: the first load takes the CRC of what it reads,
+//!   `on_check_crc`), at most SEED_FILES and SEED_BYTES of them, the rest
+//!   deleted. Another format, other game data, or no stamp: the stock
+//!   delete, then the stamp (game::exit's delete is a byte write:
+//!   patch_026g.py BAKE_CACHE_KEEP);
 //! - a texture whose bake or load is under way (its owner, the first query
 //!   of its path) is not baked or loaded again: a later query of the path
 //!   waits, and gets the owner's texture when it is made (`on_baked`,
@@ -23,8 +27,10 @@
 //! - a texture loaded from the folder is held for the game (KEPT,
 //!   KEPT_BYTES, the least used let go), and a later query of its path (a
 //!   respawn builds the player's model again) gets it at once;
-//! - the CRC-32 step, which a bake and a load run over the whole file,
-//!   eight bytes a step (the same value).
+//! - the CRC-32 step, which a bake and a load run over the whole file (and
+//!   the texture streamer over each archive mip it checks): folded 64 bytes
+//!   a step with carry-less multiplies, or eight bytes a step through tables
+//!   (`vostok::crc32::update`, the same value).
 //!
 //! Textures only: nothing a match computes. The look-up, the textures made
 //! and finish_query run on the resource threads too: the tables are behind
@@ -32,19 +38,45 @@
 
 #![forbid(unsafe_code)]
 
+mod inputs;
+use inputs::Patch;
+
 use core::sync::atomic::{AtomicU32, Ordering};
 
-use crate::vostok::baker::{self, CheckCrc, Finish, Folder, List, Lookup, Made, Query, Surface, Texture, TextureKind,
+use crate::vostok::baker::{CheckCrc, Finish, Folder, List, Lookup, Made, Query, Surface, Texture, TextureKind,
                            Waiter, RECORD_TEXT};
 use crate::vostok::crc32::{self as crc_step, CrcCall};
 use crate::vostok::files::{self, File, Find, FindData, Path};
+use crate::vostok::log::{self, Piece::Text};
+use crate::vostok::memory_profile;
 use crate::vostok::{BakeCacheOnCrcStepExit, BakeCacheOnFinishExit, BakeCacheOnGameStartExit, BakeCacheOnLookupExit,
                     Context, Flow, Lock, NoExit, Thread};
 
 const PREFIX: &[u8] = b"user_data/streamed_textures/";
 const STAMP_NAME: &[u8] = b"srp_baked_textures.txt";
-const STAMP_TEXT: &[u8] = b"Skhid baked textures, revision ";
+const STAMP_FORMAT: &[u8] = b"Skhid baked textures, format ";
+const STAMP_INPUTS: &[u8] = b", inputs ";
+const STAMP_REVISION: &[u8] = b"Skhid baked textures, revision ";
+/// A stamp's bytes at most.
+const STAMP: usize = 80;
 const DDS_FILES: &[u8] = b"*.dds";
+/// Where the game mounts its data from (its working folder binaries\x86,
+/// mount_patches_026g.asm), and its patches' names there.
+const GAME_DATA: &[u8] = b"..\\..\\";
+const PATCHES: &[u8] = b"resources.db.patch_*";
+const PATCH_NAME: &[u8] = b"resources.db.patch_";
+
+/// What a bake makes of the same game data, as the bake code makes it. A
+/// change of that code that makes other bytes bumps it, which deletes every
+/// player's folder once; the test `the_bake_code_is_this_format` fails at
+/// any change of the code it names until its hash is set again, so that
+/// change is weighed. Format 1: revision 54's bakes (patch 121's are the
+/// same bytes).
+const BAKE_FORMAT: u32 = 1;
+/// The stamp before formats that is this format's (revision 54's exe bakes
+/// as format 1): `(revision, format)`. Its folder is kept, and stamped
+/// again, when no patch past 54 changed what a bake reads.
+const REVISION_FORMAT: (u32, u32) = (54, 1);
 
 /// Half the list: the game's own bakes have the rest.
 const SEED_FILES: u32 = 512;
@@ -104,28 +136,78 @@ fn folder(out: &mut [u8], path: Option<&[u8]>) -> usize {
     n
 }
 
-/// "Skhid baked textures, revision N\r\n", NUL-ended: its length.
-fn stamp_text(out: &mut [u8; 64]) -> usize {
-    let mut n = STAMP_TEXT.len();
-    out[..n].copy_from_slice(STAMP_TEXT);
-    let mut revision = baker::revision();
-    let (mut digits, mut count) = ([0u8; 3], 0);
+/// `value` in decimal at `out`'s start: how many digits.
+fn decimal(out: &mut [u8], mut value: u32) -> usize {
+    let (mut digits, mut count) = ([0u8; 10], 0);
     loop {
-        digits[count] = b'0' + revision % 10;
+        digits[count] = b'0' + (value % 10) as u8;
         count += 1;
-        revision /= 10;
-        if revision == 0 {
+        value /= 10;
+        if value == 0 {
             break;
         }
     }
-    while count > 0 {
-        count -= 1;
-        out[n] = digits[count];
+    for (slot, &digit) in out.iter_mut().zip(digits[..count].iter().rev()) {
+        *slot = digit;
+    }
+    count
+}
+
+/// The decimal number `text` is (digits only, at most nine).
+fn read_decimal(text: &[u8]) -> Option<u32> {
+    (!text.is_empty() && text.len() <= 9 && text.iter().all(u8::is_ascii_digit))
+        .then(|| text.iter().fold(0, |n, &d| n * 10 + u32::from(d - b'0')))
+}
+
+/// The number `text` is in 16 lower-case hex digits.
+fn read_hex(text: &[u8]) -> Option<u64> {
+    (text.len() == 16).then_some(())?;
+    text.iter().try_fold(0u64, |n, &d| {
+        let digit = match d {
+            b'0'..=b'9' => d - b'0',
+            b'a'..=b'f' => d - b'a' + 10,
+            _ => return None,
+        };
+        Some(n << 4 | u64::from(digit))
+    })
+}
+
+/// What a folder's stamp file says its bakes were made with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Stamp {
+    /// "Skhid baked textures, format F, inputs H\r\n": the bake format and
+    /// the fingerprint of the game data a bake reads (`inputs`), 16 hex
+    /// digits.
+    Made { format: u32, inputs: u64 },
+    /// "Skhid baked textures, revision R\r\n", before formats: the exe's
+    /// revision that made them.
+    Revision(u32),
+}
+
+impl Stamp {
+    fn parse(text: &[u8]) -> Option<Stamp> {
+        let text = text.strip_suffix(b"\r\n")?;
+        if let Some(rest) = text.strip_prefix(STAMP_FORMAT) {
+            let comma = rest.iter().position(|&b| b == b',')?;
+            let (format, inputs) = (read_decimal(&rest[..comma])?, read_hex(rest[comma..].strip_prefix(STAMP_INPUTS)?)?);
+            return Some(Stamp::Made { format, inputs });
+        }
+        text.strip_prefix(STAMP_REVISION).and_then(read_decimal).map(Stamp::Revision)
+    }
+}
+
+/// A format stamp's text in `out`: its length.
+fn made_text(out: &mut [u8; STAMP], format: u32, inputs: u64) -> usize {
+    let mut n = STAMP_FORMAT.len();
+    out[..n].copy_from_slice(STAMP_FORMAT);
+    n += decimal(&mut out[n..], format);
+    out[n..n + STAMP_INPUTS.len()].copy_from_slice(STAMP_INPUTS);
+    n += STAMP_INPUTS.len();
+    for shift in (0..16).rev() {
+        out[n] = b"0123456789abcdef"[(inputs >> (4 * shift) & 0xF) as usize];
         n += 1;
     }
-    out[n] = b'\r';
-    out[n + 1] = b'\n';
-    out[n + 2] = 0;
+    out[n..n + 2].copy_from_slice(b"\r\n");
     n + 2
 }
 
@@ -168,29 +250,124 @@ fn seed(name: &[u8], size: u32) -> bool {
     true
 }
 
-/// The game's start, before the stock delete: true to delete the folder (no
-/// stamp, or another revision's); else the folder's textures go back into
-/// the list.
-fn open(folder_path: Option<&[u8]>) -> bool {
-    let (mut at, mut expected, mut found, mut data) = ([0u8; PATH], [0u8; 64], [0u8; 64], FindData::new());
+// ---- the game data a bake reads ----------------------------------------------------
+
+/// What each patch of the game data gives the fingerprint, by its number
+/// (`inputs`); a number with no patch gives nothing.
+struct GameData([Patch; 256]);
+
+impl GameData {
+    /// The fingerprint of the patches up to `last`.
+    fn inputs(&self, last: u32) -> u64 {
+        inputs::fingerprint((1..=255u8).filter(|&n| u32::from(n) <= last).map(|n| (n, self.0[usize::from(n)])))
+    }
+}
+
+/// The patch's number of a name `resources.db.patch_<n>` (n 1 to 255, as
+/// the mount writes it).
+fn patch_number(name: &[u8]) -> Option<u8> {
+    let digits = name.strip_prefix(PATCH_NAME)?;
+    let n = read_decimal(digits).filter(|_| digits[0] != b'0')?;
+    u8::try_from(n).ok().filter(|&n| n != 0)
+}
+
+/// What the patch `n` gives: its file table read whole (pages of our own,
+/// given back after).
+fn read_patch(thread: &Thread, n: u8) -> Patch {
+    let mut name = [0u8; 48];
+    let at = GAME_DATA.len() + PATCH_NAME.len();
+    name[..GAME_DATA.len()].copy_from_slice(GAME_DATA);
+    name[GAME_DATA.len()..at].copy_from_slice(PATCH_NAME);
+    decimal(&mut name[at..], u32::from(n));
+    let Some(mut file) = File::open(path(&name)) else { return Patch::Unreadable };
+    let mut header = [0u8; inputs::HEADER];
+    let size = (file.read(&mut header) == Some(inputs::HEADER as u32)).then(|| inputs::table_size(&header)).flatten();
+    let Some(mut table) = size.and_then(|size| memory_profile::reserve::<u8>(thread, size as usize)) else {
+        return Patch::Unreadable;
+    };
+    let bytes = table.items();
+    let mut got = 0;
+    while got < bytes.len() {
+        match file.read(&mut bytes[got..]) {
+            Some(more) if more > 0 => got += more as usize,
+            _ => return Patch::Unreadable,
+        }
+    }
+    inputs::patch(bytes)
+}
+
+/// The game data's patches, each read; none when resources.db is not where
+/// the game mounts it from (the walk would see no patch: nothing is known).
+fn game_data(thread: &Thread) -> Option<GameData> {
+    let (mut at, mut found) = ([0u8; 64], FindData::new());
+    join(&mut at, GAME_DATA, b"resources.db");
+    drop(Find::first(path(&at), &mut found)?);
+    let mut data = GameData([Patch::Nothing; 256]);
+    join(&mut at, GAME_DATA, PATCHES);
+    let Some(mut find) = Find::first(path(&at), &mut found) else { return Some(data) };
+    loop {
+        if !found.is_folder()
+            && let Some(n) = patch_number(found.name())
+        {
+            data.0[usize::from(n)] = read_patch(thread, n);
+        }
+        if !find.next(&mut found) {
+            break;
+        }
+    }
+    Some(data)
+}
+
+/// What the start does with the folder.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Keep {
+    /// Its stamp is this game's: its textures go back into the list.
+    Kept,
+    /// Its stamp is revision 54's, of this format and game data: kept, and
+    /// stamped this format's, of `inputs`.
+    Restamped { inputs: u64 },
+    /// Another format, other game data, or no stamp: the stock delete, then
+    /// stamped of `inputs`; not stamped when the game data is not known.
+    Deleted { inputs: Option<u64> },
+}
+
+/// Whether the bakes the stamp says are what this game bakes: the same
+/// format, of the same game data.
+fn decide(found: Option<Stamp>, data: Option<&GameData>) -> Keep {
+    let Some(data) = data else { return Keep::Deleted { inputs: None } };
+    let now = data.inputs(u32::MAX);
+    match found {
+        Some(Stamp::Made { format, inputs }) if format == BAKE_FORMAT && inputs == now => Keep::Kept,
+        Some(Stamp::Revision(revision)) if (revision, BAKE_FORMAT) == REVISION_FORMAT && data.inputs(revision) == now => {
+            Keep::Restamped { inputs: now }
+        }
+        _ => Keep::Deleted { inputs: Some(now) },
+    }
+}
+
+/// The folder's stamp, none without one this module reads.
+fn read_stamp(folder_path: Option<&[u8]>) -> Option<Stamp> {
+    let (mut at, mut found) = ([0u8; PATH], [0u8; STAMP]);
     let base = folder(&mut at[..FOLDER], folder_path);
     if base == 0 || !join(&mut at[base..], STAMP_NAME, b"") {
-        return true;
+        return None;
     }
-    let want = stamp_text(&mut expected);
-    let Some(mut file) = File::open(path(&at)) else { return true };
-    let got = file.read(&mut found[..63]);
-    drop(file);
-    let Some(got) = got.filter(|&got| got as usize == want) else { return true };
-    found[got as usize] = 0;
-    if text(&found) != text(&expected) {
-        return true;
-    }
+    let mut file = File::open(path(&at))?;
+    let got = file.read(&mut found)?;
+    Stamp::parse(&found[..got as usize])
+}
 
+/// A kept folder's textures back into the list: each whole DDS, at most
+/// SEED_FILES and SEED_BYTES of them; the rest deleted.
+fn seed_folder(folder_path: Option<&[u8]>) {
+    let (mut at, mut data) = ([0u8; PATH], FindData::new());
+    let base = folder(&mut at[..FOLDER], folder_path);
+    if base == 0 {
+        return;
+    }
     let (mut files, mut bytes) = (0u32, 0u32);
-    at[base] = 0;
     join(&mut at[base..], DDS_FILES, b"");
-    let Some(mut find) = Find::first(path(&at), &mut data) else { return false };
+    let Some(mut find) = Find::first(path(&at), &mut data) else { return };
     loop {
         if !data.is_folder() && join(&mut at[base..], data.name(), b"") {
             let file = path(&at);
@@ -212,16 +389,35 @@ fn open(folder_path: Option<&[u8]>) -> bool {
             break;
         }
     }
-    drop(find);
-    false
 }
 
-/// After the stock delete: the folder made again and its stamp written, but
-/// only when no .dds is left in it (the delete can fail, a file held open by
-/// another game: each left is deleted, and if one stays the folder is not
-/// stamped, so the next start deletes it again).
-fn stamp(folder_path: Option<&[u8]>) {
-    let (mut at, mut stamp, mut data) = ([0u8; PATH], [0u8; 64], FindData::new());
+/// The folder's stamp written: this format's, of `inputs`.
+fn write_stamp(at: &mut [u8; PATH], base: usize, inputs: u64) {
+    let mut stamp = [0u8; STAMP];
+    if !join(&mut at[base..], STAMP_NAME, b"") {
+        return;
+    }
+    let n = made_text(&mut stamp, BAKE_FORMAT, inputs);
+    let Some(mut file) = File::create_always(path(at)) else { return };
+    file.write(&stamp[..n]);
+}
+
+/// The folder stamped again (revision 54's stamp, kept).
+fn restamp(folder_path: Option<&[u8]>, inputs: u64) {
+    let mut at = [0u8; PATH];
+    let base = folder(&mut at[..FOLDER], folder_path);
+    if base != 0 {
+        write_stamp(&mut at, base, inputs);
+    }
+}
+
+/// After the stock delete: the folder made again and its stamp written (of
+/// `inputs`; none when the game data is not known), but only when no .dds
+/// is left in it (the delete can fail, a file held open by another game:
+/// each left is deleted, and if one stays the folder is not stamped, so the
+/// next start deletes it again).
+fn stamp(folder_path: Option<&[u8]>, inputs: Option<u64>) {
+    let (mut at, mut data) = ([0u8; PATH], FindData::new());
     let base = folder(&mut at[..FOLDER], folder_path);
     if base == 0 {
         return;
@@ -240,15 +436,10 @@ fn stamp(folder_path: Option<&[u8]>) {
                 break;
             }
         }
-        drop(find);
     }
-    if left || !join(&mut at[base..], STAMP_NAME, b"") {
-        return;
+    if let Some(inputs) = inputs.filter(|_| !left) {
+        write_stamp(&mut at, base, inputs);
     }
-    let n = stamp_text(&mut stamp);
-    let Some(mut file) = File::create_always(path(&at)) else { return };
-    file.write(&stamp[..n]);
-    drop(file);
 }
 
 // ---- the queries' tables ---------------------------------------------------------
@@ -469,15 +660,34 @@ fn share(thread: &Thread, made: &Made, how: How) {
 
 // ---- the hooks -------------------------------------------------------------------
 
-/// `bake.game_start`: game::game's delete of the folder, only for another
-/// revision's (then stamped); this revision's kept. Either way the code goes
-/// on past the delete's call.
+/// `bake.game_start`: game::game's delete of the folder, only when its
+/// bakes are not what this game bakes (then stamped); else kept. Either way
+/// the code goes on past the delete's call.
 pub fn on_game_start(ctx: &mut Context<'_>) -> Flow<BakeCacheOnGameStartExit> {
     let Some(folder) = Folder::at(ctx) else { return Flow::Continue };
-    if open(folder.path()) {
-        folder.delete();
-        stamp(folder.path());
+    let data = game_data(ctx.thread());
+    let keep = decide(read_stamp(folder.path()), data.as_ref());
+    match keep {
+        Keep::Kept => seed_folder(folder.path()),
+        Keep::Restamped { inputs } => {
+            restamp(folder.path(), inputs);
+            seed_folder(folder.path());
+        }
+        Keep::Deleted { inputs } => {
+            folder.delete();
+            stamp(folder.path(), inputs);
+        }
     }
+    let what = match keep {
+        Keep::Kept => "kept: ",
+        Keep::Restamped { .. } => "kept (revision 54's, stamped again): ",
+        Keep::Deleted { .. } => "deleted (another format, other game data or no stamp): ",
+    };
+    let (mut text, inputs) = ([0u8; STAMP], data.map(|data| data.inputs(u32::MAX)));
+    let n = inputs.map_or(0, |inputs| made_text(&mut text, BAKE_FORMAT, inputs) - 2);
+    let made = core::str::from_utf8(&text[..n]).unwrap_or("");
+    log::line(&[Text("bake_cache: the baked textures "), Text(what),
+                Text(if inputs.is_some() { made } else { "the game data not found, not stamped" })]);
     Flow::Exit(BakeCacheOnGameStartExit::Kept)
 }
 
@@ -551,58 +761,7 @@ pub fn on_finish(ctx: &mut Context<'_>) -> Flow<BakeCacheOnFinishExit> {
 
 // ---- the CRC-32 step --------------------------------------------------------------
 
-/// The polynomial 04C11DB7h reflected (the game's table at 0x225FD68).
-const POLYNOMIAL: u32 = 0xEDB8 << 16 | 0x8320;
-
-/// The game's table (T0) and the seven a step of eight bytes needs: Tk[i]
-/// the CRC of i followed by k zero bytes.
-static SLICES: [[u32; 256]; 8] = slices();
-
-const fn slices() -> [[u32; 256]; 8] {
-    let mut out = [[0u32; 256]; 8];
-    let mut i = 0;
-    while i < 256 {
-        let mut c = i as u32;
-        let mut k = 0;
-        while k < 8 {
-            c = if c & 1 != 0 { (c >> 1) ^ POLYNOMIAL } else { c >> 1 };
-            k += 1;
-        }
-        out[0][i] = c;
-        i += 1;
-    }
-    let mut t = 1;
-    while t < 8 {
-        let mut i = 0;
-        while i < 256 {
-            out[t][i] = (out[t - 1][i] >> 8) ^ out[0][(out[t - 1][i] & 0xFF) as usize];
-            i += 1;
-        }
-        t += 1;
-    }
-    out
-}
-
-/// The CRC-32 step over `bytes` from `crc`: eight bytes a step through the
-/// eight tables, the rest a byte a step through T0 (the game's), the same
-/// value as the game's byte a step for every input.
-fn crc32(mut crc: u32, bytes: &[u8]) -> u32 {
-    let t = &SLICES;
-    let mut eights = bytes.chunks_exact(8);
-    for b in &mut eights {
-        let low = u32::from_le_bytes([b[0], b[1], b[2], b[3]]) ^ crc;
-        let high = u32::from_le_bytes([b[4], b[5], b[6], b[7]]);
-        crc = t[7][(low & 0xFF) as usize] ^ t[6][(low >> 8 & 0xFF) as usize] ^ t[5][(low >> 16 & 0xFF) as usize]
-            ^ t[4][(low >> 24) as usize] ^ t[3][(high & 0xFF) as usize] ^ t[2][(high >> 8 & 0xFF) as usize]
-            ^ t[1][(high >> 16 & 0xFF) as usize] ^ t[0][(high >> 24) as usize];
-    }
-    for &b in eights.remainder() {
-        crc = t[0][((crc ^ u32::from(b)) & 0xFF) as usize] ^ (crc >> 8);
-    }
-    crc
-}
-
-/// `crc32.step`: the game's CRC-32 step, eight bytes a step.
+/// `crc32.step`: the game's CRC-32 step, folded or sliced (`vostok::crc32::update`).
 pub fn on_crc_step(ctx: &mut Context<'_>) -> Flow<BakeCacheOnCrcStepExit> {
     match CrcCall::at(ctx) {
         // no CRC or no bytes to read: the game's own step
@@ -610,7 +769,7 @@ pub fn on_crc_step(ctx: &mut Context<'_>) -> Flow<BakeCacheOnCrcStepExit> {
         // a count of 0 reads nothing, not even the CRC (EAX may be anything)
         Some(CrcCall::Empty) => crc_step::done_empty(ctx),
         Some(CrcCall::Bytes(step)) => {
-            let crc = crc32(step.crc(), step.bytes());
+            let crc = crc_step::update(step.crc(), step.bytes());
             step.done(ctx, crc);
         }
     }
@@ -620,25 +779,6 @@ pub fn on_crc_step(ctx: &mut Context<'_>) -> Flow<BakeCacheOnCrcStepExit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The game's step, a byte at a time (0x42050).
-    fn bytewise(mut crc: u32, bytes: &[u8]) -> u32 {
-        for &b in bytes {
-            crc = SLICES[0][((crc ^ u32::from(b)) & 0xFF) as usize] ^ (crc >> 8);
-        }
-        crc
-    }
-
-    #[test]
-    fn eight_a_step_is_the_byte_step() {
-        assert_eq!(SLICES[0][1], 0x7707_3096);
-        assert_eq!(!crc32(!0, b"123456789"), 0xCBF4_3926);
-        let bytes: [u8; 300] = core::array::from_fn(|i| (i * 7 + 3) as u8);
-        for (start, len) in [(0, 0), (0, 1), (1, 7), (2, 8), (3, 9), (0, 64), (5, 255), (1, 299)] {
-            let crc = 0x1234_5678 ^ len as u32;
-            assert_eq!(crc32(crc, &bytes[start..start + len]), bytewise(crc, &bytes[start..start + len]));
-        }
-    }
 
     #[test]
     fn strings() {
@@ -654,5 +794,73 @@ mod tests {
         assert_eq!(folder(&mut at, Some(b"")), 0);
         assert_eq!(folder(&mut at, Some(b"123456789")), 0);
         assert_eq!(folder(&mut at, None), 0);
+    }
+
+    #[test]
+    fn stamps() {
+        let mut out = [0u8; STAMP];
+        let n = made_text(&mut out, 1, 0x7A07_992F_99F5_AA9C);
+        assert_eq!(&out[..n], b"Skhid baked textures, format 1, inputs 7a07992f99f5aa9c\r\n");
+        assert_eq!(Stamp::parse(&out[..n]), Some(Stamp::Made { format: 1, inputs: 0x7A07_992F_99F5_AA9C }));
+        let n = made_text(&mut out, u32::MAX, u64::MAX);
+        assert_eq!(n, 66);
+        assert_eq!(Stamp::parse(b"Skhid baked textures, revision 54\r\n"), Some(Stamp::Revision(54)));
+        for other in [&b"Skhid baked textures, revision 54"[..], b"Skhid baked textures, revision \r\n",
+                      b"Skhid baked textures, format 1, inputs 7a07992f99f5aa9\r\n",
+                      b"Skhid baked textures, format 1, inputs 7A07992F99F5AA9C\r\n",
+                      b"Skhid baked textures, format x, inputs 7a07992f99f5aa9c\r\n", b""] {
+            assert_eq!(Stamp::parse(other), None, "{:?}", core::str::from_utf8(other));
+        }
+        assert_eq!(patch_number(b"resources.db.patch_54"), Some(54));
+        for other in [&b"resources.db.patch_054"[..], b"resources.db.patch_0", b"resources.db.patch_256",
+                      b"resources.db.patch_", b"resources.db.patch_5.tmp", b"resources.db"] {
+            assert_eq!(patch_number(other), None);
+        }
+    }
+
+    #[test]
+    fn kept_while_the_format_and_the_game_data_are_this_game_s() {
+        let mut data = GameData([Patch::Nothing; 256]);
+        data.0[40] = Patch::Files(1);
+        data.0[54] = Patch::Files(2);
+        data.0[55] = Patch::Nothing;
+        let now = data.inputs(u32::MAX);
+        let made = |format, inputs| Some(Stamp::Made { format, inputs });
+        let deleted = Keep::Deleted { inputs: Some(now) };
+        assert_eq!(decide(made(BAKE_FORMAT, now), Some(&data)), Keep::Kept);
+        assert_eq!(decide(made(BAKE_FORMAT + 1, now), Some(&data)), deleted);
+        assert_eq!(decide(made(BAKE_FORMAT, now ^ 1), Some(&data)), deleted);
+        assert_eq!(decide(None, Some(&data)), deleted);
+        assert_eq!(decide(made(BAKE_FORMAT, now), None), Keep::Deleted { inputs: None }, "the game data not known");
+        // revision 54's stamp: kept when no patch past 54 has bake data
+        assert_eq!(decide(Some(Stamp::Revision(54)), Some(&data)), Keep::Restamped { inputs: now });
+        assert_eq!(decide(Some(Stamp::Revision(53)), Some(&data)), deleted);
+        for later in [Patch::Files(3), Patch::Whole(3), Patch::Unreadable] {
+            data.0[55] = later;
+            let now = data.inputs(u32::MAX);
+            assert_eq!(decide(Some(Stamp::Revision(54)), Some(&data)), Keep::Deleted { inputs: Some(now) });
+        }
+    }
+
+    /// The code that decides the bytes a bake makes: patch 121's bake, the
+    /// baker's API, the weapons' camouflage and decals (patches 44 and 47).
+    /// An exe patch of the baker's own code (0x11F000..0x120000,
+    /// 0x12C000..0x133000) is such a change too.
+    const BAKE_CODE: [&[u8]; 6] = [include_bytes!("bake_async.rs"), include_bytes!("bake_async.toml"),
+                                   include_bytes!("vostok/bake_gpu.rs"), include_bytes!("vostok/baker.rs"),
+                                   include_bytes!("../../../weapon_camo_026g.asm"),
+                                   include_bytes!("../../../weapon_decals_026g.asm")];
+    /// BAKE_CODE's hash (its bytes but '\r') as BAKE_FORMAT was set.
+    const BAKE_CODE_HASH: u64 = 0x5a6b_8807_f040_7dbf;
+
+    #[test]
+    fn the_bake_code_is_this_format() {
+        let hash = BAKE_CODE.iter().fold(inputs::Fnv::new(), |hash, code| {
+            code.iter().filter(|&&b| b != b'\r').fold(hash, |hash, &b| hash.bytes(&[b])).bytes(&[0])
+        });
+        assert_eq!(hash.get(), BAKE_CODE_HASH,
+                   "the bake code changed (BAKE_CODE): if a bake makes other bytes of the same game data now, bump \
+                    BAKE_FORMAT (every player's folder is deleted once, REVISION_FORMAT no longer kept); either way \
+                    set BAKE_CODE_HASH to {:#018x}", hash.get());
     }
 }
