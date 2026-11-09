@@ -1096,7 +1096,7 @@ impl Spectator {
                     for &(at, who, _) in watched
                         .events
                         .iter()
-                        .filter(|(at, _, entered)| !*entered && *at > time)
+                        .filter(|(at, _, entered)| !*entered && *at > time && *at <= watched.until)
                     {
                         let leave = ServerMessage::PlayerLeft {
                             tick: tick_byte(at),

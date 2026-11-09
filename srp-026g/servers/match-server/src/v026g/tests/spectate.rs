@@ -516,6 +516,40 @@ fn a_live_windows_spectator_watches_behind_the_match() {
     bench.assert_no_faults();
 }
 
+/// Review of 2026-11-09: a delayed spectator was sent every leave after its world up to the
+/// present, so a leave inside the delay reached it at once and again when its clock got there.
+#[test]
+fn a_delayed_spectator_gets_a_leave_once_when_its_clock_reaches_it() {
+    let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    bench.run_long(25_000);
+    assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
+    let delay = session::LiveDelay::from_secs(10).unwrap();
+    bench.clients[2].leave();
+    bench.run(500);
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
+    assert!(
+        bench.until(8_000, |b| b.clients[at].model.is_synced()),
+        "{:?}",
+        bench.clients[at].faults
+    );
+    bench.run(200);
+    // Taken or refused for its time, it would have come.
+    let leaves_heard = |client: &Client| {
+        client.left().len()
+            + client
+                .skipped
+                .iter()
+                .filter(|(message, _)| *message == survarium::v026g::match_msgs::id::PLAYER_LEFT)
+                .count()
+    };
+    assert_eq!(leaves_heard(&bench.clients[at]), 0, "a leave from its future");
+    bench.run_long(11_000);
+    assert_eq!(bench.clients[at].left(), [2], "when its clock got there");
+    assert_eq!(leaves_heard(&bench.clients[at]), 1, "once");
+    bench.assert_no_faults();
+}
+
 /// Every place stands in every game's next worlds with `kit` as its current one.
 fn in_the_world(bench: &mut Bench, kit: u8) {
     for client in &mut bench.clients {
