@@ -80,8 +80,8 @@ atexit.register(user32.ClipCursor, None)  # the owner's cursor is theirs again, 
 
 MOVE, LEFT_DOWN, LEFT_UP, RIGHT_DOWN, RIGHT_UP = 0x0001, 0x0002, 0x0004, 0x0008, 0x0010
 KEY_UP, SCANCODE, EXTENDED = 0x0002, 0x0008, 0x0001
-VK = {"enter": 0x0D, "esc": 0x1B, "tab": 0x09, "space": 0x20, "left": 0x25, "right": 0x27, "up": 0x26, "down": 0x28,
-      "ctrl": 0x11, "shift": 0x10, "m": 0x4D, "h": 0x48, "c": 0x43, "1": 0x31, "2": 0x32, "3": 0x33}
+VK = {"backspace": 0x08, "enter": 0x0D, "esc": 0x1B, "tab": 0x09, "space": 0x20, "left": 0x25, "right": 0x27, "up": 0x26, "down": 0x28,
+      "ctrl": 0x11, "shift": 0x10, "m": 0x4D, "h": 0x48, "c": 0x43, "k": 0x4B, "1": 0x31, "2": 0x32, "3": 0x33}
 ARROWS = ("left", "right", "up", "down")
 # The top left corner of the client area: the cursor parked there is looked for only when it is nowhere else.
 CORNER = (27, 34)
@@ -361,12 +361,18 @@ class Game:
         user32.ClientToScreen(window, ctypes.byref(at))
         if not user32.SetCursorPos(at.x, at.y):
             raise OSError(ctypes.get_last_error(), "SetCursorPos")
-        time.sleep(0.05)
-        now = wintypes.POINT()
-        user32.GetCursorPos(ctypes.byref(now))
-        under = user32.GetAncestor(user32.WindowFromPoint(now), 2)  # GA_ROOT
-        if under != window or (now.x, now.y) != (at.x, at.y):
-            raise self.fail(f"a press at ({now.x}, {now.y}), wanted ({at.x}, {at.y}), would not land on this game")
+        for attempt in range(6):  # with several games open, another can rise over this one for a moment
+            time.sleep(0.05 if attempt == 0 else 0.3)
+            now = wintypes.POINT()
+            user32.GetCursorPos(ctypes.byref(now))
+            under = user32.GetAncestor(user32.WindowFromPoint(now), 2)  # GA_ROOT
+            if under == window and (now.x, now.y) == (at.x, at.y):
+                return
+            self.focus()
+            user32.SetCursorPos(at.x, at.y)
+        title = ctypes.create_unicode_buffer(120)
+        user32.GetWindowTextW(under, title, 120)
+        raise self.fail(f"a press at ({now.x}, {now.y}), wanted ({at.x}, {at.y}), would not land on this game: {title.value!r} is over it")
 
     def picture(self) -> np.ndarray:
         # PrintWindow now and then hands back an all-black frame of a game that is drawing normally: taken again.
@@ -457,6 +463,26 @@ class Game:
         send(scan(code, flag))
         time.sleep(0.05)
         send(scan(code, flag | KEY_UP))
+        time.sleep(0.05)
+
+    def hold_key(self, name: str, seconds: float) -> None:
+        """A key held down as a player's finger would: a game action is read from the frames it is down in."""
+        self.focus()
+        send(scan(key_scan(name)))
+        time.sleep(seconds)
+        send(scan(key_scan(name), KEY_UP))
+        time.sleep(0.05)
+
+    def key_chord(self, held: str, name: str) -> None:
+        """`name` pressed while `held` is down."""
+        self.focus()
+        send(scan(key_scan(held)))
+        time.sleep(0.05)
+        send(scan(key_scan(name)))
+        time.sleep(0.05)
+        send(scan(key_scan(name), KEY_UP))
+        time.sleep(0.05)
+        send(scan(key_scan(held), KEY_UP))
         time.sleep(0.05)
 
     def type(self, text: str) -> None:
@@ -617,7 +643,7 @@ class Run:
 
     def launch(self, account: str, password: str) -> Game:
         arguments = [str(self.game_dir / "survarium_skhid.exe"), f"-server={self.host}:1234", f"-account_name={account}",
-                     f"-account_password={password}", "-localization=english", "-mt_allocator=768",
+                     f"-account_password={password}", f"-localization={os.environ.get('SRP_TEST_LANGUAGE', 'english')}", "-mt_allocator=768",
                      "-minimum_resources_memory_size=768", "-log_to_stdout"]
         # Every game of a Windows user writes the same log file, the last one started over the others: each has its own here.
         output = (self.shots.parent / f"client-{account}.log").open("ab", buffering=0)
