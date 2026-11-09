@@ -22,7 +22,8 @@ log helper's constructor (0x111C90). Checked:
   +18h 1, an empty delegate, its vtable our copy of cc_delegate's 0x9E7C0C
   (RTTI and every slot the game's but execute, +4, ours in patches.code);
   the original has no `where`;
-- a line `where` before any view: "where: no camera yet", to the game's log
+- a line `where` before any view, the engine world not running: "where: map - no
+  camera yet", to the game's log
   (format "%s", channel "game:", level 4, the template 0x21E73B8, the
   function {0x9DAF4C | 1, 0, the sink} as the game's callers make it, the
   context word) and to srp_patches.log; the helper our call fills is,
@@ -35,7 +36,14 @@ log helper's constructor (0x111C90). Checked:
   then `where` (and `where with arguments`) prints the player's place
   (+40Ch's), the view's place when it is not that, the view's forward as a
   unit vector, its yaw (degrees from +Z towards +X) and pitch, each to its
-  decimals; ten seconds later the same and "(10.0 s ago)".
+  decimals; ten seconds later the same and "(10.0 s ago)";
+- the map first: with the engine world's game (0x1F1D310, +2D0h) in a match
+  (its world's +4D4Ch set), the game's map name (+55E0h, the buffer_string
+  query_players assigns) and the maps_dict id of the client's own options
+  (match_options, vtable +34h, the game's own getter: a live network client's
+  [+1F1C48h]+0Ch, a replay client's +1Ch): `map <name> (id <n>)`; the world
+  without a match (the lobby after one, its name still there) and the engine
+  not running: `map -`.
 Says nothing about the real console's window or the sink's file.
 """
 import math
@@ -60,6 +68,10 @@ OBJECTS = 0x40000000
 PLAYER, HANDLER, WORLD, PRESENTERS, TEXT, STUBS = (OBJECTS + 0x10000 * i for i in range(6))
 SINK = 0x5EED0000                       # a made-up sink: never called (the write is stubbed)
 CONTEXT = 0x0C0FFEE0
+ENGINE_SLOT = 0x1F1D310                 # the engine world's global (0: not running)
+NETWORK_CLIENT_VTABLE, REPLAY_CLIENT_VTABLE = 0x9FFB14, 0x9FF344
+MAPS = 0x50000000                       # the engine world, the game, its options' holder and a client
+ENGINE, GAME, HOLDER, CLIENT = MAPS, MAPS + 0x10000, MAPS + 0x100000, MAPS + 0x200000
 
 
 class Run(language.Run):
@@ -67,6 +79,7 @@ class Run(language.Run):
         super().__init__(data)
         emu = self.emu
         emu.mem_map(OBJECTS, 0x60000, UC_PROT_ALL)
+        emu.mem_map(MAPS, 0x400000, UC_PROT_ALL)
         self.now, self.writes, self.logged, self.passes, self.passing = 0, [], b"", [], True
         stubs = ((TICK_SLOT, b"\xC3"),
                  (CREATE_SLOT, b"\xB8\x07\x00\x00\x00\xC2\x1C\x00"),
@@ -150,6 +163,29 @@ class Run(language.Run):
                                 TEXT, TEXT + 12))
         return self.writes
 
+    def map(self, name=None, map_id=0, replay=False, playing=True):
+        """The engine world's game in a match of map `name` (None: the engine not running)."""
+        self.emu.mem_write(MAPS, bytes(0x400000))
+        if name is None:
+            self.word(ENGINE_SLOT, 0)
+            return
+        self.word(ENGINE_SLOT, ENGINE)
+        self.word(ENGINE + 0x2D0, GAME)
+        self.word(GAME + 0x18 + 0x4D4C, 0x5A5A0000 if playing else 0)    # the world's match
+        text = GAME + 0x55EC
+        self.emu.mem_write(text, name.encode() + b"\0")
+        self.word(GAME + 0x55E0, text)
+        self.word(GAME + 0x55E4, text + len(name))
+        self.word(GAME + 0x55E8, text + 0x200)
+        self.word(GAME + 0x53AC, CLIENT)
+        if replay:
+            self.word(CLIENT, REPLAY_CLIENT_VTABLE)
+            self.emu.mem_write(CLIENT + 0x1C + 0x577B4, bytes([map_id]))
+        else:
+            self.word(CLIENT, NETWORK_CLIENT_VTABLE)
+            self.word(CLIENT + 0x1F1C48, HOLDER)
+            self.emu.mem_write(HOLDER + 0xC + 0x577B4, bytes([map_id]))
+
     def camera(self, mode, body, eye, warmup=(0.0, 0.0, 0.0)):
         """update_camera(player) with the camera's handler in `mode`: the view it leaves (+48h)."""
         self.emu.mem_write(OBJECTS, bytes(0x40000))
@@ -195,8 +231,11 @@ def expected(body, view):
 def parse(text):
     """`where: pos x y z [eye x y z] dir x y z yaw a pitch b [(s s ago)]` as numbers."""
     words = text.split()
-    assert words[0] == "where:" and words[1] == "pos", text
-    out, i = {"pos": [float(w) for w in words[2:5]]}, 5
+    assert words[0] == "where:" and words[1] == "map", text
+    i = 5 if words[3] == "(id" else 3
+    out = {"map": " ".join(words[2:i])}
+    assert words[i] == "pos", text
+    out["pos"], i = [float(w) for w in words[i + 1:i + 4]], i + 4
     if words[i] == "eye":
         out["eye"], i = [float(w) for w in words[i + 1:i + 4]], i + 4
     assert words[i] == "dir" and words[i + 4] == "yaw" and words[i + 6] == "pitch", text
@@ -252,13 +291,13 @@ def main():
         r.word(LOG_CONTEXT, CONTEXT)
     writes, logged = new.execute("where")
     want_function = struct.pack("<3I", LOG_MANAGER | 1, 0, SINK) + bytes(0x14)
-    check(len(writes) == 1 and writes[0]["argument"] == b"where: no camera yet" and writes[0]["format"] == b"%s"
+    check(len(writes) == 1 and writes[0]["argument"] == b"where: map - no camera yet" and writes[0]["format"] == b"%s"
            and writes[0]["channel"] == b"game:" and writes[0]["level"] == 4 and writes[0]["template"] == LOG_TEMPLATE
            and writes[0]["context"] == CONTEXT and writes[0]["function"] == want_function
-           and logged == b"srp: where: no camera yet\r\n",
-           "where through console_commands::execute, before any view: \"where: no camera yet\" to the game's log "
+           and logged == b"srp: where: map - no camera yet\r\n",
+           "where through console_commands::execute, before any view: \"where: map - no camera yet\" to the game's log "
            "(\"%s\", game:, info, the template, the sink's function, the context) and to srp_patches.log")
-    game = new.game_log(b"where: no camera yet")
+    game = new.game_log(b"where: map - no camera yet")
     same = len(game) == 1 and all(game[0][k] == writes[0][k] for k in
                                   ("format", "argument", "function", "template", "context", "channel", "file",
                                    "caller", "line", "level", "head"))
@@ -299,11 +338,26 @@ def main():
             ok = (close(got["pos"], pos, 0.0006) and (shown_eye is None) == ("eye" not in got)
                   and (shown_eye is None or close(got["eye"], shown_eye, 0.0006)) and close(got["dir"], d, 0.0011)
                   and abs((got["yaw"] - yaw + 180) % 360 - 180) <= 0.06 and abs(got["pitch"] - pitch) <= 0.06
-                  and got["rest"] == "" and logged == b"srp: " + text.encode() + b"\r\n")
+                  and got["map"] == "-" and got["rest"] == "" and logged == b"srp: " + text.encode() + b"\r\n")
             check(ok, f"{name}, {line!r}: {text}")
         new.now = 110_000
         writes, _ = new.execute("where")
         check(writes[0]["argument"].decode().endswith(" (10.0 s ago)"), f"{name}, 10 s later: (10.0 s ago)")
+
+    # the map first
+    new.now = 110_400
+    tail = new.execute("where")[0][0]["argument"].decode().split(" pos ", 1)[1]
+    for name, args, want in (
+            ("a live match", dict(name="v021d_level_03/day_2", map_id=61), "v021d_level_03/day_2 (id 61)"),
+            ("a replay", dict(name="level_01/day_2", map_id=117, replay=True), "level_01/day_2 (id 117)"),
+            ("the world with no match (the lobby after one)",
+             dict(name="level_01/day_2", map_id=117, playing=False), "-"),
+            ("the engine not running", dict(), "-")):
+        new.map(**args)
+        writes, logged = new.execute("where")
+        text = writes[0]["argument"].decode()
+        check(text == f"where: map {want} pos {tail}" and logged == b"srp: " + text.encode() + b"\r\n",
+              f"the map first, {name}: {text}")
 
 
 if __name__ == "__main__":

@@ -9,10 +9,12 @@
 //! console shows it, Survarium_<user>.log keeps it) and of srp_patches.log:
 //!
 //! ```text
-//! where: pos -51.899 5.414 12.914 eye -51.900 7.114 12.914 dir 0.700 -0.150 -0.700 yaw 135.0 pitch -8.6
+//! where: map v021d_level_03/day_2 (id 61) pos -51.899 5.414 12.914 eye -51.900 7.114 12.914 dir 0.700 -0.150 -0.700 yaw 135.0 pitch -8.6
 //! ```
 //!
-//! `pos` the player's place, `eye` the camera's (only when it is not `pos`
+//! `map` the loaded match's project as the data names it and its maps_dict
+//! id (`map -` in the lobby or with no world; no id when the client has no
+//! options), `pos` the player's place, `eye` the camera's (only when it is not `pos`
 //! to the millimetre), `dir` the view's forward as a unit vector, `yaw` its
 //! heading in degrees from +Z towards +X (0 to 360), `pitch` its angle above
 //! the horizontal. A view older than a second says how old; none yet says
@@ -26,6 +28,7 @@ use crate::vostok::camera::{self, CameraView};
 use crate::vostok::console::{self, Command, ConsoleArguments, ConsoleCommand};
 use crate::vostok::files::tick_count;
 use crate::vostok::log::{self, Piece};
+use crate::vostok::world::{LoadedMap, loaded_map};
 use crate::vostok::{Context, Flow, Lock, NoExit, OrigCcDelegateExecute, console_where_methods_vtable_handle};
 
 const NAME: &core::ffi::CStr = c"where";
@@ -65,14 +68,26 @@ pub fn on_execute(_: &OrigCcDelegateExecute, command: &mut ConsoleCommand<'_>, _
     let thread = command.thread();
     let seen = SEEN.with(thread, |seen| *seen);
     let mut line = Line::new();
-    describe(seen, tick_count(), &mut line);
+    describe(loaded_map(thread), seen, tick_count(), &mut line);
     console::game_line(thread, line.c_str());
     log::line(&[Piece::Text(line.text())]);
 }
 
-/// The line for `seen` at GetTickCount's `now`.
-fn describe(seen: Seen, now: u32, line: &mut Line) {
-    line.push("where: ");
+/// The line for the loaded map and `seen` at GetTickCount's `now`.
+fn describe(map: Option<LoadedMap>, seen: Seen, now: u32, line: &mut Line) {
+    line.push("where: map ");
+    match map {
+        Some(map) => {
+            line.push(map.name());
+            if let Some(id) = map.id {
+                line.push(" (id ");
+                line.number(u32::from(id));
+                line.push(")");
+            }
+        }
+        None => line.push("-"),
+    }
+    line.push(" ");
     let (view, tick) = match seen {
         Seen::Nothing => {
             line.push("no camera yet");
@@ -125,7 +140,7 @@ fn pitch_degrees([x, y, z]: [f32; 3]) -> f32 {
 }
 
 /// The longest line (a longer one is cut), its zero after it.
-const MOST: usize = 160;
+const MOST: usize = 240;
 
 /// A line of text, ASCII, with room for its zero.
 struct Line {
@@ -216,8 +231,12 @@ mod tests {
     use super::*;
 
     fn line(seen: Seen, now: u32) -> String {
+        line_at(None, seen, now)
+    }
+
+    fn line_at(map: Option<LoadedMap>, seen: Seen, now: u32) -> String {
         let mut line = Line::new();
-        describe(seen, now, &mut line);
+        describe(map, seen, now, &mut line);
         assert_eq!(line.c_str().to_str().unwrap(), line.text());
         line.text().to_string()
     }
@@ -228,7 +247,7 @@ mod tests {
 
     #[test]
     fn nothing_seen_says_so() {
-        assert_eq!(line(Seen::Nothing, 0), "where: no camera yet");
+        assert_eq!(line(Seen::Nothing, 0), "where: map - no camera yet");
     }
 
     #[test]
@@ -240,7 +259,7 @@ mod tests {
         assert_eq!(
             text,
             format!(
-                "where: pos -51.899 5.414 12.914 eye -51.900 7.114 12.914 dir {:.3} {:.3} {:.3} yaw 135.0 pitch {:.1}",
+                "where: map - pos -51.899 5.414 12.914 eye -51.900 7.114 12.914 dir {:.3} {:.3} {:.3} yaw 135.0 pitch {:.1}",
                 0.7 / n,
                 -0.15 / n,
                 -0.7 / n,
@@ -252,7 +271,7 @@ mod tests {
     #[test]
     fn the_eye_only_when_it_differs() {
         let text = line(view([1.0, 2.0, 3.0], [1.0002, 2.0, 3.0], [0.0, 0.0, 1.0]), 5000);
-        assert_eq!(text, "where: pos 1.000 2.000 3.000 dir 0.000 0.000 1.000 yaw 0.0 pitch 0.0");
+        assert_eq!(text, "where: map - pos 1.000 2.000 3.000 dir 0.000 0.000 1.000 yaw 0.0 pitch 0.0");
     }
 
     #[test]
@@ -273,7 +292,7 @@ mod tests {
     #[test]
     fn an_old_view_says_how_old() {
         let text = line(view([0.0; 3], [0.0; 3], [0.0, 0.0, 2.0]), 5000 + 12_340);
-        assert_eq!(text, "where: pos 0.000 0.000 0.000 dir 0.000 0.000 1.000 yaw 0.0 pitch 0.0 (12.3 s ago)");
+        assert_eq!(text, "where: map - pos 0.000 0.000 0.000 dir 0.000 0.000 1.000 yaw 0.0 pitch 0.0 (12.3 s ago)");
     }
 
     #[test]
@@ -302,8 +321,21 @@ mod tests {
     }
 
     #[test]
+    fn the_map_first() {
+        let seen = view([1.0, 2.0, 3.0], [1.0, 2.0, 3.0], [0.0, 0.0, 1.0]);
+        let tail = "pos 1.000 2.000 3.000 dir 0.000 0.000 1.000 yaw 0.0 pitch 0.0";
+        let map = LoadedMap::new(b"v021d_level_03/day_2", Some(61));
+        assert_eq!(line_at(Some(map), seen, 5000), format!("where: map v021d_level_03/day_2 (id 61) {tail}"));
+        let replayed = LoadedMap::new(b"level_01/day 2\x01", None);
+        assert_eq!(line_at(Some(replayed), seen, 5000), format!("where: map level_01/day?2? {tail}"));
+        assert_eq!(line_at(Some(map), Seen::Nothing, 0), "where: map v021d_level_03/day_2 (id 61) no camera yet");
+        let long = LoadedMap::new(&[b'x'; 300], Some(255));
+        assert_eq!(line_at(Some(long), seen, 5000), format!("where: map {} (id 255) {tail}", "x".repeat(64)));
+    }
+
+    #[test]
     fn no_direction_says_so() {
         let text = line(view([0.0; 3], [0.0; 3], [0.0; 3]), 5000);
-        assert_eq!(text, "where: pos 0.000 0.000 0.000 dir none");
+        assert_eq!(text, "where: map - pos 0.000 0.000 0.000 dir none");
     }
 }
