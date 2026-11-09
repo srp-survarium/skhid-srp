@@ -809,6 +809,10 @@ impl<'a> Core<'a> {
         }
         // Nor in its clan team, which it leaves with its session.
         self.clan_link_gone(player.account_id, end_session);
+        // Nor does it watch a match: its game is gone or starting anew, and
+        // a place among a match's few spectators would stay taken until the
+        // match ended (a watcher is no seat, which waits for its player).
+        self.store.matchmaking().stop_watching(player.session_id);
         if let Some(account) = self.store.account(player.account_id) {
             account.locked().play = None;
         }

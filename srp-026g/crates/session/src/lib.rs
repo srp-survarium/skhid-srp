@@ -1308,6 +1308,7 @@ impl SessionStore {
         };
         self.sessions_ended(&[(session_id, account_id)]);
         self.matchmaking.leave_queue(session_id);
+        self.matchmaking.session_gone(session_id);
         if !self.plays_on_elsewhere(account_id, session_id, Instant::now()) {
             self.leave_squad(account_id, "its session ended (signed out)");
         }

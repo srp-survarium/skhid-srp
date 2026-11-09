@@ -746,6 +746,14 @@ impl Matchmaking {
         }
     }
 
+    /// The session is over or replaced: whatever it watched, it watches no
+    /// more. No word comes from a game that crashed on its way (the match
+    /// server never saw it), and its place in a match's few would stay taken
+    /// until the match ended.
+    pub fn session_gone(&self, session_id: u32) {
+        self.watching.lock().remove(&session_id);
+    }
+
     /// The match server: the watcher's game left the match by itself (its
     /// menu's Leave match, 0xE0, or its link went): it watches no more, and
     /// the lobby takes it out of the queue ([`Self::take_watchers_left`]).

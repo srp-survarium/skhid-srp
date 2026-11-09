@@ -63,6 +63,36 @@ fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> String {
         .expect("an R1 row")
 }
 
+/// A Live spectator whose game never reaches the match server, or which
+/// signs in anew, gives its place back when its lobby link or session goes:
+/// not only when the match ends.
+#[test]
+fn a_live_watcher_gives_its_place_back_when_its_link_goes() {
+    let mut world = World::new();
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    let session = world.ids[carol].1;
+    let matchmaking = |world: &World| world.store.matchmaking().watched(session);
+    assert!(matchmaking(&world).is_some());
+    // Its game crashed while loading: nothing more comes from it.
+    drop(std::mem::replace(&mut world.clients[carol].1, TestClient::new()));
+    world.advance(world.core.settings.match_link_timeout + Duration::from_secs(1));
+    assert_eq!(matchmaking(&world), None);
+}
+
+/// The session's end is enough on its own, whichever way it comes.
+#[test]
+fn a_live_watcher_watches_no_more_when_its_session_ends() {
+    let mut world = World::new();
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    let session = world.ids[carol].1;
+    assert!(world.store.end_session(session));
+    assert_eq!(world.store.matchmaking().watched(session), None);
+}
+
 /// Past the limit of lookups of unknown matches, an ask says nothing of a
 /// match being played either: asking was how to tell a running private
 /// match from no match at all.
