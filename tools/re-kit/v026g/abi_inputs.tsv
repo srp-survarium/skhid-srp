@@ -5760,3 +5760,12 @@ va	name	location	role	basis
 0x002016d0	survarium::game_options::on_mouse_key_action	entry ESP+12	the button's action: 0 a press	observed
 0x002017a0	survarium::game_options::on_mouse_move	ECX	the main menu (game_options)	observed
 0x002017a0	survarium::game_options::on_mouse_move	entry ESP+16	the wheel's turn: 0 none, above 0 up (159h), else down (15Ah)	observed
+0x00013660	vostok::engine::engine_world::engine_world	entry ESP+4	the engine_world being built (EBP in the body; the render arena's allocator at +228h)	observed
+0x000141b0	vostok::command_line::key::is_set_as_number<unsigned int>	ESI	the command-line key (0xA80380 rh_allocator, 0xA7C088 render_allocator, 0xA80150 mt_allocator; its name at +210h)	observed
+0x000141b0	vostok::command_line::key::is_set_as_number<unsigned int>	entry ESP+4	the u32 the value goes to	observed
+0x000ddf20	vostok::command_line::key::is_set_as_number	ESI	the command-line key (name +210h, float value +20Ch, state +224h)	observed
+0x000ddf20	vostok::command_line::key::is_set_as_number	EDI	the float the value goes to, or 0	observed
+0x000e1120	vostok::memory::allocate_region	entry ESP+4	additional memory size (u64; 320 MiB with an editor, else 0)	observed
+0x000e1120	vostok::memory::allocate_region	entry ESP+12	additional address space (u64; the same value)	observed
+0x000e21c0	vostok::memory::register_allocator	ESI	the arenas' list ([0xA808FC]: +4 end, +8 capacity end)	observed
+0x000e21c0	vostok::memory::register_allocator	EDI	the record: +0 allocator, +8 arena size (u64), +10h arena address (0), +14h name	observed
