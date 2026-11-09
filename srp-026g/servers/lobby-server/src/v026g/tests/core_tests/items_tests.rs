@@ -151,7 +151,10 @@ fn a_sign_in_brings_the_craft_tables() {
     let (chances, general, premium) = tables.expect("0x9B at sign-in");
     let craft = &Modifications::shared().craft;
     let (data, data_general, data_premium) = craft.tables();
-    assert_eq!((chances, general, premium), (data, data_general, data_premium));
+    assert_eq!(
+        (chances, general, premium),
+        (data, data_general, data_premium)
+    );
     // An upgrade always succeeds (the owner, 2026-11-08): 100 % in silver in
     // every row, nothing else.
     for (index, &sent) in chances.iter().enumerate() {

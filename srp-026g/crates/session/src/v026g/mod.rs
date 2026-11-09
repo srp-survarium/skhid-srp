@@ -244,7 +244,6 @@ impl GameAccounts {
 
     /// The store srp's environment asks for: in `srp.db` under
     /// `SRP_DATA_DIR`, or in memory with `SRP_DB=off`.
-
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {

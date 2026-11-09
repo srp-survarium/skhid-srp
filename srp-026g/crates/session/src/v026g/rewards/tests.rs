@@ -1172,7 +1172,6 @@ fn a_finisher_always_finds_a_drop_cards_item() {
     assert_eq!(sent, [1.0, 0.0, 0.0, 0.0]);
 }
 
-
 #[test]
 fn a_stack_dropped_goes_onto_the_stack_owned() {
     let mut account = Account::new("Alice");
@@ -1194,8 +1193,6 @@ fn a_stack_dropped_goes_onto_the_stack_owned() {
     assert_eq!(shown.condition_or_stack, 2);
     assert_eq!(account.item(first.item_id).unwrap().condition_or_stack, 4);
 }
-
-
 
 #[test]
 fn premium_adds_half_and_can_be_claimed_from_the_screen() {

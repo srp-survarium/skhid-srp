@@ -725,7 +725,10 @@ fn item_actions_change_the_inventory() {
     );
     for mode in ["00", "02"] {
         assert!(matches!(
-            client.receive_raw(0x83, &h(&format!("46 09 {mode} 01000000 02000000 03000000"))),
+            client.receive_raw(
+                0x83,
+                &h(&format!("46 09 {mode} 01000000 02000000 03000000"))
+            ),
             Err(ModelError::Bad(ServerId::Permitted, _))
         ));
     }

@@ -462,7 +462,10 @@ fn premium_gear_pays_more() {
         &[(1240, false), (1250, false)],
     );
     assert!((bonuses.reputation[0] - 0.05).abs() < 1e-6);
-    assert_eq!(data.bonuses(dict("ak_74m"), &[(2000, false)]), Bonuses::default());
+    assert_eq!(
+        data.bonuses(dict("ak_74m"), &[(2000, false)]),
+        Bonuses::default()
+    );
 }
 
 /// The lobby colours a bonus at the best value it rolls gold and shows its

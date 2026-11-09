@@ -832,7 +832,6 @@ impl GameRepository for SqliteGameRepository {
         self.path.clone()
     }
 
-
     fn load_clans(&mut self) -> Result<Vec<Clan>, PersistError> {
         clans::load(&mut self.connection)
     }
