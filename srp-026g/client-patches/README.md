@@ -3499,13 +3499,17 @@ land beside it unchanged:
   esp+14h). The options' +57870h holds "SRBO", else zeros; the patch keeps the match's flag.
 - **The interface.** `player_icons.update_start` (0x23AA10, each frame): the hud movie
   `root.force_interface_hidden(flag)` (its root hidden but for the pre-match countdown and, while
-  Tab is held, its Tab view: HUD.as) and the player icons `root.force_interface_hidden(flag)`
+  Tab is held, its Tab view: HUD.as; since 2026-11-09 the Tab list among it, by names only, with its
+  map and row menu) and the player icons `root.force_interface_hidden(flag)`
   (forced: the objects' markers hidden, the teammates' kept as in a plain match), each told at a
   change of the movie or the state, again while a movie does not take it. Forced, the movies'
   `hide_interface` does nothing (patch 62's F11, a match's reset).
 - **Tab.** `keyboard.tab_state` (0x25CD2C, BL Tab down): Tab's state; in a Blackout match BL
   cleared, so the key goes on as with Tab up (the game's Tab test at 0x25CD39; patch 58's kit keys
-  at 0x25CD41). `input_builder.end` (0x2421B0, EBX the handler): while Tab is held the input's
+  at 0x25CD41); show_player_list (0x2384C0, called at 0x25CD34 with the byte stored before) still
+  gets Tab, so the hud's list flag (+0BAh) and patch 86's cursor are a plain match's. The Tab map's
+  objects need nothing of this patch: update_ui calls update_minimap_objects (0x238530, the marked
+  batteries as "artifact") whatever the interface shows. `input_builder.end` (0x2421B0, EBX the handler): while Tab is held the input's
   actions mask (+33Ch) blocks acts immediately (Use is none: a search held through Tab goes on) and
   movement after 200 ms, and an act held through Tab stays out until let go.
   The input is filtered before it is applied and sent: every game plays what was sent.
@@ -3521,7 +3525,9 @@ crate's block and state); `check_blackout_026g.py` (Unicorn, from the game's cod
 site, the original beside): the options read on nine blocks for both reads; the feed over
 sixteen frames; Tab and the input; names across modes, teams, native decisions and cached
 visibility, including a new match resetting Tab. `cargo test` in `rust/`; `../scripts/blackout-kits/check.sh`
-(Ruffle: the hud's Tab view and kits, the player icons' states). **Not run in a game.**
+(Ruffle: the hud's Tab view and kits, the Tab list kept with them by names only, its row menu and
+its map's marked battery, the player icons' states); `check_tab_cursor_026g.py` (Ctrl's cursor in a
+Blackout match). **Not run in a game.**
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)
 
@@ -3877,9 +3883,10 @@ mode), sent by lobby_client::comment_about_user (0x274470): never the own
 name, one of the three choices that changes the state the lobby's ignore list
 gives (a `<muted>` player's id marked with bit 31), the connection up.
 
-Nothing a match computes changes. Blackout matches (no list) keep Ctrl as
-crouch. `check_tab_cursor_026g.py` runs both hooks from the game's code
-beside the original.
+Nothing a match computes changes. A Blackout match's Tab view has the list
+too (since 2026-11-09, so players can mute there): Ctrl with Tab held is the
+cursor's as in any match. `check_tab_cursor_026g.py` runs both hooks from the
+game's code beside the original.
 
 ## World check (patch 87, unreleased)
 

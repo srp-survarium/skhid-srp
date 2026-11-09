@@ -10,12 +10,14 @@
 //! - each frame's player icons update (`player_icons.update_start`): the hud
 //!   movie and the player icons movie are told the forced interface
 //!   (`root.force_interface_hidden`: the hud keeps the pre-match countdown and
-//!   its Tab view, HUD.as; the icons hide the match's objects' markers and
-//!   keep the players', the teammates' as in a plain match), once for each
-//!   change of a movie or of the state;
+//!   its Tab view, the Tab list by names with its map among it, HUD.as; the
+//!   icons hide the match's objects' markers and keep the players', the
+//!   teammates' as in a plain match), once for each change of a movie or of
+//!   the state;
 //! - the game world's keys (`keyboard.tab_state`): Tab's state, and in a
-//!   Blackout match the key goes on as with Tab up (no Tab list: the kits'
-//!   keys 1 to 3 of patch 58 come after the game's Tab test);
+//!   Blackout match the key goes on as with Tab up (the game's list keeps
+//!   Tab's byte; the kits' keys 1 to 3 of patch 58 come after the game's Tab
+//!   test, and the moves are filtered below);
 //! - the player name decision (`player_names.visibility`): Tab shows names
 //!   for teammates in Blackout, after the native visibility checks;
 //! - the input builder's end (`input_builder.end`): while Tab is held the
@@ -131,11 +133,6 @@ fn filtered(blackout: bool, tab: TabState, held: ActionMask, built: ActionMask) 
     }
     let still = held.intersection(built);
     (built.without(still), still)
-}
-
-/// The match (or replay) is a Blackout match: Tab shows no list.
-pub fn forced(thread: &Thread) -> bool {
-    BLACKOUT.get(thread)
 }
 
 fn options_read(thread: &Thread, read: Option<OptionsRead>, replay: bool) -> Flow<NoExit> {

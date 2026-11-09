@@ -18,7 +18,8 @@ Stubbed besides: messaging_client::send_important_message (0x26AFB0, recorded,
   hud's cursor and is taken (al 1, `ret 0Ch`); its held and up events are
   taken until it is let go, after Tab too; Tab let go hides the cursor (not
   while the kits are shown); Ctrl without the list, a Ctrl held into the
-  list, any other key, and every key of a Blackout match go on, registers
+  list and any other key go on (a Blackout match's as any match's: its Tab
+  view has the list), registers
   and stack as the original's, which takes none and calls nothing;
 - the hud movie's calls (game_world_ui::scaleform_callback 0x233D30 to its
   return): `srp_player_menu(place)` answers root.srp_player_menu(place,
@@ -243,12 +244,19 @@ def main():
     ours.key(TAB, UP)
     ours.key(LCTRL, UP)
 
-    print("a Blackout match: no list, every key on")
+    print("a Blackout match: its Tab view has the list, the cursor as in any match")
     payload = blackout.empty_options(blackout.srpx((2, b"\x01")))
     report(ours.static_info(payload)[0], "the Blackout options read")
     ours.hud(1, 0)
     b = ours.key(LCTRL, DOWN)
-    report(b[0] == KEY_PAST and b[4] == [], "Ctrl with Tab down in Blackout: on (crouch), no cursor")
+    report((b[0], b[1], b[2], b[4]) == taken(shown), "Ctrl with Tab down in Blackout: the cursor, the key taken")
+    b = ours.key(LCTRL, UP)
+    report((b[0], b[1], b[2], b[4]) == taken([]), "its release taken")
+    b = ours.key(TAB, UP)
+    report(b[0] == KEY_PAST and b[4] == hidden, "Tab let go in Blackout: the cursor hidden, Tab on")
+    ours.hud(0, 0)
+    b = ours.key(LCTRL, DOWN)
+    report(b[0] == KEY_PAST and b[4] == [], "Ctrl without Tab in Blackout: the player's (crouch)")
     b = ours.key(LCTRL, UP)
     report(b[0] == KEY_PAST and b[4] == [], "its release on")
     report(ours.static_info(blackout.empty_options(b""))[0], "a plain match's options read again")

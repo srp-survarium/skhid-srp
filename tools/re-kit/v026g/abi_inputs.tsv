@@ -5792,3 +5792,5 @@ va	name	location	role	basis
 0x0027f780	survarium::network_client::draw_match_stats	ECX	the network_client	observed
 0x0027f780	survarium::network_client::draw_match_stats	entry ESP+4	the time since the last tick (game::tick: now - game+584Ch)	observed
 0x00429f20	_chkstk	EAX	the bytes to take off the stack	observed
+0x00238530	survarium::game_world_ui::update_minimap_objects	entry ESP+4	the game_world_ui (edi pushed at 0x23B477); update_ui calls it only when the checksum of the hud state [ui+24h..2D8h) differs from [ui+2E0h], stored after it (0x23B47D); nothing of the interface, Tab or patch 65 (Blackout) gates it, so a Blackout match feeds the Tab map its marked batteries as a plain one	observed
+0x00236d30	survarium::game_world_ui::set_player_stats_info	entry ESP+4	the place (update_ui's loop byte, 0x23B469)	observed

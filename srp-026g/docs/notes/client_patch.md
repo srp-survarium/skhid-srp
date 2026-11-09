@@ -1728,7 +1728,9 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   After show_player_list, `test bl,bl / jnz 0x25CF0D` (0x25CD39) sends every key to the function's
   end while Tab is down: patch 58's kit keys (0x25CD41) never get one. In Blackout the hook clears
   bl after the call's byte is stored (0x25CD28: [esp+14h], loaded at 0x25CD2C), so 1 to 3 reach the
-  kits Tab shows and show_player_list still gets Tab.
+  kits Tab shows and show_player_list still gets Tab (its +0BAh, so update_ui's list rows
+  0x23B421, update_minimap_objects 0x238530 and patch 86's cursor are a plain match's: Blackout's
+  Tab view has the list since 2026-11-09).
 - **Use held through Tab** (PROVEN in the code, 2026-11-05; the owner's report: Tab during an
   artefact search froze it, and it stayed frozen after Tab). A use ends at the first tick whose
   input lacks Use: `artefact_container_core::use_execute` (0x31C780, every tick of a use from
@@ -3046,8 +3048,8 @@ profile's name, `[%s] %s` with its clan tag, 0x235090). The movie keeps the
 rows' names by place (`HUD.list_set_players` -> `Minimap.setPlayerNames`, the
 Tab map's alone) and an icon shows its place's while the names are shown,
 none for the local player (`is_local_player`). The Tab map is the Tab list's
-(`SrvPlayerList.minimap`), which Blackout's forced Tab never shows, so no
-name shows in Blackout.
+(`SrvPlayerList.minimap`), which Blackout's forced Tab shows too since
+2026-11-09 (`blackout.md`), so the names show there as in any match.
 
 Checked: `check_map_names_026g.py` (Unicorn) runs on_keyboard_action from its
 start to past show_player_list (0x25CD39) in both builds on a made-up input
