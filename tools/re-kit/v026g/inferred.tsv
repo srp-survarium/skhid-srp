@@ -771,7 +771,6 @@ va	status	ref_021d	name
 0x0011a5c0	inferred-medium		vostok::render::resource_pools::allocate_texture_pool
 0x0011aae0	inferred-medium		vostok::render::resource_pools::allocate_rt_pool
 0x0011b510	inferred-medium	0x000d7841	vostok::math::color_rgba
-0x0011b5a0	inferred-medium	0x000d78ef	vostok::render::shader_constant_buffer::set_memory
 0x0011ce40	inferred-medium	0x000d8301	vostok::render::clip_2_screen
 0x0011fb00	inferred-medium	0x000d9b82	vostok::buffer_vector<unsigned short>::push_back
 0x0011fb80	inferred-medium	0x000d9bf0	stlp_std::priv::_Rb_tree<vostok::render::render_model_instance *,stlp_std::less<vostok::render::render_model_instance *>,stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects>,stlp_std::priv::_Select1st<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,stlp_std::priv::_MapTraitsT<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,vostok::render::std_allocator<stlp_std::pair<vostok::render::render_model_instance *,vostok::render::material_effects> > >::_M_erase
@@ -3404,3 +3403,7 @@ va	status	ref_021d	name
 0x0010f8c0	inferred-high		vostok::memory::mt_region::take
 0x0010f980	inferred-high		vostok::memory::mt_region::give
 0x0001c6a0	inferred-high		vostok::memory::mt_allocator::malloc_impl
+0x003d6300	inferred-medium		vostok::render::constants_handler<0>::assign
+0x003d63f0	inferred-medium		vostok::render::constants_handler<>::update_buffers
+0x003d6640	inferred-medium		vostok::render::constants_handler<2>::assign
+0x003d6830	inferred-medium		vostok::render::constants_handler<1>::assign
