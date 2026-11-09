@@ -920,7 +920,8 @@ def known_targets(original):
     abi.tsv) and the engine-function library's (engine_026g.tsv); each
     install row's way back, the end of the bytes it replaces, and the
     branches of those bytes, which its code replays (patch_026g.py's install
-    tables, the Rust hooks), and its start, where the build's own bytes go on;
+    tables, the Rust hooks, those installed on demand), and its start, where
+    the build's own bytes go on;
     the sites' named exits (sites_026g.tsv); and
     patch_026g.py's named ways back (*_BACKS, *_EXITS, *_RETURN, *_END)."""
     key = hashlib.sha256(original).hexdigest()
@@ -933,6 +934,9 @@ def known_targets(original):
     known.update(f["va"] for f in engine_026g.every_function())
     rows = [row for name, value in vars(P).items() if name.isupper() for row in P._install_rows(value)]
     rows += [(va, old) for va, old, _, _ in P.rust_hooks(original)]
+    # a hook installed on demand (hooks_026g.py) goes back past its site as a built one does
+    rows += [(h["site"], h["original"]) for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
+             if h.get("on_demand")]
     for va, old, *_ in rows:
         known.update((va, va + len(old)))
         known.update(t for _, _, text in ndisasm(bytes(old), va) if (t := branch_target(text)) is not None)
@@ -994,8 +998,14 @@ def test_rust_hooks(original, image, before):
             texts = [text for _, _, text in ndisasm(image.read(entry, 0x60), entry)]
             if texts[:5] != prologue or f"call {linked.symbols[h['shim']]:#x}" not in texts:
                 bad.append(f"{h['site_name']}: {h['entry']} is no lohook entry calling {h['shim']}")
+    on_demand = [h for h in hooks_026g.hooks(exe=hooks_026g.original_reader(original)) if h.get("on_demand")]
+    for h in on_demand:
+        entry = linked.symbols[h["entry"]]
+        if image.read(h["site"], len(h["original"])) != h["original"] or not block.va <= entry < block.va + block.size:
+            bad.append(f"{h['site_name']}: installed on demand, yet its site is not the game's bytes")
     count = len(installs)
     check(count and not bad, f"each of the {count} Rust hooks' sites branches to its generated entry in patches.code; "
+          f"the {len(on_demand)} installed on demand keep the game's bytes; "
           "each lohook's entry saves the machine and calls its shim" + "".join(f"; {b}" for b in bad))
 
 
