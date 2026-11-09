@@ -1194,6 +1194,17 @@ artefact_skills_on_spring_reload_go:
 global artefact_skills_on_shared_modifier
 extern hook_artefact_skills_on_shared_modifier
 artefact_skills_on_shared_modifier:
+extern artefact_skills_on_shared_modifier_only
+    pushfd
+    cmp esi, 256
+    jae artefact_skills_on_shared_modifier_pass
+    bt dword [artefact_skills_on_shared_modifier_only], esi
+    jc artefact_skills_on_shared_modifier_save
+artefact_skills_on_shared_modifier_pass:
+    popfd
+    jmp artefact_skills_on_shared_modifier_replay
+artefact_skills_on_shared_modifier_save:
+    popfd
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1233,6 +1244,17 @@ artefact_skills_on_shared_modifier_replay:
 global artefact_skills_on_shared_modifiers
 extern hook_artefact_skills_on_shared_modifiers
 artefact_skills_on_shared_modifiers:
+extern artefact_skills_on_shared_modifiers_only
+    pushfd
+    cmp eax, 256
+    jae artefact_skills_on_shared_modifiers_pass
+    bt dword [artefact_skills_on_shared_modifiers_only], eax
+    jc artefact_skills_on_shared_modifiers_save
+artefact_skills_on_shared_modifiers_pass:
+    popfd
+    jmp artefact_skills_on_shared_modifiers_replay
+artefact_skills_on_shared_modifiers_save:
+    popfd
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1382,6 +1404,17 @@ artefact_skills_on_fire_go:
 global artefact_skills_on_own_modifier
 extern hook_artefact_skills_on_own_modifier
 artefact_skills_on_own_modifier:
+extern artefact_skills_on_own_modifier_only
+    pushfd
+    cmp esi, 256
+    jae artefact_skills_on_own_modifier_pass
+    bt dword [artefact_skills_on_own_modifier_only], esi
+    jc artefact_skills_on_own_modifier_save
+artefact_skills_on_own_modifier_pass:
+    popfd
+    jmp artefact_skills_on_own_modifier_replay
+artefact_skills_on_own_modifier_save:
+    popfd
     lea esp, [esp - 4]
     pushfd
     pushad

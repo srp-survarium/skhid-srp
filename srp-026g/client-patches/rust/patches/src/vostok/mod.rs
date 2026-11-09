@@ -85,7 +85,7 @@ mod generated {
     #[allow(unused_imports)]
     use super::context::{Context, Flow, Frame};
     #[allow(unused_imports)]
-    use super::hook::{Handle, Out, Thread};
+    use super::hook::{Handle, Only, Out, Thread};
     #[allow(unused_imports)]
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
