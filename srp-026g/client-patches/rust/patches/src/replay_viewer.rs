@@ -452,9 +452,55 @@ impl KitMasks {
     }
 }
 
-static SESSION: GameCell<Session> = GameCell::new(Session::Live);
-static EVENTS: GameCell<Events> = GameCell::new(Events::NONE);
-static MASKS: GameCell<KitMasks> = GameCell::new(KitMasks::NONE);
+/// Why a match's state goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reset {
+    /// A match's options (0xE4): a new match, nothing fed yet.
+    NewMatch,
+    /// close_current_match past its guard: nothing is fed any more until the next.
+    Ended,
+}
+
+/// The replay viewer's state: one owner, one reset.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Viewing {
+    session: Session,
+    events: Events,
+    masks: KitMasks,
+    feeding: Feeding,
+}
+
+impl Viewing {
+    const INITIAL: Viewing = Viewing { session: Session::Live, events: Events::NONE, masks: KitMasks::NONE, feeding: Feeding::Running(Fed::NOTHING) };
+
+    /// A new match or the match's end, whichever it is: the session steps (a viewer's restores the
+    /// clock, [`Act::Restore`]), everything of the match's goes.
+    fn reset(&mut self, reset: Reset) -> Act {
+        let input = match reset {
+            Reset::NewMatch => Input::NewMatch,
+            Reset::Ended => Input::MatchEnded,
+        };
+        let (session, act) = step(self.session, input, &self.events);
+        self.session = session;
+        self.events = Events::NONE;
+        self.masks = KitMasks::NONE;
+        self.feeding = match reset {
+            Reset::NewMatch => Feeding::Running(Fed::NOTHING),
+            Reset::Ended => Feeding::Ended,
+        };
+        act
+    }
+}
+
+static VIEWING: GameCell<Viewing> = GameCell::new(Viewing::INITIAL);
+
+fn session(thread: &crate::vostok::Thread) -> Session {
+    VIEWING.with(thread, |viewing| viewing.session)
+}
+
+fn set_session(thread: &crate::vostok::Thread, session: Session) {
+    VIEWING.with(thread, |viewing| viewing.session = session);
+}
 /// Whether `key` is one of the kit keys (patch 58's 1, 2 and 3).
 fn is_kit_key(key: Dik) -> bool {
     matches!(key, Dik::KEY_1 | Dik::KEY_2 | Dik::KEY_3)
@@ -477,8 +523,8 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
         Some(ServerNote::Playback(playback)) => {
             let names = Names::of(&site.client);
             let own = Own::by_name(names.own(), site.client.places(), |place| names.of_place(place));
-            let (next, act) = EVENTS.with(thread, |events| step(SESSION.get(thread), Input::Playback { playback, own }, events));
-            SESSION.set(thread, next);
+            let (next, act) = VIEWING.with(thread, |viewing| step(viewing.session, Input::Playback { playback, own }, &viewing.events));
+            set_session(thread, next);
             site.client.become_replay_viewer();
             if let (Act::Play { paused, speed }, Some(clock)) = (act, GameClock::of(&site.client)) {
                 clock.set_paused(paused);
@@ -486,14 +532,14 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
             }
         }
         Some(ServerNote::Events(note)) => {
-            if let Err(TooManyEvents { total }) = EVENTS.with(thread, |events| events.take(&note)) {
+            if let Err(TooManyEvents { total }) = VIEWING.with(thread, |viewing| viewing.events.take(&note)) {
                 line(&[Piece::Text("replay_viewer: the replay has "), Piece::Dec(u32::from(total)),
                        Piece::Text(" events, the viewer keeps "), Piece::Dec(MAX_EVENTS as u32), Piece::Text(": the rest have no marks")]);
             }
         }
         Some(ServerNote::Kits(note)) => {
             if let Some(place) = Place::new(u32::from(note.place)) {
-                MASKS.update(thread, |masks| masks.take(place, note.mask));
+                VIEWING.with(thread, |viewing| viewing.masks = viewing.masks.take(place, note.mask));
             }
         }
         // The place its watcher asked to see (a replay's or a live match's
@@ -521,8 +567,8 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
         key.take();
         return Flow::Exit(ReplayViewerOnKeyExit::Taken);
     }
-    let session = SESSION.get(thread);
-    if session == Session::Live {
+    let viewing_session = session(thread);
+    if viewing_session == Session::Live {
         return Flow::Continue;
     }
     let shift = matches!(key.key(), Dik::LEFT | Dik::RIGHT) && key.shift_down();
@@ -535,8 +581,8 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
     let client = key.hud().client(thread);
     let now = client.as_ref().and_then(|client| client.clock());
     let watched = client.as_ref().and_then(|client| client.local_place());
-    let (next, act) = EVENTS.with(thread, |events| step(session, Input::Command { command: replay_key, now, watched }, events));
-    SESSION.set(thread, next);
+    let (next, act) = VIEWING.with(thread, |viewing| step(viewing_session, Input::Command { command: replay_key, now, watched }, &viewing.events));
+    set_session(thread, next);
     match act {
         Act::Ask(request) => {
             if let Some(client) = &client {
@@ -564,13 +610,8 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
 /// replay's viewing; the game's clock runs again at 1 before the world ends.
 pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(close) = MatchClose::at(ctx) else { return Flow::Continue };
-    let thread = ctx.thread();
-    let (next, act) = EVENTS.with(thread, |events| step(SESSION.get(thread), Input::MatchEnded, events));
-    SESSION.set(thread, next);
-    EVENTS.with(thread, |events| *events = Events::NONE);
-    MASKS.set(thread, KitMasks::NONE);
     // A world may tick on after this: nothing is shown again until the next match.
-    FED.set(thread, Fed::ENDED);
+    let act = VIEWING.with(ctx.thread(), |viewing| viewing.reset(Reset::Ended));
     if close.client.is_spectator()
         && let Some(chooser) = KitChooser::of(&close.client)
     {
@@ -595,12 +636,7 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// `static_info.options_read` (after patches 65, 86, 83 and 103's): a new
 /// match starts as no replay, with no events.
 pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let thread = ctx.thread();
-    let (next, _) = EVENTS.with(thread, |events| step(SESSION.get(thread), Input::NewMatch, events));
-    SESSION.set(thread, next);
-    EVENTS.with(thread, |events| *events = Events::NONE);
-    MASKS.set(thread, KitMasks::NONE);
-    FED.set(thread, Fed::NOTHING);
+    VIEWING.with(ctx.thread(), |viewing| viewing.reset(Reset::NewMatch));
     Flow::Continue
 }
 
@@ -717,14 +753,20 @@ struct Fed {
     /// The switch's choice it shows, and the cursor it shows the key hint for.
     moments: Option<Moments>,
     cursor: Option<Ui>,
-    /// What the hud's kit chooser has been given, and whether the match has ended.
+    /// What the hud's kit chooser has been given.
     chooser: Option<ChooserFed>,
-    ended: MatchEnd,
 }
 
 impl Fed {
-    const NOTHING: Fed = Fed { movie: None, revision: None, markers: None, ui: None, moments: None, cursor: None, chooser: None, ended: MatchEnd::Running };
-    const ENDED: Fed = Fed { ended: MatchEnd::Ended, ..Fed::NOTHING };
+    const NOTHING: Fed = Fed { movie: None, revision: None, markers: None, ui: None, moments: None, cursor: None, chooser: None };
+}
+
+/// Whether the frames that remain still belong to a running match, fed so far by [`Fed`]; once
+/// ended, nothing is fed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Feeding {
+    Running(Fed),
+    Ended,
 }
 
 /// The dictionary keys of the viewer's own controls, in root.start_viewer's
@@ -743,13 +785,6 @@ struct MarkersOf {
     watched: Option<Place>,
 }
 
-/// Whether the frames that remain still belong to a running match.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum MatchEnd {
-    Running,
-    Ended,
-}
-
 /// What the hud's kit chooser shows: the place, the notes' version and the current kit it was
 /// given.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -758,8 +793,6 @@ struct ChooserFed {
     version: u16,
     current: Option<u8>,
 }
-
-static FED: GameCell<Fed> = GameCell::new(Fed::NOTHING);
 
 /// The controls of a viewer's game, brought to the session: made a viewer's
 /// once (Back, the Moments switch, the key hint), shown or hidden with the
@@ -780,13 +813,13 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, fed: Fed, thread: &crate::v
         overlay.set_speed(speed.percent());
     }
     let watched = client.local_place();
-    let markers = MarkersOf { events: EVENTS.with(thread, |events| events.version), watched };
+    let markers = MarkersOf { events: VIEWING.with(thread, |viewing| viewing.events.version), watched };
     if fed.markers != Some(markers) || fed.revision.is_none() {
         let names = Names::of(client);
         let mut names_room = [0; NAMES_ROOM];
         overlay.set_marker_names(names_text(client.places(), |place| names.of_place(place), &mut names_room));
         let mut room = [0; MARKERS_ROOM];
-        let text = EVENTS.with(thread, |events| events.markers(start, viewer.own, watched, &mut room));
+        let text = VIEWING.with(thread, |viewing| viewing.events.markers(start, viewer.own, watched, &mut room));
         overlay.set_markers(text);
     }
     if fed.moments != Some(viewer.moments) {
@@ -810,7 +843,6 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, fed: Fed, thread: &crate::v
         moments: Some(viewer.moments),
         cursor: Some(viewer.cursor),
         chooser,
-        ended: MatchEnd::Running,
     }
 }
 
@@ -821,7 +853,7 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, fed: Fed, thread: &crate::v
 fn feed_chooser(client: &NetworkClient<'_>, fed: Option<ChooserFed>, mode: ChooserMode, thread: &crate::vostok::Thread) -> Option<ChooserFed> {
     let chooser = KitChooser::of(client)?;
     let place = client.local_place();
-    let masks = MASKS.get(thread);
+    let masks = VIEWING.with(thread, |viewing| viewing.masks);
     // New plates lose the highlight, so it is told again; a kit without a plate has none to move to.
     let new_plates = fed.map(|fed| (fed.place, fed.version)) != Some((place, masks.version));
     if new_plates {
@@ -872,16 +904,24 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some(hud) = HudFrame::at(ctx) else { return Flow::Continue };
     let Some(client) = hud.client(thread) else { return Flow::Continue };
-    match SESSION.get(thread) {
-        Session::Replay(viewer) => FED.set(thread, feed(&client, &viewer, FED.get(thread), thread)),
+    let (now, feeding) = VIEWING.with(thread, |viewing| (viewing.session, viewing.feeding));
+    match now {
+        Session::Replay(viewer) => {
+            let fed = match feeding {
+                Feeding::Running(fed) => fed,
+                Feeding::Ended => Fed::NOTHING,
+            };
+            let fed = feed(&client, &viewer, fed, thread);
+            VIEWING.with(thread, |viewing| viewing.feeding = Feeding::Running(fed));
+        }
         // A live match's spectator: the kit chooser and the slots stay hidden (it may not have
         // the replay controls' movie, whose Overlay a viewer's frame goes through).
         Session::Live if client.is_spectator() => {
             hud.hide_player_panels();
             hud.keep_cursor_off();
-            let fed = FED.get(thread);
-            if fed.ended == MatchEnd::Running {
-                FED.set(thread, Fed { chooser: feed_chooser(&client, fed.chooser, ChooserMode::Live, thread), ..fed });
+            if let Feeding::Running(fed) = feeding {
+                let chooser = feed_chooser(&client, fed.chooser, ChooserMode::Live, thread);
+                VIEWING.with(thread, |viewing| viewing.feeding = Feeding::Running(Fed { chooser, ..fed }));
             }
         }
         Session::Live => {}
@@ -895,7 +935,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// loads one, its pending inputs and masks cleared; an older world loaded as
 /// a network one crashed the game (0x2D0DA4). A live game's go on as its own.
 fn load_as_seek(load: Option<CoreLoad>, thread: &crate::vostok::Thread) {
-    if let (Session::Replay(_), Some(load)) = (SESSION.get(thread), load) {
+    if let (Session::Replay(_), Some(load)) = (session(thread), load) {
         load.as_seek();
     }
 }
@@ -926,7 +966,7 @@ pub fn on_movie_take(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMovieTakeExit>
 /// viewer's, so a player's kits and a live spectator's hud keep it. The
 /// game's own replay client goes on as the game's.
 fn mouse_to_hud(client: Option<NetworkClient<'_>>, thread: &crate::vostok::Thread) -> bool {
-    client.is_some() && !matches!(SESSION.get(thread), Session::Replay(_))
+    client.is_some() && !matches!(session(thread), Session::Replay(_))
 }
 
 /// `hud_mouse.replay_button`.
@@ -940,7 +980,7 @@ pub fn on_mouse_pointer(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMousePointe
     let client = pointer_client(ctx);
     // A viewer's pointer goes to the controls; while the Ctrl cursor is up, the hud's chooser is
     // told where it is too, for its hover list.
-    if let (Some(client), Session::Replay(Viewer { cursor: Ui::Shown, .. }), Some((x, y))) = (&client, SESSION.get(thread), pointer_at(ctx))
+    if let (Some(client), Session::Replay(Viewer { cursor: Ui::Shown, .. }), Some((x, y))) = (&client, session(thread), pointer_at(ctx))
         && let Some(chooser) = KitChooser::of(client)
     {
         chooser.pointer(x, y);
@@ -1001,8 +1041,8 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
     let Some(client) = call.hud().client(thread).filter(|client| client.is_match_client()) else {
         return Flow::Continue;
     };
-    let session = SESSION.get(thread);
-    if session == Session::Live {
+    let viewing_session = session(thread);
+    if viewing_session == Session::Live {
         return Flow::Exit(ReplayViewerOnHudCallExit::Done);
     }
     let command = match control {
@@ -1023,8 +1063,8 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {
     };
     if let Some(command) = command {
         let input = Input::Command { command, now: client.clock(), watched: client.local_place() };
-        let (next, act) = EVENTS.with(thread, |events| step(session, input, events));
-        SESSION.set(thread, next);
+        let (next, act) = VIEWING.with(thread, |viewing| step(viewing_session, input, &viewing.events));
+        set_session(thread, next);
         if let Act::Ask(request) = act {
             client.send_request(request);
         }
@@ -1059,6 +1099,23 @@ mod tests {
 
     fn kill(time: u32) -> Option<Event> {
         Some(Event { time: MatchMs(time), kind: EventKind::Kill, actor: Some(1), victim: Some(2) })
+    }
+
+    #[test]
+    fn a_reset_clears_the_match_and_tells_the_clock() {
+        let mut viewing = Viewing::INITIAL;
+        viewing.session = viewer();
+        viewing.events.slots[0] = kill(5);
+        viewing.masks = viewing.masks.take(Place::new(1).unwrap(), 1);
+        viewing.feeding = Feeding::Running(Fed { revision: Some(3), ..Fed::NOTHING });
+        assert_eq!(viewing.reset(Reset::Ended), Act::Restore);
+        assert_eq!(viewing.session, Session::Live);
+        assert_eq!(viewing.events.slots[0], None);
+        assert_eq!(viewing.masks, KitMasks::NONE);
+        assert_eq!(viewing.feeding, Feeding::Ended);
+        assert_eq!(viewing.reset(Reset::Ended), Act::Pass, "again: nothing");
+        assert_eq!(viewing.reset(Reset::NewMatch), Act::Pass);
+        assert_eq!(viewing.feeding, Feeding::Running(Fed::NOTHING), "a new match feeds again");
     }
 
     #[test]
