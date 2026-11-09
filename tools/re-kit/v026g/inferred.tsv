@@ -1144,14 +1144,8 @@ va	status	ref_021d	name
 0x001fffb0	inferred-medium	0x0015e3db	survarium::game_options::fill_labels
 0x002001e0	inferred-medium	0x0015e8a8	survarium::game_options::fill_menu_buttons
 0x002005e0	inferred-medium	0x0015eacf	survarium::game_options::fill_settings_data
-0x00200f50	inferred-medium	0x0015f1b6	survarium::game_options::activate
 0x00201080	inferred-medium	0x0015f287	survarium::game_options::tick
-0x002010e0	inferred-medium	0x0015f2d4	survarium::game_options::process_key_input
 0x002013a0	inferred-medium	0x0015f50d	survarium::game_options::assign_binding
-0x002015a0	inferred-medium	0x0015f5e9	survarium::game_options::finish_binding
-0x002015e0	inferred-medium	0x0015f619	survarium::game_options::on_keyboard_action
-0x002016d0	inferred-medium	0x0015f6bb	survarium::game_options::on_mouse_key_action
-0x002017a0	inferred-medium	0x0015f73e	survarium::game_options::on_mouse_move
 0x002018d0	inferred-medium	0x0015f83c	survarium::game_options::refill_item_data
 0x002019e0	inferred-medium	0x0015f8c6	survarium::game_options::initialize_bindings
 0x00201cf0	inferred-medium	0x0015fa02	survarium::game_options::reset_bindings

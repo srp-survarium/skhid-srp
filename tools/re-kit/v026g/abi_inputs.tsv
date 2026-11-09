@@ -5742,3 +5742,15 @@ va	name	location	role	basis
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EAX	first	observed
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	ESI	last	observed
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EDI	pointer to the value (a resource_ptr: its pointer compared)	observed
+0x002010e0	survarium::game_options::process_key_input	EDX	the key: a DIK code (1 Esc), 151h..153h a mouse button, 159h/15Ah the wheel	observed
+0x002010e0	survarium::game_options::process_key_input	entry ESP+4	the main menu (game_options): +3Ch the action awaited	observed
+0x002015a0	survarium::game_options::finish_binding	EDI	the main menu (game_options) whose key wait ends: the options' +0Ch menu movie, +10h cursor movie, +30h scene, +3Ch awaited action	observed
+0x002015e0	survarium::game_options::on_keyboard_action	ECX	the main menu (game_options)	observed
+0x002015e0	survarium::game_options::on_keyboard_action	entry ESP+4	the keyboard (passed on to swf_input_translator::process_keyboard 0x1FDD70)	inferred
+0x002015e0	survarium::game_options::on_keyboard_action	entry ESP+8	the key (DIK code)	observed
+0x002015e0	survarium::game_options::on_keyboard_action	entry ESP+12	the key's action: 1 a press	observed
+0x002016d0	survarium::game_options::on_mouse_key_action	ECX	the main menu (game_options)	observed
+0x002016d0	survarium::game_options::on_mouse_key_action	entry ESP+8	the button's key (151h..153h)	observed
+0x002016d0	survarium::game_options::on_mouse_key_action	entry ESP+12	the button's action: 0 a press	observed
+0x002017a0	survarium::game_options::on_mouse_move	ECX	the main menu (game_options)	observed
+0x002017a0	survarium::game_options::on_mouse_move	entry ESP+16	the wheel's turn: 0 none, above 0 up (159h), else down (15Ah)	observed

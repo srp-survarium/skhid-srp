@@ -595,3 +595,6 @@ extern engine_file_time_to_system_time
 ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_discard_playing_order
+; void engine_finish_key_binding(struct game_options *options)
+; 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+extern engine_finish_key_binding

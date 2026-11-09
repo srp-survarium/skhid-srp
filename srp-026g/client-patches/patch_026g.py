@@ -555,7 +555,9 @@ Patches:
   hud's kits and cursor"): initialize_match's start (0x234880) hides the
   cursor and clears the kits' state the last match left, so the first
   showing tells the movie the match's kit; while game_options is shown the
-  hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x23A9B0, 0x201040).
+  hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x23A9B0, 0x201040);
+  the menu closing while its key settings await a key gives the key up first
+  (finish_binding 0x2015A0), so its own cursor movie is not taken off twice.
   Nothing a match computes;
 - a banned account's sign-in shows srp's reason, when its ban ends and how
   long it has left (patch 116, the Rust patch ban_time; README "A ban's

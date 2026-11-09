@@ -233,6 +233,8 @@ unsafe extern "C" {
     pub fn engine_show_scene_movie(scene: *mut c_void, movie: *mut c_void);
     /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
     pub fn engine_hide_scene_movie(movie: *mut c_void, scene: *mut c_void);
+    /// 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+    pub fn engine_finish_key_binding(options: *mut c_void);
 }
 
 #[allow(dead_code)]

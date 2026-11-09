@@ -25,7 +25,8 @@ handler = "on_cursor_hidden"
 site = "options.activate"
 handler = "on_menu_show"
 
-# The main menu about to close: the hud's cursor movie back.
+# The main menu about to close: a key its settings await given up as Esc
+# gives it up, then the hud's cursor movie back.
 [[hook]]
 site = "options.deactivate"
 handler = "on_menu_close"

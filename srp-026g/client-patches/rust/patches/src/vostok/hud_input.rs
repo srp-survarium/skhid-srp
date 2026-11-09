@@ -126,7 +126,7 @@ impl<'t> Hud<'t> {
 /// (`options.deactivate`: its Resume, its key, a match's end, the lobby's).
 /// activate and deactivate return at once when the menu already is so, so
 /// there is a change only for a closed menu at activate and a shown one at
-/// deactivate.
+/// deactivate ([`MenuClose`]).
 ///
 /// While the menu is shown the hud's cursor movie is off the game world's
 /// scene whatever the hud's cursor flag (+2DCh) says: the movie is in the
@@ -154,13 +154,17 @@ impl<'t> MenuChange<'t> {
     }
 
     /// The menu about to close, when it is shown now.
-    pub fn at_close(ctx: &'t Context<'_>) -> Option<MenuChange<'t>> {
-        // SAFETY: as at_show, game_options::deactivate's menu.
-        let (options, shown) = unsafe {
+    pub fn at_close(ctx: &'t Context<'_>) -> Option<MenuClose<'t>> {
+        // SAFETY: as at_show, game_options::deactivate's menu; its awaited
+        // action is a word of its own.
+        let (options, shown, awaited) = unsafe {
             let options = raw::site::options_deactivate::options(ctx)?;
-            (options, *options.shown() != 0)
+            (options, *options.shown() != 0, *options.awaited_action())
         };
-        shown.then_some(MenuChange { options, thread: PhantomData })
+        shown.then_some(MenuClose {
+            change: MenuChange { options, thread: PhantomData },
+            awaited: AwaitedKey::of(awaited),
+        })
     }
 
     /// The hud's cursor movie when the hud's cursor is shown (+2DCh): the
@@ -174,6 +178,64 @@ impl<'t> MenuChange<'t> {
             let ui = world.ui();
             (*ui.cursor_shown() != 0).then_some(CursorMovie { world, ui, thread: PhantomData })
         }
+    }
+}
+
+/// What the shown menu's key-binding settings wait for (game_options +3Ch):
+/// the action a click on its key asked a key for (start_bind_key, 0x1FF8A3),
+/// until a key, a mouse button or the wheel gives it one or Esc cancels
+/// (finish_binding 0x2015A0 and its copies, a conflict's message); 48h none.
+/// While one is awaited the menu's own cursor movie (+10h) is off the scene
+/// (0x1FF8A9).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AwaitedKey {
+    /// The action's row (the table at 0xA9DB28); never 48h: made only by [`AwaitedKey::of`].
+    action: u32,
+}
+
+impl AwaitedKey {
+    /// No key awaited: the constructor's (0x1FFA13) and finish_binding's (0x2015C8) value.
+    const NONE: u32 = 0x48;
+
+    /// The awaited key of the menu's +3Ch, as the game reads it (`cmp
+    /// [options+3Ch],48h`, 0x2015E3): any other value is an action.
+    pub fn of(raw: u32) -> Option<AwaitedKey> {
+        (raw != Self::NONE).then_some(AwaitedKey { action: raw })
+    }
+}
+
+/// The shown main menu about to close (`options.deactivate`, before its
+/// stock body). deactivate takes the menu movie (+0Ch) and its cursor movie
+/// (+10h) off the scene whatever the menu waits for, but while a key is
+/// awaited the cursor movie is off already: closing then (a match's end, a
+/// kick, a match that starts over the lobby's menu) took it off a second
+/// time, the crash at exe+0x14EE8D. [`MenuClose::close`] ends the wait first,
+/// as Esc ends it, so the menu's movies are in the scene exactly while it is
+/// shown and awaits no key.
+#[must_use = "dropped, the menu closes with its key wait (exe+0x14EE8D) and the hud's cursor stays off"]
+pub struct MenuClose<'t> {
+    change: MenuChange<'t>,
+    awaited: Option<AwaitedKey>,
+}
+
+impl<'t> MenuClose<'t> {
+    /// Closes the menu's key wait, then hands back the hud's cursor movie when
+    /// the hud's cursor is shown, for the menu's close to put it back.
+    ///
+    /// An awaited key is given up as Esc gives it up (on_keyboard_action's
+    /// press, 0x2015F6..0x201605): finish_binding tells the movie
+    /// (`root.end_keybind`, which closes its "press a key" message), puts the
+    /// cursor movie back in the scene and clears +3Ch, so deactivate's own
+    /// hide (0x201058) takes off a movie the scene holds. The show and the
+    /// hide go to the render world in one queue, in that order.
+    pub fn close(self) -> Option<CursorMovie<'t>> {
+        if self.awaited.is_some() {
+            // SAFETY: the shown menu at deactivate, on the game's thread; a
+            // key awaited means its movie called start_bind_key, so its menu
+            // and cursor movies are loaded (finish_binding reads both).
+            unsafe { raw::engine_finish_key_binding(Some(self.change.options)) }
+        }
+        self.change.shown_cursor()
     }
 }
 
@@ -251,5 +313,18 @@ impl<'c> HudCall<'c> {
     /// (at most four); whether the movie took it.
     pub fn answer(&self, method: &CStr, values: &[u32]) -> bool {
         self.hud.movie().is_some_and(|movie| movie.invoke_uints(method, values))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AwaitedKey;
+
+    #[test]
+    fn awaited_key_is_any_action_but_48h() {
+        assert_eq!(AwaitedKey::of(0x48), None);
+        assert_eq!(AwaitedKey::of(0), Some(AwaitedKey { action: 0 }));
+        assert_eq!(AwaitedKey::of(0x47), Some(AwaitedKey { action: 0x47 }));
+        assert_eq!(AwaitedKey::of(0x49), Some(AwaitedKey { action: 0x49 }));
     }
 }
