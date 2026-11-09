@@ -594,6 +594,8 @@ st_change_quest_label	Zmiana zadania
 st_change_weapon_speed_description	Szybkość zmiany broni:
 st_change_weapon_speed_name	Zręczne dłonie
 st_character	Umiejętności
+st_character_decals_1_10_name	Łowca dzików
+st_character_decals_1_11_name	Łowca jeleni
 st_character_decals_1_12_name	Jaryło
 st_character_decals_1_1_name	Literat
 st_character_decals_1_2_name	Brygada "Alfa"
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Weteran
 st_character_decals_1_6_name	Mistrz
 st_character_decals_1_7_name	Legenda
 st_character_decals_1_8_name	Latające Huzary
+st_character_decals_1_9_name	Muzyk
 st_character_decals_2_1_name	Nowicjusz włóczęgów
 st_character_decals_2_2_name	Weteran włóczęgów
 st_character_decals_2_3_name	Rekrut Czarnego Rynku
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Herb Łotwy
 st_character_decals_5_7_name	Godło Litwy
 st_character_decals_5_8_name	Godło Estonii
 st_character_decals_5_9_name	Herb Mołdawii
+st_character_decals_7_10_name	Zapałki
+st_character_decals_7_23_name	Serce
+st_character_decals_7_24_name	Przerażająca dynia
 st_character_decals_7_27_name	Ozdobna koniczyna
 st_character_decals_7_28_name	Podkowa
+st_character_decals_7_30_name	Gołąb pocztowy
+st_character_decals_7_31_name	Zwycięstwo
+st_character_decals_7_35_name	Krwawa ręka
+st_character_decals_7_37_name	Strażnik
 st_character_decals_7_9_name	Zioła
 st_character_decals_generic_desc	Aby zmienić wygląd kamizelki lub spodni, umieść naszywki w oknach ich ulepszeń.
 st_characteristics_label	Statystyki gracza
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Błąd dodawania. Drużyna klanu osiągnęła już
 st_current_value	\nBieżąca wartość:
 st_cz_75_description	Czeski pistolet samopowtarzalny, amunicja: 9x19. Jeden z najczęściej kopiowanych pistoletów zimnej wojny.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Graj każdego dnia i otrzymaj <highlight>x2</highlight> więcej doświadczenia i reputacji za <highlight>pierwsze trzy</highlight> zwycięstwa.
+st_daily_bonus_description	Codziennie: <highlight>x2</highlight> doświadczenia za <highlight>pierwsze trzy</highlight> zwycięstwa.
 st_daily_bonus_hint	Wyświetl ekran powitalny
 st_daily_bonus_label	Witaj z powrotem
 st_daily_bonus_progress	Twój dzisiejszy postęp
@@ -2486,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment069_snow_20_legs_7_name	Spodnie "Śnieg-20"
 st_srp_equipment069_snow_20_torso_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment069_snow_20_torso_7_name	Kamizelka kuloodporna "Śnieg-20"
-st_srp_exchange_balance	Saldo
-st_srp_exchange_button	Wymień
-st_srp_exchange_gold	Złoto
-st_srp_exchange_pay	Płacisz
-st_srp_exchange_receive	Otrzymujesz
-st_srp_exchange_short_gold	Za mało złota
-st_srp_exchange_short_silver	Za mało srebra
-st_srp_exchange_title	Wymiana
 st_srp_hide_hit_markers_option	Ukryj znaczniki trafień
 st_srp_hide_quests_option	Ukryj misje
 st_srp_hide_scores_option	Ukryj wyniki graczy
@@ -2611,15 +2613,14 @@ st_srp_medical_331_description	Zastępuje miejsce na broń dodatkową dodatkową
 st_srp_medical_331_name	Kieszeń na zapasy
 st_srp_medical_332_description	Premia do maksymalnego zdrowia rąk i nóg:
 st_srp_medical_332_name	Mocne kości
-st_srp_medical_333_description	Gdy działa środek przeciwbólowy, dźwięki otoczenia są cichsze, a dźwięki wrogów (oprócz strzałów) głośniejsze o:
+st_srp_medical_333_description	Gdy działa środek przeciwbólowy, zmniejszenie kołysania celownika:
 st_srp_medical_333_name	Koncentracja
 st_srp_medical_342_description	Zmniejszenie obrażeń otrzymywanych od sojuszników:
 st_srp_medical_342_name	Braterstwo broni
 st_srp_medical_seconds	 s
-st_srp_medicine_ambient_sounds	Dźwięki otoczenia
 st_srp_medicine_crouched_healing	Leczenie w kucki
-st_srp_medicine_enemy_sounds	Dźwięki wrogów
 st_srp_medicine_hit_slow	Spowolnienie od kul
+st_srp_medicine_sight_sway	Kołysanie celownika
 st_srp_medicine_sprint_stamina	Energia na sprint
 st_srp_melee_knockback	Siła ciosu kolbą
 st_srp_mode_blackout	Urządzenie ochronne: blackout

@@ -6,9 +6,11 @@ site = "world_load.loaded"
 handler = "on_loaded"
 order = 1
 
+# after patch 126's end-of-match report (order 1)
 [[hook]]
 site = "match_recovery.close"
 handler = "on_close"
+order = 2
 
 # every frame (after patch 88's music, order 1): a receipt that waited for room
 [[hook]]

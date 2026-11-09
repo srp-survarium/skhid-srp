@@ -594,6 +594,8 @@ st_change_quest_label	Змяніць заданне
 st_change_weapon_speed_description	Хуткасць змены зброі:
 st_change_weapon_speed_name	Спрытныя рукі
 st_character	Уменні
+st_character_decals_1_10_name	Паляўнічы на дзікоў
+st_character_decals_1_11_name	Паляўнічы на аленяў
 st_character_decals_1_12_name	Ярыла
 st_character_decals_1_1_name	Літаратар
 st_character_decals_1_2_name	Атрад "Альфа"
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Ветэран
 st_character_decals_1_6_name	Майстар
 st_character_decals_1_7_name	Легенда
 st_character_decals_1_8_name	Лятучыя гусары
+st_character_decals_1_9_name	Музыкант
 st_character_decals_2_1_name	Навічок бадзяг
 st_character_decals_2_2_name	Ветэран бадзяг
 st_character_decals_2_3_name	Рэкрут Чорнага Рынку
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Герб Латвіі
 st_character_decals_5_7_name	Герб Літвы
 st_character_decals_5_8_name	Герб Эстоніі
 st_character_decals_5_9_name	Герб Малдовы
+st_character_decals_7_10_name	Запалкі
+st_character_decals_7_23_name	Сэрца
+st_character_decals_7_24_name	Страшны гарбуз
 st_character_decals_7_27_name	Арнамент канюшыны
 st_character_decals_7_28_name	Падкова
+st_character_decals_7_30_name	Паштовы голуб
+st_character_decals_7_31_name	Перамога
+st_character_decals_7_35_name	Крывавая рука
+st_character_decals_7_37_name	Захавальнік
 st_character_decals_7_9_name	Травы
 st_character_decals_generic_desc	Выкарыстоўвайце нашыўкі ў акне знешняга выгляду бронекамізэлек і штаноў, каб змяніць іх выгляд.
 st_characteristics_label	Характарыстыкі гульца
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Памылка дадавання. У кланав
 st_current_value	\nБягучае значэнне:
 st_cz_75_description	Чэшскі самазарадны пісталет, патрон: 9x19. Адзін з самых капіяваных пісталетаў халоднай вайны.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Заходзь кожны дзень і атрымлівай <highlight>x2</highlight> досведу і рэпутацыі за <highlight>першыя тры</highlight> перамогі.
+st_daily_bonus_description	Кожны дзень: <highlight>x2</highlight> досведу за <highlight>першыя тры</highlight> перамогі.
 st_daily_bonus_hint	Паказаць акно прывітання
 st_daily_bonus_label	З вяртаннем
 st_daily_bonus_progress	Ваш прагрэс за бягучы дзень
@@ -2486,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Апісанне пакуль недас
 st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
 st_srp_equipment069_snow_20_torso_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment069_snow_20_torso_7_name	Бронекамізэлька "Снег-20"
-st_srp_exchange_balance	Баланс
-st_srp_exchange_button	Абмяняць
-st_srp_exchange_gold	Золата
-st_srp_exchange_pay	Аддаяце
-st_srp_exchange_receive	Атрымліваеце
-st_srp_exchange_short_gold	Недастаткова золата
-st_srp_exchange_short_silver	Недастаткова срэбра
-st_srp_exchange_title	Абмен
 st_srp_hide_hit_markers_option	Схаваць хітмаркеры
 st_srp_hide_quests_option	Схаваць заданні
 st_srp_hide_scores_option	Схаваць ачкі гульцоў
@@ -2611,15 +2613,14 @@ st_srp_medical_331_description	Замяняе слот дадатковай зб
 st_srp_medical_331_name	Кішэня для прыпасаў
 st_srp_medical_332_description	Бонус да максімальнага здароўя рук і ног:
 st_srp_medical_332_name	Моцныя косці
-st_srp_medical_333_description	Пакуль дзейнічае абязбольвальнае, гукі наваколля цішэйшыя, а гукі ворагаў (акрамя стрэлаў) гучнейшыя на:
+st_srp_medical_333_description	Пакуль дзейнічае абязбольвальнае, зніжэнне разгойдвання прыцэла:
 st_srp_medical_333_name	Канцэнтрацыя
 st_srp_medical_342_description	Зніжэнне шкоды ад саюзнікаў:
 st_srp_medical_342_name	Браты па зброі
 st_srp_medical_seconds	 с
-st_srp_medicine_ambient_sounds	Гукі наваколля
 st_srp_medicine_crouched_healing	Лячэнне ў прысядзе
-st_srp_medicine_enemy_sounds	Гукі ворагаў
 st_srp_medicine_hit_slow	Запаволенне ад куль
+st_srp_medicine_sight_sway	Разгойдванне
 st_srp_medicine_sprint_stamina	Энергія на спрынт
 st_srp_melee_knockback	Адкідванне прыкладам
 st_srp_mode_blackout	Ахоўная прылада: блэкаўт

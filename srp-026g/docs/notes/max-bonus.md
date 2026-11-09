@@ -35,8 +35,8 @@ hover). The check:
   `PlayerInfo.pocketUnits` does; the rule is `ModificationRolls.styleOn`, which the item card's
   lines and sums use (`InventoryList.fillModifiersDescription`; Alt shows those lines).
 - **The premium bonuses are gold too** (owner 2026-10-22): the golden weapons' +10 % silver (1230),
-  the premium armour's +5 % experience (1240) and +5 % reputation (1250 Scavengers, 1260 Black
-  Market). They never roll ([premium_armour.md](premium_armour.md)), and nothing gives more.
+  the premium armour's +20 % experience (1240) and +50 % reputation (1250 Scavengers, 1260 Black
+  Market, 1270, 1280; +5 % each in 0.26g, the owner's of 2026-11-08). They never roll ([premium_armour.md](premium_armour.md)), and nothing gives more.
 - The value decides, not where the bonus came from: a default modification at the max is gold too.
 
 ## Where it shows

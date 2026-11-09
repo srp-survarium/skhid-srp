@@ -1,5 +1,39 @@
 # 0.26g: premium, the shop's offers, daily bonus, tutorial, nickname, autobuy
 
+> **Since 2026-11-09 there is no premium account** (the owner: "let's do the same with premium" as
+> with repair, "it should be on by default", "no premium state anywhere should exist", "essentially
+> we should just increase numbers premium does"). The rules:
+>
+> - **Pay**: what premium added, half again of a match's three rows (silver, experience,
+>   reputation), is in srp's rates for every account: `pay::MONEY_RATES` 150..220 % -> 225..330 %,
+>   `SRP_EXPERIENCE_RATE` default 2 -> 3, `SRP_REPUTATION_RATE` default 120 -> 180. The live server
+>   sets none of the three (checked 2026-11-09). The daily bonus and the premium items' bonus are
+>   counted from the rows, so they grow with them; the quests' reputation shares the reputation rate
+>   and grows too (premium never paid it). A match against bots pays its share of the new rows.
+> - **No state**: the account has no premium time (`Account::premium_until` is gone; the
+>   `g26_accounts.premium_until` column stays in the schema unused, dropped with the gold column);
+>   a new account gets no premium days (`new-account.tsv`); the admin page has no premium hours.
+> - **Nothing sells or offers it**: the shop's records (0x95) are the seven item bundles only (the
+>   premium-time bundles 1..7 are no record); `47 02` of a premium time is refused
+>   (`st_cannot_buy_item`); `A8` / `A9` are never sent and `47 05` / `47 06` are not read;
+>   `SRP_PREMIUM_PRICES`, `SRP_PREMIUM_DISCOUNT` and `SRP_PREMIUM_OFFER_SECONDS` are gone.
+> - **The wire**: `94` lists no service; every kit goes out as state 0 (never 2); the results
+>   screen's premium bonus block goes out empty and its premium drop part is 0.
+> - **The lobby movie** shows no premium anywhere: no premium button, timer, offer or discount
+>   window, no premium row or "activate premium" button on the results screen (whose totals are the
+>   rows, the daily and the items blocks), no premium-only kit; the HUD's pregame "premium players"
+>   box is gone.
+> - **Kept**: premium items (golden weapons, premium armour, decals, the bundles and their
+>   bonuses) are items and stay.
+> - Release: no compensation; an account with premium time left loses nothing it was paid (every
+>   account is now paid as premium was). Replays are not affected (pay is not the simulation).
+>
+> The rest of this note is the client's reading as it was found.
+
+> **Since 2026-11-08 there is no gold** ([silver-only.md](silver-only.md)): every gold price and
+> amount below is paid or given in silver at 100 silver a gold, the shop's records carry money type 0,
+> and the exchange is gone. What follows is the client's reading as it was found.
+
 Version scope: client **0.26g build 2777**. Read from the exe (VAs of that build), the decompiled `lobby_menu.swf` (class names given) and the game's data, 2026-10-12. Nothing here was tried against a running client. Tags: **PROVEN** (read at the place named), **LIKELY**, **GUESS**, **[srp]** = srp's own choice where the client does not say.
 
 Code: `crates/survarium/src/v026g/{shop_offers,awards}.rs`, `crates/session/src/v026g/{premium,bonus,tutorial,names,autobuy,notices,extras}.rs`, `servers/lobby-server/src/v026g/shop.rs`.
@@ -50,20 +84,20 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 | `47 02 <id> <match> 0.0` | `accept_premium_victory_screen(id, matchId)`: the results screen's button | the same, then the match's premium half (`rewards::Results::claim_premium`): `89 87 8B 8C 8E` and notices |
 | `47 05 <id> <f32 discount> <money> <exp> <rep> <u8 faction>` | `accept_premium_with_bonuses` (`MessagePostPremium`), the answer to `A8` | `83 47 05`, then as above. The amounts are the client's echo; the server gives its own |
 | `47 06 <id> <f32 discount>` | `accept_premium_with_discount` (`MessagePremiumDiscount`), the answer to `A9`; closing the window sends id −1, discount −1 | `83 47 02` and the pushes; nothing for −1 |
-| `46 04 <item>` | `item_use`: sent only for a voucher of type 3 (`usable = category == 27 && (type == 3 \|\| type == 0)`; type 0, the rename voucher, opens the rename window instead) | `83 46 04 <item>` (the client takes one off its copy), `94`, `89`, `87`, `8B` |
+| `46 04 <item>` | `item_use`: sent only for a voucher of type 3 (`usable = category == 27 && (type == 3 \|\| type == 0)`; type 0, the rename voucher, opens the rename window instead). [srp] Not read since the vouchers but the drop card are gone (silver-only.md): refused | (was `83 46 04 <item>`: the client takes one off its copy) |
 
 - `83 47 02` and `83 47 04` read nothing; `83 47 05` shows the lobby's "premium activated" notice with the three amounts of the last `A8` (`LobbyMenu.add_important_message`, its type 7). After none of them does the client ask for anything, so `94` is pushed.
 - **`A8`** (0x274FF8 → 0x28A400, PROVEN; corrects social.md §5): `u32 premium seconds` (÷ 3600 → `hours`, which the window does not use), `u32 money`, `u32 experience`, `u32 reputation`, `u32 time left` (seconds, counted down on the premium button), `f32 discount`. The client lists every kind-0 record at `floor(price * (1 - discount) + 0.5)` (`root.set_premium_discount_store`) and opens `root.show_premium_post_reward(money, exp, rep, hours, timeLeft, discount, faction)`. The window preselects the fourth entry.
 - **`A9`** (0x274FBA → 0x28AB20): `f32 discount`; the same list, and `value_old = floor(value / (1 - discount))` in the lobby: a discount of 1 divides by zero.
 - When the original server sent `A8` / `A9` is not known. **[srp]**: only when the operator sets `SRP_PREMIUM_DISCOUNT` (percent, 0..90, default 0): `A9` after the sign-in of an account without premium, `A8` with the results of a match whose premium half was not paid, standing for `SRP_PREMIUM_OFFER_SECONDS` (3600).
-- The one-day voucher's time is its config's `ttl_in_hours: 24`.
+- The one-day voucher's time was its config's `ttl_in_hours: 24` (the voucher is gone, silver-only.md).
 
 ## 3. The two boxes: autobuy and auto-repair (corrects lobby.md §2.7, lobby_requests.md `49 01`)
 
 `49 01 <u8>` carries `LocalPlayerProfile.getAutoBuyState()`: **0 neither, 1 autobuy, 2 auto-repair, 3 both** (PROVEN in the UI). The same number is the "autobuy flag" byte of `87` and the byte of `83 49 01`: the client hands it to `root.set_autobuy` as a number (0x227760) and `LobbyMenu.set_autobuy` ticks autobuy for 1 and 3, auto-repair for 2 and 3. A wire `FF` would untick both.
 
-- **The auto-repair box is gone from the Character panel** (the owner's, 2026-10-23: wear is gone, so it did nothing). Its code is out of the movie; the original movie's graphics still place it, so `LocalPlayerProfile.init` hides it and moves Autobuy into its place (the row's start, no gap). The movie now sends 0 or 1 only; an account whose auto-repair was on is still pushed 3, which ticks Autobuy as before, and its next Autobuy change clears the server's `auto_repair`. The server keeps the bit (with `SRP_ITEM_WEAR=on` it still repairs).
-- **Autobuy is on by default** (the owner's, 2026-10-23): a new account starts with it ticked (`Account::with_loadout`). The server keeps only the box's state, not whether the player ever touched it, so the accounts of before were all turned on once, at the first start of an srp with the rule (`GameAccounts::turn_autobuy_on_once`, the `g26_meta` mark `autobuy_turned_on`, written after the accounts; a mark, not a schema step, so an older srp still opens the database after a rollback) [choice: an account that had turned it off gets it on again once; the box shows it, and a box turned off from then on stays off]. Unticking it sends `49 01 00` and is saved as ever.
+- **The auto-repair box is gone from the Character panel** (the owner's, 2026-10-23: wear is gone, so it did nothing). Its code is out of the movie; the original movie's graphics still place it, so `LocalPlayerProfile.init` hides it and moves Autobuy into its place (the row's start, no gap). The movie sends 0 or 1 only. Since srp has no repair at all (the owner, 2026-11-08) the server reads bit 0 alone and pushes bit 1 as 0; `g26_extras.auto_repair` stays in the table, unused.
+- **Autobuy is on by default** (the owner's, 2026-10-23): a new account starts with it ticked (`Account::with_loadout`). The server keeps only the box's state, not whether the player ever touched it, so the accounts of before were all turned on once, at the first start of an srp with the rule (the `g26_meta` mark `autobuy_turned_on`; done on live, its code since removed) [choice: an account that had turned it off gets it on again once; the box shows it, and a box turned off from then on stays off]. Unticking it sends `49 01 00` and is saved as ever.
 
 ### Autobuy toggles and the native Flash boundary (2026-11-02)
 
@@ -89,13 +123,13 @@ and packet evidence point to the numeric Flash boundary as the cause; verify
 in the rebuilt native game that off/on sends alternating `49 01 00`/`49 01 01`,
 and that it survives a kit change, match return and sign-in.
 
-What a match used: `session::v026g::autobuy` (the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo). Autobuy buys back in whole clips while the silver lasts; auto-repair repairs what the match wore by the lobby's silver repair. The three lists that end `89` carry what was spent.
+What a match used: `session::v026g::autobuy` (the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo). Autobuy buys back in whole clips while the silver lasts. The three lists that end `89` carry what was spent (the third, repairs, always empty: no repair).
 
 ## 4. The daily bonus (`99`, adds to results.md §4.1)
 
-The game's own texts: "Play everyday and get x2 experience and reputation for the first three victories", "On 7th day you will get" the reward, "Complete". The window shows 7 days with a progress of 3 each; a day before the current one is shown done (`LobbyMenu.show_daily_reward_window`); the status bar shows the current day's progress. PROVEN. The reward comes from the data's `daily_bonus_drop` table (always 50 gold).
+The game's own texts: "Play everyday and get x2 experience and reputation for the first three victories", "On 7th day you will get" the reward, "Complete". The window shows 7 days with a progress of 3 each; a day before the current one is shown done (`LobbyMenu.show_daily_reward_window`); the status bar shows the current day's progress. PROVEN. The reward came from the data's `daily_bonus_drop` table (always 50 gold); [srp, the owner's of 2026-11-08] there is none now: `99` carries silver x 0, the run of days and the doubled victories stay (silver-only.md, `session::v026g::bonus`).
 
-[srp]: a day is a UTC day; the run grows by one on the first day after the last day the account was seen (sign-in or a finished match), a missed day or the day after the seventh starts a new run; the reward is rolled at the run's start and given when the run reaches day 7; a victory counts when the team won and the player stayed; the first three of a day pay the match's experience and reputation once more (the results screen's "daily" block, bytes 100 = "+100%"). `99` goes out at every sign-in (its window opened once a day), after a match's results, and for `43 00`.
+[srp]: a day is a UTC day; the run grows by one on the first day after the last day the account was seen (sign-in or a finished match), a missed day or the day after the seventh starts a new run; the run is complete with the seventh day's third victory (no reward); a victory counts when the team won and the player stayed; the first three of a day pay the match's experience and reputation once more (the results screen's "daily" block, bytes 100 = "+100%"). `99` goes out at every sign-in (its window opened once a day), after a match's results, and for `43 00`.
 
 ## 5. The tutorial (`9D`, corrects lobby.md §2.21)
 
@@ -140,7 +174,7 @@ PROVEN: the state becomes `state_choose_faction` when the account has no quest f
 
 `49 03 <name>` → `83 49 03 <name> <ok> [reason]`. `49 04 <name> <u32>`: the u32 is the rename voucher's item id, or 0 to pay gold (`MessageEnterName`: `radioButtonPremium.selected ? 0 : voucherId`; PROVEN). The gold price is 0x8D's fourth value. Answer `83 49 04 <voucher or 0>`, then `8F` with the new name.
 
-[srp]: an account signs in with its login and is shown by its name; a rename changes the name only. A new name must pass the name rules, be shown by no other account and be no other account's login. Price `SRP_RENAME_COST`, default the voucher's 250 gold. (Two accounts registered as `a@x` and `a@y` are both shown as `a`, as in 0.21d: only a rename is checked.)
+[srp]: an account signs in with its login and is shown by its name; a rename changes the name only. A new name must pass the name rules, be shown by no other account and be no other account's login. Paid in silver only (the rename voucher is gone; the u32 is not kept, the answer says 0): `SRP_RENAME_COST`, default 25,000 (the voucher's 250 gold in silver). (Two accounts registered as `a@x` and `a@y` are both shown as `a`, as in 0.21d: only a rename is checked.)
 
 ## 7. The level notice: important message type 14 (corrects social.md §1.4)
 
@@ -150,10 +184,10 @@ PROVEN: the state becomes `state_choose_faction` when the account has no quest f
 
 | variable | default | |
 |---|---|---|
-| `SRP_PREMIUM_PRICES` | `100,200,400,1000,2500,4500,8000` (90 days sourced, the rest the owner's choice 2026-10-12) | gold for a day, 3 days, a week, a month, 3, 6 months, a year |
+| `SRP_PREMIUM_PRICES` | `10000,20000,40000,100000,250000,450000,800000` (the gold prices of 2026-10-12 times 100; gold is gone, 2026-11-08) | silver for a day, 3 days, a week, a month, 3, 6 months, a year |
 | `SRP_PREMIUM_DISCOUNT` | 0 | percent off premium time, offered by `A9` / `A8`; 0 offers none |
 | `SRP_PREMIUM_OFFER_SECONDS` | 3600 | how long the offer after a match stands |
-| `SRP_RENAME_COST` | 250 | gold for a nickname change |
+| `SRP_RENAME_COST` | 25000 | silver for a nickname change |
 | `SRP_AMMO_USE` | on | `off`: a match takes nothing off the stacks |
 
 ## 9. Open

@@ -96,6 +96,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `default_server_026g.asm`, `.section.bin`, `.hash-mismatch.bin` | Optional default-login-address stub, appended to the snapshot cave; source and assembled code for both placements |
 | `make_client_026g.py` | Makes the players' overlay folder or ZIP: patched exe, Rust BugTrap DLL, certificate, start file and README; with the launcher, DXVK 3.1.1's x32 DLLs (`winetricks dxvk`'s set: d3d8, d3d9, d3d10core, d3d11, dxgi) in `game/binaries/x86/dxvk/` (its release archive and DLLs pinned, downloaded once into `~/.cache/skhid`; `../docs/notes/dxvk-option.md`) |
 | `play_skhid.sh`, `LINUX.txt` | Linux Wine/DXVK launcher and instructions, included in the generated folder and ZIP |
+| `play_skhid_mac.sh`, `MACOS.txt` | macOS (Apple silicon) launcher and instructions, included in the generated folder and ZIP: downloads a pinned Wine (athei/wine-build `cx-26.3.0-8`: CrossOver 26.3's sources, msync, DXMT) and SWTOR on Mac's raw-mouse Mac driver once into `~/Library/Application Support/Skhid`, laid out as `Survarium.app` (games category, `LSSupportsGameMode`) so macOS Game Mode applies; runs under Rosetta with the engine's x87sidecar off (it desyncs); `Skhid.sh` runs it on macOS, `Skhid.command` from Finder |
 | `stale_dll_026g.asm`, `stale_dll_026g.section.bin` | The code of patch 25 (the sign-in reports a stale `shell_32.dll` in `%TEMP%`, a file one known cheat leaves behind) and that code assembled for 0xE00 of `.srp`; `patch_026g.py` reads the .bin |
 | `check_stale_dll_026g.py` | Runs patch 25's check on made-up machines, loaded as is and rebased (needs Unicorn) |
 | `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
@@ -132,20 +133,22 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
-| `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
+| `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MenuChange`, `CursorMovie`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); five lohooks, at initialize_match's start, show_cursor's show and hide and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
 | `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper gets a dormant artefact of the match's kind from the map's hidden pool at the match's start, into its first empty container, once a match: register_artefacts 0x31B8E0, the player's tick 0x2DAAD3); their checks run the game's code for each (needs Unicorn) |
 | `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
 | `rust/patches/src/unplayed_match.rs`, `src/unplayed_match.toml`, `src/vostok/match_close.rs`, `check_unplayed_match_026g.py` | Patch 120: a match its game never played (the time rule's state 0: the handshake, a level loading, a level loaded before its first world) closes too, kicked, timed out, cut off or given its farewell: five lohooks (connect_to_match's connect, the logoff, close_current_match's guard, on_project_loaded's abort test, on_match_ready's end); its check runs each from the game's code on a made-up network client, the original beside (needs Unicorn; `../docs/notes/client_patch.md` section 3.74) |
 | `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
+| `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
+| `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`) and patch 128 (`THREAD_STACKS` in `patch_026g.py`): the defaults of the multithreaded arena and the resource floor (768 MiB), and of the resources helper (32 MiB) and render (320 MiB) arenas, a command-line value still taking over, and an engine thread's stack (2 MiB); its check runs the native option reads, the registrations' sizes and threading::spawn to CreateThread in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75 and 3.77) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/music.rs`, `src/music.toml`, `src/vostok/sound.rs`, `src/vostok/resources.rs`, `check_music_026g.py` | Patch 88: the music (`../docs/notes/music.md`): the menus' and the maps' themes in a sound scene of its own, kept active and faded by the sound thread; its query callback the framework's first `callback` hook (handed to query_resources at run time, no site rewritten). The check runs its seven lohooks and the callback through the game's own boost invoker, bind, config lookups and add_scene_to_active (needs Unicorn) |
-| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `src/vostok/renderer.rs`, `check_hud_options_026g.py`, `../scripts/dxvk-loader/` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`), the Gameplay tab's field of view (`uro_fov`, patch 22's variable: `root.srp_slider_option`), and the Graphics tab's Renderer (`srp_dxvk`): at the process's start (`memory.allocate_arenas`) user.cfg read, the Vulkan look and DXVK loaded from `dxvk\` by full path (the game's delayed dxgi, d3d11 and d3d9 bound to them by their module slots), and with it `DXVK_CONFIG` set from the Vulkan options (`srp_dxvk_frame_limit`, `_low_latency`, `_tear_free`, `_dedicated_gpu`, `_overlay`), a failed DXVK start turned off at the login screen (`../docs/notes/dxvk-option.md`; the loader's proof under Wine `../scripts/dxvk-loader/run.sh`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
+| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `src/vostok/renderer.rs`, `check_hud_options_026g.py`, `../scripts/dxvk-loader/` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`), the Gameplay tab's field of view (`uro_fov`, patch 22's variable: `root.srp_slider_option`), and the Graphics tab's Renderer (`srp_dxvk`): at the process's start (`memory.allocate_arenas`) user.cfg read, the Vulkan look and DXVK loaded from `dxvk\` by full path (the game's delayed dxgi, d3d11 and d3d9 bound to them by their module slots), and with it `DXVK_CONFIG` set from the Vulkan options (`srp_dxvk_frame_limit`, `_low_latency`, `_tear_free`, `_dedicated_gpu`, `_overlay`), a failed DXVK start turned off at the login screen (`../docs/notes/dxvk-option.md`; the loader's proof under Wine `../scripts/dxvk-loader/run.sh`), and with DXVK, right before each Present of the game's swap chain (`render_output.present`), a window DXGI refuses (topmost, no frame style: DXVK's fullscreen, set_size's style 0) made a popup, so AMD's driver can make its swap chain (`dxvk-option.md`, "The fullscreen window"): lohooks, those at a site patch 79 or 65 hooks too after that patch's; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `world_sections_026g.asm`, `check_world_sections_026g.py` | Patch 98: hash()'s world buffer and the upload's are 0xF000 bytes (two immediates), and the history item's six world sections grow on the heap (one jump at the end of its constructor, the arena's block `world_sections.code`); its check runs the constructor, the sections' writers, hash, deserialize and destroy of the game's own code on made-up items, the original beside (needs Unicorn) |
 | `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no state over the game's buffer, no body over 0xF000 bytes); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
@@ -575,84 +578,17 @@ revision 11, `fov_slider_026g.py`'s, in git history only) was checked live in th
 the Gameplay one in Ruffle only (`../scripts/hud-options/check.sh`) and patch 83's side in Unicorn
 (`check_hud_options_026g.py`).
 
-## Lobby exchange, silver and gold both ways
+## Silver only: no gold, no exchange
 
-The lobby's gold-for-silver window is an exchange both ways (since revision
-23; source: the window's class, `../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
-open the online store) opens it to buy gold; the silver box opens it to sell
-gold. The window has:
-
-- **Pay**: an amount, the coin and its name, the balance;
-- a **v^** button that swaps the two currencies (the old Receive amount
-  becomes the new Pay amount);
-- **Receive**, the same way;
-- the rate under them, Pay first: "100 Silver = 1 Gold" or "1 Gold = 100 Silver";
-- "Not enough silver" / "Not enough gold" in red, with the Exchange button
-  greyed out, when the Pay amount is more than the balance (since the
-  exchange update below, a typed amount becomes the most the balance pays
-  for; the note is left for the amount the window opens or swaps with).
-
-Typing in either field updates the other. Silver goes by whole gold: a silver
-amount that is not a multiple of the rate is evened out when the field is
-left, and on Exchange. The texts are dictionary keys (`st_srp_exchange_*`,
-`localization/README.md`, Flash menus' own texts). "Silver" is the game's own word
-(`regular_money`, `st_regular_money`); "Gold" (`st_srp_exchange_gold`) is the game's
-`st_premium_money_name`, copied, as the movie has no key for it; the rest are the
-window's own words, the game having none for them.
-
-It is the stock window (`MessageMoneyExchange`, symbol `SrvMessageExchangeSkinned`)
-with the stock pieces moved: its 9-slice background made 300 x 300, its buttons
-and title. The panels are drawn as the stock stepper's dark box, the coins are
-`CoinsIcon2`, the swap is a `SrvButtonScale` (the skin of EXCHANGE / CANCEL)
-with two arrows drawn on it. The texts take the font of the stock title
-(bold Calibri from the font library, embedded): the movie's own plain
-"Calibri" has two glyphs, and text in it shows as squares. Five methods
-change, in two ABC blocks: the window's constructor (builds the layout, so the
-size is final when `Message` centres it; the swap button is added in
-`configUI`, after that, or the window opens in the corner), `configUI` and
-`onMessageAccept`, and `StatusPanel.onPremiumMoneyAddClick` /
-`onRegulatMoneyAddClick`. The exe is not
-changed: the window calls the game's `exchange_premium_money`, which sends `47 04`
-with the u32 it is given. Gold for silver sends the gold, as the stock window
-did; silver for gold sends `0x40000000` + the gold (`MessageMoneyExchange.BUY_GOLD`),
-which the server reads as `BuyPremium` (`requests::BUY_PREMIUM`). So the server
-must be released first; an older server refuses such an amount as more gold
-than the account has.
-
-Checked in a local lobby under Wine (2026-10-15): the window opens centred,
-shows both directions with their balances and rate, the swap button works,
-and gold bought with silver reaches the top bar. Its first build (a bytecode
-step on revision 22's movie) is in revision 23's movie; it is built from
-source now ("Building the lobby movie"). Tests (the buy-gold mark agrees with
-the server's, every text in every language): `python -m unittest test_build_lobby`.
-
-## Get Gold opens the exchange
-
-`MessageMoneyExchange.buyGold()` (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`)
-makes every "Get Gold" of the lobby open the exchange window above, to buy gold with silver, instead of the online store (a browser
-window on a dead site). The rules: `docs/notes/buy-gold.md`. The
-"Insufficient Gold Rubles" dialog's button calls `goToStore` of the window that
-showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
-`MessageCraftItem`, `MessagePostPremium`, `MessagePremium`,
-`MessagePremiumDiscount`, `MessagePremiumProfile`, `MessageRepair`,
-`MessageRerollItem`) and the premium window's gold button
-(`MessagePremium.onPremiumMoneyAddClick`, which asked first) become
-`MessageMoneyExchange.buyGold()`. It shows the exchange with `showMessage`'s third
-and fifth arguments set, so it opens over a window still open instead of
-waiting behind it, and that window stays visible under it. The exe and the
-server do not change. Not in a release yet.
-
-## Exchange window updates
-
-A change of the window (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`) is built in by
-building the lobby movie.
-
-The first such change (2026-10-20): an amount more than the Pay balance pays
-for becomes, as it is typed, the most it does, in the field typed in. Buying
-gold with 5,500 silver: 10,000 in Pay becomes 5,500, 100 in Receive becomes
-55. Selling gold works the same way with the gold balance. Silver is still
-whole gold: with 5,550 silver, anything over 5,500 becomes 5,500. Not in a
-release yet.
+Gold is gone (the owner, 2026-11-08): silver is the one currency. The lobby
+movie has no gold balance, no exchange window (`MessageMoneyExchange` and its
+stepper were removed; the two symbols the graphics bind keep empty classes)
+and no "Get Gold": every price is silver, a premium item's too
+(`docs/notes/buy-gold.md`, `docs/notes/exchange.md`). The windows that offered
+gold (the skills reset, the reroll, the upgrade, the repair, the rename, the
+premium shop) offer silver only. The exe is not changed; the server answers
+`47 04` as a request it does not know. The exchange's history (revisions 23 to
+53: both ways at 100 silver a gold, Get Gold opening it) is in git.
 
 ## Buy for modified items
 
@@ -722,9 +658,8 @@ its ActionScript source tree, `../flash/lobby_menu/src`
 ([lobby-source.md](../docs/notes/lobby-source.md)), with every lobby change as
 an edit of it:
 
-- the features written in the game's own classes: the exchange and Get Gold in
-  `MessageMoneyExchange` (#214, #213; the ten `goToStore` and the premium
-  window's gold button call it), Buy on owned items in `LobbyMenu` and
+- the features written in the game's own classes: silver only (no gold, no
+  exchange: the windows that offered gold, `StatusPanel`, `PlayerInfo`), Buy on owned items in `LobbyMenu` and
   `InventoryList` (#215), the craft window's Buy/Sell and Continue in
   `InventoryList` and `MessageCraftItem` (#216), Optics in `InventoryList`
   (#217), the player gear in `LobbyMenu` and `PlayerRanking` (#232);
@@ -4685,17 +4620,66 @@ The owner's two reports (2026-11-06), both before a match's start, with the kits
   `HUD.reset`, which initialize_match invokes at 0x234AE8, hides its kits too
   (`show_profiles_selector(false)`, as its constructor). The match's first showing of the kits is
   then a whole one, with the right tab.
-- `options.activate` (0x200F50): over a running match (the game world active, +D4h) with the hud's
-  cursor shown, its movie is taken off (base_game_scene::hide_movie 0x23DC70; the renderer takes
-  out every copy and does nothing with none).
+- `options.activate` (0x200F50): a closed menu about to be shown with the hud's cursor shown
+  (+2DCh), in a match or not, takes its movie off (base_game_scene::hide_movie 0x23DC70). activate
+  returns at once when the menu is shown already (0x200F62), and so does the patch.
 - `hud.cursor_movie` (0x23A992): while the menu is shown, `show_cursor(1)` (a death under the menu,
   the kits again) writes its flag but does not show the movie.
-- `options.deactivate` (0x201040): a shown menu closing over a running match with the hud's cursor
-  shown puts the movie back (show_movie 0x23DC00). A match's end clears +D4h before it closes the
-  menu (0x1F952B, 0x1F956D), so nothing comes back then; the lobby's menu has no running match.
+- `hud.cursor_hide` (0x23A9B0): while the menu is shown, `show_cursor(0)` (a spawn under the menu,
+  the next match's start) writes its flag but does not take off the movie, which is not there.
+- `options.deactivate` (0x201040): a shown menu about to close gives up a key its settings await
+  (below, "The menu's own cursor"); then, with the hud's cursor shown, it puts the
+  movie back (show_movie 0x23DC00), over a running match and at its end alike (a match's end clears
+  +D4h, then closes the menu: 0x1F952B, 0x1F956D).
 
-The hud's flag is the game's throughout, so the mouse goes where it went. Nothing a match computes.
-Checked with `check_hud_cursor_026g.py`, `cargo test` and clippy. Not run in a game.
+So the hud's cursor movie is in the game world's scene exactly when +2DCh is set and the menu is
+closed, as in the original without the menu. The hud's flag is the game's throughout, so the mouse
+goes where it went. Nothing a match computes. Checked with `check_hud_cursor_026g.py` (each site
+against the original, and the game's orders of calls on a scene's movie list), `cargo test` and
+clippy. Not run in a game.
+
+**The crash it had (rev51 to rev54, exe+0x14EE8D).** The first build took the movie off only over a
+running match and put it back only over one, so a match that ended under the menu (Esc over the
+kits or the death screen, then Leave, or the match's end) left +2DCh set with the movie off the
+scene; under the menu, show_cursor(1) set the flag without the movie, and show_cursor(0) ran the
+stock hide. So the next `show_cursor(0)` after a match's end (the next match's `initialize_match`)
+or under the menu (a spawn, the start of play) took off a movie the scene did not hold. The scene's remove_movie (inlined in world::hide_movie 0x118FE0, as 0.21d's
+scene_view::remove_movie) erases what std::find (0x3C5510) returns, and for a movie not there that
+is the end: buffer_vector::erase (0x15EE30) then copies from end+1 until it meets the end, which it
+never does, and writes through the list's inline buffer until it meets a word that is not a pointer
+(write to 0x17789 live on rev52, 2026-11-07; to 0x2A2 locally on rev54, 2026-11-09). Both on the
+render thread at dispatch_callbacks (0x1024F3), about 0.2 s after a match's players were made. The
+local full dump: the scene (game world +8, 0x41194868) holds the hud movie and the player icons
+(begin 0x411B25A4, end 0x411B25AC, buffer of 32), the command's movie is the hud's cursor movie
+(hud +0Ch, 0x7C1214D8), +2DCh is 0 (the hide had run); the server log has that game leave the match
+before its start "by its own word" (the menu's Leave), then its next match's load.
+
+**The menu's own cursor (the same crash, from the stock game).** The main menu's key-binding
+settings take the menu's cursor movie (game_options +10h) off the scene while they wait for a key:
+the movie's `start_bind_key` (scaleform_callback, 0x1FF889) sets the awaited action (+3Ch, 48h none)
+and hides +10h (0x1FF8A9). Only a key ends the wait: on_keyboard_action (0x2015E0; Esc too, DIK 1 at
+0x2010F2), on_mouse_key_action (0x2016D0) and on_mouse_move's wheel (0x2017A0) hand it to
+process_key_input (0x2010E0), and finish_binding (0x2015A0) or its inline copies (0x2016FB,
+0x2017D9) or a conflict's message (0x201343) put +10h back and set +3Ch 48h. While it waits every
+press is the wait's, so neither Resume, Leave nor Esc can close the menu, but deactivate's other
+callers can, each a scene's on_deactivate as the game switches scenes (switch_to_lobby 0x1ED23B,
+switch_to_game_world, switch_to_login, clear_resources): a match's end, a kick or a lost connection
+(game_world::on_deactivate, 0x1F956D) and a match starting over the lobby's menu or the lobby's
+fall to the sign-in (lobby_menu::on_deactivate, 0x21D50E). deactivate (0x201040) hides +0Ch and
++10h whatever +3Ch says (0x20104D, 0x201058) and leaves +3Ch, so the second hide takes off a movie
+the scene does not hold: exe+0x14EE8D, with the queued command's movie game_options+10h. 0.21d has
+the same code (scaleform_callback 0x15DD31, finish_binding 0x15F5E9). No report has shown it yet:
+the three local full dumps at exe+0x14EE8D (2026-11-09) all hold the hud's cursor movie (hud +0Ch,
+0xA96A68) in the command, and game_options (0xA9C03C) +3Ch is 48h in each.
+
+`options.deactivate` now gives an awaited key up before the stock close, as Esc gives it up:
+finish_binding (`root.end_keybind`, which closes the movie's "press a key" message; +10h back;
++3Ch 48h), then deactivate takes both movies off. The show and the hide go to the render world in
+one queue (0x1F2C0 on +200058h), in that order. So the menu's movies are in the scene exactly while
+it is shown, +10h only while no key is awaited, and a closed menu never awaits a key. A conflict's
+message (two actions on one key) open at the close is left as the stock leaves it: its +10h is
+back already, and its OK or Cancel at the next opening still works. Checked by
+`check_hud_cursor_026g.py` (steps 7 and 8: the original takes +10h off twice, the patched exe never).
 
 ## A ban's reason and end on the sign-in screen (patch 116, unreleased)
 
@@ -4874,3 +4858,128 @@ for an open match never played:
 A played match (states 1-3, a resync's) and a closed one go as before (patch 119's path for a kick).
 Nothing a match computes. Checked with `check_unplayed_match_026g.py` (Unicorn) and the patch crate's
 tests. Not run in a game.
+
+## Room for the resources helper and render arenas (patch 124, unreleased)
+
+A match load with many decorated players (about 800 camouflage and decal bakes) runs out of two
+fixed engine arenas: `out of memory in arena "resources helper allocator"` (8 MiB, 93-96 % used) or
+`out of memory in arena "render"` (224 MiB). The rev54 test build, one headless client with 19 bots
+wearing live players' gear: 0 of 4 loads got through the stock sizes (2 helper, 2 render); with
+`-rh_allocator=32 -render_allocator=320` on the command line 3 of 3 were clean.
+
+**The patch** (`ARENA_DEFAULTS` in `patch_026g.py`, the builds with the late join): the two
+defaults, so every way of starting the game (the launcher, the Linux and macOS scripts, a replay)
+gets them. One immediate each:
+
+- `memory::preinitialize` (0xE0F20) stores 8 MiB in bytes as the u32 the key's reader
+  (`is_set_as_number<u32>` 0x141B0, rh_allocator 0xA80380) writes a value to:
+  `mov dword [esp+10h],800000h` at 0xE1099 becomes `2000000h`, 32 MiB. A value given is still MiB,
+  `shl eax,14h`.
+- `engine_world`'s constructor (0x13660) has 224 in EDI before the reader for render_allocator
+  (0xA7C088): `mov edi,0E0h` at 0x13A95 becomes `mov edi,140h`, 320 MiB. A value given is still
+  raised to at least 224 (the `cmp edi,0E0h` at 0x13AA7 is kept), then times 1 MiB.
+
+Past these sizes the arena's full allocation still ends the game in out_of_memory_with_crash.
+Nothing a match computes; a game with it and one without play together.
+
+**The address space.** The arenas are reserved at the start (memory::allocate_region 0xE1120,
+platform::allocate_arenas 0xE9580). The engine sums the fixed arenas and sizes the resource arenas
+and its video budget from the address space left; the resource arenas keep their 768 MiB floor
+(patch 37). In the test logs the engine's total went from 1 944 846 328 to 2 070 675 448 bytes
+(+120 MiB) of the 4 GiB of the large-address-aware process, the resource arenas stayed 512 + 256
+MiB, and the video budget (the address space left for the driver) went from 1 848 233 992 to
+1 722 507 272 bytes. Nothing else in the exe reads the old sizes: the arenas keep their size from
+the registration.
+
+`check_memory_defaults_026g.py <original exe>` (Unicorn 2.1.4) runs both spans, from the key's read to
+the registration (0xE108F..0xE10D7, 0x13A81..0x13AF4), with the native `is_set_as_number<u32>` and
+a stubbed key reader: absent or not a number, the original's 8 and 224 MiB and the build's 32 and
+320; values given (helper 4 to 64, render 100 to 512) the same size in both, 100 raised to 224.
+Against the build without it, the default build differs in the four bytes of the two immediates and
+the PE checksum. The built exe was not run in a game: the runs above gave the same sizes as options.
+
+## The game tells how much memory it has left (patch 126, unreleased)
+
+The game is a 32-bit process: its address space is cut at the start into fixed arenas and what is
+left for the video driver, and a full arena (or a driver without room) ends the game. We sized the
+arenas from a handful of crash dumps (patches 36, 37, 78, 124); these reports give the real margins
+of players' games. The rules: `../docs/notes/memory-report.md`; the reading: `../docs/notes/client_patch.md`
+section 3.76.
+
+**The patch** (`memory_report`, Rust, two lohooks; `vostok::memory`, `srp_validate::memory`). When a
+match connection's first world is in (`world_load.loaded`, order 3) and when the match closes on the
+game (close_current_match's entry, `match_recovery.close`, order 1, only after a first world), a
+snapshot: the address space's free bytes and largest free region (`VirtualQuery`), the engine's video
+budget, and every arena of the engine's list with its name, size and use: a doug_lea heap walked
+chunk by chunk (used, largest free block), the managed resources' and the multithreaded region's
+counts, unknown otherwise. Nothing of the engine's is called: its size queries walk heaps other
+threads use without a lock; ours reads only inside each arena, checked readable, and gives up on a
+torn walk (a clean one can be slightly stale). The snapshot is written to `srp_patches.log` (a line for the process, one an arena) and
+sent in the generic client-report carrier (`srp_validate::report`: 0xE0, prefix
+`ff ff ff ff ff ff 03 00`, the match id, the kind, part and parts), all parts at once or none,
+through patch 97's one 0xE0 path (`Connection::tell`).
+
+**The server.** The match server logs each part once per connection, of its own match only, to
+`logs/memory.log` (16 files of 4 MB): `<name> (account <id>), match <id>, loaded, part 1/2: process
+free <bytes> largest <bytes> video <bytes> | arena "render" size <bytes> used <bytes> largest <bytes> | ...`.
+`release/moderate memory` lists each arena, tightest first, with its least room left and least largest
+free block, and the address space's least largest free region, with who and when. An older server takes
+a carrier alone in its datagram for a chunk whose offset is past its total and ignores it, but it
+refuses a whole multi datagram that carries one (it cannot measure the carrier): the server ships in
+the same release as the patch or earlier. The transport measures the carrier with the codec's own
+`srp_validate::report::carrier_len`.
+
+Nothing a match computes. Checked with `srp-validate`'s tests, the patch crate's tests and Clippy, and
+the match server's test. Not run in a game.
+
+## Engine threads get 2 MiB stacks (patch 128, unreleased)
+
+Every thread the engine starts had an 8 MiB stack, committed: 57 of them in a 19-bot match on a
+24-thread CPU, 456 MiB of the 32-bit process's 4 GiB. The deepest touched 536 KiB, 51 of 56 never
+more than 64 KiB (2026-11-09, under Wine, the bake-stress load: map 61, 777 camouflage/decal bakes,
+about 5 minutes of play).
+
+**The patch** (`THREAD_STACKS` in `patch_026g.py`, the builds with the late join): one immediate.
+`threading::spawn` (0xE3770) gives `spawn_internal` (0xE0930) a fixed size, `mov edx,800000h` at
+0xE37BA (file 0xD2BBA), whatever the thread; `spawn_internal` passes it to CreateThread with flags
+0. It becomes `mov edx,200000h`. Every engine thread goes through it: splash, sound, network,
+logic, hdd, dvd, res_man, res_cook, process termination and the task pool's 2 x min(32, cores)
+"task #n" (the count at 0xE425E, the spawn at 0xFC4F1). The game's main thread (1 MiB, the exe's
+own reserve) and the threads of the CRT, the driver and Wine are not engine threads.
+
+On Windows the size is committed (no STACK_SIZE_PARAM_IS_A_RESERVATION) and, above the exe's 1 MiB
+reserve, is the reserve too: 6 MiB of address space and commit charge freed a thread. 150 MiB with
+8 logical CPUs, 342 with 24, 438 with 32.
+
+`platform::allocate_arenas` still counts (threads x 2 + 8) x 8 MiB of stacks into "engine(fixed)"
+(0xE98C2..0xE98CB) for its budget: kept, so the resource arenas and the video budget are sized
+byte for byte as before and the space freed stays free. Lowering that term too would size them
+from the real stacks, and would keep a CPU with very many threads (64 and more: 1088 MiB counted
+there, without the pool's cap of 32) from failing the "Not enough memory" check at the start
+(read in the code, never seen).
+
+**Frames above 2 MiB.** Every frame over 4 KiB calls `_chkstk` (0x429F20) with its size: 1754 of
+them, 6 above 256 KiB. `network_client::draw_match_stats` (0x27F780, 5.8 MiB) runs on the logic
+thread, from game::tick, only when `-net_stats` is on the command line: with this patch that
+option overflows the logic thread's stack. Nothing we ship passes it. The other one above 2 MiB,
+`static_render_surface::add_shadow_vertices` (0x16E550, 2.4 MiB), LIKELY never runs: in 0.10b
+only `shadow_batched_geometry::build` calls it, and in 0.26g the scene's shadow geometry
+(scene+410B6Ch, the one such object) is referenced only by the scene's constructor and
+destructor. Neither ran in the measured game (a `_chkstk` touches every page of its frame). The
+rest: `on_fs_iterator_materials_ready` (0x1176E0, 560 KiB), three
+`scene::gather_streamable_textures` (276-278 KiB), none above 72 KiB after them; the 21 calls whose
+size is not a `mov eax` just before take 4 to 40 bytes. The recursion guards in the exe are
+Scaleform's (the main thread). Not proven: how deep a chain of calls or a recursion goes on an
+engine thread outside the measured game.
+
+Nothing a match computes. `check_memory_defaults_026g.py` runs threading::spawn from 0xE37BA into
+spawn_internal to its CreateThread call in both exes: 8 MiB and flags 0 in the original, 2 MiB and
+flags 0 in the build. Against the build without it, the default build differs in one byte (file
+0xD2BBD, 80h to 20h) and the PE checksum.
+
+Run in the bake-stress rig (2026-11-09, one headless client under Wine/DXVK, 19 bots, map 61,
+the build of main with it against the same build with 8 MiB): 52 or 53 stacks of 2 MiB and none of
+8 MiB, the deepest touched 540 KiB; the address space in use in the match at most 2757-2773 MiB
+against 3085 MiB. Three of four loads clean; the fourth filled the multithreaded arena 17 s after
+Play, as one of the two loads with 8 MiB did. Not run on native Windows, nor with a replay, a late
+join, the death camera or another map.

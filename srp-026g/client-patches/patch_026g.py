@@ -555,7 +555,9 @@ Patches:
   hud's kits and cursor"): initialize_match's start (0x234880) hides the
   cursor and clears the kits' state the last match left, so the first
   showing tells the movie the match's kit; while game_options is shown the
-  hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x201040).
+  hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x23A9B0, 0x201040);
+  the menu closing while its key settings await a key gives the key up first
+  (finish_binding 0x2015A0), so its own cursor movie is not taken off twice.
   Nothing a match computes;
 - a banned account's sign-in shows srp's reason, when its ban ends and how
   long it has left (patch 116, the Rust patch ban_time; README "A ban's
@@ -579,6 +581,15 @@ Patches:
   lobby 31 in the handshake, and while the level loads waits for
   on_match_ready's end (0x27AEBF) to close it; on_project_loaded's abort
   (0x1F8AF3) lets an open match's load go on. Nothing a match computes;
+- the game tells the match server how much memory it has left (patch 126,
+  memory_report; docs/notes/memory-report.md, client_patch.md section
+  3.76): when a match connection's first world is in (world_load.loaded)
+  and when the match closes on it (close_current_match's entry), the free
+  address space and its largest region, the video budget, and each
+  registered arena's size, use and largest free block, read by its own
+  walk (no engine call), to srp_patches.log and in 0xE0 carriers
+  (srp_validate::report); the server only logs them. Nothing a match
+  computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -618,6 +629,9 @@ Patches:
     hook replaces); the rest of it becomes int3. No header changes;
 - base relocations that overlap rewritten bytes become no-op (type 0)
   entries, so a rebase could not corrupt the new code;
+- DllCharacteristics gets NX_COMPAT (0x0100, DEP opted in; full patch
+  only): without it Wine on macOS maps the process's memory executable and
+  Metal crawls on it (DXMT issue #161);
 - the PE checksum is recomputed (full patch only; --cert-only keeps the
   file byte-identical to the copy installed in step 0).
 The 0.21d mode 3 battery patch is NOT ported: 0.26g serializes the
@@ -881,6 +895,50 @@ MEMORY_DEFAULTS = (
      b"\x81\xc6" + struct.pack("<I", (MEMORY_DEFAULT_MIB - 16) << 20)),
     (0xE9985, bytes.fromhex("b850010000"),
      b"\xb8" + struct.pack("<I", MEMORY_DEFAULT_MIB)),
+)
+
+# Patch 124: two fixed arenas' defaults, for a match load of many baked
+# camouflages and decals (rev54 test, 19 decorated bots: 0 of 4 loads got
+# through the stock sizes, 3 of 3 with these as options). The full arena
+# still ends the game in out_of_memory_with_crash.
+# - "resources helper allocator": memory::preinitialize (0xE0F20) stores the
+#   default in bytes, 8 MiB, as the output of
+#   command_line::key::is_set_as_number<u32> (0x141B0) for the key
+#   rh_allocator (0xA80380); a value given is MiB, `shl eax,14h`. 32 MiB.
+# - "render": engine_world's constructor (0x13660) has the default in MiB,
+#   224, in EDI before is_set_as_number<u32> for render_allocator
+#   (0xA7C088); a value given is raised to at least 224 (the cmp at
+#   0x13AA7, kept), then times 1 MiB. 320 MiB.
+# Numbers, no relocation under either. The engine takes the fixed arenas'
+# total out of the address space before it sizes the rest (the resource
+# arenas keep their 768 MiB floor, patch 37).
+ARENA_HELPER_MIB, ARENA_RENDER_MIB = 32, 320
+ARENA_DEFAULTS = (
+    (0xE1099, bytes.fromhex("c744241000008000"),
+     bytes.fromhex("c7442410") + struct.pack("<I", ARENA_HELPER_MIB << 20)),
+    (0x13A95, bytes.fromhex("bfe0000000"),
+     b"\xbf" + struct.pack("<I", ARENA_RENDER_MIB)),
+)
+
+# Patch 128: every engine thread's stack is 2 MiB, not 8. threading::spawn
+# (0xE3770) gives spawn_internal (0xE0930) one fixed size, `mov edx,800000h`
+# at 0xE37BA, for every thread it starts: splash, sound, network, logic,
+# hdd, dvd, res_man, res_cook, process termination (the editor's and the
+# test watcher's were not started in the game measured) and the task pool's
+# 2 x min(32, cores) "task #n" (thread_pool::initialize 0xFC350, its spawn
+# at 0xFC4F1). spawn_internal passes it to CreateThread with flags 0: on
+# Windows the size is committed, and as it is above the exe's 1 MiB reserve
+# it is the reserve too. Measured 2026-11-09 under Wine (19 bots, 777
+# bakes): the deepest of the 57 stacks touched 536 KiB, 51 of 56 stayed
+# under 64 KiB. The one frame above 2 MiB a players' game can reach is
+# network_client::draw_match_stats (0x27F780, 5.8 MiB, the logic thread),
+# drawn only with -net_stats on the command line, which nothing passes.
+# platform::allocate_arenas' stack term ((threads x 2 + 8) x 8 MiB,
+# 0xE98C6) is kept, so the resource arenas and the video budget are sized
+# as before; the space freed stays free. A number, no relocation.
+THREAD_STACK_MIB = 2
+THREAD_STACKS = (
+    (0xE37BA, bytes.fromhex("ba00008000"), b"\xba" + struct.pack("<I", THREAD_STACK_MIB << 20)),
 )
 
 # replay_network_client's "is this place mine" (vtable 0x9FF344, slot +0x54
@@ -3139,6 +3197,7 @@ class Headers:
         self.size_of_code_at = self.optional + 4
         self.size_of_image_at = self.optional + 56
         self.checksum_at = self.optional + 64
+        self.dll_characteristics_at = self.optional + 70
         self.security_at = self.optional + 96 + 8 * 4
         self.reloc_at = self.optional + 96 + 8 * 5
         self.debug_at = self.optional + 96 + 8 * 6
@@ -3154,6 +3213,9 @@ class Headers:
             vsize, rva, rsize, raw = struct.unpack_from("<IIII", data, o + 8)
             out.append((bytes(data[o:o + 8]), rva, vsize, raw, rsize, struct.unpack_from("<I", data, o + 36)[0]))
         return out
+
+
+IMAGE_DLLCHARACTERISTICS_NX_COMPAT = 0x0100
 
 
 def pe_checksum(data, checksum_at):
@@ -3510,7 +3572,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((BAKED_TEXTURE_MISSING[0], BAKED_TEXTURE_MISSING[0] + len(BAKED_TEXTURE_MISSING[1])))
         patch(data, *AI_ARENA)
         sites.append((AI_ARENA_VA, AI_ARENA_VA + len(AI_ARENA[1])))
-        for site in MEMORY_DEFAULTS:
+        for site in MEMORY_DEFAULTS + ARENA_DEFAULTS + THREAD_STACKS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         for site in SOUND_POOLS:
@@ -3953,6 +4015,12 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     if late_join is not None and linked is not None:
         audit_vtables(symbols=arena_symbols(linked))
     headers = Headers(data)
+    # NX_COMPAT: the game opts in to DEP. Without it Wine maps a 32-bit
+    # process's memory executable, and Metal on macOS 26+ crawls on such
+    # buffers: DXMT and DXVK sit minutes before the first frame (DXMT #161).
+    if mode != "cert-only":
+        dll = struct.unpack_from("<H", data, headers.dll_characteristics_at)[0]
+        struct.pack_into("<H", data, headers.dll_characteristics_at, dll | IMAGE_DLLCHARACTERISTICS_NX_COMPAT)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
                   f"a world of {WORLD_BUFFER_SIZE:#x} bytes hashed and unpacked, "
@@ -3984,6 +4052,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a drag turns the warmup camera and the wheel moves it while the kits are shown, "
                      "the archive reads' order is a strict weak ordering, "
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
+                     f"the resources helper and render arenas {ARENA_HELPER_MIB} and {ARENA_RENDER_MIB} MiB by default, "
+                     f"an engine thread's stack is {THREAD_STACK_MIB} MiB, "
                      f"the game world's sound scene has {SOUND_INSTANCES} sound instances and propagators, "
                      "a history item's six world sections grow on the heap, "
                      "a weapon's upgrade window shows the weapon, "

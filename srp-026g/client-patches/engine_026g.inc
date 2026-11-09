@@ -391,6 +391,10 @@ extern engine_release_inventory
 ; the IAT slot 0x870164 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_global_memory_status_ex
+; unsigned int engine_virtual_query(const void *address, void *info, unsigned int size)
+; the IAT slot 0x870168 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_virtual_query
 ; struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where)
 ; 0xe4f90 vostok::memory::doug_lea_allocator::malloc_impl: allocator ESI, size EAX, where ESP+4; pops 4; EAX
 extern engine_allocate_recipe
@@ -556,6 +560,14 @@ extern engine_key_name
 ; the IAT slot 0xaeff20 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_activate_keyboard_layout
+; unsigned int engine_get_window_long_a(void *window, unsigned int index)
+; the IAT slot 0xaefe8c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_window_long_a
+; unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)
+; the IAT slot 0xaeff44 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_set_window_long_a
 ; void *engine_get_module_handle_a(const char *name)
 ; the IAT slot 0x87003c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
@@ -595,3 +607,6 @@ extern engine_file_time_to_system_time
 ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_discard_playing_order
+; void engine_finish_key_binding(struct game_options *options)
+; 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+extern engine_finish_key_binding

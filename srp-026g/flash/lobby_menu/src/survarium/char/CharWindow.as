@@ -16,7 +16,7 @@ package survarium.char
    import scaleform.clik.events.IndexEvent;
    import survarium.Util;
    import survarium.constants.Events;
-   import survarium.controls.Message;
+   import survarium.constants.MoneyType;
    import survarium.controls.UIWindow;
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
@@ -39,10 +39,6 @@ package survarium.char
       protected var _branches:Vector.<*> = new Vector.<*>();
       
       protected var _branchesDict:Dictionary = new Dictionary();
-      
-      protected var _reroll_cost:uint = 0;
-      
-      protected var _reroll_cost_premium:uint = 0;
       
       protected var _perkItems:Array = [];
       
@@ -146,26 +142,6 @@ package survarium.char
       public function registerRenderer(value:Class) : void
       {
          _skillClassRenderer = value;
-      }
-      
-      public function set reroll_cost(value:int) : void
-      {
-         _reroll_cost = value;
-      }
-      
-      public function set reroll_cost_premium(value:int) : void
-      {
-         _reroll_cost_premium = value;
-      }
-      
-      public function get reroll_cost() : int
-      {
-         return this._reroll_cost;
-      }
-      
-      public function get reroll_cost_premium() : int
-      {
-         return this._reroll_cost_premium;
       }
       
       public function init(e:Event) : void
@@ -1112,23 +1088,12 @@ package survarium.char
          trace("changesSaved");
       }
       
+      // A skills reset is free and asks nothing (the owner, 2026-11-08: "user presses reset and it
+      // resets by itself immediately", "there should be no confirmation at all"): the button resets the
+      // open branch at once, paid in silver (MoneyType.REGULAR) as the dialog's OK did, for 0.
       protected function rerollChanges(e:ButtonEvent) : void
       {
-         var _obj:Object = new Object();
-         _obj.price = this.reroll_cost;
-         _obj.price_premium = this.reroll_cost_premium;
-         _obj.text = LocalizationData.getName("message_reroll_text");
-         _obj.branch = this._activeSkillBranch;
-         var progressData:Object = this._skillsProgressArray[this._activeSkillBranch];
-         if(progressData)
-         {
-            _obj.points = progressData.points;
-         }
-         else
-         {
-            _obj.points = 0;
-         }
-         Message.showMessage("reroll",_obj,true);
+         ExternalInterface.call("reroll_ok_clicked",uint(this._activeSkillBranch),uint(MoneyType.REGULAR));
       }
       
       protected function cancelChanges(e:ButtonEvent) : void

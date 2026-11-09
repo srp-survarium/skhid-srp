@@ -2992,6 +2992,48 @@ hud_cursor_on_cursor_shown_replay:
     db 0x8b, 0x47, 0x18, 0x8d, 0x77, 0x0c
     jmp 0x23a998
 
+; 0x23a9b0 show_cursor's hide (mov edx,[edi+18h] / lea eax,[edi+0Ch], then the call of base_game_scene::hide_movie 0x23DC70 at 0x23A9B6; the je at 0x23A944 jumps here): kept skips the movie, the flag (+2DCh) still written at 0x23A9BB: lohook -> hud_cursor_on_cursor_hidden
+global hud_cursor_on_cursor_hidden
+extern hook_hud_cursor_on_cursor_hidden
+hud_cursor_on_cursor_hidden:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_cursor_on_cursor_hidden
+    mov edx, hud_cursor_on_cursor_hidden_replay
+    cmp eax, 0
+    je hud_cursor_on_cursor_hidden_go
+    mov edx, 0x23a9b6
+    cmp eax, 1
+    je hud_cursor_on_cursor_hidden_go
+    mov edx, 0x23a9bb
+    cmp eax, 2
+    je hud_cursor_on_cursor_hidden_go
+    ud2
+hud_cursor_on_cursor_hidden_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_cursor_on_cursor_hidden_replay:
+    db 0x8b, 0x57, 0x18, 0x8d, 0x47, 0x0c
+    jmp 0x23a9b6
+
 ; 0x200f50 game_options::activate's start (push ebp / mov ebp,esp / and esp,-8): the main menu about to be shown, over a match by Esc (activate_main_menu 0x1EDBDC) or over the lobby (0x28C5C9): lohook -> hud_cursor_on_menu_show
 global hud_cursor_on_menu_show
 extern hook_hud_cursor_on_menu_show
@@ -3147,6 +3189,45 @@ hud_options_on_process_start_go:
 hud_options_on_process_start_replay:
     db 0xb8, 0xa8, 0x11, 0x00, 0x00
     jmp 0xe9585
+
+; 0x3cf8ff res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow: lohook -> hud_options_on_present
+global hud_options_on_present
+extern hook_hud_options_on_present
+hud_options_on_present:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_present
+    mov edx, hud_options_on_present_replay
+    cmp eax, 0
+    je hud_options_on_present_go
+    mov edx, 0x3cf905
+    cmp eax, 1
+    je hud_options_on_present_go
+    ud2
+hud_options_on_present_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_present_replay:
+    db 0x8b, 0xb6, 0xcc, 0x00, 0x00, 0x00
+    jmp 0x3cf905
 
 ; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
 global language_on_options_call
@@ -4158,7 +4239,7 @@ lobby_scene_on_deactivate_replay:
 
 ; 0x21d2e0 lobby_menu::on_activate's start (push ebp / mov ebp,esp / and esp,-8; its vtable+0, 0x9FFE74): ECX the lobby menu, about to be shown again (after a match, or the sign-in): lohook -> lobby_scene_on_activate
 global lobby_scene_on_activate
-extern hook_lobby_scene_on_activate_chain
+extern hook_lobby_scene_on_activate
 lobby_scene_on_activate:
     lea esp, [esp - 4]
     pushfd
@@ -4176,7 +4257,7 @@ lobby_scene_on_activate:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lobby_scene_on_activate_chain
+    call hook_lobby_scene_on_activate
     mov edx, lobby_scene_on_activate_replay
     cmp eax, 0
     je lobby_scene_on_activate_go
@@ -4776,10 +4857,10 @@ medical_skills_on_stopping_go:
     lea esp, [esp + 4]
     ret
 
-; 0x5c73e notify_listener2 at a voice's volume (movss [esp],xmm1 after mulss xmm1,xmm0: the options' volume_k times amplitude 0x5C717 or the propagator's gain; the push before it is set_volume_impl's argument, its only caller 0x5C743, which clamps it to [0, 1]): the sound thread, EDI the propagator, XMM1 the volume: lohook -> medical_skills_on_voice_gain
-global medical_skills_on_voice_gain
-extern hook_medical_skills_on_voice_gain
-medical_skills_on_voice_gain:
+; 0x31d727 breath_vibration_calculator::tick after apply_modifier of breath_vibration (61) at 0x31D722, before it stores the result (mov eax,[ebp+0Ch] / fild dword [ebp+0Ch], then movss [esp+10h],xmm0 at 0x31D72D): XMM0 the dispersion that drives the aimed weapon's sway, B x max(0, 1 + S61); EDI the calculator (weapon+288h), EBP the tick's frame: lohook -> medical_skills_on_sway
+global medical_skills_on_sway
+extern hook_medical_skills_on_sway
+medical_skills_on_sway:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -4796,29 +4877,29 @@ medical_skills_on_voice_gain:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_voice_gain
-    mov edx, medical_skills_on_voice_gain_replay
+    call hook_medical_skills_on_sway
+    mov edx, medical_skills_on_sway_replay
     cmp eax, 0
-    je medical_skills_on_voice_gain_go
-    mov edx, 0x5c743
+    je medical_skills_on_sway_go
+    mov edx, 0x31d72d
     cmp eax, 1
-    je medical_skills_on_voice_gain_go
+    je medical_skills_on_sway_go
     ud2
-medical_skills_on_voice_gain_go:
+medical_skills_on_sway_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-medical_skills_on_voice_gain_replay:
-    db 0xf3, 0x0f, 0x11, 0x0c, 0x24
-    jmp 0x5c743
+medical_skills_on_sway_replay:
+    db 0x8b, 0x45, 0x0c, 0xdb, 0x45, 0x0c
+    jmp 0x31d72d
 
-; 0x65484 new_helper<sound_instance_proxy_internal> after its free-list pop (0x654E0), before the count's lock xadd (mov edx,1): EAX the record for the new proxy, or 0 when every one is taken; the point, hud and spot proxies' one allocation (0x6509A, 0x65243, 0x653EA), before their constructors: lohook -> medical_skills_on_proxy_allocated
-global medical_skills_on_proxy_allocated
-extern hook_medical_skills_on_proxy_allocated
-medical_skills_on_proxy_allocated:
+; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> memory_report_on_close
+global memory_report_on_close
+extern hook_memory_report_on_close_chain
+memory_report_on_close:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -4835,336 +4916,24 @@ medical_skills_on_proxy_allocated:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_proxy_allocated
-    mov edx, medical_skills_on_proxy_allocated_replay
+    call hook_memory_report_on_close_chain
+    mov edx, memory_report_on_close_replay
     cmp eax, 0
-    je medical_skills_on_proxy_allocated_go
-    mov edx, 0x65489
+    je memory_report_on_close_go
+    mov edx, 0x27a796
     cmp eax, 1
-    je medical_skills_on_proxy_allocated_go
+    je memory_report_on_close_go
     ud2
-medical_skills_on_proxy_allocated_go:
+memory_report_on_close_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-medical_skills_on_proxy_allocated_replay:
-    db 0xba, 0x01, 0x00, 0x00, 0x00
-    jmp 0x65489
-
-; 0x294a6f object_sound::insert before it plays its looped proxy (mov edx,[esi] / mov eax,[edx] / push 0; vtable +0, mode 1): ESI the spot (emit_spot_sound 0x294981) or point (emit_point_sound 0x294A1A) proxy it keeps at +160h: lohook -> medical_skills_on_object_sound
-global medical_skills_on_object_sound
-extern hook_medical_skills_on_object_sound
-medical_skills_on_object_sound:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_object_sound
-    mov edx, medical_skills_on_object_sound_replay
-    cmp eax, 0
-    je medical_skills_on_object_sound_go
-    mov edx, 0x294a75
-    cmp eax, 1
-    je medical_skills_on_object_sound_go
-    ud2
-medical_skills_on_object_sound_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_object_sound_replay:
-    db 0x8b, 0x16, 0x8b, 0x02, 0x6a, 0x00
-    jmp 0x294a75
-
-; 0x298cf8 damage_zone::emit_sound after emit_point_sound (0x298CF3; mov eax,[eax] / xor ecx,ecx / test eax,eax): EAX its out slot, the new proxy or 0: lohook -> medical_skills_on_zone_sound
-global medical_skills_on_zone_sound
-extern hook_medical_skills_on_zone_sound
-medical_skills_on_zone_sound:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_zone_sound
-    mov edx, medical_skills_on_zone_sound_replay
-    cmp eax, 0
-    je medical_skills_on_zone_sound_go
-    mov edx, 0x298cfe
-    cmp eax, 1
-    je medical_skills_on_zone_sound_go
-    ud2
-medical_skills_on_zone_sound_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_zone_sound_replay:
-    db 0x8b, 0x00, 0x33, 0xc9, 0x85, 0xc0
-    jmp 0x298cfe
-
-; 0x297f7e weapon_sound_effect::play_sound_callback with its new proxy (mov eax,[eax] / xor ebx,ebx / xor edi,edi), where the hud (0x297F5E) and point (0x297F79) paths join: EAX the out slot, the effect at [esp+24h]: lohook -> medical_skills_on_weapon_sound
-global medical_skills_on_weapon_sound
-extern hook_medical_skills_on_weapon_sound
-medical_skills_on_weapon_sound:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_weapon_sound
-    mov edx, medical_skills_on_weapon_sound_replay
-    cmp eax, 0
-    je medical_skills_on_weapon_sound_go
-    mov edx, 0x297f84
-    cmp eax, 1
-    je medical_skills_on_weapon_sound_go
-    ud2
-medical_skills_on_weapon_sound_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_weapon_sound_replay:
-    db 0x8b, 0x00, 0x33, 0xdb, 0x33, 0xff
-    jmp 0x297f84
-
-; 0x6587f emit_and_play_once's point path with its new proxy (mov ebx,eax / inc dword [ebx+28h], after new_point 0x65874 and its test of 0): EAX the proxy, not yet played (vtable +0 at 0x658FD); EBP its frame: lohook -> medical_skills_on_once_point
-global medical_skills_on_once_point
-extern hook_medical_skills_on_once_point
-medical_skills_on_once_point:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_once_point
-    mov edx, medical_skills_on_once_point_replay
-    cmp eax, 0
-    je medical_skills_on_once_point_go
-    mov edx, 0x65884
-    cmp eax, 1
-    je medical_skills_on_once_point_go
-    ud2
-medical_skills_on_once_point_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_once_point_replay:
-    db 0x8b, 0xd8, 0xff, 0x43, 0x28
-    jmp 0x65884
-
-; 0x2a6563 on_foot_step before step_manager::on_step (0x2A6572), its step manager found (mov edx,[esp+8] / mov eax,[esp+14h]): ESI the effect: lohook -> medical_skills_on_foot_step
-global medical_skills_on_foot_step
-extern hook_medical_skills_on_foot_step
-medical_skills_on_foot_step:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_foot_step
-    mov edx, medical_skills_on_foot_step_replay
-    cmp eax, 0
-    je medical_skills_on_foot_step_go
-    mov edx, 0x2a656b
-    cmp eax, 1
-    je medical_skills_on_foot_step_go
-    ud2
-medical_skills_on_foot_step_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_foot_step_replay:
-    db 0x8b, 0x54, 0x24, 0x08, 0x8b, 0x44, 0x24, 0x14
-    jmp 0x2a656b
-
-; 0x2a6577 on_foot_step's return (pop edi / add esp,8 / ret 8), after on_step and on the path without a step manager (the je at 0x2A6561): lohook -> medical_skills_on_foot_stepped
-global medical_skills_on_foot_stepped
-extern hook_medical_skills_on_foot_stepped
-medical_skills_on_foot_stepped:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_foot_stepped
-    mov edx, medical_skills_on_foot_stepped_replay
-    cmp eax, 0
-    je medical_skills_on_foot_stepped_go
-    mov edx, 0x2a657e
-    cmp eax, 1
-    je medical_skills_on_foot_stepped_go
-    ud2
-medical_skills_on_foot_stepped_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_foot_stepped_replay:
-    db 0x5f, 0x83, 0xc4, 0x08, 0xc2, 0x08, 0x00
-    jmp 0x2a657e
-
-; 0x1f3b97 player::on_landing before its landing step (0x23FBE0, which may call on_step at 0x23FC2C), its step manager found (mov edx,[edi+324h]): EDI the player: lohook -> medical_skills_on_landing_step
-global medical_skills_on_landing_step
-extern hook_medical_skills_on_landing_step
-medical_skills_on_landing_step:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_landing_step
-    mov edx, medical_skills_on_landing_step_replay
-    cmp eax, 0
-    je medical_skills_on_landing_step_go
-    mov edx, 0x1f3b9d
-    cmp eax, 1
-    je medical_skills_on_landing_step_go
-    ud2
-medical_skills_on_landing_step_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_landing_step_replay:
-    db 0x8b, 0x97, 0x24, 0x03, 0x00, 0x00
-    jmp 0x1f3b9d
-
-; 0x1f3bbb on_landing's return (pop edi / pop esi / pop ebp / pop ebx / add esp,8), after the landing step and on the path without a step manager (0x1F3B68): lohook -> medical_skills_on_landing_stepped
-global medical_skills_on_landing_stepped
-extern hook_medical_skills_on_landing_stepped
-medical_skills_on_landing_stepped:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_landing_stepped
-    mov edx, medical_skills_on_landing_stepped_replay
-    cmp eax, 0
-    je medical_skills_on_landing_stepped_go
-    mov edx, 0x1f3bc2
-    cmp eax, 1
-    je medical_skills_on_landing_stepped_go
-    ud2
-medical_skills_on_landing_stepped_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_landing_stepped_replay:
-    db 0x5f, 0x5e, 0x5d, 0x5b, 0x83, 0xc4, 0x08
-    jmp 0x1f3bc2
+memory_report_on_close_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x27a796
 
 ; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
 global message_check_on_message
@@ -5476,45 +5245,6 @@ music_on_sound_tick_replay:
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
-
-; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> packet_recovery_on_close
-global packet_recovery_on_close
-extern hook_packet_recovery_on_close
-packet_recovery_on_close:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_packet_recovery_on_close
-    mov edx, packet_recovery_on_close_replay
-    cmp eax, 0
-    je packet_recovery_on_close_go
-    mov edx, 0x27a796
-    cmp eax, 1
-    je packet_recovery_on_close_go
-    ud2
-packet_recovery_on_close_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-packet_recovery_on_close_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x27a796
 
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull

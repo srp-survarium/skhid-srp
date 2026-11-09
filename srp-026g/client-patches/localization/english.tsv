@@ -594,6 +594,8 @@ st_change_quest_label	Change task
 st_change_weapon_speed_description	Change weapon swap speed:
 st_change_weapon_speed_name	Deft hands
 st_character	Character
+st_character_decals_1_10_name	Boar hunter
+st_character_decals_1_11_name	Deer hunter
 st_character_decals_1_12_name	Jarilo
 st_character_decals_1_1_name	Literator
 st_character_decals_1_2_name	"Alpha" Squad
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veteran
 st_character_decals_1_6_name	Master
 st_character_decals_1_7_name	Legend
 st_character_decals_1_8_name	Flying Hussars
+st_character_decals_1_9_name	Musician
 st_character_decals_2_1_name	Scavengers rookie
 st_character_decals_2_2_name	Scavengers veteran
 st_character_decals_2_3_name	Black Market Recruit
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Coat of arms of Lithuania
 st_character_decals_5_7_name	Coat of arms of Lithuania
 st_character_decals_5_8_name	Coat of arms of Estonia
 st_character_decals_5_9_name	Coat of arms of Moldova
+st_character_decals_7_10_name	Matchsticks
+st_character_decals_7_23_name	Heart
+st_character_decals_7_24_name	Frightening Pumpkin
 st_character_decals_7_27_name	Clover ornament
 st_character_decals_7_28_name	Horseshoe
+st_character_decals_7_30_name	Homing pigeon
+st_character_decals_7_31_name	Victory
+st_character_decals_7_35_name	Bloody Hand
+st_character_decals_7_37_name	The Keeper
 st_character_decals_7_9_name	Herbs
 st_character_decals_generic_desc	Use decals in the vests and pants window to change their appearance.
 st_characteristics_label	Player stats
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Error adding new players. The clan team already ha
 st_current_value	\nCurrent value:
 st_cz_75_description	Czech self-loading pistol, ammo: 9x19. One of the most copied pistols of the Cold War.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Play everyday and get <highlight>x2</highlight> experience and reputation for the <highlight>first three</highlight> victories.
+st_daily_bonus_description	Every day: <highlight>x2</highlight> experience for the <highlight>first three</highlight> victories.
 st_daily_bonus_hint	Show the welcoming screen
 st_daily_bonus_label	Welcome back
 st_daily_bonus_progress	Your progress for the current day
@@ -2486,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_legs_7_name	Snow-20 Pants
 st_srp_equipment069_snow_20_torso_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_torso_7_name	Snow-20 Vest
-st_srp_exchange_balance	Balance
-st_srp_exchange_button	Exchange
-st_srp_exchange_gold	Gold
-st_srp_exchange_pay	Pay
-st_srp_exchange_receive	Receive
-st_srp_exchange_short_gold	Not enough gold
-st_srp_exchange_short_silver	Not enough silver
-st_srp_exchange_title	Exchange
 st_srp_hide_hit_markers_option	Hide hit markers
 st_srp_hide_quests_option	Hide quests
 st_srp_hide_scores_option	Hide player scores
@@ -2611,15 +2613,14 @@ st_srp_medical_331_description	Replaces the secondary weapon slot with an additi
 st_srp_medical_331_name	Supply Pocket
 st_srp_medical_332_description	Bonus to maximum health of arms and legs:
 st_srp_medical_332_name	Strong Bones
-st_srp_medical_333_description	While a painkiller is active, environment sounds are quieter and enemy sounds (except shots) louder by:
+st_srp_medical_333_description	While a painkiller is active, reduction in sight sway:
 st_srp_medical_333_name	Concentration
 st_srp_medical_342_description	Reduction in damage received from allies:
 st_srp_medical_342_name	Brothers in Arms
 st_srp_medical_seconds	 s
-st_srp_medicine_ambient_sounds	Ambient sounds
 st_srp_medicine_crouched_healing	Healing crouched
-st_srp_medicine_enemy_sounds	Enemy sounds
 st_srp_medicine_hit_slow	Slow from bullets
+st_srp_medicine_sight_sway	Sight sway
 st_srp_medicine_sprint_stamina	Sprint stamina
 st_srp_melee_knockback	Melee knockback
 st_srp_mode_blackout	Protective device: blackout

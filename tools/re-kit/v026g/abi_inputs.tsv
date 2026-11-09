@@ -2504,6 +2504,7 @@ va	name	location	role	basis
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+12	one-byte read/acknowledgment action	inferred
 0x0026cb80	survarium::lobby_menu::on_keyboard_action	ECX	the lobby menu (+9Ch the game, +690h the movie holder: [+108h]+4 the invoke's ECX)	observed
 0x0026cb80	survarium::lobby_menu::on_keyboard_action	entry ESP+8	the key (DIK code; 1 Esc: with [this+313Ah] set and has_active_window true, root.close_active_window)	observed
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	entry ESP+0Ch	the key's state (1: a press, then Esc as abi.tsv says; any other value goes to the movie through 0x1FDD70 at 0x26CDF8 after has_active_window was asked)	observed
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	ECX	lobby input-handler subobject receiver	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+8	raw mouse button	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+12	mouse button action	inferred
@@ -5711,6 +5712,9 @@ va	name	location	role	basis
 0x0007b7f0	vostok::physics::round_up	ESI	the float rounded in place	observed
 0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	EAX	the controller (+20h the walk, +2C710h the supporting normal)	observed
 0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	entry ESP+4	the float3 written (returned in EAX)	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	entry ESP+4	the buffer_vector (begin, end, max_end; scene_view +1DD30h from world::hide_movie 0x119014)	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	entry ESP+8	pointer to the first iterator	observed
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	entry ESP+12	pointer to the last iterator (first + 4 from world::hide_movie)	observed
 0x002a9e70	survarium::sound_game_effect_presenter::clear	ECX	the sound presenter	observed
 0x002a9ef0	survarium::sound_game_effect_presenter::on_event	entry ESP+4	the sound presenter (EBX): +4h the world, +0Ch its player, +10h its random seed (minstd x 48271, 0x2AB6E0), +14h 1.0f, +18h..+20h its entries {begin, end, capacity}, 14h each ({+0 a loose pointer to the effect: [+0]-4 the effect, +4 its count; +4 the effect's +10h; +8 its +2Ch; +0Ch the volume; +10h the sound, its count +28h}), sixteen inline from +24h	observed
 0x002a9ef0	survarium::sound_game_effect_presenter::on_event	entry ESP+8	the sound_game_effect (vtable 0xA0D4CC; its accept, vtable +3Ch 0x2AE450, calls the presenter's +28h with it)	observed
@@ -5735,3 +5739,56 @@ va	name	location	role	basis
 0x001ed170	survarium::game::switch_to_game_world	EAX	the game	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	AL	the flag: 1 shown, 0 hidden	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	EDX	the lobby menu	observed
+0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	ESI	render-output receiver	observed
+0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	entry ESP+4 low byte	apply even without the focus (resize passes 1)	observed
+0x003cfe20	vostok::render::res_render_output::goto_fullscreen	ESI	render-output receiver	observed
+0x003cfe80	vostok::render::res_render_output::minimize	ESI	render-output receiver	observed
+0x001ed430	survarium::game::on_fullscreen_alttab	ECX	game receiver (+53B0h its render output window)	observed
+0x001ed450	survarium::game::on_alttab	ECX	game receiver (+53B0h its render output window)	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EAX	first	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	ESI	last	observed
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EDI	pointer to the value (a resource_ptr: its pointer compared)	observed
+0x002010e0	survarium::game_options::process_key_input	EDX	the key: a DIK code (1 Esc), 151h..153h a mouse button, 159h/15Ah the wheel	observed
+0x002010e0	survarium::game_options::process_key_input	entry ESP+4	the main menu (game_options): +3Ch the action awaited	observed
+0x002015a0	survarium::game_options::finish_binding	EDI	the main menu (game_options) whose key wait ends: the options' +0Ch menu movie, +10h cursor movie, +30h scene, +3Ch awaited action	observed
+0x002015e0	survarium::game_options::on_keyboard_action	ECX	the main menu (game_options)	observed
+0x002015e0	survarium::game_options::on_keyboard_action	entry ESP+4	the keyboard (passed on to swf_input_translator::process_keyboard 0x1FDD70)	inferred
+0x002015e0	survarium::game_options::on_keyboard_action	entry ESP+8	the key (DIK code)	observed
+0x002015e0	survarium::game_options::on_keyboard_action	entry ESP+12	the key's action: 1 a press	observed
+0x002016d0	survarium::game_options::on_mouse_key_action	ECX	the main menu (game_options)	observed
+0x002016d0	survarium::game_options::on_mouse_key_action	entry ESP+8	the button's key (151h..153h)	observed
+0x002016d0	survarium::game_options::on_mouse_key_action	entry ESP+12	the button's action: 0 a press	observed
+0x002017a0	survarium::game_options::on_mouse_move	ECX	the main menu (game_options)	observed
+0x002017a0	survarium::game_options::on_mouse_move	entry ESP+16	the wheel's turn: 0 none, above 0 up (159h), else down (15Ah)	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	EDI	the calculator (weapon+288h; +38h the weapon, +3Ch the holder set by set_user 0x2E29F3, 0 after deactivate 0x2E2EBE)	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	entry ESP+4	float, the weapon's dispersion now: m_weapon_dispersion +418h plus m_character_dispersion +404h (weapon_core::tick 0x2E0A23, only while aimed +5E8h); the base value of modifier 61	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	entry ESP+8	the ms elapsed since the weapon's last tick (weapon_core::tick: now - +5A4h), unsigned (fild then +2^32 when negative)	observed
+0x00013660	vostok::engine::engine_world::engine_world	entry ESP+4	the engine_world being built (EBP in the body; the render arena's allocator at +228h)	observed
+0x000141b0	vostok::command_line::key::is_set_as_number<unsigned int>	ESI	the command-line key (0xA80380 rh_allocator, 0xA7C088 render_allocator, 0xA80150 mt_allocator; its name at +210h)	observed
+0x000141b0	vostok::command_line::key::is_set_as_number<unsigned int>	entry ESP+4	the u32 the value goes to	observed
+0x000ddf20	vostok::command_line::key::is_set_as_number	ESI	the command-line key (name +210h, float value +20Ch, state +224h)	observed
+0x000ddf20	vostok::command_line::key::is_set_as_number	EDI	the float the value goes to, or 0	observed
+0x000e1120	vostok::memory::allocate_region	entry ESP+4	additional memory size (u64; 320 MiB with an editor, else 0)	observed
+0x000e1120	vostok::memory::allocate_region	entry ESP+12	additional address space (u64; the same value)	observed
+0x000e21c0	vostok::memory::register_allocator	ESI	the arenas' list ([0xA808FC]: +4 end, +8 capacity end)	observed
+0x000e21c0	vostok::memory::register_allocator	EDI	the record: +0 allocator, +8 arena size (u64), +10h arena address (0), +14h name	observed
+0x00101280	dlmalloc::create_mspace_with_base	entry ESP+4	the base (the arena's start)	observed
+0x00101280	dlmalloc::create_mspace_with_base	entry ESP+8	the capacity (u64)	observed
+0x000ff200	dlmalloc::internal_mallinfo	entry ESP+4	the malloc_state	observed
+0x000ff200	dlmalloc::internal_mallinfo	EAX	the struct mallinfo to fill (28h bytes)	observed
+0x0010f8c0	vostok::memory::mt_region::take	ECX	the bytes wanted	observed
+0x0010f980	vostok::memory::mt_region::give	ESI	the pages given back	observed
+0x0010f980	vostok::memory::mt_region::give	EDI	their bytes	observed
+0x000e0930	vostok::threading::spawn_internal	ECX	the thread_entry_params (the function, the names, the hardware thread, tasks awareness, +30h processed)	observed
+0x000e0930	vostok::threading::spawn_internal	EDX	the stack size in bytes, CreateThread's dwStackSize	observed
+0x000e3770	vostok::threading::spawn	EAX	the thread's name for the log, or 0 for its debugger name	observed
+0x000e3770	vostok::threading::spawn	ECX	the function the thread runs (a delegate)	observed
+0x000e3770	vostok::threading::spawn	entry ESP+4	the thread's name for the debugger	observed
+0x000e3770	vostok::threading::spawn	entry ESP+8	the hardware thread	observed
+0x000e3770	vostok::threading::spawn	entry ESP+12	tasks awareness (a byte)	observed
+0x000fc090	vostok::tasks::thread_pool::thread_pool	entry ESP+4	the pool (0xA86680)	observed
+0x000fc090	vostok::tasks::thread_pool::thread_pool	entry ESP+8	the most task threads, 2 x min(32, cores)	observed
+0x000fc090	vostok::tasks::thread_pool::thread_pool	entry ESP+12	the core count ([0x1F1D634])	observed
+0x0027f780	survarium::network_client::draw_match_stats	ECX	the network_client	observed
+0x0027f780	survarium::network_client::draw_match_stats	entry ESP+4	the time since the last tick (game::tick: now - game+584Ch)	observed
+0x00429f20	_chkstk	EAX	the bytes to take off the stack	observed

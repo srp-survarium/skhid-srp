@@ -233,6 +233,8 @@ unsafe extern "C" {
     pub fn engine_show_scene_movie(scene: *mut c_void, movie: *mut c_void);
     /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
     pub fn engine_hide_scene_movie(movie: *mut c_void, scene: *mut c_void);
+    /// 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+    pub fn engine_finish_key_binding(options: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -343,6 +345,8 @@ unsafe extern "C" {
     pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
     /// the IAT slot 0x870164 (an import, stdcall): unsigned int engine_global_memory_status_ex(void *status)
     pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x870168 (an import, stdcall): unsigned int engine_virtual_query(const void *address, void *info, unsigned int size)
+    pub static engine_virtual_query: unsafe extern "stdcall" fn(*const c_void, *mut c_void, u32) -> u32;
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
@@ -369,6 +373,10 @@ unsafe extern "C" {
     pub static engine_find_close: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0xaeff20 (an import, stdcall): unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
     pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
+    /// the IAT slot 0xaefe8c (an import, stdcall): unsigned int engine_get_window_long_a(void *window, unsigned int index)
+    pub static engine_get_window_long_a: unsafe extern "stdcall" fn(*mut c_void, u32) -> u32;
+    /// the IAT slot 0xaeff44 (an import, stdcall): unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)
+    pub static engine_set_window_long_a: unsafe extern "stdcall" fn(*mut c_void, u32, u32) -> u32;
     /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)
     pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
     /// the IAT slot 0x87029c (an import, stdcall): unsigned int engine_set_environment_variable_a(const char *name, const char *value)

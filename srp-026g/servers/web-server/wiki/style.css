@@ -221,6 +221,17 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .protection tbody th { text-align:left; font:400 .82rem var(--body); color:var(--ink-2) }
 .gear-modifiers { grid-column:1 / -1 }
 .gear-modifiers h3 { font-size:.85rem; margin:8px 0 6px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em }
+/* Quests (src/quests.rs): laid out as the modifiers, a section a faction and a row a goal;
+   the match levels a wrapping grid of cells. */
+.quests>h2 { display:flex; align-items:center; gap:10px }
+.quest-emblem { width:40px; height:40px; object-fit:contain; flex:none }
+.quest-pay { margin:4px 0 0; font:.82rem var(--data); color:var(--ink-3) }
+.quest-goal { margin:0; color:var(--ink-2) }
+.quest-levels { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:6px }
+.quest-levels li { margin:0; display:grid; gap:2px; padding:6px 8px; border:1px solid var(--rule); background:var(--panel); font:.85rem var(--data); text-align:right }
+.quest-levels b { font:700 1rem var(--display); color:var(--accent) }
+.quest-levels .quest-levels-key { text-align:left; font:.75rem/1.75 var(--body); color:var(--ink-3) }
+.quest-levels .quest-levels-key b { font:700 .75rem/1.75 var(--body); color:var(--ink-3) }
 /* Skills: each branch a card of the wiki's (.wiki-link), its skills the lobby's own (the
    skill renderer's icons, states and rank indicator; PerkTipRenderer's tooltip). A tree is
    never reflowed: a card that does not fit goes to the next row, and one wider than the
@@ -241,8 +252,30 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
   outline:none; cursor:default; -webkit-tap-highlight-color:transparent }
 .skill-disc { position:relative; width:calc(56 * var(--disc) * var(--u)); height:calc(56 * var(--disc) * var(--u)) }
 .skill-disc img { position:absolute; inset:0; width:100%; height:100% }
-.skill-over,.skill-lock-red,.skill-tip { display:none }
+/* How many players took the skill (src/skills.rs), on its disc's corner. */
+.skill-takers { position:absolute; z-index:2; top:calc(-4 * var(--u)); right:calc(-10 * var(--u)); padding:calc(3 * var(--u)) calc(4 * var(--u));
+  font:700 calc(11 * var(--u))/1 var(--data); color:var(--panel); background:var(--skill-green); border-radius:3px }
+.skill-over,.skill-lock,.skill-lock-red,.skill-tip,.skill-now { display:none }
 .skill.open .skill-over,.skill:focus-visible .skill-over { display:block }
+/* The planner (skills.js): the lobby's lock on a row its branch has not opened, its red lock on
+   a skill a taken one excludes; a refused rank shakes the disc. */
+.skill.locked .skill-lock,.skill.closed .skill-lock,.skill.barred .skill-lock-red { display:block }
+.skill:not(.locked) { cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none }
+.skill.taken .skill-name { color:var(--accent) }
+.skill.refused .skill-disc { animation:skill-refused .3s }
+@keyframes skill-refused { 25% { translate:calc(-4 * var(--u)) } 75% { translate:calc(4 * var(--u)) } }
+@media(prefers-reduced-motion:reduce) { .skill.refused .skill-disc { animation:none } }
+.skill-branch-points { float:right; font:700 1.25rem/1.32 var(--data); color:var(--ink) }
+.skill-plan { position:sticky; top:0; z-index:10; display:flex; flex-wrap:wrap; align-items:center; gap:8px 20px; margin:18px 0 0;
+  padding:12px 16px; border:1px solid var(--rule); background:var(--panel) }
+.skill-plan[hidden] { display:none }
+.skill-plan + .skill-trees { margin-top:16px }
+.skill-plan-sum { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 20px; font:.95rem var(--body); color:var(--ink-2) }
+.skill-plan-sum b { font:700 1.35rem var(--data); color:var(--accent) }
+.skill-plan-sum [data-plan="play"] { font:.95rem var(--data) }
+.skill-plan button,.skill-steps button { background:var(--panel); color:var(--accent); border:1px solid var(--rule); font:700 .875rem var(--body); padding:6px 14px; cursor:pointer }
+.skill-plan button:disabled,.skill-steps button:disabled { color:var(--ink-3); cursor:default }
+.skill-plan-hint { margin-left:auto; font-size:.8rem; color:var(--ink-3) }
 @media(hover:hover) { .skill:hover .skill-over { display:block } }
 .skill-or { position:absolute; top:0; left:0; font:700 calc(10 * var(--u)) var(--display); text-transform:uppercase; letter-spacing:.06em;
   background:var(--panel); color:var(--bad); border:1px solid var(--bad); border-radius:2px; padding:0 calc(3 * var(--u)) }
@@ -257,7 +290,33 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .skill-float.wrap { width:250px }
 .skill-float b { display:block; color:var(--ink); padding-bottom:6px; border-bottom:1px solid var(--rule); margin-bottom:4px }
 .skill-float p { margin:0 }
+.skill-float .skill-now { display:block; margin-top:4px }
+.skill-rank { float:right; margin-left:12px; font:700 .875rem var(--data); color:var(--accent) }
+.skill-float.controls { pointer-events:auto }
+.skill-steps { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px }
+.skill-steps button { font-size:1.25rem; padding:8px }
 .skill-value { color:var(--skill-green); font-weight:700; white-space:nowrap }
 @media(max-width:560px) {
   .skill-float,.skill-float.wrap { left:16px; right:16px; bottom:16px; top:auto; width:auto; max-width:none }
 }
+/* Levels, above the skill trees: the rule, a table of some levels, and the total as a graph
+   (drawn by the server from its own level table, src/skills.rs). */
+.levels { border:1px solid var(--rule); background:var(--panel); padding:24px; margin:24px 0 }
+.levels h2 { color:var(--accent); font-size:1.5rem; line-height:1.1; margin:0 0 16px }
+.levels-body { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:28px; align-items:start }
+@media(max-width:960px) { .levels-body { grid-template-columns:minmax(0,1fr) } }
+.levels-text p { margin:0 0 12px; color:var(--ink-2) }
+.levels-text p.levels-formula { font:1rem var(--data); color:var(--ink); background:var(--code); border-left:3px solid var(--accent); padding:8px 12px; overflow-x:auto }
+.levels-formula span { white-space:nowrap }
+.levels-graph { margin:0 }
+.levels-graph svg { display:block; width:100%; height:auto; overflow:visible }
+.levels-graph .grid { stroke:var(--rule); stroke-width:1 }
+.levels-graph .axis { fill:var(--ink-3); font:11px var(--data) }
+.levels-graph .axis-name { fill:var(--ink-3); font:700 11px var(--display); text-transform:uppercase; letter-spacing:.08em }
+.levels-graph .curve { fill:none; stroke:var(--accent); stroke-width:2.5; stroke-linejoin:round }
+.levels-graph .lv rect { fill:transparent }
+.levels-graph .lv line,.levels-graph .lv circle,.levels-graph .lv text { visibility:hidden; pointer-events:none }
+.levels-graph .lv line { stroke:var(--ink-3); stroke-dasharray:3 3 }
+.levels-graph .lv circle { fill:var(--accent); stroke:var(--panel); stroke-width:2 }
+.levels-graph .lv text { fill:var(--ink); font:700 12px var(--data); paint-order:stroke; stroke:var(--panel); stroke-width:4px }
+.levels-graph .lv:hover :is(line,circle,text) { visibility:visible }

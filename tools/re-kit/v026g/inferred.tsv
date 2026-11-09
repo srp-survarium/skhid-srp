@@ -1144,14 +1144,8 @@ va	status	ref_021d	name
 0x001fffb0	inferred-medium	0x0015e3db	survarium::game_options::fill_labels
 0x002001e0	inferred-medium	0x0015e8a8	survarium::game_options::fill_menu_buttons
 0x002005e0	inferred-medium	0x0015eacf	survarium::game_options::fill_settings_data
-0x00200f50	inferred-medium	0x0015f1b6	survarium::game_options::activate
 0x00201080	inferred-medium	0x0015f287	survarium::game_options::tick
-0x002010e0	inferred-medium	0x0015f2d4	survarium::game_options::process_key_input
 0x002013a0	inferred-medium	0x0015f50d	survarium::game_options::assign_binding
-0x002015a0	inferred-medium	0x0015f5e9	survarium::game_options::finish_binding
-0x002015e0	inferred-medium	0x0015f619	survarium::game_options::on_keyboard_action
-0x002016d0	inferred-medium	0x0015f6bb	survarium::game_options::on_mouse_key_action
-0x002017a0	inferred-medium	0x0015f73e	survarium::game_options::on_mouse_move
 0x002018d0	inferred-medium	0x0015f83c	survarium::game_options::refill_item_data
 0x002019e0	inferred-medium	0x0015f8c6	survarium::game_options::initialize_bindings
 0x00201cf0	inferred-medium	0x0015fa02	survarium::game_options::reset_bindings
@@ -2199,6 +2193,7 @@ va	status	ref_021d	name
 0x0031eb70	inferred-medium	0x001aa14d	survarium::weapon_core_base_state::initialize
 0x0031ee40	inferred-medium		survarium::single_game_effect::activate_effect
 0x0031f020	inferred-medium		survarium::single_game_effect::deactivate_effect
+0x00321310	inferred-high		survarium::quest_descriptor::load
 0x00321790	inferred-medium		survarium::game_world_core_client::player_slot::apply_profile_input
 0x003218e0	inferred-medium		survarium::game_world_core_client::serialize
 0x00321950	inferred-medium	0x001fe250	survarium::bullet_manager::bullet_functor_mt_allocator::bullet_functor_mt_allocator
@@ -3103,7 +3098,6 @@ va	status	ref_021d	name
 0x0025f640	inferred-high		survarium::artefact<artefact_onyx_core>::update_client_state
 0x0025fb80	inferred-high		survarium::artefact<artefact_rattle_core>::update_client_state
 0x002fec10	inferred-high		survarium::portable_interactive_object_core::selected_user_animations
-0x0031d6e0	inferred-medium		survarium::breath_vibration_calculator::tick
 0x002e13a0	inferred-medium		survarium::weapon_core::get_camera_shake_lexeme
 0x00329ff0	inferred-medium		survarium::body_part_parameters::hit_by_type
 0x00331a50	inferred-medium		survarium::weapon_recoil_calculator::tick
@@ -3399,3 +3393,18 @@ va	status	ref_021d	name
 0x002ffc40	inferred-high		survarium::inventory_item::degrade_per_death
 0x002ffc80	inferred-medium		survarium::inventory_item::degrade_per_use
 0x002da790	inferred-medium		survarium::base_player::unload
+0x00014020	inferred-high	0x00012d86	vostok::engine::engine_world::on_alttab
+0x00018ac0	inferred-high		vostok::engine::engine_world::process_messages
+0x00018b30	inferred-high	0x00015871	vostok::engine::engine_world::run
+0x001ed430	inferred-medium		survarium::game::on_fullscreen_alttab
+0x001ed450	inferred-medium	0x0015422f	survarium::game::on_alttab
+0x003cfdb0	inferred-medium		vostok::render::res_render_output::apply_fullscreen_state
+0x003cfe20	inferred-medium		vostok::render::res_render_output::goto_fullscreen
+0x003cfe80	inferred-medium	0x00274fc2	vostok::render::res_render_output::minimize
+0x00107260	inferred-high		ptmalloc3::public_mALLINFo
+0x000eb5f0	inferred-high		vostok::memory::pthreads_allocator::total_size
+0x000eb630	inferred-high		vostok::memory::pthreads_allocator::allocated_size
+0x000e0e40	inferred-high		vostok::memory::managed_allocator::total_size
+0x000e0e50	inferred-high		vostok::memory::managed_allocator::allocated_size
+0x0010f8c0	inferred-high		vostok::memory::mt_region::take
+0x0010f980	inferred-high		vostok::memory::mt_region::give
