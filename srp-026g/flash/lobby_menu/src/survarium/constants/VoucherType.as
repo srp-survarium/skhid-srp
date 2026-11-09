@@ -1,20 +1,12 @@
 package survarium.constants
 {
-   // A voucher's voucher_type (gameplay/items/vouchers/*.options; ItemData.type).
+   // A voucher's voucher_type (gameplay/items/vouchers/*.options; ItemData.type). The drop card is the one
+   // voucher left: the rename (0), repair (2) and 1-day premium (3) vouchers are gone (the owner, 2026-11-08).
    public class VoucherType
    {
       
-      // rename_account_voucher
-      public static const RENAME:int = 0;
-      
       // drop_card
       public static const DROP_CARD:int = 1;
-      
-      // repair_voucher
-      public static const REPAIR:int = 2;
-      
-      // premium_access_voucher_1d
-      public static const PREMIUM:int = 3;
       
       public function VoucherType()
       {

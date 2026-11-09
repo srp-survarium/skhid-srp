@@ -1,26 +1,26 @@
-# "Get Gold" opens the exchange
+# "Get Gold" and the exchange: removed
 
-The rules the code and the tests follow. Code: the exchange window's
-`MessageMoneyExchange.buyGold()` (`flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`);
-each `goToStore`, and the premium window's gold button, call it ([lobby-source.md](lobby-source.md)); the test:
-`client-patches/test_build_lobby.py`. The owner's rule: 2026-10-20 ("it leads to a dead official
-website, instead it should just open gold trading menu").
+The owner, 2026-11-08: "Completely remove gold from the game, only silver should be left."
+Revision 23's exchange window and the "Get Gold" buttons that opened it (2026-10-20) are gone from
+the lobby movie with gold (the owner, 2026-11-08; [silver-only.md](silver-only.md)). The rules the lobby follows now, with no gold:
 
-- **What:** every way the lobby had to the online store (`go_to_store`, a browser window) opens
-  srp's exchange window instead, on the buy side: Pay silver, Receive gold.
-- **Where:** the "Get Gold" button of the "Insufficient Gold Rubles to complete the purchase."
-  dialog, whichever window showed it: buying (the buy dialog, an item's card), repairing, rerolling,
-  crafting, buying or extending premium, the premium discount; and the premium window's gold
-  button, which asked "Online store will open in a browser window. Continue?" and now opens the
-  exchange at once. The top bar's gold and silver boxes already opened it (revision 23's exchange).
-- **Over the dialog it came from:** the exchange shows at once, over any window still open (the
-  premium window, for one); that window stays visible under it, as under its own dialogs, and is
-  active again when the exchange closes.
-  The player presses Buy (or Repair, …) again: the dialog does not retry by itself.
-- **The amount:** the exchange opens as from the top bar; it is not filled with the gold missing.
-- **Texts:** unchanged. "Get Gold" fits buying gold with silver.
-- **Not enough silver for the gold either:** typing more than the silver buys gives the most it
-  does (`exchange.md`).
-- **Server:** nothing changes; the exchange's `47 04` is the one already live.
-- **Release:** a new `lobby_menu.swf` in a new `resources.db.patch_<n>`, built with every other
-  lobby change from source by `build_lobby_026g.py` ([lobby-source.md](lobby-source.md)).
+- **Balance:** the top bar shows silver only; the gold box is hidden and the silver box opens
+  nothing (`StatusPanel`, `topPanelLeftContainer_56`). `PlayerInfo` keeps no gold balance.
+- **Prices:** every price is silver, a premium item's too (`isPremium` no longer picks gold or
+  multiplies by the exchange rate; selling gives `cost / 4`, times the condition). The buy dialog,
+  the shop's cards, the bundles and the ammo dialog check silver (`MessageAsk`, `ItemCard`,
+  `ItemControlPanel`, `ItemRendererInv`, `InventoryList`, `AmmoShareLite`).
+- **Windows with a gold option** show the silver one only: a modification's change (`MessageRerollItem`), the upgrade (`MessageCraftItem`: the server sends
+  the chances it rolls in the silver column), the repair (`MessageRepair`: no quick fix), the
+  rename (`MessageEnterName`: paid in silver at 0x8D's rename price). Each sends payment 0. The
+  skills reset has no window: it is free and the Reset button sends it at once, payment 0
+  (`CharWindow.rerollChanges`, silver-only.md).
+- **Premium time** (`MessagePremium`, `MessagePremiumDiscount`, `MessagePostPremium`,
+  `MessagePremiumProfile`) shows and checks silver; without enough the game's "Not enough money
+  for the transaction." (`st_not_enough_money`) shows, with no way to a store.
+- The exe's callbacks that hand over gold values (`set_premium_exchange_rate`,
+  `setup_item_craft_prices_premium`, `set_craft_premium_cost`, `set_reroll_cost`'s second value)
+  stay and take nothing.
+- The exchange window's symbol (`SrvMessageExchangeSkinned`) stays in the movie's graphics, bound
+  to an empty class; nothing opens it. Its texts (`st_srp_exchange_*`) are gone.
+- **Server:** the exchange's `47 04` is refused.
