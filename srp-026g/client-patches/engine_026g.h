@@ -41,6 +41,7 @@ struct game_effect_listener;
 struct game_effect_player;
 struct game_effect_slot;
 struct game_material_manager;
+struct game_options;
 struct game_project_resource;
 struct game_scene;
 struct game_world;
@@ -652,6 +653,12 @@ unsigned char __attribute__((thiscall)) engine_key_name(struct keyboard *keyboar
 /* the IAT slot 0xaeff20 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_layout)(unsigned int layout, unsigned int flags);
 
+/* the IAT slot 0xaefe8c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_window_long_a)(void * window, unsigned int index);
+
+/* the IAT slot 0xaeff44 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_set_window_long_a)(void * window, unsigned int index, unsigned int value);
+
 /* the IAT slot 0x87003c (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
 
@@ -687,5 +694,8 @@ extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_system_
 
 /* 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly */
 void __attribute__((stdcall)) engine_discard_playing_order(struct lobby_client *client, unsigned int left);
+
+/* 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0 */
+void engine_finish_key_binding(struct game_options *options);
 
 #endif

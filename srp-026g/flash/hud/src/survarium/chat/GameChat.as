@@ -255,13 +255,6 @@ package survarium.chat
          this.messageContainer.addText(line + this._nline);
       }
 
-      public function test_message(value:Object) : void
-      {
-         var _finalText:String = this.get_styled_text(value);
-         trace("test_message::",_finalText);
-         this.addMessage(_finalText);
-      }
-      
       protected function onLocal(value:String) : void
       {
          text_inpput.defaultText = value;

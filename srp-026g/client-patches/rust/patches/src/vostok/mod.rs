@@ -103,7 +103,7 @@ pub use generated::*;
 pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
-pub use hud_input::{Hud, HudCall, HudView, MainMenu, MatchCursor};
+pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
 pub use world_load::WorldLoad;
