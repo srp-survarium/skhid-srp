@@ -17,14 +17,12 @@ package survarium.controls
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.Faction;
    import survarium.constants.ItemCategory;
-   import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
    import survarium.constants.ModifierType;
    import survarium.constants.ProfileSlot;
    import survarium.item.ModificationRolls;
-   import survarium.constants.VoucherType;
    
    public class ItemCard extends MovieClip
    {
@@ -70,11 +68,6 @@ package survarium.controls
       public function upgradeItem(event:ButtonEvent = null) : void
       {
          trace("upgradeItem::",this._data.itemId,this._data.icon,this._data.messIcon);
-         if(this._data.broken)
-         {
-            Message.showMessage("ok",LocalizationData.getName("reroll_message_broken_item"));
-            return;
-         }
          var rerollItem:ItemData = this._data.clone();
          rerollItem.itemId = this._data.itemId;
          rerollItem.name = this._data.name;
@@ -82,7 +75,6 @@ package survarium.controls
          rerollItem.rank = this._data.rank;
          rerollItem.value = this._data.value;
          rerollItem.factionId = this._data.factionId;
-         rerollItem.rerollTime = this._data.rerollTime;
          upgradeMessage = Message.showMessage("upgrade_item",rerollItem,true);
          ExternalInterface.call("item_reroll_opened",this._data.itemId);
       }
@@ -112,22 +104,6 @@ package survarium.controls
          modifiersItem.modifiers = modifiers;
          this._inventory.fillModifiersDescription(modifiersItem);
          this.upgradeMessage.updateReroll(modifiers);
-      }
-      
-      public function repairItem(event:ButtonEvent = null) : void
-      {
-         trace("repairItem::",this._data.itemId,this._data.icon,this._data.messIcon);
-         var repairData:ItemData = new ItemData();
-         repairData.itemId = this._data.itemId;
-         repairData.name = this._data.name;
-         repairData.sellerIcon = this._data.sellerIcon ? this._data.sellerIcon.clone() : null;
-         repairData.icon = this._data.messIcon;
-         repairData.value = this._data.value;
-         repairData.modifiers = this.getFailModifiers();
-         repairData.repairCostRatio = this._data.repairCostRatio;
-         repairData.cost = this._data.cost;
-         var profile:IPlayerProfile = parent["player_profile"];
-         Message.showMessage("repair",repairData,true);
       }
       
       public function openModifiersWindow(event:ButtonEvent = null) : void
@@ -191,35 +167,6 @@ package survarium.controls
          }
       }
       
-      protected function onItemUse(event:* = null) : void
-      {
-         ExternalInterface.call("item_use",this._data.itemId);
-      }
-      
-      public function onBtnClick3() : void
-      {
-         var messageData:Object;
-         if(this._data.usable)
-         {
-            trace("useElement::",this._data.type,parent);
-            if(this._data.type == VoucherType.RENAME)
-            {
-               if(parent)
-               {
-                  parent["statusPanel"].showChangeNameMessage();
-               }
-               return;
-            }
-            messageData = {
-               text:LocalizationData.getName("use_item_message"),
-               onYes:this.onItemUse,
-               label_ok:LocalizationData.getName("btn_use_item"),
-               label_cancel:LocalizationData.getName("no")
-            };
-            Message.showMessage("apply",messageData);
-         }
-      }
-      
       public function onBtnClick2() : void
       {
          if(!this._data)
@@ -248,8 +195,7 @@ package survarium.controls
          {
             sellData.clip_size = item.clipSize;
          }
-         trace("sellFromIC::",item.name,item.isPremium,this._cost);
-         sellData.isPremium = item.isPremium && this.isShopItems;
+         trace("sellFromIC::",item.name,this._cost);
          sellData.icon = (item.icon as Icon).clone();
          Message.showMessage("asks",sellData,true);
       }
@@ -295,9 +241,8 @@ package survarium.controls
          }
          else
          {
-            price = this._data.isPremium ? (this._data.cost * PlayerInfo.premiumExchangeRate) : this._data.cost;
-            trace("IC::itemCost::",price,this._data.cost,PlayerInfo.premiumExchangeRate);
-            sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
+            price = this._data.cost;
+            sellPrice = price / ItemPrice.SELL_DIVISOR;
             _cost = sellPrice;
          }
          _step = slotData.clip_size == undefined ? 1 : (slotData.clip_size);
@@ -348,80 +293,6 @@ package survarium.controls
          _modifiersIconContainer = icons;
       }
       
-      protected function getFailModifiers() : Array
-      {
-         var allModifiers:Array = this._data.modifiers != null ? this._data.modifiers : [];
-         var failModifiers:Array = [];
-         var i:uint = 0;
-         var modifierIcon:Icon;
-         while(i < allModifiers.length)
-         {
-            if(allModifiers[i].state == ModificationState.DEFECT)
-            {
-               modifierIcon = this._modifiersIconContainer.getIcon(allModifiers[i].icon);
-               failModifiers.push({
-                  name:allModifiers[i].name,
-                  props:allModifiers[i].props,
-                  icon:modifierIcon,
-                  state:allModifiers[i].state,
-                  fix_time_general:allModifiers[i].fix_time_general,
-                  fix_cost_general:allModifiers[i].fix_cost_general,
-                  fix_cost_gold:allModifiers[i].fix_cost_gold
-               });
-            }
-            i++;
-         }
-         this.fillModifiersNames(failModifiers);
-         return failModifiers;
-      }
-      
-      protected function fillModifiersNames(modifiers:Array) : void
-      {
-         var i:uint = 0;
-         var text:String;
-         var props:Object;
-         var prop:Object;
-         var propDescription:Object;
-         var postfix:String;
-         var sign:String;
-         var propValue:Number;
-         var color:String;
-         while(i < modifiers.length)
-         {
-            text = "";
-            props = modifiers[i].props;
-            trace("props::",text,props,this._propsDescriptor);
-            for each(prop in props)
-            {
-               propDescription = this._propsDescriptor.getPropertyDescription(prop.prop_id);
-               if(propDescription)
-               {
-                  if(propDescription.postfix == undefined)
-                  {
-                     propDescription.postfix = "";
-                  }
-                  postfix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
-                  sign = prop.prop_value >= 0 ? "+" : "";
-                  if(propDescription.modifier_type == undefined)
-                  {
-                     propDescription.modifier_type = ModifierType.INVALID;
-                     propDescription.modifier_type = prop.modifier_type;
-                  }
-                  if(propDescription.modifier_type == ModifierType.INVALID)
-                  {
-                     throw Error("modifier_type at modifier " + modifiers[i].name + " for prop_id " + prop.prop_id + " is invalid");
-                  }
-                  trace("propValue::",propDescription.direction,prop.direction);
-                  propValue = propDescription.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
-                  color = ModificationRolls.style(propDescription,prop.prop_id,ModificationRolls.value(prop));
-                  text += propDescription.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
-               }
-            }
-            modifiers[i].name = text;
-            i++;
-         }
-      }
-      
       protected function updateData() : void
       {
          var canBuy:Boolean = this._data.canBuy;
@@ -440,9 +311,8 @@ package survarium.controls
          }
          else
          {
-            price = this._data.isPremium ? (this._data.cost * PlayerInfo.premiumExchangeRate) : this._data.cost;
-            sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
-            trace("IC::itemCost::",price,this._data.isPremium,this._data.cost,PlayerInfo.premiumExchangeRate,"sellCost::",sellPrice);
+            price = this._data.cost;
+            sellPrice = price / ItemPrice.SELL_DIVISOR;
             _cost = sellPrice;
          }
          _step = this._data.clipSize == 0 ? 1 : (this._data.clipSize);
@@ -454,10 +324,6 @@ package survarium.controls
          else
          {
             this.checkButtonEnabled();
-         }
-         if(this.upgradeMessage)
-         {
-            this.upgradeMessage.updateTimer(this._data);
          }
       }
       

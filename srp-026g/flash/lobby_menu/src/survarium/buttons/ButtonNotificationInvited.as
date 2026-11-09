@@ -52,7 +52,6 @@ package survarium.buttons
             this.labelCost.mouseEnabled = this.textFieldReward.mouseEnabled = false;
             this.textFieldReward.text = LocalizationData.getName("reward");
             this.labelCost.x = this.textFieldReward.x + this.textFieldReward.textWidth + 9;
-            this.labelCost.moneyType = _data.reward_type;
             this.labelCost.cost = _data.reward;
             background.height = 79;
          }

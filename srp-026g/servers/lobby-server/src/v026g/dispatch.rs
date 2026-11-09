@@ -252,14 +252,11 @@ impl Core<'_> {
                 item_id, a, value, ..
             } => self.place_upgrade(who, item_id, a, value),
             M::UseDropCard { a0, a1 } => self.use_drop_card(who, a0, a1),
-            M::UseItem { item_id } => self.use_item(who, item_id),
             M::OpenReroll { item_id } => self.open_reroll(who, item_id),
-            // The flag: paid in gold.
             M::RerollModifier {
                 item_id,
                 modification_id,
-                flag,
-            } => self.reroll_modifier(who, item_id, modification_id, flag),
+            } => self.reroll_modifier(who, item_id, modification_id),
             // The "new modification" is the place of the choice among the
             // three offered.
             M::ChooseModifier {
@@ -267,8 +264,8 @@ impl Core<'_> {
                 old_modification_id,
                 new_modification_id,
             } => self.choose_modifier(who, item_id, old_modification_id, new_modification_id),
-            // The item, its donor, and whether gold pays.
-            M::Craft { a0, a1, flag } => self.craft(who, a0, a1, flag),
+            // The item and its donor.
+            M::Craft { a0, a1 } => self.craft(who, a0, a1),
             // No client runs the tutorial (`session::v026g::tutorial`): its
             // steps are not answered.
             M::TutorialWeaponChosen | M::TutorialStep { .. } | M::SkipTutorial => {
@@ -283,7 +280,7 @@ impl Core<'_> {
                 target_slot,
                 kit_id,
             } => {
-                // A premium item is paid in gold (`shop`).
+                // A premium item is sold one by one (`shop`).
                 if session::v026g::premium::sells(dict_id) {
                     self.buy_premium_item(who, dict_id, count, target_slot, kit_id);
                     return;
@@ -336,23 +333,6 @@ impl Core<'_> {
                     }
                 }
             }
-            M::Repair { item_id, payment } => self.repair(who, item_id, payment),
-            M::ExchangePremium { amount } => {
-                let exchanged = {
-                    let mut account = who.account.locked();
-                    rules::exchange_premium(&mut account, amount)
-                        .map(|silver| (silver, account.generic_money, account.premium_money))
-                };
-                self.exchanged(who, "exchanged", amount, exchanged);
-            }
-            M::BuyPremium { gold } => {
-                let bought = {
-                    let mut account = who.account.locked();
-                    rules::buy_premium(&mut account, gold)
-                        .map(|silver| (silver, account.generic_money, account.premium_money))
-                };
-                self.exchanged(who, "bought", gold, bought);
-            }
             // The premium shop (`shop`). `47 02` with a match id is the
             // results screen's "buy premium": the match's premium half is
             // given with it.
@@ -370,8 +350,8 @@ impl Core<'_> {
                 let set = rules::set_skills(&mut who.account.locked(), &skills);
                 self.skills_answer(who, set.map(drop));
             }
-            M::ResetSkills { branch, payment } => {
-                let reset = rules::reset_skills(&mut who.account.locked(), branch, payment);
+            M::ResetSkills { branch } => {
+                let reset = rules::reset_skills(&mut who.account.locked(), branch);
                 self.skills_answer(who, reset.map(drop));
             }
 
@@ -383,16 +363,11 @@ impl Core<'_> {
                 }
                 self.push_account(who);
             }
-            // The two boxes of the kit window: autobuy and auto-repair
-            // (`session::v026g::autobuy`).
-            M::SetAutobuy { on, repair } => {
-                {
-                    let mut account = who.account.locked();
-                    rules::set_autobuy(&mut account, on);
-                    account.extras.auto_repair = repair;
-                }
+            // The kit window's autobuy box (`session::v026g::autobuy`).
+            M::SetAutobuy { on } => {
+                rules::set_autobuy(&mut who.account.locked(), on);
                 self.accounts.mark_dirty(who.account_id);
-                self.send(addr, lobby::permitted_auto_state(on, repair));
+                self.send(addr, lobby::permitted_autobuy(on));
             }
             M::SetActiveKit { kit_id } => {
                 let set = rules::set_active_kit(&mut who.account.locked(), kit_id, unix);
@@ -414,10 +389,7 @@ impl Core<'_> {
                 let refusal = self.nickname_refusal(&nickname, who.account_id);
                 self.send(addr, lobby::permitted_nickname_check(&nickname, refusal));
             }
-            M::ChangeNickname {
-                nickname,
-                ticket_item_id,
-            } => self.change_nickname(who, &nickname, ticket_item_id),
+            M::ChangeNickname { nickname } => self.change_nickname(who, &nickname),
             // Not kept, and the player is told so.
             M::CommentAboutUser { .. } => self.deny(addr, id::PROFILE, text::COMMENT),
             M::SetChatMute { nickname, mode } => self.set_chat_mute(who, &nickname, mode, now),
@@ -506,40 +478,9 @@ impl Core<'_> {
         }
     }
 
-    /// The answer to `47 04`, either way: `83 47 04`, then the account with
-    /// its new silver and gold; or the game's text for the refusal. `gold`
-    /// was asked for, and `verb` says which way (`bought` with silver, in
-    /// srp's own window, or `exchanged` for it); the result is the silver
-    /// paid or gained and the balances right after, read under the same
-    /// lock as the exchange.
-    fn exchanged(
-        &mut self,
-        who: &Who,
-        verb: &str,
-        gold: u32,
-        result: Result<(u32, u32, u32), rules::ActionError>,
-    ) {
-        match result {
-            Ok((silver, now_silver, now_gold)) => {
-                log::info!(
-                    "{} (account {}) {verb} {gold} gold for {silver} silver; now {now_silver} \
-                     silver, {now_gold} gold",
-                    who.name,
-                    who.account_id
-                );
-                self.send_made(who.addr, lobby::permitted_shop_event(4));
-                self.push_account(who);
-            }
-            Err(error) => {
-                log::info!("{}: exchange refused: {error}", who.name);
-                self.deny(who.addr, id::SHOP, error.text_key());
-            }
-        }
-    }
-
     /// `46 03 <a> <b>`: a drop card used from the results screen's stash
     /// map: `98` with what it gave, then the inventory, the account and the
-    /// money (a used-up card and silver or gold are not in `98`). `a` is
+    /// money (a used-up card and silver are not in `98`). `a` is
     /// the match and `b` the card's item id [PROVEN: the screen calls
     /// `use_drop_card(match id, voucher id)`, and 0x288D00 writes the two
     /// in that order; `results.md` §3]. One card for each player of a

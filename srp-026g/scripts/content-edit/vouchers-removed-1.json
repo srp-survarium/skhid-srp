@@ -1,0 +1,15 @@
+{
+ "_about": "The vouchers but the drop card are gone (the owner, 2026-11-08: \"premium ticket and repoair kit should be removed too\", \"remove them completely\"): the repair kit, the rename voucher and the one-day premium voucher drop no more. Their configs' drop_weight 160, 32, 32 -> 0 (an item of drop_weight 0 is never rolled, drops.rs). They dropped only from generic_drop's category 27 group (weight 5 of 100), which they shared by drop weight with the drop card (160 of 384): left alone, that group would now give only drop cards, 2.4 times as many. So every rate stays as it was: generic_drop's group weights times 12 (60, 5, 5, 9, 1, 10, 10 of 100 -> 720, 60, 60, 108, 12, 120, 120 of 1200), then the category 27 group the drop card's share of it, 60 x 160 / 384 = 25, and the 35 left to no drop (group 0, category 0): 755. The drop card is 25 of 1200 as before (2.08 %), every other group as before. Not sold either: shop.tsv not_sold rows; owned ones paid back once in silver (persist::SqliteGameRepository::pay_back_once).",
+ "set": [
+  {"file": "gameplay/items/vouchers/repair_voucher.options", "path": "parameters/drop_weight", "from": 160, "to": 0},
+  {"file": "gameplay/items/vouchers/rename_account_voucher.options", "path": "parameters/drop_weight", "from": 32, "to": 0},
+  {"file": "gameplay/items/vouchers/premium_access_voucher_1d.options", "path": "parameters/drop_weight", "from": 32, "to": 0},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[0]/drop_weight", "from": 60, "to": 755},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[1]/drop_weight", "from": 5, "to": 60},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[2]/drop_weight", "from": 5, "to": 25},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[3]/drop_weight", "from": 9, "to": 108},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[4]/drop_weight", "from": 1, "to": 12},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[5]/drop_weight", "from": 10, "to": 120},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[6]/drop_weight", "from": 10, "to": 120}
+ ]
+}
