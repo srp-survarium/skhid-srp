@@ -898,6 +898,10 @@ impl Core<'_> {
         if left_match && let Some(watcher) = matchmaking.watched(who.session_id) {
             matchmaking.watcher_left(who.session_id, watcher.ticket);
         }
+        // A replay session's game that quit on its way to the match: free at once.
+        if left_match && let Some(replays) = self.replays {
+            replays.watches().game_back(who.session_id);
+        }
         if !left_match {
             // A clan team it waited with does not wait any more.
             self.clan_left_queue(who.account_id);

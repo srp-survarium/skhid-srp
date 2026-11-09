@@ -567,6 +567,28 @@ fn the_end_of_the_recording_ends_the_session() {
 
 /// The viewer's leave (its Back) lets its game go as the recording's end
 /// does: the farewell, silence, then the session is over.
+/// The lobby heard the game give up: its playback goes, and the same account can start again.
+#[test]
+fn a_session_ended_by_the_lobby_drops_its_playback() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let first = watching(&mut bench, WATCHER);
+    assert!(
+        bench.until(8_000, |b| relays_taken(&b.clients[first]) > 0),
+        "it was being played to"
+    );
+    assert!(replays.watches().game_back(WATCHER));
+    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
+    bench.run_long(200);
+    let taken = relays_taken(&bench.clients[first]);
+    bench.run_long(2_000);
+    assert_eq!(relays_taken(&bench.clients[first]), taken, "its playback is gone");
+    session_of_the_recording(&mut bench, &replays, 0);
+    let again = watching(&mut bench, WATCHER);
+    assert!(bench.until(5_000, |b| b.clients[again].model.is_synced()));
+    assert!(replays.watches().holds(WATCHER_ACCOUNT));
+}
+
 #[test]
 fn a_leave_request_lets_the_game_go() {
     let (mut bench, replays) = bench();

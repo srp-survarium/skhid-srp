@@ -245,6 +245,27 @@ fn a_replay_session_sends_the_game_to_watch_and_holds_its_room_until_it_ends() {
     }));
 }
 
+/// A game can quit as it connects to its replay, and says so: its session is over at once, so
+/// the next ask does not wait for the match server to give up on it.
+#[test]
+fn a_game_back_by_its_own_word_is_free_to_watch_again_at_once() {
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+    let (account, session) = world.ids[carol];
+    let watches = desk.watches();
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((MATCH, 0)));
+    assert_eq!(watches.connected(session, world.now), Some((request, 74_500)));
+    world.ask(carol, request::leave(1, true));
+    assert!(!watches.holds(account));
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+}
+
 /// Refused by the match server: the poll says why, with the box for
 /// another epoch's recording; a player not free in the lobby gets `busy`,
 /// and a server without sessions `off`.

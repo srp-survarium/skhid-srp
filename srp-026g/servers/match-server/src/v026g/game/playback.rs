@@ -1069,7 +1069,9 @@ impl ReplayWatch {
         self.playbacks.retain(|_, playback| {
             let (out, ended) = playback.poll(now);
             datagrams.extend(out);
-            let kept = ended != Some(Ended::Left) && !playback.spectator.is_forgotten(now);
+            let kept = ended != Some(Ended::Left)
+                && !playback.spectator.is_forgotten(now)
+                && replays.watches().is_open(&playback.request);
             if !kept {
                 replays.watches().ended(&playback.request);
             }

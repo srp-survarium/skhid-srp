@@ -486,6 +486,37 @@ impl Watches {
         }
     }
 
+    /// Whether the request's session is still open: the match server drops the playback of one
+    /// that is not ([`Watches::game_back`]).
+    pub fn is_open(&self, request: &WatchRequest) -> bool {
+        self.sessions
+            .locked()
+            .get(&request.account_id)
+            .is_some_and(|session| session.request == *request && session.stage.is_open())
+    }
+
+    /// The game of `session_id` says it is back in the lobby (`31 .. 1`). A game that watched
+    /// leaves through the match server and says nothing here, so this one quit on its way to the
+    /// match: its session ends now, or it would hold the account until the match server gave up
+    /// on it. A session not sent yet is no business of this word.
+    pub fn game_back(&self, session_id: u32) -> bool {
+        let mut sessions = self.sessions.locked();
+        let account = sessions.iter().find_map(|(account, session)| {
+            (session.request.session_id == session_id
+                && matches!(session.stage, Stage::Sent { .. } | Stage::Playing { .. }))
+            .then_some(*account)
+        });
+        let Some(account) = account else { return false };
+        if let Some(session) = sessions.remove(&account) {
+            log::info!(
+                "Replay sessions: account {account}'s game came back from match {:#x} on its own; \
+                 its session is over",
+                session.request.match_id
+            );
+        }
+        true
+    }
+
     /// The account's session moved by `step` (`None`: unchanged), if it is
     /// still this request's.
     fn update(
@@ -608,6 +639,37 @@ mod tests {
         assert!(!watches.holds(ALICE));
         assert_eq!(watches.answer(ALICE), None);
         assert_eq!(watches.start(request(MOD), now), Status::Preparing);
+    }
+
+    #[test]
+    fn a_game_back_in_the_lobby_ends_its_session_once_it_was_sent() {
+        let now = Instant::now();
+        let watches = Watches::new(Some(WatchSettings::default()));
+        let alice = request(ALICE);
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        // Asked, not sent: the word is about something else.
+        assert!(!watches.game_back(alice.session_id));
+        assert!(watches.holds(ALICE));
+        assert_eq!(watches.next_job(now), Some(alice));
+        assert!(watches.loaded(&alice, 14_500, now));
+        assert!(!watches.game_back(alice.session_id));
+        assert!(watches.holds(ALICE));
+        watches.sent(ALICE, now);
+        assert!(watches.is_open(&alice));
+        // Sent: over, and the account may ask again at once.
+        assert!(watches.game_back(alice.session_id));
+        assert!(!watches.holds(ALICE));
+        assert!(!watches.is_open(&alice));
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        assert_eq!(watches.next_job(now), Some(alice));
+        assert!(watches.loaded(&alice, 14_500, now));
+        watches.sent(ALICE, now);
+        assert_eq!(watches.connected(alice.session_id, now), Some((alice, 14_500)));
+        // At the match server too: the game quit while connecting.
+        assert!(watches.game_back(alice.session_id));
+        assert!(!watches.holds(ALICE));
+        // Another's word touches nothing, and there is nothing left to end.
+        assert!(!watches.game_back(alice.session_id));
     }
 
     #[test]
