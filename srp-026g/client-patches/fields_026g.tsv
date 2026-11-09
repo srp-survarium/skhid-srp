@@ -812,6 +812,36 @@ survarium::login_menu	game	0x9C	ptr<survarium::game>	the game (set_status 0x21EE
 survarium::login_status_frame	begin	0x18	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
 survarium::login_status_frame	cursor	0x1C	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217 (made at 0x21EECB..0x21EEED over the 200h bytes at +24h): the cursor, at the text's zero (0x21F3B4)
 survarium::login_status_frame	end	0x20	ptr<u8>	the text's end, its buffer's last byte + 1 (esp+224h, 0x21EECF)
+survarium::player	use_user	0x130	obj<survarium::usable_user>	its usable_object_user_data (0.10b collision_user +4): what a usable object's can_use and use get (detect_usable_object 0x2D85C6, apply_new_input 0x2D88B7)
+survarium::usable_user	player	0x0	ptr<survarium::player>	usable_object_user_data's owner: the player (0.10b +0; the can_use bodies read [ESP+4]'s +0)
+survarium::detect_frame	player	0x4	ptr<survarium::player>	detect_usable_object's player at its start (0x2D84C0, by the site's ESP): entry ESP+4
+survarium::detect_frame	point	0x8	ptr<f32>	its point: a float3 written with the hit point of the object found, or 0 (entry ESP+8)
+vostok::physics::hit_object	user	0xC	ptr<vostok::collision::game_object>	base_physics_object's user data, the game's object (0.10b +8; detect_usable_object reads +0Ch at 0x2D8587)
+vostok::collision::game_object	vtable	0x0	u32	its vtable (0.10b: cast_to_hit_receiver +0, cast_to_collision_geometry +4, cast_to_base_player +8)
+survarium::collision_geometry	subscribers	0xC	u32	its subscribers' begin (+10h the end): collision_geometry_subscriber pointers (damage and effect zones, sensors, players_checker, usable objects), not all usable; query_objects_by_type 0x2DC39A walks them through the cast it is given
+vostok::physics::ray_hits	begin	0x0	ptr<vostok::physics::ray_result>	a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} (detect_usable_object's at 0x2D850F..0x2D851F, ray_query appends 0x777DE): the first hit
+vostok::physics::ray_hits	end	0x4	ptr<vostok::physics::ray_result>	past the last hit (the count is (end - begin) / 28h, 0x2D852C)
+vostok::physics::ray_hits	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	what grows it (0x788C0) and frees it: detect_usable_object gives the multithreaded one (0xA8001C)
+vostok::physics::ray_hits	capacity	0xC	ptr<vostok::physics::ray_result>	its room's end
+vostok::physics::ray_hits	size	0x10	size	four words
+survarium::usable_list	begin	0x0	ptr<survarium::usable_slot>	a buffer_vector<usable_object*> {begin, end, allocator, capacity end}, query_objects_by_type's result (detect_usable_object's at 0x2D859F..0x2D85AF): the first
+survarium::usable_list	end	0x4	ptr<survarium::usable_slot>	past the last
+survarium::usable_list	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	what grows it (0x2DC429 by 0x1E1C0) and frees it: the multithreaded one (0xA8001C)
+survarium::usable_list	capacity	0xC	ptr<survarium::usable_slot>	its room's end
+survarium::usable_list	size	0x10	size	four words
+survarium::usable_slot	object	0x0	ptr<survarium::usable_object>	one usable object found (the cast's answer)
+survarium::usable_slot	size	0x4	size	a pointer
+survarium::usable_object	vtable	0x0	u32	its vtable as a usable object (the collision geometry subscriber's: +20h cast_to_usable, +30h can_use, +34h use_info, +44h get_transform)
+survarium::usable_distance	value	0x0	f32	usable_objects_detection_distance's value (2.0 in the image)
+survarium::image	usable_distance	0xA710D8	obj<survarium::usable_distance>	usable_objects_detection_distance: detect_usable_object's ray reaches this far (fld at 0x2D84E9), a use's tick allows this far (0x300830)
+survarium::image	mt_allocator	0xA8001C	obj<vostok::memory::pthreads3_allocator>	the global multithreaded allocator (vtable 0x9E6000: call_realloc +14h, call_free +18h), the allocator of detect_usable_object's two vectors
+survarium::image	usable_cast	0x2DD730	u32	the cast detect_usable_object hands query_objects_by_type (mov eax,[ecx] / jmp [eax+20h]: cast_to_usable)
+survarium::image	hits_deallocate	0x9E2E60	u32	"vostok::detail::std_allocator<struct vostok::physics::closest_ray_result>::deallocate": the function name detect_usable_object frees its hits with (0x2D8682)
+survarium::image	usables_deallocate	0x9DC2BC	u32	"vostok::detail::std_allocator<void *>::deallocate": the function name it frees a usable list with (0x2D860C)
+survarium::image	std_allocator_file	0x9DC1E0	u32	"d:\survarium.deploy\sources\vostok/std_allocator_inline.h": the file name of both frees (line 67h)
+survarium::image	victory_item_core_usable_vtable	0xA13E8C	u32	victory_item_core's usable_object vtable (RTTI, the usable_object at +14h): a battery's; +30h victory_item_core::can_use 0x300710, +44h its get_transform thunk 0x246ED0
+survarium::image	victory_item_usable_vtable	0xA0437C	u32	victory_item's usable_object vtable (RTTI): the client's battery; +30h 0x300710, +44h 0x246ED0 as victory_item_core's (the only two vtables holding 0x300710 at +30h)
+vostok::memory::pthreads3_allocator	vtable	0x0	u32	its vtable (0x9E6000: call_realloc +14h, call_free +18h)
 survarium::player_params_modifiers_container	artefact_ranks	0xA0	f32	modifier 40 artefact_power (no getter call, no code reference to its name, no config sets it): the artefact tree's packed skills; artefact-skills.md
 survarium::artefact	vtable	0x0	ptr<survarium::medical_vtable>	an inventory slot's artefact's (core) virtual table: its +80h enable_active names the kind (Onyx 0x3128C0, Lifebone 0x312250)
 survarium::image	onyx_active	0x3128C0	u32	artefact_onyx_core::enable_active_effects (vtable +80h; abi_inputs 0x3128C0)
@@ -900,3 +930,69 @@ survarium::lobby_client	status	0x1E5790	u32	what the lobby says the client is: t
 survarium::close_match_frame	reason	0x8	u32	close_current_match's argument by EBP (mov ebx,[ebp+8] at 0x27A7F3): the reason, jump table 0x27A958
 survarium::match_ready_frame	client	0x18	ptr<survarium::network_client>	on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
 vostok::render::res_render_output	window	0xE4	u32	the output window, an HWND (res_render_output::res_render_output 0x3CF4F0 writes it from EDX at 0x3CF540; set_size's SetWindowLongA 0x3CFA09/0x3CFA55 and SetWindowPos 0x3CFA20/0x3CFAD8, present's ShowWindow 0x3CF8C5 take it)
+vostok::memory::image	arena_list	0xA808FC	obj<vostok::memory::arena_list_slot>	the engine's registered arenas: the slot of a pointer to their fixed_vector of allocator_data (memory::preinitialize sets it, 0xE0F51; register_allocator 0xE21C0 appends with ESI it, dump_statistics 0xE1379 and allocate_region 0xE1128 walk it); patch 126
+vostok::memory::arena_list_slot	list	0x0	ptr<vostok::memory::arena_list>	the arenas' fixed_vector {begin, end, capacity end} (dump_statistics: mov eax,[0A808FCh] / mov esi,[eax] / mov edi,[eax+4], 0xE1379..0xE1385)
+vostok::memory::arena_list	begin	0x0	ptr<vostok::memory::arena_record>	the first allocator_data record
+vostok::memory::arena_list	end	0x4	ptr<vostok::memory::arena_record>	past the last record (register_allocator's push_back moves it)
+vostok::memory::arena_list	capacity_end	0x8	ptr<vostok::memory::arena_record>	past the room for records (a full list asserts, 0x113450)
+vostok::memory::arena_record	size	0x18	size	allocator_data: 18h bytes (dump_statistics steps 18h, 0xE13F1; 0.10b memory.cpp {allocator, u64 arena_size, arena_address, arena_id})
+vostok::memory::arena_record	allocator	0x0	ptr<vostok::memory::base_allocator>	the arena's allocator (dump_statistics calls its vtable +8h total_size and +0Ch allocated_size)
+vostok::memory::arena_record	arena_size_low	0x8	u32	the arena's bytes as registered (a u64: its low word)
+vostok::memory::arena_record	arena_size_high	0xC	u32	the arena's bytes as registered (a u64: its high word, 0 in a 32-bit process)
+vostok::memory::arena_record	arena_start	0x10	u32	the arena's start, written once it is reserved (0.10b allocate_region: arena_address from the region); 0 for the process heap
+vostok::memory::arena_record	name	0x14	ptr<u8>	the arena's name, a C string of the image ("render" 0x9DB590, "resources helper allocator" 0x9E5B9C)
+vostok::memory::base_allocator	vtable	0x0	u32	the allocator's vtable: its kind (doug_lea_vtable, managed_vtable, pthreads_vtable, others)
+vostok::memory::base_allocator	mspace	0x14	ptr<vostok::memory::mspace>	a doug_lea_allocator's m_arena: the mspace create_mspace_with_base 0x101280 made at the arena's start (initialize_impl 0xE4F70; total_size 0xE51F0 and allocated_size 0xE52C0 hand it to internal_mallinfo 0xFF200)
+vostok::memory::base_allocator	managed_free	0x28	u32	a managed_allocator's free bytes (allocated_size 0xE0E50: [ecx+30h] - [ecx+28h]; 0.10b resources_managed_allocator.h total_size() - get_free_size())
+vostok::memory::base_allocator	managed_total	0x30	u32	a managed_allocator's bytes (total_size 0xE0E40)
+vostok::memory::image	doug_lea_vtable	0x9E68DC	u32	doug_lea_allocator's vtable (slots: +8h total_size 0xE51A0, +0Ch allocated_size 0xE5270; engine_world's constructor writes it at 0x136EC..0x1380C; shared strings, cook, resources helper in the image)
+vostok::memory::image	managed_vtable	0x9E602C	u32	managed_allocator's vtable (+8h total_size 0xE0E40, +0Ch allocated_size 0xE0E50; its constructor 0xE0E71; the resources (managed) allocator at 0x21E51E8, which allocate_region registers at 0xE1220, its initializer 0xFCF4A)
+vostok::memory::image	pthreads_vtable	0x9E6000	u32	the multithreaded allocator's vtable ("global multithreaded", 0xA8001C: +8h total_size 0xEB5F0 the region's size, +0Ch allocated_size 0xEB630 walks ptmalloc3's arenas from 0x1BFAC90 with 0xFF200)
+vostok::memory::image	mt_region	0xA2B5250	obj<vostok::memory::mt_region>	the multithreaded arena's region, the pages ptmalloc3 takes (0x10F8C0 under the spin lock 0x1BFAEBC, 0x106A90) and gives back (0x10F980); 0xEB437..0xEB453 set it
+vostok::memory::mt_region	base	0x0	u32	the region's start
+vostok::memory::mt_region	size	0x4	u32	the region's bytes (-mt_allocator, 768 MiB by patch 37)
+vostok::memory::mt_region	free	0x8	u32	the region's bytes not taken: a take subtracts (0x10F90B, 0x10F942), a give adds (0x10F985)
+vostok::memory::image	video_memory	0x1B3A1F0	obj<vostok::memory::video_memory>	the engine's video memory figures (platform::allocate_arenas 0xE9580 writes them, 0xE991D..0xE9CF9; dump_statistics' "video memory stats for engine", 0xE195D..0xE198D)
+vostok::memory::video_memory	detected_low	0x0	u32	the video memory detected (a u64: its low word; 0x106300's answer, 0xE9C52), the percentages' 100 %
+vostok::memory::video_memory	budget_low	0x8	u32	the engine's video memory budget (a u64: its low word; its "video memory stats for engine" size)
+vostok::memory::video_memory	budget_high	0xC	u32	the engine's video memory budget (a u64: its high word)
+vostok::memory::mspace	top_size	0xC	u32	dlmalloc 2.8 malloc_state.topsize: the top chunk's bytes (init_user_mstate 0x101254; internal_mallinfo 0xFF239 counts it free with the top's foot, 28h)
+vostok::memory::mspace	top	0x18	u32	malloc_state.top: the top chunk, where internal_mallinfo's walk ends (0xFF286; set at 0x101251)
+vostok::memory::mspace	footprint	0x1B0	u32	malloc_state.footprint: a fixed-base mspace's capacity from its start, as max_footprint +1B4h (0x1011E8, 0x1011EE): no high-water mark
+vostok::memory::mspace	segment	0x1BC	u32	malloc_state.seg.base: the arena's start (0x1011E2), where the walk begins (0xFF23C)
+vostok::memory::mspace	segment_size	0x1C0	u32	malloc_state.seg.size: the arena's bytes (0x1011F4)
+vostok::memory::mspace	next_segment	0x1C4	u32	malloc_state.seg.next: 0 in a fixed-base mspace (the memset of 1E0h, 0x1011B6), the walk's next segment (0xFF2B7)
+vostok::memory::mspace	size	0x1D8	size	malloc_state's bytes: its chunk is 1E0h (the head 1E3h, init_user_mstate 0x1011C6), the state 8 bytes in; its last word +1D4h/+1D8h the out-of-memory callback and its parameter (0x101201, create_mspace_with_base 0x1012D4)
+vostok::memory::image	dlmalloc_start	0xFF160	u32	the first function of dlmalloc 2.8's code (the mspace functions ptmalloc3 is built on): an mspace_malloc or mspace_free called from here to dlmalloc_end is dlmalloc's own (mspace_realloc's move 0x1006DF / 0x100733 and its cut tail 0x1006CB, mspace_memalign 0x100773 / 0x1007DC, internal_memalign's leader and trailer 0x1008D6 / 0x1008F7); patch 127
+vostok::memory::image	dlmalloc_end	0x101B40	u32	past mspace_free (0x1015E0), the last of dlmalloc's code: its usage-error tail jump 0x101B37, then int3 to 0x101B40
+vostok::memory::image	malloc_impl_heap_return	0xE4FB0	u8	doug_lea_allocator::malloc_impl's (0xE4F90; ESI the allocator, EAX the bytes) return from mspace_malloc (call 0xE4FAB)
+vostok::memory::image	realloc_impl_malloc_return	0xE50E4	u8	doug_lea_allocator::realloc_impl's (0xE5050) return from mspace_malloc (call 0xE50DF: no memory given)
+vostok::memory::image	realloc_impl_realloc_return	0xE5100	u8	doug_lea_allocator::realloc_impl's return from mspace_realloc (call 0xE50FB)
+vostok::memory::image	pt_malloc_heap_return	0x106F70	u8	ptmalloc3's malloc (0x106EF0; EAX the bytes) return from mspace_malloc (call 0x106F6B, its arena's mspace at +20h)
+vostok::memory::image	mt_malloc_return	0xEB550	u8	mt_allocator::call_malloc's (0xEB530, the "global multithreaded" vtable's slot 0x9E6010) return from ptmalloc3's malloc (call 0xEB54B)
+vostok::memory::image	heap_out_of_memory_return	0x1013F8	u8	mspace_malloc's return from its arena's out-of-memory callback (call eax 0x1013F6, the mspace's +1D4h; EBP the bytes asked, 0x101335)
+vostok::memory::image	call_malloc_return	0xE5131	u8	doug_lea_allocator::call_malloc's (0xE5120, the vtable's slot 0x9E68EC) return from malloc_impl (call 0xE512C)
+vostok::memory::image	call_realloc_return	0xE5156	u8	doug_lea_allocator::call_realloc's (0xE5140, slot 0x9E68F0) return from realloc_impl (call 0xE5151)
+vostok::memory::image	pt_realloc_heap_return	0x10710A	u8	pt3realloc's (0x107070) return from mspace_realloc (call 0x107105)
+vostok::memory::image	mt_realloc_return	0xEB4F8	u8	mt_allocator's realloc (0xEB470, ESI the memory) return from pt3realloc (call 0xEB4F3), and from pt3malloc when pt3realloc's no memory jumps there (0x107099)
+vostok::memory::image	mt_call_realloc_return	0xEB5A5	u8	mt_allocator::call_realloc's (0xEB590) return from its realloc 0xEB470 (call 0xEB5A0)
+vostok::memory::image	mt_malloc_impl_return	0x1C6B9	u8	mt_allocator's malloc_impl (0x1C6A0; ESI the bytes, [esp+4] the allocator, 0xA8001C) return from pt3malloc (call 0x1C6B4)
+vostok::memory::image	allocate_region_return	0x13BF5	u8	engine_world's constructor's return from allocate_region (call 0x13BF0, its one caller): the frame of memory.arenas_ready is the start's, while only the main thread runs
+vostok::memory::game_call	return_address	0x0	u32	where a call of the game returns: the word at its callee's entry ESP
+vostok::memory::game_call	malloc_impl_call	0x18	obj<vostok::memory::game_call>	at mspace_malloc's entry from malloc_impl (return malloc_impl_heap_return): malloc_impl's own call, 18h up (sub esp,8 / push ebx / push edi / push edi, 0xE4F90..0xE4FAA)
+vostok::memory::game_call	realloc_impl_malloc_call	0x18	obj<vostok::memory::game_call>	at mspace_malloc's entry from realloc_impl (return realloc_impl_malloc_return): realloc_impl's own call, 18h up (push ecx / push ebx / push esi / push edi / push ebx, 0xE5050..0xE50DA)
+vostok::memory::game_call	realloc_impl_realloc_call	0x1C	obj<vostok::memory::game_call>	at mspace_realloc's entry from realloc_impl (return realloc_impl_realloc_return): realloc_impl's own call, 1Ch up (its four pushes, then push ebx / push edx, 0xE50FA)
+vostok::memory::game_call	pt_malloc_call	0x1C	obj<vostok::memory::game_call>	at mspace_malloc's entry from ptmalloc3's malloc (return pt_malloc_heap_return): its own call, 1Ch up (sub esp,0Ch / push esi / push edi / push edi, 0x106EF0..0x106F67; the TlsGetValue and 0x106B10 calls between leave the stack as it was)
+vostok::memory::game_call	mt_malloc_call	0x10	obj<vostok::memory::game_call>	at ptmalloc3's malloc's entry from mt_allocator::call_malloc (return mt_malloc_return): call_malloc's own call, 10h up (push ecx / push edi / push esi, 0xEB530..0xEB544)
+vostok::memory::game_call	call_malloc_call	0xC	obj<vostok::memory::game_call>	at malloc_impl's entry from call_malloc (return call_malloc_return): call_malloc's own call, 0Ch up (push esi / push eax, 0xE5124..0xE5125)
+vostok::memory::game_call	call_realloc_call	0x10	obj<vostok::memory::game_call>	at realloc_impl's entry from call_realloc (return call_realloc_return): call_realloc's own call, 10h up (push ecx / push edx / push ecx, 0xE514A..0xE5150)
+vostok::memory::game_call	pt_realloc_call	0x1C	obj<vostok::memory::game_call>	at mspace_realloc's entry from pt3realloc (return pt_realloc_heap_return): its own call, 1Ch up (sub esp,8 / push ebp / push esi / push ebp / push edi, 0x107075..0x107104; TlsSetValue's two arguments popped by it)
+vostok::memory::game_call	mt_realloc_call	0x14	obj<vostok::memory::game_call>	at pt3realloc's (or pt3malloc's) entry from mt_allocator's realloc (return mt_realloc_return): its own call, 14h up (push ecx / push ebx / push edi / push esi, 0xEB470..0xEB4F2)
+vostok::memory::game_call	mt_call_realloc_call	0x14	obj<vostok::memory::game_call>	at mt_allocator's realloc's entry from call_realloc (return mt_call_realloc_return): call_realloc's own call, 14h up (push esi / push eax / push edx / push ecx, 0xEB598..0xEB59F)
+vostok::memory::game_call	mt_malloc_impl_call	0xC	obj<vostok::memory::game_call>	at pt3malloc's entry from mt_allocator's malloc_impl (return mt_malloc_impl_return): its own call, 0Ch up (sub esp,8, 0x1C6A0)
+vostok::memory::allocate_region_frame	return_address	0x4	u32	allocate_region's frame by its EBP (push ebp / mov ebp,esp, 0xE1120): its return address, allocate_region_return when engine_world's constructor called it
+vostok::memory::profile_frame	call	0x4	ptr<vostok::memory::game_call>	memory_profile.allocated's and .freeing's first argument (by the site ESP, the return address at +0): the ESP the game's call of mspace_malloc, mspace_realloc or mspace_free left, its return address there
+vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_malloc or mspace_realloc gave (0 for none), or the memory given back to mspace_free or mspace_realloc
+vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
+vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
+vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)

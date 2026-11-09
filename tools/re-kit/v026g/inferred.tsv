@@ -307,7 +307,6 @@ va	status	ref_021d	name
 0x00071440	inferred-medium	0x00053c46	vostok::physics::calculate_bt_animated_body_size_from_hit_targets_config
 0x000714f0	inferred-medium	0x00053cc3	vostok::physics::new_animated_rigid_body
 0x00071600	inferred-medium	0x00053db1	vostok::physics::new_animated_bt_hit_model
-0x000716c0	inferred-high	0x00053e64	vostok::physics::bt_animated_rigid_body::get_collision_group
 0x000716d0	inferred-high	0x00053e72	vostok::physics::bt_animated_rigid_body::center_of_mass_offset
 0x00071710	inferred-medium	0x00053ea7	vostok::physics::bt_animated_rigid_body::~bt_animated_rigid_body
 0x00071760	inferred-medium	0x00053ed8	vostok::physics::get_surface_area
@@ -349,7 +348,6 @@ va	status	ref_021d	name
 0x000763d0	inferred-high	0x00056baa	vostok::physics::bullet_physics_world::recover_from_penetrations
 0x00076920	inferred-medium	0x00056ec8	vostok::physics::bullet_physics_world::object_query
 0x00077320	inferred-high	0x00057700	`vostok::physics::bullet_physics_world::object_query'::`2'::object_query_callback::addSingleResult
-0x00077560	inferred-high	0x00057966	vostok::physics::bullet_physics_world::ray_query
 0x00077890	inferred-high	0x00057bbe	vostok::physics::contact_result_callback::addSingleResult
 0x000778b0	inferred-medium	0x00057c2e	vostok::physics::bullet_physics_world::adjust_foot_transform
 0x00077e50	inferred-medium	0x0005805a	vostok::physics::bullet_physics_world::notify_about_contact
@@ -370,7 +368,6 @@ va	status	ref_021d	name
 0x0007a950	inferred-medium	0x0021c5e9	vostok::physics::capsule_bottom_to_center_position
 0x0007a9d0	inferred-medium	0x0021c65d	vostok::physics::capsule_center_to_bottom_position
 0x0007aa50	inferred-medium	0x0021c6d1	vostok::physics::normalized_safe
-0x0007ab10	inferred-high	0x0021c787	vostok::physics::bullet_character_controller::get_collision_group
 0x0007ab20	inferred-high	0x0021c78f	vostok::physics::bullet_character_controller::get_bt_collision_obect
 0x0007ac50	inferred-medium	0x0021c851	vostok::physics::get_wall_slide_vector
 0x0007af00	inferred-medium	0x0021ca4d	vostok::physics::get_slope_slide_vector
@@ -486,7 +483,6 @@ va	status	ref_021d	name
 0x000e77e0	inferred-medium	0x000b28c4	vostok::resources::check_queries_result
 0x000e7ef0	inferred-medium		vostok::resources::query_mount_archive
 0x000e8d20	inferred-medium	0x000b386a	get_minimum_kernel_memory
-0x000e9580	inferred-medium		vostok::memory::platform::allocate_arenas
 0x000e9e20	inferred-medium	0x000b431f	vostok::math::align_up<unsigned __int64>
 0x000eab50	inferred-medium	0x000b4d61	vostok::resources::schedule_release_all_resources
 0x000eae00	inferred-medium	0x000b4eab	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::resources::game_resources_manager,vostok::resources::resource_base *>,boost::_bi::list2<boost::_bi::value<vostok::resources::game_resources_manager *>,boost::arg<1> > > >::manager
@@ -648,7 +644,6 @@ va	status	ref_021d	name
 0x00105ad0	inferred-medium	0x000c8e62	GetVideoMemoryViaWMI
 0x00105db0	inferred-medium	0x000c90d3	GetVideoMemoryViaDirectDraw
 0x00106030	inferred-high		GetVideoMemoryViaDXGI
-0x00106300	inferred-medium		vostok::platform::get_local_video_memory_size
 0x00106430	inferred-medium	0x000c9389	vostok::resources::game_resources_manager::try_free_or_decrease_quality
 0x001064c0	inferred-medium	0x000c93e0	vostok::resources::game_resources_manager::try_reallocate_queue
 0x001065d0	inferred-medium	0x000c944b	vostok::resources::game_resources_manager::on_resource_freed_callback
@@ -3401,3 +3396,11 @@ va	status	ref_021d	name
 0x003cfdb0	inferred-medium		vostok::render::res_render_output::apply_fullscreen_state
 0x003cfe20	inferred-medium		vostok::render::res_render_output::goto_fullscreen
 0x003cfe80	inferred-medium	0x00274fc2	vostok::render::res_render_output::minimize
+0x00107260	inferred-high		ptmalloc3::public_mALLINFo
+0x000eb5f0	inferred-high		vostok::memory::pthreads_allocator::total_size
+0x000eb630	inferred-high		vostok::memory::pthreads_allocator::allocated_size
+0x000e0e40	inferred-high		vostok::memory::managed_allocator::total_size
+0x000e0e50	inferred-high		vostok::memory::managed_allocator::allocated_size
+0x0010f8c0	inferred-high		vostok::memory::mt_region::take
+0x0010f980	inferred-high		vostok::memory::mt_region::give
+0x0001c6a0	inferred-high		vostok::memory::mt_allocator::malloc_impl

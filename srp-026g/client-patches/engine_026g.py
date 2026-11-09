@@ -66,7 +66,7 @@ at most the slots' bytes). Each argument's word must be in a re-kit role of
 its location, and no two arguments' words may each fit the other's location:
 two parameters given each other's locations are refused (a swap the thunk
 would follow faithfully, which no entry check can see). A result is read
-from abi.tsv's `result` (EAX, AL widened to EAX, EDX:EAX for a 64-bit
+from abi.tsv's `result` (EAX, AL or AX widened to EAX, EDX:EAX for a 64-bit
 return, XMM0 moved to ST0 for a float).
 Anything else (an XMM or byte-register argument, varargs, a range) is
 refused: add the row to the re-kit, or call that function by hand.
@@ -145,7 +145,7 @@ def location(text):
 
 
 def result_of(text):
-    match = re.match(r"\s*(EDX:EAX|EAX|AL|XMM0)\b", text or "")
+    match = re.match(r"\s*(EDX:EAX|EAX|AX|AL|XMM0)\b", text or "")
     return match.group(1) if match else None
 
 
@@ -325,16 +325,18 @@ def function(row, abi=None, inputs=None, vtables=None):
         if len(rows["results"]) != 1:
             raise Refused(f"{name}: returns {ret}, abi.tsv gives {sorted(rows['results']) or 'no'} result")
         result = rows["results"].pop()
-        fits = {"word": ("EAX", "AL"), "u64": ("EDX:EAX",), "float": ("XMM0",)}[kind]
+        fits = {"word": ("EAX", "AX", "AL"), "u64": ("EDX:EAX",), "float": ("XMM0",)}[kind]
         if result not in fits:
             raise Refused(f"{name}: returns {ret}, but {va:#x}'s result is {result}")
     if call != "thunk":
         stack = [f"ESP+{4 * i + 4}" for i in range(len(args) - (call == "thiscall"))]
         if args != (["ECX"] if call == "thiscall" else []) + stack \
-                or cleanup != (0 if call == "cdecl" else 4 * len(stack)) or result not in (None, "EAX", "AL"):
+                or cleanup != (0 if call == "cdecl" else 4 * len(stack)) or result not in (None, "EAX", "AX", "AL"):
             raise Refused(f"{name}: not {call} ({describe_args(params, args)}; pops {cleanup}; {result})")
         if result == "AL" and not re.fullmatch(r"(unsigned )?char", ret.strip()):
             raise Refused(f"{name}: called directly, its result is AL only: the prototype returns unsigned char")
+        if result == "AX" and ret.strip() != "unsigned short":
+            raise Refused(f"{name}: called directly, its result is AX only: the prototype returns unsigned short")
     return {"symbol": name, "va": va, "args": args, "params": params, "ret": ret, "cleanup": cleanup,
             "result": result, "name": sorted(rows["names"])[0] if rows["names"] else "",
             "prototype": row["prototype"].strip(), "call": call, "vostok": vostok}
@@ -515,6 +517,8 @@ def thunk(f):
         lines.append(f"    add esp, {left}                  ; the caller's part of the stack")
     if f["result"] == "AL":
         lines.append("    movzx eax, al")
+    elif f["result"] == "AX":
+        lines.append("    movzx eax, ax")
     elif f["result"] == "XMM0":
         lines += ["    sub esp, 4", "    movss [esp], xmm0", "    fld dword [esp]", "    add esp, 4"]
     lines += [f"    pop {r}" for r in reversed(SAVED)]
@@ -579,7 +583,7 @@ def include_text(fs):
     return "\n".join(lines) + "\n"
 
 
-RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned int": "u32", "float": "f32",
+RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned short": "u16", "unsigned int": "u32", "float": "f32",
               "unsigned long long": "u64"}
 # C parameter names that are Rust keywords: written as raw identifiers.
 RUST_KEYWORDS = {"as", "async", "await", "box", "break", "const", "continue", "crate", "dyn", "else", "enum",

@@ -937,6 +937,7 @@ name = "udp-transport"
 version = "0.1.0"
 dependencies = [
  "log",
+ "srp-validate",
 ]
 
 [[package]]

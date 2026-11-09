@@ -4896,6 +4896,187 @@ medical_skills_on_sway_replay:
     db 0x8b, 0x45, 0x0c, 0xdb, 0x45, 0x0c
     jmp 0x31d72d
 
+; 0xe12bf allocate_region (0xE1120) after memory::initialize (0xE12D0) made each registered allocator's heap in its arena (lea esp,[ebp-58h] / pop edi / pop esi / pop ebx): every arena is where it stays while the game runs; patch 127 reads SKHID_MEMORY_PROFILE here, once: lohook -> memory_profile_on_start
+global memory_profile_on_start
+extern hook_memory_profile_on_start
+memory_profile_on_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_memory_profile_on_start
+    mov edx, memory_profile_on_start_replay
+    cmp eax, 0
+    je memory_profile_on_start_go
+    mov edx, 0xe12c5
+    cmp eax, 1
+    je memory_profile_on_start_go
+    ud2
+memory_profile_on_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+memory_profile_on_start_replay:
+    db 0x8d, 0x65, 0xa8, 0x5f, 0x5e, 0x5b
+    jmp 0xe12c5
+
+; memory_profile.allocated patch 127's gates (memory_profile_026g.asm) after mspace_malloc or mspace_realloc returned: cdecl, the ESP of the game's call and the memory (0 none); the caller keeps every register and pops the two: entry -> memory_profile_on_allocated
+global memory_profile_on_allocated
+extern hook_memory_profile_on_allocated
+memory_profile_on_allocated:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_memory_profile_on_allocated
+    cmp eax, 0
+    je memory_profile_on_allocated_go
+    ud2
+memory_profile_on_allocated_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
+
+; memory_profile.freeing patch 127's gates before mspace_free or mspace_realloc: cdecl, the ESP of the game's call and the memory given back; the caller keeps every register and pops the two: entry -> memory_profile_on_freeing
+global memory_profile_on_freeing
+extern hook_memory_profile_on_freeing
+memory_profile_on_freeing:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_memory_profile_on_freeing
+    cmp eax, 0
+    je memory_profile_on_freeing_go
+    ud2
+memory_profile_on_freeing_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
+
+; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> memory_report_on_close
+global memory_report_on_close
+extern hook_memory_report_on_close_chain
+memory_report_on_close:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_memory_report_on_close_chain
+    mov edx, memory_report_on_close_replay
+    cmp eax, 0
+    je memory_report_on_close_go
+    mov edx, 0x27a796
+    cmp eax, 1
+    je memory_report_on_close_go
+    ud2
+memory_report_on_close_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+memory_report_on_close_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x27a796
+
+; 0xe4d70 out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug_lea_allocator, first time), a fixed arena's heap callback: it logs "out of memory in arena", dumps the statistics and FATALs; EBP the bytes asked when it returns to mspace_malloc (heap_out_of_memory_return): lohook -> memory_profile_on_out_of_memory
+global memory_profile_on_out_of_memory
+extern hook_memory_profile_on_out_of_memory
+memory_profile_on_out_of_memory:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_memory_profile_on_out_of_memory
+    mov edx, memory_profile_on_out_of_memory_replay
+    cmp eax, 0
+    je memory_profile_on_out_of_memory_go
+    mov edx, 0xe4d76
+    cmp eax, 1
+    je memory_profile_on_out_of_memory_go
+    ud2
+memory_profile_on_out_of_memory_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+memory_profile_on_out_of_memory_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0xe4d76
+
 ; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
 global message_check_on_message
 extern hook_message_check_on_message
@@ -5206,45 +5387,6 @@ music_on_sound_tick_replay:
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
-
-; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> packet_recovery_on_close
-global packet_recovery_on_close
-extern hook_packet_recovery_on_close
-packet_recovery_on_close:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_packet_recovery_on_close
-    mov edx, packet_recovery_on_close_replay
-    cmp eax, 0
-    je packet_recovery_on_close_go
-    mov edx, 0x27a796
-    cmp eax, 1
-    je packet_recovery_on_close_go
-    ud2
-packet_recovery_on_close_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-packet_recovery_on_close_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x27a796
 
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull
@@ -5976,6 +6118,48 @@ unplayed_match_on_ready_go:
 unplayed_match_on_ready_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x27aec4
+
+; 0x2d84c0 base_player::detect_usable_object's start (push ebp / mov ebp,esp / and esp,-8): every use scan (a use's start 0x2D8900, its tick 0x2D86AD, the prompt 0x246FCD); ESP+4 the player, +8 the point or 0; returned is its `ret 8` (0x2D8697), EAX the object: lohook -> use_scan_on_detect
+global use_scan_on_detect
+extern hook_use_scan_on_detect
+use_scan_on_detect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_use_scan_on_detect
+    mov edx, use_scan_on_detect_replay
+    cmp eax, 0
+    je use_scan_on_detect_go
+    mov edx, 0x2d84c6
+    cmp eax, 1
+    je use_scan_on_detect_go
+    mov edx, 0x2d8697
+    cmp eax, 2
+    je use_scan_on_detect_go
+    ud2
+use_scan_on_detect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+use_scan_on_detect_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x2d84c6
 
 ; 0x2f1776 translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F): lohook -> weapon_kit_on_query
 global weapon_kit_on_query

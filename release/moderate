@@ -7,6 +7,7 @@
   release/moderate watch [--all] [--every 60]                       suspicious sign-ups and sign-ins, as notices
   release/moderate who <name | address | range>                    accounts like that name (fuzzy), who shares their address
   release/moderate bans                                             banned accounts and addresses
+  release/moderate memory [--account A] [--log-mb 16]              games' memory headroom (patch 126), tightest arena first
   release/moderate ban <name | address | range> <hours | forever> [--reason R] [--with-ip] [--tell]
   release/moderate unban <name | address | range> [--with-ip]
   release/moderate mute <name> <hours | forever> --reason R         the player is told the reason
@@ -23,9 +24,9 @@ not with NO_COLOR; --json: "suspicious"): BANNED IP <address or range>, IP of ba
 or e-mail domain: the same, reversed, one inside the other, or a letter or two apart). Changes
 take --dry-run: the request is shown and not sent, and exit 1 when the page refuses. Python 3, stdlib only (here: nix-shell -p python3).
 
-Reads (registrations, joins, who, bans) run a small read-only Python on the live host: srp.db
+Reads (registrations, joins, who, bans, memory) run a small read-only Python on the live host: srp.db
 opened read-only, and only the last --log-mb MB of logs/srp.log (registrations) and
-logs/login.log (sign-ins), read by seek, under nice/ionice. The live host is small: keep
+logs/login.log (sign-ins), logs/memory.log* (memory), read by seek, under nice/ionice. The live host is small: keep
 --follow at 30 s or more. Changes go through the admin page, POSTed by curl on the jump host
 (the address in SRP_ADMIN_IPS); curl reads the URL and the form from stdin, so neither the token
 nor the secret path is in any command line, and neither is ever printed.
@@ -145,7 +146,82 @@ def remote_main(request):
         )
         out["accounts"] = [account(db, nets, row, now) for row in rows]
         out["nets"] = [ban for _, ban in nets]
+    elif kind == "memory":
+        out["memory"] = memory_summary(read_newest("%s/logs/memory.log" % data, request["window"]), request.get("account"))
     sys.stdout.write(json.dumps(out))
+
+
+def read_newest(path, window):
+    """The whole lines of the last `window` bytes of `path` and its rotated
+    files before it (.1, .2 ...), oldest first. Read by seek."""
+    parts, left, n = [], window, 0
+    while left > 0:
+        name = path if n == 0 else "%s.%d" % (path, n)
+        if not os.path.exists(name):
+            break
+        size = os.stat(name).st_size
+        start = max(0, size - left)
+        with open(name, "rb") as f:
+            f.seek(start)
+            chunk = f.read()
+        if start > 0:
+            chunk = chunk.split(b"\n", 1)[1] if b"\n" in chunk else b""
+        parts.append(chunk)
+        left -= size
+        n += 1
+    return b"".join(reversed(parts)).decode("utf-8", "replace")
+
+
+MEMORY_PART = re.compile(
+    r"^(?P<at>\d{4}-\d\d-\d\dT\S+Z) \[\w+\] (?P<name>.+) \(account (?P<id>\d+)\), match (?P<match>0x[0-9a-f]+), "
+    r"(?P<moment>loaded|ended), part \d+/\d+: (?P<list>.*)$", re.M)
+MEMORY_PROCESS = re.compile(r"^process free (\d+) largest (\d+) video (\d+)$")
+MEMORY_ARENA = re.compile(r'^arena "((?:[^"\\]|\\.)*)" size (\d+) (?:used (\d+) largest (\d+)|counted (\d+)|unknown)$')
+
+
+def memory_summary(text, account=None):
+    """The tightest each arena and the address space came, across the memory
+    reports in `text` (memory.log, client patch 126; one line a part): per
+    arena the reports, the unknown ones, the least left (size - used) and the
+    least largest free block, each with who, when and at which moment; for
+    the process the least largest free region and free total, and the least
+    video budget. `account`: only its reports (name or id)."""
+    arenas, process = {}, {"reports": 0}
+    target = account.casefold() if account else None
+
+    def at(line):
+        return {"who": line["name"], "account": int(line["id"]), "at": line["at"], "match": line["match"],
+                "moment": line["moment"]}
+
+    def least(row, key, value, line):
+        if key not in row or value < row[key]["value"]:
+            row[key] = dict(at(line), value=value)
+
+    for line in MEMORY_PART.finditer(text):
+        if target and target not in (line["id"], line["name"].casefold()):
+            continue
+        for entry in line["list"].split(" | "):
+            p, a = MEMORY_PROCESS.match(entry), MEMORY_ARENA.match(entry)
+            if p:
+                free, largest, video = (int(x) for x in p.groups())
+                process["reports"] += 1
+                least(process, "largest_free", largest, line)
+                least(process, "free", free, line)
+                least(process, "video", video, line)
+            elif a:
+                name = re.sub(r"\\(.)", r"\1", a.group(1))
+                size = int(a.group(2))
+                row = arenas.setdefault(name, {"name": name, "reports": 0, "unknown": 0, "size": 0})
+                row["reports"] += 1
+                row["size"] = max(row["size"], size)
+                used = a.group(3) or a.group(5)
+                if used is None:
+                    row["unknown"] += 1
+                    continue
+                least(row, "left", size - int(used), line)
+                if a.group(4) is not None:
+                    least(row, "largest_free", int(a.group(4)), line)
+    return {"process": process, "arenas": list(arenas.values())}
 
 
 def suspicious(event, nets, banned):
@@ -548,6 +624,38 @@ def who(args):
         emit(args, acc, "%s  %s%s" % (acc["last_ip"] or "-", account_line(acc), same_ip_line(acc)))
 
 
+def mib(n):
+    return "%.1f MiB" % (n / 1048576)
+
+
+def memory_where(least):
+    return "%s (%d) %s %s, match %s" % (least["who"], least["account"], least["at"], least["moment"], least["match"])
+
+
+def memory(args):
+    summary = remote({"kind": "memory", "window": int(args.log_mb * 1024 * 1024), "account": args.account})["memory"]
+    process, arenas = summary["process"], summary["arenas"]
+    if not process["reports"] and not arenas:
+        sys.exit("moderate: no memory reports in the read (clients before patch 126 send none)")
+    if process["reports"]:
+        emit(args, dict(process, kind="process"),
+             "address space  %d reports  least largest free %s: %s  least free %s  least video budget %s" % (
+                 process["reports"], mib(process["largest_free"]["value"]), memory_where(process["largest_free"]),
+                 mib(process["free"]["value"]), mib(process["video"]["value"])))
+    # tightest first: the least left as a share of the arena
+    for row in sorted(arenas, key=lambda r: r["left"]["value"] / r["size"] if "left" in r and r["size"] else 2):
+        text = "%-32s %10s  %d reports" % (row["name"], mib(row["size"]), row["reports"])
+        if row["unknown"]:
+            text += " (%d unknown)" % row["unknown"]
+        if "left" in row:
+            left = row["left"]
+            text += "  least left %s (%.1f %% used): %s" % (
+                mib(left["value"]), 100 - 100 * left["value"] / row["size"] if row["size"] else 0, memory_where(left))
+        if "largest_free" in row:
+            text += "  least largest free %s" % mib(row["largest_free"]["value"])
+        emit(args, dict(row, kind="arena"), text)
+
+
 def bans(args):
     answer = remote({"kind": "bans"})
     for acc in answer["accounts"]:
@@ -769,6 +877,10 @@ def main():
     p.set_defaults(run=who)
     p = commands.add_parser("bans", help="banned accounts and addresses (srp.db)")
     p.set_defaults(run=bans)
+    p = commands.add_parser("memory", help="how close games came to each arena's end and the address space's (memory.log)")
+    p.add_argument("--account", help="only this account's reports (name or id)")
+    p.add_argument("--log-mb", type=float, default=16, help="how much of the log's end to read (default 16)")
+    p.set_defaults(run=memory)
 
     def change(name, text):
         p = commands.add_parser(name, help=text)

@@ -325,8 +325,9 @@ pub enum Reason {
     /// A player effect is not in the one form a game writes
     /// (`world::Effect::read`).
     TailEffect(EffectFault),
-    /// A hit-effect record is not the template's (a bad bool or a raw root
-    /// emitter).
+    /// A hit-effect record is not the template's (a bad bool, a raw root
+    /// emitter, or a non-zero root-emitter registry index -- the native
+    /// loader would read an unbounded table and ref-count through it).
     TailHitEffect {
         at: usize,
     },

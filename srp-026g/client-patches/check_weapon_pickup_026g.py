@@ -2485,6 +2485,7 @@ WEAPON_DRAW, WEAPON_DRAWN, WEAPON_SKIPPED = 0x2477C8, 0x2477CE, 0x2477DF
 ICONS_SITE, ICONS_AFTER = 0x23AA10, 0x23AA16
 BUILDER_END, BUILDER_AFTER = 0x2421B0, 0x2421B5
 RAY_TEST, REMOVE_MODEL, TRANSLATE = 0x75E20, 0x21F40, 0x1FF0F0
+USE_GATHER, USE_FREE = 0x2DC390, 0xEB5B0     # the use scan's usable objects' query and its frees
 USE = 1 << 21
 IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
 NAME_KEY, NAME = b"st_wpn_svd_name", "SVD"
@@ -2502,6 +2503,52 @@ class Prompt(Pick):
         self.wall, self.removed = False, []
         for at in (RAY_TEST, REMOVE_MODEL, TRANSLATE):
             self.emu.hook_add(UC_HOOK_CODE, self.fixtures, begin=at, end=at)
+        # The physics world: ray_test by its address; the use scan's ray_query
+        # (vtable+4Ch) and what it asks of a hit by stubs. use_hit: None, no
+        # usable object in the use ray; "usable" or "refusing", one whose
+        # can_use says yes or no.
+        self.use_hit = None
+        self.world, table, self.use_stubs = self.blk(0x10), self.blk(0x100), self.blk(0x40)
+        self.emu.mem_write(self.use_stubs, b"\xCC" * 0x40)
+        self.word(self.world, table)
+        self.word(table + 0x4C, self.use_stubs)
+        for at in (self.use_stubs, self.use_stubs + 0x10, self.use_stubs + 0x20, self.use_stubs + 0x30,
+                   USE_GATHER, USE_FREE):
+            self.emu.hook_add(UC_HOOK_CODE, self.use_scan, begin=at, end=at)
+
+    def use_scan(self, emu, address, *_):
+        sp, s = emu.reg_read(UC_X86_REG_ESP), self.use_stubs
+        if address == s:                            # ray_query(world; origin, direction, length, hits, group, mask)
+            if self.use_hit is not None:
+                hit, obj, obj_table, owner, owner_table = (self.blk(0x28), self.blk(0x10), self.blk(0x10),
+                                                           self.blk(0x10), self.blk(0x10))
+                self.usable, usable_table = self.blk(0x10), self.blk(0x40)
+                self.word(hit + 0x1C, obj)
+                emu.mem_write(hit, struct.pack("<3f", 0., 0.4, 0.8))   # by the gun, 0.6 m below the eye
+                self.word(obj, obj_table)
+                self.word(obj_table, s + 0x10)
+                self.word(obj + 0xC, owner)
+                self.word(owner, owner_table)
+                self.word(owner_table + 4, s + 0x20)
+                self.word(self.usable, usable_table)
+                self.word(usable_table + 0x30, s + 0x30)
+                hits = self.read(sp + 16)
+                self.word(hits, hit)
+                self.word(hits + 4, hit + 0x28)
+            self.ret(24)
+        elif address == s + 0x10:                   # the hit's collision group: usable
+            self.ret(0, 0x80)
+        elif address == s + 0x20:                   # its collision geometry
+            self.ret(0, self.blk(0x20))
+        elif address == USE_GATHER:                 # ESI the list: the usable object
+            slot = self.blk(4)
+            self.word(slot, self.usable)
+            self.word(emu.reg_read(UC_X86_REG_ESI), slot)
+            self.ret(12)
+        elif address == s + 0x30:                   # its can_use
+            self.ret(4, 1 if self.use_hit == "usable" else 0)
+        else:                                       # a free
+            self.ret(16)
 
     def fixtures(self, emu, address, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -2525,7 +2572,7 @@ class Prompt(Pick):
         super().setup(double_handed)
         p = self.picker
         self.emu.mem_write(PLACES_AT, b"\x08")
-        self.word(p + 0x350, 0x5050)                    # its physics world
+        self.word(p + 0x350, self.world)                # its physics world
         self.eye([0., 0., 1.], [0., 1.0, 0.])
         # The donor's gun on its ragdoll at (0, 1, 1): its model's instance in the scene (what
         # patch 78's hiding takes out), without its resource (replaced as the body went to ragdoll):
@@ -2672,6 +2719,21 @@ def stage2b(patched):
         assert len(sights(g)) == 1 and sights(g)[0].startswith(sight), (case, sights(g))
     print("ok aimed at but refused, the prompt says why: a second rifle, one gun only (modifier 64), no gun in "
           "hands (a battery), a weapon switch under way, already taken; Use does nothing")
+    # What the game's own Use takes goes first (patch 23's use scan): a battery
+    # by the body's gun, no prompt and Use the game's; one that refuses (its
+    # can_use no) leaves the gun's pickup as it was.
+    g = Prompt(patched)
+    g.setup()
+    g.use_hit = "usable"
+    assert g.draw()
+    assert g.hud() == [] and g.build(USE) == USE and sights(g) == [], (g.invokes(), sights(g))
+    g = Prompt(patched)
+    g.setup()
+    g.use_hit = "refusing"
+    assert g.draw() and g.hud() == [("st_weapon_pick_up", NAME)], g.invokes()
+    assert g.build(USE) == command(PLACE)
+    print("ok a usable object in the game's use ray (a battery by the gun) goes first: no prompt, Use the game's; "
+          "one that refuses leaves the pickup offered")
     g = Prompt(patched)
     g.setup()
     g.word(g.picker + 0x324, DIED + 60_000)
@@ -2797,7 +2859,7 @@ class Death(Prompt):
     def viewer(self, p):
         """`p` the local player, looking from (0, 1, 0) along z at the gun drawn at (0, 1, 1)."""
         self.word(CLIENT + 4, p)
-        self.word(p + 0x350, 0x5050)
+        self.word(p + 0x350, self.world)
         m = list(IDENTITY)
         m[8:11], m[12:15] = [0., 0., 1.], [0., 1.0, 0.]
         self.emu.mem_write(p + 0x44C, struct.pack("<16f", *m))
