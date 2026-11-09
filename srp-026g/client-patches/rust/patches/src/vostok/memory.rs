@@ -17,7 +17,9 @@
 //! which can loop for ever on a chunk being split. The walk here reads
 //! only memory `VirtualQuery` says is committed and readable, inside the
 //! arena (which the engine never frees while it runs), and stops at the
-//! first word that is no chunk; such an arena is told as unknown.
+//! first word that is no chunk; such an arena is told as unknown. A walk
+//! that ends cleanly can still be slightly stale (another thread may move
+//! the top or split a chunk while it runs).
 
 use super::Thread;
 use super::world::read;

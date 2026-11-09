@@ -75,9 +75,14 @@ is in `client_patch.md` section 3.76.
 - **A report lost or refused**: nothing retries it; 0xE0's resend covers a lost datagram while
   the link lives. A part the server cannot parse (another kind, a bad body) falls through to the
   chunk parser and is ignored like any malformed chunk. A part of another match is not logged.
-- **An old server** reads the carrier as a chunk whose offset (FFFFh) is past its total, and
-  ignores it (`sent what is no message`). The empty 0xE0 is the leave, so play is not affected,
-  and the release order does not matter.
+- **An old server** ignores a carrier that is alone in its datagram: it reads it as a chunk
+  whose offset (FFFFh) is past its total (`sent what is no message`). In a datagram with the
+  multi bit set, though, it cannot measure the carrier. It reads the E0 as an empty leave and
+  the carrier's first byte as message id FFh, so the whole datagram is refused unacked, together
+  with whatever rode with it (DF hash reports, DB/DC). The carrier is resent until acked, so this
+  repeats for the rest of the match. **The server must ship in the same release as patch 126, or
+  earlier, never after.** A server with this change measures the carrier with the codec's own
+  `srp_validate::report::carrier_len` (`udp-transport`'s `carrier_len` calls it).
 - **Replays**: the carriers are datagrams like any other. A server replay of a recording logs
   them again under its own logger. They change nothing a match computes, so there is no
   `simulation_changes.tsv` row.
@@ -85,6 +90,8 @@ is in `client_patch.md` section 3.76.
   thread may be changing (internal_mallinfo can loop for ever on a chunk being split). So the
   report calls none of them. It reads only words inside each arena (committed and readable by
   `VirtualQuery`, never freed while the game runs), walks at most 2^20 chunks, and reports a
-  walk that meets something that is not a chunk as unknown.
+  walk that meets something that is not a chunk as unknown. A walk that ends cleanly can still be
+  slightly stale: the top and its size are read before the walk, and another thread may move the
+  top or split a chunk while it runs. The figures are close, not exact.
 - **Cost**: two `VirtualQuery` walks and the heap walks, twice a match, on the game's thread,
   both at moments that are a scene switch anyway. Not measured in a game.

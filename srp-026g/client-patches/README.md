@@ -4914,7 +4914,7 @@ budget, and every arena of the engine's list with its name, size and use: a doug
 chunk by chunk (used, largest free block), the managed resources' and the multithreaded region's
 counts, unknown otherwise. Nothing of the engine's is called: its size queries walk heaps other
 threads use without a lock; ours reads only inside each arena, checked readable, and gives up on a
-torn walk. The snapshot is written to `srp_patches.log` (a line for the process, one an arena) and
+torn walk (a clean one can be slightly stale). The snapshot is written to `srp_patches.log` (a line for the process, one an arena) and
 sent in the generic client-report carrier (`srp_validate::report`: 0xE0, prefix
 `ff ff ff ff ff ff 03 00`, the match id, the kind, part and parts), all parts at once or none,
 through patch 97's one 0xE0 path (`Connection::tell`).
@@ -4924,7 +4924,10 @@ through patch 97's one 0xE0 path (`Connection::tell`).
 free <bytes> largest <bytes> video <bytes> | arena "render" size <bytes> used <bytes> largest <bytes> | ...`.
 `release/moderate memory` lists each arena, tightest first, with its least room left and least largest
 free block, and the address space's least largest free region, with who and when. An older server takes
-a carrier for a chunk whose offset is past its total and ignores it.
+a carrier alone in its datagram for a chunk whose offset is past its total and ignores it, but it
+refuses a whole multi datagram that carries one (it cannot measure the carrier): the server ships in
+the same release as the patch or earlier. The transport measures the carrier with the codec's own
+`srp_validate::report::carrier_len`.
 
 Nothing a match computes. Checked with `srp-validate`'s tests, the patch crate's tests and Clippy, and
 the match server's test. Not run in a game.

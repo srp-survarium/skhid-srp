@@ -21,6 +21,24 @@ const HEADER: usize = MAGIC.len() + 4 + 3;
 pub const MAX_SIZE: usize = 480;
 const _: () = assert!(HEADER + memory::MAX_BODY <= MAX_SIZE);
 
+/// The bytes of the carrier that starts `bytes`, more of a datagram
+/// possibly after it: what the transport needs to find the next message
+/// of a joined datagram (`udp-transport`'s `carrier_len`). `None`: no
+/// carrier of a known kind starts there, or it is cut short. Only its
+/// length: [`Carrier::parse`] reads the rest.
+pub fn carrier_len(bytes: &[u8]) -> Option<usize> {
+    let (header, body) = bytes.split_at_checked(HEADER)?;
+    if header.get(..MAGIC.len())? != MAGIC {
+        return None;
+    }
+    let len = match header.get(MAGIC.len().checked_add(4)?)? {
+        1 => memory::body_len(body)?,
+        _ => return None,
+    };
+    let len = HEADER.checked_add(len)?;
+    (bytes.len() >= len).then_some(len)
+}
+
 /// A whole report, as the client gathers it.
 pub enum Report {
     Memory(memory::Report),
@@ -75,6 +93,9 @@ impl Carrier {
     /// Exactly a carrier: the magic, a kind, `part < parts` within the
     /// kind's most, and its body.
     pub fn parse(bytes: &[u8]) -> Option<Carrier> {
+        if carrier_len(bytes)? != bytes.len() {
+            return None;
+        }
         let (header, body) = bytes.split_at_checked(HEADER)?;
         let (magic, header) = header.split_at_checked(MAGIC.len())?;
         if magic != MAGIC {
@@ -132,6 +153,14 @@ mod tests {
             assert_eq!(Carrier::parse(&longer), None);
         }
         assert_eq!(keys, [(1, 0, 0), (1, 0, 1)]);
+        // its length from its start alone, whatever follows it; none cut short
+        for part in 0..report.parts() {
+            let (bytes, len) = report.part(1, part).unwrap();
+            let mut joined = bytes[..len].to_vec();
+            joined.extend([0xe1, 0xff, 0xff]);
+            assert_eq!(carrier_len(&joined), Some(len));
+            assert!((0..len).all(|cut| carrier_len(&bytes[..cut]).is_none()));
+        }
         let ended = super::tests::report(0, Moment::Ended);
         let (bytes, len) = ended.part(1, 0).unwrap();
         assert_eq!(Carrier::parse(&bytes[..len]).unwrap().key(), (1, 1, 0));
