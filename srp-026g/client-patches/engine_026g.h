@@ -43,6 +43,7 @@ struct game_project_resource;
 struct game_scene;
 struct game_world;
 struct game_world_ui;
+struct gfx_mouse_event;
 struct gfx_movie;
 struct gfx_object;
 struct gfx_object_interface;
@@ -146,7 +147,7 @@ void engine_register_cook(void *cook);
 unsigned int engine_movie_invoke(struct gfx_movie *movie, const char *method, struct gfx_value *result, const struct gfx_value *args, unsigned int count);
 
 /* 0x513580 Scaleform::GFx::MovieImpl::HandleEvent: movie ECX, event ESP+4; pops 4; EAX */
-unsigned int engine_movie_handle_event(struct gfx_movie *movie, const void *event);
+unsigned int engine_movie_handle_event(struct gfx_movie *movie, const struct gfx_mouse_event *event);
 
 /* 0x2375c0 survarium::game_world_ui::show_parametrized_message: key ECX, ui ESP+4, first ESP+8, second ESP+12, third ESP+16; pops 16 */
 void engine_show_message(const char *key, void *ui, unsigned int first, unsigned int second, unsigned int third);

@@ -922,6 +922,14 @@ survarium::game_world_ui	replay_shown	0x2DD	u8	the replay controls shown: show_r
 scaleform::gfx_value	value_high	0xC	u32	a Number's (type 5) high dword: its double is +8..+0Fh (update_play_speed's movsd [ecx+8], 0x233E4D)
 survarium::core_load_args	mode	0x8	u32	game_world_core::deserialize's mode as the 0xE8 handler pushed it for an unpacked world (push 1 at 0x27C0C3; by the site's ESP at 0x27C0D0: the core, the world's reader, the mode, 8): 1 a network world, nothing cleared; 0 the replay's user seek (0x1EE377), which first clears the core's pending lists (0x2D53C0 on +12280h, 0x2D3DF0 on +0, both teams' input lists)
 survarium::core_load_raw_args	mode	0x4	u32	as core_load_args, for a raw world (push 1 at 0x27C107; by the site's ESP at 0x27C10A: the reader, the mode, 8)
+scaleform::gfx_mouse_event	kind	0x0	u32	GFx::MouseEvent as 0x2AF610 fills it for HandleEvent: 3 Event::MouseUp
+scaleform::gfx_mouse_event	modifiers	0x4	u32	its key modifiers
+scaleform::gfx_mouse_event	x	0x8	f32	its x
+scaleform::gfx_mouse_event	y	0xC	f32	its y
+scaleform::gfx_mouse_event	scroll	0x10	f32	the wheel
+scaleform::gfx_mouse_event	button	0x14	u32	which button
+scaleform::gfx_mouse_event	mouse	0x18	u32	which mouse
+scaleform::gfx_mouse_event	size	0x1C	size	GFx::MouseEvent's 7 dwords (0x2AF610)
 scaleform::gfx_movie	mouse_buttons	0x1204	u32	MovieImpl: mouse 0's buttons held (CurButtonsState; Movie::GetMouseState 0x513BA0, ProcessInput 0x51D76E)
 survarium::match_place	kit_count	0x57	u8	the place's kits' count (initialize_match's loop end, 0x2362B7)
 survarium::match_place	kit	0x0	obj<survarium::match_kit>	kit 0 of the place: kit n at +n*704h from here (initialize_match 0x2359E2; the kits' own fields below are from this base)

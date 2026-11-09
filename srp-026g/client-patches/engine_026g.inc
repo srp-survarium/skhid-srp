@@ -38,7 +38,7 @@ extern engine_register_cook
 ; unsigned int engine_movie_invoke(struct gfx_movie *movie, const char *method, struct gfx_value *result, const struct gfx_value *args, unsigned int count)
 ; 0x511600 Scaleform::GFx::Movie::Invoke: movie ECX, method ESP+4, result ESP+8, args ESP+12, count ESP+16; pops 16; AL
 extern engine_movie_invoke
-; unsigned int engine_movie_handle_event(struct gfx_movie *movie, const void *event)
+; unsigned int engine_movie_handle_event(struct gfx_movie *movie, const struct gfx_mouse_event *event)
 ; 0x513580 Scaleform::GFx::MovieImpl::HandleEvent: movie ECX, event ESP+4; pops 4; EAX
 extern engine_movie_handle_event
 ; void engine_show_message(const char *key, void *ui, unsigned int first, unsigned int second, unsigned int third)
