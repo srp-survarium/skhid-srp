@@ -7,8 +7,9 @@
 //! Above the trees, the levels that give the points ([`levels`]): drawn from the
 //! server's own table (`session::v026g::account::level_start`), not the build,
 //! with what a match is now (`Results::per_match`) and so how many matches and
-//! hours of play a level is. On each skill, how many players took it
-//! (`GameAccounts::skill_takers`), counted when the page is asked for.
+//! hours of play a level is (also on the section, for the planner of the built
+//! `skills.js`: the build's level in matches and hours). On each skill, how many
+//! players took it (`GameAccounts::skill_takers`), counted when the page is asked for.
 
 use std::fmt::Write;
 #[cfg(test)]
@@ -45,7 +46,11 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
         .map(|&(_, content_type, bytes)| (content_type, bytes))
 }
 
-/// Where the built body's trees start: the levels go before them.
+/// Where the built body's planner starts, its bar right above the trees: the levels go
+/// before it.
+const PLANNER: &str = "<div class=\"skill-plan\"";
+/// Where the built body's trees start.
+#[cfg(test)]
 const TREES: &str = "<div class=\"skill-trees\"";
 
 /// Where a skill of the built body starts, its id next; its disc follows.
@@ -70,8 +75,8 @@ pub(crate) fn body(lang: Lang, now: &Now) -> String {
         Lang::Uk => include_str!("../skills/skills.uk.html"),
     };
     let at = built
-        .find(TREES)
-        .expect("the built skills page has its trees");
+        .find(PLANNER)
+        .expect("the built skills page has its planner");
     format!(
         "{}{}{}",
         &built[..at],
@@ -179,10 +184,17 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
         Lang::En => "Experience gives levels, and every level gives one skill point.",
         Lang::Uk => "Досвід дає рівні, а кожен рівень — одне очко навичок.",
     };
+    // For the skills' planner (skills.js): the formula, the last level and what a match is now.
+    let play = per_match.map_or(String::new(), |per_match| {
+        format!(
+            " data-match-experience={} data-match-seconds={}",
+            per_match.experience, per_match.seconds
+        )
+    });
     let mut out = String::new();
     let _ = write!(
         out,
-        "<section class=levels><h2>{}</h2><div class=levels-body><div class=levels-text>\
+        "<section class=levels data-first={first} data-step={step} data-max={MAX_LEVEL}{play}><h2>{}</h2><div class=levels-body><div class=levels-text>\
          <p>{rule}</p>\
          <p class=levels-formula>{exp}<sub>L</sub> <span>= {exp}<sub>L−1</sub> + {}, \
          {exp}<sub>1</sub> = {}</span></p>\
@@ -337,8 +349,9 @@ mod tests {
     fn levels_go_before_the_trees_in_both_languages() {
         for lang in [Lang::En, Lang::Uk] {
             let page = body(lang, &Now::default());
-            let levels = page.find("<section class=levels>").expect("the levels");
-            assert!(levels < page.find(TREES).expect("the trees"));
+            let levels = page.find("<section class=levels ").expect("the levels");
+            let planner = page.find(PLANNER).expect("the planner");
+            assert!(levels < planner && planner < page.find(TREES).expect("the trees"));
             assert!(page.contains(&thousands(lang, level_start(MAX_LEVEL))));
             assert!(!page.contains("≈"), "no matches without a match to go by");
         }
@@ -356,6 +369,10 @@ mod tests {
             },
         );
         assert!(page.contains("<td>1,287,500</td><td>≈ 1,288</td><td>≈ 258</td>"));
+        assert!(page.contains(
+            "<section class=levels data-first=500 data-step=250 data-max=100 \
+             data-match-experience=1000 data-match-seconds=720>"
+        ));
         assert!(page.contains("<th>1</th><td>500</td><td>500</td><td>≈ 1</td><td>≈ 0.1</td>"));
         assert_eq!(hours(Lang::Uk, 25_000, per_match), "5,0");
         assert_eq!(thousands(Lang::En, 1_287_500), "1,287,500");
