@@ -22,7 +22,7 @@ To play directly without checking for updates, run bash Skhid.sh, or run
 bash play_skhid.sh from game/binaries/x86.
 
 First launch creates a Wine prefix and installs DXVK, Wine Gecko and the font
-Calibri (a 60 MB download, which the game's text needs) silently. Later
+Calibri (a 27 MB download, which the game's text needs) silently. Later
 launches reuse them. Settings: ~/.config/skhid/user.cfg (or
 $XDG_CONFIG_HOME/skhid/user.cfg).
 Select an English keyboard layout before starting to avoid text-input issues.

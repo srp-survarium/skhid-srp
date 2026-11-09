@@ -2617,15 +2617,14 @@ st_srp_medical_331_description	Korvaa toissijaisen aseen paikan ylimääräisell
 st_srp_medical_331_name	Tarviketasku
 st_srp_medical_332_description	Lisäys käsien ja jalkojen enimmäisterveyteen:
 st_srp_medical_332_name	Vahvat luut
-st_srp_medical_333_description	Kipulääkkeen vaikuttaessa ympäristön äänet ovat hiljaisempia ja vihollisten äänet (paitsi laukaukset) kovempia:
+st_srp_medical_333_description	Kipulääkkeen vaikuttaessa tähtäimen heilunnan vähennys:
 st_srp_medical_333_name	Keskittyminen
 st_srp_medical_342_description	Liittolaisilta saadun vahingon vähennys:
 st_srp_medical_342_name	Aseveljet
 st_srp_medical_seconds	 s
-st_srp_medicine_ambient_sounds	Ympäristön äänet
 st_srp_medicine_crouched_healing	Parannus kyykyssä
-st_srp_medicine_enemy_sounds	Vihollisten äänet
 st_srp_medicine_hit_slow	Hidastus luodeista
+st_srp_medicine_sight_sway	Tähtäimen heilunta
 st_srp_medicine_sprint_stamina	Sprintin kestävyys
 st_srp_melee_knockback	Perälyönnin työntö
 st_srp_mode_blackout	Suojalaite: sähkökatko

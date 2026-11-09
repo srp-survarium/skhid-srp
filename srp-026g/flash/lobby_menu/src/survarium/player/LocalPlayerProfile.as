@@ -13,7 +13,6 @@ package survarium.player
    import flash.external.*;
    import flash.text.TextField;
    import flash.text.TextFormat;
-   import flash.utils.getDefinitionByName;
    import flash.utils.Timer;
    import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
@@ -63,8 +62,6 @@ package survarium.player
       public var checkbox_autorepair:Button;
       
       public var ammoContainer:MovieClip;
-      
-      public var buyPremium:MovieClip;
       
       private var _weightIndicator:WeightIndicator;
 
@@ -253,20 +250,7 @@ package survarium.player
       {
          super();
          me = this;
-         var rendererPremium:Class = getDefinitionByName("ProfileBuyPremium") as Class;
-         buyPremium = new rendererPremium();
          _playerPaperDoll = profileItems as ILocalPaperDoll;
-         addChild(this.buyPremium);
-         this.buyPremium.visible = false;
-         this.buyPremium.x = 17;
-         this.buyPremium.y = 113;
-         var rendererBack:Class = getDefinitionByName("BackBlack") as Class;
-         var bb:MovieClip = new rendererBack();
-         bb.y = -10;
-         bb.x = -10;
-         this.buyPremium.addChildAt(bb,0);
-         bb.height = this.height - this.buyPremium.y - bb.y - 4;
-         bb.width = this.width - this.buyPremium.x - bb.x - 4;
       }
       
       override public function get height() : Number

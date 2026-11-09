@@ -154,21 +154,50 @@ install_dxvk() {
     export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;d3d11,dxgi=n,b"
 }
 
+# The game's UI asks Windows for the font Calibri for some text (item
+# levels); without it Wine draws boxes. It comes, once, from Microsoft's
+# PowerPoint Viewer 2007 on the mscorefonts2 mirror: winetricks' calibri verb
+# downloads it from archive.org, which now breaks off or crawls.
+# The game is playable without it, so a failure warns and the game starts.
 install_calibri() {
-    # The game's UI asks Windows for the font Calibri for some text (item
-    # levels); without it Wine draws boxes. Winetricks takes it, once, from
-    # Microsoft's PowerPoint Viewer (60 MB, kept in its download cache).
-    # The game is playable without it, so a failure warns and the game starts.
-    local font="$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf"
-    if [[ ! -f "$font" ]]; then
-        require_command winetricks
-        echo 'Installing the font Calibri (60 MB download, first launch only)...'
-        winetricks -q calibri >>"$log" 2>&1 || true
-        [[ -f "$font" ]] || echo "Warning: the font Calibri could not be installed (see $log)." \
-            'Some UI text, such as the item levels on item cards, may show as boxes.' \
-            'The next start tries again.' >&2
-    fi
+    [[ -f "$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf" ]] && return
+    calibri_from_viewer || echo "Warning: the font Calibri could not be installed (see $log)." \
+        'Some UI text, such as the item levels on item cards, may show as boxes.' \
+        'The next start tries again.' >&2
 }
+
+calibri_from_viewer() (
+    # The same file as VIEWER_URL and VIEWER_SHA256 in play_skhid_mac.sh: a bump changes both.
+    local url=https://downloads.sourceforge.net/project/mscorefonts2/cabs/PowerPointViewer.exe
+    local checksum=c4e753548d3092ffd7dd3849105e0a26d9b5a1afe46e6e667fe7c6887893701f
+    local temporary name lower tool fonts="$WINEPREFIX/drive_c/windows/Fonts"
+    # A tool that is missing is a failure like any other: the font is optional.
+    for tool in curl sha256sum cabextract; do
+        command -v "$tool" >/dev/null || { echo "Calibri needs $tool, which is not installed." >>"$log"; exit 1; }
+    done
+    echo 'Installing the font Calibri (27 MB download, first launch only)...'
+    temporary=$(mktemp -d "$WINEPREFIX/drive_c/skhid-calibri.XXXXXX")
+    trap 'rm -rf -- "$temporary"' EXIT
+    # Called in an || list, where set -e does not apply: each step exits itself.
+    curl --fail --location --proto '=https' --proto-redir '=https' \
+        --connect-timeout 15 --max-time 300 --retry 2 --output "$temporary/viewer.exe" "$url" >>"$log" 2>&1 \
+        || exit 1
+    printf '%s  %s\n' "$checksum" "$temporary/viewer.exe" | sha256sum -c - >>"$log" 2>&1 || exit 1
+    cabextract -q -d "$temporary" -F ppviewer.cab "$temporary/viewer.exe" >>"$log" 2>&1 || exit 1
+    cabextract -q -d "$temporary" -F 'CALIBRI*.TTF' "$temporary/ppviewer.cab" >>"$log" 2>&1 || exit 1
+    printf 'REGEDIT4\r\n\r\n[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts]\r\n' \
+        > "$temporary/calibri.reg"
+    for name in CALIBRI:Calibri CALIBRIB:'Calibri Bold' CALIBRII:'Calibri Italic' CALIBRIZ:'Calibri Bold Italic'; do
+        lower=$(echo "${name%%:*}" | tr '[:upper:]' '[:lower:]').ttf
+        cp "$temporary/${name%%:*}.TTF" "$fonts/$lower.part" || exit 1
+        printf '"%s (TrueType)"="%s"\r\n' "${name#*:}" "$lower" >> "$temporary/calibri.reg"
+    done
+    "$WINE" regedit /S "C:\\${temporary##*/}\\calibri.reg" >>"$log" 2>&1 || exit 1
+    # calibri.ttf last: it is what says the font is in place.
+    for lower in calibrib calibrii calibriz calibri; do
+        mv "$fonts/$lower.ttf.part" "$fonts/$lower.ttf" || exit 1
+    done
+)
 
 install_gecko() (
     local version=2.47.4 checksum=26cecc47706b091908f7f814bddb074c61beb8063318e9efc5a7f789857793d6

@@ -2617,15 +2617,14 @@ st_srp_medical_331_description	Nahradí slot pro sekundární zbraň další zá
 st_srp_medical_331_name	Zásobovací kapsa
 st_srp_medical_332_description	Bonus k maximálnímu zdraví paží a nohou:
 st_srp_medical_332_name	Pevné kosti
-st_srp_medical_333_description	Během účinku analgetika jsou zvuky okolí tišší a zvuky nepřátel (kromě výstřelů) hlasitější o:
+st_srp_medical_333_description	Během účinku analgetika snížení chvění mířidel:
 st_srp_medical_333_name	Soustředění
 st_srp_medical_342_description	Snížení poškození od spojenců:
 st_srp_medical_342_name	Bratři ve zbrani
 st_srp_medical_seconds	 s
-st_srp_medicine_ambient_sounds	Zvuky okolí
 st_srp_medicine_crouched_healing	Léčení v přikrčení
-st_srp_medicine_enemy_sounds	Zvuky nepřátel
 st_srp_medicine_hit_slow	Zpomalení od střel
+st_srp_medicine_sight_sway	Chvění mířidel
 st_srp_medicine_sprint_stamina	Výdrž na sprint
 st_srp_melee_knockback	Odhození pažbou
 st_srp_mode_blackout	Ochranné zařízení: výpadek

@@ -250,18 +250,6 @@ pub const MAX_POCKETS: usize = POCKET_SLOTS.len();
 /// Final units in one supply pocket, including medicine bonuses.
 pub const MAX_POCKET_UNITS: u32 = 5;
 
-/// Cap equipped supply stacks without limiting stored items or ammunition:
-/// a pocket holds what the largest pocket ([`MAX_POCKET_UNITS`]) holds of
-/// the item ([`item_params::PocketShare::units_in`]; the server does not
-/// know the kit's pocket size, the exe sets it).
-pub fn equipped_units(slot: u8, dict_id: u16, units: u32) -> u32 {
-    if POCKET_SLOTS.contains(&slot) {
-        units.min(pocket_share(dict_id).units_in(MAX_POCKET_UNITS))
-    } else {
-        units
-    }
-}
-
 /// What one unit of the item takes of a pocket (its config's,
 /// [`item_params::PocketShare`]); one unit for an item with no config.
 pub fn pocket_share(dict_id: u16) -> item_params::PocketShare {
@@ -670,13 +658,7 @@ pub fn pockets(loadout: &Loadout) -> (u32, u32) {
 /// [`pockets`], its items having `own` modifications besides their
 /// defaults, `(id, defect)`.
 pub fn pockets_with(loadout: &Loadout, own: &[(u32, bool)]) -> (u32, u32) {
-    let mut modifications: Vec<(u32, bool)> = loadout
-        .items
-        .iter()
-        .flat_map(|item| default_modifications(item.dict_id))
-        .collect();
-    modifications.extend_from_slice(own);
-    let layout = KitLayout::new(&modifications, &[0.0; skills::MODIFIERS]);
+    let layout = KitLayout::of_loadout(loadout, own);
     (layout.pockets, layout.pocket_size)
 }
 
@@ -716,8 +698,9 @@ const FIRST_WEAPON_SLOT: usize = 7;
 const SECOND_WEAPON_SLOT: u8 = 10;
 
 /// What a kit's worn items and its skills open of its slots, the lobby's
-/// rules for them (the server keeps them only when the skills change:
-/// [`narrowed`]).
+/// rules for them, which the server holds every kit to ([`KitLayout::kept`]:
+/// a skill or gear taken off takes back what it opened, and no later request
+/// puts it back).
 ///
 /// - Pockets: the player's `pocket_slots_count` and `pocket_slot_size` (1
 ///   and 1, `default.player`) plus what the worn items' modifications (their
@@ -737,7 +720,7 @@ const SECOND_WEAPON_SLOT: u8 = 10;
 ///   double-handed one beside another without Terminator
 ///   (`use_two_double_handed_weapons`; `LocalPaperDoll`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct KitLayout {
+pub struct KitLayout {
     pockets: u32,
     pocket_size: u32,
     extra_medicine: bool,
@@ -747,7 +730,7 @@ struct KitLayout {
 impl KitLayout {
     /// The layout of a kit whose worn items have `modifications`, with the
     /// skills' `modifiers` ([`skills::SkillsTree::modifiers`]).
-    fn new(modifications: &[(u32, bool)], modifiers: &[f32; skills::MODIFIERS]) -> KitLayout {
+    pub fn new(modifications: &[(u32, bool)], modifiers: &[f32; skills::MODIFIERS]) -> KitLayout {
         use skills::slot_modifier::*;
         let total = |base: u32, parameter, skill: usize| {
             (base as f32 + added_by(modifications, parameter) + modifiers[skill]).max(0.0) as u32
@@ -775,6 +758,40 @@ impl KitLayout {
                 modifiers[USE_TWO_DOUBLE_HANDED_WEAPONS],
             ),
         }
+    }
+
+    /// The layout of a kit wearing `loadout`, its items having `own`
+    /// modifications besides their defaults, `(id, defect)`, with no skills.
+    pub fn of_loadout(loadout: &Loadout, own: &[(u32, bool)]) -> KitLayout {
+        let mut modifications: Vec<(u32, bool)> = loadout
+            .items
+            .iter()
+            .flat_map(|item| default_modifications(item.dict_id))
+            .collect();
+        modifications.extend_from_slice(own);
+        KitLayout::new(&modifications, &[0.0; skills::MODIFIERS])
+    }
+
+    /// `slots` (each slot's dict id and units) as a kit of this layout holds
+    /// them: a pocket at most what it holds of its item, nothing in a pocket
+    /// it does not open, no second weapon its carry rule forbids. A slot comes
+    /// back with the units it keeps, or empty.
+    pub fn kept<const SLOTS: usize>(
+        &self,
+        slots: &[Option<(u16, u32)>; SLOTS],
+    ) -> [Option<(u16, u32)>; SLOTS] {
+        let first_weapon = slots
+            .get(FIRST_WEAPON_SLOT)
+            .copied()
+            .flatten()
+            .map(|(dict_id, _)| dict_id);
+        std::array::from_fn(|slot| {
+            let (dict_id, units) = slots[slot]?;
+            let kept = self
+                .limit(slot as u8, dict_id, first_weapon)
+                .map_or(units, |limit| units.min(limit));
+            (kept > 0).then_some((dict_id, kept))
+        })
     }
 
     /// The most units of `dict_id` slot `slot` may hold, beside
@@ -805,42 +822,6 @@ impl KitLayout {
             CarryRule::OneDoubleHanded | CarryRule::TwoDoubleHanded => None,
         }
     }
-}
-
-/// A kit's slots after its skills' modifiers go from `before` to `after`
-/// ([`skills::SkillsTree::modifiers`]): what the layout of `after`
-/// ([`KitLayout`]) no longer allows and that of `before` did is taken off,
-/// the kit's other limits being the lobby's, which the server does not keep.
-/// `slots` holds each slot's dict id and units, `modifications` are its worn
-/// items' (their defaults and their own). A slot comes back with the units
-/// it keeps, or empty.
-pub fn narrowed<const SLOTS: usize>(
-    slots: &[Option<(u16, u32)>; SLOTS],
-    modifications: &[(u32, bool)],
-    before: &[f32; skills::MODIFIERS],
-    after: &[f32; skills::MODIFIERS],
-) -> [Option<(u16, u32)>; SLOTS] {
-    let (before, after) = (
-        KitLayout::new(modifications, before),
-        KitLayout::new(modifications, after),
-    );
-    let first_weapon = slots
-        .get(FIRST_WEAPON_SLOT)
-        .copied()
-        .flatten()
-        .map(|(dict_id, _)| dict_id);
-    std::array::from_fn(|slot| {
-        let (dict_id, units) = slots[slot]?;
-        let slot = slot as u8;
-        let kept = match (
-            before.limit(slot, dict_id, first_weapon),
-            after.limit(slot, dict_id, first_weapon),
-        ) {
-            (before, Some(limit)) if before.is_none_or(|before| limit < before) => units.min(limit),
-            _ => units,
-        };
-        (kept > 0).then_some((dict_id, kept))
-    })
 }
 
 #[cfg(test)]

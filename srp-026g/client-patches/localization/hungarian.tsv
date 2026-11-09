@@ -2617,15 +2617,14 @@ st_srp_medical_331_description	A másodlagos fegyver helyét egy további felsze
 st_srp_medical_331_name	Felszerelészseb
 st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza:
 st_srp_medical_332_name	Erős csontok
-st_srp_medical_333_description	Fájdalomcsillapító hatása alatt a környezet hangjai halkabbak, az ellenség hangjai (a lövések kivételével) hangosabbak:
+st_srp_medical_333_description	Fájdalomcsillapító hatása alatt az irányzék kilengésének csökkenése:
 st_srp_medical_333_name	Összpontosítás
 st_srp_medical_342_description	A szövetségesektől kapott sebzés csökkenése:
 st_srp_medical_342_name	Fegyvertársak
 st_srp_medical_seconds	 mp
-st_srp_medicine_ambient_sounds	Környezet hangjai
 st_srp_medicine_crouched_healing	Gyógyulás guggolva
-st_srp_medicine_enemy_sounds	Ellenség hangjai
 st_srp_medicine_hit_slow	Lassítás golyóktól
+st_srp_medicine_sight_sway	Irányzék kilengése
 st_srp_medicine_sprint_stamina	Sprint állóképesség
 st_srp_melee_knockback	Tusütés lökőereje
 st_srp_mode_blackout	Védelmi berendezés: áramszünet
