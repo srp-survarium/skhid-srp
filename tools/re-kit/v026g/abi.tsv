@@ -899,6 +899,7 @@ va	name	source	ret_cleanup	result
 0x001f28e0	survarium::player::on_player_death	manual	4	none; remove_alive(this, 1), then the inventory, +33Eh := 1, +33Dh := 0
 0x001f3480	survarium::player::update_camera	manual	4	
 0x001f37a0	survarium::player::set_head_visibility	manual	4	
+0x001f3740	survarium::player::set_effect_presenter	manual	0	void; the old holder's presenter cleared (vfn +4), the new one's set_player (vfn +20h) to ESI, and on a change the effect player's presenter (+390h) and its effects presented again (0x2DE560)
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	manual	20	
 0x001f6d50	survarium::game_world::register_cooks	manual	0	
@@ -1044,7 +1045,7 @@ va	name	source	ret_cleanup	result
 0x00265980	survarium::lobby_character::update_decal_preview	manual	0	
 0x00267a40	survarium::timelimit_rule::timelimit_rule	manual	4	EAX: this; the vtable 0xA06E8C (RTTI timelimit_rule) stored at 0x267A61 over the core's 0xA06E2C
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
-0x0026cb80	survarium::lobby_menu::on_keyboard_action	manual	12	first, for every key in the lobby, invokes root.has_active_window (0x26CBF9, its name 0xA07404, through 0x511600) on the lobby's movie; LobbyMenu.has_active_window reads stage.focus (the access violation at 0x77200B of 2026-10-22, patch 52); Esc then root.close_active_window (0xA0741C)
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	manual	12	first, for every key in the lobby, invokes root.has_active_window (0x26CBF9, its name 0xA07404, through 0x511600) on the lobby's movie; LobbyMenu.has_active_window reads stage.focus (the access violation at 0x77200B of 2026-10-22, patch 52); Esc then root.close_active_window (0xA0741C); the answer, read once at 0x26CC06, decides Esc: true calls root.close_active_window (results up, [this+313Ah]: at 0x26CC32, al 0; else 0x26CE32, al 1), false calls 0x1EDBC0 (the game's menu) at 0x26CE56; the Esc key is not handed to the movie; nothing is asked unless the game state is 0 or 4 (0x26CBB6..0x26CBC8: not in a match or its loading)
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path
 0x0026d090	survarium::lobby_menu::on_mouse_move	manual	16	AL: Observed constant1 on local return path
 0x0026d130	survarium::lobby_menu::mouse_ray	manual	4	the normalized direction at [EDI], the eye at [entry ESP+4]
@@ -1320,8 +1321,6 @@ va	name	source	ret_cleanup	result
 0x00318360	survarium::timelimit_rule_core::rule_completed	manual	4	
 0x003190c0	survarium::damage_zone_core::damage_zone_core	manual	0	
 0x003193f0	survarium::damage_zone_core::serialize	manual	8	
-0x003193f0	survarium::damage_zone_core::serialize	manual	8	
-0x00319470	survarium::damage_zone_core::deserialize	manual	12	
 0x00319470	survarium::damage_zone_core::deserialize	manual	12	
 0x00319500	survarium::damage_zone_core::load	manual	4	
 0x0031ad70	survarium::generic_anomaly_core::~generic_anomaly_core	manual		
@@ -1927,7 +1926,6 @@ va	name	source	ret_cleanup	result
 0x00317f10	survarium::timelimit_rule_core::tick	manual	12	
 0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value
 0x000f6c00	vostok::configs::binary_config_value::value_exists	manual	0	AL: 1 when the key is there
-0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x00511600	Scaleform::GFx::Movie::Invoke	manual	16	AL: invoked
 0x002375c0	survarium::game_world_ui::show_parametrized_message	manual	16	
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
@@ -2163,6 +2161,8 @@ va	name	source	ret_cleanup	result
 0x002f8970	survarium::static_collision::remove	manual	4	void; vtable+4: its body (+4Ch) out of the physics world, freed, +4Ch 0
 0x002de7f0	survarium::game_effect_player::stop	manual	0	EAX the first effect it stopped or 0; every effect of the list (+24h, each +4Ch the next) stopped, +28h 0
 0x002de090	survarium::game_effect_player::play	manual	20	void; plays the effect (0x2DE100 with EDI and the five arguments)
+0x002de560	survarium::game_effect_player::represent	manual	4	void; its presenter (+38h) cleared (vfn +4), then each effect it plays (+2Ch on) presented again at its time
+0x002de350	survarium::game_effect_player::remove	manual	0	void; the node playing the effect (walked from +2Ch, each +4Ch the next) set to state 2 (+44h), its stop sent (0x2DE3A0), the list swept (0x2DE750); damage_zone_core 0x31A255 stops its inside effect so
 0x00285fa0	survarium::render_visual::insert	manual	4	none
 0x00285fe0	survarium::render_visual::remove	manual	4	none
 0x00291720	survarium::object_light::load	manual	12	none
@@ -2376,6 +2376,10 @@ va	name	source	ret_cleanup	result
 0x00397040	vostok::animation::mixing::n_ary_tree_serializer::save_floats	manual	4	none; writes the floats (+1014h..+1018h) as decode_floats_impl 0x3A9720 reads them: a 1-bit indexed form, the 10-bit count, then the 32-bit values, or the unique count, the sorted unique values (stlp_std::unique 0x397810, ucomiss equality) and each value's position (stlp_std::find 0x397880): a NaN equals none, so its position is the unique count
 0x00397810	stlp_std::unique<float *>	manual	0	EAX = the new end; equality by ucomiss (a NaN is kept each time)
 0x00397880	stlp_std::find<float *,float>	manual	0	EAX = the first element equal (ucomiss) to [ESI], or EDI (the end) for none: always the end for a NaN
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	manual	8	the damage in place: 0x332890 first; then, when the hit has an owner (hit+20h) and the victim player ([[model+3B8h]]+3B0h) has player+2E4h above 0 (inside a damage zone), D x max(0, 1 + M41 incoming_weapon_damage_in_anomaly) (apply_modifier 0x33286A); hit_by_type 0x32A01B calls it before the protectors and armour
+0x00332890	survarium::body_part_parameters::apply_anomaly_damage_modifier	manual	4	the damage in place: a hit whose type (+1Ch) is in table 0x92075C (4..7: toxic, radiation, fire, shock) is D x max(0, 1 + M8 anomaly_damage) (0x3328E2), a percentage before armour
+0x002d5bc0	survarium::player_params_modifiers_container::apply_modifiers	manual	12	XMM0: S = the sum over the pairs {index, weight} of (the kit's float + its list's nodes) x weight; B + S when the first pair's index is additive (table 0x927E08, 0x2D5BD4), else B x max(0, 1 + S)
+0x00312590	survarium::artefact_lifebone_core::regeneration_modifier	manual	8	the frame {rate, delay, limit} in place, from a passive record: rate (r + [+1Ch]) x [+20h]; delay (d as unsigned + [+24h] x 1000) x [+28h], fistp truncated, its low 32 bits; limit (l + [+2Ch]) x [+30h]
 0x002d21e0	survarium::game_world_core::tick_events	manual	12	none; ends the step at the next 50 ms boundary, the next input's time (its node +1BCh) or the limit (entry ESP+12), whichever is first (0x2D2264..0x2D22B9), and runs atomic_tick (0x2D1E20, its only caller) only for a step of 1 ms or more: a 0 ms step is skipped (mov eax,edi / sub eax,[ebx+18FC0h] / je, 0x2D22D6..0x2D22DE), so no delegate list (assign_physics_transform's speed, the physics) ever sees dt 0
 0x0007b7f0	vostok::physics::round_up	manual	0	none; [ESI] := int(v x 1000 + 0.5) x 0.001 (x87 products; the int from 0x1E800, a conversion by the float's bits): v to 0.001. A NaN, an infinity or a value past 2^31/1000 gives a small finite value, not v (Unicorn: 0FFC00000h -> -0.002, 7FC00000h and +inf -> 0.001, -inf -> -0.001, 2^31 -> 0.5); player_step's end rounds +40h..+48h and +2C710h..+2C718h with it (0x7C79F..0x7C7D2), not the position +0B0h
 0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	manual	4	[entry ESP+4] := the walk vector +20h, or, when the walk is not under 1e-5 squared (0x9CBA48) and the supporting normal +2C710h's up part is below [21E51D8h], the walk less its part into the normal's horizontal direction (0x7AC50) when the walk goes into it. That direction is normalised as 1/sqrt(|n_h|^2) with no zero test (0x7B97C..0x7B983): a vertical normal (0, +-1, 0) gives inf x 0 = NaN, but the following comiss 0,dot / jbe (0x7B9DD) takes the unordered branch and returns the walk as it is, so the NaN goes no further
@@ -2396,3 +2400,52 @@ va	name	source	ret_cleanup	result
 0x00305070	survarium::booby_trap_core::can_use	manual	4	AL: the trap can be used by the user
 0x00246ed0	[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'	manual	4	EAX = the out matrix (sub ecx,14h / jmp 0x300A20: its ret 4)
 0x002d84c0	survarium::base_player::detect_usable_object	manual	8	EAX: the usable object Use would take (the first in the ray whose can_use says yes), else the first usable object met (for the prompt), else 0
+0x000fe5e0	vostok::setup_floating_point_control	manual	0	none; behind the option at 0xA86BD0 (0x145C0): _controlfp 53-bit precision and round to nearest, MXCSR rounding cleared, _controlfp(_DN_FLUSH), then MXCSR |= 8000h (FTZ): denormals flushed on its thread
+0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	manual	12	none; erases [*first, *last) and moves the tail down, releasing each overwritten element (count at +0D0h); it walks the tail until the source equals end, so a first at end (std::find not finding) walks past the list (exe+0x14EE8D)
+0x00246380	survarium::inventory_item::cast_artefact	manual	0	EAX = ECX (an identity cast: vfn +54h/+58h of the artefact vtables 0xA05F44, 0xA05FE4, 0xA06084)
+0x002fca50	survarium::inventory::on_holder_death	manual	0	none; +178h set: +174h vfn +4 (0); then each of the 23 slots' item vfn +20h (degrade_per_death); removes nothing: artefacts stay in their containers
+0x002ffc40	survarium::inventory_item::degrade_per_death	manual	0	none; not a stack (config +22Ah 0): condition (+260h, f32) -= min(+234h, condition) in SSE, so a denormal is zeroed under DAZ/FTZ
+0x002ffc80	survarium::inventory_item::degrade_per_use	manual	0	none; as degrade_per_death with +238h
+0x0021be50	survarium::network_client::on_match_disconnected	manual	4	none; the match link's disconnect callback (connect_to_match 0x21BFE6 installs it through the link's vtable +14h): it clears that callback (+14h with an empty functor), then calls this->close_current_match(the reason) through the vtable +58h (0x21BE9A)
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	manual	4	none; the connection's state +154h := 3, every seq 0FFh, the trackers and both channel trees reset, then a tail call of the disconnect callback +0B0h with the reason, when one is set (0x3FDFD7..0x3FDFF3)
+0x002717e0	survarium::lobby_client::discard_playing_order	manual	8	none; sends 31h to the lobby: the order u32 (lobby client +1E57A8h), then 0FFh for a true bool, 0 for false (neg / sbb, 0x27182F)
+0x00219960	survarium::network_client::lobby_client	manual	0	EAX = ECX + 1E0h, the lobby client inside the network client (vtable 0x9FFB14 +3Ch); a plain ret, so a caller's pushed argument stays for the next call (0x27A935, 0x27C753)
+0x0027b4b0	survarium::network_client::unload	manual	0	none; vtable 0x9FFB14 +28h, called by game_world::unload (0x1F8B9F): releases +4, +8 and the match core +1F1C40h, +1F1C44h := 0FFh, the message state +1F1C64h := 0
+0x0027aed0	survarium::network_client::query_players	manual	4	none; process_static_match_info's (0x27BEA9, after switch_to_level_loading): builds the level's requests and calls game_world::load (0x27B09E) with on_match_ready (0x27B021) as the load's callback
+0x0027b110	survarium::network_client::disconnect	manual	0	none; vtable 0x9FFB14 +14h, the main menu's logoff (0x1FF736, then switch_to_login): when the time rule's state +1F1C60h is not 0, clears it, unloads the world (0x1F8B40), clears the match link's disconnect callback and disconnects it; then the lobby client's 0x26F8C0, whatever the state
+0x001ed170	survarium::game::switch_to_game_world	manual	0	none; EAX the game: the game world (game+18h) the active scene (game+539Ch; the old one's on_deactivate, vtable +4, then the world's on_activate); set_game_project's (0x1F8626), so the lobby menu's on_deactivate hides the loading screen there
+0x002203a0	survarium::lobby_menu::show_loading_screen	manual	0	none; AL the flag, EDX the lobby menu: invokes the lobby movie's root.show_loading_screen; shown by switch_to_level_loading (0x220433), hidden only by lobby_menu::on_deactivate (0x21D54A)
+0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	manual	4	
+0x003cfe20	vostok::render::res_render_output::goto_fullscreen	manual	0	
+0x003cfe80	vostok::render::res_render_output::minimize	manual	0	
+0x001ed430	survarium::game::on_fullscreen_alttab	manual	0	
+0x001ed450	survarium::game::on_alttab	manual	0	
+0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	manual	0	EAX: the first element equal to *EDI, or ESI (last) when none is (four-way unrolled, as stlport __find)
+0x002010e0	survarium::game_options::process_key_input	manual	4	AL: 1 the key wait ends here (Esc, DIK 1, at once 0x2010F2; a key without a conflict, given by assign_binding 0x201384), the caller then calls finish_binding or its copy; 0 it goes on (a key with no name, 0x20110F) or a conflict's message ended it (root.show_reassign_message, +10h shown, +3Ch 48h: 0x20133D..0x20134F)
+0x002015a0	survarium::game_options::finish_binding	manual	0	none; the key wait's end: root.end_keybind on the menu movie (+0Ch, 0x2015B8), the cursor movie +10h back in +30h's scene (0x2015C3), +3Ch 48h (0x2015C8)
+0x002015e0	survarium::game_options::on_keyboard_action	manual	12	AL: 1. Awaiting a key (+3Ch not 48h) a press goes to process_key_input and, when it ends the wait, finish_binding (0x201605); never forwarded to the movie
+0x002016d0	survarium::game_options::on_mouse_key_action	manual	12	AL: 1. Awaiting a key a press goes to process_key_input and ends as finish_binding does, inline (0x2016FB..0x201722)
+0x002017a0	survarium::game_options::on_mouse_move	manual	16	AL: 1. Awaiting a key a wheel turn goes to process_key_input (0x159 up, 0x15A down) and ends as finish_binding does, inline (0x2017D9..0x201800)
+0x0031d6e0	survarium::breath_vibration_calculator::tick	manual	8	none: m_phase_time (+40h), m_vibration (+44h, +48h) and m_amplitude (+4Ch) of the calculator updated; the dispersion through apply_modifier 0x2D5AE0 index 61 (breath_vibration, k 1, 0x31D722) drives the amplitude it eases to (1 + params+18h x it) and the phase speed (params+1Ch x it), params the holder's +268h
+0x00013660	vostok::engine::engine_world::engine_world	manual	16	EAX: the engine_world. Registers the arenas engine (64 KiB), render (render_allocator, default 224 MiB, a value under 224 raised to 224; 0x13A86..0x13AF4), network, sound and, with an editor, 320 MiB more, then memory::allocate_region 0xE1120 (0x13BF0)
+0x000141b0	vostok::command_line::key::is_set_as_number<unsigned int>	manual	4	AL: 1 when the key is on the command line as a number (its float truncated, fistp in round-toward-zero, written to the u32 at entry ESP+4), 0 when not (the u32 untouched: callers store their default there first)
+0x000ddf20	vostok::command_line::key::is_set_as_number	manual	0	AL: 1 when the key's state (+224h) is 3, a number: its float (+20Ch) written to [EDI] when EDI is not 0; 0 when absent (1); another state asserts (0x113450) and gives 0. State 0 parses the command line first (0xDF020)
+0x000e0f20	vostok::memory::preinitialize	manual	0	registers the arenas C runtime library, process heap, shared strings, global multithreaded (mt_allocator, 0xE0FF0..0xE1029), then with the resources manager (byte [0xA71F77]) cook allocator, resources helper allocator (rh_allocator: default 8 MiB stored in bytes in the u32 0x141B0 writes to (0xE1099), a value in MiB shl 14h; 0xE108F..0xE10D7) and resources links allocator
+0x000e1120	vostok::memory::allocate_region	manual	0	every registered arena's size summed, platform::allocate_arenas 0xE9580 (0xE11F9) reserves them and sizes the resource arenas from the address space left, then registers "resources (managed) allocator" and "resources (unmanaged) allocator"
+0x000e21c0	vostok::memory::register_allocator	manual	0	appends the 18h-byte record at EDI to the arenas' list; a full list asserts (0x113450)
+0x000ff200	dlmalloc::internal_mallinfo	manual	0	EAX: the struct mallinfo it filled (EAX on entry; arena, ordblks, ..., +14h usmblks max_footprint, +1Ch uordblks footprint - free, +20h fordblks, +24h keepcost topsize); walks every chunk of every segment with no lock (0xFF260..0xFF2C0)
+0x00101190	dlmalloc::init_user_mstate	manual	0	EAX: the malloc_state, 8 bytes into the base (its chunk 1E0h, head 1E3h); footprint = max_footprint = seg.size = the capacity (0x1011E8..0x1011F4), top after it with topsize capacity - 1E0h - 28h (0x101251..0x10125D)
+0x00101280	dlmalloc::create_mspace_with_base	manual	0	EAX: the mspace (its malloc_state), 0 when the capacity is too small or too large; cdecl (base, capacity u64 at ESP+8, the out-of-memory callback ESP+10h kept at +1D4h, its parameter ESP+14h at +1D8h)
+0x00107260	ptmalloc3::public_mALLINFo	manual	0	EDI: the mallinfo summed over ptmalloc3's arenas from the main one 0x1BFAC90 (each mstate at +20h, the next at +14h) with internal_mallinfo 0xFF200, no arena lock
+0x000eb5f0	vostok::memory::pthreads_allocator::total_size	manual	0	EAX: [0A2B5254h], the multithreaded region's size (the global multithreaded arena's vtable 0x9E6000 +8h)
+0x000eb630	vostok::memory::pthreads_allocator::allocated_size	manual	0	EAX: ptmalloc3's uordblks (0x107260) less 210h; 0 while [1F1D61Bh] is set or nothing is taken of the region ([0A2B5254h] - [0A2B5258h] 0)
+0x000e0e40	vostok::memory::managed_allocator::total_size	manual	0	EAX: [ECX+30h], its bytes (vtable 0x9E602C +8h)
+0x000e0e50	vostok::memory::managed_allocator::allocated_size	manual	0	EAX: [ECX+30h] - [ECX+28h], its bytes less the free ones (vtable 0x9E602C +0Ch)
+0x0010f8c0	vostok::memory::mt_region::take	manual	0	EAX: pages of the multithreaded region (ECX bytes, rounded to 64 KiB) from its first-fit free list [0A2B5240h] of {prev, next, size}, its free bytes [0A2B5258h] less them; -1 when none fits (after the callback [0A2B524Ch]); ptmalloc3's MORECORE 0x106A90 calls it under the spin lock 0x1BFAEBC
+0x0010f980	vostok::memory::mt_region::give	manual		puts ESI (EDI bytes) back in the region's free list, coalescing with its neighbours; [0A2B5258h] += EDI (0x10F985); 0x106AD0 calls it under the spin lock 0x1BFAEBC
+0x000e0930	vostok::threading::spawn_internal	manual	0	EAX: the new thread's id. CreateThread (0xE094A) with the stack size, the entry 0xE0910, the params and flags 0 (the size committed, no STACK_SIZE_PARAM_IS_A_RESERVATION); the handle closed (0xE0A4E). A failed CreateThread logs GetLastError's message (FormatMessageA, 0x111ED0)
+0x000e3770	vostok::threading::spawn	manual	0	EAX: the new thread's id. Copies the function into its thread_entry_params on the stack, calls spawn_internal 0xE0930 with a fixed 8 MiB stack (`mov edx,800000h` at 0xE37BA; patch 128: 2 MiB) and yields until the new thread has taken them (params +30h). Every engine thread: splash, sound, network, logic, hdd, dvd, res_man, res_cook, process termination, editor, test watcher and the task pool's task threads
+0x000fc090	vostok::tasks::thread_pool::thread_pool	manual	12	the task pool (0xA86680) made for its most task threads, 2 x min(32, cores), computed by its caller (0xE425E..0xE4272, in 0xE3EE0)
+0x000fc350	vostok::tasks::thread_pool::initialize	manual	4	spawns the pool's task threads, "task #%d" (0x9E8A7C), through threading::spawn (0xFC4F1)
+0x0027f780	survarium::network_client::draw_match_stats	manual	4	network_client vtable 0x9FFB14 slot 6Ch; called by game::tick (0x1EC94C, the logic thread) only when game+5870h is set, i.e. -net_stats on the command line (key 0xA9CBE0, read in game::game 0x1E9B84). Its frame is 5ab554h bytes (5.8 MiB, __chkstk 0x429F20 at 0x27F78B): above patch 128's 2 MiB stack
+0x00429f20	_chkstk	manual	0	ESP lowered by EAX, each 4 KiB page of it touched from the top down (the CRT's _alloca_probe; `mov eax,<frame>` / `call 0x429F20` in a prologue: 1754 of them, 6 above 256 KiB)

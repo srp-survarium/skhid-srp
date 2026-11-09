@@ -319,7 +319,10 @@ def build_movies(rows, tree, archive_of, sha_of, game, tools, work, world, cache
         if archive not in archive_of:
             raise Problem(f'{at}: movie {name}: its original is in {archive} (movie.json), which is neither the '
                           'stock resources.db nor a base row')
-        key = Cache.key('movie', name, sha_of[archive], tree_digest(movie_dir), programs, stand_in, sys.version)
+        # The repository's tables movie.json's `data` makes classes of (flash_tree.data_sources).
+        sources = files_digest(sorted(tree / path for path in spec.get('data', {}).values()))
+        key = Cache.key('movie', name, sha_of[archive], tree_digest(movie_dir), sources, programs, stand_in,
+                        sys.version)
         made = cache.get(key)
         if made:
             data = made[0][spec['movie']]
@@ -751,6 +754,29 @@ def lamp_check(world, cache):
     print(f'lamps: every binding of {len(projects)} made project(s) names its own model or light')
 
 
+KEEPER_EDIT = 'artefact-keeper-1.json'
+KEEPER_POOL = b'srp/artefact_keeper/pool'
+
+
+def keeper_check(rows, base_files, world):
+    """With Keeper's edit list in the manifest, every map project (every client_project but the
+    lobby scenes') has its hidden pool (the anomaly `srp/artefact_keeper/pool`): the list names
+    its maps one by one, so a map added later without it would give Keepers nothing there."""
+    if ('edit', KEEPER_EDIT) not in {(kind, name) for kind, name, *_ in rows}:
+        return
+    projects = sorted(p for p in set(base_files) | set(world.bytes)
+                      if p.startswith('projects/') and p.endswith('/client_project')
+                      and not p.startswith('projects/lobby_scene/'))
+    missing = [p for p in projects if KEEPER_POOL not in world.bytes.get(p, b'')]
+    if missing:
+        print()
+        for project in missing:
+            print(f'KEEPER: {project}: no {KEEPER_POOL.decode()} (add the map to {KEEPER_EDIT}: '
+                  'srp-026g/scripts/artefact-keeper/make_edit.py)')
+        raise Problem(f'{len(missing)} map project(s) without the Keeper pool: no patch made')
+    print(f'keeper: every one of {len(projects)} map project(s) has its pool')
+
+
 def pierce_check(rows, tree, base, base_files, game, world):
     """Every pierce line (an add_entry with `pierce_line`, content_edit.pierce_lines) is what the final
     files make: a row after the list's that retunes a weapon's or a round's piercing, a material's
@@ -788,7 +814,6 @@ def pierce_check(rows, tree, base, base_files, game, world):
                                 f'({name}: a row after it changes what it is computed from)')
         checked += len(want)
     if problems:
-        print()
         for problem in problems:
             print(f'PIERCE: {problem}')
         raise Problem(f'{len(problems)} pierce line(s) the final data does not make: no patch made')
@@ -890,6 +915,8 @@ def main():
             lamp_check(world, cache)
         with timed('the pierce lines'):
             pierce_check(rows, args.tree, base, base_files, game, world)
+        with timed('the Keeper pool'):
+            keeper_check(rows, base_files, world)
         with timed('the clothing fit'):
             clothing_check(base, base_files, game, world)
 

@@ -472,12 +472,13 @@ Seen live three times on 2026-10-12 (0x5825bf7, 0x1f793b8, 0x5cc8cc52): every cl
 - **Not lost:** a match somebody plays, whatever the one who waits cannot get (the playing client has no upload, or its uploads are refused); a match nobody waits to get into.
 - **Starting the player alone from the last world kept is not done.** The clock would have to go back to that world's time (§1.3: ticks are one byte), and the world is the one just before every game stopped; when the cause is in the world (§23) the player meets it again.
 - **The end, for a game that never had a time.** PROVEN:
-  - 0xFD (`instant_disconnect(4)`, 0x3FDF0A) ends as `close_current_match(4)`, and the jump table at 0x27A958 has the function's return for 4: nothing is closed. (0: the world is ended; 1 and 5, "connection lost" and "expired … message": the lobby is told `31` and the world ended; 2, "by initiator": 0xE0 first; 3: the world ended and the results shown, 0x1F96F0 and 0x29AAF0.) The link is closed by the transport before that, so the game stays on the screen it had, with no match link.
+  - 0xFD (`instant_disconnect(4)`, 0x3FDF0A) ends as `close_current_match(4)`, and the jump table at 0x27A958 has the function's return for 4: nothing is closed. (0: the world is ended; 1 and 5, "connection lost" and "expired … message": the lobby is told `31` and the world ended; 2, "by initiator": 0xE0 first; 3: the world ended and the results shown, 0x1F96F0 and 0x29AAF0.) The link is closed by the transport before that, so the game stays on the screen it had, with no match link. (Since patch 119, README, the entry for 4 is reason 1's `31` and world end, 0x27A930.)
   - `pvp_match_core`'s init (0x2D57F0) clears the world core with `0x2D0550(0, 1)`: core time and world time 50 ms, last resync 0. So for a game that took no 0xE5 the tick byte 0 is 0 ms (`(1 + sdiff8(0, 1)) × 50`).
   - `leave_match` 0x2D18A0 first tests `time <= last resync` (0x2D18B9) and returns 6 ("older than last resync") with nothing done.
   - The 0xEA handler calls `close_current_match(3)` for the local index whatever `leave_match` returned (0x27C720..0x27C76F).
 - So the server sends such a game 0xEA with its own index and **tick 0** (`farewell_tick`), again while unacked, where it used to close the link.
 - Not seen with a real client: the results screen of a game whose world never ran.
+- **Correction (2026-11-07, read in the exe; client_patch.md section 3.72):** close_current_match first returns, for every reason, while the network client's +1F1C60h (the time rule's state kept for the camera) is 0 (0x27A7A4..0x27A7AA), and that is so until a game has played its first tick after its first world. So the farewell does not end such a game's world: its 0xEA handler tells the lobby `31 .. FF` itself (0x27C74E..0x27C75A), then `close_current_match(3)` returns at the guard. The game stays where it was, with its link closed later by the server. The same holds for 0xFD, FA and a timeout there. Patch 119 (README) makes 0xFD end the world of a game past the guard, as reason 1; patch 120 (README, client_patch.md section 3.74) ends a match never played: a loaded game's farewell gets the world's end and the results, a loading one's 0xEA is skipped (no core) and the later link close ends it once loaded.
 
 ## 25. A player who leaves by its own will gives its place up (added 2026-10-12)
 
@@ -803,3 +804,30 @@ saved worlds unless tagged.
   27 entries inside 550 ms; the server already redoes a resync world past the ring. 0.46c2's 125
   entries go with its longer history. So the ring is not what made the rollbacks of PR #1246 wrong.
   LIKELY (from the counts; the ring's own eviction was not read).
+
+## 36. A refused world is never relayed; the games that wait for one get an end (added 2026-11-07)
+
+`game/refused_worlds.rs`: `UploadStanding`, `Refusers`, `Game::remove`, `Removal`,
+`no_world_for`, `check_initial_worlds`, `no_world_to_give`; `Game::possible_sources`,
+`Game::sources`. Tests: `tests/refused_worlds.rs`. The rules and the table of exits are in
+`packet-validation.md`, "A refused world is never relayed".
+
+- A world the server's check refuses goes to nobody; the next request goes to the game with the
+  fewest refused uploads. Nothing is decided by time: by the uploads judged and the games that
+  can still give a world.
+- A late joiner (or a resynced player, or one back in the match) whose every possible source
+  gave a refused world while it waited is removed (a joiner's admission fails first: the lobby
+  frees its seat). A match whose only initial worlds were refused is not made
+  (`MatchEnd::NotMade`) once no other human place can give one: refused too, given up, or not
+  there (or loaded with none) past `Timing::unstarted`; a loading game is waited for. A game
+  whose own refusals (another upload of its round passed, or its hash for the tick disagrees
+  with the majority) come three in a row is resynced from a world that passed, and removed after
+  three more. A world every game has (rev50 rec026g_20261106-211841_03439962: all 174 refusals
+  so) counts against nobody.
+- **Every removal** (these, the invalid inputs, the restore limit) is `Game::remove`: 0xFD and
+  the leave. Today 0xFD ends in `close_current_match(4)`, which closes nothing (§24): the game
+  stays on its screen with no link. The exe patch on `fix/kick-returns-to-lobby` makes reason 4
+  do what reason 1 does (the lobby told `31`, the world ended): a kicked game returns to the
+  lobby as from a lost connection. Not played.
+- While every game a joiner could take a world from had its last world refused, the match takes
+  no joiner (`Closed::NoWorld`, a room's `J;-1;8`), until an upload passes.

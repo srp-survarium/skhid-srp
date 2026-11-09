@@ -116,3 +116,21 @@ upgradable item and press buy").
 - **A drag** of the donor out of its slot (the press moved) gives no menu. Once the result shows,
   the slots are hidden: nothing.
 - Code: `MessageCraftItem.onSlotDown`, `onSlotClick`; `InventoryList.showCraftSlotMenu`.
+
+## Always a success; the window
+
+The owner's rule: 2026-11-08 ("the combining modification changes drop too fast 100% on the same
+level, 50 and 25% for levels lower"; "it should be 100, 95, 90"; then "i would honestly also make
+it 100% always", "remove the text completely", "it is just two weapons, silver and buttons").
+
+- **Success:** always: an upgrade adds a modification whatever the difference in modifications.
+  Before: 100 / 50 / 25 % (the gold upgrade's, which silver-only.md made the one upgrade).
+- **The window before an upgrade:** the two slots, the price (centred, silver) and the buttons. No
+  description, no chances, no "Silver" column: the panel under the slots is hidden and the window
+  closes up (`MessageCraftItem.removeChancePanel`).
+- **The window after it:** the upgraded item and its new modification, with Continue and Exit; no
+  result text ("item upgraded successfully": always so, the owner, 2026-11-08) and no panel for it
+  (`fillCraftedItem`).
+- **Price:** unchanged (the gold price in silver, silver-only.md).
+- Code: `items_rules::craft` adds the modification it rolls; `craft.options`' chances are not read.
+  0x9B (the exe reads it) says 100 % in every row (`Craft::tables`); the window ignores it.

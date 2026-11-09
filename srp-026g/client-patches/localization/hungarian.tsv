@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Raktár
 st_aniso_filtering_option	Anizotrop szűrés
 st_anomaly_damage_corr_perc_name	Anomáliasebzés
-st_anomaly_skills_label	Az Erdő ismerete.
+st_anomaly_skills_label	Az Erdő ismerete
 st_antialiasing_option	Élsimítás
 st_antitoxin_description	Összetett gyógyszer a szervezetben lévő mérgek semlegesítésére. A legjobb hatásért a káros behatás előtt vedd be. 
 st_antitoxin_name	Antitoxin
@@ -594,6 +594,8 @@ st_change_quest_label	Feladat cseréje
 st_change_weapon_speed_description	Fegyverváltás sebessége:
 st_change_weapon_speed_name	Ügyes kezek
 st_character	Karakter
+st_character_decals_1_10_name	Vaddisznóvadász
+st_character_decals_1_11_name	Szarvasvadász
 st_character_decals_1_12_name	Jarilo
 st_character_decals_1_1_name	Irodalmár
 st_character_decals_1_2_name	Alfa osztag
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veterán
 st_character_decals_1_6_name	Mester
 st_character_decals_1_7_name	Legenda
 st_character_decals_1_8_name	Szárnyas huszárok
+st_character_decals_1_9_name	Zenész
 st_character_decals_2_1_name	Guberáló újonc
 st_character_decals_2_2_name	Guberáló veterán
 st_character_decals_2_3_name	Feketepiaci újonc
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Lettország címere
 st_character_decals_5_7_name	Litvánia címere
 st_character_decals_5_8_name	Észtország címere
 st_character_decals_5_9_name	Moldova címere
+st_character_decals_7_10_name	Gyufaszálak
+st_character_decals_7_23_name	Szív
+st_character_decals_7_24_name	Ijesztő tök
 st_character_decals_7_27_name	Lóheradísz
 st_character_decals_7_28_name	Patkó
+st_character_decals_7_30_name	Postagalamb
+st_character_decals_7_31_name	Győzelem
+st_character_decals_7_35_name	Véres kéz
+st_character_decals_7_37_name	Őrző
 st_character_decals_7_9_name	Gyógynövények
 st_character_decals_generic_desc	A mellények és nadrágok kinézetablakában matricákkal változtathatod meg a megjelenésüket.
 st_characteristics_label	A játékos statisztikái
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Nem adható hozzá több játékos. A kláncsapat 
 st_current_value	\nJelenlegi érték:
 st_cz_75_description	Cseh öntöltő pisztoly, lőszer: 9x19. A hidegháború egyik legtöbbet másolt pisztolya.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Játssz mindennap, és az <highlight>első három</highlight> győzelemért <highlight>x2</highlight> tapasztalatot és hírnevet kapsz.
+st_daily_bonus_description	Minden nap: <highlight>x2</highlight> tapasztalat az <highlight>első három</highlight> győzelemért.
 st_daily_bonus_hint	Üdvözlőképernyő mutatása
 st_daily_bonus_label	Üdv újra
 st_daily_bonus_progress	Mai haladásod
@@ -2190,6 +2200,31 @@ st_srp_ammo_scar_ap_desc	Páncéltörő 7,62x51 lőszer az FN SCAR-H-hoz. Minden
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 lőszer
 st_srp_ammo_slug	Golyó
 st_srp_ammo_stats	A lőszer statisztikái
+st_srp_artefact_501_description	Artefaktum begyűjtésének ideje:
+st_srp_artefact_501_name	Fürge kezek
+st_srp_artefact_502_description	Szigetelés az anomáliák ellen:
+st_srp_artefact_502_name	Ellenállás
+st_srp_artefact_512_description	Az artefaktumok aktív hatásának időtartama:
+st_srp_artefact_512_name	Artefaktumismeret
+st_srp_artefact_513_description	A passzív artefaktumok ragyogásként látszanak a játékosok lábán, a tiéden is.
+st_srp_artefact_513_name	Artefaktumlátás
+st_srp_artefact_521_description	A meccset egy véletlen artefaktummal kezded a tárolóban; egy fajta mindenkinek a meccsen.
+st_srp_artefact_521_name	Az artefaktumok őrzője
+st_srp_artefact_522_description	Egy zseb artefaktumtárolóvá válik.
+st_srp_artefact_522_name	Artefaktumtároló
+st_srp_artefact_523_description	Golyó- és repeszsebzés anomálián belül:
+st_srp_artefact_523_name	Az Erdő védelme
+st_srp_artefact_531_description	Minden Rugó gyorsítja az újratöltést is: +5% passzívan, +15% aktívan.
+st_srp_artefact_531_name	Rugó II
+st_srp_artefact_532_description	Nincs esési sebzés, amíg egy Ónix aktív.
+st_srp_artefact_532_name	Ónix II
+st_srp_artefact_533_description	A Szarkaláb aktiválása visszaadja az összes állóképességet.
+st_srp_artefact_533_name	Szarkaláb II
+st_srp_artefact_541_description	Artefaktumaid passzív hatása az élő csapattársakra is hat 9 m-en belül.
+st_srp_artefact_541_name	Rezonancia
+st_srp_artefact_542_description	Az aktivált artefaktumok az élő csapattársakra is hatnak 6 m-en belül. "Ők ragyognak, te tündökölsz"
+st_srp_artefact_542_name	Kaszkád
+st_srp_artefact_points	 pont
 st_srp_attachments	Szerelékek
 st_srp_ban_reason_account_trading	Fiók eladása vagy eladásának kísérlete.
 st_srp_ban_reason_administration	Az adminisztrátorok döntése.
@@ -2461,14 +2496,6 @@ st_srp_equipment069_snow_20_legs_7_desc	A leírás még nem érhető el.
 st_srp_equipment069_snow_20_legs_7_name	„Hó-20” nadrág
 st_srp_equipment069_snow_20_torso_7_desc	A leírás még nem érhető el.
 st_srp_equipment069_snow_20_torso_7_name	„Hó-20” golyóálló mellény
-st_srp_exchange_balance	Egyenleg
-st_srp_exchange_button	Átváltás
-st_srp_exchange_gold	Arany
-st_srp_exchange_pay	Fizetsz
-st_srp_exchange_receive	Kapsz
-st_srp_exchange_short_gold	Nincs elég arany
-st_srp_exchange_short_silver	Nincs elég ezüst
-st_srp_exchange_title	Átváltás
 st_srp_hide_hit_markers_option	Találatjelzők elrejtése
 st_srp_hide_quests_option	Feladatok elrejtése
 st_srp_hide_scores_option	Pontszámok elrejtése
@@ -2586,15 +2613,14 @@ st_srp_medical_331_description	A másodlagos fegyver helyét egy további felsze
 st_srp_medical_331_name	Felszerelészseb
 st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza:
 st_srp_medical_332_name	Erős csontok
-st_srp_medical_333_description	Fájdalomcsillapító hatása alatt a környezet hangjai halkabbak, az ellenség hangjai (a lövések kivételével) hangosabbak:
+st_srp_medical_333_description	Fájdalomcsillapító hatása alatt az irányzék kilengésének csökkenése:
 st_srp_medical_333_name	Összpontosítás
 st_srp_medical_342_description	A szövetségesektől kapott sebzés csökkenése:
 st_srp_medical_342_name	Fegyvertársak
 st_srp_medical_seconds	 mp
-st_srp_medicine_ambient_sounds	Környezet hangjai
 st_srp_medicine_crouched_healing	Gyógyulás guggolva
-st_srp_medicine_enemy_sounds	Ellenség hangjai
 st_srp_medicine_hit_slow	Lassítás golyóktól
+st_srp_medicine_sight_sway	Irányzék kilengése
 st_srp_medicine_sprint_stamina	Sprint állóképesség
 st_srp_melee_knockback	Tusütés lökőereje
 st_srp_mode_blackout	Védelmi berendezés: áramszünet
@@ -2704,6 +2730,7 @@ st_srp_rooms_join_why_4	A meccs megtelt.
 st_srp_rooms_join_why_5	Hamarosan szerverkarbantartás. Már nem lehet csatlakozni.
 st_srp_rooms_join_why_6	A meccs véget ér. A következőben játszhatsz.
 st_srp_rooms_join_why_7	A meccs elérte a játékoskorlátot. A következőhöz csatlakozhatsz.
+st_srp_rooms_join_why_8	A meccs most nem tud játékosokat fogadni. A következőhöz csatlakozhatsz.
 st_srp_rooms_joined_room	%1$s belépett a szobába
 st_srp_rooms_late_hint	Az új belépők előbb a szobát látják, majd belépnek a meccsbe.
 st_srp_rooms_leave	Kilépés

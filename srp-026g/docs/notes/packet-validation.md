@@ -414,11 +414,18 @@ Semantic world refusal is not treated as proof of cheating and causes no ban.
 The client (patches 114 and 97) consumes a rejected message and skips its native handler without
 closing the match. Bad E3/E4 handshake envelopes request the recipient's pending
 handshake again; bad E8/world bodies request a fresh world generation. Native
-world deserialization must return before the new Loaded receipt is sent. The
-server waits for this application receipt as well as delivery (or existing
-matching-state hash proof) before admitting a recipient. Transport ACKs alone
-cannot advance it past a rejected world. A lost receipt causes a two-second
-retry; rejection retries are limited to one per second per connection.
+world deserialization must return before the new Loaded receipt is sent. For a
+connection with receipts the server admits a recipient on its Loaded receipt
+(acked or not), or on the existing matching-state hash proof; transport ACKs
+alone never do. Each refusal is answered once and at once: a world's by the
+next generation, a handshake's by its message again. E0 is plain and resent
+until acked, so copies of a receipt come: a world refusal is told from a copy
+by its generation, a handshake refusal by its number on the connection (the
+generation byte, 1, 2, ...). A world refused whose generation the game could not
+read (Unreadable, numbered with the handshake refusals) is taken as a refusal of
+the world on its way. No clock is involved: a world acked and not loaded
+is waited for, since its receipt comes while the link lives; a world not acked
+is given up by the transport at the end of its lifetime, as without receipts.
 
 D8 0x82/0x83 negotiates this behavior. Receipts are fixed 20-byte E0 carriers with
 a separate impossible upload prefix, match seed, generation, outcome and version.
@@ -427,8 +434,15 @@ retry is accepted only while that connection is Connecting/Loading; the seed is
 not required before options decode. Legacy 0x80/0x81 clients keep their prior
 behavior. **Deploy the server before a client with the new capability.**
 
-The client owns a per-match budget for rejection sends, checks packet-pool
-headroom before allocation, and clears it on match teardown.
+The client sends one receipt per event and never drops one for time (a
+wait the server keeps for a refusal must get it): Loaded/Rejected once per
+generation, a handshake refusal once per refused E3/E4, and an Unreadable for
+a world whose generation cannot be read (the generation the client stored is an
+older world's); these two are numbered on their connection (the generation
+byte: 1, 2, ...) so that the server can tell each from a copy (E0 is plain and
+resent until acked). It checks packet-pool headroom
+before allocation; a receipt with no room waits, the newest only, and goes on
+the next frame with room (`game.tick`). Match teardown forgets both.
 Server tests cover rejected first/resync worlds, lost reports, successful retry,
 repeated refusal, forged/stale reports, corrupt handshake envelopes and source
 input removal. A native harness covers 2,000-message bursts, a valid input after
@@ -485,20 +499,13 @@ cores, the effects floats) that every local test had missed. Four guards:
   nor as saving nothing (`resources_db::server::UNSAVED_OBJECTS`; it was
   dropped silently). The kit layout (`MatchProfile::inventory`, `held`) names
   every `ItemClass`, so a new class fails to compile until it is placed.
-- **In a match: loud when many games are refused alike.** A kind of refusal
-  (its part and reason) from two different players of the match is more
-  likely the check or the data than the games: every honest game writes the
-  same world, so a wrong check refuses every uploader's, while a cheater is
-  one place and cannot put a kind in doubt alone, however often it uploads.
-  One error line `WORLD CHECK IN DOUBT` with the count and the first refusal
-  (section, offset, the match it was checked as), once a kind; the match's
-  end line counts the uploads refused, those the fall-back relayed (below),
-  and lists the kinds in doubt (`world_validation::Refusals`). A kit the check
-  cannot lay out (an item the game makes an untraced object of) leaves that
-  match's states read to their inventories only: said once at error level when
-  the place comes, not per upload. That stays: the kit is the lobby's, the
-  rest of the world is still read exactly, and refusing every world of the
-  match for it would leave all its players without joins or resyncs.
+- **In a match: a refused world goes to nobody, and the games that wait for
+  one get an end** (next section). A kit the check cannot lay out (an item
+  the game makes an untraced object of) leaves that match's states read to
+  their inventories only: said once at error level when the place comes, not
+  per upload. That stays: the kit is the lobby's, the rest of the world is
+  still read exactly, and refusing every world of the match for it would
+  leave all its players without joins or resyncs.
 - **Formats our own code writes are shared, not copied.** The carry snapshot's
   size and version are `artefact_carry::Carry::SNAPSHOT_SIZE`/`SNAPSHOT_VERSION`
   for the writer (patch 78) and `srp_validate`; the pickup record is
@@ -506,52 +513,68 @@ cores, the effects floats) that every local test had missed. Four guards:
   block included, must pass the clients' check
   (`current_protocol.rs::the_options_of_every_map_are_accepted`).
 
-### The fall-back to the games' own check (TEMPORARY)
+### A refused world is never relayed (from 2026-11-07)
 
-The owner's decision of 2026-11-07 (option B). A refused upload goes to
-nobody, unless its kind is in doubt in its match:
+The owner's of 2026-11-07: "the server can block, we don't want to pass bad
+worlds around". It replaces #1468's fall-back to the games' own check (a kind
+of refusal from two players was "in doubt" and relayed if it passed the
+games' check) and #1488's doubt for a match's only uploader: there is no
+doubt and no guess. `game/refused_worlds.rs`; tests `tests/refused_worlds.rs`.
 
-- **What it does.** A kind stands `Refusing { place }` (one player's uploads),
-  `InDoubt { places }` (two players' or more, the fall-back armed, none relayed
-  yet) or `FallingBack { places, relayed }` (`world_validation::Standing`, one
-  transition, `Standing::refused`). While a kind is in doubt, an upload the
-  server's check refuses **for that kind** is checked again with the context
-  the game's own check (patch 87, `world_check.rs::Match::context`) uses: the
-  match's places, mode, batteries and respawn points, and no profiles,
-  artefacts, objects or inventory, as `srp-validate/examples/drift_dump.rs`
-  builds it (`world_validation::game_check`). If it passes, it is accepted and
-  relayed like any other upload (votes, the recent world, joins, resyncs); if
-  not, it is refused as before. Every other refusal (a kind of one player's,
-  or one the games' check refuses too) is refused as before. The upload that
-  puts a kind in doubt is itself checked again.
-- **How it is logged.** Each relay writes, at error level, at most one line a
-  second for each player (the refusal logs' limit, counting the lines held
-  back):
-  `Match <id>: WORLD CHECK FALLBACK: player <p>'s upload at <t> ms, refused as
-  <part> at <offset>: <reason>, passes the game's own check and is relayed
-  (temporary, see packet-validation.md)[; <n> more relayed by the fall-back
-  since the last line]`. The upload is kept as a `fallback` dump (within the
-  match's doubtful-dump limit), which `srp-world-check` then checks with the
-  rest. The match's end line has `..., <n> of them relayed by the fall-back`,
-  and each kind in doubt `(<players> players, <n> relayed)`.
-- **Why it is safe.** Every game that receives a world runs this same check
-  before it loads it (patch 87) and refuses one that fails it, so a relayed
-  world is one no receiving game refuses: the fall-back lets nothing in that a
-  game would not take from a world the server relayed anyway. It needs two
-  different players' uploads refused alike, so one forged or broken game
-  cannot turn it on.
-- **What it gives up.** For that kind in that match only: the server's
-  context-only checks, the rules the games cannot make without the match's
-  roster: the profiles (usable kits, item counts), the game objects against
-  the places' grenades and traps and the map's objects, and the kits' items
-  to a state's exact end. A forged world that breaks only those, in a match
-  where the kind is in doubt, reaches the other games.
-- **When it goes.** It is temporary: once live releases show no `WORLD CHECK
-  FALLBACK` line (the check is right for every world the games write), it is
-  removed, the doubt detector kept. Removing it is deleting the `TEMPORARY`
-  code: `Standing::FallingBack`, `Answer::Relay` and its arm in
-  `game.rs::uploaded`, `game_check`, the peer's `fallback_log`, and making
-  `InDoubt` refuse.
+- **A refused upload is sent to nobody**, ever: not an initial world, a
+  candidate, the recent world, a vote, a join or a resync. Its request is
+  kept, its body dumped (`unloadable`), its section and offset logged (a line
+  a second per player), and the match's end line counts the uploads refused.
+- **A refused upload means asking another game.** `Game::sources` asks the
+  game with the fewest refused uploads first, then by link as before, so one
+  forged or broken game is asked again only when no other can be asked.
+- **Each game's standing** (`UploadStanding`, one transition): its initial
+  world and every upload asked for as a world of the present (a vote) are
+  judged; a world asked for only to look at (its own out of step, a
+  newcomer's) is not. Passing clears it. A refusal counts only when it is its
+  game's own fault (`Blame`): another game's upload of the same round
+  (`Round`, one 0xF6 request) passed, or its game's hash for the tick
+  disagrees with the majority's; else it stays open until that tick's hashes
+  are judged, and a world every game has (every source refused, the hashes
+  agreeing: rev50's NaN bot, rec026g_20261106-211841_03439962, all 174
+  refusals so) counts against nobody: nothing is relayed, the players stay,
+  joiners and resyncs get the exits below. Three own refusals in a row
+  (`REFUSED_IN_A_ROW`): resynced from another game's world, when another game
+  whose last upload passed can give one, else removed; three more in a row
+  after that: removed.
+- **Each waiting game's refusers** (`Stage::WaitingSnapshot::refused`): the
+  places whose upload the check refused while it waited for a world it could
+  take (a newcomer's, past its preparation), less those whose upload passed
+  since or whose game connected again (a new game, its standing new). When
+  every game it could take a world from (`possible_sources`) is
+  among them, none can be had: a late joiner fails its admission and is
+  removed, any other (resynced, back in the match, an initial player that
+  came after the start) is removed.
+- **No first world.** Before the match has a world: when an initial world
+  was refused and every other human place gave one refused too, was given up,
+  or has no game there (never connected, gone, or loaded with no world yet)
+  past the server's bound for games that do not come (`Timing::unstarted`,
+  from the match's first connection), the match is not made
+  (`MatchEnd::NotMade`). A loading game is waited for (it ends in its world or
+  its link's timeout); an honest game's 0xDA can come before its first chunk.
+- **No joiner into a match with no world to give**: while every game a
+  joiner could take its world from had its last judged upload refused, the
+  match is closed to joiners (`Closed::NoWorld`, a room's `J;-1;8`) until an
+  upload passes.
+- **Every removal is one function** (`Game::remove`, with its `Removal`):
+  the reason logged, a note in the recording, a newcomer's admission failed,
+  the link kicked (0xFD) and the place left for the others. The invalid
+  inputs and the restore limit go through it too. A removed game keeps its
+  seat (Play sends it back, as after a lost link), but a failed newcomer.
+
+What each end looks like (counts, never time):
+
+| Exit | Trigger | Server | Game | Lobby |
+|------|---------|--------|------|-------|
+| Late joiner | every possible source's upload refused while it waited | admission failed, `remove(NoWorldToJoin)`: 0xFD, leave | today: `close_current_match(4)`, nothing closed, stays on its screen with no link (`match.md` §24); with the kick-to-lobby exe patch (branch `fix/kick-returns-to-lobby`): back to the lobby as a lost connection | `take_rejected_joins` -> `join_failed`: seat freed, a room member waits in its room (`J;-1;8` while no world can be had) |
+| Resynced / back in the match | the same, not a newcomer | `remove(NoWorldToResync)`: 0xFD, leave; the others get its 0xEA | as above | seat kept: Play sends it back |
+| No first world | an initial world refused, no other place can give one | `finish(NotMade)`: 0xEA of its own place to each game | `close_current_match(3)`: world ended, results screen with its spinner (§34, LIKELY) | not made: nothing counts, a room votes again |
+| Refused again and again | 3 own refusals in a row (its fault, `Blame`) | resync from another game whose last upload passed (else remove); 3 more: `remove(UploadsRefused)` | resync: as any resync; removal: as the first row | seat kept |
 
 ## The world corpus
 

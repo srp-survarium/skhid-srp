@@ -24,7 +24,8 @@ given), LIKELY or GUESS.
 | [lobby_requests.md](lobby_requests.md) | Every client→server lobby request and the reply it expects |
 | [social.md](social.md) | Chat channels, friends, squads, clans, online stats |
 | [squads.md](squads.md) | Squads of two (the owner, 2026-10-31): Play and Join take the mate along into one room and team, or the queue together; invites stop at two; the "ready" the game's Play gating reads; each pair marked in the rooms' lists |
-| [premium.md](premium.md) | Premium time, the shop's offers and bundles, items for gold, the daily bonus, the tutorial, a nickname change, autobuy and auto-repair, the level notice; their settings |
+| [premium.md](premium.md) | Premium time, the shop's offers and bundles, premium items (silver since 2026-11-08), the daily bonus, the tutorial, a nickname change, autobuy and auto-repair, the level notice; their settings |
+| [silver-only.md](silver-only.md) | Silver only (the owner, 2026-11-08): no gold; gold prices, chances and income at 100 silver a gold; the balances converted once |
 | [results.md](results.md) | Match results screen, player details, drops, daily bonus, craft tables |
 | [drop_cards.md](drop_cards.md) | Drop cards: one per player of a match, own matches only, finished (the owner, 2026-10-20; the server refusal ships, the greyed button does not), the original screen's rule, what `allow_drop_card` is, the logging of sales and exchanges |
 | [progression_pace.md](progression_pace.md) | How long levels, faction ranks and gear tiers take, measured on the players' server, and the pay rates chosen from it |
@@ -37,7 +38,7 @@ given), LIKELY or GUESS.
 | [weapons-069.md](weapons-069.md) | The 0.69d0 weapons (pack weapons-069): AKMSU, FAMAS, H&K G3SG/1, Mauser M.712, KS-23M with its 23x75R smallshot, PPSH-41 "Drum"; ids, icons, rigs, stats beside their live peers, attach points for the weapon kit |
 | [weapon-kit.md](weapon-kit.md) | A weapon's six upgrades (two decals, camouflage, scope, muzzle device, grip) in the client's three records: the kit record's layout, client patch 68, the server's packing |
 | [weapons-046.md](weapons-046.md) | Weapons from 0.46c2 (packs weapons-046, weapons-046-camo; release 41, batches 2 and 2b): the MP5, SVU, L85A2, Fort-401, Jackhammer and five pistols, balanced around their live peers (the table), their default parts baked in, the muzzle data for the muzzle step |
-| [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
+| [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo; ten more in version 2: seven premium decals and three badges) and the Steam camouflage: ids 1824-1862 and 1884-1893, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
@@ -47,6 +48,7 @@ given), LIKELY or GUESS.
 | [modes_maps.md](modes_maps.md) | Maps, game modes, map ids, rule classes, match settings now in data |
 | [data.md](data.md) | `resources.db`: items, skills, drops, quests, item configs |
 | [client_patch.md](client_patch.md) | Porting the srp client patch, the function map |
+| [memory-report.md](memory-report.md) | Memory reports (exe patch 126): what each game tells the match server of its arenas, address space and video budget, when (the first world, the match's end), the generic client-report channel, `release/moderate memory`, the edge cases |
 | [rust_patches.md](rust_patches.md) | Writing an exe patch in Rust: the workspace, the hook ABI, the engine bindings, typed game memory, panics and the log, testing, the equivalence gate a port must pass, the size budget |
 | [replay_sur.md](replay_sur.md) | The client's own replay file (`.sur`, `-match_replay`): its layout, and `srp-recording-to-sur`, which makes one from a match recording |
 | [replay_watch.md](replay_watch.md) | "Watch replay" from the lobby's History, the server side: conversion at match end, the lobby's `R1` answers and `9E` link, the download tokens, `/replays/<token>`, what is and is not reachable over HTTP |
@@ -123,10 +125,10 @@ given), LIKELY or GUESS.
 | [artefacts.md](artefacts.md) | Artefacts: patch 54 and the artefacts table |
 | [blackout.md](blackout.md) | Blackout: the mode with the UI off |
 | [breakable_lamps.md](breakable_lamps.md) | Breakable lamps |
-| [buy-gold.md](buy-gold.md) | "Get Gold" opens the exchange |
+| [buy-gold.md](buy-gold.md) | No "Get Gold": silver only |
 | [buy-modified.md](buy-modified.md) | Buy from a modified item's right-click menu |
 | [death-poses.md](death-poses.md) | Death poses |
-| [exchange.md](exchange.md) | The exchange window: amounts |
+| [exchange.md](exchange.md) | The exchange window: removed (no gold) |
 | [held_artefact_transfer.md](held_artefact_transfer.md) | Held artefact transfer (patch 78) |
 | [hide-ui-key.md](hide-ui-key.md) | A key that hides the interface |
 | [kill_cap.md](kill_cap.md) | Repeated-kill payment limit |

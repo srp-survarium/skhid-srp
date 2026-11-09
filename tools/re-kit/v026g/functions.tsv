@@ -2169,8 +2169,10 @@ va	status	ref_021d	name
 0x00075550	reviewed	0x00056439	vostok::physics::bullet_physics_world::tick
 0x003b92d0	verified	0x00265484	vostok::input::platform::keyboard::translate_text
 0x000181e0	verified	0x000152cc	message_processor
+0x000184f0	reviewed	0x000154e4	new_window
 0x000f65a0	reviewed		vostok::math::float_to_half
 0x000f66d0	reviewed		vostok::math::half_to_float
+0x0015ee30	reviewed	0x000f5567	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase
 0x003b9c00	verified	0x00265b8a	vostok::input::platform::keyboard::get_dik_name
 0x003b8d20	verified	0x00265091	vostok::input::platform::keyboard::execute
 0x0027a070	observed		survarium::match_client::match_client
@@ -2214,3 +2216,33 @@ va	status	ref_021d	name
 0x00356d50	observed		vostok::physics::bt_dynamic_rigid_body::get_collision_group
 0x00357a90	observed		vostok::physics::bt_ghost_object::get_collision_group
 0x00246ed0	observed		[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'
+0x0021beb0	observed		survarium::network_client::connect_to_match
+0x0027b880	observed		survarium::network_client::process_static_match_info
+0x0027aa20	verified	0x001a25cc	survarium::network_client::on_match_ready
+0x0027aed0	verified	0x001a27c4	survarium::network_client::query_players
+0x0027b110	verified	0x001a2962	survarium::network_client::disconnect
+0x002717e0	verified	0x0019e562	survarium::lobby_client::discard_playing_order
+0x001ed170	observed		survarium::game::switch_to_game_world
+0x002203a0	observed		survarium::lobby_menu::show_loading_screen
+0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
+0x00200f50	reviewed	0x0015f1b6	survarium::game_options::activate
+0x002010e0	reviewed	0x0015f2d4	survarium::game_options::process_key_input
+0x002015a0	reviewed	0x0015f5e9	survarium::game_options::finish_binding
+0x002015e0	reviewed	0x0015f619	survarium::game_options::on_keyboard_action
+0x002016d0	reviewed	0x0015f6bb	survarium::game_options::on_mouse_key_action
+0x002017a0	reviewed	0x0015f73e	survarium::game_options::on_mouse_move
+0x0031d6e0	observed		survarium::breath_vibration_calculator::tick
+0x00013660	reviewed	0x00012735	vostok::engine::engine_world::engine_world
+0x000141b0	reviewed	0x00012ef0	vostok::command_line::key::is_set_as_number<unsigned int>
+0x000ddf20	reviewed	0x000ac7b6	vostok::command_line::key::is_set_as_number
+0x000e0f20	reviewed	0x000ae85f	vostok::memory::preinitialize
+0x000e1120	reviewed	0x000ae992	vostok::memory::allocate_region
+0x000ff200	verified		dlmalloc::internal_mallinfo
+0x00101190	verified		dlmalloc::init_user_mstate
+0x00101280	verified		dlmalloc::create_mspace_with_base
+0x000e0930	reviewed	0x000ae43f	vostok::threading::spawn_internal
+0x000e3770	reviewed		vostok::threading::spawn
+0x000fc090	reviewed		vostok::tasks::thread_pool::thread_pool
+0x000fc350	observed		vostok::tasks::thread_pool::initialize
+0x0027f780	reviewed	0x001a3c98	survarium::network_client::draw_match_stats
+0x00429f20	reviewed		_chkstk

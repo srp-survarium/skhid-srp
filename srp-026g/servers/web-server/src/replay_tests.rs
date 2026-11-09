@@ -113,6 +113,7 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
             downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
             min_patch_revision: 0,
             replays,
+            results: Arc::new(session::v026g::rewards::Results::new()),
         }),
     }
 }

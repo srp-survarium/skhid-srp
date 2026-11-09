@@ -9,6 +9,96 @@ release that made it what it is now.
 
 ---
 
+## 7 Nov, 23:16 — TODO: the owner's words (update required)
+
+<!-- Revision 53 (026g-rev53), released 2026-11-07 23:16 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1510 Patch 109: every kit's artefact slots made the world's at each world load (rev52's start crash)
+- TODO: #1509 Cascade: every kind's activation shared (Medic's path); Resonance 9 m, Cascade 6 m
+
+## 7 Nov, 21:40 — TODO: the owner's words (update required)
+
+<!-- Revision 52 (026g-rev52), released 2026-11-07 21:40 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1505 Release: exe self-test beside step 2, on every core; --no-selftest
+- TODO: #1506 Patch 109: fix the crash at a rollback over a Keeper's respawn into another kit
+
+## 7 Nov, 20:47 — TODO: the owner's words (update required)
+
+<!-- Revision 51 (026g-rev51), released 2026-11-07 20:47 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1351 web-server tests: give the stock account the silver the admin takes
+- TODO: #1355 build-content: cache unchanged steps (no change 54 s, lobby change 112 s, was 424 s)
+- TODO: #1359 DXVK on Windows: bind the game's dxgi, d3d11 and d3d9 to DXVK's DLLs
+- TODO: #1358 release.sh: swap as soon as no match has run for 30 s
+- TODO: #1354 Lock vertical sensitivity: Apply keeps an unlock; the greyed slider follows set values
+- TODO: #1363 Patch 108: a gun-stock hit kills wherever it lands
+- TODO: #1368 Trap 0.55 a foot; the painkiller's pain protection covers it
+- TODO: #1369 Take off what a skill opened when the skills change
+- TODO: #1372 Patch 113: kits and cursor start over at each match; the main menu covers the hud's cursor
+- TODO: #1370 Item search: "+" words for levels, factions and bonuses
+- TODO: #1373 Everyone at level 15's last point; new accounts with five skills
+- TODO: #1388 release/moderate: watch registrations and sign-ins, ban, mute, close sign-ups
+- TODO: #1380 VSSK rifles: Vychlop gets aiming time -10 %, Dusk reload +15 % as their one built-in
+- TODO: #1389 Boosters: every built-in bonus shows gold on the card
+- TODO: #1390 Lobby: held Alt, medicine cards show Numb Legs, Unflinching, Concentration and Take Cover
+- TODO: #1375 Modification window: the item's card is the inventory's, at its size
+- TODO: #1376 PPSh-41 Drum: seat the drum in the magazine well (weapons-069@15)
+- TODO: #1391 SVU: its iron sights raised, its eye on them (weapons-046@13)
+- TODO: #1382 Item search follow-up: Shift+= types +, penalties are no bonus, bonus words by type
+- TODO: #1360 Equipment 046@9: four new pieces; the NVD as open goggles; the Sniper set at level 11 and the Veles set at level 13 (the owner's numbers)
+- TODO: #1364 Equipment 069@5: the Snow-20 set (the level-11 Sniper's twin) and the Delta mask
+- TODO: #1393 Drop one-off checks of shipped changes
+- TODO: #1397 One Ruffle runner for the movies' harnesses
+- TODO: #1399 Release tests: the early swap's 30 s scale with the test's minute
+- TODO: #1400 build-content: read the pierce lines' files only when a list asks for one
+- TODO: #1402 Medical skills' texts in the language TSVs
+- TODO: #1395 Release: build the server image here, load it on the host
+- TODO: #1408 Wiki weapons: choose the round
+- TODO: #1412 release/moderate: reset-password, watch, give, money, fuzzy who
+- TODO: #1367 Graphics: Vulkan options (frame limit, overlay, low latency, tear-free, dedicated GPU); FOV to Gameplay
+- TODO: #1398 Fix the artefact-carry and language-option harnesses
+- TODO: #1407 Self-test: fix the four stale exe-patch checks (lohook dispatch, patch 96 exits, artefacts, configs.start chain)
+- TODO: #1414 Self-test: derive the pinned checks from the declarations, run it at a release
+- TODO: #1415 build-content: packs keyed by the movies they edit, lamps cached, a quick build by default (--full for releases)
+- TODO: #1180 [Packet safety v2 1/11] Shared message parsers (inert)
+- TODO: #1434 World checks: take the worlds the game writes for a NaN player and a shooter who left
+- TODO: #1458 Read uploaded worlds as typed views, every field held to what the game writes
+- TODO: #1423 World check cost: a bench over recorded matches, sorted compatibility pairs
+- TODO: #1421 Packet safety v2: catch a world check that is wrong before a release, and loudly in a match
+- TODO: #1463 check_bench: check with the server's Roster (main does not compile)
+- TODO: #1461 Patch 116: srp's ban reasons and the ban's end on the sign-in screen
+- TODO: #1466 Notes: what players' games send each other, and how it is checked
+- TODO: #1468 match-server: fall back to the games' own check for a kind in doubt (temporary)
+- TODO: #1464 Send every kit to the match with its pockets packed (crash of match 0x55809714)
+- TODO: #1467 Patch 117: a presenter ignores an event for an effect it holds no entry of (rev50 crash 2026-11-06)
+- TODO: #1471 test(srp): fix stale v026g_web assertions
+- TODO: #1474 Sell the rank and faction badges in the shop
+- TODO: #1469 Patch 117: a character controller's step never leaves its position non-finite
+- TODO: #1470 tools/check: world-check and world-drift over a private world corpus
+- TODO: #1475 AGENTS.md: the world format and its check
+- TODO: #1476 World check: no NaN in a player's speed, last position or a bullet's origin (after patch 117 is live)
+- TODO: #1477 Results screen: a map is always usable, bought on click, its item shown again
+- TODO: #1478 Renumber controller_position to patch 118
+- TODO: #1479 Lobby build: drop RESULT_SHA256
+- TODO: #1480 Lobby: the match pop-up over the room window, gone at the next press
+- TODO: #1481 simulation_changes: controller position fix is exe patch 118
+- TODO: #1486 Rooms: four ready Play waiters open another room (was six)
+- TODO: #1485 Read the refusals' clock from GetTickCount, not GetCurrentProcessId
+- TODO: #1487 Do not count invalid inputs of a world out of step toward removal
+- TODO: #1490 Input safety: 100 invalid inputs in step remove a sender (was 8)
+- TODO: #1492 match-server: never relay a refused world; give every waiting game an end
+- TODO: #1493 Rooms: say why a match can't take a joiner when it has no world (J;-1;8)
+- TODO: #1494 Rooms: J;-1;8 tells the member it joins the next match
+- TODO: #1495 Patch 119: a kicked game goes back to the lobby as a lost connection does
+- TODO: #1392 Artefact skill tree: the fifth tab, its eleven skills and Forest Protection's glow
+- TODO: #1489 Receipts: one per event, none dropped for time
+- TODO: #1482 World load receipts: admit on Loaded, answer each refusal once, no receipt timer
+- TODO: #1498 simulation_changes: restore the separator before the patch 118 clause
+- TODO: #1499 Refused worlds: count only a game's own refusals; end a match with no first world by events
+- TODO: #1500 Receipts: number refusals per connection, a waiting slot per kind
+- TODO: #1501 Patch 120: a match its game never played closes too (kick/timeout/lost link while loading)
+
 ## 5 Nov, 19:51 — TODO: the owner's words (update required)
 
 <!-- Revision 50 (026g-rev50), released 2026-11-05 19:51 UTC. To be worded for players; what it shipped: -->

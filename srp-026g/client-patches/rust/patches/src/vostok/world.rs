@@ -47,6 +47,11 @@ pub struct GameWorld<'t> {
 }
 
 impl<'t> GameWorld<'t> {
+    /// A player's game world, on the hook's thread.
+    pub(in crate::vostok) fn of(this: raw::GameWorld, thread: &'t Thread) -> GameWorld<'t> {
+        GameWorld { this, thread }
+    }
+
     /// The world the site's code is ticking.
     pub fn at_after_move(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
         // SAFETY: the context is this site's: the game world it ticks, alive
@@ -85,25 +90,6 @@ impl<'t> NetworkClient<'t> {
     pub fn match_id(&self) -> Option<MatchId> {
         // SAFETY: the client, alive for the hook; match_options is its own.
         unsafe { raw::engine_match_options(Some(self.this)).map(|options| MatchId(read(options.seed()))) }
-    }
-
-    /// The team word of each place of the match (0 or 1 a team; its
-    /// options' record, the one a player's profile is), None past its count.
-    pub(in crate::vostok) fn place_teams(&self) -> [Option<u32>; super::types::Place::COUNT] {
-        let mut teams = [None; super::types::Place::COUNT];
-        // SAFETY: the client, alive for the hook; match_options is its own
-        // (a live or a replay client's, its vtable's), its places as long as
-        // the client; a place below the count (at most the 20 of the array)
-        // is one of them.
-        unsafe {
-            if let Some(options) = raw::engine_match_options(Some(self.this)) {
-                let places = usize::from(read(options.places())).min(teams.len());
-                for (place, team) in teams.iter_mut().enumerate().take(places) {
-                    *team = Some(read(options.first_place().at(place).team()));
-                }
-            }
-        }
-        teams
     }
 
     /// The local player, if the match has one.

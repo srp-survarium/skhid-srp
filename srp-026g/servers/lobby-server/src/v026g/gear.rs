@@ -8,7 +8,7 @@
 //! are answered alike. Spec: `docs/notes/player_gear.md`.
 
 use session::LockExt;
-use session::v026g::{quests, wire};
+use session::v026g::wire;
 
 use super::core::{Core, Who};
 
@@ -71,7 +71,7 @@ impl Core<'_> {
             );
             return;
         };
-        let gear = wire::player_gear(&account.locked(), id, quests::now());
+        let gear = wire::player_gear(&account.locked(), id);
         self.send_made(who.addr, gear);
     }
 }

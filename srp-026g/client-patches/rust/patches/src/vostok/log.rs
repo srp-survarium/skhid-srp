@@ -89,6 +89,12 @@ pub fn line(pieces: &[Piece]) {
     write(&line.bytes[..line.len]);
 }
 
+/// Appends a line of each part's pieces in turn.
+pub fn line_of(parts: &[&[Piece]]) {
+    let line = text_of(parts);
+    write(&line.bytes[..line.len]);
+}
+
 /// The refusals' lines: at most one a second, each counting the refusals
 /// since the one before it that got none, so a flood cannot fill the disk
 /// and no refusal goes unseen.
@@ -119,8 +125,7 @@ static REFUSALS: GameCell<Refusals> = GameCell::new(Refusals::Quiet);
 
 /// A refusal's line to `srp_patches.log`, under [`Refusals`]' limit.
 pub fn refusal(thread: &Thread, pieces: &[Piece]) {
-    // SAFETY: GetTickCount takes no arguments and has no engine lifecycle.
-    let now = unsafe { raw::engine_tick_count() };
+    let now = super::files::tick_count();
     let (next, logged) = REFUSALS.get(thread).refuse(now);
     REFUSALS.set(thread, next);
     if let Some(unlogged) = logged {

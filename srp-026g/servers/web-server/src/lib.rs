@@ -1,9 +1,9 @@
 //! A small website for the people running srp.
 //!
 //! - `/` is a home page: what the project is and where it came from.
-//! - `/exchange` (the 0.26g page only, `GET`) says that silver and gold are
-//!   exchanged in the game now: the SHOP button of the launchers already in
-//!   players' hands opens it ([`v026g::in_the_game_now`]). Nothing is
+//! - `/exchange` (the 0.26g page only, `GET`) says that there is no gold:
+//!   everything is bought with silver. The SHOP button of the launchers
+//!   already in players' hands opens it ([`v026g::no_gold`]). Nothing is
 //!   exchanged on the page; on the 0.21d page it is "not found".
 //! - `/launcher/…` and `/api/client-files` (the 0.26g page only) are for the
 //!   patched game launcher and its updater ([`launcher`]): the page it shows
@@ -50,6 +50,7 @@ mod moderation;
 mod modifiers;
 mod password_reset;
 mod patches;
+mod quests;
 mod skills;
 mod stats;
 mod v026g;
@@ -193,7 +194,7 @@ enum Form {
     Admin(Box<AdminView>),
     /// The 0.26g page's "not found".
     None26,
-    /// The 0.26g page's `/exchange`: in the game now, in the launcher's
+    /// The 0.26g page's `/exchange`: no gold, in the launcher's
     /// language ([`v026g::launcher_code`]).
     InTheGame26(&'static str),
 }
@@ -709,7 +710,12 @@ impl Web {
         } else if self.game.is_some()
             && matches!(
                 request.path.as_str(),
-                wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT | skills::PATH
+                wiki::PATH
+                    | wiki::WEAPONS
+                    | wiki::MODIFIERS
+                    | wiki::EQUIPMENT
+                    | skills::PATH
+                    | quests::PATH
             )
         {
             damage::POLICY
@@ -981,8 +987,9 @@ impl Web {
                     | wiki::WEAPONS
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
-                    | skills::PATH) => {
-                        return wiki_page(path, &request.target, request.lang);
+                    | skills::PATH
+                    | quests::PATH) => {
+                        return wiki_page(path, &request.target, request.lang, game);
                     }
                     path if path.starts_with(launcher::FRESH) => {
                         return launcher::fresh(
@@ -1629,13 +1636,21 @@ fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, &lang.tr("Maps", "Мапи")))
 }
 
-fn wiki_page(path: &str, target: &str, lang: Lang) -> Response {
+fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
     let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
     let query = target.split_once('?').map_or("", |(_, query)| query);
-    wiki::page(path, query, lang, &format!("{header}{notice}"))
+    let now = if path == skills::PATH {
+        skills::Now {
+            per_match: game.results.per_match(),
+            takers: game.accounts.skill_takers(),
+        }
+    } else {
+        skills::Now::default()
+    };
+    wiki::page(path, query, lang, &format!("{header}{notice}"), &now)
 }
 
 /// The site's header over a wiki page of its own look (the calculator's, the
@@ -1728,7 +1743,7 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
     };
     let (header, test_notice) = site_header(lang, form.is_026g(), test, other_url, current);
     let body = match form {
-        Form::InTheGame26(code) => v026g::in_the_game_now(code),
+        Form::InTheGame26(code) => v026g::no_gold(code),
         Form::Admin(view) => admin_form(lang, &view),
         Form::Home(stats) => home(lang, stats),
         Form::None | Form::None26 => String::new(),
@@ -2235,7 +2250,6 @@ fn admin_extras_026g(
     let panels = format!(
         "<div class=\"panel p-account\">\
          <label for=au>{}</label><input id=au name=acc_user maxlength=99>\
-         <label for=ph>{}</label><input id=ph name=premium_hours placeholder=+24>\
          <label for=lv>{}</label><input id=lv name=level inputmode=numeric>\
          <label for=xp>{}</label><input id=xp name=experience placeholder=+500>\
          <label for=fa>{}</label><input id=fa name=faction inputmode=numeric>\
@@ -2252,7 +2266,6 @@ fn admin_extras_026g(
          <small>{}</small><br>\
          <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}{}",
         lang.tr("User name", "Ім'я користувача"),
-        lang.tr("Premium hours, + or -", "Години преміуму, + або -"),
         lang.tr(
             &format!("Set the level (0 to {})", session::v026g::account::MAX_LEVEL),
             &format!("Встановити рівень (0–{})", session::v026g::account::MAX_LEVEL)

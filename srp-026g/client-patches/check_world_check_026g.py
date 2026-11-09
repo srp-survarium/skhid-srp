@@ -27,6 +27,10 @@ RAW_SITE, UNPACKED_SITE = 0x27C0FF, 0x27C0D0
 LOAD, LOADED, EPILOGUE, CLOSE = 0x2D0B70, 0x27C11B, 0x27C1E0, 0x27A790
 CREATE_FILE, WRITE_FILE, CLOSE_HANDLE = 0x870048, 0x870108, 0x870040   # the import slots
 QPC, QPF = 0x870158, 0x870150                                            # QueryPerformanceCounter / -Frequency
+# GetTickCount (engine_get_tick_count) and GetCurrentProcessId, a constant: a
+# clock read from the wrong slot stands still, and its refusals' log lines
+# after the first are dropped (each case expects one).
+TICK_COUNT, PROCESS_ID = 0x870090, 0x8701B8
 BREADCRUMB_CHECK = int.from_bytes(b"BRCS", "little")                     # vostok/breadcrumbs.rs CHECK
 CLIENT, GAME, READER = 0x40000000, 0x40400000, 0x40500000
 WORLD, STACK, STUBS = 0x41000000, 0x42000000, 0x43000000
@@ -46,6 +50,12 @@ MAX_BODY = 0xF000
 class Run:
     """One exe's image under Unicorn, kept for every case (its translated
     code with it)."""
+
+    # Set: each load is of an offer of its own, as the server sends them
+    # (a refused world is answered with the next generation): the
+    # generation the handler stores before the load (0x27C040) goes up by
+    # one a load. A receipt is told once per generation.
+    offers = None
 
     def __init__(self, data):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
@@ -74,11 +84,12 @@ class Run:
         self.match_context()
         for slot, stub in ((CREATE_FILE, STUBS), (WRITE_FILE, STUBS + 0x10), (CLOSE_HANDLE, STUBS + 0x20),
                            (0x870118, STUBS + 0x30),  # GetCurrentThreadId, pickup cache's owner
-                           (0x8701B8, STUBS + 0x40),  # GetTickCount, pickup cache deadlines
-                           (QPC, STUBS + 0x50), (QPF, STUBS + 0x60)):  # the crash report's ring
+                           (TICK_COUNT, STUBS + 0x40),  # pickup cache deadlines, refusals' limits
+                           (QPC, STUBS + 0x50), (QPF, STUBS + 0x60),  # the crash report's ring
+                           (PROCESS_ID, STUBS + 0x70)):
             self.word(slot, stub)
         for address in (LOAD, CLOSE, 0x279FE0, 0x27A2A0, 0x7AC10, STUBS, STUBS + 0x10, STUBS + 0x20, STUBS + 0x30, STUBS + 0x40,
-                        STUBS + 0x50, STUBS + 0x60):
+                        STUBS + 0x50, STUBS + 0x60, STUBS + 0x70):
             handle = emu.hook_add(UC_HOOK_CODE, self.stub, begin=address, end=address)
             if address == CLOSE: self.close_stub = handle
         for address in (LOADED, EPILOGUE):
@@ -147,6 +158,8 @@ class Run:
             pops, result = 20, 1
         elif address == STUBS + 0x30:        # GetCurrentThreadId
             pops, result = 0, 1
+        elif address == STUBS + 0x70:        # GetCurrentProcessId
+            pops, result = 0, 4242
         elif address == STUBS + 0x40:        # GetTickCount
             self.ticks = getattr(self, 'ticks', 0) + getattr(self, 'tick_step', 100)
             pops, result = 0, self.ticks
@@ -168,6 +181,9 @@ class Run:
     def start(self, at, regs, sp):
         self.calls, self.lines, self.stopped, self.receipts = [], [], None, []
         self.ticks = getattr(self, "ticks", 0) + getattr(self, "advance", 2000)
+        if self.offers is not None:
+            self.offers = (self.offers + 1) & 0xFF
+            self.emu.mem_write(CLIENT + 0x1F1C68, bytes([self.offers]))
         for reg, value in regs.items():
             self.emu.reg_write(reg, value)
         self.emu.reg_write(UC_X86_REG_ESP, sp)
@@ -389,6 +405,7 @@ def main():
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
     stock, ours = Run(original), Run(bytes(built))
+    ours.offers = 5
     failed = 0
     worlds = []
     for what, world, can_load in cases():

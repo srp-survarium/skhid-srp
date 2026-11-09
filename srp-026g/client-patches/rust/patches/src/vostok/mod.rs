@@ -53,6 +53,7 @@ pub mod login;
 pub mod mouse;
 pub mod log;
 pub mod melee;
+pub mod memory;
 mod options;
 pub mod parse;
 pub mod resources;
@@ -104,7 +105,7 @@ pub use generated::*;
 pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
-pub use hud_input::{Hud, HudCall, HudView, MainMenu, MatchCursor};
+pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
 pub use world_load::WorldLoad;
@@ -133,11 +134,15 @@ pub mod statistics;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;
+pub mod artefact_skills;
+pub mod keeper;
+pub mod effect;
 pub mod animation_id;
 pub mod deserialize;
 pub mod effect_presenter;
 
 pub mod match_message;
 pub mod packet_recovery;
+pub mod match_close;
 
 mod world_context;

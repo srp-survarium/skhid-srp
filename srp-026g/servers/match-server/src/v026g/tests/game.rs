@@ -1130,6 +1130,108 @@ fn a_first_world_gets_through_a_line_that_carries_a_little_at_a_time() {
 }
 
 #[test]
+fn a_first_world_that_takes_three_seconds_is_waited_for_with_load_receipts_as_without() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // A line thinner still: one full datagram in 40 ms. The first world
+    // takes some 3 s to get through, within its 4 s on the way
+    // (`Timing::entry_state`). A game that sends load receipts (0x82) is
+    // not given up on before that, which would start it again every 2 s
+    // and never let it in.
+    for mode in [WorldReceiptMode::Legacy, WorldReceiptMode::Accept] {
+        let settings = Settings {
+            compress_state: false,
+            ..Settings::default()
+        };
+        let mut bench = Bench::growing(2, MAP_BATTERIES, settings);
+        for client in &mut bench.clients {
+            client.sim.ballast = 13_000;
+        }
+        bench.join(0);
+        settle(&mut bench);
+
+        bench.clients[1].world_receipts = mode;
+        bench.clients[1].slow_acks = true;
+        bench.clients[1].connect();
+        assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+        let line = thin_line(&mut bench, 1);
+        bench.clients[1].ready();
+        let started = bench.ms;
+        while bench.stages() != "LL" && bench.ms < started + 8_000 {
+            for _ in 0..7 {
+                bench.step(5);
+            }
+            thin_step(&mut bench, &line);
+        }
+        let took = bench.ms - started;
+        assert_eq!(bench.stages(), "LL", "{mode:?}: after {took} ms");
+        assert!(took > 2_500, "{mode:?}: in after {took} ms, the line is not thin enough");
+        assert_eq!(bench.game().generation(1), Some(0), "{mode:?}");
+        assert_eq!(bench.clients[1].snapshots().len(), 1, "{mode:?}");
+        assert!(bench.until(50, |bench| bench.clients[1].entered() == [1]));
+        bench.assert_no_faults();
+    }
+}
+
+#[test]
+fn a_resync_on_a_long_line_settles_with_load_receipts_as_without() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // One player of several on a line of 800 to 850 ms one way, resynced:
+    // its 14 KB worlds wait behind the replay and the transport's window,
+    // and are acked more than 2 s after they were queued. A game that
+    // sends load receipts is waited for as long as one that does not: its
+    // receipt is due after the acks, not 2 s after the world was queued.
+    for (players, one_way) in [(6usize, 800u64), (8, 850)] {
+        let mut settled = Vec::new();
+        for mode in [WorldReceiptMode::Legacy, WorldReceiptMode::Accept] {
+            let settings = Settings {
+                compress_state: false,
+                ..Settings::default()
+            };
+            let mut bench = Bench::growing(players, MAP_BATTERIES, settings);
+            for client in &mut bench.clients {
+                client.sim.ballast = 13_000;
+            }
+            let far = players - 1;
+            bench.clients[far].world_receipts = mode;
+            bench.clients[far].slow_acks = true;
+            bench.join_all();
+            settle(&mut bench);
+            bench.run(3_000);
+            bench.one_way = vec![0; players];
+            bench.one_way[far] = one_way;
+            bench.run(2_000);
+            // Its game goes out of step: it is resynced.
+            let from = bench.clients[far].clock();
+            bench.clients[far].sim.salt_from = Some((from, 7));
+            let start = bench.ms;
+            let mut resynced = false;
+            let mut live_ms = 0u64;
+            while bench.ms < start + 40_000 {
+                let (resyncing, _) = bench.game().resync_state(far);
+                resynced |= resyncing;
+                if resynced && !resyncing && bench.stages().ends_with('L') {
+                    live_ms += 5;
+                }
+                if bench.ms.is_multiple_of(50) {
+                    for client in &mut bench.clients[..far] {
+                        client.input(20, 0x21);
+                    }
+                }
+                bench.step(5);
+            }
+            let what = format!("{players} players, {one_way} ms, {mode:?}");
+            assert!(resynced, "{what}");
+            assert_eq!(bench.stages(), "L".repeat(players), "{what}");
+            assert!(live_ms > 25_000, "{what}: in step {live_ms} ms of 40 s");
+            assert_eq!(bench.game().resyncs(far), 1, "{what}");
+            bench.assert_no_faults();
+            settled.push(bench.game().generation(far));
+        }
+        assert_eq!(settled[0], settled[1], "{players} players, {one_way} ms");
+    }
+}
+
+#[test]
 fn a_game_waiting_for_its_first_world_gets_the_others_inputs_many_in_a_datagram() {
     let mut bench = Bench::new(4, MAP_BATTERIES, Settings::default());
     for place in 0..3 {
@@ -2355,99 +2457,6 @@ fn with_unsafe_effects(world: &[u8]) -> Vec<u8> {
     .unwrap()
 }
 
-/// TEMPORARY (the fall-back, packet-validation.md "When the check, not the
-/// game, is wrong"): a check wrong for one kind. Every game's world has game
-/// objects the server's check does not expect, a rule the games' own check
-/// has no twin of (it is given no objects).
-#[test]
-fn a_kind_of_refusal_two_players_share_falls_back_to_the_games_check() {
-    super::capture_errors();
-    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
-    for client in &mut bench.clients {
-        client.sim.stray_objects_from = Some((0, 7));
-    }
-    let lines = |what: &str| {
-        super::errors_logged()
-            .into_iter()
-            .filter(|line| line.contains(what))
-            .collect::<Vec<_>>()
-    };
-    bench.clients[0].connect();
-    bench.clients[1].connect();
-    assert!(bench.until(1_000, |bench| {
-        bench.clients[..2]
-            .iter()
-            .all(|client| client.model.options.is_some())
-    }));
-    let world = |bench: &Bench, place: usize, time: u32| bench.clients[place].sim.world(time);
-    // One player's uploads, however many: refused, never in doubt.
-    for n in 1..=4 {
-        let time = INITIAL_MS + 50 * n;
-        let body = world(&bench, 0, time);
-        bench.clients[0].upload(time, &body);
-        bench.run(100);
-    }
-    assert_eq!(bench.game().uploads_refused(0), 4);
-    assert!(!bench.game().has_clock());
-    assert_eq!(super::errors_logged(), Vec::<String>::new());
-    // A second player's: in doubt. This one the games' check refuses too
-    // (its effects): still refused.
-    let time = INITIAL_MS + 50 * 10;
-    let body = with_unsafe_effects(&world(&bench, 1, time));
-    bench.clients[1].upload(time, &body);
-    bench.run(100);
-    assert_eq!(bench.game().uploads_refused(1), 1);
-    assert_eq!(bench.game().uploads_fallen_back(), 0);
-    let doubt = lines("WORLD CHECK IN DOUBT:");
-    assert_eq!(doubt.len(), 1, "{doubt:?}");
-    assert!(
-        doubt[0]
-            .contains("WORLD CHECK IN DOUBT: 5 uploads from 2 players refused as game objects at "),
-        "{doubt:?}"
-    );
-    // A refusal of another kind is not in doubt: refused.
-    let mut clean = bench.clients[1].sim.clone();
-    clean.stray_objects_from = None;
-    let time = INITIAL_MS + 50 * 11;
-    let body = with_unsafe_effects(&clean.world(time));
-    bench.clients[1].upload(time, &body);
-    bench.run(100);
-    assert_eq!(bench.game().uploads_refused(1), 2);
-    assert!(!bench.game().has_clock());
-    assert!(lines("WORLD CHECK FALLBACK:").is_empty());
-    // Player 0's initial world, refused as before, now passes the games'
-    // check: relayed, it starts the match.
-    bench.clients[0].ready();
-    assert!(bench.until(1_000, |bench| bench.game().has_clock()));
-    assert_eq!(bench.game().uploads_refused(0), 4);
-    assert_eq!(bench.game().uploads_fallen_back(), 1);
-    let fallback = lines("WORLD CHECK FALLBACK:");
-    assert_eq!(fallback.len(), 1, "{fallback:?}");
-    let expected = format!(
-        "WORLD CHECK FALLBACK: player 0's upload at {INITIAL_MS} ms, refused as game objects at "
-    );
-    assert!(fallback[0].contains(&expected), "{fallback:?}");
-    assert!(
-        fallback[0].ends_with(
-            ", passes the game's own check and is relayed (temporary, see packet-validation.md)"
-        ),
-        "{fallback:?}"
-    );
-    // The match runs on such worlds: the uploads asked for are relayed, and
-    // a player who comes later gets one (every world of the match is one
-    // the server's check refuses).
-    bench.clients[1].ready();
-    assert!(bench.until(30_000, |bench| bench.stages().starts_with("LL")));
-    bench.run_long(15_000);
-    assert!(bench.game().uploads_fallen_back() > 1);
-    assert_eq!(bench.game().uploads_refused(0), 4);
-    assert_eq!(bench.game().uploads_refused(1), 2);
-    bench.join(2);
-    assert_eq!(bench.game().uploads_refused(2), 0);
-    assert_eq!(lines("WORLD CHECK IN DOUBT:").len(), 1);
-    bench.assert_no_faults();
-}
-
 #[test]
 fn the_initial_world_is_not_checked_when_the_setting_says_so() {
     let settings = Settings {
@@ -3358,6 +3367,32 @@ fn a_world_whose_parts_go_unacked_is_taken_as_loaded_on_the_games_right_hash() {
     assert_eq!(bench.clients[2].snapshots().len(), 2);
     assert_eq!(bench.game().resyncs(2), 1);
     assert_eq!(bench.game().generation(2), generation);
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_world_whose_parts_go_unacked_is_taken_as_loaded_on_the_games_load_receipt() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // Two players and no hash reports from the one who enters: no hash
+    // can prove its load (as in a match of a few, or against bots). Its
+    // acks name nothing of its world, but its game loads it and says so.
+    let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
+    bench.join(0);
+    settle(&mut bench);
+    bench.clients[1].world_receipts = WorldReceiptMode::Accept;
+    bench.clients[1].no_hashes = true;
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+    bench.clients[1].ready();
+    assert!(bench.until(3_000, |bench| bench.stages() == "Lt"), "{}", bench.stages());
+    bench.clients[1].mute_acks = true;
+    assert!(bench.until(1_000, |bench| bench.stages() == "LL"), "{}", bench.stages());
+    bench.clients[1].mute_acks = false;
+    assert_eq!(bench.game().generation(1), Some(0));
+    assert_eq!(bench.clients[1].snapshots().len(), 1);
+    assert!(bench.until(50, |bench| bench.clients[1].entered() == [1]));
+    bench.run(3_000);
+    assert_eq!(bench.clients[1].snapshots().len(), 1);
     bench.assert_no_faults();
 }
 

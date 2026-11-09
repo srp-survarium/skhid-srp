@@ -105,7 +105,7 @@ impl<'t> WorldLoad<'t> {
             }
         }
         let connection = super::packet_recovery::Connection::of(self.client, self.thread);
-        if let Some(connection) = &connection { connection.rejected(None); }
+        if let Some(connection) = &connection { connection.rejected_current(); }
     }
 
 }

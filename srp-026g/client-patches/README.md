@@ -62,6 +62,9 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 48 | Released 2026-11-04 21:29 UTC (tag `026g-rev48`, `main` 9fb2913). Shipped: #1206 Drops: never a camouflage or decal the player has. Without a server sha256 `8761786b4f994a6e7e2fea86cefbc90a5394251cbd06de487d2fb44327268d41`, with `--server=skhid.link:1234` `b4c3fc52127f3551a7d87e2090c3c49d51082b1e12ff03fec5105ca233da355d`. The ZIP: 7327433 bytes, sha256 `d3f0567bb2016151757d23682e84281fe836c609907fbe08519ee28768f37406`; the server data: sha256 `89e4ae95be6e9136a943e406fd64f39b0caf5bfe8804d3c945ec14062c3ee53e`. No content patch of its own |
 | Revision 49 | Released 2026-11-05 09:40 UTC (tag `026g-rev49`, `main` 68d3a70). Shipped: #1240 Linux launcher: use Wine's Wayland driver under xwayland-satellite; #1243 Blackout: a mode of its own maps; type the configs' modes; #1238 Research: never read a departed place's player; #1242 Results screen: a NULL map name reads as ""; #1231 Lobby: hold Alt to see a medicine's numbers after the medical skills; #1245 Patch 95: log the animation pair the registry has no id for (rev47 crash at 0x1F18C8); #1253 Patch 99: a world takes no player input whose rotation no client makes (0.27d's "input is invalid"); #1257 Patch 102: a side mouse button is no left click in the menus; #1255 Expect starter kit level 7 in the bot-match end-to-end test; #1270 srp-recording-to-sur: read the recording's dictionary; keep chosen key frames; #1256 Patch 101: a footstep first made by a re-simulation is heard (random step drop-outs); #1258 Patch 100: the sound follows the audio output device (B43); #1247 Patch 96: shots stay audible under heavy fire; #1265 Ported guns: other players' shots heard to 200-240 m (pack weapons-reverb-layers@1); #1248 Hash worlds up to 0xF000 bytes; history item sections grow on the heap (patch 98); #1254 Match server: skip a resync whose game already agrees; capture both worlds at a split's first tick; #1249 Crash dumps: full memory on SKHID_CRASH_DUMP=full, not a build feature; #1260 Crash report: the patch log's tail in crash.txt and the ZIP; the time in UTC; #1261 Crash report: the match and the last 1024 notable events (breadcrumbs in the arena's state); #1264 Crash report: what the game was reading when a load crashed (player and stream offset); #1267 Crash dialog: with SKHID_CRASH_DUMP=full, send the report and keep the .dmp; Copy fits one Discord message; #1266 Player log tools: the crash ZIPs' text in the collected logs; the crash files' labels on Linux; #1259 Server logs: one size-rotated file per server in the data volume; #1246 Weapon pickup: every client installs the recipe's gun (rev47 affects_count crash); #1273 Weapon pickup: a player can take its own drop; #1275 Animation ids: the cause of the 0x1F18C8 / 0x3B336C crashes (docs); #1286 Ammo cards: bullet speed, range and pellets, in the weapon card's rows; #1281 Linux: install the font Calibri into the Wine prefix; #1276 An RGD-5 takes two pocket units; #1289 Note the one-off RGD-5 pocket reset at release; #1290 Grenades: CCD sweeps a sphere inside the capsule, no more falling under the ground (patch 105); #1288 Settings: Names on map (Tab map names without Alt); #1296 Groza: less damage (0.34) and a harder upward kick; #1292 Groza: 0.31a2's own aim locator (weapons-031@13); #1293 Collimators: the 9A-91's Cobra dot at the screen's centre; #1200 Publish the players' notes of revisions 46, 47 and 48; #1155 Preserve battery taker statistics across snapshot loads; #1299 Remove the two unlearnable physical skills; Packrat to column 4; #1301 Pre-release fixes for revision 49; #1295 Wiki: Skills, every skill tree as the lobby draws it; #1302 Chat text follows the keyboard layout under Wine (patch 107). Without a server sha256 `b29b7897dd4aecda02eba07879bc4405d59b64ad9fd3596cdb30509107d8c86d`, with `--server=skhid.link:1234` `d6d05e896f9788556b97458469689976462a6c1d8479b1d0213105e4fbedac17`. The ZIP: 7349372 bytes, sha256 `528559910913770cc8c28555144fb7c7d5b18b570f0758aee4948834804ec97c`; the server data: sha256 `728548761e040ff6c3ba4ceda00a545c167365c08f19c049413761de058a7866`. Its content: `resources.db.patch_49` (78724421 bytes, sha256 `2b61de5e2953072eb95c9665ae21921d2d4f57f51ea825f3adcc20f99b78b3ab`) |
 | Revision 50 | Released 2026-11-05 19:51 UTC (tag `026g-rev50`, `main` 897258a). Shipped: #1308 Lobby: only a buy started in the shop asks about an item owned already; #1311 Grenade and trap cards, with Alt after skills; #1312 Artifact-master: artefacts recharge 20% faster (built-in bonus 1310); #1268 Medical tree retune: combo skills, fewer ranks, tier-5 either/or; #1315 Regeneration booster: regenerates to full health, starts 2 s sooner; #1313 Blackout: Tab no longer stops a held Use (artefact search, refill); #1316 Gun-stock hits to the hand kill (patch 108); #1330 Patch 110: keys the desktop moves are moved in the game under Wine's Wayland driver; #1283 Test bullet hits at the crossing millisecond, not the 50 ms grid; #1323 Opt-in Vulkan renderer (DXVK) for Windows players; #1326 Force Protein: gun-stock kills by its carrier send the ragdoll flying (visual); #1338 Ragdoll: no travel cap, a thrown body flies on until friction stops it; #1334 Calculator: a wall in front of the target; #1339 Login and main menu: closing a message gives the focus back (Esc, close, Enter signs in); #1341 Renderer list: open under its box, and the restart hint; #1331 Patch 70 (bake_cache) in Rust; #1343 Lobby: held Alt, Bear Arms shows a cancelled movement penalty; #1342 Calculator: the formula as numbered steps with this shot's numbers; #1347 Rooms: private rooms with bots; #1328 Mouse look: "Lock vertical sensitivity": 16:9's look at every window when locked, 1:1 when unlocked (patch 110); #1348 VPN.txt: zapret settings and AmneziaVPN's white-list mode; #1349 hud-options harness: Controls part passes again; mouse sliders at their borders; #1346 Calculator: the glass wall is just Glass; #1340 Weapon card: Pierces, the best round per stat, shotguns by kind; #1350 tools/check: run only the checks a change affects, cached by their inputs. Without a server sha256 `c787458848ead38a576d0d4cfb459f7671e32a0296b10d3389d9acf4f7362b18`, with `--server=skhid.link:1234` `e280d52c8323a58880c4b08341d7b0c701b32f00c05f84d33960896732a2436e`. The ZIP: 16772952 bytes, sha256 `d9d6df1923cd28b9ffb5c9f0882dbbaf56dc8a5b40485a211e63d00a45d03348`; the server data: sha256 `d565c500eda083a7fdfc28f68f2d309336af6f804ebbcc68f7595d9fa819ccf2`. Its content: `resources.db.patch_50` (78271648 bytes, sha256 `54b08986b12559260b02550e4e2dd4788ac3ab5d6ecf838de99ffe379f6192d2`) |
+| Revision 51 | Released 2026-11-07 20:47 UTC (tag `026g-rev51`, `main` 1a93e40). Shipped: #1351 web-server tests: give the stock account the silver the admin takes; #1355 build-content: cache unchanged steps (no change 54 s, lobby change 112 s, was 424 s); #1359 DXVK on Windows: bind the game's dxgi, d3d11 and d3d9 to DXVK's DLLs; #1358 release.sh: swap as soon as no match has run for 30 s; #1354 Lock vertical sensitivity: Apply keeps an unlock; the greyed slider follows set values; #1363 Patch 108: a gun-stock hit kills wherever it lands; #1368 Trap 0.55 a foot; the painkiller's pain protection covers it; #1369 Take off what a skill opened when the skills change; #1372 Patch 113: kits and cursor start over at each match; the main menu covers the hud's cursor; #1370 Item search: "+" words for levels, factions and bonuses; #1373 Everyone at level 15's last point; new accounts with five skills; #1388 release/moderate: watch registrations and sign-ins, ban, mute, close sign-ups; #1380 VSSK rifles: Vychlop gets aiming time -10 %, Dusk reload +15 % as their one built-in; #1389 Boosters: every built-in bonus shows gold on the card; #1390 Lobby: held Alt, medicine cards show Numb Legs, Unflinching, Concentration and Take Cover; #1375 Modification window: the item's card is the inventory's, at its size; #1376 PPSh-41 Drum: seat the drum in the magazine well (weapons-069@15); #1391 SVU: its iron sights raised, its eye on them (weapons-046@13); #1382 Item search follow-up: Shift+= types +, penalties are no bonus, bonus words by type; #1360 Equipment 046@9: four new pieces; the NVD as open goggles; the Sniper set at level 11 and the Veles set at level 13 (the owner's numbers); #1364 Equipment 069@5: the Snow-20 set (the level-11 Sniper's twin) and the Delta mask; #1393 Drop one-off checks of shipped changes; #1397 One Ruffle runner for the movies' harnesses; #1399 Release tests: the early swap's 30 s scale with the test's minute; #1400 build-content: read the pierce lines' files only when a list asks for one; #1402 Medical skills' texts in the language TSVs; #1395 Release: build the server image here, load it on the host; #1408 Wiki weapons: choose the round; #1412 release/moderate: reset-password, watch, give, money, fuzzy who; #1367 Graphics: Vulkan options (frame limit, overlay, low latency, tear-free, dedicated GPU); FOV to Gameplay; #1398 Fix the artefact-carry and language-option harnesses; #1407 Self-test: fix the four stale exe-patch checks (lohook dispatch, patch 96 exits, artefacts, configs.start chain); #1414 Self-test: derive the pinned checks from the declarations, run it at a release; #1415 build-content: packs keyed by the movies they edit, lamps cached, a quick build by default (--full for releases); #1180 [Packet safety v2 1/11] Shared message parsers (inert); #1434 World checks: take the worlds the game writes for a NaN player and a shooter who left; #1458 Read uploaded worlds as typed views, every field held to what the game writes; #1423 World check cost: a bench over recorded matches, sorted compatibility pairs; #1421 Packet safety v2: catch a world check that is wrong before a release, and loudly in a match; #1463 check_bench: check with the server's Roster (main does not compile); #1461 Patch 116: srp's ban reasons and the ban's end on the sign-in screen; #1466 Notes: what players' games send each other, and how it is checked; #1468 match-server: fall back to the games' own check for a kind in doubt (temporary); #1464 Send every kit to the match with its pockets packed (crash of match 0x55809714); #1467 Patch 117: a presenter ignores an event for an effect it holds no entry of (rev50 crash 2026-11-06); #1471 test(srp): fix stale v026g_web assertions; #1474 Sell the rank and faction badges in the shop; #1469 Patch 117: a character controller's step never leaves its position non-finite; #1470 tools/check: world-check and world-drift over a private world corpus; #1475 AGENTS.md: the world format and its check; #1476 World check: no NaN in a player's speed, last position or a bullet's origin (after patch 117 is live); #1477 Results screen: a map is always usable, bought on click, its item shown again; #1478 Renumber controller_position to patch 118; #1479 Lobby build: drop RESULT_SHA256; #1480 Lobby: the match pop-up over the room window, gone at the next press; #1481 simulation_changes: controller position fix is exe patch 118; #1486 Rooms: four ready Play waiters open another room (was six); #1485 Read the refusals' clock from GetTickCount, not GetCurrentProcessId; #1487 Do not count invalid inputs of a world out of step toward removal; #1490 Input safety: 100 invalid inputs in step remove a sender (was 8); #1492 match-server: never relay a refused world; give every waiting game an end; #1493 Rooms: say why a match can't take a joiner when it has no world (J;-1;8); #1494 Rooms: J;-1;8 tells the member it joins the next match; #1495 Patch 119: a kicked game goes back to the lobby as a lost connection does; #1392 Artefact skill tree: the fifth tab, its eleven skills and Forest Protection's glow; #1489 Receipts: one per event, none dropped for time; #1482 World load receipts: admit on Loaded, answer each refusal once, no receipt timer; #1498 simulation_changes: restore the separator before the patch 118 clause; #1499 Refused worlds: count only a game's own refusals; end a match with no first world by events; #1500 Receipts: number refusals per connection, a waiting slot per kind; #1501 Patch 120: a match its game never played closes too (kick/timeout/lost link while loading). Without a server sha256 `e3535b4de5d1e15d448dbb8f7cbdcc46edfa95800b4854bfb7aa22ea50b818ba`, with `--server=skhid.link:1234` `8119f24cb6f1b04b70c77ceccb8c64e6f29f0b1766b97a5615eb69d2f567eceb`. The ZIP: 16825683 bytes, sha256 `f099cafcc4a772fd0dd6257e680e934631bd6edb15335ab19ac3a9bb2a7b0dc0`; the server data: sha256 `58e09e73440042dc90a51c1fd4232eb20585e52b3d278edf1fcff8e592aba10c`. Its content: `resources.db.patch_51` (272668357 bytes, sha256 `55051281da0cd73bf3dcb95e7333625b9c2c43fb518f3970e57de8deeda8e928`) |
+| Revision 52 | Released 2026-11-07 21:40 UTC (tag `026g-rev52`, `main` 13d1b71). Shipped: #1505 Release: exe self-test beside step 2, on every core; --no-selftest; #1506 Patch 109: fix the crash at a rollback over a Keeper's respawn into another kit. Without a server sha256 `4458593de9f834f12cfc31a5f60a7116c5fa18d47bb9e513e7f07b57cd7677de`, with `--server=skhid.link:1234` `2235be3c078695b1f4d9709ce9a498506c796d6158a3faf38be5b378bb7d5ca4`. The ZIP: 16825944 bytes, sha256 `a306cb24db938fcbcb772c6f37405443ffb442e0f61242e9c92ac74a347eae02`; the server data: sha256 `58e09e73440042dc90a51c1fd4232eb20585e52b3d278edf1fcff8e592aba10c`. No content patch of its own |
+| Revision 53 | Released 2026-11-07 23:16 UTC (tag `026g-rev53`, `main` 164c311). Shipped: #1510 Patch 109: every kit's artefact slots made the world's at each world load (rev52's start crash); #1509 Cascade: every kind's activation shared (Medic's path); Resonance 9 m, Cascade 6 m. Without a server sha256 `a048ccb2671290e9bc670e792ce8217cce05779f7803265c031a7b0025b4edef`, with `--server=skhid.link:1234` `ab49f5483701c2197e2e5542a9cd427a5c01c8113a610439c2394962e3cfae9e`. The ZIP: 16833325 bytes, sha256 `92dd2e8987a14d5f34432f7d8df0b7b77b7e88ee79ea721aa6e3a777f7e6ab5c`; the server data: sha256 `d9330961e00975ec1b91baefaf97554acd8877dd0c612718318f2b4d62e2564c`. Its content: `resources.db.patch_53` (3149249 bytes, sha256 `83b504298fd2fca957b881724d4bcd9d3d48e0ba88e69b8b6dd6f1cf5d04be28`) |
 | Revision 4 | Revision 3 with patch 10 (a start with a Documents folder the game may not write to). **In the players' download since 2026-10-13 15:36 UTC.** Made as the download is, it differs from the revision 3 exe (`ac947abd…6d7b`; without a server `eedc5b5c…cf0d`) in the four bytes at file 0x35F0B, two bytes of an address at file 0x8410C8, the revision byte and the PE checksum, and in nothing else (compared byte by byte). The built exe was started in both situations of patch 10, not past the sign-in screen, before the release; the first sign-in with revision 4 on the players' server was logged three minutes after it. It plays together with revision 3 |
 | Revision 3 | Revision 3 is revision 2 with patch 9 (the battery rule). **It was the players' download from 2026-10-13 12:22 to 15:36 UTC** (the rows below are the downloads so far): it and the revision 2 exe differ in the 13 bytes of patch 9, the revision byte and the PE checksum, and in nothing else (compared byte by byte). Its rule was run outside the game (`run_battery_rule.ps1`). Eight sign-ins with revision 3 were logged in those hours; whether one of them played a match to a team's last battery was not looked at. A game of revision 3 or later and an older one part at a team's last battery (patch 9) |
 | The players' download | `Survarium-0.26g-srp-files.zip` of skhid.link (and 026g.skhid.link), since 2026-10-13 15:36 UTC: 6 793 103 bytes, sha256 `29b2ac002a1787c1352d021065f18a87ea5caa66fb16298c8e603a5347416bb4`, 23 files, made by `make_client_026g.py --pack-zip --server=skhid.link:1234 --localization=english` of `main` dbd70f0 with `--bugtrap=` naming the build of `client/bugtrap` that had been run in the game (that DLL does not build to the same bytes twice). It differs from the download before in two files: the game exe (sha256 `ae3ddf43f38eecb9e5080b10aa6b8397ce5dbed0f133b381461c82cb17329f25`, patch revision 4: patch 10) and `bugtrap.dll` (39 936 bytes, sha256 `9e3295c1312854c455c474e1dbd457b0a792b5ae406ff0b55d3b19b4f2fc4353`: the start-up notice of `client/bugtrap/README.md`); the other 21 files are byte for byte the same. Built twice: the same ZIP. Checked after the replacement: `/api/client-files` and `/download` of both names give this sha256. No restart: nothing on the server changed |
@@ -92,6 +95,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `default_server_026g.asm`, `.section.bin`, `.hash-mismatch.bin` | Optional default-login-address stub, appended to the snapshot cave; source and assembled code for both placements |
 | `make_client_026g.py` | Makes the players' overlay folder or ZIP: patched exe, Rust BugTrap DLL, certificate, start file and README; with the launcher, DXVK 3.1.1's x32 DLLs (`winetricks dxvk`'s set: d3d8, d3d9, d3d10core, d3d11, dxgi) in `game/binaries/x86/dxvk/` (its release archive and DLLs pinned, downloaded once into `~/.cache/skhid`; `../docs/notes/dxvk-option.md`) |
 | `play_skhid.sh`, `LINUX.txt` | Linux Wine/DXVK launcher and instructions, included in the generated folder and ZIP |
+| `play_skhid_mac.sh`, `MACOS.txt` | macOS (Apple silicon) launcher and instructions, included in the generated folder and ZIP: downloads a pinned Wine (athei/wine-build `cx-26.3.0-8`: CrossOver 26.3's sources, msync, DXMT) and SWTOR on Mac's raw-mouse Mac driver once into `~/Library/Application Support/Skhid`, laid out as `Survarium.app` (games category, `LSSupportsGameMode`) so macOS Game Mode applies; runs under Rosetta with the engine's x87sidecar off (it desyncs); `Skhid.sh` runs it on macOS, `Skhid.command` from Finder |
 | `stale_dll_026g.asm`, `stale_dll_026g.section.bin` | The code of patch 25 (the sign-in reports a stale `shell_32.dll` in `%TEMP%`, a file one known cheat leaves behind) and that code assembled for 0xE00 of `.srp`; `patch_026g.py` reads the .bin |
 | `check_stale_dll_026g.py` | Runs patch 25's check on made-up machines, loaded as is and rebased (needs Unicorn) |
 | `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
@@ -129,16 +133,22 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
-| `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
+| `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MenuChange`, `CursorMovie`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); five lohooks, at initialize_match's start, show_cursor's show and hide and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
+| `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper gets a dormant artefact of the match's kind from the map's hidden pool at the match's start, into its first empty container, once a match: register_artefacts 0x31B8E0, the player's tick 0x2DAAD3); their checks run the game's code for each (needs Unicorn) |
+| `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
+| `rust/patches/src/unplayed_match.rs`, `src/unplayed_match.toml`, `src/vostok/match_close.rs`, `check_unplayed_match_026g.py` | Patch 120: a match its game never played (the time rule's state 0: the handshake, a level loading, a level loaded before its first world) closes too, kicked, timed out, cut off or given its farewell: five lohooks (connect_to_match's connect, the logoff, close_current_match's guard, on_project_loaded's abort test, on_match_ready's end); its check runs each from the game's code on a made-up network client, the original beside (needs Unicorn; `../docs/notes/client_patch.md` section 3.74) |
+| `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
+| `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
+| `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`) and patch 128 (`THREAD_STACKS` in `patch_026g.py`): the defaults of the multithreaded arena and the resource floor (768 MiB), and of the resources helper (32 MiB) and render (320 MiB) arenas, a command-line value still taking over, and an engine thread's stack (2 MiB); its check runs the native option reads, the registrations' sizes and threading::spawn to CreateThread in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75 and 3.77) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/music.rs`, `src/music.toml`, `src/vostok/sound.rs`, `src/vostok/resources.rs`, `check_music_026g.py` | Patch 88: the music (`../docs/notes/music.md`): the menus' and the maps' themes in a sound scene of its own, kept active and faded by the sound thread; its query callback the framework's first `callback` hook (handed to query_resources at run time, no site rewritten). The check runs its seven lohooks and the callback through the game's own boost invoker, bind, config lookups and add_scene_to_active (needs Unicorn) |
-| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `src/vostok/renderer.rs`, `check_hud_options_026g.py`, `../scripts/dxvk-loader/` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`), the Gameplay tab's field of view (`uro_fov`, patch 22's variable: `root.srp_slider_option`), and the Graphics tab's Renderer (`srp_dxvk`): at the process's start (`memory.allocate_arenas`) user.cfg read, the Vulkan look and DXVK loaded from `dxvk\` by full path (the game's delayed dxgi, d3d11 and d3d9 bound to them by their module slots), and with it `DXVK_CONFIG` set from the Vulkan options (`srp_dxvk_frame_limit`, `_low_latency`, `_tear_free`, `_dedicated_gpu`, `_overlay`), a failed DXVK start turned off at the login screen (`../docs/notes/dxvk-option.md`; the loader's proof under Wine `../scripts/dxvk-loader/run.sh`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
+| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `src/vostok/renderer.rs`, `check_hud_options_026g.py`, `../scripts/dxvk-loader/` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`), the Gameplay tab's field of view (`uro_fov`, patch 22's variable: `root.srp_slider_option`), and the Graphics tab's Renderer (`srp_dxvk`): at the process's start (`memory.allocate_arenas`) user.cfg read, the Vulkan look and DXVK loaded from `dxvk\` by full path (the game's delayed dxgi, d3d11 and d3d9 bound to them by their module slots), and with it `DXVK_CONFIG` set from the Vulkan options (`srp_dxvk_frame_limit`, `_low_latency`, `_tear_free`, `_dedicated_gpu`, `_overlay`), a failed DXVK start turned off at the login screen (`../docs/notes/dxvk-option.md`; the loader's proof under Wine `../scripts/dxvk-loader/run.sh`), and with DXVK, right before each Present of the game's swap chain (`render_output.present`), a window DXGI refuses (topmost, no frame style: DXVK's fullscreen, set_size's style 0) made a popup, so AMD's driver can make its swap chain (`dxvk-option.md`, "The fullscreen window"): lohooks, those at a site patch 79 or 65 hooks too after that patch's; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `world_sections_026g.asm`, `check_world_sections_026g.py` | Patch 98: hash()'s world buffer and the upload's are 0xF000 bytes (two immediates), and the history item's six world sections grow on the heap (one jump at the end of its constructor, the arena's block `world_sections.code`); its check runs the constructor, the sections' writers, hash, deserialize and destroy of the game's own code on made-up items, the original beside (needs Unicorn) |
 | `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no state over the game's buffer, no body over 0xF000 bytes); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
@@ -568,84 +578,17 @@ revision 11, `fov_slider_026g.py`'s, in git history only) was checked live in th
 the Gameplay one in Ruffle only (`../scripts/hud-options/check.sh`) and patch 83's side in Unicorn
 (`check_hud_options_026g.py`).
 
-## Lobby exchange, silver and gold both ways
+## Silver only: no gold, no exchange
 
-The lobby's gold-for-silver window is an exchange both ways (since revision
-23; source: the window's class, `../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
-open the online store) opens it to buy gold; the silver box opens it to sell
-gold. The window has:
-
-- **Pay**: an amount, the coin and its name, the balance;
-- a **v^** button that swaps the two currencies (the old Receive amount
-  becomes the new Pay amount);
-- **Receive**, the same way;
-- the rate under them, Pay first: "100 Silver = 1 Gold" or "1 Gold = 100 Silver";
-- "Not enough silver" / "Not enough gold" in red, with the Exchange button
-  greyed out, when the Pay amount is more than the balance (since the
-  exchange update below, a typed amount becomes the most the balance pays
-  for; the note is left for the amount the window opens or swaps with).
-
-Typing in either field updates the other. Silver goes by whole gold: a silver
-amount that is not a multiple of the rate is evened out when the field is
-left, and on Exchange. The texts are dictionary keys (`st_srp_exchange_*`,
-`localization/README.md`, Flash menus' own texts). "Silver" is the game's own word
-(`regular_money`, `st_regular_money`); "Gold" (`st_srp_exchange_gold`) is the game's
-`st_premium_money_name`, copied, as the movie has no key for it; the rest are the
-window's own words, the game having none for them.
-
-It is the stock window (`MessageMoneyExchange`, symbol `SrvMessageExchangeSkinned`)
-with the stock pieces moved: its 9-slice background made 300 x 300, its buttons
-and title. The panels are drawn as the stock stepper's dark box, the coins are
-`CoinsIcon2`, the swap is a `SrvButtonScale` (the skin of EXCHANGE / CANCEL)
-with two arrows drawn on it. The texts take the font of the stock title
-(bold Calibri from the font library, embedded): the movie's own plain
-"Calibri" has two glyphs, and text in it shows as squares. Five methods
-change, in two ABC blocks: the window's constructor (builds the layout, so the
-size is final when `Message` centres it; the swap button is added in
-`configUI`, after that, or the window opens in the corner), `configUI` and
-`onMessageAccept`, and `StatusPanel.onPremiumMoneyAddClick` /
-`onRegulatMoneyAddClick`. The exe is not
-changed: the window calls the game's `exchange_premium_money`, which sends `47 04`
-with the u32 it is given. Gold for silver sends the gold, as the stock window
-did; silver for gold sends `0x40000000` + the gold (`MessageMoneyExchange.BUY_GOLD`),
-which the server reads as `BuyPremium` (`requests::BUY_PREMIUM`). So the server
-must be released first; an older server refuses such an amount as more gold
-than the account has.
-
-Checked in a local lobby under Wine (2026-10-15): the window opens centred,
-shows both directions with their balances and rate, the swap button works,
-and gold bought with silver reaches the top bar. Its first build (a bytecode
-step on revision 22's movie) is in revision 23's movie; it is built from
-source now ("Building the lobby movie"). Tests (the buy-gold mark agrees with
-the server's, every text in every language): `python -m unittest test_build_lobby`.
-
-## Get Gold opens the exchange
-
-`MessageMoneyExchange.buyGold()` (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`)
-makes every "Get Gold" of the lobby open the exchange window above, to buy gold with silver, instead of the online store (a browser
-window on a dead site). The rules: `docs/notes/buy-gold.md`. The
-"Insufficient Gold Rubles" dialog's button calls `goToStore` of the window that
-showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
-`MessageCraftItem`, `MessagePostPremium`, `MessagePremium`,
-`MessagePremiumDiscount`, `MessagePremiumProfile`, `MessageRepair`,
-`MessageRerollItem`) and the premium window's gold button
-(`MessagePremium.onPremiumMoneyAddClick`, which asked first) become
-`MessageMoneyExchange.buyGold()`. It shows the exchange with `showMessage`'s third
-and fifth arguments set, so it opens over a window still open instead of
-waiting behind it, and that window stays visible under it. The exe and the
-server do not change. Not in a release yet.
-
-## Exchange window updates
-
-A change of the window (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`) is built in by
-building the lobby movie.
-
-The first such change (2026-10-20): an amount more than the Pay balance pays
-for becomes, as it is typed, the most it does, in the field typed in. Buying
-gold with 5,500 silver: 10,000 in Pay becomes 5,500, 100 in Receive becomes
-55. Selling gold works the same way with the gold balance. Silver is still
-whole gold: with 5,550 silver, anything over 5,500 becomes 5,500. Not in a
-release yet.
+Gold is gone (the owner, 2026-11-08): silver is the one currency. The lobby
+movie has no gold balance, no exchange window (`MessageMoneyExchange` and its
+stepper were removed; the two symbols the graphics bind keep empty classes)
+and no "Get Gold": every price is silver, a premium item's too
+(`docs/notes/buy-gold.md`, `docs/notes/exchange.md`). The windows that offered
+gold (the skills reset, the reroll, the upgrade, the repair, the rename, the
+premium shop) offer silver only. The exe is not changed; the server answers
+`47 04` as a request it does not know. The exchange's history (revisions 23 to
+53: both ways at 100 silver a gold, Get Gold opening it) is in git.
 
 ## Buy for modified items
 
@@ -715,9 +658,8 @@ its ActionScript source tree, `../flash/lobby_menu/src`
 ([lobby-source.md](../docs/notes/lobby-source.md)), with every lobby change as
 an edit of it:
 
-- the features written in the game's own classes: the exchange and Get Gold in
-  `MessageMoneyExchange` (#214, #213; the ten `goToStore` and the premium
-  window's gold button call it), Buy on owned items in `LobbyMenu` and
+- the features written in the game's own classes: silver only (no gold, no
+  exchange: the windows that offered gold, `StatusPanel`, `PlayerInfo`), Buy on owned items in `LobbyMenu` and
   `InventoryList` (#215), the craft window's Buy/Sell and Continue in
   `InventoryList` and `MessageCraftItem` (#216), Optics in `InventoryList`
   (#217), the player gear in `LobbyMenu` and `PlayerRanking` (#232);
@@ -3276,7 +3218,9 @@ does what no config of 0.26g could.
   now activates the pressed one and every other artefact of the same class (vtable) and kind 1
   in the inventory's artefact slots (13..18) that is ready, each as action does (enable_active,
   its effect 0x313350, the time, state 4), and returns: a press of one cooling or active still
-  fires the ready ones. A key-up goes on in action. Different kinds keep their keys.
+  fires the ready ones. A key-up goes on in action. Different kinds keep their keys. Ready
+  includes patch 109's cap (2026-11-07, its entry `artefact.fire`): a copy past the first 4 of
+  its kind in the containers is not fired and stays ready, so a press fires at most 4.
 - **Onyx: a stack is a longer burst, not a stronger one** (the owner, 2026-10-25; its numbers,
   -75 % for 3 s, in `artefacts.tsv`). Its enable_active (0x3128C0) sets the active's time left
   (+F14h, ms) from `active/duration`; the press above, when the kind's enable_active is Onyx's,
@@ -4646,7 +4590,15 @@ request a resend of that connection's pending handshake.
 
 Receipts use a distinct impossible E0 upload prefix, match seed and generation.
 Stale, duplicate and unsolicited receipts cannot reset another player or accuse
-a donor. Rejection packets are limited to one per second per match. Every
+a donor. A receipt is sent once per event, never dropped for time: a world's
+Loaded or Rejected once per generation (a flood of one corrupt world sends one;
+the next generation's refusal goes at once, however soon), a Rejected handshake
+once per refused E3/E4 (not for a refused late-join proposal), and an Unreadable
+for a world whose generation cannot be read (its reader outside its buffer, or no
+byte), both numbered 1, 2, ... on their connection in the generation byte; the receipt rides E0, which the transport
+resends every 500 ms until acked, and the server tells a copy from a new refusal
+by that number or generation. A receipt the packet pool has no room for waits (the
+newest only) and goes on the next frame with room (`game.tick`, order 2). Every
 refused message and world gets a line in `srp_patches.log`: at most one a
 second for the game, each counting the refusals since the last line
 (`vostok::log::refusal`). The server logs each refused world or handshake a
@@ -4683,17 +4635,66 @@ The owner's two reports (2026-11-06), both before a match's start, with the kits
   `HUD.reset`, which initialize_match invokes at 0x234AE8, hides its kits too
   (`show_profiles_selector(false)`, as its constructor). The match's first showing of the kits is
   then a whole one, with the right tab.
-- `options.activate` (0x200F50): over a running match (the game world active, +D4h) with the hud's
-  cursor shown, its movie is taken off (base_game_scene::hide_movie 0x23DC70; the renderer takes
-  out every copy and does nothing with none).
+- `options.activate` (0x200F50): a closed menu about to be shown with the hud's cursor shown
+  (+2DCh), in a match or not, takes its movie off (base_game_scene::hide_movie 0x23DC70). activate
+  returns at once when the menu is shown already (0x200F62), and so does the patch.
 - `hud.cursor_movie` (0x23A992): while the menu is shown, `show_cursor(1)` (a death under the menu,
   the kits again) writes its flag but does not show the movie.
-- `options.deactivate` (0x201040): a shown menu closing over a running match with the hud's cursor
-  shown puts the movie back (show_movie 0x23DC00). A match's end clears +D4h before it closes the
-  menu (0x1F952B, 0x1F956D), so nothing comes back then; the lobby's menu has no running match.
+- `hud.cursor_hide` (0x23A9B0): while the menu is shown, `show_cursor(0)` (a spawn under the menu,
+  the next match's start) writes its flag but does not take off the movie, which is not there.
+- `options.deactivate` (0x201040): a shown menu about to close gives up a key its settings await
+  (below, "The menu's own cursor"); then, with the hud's cursor shown, it puts the
+  movie back (show_movie 0x23DC00), over a running match and at its end alike (a match's end clears
+  +D4h, then closes the menu: 0x1F952B, 0x1F956D).
 
-The hud's flag is the game's throughout, so the mouse goes where it went. Nothing a match computes.
-Checked with `check_hud_cursor_026g.py`, `cargo test` and clippy. Not run in a game.
+So the hud's cursor movie is in the game world's scene exactly when +2DCh is set and the menu is
+closed, as in the original without the menu. The hud's flag is the game's throughout, so the mouse
+goes where it went. Nothing a match computes. Checked with `check_hud_cursor_026g.py` (each site
+against the original, and the game's orders of calls on a scene's movie list), `cargo test` and
+clippy. Not run in a game.
+
+**The crash it had (rev51 to rev54, exe+0x14EE8D).** The first build took the movie off only over a
+running match and put it back only over one, so a match that ended under the menu (Esc over the
+kits or the death screen, then Leave, or the match's end) left +2DCh set with the movie off the
+scene; under the menu, show_cursor(1) set the flag without the movie, and show_cursor(0) ran the
+stock hide. So the next `show_cursor(0)` after a match's end (the next match's `initialize_match`)
+or under the menu (a spawn, the start of play) took off a movie the scene did not hold. The scene's remove_movie (inlined in world::hide_movie 0x118FE0, as 0.21d's
+scene_view::remove_movie) erases what std::find (0x3C5510) returns, and for a movie not there that
+is the end: buffer_vector::erase (0x15EE30) then copies from end+1 until it meets the end, which it
+never does, and writes through the list's inline buffer until it meets a word that is not a pointer
+(write to 0x17789 live on rev52, 2026-11-07; to 0x2A2 locally on rev54, 2026-11-09). Both on the
+render thread at dispatch_callbacks (0x1024F3), about 0.2 s after a match's players were made. The
+local full dump: the scene (game world +8, 0x41194868) holds the hud movie and the player icons
+(begin 0x411B25A4, end 0x411B25AC, buffer of 32), the command's movie is the hud's cursor movie
+(hud +0Ch, 0x7C1214D8), +2DCh is 0 (the hide had run); the server log has that game leave the match
+before its start "by its own word" (the menu's Leave), then its next match's load.
+
+**The menu's own cursor (the same crash, from the stock game).** The main menu's key-binding
+settings take the menu's cursor movie (game_options +10h) off the scene while they wait for a key:
+the movie's `start_bind_key` (scaleform_callback, 0x1FF889) sets the awaited action (+3Ch, 48h none)
+and hides +10h (0x1FF8A9). Only a key ends the wait: on_keyboard_action (0x2015E0; Esc too, DIK 1 at
+0x2010F2), on_mouse_key_action (0x2016D0) and on_mouse_move's wheel (0x2017A0) hand it to
+process_key_input (0x2010E0), and finish_binding (0x2015A0) or its inline copies (0x2016FB,
+0x2017D9) or a conflict's message (0x201343) put +10h back and set +3Ch 48h. While it waits every
+press is the wait's, so neither Resume, Leave nor Esc can close the menu, but deactivate's other
+callers can, each a scene's on_deactivate as the game switches scenes (switch_to_lobby 0x1ED23B,
+switch_to_game_world, switch_to_login, clear_resources): a match's end, a kick or a lost connection
+(game_world::on_deactivate, 0x1F956D) and a match starting over the lobby's menu or the lobby's
+fall to the sign-in (lobby_menu::on_deactivate, 0x21D50E). deactivate (0x201040) hides +0Ch and
++10h whatever +3Ch says (0x20104D, 0x201058) and leaves +3Ch, so the second hide takes off a movie
+the scene does not hold: exe+0x14EE8D, with the queued command's movie game_options+10h. 0.21d has
+the same code (scaleform_callback 0x15DD31, finish_binding 0x15F5E9). No report has shown it yet:
+the three local full dumps at exe+0x14EE8D (2026-11-09) all hold the hud's cursor movie (hud +0Ch,
+0xA96A68) in the command, and game_options (0xA9C03C) +3Ch is 48h in each.
+
+`options.deactivate` now gives an awaited key up before the stock close, as Esc gives it up:
+finish_binding (`root.end_keybind`, which closes the movie's "press a key" message; +10h back;
++3Ch 48h), then deactivate takes both movies off. The show and the hide go to the render world in
+one queue (0x1F2C0 on +200058h), in that order. So the menu's movies are in the scene exactly while
+it is shown, +10h only while no key is awaited, and a closed menu never awaits a key. A conflict's
+message (two actions on one key) open at the close is left as the stock leaves it: its +10h is
+back already, and its OK or Cancel at the next opening still works. Checked by
+`check_hud_cursor_026g.py` (steps 7 and 8: the original takes +10h off twice, the patched exe never).
 
 ## A ban's reason and end on the sign-in screen (patch 116, unreleased)
 
@@ -4723,6 +4724,71 @@ answered in the plain step, one byte, and gets the game's text.
 `release/moderate ban` prints the reason the player will see. Nothing a match computes. Checked
 with `cargo test` and clippy (patches, ban-reason, login-server). Not run in a game.
 
+## Resistance: isolation against anomalies (patch 109, unreleased)
+
+The artefact tree (`../docs/notes/artefact-skills.md`). Its skills the exe computes are packed in
+kit modifier 40 (`artefact_power`, read by nothing of 0.26g), parsed once (`artefact_skills::Skills`).
+Resistance (502, 5 ranks): a hit of type 4..7 (toxic, radiation, fire, shock) on a part takes
+its summed armour + 0.05 a rank (+5 isolation points) at `artefact.isolation` (0x32A083, after
+`movss xmm0,[eax+8]`), before the piercing's subtraction and the clamp. Other types unchanged.
+Onyx II: `artefact.landing` (0x2D8220, the landing's start: all it does is the fall damage) exits at its
+`ret 4` (0x2D84AE) for a player with the skill and an Onyx of its containers in state 4. Larkspur II:
+at `medical.artefact` (0x313333, the actual activation; after Medic's handler) a Larkspur's holder
+with the skill gets its stamina's maximum (+6C0h, current +6Ch). Spring II: patch 54 gives each
+Spring two reload nodes (list 13, +3D8h and +3E8h; the object 3F8h), the first linked with the
+passive (new hooks at 0x311AD0 / 0x311D10), the second with the active; patch 109's entry
+`artefact.spring_reload` sets their values at the passive's link (+0.05 / +0.10 with the skill, else 0).
+Resonance and Cascade (bits 4 and 8, an either/or pair): one aura, read where each effect is used and never
+kept: a living teammate's carried Springs, Lifebones and Onyx give a recipient their passives
+within 9 m (Resonance) and their actives within 6 m (Cascade), at most 4 copies of a kind for
+each, the recipient's own first. The Springs' nodes at the two getters (`artefact.shared_modifier`
+0x2D5AE6, `artefact.shared_modifiers` 0x2D5C18; the kit's player found in the match of the engine
+world's game's world), the Onyx before a part's protectors (`artefact.shared_protection`
+0x32A020), the Lifebones at a part's regeneration tick (`medical.regenerate`, before patch 94's);
+Every kind's activation (its glow on the recipients for the active's length, a Lifebone's heal) is
+patch 94's Medic (`share_active`, every kind since the owner's rev51 games, before a Lifebone's only),
+whose bit (modifier 43 bit 20) skill 542 sets.
+The shared movement (list 4) is read only when a player's animations are selected, so at each
+player's tick before tick_animations (`battery.carrier_tick` 0x2DAAD3, order 2) a change of it
+since the tick before sets +33Eh (m_need_to_select_animations), as patch 94 does for Adrenalin;
+each place's last 64 ticks' sums are kept, so a re-simulated tick answers as at first.
+At most 4 copies of a kind count for a player, own copies included (the owner, 2026-11-07; the
+stock game sums every carried copy's passive): of a player's own copies of a kind in their passive
+or active, in container order, the first 4 count, the one count the sharing's room and the leg
+quarters use (`vostok::artefact_skills::own`). One past them gives no passive: the getters' list
+sums (`artefact.own_modifier` 0x2D5B0C, `artefact.own_modifiers` 0x2D5C46) leave out its passive
+nodes (+340h, +350h, +3D8h), summing the list's other nodes as the game does and going on at the
+loop's end; an Onyx's protect in its passive returns (`artefact.own_onyx` 0x312BF0, `ret 0Ch`);
+a Lifebone's regeneration modifier returns (`artefact.own_lifebone` 0x312590, ECX the Lifebone,
+`ret 8`). Nor its active: patch 54's `ready` (artefacts_026g.asm) asks the entry `artefact.fire`
+(cdecl: the copy, its fires pushed 1, made 0 for one past the 4), so a press fires at most the 4
+that count, a fifth stays ready (state 3, no cooldown) and adds no Onyx time; each carrier shares
+only its copies that count (`shared`).
+Checked with `check_artefact_skills_026g.py` (`check_own_cap`, `check_active_cap`); not run in a game.
+
+## Keeper of the Artifacts: an artefact of the match's kind at the match's start (patch 109, unreleased)
+
+The artefact tree's 521 (`../docs/notes/artefact-skills.md`). srp draws one kind a match
+(`artefact_carry::keeper`: Larkspur, Onyx, Spring) and writes it into modifier 40 bits 9..11 of
+every kit; a joiner taken once the match is in process also gets bit 13 in its kits (late:
+`survarium::v026g::keeper::give_late`; one taken in the countdown does not). Every
+map has a hidden anomaly (content edit `artefact-keeper-1.json`): no container, energy off, one
+empty state, 20 dormant artefacts of each kind. `keeper.register`
+(generic_anomaly_core::register_artefacts' entry, 0x31B8E0) keeps the id range of the anomaly with
+no container. At each player's tick (`battery.carrier_tick`, base_player::tick before
+tick_animations 0x2DAAD3, order 4, after the glow's), a kit with the Keeper bit, once the time
+rule is in process (core +18FE4h 3: the countdown's end) and, for a late joiner, once its place
+has a death or suicide counted, takes its place's artefact of the drawn kind (place p the p-th of
+the kind by id) into its first empty container through the game's own take_artefact; dead, or
+with every container held, it waits for a later tick. Once a match: the take marks the artefact
+given in its activation time (+2A0h: u32::MAX from its constructor, 0 at the gift, an
+activation's time after; read only in state 4, saved in every world in every state), so nothing is
+kept outside the world. Once given it is an artefact as any found one: a death keeps it in that
+kit's container, and a take with every container held that replaces it leaves it dormant and
+still given. Only a Keeper's tick reads the match. The pool's anomaly ticks and saves it, so
+nothing is added to a world by the patch. Checked with `check_artefact_keeper_026g.py` (with a
+death under flushed denormals and a replacement) and the patch's `gift` tests; not run in a game.
+
 ## A character controller's position stays finite (patch 118, unreleased)
 
 In live match `rec026g_20261106-211841_03439962` (revision 50) a server bot's body went NaN in
@@ -4741,3 +4807,194 @@ the ghost's AABB is next updated from it after the step, so no NaN reaches the b
 A simulation change (`simulation_changes.tsv`'s `next` row). Checked with
 `check_controller_position_026g.py` (finite steps byte for byte the original's; NaN and infinities
 restored; the original fails) and the patch crate's tests. Not run in a game.
+
+## A kicked game goes back to the lobby (patch 119, unreleased)
+
+The match server kicks a game with 0xFD (`Transport::kick`: repeated invalid inputs, or a game
+that restores did not bring back in step, `game.rs`). The game's handler calls
+`instant_disconnect(4)` (0x3FDF0A), whose callback `on_match_disconnected` (0x21BE50) calls
+`close_current_match(4)` (0x27A790). Its jump table (0x27A958) had for 4 the function's return: the
+link was closed by the transport, nothing else was, and the game stayed on its screen (the free
+camera, the world) with no match link for good. A lost connection (reason 1) tells the lobby `31`
+("back from its match": srp's lobby answers with the lobby state, and the results if the match has
+ended) and ends the world (`on_finish_match` 0x1F96F0: the world unloaded, the lobby shown). No
+text: the lobby movie shows the lobby as after any match.
+
+**The patch** (`KICK_TO_LOBBY`, one dword, every full build): the table's entry 4 (0x27A968) is
+0x27A930, reason 1's `31` and world end, not 0x27A94C, the return. Reason 1's log line before it
+(0x27A867) is left out: it names the reason as 1, 5 or else `disconnected_by_initiator`, which
+would call a kick the player's own leave. The entry is an address: its relocation stays.
+
+**In state 0 nothing changes.** `close_current_match` returns at once for every reason while the
+time rule's state the client keeps (+1F1C60h) is 0 (0x27A7AA): from the connection until the
+first tick played after the first world, and again after a close. A kick (or a lost link, a timeout)
+on the loading screen or before the first world still leaves the game where it is, as before, and
+srp kicks such games too since #1492 (`Removal::NoWorldToJoin`, a late joiner waiting for its first
+world; `Removal::NoWorldToResync`, a game back in its match on a new connection): patch 120 ("A match
+closed before it played") ends those. A resync keeps the state:
+a game kicked there goes back to the lobby as one that timed out there does (reason 0 ends the
+world the same way).
+
+Nothing a match computes. Checked with `check_kick_lobby_026g.py` (Unicorn; `../docs/notes/client_patch.md`
+section 3.72). Not run in a game.
+
+## A match closed before it played (patch 120, unreleased)
+
+`close_current_match` (0x27A790) returns for every reason while the time rule's state the client
+keeps (+1F1C60h) is 0: from the connection until the first tick played after the first world, and
+again after a close. So a game kicked (0xFD), timed out, cut off, or left by the menu's
+leave_match in the handshake, while its level loads or with its level loaded before its first world
+stayed on the loading screen or in the free camera for good. srp removes such games on purpose since
+#1492 (`Removal::NoWorldToJoin`, `Removal::NoWorldToResync`, a refused initial world's 0xEA) and #1482
+(handshake and refusal caps).
+
+**The patch** (`unplayed_match`, Rust, five lohooks; `../docs/notes/client_patch.md` section 3.74).
+The patch keeps one state: a match is open from connect_to_match's connect (0x21C07C) until its first
+close, and given up at a logoff (network_client::disconnect 0x27B110). The guard's 0 means "never
+played" for an open match and "closed already" otherwise. At close_current_match's guard (0x27A7A4),
+for an open match never played:
+
+- **the handshake** (no level asked for: no match core, the world not loading): `31 <order> FF` to the
+  lobby, what a lost connection sends; srp's lobby clears the match and answers 0x85 00, which takes
+  the match-making panel off the lobby scene. There is no world to end. (A 0xEA cannot come there:
+  without a match core the handler skips it, 0x27C6A2.)
+- **a level loading** (game_world+4E20h): nothing is ended under the load. The resource queries
+  have no cancel, and the game's own abort (on_project_loaded, the lobby's status 0) unloads the level
+  but leaves the loading screen up (only lobby_menu::on_deactivate hides it). The close waits: the
+  load finishes, on_match_ready shows the world (its 0xDA goes to the closed link, as before), and at
+  its end (0x27AEBF) close_current_match runs again for the reason the close came with, past the
+  guard. If the lobby says "the lobby" (0x85 00, srp's match over) before the load ends, the abort is
+  skipped for an open match the same way (reason 0, the world ended).
+- **a level loaded, waiting for its first world** (the match core set): past the guard (0x27A7B0):
+  the reason's own close, as a match that played: `31` and the world ended (on_finish_match: unloaded,
+  the lobby shown) for a lost link, a kick or an expired message; 0xE0 first for the menu's leave
+  (reason 2); the world ended and the results for the 0xEA farewell (3); the world for a timeout (0).
+
+A played match (states 1-3, a resync's) and a closed one go as before (patch 119's path for a kick).
+Nothing a match computes. Checked with `check_unplayed_match_026g.py` (Unicorn) and the patch crate's
+tests. Not run in a game.
+
+## Room for the resources helper and render arenas (patch 124, unreleased)
+
+A match load with many decorated players (about 800 camouflage and decal bakes) runs out of two
+fixed engine arenas: `out of memory in arena "resources helper allocator"` (8 MiB, 93-96 % used) or
+`out of memory in arena "render"` (224 MiB). The rev54 test build, one headless client with 19 bots
+wearing live players' gear: 0 of 4 loads got through the stock sizes (2 helper, 2 render); with
+`-rh_allocator=32 -render_allocator=320` on the command line 3 of 3 were clean.
+
+**The patch** (`ARENA_DEFAULTS` in `patch_026g.py`, the builds with the late join): the two
+defaults, so every way of starting the game (the launcher, the Linux and macOS scripts, a replay)
+gets them. One immediate each:
+
+- `memory::preinitialize` (0xE0F20) stores 8 MiB in bytes as the u32 the key's reader
+  (`is_set_as_number<u32>` 0x141B0, rh_allocator 0xA80380) writes a value to:
+  `mov dword [esp+10h],800000h` at 0xE1099 becomes `2000000h`, 32 MiB. A value given is still MiB,
+  `shl eax,14h`.
+- `engine_world`'s constructor (0x13660) has 224 in EDI before the reader for render_allocator
+  (0xA7C088): `mov edi,0E0h` at 0x13A95 becomes `mov edi,140h`, 320 MiB. A value given is still
+  raised to at least 224 (the `cmp edi,0E0h` at 0x13AA7 is kept), then times 1 MiB.
+
+Past these sizes the arena's full allocation still ends the game in out_of_memory_with_crash.
+Nothing a match computes; a game with it and one without play together.
+
+**The address space.** The arenas are reserved at the start (memory::allocate_region 0xE1120,
+platform::allocate_arenas 0xE9580). The engine sums the fixed arenas and sizes the resource arenas
+and its video budget from the address space left; the resource arenas keep their 768 MiB floor
+(patch 37). In the test logs the engine's total went from 1 944 846 328 to 2 070 675 448 bytes
+(+120 MiB) of the 4 GiB of the large-address-aware process, the resource arenas stayed 512 + 256
+MiB, and the video budget (the address space left for the driver) went from 1 848 233 992 to
+1 722 507 272 bytes. Nothing else in the exe reads the old sizes: the arenas keep their size from
+the registration.
+
+`check_memory_defaults_026g.py <original exe>` (Unicorn 2.1.4) runs both spans, from the key's read to
+the registration (0xE108F..0xE10D7, 0x13A81..0x13AF4), with the native `is_set_as_number<u32>` and
+a stubbed key reader: absent or not a number, the original's 8 and 224 MiB and the build's 32 and
+320; values given (helper 4 to 64, render 100 to 512) the same size in both, 100 raised to 224.
+Against the build without it, the default build differs in the four bytes of the two immediates and
+the PE checksum. The built exe was not run in a game: the runs above gave the same sizes as options.
+
+## The game tells how much memory it has left (patch 126, unreleased)
+
+The game is a 32-bit process: its address space is cut at the start into fixed arenas and what is
+left for the video driver, and a full arena (or a driver without room) ends the game. We sized the
+arenas from a handful of crash dumps (patches 36, 37, 78, 124); these reports give the real margins
+of players' games. The rules: `../docs/notes/memory-report.md`; the reading: `../docs/notes/client_patch.md`
+section 3.76.
+
+**The patch** (`memory_report`, Rust, two lohooks; `vostok::memory`, `srp_validate::memory`). When a
+match connection's first world is in (`world_load.loaded`, order 3) and when the match closes on the
+game (close_current_match's entry, `match_recovery.close`, order 1, only after a first world), a
+snapshot: the address space's free bytes and largest free region (`VirtualQuery`), the engine's video
+budget, and every arena of the engine's list with its name, size and use: a doug_lea heap walked
+chunk by chunk (used, largest free block), the managed resources' and the multithreaded region's
+counts, unknown otherwise. Nothing of the engine's is called: its size queries walk heaps other
+threads use without a lock; ours reads only inside each arena, checked readable, and gives up on a
+torn walk (a clean one can be slightly stale). The snapshot is written to `srp_patches.log` (a line for the process, one an arena) and
+sent in the generic client-report carrier (`srp_validate::report`: 0xE0, prefix
+`ff ff ff ff ff ff 03 00`, the match id, the kind, part and parts), all parts at once or none,
+through patch 97's one 0xE0 path (`Connection::tell`).
+
+**The server.** The match server logs each part once per connection, of its own match only, to
+`logs/memory.log` (16 files of 4 MB): `<name> (account <id>), match <id>, loaded, part 1/2: process
+free <bytes> largest <bytes> video <bytes> | arena "render" size <bytes> used <bytes> largest <bytes> | ...`.
+`release/moderate memory` lists each arena, tightest first, with its least room left and least largest
+free block, and the address space's least largest free region, with who and when. An older server takes
+a carrier alone in its datagram for a chunk whose offset is past its total and ignores it, but it
+refuses a whole multi datagram that carries one (it cannot measure the carrier): the server ships in
+the same release as the patch or earlier. The transport measures the carrier with the codec's own
+`srp_validate::report::carrier_len`.
+
+Nothing a match computes. Checked with `srp-validate`'s tests, the patch crate's tests and Clippy, and
+the match server's test. Not run in a game.
+
+## Engine threads get 2 MiB stacks (patch 128, unreleased)
+
+Every thread the engine starts had an 8 MiB stack, committed: 57 of them in a 19-bot match on a
+24-thread CPU, 456 MiB of the 32-bit process's 4 GiB. The deepest touched 536 KiB, 51 of 56 never
+more than 64 KiB (2026-11-09, under Wine, the bake-stress load: map 61, 777 camouflage/decal bakes,
+about 5 minutes of play).
+
+**The patch** (`THREAD_STACKS` in `patch_026g.py`, the builds with the late join): one immediate.
+`threading::spawn` (0xE3770) gives `spawn_internal` (0xE0930) a fixed size, `mov edx,800000h` at
+0xE37BA (file 0xD2BBA), whatever the thread; `spawn_internal` passes it to CreateThread with flags
+0. It becomes `mov edx,200000h`. Every engine thread goes through it: splash, sound, network,
+logic, hdd, dvd, res_man, res_cook, process termination and the task pool's 2 x min(32, cores)
+"task #n" (the count at 0xE425E, the spawn at 0xFC4F1). The game's main thread (1 MiB, the exe's
+own reserve) and the threads of the CRT, the driver and Wine are not engine threads.
+
+On Windows the size is committed (no STACK_SIZE_PARAM_IS_A_RESERVATION) and, above the exe's 1 MiB
+reserve, is the reserve too: 6 MiB of address space and commit charge freed a thread. 150 MiB with
+8 logical CPUs, 342 with 24, 438 with 32.
+
+`platform::allocate_arenas` still counts (threads x 2 + 8) x 8 MiB of stacks into "engine(fixed)"
+(0xE98C2..0xE98CB) for its budget: kept, so the resource arenas and the video budget are sized
+byte for byte as before and the space freed stays free. Lowering that term too would size them
+from the real stacks, and would keep a CPU with very many threads (64 and more: 1088 MiB counted
+there, without the pool's cap of 32) from failing the "Not enough memory" check at the start
+(read in the code, never seen).
+
+**Frames above 2 MiB.** Every frame over 4 KiB calls `_chkstk` (0x429F20) with its size: 1754 of
+them, 6 above 256 KiB. `network_client::draw_match_stats` (0x27F780, 5.8 MiB) runs on the logic
+thread, from game::tick, only when `-net_stats` is on the command line: with this patch that
+option overflows the logic thread's stack. Nothing we ship passes it. The other one above 2 MiB,
+`static_render_surface::add_shadow_vertices` (0x16E550, 2.4 MiB), LIKELY never runs: in 0.10b
+only `shadow_batched_geometry::build` calls it, and in 0.26g the scene's shadow geometry
+(scene+410B6Ch, the one such object) is referenced only by the scene's constructor and
+destructor. Neither ran in the measured game (a `_chkstk` touches every page of its frame). The
+rest: `on_fs_iterator_materials_ready` (0x1176E0, 560 KiB), three
+`scene::gather_streamable_textures` (276-278 KiB), none above 72 KiB after them; the 21 calls whose
+size is not a `mov eax` just before take 4 to 40 bytes. The recursion guards in the exe are
+Scaleform's (the main thread). Not proven: how deep a chain of calls or a recursion goes on an
+engine thread outside the measured game.
+
+Nothing a match computes. `check_memory_defaults_026g.py` runs threading::spawn from 0xE37BA into
+spawn_internal to its CreateThread call in both exes: 8 MiB and flags 0 in the original, 2 MiB and
+flags 0 in the build. Against the build without it, the default build differs in one byte (file
+0xD2BBD, 80h to 20h) and the PE checksum.
+
+Run in the bake-stress rig (2026-11-09, one headless client under Wine/DXVK, 19 bots, map 61,
+the build of main with it against the same build with 8 MiB): 52 or 53 stacks of 2 MiB and none of
+8 MiB, the deepest touched 540 KiB; the address space in use in the match at most 2757-2773 MiB
+against 3085 MiB. Three of four loads clean; the fourth filled the multithreaded arena 17 s after
+Play, as one of the two loads with 8 MiB did. Not run on native Windows, nor with a replay, a late
+join, the death camera or another map.
