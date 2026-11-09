@@ -214,7 +214,8 @@ class Run(language.Run):
         result = 1
         if name == "CreateFileA":
             path, disposition = self.text(arg(0)).decode(), arg(4)
-            self.calls_made.append((name, path, disposition))
+            if path != "srp_patches.log":       # opened once (vostok::log): its lines are its writes
+                self.calls_made.append((name, path, disposition))
             if path == "srp_patches.log":
                 result = 0x60
             elif path == USER_CFG:
@@ -233,6 +234,8 @@ class Run(language.Run):
             emu.mem_write(arg(1), chunk)
             self.word(arg(3), len(chunk))
         elif name == "WriteFile":
+            if arg(0) == 0x60:
+                self.calls_made.append((name, "srp_patches.log"))
             self.logged += bytes(emu.mem_read(arg(1), arg(2)))
             self.word(arg(3), arg(2))
         elif name == "DeleteFileA":
@@ -614,7 +617,7 @@ def renderer(original, patched, expect):
     marker = [("CreateFileA", "dxvk.pending", 3)]
     unmark = [("DeleteFileA", "dxvk.pending")]
     loads = [("GetModuleHandleA", "dxgi.dll")] + [("LoadLibraryA", DXVK_DIR + name) for name in DXVK]
-    log = [("CreateFileA", "srp_patches.log", 4)]
+    log = [("WriteFile", "srp_patches.log")]
     # DXVK's options before its DLLs: user.cfg without their lines prefers the dedicated GPU alone
     config = [("SetEnvironmentVariableA", "DXVK_CONFIG", "dxvk.hideIntegratedGraphics = True")] + log
     every = on + (b"srp_dxvk_frame_limit 144\r\nsrp_dxvk_low_latency on\r\nsrp_dxvk_tear_free on\r\n"

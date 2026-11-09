@@ -219,7 +219,9 @@ def check(stock_data, built_data):
         expect(ours.stopped == STOP and ours.fault is None, f"the build returns ({ours.stopped}, {ours.fault})")
         expect(ours.snapshot(o.tp, 0x300) == before and ours.read(o.seed + 4) == 1,
                "the build leaves the presenter and the seed's word as they were")
-        expect(len(ours.lines) == 1 and b"a sound's stop" in ours.lines[0], f"one line logged: {ours.lines}")
+        # A run of one line before it may be counted first (vostok::log: "the line above: N more times").
+        said = [l for l in ours.lines if b"(the line above: " not in l]
+        expect(len(said) == 1 and b"a sound's stop" in said[0], f"one line logged: {ours.lines}")
 
         # A sound update on an empty list.
         s, o = Scene(stock), Scene(ours)
