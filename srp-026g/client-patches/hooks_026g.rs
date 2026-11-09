@@ -1221,6 +1221,21 @@ pub extern "C" fn hook_lobby_scene_on_tick(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- camera_walls (patch 132) ----
+
+/// The entry `camera_walls_on_orbited` (0x1f3650, update_camera after the view's update (0x1F364B: 0x2422B0, or patch 46's death_view) wrote the handler's view (+48h), before camera_director::apply takes it (mov edx,[ebx+0F478h]; EBX the player, the frame's +10h the orbit's pivot in the modes but 0 and 4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_camera_walls_on_orbited(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `camera_walls_on_orbited` calls this, from the game's jump at 0x1f3650,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::camera_walls::on_orbited(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- consumable_activity (patch 77) ----
 
 /// The entry `consumable_activity_on_update` (0x23b7a0, update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer) calls this with the saved machine.

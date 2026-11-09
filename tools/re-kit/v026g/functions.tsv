@@ -861,6 +861,7 @@ va	status	ref_021d	name
 0x001f1930	reviewed	0x00155f89	survarium::player::inflicted_damage_collector::serialize
 0x001f2720	observed	0x00156ad2	survarium::player::insert
 0x001f2870	reviewed	0x00156be1	survarium::player::remove
+0x001f3480	observed	0x00157440	survarium::player::update_camera
 0x001f3de0	reviewed	0x00157d77	vostok::network_core::buffer_writer::w<unsigned char>
 0x001f48a0	reviewed	0x00158564	vostok::network_core::buffer_writer::w<unsigned int>
 0x001f6d50	reviewed	0x0015a3f2	survarium::game_world::register_cooks
@@ -947,6 +948,7 @@ va	status	ref_021d	name
 0x00241250	reviewed	0x0017ef76	survarium::player_input_handler::process_first_person_mode
 0x002421c0	reviewed	0x0017f4ad	survarium::player_input_handler::process_third_person_mode
 0x00242200	reviewed	0x0017f500	survarium::player_input_handler::process_warmup_mode
+0x002422b0	observed		survarium::player_input_handler::update_inverted_view
 0x00242460	reviewed	0x0017f6e7	survarium::player_input_handler::action_present
 0x00242770	reviewed	0x00180c67	survarium::game_camera::set_position_direction
 0x00243370	reviewed	0x00193186	survarium::camera_director::set_position_direction

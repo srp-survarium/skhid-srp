@@ -1,0 +1,11 @@
+# Patch 132: the orbit camera (the warmup's before the start) stays on the
+# player's side of the level: in front of the first wall between the pivot
+# and the eye. Only the decisions: which site, and the handler. The site is
+# sites_026g.tsv's; the logic is camera_walls.rs and vostok/camera.rs.
+name = "camera_walls"
+patch = 132
+
+# update_camera after the view's update wrote the camera's transform
+[[hook]]
+site = "camera.orbited"
+handler = "on_orbited"
