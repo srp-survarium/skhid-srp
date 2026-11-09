@@ -312,17 +312,16 @@ impl Core<'_> {
             .is_some_and(|squad| squad.commander() != account_id)
     }
 
-    /// Whether the member is a soldier whose commander waits in `room` to
-    /// go into its match: it goes in with its commander, by the
-    /// commander's turn (`late_placement`), never alone.
-    fn goes_with_commander(&self, account_id: u32, room: &model::Room) -> bool {
-        self.squad_soldier(account_id)
-            && self.store.squads().of(account_id).is_some_and(|squad| {
-                let commander = squad.commander();
-                room.members.contains(&commander)
-                    && !room.in_match.contains(&commander)
-                    && self.room_ready(commander).is_some()
-            })
+    /// The commander of a soldier that waits in `room` to go into its match:
+    /// the soldier goes in with it, by the commander's turn
+    /// (`late_placement`), never alone.
+    fn waiting_commander(&self, account_id: u32, room: &model::Room) -> Option<u32> {
+        let commander = self.store.squads().of(account_id)?.commander();
+        (commander != account_id
+            && room.members.contains(&commander)
+            && !room.in_match.contains(&commander)
+            && self.room_ready(commander).is_some())
+        .then_some(commander)
     }
 
     /// The mate a commander's Play takes ([`Self::room_mate`]), and the
@@ -1475,11 +1474,12 @@ impl Core<'_> {
         // A squad's side has no place for it (beside its mate, or two
         // together), or a strong player's (the side with fewer strong
         // players): it waits, told the match is full. A soldier whose
-        // commander waits goes by the pair's place, its commander's check.
-        if let Some(ready) = self.room_ready(who.account_id)
-            && !self.goes_with_commander(who.account_id, room)
-        {
-            let late = self.late_placement(who.account_id, room, match_id, running, &ready, now);
+        // commander waits is told what the pair is: its commander's check.
+        let whose = self
+            .waiting_commander(who.account_id, room)
+            .unwrap_or(who.account_id);
+        if let Some(ready) = self.room_ready(whose) {
+            let late = self.late_placement(whose, room, match_id, running, &ready, now);
             if late.placement.is_none() {
                 return Err(JoinHold::Full);
             }
@@ -2377,7 +2377,7 @@ impl Core<'_> {
         };
         // A soldier whose commander waits in the room to go in goes with
         // it, by its commander's turn (`late_placement`).
-        if self.goes_with_commander(account_id, room) {
+        if self.waiting_commander(account_id, room).is_some() {
             return;
         }
         let Late {
@@ -2517,6 +2517,11 @@ impl Core<'_> {
         let placement = match (room.arranged_side(account_id), mate_side) {
             (Some(side), _) => policy::place_joiner_on(sides, worth, side, &rule),
             (None, Some(side)) => policy::place_joiner_beside(sides, worth, side, &rule),
+            // The strong dealt evenly in an open room; a private room's owner
+            // arranges its sides.
+            (None, None) if room.is_open() => {
+                policy::place_open_joiner(sides, worth, previous, &rule)
+            }
             (None, None) => policy::place_joiner(sides, worth, previous, &rule),
         };
         Late {

@@ -68,12 +68,14 @@ strength = (kills at L + 10 * overall) / (deaths at L + 10)
   its mate going in with it) counts at the level then. Players already in keep the strength they
   were seated with *(pick)*. They go where they went before (`matchmaking.md` §9): the side with
   fewer players, the side played on before, then the side that counts for less.
-- **A strong late joiner goes to the side with fewer strong players**, even with more players: up
-  to two ahead (6 v 4), never three (7 v 4; `STRONG_JOIN_APART`). At 6 v 4 it goes to the 4. With
-  the side it goes to full, it waits in the room (told the match is full) until a place opens
-  there (`matchmaking_policy::place_joiner`). Players away who keep their places count on their
-  side, strong and in number. With the strong as even either way, the rule above. A joiner going
-  in beside its squad mate keeps to its mate's side.
+- **A strong late joiner of an open room goes to the side with fewer strong players**, even with
+  more players (`matchmaking_policy::place_open_joiner`). With the strong as even either way, the
+  rule above. Either way never more than two ahead (6 v 4, never 7 v 4; `STRONG_JOIN_APART`): at
+  6 v 4 it goes to the 4. With the side it goes to full, it waits in the room (told the match is
+  full; a soldier whose commander waits is told what the pair is) until a place opens there.
+  Players away who keep their places count on their side, strong and in number. A joiner going
+  in beside its squad mate keeps to its mate's side. A private room's joiner goes by the rule
+  above alone: its owner arranges the sides.
 - The kills and deaths of a match are counted at its level when it ends (the highest of everyone
   who was in it, late joiners too).
 
