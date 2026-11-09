@@ -5760,3 +5760,6 @@ va	name	location	role	basis
 0x002016d0	survarium::game_options::on_mouse_key_action	entry ESP+12	the button's action: 0 a press	observed
 0x002017a0	survarium::game_options::on_mouse_move	ECX	the main menu (game_options)	observed
 0x002017a0	survarium::game_options::on_mouse_move	entry ESP+16	the wheel's turn: 0 none, above 0 up (159h), else down (15Ah)	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	EDI	the calculator (weapon+288h; +38h the weapon, +3Ch the holder set by set_user 0x2E29F3, 0 after deactivate 0x2E2EBE)	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	entry ESP+4	float, the weapon's dispersion now: m_weapon_dispersion +418h plus m_character_dispersion +404h (weapon_core::tick 0x2E0A23, only while aimed +5E8h); the base value of modifier 61	observed
+0x0031d6e0	survarium::breath_vibration_calculator::tick	entry ESP+8	the ms elapsed since the weapon's last tick (weapon_core::tick: now - +5A4h), unsigned (fild then +2^32 when negative)	observed
