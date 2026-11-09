@@ -150,7 +150,7 @@ package survarium.watch
          {
             return null;
          }
-         if(count(f[2]) > 0xFE || count(f[5]) > 2 || count(f[9]) > REPLAY_OLD)
+         if(count(f[2]) > PLACE_ANY || count(f[5]) > 2 || count(f[9]) > REPLAY_OLD)
          {
             return null;
          }

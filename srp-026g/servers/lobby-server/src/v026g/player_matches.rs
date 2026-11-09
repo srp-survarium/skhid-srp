@@ -176,7 +176,8 @@ fn player_row(played: &PlayerMatch, unix: u64, replay: ReplayState) -> PlayerMat
     let outcome = outcome_of(info.winner, line.team, line.presence);
     PlayerMatchRow {
         match_id: played.summary.replay_id.match_id(),
-        place: line.place,
+        // the movie asks by it: 0xFF, none, is anyone's view
+        place: line.seat.unwrap_or(u8::MAX),
         map_id: info.map_id,
         mode: info.game_mode.lobby_number(),
         outcome,

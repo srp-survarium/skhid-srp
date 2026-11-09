@@ -453,12 +453,22 @@ pub struct ItemTotals {
     pub counts: KitCounts,
 }
 
+/// The step that keeps each line's roster place.
+pub(super) const SEAT_MIGRATION: &str = "
+    -- Its place in the match's roster, which a replay is watched from;
+    -- empty in a line written before they were kept.
+    ALTER TABLE g26_match_players ADD COLUMN seat INTEGER;
+";
+
 /// A player's line of one match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerLine {
     pub team: u8,
     /// In its team by score, from 1.
     pub place: u8,
+    /// Its place in the match's roster, which a replay is watched from; none
+    /// in a line written before they were kept.
+    pub seat: Option<u8>,
     pub presence: Presence,
     /// The visible rating after the match.
     pub rating: u16,
@@ -723,9 +733,9 @@ pub(super) fn record(
         transaction.execute(
             "INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place, presence,
                  rating, score, kills, deaths, assists, headshots, grenade_kills, melee_kills,
-                 batteries, captures, artefacts, shots, hits)
+                 batteries, captures, artefacts, shots, hits, seat)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                 ?17, ?18, ?19)",
+                 ?17, ?18, ?19, ?20)",
             params![
                 match_id,
                 player.account_id,
@@ -746,6 +756,7 @@ pub(super) fn record(
                 counters.artefacts as i64,
                 counters.shots as i64,
                 counters.hits as i64,
+                line.seat,
             ],
         )?;
         record_kits(&transaction, match_id, player)?;
@@ -970,10 +981,10 @@ const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m
      (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id), m.eligibility,
      m.replay_id";
 const SUMMARY_COLUMNS: usize = 12;
-/// The columns of a [`PlayerLine`] of `p` (sixteen).
+/// The columns of a [`PlayerLine`] of `p` (seventeen).
 const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
      p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts, p.shots,
-     p.hits";
+     p.hits, p.seat";
 /// The columns of [`Totals`] of `t` (fourteen).
 const TOTALS: &str = "t.matches, t.wins, t.score, t.kills, t.deaths, t.assists, t.headshots,
      t.grenade_kills, t.melee_kills, t.batteries, t.captures, t.artefacts, t.shots, t.hits";
@@ -1092,6 +1103,7 @@ fn line_at(row: &Row, at: usize) -> rusqlite::Result<PlayerLine> {
     Ok(PlayerLine {
         team: row.get(at)?,
         place: row.get(at + 1)?,
+        seat: row.get(at + 16)?,
         presence: Presence::parse(&presence).ok_or_else(|| bad("presence", &presence))?,
         rating: row.get(at + 3)?,
         score: u64_at(row, at + 4)?,
@@ -1699,6 +1711,7 @@ mod tests {
         PlayerLine {
             team,
             place,
+            seat: Some(place),
             presence: Presence::Finished,
             rating: 100,
             score,

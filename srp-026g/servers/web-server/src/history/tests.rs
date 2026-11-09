@@ -62,6 +62,7 @@ fn line(team: u8, score: u64, kills: u64, deaths: u64) -> PlayerLine {
     PlayerLine {
         team,
         place: 1,
+        seat: None,
         presence: Presence::Finished,
         rating: 120,
         score,

@@ -87,7 +87,8 @@ pub enum Outcome {
 pub struct PlayerMatchRow {
     /// The match server's id: what "Watch replay" asks by.
     pub match_id: u32,
-    /// In its team by score, from 1.
+    /// The player's place in the match's roster, which "Watch replay" asks
+    /// to see: 0xFF when not known (anyone's view).
     pub place: u8,
     pub map_id: u8,
     /// The mode's lobby number.

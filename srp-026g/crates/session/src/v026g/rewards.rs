@@ -1681,6 +1681,7 @@ impl<'a> Shared<'a> {
                 line: history::PlayerLine {
                     team: player.team,
                     place: 0,
+                    seat: Some(player.place),
                     presence,
                     rating: report.reward.rating_after,
                     score: u64::from(player.score),

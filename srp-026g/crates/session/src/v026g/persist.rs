@@ -158,6 +158,8 @@ const MIGRATIONS: &[&str] = &[
     match_events::MIGRATION,
     // 17: whether an account's matches may be watched live (`extras`).
     extras::LIVE_WATCH_MIGRATION,
+    // 18: each history line's roster place (`history`).
+    history::SEAT_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.

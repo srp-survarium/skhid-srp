@@ -59,6 +59,8 @@ fn bobs_match(bob: u32, n: u32, kind: MatchKind) -> MatchRecord {
             line: PlayerLine {
                 team: (n % 2) as u8,
                 place: 2,
+                // an even match is of before seats were kept
+                seat: (n % 2 == 1).then_some(4),
                 presence: Presence::Finished,
                 rating: 100,
                 score: 100,
@@ -147,11 +149,11 @@ fn the_tab_lists_the_shown_players_public_matches_newest_first() {
     let minutes = |n: u64| (now - (86_400 + n * 3_600)) / 60;
     assert_eq!(
         rows[1],
-        format!("P2;0000010b;2;3;2;0;11;3;{};0", minutes(11))
+        format!("P2;0000010b;4;3;2;0;11;3;{};0", minutes(11))
     );
     assert_eq!(
         rows[2],
-        format!("P2;0000010a;2;3;2;1;10;3;{};0", minutes(10))
+        format!("P2;0000010a;255;3;2;1;10;3;{};0", minutes(10))
     );
     assert!(rows.last().unwrap().starts_with("P2;00000102;"));
     // At most what is asked for, and ten.

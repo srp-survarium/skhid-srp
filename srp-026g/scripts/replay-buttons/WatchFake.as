@@ -46,7 +46,7 @@ package
          "F1;69f8c4bc;255;1;Petro"];
 
       // A player's matches (P1 names the player): a defeat, a victory, a draw with an old
-      // version's replay, one not kept; a broken row.
+      // version's replay, one not kept (of before seats were kept: no place); a broken row.
       public static function played(nickname:String) : Array
       {
          return ["P1;4;" + nickname,
@@ -54,7 +54,7 @@ package
             "P2;69f8c4bc;2;61;5;1;9;2;180;1",
             "P2;broken;1",
             "P2;00000021;7;62;4;2;11;6;1500;4",
-            "P2;00000022;3;63;2;0;6;8;5000;3"];
+            "P2;00000022;255;63;2;0;6;8;5000;3"];
       }
 
       public static function rows(names:Array, first:uint = 0) : Array

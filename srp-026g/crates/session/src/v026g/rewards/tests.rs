@@ -3585,6 +3585,16 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
         .map(|player| player.account_id)
         .collect();
     assert_eq!(ids, [10, 11, 12], "no bot, nobody who never came in");
+    let seats: Vec<Option<u8>> = record
+        .players
+        .iter()
+        .map(|player| player.line.seat)
+        .collect();
+    assert_eq!(
+        seats,
+        [Some(0), Some(1), Some(2)],
+        "the roster's places, not the team's order"
+    );
     let alice = &record.players[0].line;
     assert_eq!(
         (alice.team, alice.place, alice.presence),
