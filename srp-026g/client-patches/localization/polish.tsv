@@ -2193,6 +2193,7 @@ st_sr3m_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony WSS "
 st_sr3m_bundle_name	Zestaw SR-3M "Wichr"
 st_sr3m_description	OPIS NIE JEST GOTOWY
 st_sr3m_name	SR-3M "Wichr"
+st_srp_alt_move_speed	Prędkość ruchu
 st_srp_ammo069_23mm_r_desc	Nabój kalibru 23 mm nabity śrutem, do KS-23M. Zadaje poważne obrażenia nieopancerzonym celom.
 st_srp_ammo069_23mm_r_name	23x75R, Śrutowa
 st_srp_ammo_buckshot	Śrut

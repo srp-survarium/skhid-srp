@@ -75,7 +75,7 @@ own fix (`fix/reload-rolls`).
 The owner, 2026-11-05: "when pressing alt to see final numbers, if you have bear arms, you should see
 movements speed: -5% -> 0%", "on weapons that it fixes". Held Alt, the weapon's own movement line (a
 built-in bonus line: `WeaponMovement`, prop 105 from `parameters/movement_speed_modifier`) reads
-"Movement speed: -5% -> 0%" on exactly the weapons Bear Arms cancels it on, the current value green
+"Movement speed: -5% -> 0%" (its own short name, `st_srp_alt_move_speed`: the property's wraps in several languages) on exactly the weapons Bear Arms cancels it on, the current value green
 (the bonus lines' green; neutral with Ctrl, as the stats' changes). Every other bonus line, and a
 bonus movement line, keeps its text.
 

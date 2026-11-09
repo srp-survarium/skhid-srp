@@ -2193,6 +2193,7 @@ st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikh
 st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_alt_move_speed	Bewegungstempo
 st_srp_ammo069_23mm_r_desc	Eine 23-mm-Schrotpatrone für die KS-23M. Bringt hohen Schaden gegen nicht gepanzerte Ziele.
 st_srp_ammo069_23mm_r_name	23x75R, Schrotkugel
 st_srp_ammo_buckshot	Schrot

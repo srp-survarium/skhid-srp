@@ -2193,6 +2193,7 @@ st_sr3m_bundle_descr	<white>Contains the following items:\n- Improved CF-3M "Vik
 st_sr3m_bundle_name	SR-3M "Vikhr" bundle
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_alt_move_speed	Movement speed
 st_srp_ammo069_23mm_r_desc	A 23 mm round stuffed with smallshot, for the KS-23M. Provides high damage against non-armoured targets.
 st_srp_ammo069_23mm_r_name	23x75R, smallshot
 st_srp_ammo_buckshot	Buckshot

@@ -2193,6 +2193,7 @@ st_sr3m_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett SR-3M "Vikhr".\n- 20
 st_sr3m_bundle_name	SR-3M "Vikhr" csomag
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_alt_move_speed	Mozgási sebesség
 st_srp_ammo069_23mm_r_desc	23 mm-es sörétes lőszer a KS-23M-hez. Nagy sebzést okoz a páncélozatlan célpontoknak.
 st_srp_ammo069_23mm_r_name	23x75R, sörét
 st_srp_ammo_buckshot	Sörét

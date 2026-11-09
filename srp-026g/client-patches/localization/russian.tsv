@@ -2193,6 +2193,7 @@ st_sr3m_bundle_descr	<white>Содержит следующие предметы
 st_sr3m_bundle_name	Набор СР-3М "Вихрь"
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО
 st_sr3m_name	СР-3М "Вихрь"
+st_srp_alt_move_speed	Скорость хода
 st_srp_ammo069_23mm_r_desc	Патрон калибра 23 мм, снаряженный дробью, для КС-23М. Наносит высокий урон по небронированным целям.
 st_srp_ammo069_23mm_r_name	23x75R, дробь
 st_srp_ammo_buckshot	Картечь

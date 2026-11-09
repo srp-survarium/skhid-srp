@@ -2193,6 +2193,7 @@ st_sr3m_bundle_descr	<white>Sisältö:\n- Parannettu CF-3M Vihr.\n- 2000 patruun
 st_sr3m_bundle_name	SR-3M Vihr -paketti
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_alt_move_speed	Liikenopeus
 st_srp_ammo069_23mm_r_desc	23 mm:n haulipatruuna KS-23M:ään. Aiheuttaa suurta vahinkoa panssaroimattomiin kohteisiin.
 st_srp_ammo069_23mm_r_name	23x75R, haulit
 st_srp_ammo_buckshot	Hauli

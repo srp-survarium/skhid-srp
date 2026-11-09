@@ -2193,6 +2193,7 @@ st_sr3m_bundle_descr	<white>Obsahuje:\n- Vylepšený SR-3M "Vikhr".\n- 2000 náb
 st_sr3m_bundle_name	Balíček SR-3M "Vikhr"
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_alt_move_speed	Rychlost pohybu
 st_srp_ammo069_23mm_r_desc	Náboj ráže 23 mm s broky pro KS-23M. Způsobuje vysoké poškození neobrněným cílům.
 st_srp_ammo069_23mm_r_name	23x75R, broky
 st_srp_ammo_buckshot	Broky

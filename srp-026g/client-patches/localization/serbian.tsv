@@ -2193,6 +2193,7 @@ st_sr3m_bundle_descr	<white>Paket sadrži:\n- Unapređeni SR-3M Vihr.\n- 2000 me
 st_sr3m_bundle_name	Paket SR-3M Vihr
 st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_alt_move_speed	Brzina kretanja
 st_srp_ammo069_23mm_r_desc	Metak kalibra 23 mm sa sitnom sačmom, za KS-23M. Nanosi veliku štetu neoklopljenim metama.
 st_srp_ammo069_23mm_r_name	23x75R, sačma
 st_srp_ammo_buckshot	Sačma

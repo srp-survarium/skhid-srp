@@ -746,6 +746,20 @@ package {
    Scene.isCtrl=false;
    shows(both,light);
    require(defaultLines(cards[0])[0]=="Movement speed: -5% -> 0%|Silver: +10%" && defaultLines(cards[0])[1].split("|")[1]==silver.textValue,"another built-in line unchanged: "+defaultLines(cards[0])[0]);
+   // Every language keeps the held line on one line: a wrap would grow the card while Alt is held.
+   var wraps:Array=[];
+   for each(var language:String in HarnessText.LANGUAGES){
+    Loc.setData(texts(language));
+    Scene.isAlt=false;shows(heavy,light);
+    var rowOff:TextField=cards[0].defaultModifiersList.container.getChildAt(0).textFieldLabel,releasedLine:Number=rowOff.textHeight;
+    Scene.isAlt=true;shows(heavy,light);
+    var rowOn:TextField=cards[0].defaultModifiersList.container.getChildAt(0).textFieldLabel;
+    require(rowOn.text.indexOf(HarnessText.DATA[language].st_srp_alt_move_speed+": ")==0,"the held line's name: "+language+" ("+rowOn.text+")");
+    trace("MOVEMENT LINE "+language+" "+releasedLine+" -> "+rowOn.textHeight+" width "+Math.round(rowOn.textWidth)+"/"+Math.round(rowOn.width));
+    if(Math.abs(rowOn.textHeight-releasedLine)>.5)wraps.push(language+" ("+releasedLine+" -> "+rowOn.textHeight+"): "+rowOn.text);
+   }
+   Loc.setData(texts("english"));
+   require(wraps.length==0,"the held movement line wraps: "+wraps.join("; "));
    // Bear Arms off, or no floats: a penalty stays.
    profile.setKitModifiers(off);shows(heavy,light);
    require(defaultLines(cards[0])[1]==heavy.modifiers[0].textValue && defaultLines(cards[1])[1]==light.modifiers[0].textValue,"Alt, Bear Arms off: both lines as released ("+defaultLines(cards[0])[0]+")");
