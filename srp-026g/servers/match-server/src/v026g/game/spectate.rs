@@ -72,6 +72,11 @@ const SILENCE: Duration = Duration::from_secs(7);
 const FAREWELL_GOES: Duration = Duration::from_millis(250);
 /// A place's install is asked again after this.
 const PREPARE_RETRY: Duration = Duration::from_secs(1);
+/// A spectator whose queue holds more messages than this is let go. It is
+/// over what a game that acks at all can leave there (the relays of a whole
+/// [`WORLD_WAIT`] at 20 players' 400 messages a second, and a world's parts):
+/// every poll of the match thread walks it.
+const MOST_QUEUED: usize = 8_192;
 /// A spectator's hash reports kept for judging, at most.
 const REPORTS_KEPT: usize = 64;
 /// Its reports in a row the players' majority contradicts before it is
@@ -104,11 +109,13 @@ enum Watch {
         last: Instant,
         since: Instant,
     },
-    /// Its world (`serial`, the snapshot at `time`) is on its way.
+    /// Its world (`serial`, the snapshot at `time`) is on its way; `kept`
+    /// the relays and entries sent to wait with it.
     Syncing {
         serial: u64,
         time: u32,
         since: Instant,
+        kept: Vec<u64>,
     },
     /// It has the world (the snapshot at `from`): gets every relay and roster
     /// change. `wrong`: its reports in a row that the players' majority
@@ -135,20 +142,34 @@ enum Step {
     /// A world is there: its 0xE5 went, of this echo.
     TimeAsked { time: u32, echo: u16, now: Instant },
     /// It answered: its world went (`serial`, the snapshot at `time`).
-    WorldSent { serial: u64, time: u32, now: Instant },
+    WorldSent {
+        serial: u64,
+        time: u32,
+        now: Instant,
+        kept: Vec<u64>,
+    },
     /// Its world is in.
     WorldIn,
     /// Back to wait for a world (a new generation).
-    WaitAgain,
+    WaitAgain { now: Instant },
     /// The server lets it go: its farewell went.
     LetGo { quiet_from: Instant, until: Instant },
+}
+
+/// What a [`Step`] leaves for its owner to do.
+#[derive(Debug, PartialEq, Eq)]
+enum Action {
+    Nothing,
+    /// The relays kept for a world given up: they would hold its next one
+    /// back, and queue for ever for a game that never acks.
+    Forget { kept: Vec<u64>, now: Instant },
 }
 
 impl Watch {
     /// The one transition of a spectator's game; `step` not meant for this
     /// stage leaves it as it is.
-    fn step(self, step: Step) -> Self {
-        match (self, step) {
+    fn step(self, step: Step) -> (Self, Action) {
+        let stage = match (self, step) {
             (Self::Connecting, Step::Probed) => Self::Loading,
             (Self::Loading, Step::Loaded) => Self::Waiting,
             (Self::Waiting, Step::TimeAsked { time, echo, now }) => Self::Timing {
@@ -157,26 +178,36 @@ impl Watch {
                 last: now,
                 since: now,
             },
-            (Self::Timing { .. }, Step::WorldSent { serial, time, now }) => Self::Syncing {
+            (
+                Self::Timing { .. },
+                Step::WorldSent {
+                    serial,
+                    time,
+                    now,
+                    kept,
+                },
+            ) => Self::Syncing {
                 serial,
                 time,
                 since: now,
+                kept,
             },
             (Self::Syncing { time, .. }, Step::WorldIn) => Self::Live {
                 from: time,
                 wrong: 0,
                 reports: VecDeque::new(),
             },
-            (
-                Self::Timing { .. } | Self::Syncing { .. } | Self::Live { .. },
-                Step::WaitAgain,
-            ) => Self::Waiting,
+            (Self::Syncing { kept, .. }, Step::WaitAgain { now }) => {
+                return (Self::Waiting, Action::Forget { kept, now });
+            }
+            (Self::Timing { .. } | Self::Live { .. }, Step::WaitAgain { .. }) => Self::Waiting,
             (Self::Leaving { quiet_from, until }, Step::LetGo { .. }) => {
                 Self::Leaving { quiet_from, until }
             }
             (_, Step::LetGo { quiet_from, until }) => Self::Leaving { quiet_from, until },
             (stage, _) => stage,
-        }
+        };
+        (stage, Action::Nothing)
     }
 }
 
@@ -635,7 +666,7 @@ impl Game {
                 spectator.session_id
             );
             spectator.restarts.push_back(now);
-            spectator.wait_again();
+            spectator.wait_again(now);
         }
         self.spectators = spectators;
     }
@@ -689,6 +720,27 @@ impl Game {
             proposal,
             sent: now,
         });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn spectator_backlog(&self, session_id: u32) -> Option<usize> {
+        self.spectators
+            .iter()
+            .find(|spectator| spectator.session_id == session_id)
+            .map(|spectator| spectator.transport.backlog())
+    }
+
+    /// Fills the queue of the spectator of `session_id` to past [`MOST_QUEUED`].
+    #[cfg(test)]
+    pub(crate) fn flood_spectator(&mut self, session_id: u32) {
+        for spectator in &mut self.spectators {
+            if spectator.session_id == session_id {
+                let message = ServerMessage::Ping { a: 0, b: 0 };
+                for _ in 0..=MOST_QUEUED {
+                    let _ = spectator.transport.send_kept(message.id(), &message.payload());
+                }
+            }
+        }
     }
 
     #[cfg(test)]
@@ -862,12 +914,12 @@ impl Spectator {
         // A place appended while it was timed, not installed yet: the
         // entries and inputs since the world could be of it.
         if self.installed_roster < watched.roster {
-            self.wait_again();
+            self.wait_again(now);
             return;
         }
         let clock = watched.clock;
         let Some(world) = watched.worlds.iter().find(|world| world.time == time) else {
-            self.go(Step::WaitAgain);
+            self.go(Step::WaitAgain { now });
             return;
         };
         let replay: Vec<ServerMessage> = watched
@@ -892,9 +944,11 @@ impl Spectator {
         let id = watched.id;
         let generation = self.generation.0;
         self.send_time(generation, echo, clock);
-        for message in replay.iter().chain(&entries) {
-            self.send_waiting(message);
-        }
+        let kept: Vec<u64> = replay
+            .iter()
+            .chain(&entries)
+            .filter_map(|message| self.send_waiting(message, now))
+            .collect();
         let payload = if watched.compress {
             ServerMessage::packed_snapshot(generation, world.time, &world.body)
         } else {
@@ -920,9 +974,13 @@ impl Spectator {
                     serial,
                     time: world.time,
                     now,
+                    kept,
                 });
             }
-            Err(_) => self.go(Step::WaitAgain),
+            Err(_) => {
+                self.transport.forget_all(&kept, now);
+                self.go(Step::WaitAgain { now });
+            }
         }
     }
 
@@ -949,7 +1007,7 @@ impl Spectator {
                         player: place as u8,
                     }
                 };
-                self.roster_change(place, entered, time, &message);
+                self.roster_change(place, entered, time, &message, now);
             }
         }
         for (time, place, what) in view.inputs {
@@ -991,7 +1049,7 @@ impl Spectator {
     ) {
         match self.stage {
             Watch::Live { .. } | Watch::Syncing { .. } if from >= self.installed_roster => {
-                self.wait_again();
+                self.wait_again(now);
             }
             Watch::Live { .. } => {
                 let until = relay_deadline(0, clock, time, now);
@@ -1002,7 +1060,7 @@ impl Spectator {
             Watch::Syncing {
                 time: from_time, ..
             } if time > from_time => {
-                self.send_waiting(message);
+                self.keep_for_world(message, now);
             }
             _ => {}
         }
@@ -1017,28 +1075,39 @@ impl Spectator {
         entered: bool,
         at: u32,
         message: &ServerMessage,
+        now: Instant,
     ) {
         match self.stage {
             Watch::Live { .. } | Watch::Syncing { .. } if index >= self.installed_roster => {
-                self.wait_again();
+                self.wait_again(now);
             }
             Watch::Live { .. } => {
                 let _ = self.transport.send(message.id(), &message.payload());
             }
             Watch::Syncing { time, .. } if entered && at > time => {
-                self.send_waiting(message);
+                self.keep_for_world(message, now);
             }
             _ => {}
         }
     }
 
-    /// Its link silent past its timeout (not one being let go).
+    /// Its link silent past its timeout, or its queue past what a game
+    /// that acks leaves there (not one being let go).
     pub(super) fn timed_out(&self, timing: &super::super::Timing, now: Instant) -> bool {
         let timeout = match self.stage {
             Watch::Connecting | Watch::Loading => timing.loading_timeout,
             Watch::Leaving { .. } => return false,
             _ => timing.client_timeout,
         };
+        let queued = self.transport.backlog();
+        if queued > MOST_QUEUED {
+            log::warn!(
+                "Spectator {:#x} at {} has {queued} messages queued and acks none of them; it is let go",
+                self.session_id,
+                self.addr
+            );
+            return true;
+        }
         self.transport.is_gone_after(now, timeout)
     }
 
@@ -1071,7 +1140,7 @@ impl Spectator {
                 echo, last, since, ..
             } => {
                 if now.saturating_duration_since(since) >= TIMING_WAIT {
-                    self.wait_again();
+                    self.wait_again(now);
                 } else if now.saturating_duration_since(last) >= SET_TIME_EVERY {
                     self.send_time(self.generation.0, echo, clock);
                     if let Watch::Timing { last, .. } = &mut self.stage {
@@ -1083,6 +1152,7 @@ impl Spectator {
                 serial,
                 time,
                 since,
+                ..
             } => {
                 if self.transport.is_delivered(serial) {
                     for &(at, who, _) in watched
@@ -1108,7 +1178,7 @@ impl Spectator {
                         self.note(&replay_control::ServerNote::view(place));
                     }
                 } else if now.saturating_duration_since(since) >= WORLD_WAIT {
-                    self.wait_again();
+                    self.wait_again(now);
                 }
             }
             Watch::Connecting | Watch::Loading | Watch::Live { .. } | Watch::Leaving { .. } => {}
@@ -1170,22 +1240,40 @@ impl Spectator {
         let _ = self.transport.send(set_time.id(), &set_time.payload());
     }
 
-    /// Kept until acked, at the pace of a game without a world.
-    fn send_waiting(&mut self, message: &ServerMessage) {
-        let _ =
-            self.transport
-                .send_kept_every(message.id(), &message.payload(), WAITING_RELAY_RESEND);
+    /// Kept until acked, at the pace of a game without a world, for as long
+    /// as a world is waited for: its serial, sent.
+    fn send_waiting(&mut self, message: &ServerMessage, now: Instant) -> Option<u64> {
+        self.transport
+            .send_kept_until(
+                message.id(),
+                &message.payload(),
+                WAITING_RELAY_RESEND,
+                now + WORLD_WAIT,
+            )
+            .ok()
+    }
+
+    /// [`Self::send_waiting`] of what comes while its world is on its way.
+    fn keep_for_world(&mut self, message: &ServerMessage, now: Instant) {
+        let serial = self.send_waiting(message, now);
+        if let (Some(serial), Watch::Syncing { kept, .. }) = (serial, &mut self.stage) {
+            kept.push(serial);
+        }
     }
 
     /// One step of its game's machine: the only place its stage is set.
     fn go(&mut self, step: Step) {
         let stage = std::mem::replace(&mut self.stage, Watch::Waiting);
-        self.stage = stage.step(step);
+        let (stage, action) = stage.step(step);
+        self.stage = stage;
+        if let Action::Forget { kept, now } = action {
+            self.transport.forget_all(&kept, now);
+        }
     }
 
     /// Back to wait for a world: its next start is of a new generation.
-    pub(super) fn wait_again(&mut self) {
-        self.go(Step::WaitAgain);
+    pub(super) fn wait_again(&mut self, now: Instant) {
+        self.go(Step::WaitAgain { now });
     }
 
     /// The server lets it go: an 0xEA naming no place, its game's end, sent

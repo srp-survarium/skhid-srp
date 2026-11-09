@@ -616,6 +616,42 @@ fn a_stuck_spectator_asks_the_players_for_nothing() {
     assert_eq!(requests(true), requests(false));
 }
 
+/// Review of 2026-11-09: a spectator that never acks grew its send queue without limit (each
+/// relay kept for ever) and every poll of the match thread walked it.
+#[test]
+fn a_spectator_that_never_acks_piles_up_nothing() {
+    let mut bench = running();
+    let at = spectate(&mut bench, SPECTATOR);
+    bench.clients[at].mute_acks = true;
+    let mut most = 0;
+    for _ in 0..1_200 {
+        bench.clients[0].input(50, 0x21);
+        bench.clients[1].input(50, 0x22);
+        bench.run(50);
+        most = most.max(bench.game().spectator_backlog(SPECTATOR).unwrap_or(0));
+    }
+    // The relays of about one wait for its world: 40 a second for 15 s.
+    assert!(most < 1_000, "{most} messages queued");
+    bench.assert_no_faults();
+}
+
+/// A spectator so far behind it could only be one that acks nothing is let go, reported as gone
+/// so the lobby takes it out of its queue.
+#[test]
+fn a_spectator_with_too_much_queued_is_let_go() {
+    let mut bench = running();
+    let at = watching(&mut bench);
+    bench.server.games.get_mut(&bench.match_id).unwrap().flood_spectator(SPECTATOR);
+    bench.run(100);
+    assert!(!bench.game().spectator_watches(SPECTATOR));
+    assert_eq!(
+        bench.server.store().matchmaking().take_watchers_left().len(),
+        1,
+        "told as gone"
+    );
+    assert!(!bench.clients[at].told_to_leave, "no farewell: its link is gone");
+}
+
 /// Every place stands in every game's next worlds with `kit` as its current one.
 fn in_the_world(bench: &mut Bench, kit: u8) {
     for client in &mut bench.clients {

@@ -630,7 +630,7 @@ impl Playback {
             Clock::Paused { ping, .. } => Clock::Paused { at, ping },
         };
         (self.inputs, self.events) = self.recording.due(at);
-        self.spectator.wait_again();
+        self.spectator.wait_again(now);
         self.told = None;
     }
 
@@ -730,7 +730,8 @@ impl Playback {
                     player: index as u8,
                 }
             };
-            self.spectator.roster_change(index, entered, time, &message);
+            self.spectator
+                .roster_change(index, entered, time, &message, now);
         }
         for (time, from, what) in &recording.inputs[self.inputs..inputs] {
             self.spectator

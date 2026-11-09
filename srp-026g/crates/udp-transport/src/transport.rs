@@ -804,6 +804,19 @@ impl Transport {
         self.send_for(id, payload, Some(Lifetime::Forever), Some(resend), None)
     }
 
+    /// As [`Self::send_kept_every`], but given up at `deadline` however it
+    /// goes: kept for a client in no hurry, not for ever (one that never
+    /// acks must not pile them up).
+    pub fn send_kept_until(
+        &mut self,
+        id: u8,
+        payload: &[u8],
+        resend: Duration,
+        deadline: Instant,
+    ) -> Result<u64, SendError> {
+        self.send_for(id, payload, Some(Lifetime::Forever), Some(resend), Some(deadline))
+    }
+
     /// As [`Self::send`], but a message the table would give up after its
     /// lifetime is given up after `lifetime` instead. A message with no
     /// lifetime of that kind (sent once, or kept until acked) goes as the
@@ -876,6 +889,31 @@ impl Transport {
             message.lifetime = Lifetime::Forever;
         }
         Ok(serial)
+    }
+
+    /// [`Self::forget`] of many: the serials ascending, as they are given
+    /// out (the queues are walked once, not once each).
+    pub fn forget_all(&mut self, serials: &[u64], now: Instant) {
+        if serials.is_empty() {
+            return;
+        }
+        let mut channels = Vec::new();
+        let mut gone = |message: &Outgoing| {
+            let found = serials.binary_search(&message.serial).is_ok();
+            if found && message.channel != Channel::None {
+                channels.push(message.channel);
+            }
+            !found
+        };
+        self.pending.retain(|message| gone(message));
+        self.unacked.retain(|(message, _)| gone(message));
+        channels.dedup();
+        for channel in channels {
+            self.retired.push_back((channel, now));
+        }
+        for serial in serials {
+            self.outstanding.remove(serial);
+        }
     }
 
     /// Stop sending a message that is not acked yet (one kept by
