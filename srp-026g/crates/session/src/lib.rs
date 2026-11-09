@@ -1212,6 +1212,7 @@ impl SessionStore {
             .collect();
         for other in before {
             self.matchmaking.leave_queue(other);
+            self.matchmaking.session_gone(other);
         }
         self.sessions_made(&[session_id]);
         Some(session_id)
@@ -2070,6 +2071,38 @@ mod tests {
         let session = store.create_session(id);
         let account = store.account_for_session(session).unwrap();
         assert_eq!(account.locked().name, format!("player_{id:08x}"));
+    }
+
+    /// A new sign-in is a new game: what the game before it watched is over,
+    /// or its place among a match's few spectators would stay taken.
+    #[test]
+    fn a_new_sign_in_ends_what_the_game_before_it_watched() {
+        let store = SessionStore::new();
+        let player = |n: u32| Player {
+            session_id: n,
+            account_id: 1000 + n,
+            profile_id: 1,
+        };
+        let id = store
+            .matchmaking()
+            .seat_sides_in_pool(
+                [&[player(1)], &[player(2)]],
+                Instant::now(),
+                QueuePool::GrowingRoster,
+                &|_| 0,
+            )
+            .expect("1 v 1");
+        let account = 7;
+        let old = store.create_session_with_revision(account, 40);
+        let watcher = Watcher {
+            match_id: id,
+            ticket: 0xA000,
+            account_id: account,
+            kind: WatchKind::Queued,
+        };
+        assert!(store.matchmaking().watch(old, watcher));
+        let _new = store.create_session_with_revision(account, 40);
+        assert_eq!(store.matchmaking().watched(old), None);
     }
 
     #[test]
