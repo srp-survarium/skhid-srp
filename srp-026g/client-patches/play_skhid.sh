@@ -161,19 +161,21 @@ install_dxvk() {
 # The game is playable without it, so a failure warns and the game starts.
 install_calibri() {
     [[ -f "$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf" ]] && return
-    require_command curl
-    require_command sha256sum
-    require_command cabextract
-    echo 'Installing the font Calibri (27 MB download, first launch only)...'
     calibri_from_viewer || echo "Warning: the font Calibri could not be installed (see $log)." \
         'Some UI text, such as the item levels on item cards, may show as boxes.' \
         'The next start tries again.' >&2
 }
 
 calibri_from_viewer() (
+    # The same file as VIEWER_URL and VIEWER_SHA256 in play_skhid_mac.sh: a bump changes both.
     local url=https://downloads.sourceforge.net/project/mscorefonts2/cabs/PowerPointViewer.exe
     local checksum=c4e753548d3092ffd7dd3849105e0a26d9b5a1afe46e6e667fe7c6887893701f
-    local temporary name lower fonts="$WINEPREFIX/drive_c/windows/Fonts"
+    local temporary name lower tool fonts="$WINEPREFIX/drive_c/windows/Fonts"
+    # A tool that is missing is a failure like any other: the font is optional.
+    for tool in curl sha256sum cabextract; do
+        command -v "$tool" >/dev/null || { echo "Calibri needs $tool, which is not installed." >>"$log"; exit 1; }
+    done
+    echo 'Installing the font Calibri (27 MB download, first launch only)...'
     temporary=$(mktemp -d "$WINEPREFIX/drive_c/skhid-calibri.XXXXXX")
     trap 'rm -rf -- "$temporary"' EXIT
     # Called in an || list, where set -e does not apply: each step exits itself.
