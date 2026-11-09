@@ -12,6 +12,11 @@
 //! - [`input`]: a relayed input's rotation and action bits, which the
 //!   server checks of a client's input before it relays it.
 
+use replay_control::{LeftPlace, StaticInfoHead};
+
+// One definition, in the crate of the exe and the server.
+pub use replay_control::{LATE_JOIN_PREPARE, NO_PLACE};
+
 use crate::reader::{Reader, Short};
 use crate::{MAX_PLAYERS, Part, Reason, Refusal, finite, transport};
 
@@ -154,8 +159,10 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // (patch 121 ends its match); a player's game passes it to
         // `leave_match`, which returns 1 with nothing written
         // (`check_spectator_026g.py`).
-        id::PLAYER_LEFT if payload.get(1) == Some(&NO_PLACE) => Ok(()),
-        id::PLAYER_LEFT => place(1),
+        id::PLAYER_LEFT => match payload.get(1).copied().map(LeftPlace::of) {
+            Some(LeftPlace::Farewell) => Ok(()),
+            _ => place(1),
+        },
         // The input reader 0x318400 stores the player byte at node+0xC
         // (0x31844F..0x318458) and the rest with no check.
         id::INPUT_RELAY | id::INPUT_RELAY_PRECISE => {
@@ -179,7 +186,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // place, the squad, then the profile, which the late join's own
         // check takes (`late_join_validate_026g.c`). Here the header: a
         // place the first player cannot have, under 20, a serial not 0.
-        id::STATIC_INFO if payload.starts_with(&LATE_JOIN_PREPARE) => {
+        id::STATIC_INFO if StaticInfoHead::of(payload) == Some(StaticInfoHead::LateJoinPrepare) => {
             if len < LATE_JOIN_HEADER {
                 return Err(refuse(
                     0,
@@ -203,7 +210,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
             // marks a place local only when its index equals this byte
             // (0x27BE5F), so none is. No late join proposal is one: its
             // 'L' is no LZMA2 control byte.
-            if payload.first() != Some(&NO_PLACE) {
+            if StaticInfoHead::of(payload) != Some(StaticInfoHead::NoPlace) {
                 place(0)?;
             }
             let stream = payload.get(1..).unwrap_or_default();
@@ -238,14 +245,8 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
     }
 }
 
-/// A 0xE4 that is the late join's profile proposal starts with these
-/// (`late_join::PREPARE_MAGIC` in the server; the stock local index is
-/// under 20, so 0xFF tells them apart), and has this header.
-pub const LATE_JOIN_PREPARE: [u8; 4] = [0xFF, b'L', b'J', 1];
+/// A 0xE4 that is the late join's profile proposal has this header.
 const LATE_JOIN_HEADER: usize = 14;
-/// The place byte of a game with no place of its own: a spectator's 0xE4
-/// and the 0xEA that ends its match (patch 121, `docs/notes/queue-spectate.md`).
-pub const NO_PLACE: u8 = 0xFF;
 
 /// The client's buffer for the unpacked options (0x578A0 bytes).
 pub const OPTIONS_BUFFER: usize = 0x578A0;

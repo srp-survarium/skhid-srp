@@ -39,8 +39,6 @@ pub const MULTIPART: u8 = 0xFF;
 /// The match's client→server leave, which a patched client also sends with
 /// a payload: a chunk of its world (client_patch.md §3.4).
 pub const UPLOAD_CARRIER: u8 = 0xE0;
-/// A replay viewer's request on it (`replay_control::Request::LEN`).
-const REPLAY_REQUEST: usize = 14;
 
 /// The low-level ids (transport.md §3.4): one byte, last in the datagram.
 pub mod low_level {
@@ -328,9 +326,10 @@ fn carrier_len(bytes: &[u8]) -> Option<usize> {
     if matches!(head, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0 | 1, 0]) {
         return (bytes.len() >= 20).then_some(20);
     }
-    // A replay viewer's request (`replay_control::REQUEST_HEAD`, 14 bytes).
-    if head == [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x52, 0] {
-        return (bytes.len() >= REPLAY_REQUEST).then_some(REPLAY_REQUEST);
+    // A replay viewer's request.
+    if *head == replay_control::REQUEST_HEAD {
+        let len = replay_control::Request::LEN;
+        return (bytes.len() >= len).then_some(len);
     }
     let time = u32::from_le_bytes([head[0], head[1], head[2], head[3]]);
     let offset = usize::from(u16::from_le_bytes([head[4], head[5]]));

@@ -43,6 +43,68 @@ pub const TAG: u8 = 0x52;
 /// ack's, so `udp-transport` can tell its length in a multi datagram.
 pub const REQUEST_HEAD: [u8; 8] = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, TAG, 0];
 
+/// The byte of "no place" in a match message. One byte, several meanings,
+/// named here once, by message (the client and the server read them alike):
+/// - an 0xE4's first byte, [`StaticInfoHead`]: a spectator's static info (no
+///   place of its own), or the first of [`LATE_JOIN_PREPARE`]'s bytes;
+/// - an 0xEA's place byte, [`LeftPlace`]: the server's farewell to a
+///   spectator's game, no place of the match leaving;
+/// - an [`Event`]'s actor or victim on the wire: none.
+pub const NO_PLACE: u8 = 0xFF;
+
+/// A late join's profile proposal, an 0xE4 whose first bytes are these: 0xFF
+/// says no place, and the `L` after it is no LZMA2 control byte.
+pub const LATE_JOIN_PREPARE: [u8; 4] = [NO_PLACE, b'L', b'J', 1];
+
+/// What an 0xE4 is, by its first bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StaticInfoHead {
+    /// The static info of a player: this place is its own.
+    Place(u8),
+    /// A spectator's static info: no place of its own.
+    NoPlace,
+    /// A late join's proposal ([`LATE_JOIN_PREPARE`]).
+    LateJoinPrepare,
+}
+
+impl StaticInfoHead {
+    /// `None` for no payload.
+    pub fn of(payload: &[u8]) -> Option<Self> {
+        if payload.starts_with(&LATE_JOIN_PREPARE) {
+            return Some(Self::LateJoinPrepare);
+        }
+        match payload.first()? {
+            &NO_PLACE => Some(Self::NoPlace),
+            &place => Some(Self::Place(place)),
+        }
+    }
+}
+
+/// What an 0xEA's place byte names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LeftPlace {
+    /// This place left the match.
+    Place(u8),
+    /// The server's farewell to the spectator's game (no place left).
+    Farewell,
+}
+
+impl LeftPlace {
+    pub fn of(byte: u8) -> Self {
+        match byte {
+            NO_PLACE => Self::Farewell,
+            place => Self::Place(place),
+        }
+    }
+
+    pub fn byte(self) -> u8 {
+        match self {
+            Self::Place(place) => place,
+            Self::Farewell => NO_PLACE,
+        }
+    }
+}
+
 /// A time on the match's clock, in ms (the clock an 0xE5 sets, the
 /// recording's own).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -221,7 +283,6 @@ pub struct Event {
     pub victim: Option<u8>,
 }
 
-const NO_PLACE: u8 = 0xFF;
 /// The bytes of one [`Event`] ([`Event::encode`]).
 pub const EVENT_LEN: usize = 7;
 const EVENTS_HEAD: usize = 4;
@@ -419,6 +480,20 @@ impl Request {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_byte_of_no_place_means_what_its_message_says() {
+        assert_eq!(StaticInfoHead::of(&[3, 1, 2]), Some(StaticInfoHead::Place(3)));
+        assert_eq!(StaticInfoHead::of(&[NO_PLACE, 0x02, 9]), Some(StaticInfoHead::NoPlace));
+        let mut prepare = LATE_JOIN_PREPARE.to_vec();
+        prepare.extend([1, 2, 3]);
+        assert_eq!(StaticInfoHead::of(&prepare), Some(StaticInfoHead::LateJoinPrepare));
+        assert_eq!(StaticInfoHead::of(&[]), None);
+        assert_eq!(LeftPlace::of(4), LeftPlace::Place(4));
+        assert_eq!(LeftPlace::of(NO_PLACE), LeftPlace::Farewell);
+        assert_eq!(LeftPlace::Farewell.byte(), NO_PLACE);
+        assert_eq!(LeftPlace::Place(4).byte(), 4);
+    }
 
     #[test]
     fn a_playback_goes_and_comes_back() {

@@ -64,7 +64,7 @@ pub const NO_PROTECTION: u32 = 10;
 /// 0xE4's first byte for a game with no place of its own: a spectator's
 /// ([`StaticInfo::spectator_message`]). The client keeps no local place then
 /// (its `network_client`+0x1F1C44 stays 0xFF, the constructor's 0x219AE2).
-pub const NO_LOCAL_PLACE: u8 = 0xFF;
+pub const NO_LOCAL_PLACE: u8 = replay_control::NO_PLACE;
 
 /// A kit the player may use in the match: the client loads a player
 /// resource only for these.

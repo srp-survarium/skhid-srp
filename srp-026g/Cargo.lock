@@ -883,6 +883,7 @@ dependencies = [
  "encoding_rs",
  "log",
  "lzma-rust2",
+ "replay-control",
  "resources-db 0.1.0",
  "serde",
  "serde_json",
@@ -943,6 +944,7 @@ name = "udp-transport"
 version = "0.1.0"
 dependencies = [
  "log",
+ "replay-control",
 ]
 
 [[package]]
