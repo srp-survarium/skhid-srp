@@ -74,7 +74,7 @@ impl Core<'_> {
                         ms: u32::from(ask.seconds) * 1000,
                         place: ask.place,
                     },
-                    revision: self.store.client_revision(who.session_id).unwrap_or(0),
+                    revision: self.store.client_revision(who.session_id),
                 },
                 now,
             ),

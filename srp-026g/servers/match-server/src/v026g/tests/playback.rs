@@ -163,7 +163,7 @@ fn request(account_id: u32, match_id: u32, at_ms: u32, place: Option<u8>) -> Wat
         session_id: session_for(account_id),
         match_id,
         from: WatchFrom { ms: at_ms, place },
-        revision: revision(),
+        revision: Some(revision()),
     }
 }
 
@@ -689,7 +689,7 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
     let watches = replays.watches();
     let ask = |bench: &mut Bench, account: u32, revision: u8| {
         let request = WatchRequest {
-            revision,
+            revision: Some(revision),
             ..request(account, match_id, 0, None)
         };
         assert_eq!(watches.start(request, bench.now()), Status::Preparing);

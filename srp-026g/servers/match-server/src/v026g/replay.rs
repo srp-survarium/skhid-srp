@@ -519,7 +519,9 @@ pub(crate) fn by_place(notes: &[record::Record]) -> (Vec<Option<u32>>, Vec<Optio
                 let place = note["place"].as_u64().map(|place| place as usize);
                 let revision = note["revision"]
                     .as_u64()
-                    .and_then(|revision| u8::try_from(revision).ok());
+                    .and_then(|revision| u8::try_from(revision).ok())
+                    // 0: a session the server did not know.
+                    .filter(|&revision| revision != 0);
                 if let (Some(place), Some(revision)) = (place, revision)
                     && place < 32
                 {

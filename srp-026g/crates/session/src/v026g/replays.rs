@@ -362,7 +362,14 @@ impl Sidecar {
             revisions: value["revisions"]
                 .as_array()?
                 .iter()
-                .map(|revision| revision.as_u64().and_then(|r| u8::try_from(r).ok()))
+                .map(|revision| {
+                    // 0: a game the server did not know, in a file written
+                    // when that was how it was said.
+                    revision
+                        .as_u64()
+                        .and_then(|r| u8::try_from(r).ok())
+                        .filter(|&r| r != 0)
+                })
                 .collect(),
             account_ids: value["account_ids"]
                 .as_array()?
@@ -449,7 +456,7 @@ struct Ask {
     status: Status,
     ready: Option<Ready>,
     /// Kept for looking again while it is `preparing`.
-    revision: u8,
+    revision: Option<u8>,
     /// Whether the asker played it, while the lobby keeps its report.
     played: Option<bool>,
     /// When it was last looked at; `None`: at the next poll (the writer or
@@ -630,18 +637,14 @@ fn utc_stamp(time: SystemTime) -> String {
 /// `revisions` (by place), if it may not: every revision the recording's
 /// games had must be `oldest` (the oldest replayable, [`oldest_replayable`])
 /// or later and no later than the asker's (a newer game's match may play
-/// out otherwise in an older one). 0 (a session the server did not know)
-/// and places that never connected are not counted; a recording with no
+/// out otherwise in an older one). Places that never connected or whose
+/// game the server did not know (`None`) are not counted; a recording with no
 /// revision at all (made before 2026-10-15, when the revisions began to be
 /// kept) is not played (the owner, 2026-10-17: its games' revision is not
 /// guessed).
 pub fn refusal_of(revisions: &[Option<u8>], revision: u8, oldest: u8) -> Option<Refusal> {
     let known = || {
-        revisions
-            .iter()
-            .flatten()
-            .copied()
-            .filter(|&known| known != 0)
+        revisions.iter().flatten().copied()
     };
     let (Some(from), Some(to)) = (known().min(), known().max()) else {
         return Some(Refusal::Unknown);
@@ -988,7 +991,6 @@ impl Replays {
         inner
             .asks
             .retain(|_, ask| now.saturating_duration_since(ask.at) < ASK_KEPT);
-        let revision = revision.unwrap_or(0);
         if let Some(last) = inner.asks.get(&account_id)
             && now.saturating_duration_since(last.at) < ASK_EVERY
         {
@@ -1079,7 +1081,7 @@ impl Replays {
         inner: &mut Inner,
         account_id: u32,
         match_id: u32,
-        revision: u8,
+        revision: Option<u8>,
         played: Option<bool>,
         now: Instant,
     ) -> (Status, Option<Ready>) {
@@ -1088,7 +1090,7 @@ impl Replays {
             Err(refusal) => {
                 log::info!(
                     "Save: account {account_id} is not given match {match_id:#x} for its game \
-                     revision {revision}: {refusal:?} (the oldest given: {})",
+                     revision {revision:?}: {refusal:?} (the oldest given: {})",
                     self.oldest
                 );
                 (Status::Incompatible, None)
@@ -1103,7 +1105,7 @@ impl Replays {
         inner: &mut Inner,
         account_id: u32,
         match_id: u32,
-        revision: u8,
+        revision: Option<u8>,
         played: Option<bool>,
         now: Instant,
     ) -> Result<(Status, Option<Ready>), Refusal> {
@@ -1114,10 +1116,11 @@ impl Replays {
         if self.save.is_none() {
             return Ok((Status::Off, None));
         }
-        // Revision 14 is the first whose game hands the link to the updater.
-        if revision < MIN_REVISION {
+        // Revision 14 is the first whose game hands the link to the updater;
+        // a game of unknown revision is not known to.
+        let Some(revision) = revision.filter(|&revision| revision >= MIN_REVISION) else {
             return Ok((Status::OldGame, None));
-        }
+        };
         // Who may (`SRP_REPLAY_WATCH`, anyone by default), as for a replay
         // session.
         let may_watch = |played: bool| {
@@ -1462,11 +1465,11 @@ mod tests {
     fn revisions_older_than_eleven_and_newer_than_the_askers_do_not_play() {
         // No revision kept (before 2026-10-15), or none known: not played.
         assert_eq!(refusal_of(&[], 14, 11), Some(Refusal::Unknown));
-        assert_eq!(refusal_of(&[None, Some(0)], 14, 11), Some(Refusal::Unknown));
+        assert_eq!(refusal_of(&[None, None], 14, 11), Some(Refusal::Unknown));
         // Every recorded revision between 11 and the asker's own: 12 and
         // 13 compute a match as 11 and 14 do.
         assert_eq!(
-            refusal_of(&[None, Some(0), Some(11), Some(12), Some(14)], 14, 11),
+            refusal_of(&[None, Some(11), Some(12), Some(14)], 14, 11),
             None
         );
         assert_eq!(
@@ -1795,6 +1798,41 @@ mod tests {
         );
         // No token was given for any of the refusals.
         assert_eq!(replays.inner.locked().tokens.len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Asked by a game whose revision the server does not know: `old_game`,
+    /// as a game too old for the link, whatever the file is.
+    #[test]
+    fn a_save_for_a_game_of_unknown_revision_is_an_old_game() {
+        let root = temp("unknown");
+        let replays = on(&root);
+        made_by(&replays, MATCH, vec![Some(40)]);
+        let now = Instant::now();
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, None, Some(true), now),
+            Status::OldGame
+        );
+        assert!(replays.inner.locked().tokens.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A sidecar's 0 says the server did not know that game: `None`, which
+    /// is not counted, not the revision 0.
+    #[test]
+    fn a_sidecars_revision_zero_reads_as_not_known() {
+        let root = temp("zero");
+        let replays = on(&root);
+        made_by(&replays, MATCH, vec![Some(40)]);
+        let path = replays.json_path(MATCH).unwrap();
+        let mut sidecar: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        sidecar["revisions"] = serde_json::json!([0, 40]);
+        std::fs::write(&path, sidecar.to_string()).unwrap();
+        assert_eq!(
+            replays.made(MATCH).expect("it reads").revisions,
+            [None, Some(40)]
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 

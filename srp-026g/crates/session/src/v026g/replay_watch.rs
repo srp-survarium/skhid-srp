@@ -145,8 +145,8 @@ pub struct WatchRequest {
     pub session_id: u32,
     pub match_id: u32,
     pub from: WatchFrom,
-    /// Its game's patch revision (0: not known).
-    pub revision: u8,
+    /// Its game's patch revision, when the server knows it.
+    pub revision: Option<u8>,
 }
 
 /// Where a session starts.
@@ -233,7 +233,7 @@ impl Watches {
         let Some(settings) = &self.settings else {
             return Status::Off;
         };
-        if request.revision < MIN_REVISION {
+        if !request.revision.is_some_and(|revision| revision >= MIN_REVISION) {
             return Status::OldGame;
         }
         let mut sessions = self.sessions.locked();
@@ -412,7 +412,10 @@ impl Watches {
         if !settings.may_watch(request.account_id, players.contains(&request.account_id)) {
             return Err((Status::NotYours, None));
         }
-        match refusal_of(revisions, request.revision, oldest) {
+        let Some(revision) = request.revision else {
+            return Err((Status::OldGame, None));
+        };
+        match refusal_of(revisions, revision, oldest) {
             Some(refusal) => Err((Status::Incompatible, Some(refusal))),
             None => Ok(()),
         }
@@ -558,7 +561,7 @@ mod tests {
             session_id: account_id + 0x100,
             match_id: 0x1F07_C8FB,
             from: WatchFrom { ms: 0, place: None },
-            revision: 40,
+            revision: Some(40),
         }
     }
 
@@ -604,6 +607,25 @@ mod tests {
                     oldest: 30
                 })
             ))
+        );
+    }
+
+    /// A game whose revision the server does not know is no game of
+    /// revision 0: it may not start, and is told so, not "recorded by a
+    /// newer game".
+    #[test]
+    fn a_game_of_unknown_revision_gets_old_game() {
+        let now = Instant::now();
+        let watches = watches(Access::All, 4);
+        let unknown = WatchRequest {
+            revision: None,
+            ..request(ALICE)
+        };
+        assert_eq!(watches.start(unknown, now), Status::OldGame);
+        assert!(!watches.holds(ALICE));
+        assert_eq!(
+            watches.judge(&unknown, &[ALICE], &[Some(40)], 30),
+            Err((Status::OldGame, None))
         );
     }
 
@@ -704,7 +726,7 @@ mod tests {
         watches.expire(now + LOAD_WITHIN);
         assert_eq!(watches.answer(ALICE).unwrap().status, Status::Failed);
         let old = WatchRequest {
-            revision: MIN_REVISION - 1,
+            revision: Some(MIN_REVISION - 1),
             ..alice
         };
         assert_eq!(watches.start(old, now), Status::OldGame);
