@@ -1564,8 +1564,7 @@ pub const NOISE_MILLI: u32 = 50;
 ///    (one apart at most); then, ranked by what they count, the strongest
 ///    two apart, the strongest four two a side, and so on, a side never
 ///    more than one strong player ahead at any rank (players of one
-///    strength are one rank). A squad stays whole, so one with two strong
-///    players has every other strong one against it;
+///    strength are one rank), as far as squads, which stay whole, allow;
 /// 3. the one whose sides count the most alike (`player` a player, and the
 ///    strengths: the owner's "k/d equalizer", so with an odd count the
 ///    stronger players are the side of fewer). For this alone each party's
@@ -2671,7 +2670,8 @@ mod tests {
 
     /// Of any room of players alone, at every rank of the strong (ties one
     /// rank) a side is at most one strong player ahead; and a squad of two
-    /// strong has every other strong player against it.
+    /// strong with two strong alone has both of them against it, wherever
+    /// they rank.
     #[test]
     fn the_strong_are_dealt_evenly() {
         let mut state = 0x9e37_79b9_u32;
