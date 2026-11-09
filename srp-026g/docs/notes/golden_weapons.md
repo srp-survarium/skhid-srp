@@ -1,7 +1,7 @@
 # Golden weapons
 
 The owner's rules of 2026-10-21. Code: `survarium::v026g::golden`,
-`session::v026g::items_rules` (`craft`, `give_golden_silver`), `Account::add_item`; the
+`session::v026g::items_rules` (`craft`), `Account::add_item`; the
 data: `scripts/content-edit/weapon-stats.tsv` (`rarity`, the bonus columns), `items.tsv` (`like`, `start`); the lobby: `ItemDictId` (the lists), `ItemFactory`,
 `InventoryList` (gold background, craft donors), `MessageCraftItem`, `LobbyMenu.fill_crafted_item`.
 
@@ -60,7 +60,7 @@ data: `scripts/content-edit/weapon-stats.tsv` (`rarity`, the bonus columns), `it
   would add to an old default).
 - **Tech debt** ([tech-debt.md](tech-debt.md)): the silver bonus is a granted modification, not a config
   default, so that it can be rerolled and takes a place. That needs special cases: srp grants it on
-  creation (`golden::starting_modifications`, `give_golden_silver` for owned ones), the lobby fakes it on
+  creation (`golden::starting_modifications`; owned ones got it once in 2026-10), the lobby fakes it on
   shop entries and bundle contents (`ItemFactory.startingModifiers`, `GangShop.setupShopItems`,
   `InventoryList.setupBundleData`), and `golden::check` guards the data. A config default would need none
   of these, but could not be rerolled and would add a 4th bonus.

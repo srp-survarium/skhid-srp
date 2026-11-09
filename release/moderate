@@ -14,7 +14,7 @@
   release/moderate signups [open | closed]                          no argument: the current state
   release/moderate reset-password <name>                            its next sign-in sets the new one
   release/moderate give <name> <item name | id> [count]
-  release/moderate money <name> [--silver=+N] [--gold=-N] --reason R
+  release/moderate money <name> --silver=+N|-N --reason R             silver only: gold is gone
 
 Lines are plain text, one row each, times in UTC; --json gives one JSON object a line. A sign-up
 or sign-in that looks like a banned player back starts with "!! <why> !!" (red on a terminal,
@@ -721,12 +721,9 @@ def money(args):
     it only if neither the account nor the fields changed since."""
     if not args.reason.strip():
         sys.exit("moderate: money needs --reason (kept in the account's history)")
-    for value in (args.silver, args.gold):
-        if value and not re.fullmatch(r"[+-]?\d+", value):
-            sys.exit("moderate: --silver and --gold are whole numbers, + or -")
-    if not (args.silver or args.gold):
-        sys.exit("moderate: give --silver and/or --gold")
-    fields = [("tab", "money"), ("user", named(args.target)["login"]), ("silver", args.silver), ("gold", args.gold),
+    if not re.fullmatch(r"[+-]?\d+", args.silver):
+        sys.exit("moderate: give --silver, a whole number, + or -")
+    fields = [("tab", "money"), ("user", named(args.target)["login"]), ("silver", args.silver),
               ("money_reason", args.reason)]
     preview = admin(args, fields, "money")
     if preview is None:
@@ -808,10 +805,9 @@ def main():
     p.add_argument("item", help="the item's exact name or id (e.g. ak_12 or 363)")
     p.add_argument("count", nargs="?", type=int, default=1)
     p.set_defaults(run=give)
-    p = change("money", "add (+) or take (-) silver and gold")
+    p = change("money", "add (+) or take (-) silver")
     p.add_argument("target", help="user or character name")
     p.add_argument("--silver", default="", help="e.g. --silver=+2000 or --silver=-500")
-    p.add_argument("--gold", default="", help="e.g. --gold=+100")
     p.add_argument("--reason", default="", help="required; kept in the account's history")
     p.set_defaults(run=money)
 

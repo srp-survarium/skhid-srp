@@ -2,9 +2,7 @@ package survarium.item
 {
    import flash.display.MovieClip;
    import flash.display.Shape;
-   import flash.geom.ColorTransform;
    import flash.text.TextField;
-   import survarium.Util;
    import survarium.constants.Colors;
    import survarium.controls.FixedText;
    import survarium.controls.InventoryList;
@@ -13,10 +11,8 @@ package survarium.item
    import survarium.core.Icon;
    import survarium.data.ItemData;
    import survarium.upgrade.UpgradeWindow;
-   import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemRank;
-   import survarium.constants.MoneyType;
    import survarium.constants.RendererState;
    import survarium.constants.SuperCategory;
    
@@ -163,9 +159,6 @@ package survarium.item
       override protected function updateData() : void
       {
          var nameColor:uint = 0;
-         var condition:int = 0;
-         var trackColor:uint = 0;
-         var colorTransform:ColorTransform = null;
          var isShopRow:Boolean = false;
          var item:ItemData = _data as ItemData;
          super.updateData();
@@ -221,22 +214,12 @@ package survarium.item
             }
             this.equippedSprite.visible = item.equipped;
             this.equippedBorder.visible = item.equipped;
-            this.brokenIcon.visible = item.broken;
-            if(this.brokenIcon.visible)
-            {
-               this.brokenIcon.x = this.equippedSprite.visible ? 145 : 160;
-            }
+            this.brokenIcon.visible = false;
             this.paintedIcon.visible = Boolean(item.upgrades) && item.upgrades.length > 0;
             this.updateScopeBadge(item,true);
             this.updateLoadoutBadge(item.itemId,true,this.textFieldCount,this.textFieldInfo);
-            this.damageIndicator.visible = isOwnedItem && item.value < ItemCondition.FULL;
-            this.damageIndicator.track.scaleX = _data.value / ItemCondition.FULL;
-            condition = _data.value / ItemCondition.FULL * 510;
-            trackColor = Util.getColor(Math.min(510 - condition,255),Math.min(condition,255),0);
-            colorTransform = new ColorTransform();
-            colorTransform.color = trackColor;
-            this.damageIndicator.track.transform.colorTransform = colorTransform;
-            this.damageIndicator.track.alpha = 0.4;
+            // No damage bar or broken icon: items never wear (no repair, the owner 2026-11-08).
+            this.damageIndicator.visible = false;
          }
          else
          {
@@ -252,8 +235,7 @@ package survarium.item
          if(isShopItem)
          {
             this.labelCost.visible = true;
-            this.labelCost.moneyType = item.isPremium ? MoneyType.PREMIUM : MoneyType.REGULAR;
-            this.labelCost.textField.textColor = item.isPremium ? Colors.GOLD : Colors.PRICE_REG;
+            this.labelCost.textField.textColor = Colors.PRICE_REG;
             this.labelCost.cost = item.cost;
          }
          else
