@@ -325,6 +325,8 @@ const INPUT_MAX_AGE_MS: u32 = 5_000;
 /// Relayed inputs are kept this long for clients that start from a
 /// snapshot (none older than `TICK_REACH_MS` is started from).
 const INPUTS_KEPT_MS: u32 = 60_000;
+// The longest live delay must still find a start: all of `delayed_start`'s window is kept.
+const _: () = assert!(session::LiveDelay::MAX_SECONDS as u32 * 1000 + FRESH_SNAPSHOT_MS <= INPUTS_KEPT_MS);
 /// Rejected or unchecked snapshots saved at most this many times a match.
 const MAX_DOUBTFUL_DUMPS: u32 = 40;
 /// The worlds of players found out of step asked for (`ask_wrong_world`):

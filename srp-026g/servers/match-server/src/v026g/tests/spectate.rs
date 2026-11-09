@@ -457,6 +457,20 @@ fn a_place_whose_newcomer_failed_keeps_no_spectator_waiting() {
     );
 }
 
+/// The longest delay `LiveDelay` allows still finds a world to start from: a match keeps 60 s.
+#[test]
+fn a_live_windows_spectator_at_the_longest_delay_still_starts() {
+    let mut bench = running();
+    let delay = session::LiveDelay::from_secs(u64::from(session::LiveDelay::MAX_SECONDS)).unwrap();
+    bench.until(62_000, |_| false);
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
+    assert!(
+        bench.until(8_000, |b| b.clients[at].model.is_synced()),
+        "{:?}",
+        bench.clients[at].faults
+    );
+}
+
 /// The Live window's spectator of a public match watches it 10 s behind:
 /// its game's clock and world are that far back, its relays come as its
 /// clock reaches them, and the players see nothing of it. The place its
@@ -464,7 +478,7 @@ fn a_place_whose_newcomer_failed_keeps_no_spectator_waiting() {
 #[test]
 fn a_live_windows_spectator_watches_behind_the_match() {
     let mut bench = running();
-    let delay = Duration::from_secs(10);
+    let delay = session::LiveDelay::from_secs(10).unwrap();
     let view = Some(1);
     let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view });
     assert!(

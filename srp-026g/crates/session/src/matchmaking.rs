@@ -264,6 +264,32 @@ pub struct Watcher {
     pub kind: WatchKind,
 }
 
+/// How far behind the match a Live window's spectator watches: whole seconds, at most
+/// [`LiveDelay::MAX_SECONDS`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LiveDelay(u16);
+
+impl LiveDelay {
+    /// The longest delay a spectator can start at. A delayed start needs a world from just before
+    /// its clock and the inputs since, and a match keeps those for 60 s: the window it looks in
+    /// (1.5 s) has to be kept whole. The match server asserts this against its own constants.
+    pub const MAX_SECONDS: u16 = 58;
+    pub const DEFAULT: LiveDelay = LiveDelay(30);
+
+    /// `None` past [`LiveDelay::MAX_SECONDS`].
+    pub fn from_secs(seconds: u64) -> Option<LiveDelay> {
+        u16::try_from(seconds).ok().filter(|&seconds| seconds <= Self::MAX_SECONDS).map(LiveDelay)
+    }
+
+    pub fn as_secs(self) -> u64 {
+        u64::from(self.0)
+    }
+
+    pub fn as_duration(self) -> Duration {
+        Duration::from_secs(self.as_secs())
+    }
+}
+
 /// How a session came to watch a match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WatchKind {
@@ -273,7 +299,7 @@ pub enum WatchKind {
     /// From the lobby's Live window: `delay` behind the match (a public
     /// match's, so nobody calls positions to a friend), until it leaves;
     /// `view` the place its game is to follow first (`None`: its own pick).
-    Live { delay: Duration, view: Option<u8> },
+    Live { delay: LiveDelay, view: Option<u8> },
 }
 
 pub struct Matchmaking {

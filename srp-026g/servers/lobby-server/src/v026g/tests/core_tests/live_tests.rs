@@ -106,7 +106,7 @@ fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     assert_eq!(
         watcher.kind,
         session::WatchKind::Live {
-            delay: Duration::from_secs(30),
+            delay: session::LiveDelay::DEFAULT,
             view: Some(1),
         }
     );

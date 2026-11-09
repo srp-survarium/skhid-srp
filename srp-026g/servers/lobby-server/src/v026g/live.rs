@@ -25,10 +25,10 @@
 //! Each row's place in the `91` is the request's start and its index.
 
 use std::collections::HashSet;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use session::v026g::replays::Status;
-use session::{LockExt, QueuePool, WatchKind, Watcher};
+use session::{LiveDelay, LockExt, QueuePool, WatchKind, Watcher};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::limits;
 
@@ -40,7 +40,7 @@ use super::play::{LivePhase, LiveView, Running};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Config {
     /// How far behind the match a Live window's spectator watches.
-    pub delay: Duration,
+    pub delay: LiveDelay,
     /// Live window spectators of one match at most (each costs about a
     /// player's traffic).
     pub per_match: usize,
@@ -51,7 +51,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            delay: Duration::from_secs(30),
+            delay: LiveDelay::DEFAULT,
             per_match: 4,
             most: 8,
         }
@@ -67,11 +67,25 @@ impl Config {
         };
         let default = Self::default();
         Self {
-            delay: number("SRP_LIVE_WATCH_DELAY_S").map_or(default.delay, Duration::from_secs),
+            delay: delay_from(std::env::var("SRP_LIVE_WATCH_DELAY_S").ok().as_deref()),
             per_match: number("SRP_LIVE_WATCH_PER_MATCH").map_or(default.per_match, |n| n as usize),
             most: number("SRP_LIVE_WATCH_MAX").map_or(default.most, |n| n as usize),
         }
     }
+}
+
+/// `SRP_LIVE_WATCH_DELAY_S`, parsed: a value the match could not serve (no spectator would ever
+/// get a world) is refused here, loudly, for the default.
+fn delay_from(value: Option<&str>) -> LiveDelay {
+    let Some(value) = value else { return LiveDelay::DEFAULT };
+    value.trim().parse().ok().and_then(LiveDelay::from_secs).unwrap_or_else(|| {
+        log::error!(
+            "SRP_LIVE_WATCH_DELAY_S is `{value}`; it must be whole seconds from 0 to {}. Using {} s",
+            LiveDelay::MAX_SECONDS,
+            LiveDelay::DEFAULT.as_secs()
+        );
+        LiveDelay::DEFAULT
+    })
 }
 
 /// Whether a Live window spectator may watch a match.
@@ -297,5 +311,39 @@ impl Core<'_> {
             }
         };
         Some(status)
+    }
+}
+
+#[cfg(test)]
+mod delay_tests {
+    use super::*;
+
+    #[test]
+    fn a_delay_up_to_the_longest_a_match_can_serve_is_taken() {
+        for (value, seconds) in [("0", 0), ("30", 30), (" 45 ", 45), ("58", 58)] {
+            assert_eq!(delay_from(Some(value)).as_secs(), seconds, "{value}");
+        }
+        assert_eq!(delay_from(None), LiveDelay::DEFAULT);
+    }
+
+    #[test]
+    fn a_delay_a_match_cannot_serve_falls_back_to_the_default() {
+        // 59 is the first that cannot start; the last two would wrap if they were not refused.
+        for value in ["59", "60", "120", "65536", "18446744073709551615", "99999999999999999999999"] {
+            assert_eq!(delay_from(Some(value)), LiveDelay::DEFAULT, "{value}");
+        }
+    }
+
+    #[test]
+    fn a_delay_that_is_no_number_falls_back_to_the_default() {
+        for value in ["", "abc", "-1", "1.5", "30s"] {
+            assert_eq!(delay_from(Some(value)), LiveDelay::DEFAULT, "{value}");
+        }
+    }
+
+    #[test]
+    fn the_type_holds_nothing_past_the_longest() {
+        assert_eq!(LiveDelay::from_secs(58).map(LiveDelay::as_secs), Some(58));
+        assert_eq!(LiveDelay::from_secs(59), None);
     }
 }

@@ -144,7 +144,7 @@ is a `91` row at the request's start plus its index.
   world).
 - **Watch**: the replay session's ask (`0xC0000000 | place << 16 | seconds`) for a match still
   being played (countdown or in play) sends the game to it as #1285's spectators are sent, but
-  `SRP_LIVE_WATCH_DELAY_S` (default 30) behind, so nobody calls a friend the positions: answered
+  `SRP_LIVE_WATCH_DELAY_S` (default 30, at most 58: a match keeps 60 s to start from) behind, so nobody calls a friend the positions: answered
   `R1;watching;<match>;0`, `busy` when full (`SRP_LIVE_WATCH_PER_MATCH`, default 4;
   `SRP_LIVE_WATCH_MAX`, default 8, of all matches) or not begun, `not_yours` when not watchable.
   A match no longer played gets its recording, as above.

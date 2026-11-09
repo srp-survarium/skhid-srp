@@ -518,7 +518,7 @@ impl Server {
         let ticket = watcher.ticket;
         let (delay, view) = match watcher.kind {
             session::WatchKind::Queued => (None, None),
-            session::WatchKind::Live { delay, view } => (Some(delay), view),
+            session::WatchKind::Live { delay, view } => (Some(delay.as_duration()), view),
         };
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
         let watched = match self.games.get_mut(&ticket) {
