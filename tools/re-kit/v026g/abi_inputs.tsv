@@ -3581,8 +3581,8 @@ va	name	location	role	basis
 0x0039f360	vostok::animation::mixing::n_ary_tree::get_object_transform	entry ESP+8	out matrix	observed
 0x0039f360	vostok::animation::mixing::n_ary_tree::get_object_transform	entry ESP+0xC	the animated object	observed
 0x003b9f40	vostok::render::device::device	ESI	device object receiver	observed
-0x003b9f40	vostok::render::device::device	entry ESP+4	DWORD stored at device+0x1B0	observed
-0x003b9f40	vostok::render::device::device	entry ESP+8	DWORD stored at device+0x1B4	observed
+0x003b9f40	vostok::render::device::device	entry ESP+4	DWORD stored at device+0x1B0: the video budget's low DWORD (allocate_arenas' u64 0x1B3A1F8; the render compares it with 640 MiB and 1 GiB for its automatic sizes, e.g. 0x1C96E0, 0x3CF260)	observed
+0x003b9f40	vostok::render::device::device	entry ESP+8	DWORD stored at device+0x1B4: the video budget's high DWORD	observed
 0x003b9f40	vostok::render::device::device	entry ESP+12 low byte	flag stored at device+0x1BC	observed
 0x003b9fe0	vostok::render::device::on_device_removed	entry ESP+4	device object whose loss byte+0x1BD is set	observed
 0x003ba320	vostok::render::device::get_max_supported_resolution	EAX	pointer to two-DWORD result storage; source-level hidden/explicit classification unresolved	observed
@@ -3607,7 +3607,7 @@ va	name	location	role	basis
 0x003bba10	vostok::render::resource_manager::bind_samplers_to_shaders	EAX	resource-manager receiver	observed
 0x003bbac0	vostok::render::resource_manager::resource_manager	ESI	resource-manager receiver	observed
 0x003bbac0	vostok::render::resource_manager::resource_manager	EDX	pointer to binary-config resource pointer	observed
-0x003bbac0	vostok::render::resource_manager::resource_manager	entry ESP+4	VRAM amount low DWORD	observed
+0x003bbac0	vostok::render::resource_manager::resource_manager	entry ESP+4	VRAM amount low DWORD (the video budget, allocate_arenas' u64 0x1B3A1F8, as device+0x1B0)	observed
 0x003bbac0	vostok::render::resource_manager::resource_manager	entry ESP+8	VRAM amount high DWORD	observed
 0x003bc1d0	vostok::render::resource_manager::~resource_manager	entry ESP+4	resource-manager receiver	observed
 0x003bc7b0	vostok::render::resource_manager::get_default_texture	ESI	resource-manager receiver	observed

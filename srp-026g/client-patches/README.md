@@ -140,7 +140,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
 | `rust/patches/src/unplayed_match.rs`, `src/unplayed_match.toml`, `src/vostok/match_close.rs`, `check_unplayed_match_026g.py` | Patch 120: a match its game never played (the time rule's state 0: the handshake, a level loading, a level loaded before its first world) closes too, kicked, timed out, cut off or given its farewell: five lohooks (connect_to_match's connect, the logoff, close_current_match's guard, on_project_loaded's abort test, on_match_ready's end); its check runs each from the game's code on a made-up network client, the original beside (needs Unicorn; `../docs/notes/client_patch.md` section 3.74) |
 | `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
-| `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`) and patch 128 (`THREAD_STACKS` in `patch_026g.py`): the defaults of the multithreaded arena and the resource floor (768 MiB), and of the resources helper (32 MiB) and render (320 MiB) arenas, a command-line value still taking over, and an engine thread's stack (2 MiB); its check runs the native option reads, the registrations' sizes and threading::spawn to CreateThread in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75 and 3.77) |
+| `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -450,7 +450,7 @@ the game **from `game\binaries\x86`** (it finds the certificate by a path
 relative to where it is started):
 
 ```
-survarium_skhid.exe -localization=english -server=<host>:<login port> -mt_allocator=768 -minimum_resources_memory_size=768
+survarium_skhid.exe -localization=english -server=<host>:<login port> -minimum_resources_memory_size=768
 ```
 
 Or let `make_client_026g.py` do all of it, without touching the game folder.
@@ -2222,6 +2222,9 @@ checksum and in nothing else (compared byte by byte); `--no-late-join`,
 **Not run:** a game.
 
 ### 37. Memory defaults match the launcher
+
+(The multithreaded arena's half of this patch, at 0xE100F, was replaced by patch 129: the arena is
+at least 1024 MiB, with or without `-mt_allocator`. The resource floor below is still this patch.)
 
 When memory options are absent, the full client now defaults to a 768 MiB
 multithreaded arena and a 768 MiB resource-memory floor, matching the existing
@@ -4917,7 +4920,7 @@ reserve, is the reserve too: 6 MiB of address space and commit charge freed a th
 8 logical CPUs, 342 with 24, 438 with 32.
 
 `platform::allocate_arenas` still counts (threads x 2 + 8) x 8 MiB of stacks into "engine(fixed)"
-(0xE98C2..0xE98CB) for its budget: kept, so the resource arenas and the video budget are sized
+(0xE98C2..0xE98CB) for its budget (patch 129 makes that term 2 MiB): kept here, so the resource arenas and the video budget are sized
 byte for byte as before and the space freed stays free. Lowering that term too would size them
 from the real stacks, and would keep a CPU with very many threads (64 and more: 1088 MiB counted
 there, without the pool's cap of 32) from failing the "Not enough memory" check at the start

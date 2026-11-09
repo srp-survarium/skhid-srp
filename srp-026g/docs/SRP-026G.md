@@ -328,7 +328,7 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
 
 - `/`: what the server is; step one, where the original game is had
   (`SRP_GAME_URL`); step two, the download of the few files that go over it;
-  the launch line (`-localization=… -server=<host>:<port> -mt_allocator=768
+  the launch line (`-localization=… -server=<host>:<port>
   -minimum_resources_memory_size=768`); players online; how matches start.
 - `/exchange` (`GET`): a short page saying that silver and gold are
   exchanged in the game now (the lobby's exchange window,
@@ -497,7 +497,7 @@ cargo run --release -p resources-db --bin srp-game-data -- build --dir <the game
 set SRP_GAME_DATA=game-data.db
 set SRP_MIN_PATCH_REVISION=<the newest patch's n; leave it out without patches>
 cargo run -p srp
-survarium_srp.exe -localization=ukrainian -splash_screen=0 -server=127.0.0.1:1234 -mt_allocator=768 -minimum_resources_memory_size=768
+survarium_srp.exe -localization=ukrainian -splash_screen=0 -server=127.0.0.1:1234 -minimum_resources_memory_size=768
 ```
 
 `--dir` takes `resources.db` and every `resources.db.patch_<n>` of that
@@ -512,8 +512,11 @@ with it `value << 20`), and `-minimum_resources_memory_size=<MiB>` is the
 floor of the resources arenas (option object 0xA83080, a float read at
 0xE9966, default 0x150 = 336 MiB). Neither covers the other. Upstream
 (`origin/feature/server-026g`, live under Wine) ran out of the 376 MiB arena
-while loading a map and fixed it with `-mt_allocator=768`. Both keys together are what the players' start
-file and the shortcuts use, and maps load with them (live since 2026-10-12).
+while loading a map and fixed it with `-mt_allocator=768`, which our launch lines passed from
+2026-10-12. The exe now owns that number: patch 37 made 768 MiB its default, and patch 129 makes the
+arena at least 1024 MiB with or without the key (a larger value is still taken), so no launch line
+names it any more. The launch lines pass `-minimum_resources_memory_size=768`, which patch 37 also
+made the exe's default.
 
 Start the game from its `game\binaries\x86` folder (the client finds its
 login certificate by a path relative to the working directory). The game
