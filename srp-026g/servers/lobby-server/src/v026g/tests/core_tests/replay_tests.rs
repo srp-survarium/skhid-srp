@@ -246,6 +246,37 @@ fn a_refused_replay_session_says_why_and_a_busy_player_gets_none() {
     );
 }
 
+/// Guessing match ids runs out: after [`MISSES_ALLOWED`] unknown ones, every
+/// ask is `busy` and reads nothing, until the window ends.
+#[test]
+fn guessing_match_ids_is_cut_off_after_a_few_misses() {
+    use session::v026g::replay_watch::{MISSES_ALLOWED, MISSES_WINDOW, WatchRefusal};
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let taras = player(&mut world, "Taras", current());
+    for _ in 0..MISSES_ALLOWED {
+        assert_eq!(
+            ask_to_watch(&mut world, taras, 0, None),
+            "R1;preparing;1f07c8fb;2"
+        );
+        let request = desk.watches().next_job(world.now).unwrap();
+        desk.watches()
+            .refuse(&request, WatchRefusal::Gone, world.now);
+        assert_eq!(poll_refused(&mut world, taras), "R1;gone;1f07c8fb;0");
+    }
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;busy;1f07c8fb;0"
+    );
+    assert_eq!(desk.watches().next_job(world.now), None, "nothing is read");
+    world.advance(MISSES_WINDOW);
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;preparing;1f07c8fb;2"
+    );
+}
+
 // ------------------------------------------------------- Save
 
 /// What came back to the asker of a save (its ask, or `3B 00 <SAVE_START>`

@@ -991,6 +991,23 @@ impl Replays {
         inner
             .asks
             .retain(|_, ask| now.saturating_duration_since(ask.at) < ASK_KEPT);
+        // Before anything is looked up, so that it says nothing of the match
+        // (`replay_watch::MISSES_ALLOWED`).
+        if self.watches.limited(account_id, now) {
+            inner.asks.insert(
+                account_id,
+                Ask {
+                    match_id,
+                    at: now,
+                    status: Status::Busy,
+                    ready: None,
+                    revision,
+                    played,
+                    checked: Some(now),
+                },
+            );
+            return Status::Busy;
+        }
         if let Some(last) = inner.asks.get(&account_id)
             && now.saturating_duration_since(last.at) < ASK_EVERY
         {
@@ -1086,6 +1103,10 @@ impl Replays {
         now: Instant,
     ) -> (Status, Option<Ready>) {
         match self.look(inner, account_id, match_id, revision, played, now) {
+            Ok((Status::Gone, ready)) => {
+                self.watches.missed(account_id, match_id, now);
+                (Status::Gone, ready)
+            }
             Ok((status, ready)) => (status, ready),
             Err(refusal) => {
                 log::info!(
@@ -1798,6 +1819,51 @@ mod tests {
         );
         // No token was given for any of the refusals.
         assert_eq!(replays.inner.locked().tokens.len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Unknown matches asked to be saved run out the same limit as watching
+    /// them: past it the account gets `busy`, even for a match that exists,
+    /// and no link.
+    #[test]
+    fn saving_unknown_matches_is_limited_with_watching_them() {
+        use super::super::replay_watch::{MISSES_ALLOWED, MISSES_WINDOW};
+        let root = temp("guess");
+        let replays = on(&root);
+        made(&replays, MATCH);
+        let mut now = Instant::now();
+        let revision = Some(current());
+        // Half of them by watching.
+        for n in 0..MISSES_ALLOWED / 2 {
+            replays.watches().missed(ALICE, 0x2000 + n, now);
+        }
+        for n in MISSES_ALLOWED / 2..MISSES_ALLOWED {
+            now += ASK_EVERY;
+            assert_eq!(
+                replays.save_ask(ALICE, 0x2000 + n, revision, None, now),
+                Status::Gone,
+                "{n}"
+            );
+        }
+        now += ASK_EVERY;
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, revision, Some(true), now),
+            Status::Busy
+        );
+        let answer = replays.save_answer(ALICE, now);
+        assert_eq!(answer.status, Status::Busy);
+        assert!(answer.link().is_none());
+        assert!(replays.inner.locked().tokens.is_empty());
+        // Another account is not touched, and the window ends.
+        assert_eq!(
+            replays.save_ask(BOB, MATCH, revision, Some(true), now),
+            Status::Ready
+        );
+        now += MISSES_WINDOW;
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, revision, Some(true), now),
+            Status::Ready
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 

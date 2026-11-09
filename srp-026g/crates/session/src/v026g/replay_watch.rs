@@ -44,6 +44,15 @@ pub const LOAD_WITHIN: Duration = Duration::from_secs(2 * 60);
 pub const CONNECT_WITHIN: Duration = Duration::from_secs(90);
 /// A refusal the movie never polled for is forgotten after this.
 const REFUSAL_KEPT: Duration = Duration::from_secs(15 * 60);
+/// Lookups of a match with no recording (a replay session's or a save's
+/// together) that an account may make in [`MISSES_WINDOW`]; past them every
+/// lookup of its is `busy` until the window ends, a match that exists too.
+/// A match's id is the only thing between anyone and a private room's
+/// replay, and it is random in 31 bits: at this rate a year's guessing is
+/// about 105 000 of its two billion values. Enough for a player mistyping
+/// a code, or following links to matches no longer kept.
+pub const MISSES_ALLOWED: u32 = 12;
+pub const MISSES_WINDOW: Duration = Duration::from_secs(60 * 60);
 
 /// Who may watch a match's replay (`SRP_REPLAY_WATCH`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -289,6 +298,14 @@ pub struct WatchAnswer {
     pub figure: u32,
 }
 
+/// An account's lookups of matches with no recording ([`MISSES_ALLOWED`]).
+#[derive(Clone, Copy)]
+struct Misses {
+    /// The first of this window.
+    since: Instant,
+    count: u32,
+}
+
 struct Session {
     request: WatchRequest,
     stage: Stage,
@@ -302,6 +319,8 @@ pub struct Watches {
     settings: Option<WatchSettings>,
     /// By account: one session each.
     sessions: Mutex<HashMap<u32, Session>>,
+    /// By account ([`MISSES_ALLOWED`]).
+    misses: Mutex<HashMap<u32, Misses>>,
 }
 
 impl Watches {
@@ -309,11 +328,47 @@ impl Watches {
         Self {
             settings,
             sessions: Mutex::new(HashMap::new()),
+            misses: Mutex::new(HashMap::new()),
         }
     }
 
     pub fn settings(&self) -> Option<&WatchSettings> {
         self.settings.as_ref()
+    }
+
+    // ------------------------------------------------- guessing match ids
+
+    /// Whether the account looked up too many matches with no recording
+    /// lately ([`MISSES_ALLOWED`]): checked before anything says whether a
+    /// match exists, so that a refusal says nothing of it.
+    pub fn limited(&self, account_id: u32, now: Instant) -> bool {
+        self.misses.locked().get(&account_id).is_some_and(|misses| {
+            misses.count >= MISSES_ALLOWED
+                && now.saturating_duration_since(misses.since) < MISSES_WINDOW
+        })
+    }
+
+    /// The account looked up a match with no recording.
+    pub fn missed(&self, account_id: u32, match_id: u32, now: Instant) {
+        let mut all = self.misses.locked();
+        let misses = all.entry(account_id).or_insert(Misses {
+            since: now,
+            count: 0,
+        });
+        if now.saturating_duration_since(misses.since) >= MISSES_WINDOW {
+            *misses = Misses {
+                since: now,
+                count: 0,
+            };
+        }
+        misses.count += 1;
+        if misses.count == MISSES_ALLOWED {
+            log::warn!(
+                "Replay sessions: account {account_id} looked up {MISSES_ALLOWED} matches with \
+                 no recording in {} min, the last {match_id:#x}: refused until the window ends",
+                MISSES_WINDOW.as_secs() / 60
+            );
+        }
     }
 
     // ------------------------------------------------------- the lobby
@@ -442,6 +497,9 @@ impl Watches {
     /// (`failed`), or whose game did not come within [`CONNECT_WITHIN`]
     /// (over); refusals nobody polled for.
     pub fn expire(&self, now: Instant) {
+        self.misses
+            .locked()
+            .retain(|_, misses| now.saturating_duration_since(misses.since) < MISSES_WINDOW);
         self.sessions.locked().retain(|account_id, session| {
             let waited = now.saturating_duration_since(session.since);
             if !session.stage.patience().is_some_and(|most| waited >= most) {
@@ -526,7 +584,9 @@ impl Watches {
             request.account_id,
             request.match_id,
         );
-        self.advance(request, Event::Refuse(refusal), now);
+        if self.advance(request, Event::Refuse(refusal), now) && refusal == WatchRefusal::Gone {
+            self.missed(request.account_id, request.match_id, now);
+        }
     }
 
     /// A game of `session_id` connects to the match server: its session's
@@ -783,6 +843,38 @@ mod tests {
         assert_eq!(watches.start(request(MOD), now), Status::Preparing);
         assert_eq!(watches.answer(ALICE).unwrap().status, Status::Incompatible);
         assert_eq!(watches.answer(ALICE), None);
+    }
+
+    /// One account's lookups of matches with no recording run out, and
+    /// come back with the window; nobody else's are touched, and a refusal
+    /// for any other reason is no lookup of an unknown match.
+    #[test]
+    fn looking_up_unknown_matches_is_limited_per_account() {
+        let now = Instant::now();
+        let watches = watches(Access::All, 4);
+        let alice = request(ALICE);
+        for n in 0..MISSES_ALLOWED {
+            assert!(!watches.limited(ALICE, now), "miss {n}");
+            assert_eq!(watches.start(alice, now), Status::Preparing);
+            watches.next_job(now);
+            watches.refuse(&alice, WatchRefusal::Gone, now);
+            assert_eq!(watches.answer(ALICE).unwrap().status, Status::Gone);
+        }
+        assert!(watches.limited(ALICE, now));
+        assert!(!watches.limited(MOD, now), "another account");
+        assert!(!watches.limited(ALICE, now + MISSES_WINDOW));
+        watches.expire(now + MISSES_WINDOW);
+        assert!(!watches.limited(ALICE, now));
+
+        // Any other refusal says the match exists, or nothing of it.
+        let bob = request(0x2_0000);
+        for _ in 0..MISSES_ALLOWED + 1 {
+            assert_eq!(watches.start(bob, now), Status::Preparing);
+            watches.next_job(now);
+            watches.refuse(&bob, WatchRefusal::Failed, now);
+            watches.answer(bob.account_id);
+        }
+        assert!(!watches.limited(bob.account_id, now));
     }
 
     /// A refusal is for a session not given yet: one that plays is not

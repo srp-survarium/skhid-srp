@@ -13,7 +13,10 @@
 //!   `preparing` while the match server reads the recording, `watching`
 //!   with the match time it starts at (ms) once its game is sent, or why
 //!   not (`not_yours` under `SRP_REPLAY_WATCH=match`, `incompatible`,
-//!   `gone`, `failed`, `busy`, `old_game`, `off`).
+//!   `gone`, `failed`, `busy`, `old_game`, `off`). An account that looked up
+//!   too many matches with no recording gets `busy` for every match for a
+//!   while (`replay_watch::MISSES_ALLOWED`, shared with Save): a match's id
+//!   is all that keeps a private room's replay to those who were given it.
 //! - A replay refused for its recording's games (`incompatible`) is said by
 //!   the movie, in the game's language, from the localization tables: the
 //!   prompt's `st_srp_replay_incompatible`, the card's
@@ -55,8 +58,13 @@ impl Core<'_> {
         let free = self.player(who.addr).is_some_and(|player| {
             player.in_match.is_none() && player.connect.is_none() && player.queued_since.is_none()
         });
+        // Past the limit of lookups of unknown matches: `busy`, before
+        // anything says whether this match exists or is being played.
+        let limited = self
+            .replays
+            .is_some_and(|replays| replays.watches().limited(who.account_id, now));
         // A match still being played is watched as it is (`live`).
-        let live = if free {
+        let live = if free && !limited {
             self.live_watch(who, match_id, ask.place, now)
         } else {
             None
@@ -64,7 +72,7 @@ impl Core<'_> {
         let status = match (live, self.replays) {
             (Some(status), _) => status,
             (None, None) => Status::Off,
-            (None, Some(_)) if !free => Status::Busy,
+            (None, Some(_)) if !free || limited => Status::Busy,
             (None, Some(replays)) => replays.watches().start(
                 WatchRequest {
                     account_id: who.account_id,

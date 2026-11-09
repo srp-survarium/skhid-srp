@@ -63,6 +63,30 @@ fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> String {
         .expect("an R1 row")
 }
 
+/// Past the limit of lookups of unknown matches, an ask says nothing of a
+/// match being played either: asking was how to tell a running private
+/// match from no match at all.
+#[test]
+fn past_the_guessing_limit_a_running_match_is_not_told_apart() {
+    use session::v026g::replay_watch::{MISSES_ALLOWED, WatchSettings};
+    use session::v026g::replays::Replays;
+    let desk: &'static Replays =
+        Box::leak(Box::new(Replays::new(None).with_watch(WatchSettings::default())));
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    let account = world.ids[carol].0;
+    for n in 0..MISSES_ALLOWED {
+        desk.watches().missed(account, 0x2000 + n, world.now);
+    }
+    assert_eq!(
+        ask_to_watch(&mut world, carol, ticket),
+        format!("R1;busy;{ticket:08x};0")
+    );
+    assert_eq!(world.store.matchmaking().watched(world.ids[carol].1), None);
+}
+
 #[test]
 fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     let mut world = World::new();
