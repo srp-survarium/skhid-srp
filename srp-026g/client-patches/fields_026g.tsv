@@ -812,6 +812,7 @@ survarium::game	world	0x18	obj<survarium::game_world>	the game world, inside the
 survarium::game	options	0x57F4	obj<survarium::game_options>	the main menu, inside the game (activate_main_menu 0x1EDBD6 lea eax,[esi+57F4h]; game_world::on_deactivate 0x1F9567)
 survarium::game_options	shown	0x44	u8	the main menu shown: game_options::activate sets it (0x200F86), deactivate clears it (0x201067); each returns at once when it is so already
 survarium::game_options	game	0x34	ptr<survarium::game>	the game (game_options::activate 0x200F83; game_options_interface's game is this field, +30h of +4)
+survarium::game_options	awaited_action	0x3C	u32	the action whose key the menu's key-binding settings wait for: start_bind_key sets it (scaleform_callback 0x1FF8A3, as it takes the menu's cursor movie +10h off the scene at 0x1FF8A9), finish_binding (0x2015A0), its copies (0x201722, 0x201800) and a conflict's message (0x20134F) set it to 48h, none, as the constructor does (0x1FFA13); deactivate leaves it
 survarium::game_world	active	0xD4	u8	the scene active: base_game_scene::on_activate sets it (0x23DD69), game_world::on_deactivate clears it (0x1F952B) at a match's end, before it closes the main menu (0x1F956D)
 survarium::game_world	ui	0x1FC	obj<survarium::game_world_ui>	the hud (game_world_input+4; initialize_match's first argument from 0x1F8542)
 survarium::game_world_ui	cursor_movie	0xC	obj<survarium::movie_slot>	the hud's cursor movie: show_cursor shows it (0x23A995) and hides it (0x23A9B3), the hud's +2DCh with it

@@ -2214,3 +2214,9 @@ va	status	ref_021d	name
 0x001ed170	observed		survarium::game::switch_to_game_world
 0x002203a0	observed		survarium::lobby_menu::show_loading_screen
 0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
+0x00200f50	reviewed	0x0015f1b6	survarium::game_options::activate
+0x002010e0	reviewed	0x0015f2d4	survarium::game_options::process_key_input
+0x002015a0	reviewed	0x0015f5e9	survarium::game_options::finish_binding
+0x002015e0	reviewed	0x0015f619	survarium::game_options::on_keyboard_action
+0x002016d0	reviewed	0x0015f6bb	survarium::game_options::on_mouse_key_action
+0x002017a0	reviewed	0x0015f73e	survarium::game_options::on_mouse_move

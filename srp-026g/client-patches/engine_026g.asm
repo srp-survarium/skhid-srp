@@ -182,6 +182,7 @@ global engine_get_system_time_as_file_time
 global engine_file_time_to_local_file_time
 global engine_file_time_to_system_time
 global engine_discard_playing_order
+global engine_finish_key_binding
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2134,6 +2135,21 @@ engine_hide_scene_movie:
     mov eax, [esp + 20]   ; movie
     mov edx, [esp + 24]   ; scene
     call 0x23dc70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_finish_key_binding:
+    ; 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edi, [esp + 20]   ; options
+    call 0x2015a0
     pop edi
     pop esi
     pop ebx

@@ -37,6 +37,7 @@ struct game_effect_listener;
 struct game_effect_player;
 struct game_effect_slot;
 struct game_material_manager;
+struct game_options;
 struct game_project_resource;
 struct game_scene;
 struct game_world;
@@ -638,5 +639,8 @@ extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_system_
 
 /* 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly */
 void __attribute__((stdcall)) engine_discard_playing_order(struct lobby_client *client, unsigned int left);
+
+/* 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0 */
+void engine_finish_key_binding(struct game_options *options);
 
 #endif

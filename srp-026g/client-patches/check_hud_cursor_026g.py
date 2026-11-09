@@ -26,7 +26,18 @@ scene's movie calls (base_game_scene::show_movie 0x23DC00, hide_movie
    2026-11-09 crashes at exe+0x14EE8D: the movie taken off twice), a spawn or
    a death under the menu, Esc again: the patched exe never takes off a movie
    the scene does not hold, nor puts one in twice, and the movie is in the
-   scene exactly when the flag is set and the menu closed.
+   scene exactly when the flag is set and the menu closed;
+7. deactivate's start with a key awaited (game_options +3Ch not 48h): the
+   patched exe gives it up as Esc does (finish_binding 0x2015A0:
+   root.end_keybind, the menu's cursor movie +10h back, +3Ch 48h) before the
+   hud's cursor; the original leaves both;
+8. the menu's own movies in the sequences, the game's code whole (activate
+   to its shown byte, start_bind_key's branch of scaleform_callback,
+   finish_binding, deactivate to its cleared byte): a key awaited and the
+   menu closed by a match's end, the lobby's or Resume takes the menu's
+   cursor movie off twice in the original (exe+0x14EE8D) and never in the
+   patched exe, where each of the three movies is in the scene exactly when
+   it should be.
 """
 import struct
 import sys
@@ -40,6 +51,10 @@ import patch_026g as base
 SHOW_CURSOR, SHOW_MOVIE, HIDE_MOVIE = 0x23A930, 0x23DC00, 0x23DC70
 ACTIVATE, ACTIVATE_AFTER = 0x200F50, 0x200F56
 DEACTIVATE, DEACTIVATE_JE = 0x201040, 0x201045
+ACTIVATE_SHOWN, DEACTIVATE_CLEARED = 0x200F8A, 0x20106B   # after mov byte [edi+44h],1 / mov byte [esi+44h],0
+BIND, BIND_HIDDEN = 0x1FF899, 0x1FF8AE           # scaleform_callback's start_bind_key branch, to its pop edi
+FINISH_BINDING, INVOKE = 0x2015A0, 0x511600
+NO_KEY = 0x48                                    # game_options +3Ch: no key awaited
 INITIALIZE, INITIALIZE_AFTER = 0x234880, 0x234886
 
 DATA = 0x30000000
@@ -48,9 +63,11 @@ WORLD = GAME + 0x18                              # its game world (a base_game_s
 HUD = WORLD + 0x1FC                              # the world's hud
 OPTIONS = GAME + 0x57F4                          # the main menu
 CURSOR_MOVIE = HUD + 0xC                         # the hud's cursor movie (a pointer to its holder)
+MENU_MOVIE, MENU_CURSOR = OPTIONS + 0xC, OPTIONS + 0x10   # the menu's movie and its cursor movie
 SCREEN = DATA + 0x10000                          # game+5348h: vtable+1Ch the screen size
 WORLD_VTABLE, SCREEN_VTABLE = DATA + 0x11000, DATA + 0x12000
 HOLDER, SIZE = DATA + 0x13000, DATA + 0x14000
+MENU_HOLDER, MENU_CURSOR_HOLDER, ARGS = DATA + 0x15000, DATA + 0x16000, DATA + 0x17000
 STUBS = DATA + 0x20000
 SIZE_STUB, POSITION_STUB, RETURN = STUBS, STUBS + 0x10, STUBS + 0x20
 STACK = 0x21000000
@@ -79,6 +96,11 @@ class Run:
         self.word(SCREEN_VTABLE + 0x1C, SIZE_STUB)
         self.word(HUD + 0x18, WORLD)
         self.word(OPTIONS + 0x34, GAME)
+        self.word(OPTIONS + 0x30, WORLD)               # the scene activate keeps (game+539Ch: the world in a match)
+        self.word(MENU_MOVIE, MENU_HOLDER)
+        self.word(MENU_HOLDER + 0x108, MENU_HOLDER + 0x200)  # [[+0Ch]+108h]+4: the GFx movie Invoke is given
+        self.word(MENU_CURSOR, MENU_CURSOR_HOLDER)
+        emu.hook_add(UC_HOOK_CODE, self.invoke, begin=INVOKE, end=INVOKE)
         emu.hook_add(UC_HOOK_CODE, self.movie, begin=SHOW_MOVIE, end=SHOW_MOVIE)
         emu.hook_add(UC_HOOK_CODE, self.movie, begin=HIDE_MOVIE, end=HIDE_MOVIE)
         emu.hook_add(UC_HOOK_CODE, self.done, begin=RETURN, end=RETURN)
@@ -102,11 +124,21 @@ class Run:
         emu.reg_write(UC_X86_REG_EIP, struct.unpack("<I", emu.mem_read(sp, 4))[0])
         emu.reg_write(UC_X86_REG_ESP, sp + 4)
 
+    def invoke(self, emu, address, size, _):
+        """Scaleform::GFx::Movie::Invoke (thiscall, the method's name at ESP+4, ret 10h): recorded, AL 1."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        back, name = struct.unpack("<2I", emu.mem_read(sp, 8))
+        self.calls.append(("invoke", bytes(emu.mem_read(name, 32)).split(b"\0")[0].decode()))
+        emu.reg_write(UC_X86_REG_EAX, 1)
+        emu.reg_write(UC_X86_REG_EIP, back)
+        emu.reg_write(UC_X86_REG_ESP, sp + 4 + 0x10)
+
     def done(self, emu, address, size, _):
         emu.emu_stop()
 
-    def state(self, *, menu, active, cursor, kits=0, holder=True):
+    def state(self, *, menu, active, cursor, kits=0, holder=True, awaited=NO_KEY):
         self.byte(OPTIONS + 0x44, int(menu))
+        self.word(OPTIONS + 0x3C, awaited)
         self.byte(WORLD + 0xD4, int(active))
         self.byte(HUD + 0x2DC, int(cursor))
         self.byte(HUD + 0x2DF, kits)
@@ -126,6 +158,9 @@ class Run:
         regs = {r: self.emu.reg_read(r) for r in (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX,
                                                   UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP)}
         return self.calls, regs, self.emu.reg_read(UC_X86_REG_EFLAGS)
+
+    def read_word(self, at):
+        return struct.unpack("<I", self.emu.mem_read(at, 4))[0]
 
     def show_cursor(self, shown):
         calls, regs, _ = self.start(SHOW_CURSOR, [RETURN, shown], {UC_X86_REG_EDI: HUD}, RETURN)
@@ -200,6 +235,21 @@ def main():
     print("ok the menu closed: the cursor movie back with the cursor shown and loaded, over a running match "
           "and at its end; nothing else; the je's flags as the original's")
 
+    given_up = [("invoke", "root.end_keybind"), ("show", WORLD, MENU_CURSOR)]
+    for state, expected in (({"menu": True, "active": True, "cursor": True}, given_up + SHOWN),
+                            ({"menu": True, "active": False, "cursor": True}, given_up + SHOWN),
+                            ({"menu": True, "active": True, "cursor": False}, given_up),
+                            ({"menu": True, "active": False, "cursor": False}, given_up),
+                            ({"menu": False, "active": True, "cursor": True}, [])):
+        o, n = deactivate(old, awaited=5, **state), deactivate(new, awaited=5, **state)
+        assert o[0] == [] and n[0] == expected, (state, n[0])
+        assert old.read_word(OPTIONS + 0x3C) == 5
+        assert new.read_word(OPTIONS + 0x3C) == (NO_KEY if state["menu"] else 5)
+        same_registers(o, n, f"deactivate awaiting {state}")
+        assert o[2] & ZF == n[2] & ZF == (0 if state["menu"] else ZF), "the cmp's flags for the je"
+    print("ok the menu closed awaiting a key: the wait given up as Esc does (root.end_keybind, the menu's cursor "
+          "movie back, +3Ch 48h) before the hud's cursor, in the patched exe only; the je's flags as the original's")
+
     def initialize(run, menu=False, **state):
         run.state(menu=menu, active=True, **state)
         return run.start(INITIALIZE, [RETURN, HUD, 0x0F0F0F0F], {UC_X86_REG_ESI: 0x05050505}, INITIALIZE_AFTER)
@@ -216,6 +266,7 @@ def main():
     print("ok every span ended where the original's does, the registers as its")
 
     sequences(new, activate, deactivate, initialize)
+    menu_sequences(old, new, initialize)
 
 
 def sequences(run, activate, deactivate, initialize):
@@ -274,6 +325,83 @@ def sequences(run, activate, deactivate, initialize):
         play(steps)
     print("ok the sequences: no movie taken off a scene without it, none put in twice; the movie in the scene "
           "exactly when the cursor is shown and the menu closed")
+
+
+
+def menu_sequences(old, new, initialize):
+    """The menu's own movies (+0Ch, +10h) with the hud's cursor movie, the game's code whole for each step on
+    the menu: activate from its start to its shown byte (0x200F8A), start_bind_key's branch (0x1FF899..0x1FF8AE),
+    finish_binding (a key, a button, the wheel or Esc ends the wait), deactivate from its start to its cleared
+    byte (0x20106B). The scene's list kept as world::show_movie and hide_movie would; a hide of a movie the scene
+    does not hold is the crash at exe+0x14EE8D."""
+
+    class TakenOffTwice(Exception):
+        pass
+
+    def play(run, steps):
+        run.state(menu=False, active=True, cursor=False)
+        scene = set()
+        for step in steps:
+            if step == "kits":            # show_profiles_selector's show_cursor(1)
+                calls = run.show_cursor(1)
+            elif step == "spawn":         # the kits hidden, show_cursor(0)
+                calls = run.show_cursor(0)
+            elif step == "esc":           # game::activate_main_menu: activate over the world
+                calls = run.start(ACTIVATE, [RETURN, WORLD], {UC_X86_REG_EAX: OPTIONS, UC_X86_REG_ESI: 0x05050505},
+                                  ACTIVATE_SHOWN)[0]
+            elif step == "bind":          # a click on a key in the settings: the movie's start_bind_key(5)
+                run.word(ARGS + 8, 5)
+                calls = run.start(BIND, [0] * 6 + [ARGS], {UC_X86_REG_EBP: OPTIONS + 4}, BIND_HIDDEN)[0]
+            elif step == "key":           # on_keyboard_action's press: process_key_input ends it, finish_binding
+                calls = run.start(FINISH_BINDING, [RETURN], {UC_X86_REG_EDI: OPTIONS}, RETURN)[0]
+            elif step in ("resume", "end"):   # the menu's Resume / a match's end (active cleared first, 0x1F952B)
+                if step == "end":
+                    run.byte(WORLD + 0xD4, 0)
+                calls = run.start(DEACTIVATE, [RETURN], {UC_X86_REG_ESI: OPTIONS, UC_X86_REG_EAX: 0xA0A0A0A0},
+                                  DEACTIVATE_CLEARED)[0]
+            elif step == "match":         # the next match: active again, initialize_match
+                run.byte(WORLD + 0xD4, 1)
+                calls = initialize(run, menu=bool(run.read_byte(OPTIONS + 0x44)), cursor=bool(run.read_byte(HUD + 0x2DC)),
+                                   kits=run.read_byte(HUD + 0x2DF), awaited=run.read_word(OPTIONS + 0x3C))[0]
+            else:
+                raise ValueError(step)
+            for call in calls:
+                if call[0] == "show":
+                    _, where, movie = call
+                    assert (where, movie) not in scene, (steps, step, "shown twice", hex(movie))
+                    scene.add((where, movie))
+                elif call[0] == "hide":
+                    _, movie, where = call
+                    if (where, movie) not in scene:
+                        raise TakenOffTwice(step, hex(movie))
+                    scene.remove((where, movie))
+            menu, awaited = run.read_byte(OPTIONS + 0x44), run.read_word(OPTIONS + 0x3C)
+            cursor = run.read_byte(HUD + 0x2DC)
+            if run is new:
+                expected = {(WORLD, CURSOR_MOVIE)} if cursor and not menu else set()
+                if menu:
+                    expected |= {(WORLD, MENU_MOVIE)} | ({(WORLD, MENU_CURSOR)} if awaited == NO_KEY else set())
+                assert scene == expected, (steps, step, scene, expected)
+                assert menu or awaited == NO_KEY, (steps, step, "a closed menu awaits a key")
+
+    crashing = (["esc", "bind", "end"],                                     # a match's end while a key is awaited
+                ["esc", "bind", "resume"],                                  # the lobby's deactivate: as Resume
+                ["kits", "esc", "bind", "end", "match", "kits"],
+                ["esc", "bind", "spawn", "end", "match"])
+    fine = (["esc", "bind", "key", "resume"],
+            ["kits", "esc", "bind", "key", "bind", "end", "match", "esc", "bind", "resume", "spawn"],
+            ["esc", "bind", "end", "esc", "bind", "key", "resume", "kits", "esc", "resume"])
+    for steps in crashing:
+        try:
+            play(old, steps)
+        except TakenOffTwice as e:
+            assert e.args[0] in ("end", "resume") and e.args[1] == hex(MENU_CURSOR), (steps, e.args)
+        else:
+            raise AssertionError(f"{steps}: the original took off no movie twice")
+    for steps in crashing + fine:
+        play(new, steps)
+    print("ok the menu's own movies: closed awaiting a key, the original takes its cursor movie off twice "
+          "(exe+0x14EE8D); the patched exe never, each movie in the scene exactly while it should be")
 
 
 if __name__ == "__main__":

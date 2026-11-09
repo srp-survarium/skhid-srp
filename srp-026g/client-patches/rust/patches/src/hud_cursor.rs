@@ -15,6 +15,11 @@
 //!   spawn, a new match), put back when the menu closes with the cursor
 //!   shown, whether the match still runs or has just ended. The hud's cursor
 //!   flag is the game's throughout, so the mouse goes where it went.
+//! - **The menu's own cursor.** While the menu's key-binding settings wait
+//!   for a key the menu's cursor movie is off the scene, and the menu's close
+//!   by anything but a key (a match's end, a kick, a match that starts over
+//!   the lobby's menu) took it off again (exe+0x14EE8D). The close ends the
+//!   wait first, as Esc does.
 
 #![forbid(unsafe_code)]
 
@@ -51,7 +56,7 @@ pub fn on_menu_show(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 pub fn on_menu_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(cursor) = MenuChange::at_close(ctx).and_then(|menu| menu.shown_cursor()) {
+    if let Some(cursor) = MenuChange::at_close(ctx).and_then(|menu| menu.close()) {
         cursor.restore();
     }
     Flow::Continue

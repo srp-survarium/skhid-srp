@@ -4625,7 +4625,8 @@ The owner's two reports (2026-11-06), both before a match's start, with the kits
   the kits again) writes its flag but does not show the movie.
 - `hud.cursor_hide` (0x23A9B0): while the menu is shown, `show_cursor(0)` (a spawn under the menu,
   the next match's start) writes its flag but does not take off the movie, which is not there.
-- `options.deactivate` (0x201040): a shown menu about to close with the hud's cursor shown puts the
+- `options.deactivate` (0x201040): a shown menu about to close gives up a key its settings await
+  (below, "The menu's own cursor"); then, with the hud's cursor shown, it puts the
   movie back (show_movie 0x23DC00), over a running match and at its end alike (a match's end clears
   +D4h, then closes the menu: 0x1F952B, 0x1F956D).
 
@@ -4650,6 +4651,33 @@ local full dump: the scene (game world +8, 0x41194868) holds the hud movie and t
 (begin 0x411B25A4, end 0x411B25AC, buffer of 32), the command's movie is the hud's cursor movie
 (hud +0Ch, 0x7C1214D8), +2DCh is 0 (the hide had run); the server log has that game leave the match
 before its start "by its own word" (the menu's Leave), then its next match's load.
+
+**The menu's own cursor (the same crash, from the stock game).** The main menu's key-binding
+settings take the menu's cursor movie (game_options +10h) off the scene while they wait for a key:
+the movie's `start_bind_key` (scaleform_callback, 0x1FF889) sets the awaited action (+3Ch, 48h none)
+and hides +10h (0x1FF8A9). Only a key ends the wait: on_keyboard_action (0x2015E0; Esc too, DIK 1 at
+0x2010F2), on_mouse_key_action (0x2016D0) and on_mouse_move's wheel (0x2017A0) hand it to
+process_key_input (0x2010E0), and finish_binding (0x2015A0) or its inline copies (0x2016FB,
+0x2017D9) or a conflict's message (0x201343) put +10h back and set +3Ch 48h. While it waits every
+press is the wait's, so neither Resume, Leave nor Esc can close the menu, but deactivate's other
+callers can, each a scene's on_deactivate as the game switches scenes (switch_to_lobby 0x1ED23B,
+switch_to_game_world, switch_to_login, clear_resources): a match's end, a kick or a lost connection
+(game_world::on_deactivate, 0x1F956D) and a match starting over the lobby's menu or the lobby's
+fall to the sign-in (lobby_menu::on_deactivate, 0x21D50E). deactivate (0x201040) hides +0Ch and
++10h whatever +3Ch says (0x20104D, 0x201058) and leaves +3Ch, so the second hide takes off a movie
+the scene does not hold: exe+0x14EE8D, with the queued command's movie game_options+10h. 0.21d has
+the same code (scaleform_callback 0x15DD31, finish_binding 0x15F5E9). No report has shown it yet:
+the three local full dumps at exe+0x14EE8D (2026-11-09) all hold the hud's cursor movie (hud +0Ch,
+0xA96A68) in the command, and game_options (0xA9C03C) +3Ch is 48h in each.
+
+`options.deactivate` now gives an awaited key up before the stock close, as Esc gives it up:
+finish_binding (`root.end_keybind`, which closes the movie's "press a key" message; +10h back;
++3Ch 48h), then deactivate takes both movies off. The show and the hide go to the render world in
+one queue (0x1F2C0 on +200058h), in that order. So the menu's movies are in the scene exactly while
+it is shown, +10h only while no key is awaited, and a closed menu never awaits a key. A conflict's
+message (two actions on one key) open at the close is left as the stock leaves it: its +10h is
+back already, and its OK or Cancel at the next opening still works. Checked by
+`check_hud_cursor_026g.py` (steps 7 and 8: the original takes +10h off twice, the patched exe never).
 
 ## A ban's reason and end on the sign-in screen (patch 116, unreleased)
 
