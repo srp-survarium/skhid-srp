@@ -490,7 +490,11 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   two kinds meet on a quarter their glows layer (the sprites are additive, so the colours mix,
   as two kinds' stock glows already do). No slot sharing between kinds.
 - Effects: `artefact_leg_<kind>_<n>` (n 1..4), view 2: the kind's stock glow with only the
-  quarter's parts on, its emitters with none of them left out. Forest Protection's grey glow
+  quarter's parts on, its emitters with none of them left out. Since @14 (frame rate, the owner
+  2026-11-09) effect n lights quarters 1..n in one particle system, made from the lean glow
+  (artefacts.md, "Version 14"), and patch 111 plays only the effect of the kind's count: a kind on a
+  player is one system (at most 5 emitters), not up to four (12 emitters). A change of the count
+  ends the old effect and starts the new one, so the legs' glow builds up again over about a second. Forest Protection's grey glow
   plays beside them, unchanged.
 - Since @13 (the owner, 2026-11-07: "it should be like on yourself for everyone"): each quarter
   is one particle effect (type 114) of view 2, everyone's view and the carrier's alike, playing

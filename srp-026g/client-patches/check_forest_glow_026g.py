@@ -28,9 +28,10 @@ modifier getter, game_effect_resource::emit (its emitter stubbed). It checks:
   calculator goes on through the native calculation unchanged;
 - the leg quarters: own passives 0 to 4, an active Onyx (no passive), own
   and Resonance's shared copies of a second kind, an enemy's (none) and the
-  cap of 4: a tick lights each kind's quarters 1..copies; the count dropping
+  cap of 4: a tick plays each kind's one effect of its count (quarters
+  1..copies in one system, pack artefact-glow@14); the count changing
   (shared copies leaving, the carrier dying, an own copy going) and the
-  player's death end the quarters above it through the calculator;
+  player's death end every other one through the calculator;
 - the effect cook gives each effect 20 instances (and still
   artefact_lifebone 20, any other effect its own count);
 - a place's third-person presenter (made by its constructor 0x297570) on its
@@ -231,9 +232,9 @@ def check(data):
 
 def check_quarters(data):
     """The leg quarters: a kind's passive copies counting for the player (its own carried ones
-    giving their passive, Resonance's shared ones, at most 4) light that many of the kind's
-    quarters, from the first; the player's calculator ends a quarter when the count drops below
-    it, and every one at death."""
+    giving their passive, Resonance's shared ones, at most 4) play the kind's one effect of that
+    count (its quarters 1..count); the player's calculator ends every other one, and every one at
+    death."""
     from check_artefact_skills_026g import Match, RESONANCE, SPRING_ACTIVE, ONYX_ACTIVE_
     m = Match(data)
     g = m.g
@@ -250,12 +251,12 @@ def check_quarters(data):
                for k, kind in enumerate(("spring", "lifebone", "onyx")) for n in (1, 2, 3, 4)}
 
     def lit(expected, who=PLAYER):
-        """A tick with no effect playing lights exactly `expected` {kind: copies}; each quarter's
-        clock goes on for those and ends for the others."""
+        """A tick with no effect playing plays exactly `expected` {kind: copies}: each kind's effect
+        of its count; that effect's clock goes on and every other one's ends."""
         g.word(who + 0x358 + 0x2C, 0)
         g.effect_instances.clear()
         _, played = tick(who)
-        want = sorted(quarter[(kind, n)] for kind, copies in expected.items() for n in range(1, copies + 1))
+        want = sorted(quarter[(kind, copies)] for kind, copies in expected.items() if copies)
         assert sorted(played) == want, (expected, played)
         for (kind, n), resource in quarter.items():
             effect, node, out = g.block(0x60), g.block(0x50), g.block(12)
@@ -263,7 +264,7 @@ def check_quarters(data):
             g.word(node, effect)
             g.call(g.read(DEFAULT_CLOCK_VT), (out, node, 1000, 5000), ecx=who + 0x394)
             ended = g.emu.mem_read(out + 8, 1)[0]
-            assert ended == int(n > expected.get(kind, 0)), (expected, kind, n, ended)
+            assert ended == int(n != expected.get(kind, 0)), (expected, kind, n, ended)
 
     def slot_of(player, item):
         inv = m.inventory(player)
@@ -362,8 +363,8 @@ def check_quarters(data):
     lit({})
     assert own_spring
     print("Leg quarters: a kind's passive copies (own 0..4, own and Resonance's shared, two kinds, an active "
-          "Onyx, an enemy's and the cap of 4) light that many of its quarters from the first; the count "
-          "dropping and death end them through the player's calculator; a player without a world core lights none; "
+          "Onyx, an enemy's and the cap of 4) play its one effect of that count (quarters 1..count); the count "
+          "changing and death end the others through the player's calculator; a player without a world core lights none; "
           "a game shows them (every player's, its own too) only when its local player's current kit has Artifact "
           "Sight (modifier 40 bit 12; Knowledge of Artifacts alone shows none) in its place's current kit object (a kit "
           "change keeps or ends them), a kit flip, and all of "
