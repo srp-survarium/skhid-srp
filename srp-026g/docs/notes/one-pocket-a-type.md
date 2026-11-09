@@ -85,18 +85,39 @@ The owner: "each one takes two pocket slots". A pocket holds at most 5 units (`M
   line. `pocket-units-1` carries `pocket_units` to the item descriptors as card property 166, not
   comparable (no row on the card). `QuickSlotSize.of` reads it (`PAIR`), `PlayerInfo.pocketUnits`
   halves the pocket: drops, the slider, the ammo window, the buy dialog's pocket count.
-- **The server** caps an RGD-5 pocket at 2 (`loadouts::equipped_units`: half of the largest pocket;
-  it does not know the kit's size): moves, buys onto a pocket, kits at load and in every `repair`.
-  The units over it stay in the storage, nothing is lost. Bots' pockets hold 2 units, so a bot
-  carries one RGD-5 (it had two), and its grenade play throws one a life.
-- **Not covered:** the exe's own trim when gear that shrinks the pockets comes off
-  (`process_default_relocate_item` 0x289B04: `min(units, pocket size)`, `fills_whole_pocket` 1) asks
-  for up to the pocket's size; the server keeps 2 at most, so a pocket of 3 can show 2 until the
-  next move. No exe patch for it.
-- **Kits saved before the rule:** the release that ships it empties every RGD-5 pocket of every kit
-  and preset once, in the database with srp stopped (kit revisions raised). The grenades stay in
-  the storage; players put them back under the rule. No code for it: load and `repair` cap at 2
-  only, as the server does not know a pocket's size.
+- **The server** holds an RGD-5 pocket to the kit's own pocket size, as every other slot the
+  layout limits (below, "Every kit held to its layout"). The units over it stay in the storage,
+  nothing is lost. Bots' pockets hold 2 units, so a bot carries one RGD-5 (it had two), and its
+  grenade play throws one a life.
+- **Kits saved before the rule:** the release that shipped it emptied every RGD-5 pocket of every
+  kit and preset once, in the database with srp stopped (kit revisions raised).
+
+## Every kit held to its layout (2026-11-09)
+
+What a kit's worn items and the account's skills open (`loadouts::KitLayout`): the pockets, the
+units each holds of an item (the pocket size, one more medicine with Additional Medicine, half for
+an RGD-5, one booster), and the second weapon (none with Deep Pockets or Supply Pocket, no second
+double-handed one without Terminator).
+
+- **The rule:** the server keeps every kit to it (`Account::keep_to_layout`,
+  `KitLayout::kept`): at the end of each move request, on the gear the whole request leaves
+  (`relocate`: moves, buys onto a pocket, presets put on), in every `sync_kits` (after a match, a
+  modification, a sale; at load through `repair`), and for kits and presets when the skills
+  change (`change_skills`). What the layout does not open is left out, not refused; it stays in
+  the storage.
+- **Why:** the server took it back only when a skill changed, and capped a pocket at the largest
+  one otherwise (5 units, 2 RGD-5s). Any later request put it back: the owner's reports of
+  2026-11-09, "there is a way to get more grenades", an extra medkit kept after Additional
+  Medicine was taken back, Terminator's second rifle after Terminator; #bugreports "Secondary slot
+  changing" (2026-10-31: a second weapon played with Deep Pockets). The requests that do it:
+  - the exe's own trim when gear that shrinks the pockets comes off
+    (`process_default_relocate_item` 0x289B04: `min(units, pocket size)`, `fills_whole_pocket` 1)
+    knows no `pocket_units` and asks to keep 2 RGD-5s in a pocket of 2 or 3;
+  - a lobby whose skills changed may still count what they opened.
+- **Confidence:** `KitLayout` is LIKELY (how the exe sums the modifiers was not read); it is the
+  count the new-account grant (`new_account.rs` checks every preset against it) and the bots'
+  kits are built with. A kit the server holds to a smaller layout than the exe's would show fewer
+  units than the lobby allows, never more.
 - **Match:** the crate refills a pocket to the kit's count (`resupply_from_profile` 0x2FDC10, the
   stack's `vtable+0x40` 0x2FFCE0: up to the kit slot's count, from the stock), never to the pocket's
   size, so it keeps the rule. The kit is sent at the start: no `next` row.

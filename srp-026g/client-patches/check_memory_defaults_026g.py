@@ -5,6 +5,9 @@ Usage: python check_memory_defaults_026g.py <original survarium.exe>
 
 Command-line readers are stubs supplying absent/invalid/explicit values; native
 branches, units conversion and allocator instructions execute from the PE.
+Patch 124's helper and render arenas run from the key's read to their
+registration with the native is_set_as_number<u32> (0x141B0); only the key's
+reader 0xDDF20 is a stub.
 The fragmentation fixture matches the report's total/used/requested byte counts,
 but its block layout is synthetic: the submitted dump does not contain the heap.
 It demonstrates why aggregate free bytes do not imply a successful allocation;
@@ -85,6 +88,40 @@ def budgets(data, resource_value, mt_value, resource_valid=True, mt_valid=True):
     m.run(0xE0FF0, 0xE1029)
     mt_bytes = uc.reg_read(UC_X86_REG_ESI)
     return resource_bytes, mt_bytes
+
+
+def arena_size(data, key, begin, end, size_at, value, valid=True):
+    """Patch 124: one fixed arena's size as registered (the u64 at size_at
+    when register_allocator 0xE21C0 is called at `end`). The native
+    is_set_as_number<u32> (0x141B0, its float-to-int) runs; only the key's
+    reader 0xDDF20 is a stub: absent, a value that is no number, or one."""
+    m = Machine(data)
+    uc = m.uc
+
+    def visit(uc, address, _size, _context):
+        if address == 0xDDF20:
+            assert uc.reg_read(UC_X86_REG_ESI) == key
+            given = value is not None and valid
+            if given:
+                uc.mem_write(uc.reg_read(UC_X86_REG_EDI), struct.pack('<f', value))
+            m.returned(int(given))
+
+    uc.hook_add(UC_HOOK_CODE, visit)
+    m.run(begin, end)
+    sp = uc.reg_read(UC_X86_REG_ESP)
+    return m.read(sp + size_at) | m.read(sp + size_at + 4) << 32
+
+
+def helper_arena(data, value, valid=True):
+    # memory::preinitialize: rh_allocator (0xA80380) to the "resources
+    # helper allocator" registration (its size at [esp+18h]).
+    return arena_size(data, 0xA80380, 0xE108F, 0xE10D7, 0x18, value, valid)
+
+
+def render_arena(data, value, valid=True):
+    # engine_world's constructor: render_allocator (0xA7C088) to the
+    # "render" registration (its size at [esp+78h]).
+    return arena_size(data, 0xA7C088, 0x13A81, 0x13AF4, 0x78, value, valid)
 
 
 def fragmented_allocation(data, size):
@@ -186,7 +223,17 @@ def main():
     assert fragmented_allocation(original, 295436288) == 0
     assert fragmented_allocation(built, 512 * MIB) != 0
     assert single_region_fallback(original) == single_region_fallback(built) == (147718144, 295436288)
-    print('PASS: native defaults, independent/explicit/invalid option paths, fragmentation fixture, and address-space fallback limitation')
+    # Patch 124: the defaults change; an option gives the size it gave.
+    assert helper_arena(original, None) == helper_arena(original, 99, False) == 8 * MIB
+    assert helper_arena(built, None) == helper_arena(built, 99, False) == 32 * MIB
+    for value in (4, 8, 16, 32, 64):
+        assert helper_arena(built, value) == helper_arena(original, value) == value * MIB
+    assert render_arena(original, None) == render_arena(original, 99, False) == 224 * MIB
+    assert render_arena(built, None) == render_arena(built, 99, False) == 320 * MIB
+    for value, size in ((100, 224), (224, 224), (256, 256), (320, 320), (512, 512)):
+        assert render_arena(built, value) == render_arena(original, value) == size * MIB
+    print('PASS: native defaults, independent/explicit/invalid option paths, fragmentation fixture, '
+          'address-space fallback limitation, helper/render arena defaults and options')
 
 
 if __name__ == '__main__':

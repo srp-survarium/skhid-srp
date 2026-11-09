@@ -911,6 +911,7 @@ mod tests {
     fn kits_saved_with_a_type_in_two_pockets_are_merged_at_load() {
         let mut repository = MemoryGameRepository::default();
         let mut account = Account::new("Alice");
+        account.wear_roomy_gear(0);
         let speed = survarium::v026g::dictionary::Dictionary::shared()
             .item_named("speed_booster")
             .unwrap()
