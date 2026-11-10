@@ -13,6 +13,9 @@ package survarium.modes
    // down each second until the server lets the game go. It takes no press and moves nothing.
    public class CalledBackNotice extends Sprite
    {
+      // its top: the pregame line ("Awaiting match start") and a mode's notice end above it
+      public static const TOP:int = 150;
+
       // the words' place of the seconds
       public static const SECONDS:String = "%1$s";
 
@@ -94,7 +97,8 @@ package survarium.modes
          graphics.drawRoundRect(0,0,w,h,8,8);
          graphics.endFill();
          x = int((screenWidth - w) / 2);
-         y = 96;
+         // under the game's own lines at the top (the countdown's, a mode's notice)
+         y = TOP;
       }
    }
 }
