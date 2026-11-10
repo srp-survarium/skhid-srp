@@ -68,11 +68,10 @@ use core::ffi::CStr;
 
 use crate::vostok::language::ConsoleString;
 use crate::vostok::log::{Piece::*, line};
-use crate::vostok::renderer::{DelayedImport, Gpu, OutputWindow, ProbeDirectDraw, Vulkan, VulkanVersion, WindowStyles,
-                               best_version, clear_environment, dxvk_pick, environment_set, get_environment, look,
-                               look_drivers, Gpus, Manifests,
-                              bind_delayed_import, exists_beside_exe, is_loaded, load_beside_exe, set_environment,
-                              with_user_cfg};
+use crate::vostok::renderer::{DelayedImport, Gpu, GpuKind, Gpus, Manifests, OutputWindow, ProbeDirectDraw, Vulkan,
+                              VulkanVersion, WindowStyles, best_version, bind_delayed_import, clear_environment,
+                              dxvk_first, dxvk_pick, environment_set, exists_beside_exe, get_environment, is_loaded,
+                              load_beside_exe, look, look_drivers, set_environment, with_user_cfg};
 use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, SliderSteps, create_file, delete_file, file_exists,
                               save_user_config};
 use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, Lock, NoExit, Thread};
@@ -517,23 +516,20 @@ impl DeviceFilter {
 /// an RTX of an Optimus laptop has stopped the look. Two discrete GPUs of AMD
 /// and NVIDIA: AMD's.
 const VENDORS: [u32; 3] = [VENDOR_AMD, VENDOR_NVIDIA, VENDOR_INTEL];
-/// `deviceType` of a CPU's device (lavapipe, SwiftShader).
-const PHYSICAL_DEVICE_TYPE_CPU: u32 = 4;
 
-/// What one vendor's look found: its drivers' glob and DXVK's pick of its
-/// devices (None: none it would take).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct VendorLook {
-    pub vendor: u32,
-    pub pick: Option<Gpu>,
+/// A vendor's look that found a GPU DXVK takes: that GPU, how many of the
+/// look's devices are it (more than one: two of the vendor's drivers give it)
+/// and the manifests of the drivers the look loaded.
+pub struct VendorPick {
+    pub gpu: Gpu,
+    pub copies: u32,
+    pub manifests: Manifests,
 }
 
-/// DXVK's GPU over the vendors' looks, in their order: the first discrete
-/// one, else the first integrated, else the first virtual, else the first
-/// (DXVK sorts its adapters so, `dxvk_pick`). None when no look found one.
-pub fn pick_across(looks: &[VendorLook]) -> Option<Gpu> {
-    let picks = || looks.iter().filter_map(|look| look.pick);
-    [2, 1, 3].iter().find_map(|&kind| picks().find(|gpu| gpu.kind == kind)).or_else(|| picks().next())
+/// DXVK's GPU over the vendors' picks, in their order ([`dxvk_first`]): the
+/// pick that has it. None when no vendor's look found one.
+pub fn pick_across(picks: &[Option<VendorPick>]) -> Option<&VendorPick> {
+    dxvk_first(picks.iter().flatten(), |pick| pick.gpu.kind)
 }
 
 /// The GPU DXVK takes and the drivers asked for, from the start's look.
@@ -572,16 +568,15 @@ fn look_for_dxvk(thread: &Thread) -> Vulkan {
         return everything(thread, "the player's own VK_DRIVER_FILES or VK_ICD_FILENAMES kept");
     }
     let players = LayerSwitches::of_environment(thread);
-    // the looks that found something, in the vendors' order (a vendor without drivers here has none), with how
-    // many of their devices are their pick's GPU and the manifests of the drivers they loaded
-    let mut looks = [VendorLook { vendor: 0, pick: None }; VENDORS.len()];
-    let mut found: [Option<(u32, Manifests)>; VENDORS.len()] = [None, None, None];
+    // each vendor's pick, in the vendors' order (none for a vendor without drivers here or a GPU DXVK takes)
+    let mut picks: [Option<VendorPick>; VENDORS.len()] = [None, None, None];
     let mut best: Option<VulkanVersion> = None;
-    let mut done = 0;
-    for vendor in VENDORS {
+    for (slot, vendor) in picks.iter_mut().zip(VENDORS) {
         let Some(drivers) = drivers_of(vendor) else { continue };
         if !set_environment(thread, c"VK_LOADER_DRIVERS_SELECT", drivers) {
             clear_environment(thread, c"VK_LOADER_DRIVERS_SELECT");
+            // an earlier vendor's look may have turned layers off
+            players.only(thread, None);
             return everything(thread, "VK_LOADER_DRIVERS_SELECT not set");
         }
         // the look sees what DXVK's instance would: the other vendors' layers off
@@ -599,7 +594,7 @@ fn look_for_dxvk(thread: &Thread) -> Vulkan {
             Err(_) => continue,
         };
         // another vendor's GPU (a CPU driver's device is none): the loader takes no such variable here
-        if gpus.list.iter().flatten().any(|gpu| gpu.kind != PHYSICAL_DEVICE_TYPE_CPU && gpu.vendor != vendor) {
+        if gpus.list.iter().flatten().any(|gpu| gpu.kind != GpuKind::Cpu && gpu.vendor != vendor) {
             clear_environment(thread, c"VK_LOADER_DRIVERS_SELECT");
             players.only(thread, None);
             return everything(thread, "the loader ignores VK_LOADER_DRIVERS_SELECT here: an elevated game?");
@@ -607,19 +602,18 @@ fn look_for_dxvk(thread: &Thread) -> Vulkan {
         if let Vulkan::Device(version) = best_version(&gpus) {
             best = best.max(Some(version));
         }
-        let pick = dxvk_pick(&gpus, VULKAN_NEEDED, filter.bytes());
-        looks[done] = VendorLook { vendor, pick };
-        found[done] = Some((pick.map_or(0, |pick| copies_of(&gpus, &pick)), manifests));
-        done += 1;
-        if pick.is_some_and(|gpu| gpu.kind == 2) {
+        let Some(gpu) = dxvk_pick(&gpus, VULKAN_NEEDED, filter.bytes()) else { continue };
+        *slot = Some(VendorPick { gpu, copies: copies_of(&gpus, &gpu), manifests });
+        if gpu.kind == GpuKind::Discrete {
             break;
         }
     }
-    let Some(gpu) = pick_across(&looks[..done]) else {
+    let Some(winner) = pick_across(&picks) else {
         clear_environment(thread, c"VK_LOADER_DRIVERS_SELECT");
         players.only(thread, None);
         return everything(thread, "no vendor's drivers alone found a GPU DXVK would take");
     };
+    let gpu = winner.gpu;
     let drivers = drivers_of(gpu.vendor).unwrap_or(c"*");
     set_environment(thread, c"VK_LOADER_DRIVERS_SELECT", drivers);
     let off = players.only(thread, Some(gpu.vendor));
@@ -629,10 +623,8 @@ fn look_for_dxvk(thread: &Thread) -> Vulkan {
     if !off.is_empty() {
         line(&[Text("dxvk: other vendors' Vulkan layers off: "), Text(off.names())]);
     }
-    let winner = looks[..done].iter().position(|look| look.pick == Some(gpu));
-    if let Some(&(copies, ref manifests)) = winner.and_then(|i| found[i].as_ref()) {
-        one_driver(thread, OneDriver { gpu, copies, manifests, players, drivers, filter: filter.bytes() });
-    }
+    one_driver(thread, OneDriver { gpu, copies: winner.copies, manifests: &winner.manifests, players, drivers,
+                                   filter: filter.bytes() });
     best.map_or(Vulkan::NoDevice, Vulkan::Device)
 }
 
@@ -1351,7 +1343,7 @@ mod tests {
             dedicated_gpu: true,
             overlay: Overlay::Full,
         };
-        let gpu = |vendor| Some(Gpu { vendor, device: 0, driver: 0, kind: 2, version: Some(VULKAN_NEEDED),
+        let gpu = |vendor| Some(Gpu { vendor, device: 0, driver: 0, kind: GpuKind::Discrete, version: Some(VULKAN_NEEDED),
                                       name: [0; crate::vostok::renderer::GPU_NAME] });
         let mut config = all.config();
         let players = config.as_str().len();
@@ -1370,31 +1362,27 @@ mod tests {
     }
 
     #[test]
-    fn the_vendors_looks_give_dxvk_s_choice() {
-        let gpu = |vendor, kind| Some(Gpu { vendor, device: 0, driver: 0, kind, version: Some(VULKAN_NEEDED),
-                                            name: [0; crate::vostok::renderer::GPU_NAME] });
-        let look = |vendor, pick| VendorLook { vendor, pick };
+    fn the_vendors_picks_give_dxvk_s_choice() {
+        use GpuKind::{Discrete, Integrated};
+        let pick = |vendor, kind| {
+            let gpu = Gpu { vendor, device: 0, driver: 0, kind, version: Some(VULKAN_NEEDED),
+                            name: [0; crate::vostok::renderer::GPU_NAME] };
+            Some(VendorPick { gpu, copies: 1, manifests: Manifests::default() })
+        };
+        let across = |picks: &[Option<VendorPick>]| pick_across(picks).map(|pick| pick.gpu.vendor);
         // AMD's look first: its drivers go with its instance, NVIDIA's stay (VENDORS)
         assert_eq!(VENDORS, [VENDOR_AMD, VENDOR_NVIDIA, VENDOR_INTEL]);
         // an AMD iGPU beside an RTX: AMD's look finds the iGPU, NVIDIA's the RTX, a discrete GPU, the end
-        let amd_igpu = look(VENDOR_AMD, gpu(VENDOR_AMD, 1));
-        let rtx = look(VENDOR_NVIDIA, gpu(VENDOR_NVIDIA, 2));
-        assert_eq!(pick_across(&[amd_igpu, rtx]).map(|g| g.vendor), Some(VENDOR_NVIDIA));
-        // an Intel iGPU beside an RTX (no AMD driver: AMD's look made no instance and has no slot)
-        assert_eq!(pick_across(&[rtx]).map(|g| g.vendor), Some(VENDOR_NVIDIA));
+        assert_eq!(across(&[pick(VENDOR_AMD, Integrated), pick(VENDOR_NVIDIA, Discrete), None]), Some(VENDOR_NVIDIA));
+        // an Intel iGPU beside an RTX (no AMD driver: AMD's look made no instance and has no pick)
+        assert_eq!(across(&[None, pick(VENDOR_NVIDIA, Discrete), None]), Some(VENDOR_NVIDIA));
         // an RX: AMD's look, a discrete GPU, the end (NVIDIA's driver never loaded)
-        let rx = look(VENDOR_AMD, gpu(VENDOR_AMD, 2));
-        assert_eq!(pick_across(&[rx]).map(|g| g.vendor), Some(VENDOR_AMD));
-        // NVIDIA's drivers with no device DXVK takes (a Vulkan 1.3 GPU): a slot without a pick
-        let none = look(VENDOR_NVIDIA, None);
-        assert_eq!(pick_across(&[amd_igpu, none]).map(|g| g.vendor), Some(VENDOR_AMD));
-        // integrated GPUs alone: the first vendor's
-        let intel_igpu = look(VENDOR_INTEL, gpu(VENDOR_INTEL, 1));
-        assert_eq!(pick_across(&[amd_igpu, none, intel_igpu]).map(|g| g.vendor), Some(VENDOR_AMD));
+        assert_eq!(across(&[pick(VENDOR_AMD, Discrete), None, None]), Some(VENDOR_AMD));
+        // integrated GPUs alone (NVIDIA's a Vulkan 1.3 GPU, no pick): the first vendor's
+        assert_eq!(across(&[pick(VENDOR_AMD, Integrated), None, pick(VENDOR_INTEL, Integrated)]), Some(VENDOR_AMD));
         // a discrete GPU after an integrated one is still DXVK's
-        assert_eq!(pick_across(&[amd_igpu, look(VENDOR_INTEL, gpu(VENDOR_INTEL, 2))]).map(|g| g.vendor), Some(VENDOR_INTEL));
-        assert_eq!(pick_across(&[none]), None);
-        assert_eq!(pick_across(&[]), None);
+        assert_eq!(across(&[pick(VENDOR_AMD, Integrated), None, pick(VENDOR_INTEL, Discrete)]), Some(VENDOR_INTEL));
+        assert_eq!(across(&[None, None, None]), None);
     }
 
     #[test]

@@ -421,7 +421,7 @@ impl Gpu {
             vendor: room.0[2],
             device: room.0[3],
             driver: room.0[1],
-            kind: room.0[4],
+            kind: GpuKind::of_device_type(room.0[4]),
             version: VulkanVersion::of_packed(room.0[0]),
             name,
         }
@@ -444,12 +444,46 @@ pub struct Gpu {
     /// `driverVersion`, the driver's own packing: two drivers of one GPU
     /// differ by it.
     pub driver: u32,
-    /// `deviceType`: 1 integrated, 2 discrete, 3 virtual, 4 the CPU.
-    pub kind: u32,
+    /// `deviceType`.
+    pub kind: GpuKind,
     /// `apiVersion`; None for another variant than 0.
     pub version: Option<VulkanVersion>,
     /// `deviceName`'s first bytes, NUL-padded.
     pub name: [u8; GPU_NAME],
+}
+
+/// A device's `deviceType` (VkPhysicalDeviceType).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GpuKind {
+    /// 0, or a value Vulkan has no name for.
+    Other,
+    Integrated,
+    Discrete,
+    Virtual,
+    /// A CPU's device (lavapipe, SwiftShader): never DXVK's.
+    Cpu,
+}
+
+impl GpuKind {
+    fn of_device_type(raw: u32) -> GpuKind {
+        match raw {
+            1 => GpuKind::Integrated,
+            2 => GpuKind::Discrete,
+            3 => GpuKind::Virtual,
+            4 => GpuKind::Cpu,
+            _ => GpuKind::Other,
+        }
+    }
+}
+
+/// DXVK 3.1.1's choice among adapters in their order (it sorts them so): the
+/// first discrete one, else the first integrated, else the first virtual,
+/// else the first.
+pub fn dxvk_first<T: Copy>(items: impl Iterator<Item = T> + Clone, kind: impl Fn(T) -> GpuKind) -> Option<T> {
+    [GpuKind::Discrete, GpuKind::Integrated, GpuKind::Virtual]
+        .into_iter()
+        .find_map(|wanted| items.clone().find(|&item| kind(item) == wanted))
+        .or_else(|| items.clone().next())
 }
 
 /// How much of a device's name is kept.
@@ -467,14 +501,12 @@ pub struct Gpus {
     pub list: [Option<Gpu>; 16],
 }
 
-const PHYSICAL_DEVICE_TYPE_CPU: u32 = 4;
-
 /// The best version of a device that is not the CPU.
 pub fn best_version(gpus: &Gpus) -> Vulkan {
     gpus.list
         .iter()
         .flatten()
-        .filter(|gpu| gpu.kind != PHYSICAL_DEVICE_TYPE_CPU)
+        .filter(|gpu| gpu.kind != GpuKind::Cpu)
         .filter_map(|gpu| gpu.version)
         .max()
         .map_or(Vulkan::NoDevice, Vulkan::Device)
@@ -483,21 +515,19 @@ pub fn best_version(gpus: &Gpus) -> Vulkan {
 /// The device DXVK 3.1.1 makes its first adapter of (`DxvkInstance::
 /// queryAdapters`, `DxvkDeviceFilter::testAdapter`): of those of at least
 /// `needed` that are not the CPU and whose name has `filter` in it (its
-/// `DXVK_FILTER_DEVICE_NAME`; empty, any), the first discrete one, else the
-/// first integrated one, else the first virtual one, else the first. The
-/// game makes its device on DXGI's first adapter, this one.
+/// `DXVK_FILTER_DEVICE_NAME`; empty, any), [`dxvk_first`]'s. The game makes
+/// its device on DXGI's first adapter, this one.
 pub fn dxvk_pick(gpus: &Gpus, needed: VulkanVersion, filter: &[u8]) -> Option<Gpu> {
     let name_has = |gpu: &Gpu| {
         let len = gpu.name.iter().position(|&b| b == 0).unwrap_or(GPU_NAME);
         filter.is_empty() || gpu.name[..len].windows(filter.len()).any(|part| part == filter)
     };
-    let usable = || {
-        gpus.list
-            .iter()
-            .flatten()
-            .filter(|gpu| gpu.kind != PHYSICAL_DEVICE_TYPE_CPU && gpu.version.is_some_and(|v| v >= needed) && name_has(gpu))
-    };
-    [2, 1, 3].iter().find_map(|&kind| usable().find(|gpu| gpu.kind == kind)).or_else(|| usable().next()).copied()
+    let usable = gpus
+        .list
+        .iter()
+        .flatten()
+        .filter(|gpu| gpu.kind != GpuKind::Cpu && gpu.version.is_some_and(|v| v >= needed) && name_has(gpu));
+    dxvk_first(usable, |gpu| gpu.kind).copied()
 }
 
 /// vulkan-1.dll loaded, an instance made, every device's properties read,
@@ -699,7 +729,7 @@ fn look_with(_: &Thread, manifests: Option<&mut Manifests>) -> Result<Gpus, Vulk
 mod tests {
     use super::*;
 
-    fn gpu(vendor: u32, kind: u32, minor: u32, name: &str) -> Option<Gpu> {
+    fn gpu(vendor: u32, kind: GpuKind, minor: u32, name: &str) -> Option<Gpu> {
         let mut bytes = [0; GPU_NAME];
         bytes[..name.len()].copy_from_slice(name.as_bytes());
         Some(Gpu { vendor, device: 0, driver: 0, kind, version: Some(VulkanVersion::new(1, minor, 0)), name: bytes })
@@ -715,16 +745,16 @@ mod tests {
 
     #[test]
     fn dxvk_takes_the_first_discrete_gpu_then_an_integrated_one() {
-        let amd_igpu = gpu(0x1002, 1, 4, "AMD Radeon(TM) Graphics");
-        let rtx = gpu(0x10DE, 2, 4, "NVIDIA GeForce RTX 5090");
+        let amd_igpu = gpu(0x1002, GpuKind::Integrated, 4, "AMD Radeon(TM) Graphics");
+        let rtx = gpu(0x10DE, GpuKind::Discrete, 4, "NVIDIA GeForce RTX 5090");
         let pick = |list: &[Option<Gpu>], filter: &[u8]| dxvk_pick(&gpus(list), NEEDED, filter).map(|g| g.vendor);
         assert_eq!(pick(&[amd_igpu, rtx], b""), Some(0x10DE), "discrete before integrated, whatever the order");
         assert_eq!(pick(&[amd_igpu], b""), Some(0x1002), "an integrated GPU alone");
         assert_eq!(pick(&[amd_igpu, rtx], b"AMD"), Some(0x1002), "DXVK_FILTER_DEVICE_NAME, a part of the name");
         assert_eq!(pick(&[amd_igpu, rtx], b"Intel"), None);
-        let old = gpu(0x10DE, 2, 3, "NVIDIA GeForce GTX 1060");
+        let old = gpu(0x10DE, GpuKind::Discrete, 3, "NVIDIA GeForce GTX 1060");
         assert_eq!(pick(&[old, amd_igpu], b""), Some(0x1002), "a device under Vulkan 1.4 is not DXVK's");
-        let cpu = gpu(0x10005, 4, 4, "llvmpipe");
+        let cpu = gpu(0x10005, GpuKind::Cpu, 4, "llvmpipe");
         assert_eq!(pick(&[cpu], b""), None, "never the CPU");
         assert_eq!(best_version(&gpus(&[cpu, old])), Vulkan::Device(VulkanVersion::new(1, 3, 0)));
     }
