@@ -2243,6 +2243,7 @@ st_srp_ban_reason_threats	Real-life threats.
 st_srp_crosshair_dynamic	Dynamic crosshair
 st_srp_crosshair_hidden	Hidden crosshair
 st_srp_crosshair_static	Static crosshair
+st_srp_deep_pockets_name	Deep Pockets
 st_srp_equipment029_bm_back_6_desc	Description not available yet.
 st_srp_equipment029_bm_back_6_name	Watchman backpack
 st_srp_equipment029_bm_back_8_desc	Description not available yet.
@@ -2517,6 +2518,7 @@ st_srp_inv_fuse_time	Fuse time
 st_srp_inv_material_pierce	Pierces
 st_srp_inv_pellets	Pellets
 st_srp_inv_pocket_units	Pocket slots
+st_srp_inv_pocket_units_whole	∞
 st_srp_inv_stamina_damage	Stamina damage
 st_srp_inv_throw_speed	Throw speed
 st_srp_inventory_search	Search
@@ -2851,6 +2853,7 @@ st_srp_weapon_reload	Reload
 st_srp_weapon_reload_empty	Reload (empty)
 st_srp_weapon_reload_tactical	Tactical reload
 st_srp_weapon_shift_hint	Shift: details · Alt: in a match
+st_srp_weapon_slot_closed	%1$s: no second weapon
 st_srp_weapon_spread_growth	Spread growth rate
 st_srp_weapon_spread_max	Maximum extra spread
 st_srp_weapon_spread_per_shot	Spread added per shot

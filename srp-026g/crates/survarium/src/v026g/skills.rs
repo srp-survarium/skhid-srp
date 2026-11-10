@@ -84,6 +84,7 @@ pub const MODIFIER_NAMES: [&str; MODIFIERS] = [
 /// ([`MODIFIER_NAMES`]; `loadouts::KitLayout`).
 pub mod slot_modifier {
     pub const POCKET_SLOTS: usize = 15;
+    pub const AMMO_BAGS: usize = 16;
     pub const POCKET_SLOT_SIZE: usize = 17;
     pub const USE_TWO_DOUBLE_HANDED_WEAPONS: usize = 25;
     /// `armored_trap`: the medical skills' ranks, packed as an exact

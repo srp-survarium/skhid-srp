@@ -2243,6 +2243,7 @@ st_srp_ban_reason_threats	Погрози в реальному житті.
 st_srp_crosshair_dynamic	Динамічний приціл
 st_srp_crosshair_hidden	Прихований приціл
 st_srp_crosshair_static	Статичний приціл
+st_srp_deep_pockets_name	Хабарщик
 st_srp_equipment029_bm_back_6_desc	Опис поки недоступний.
 st_srp_equipment029_bm_back_6_name	Рюкзак Вартового
 st_srp_equipment029_bm_back_8_desc	Опис поки недоступний.
@@ -2517,6 +2518,7 @@ st_srp_inv_fuse_time	Час запалу
 st_srp_inv_material_pierce	Пробиває
 st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Місце в кишені
+st_srp_inv_pocket_units_whole	∞
 st_srp_inv_stamina_damage	Шкода витривалості
 st_srp_inv_throw_speed	Швидкість кидка
 st_srp_inventory_search	Пошук
@@ -2851,6 +2853,7 @@ st_srp_weapon_reload	Перезарядка
 st_srp_weapon_reload_empty	Перезарядка (порожній)
 st_srp_weapon_reload_tactical	Тактична перезарядка
 st_srp_weapon_shift_hint	Shift: деталі · Alt: у бою
+st_srp_weapon_slot_closed	%1$s: немає другої зброї
 st_srp_weapon_spread_growth	Темп зростання розкиду
 st_srp_weapon_spread_max	Межа зростання розкиду
 st_srp_weapon_spread_per_shot	Розкид від пострілу

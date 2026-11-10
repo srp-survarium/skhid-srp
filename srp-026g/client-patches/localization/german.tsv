@@ -2243,6 +2243,7 @@ st_srp_ban_reason_threats	Drohungen im echten Leben.
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier
 st_srp_crosshair_static	Statisches Visier
+st_srp_deep_pockets_name	Habarschik
 st_srp_equipment029_bm_back_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_back_6_name	Wächterrucksack
 st_srp_equipment029_bm_back_8_desc	Beschreibung noch nicht verfügbar.
@@ -2517,6 +2518,7 @@ st_srp_inv_fuse_time	Zündzeit
 st_srp_inv_material_pierce	Durchschlägt
 st_srp_inv_pellets	Schrotkugeln
 st_srp_inv_pocket_units	Taschenplätze
+st_srp_inv_pocket_units_whole	∞
 st_srp_inv_stamina_damage	Ausdauerschaden
 st_srp_inv_throw_speed	Wurfgeschwindigkeit
 st_srp_inventory_search	Suche
@@ -2851,6 +2853,7 @@ st_srp_weapon_reload	Nachladen
 st_srp_weapon_reload_empty	Nachladen (leer)
 st_srp_weapon_reload_tactical	Taktisches Nachladen
 st_srp_weapon_shift_hint	Shift: Details · Alt: im Match
+st_srp_weapon_slot_closed	%1$s: keine zweite Waffe
 st_srp_weapon_spread_growth	Zunahme der Streuung
 st_srp_weapon_spread_max	Maximale Zusatzstreuung
 st_srp_weapon_spread_per_shot	Streuung pro Schuss

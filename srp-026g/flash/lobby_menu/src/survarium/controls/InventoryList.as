@@ -1411,7 +1411,7 @@ package survarium.controls
                if(value.enabled)
                {
                   _relocateArray = [Relocation.move(pp.profileId,value.itemId,value.dictId,ItemPlace.INVENTORY,trgSlt,1)];
-                  pp._relocateFunction(_relocateArray);
+                  pp.relocate(_relocateArray);
                }
             }
             else
@@ -3130,11 +3130,13 @@ package survarium.controls
             {
                pp = parent["player_profile"];
                availableSlots = pp.paperDoll.hasAgreements(item.category);
-               if(availableSlots > 1)
+               // a pocket item goes into its own pocket, else the next free one, and fills it; with
+               // every pocket taken by other items the player picks the one to replace
+               if(availableSlots > 1 && pp.paperDoll.pocketOf(item.dictId) == -1)
                {
                   (e.itemRenderer as IInventoryItemRenderer).startItemDrag();
                }
-               else if(availableSlots == 1)
+               else if(availableSlots >= 1)
                {
                   newSlot = pp.paperDoll.getSlot(item,true);
                   trace("newSlot:",newSlot);
@@ -3144,8 +3146,8 @@ package survarium.controls
                      profile = (pp.profileId);
                      dict_id = item.dictId;
                      targetSlot = (newSlot);
-                     _relocateArray = [Relocation.move(profile,id,dict_id,item.descriptor,targetSlot,newSlot >= ProfileSlot.QUICK_1 && newSlot <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(pp.paperDoll.getSlotAt(newSlot).data as ItemData,item) : 1)];
-                     pp._relocateFunction(_relocateArray);
+                     _relocateArray = [Relocation.move(profile,id,dict_id,item.descriptor,targetSlot,newSlot >= ProfileSlot.QUICK_1 && newSlot <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(item) : 1)];
+                     pp.relocate(_relocateArray);
                   }
                }
                else

@@ -2629,7 +2629,6 @@ package
          relocate_object.faction_id = faction_id;
          var new_data:ItemData;
          var _relocateArray:Array;
-         var relocate:Function;
          if((value.is_stack))
          {
             relocate_object.condition_or_stack = this.inventory_list.getItemCount(dict_id);
@@ -2659,10 +2658,7 @@ package
          else
          {
             _relocateArray = [relocate_object];
-            // Read first, then called: Scaleform throws "is not a function" when the
-            // class's getter is called in place (as DragRegion does it).
-            relocate = this.player_profile._relocateFunction;
-            relocate(_relocateArray);
+            this.player_profile.relocate(_relocateArray);
          }
       }
       
