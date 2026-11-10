@@ -261,7 +261,7 @@ fn animation_validate_rejects_a_non_finite_float() {
     // The twelve matrix floats, but one is +infinity (exponent all ones).
     let mut w = BitW::new();
     tree_header(&mut w, 11, 0, 0);
-    w.put(0, 10); // times: count 0
+    w.put(1, 10).put(0, 1).put(0, 32); // times: count 1, the duration time
     w.put(0, 1).put(12, 10); // floats: not indexed, 12
     for i in 0..12 {
         w.put(if i == 5 { 0x7F80_0000 } else { 0 }, 32);
@@ -274,7 +274,7 @@ fn animation_validate_rejects_a_wrong_tree_length() {
     // The same 11-bit tree, but `T` claims 10: the structure outruns it.
     let mut w = BitW::new();
     tree_header(&mut w, 10, 0, 0);
-    w.put(0, 10);
+    w.put(1, 10).put(0, 1).put(0, 32);
     w.put(0, 1).put(12, 10);
     for _ in 0..12 {
         w.put(0, 32);
@@ -284,10 +284,11 @@ fn animation_validate_rejects_a_wrong_tree_length() {
 
 #[test]
 fn animation_validate_rejects_a_table_under_run() {
-    // No floats, but the matrix init pops 12.
+    // No floats, but the matrix init pops 12 (the duration time is there, so
+    // only the floats run short).
     let mut w = BitW::new();
     tree_header(&mut w, 11, 0, 0);
-    w.put(0, 10); // times: count 0
+    w.put(1, 10).put(0, 1).put(0, 32); // times: count 1, the duration time
     w.put(0, 1).put(0, 10); // floats: not indexed, count 0
     assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TableUnderrun));
 }
@@ -464,4 +465,17 @@ fn bits_read_as_one_bit_at_a_time_would() {
             assert_eq!(reader.at, after, "at {at}, {bits} bits");
         }
     }
+}
+
+#[test]
+fn animation_validate_accepts_the_world_check_fixture() {
+    // check_world_check_026g.py's ANIMATION, the smallest tree the i686 check
+    // is driven with: the host build must take the same bytes.
+    let mut bytes = std::vec![0x00, 0x0b, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x06];
+    bytes.extend_from_slice(&[0; 49]);
+    assert_eq!(animation_validate(&bytes), Ok(()));
+    // The fixture before the duration time was counted is refused now.
+    let mut old = std::vec![0x00, 0x0b, 0x00, 0x00, 0x00, 0x0c];
+    old.extend_from_slice(&[0; 48]);
+    assert_eq!(animation_validate(&old), Err(AnimFault::TableUnderrun));
 }

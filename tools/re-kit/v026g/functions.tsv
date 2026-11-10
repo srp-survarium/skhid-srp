@@ -2263,4 +2263,4 @@ va	status	ref_021d	name
 0x003a8c10	reviewed		anim_read_node_base_tracks
 0x003a8f40	reviewed		anim_read_node_record
 0x003a8ef0	reviewed		anim_pick_channel_value
-0x003a8d60	reviewed		anim_matrix_init
+0x003a8d60	reviewed		anim_init_node_matrices
