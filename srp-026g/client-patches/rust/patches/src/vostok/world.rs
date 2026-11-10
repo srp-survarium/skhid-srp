@@ -310,6 +310,18 @@ impl<'t> Player<'t> {
         unsafe { read(self.this.spawned()) }
     }
 
+    /// Its model was not seen the last frame (+0F4E2h, mt_draw's cull).
+    pub fn not_seen(&self) -> bool {
+        // SAFETY: as inserted; a byte of the player.
+        unsafe { read(self.this.not_seen()) != 0 }
+    }
+
+    /// It has an item to switch to (+12Ch not 0, as mt_draw's cull reads it).
+    pub fn switching(&self) -> bool {
+        // SAFETY: as inserted; only whether the pointer is 0 is read.
+        unsafe { self.this.pending_item() }.is_some()
+    }
+
     /// What it holds (+128h: mt_draw draws it at the "Weapon" bone).
     pub fn held(&self) -> Held {
         // SAFETY: as inserted; the held item is alive as long.

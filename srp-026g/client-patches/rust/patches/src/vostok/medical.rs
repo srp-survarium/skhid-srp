@@ -348,6 +348,12 @@ pub fn regenerate(ctx: &mut Context<'_>) {
         let (Some(pool), Some(frame)) = (site::pool(ctx), site::frame(ctx)) else {
             return;
         };
+        // A pool that does not regenerate keeps its delay and limit: its
+        // owner's modifiers are not read (most parts, every tick).
+        let rate = *frame.rate();
+        if !Regeneration::regenerates(rate) {
+            return;
+        }
         let Some(at) = pool.model().and_then(|m| m.owner()) else {
             return;
         };
@@ -360,7 +366,7 @@ pub fn regenerate(ctx: &mut Context<'_>) {
             raw::engine_apply_modifier(modifiers, REGENERATION_LIMIT, 1.0, 1.0) - 1.0,
         )
         .unwrap_or_default();
-        let (delay, limit) = regeneration.apply(*frame.rate(), delay, *frame.limit());
+        let (delay, limit) = regeneration.apply(rate, delay, *frame.limit());
         *frame.limit() = limit;
         delay
     };

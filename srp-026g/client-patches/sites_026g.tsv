@@ -1,7 +1,7 @@
 site	va	kind	callee	span	exits	holds	what
 input_builder.spot_query	0x242196	call	engine_action_present	-	-	-	the input builder's last action query (spot)
 game_world.after_move	0x1F7C3C	lohook	-	5	-	world=EBX:survarium::game_world	game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)
-player_draw.cull	0x24757C	lohook	-	7	-	player=EBX:survarium::player	mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)
+player_draw.cull	0x24757C	lohook	-	7	culled@0x24781E	player=EBX:survarium::player	mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site
 player_draw.bones	0x247716	lohook	-	6	-	player=EBX:survarium::player frame=EBP:survarium::mt_draw_frame	mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame)
 player_draw.post_bones	0x2477DF	lohook	-	9	posted@0x24781E	player=EBX:survarium::player frame=EBP:survarium::mt_draw_frame	mt_draw before pushing update_skeleton arguments: EBX player, EBP frame; the posted exit skips the original command
 render.skeleton_updated	0x15A950	lohook	-	7	-	instance=EDI:vostok::render::skeleton_instance	update_render_matrices after its bone loop: EDI instance, EDX input count; before first-update initialization

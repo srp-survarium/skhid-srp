@@ -1263,6 +1263,15 @@ impl Player {
         unsafe { self.0.byte_add(0x12c).cast::<Option<Item>>().write_volatile(value) }
     }
 
+    /// +0xf4e2 (u8): mt_draw's cull flag: not 0 when the model was not seen the last frame (cmp byte [ebx+0F4E2h],0 at 0x24757C; with +12Ch not 0 the game culls, jne 0x24758C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn not_seen(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xf4e2).cast::<u8>().as_ptr() }
+    }
+
     /// +0x750 (u32): its animation player (forget_active_object's EAX, the switch 0x2D76E5)
     ///
     /// # Safety
@@ -19789,7 +19798,7 @@ pub mod site {
         }
     }
 
-    /// player_draw.cull (0x24757c): mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)
+    /// player_draw.cull (0x24757c): mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site
     pub mod player_draw_cull {
         #[allow(unused_imports)]
         use super::*;

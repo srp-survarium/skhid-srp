@@ -489,6 +489,7 @@ survarium::image	inventory_request	0x9FD55C	u32	"inventory", the path of the pla
 survarium::image	inventory_variant_vtable	0x9FD808	u32	the inventory request's user data vtable (0x2028E0; destroy +4 a bare ret 4)
 vostok::query_callback	size	0x20	size	a boost::function<void (queries_result &)>: +0 its manager | 1, +8 the functor {member, adjustment, object, padding} (0x27D280); late join keeps 20h for one
 survarium::player	pending_item	0x12C	ptr<survarium::item>	the active object to switch to (m_next; tick_active_object 0x2D7655 switches when it differs from +128h; deserialize 0x2DB7BA)
+survarium::player	not_seen	0xF4E2	u8	mt_draw's cull flag: not 0 when the model was not seen the last frame (cmp byte [ebx+0F4E2h],0 at 0x24757C; with +12Ch not 0 the game culls, jne 0x24758C)
 survarium::player	animation	0x750	u32	its animation player (forget_active_object's EAX, the switch 0x2D76E5)
 survarium::core_world	objects	0x18B4C	ptr<survarium::inventory_slot>	the active objects by registry id (a buffer_vector's begin: bind_to_game_core 0x2E3102 appends; base_player::deserialize resolves held 0x2DB644)
 survarium::core_world	objects_end	0x18B50	ptr<survarium::inventory_slot>	the registry's end (a buffer_vector's: bind_to_game_core 0x2E3112 and the victory items' 0x313F90 append there; capacity +18B54h = begin+3FCh, 255 ids; the constructor 0x2CFFFA, the destructor's reset 0x2D0336)
