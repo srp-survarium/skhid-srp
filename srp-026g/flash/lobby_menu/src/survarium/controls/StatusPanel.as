@@ -153,6 +153,8 @@ package survarium.controls
       
       protected var _factionData:Object;
 
+      private var _band:DisplayObject;
+
       // The game's own label of Play while it is the rooms' Leave, and ours.
       private var _roomsPlayLabel:String;
 
@@ -487,9 +489,18 @@ package survarium.controls
          LocalizationData.addButton(this.playBtn,"Play");
          panel_games_block = this.mid_back.getChildByName("panel_games_block") as MovieClip;
          panel_players_block = this.mid_back.getChildByName("panel_players_block") as MovieClip;
+         // mid_back's third child is the band behind the bar (a 1920 wide picture, unnamed)
+         var i:int = 0;
+         while(i < this.mid_back.numChildren)
+         {
+            if(this.mid_back.getChildAt(i) != panel_games_block && this.mid_back.getChildAt(i) != panel_players_block)
+            {
+               _band = this.mid_back.getChildAt(i);
+            }
+            i++;
+         }
          constraints.addElement("btn_settings",this.btn_settings,Constraints.RIGHT);
          constraints.addElement("btn_off",this.btn_off,Constraints.RIGHT);
-         constraints.addElement("mid_back",this.mid_back,Constraints.CENTER_H);
          constraints.addElement("panel_info_blog",this.panel_info_blog,Constraints.LEFT);
          constraints.addElement("panel_player",this.panel_player,Constraints.LEFT);
          constraints.addElement("panel_time_block",this.panel_time_block,Constraints.RIGHT);
@@ -650,6 +661,8 @@ package survarium.controls
             {
                constraints.update(MainScene.stageWidth,_originalHeight);
             }
+            // the band behind the bar covers the lobby's whole width
+            this._band.width = MainScene.stageWidth;
             this.reflowPlayers();
          }
          this.play_container.x = this.centerContainerTop.x;
@@ -669,17 +682,15 @@ package survarium.controls
          var gamesX:int;
          var totalWidth:int;
          var newPos:int;
-         // the blocks are mid_back's: their x is from its left, which is the panel's 0 only below an aspect of 1.85
-         var origin:Number = this.mid_back.x;
          if(this.lobbyGameSearch.visible)
          {
-            playersX = this.lobbyGameSearch.x - panelGamesSize - origin;
-            gamesX = this.lobbyGameSearch.x + this.lobbyGameSearch.width + 10 - origin;
+            playersX = this.lobbyGameSearch.x - panelGamesSize;
+            gamesX = this.lobbyGameSearch.x + this.lobbyGameSearch.width + 10;
          }
          else
          {
             totalWidth = panelGamesSize + this.panel_games_block.tx_online.textWidth + 22;
-            newPos = this.centerContainerTop.x + (this.centerContainerTop.width - totalWidth) / 2 - 3 - origin;
+            newPos = this.centerContainerTop.x + (this.centerContainerTop.width - totalWidth) / 2 - 3;
             playersX = newPos;
             gamesX = newPos + panelGamesSize;
          }
