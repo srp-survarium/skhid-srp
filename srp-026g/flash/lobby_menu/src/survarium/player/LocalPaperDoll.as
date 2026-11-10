@@ -666,6 +666,16 @@ package survarium.player
 
       private var _weaponLockTipArea:ReasonsTip = null;
 
+      private function onWeaponLockPress(event:MouseEvent) : void
+      {
+         this._weaponLockTip.mouseEnabled = this._weaponLockTip.mouseChildren = false;
+      }
+
+      private function onWeaponLockRelease(event:MouseEvent) : void
+      {
+         this._weaponLockTip.mouseEnabled = this._weaponLockTip.mouseChildren = true;
+      }
+
       private function showWeaponLock(slot:DisplayObject, locked:Boolean) : void
       {
          var bounds:Rectangle;
@@ -688,6 +698,15 @@ package survarium.player
             _weaponLockTipArea = new ReasonsTip();
             this._weaponLockTipArea.focusable = false;
             this._weaponLockTip.addChild(this._weaponLockTipArea);
+            // The tip's area is over the slot and is no drag slot: while a button is down it
+            // takes no mouse, so a drag released there still lands on the slot under it (which
+            // refuses it), not on nothing (which sends the item to the inventory). Back after
+            // the drag manager has read where the drag ended (its listener is of priority 0).
+            if(stage != null)
+            {
+               stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onWeaponLockPress,true,0,true);
+               stage.addEventListener(MouseEvent.MOUSE_UP,this.onWeaponLockRelease,false,-1,true);
+            }
             this._weaponLock.mouseEnabled = false;
             this._weaponLock.mouseChildren = false;
          }

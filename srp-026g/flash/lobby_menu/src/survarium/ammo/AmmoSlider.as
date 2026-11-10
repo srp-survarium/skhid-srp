@@ -382,11 +382,32 @@ package survarium.ammo
          var i:uint = 0;
          var cell:MovieClip;
          var cellValue:uint;
+         var preview:Boolean;
+         var spare:Boolean;
          while(i < this._cells.length)
          {
             cell = this._cells[i];
             cellValue = int(i / this.cellUnits) * snapInterval;
-            cell.transform.colorTransform = i == this.bonusCell && this.bonusTint != null ? (cellValue < value ? this.bonusTint : this.bonusEmptyTint) : this.takenTint != null && (cellValue < value && i % this.cellUnits != 0 || i < this.openCells && i >= int(this.openCells / this.cellUnits) * this.cellUnits) ? this.takenTint : NO_TINT;
+            // A cell the pointer would add or take away shows the slider's own preview.
+            preview = cellValue >= this._selectValue && cellValue < value && this._selectValue < value || cellValue >= value && cellValue < this._selectValue && this._selectValue >= value;
+            // The open cells that hold no whole step (none where the pocket is smaller than one).
+            spare = i < this.openCells && i >= Math.max(this.cellUnits,int(this.openCells / this.cellUnits) * this.cellUnits);
+            if(preview)
+            {
+               cell.transform.colorTransform = NO_TINT;
+            }
+            else if(i == this.bonusCell && this.bonusTint != null)
+            {
+               cell.transform.colorTransform = cellValue < value ? this.bonusTint : this.bonusEmptyTint;
+            }
+            else if(this.takenTint != null && (cellValue < value && i % this.cellUnits != 0 || spare))
+            {
+               cell.transform.colorTransform = this.takenTint;
+            }
+            else
+            {
+               cell.transform.colorTransform = NO_TINT;
+            }
             if(cellValue >= this._selectValue && cellValue < value && this._selectValue < value || cellValue >= value && cellValue < this._selectValue && this._selectValue >= value)
             {
                cell.gotoAndStop(3);

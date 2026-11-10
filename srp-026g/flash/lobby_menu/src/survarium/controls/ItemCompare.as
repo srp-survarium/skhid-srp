@@ -350,7 +350,7 @@ package survarium.controls
          // grenade's damage is not 0). Weapons, armour and medicines have: their stats are of
          // one kind, and the two cards' rows face each other (a medkit's disinfection: 0 %).
          var ownOnly:Boolean = depth > 0 && !(medical && depth < PlayerInfo.MAX_POCKET_UNITS);
-         for each(var s:Object in cardRows(ownOnly))
+         for each(var s:Object in fitted(cardRows(ownOnly),ammoDetails,weaponDetails,indicators - index))
          {
             if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
             var _valueObject:Object = s;
@@ -503,8 +503,22 @@ package survarium.controls
          return weightLast(rows);
       }
 
-      // An item's properties in the card's order: its own, the weight last (above the pocket's
-      // units). The weight is the property named as the kit's weight (the exe hands the lobby the
+      // Of `rows`, those the card draws (the comparable ones) and has `room` for: with more, the
+      // last one (the weight) is kept and the ones before it go.
+      private function fitted(rows:Array, ammoDetails:Boolean, weaponDetails:Boolean, room:int) : Array
+      {
+         var drawn:Array = [];
+         for each(var prop:Object in rows)
+         {
+            if(ammoDetails || weaponDetails && prop.prop_id == 24) continue;
+            var description:Object = _propsDescriptor.getPropertyDescription(prop.prop_id);
+            if(description && description.comparable) drawn.push(prop);
+         }
+         if(room > 0 && drawn.length > room) drawn.splice(room - 1,drawn.length - room);
+         return drawn;
+      }
+
+      // An item's properties in the card's order: its own, the weight last. The weight is the property named as the kit's weight (the exe hands the lobby the
       // properties' names, not their keys).
       private function weightLast(properties:Object) : Array
       {

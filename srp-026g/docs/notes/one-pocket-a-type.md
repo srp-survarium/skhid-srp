@@ -196,7 +196,9 @@ The owner: "people are confused why they have 3 slots but only 1 grenade".
   `st_srp_inv_pocket_units`): 1, the RGD-5's 2, a booster's whole pocket
   (`st_srp_inv_pocket_units_whole`, an infinity sign). The card's first row; compared as the
   other rows, less is better.
-- **The weight is a card's last row** (`ItemCompare.weightLast`), for every item. The exe hands
+- **The weight is a card's last row** (`ItemCompare.weightLast`), for every item (held Alt, a
+  medicine's skill lines come under it). A card has nine rows: with more to show, the weight
+  stays and the rows before it go (`fitted`). The exe hands
   the lobby the properties' names, not their keys, so the weight is the property named as the
   kit's weight (`equipment_weight`; the two texts are the same in all ten languages).
 - **A grenade's, a trap's or a booster's card has no row for a stat only the other item has** (a

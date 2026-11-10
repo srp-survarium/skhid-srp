@@ -61,7 +61,7 @@ package survarium.controls
             }
             // a pocket item: into its own pocket, else the next free one, filled, as a double
             // click (docs/notes/one-pocket-a-type.md); with no pocket free nothing is replaced
-            if(item.isStack && item.descriptor == ItemPlace.INVENTORY && (item.category == ItemCategory.MEDKITS || item.category == ItemCategory.BOOBY_TRAPS || item.category == ItemCategory.GRENADES))
+            if(item.isStack && item.descriptor == ItemPlace.INVENTORY && paperDoll.hasAgreements(item.category) > 0 && (item.category == ItemCategory.MEDKITS || item.category == ItemCategory.BOOBY_TRAPS || item.category == ItemCategory.GRENADES))
             {
                slot = paperDoll.getSlot(item,true);
                if(slot >= ProfileSlot.QUICK_1 && slot <= ProfileSlot.QUICK_6 && (paperDoll.pocketOf(item.dictId) == slot || !paperDoll.getSlotAt(slot).data))
