@@ -20,6 +20,9 @@ package survarium.quest
       {
          super();
          this.sectionIndicator.renderer = "SectionRenderer";
+         // One frame per quest's icon (updateText): never played, a renderer without a quest
+         // (hidden) would loop through them every frame.
+         this.questIcon.stop();
       }
       
       override public function setData(data:Object) : void

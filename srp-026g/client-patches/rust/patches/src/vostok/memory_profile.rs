@@ -162,6 +162,13 @@ impl<T> Room<T> {
         (self.items.as_ptr() as usize as u32, self.bytes)
     }
 
+    /// The items, while the room is had (dropped, the pages go back).
+    pub fn items(&mut self) -> &mut [T] {
+        // SAFETY: the pages are this Room's alone, every item written by
+        // reserve; the borrow is the Room's, so it ends before its Drop.
+        unsafe { core::slice::from_raw_parts_mut(self.items.as_ptr(), self.count) }
+    }
+
     /// The items, kept for good: the pages are never given back.
     pub fn keep(self) -> &'static mut [T] {
         let room = core::mem::ManuallyDrop::new(self);
