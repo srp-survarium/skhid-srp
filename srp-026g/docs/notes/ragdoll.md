@@ -1085,8 +1085,8 @@ finite fallback and settling. It shares the corpse's ownership and death
 key: rollback/respawn discards it, the same death keeps it, slot eviction
 falls back to the worn pose. It is cosmetic: no inventory removal, armour
 change, pickup, simulation-world body or replay compatibility change.
-Like the dropped gun, it has no collision response against the corpse and
-does not receive subsequent bullet hits. Shape and release motion need
+It meets the corpse's own parts (section 19) and does not receive subsequent
+bullet hits. Shape and release motion need
 in-game visual tuning; the initial capsule is 0.04 m half-length and 0.10 m
 radius with a 0.10 m offset above the captured Head bone.
 
@@ -1175,6 +1175,128 @@ the place, or another world (the patch resets the corpses when the match's
 core changes: a death's key is a time of its match, so a later match's death
 at the same time must not find it). The patch hands the poses to
 `weapon_pickup::draw_drops` after each step. Visual only.
+
+## 19. Loose things meet the corpse (2026-11-10)
+
+One rule for the three things a death lets go: the dropped gun, the headwear off the head,
+and a dropped battery (section 21). `crates/ragdoll/src/ragdoll/loose.rs`.
+
+- **Pushed out, held by friction.** Each substep the thing is pushed out of every part of
+  the corpse it overlaps, as out of the ground: the substep's own depth at once, an older
+  depth a little a substep and without a speed. Its slide over the part is held by the same
+  static friction. It rolls off the body or comes to rest on it.
+- **One-sided.** The part is never moved (a helmet or a gun against a corpse's weight).
+- **No kick at release.** A part the thing overlaps when it is let go (the hand that held
+  the gun, the head the hat sat on) pushes it only once the two have come apart (`Apart`).
+- **The level holds.** Parts that would press the thing into a plane one of its ends lies
+  on do not move it that substep: a gun under a falling body stays on the floor and the body
+  lies over it. Without this the Rudnya and flat-ground gun tests sank 16 cm and more.
+- **No batting.** A part moves the thing at 3 m/s at most (`tuning::LOOSE_PUSH_SPEED`).
+  Wedged between a limb and the ground it otherwise shot out at their closing speed.
+- **Order.** Joints, limits, the parts' own collisions, then the loose things against the
+  parts, then the level's contacts for every body.
+- **Visual only.** No row in `simulation_changes.tsv`.
+- **Checked:** `cargo test -p ragdoll`: the helmet leaves the head without a kick and meets
+  it afterwards; a helmet and a gun dropped on a lying body stay out of it and settle; a gun
+  under a body stays on the floor and is not thrown; the older floor and Rudnya gun tests.
+- **In the game (not played):** a headshot's helmet should roll off the falling body, not
+  through it; a dropped rifle should lie on or beside the body.
+
+## 20. A shot into a corpse's head: the hat, and the dark (2026-11-10)
+
+**The hat.** The owner (2026-11-02): "shooting dead bodies in the head makes their hat fly off
+(if it is fliable off)".
+
+- A ragdoll's headwear is one of three states (`Hat`): none that can leave the head (stock
+  content, hoods, closed helmets: no bone 69), worn, or off (its own body). The death says
+  which of the last two it starts in (`HeadwearStart`): off for the killing headshot of
+  section 15, worn otherwise.
+- The first bullet whose push lands on the head of a ragdoll with a worn hat knocks it off
+  (`Ragdoll::push`). It leaves from where it sits, with the head's motion there plus 3 m/s
+  along the bullet and 1.2 m/s up, tumbling (`tuning::HEADWEAR_SHOT_*`). Later shots leave
+  it where it lies. It stays off until the body goes.
+- The death event's correction (a rollback that says the kill was no headshot) puts back
+  only a hat the death took off (`HeadwearOff::Death`).
+- Checked: crate tests, and `check_ragdoll_026g.py` in the built exe (a living player's
+  head shot keeps it; a stock model's corpse loses nothing; a body-shot corpse's head shot
+  knocks it off, drawn and unheld; the respawn wears it again).
+
+**The dark.** The owner (2026-11-10): a shot into the head of your ragdoll, half a second or
+more after it began, blackens your screen and silences the game until you live again. The
+shooter's client decides, "since positions are different for everyone". `head_shot.rs`.
+
+```
+ shooter's client                      every client               the victim's client
+ its own bullet pushes the head   ->   the input applied     ->   its own player is that
+ of the corpse it draws, the           (carry.filter):            place's and dead: dark
+ ragdoll 0.5 s old or more             HeadShot(place) kept       until it lives again
+ -> HeadShot(place) in its next        for the step
+    input free of quick keys
+```
+
+- **The command** is `weapon_pickup::Command::HeadShot(place)`: the input's marker (bit 29)
+  and one of twenty quick-bit patterns (ordinals 30..49 of the 57 with two or more bits; a
+  gun's pickup has 0..19, a battery's 20..29, seven are left). It waits for an input with no
+  quick-use key and no other command, and is dropped if the victim's ragdoll goes first.
+- **Nothing a match computes.** Patch 78's filter takes the marker and the quick bits out of
+  every input before the game's handling (any pattern, known or not), and the receiver
+  writes only this module's state. No `simulation_changes.tsv` words needed for it.
+- **The server** relays it as any input and refuses a victim that is no place of the match
+  (`weapon_pickup::sane`, the client's twin).
+- **Dark** is one state (`Sight`): dark for the death the player is dead of. It ends when the
+  world shows the player alive (a respawn, a rollback) or dead of another death, and when
+  the match unloads.
+- **Black:** the hud movie's `root.set_dead_black(bool)` (`DeathEyes`, `death-eyes.md`): an
+  opaque view under the hud, so the respawn countdown and the kill feed stay.
+- **Silent:** XAudio2's mastering voice (sound_world+C4h) set to 0, and back to 1, on the
+  sound thread. The game never sets that volume and no setting holds it, so nothing reaches
+  user.cfg and 1 is exactly what was. Patch 100's proxy keeps it across a device change.
+- **A modified client** can put any dead player in the dark until its respawn, and nothing
+  else: the receiver asks only that its player is dead.
+- **Not played.** Scaleform drawing the black view and the mute on a real device are unseen.
+
+## 21. Dropped batteries fall as the ragdolls do (2026-11-10)
+
+A battery dropped at its carrier's death fell through the corpse, and sometimes through a
+one-sided floor (`battery_ccd.md` of PR #1297, parked). `battery_drop.rs`,
+`crates/ragdoll/src/dropped.rs`.
+
+- **Drawn by our solver.** Each loose battery (carried by nobody, in no container, a body in
+  the world) is a capsule of our own (0.6 m long, 0.24 m thick, 6 kg) that starts where the
+  simulation has the battery and falls by the ragdoll's rules: swept against the level, so
+  never under a floor, and pushed by every corpse (section 19). At rest it freezes; it wakes
+  when a corpse under it moves or goes, or one comes to lie on it.
+- **Only the draw is ours.** `victory_item::loose_model_callback` (0x2467B0) gives the
+  renderer two copies of the battery's transform for each of its two models; the hooks at
+  0x24681D and 0x24687B write our pose into those stack copies. The battery's own bytes,
+  body, markers and what the bots use stay the simulation's.
+- **The corpses no longer rest on the simulation's battery.** The level's rays pass through
+  loose batteries' bodies (`GameLevel::unseen`): the drawn battery yields to a corpse instead.
+- **Tether.** A drawn battery more than 1.5 m across from the simulation's starts again from
+  it (also what a re-drop, a rollback or a loaded world does). Height is free.
+- **Pickup by id** (the owner, 2026-11-10). Use on the drawn battery (a look into its use
+  box within the game's 2 m, no wall before it) is sent as
+  `weapon_pickup::Command::Battery(index)`. Every world plays it where an input is applied:
+  the game's own use of that battery by that player (its use data filled as a Use press
+  fills it, then use_initialize 0x3007E0), if
+  - the player lives, uses nothing and holds an item, and the game's can_use says yes;
+  - the battery lies loose and nobody is taking it (use_initialize itself refuses no
+    second user);
+  - the player's place is within 4.5 m across of the battery as the simulation has it
+    (`weapon_pickup::battery_reach`: the game's 2 m, the battery's half length, the eye's
+    lean, the tether). PR #1135 had no such bound: any client could take any loose battery
+    from anywhere.
+  The game's own scan still takes a battery (the bots'). The local player's Use on a
+  battery the scan finds where none is drawn is not sent.
+- **A match computes otherwise:** the `next` row of `simulation_changes.tsv`.
+- **Checked:** crate tests (`dropped/tests.rs`, the reach rule, the press, the look), and
+  `check_battery_drop_026g.py` in the built exe: near and under-floor pickups, the first to
+  ask, a far battery and every refusing state with nothing written, both draw sites, the
+  battery's bytes untouched, the body passed through by the level's rays, a re-drop and a
+  rewind starting the fall again.
+- **Not played.** To see: kill a carrier beside a corpse; the battery should land on or
+  against the body and on the floor, never under it; E on it takes it; two clients agree
+  who has it.
 
 ## Addresses (re-kit rows added in this change)
 

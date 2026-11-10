@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Run battery pickup and both render hooks in the built executable.
+"""Patch 76's dropped batteries in the built executable (battery_drop.rs).
 
-The initiating client's ray/box geometry has Rust tests. Here the actual
-native can_use/use_initialize and generated Rust hooks run: replicas with
-very different battery transforms accept the same id, first claimant wins,
-invalid states refuse, and cosmetic flight changes only draw-stack matrices.
-Engine resources and the item-switch callback are fixtures, not a real match.
+The pickup command's rule and the look at a drawn battery have Rust tests.
+Here the generated hooks run with the game's own can_use and use_initialize:
+a battery's pickup command is the game's use of it by its sender when the
+player is within the command's reach of the battery as the simulation has it
+(at any height: one under a floor too), the first to ask has it, and a battery
+far away, a dead or carrying player, a broken limb, a battery carried or in a
+container are refused with nothing written. The drawn battery falls by our
+solver: only its draw's two stack matrices change, never the battery's own
+bytes. The engine's resources and the item-switch callback are fixtures, not a
+real match.
 """
 import struct
 import sys
@@ -141,11 +146,15 @@ def main():
     original = open(sys.argv[1],'rb').read()
     built,_ = base.build(original,'section',open(base.default_bin('section'),'rb').read(),None,
                          open(base.late_join_bin(),'rb').read())
-    assert pickup(built,(0.,0.,1.)) == pickup(built,(100.,20.,-80.))
-    print('ok: near and far replicas accept the same battery id; first claimant wins')
+    assert pickup(built,(0.,0.,1.)) == pickup(built,(3.,-30.,1.))
+    print('ok: a battery near, and one under the floor within reach across: the game\'s use, the same use point; '
+          'the first to ask has it')
+    pickup(built,(100.,20.,-80.),'far')
+    pickup(built,(4.6,0.,0.),'far')
+    print('ok: a battery past the command\'s reach is refused, nothing written')
     for why in ('dead','carrying','state','taken','container'):
         pickup(built,(0.,0.,1.),why)
-    print('ok: native state, carrying, ownership, life and container refusals stay enforced')
+    print('ok: a dead or carrying player, a broken limb, a battery carried or in a container: refused')
     g = DrawGame(built)
     native = bytes(g.emu.mem_read(g.item,0x400))
     for _ in range(120): g.step()
