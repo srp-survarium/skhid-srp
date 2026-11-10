@@ -140,14 +140,20 @@ release/release.sh                   [--resources ...]
 
 **Starting release.sh without `--dry-run` IS the release.** It asks
 nothing: no go, no y/N, no flag to confirm. An agent starts it only on the
-owner's word for that release, and runs `--dry-run` first.
+owner's word for that release, then watches its log.
 
-Show the owner each dry run's output (every read-only check runs; every
-other command is printed; nothing is planned or written). Then, on the
-owner's word, the same without `--dry-run`: its preflight, then everything
-prepared and staged and the self-test's result (nothing players see; a
-failure there stops with nothing planned), and only after all of these
-passed the maintenance is planned and the swap follows.
+One run is two passes:
+
+1. **The checks** (nothing players see): the preflight, everything built
+   and staged, the self-test's result. A failure stops here with nothing
+   planned.
+2. **The release**, only after all of these passed: the maintenance is
+   planned, the swap follows, the server is checked (a failed check rolls
+   it all back), the record is made.
+
+No dry run is needed first: the first pass makes the same checks.
+`--dry-run` is for looking only (every read-only check runs; every other
+command is printed; nothing is planned or written).
 
 ## What is offered: release/patches.tsv
 
