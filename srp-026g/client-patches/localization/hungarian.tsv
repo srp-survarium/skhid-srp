@@ -2243,6 +2243,7 @@ st_srp_ban_reason_threats	Valós életbeli fenyegetés.
 st_srp_crosshair_dynamic	Dinamikus célkereszt
 st_srp_crosshair_hidden	Rejtett célkereszt
 st_srp_crosshair_static	Statikus célkereszt
+st_srp_deep_pockets_name	Mély zsebek
 st_srp_equipment029_bm_back_6_desc	A leírás még nem érhető el.
 st_srp_equipment029_bm_back_6_name	Őrszem hátizsák
 st_srp_equipment029_bm_back_8_desc	A leírás még nem érhető el.
@@ -2517,6 +2518,7 @@ st_srp_inv_fuse_time	Gyújtási idő
 st_srp_inv_material_pierce	Átüti
 st_srp_inv_pellets	Sörétek
 st_srp_inv_pocket_units	Zsebhelyek
+st_srp_inv_pocket_units_whole	∞
 st_srp_inv_stamina_damage	Állóképesség-sebzés
 st_srp_inv_throw_speed	Dobási sebesség
 st_srp_inventory_search	Keresés
@@ -2851,6 +2853,7 @@ st_srp_weapon_reload	Újratöltés
 st_srp_weapon_reload_empty	Újratöltés (üres)
 st_srp_weapon_reload_tactical	Taktikai újratöltés
 st_srp_weapon_shift_hint	Shift: több · Alt: meccsben
+st_srp_weapon_slot_closed	%1$s: nincs második fegyver
 st_srp_weapon_spread_growth	Szórás növekedési sebessége
 st_srp_weapon_spread_max	Maximális többletszórás
 st_srp_weapon_spread_per_shot	Szórásnövekedés lövésenként

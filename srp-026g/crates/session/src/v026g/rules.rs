@@ -269,7 +269,8 @@ fn relocate_covering(
     moves: &[Relocation],
     covered: &dyn Fn(u16) -> &'static [u8],
 ) -> Result<(), ActionError> {
-    let mut slots = account.kits[kit_index].slots;
+    let before = account.kits[kit_index].slots;
+    let mut slots = before;
     // The item this request took out of each slot.
     let mut taken = [None; KIT_SLOTS];
     for relocation in moves {
@@ -347,8 +348,9 @@ fn relocate_covering(
     // left out, not refused: the exe's own trim when such gear comes off
     // (`process_default_relocate_item` 0x289B04) asks for `min(units, pocket
     // size)`, which knows no RGD-5 taking two units, and a lobby whose skills
-    // changed may ask for what they opened.
-    account.keep_to_layout(&mut slots);
+    // changed may ask for what they opened. A full pocket the request did not
+    // set stays full when the gear it leaves makes the pocket larger.
+    account.keep_to_layout_after(&before, &mut slots);
     // One pocket an item type, judged on what the whole request leaves: the
     // ammo window empties every pocket first and fills them again, and two
     // pockets changing places name each other's slot.
@@ -409,11 +411,10 @@ fn add_to_stack(account: &mut Account, dict_id: u16, units: u32) -> Result<u32, 
         .find(|item| item.dict_id == dict_id)
     {
         Some(owned) => {
-            owned.condition_or_stack = owned
-                .condition_or_stack
-                .checked_add(units)
-                .ok_or(ActionError::BadCount)?;
-            Ok(owned.item_id)
+            let (item_id, before) = (owned.item_id, owned.condition_or_stack);
+            owned.condition_or_stack = before.checked_add(units).ok_or(ActionError::BadCount)?;
+            account.stack_grew(item_id, before);
+            Ok(item_id)
         }
         None => Ok(account.add_item(dict_id, units)),
     }
@@ -1893,6 +1894,167 @@ mod tests {
             account.item(grenade.item_id).unwrap().condition_or_stack,
             10
         );
+    }
+
+    /// A full pocket stays full (`docs/notes/one-pocket-a-type.md`): gear or
+    /// a skill that makes it larger fills it, and so do units bought when it
+    /// carried all that were owned. A pocket the player holds below its size
+    /// keeps its units.
+    #[test]
+    fn a_full_pocket_follows_its_size() {
+        use survarium::v026g::skills::slot_modifier;
+        let mut account = rich_and_known(10_000);
+        // Deep Pockets: a second pocket.
+        account.skills = vec![(113, 1)];
+        let owned = |account: &mut Account, name, value| {
+            let id = account.add_item(dict(name), value);
+            account.item(id).unwrap().clone()
+        };
+        let back = owned(&mut account, "ren_back_1", FULL_CONDITION);
+        let torso = owned(&mut account, "ren_torso_5", FULL_CONDITION);
+        let medkit = owned(&mut account, "medkit", 10);
+        let smoke = owned(&mut account, "rdg-m", 10);
+        let pocket = |account: &Account, slot: usize| account.kits[0].slots[slot].unwrap().count;
+        let moved = |account: &mut Account, moves: &[Relocation]| {
+            move_items(account, 1, moves, NOW).unwrap();
+        };
+        moved(
+            &mut account,
+            &[
+                relocation(&back, INVENTORY_SLOT, 3, 1),
+                relocation(&medkit, INVENTORY_SLOT, 13, 5),
+                relocation(&smoke, INVENTORY_SLOT, 14, 1),
+            ],
+        );
+        let small = pocket(&account, 13);
+        assert!((2..5).contains(&small));
+
+        // The torso on: the full pocket is filled, the other is as it was.
+        let revision = account.kits[0].revision;
+        moved(&mut account, &[relocation(&torso, INVENTORY_SLOT, 2, 1)]);
+        let large = pocket(&account, 13);
+        assert!(large > small);
+        assert_eq!(pocket(&account, 14), 1);
+        assert_eq!(account.kits[0].revision, revision + 1);
+        // Off and on again: full both times.
+        moved(&mut account, &[relocation(&torso, 2, INVENTORY_SLOT, 1)]);
+        assert_eq!(pocket(&account, 13), small);
+        moved(&mut account, &[relocation(&torso, INVENTORY_SLOT, 2, 1)]);
+        assert_eq!(pocket(&account, 13), large);
+        // A request that sets the pocket itself gets what it asks for.
+        moved(&mut account, &[relocation(&torso, 2, INVENTORY_SLOT, 1)]);
+        moved(
+            &mut account,
+            &[
+                relocation(&torso, INVENTORY_SLOT, 2, 1),
+                relocation(&medkit, 13, 13, small - 1),
+            ],
+        );
+        assert_eq!(pocket(&account, 13), small - 1);
+
+        // Additional Medicine (322): one more medicine in the full pocket.
+        moved(&mut account, &[relocation(&medkit, 13, 13, large)]);
+        let mut tree = SkillsTree::shared().clone();
+        let mut additional = tree.skill(101).unwrap().clone();
+        additional.id = 322;
+        additional.levels = vec![vec![(
+            slot_modifier::MEDICAL_RANKS,
+            (1 << slot_modifier::ADDITIONAL_MEDICINE_BIT) as f32,
+        )]];
+        tree.skills.push(additional);
+        account.change_skills(vec![(113, 1), (322, 1)], &tree);
+        assert_eq!(pocket(&account, 13), (large + 1).min(5));
+        assert_eq!(pocket(&account, 14), 1);
+
+        // Fewer owned than the pocket holds: it carries them all, and the
+        // ones bought after.
+        let mut account = rich_and_known(10_000);
+        let back = owned(&mut account, "ren_back_1", FULL_CONDITION);
+        let medkit = owned(&mut account, "medkit", 1);
+        moved(
+            &mut account,
+            &[
+                relocation(&back, INVENTORY_SLOT, 3, 1),
+                relocation(&medkit, INVENTORY_SLOT, 13, 1),
+            ],
+        );
+        assert_eq!(pocket(&account, 13), 1);
+        buy(&mut account, medkit.dict_id, 1, 0, INVENTORY_SLOT, 1, NOW).unwrap();
+        let stack = account.item(medkit.item_id).unwrap().condition_or_stack;
+        assert_eq!(stack, 1 + shop_unit(medkit.dict_id));
+        assert_eq!(pocket(&account, 13), stack.min(small));
+        assert!(pocket(&account, 13) > 1);
+    }
+
+    /// Full ammo bags stay full: gear that adds bags spreads the kit's
+    /// ammunition over them, each slot's share in proportion; ammunition that
+    /// left a bag free stays as the player set it.
+    #[test]
+    fn full_ammo_bags_follow_their_count() {
+        use survarium::v026g::item_params::{item_params, player};
+        let rounds = dict("ammo_5.45x39_7n6m");
+        let params = item_params(rounds).unwrap();
+        assert_eq!(params.required_bags, 1);
+        let clip = params.clip_size;
+        assert_eq!(player().ammo_bags_count, 3);
+        // A torso whose own modification 1051 adds two ammo bags.
+        let kit = |first: u32, second: u32, owned: u32| {
+            let mut account = rich_and_known(0);
+            let ammo = account.add_item(rounds, owned);
+            let torso = account.add_item(dict("ren_torso_5"), FULL_CONDITION);
+            account.item_mut(torso).unwrap().modifications = vec![(1051, false)];
+            for (slot, count) in [(8, first), (9, second)] {
+                account.kits[0].slots[slot] = (count > 0).then_some(KitSlot {
+                    item_id: ammo,
+                    count,
+                });
+            }
+            let torso = account.item(torso).unwrap().clone();
+            (account, torso)
+        };
+        let held = |account: &Account| {
+            [8, 9].map(|slot| account.kits[0].slots[slot].map_or(0, |held| held.count))
+        };
+        let on = |account: &mut Account, torso: &Item| {
+            move_items(account, 1, &[relocation(torso, INVENTORY_SLOT, 2, 1)], NOW).unwrap();
+        };
+
+        // One ammunition in all three bags: in all five.
+        let (mut account, torso) = kit(3 * clip, 0, 1000);
+        on(&mut account, &torso);
+        assert_eq!(held(&account), [5 * clip, 0]);
+        // Off again: the server takes no ammunition off (the lobby's to do).
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&torso, 2, INVENTORY_SLOT, 1)],
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(held(&account), [5 * clip, 0]);
+
+        // Two bags and one: three and two, the split kept.
+        let (mut account, torso) = kit(2 * clip, clip, 1000);
+        on(&mut account, &torso);
+        assert_eq!(held(&account), [3 * clip, 2 * clip]);
+
+        // A bag left free: as the player set it.
+        let (mut account, torso) = kit(clip, clip, 1000);
+        on(&mut account, &torso);
+        assert_eq!(held(&account), [clip, clip]);
+
+        // Not more than owned, and nothing is bought.
+        let (mut account, torso) = kit(3 * clip, 0, 4 * clip);
+        on(&mut account, &torso);
+        assert_eq!(held(&account), [4 * clip, 0]);
+        let stack = account.kits[0].slots[8].unwrap().item_id;
+        assert_eq!(account.item(stack).unwrap().condition_or_stack, 4 * clip);
+
+        // One stack in two slots, all of it carried: the two are not raised
+        // past it together.
+        let (mut account, torso) = kit(2 * clip, clip, 3 * clip);
+        on(&mut account, &torso);
+        assert_eq!(held(&account), [2 * clip, clip]);
     }
 
     #[test]

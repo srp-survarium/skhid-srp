@@ -4,6 +4,7 @@ package survarium.ammo
    import flash.display.Sprite;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
+   import flash.geom.ColorTransform;
    import flash.geom.Point;
    import flash.utils.getDefinitionByName;
    import scaleform.clik.constants.InputValue;
@@ -58,6 +59,26 @@ package survarium.ammo
       protected var _scaleRenderers:Boolean = false;
       
       private var _hoverCells:Boolean = false;
+
+      // The cells one step of the value takes (a pocket's RGD-5: two units of the pocket each).
+      public var cellUnits:int = 1;
+
+      // The colour of the cells no item is in (null: the cell's own): of each filled step's
+      // cells all but the first, and the open cells left over that hold no whole step.
+      public var takenTint:ColorTransform = null;
+
+      // The cells the pocket opens.
+      public var openCells:int = 0;
+
+      // A cell shown in its own colour whatever its state (a pocket's unit a skill added), or -1.
+      public var bonusCell:int = -1;
+
+      public var bonusTint:ColorTransform = null;
+
+      // The same while the cell is not filled.
+      public var bonusEmptyTint:ColorTransform = null;
+
+      private static const NO_TINT:ColorTransform = new ColorTransform();
       
       public function AmmoSlider()
       {
@@ -364,7 +385,8 @@ package survarium.ammo
          while(i < this._cells.length)
          {
             cell = this._cells[i];
-            cellValue = i * snapInterval;
+            cellValue = int(i / this.cellUnits) * snapInterval;
+            cell.transform.colorTransform = i == this.bonusCell && this.bonusTint != null ? (cellValue < value ? this.bonusTint : this.bonusEmptyTint) : this.takenTint != null && (cellValue < value && i % this.cellUnits != 0 || i < this.openCells && i >= int(this.openCells / this.cellUnits) * this.cellUnits) ? this.takenTint : NO_TINT;
             if(cellValue >= this._selectValue && cellValue < value && this._selectValue < value || cellValue >= value && cellValue < this._selectValue && this._selectValue >= value)
             {
                cell.gotoAndStop(3);
@@ -390,7 +412,7 @@ package survarium.ammo
          if(cell)
          {
             track.height = cell.height;
-            track.width = this.total / snapInterval * (cell.width + this.shiftInterval);
+            track.width = this.total / snapInterval * this.cellUnits * (cell.width + this.shiftInterval);
          }
       }
       
@@ -420,7 +442,7 @@ package survarium.ammo
                i++;
             }
             this._cells.length = 0;
-            cellCount = maximum / snapInterval;
+            cellCount = maximum / snapInterval * this.cellUnits;
             j = 0;
             while(j < cellCount)
             {

@@ -2243,6 +2243,7 @@ st_srp_ban_reason_threats	Groźby w prawdziwym życiu.
 st_srp_crosshair_dynamic	Celownik dynamiczny
 st_srp_crosshair_hidden	Celownik ukryty
 st_srp_crosshair_static	Celownik statyczny
+st_srp_deep_pockets_name	Posłaniec
 st_srp_equipment029_bm_back_6_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment029_bm_back_6_name	Plecak wartownika
 st_srp_equipment029_bm_back_8_desc	Opis nie jest jeszcze dostępny.
@@ -2517,6 +2518,7 @@ st_srp_inv_fuse_time	Czas zapalnika
 st_srp_inv_material_pierce	Przebija
 st_srp_inv_pellets	Śruciny
 st_srp_inv_pocket_units	Miejsca w kieszeni
+st_srp_inv_pocket_units_whole	∞
 st_srp_inv_stamina_damage	Obrażenia wytrzymałości
 st_srp_inv_throw_speed	Prędkość rzutu
 st_srp_inventory_search	Szukaj
@@ -2851,6 +2853,7 @@ st_srp_weapon_reload	Przeładowanie
 st_srp_weapon_reload_empty	Przeładowanie (pusty)
 st_srp_weapon_reload_tactical	Przeładowanie taktyczne
 st_srp_weapon_shift_hint	Shift: więcej · Alt: w meczu
+st_srp_weapon_slot_closed	%1$s: brak drugiej broni
 st_srp_weapon_spread_growth	Tempo wzrostu rozrzutu
 st_srp_weapon_spread_max	Limit wzrostu rozrzutu
 st_srp_weapon_spread_per_shot	Rozrzut na strzał

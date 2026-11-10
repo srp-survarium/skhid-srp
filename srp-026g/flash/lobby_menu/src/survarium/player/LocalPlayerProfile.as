@@ -1,5 +1,6 @@
 package survarium.player
 {
+   import survarium.constants.QuickSlotSize;
    import fl.transitions.easing.Strong;
    import flash.display.DisplayObject;
    import flash.display.DisplayObjectContainer;
@@ -275,6 +276,15 @@ package survarium.player
          return this._relocateFunctionRef;
       }
       
+      // Asks the game for `moves` (each made by Relocation.move). The way to ask: Scaleform throws
+      // "is not a function" when the getter _relocateFunction is called in place on a variable of
+      // this class, and a drop handler that throws leaves its drag on the cursor.
+      public function relocate(moves:Array) : void
+      {
+         var ask:Function = this._relocateFunctionRef;
+         ask(moves);
+      }
+
       public function get paperDoll() : ILocalPaperDoll
       {
          return this._playerPaperDoll;
@@ -304,6 +314,11 @@ package survarium.player
             for(var j:uint = 0; j < l; j++)
             {
                var itemData:ItemData = equippedItems[j];
+               // a booster and a medicine share a category and nothing else: not compared
+               if((itemData.quickSlotItemSize == QuickSlotSize.WHOLE) != (value.quickSlotItemSize == QuickSlotSize.WHOLE))
+               {
+                  continue;
+               }
                if(itemData.category == value.category || itemData.isWeapon && value.isWeapon && itemData.oneHanded == value.oneHanded)
                {
                   if(itemData.itemId == value.itemId)
