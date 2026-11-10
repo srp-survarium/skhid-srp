@@ -2293,3 +2293,17 @@ va	status	ref_021d	name
 0x00074300	reviewed		vostok::math::quaternion::get_axis_and_angle
 0x003b3180	reviewed	0x00260e7f	vostok::animation::evaluate_frame
 0x003b3340	reviewed		vostok::animation::time_channel::domain
+0x0001c3e0	reviewed		survarium::scaleform_engine::sys_alloc_malloc
+0x0001c410	reviewed		survarium::scaleform_engine::sys_alloc_free
+0x002ae470	observed		survarium::scaleform_engine::xrSysAllocMalloc::Alloc
+0x002ae4b0	observed		survarium::scaleform_engine::xrSysAllocMalloc::Free
+0x002ae4d0	observed		survarium::scaleform_engine::xrSysAllocMalloc::Realloc
+0x002ae550	reviewed		survarium::scaleform_engine::initialize_system
+0x005057f0	reviewed		Scaleform::System::Init
+0x00504720	reviewed		Scaleform::MemoryHeap::CreateRootHeapMH
+0x00504bc0	reviewed		Scaleform::MemoryHeapMH::CreateHeap
+0x00504c30	reviewed		Scaleform::MemoryHeapMH::GetTotalFootprint
+0x00504c90	reviewed		Scaleform::MemoryHeapMH::GetTotalUsedSpace
+0x00532490	reviewed		Scaleform::HeapMH::RootMH::CreateHeap
+0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
+0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource

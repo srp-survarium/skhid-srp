@@ -5977,3 +5977,12 @@ va	name	location	role	basis
 0x003b3340	vostok::animation::time_channel::domain	EAX	the time channel {+0 knot count, +4 offset of its memory: count float4 domains, then count float knots}	observed
 0x003b3340	vostok::animation::time_channel::domain	XMM2	the time (float)	observed
 0x003b3340	vostok::animation::time_channel::domain	entry ESP+4	the current domain (u32*, read and written)	observed
+0x0001c3e0	survarium::scaleform_engine::sys_alloc_malloc	entry ESP+4	the bytes	observed
+0x002ae470	survarium::scaleform_engine::xrSysAllocMalloc::Alloc	ECX	the allocator (its +4 the allocation function 0x1C3E0, +8 the free 0x1C410)	observed
+0x002ae470	survarium::scaleform_engine::xrSysAllocMalloc::Alloc	entry ESP+4	the bytes	observed
+0x002ae470	survarium::scaleform_engine::xrSysAllocMalloc::Alloc	entry ESP+8	the alignment (added to the bytes asked)	observed
+0x0010a590	vostok::resources::managed_resource::managed_resource	ECX	the resource's room (F0h bytes)	observed
+0x0010a590	vostok::resources::managed_resource::managed_resource	EAX	its class id	observed
+0x0010a590	vostok::resources::managed_resource::managed_resource	entry ESP+4	its bytes (kept at +5Ch)	observed
+0x00504c30	Scaleform::MemoryHeapMH::GetTotalFootprint	ECX	the heap	observed
+0x00504c90	Scaleform::MemoryHeapMH::GetTotalUsedSpace	ECX	the heap	observed
