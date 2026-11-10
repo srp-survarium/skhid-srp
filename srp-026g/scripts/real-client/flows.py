@@ -980,6 +980,23 @@ def moments(run: Run) -> None:
     a.wait_screen(lobby_clear, "the lobby", 5)
 
 
+def loose_search(run: Run) -> None:
+    """A player's name typed with a letter missing finds the player: its matches on the Replays tab."""
+    a = sign_in(run, "ReplayTester")
+    a.wait_screen(play_ready, "a lobby that has settled", 20, steady=3)
+    open_replays(a)
+    a.wait_screen(card_listed, "a card on the Replays tab")
+    type_in_search(a, "secnd")
+    mark = run.server.mark()
+    a.key("enter")
+    a.expect_server(r"ReplayTester searched players for `secnd`: \d+ found, the best SecondTester", 6, mark)
+    a.wait_screen(card_listed, "the matches of the player found", 10)
+    a.shot("loose-search-found")
+    say("a name typed loosely found the player's matches")
+    a.click(*CLOSE_WATCH)
+    a.wait_screen(lobby_clear, "the lobby", 5)
+
+
 def ranking_listed(picture) -> bool:
     """The Ranking window with rows: light text where its second row's name is."""
     name = picture[484:500, 596:690].astype(int).sum(axis=2)
@@ -1011,7 +1028,7 @@ def ranking_matches(run: Run) -> None:
     a.wait_screen(lambda picture: not window_open(picture), "the Watch window closed", 5)
 
 
-FLOWS = {"ranking_matches": ranking_matches, "queue_spectate": queue_spectate, "paused": paused,
+FLOWS = {"ranking_matches": ranking_matches, "loose_search": loose_search, "queue_spectate": queue_spectate, "paused": paused,
          "friend_in_countdown": friend_in_countdown,
          "windows_close_watch": windows_close_watch, "card_press": card_press, "card_code": card_code, "code_submit": code_submit,
          "unknown_codes": unknown_codes, "moments": moments, "kit": kit_after_replay, "kit_view": kit_view, "live": live, "follow": follow, "save": save, "first_click": first_click}

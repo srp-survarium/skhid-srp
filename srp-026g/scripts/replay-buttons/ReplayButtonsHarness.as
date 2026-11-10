@@ -30,7 +30,8 @@ package
    // - the window: tabs Live (its count) and Replays; chips Everyone, Friends on Live, Mine (the
    //   default), Friends, Everyone on Replays, each the list it names (Live's Friends: the matches
    //   with a friend); the search box: a match's code (# optional) watches it, a name lists that
-   //   player's matches (find_players' answer, then the P1 rows; another's rows left; a name not
+   //   player's matches (find_players' answer: the name itself, else the first found for three
+   //   letters or more or when one is found; then the P1 rows; another's rows left; a name not
    //   found says so; the asker's own is Mine); the player pop-up's Matches (WatchWindow.openPlayer)
    //   searches the name; every label and hint whole, the chips clear of the box;
    // - the cards: one Watch, or why not (not kept, old version; live: counting down, full, closed,
@@ -585,6 +586,18 @@ package
             expect(language + ": Ada's Watch asked " + asked(),asked()[0] == OTHER && asked()[1] == 0xC0020000);
          }
          expect(language + ": a players' answer nobody asked for taken",!W.found([]));
+         // a name typed loosely: the first found (srp's best match), none the name itself
+         typeIn("adm");
+         W.found([{"id":6,"name":"Adam_K"},{"id":5,"name":"Ada"}]);
+         expect(language + ": a loose name did not take the first found: " + (find(win,"srpWatchSearch") as TextField).text,
+            (find(win,"srpWatchSearch") as TextField).text == "Adam_K" && shownChip() == "player");
+         // two letters and several found: nobody's
+         typeIn("ad");
+         W.found([{"id":6,"name":"Adam_K"},{"id":5,"name":"Ada"}]);
+         expect(language + ": two letters took one of several players",textOf(win,"srpWatchEmpty") == words.getName("st_srp_watch_no_player").split("%1$s").join("ad"));
+         typeIn("ad");
+         W.found([{"id":6,"name":"Adam_K"}]);
+         expect(language + ": two letters did not take the one player found",(find(win,"srpWatchSearch") as TextField).text == "Adam_K");
          // a name nobody has
          typeIn("Nobody_Here");
          W.found([]);

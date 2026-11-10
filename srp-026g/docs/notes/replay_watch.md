@@ -36,7 +36,10 @@ Watch button wherever a match is mentioned.
   the asker's own `P1` rows), Friends (`M1` with `f` 1) or Everyone (`M1`). A search box: a match's code
   (8 hex digits, `#` optional) watches it; anything else is a player's name: the game's own player
   search (`find_players`, answered in `LobbyMenu.fill_players_search`, taken by `WatchWindow.found`)
-  finds the account (the name in any case, or the one player found), `3D 00 <PLAYER_MATCHES_ASK> <account>`
+  finds the account: srp answers the players whose name the text matches loosely, the best first
+  (`session::name_search`, the item search's rules: a part of the name, its letters in order, a typo
+  or two), and the window takes the name itself (any case), else the first found when three letters
+  or more were typed or one player was found; `3D 00 <PLAYER_MATCHES_ASK> <account>`
   chooses it, and its `P1` rows list its matches (no chip chosen meanwhile; a chip ends the search;
   the asker's own name is Mine). After a watch asked from the window plays (the game loads a match within
   2 min of the ask) the lobby's return opens it on that view again; a refusal drops the view. It is a

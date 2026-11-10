@@ -32,6 +32,7 @@ pub mod chat_mutes;
 pub mod limits;
 mod matchmaking;
 pub mod matchmaking_policy;
+pub mod name_search;
 pub mod password;
 pub mod persist;
 mod reports;
@@ -1095,6 +1096,24 @@ impl SessionStore {
         found.sort_by(|lhs, rhs| lhs.1.cmp(&rhs.1).then(lhs.0.cmp(&rhs.0)));
         found.truncate(limit);
         found
+    }
+
+    /// The accounts whose name `typed` matches loosely ([`name_search::score`]: a part of the
+    /// name, its letters in order, a typo or two), the best match first, then by name: at most
+    /// `limit`, `except` left out.
+    pub fn find_accounts_like(&self, typed: &str, except: u32, limit: usize) -> Vec<(u32, String)> {
+        let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
+        let mut found: Vec<(u32, u32, String)> = accounts
+            .iter()
+            .filter_map(|account| {
+                let account = account.locked();
+                let score = name_search::score(typed, &account.name);
+                (account.id != except && score != 0).then(|| (score, account.id, account.name.clone()))
+            })
+            .collect();
+        found.sort_by(|lhs, rhs| rhs.0.cmp(&lhs.0).then_with(|| lhs.2.cmp(&rhs.2)).then(lhs.1.cmp(&rhs.1)));
+        found.truncate(limit);
+        found.into_iter().map(|(_, id, name)| (id, name)).collect()
     }
 
     /// Every account by rating, best first (then by name): the ranking.
@@ -2646,6 +2665,14 @@ mod tests {
             [(ivan, "Ivanov".to_string())]
         );
         assert!(store.find_accounts(b"", 0, 10).is_empty());
+        // loosely: the best match first (a name's start, then a typo), no other
+        assert_eq!(
+            store.find_accounts_like("ivo", 0, 10),
+            [(ivo, "ivo".to_string()), (ivan, "Ivanov".to_string())]
+        );
+        assert_eq!(store.find_accounts_like("petovich", 0, 10), [(petr, "petrovich".to_string())]);
+        assert_eq!(store.find_accounts_like("iv", ivo, 10), [(ivan, "Ivanov".to_string())]);
+        assert!(store.find_accounts_like("", 0, 10).is_empty());
         assert!(store.account(petr).is_some());
         assert!(store.account(0xBAD).is_none());
     }

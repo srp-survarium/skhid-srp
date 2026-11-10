@@ -816,13 +816,19 @@ impl Core<'_> {
             FriendshipAction::FindPlayers { name } => {
                 let found: Vec<(u32, String, String)> = self
                     .store
-                    .find_accounts(name.as_bytes(), me, MAX_FOUND)
+                    .find_accounts_like(name, me, MAX_FOUND)
                     .into_iter()
                     .map(|(account_id, login_name)| {
                         let name = self.name_of(account_id).unwrap_or(login_name);
                         (account_id, name, self.clan_tag_of(account_id))
                     })
                     .collect();
+                log::info!(
+                    "{} searched players for `{name}`: {} found{}",
+                    who.name,
+                    found.len(),
+                    found.first().map_or_else(String::new, |(_, first, _)| format!(", the best {first}"))
+                );
                 self.send_made(who.addr, lobby::found_players(&found));
             }
         }

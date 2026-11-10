@@ -144,6 +144,9 @@ package survarium.watch
       // the search by name ({name, state, at, asks, id}), null none
       private var _search:Object = null;
 
+      // a name typed shorter than this takes no other player's than its own, unless one is found
+      private static const SEARCH_LOOSE:int = 3;
+
       // each list ({rows, at}: at 0 not answered yet) by its name (EVERYONE..., LIVE, PLAYER)
       private var _lists:Object = {};
 
@@ -890,7 +893,9 @@ package survarium.watch
          this.render();
       }
 
-      // find_players' answer: the player named so (any case), or the one player found; its
+      // find_players' answer, srp's best match first (a part of the name, its letters in order,
+      // a typo or two: session's name_search): the player named so (any case), else the first
+      // found, when the text typed is SEARCH_LOOSE letters or more or only one was found; its
       // account's matches asked.
       private function foundPlayers(players:Array) : void
       {
@@ -903,7 +908,7 @@ package survarium.watch
                pick = player;
             }
          }
-         if(pick == null && players.length == 1)
+         if(pick == null && players.length > 0 && (players.length == 1 || want.length >= SEARCH_LOOSE))
          {
             pick = players[0];
          }
