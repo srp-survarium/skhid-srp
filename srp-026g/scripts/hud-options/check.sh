@@ -14,9 +14,6 @@
 # - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
 #   the Tab map's names with Alt, and "Names on map" reversing Alt.
-# - SettingsHarness.as also: the Gameplay tab's "Allow others to watch my matches live" (exe patch 131, the
-#   account's setting srp keeps): under Hide spam, no box until the exe knows the state, a toggle pending until Apply, what
-#   Apply sends, Cancel, every dictionary's label inside the left column in the movie's fonts.
 # - SettingsHarness.as also: the controls tab's "Lock vertical sensitivity" and its slider (exe
 #   patch 112, docs/notes/mouse-pitch.md): locked it follows the main slider x 0.5625, unlocked it is its own;
 #   both sliders at their borders (0.01, 10), Apply and the exe's answers there.
@@ -48,7 +45,7 @@ keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_o
         'st_srp_vulkan_dedicated_gpu', 'st_srp_vulkan_overlay', 'st_srp_vulkan_overlay_fps',
         'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full', 'st_fov_option',
         'st_srp_vulkan_frame_limit_hint', 'st_srp_vulkan_overlay_hint', 'st_srp_vulkan_low_latency_hint',
-        'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint', 'st_srp_live_watch_option')
+        'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY
@@ -87,7 +84,6 @@ harness_stop
 harness_report 'SETTINGS .*\|HUD .*' SettingsHarness.log HudHarness.log
 ! grep -q "RESULT fail" "$work/SettingsHarness.log" "$work/HudHarness.log" \
     && grep -q "SETTINGS RESULT pass" "$work/SettingsHarness.log" && grep -q "SETTINGS controls pass" "$work/SettingsHarness.log" \
-    && grep -q "SETTINGS live watch pass" "$work/SettingsHarness.log" \
     && grep -q "SETTINGS borders pass" "$work/SettingsHarness.log" && grep -q "SETTINGS apply-cancel pass" "$work/SettingsHarness.log" \
     && grep -q "SETTINGS Graphics: Vulkan options pass" "$work/SettingsHarness.log" \
     && grep -q "HUD RESULT pass" "$work/HudHarness.log"

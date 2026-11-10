@@ -1895,22 +1895,12 @@ impl Core<'_> {
             let Some(addr) = self.room_free(account_id) else {
                 continue;
             };
-            let Some((session_id, ticket, hidden)) = self.player(addr).and_then(|player| {
+            let Some((session_id, ticket)) = self.player(addr).and_then(|player| {
                 let running = self.matches.get(&match_id)?;
-                Some((
-                    player.session_id,
-                    running.ticket.match_id,
-                    self.hidden_by_a_player(running),
-                ))
+                Some((player.session_id, running.ticket.match_id))
             }) else {
                 continue;
             };
-            // One rule for all live watching: a match with a player who keeps
-            // its matches from being watched is no queue's to watch either
-            // (`live`); one already watching goes on, as there.
-            if hidden {
-                continue;
-            }
             // The match server runs the match once a seated game connected
             // (it says then whether the match admits, or why not): before,
             // a spectator's game would be turned away. Not one ending.

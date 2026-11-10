@@ -63,9 +63,6 @@ VIEWER_PLATES, VIEWER_PLATE_Y = (999, 1156, 1310), 901  # the kit plates in a re
 PLAYER_ROW_X = 1495  # a viewer's player list
 PLAYER_ROWS = (("ReplayTester", 560), ("SecondTester", 583))
 LIVE_DELAY = 30  # SRP_LIVE_WATCH_DELAY_S's default
-SETTINGS_GEAR = (1577, 52)
-GEAR_MENU_BACK = (799, 523)
-LIVE_WATCH_BOX, SETTINGS_APPLY, SETTINGS_CLOSE = (520, 657), (735, 823), (860, 823)
 DAILY_CLOSE = (1032, 539)  # the X of the first sign-in of a day's reward box
 # A room's three map cards: where to sample each mode label's box, and where to click to vote for the card.
 CARD_LABELS = (132, 598, 1064)
@@ -475,58 +472,6 @@ def kit_view(run: Run) -> None:
     say("watched the replay's kit view and left it")
 
 
-def live_watch_setting(game: Game, name: str) -> None:
-    """Settings by the lobby's gear: the box of live watching toggled, applied."""
-    game.click(*SETTINGS_GEAR, 8)
-    time.sleep(1.5)
-    game.shot(f"privacy-{name}-open")
-    game.click(*LIVE_WATCH_BOX, 8)
-    time.sleep(0.4)
-    game.shot(f"privacy-{name}-toggled")
-    game.click(*SETTINGS_APPLY, 8)
-    time.sleep(0.6)
-    game.click(*SETTINGS_CLOSE, 8)
-    time.sleep(0.8)
-    game.click(*GEAR_MENU_BACK, 8)  # the gear's own small menu stands behind Settings
-    game.wait_screen(play_ready, "the lobby, Settings closed", 5, steady=0.5)
-
-
-def privacy(run: Run) -> None:
-    """A player who turns live watching off: its match is on nobody's Live list; turned on again, it is."""
-    a, b, c = sign_in(run, "ReplayTester"), sign_in(run, "SecondTester"), sign_in(run, "ThirdTester")
-    live_watch_setting(b, "off")
-    room_match(b, c)
-    a.expect_server(r"play begins", 40)
-    a.click(*WATCH_MENU)
-    a.wait_screen(window_open, "the Watch window")
-    a.click(*TAB_LIVE)
-    time.sleep(4)  # the list has had its answer
-    a.shot("privacy-live-hidden")
-    if card_listed(a.picture()):
-        raise a.fail("the match of a player who turned live watching off is on the Live list")
-    say("hidden from the Live list")
-    a.click(*CLOSE_WATCH)
-    a.wait_screen(lobby_clear, "the lobby", 5)
-    end_match(run, b, c, begun=True)
-    for game in (b, c):
-        game.wait_screen(results_open, "the results screen", 25, steady=1)
-        game.click(*RESULTS_CLOSE, 6)
-        game.wait_screen(play_ready, "the lobby, after the results", 20, steady=1)
-        leave_old_room(game)  # back in the match's room for a while: PLAY would join it, not make a new one
-    live_watch_setting(b, "on")
-    room_match(b, c)
-    a.expect_server(r"play begins", 40)
-    a.click(*WATCH_MENU)
-    a.wait_screen(window_open, "the Watch window")
-    a.click(*TAB_LIVE)
-    a.wait_screen(card_listed, "the match on the Live list, watching allowed again", 10)
-    a.shot("privacy-live-listed")
-    say("back on the Live list")
-    a.click(*CLOSE_WATCH)
-    a.wait_screen(lobby_clear, "the lobby", 5)
-    end_match(run, b, c, begun=True)
-
-
 def first_click(run: Run) -> None:
     """The first click on Back after Ctrl brings up the viewer's cursor must register. Regression flow: it fails while
     the viewer swallows that click."""
@@ -609,14 +554,6 @@ def settle_focus(game: Game) -> None:
     time.sleep(1.2)
 
 
-def allow_watching_again(game: Game) -> None:
-    """The flow's opt-out undone; when the flow failed in a match Settings cannot be reached, and its own error stands."""
-    try:
-        live_watch_setting(game, "on")
-    except Stop as why:
-        say(f"could not turn live watching back on: {str(why)[:100]}")
-
-
 def to_room_list(game: Game) -> None:
     """The Rooms window, the only room selected as it opens."""
     settle_focus(game)
@@ -664,27 +601,6 @@ def queue_spectate(run: Run) -> None:
     time.sleep(4)
     a.shot("queue-4-seated")
     end_match(run, a, b, begun=True)
-
-
-def queue_opted_out(run: Run) -> None:
-    """Queue and spectate obeys the opt-out: for a match with a player who turned watching off it is an ordinary queue."""
-    a, b, c = sign_in(run, "ReplayTester"), sign_in(run, "SecondTester"), sign_in(run, "ThirdTester")
-    live_watch_setting(b, "off")
-    try:
-        room_match(b, c)
-        to_room_list(a)
-        mark = run.server.mark()
-        a.click(*QUEUE_SPECTATE, 8)
-        a.expect_server(r"ReplayTester: waits in room \d+'s queue", 10, mark)
-        absent(run, r"ReplayTester: watches its queue's room's match|a spectator \(session", 12, mark,
-               "a queue watch started for a match with an opted-out player")
-        a.shot("queue-opted-out-no-watch")
-        say("queued, and not watching")
-        end_match(run, b, c)
-        for game in (b, c):
-            after_results(game)
-    finally:
-        allow_watching_again(b)
 
 
 def paused(run: Run) -> None:
@@ -754,33 +670,6 @@ def friend_in_countdown(run: Run) -> None:
     leave_match(a)
     a.wait_screen(lambda picture: window_open(picture) or play_ready(picture), "the lobby, after following", 25, steady=1.5)
     end_match(run, b, c, begun=True)
-
-
-def friend_gives_up(run: Run) -> None:
-    """A friend's Spectate with nothing to watch (the friend turned watching off) gives up after 60 s and says so."""
-    a, b, c = sign_in(run, "ReplayTester"), sign_in(run, "SecondTester"), sign_in(run, "ThirdTester")
-    live_watch_setting(b, "off")
-    try:
-        room_match(b, c)
-        a.expect_server(r"play begins", 40)
-        open_friend_menu(a)
-        a.shot("friend-gives-up-1-menu")
-        mark = run.server.mark()
-        a.click(*FRIEND_SPECTATE, 6)
-        start = time.time()
-        time.sleep(2)
-        a.shot("friend-gives-up-2-looking")
-        for seconds in (20, 40, 58):
-            absent(run, r"ReplayTester asked to watch", start + seconds - time.time(), mark, "a watch was asked of a hidden match")
-            say(f"{seconds} s: still looking")
-        absent(run, r"ReplayTester asked to watch", 8, mark, "a watch was asked of a hidden match")
-        a.shot("friend-gives-up-3-after-60s")
-        say("no watch after 60 s: the shot shows its message")
-        end_match(run, b, c, begun=True)
-        for game in (b, c):
-            after_results(game)
-    finally:
-        allow_watching_again(b)
 
 
 def hold(game: Game, x: int, y: int, seconds: float) -> None:
@@ -1122,10 +1011,10 @@ def ranking_matches(run: Run) -> None:
     a.wait_screen(lambda picture: not window_open(picture), "the Watch window closed", 5)
 
 
-FLOWS = {"ranking_matches": ranking_matches, "queue_spectate": queue_spectate, "queue_opted_out": queue_opted_out, "paused": paused,
-         "friend_in_countdown": friend_in_countdown, "friend_gives_up": friend_gives_up,
+FLOWS = {"ranking_matches": ranking_matches, "queue_spectate": queue_spectate, "paused": paused,
+         "friend_in_countdown": friend_in_countdown,
          "windows_close_watch": windows_close_watch, "card_press": card_press, "card_code": card_code, "code_submit": code_submit,
-         "unknown_codes": unknown_codes, "moments": moments, "kit": kit_after_replay, "kit_view": kit_view, "live": live, "follow": follow, "save": save, "first_click": first_click, "privacy": privacy}
+         "unknown_codes": unknown_codes, "moments": moments, "kit": kit_after_replay, "kit_view": kit_view, "live": live, "follow": follow, "save": save, "first_click": first_click}
 
 
 def main() -> int:

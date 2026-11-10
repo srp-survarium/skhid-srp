@@ -331,9 +331,8 @@ package
             }
             require(language != null && note != null && cross != null, when + ": the Language heading, its note and the crosshair list there");
             var fov:* = content.getChildByName("_srp_fov");
-            var live:* = content.getChildByName("_srp_live_watch");
             var left:Array = [c.s_friends, c._setter_invite, c._setter_message, c._set_censure, c._only_friends, c._no_in_batle,
-                c._hide_spam, live, language, menu];
+                c._hide_spam, language, menu];
             if (note.visible) left.push(note);
             // Names on map (the last box) with the map's rows, over Static minimap
             var right:Array = [heading, cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap,
@@ -356,7 +355,6 @@ package
             require(!c.s_cross.visible && !c._setter_static_cross.visible && !c.s_quest_propgress.visible && !c._slider_quest_alpha.visible,
                 when + ": no \"Crosshair:\" or \"Quest progress:\" heading, no static crosshair checkbox, no transparency slider");
             // alignment
-            require(near(live.x, c._setter_invite.x), when + ": the live watch box at Friends' controls' x");
             require(near(language.x, c.s_friends.x) && near(menu.x, c._setter_invite.x + stock.dropdownX),
                 when + ": Language under Friends' edges (its list one further)");
             require(near(heading.x, stock.rightHeading) && near(heading.y, c.s_friends.y), when + ": the HUD heading where Crosshair's was");
@@ -367,8 +365,7 @@ package
             require(near(cross.x, stock.rightControl + stock.dropdownX) && near(c._setter_static_minimap_position.x, stock.rightControl + stock.dropdownX),
                 when + ": the right column's lists one further");
             // spacing: as the tab's own
-            require(near(live.y - c._hide_spam.y, stock.step), when + ": the live watch box a step under Hide spam");
-            require(near(language.y - live.y, stock.gap) && near(menu.y - language.y, stock.leftFirst),
+            require(near(language.y - c._hide_spam.y, stock.gap) && near(menu.y - language.y, stock.leftFirst),
                 when + ": Language the tab's gap under Friends, its list as Friends' first checkbox");
             // the field of view, the right column's last group: the stock slider (its size), its label a heading
             // at the headings' x, the tab's gap under the minimap list (as Language under Friends' last row),
@@ -412,15 +409,6 @@ package
                     pair[0].validateNow();
                     require(end < rightEnd, when + ": " + row[pair[1]] + " ends in the right column (" + rightEnd + "): " + end);
                 }
-                var liveShown:String = live.label;
-                live.label = row[35];
-                live.validateNow();
-                var liveEnd:Number = live.x + live.textField.x + live.textField.textWidth;
-                var liveFits:Boolean = live.textField.textWidth + 4 <= live.textField.width;
-                live.label = liveShown;
-                live.validateNow();
-                require(liveEnd < leftEnd && liveFits, when + ": " + row[35] + " ends in the left column (" + leftEnd + "): " + liveEnd
-                    + ", inside its field: " + liveFits);
                 var was:String = heading.text;
                 heading.text = row[2];
                 require(heading.x + heading.textWidth < rightEnd, when + ": " + row[2] + " ends in the right column");
@@ -1222,31 +1210,11 @@ package
             // the minimap position list's choices (st_minimap_off, _bottom, _top), the lower left corner
             settingsList[9].dataProvider = [texts[0][10], texts[0][11], texts[0][12]];
             values[9].value = 1;
-            // The real order (game_options::on_resources_ready is the only root.set_settings): the tab is bound at the
-            // game's start, the exe answering the account's setting not known; the lobby says it after the sign-in;
-            // then the window opens (the lobby's gear: root.show_settings(true), nothing bound again).
-            var earlyLive:* = content.getChildByName("_srp_live_watch");
-            var earlyExe:* = domain.getDefinition("SrpExe");
-            var liveKnown:String = "", liveAsks:int = 0;
-            earlyExe.standIn = function(name:String, value:String):void {
-                if (name == "srp_live_watch")
-                {
-                    ++liveAsks;
-                    root.srp_check_option(name, texts[0][35], liveKnown);
-                }
-            };
             root.set_settings(0, settingsList);
             root.set_values(0, values);
             root.srp_language(texts[0][3], "Applies after restart.", "english", "english", "english", "English",
                 "ukrainian", "Українська");
-            var liveAsksBound:int = liveAsks;
-            require(liveAsksBound > 0 && !earlyLive.visible, "the tab's bind asks the live watch box (asks " + liveAsksBound + "), not known: no box");
-            liveKnown = "1";
             root.show_settings(true);
-            require(liveAsks > liveAsksBound && earlyLive.visible && earlyLive.selected,
-                "the window opened after the sign-in: asked again (asks " + liveAsks + "), the box shown ticked");
-            trace("SETTINGS live watch open pass");
-            earlyExe.standIn = null;
 
             var boxes:Array = [];
             for each (var name:String in NAMES)
@@ -1264,24 +1232,6 @@ package
                 require(boxes[i].label == texts[0][LABELS[i]], NAMES[i] + ": its label is the exe's: " + boxes[i].label);
                 require(!boxes[i].selected, NAMES[i] + ": the saved state (off) is shown");
             }
-            var live:* = content.getChildByName("_srp_live_watch");
-            root.srp_check_option("srp_live_watch", texts[0][35], "");
-            require(!live.visible && !settings.btn_accept.enabled, "a state not known: no box, nothing pending");
-            root.srp_check_option("srp_live_watch", texts[0][35], "1");
-            require(live.visible && live.alpha == 1 && live.selected && live.label == texts[0][35]
-                && getQualifiedClassName(live) == getQualifiedClassName(boxes[0]),
-                "the live watch box: the HUD group's own control, the exe's label, ticked (allowed): " + getQualifiedClassName(live));
-            // ticked, it looks as any working ticked box of the tab (Hide player scores): enabled, the same
-            // frame, no filter or tint; the stock Friends rows over it are dimmer because the timeline disables them
-            boxes[1].selected = true;
-            var tintOf:Function = function(b:*):String { var m:* = b.transform.colorTransform; return [m.redMultiplier, m.greenMultiplier, m.blueMultiplier, m.alphaMultiplier].join(); };
-            require(live.enabled && boxes[1].enabled && live.currentLabel == boxes[1].currentLabel && live.alpha == boxes[1].alpha
-                && live.filters.length == boxes[1].filters.length && tintOf(live) == tintOf(boxes[1]),
-                "the live watch box ticked as a working ticked box: " + live.currentLabel + " / " + boxes[1].currentLabel);
-            require(!c._setter_invite.enabled && !c._hide_spam.enabled, "the stock Friends rows are disabled");
-            trace("SETTINGS live watch look: " + live.currentLabel + " enabled " + live.enabled + " | Hide player scores " + boxes[1].currentLabel
-                + " enabled " + boxes[1].enabled + " | Invitations " + c._setter_invite.currentLabel + " enabled " + c._setter_invite.enabled);
-            boxes[1].selected = false;
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
             require(!cross.visible, "the crosshair list waits for its texts");
             hudTexts(root);
@@ -1305,30 +1255,6 @@ package
                 && !settings.btn_accept.enabled, "the field of view: the exe's label (a colon), range 50 to 100 and value 65, "
                 + "nothing pending (" + fovSlider.textField.text + ", " + fovSlider.selectedIndex + ")");
             checkLayout(content, boxes, texts, stockOf(content), "at rest");
-            // the live watch box: pending until Apply, what Apply sends, Cancel; the exe's refusal to know hides it
-            var exeClass:* = domain.getDefinition("SrpExe");
-            var sent:Array = [];
-            exeClass.standIn = function(name:String, value:String):void { if (name == "srp_live_watch") sent.push(value); };
-            live.selected = false;
-            require(settings.btn_accept.enabled && sent.length == 0, "the live watch box unticked: a change, nothing sent yet");
-            click(settings.btn_cancel);
-            require(live.selected && !settings.btn_accept.enabled && sent.length == 0, "Cancel: ticked again, nothing sent");
-            live.selected = false;
-            click(settings.btn_accept);
-            require(sent.join() == "0" && !settings.btn_accept.enabled, "Apply sends 0 (hidden): " + sent.join());
-            root.srp_check_option("srp_live_watch", texts[0][35], "0");
-            require(!live.selected && !settings.btn_accept.enabled, "the answer 0: unticked, nothing pending");
-            live.selected = true;
-            click(settings.btn_accept);
-            require(sent.join() == "0,1", "Apply sends 1 (allowed): " + sent.join());
-            root.srp_check_option("srp_live_watch", texts[0][35], "1");
-            live.selected = false;
-            root.srp_check_option("srp_live_watch", texts[0][35], "");
-            require(!live.visible && !settings.btn_accept.enabled, "the state not known any more (the lobby gone): no box, the toggle dropped");
-            root.srp_check_option("srp_live_watch", texts[0][35], "1");
-            require(live.visible && live.selected && !settings.btn_accept.enabled, "known again: the box back, ticked");
-            exeClass.standIn = null;
-            trace("SETTINGS live watch pass");
             fovSlider.slider.value = 90;
             require(fovSlider.selectedIndex == 90 && settings.btn_accept.enabled, "the field of view moved to 90: a change");
             click(settings.btn_cancel);

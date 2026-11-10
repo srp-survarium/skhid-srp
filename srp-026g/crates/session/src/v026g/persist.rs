@@ -156,8 +156,10 @@ const MIGRATIONS: &[&str] = &[
     history::MIGRATION,
     // 16: each match's events (`match_events`).
     match_events::MIGRATION,
-    // 17: whether an account's matches may be watched live (`extras`).
-    extras::LIVE_WATCH_MIGRATION,
+    // 17: none. It was the per-account live watch setting of #1537, taken
+    // out before it shipped (a player of the match can watch it anyway). The
+    // number stays.
+    "",
     // 18: each history line's roster place (`history`).
     history::SEAT_MIGRATION,
 ];

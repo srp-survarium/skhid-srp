@@ -27,8 +27,6 @@ pub struct DailyBonus {
 /// See the module.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Extras {
-    /// Whether others may watch its matches live (the Settings window's box).
-    pub live_watch: survarium::v026g::lobby::LiveWatch,
     pub bonus: DailyBonus,
 }
 

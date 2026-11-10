@@ -1843,8 +1843,7 @@ mod tests {
             // later steps' changes undone (`extras`' live watch column).
             connection
                 .execute_batch(
-                    "ALTER TABLE g26_extras DROP COLUMN live_watch;
-                     DROP TABLE g26_match_events;
+                    "DROP TABLE g26_match_events;
                      DROP TABLE g26_match_kit_items; DROP TABLE g26_match_kits;
                      DROP TABLE g26_player_items; DROP TABLE g26_match_players;
                      DROP TABLE g26_matches;

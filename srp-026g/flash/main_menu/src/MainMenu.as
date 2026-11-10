@@ -68,7 +68,6 @@ package
       {
          if(bool)
          {
-            this.settings_window.refreshAccountOptions();
             this.settings_window.visible = true;
             this.action_select.visible = false;
          }

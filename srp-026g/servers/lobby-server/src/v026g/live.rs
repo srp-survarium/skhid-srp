@@ -9,8 +9,7 @@
 //!   <spectators>;<watch>`. `phase` 0 made, 1 countdown, 2 in play, 3 over;
 //!   `watch` 1 may, 0 full, 2 not watchable (a private room's, or one of
 //!   fixed rosters, which takes no spectator). A private room's match is
-//!   not listed, nor is one with a player who keeps its matches from being
-//!   watched ([`LiveWatch::Hidden`]). After the `L1` rows, `F1;<match 8 hex>;<place>;<team>;
+//!   not listed. After the `L1` rows, `F1;<match 8 hex>;<place>;<team>;
 //!   <name>` for each friend of the asker in a listed match (the Watch
 //!   hub's pinned cards and the friends list's Spectate).
 //! - The roster: `3D 00 <LIVE_ROSTER_ASK> <match>` chooses the match, then
@@ -22,10 +21,6 @@
 //!   delay behind ([`Config::delay`]: nobody calls a friend the positions);
 //!   answered `R1;watching;<match>;0`, or `busy` when full ([`Config`]'s
 //!   caps), `not_yours` when it is not watchable.
-//! - The player's setting: read when the list is built and at a watch's
-//!   ask (a room's Queue and spectate too, `rooms`), so a change applies
-//!   from then on; a spectator already there goes on. Nothing says which
-//!   player it was.
 //!
 //! Each row's place in the `91` is the request's start and its index.
 
@@ -36,7 +31,6 @@ use session::v026g::replays::Status;
 use session::{LiveDelay, LockExt, QueuePool, WatchKind, Watcher};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::limits;
-use survarium::v026g::lobby::LiveWatch;
 
 use super::core::{Core, Who};
 use super::play::{LivePhase, LiveView, Running};
@@ -129,26 +123,8 @@ impl Core<'_> {
         self.store.matchmaking().live_watchers_of(match_id).len()
     }
 
-    /// A player seated in the match keeps its matches from being watched
-    /// ([`LiveWatch::Hidden`]): one who left the match counts until it ends,
-    /// its place is still the match's.
-    pub(super) fn hidden_by_a_player(&self, running: &Running) -> bool {
-        running.seats.iter().any(|&(session, _)| {
-            self.store
-                .session_account(session)
-                .and_then(|account| {
-                    let account_id = account.locked().id;
-                    self.accounts.get(account_id)
-                })
-                .is_some_and(|account| account.locked().extras.live_watch == LiveWatch::Hidden)
-        })
-    }
-
     fn watchable(&self, match_id: u32, running: &Running) -> Watchable {
-        if running.private
-            || running.pool != QueuePool::GrowingRoster
-            || self.hidden_by_a_player(running)
-        {
+        if running.private || running.pool != QueuePool::GrowingRoster {
             return Watchable::Not;
         }
         let all: usize = self.matches.keys().map(|&id| self.live_watchers(id)).sum();
@@ -166,22 +142,11 @@ impl Core<'_> {
         let mut listed: Vec<(u32, &Running)> = self
             .matches
             .iter()
-            .filter(|(_, running)| !running.private && !self.hidden_by_a_player(running))
+            .filter(|(_, running)| !running.private)
             .map(|(&id, running)| (id, running))
             .collect();
         listed.sort_by_key(|(_, running)| running.ticket.match_id);
         listed
-    }
-
-    /// `3B` at a [`LiveWatch`]'s start: the account's setting, kept; `0xA1`
-    /// shows it back.
-    pub(super) fn set_live_watch(&mut self, who: &Who, state: LiveWatch) {
-        let before = std::mem::replace(&mut who.account.locked().extras.live_watch, state);
-        if before != state {
-            log::info!("{} live watching: {state:?}", who.name);
-            self.accounts.mark_dirty(who.account_id);
-            self.squads_dirty = true;
-        }
     }
 
     /// `3B 00 <LIVE_START> <count>`: the matches being played.

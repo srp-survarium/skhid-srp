@@ -13,12 +13,10 @@ order = 3                           # after patch 79's and patch 83's, before pa
 [[hook]]
 site = "lobby_client.squad_id"
 handler = "on_squad_id"
-order = 1                           # before patch 131's (live_watch.toml)
 
 [[hook]]
 site = "lobby_client.squad_read"
 handler = "on_squad"
-order = 1                           # before patch 131's (live_watch.toml)
 
 [[hook]]
 site = "lobby_menu.scene_request"

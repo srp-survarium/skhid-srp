@@ -2534,7 +2534,6 @@ st_srp_item_props_mps	m/s
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
 st_srp_live_spectators	%1$s watching
-st_srp_live_watch_option	Allow others to watch my matches live
 st_srp_loadout_block_ammo	Too little ammo for a weapon
 st_srp_loadout_block_locked	This profile is locked
 st_srp_loadout_block_maintenance	Server maintenance soon: in %1$s min

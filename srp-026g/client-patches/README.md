@@ -130,7 +130,6 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `rust/patches/src/spectator.rs`, `src/spectator.toml`, `src/vostok/spectate.rs`, `check_spectator_026g.py` | Patch 121: a game whose 0xE4 names no place of its own (the rooms' queue) watches the match: its camera follows a player of any team (F6/F5 the next/previous; F2 lets go and flies free), it builds and sends no input, an 0xEA naming place 0xFF ends its match (no results), and the places the game asks for the missing local player go another way (lohooks at 0x27C116, 0x25CDBD, 0x208D77, 0x23B7B9, 0x27C72C); its check runs the five sites in both exes, players' and replays' unchanged (needs Unicorn) |
 | `rust/patches/src/replay_viewer.rs`, `src/replay_viewer.toml`, `src/vostok/replay_view.rs`, `../crates/replay-control`, `check_replay_viewer_026g.py` | Patch 130: a replay played in the running game as a spectated match: the match server's playback note (0xF6 `52 01`) pauses the game's clock (game::pause) and sets its speed (time_scale), its events note (`52 02`) gives the kills; Space, Left/Right, Shift+Left/Right, `[`/`]` ask the server (0xE0 `FF x6 52 00 ..`), F11/H hide the interface, Esc leaves (lohooks at 0x27A4F4 and 0x27A7F3, a handler at 0x25CD00 after patch 86's, one at the static info's read); the replay controls (`replay_player.swf`) over a viewer's hud: every network game's first world loads them (0x1F8F9E, 0x1F88CC: a match's movies are queried once, before anyone knows if it will be a viewer, so its address space is spent in every match), hidden until the first playback note; a hud with them gives them the mouse only in a viewer's game (0x25CFF3, 0x25D1E6; the other games' mouse stays the hud's); fed each frame (0x23B200), their calls the server's requests or patch 121's camera (0x233D30); its check runs the sites in both exes, players' and live spectators' unchanged (needs Unicorn) |
-| `rust/patches/src/live_watch.rs`, `src/live_watch.toml`, `check_live_watch_026g.py` | Patch 131: the Settings' "Allow others to watch my matches live", the account's setting srp keeps: `0xA1`'s last srp byte tells it, the box applied sends `3B` at a reserved start (lohooks at 0x2747C3 and 0x2748BC after patch 81's, at 0x1FF5D0 after the others'); its check runs the sites in both exes (needs Unicorn) |
 | `rust/patches/src/match_reconnect.rs`, `src/match_reconnect.toml`, `src/vostok/match_link.rs`, `check_match_reconnect_026g.py` | Patch 132: a receive aborted (995) by the connect that closed the match link's old socket, with a send of it still outstanding, no longer counts as the link lost (lohook 0x3F21DE in handle_receive's error path): the send's completion runs the new connect, as the game meant; the check runs the failure's order and the others in both exes (client_patch.md section 3.80) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
@@ -5104,25 +5103,3 @@ a place of its own, and a replay, run the game's code at all five sites
 a bit no entered mask has and writes nothing. Nothing a match computes: the camera and the hud alone.
 Addresses: `client_patch.md` 3.78; checked with `check_spectator_026g.py`;
 **not run in a game.**
-
-## The live watch box in the Settings (patch 131, unreleased)
-
-"Allow others to watch my matches live", under "Friends:" on the Gameplay tab of `main_menu.swf`'s Settings
-(`Settings._liveWatch`, an `SrpCheckOption` as the HUD group's boxes are), ticked by default. The HUD group's boxes are
-this computer's, in user.cfg; this one is the account's and srp decides with it, so the patch only carries it (rules:
-`../docs/notes/replay-stream.md`, "Who may be watched"; wire: `../docs/notes/lobby.md` 2.16.6).
-
-The patch (`rust/patches/src/live_watch.rs`) keeps one state, [`Setting`], zero (not known) until `0xA1`'s third srp byte
-says it (`lobby_client.squad_id`, `lobby_client.squad_read`, after patch 81's hooks; the message of an older srp has no
-third byte: left as it was). The next sign-in's `0xA1` says it again; a lobby connection that is down shows no box,
-so the login screen needs no reset, whatever the order of a sign-in. The game binds the Settings' tab once, at its start
-(`game_options::on_resources_ready`, the only caller of `root.set_settings`), before any sign-in, and opening the window
-binds nothing (the lobby's gear, 0x28C590, runs only `show_options` and `activate`): the movie asks again each time the
-window opens (`Settings.refreshAccountOptions`, from `MainMenu.show_settings`). The Settings' call `srp_live_watch` (`options.callback`, after patches 79, 83 and 112) answers
-`root.srp_check_option(name, label, state)`, state "1" allowed, "0" hidden, "" not known or the lobby connection down
-(`Lobby::connected`, as the messaging senders test it): the box is not shown then, and its toggle is dropped. "1" or
-"0" applied, known and connected, sends `3B` at 2 096 000 000 + id through the lobby client (0x270070); srp shows the
-state back in `0xA1`. Nothing goes to user.cfg.
-
-`check_live_watch_026g.py` runs it in both exes on made-up objects; the box is checked in Ruffle with the movie's fonts
-(`../scripts/hud-options`).

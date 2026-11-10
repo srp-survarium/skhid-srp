@@ -2534,7 +2534,6 @@ st_srp_item_props_mps	m/s
 st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.
 st_srp_live_spectators	oglądający: %1$s
-st_srp_live_watch_option	Pozwól innym oglądać moje rozgrywki na żywo
 st_srp_loadout_block_ammo	Za mało amunicji do broni
 st_srp_loadout_block_locked	Ten profil jest zablokowany
 st_srp_loadout_block_maintenance	Wkrótce przerwa techniczna: za %1$s min

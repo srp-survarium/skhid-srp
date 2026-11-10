@@ -657,6 +657,7 @@ class Run:
         # to it stays a minute longer; PLAY in the next run would join that room. The run is over when both are gone.
         accounts = {game.account for game in self.games}
         end = time.time() + 150
+        told = time.time()
         while True:
             since_kill, whole = self.server.since(mark), self.server.since(self.began)
             signed_in = {a for a in accounts if re.search(rf"{re.escape(a)} \(account \d+\)", whole)}  # a game killed before that holds nothing
@@ -667,6 +668,9 @@ class Run:
             if time.time() > end:
                 print(f"=== teardown: FAILED: after 150 s the server still holds {sorted(held)}, rooms {sorted(rooms)}", flush=True)
                 return
+            if time.time() - told >= 10:  # a watcher of this log sees the wait, and what it is for
+                told = time.time()
+                print(f"    teardown: the server still holds {sorted(held)}, rooms {sorted(rooms)}", flush=True)
             time.sleep(0.25)
 
     def game_log(self) -> Log:

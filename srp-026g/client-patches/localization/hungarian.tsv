@@ -2534,7 +2534,6 @@ st_srp_item_props_mps	m/s
 st_srp_language_option	Nyelv:
 st_srp_language_restart	Újraindítás után lép életbe.
 st_srp_live_spectators	%1$s néző
-st_srp_live_watch_option	Mások élőben nézhetik a meccseimet
 st_srp_loadout_block_ammo	Kevés lőszer az egyik fegyverhez
 st_srp_loadout_block_locked	Ez a profil zárolva van
 st_srp_loadout_block_maintenance	Szerverkarbantartás %1$s perc múlva
