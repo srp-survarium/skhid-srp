@@ -128,11 +128,12 @@
 #      --now: nothing is planned;
 #   5. at the planned time, once the launcher page says the server is
 #      down and $SKHID_SITE/api/stats says "matches":0 (waiting up to
-#      --match-wait more); sooner, once "matches":0 has held 30 s while
-#      Play is locked (polled every quarter of a minute while it waits for
-#      the planned time): shows what changes, y/N (or touch the swap file
-#      it names beside the go file; no answer in
-#      $SKHID_SWAP_ANSWER_MINUTES, default 10: no), then the swap of
+#      --match-wait more); with --yes --i-know sooner, once "matches":0
+#      has held 30 s while Play is locked (polled every quarter of a minute
+#      while it waits for the planned time): shows what changes, y/N with
+#      the terminal's bell (or touch the swap file it names beside the go
+#      file; no answer in $SKHID_SWAP_ANSWER_MINUTES, default 10, counted
+#      from the planned time at the earliest: no), then the swap of
 #      release/deploy. With --no-maintenance: once "matches":0 (waiting up
 #      to --match-wait from the go), y/N, and "matches":0 once
 #      more right before the stop (else it waits again, within the same
@@ -556,12 +557,12 @@ wait_for_go() {
 # The y/N before the swap: y or yes at the terminal (else on stdin, as
 # `yes |` gives; anything else is no), or the swap file, touched as the go
 # file is. The file is removed as the wait starts: an earlier one is no
-# answer. No answer in <seconds> is a no.
+# answer. No answer by <deadline> (epoch seconds) is a no.
 swap_answer() {
-    local swap="$GO_DIR/swap-$REL" answer deadline input=1
-    deadline=$(($(date +%s) + $1))
+    local swap="$GO_DIR/swap-$REL" answer deadline=$1 input=1
     mkdir -p "$GO_DIR" && rm -f "$swap"
     say "Swap: answer y here, or run: touch $swap"
+    { printf '\a' >/dev/tty; } 2>/dev/null || true
     if ! { exec 3</dev/tty; } 2>/dev/null; then exec 3<&0; fi
     printf "Go ahead? [y/N] " >&2
     while (($(date +%s) < deadline)); do
@@ -1788,7 +1789,7 @@ elif ((DRY_RUN && no_maint)); then
     say "[dry run] 5. at the go: wait for \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min), then y/N (no answer in $answer_wait min: no) and:"
     SWAP_BEFORE_STOP=match_check_before_stop
 elif ((DRY_RUN)); then
-    say "[dry run] 5. at the planned time: the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more); sooner, polling $TARGET_SITE/api/stats while it waits: once \"matches\":0 has held $LAST_MATCH_MARGIN s while Play is locked (the countdown's last 30 min), the swap at once; then y/N (no answer in $answer_wait min: no) and:"
+    say "[dry run] 5. at the planned time: the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more)$( ((yes)) && printf '; sooner, polling %s/api/stats while it waits: once "matches":0 has held %s s while Play is locked (the countdown'"'"'s last 30 min), the swap at once' "$TARGET_SITE" "$LAST_MATCH_MARGIN"); then y/N (no answer in $answer_wait min from the planned time: no) and:"
 elif ((now)); then
     progress "5. --now: the swap at once, NO wait for matches, NO notice was given"
 elif ((no_maint)); then
@@ -1796,11 +1797,12 @@ elif ((no_maint)); then
     limit=$(($(date +%s) + match_wait * MINUTE))
     wait_no_match "after $match_wait min of waiting (--match-wait)"
 else
-    # The planned time is the latest: once no match has run for
-    # LAST_MATCH_MARGIN s (the plan's own margin after the last match),
-    # while Play is locked (the countdown's last 30 min), the swap comes
-    # at once (the margin as long as the minute is: 30 s, or half of a
-    # test's minute).
+    # With --yes --i-know the planned time is the latest: once no match
+    # has run for LAST_MATCH_MARGIN s (the plan's own margin after the last
+    # match), while Play is locked (the countdown's last 30 min), the swap
+    # comes at once (the margin as long as the minute is: 30 s, or half of
+    # a test's minute). Without them the swap waits for the planned time:
+    # the y/N comes when the owner expects it, not minutes before.
     said=- idle_since='' margin=$((LAST_MATCH_MARGIN * MINUTE / 60))
     while (($(date +%s) < end)); do
         matches=$(matches_now)
@@ -1809,7 +1811,7 @@ else
             said=$matches
         fi
         now_s=$(date +%s)
-        if [[ $matches != 0 ]] || ((end - now_s > 30 * MINUTE)); then
+        if ((!yes)) || [[ $matches != 0 ]] || ((end - now_s > 30 * MINUTE)); then
             idle_since=''
         elif ((now_s - ${idle_since:=$now_s} >= margin)); then
             progress "5. no match has run for $LAST_MATCH_MARGIN s: swapping now, $(((end - now_s + MINUTE - 1) / MINUTE)) min before the planned time"
@@ -1866,7 +1868,8 @@ if ((!DRY_RUN)); then
         say "(--yes --i-know: going ahead)"
     else
         say "(no answer in $answer_wait min is a no)"
-        swap_answer "$((answer_wait * MINUTE))" || die "stopped: not confirmed (nothing was swapped)"
+        now_s=$(date +%s)
+        swap_answer "$(((end > now_s ? end : now_s) + answer_wait * MINUTE))" || die "stopped: not confirmed (nothing was swapped)"
     fi
     if ((now)); then
         SWAP_BEFORE_STOP=count_ended_matches
