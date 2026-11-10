@@ -18,8 +18,10 @@ Watch button wherever a match is mentioned.
   window's frame and look (`survarium/watch/`, `RoomsLook`); opening one closes the other, and the tab
   follows the window (`selectWatchTab`). The badge's list is asked every 30 s while Live is not shown,
   never during a match (`MainScene.activeMatchMaking`).
-- **Context entries.** The results screen's red **Watch replay** left of the close button, the
-  match's number left of it (`VictoryScreen.as`); each History row's **Watch** with the number under
+- **Context entries.** The results screen's red **Watch replay**, Save replay and the close button
+  as one row centred where the close button alone is, the match's number left of the row, copied as
+  a card's code is (a press selects it, Ctrl+C); the movie's own Share and Save buttons, with
+  nothing behind them in this game, are hidden (`VictoryScreen.as`); each History row's **Watch** with the number under
   it; a friend's right-click **Spectate** (a friend in a match): the friend's live match watched from
   the friend's place once the live list names it (it waits through a countdown, 60 s at most); the
   player pop-up's **Matches**: Watch, Replays, that player's name searched.

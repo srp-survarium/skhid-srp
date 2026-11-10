@@ -6,8 +6,10 @@ package survarium.controls
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.text.TextFieldType;
    import flash.text.TextFormat;
    import flash.utils.getDefinitionByName;
    import scaleform.clik.controls.Button;
@@ -141,6 +143,9 @@ package survarium.controls
       // Saving..., Saved)
       protected var _save:Button;
 
+      // the middle of the close button as the movie places it, alone: the row's middle
+      protected var _rowCentre:Number = NaN;
+
       protected var _watchReason:TextField;
 
       // the match's number left of them, as the Watch window's search takes it (`#` and 8 hex digits)
@@ -245,6 +250,8 @@ package survarium.controls
          this.btn_close.addEventListener(ButtonEvent.CLICK,this.closeWindow);
          this._watchAll = this.replayButton();
          this._save = this.saveButton();
+         // the movie's Share and Save buttons have nothing behind them in this game
+         this.hideWithArt(this.btnShare,this.btnSave);
          this.players_list.autoSizeLists = true;
          this.removePremium();
          this.treasureCount.mouseEnabled = false;
@@ -267,6 +274,23 @@ package survarium.controls
          this.droppedItem.addEventListener(MouseEvent.ROLL_OUT,this.hideItemHint);
       }
       
+      // Hides two neighbouring buttons of the movie and the art the movie draws on them (their
+      // icons are one shape of the screen's, not the buttons'): every child of the screen that
+      // lies within the two.
+      private function hideWithArt(one:Button, other:Button) : void
+      {
+         var area:Rectangle = one.getBounds(this).union(other.getBounds(this));
+         area.inflate(2,2);
+         for(var i:int = 0; i < numChildren; i++)
+         {
+            var child:DisplayObject = getChildAt(i);
+            if(area.containsRect(child.getBounds(this)) && child.width > 0)
+            {
+               child.visible = false;
+            }
+         }
+      }
+
       // The red button for watching this match's replay, as high as the close button.
       protected function replayButton() : Button
       {
@@ -317,8 +341,8 @@ package survarium.controls
          return button;
       }
 
-      // A button of the row left of the close button: its label, sized to it, `right` its right edge.
-      private function placeButton(button:Button, label:String, right:Number, font:String) : void
+      // A button of the close button's row: its label, sized to it.
+      private function sizeButton(button:Button, label:String, font:String) : void
       {
          button.label = label;
          try
@@ -330,12 +354,11 @@ package survarium.controls
             button.width = Math.max(this.btn_close.width,this.labelWidth(label,font) + 40);
          }
          button.validateNow();
-         button.x = int(right - button.width);
-         button.y = this.btn_close.y;
       }
 
-      // Watch replay and Save replay (or why it cannot be watched) left of the close button, and
-      // the match's number left of them, for a match with an id; sized to the language's labels.
+      // Watch replay, Save replay and the close button as one row, centred where the close button
+      // alone is; left of the row why the replay cannot be watched, and the match's number, for a
+      // match with an id. Sized to the language's labels.
       protected function placeReplayButtons() : void
       {
          var reason:String = this._match_id != 0 ? NotificationListScrollContent.replayReason(NotificationListScrollContent.matchNumberText(this._match_id).substr(1)) : null;
@@ -343,11 +366,29 @@ package survarium.controls
          var state:String = ReplayAsks.stateOf(this._match_id);
          this._watchAll.visible = this._match_id != 0 && reason == null;
          this._save.visible = this._watchAll.visible;
-         this.placeButton(this._save,LocalizationData.getName(state == ReplayAsks.SAVING ? "st_srp_replay_saving"
-            : state == ReplayAsks.SAVED ? "st_srp_replay_saved" : "st_srp_replay_save"),this.btn_close.x - 10,font);
+         this.sizeButton(this._save,LocalizationData.getName(state == ReplayAsks.SAVING ? "st_srp_replay_saving"
+            : state == ReplayAsks.SAVED ? "st_srp_replay_saved" : "st_srp_replay_save"),font);
          this._save.enabled = state == ReplayAsks.SAVE;
-         this.placeButton(this._watchAll,LocalizationData.getName("st_srp_replay_title"),this._save.x - 10,font);
-         var left:Number = this._watchAll.x;
+         this.sizeButton(this._watchAll,LocalizationData.getName("st_srp_replay_title"),font);
+         if(isNaN(this._rowCentre))
+         {
+            this._rowCentre = this.btn_close.x + this.btn_close.width / 2;
+         }
+         var row:Array = this._watchAll.visible ? [this._watchAll,this._save,this.btn_close] : [this.btn_close];
+         var total:Number = (row.length - 1) * 10;
+         var button:Button;
+         for each(button in row)
+         {
+            total += button.width;
+         }
+         var at:Number = int(this._rowCentre - total / 2);
+         for each(button in row)
+         {
+            button.x = at;
+            button.y = this.btn_close.y;
+            at += button.width + 10;
+         }
+         var left:Number = row[0].x;
          if(!this._watchReason)
          {
             this._watchReason = this.screenText("srpWatchReason",0xA0A8AE,14);
@@ -356,19 +397,35 @@ package survarium.controls
          this._watchReason.text = reason != null ? LocalizationData.getName(reason) : "";
          if(this._watchReason.visible)
          {
-            this._watchReason.x = int(this.btn_close.x - 14 - this._watchReason.width);
+            this._watchReason.x = int(left - 14 - this._watchReason.width);
             this._watchReason.y = int(this.btn_close.y + (this.btn_close.height - this._watchReason.height) / 2);
             left = this._watchReason.x;
          }
          if(!this._matchNumber)
          {
+            // as a Watch card's code (MatchCard.codeField): a press selects it all, Ctrl+C copies it
+            // (a text field's own Ctrl+C reaches the system's clipboard), typing changes nothing
             this._matchNumber = this.screenText("srpMatchNumber",0x8A9096,13);
+            this._matchNumber.type = TextFieldType.INPUT;
             this._matchNumber.selectable = true;
+            this._matchNumber.addEventListener(Event.CHANGE,this.onNumberChange);
+            this._matchNumber.addEventListener(MouseEvent.MOUSE_DOWN,this.onNumberPress);
          }
          this._matchNumber.visible = this._match_id != 0;
          this._matchNumber.text = NotificationListScrollContent.matchNumberText(this._match_id);
          this._matchNumber.x = int(left - 14 - this._matchNumber.width);
          this._matchNumber.y = int(this.btn_close.y + (this.btn_close.height - this._matchNumber.height) / 2);
+      }
+
+      private function onNumberChange(e:Event) : void
+      {
+         this._matchNumber.text = NotificationListScrollContent.matchNumberText(this._match_id);
+      }
+
+      private function onNumberPress(e:MouseEvent) : void
+      {
+         FocusManager.setFocus(this._matchNumber);
+         this._matchNumber.setSelection(0,this._matchNumber.length);
       }
 
       private function screenText(name:String, colour:uint, size:int) : TextField
@@ -898,9 +955,9 @@ package survarium.controls
             this._matchNumber.visible = false;
             this._watchReason.visible = false;
          }
-         this.btnShare.label = "";
+         this.btnShare.visible = false;
          this.btnShare.enabled = false;
-         this.btnSave.label = "";
+         this.btnSave.visible = false;
          this.btnSave.enabled = false;
          this.totalScore.visible = false;
          this._hintRenderer.visible = false;

@@ -16,6 +16,7 @@ package
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
    import flash.text.TextField;
+   import flash.text.TextFieldType;
    import flash.ui.Keyboard;
    import flash.utils.getQualifiedClassName;
    import harness.extern.ExternalInterface;
@@ -50,8 +51,10 @@ package
    //   (video_tutorial_link_clicked, no argument) and shows it saved; a refusal, or no answer, says
    //   why and it may be saved again; the saving and saved words fit the card;
    // - the results screen: a red Watch replay, then Save replay (Save replay, Saving..., Saved),
-   //   left of the close button, their labels whole, the match's number left of them; why not in
-   //   their place once known; no Watch my deaths;
+   //   left of the close button, their labels whole, the three as a row centred where the close
+   //   button alone is; the match's number left of them, selected whole by a press and not changed
+   //   by typing; why not in their place once known; no Watch my deaths; the movie's own Share and
+   //   Save buttons hidden;
    // - a History row: Watch, or why not, and the match's number under it, inside the row.
    // Ruffle has no exe: its calls land in the stand-in (scripts/exe-stand-in, ruffle_movie.py --exe),
    // and the server's answers are told to the movie as the exe would. The movie has no test hooks.
@@ -977,10 +980,26 @@ package
          var number:TextField = find(screen,"srpMatchNumber") as TextField;
          show(screen,0);
          expect(language + ": Watch or Save replay without a match id",!button.visible && !save.visible);
+         var close:* = screen.btn_close;
+         // the close button alone is where the movie has it: the row's middle
+         var middle:Number = close.x + close.width / 2;
+         expect(language + ": the movie's Share or Save button shows",!screen.btnShare.visible && !screen.btnSave.visible);
+         // nor their icons, one shape of the screen's: nothing shows where the two are
+         var area:Rectangle = screen.btnShare.getBounds(screen).union(screen.btnSave.getBounds(screen));
+         var shown:int = 0;
+         for(var c:int = 0; c < screen.numChildren; c++)
+         {
+            var art:DisplayObject = screen.getChildAt(c);
+            var box:Rectangle = art.getBounds(screen);
+            // the screen's panels are larger than the two and lie under them
+            shown += art.visible && box.width > 0 && box.width < 2 * area.width && box.intersects(area) ? 1 : 0;
+         }
+         expect(language + ": art of the movie's Share or Save button shows",shown == 0);
          fresh();
          show(screen,MATCH);
          number = find(screen,"srpMatchNumber") as TextField;
-         var close:* = screen.btn_close;
+         expect(language + ": the results' row is not centred: " + button.x + ".." + (close.x + close.width) + " about " + middle,
+            Math.abs((button.x + close.x + close.width) / 2 - middle) <= 1);
          expect(language + ": Watch replay hidden",button.visible);
          expect(language + ": Watch replay is not red: " + getQualifiedClassName(button),getQualifiedClassName(button) == "SrvButtonSkinnedRed");
          fits(language + ": results Watch replay",button);
@@ -1003,12 +1022,20 @@ package
             && save.label == words.getName("st_srp_replay_saving"));
          fits(language + ": results Saving",save);
          expect(language + ": Watch replay is not just left of Saving",button.x + button.width <= save.x);
+         expect(language + ": the results' row is not centred while saving",Math.abs((button.x + close.x + close.width) / 2 - middle) <= 1);
          saveAnswer("busy",OTHER);
          expect(language + ": Save replay not back after busy",save.label == words.getName("st_srp_replay_save") && told()[0] == words.getName("st_srp_replay_busy"));
          show(screen,MATCH);
          expect(language + ": a Watch my deaths",find(screen,"srpWatchDeaths") == null);
          expect(language + ": the results' number is '" + (number ? number.text : null) + "'",number != null && number.visible && number.text == "#1ce45cbe"
             && number.x + number.width <= button.x);
+         // copied as a Watch card's code: an input field, a press selects it all, typing changes nothing
+         number.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN));
+         expect(language + ": the results' number is not selected whole by a press: " + number.selectionBeginIndex + ".." + number.selectionEndIndex,
+            number.type == TextFieldType.INPUT && number.selectable && number.selectionBeginIndex == 0 && number.selectionEndIndex == number.length);
+         number.text = "#1ce45cbe7";
+         number.dispatchEvent(new Event(Event.CHANGE));
+         expect(language + ": typing changed the results' number to '" + number.text + "'",number.text == "#1ce45cbe");
          idle();
          button.dispatchEvent(new Click(Click.CLICK));
          expect(language + ": Watch replay did not ask",asked()[0] == MATCH && asked()[1] == 0xC0FF0000);
@@ -1017,6 +1044,7 @@ package
          var why:TextField = find(screen,"srpWatchReason") as TextField;
          expect(language + ": a replay not kept shows '" + (why && why.visible ? why.text : null) + "' and Watch or Save replay",!button.visible && !save.visible && why != null && why.visible
             && why.text == words.getName("st_srp_watch_reason_gone") && why.x + why.width <= close.x && number.x + number.width <= why.x);
+         expect(language + ": the close button alone is not back in the middle: " + close.x,Math.abs(close.x + close.width / 2 - middle) <= 1);
          Prompt.noteReplay(hex(MATCH),null);
          screen.parent.removeChild(screen);
          trace("REPLAYBUTTONS " + language + ": results: Watch replay, why not, the number");
