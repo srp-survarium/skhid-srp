@@ -213,3 +213,6 @@ engine_usable_transform	survarium::usable_object+0x44	ECX:usable ESP+4:matrix	vo
 engine_mt_free	0x0eb5b0	ECX:allocator ESP+4:block ESP+8:function ESP+12:file ESP+16:line	void engine_mt_free(struct pthreads3_allocator *allocator, void *block, const char *function, const char *file, unsigned int line)	thiscall	
 engine_discard_playing_order	0x2717e0	ESP+4:lobby ESP+8:left	void engine_discard_playing_order(struct lobby_client *client, unsigned int left)	stdcall	
 engine_finish_key_binding	0x2015a0	EDI:options	void engine_finish_key_binding(struct game_options *options)	thunk	
+engine_sin	0x038ff0	ESP+4:angle	float engine_sin(float angle)	cdecl	angle: f32 -> f32
+engine_cos	0x039000	ESP+4:angle	float engine_cos(float angle)	cdecl	angle: f32 -> f32
+engine_atan2	0x079c40	ESP+4:y ESP+8:x	float engine_atan2(float y, float x)	cdecl	y: f32, x: f32 -> f32

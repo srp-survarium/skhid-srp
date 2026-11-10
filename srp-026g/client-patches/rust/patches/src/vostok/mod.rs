@@ -72,6 +72,7 @@ pub mod voices;
 pub mod settings;
 mod sync;
 pub mod trace;
+pub mod trig;
 pub mod types;
 mod upgrades;
 pub mod world;

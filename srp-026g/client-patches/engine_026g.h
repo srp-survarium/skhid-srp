@@ -747,4 +747,13 @@ void __attribute__((stdcall)) engine_discard_playing_order(struct lobby_client *
 /* 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0 */
 void engine_finish_key_binding(struct game_options *options);
 
+/* 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly */
+float __attribute__((cdecl)) engine_sin(float angle);
+
+/* 0x39000 vostok::math::cos: angle ESP+4; pops 0; ST0; cdecl, called directly */
+float __attribute__((cdecl)) engine_cos(float angle);
+
+/* 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly */
+float __attribute__((cdecl)) engine_atan2(float y, float x);
+
 #endif
