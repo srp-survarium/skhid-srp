@@ -28,6 +28,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::item_params::item_params;
 use survarium::v026g::lzma2;
 use survarium::v026g::maps;
+use survarium::v026g::match_msgs::late_join;
 use survarium::v026g::match_msgs::snapshot;
 use survarium::v026g::match_msgs::static_info;
 use survarium::v026g::match_msgs::upload::{Chunk, Pushed, Reassembler};
@@ -73,7 +74,8 @@ const LATE_JOINER_WORLD_AFTER_MS: u32 = 300;
 /// no 0xE4 with its place was seen.
 const INSTALL_WINDOW_MS: u32 = 60_000;
 /// A late joiner's install is looked for from this long before the first
-/// 0xE4 that had its place (the recording's clock less the offset).
+/// 0xE4 that had its place, the one that prepared it in the other games or
+/// one with its roster (the recording's clock less the offset).
 const OFFER_SLACK_MS: u32 = 1_000;
 /// A world is the one before it with zero bytes put in front when, past
 /// those bytes, at least this many bytes (or the whole of the world before)
@@ -397,6 +399,10 @@ struct Gather {
     options: BTreeMap<u8, Vec<u8>>,
     /// The options of each roster, and when a 0xE4 of it first went out.
     rosters: BTreeMap<u8, (u32, static_info::MatchOptions)>,
+    /// When each late place's profile first went to the games of the match
+    /// (the 0xE4 that prepares it, [`late_join::Prepare`]): they install it
+    /// then, however long its own game takes to come for its 0xE4.
+    prepared: BTreeMap<u8, u32>,
 }
 
 impl Gather {
@@ -425,6 +431,7 @@ impl Gather {
             accepted_profiles: BTreeMap::new(),
             options: BTreeMap::new(),
             rosters: BTreeMap::new(),
+            prepared: BTreeMap::new(),
         })
     }
 
@@ -503,13 +510,16 @@ impl Gather {
                     let Some(whole) = place.options.push(message) else {
                         continue;
                     };
-                    if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary) {
+                    let clock = (i64::from(record.at_ms) - self.offset).max(0) as u32;
+                    if let Ok(prepare) = late_join::Prepare::decode(&whole, dictionary) {
+                        let first = self.prepared.entry(prepare.proposal.place).or_insert(clock);
+                        *first = (*first).min(clock);
+                    } else if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary) {
                         let roster = parsed.players.len() as u8;
                         place.roster = roster;
                         self.options
                             .entry(roster)
                             .or_insert_with(|| whole[1..].to_vec());
-                        let clock = (i64::from(record.at_ms) - self.offset).max(0) as u32;
                         let first = self.rosters.entry(roster).or_insert((clock, parsed));
                         first.0 = first.0.min(clock);
                     }
@@ -565,6 +575,7 @@ fn finish(
         accepted_profiles,
         options,
         rosters,
+        prepared,
     } = gathered;
     // The places' half-read uploads and options are of no use now.
     drop(places);
@@ -841,7 +852,7 @@ fn finish(
     // bytes put in front of the saved objects (client_patch.md 3.14). A
     // world from before an install is given those bytes here, or every
     // object of the viewer reads out of step (docs/notes/replay_sur.md).
-    let joiners = late_places(&rosters, &entered, initial, &mut report);
+    let joiners = late_places(&rosters, &prepared, &entered, initial, &mut report);
     let (installs, unsure) = find_installs(&chosen, &joiners, &mut report);
     // A key frame from while a joiner's install is not known may lack its
     // objects' bytes or have them: it is left out.
@@ -945,6 +956,7 @@ struct LatePlace {
 /// so the largest roster's is the one the recorded games installed.
 fn late_places(
     rosters: &BTreeMap<u8, (u32, static_info::MatchOptions)>,
+    prepared: &BTreeMap<u8, u32>,
     entered: &BTreeMap<(u32, u8), ()>,
     initial: u8,
     report: &mut Report,
@@ -979,8 +991,10 @@ fn late_places(
         let offered = rosters
             .iter()
             .filter(|&(&roster, _)| roster > place)
-            .map(|(_, (time, _))| time.saturating_sub(OFFER_SLACK_MS))
-            .min();
+            .map(|(_, (time, _))| *time)
+            .chain(prepared.get(&place).copied())
+            .min()
+            .map(|time| time.saturating_sub(OFFER_SLACK_MS));
         let from = match (offered, entry) {
             (Some(offered), Some(entry)) => offered.min(entry),
             (Some(offered), None) => offered,
@@ -1785,5 +1799,45 @@ mod tests {
         // entry the world is as the games had it.
         assert_eq!(frames[0].1, [vec![0; 5], map_objects()].concat());
         assert_eq!(frames[2].1, [vec![0; 4], map_objects()].concat());
+    }
+
+    /// The games of the match are told of a late place when it is taken
+    /// (the 0xE4 that prepares it) and install it then; its own game got
+    /// its 0xE4 here 4.5 s later, after the worlds had its objects.
+    #[test]
+    fn an_install_is_looked_for_from_the_places_prepare_not_its_own_games_options() {
+        let mut records = late_recording(5, false);
+        let options: Vec<usize> = (0..records.len())
+            .filter(|&i| records[i].kind == OUT && records[i].at_ms == 20_000)
+            .collect();
+        assert_eq!(options.len(), 3);
+        let own = records[options[2]].clone();
+        let prepare = late_join::Prepare {
+            proposal: late_join::Proposal {
+                match_id: 1,
+                serial: 1,
+                place: 2,
+            },
+            profile: armed("c", 0),
+        }
+        .encode(Dictionary::shared())
+        .unwrap();
+        for (place, &at) in options[..2].iter().enumerate() {
+            records[at] = datagram(OUT, place as u8, 20_000, 0xE4, Some(1), &prepare);
+        }
+        records[options[2]] = Record {
+            at_ms: 24_500,
+            ..own
+        };
+        let (file, report) = convert(&records, b"config", Settings::default()).unwrap();
+        assert_eq!(report.installs, [(2, 20_050, 5)]);
+        assert!(report.installs_unsure.is_empty());
+        assert_eq!(report.dropped_unsure_key_frames, 0);
+        let frames = key_frame_objects(&file);
+        let times: Vec<u32> = frames.iter().map(|f| f.0).collect();
+        assert_eq!(times, [50, 10_050, 20_050, 30_050]);
+        for (time, objects) in &frames {
+            assert_eq!(objects.len(), map_objects().len() + 5, "{time}");
+        }
     }
 }
