@@ -998,8 +998,9 @@ def loose_search(run: Run) -> None:
 
 
 def called_back_line(picture) -> bool:
-    """The hud's line of a room's call back: a dark box with yellow words, under the top of the screen, in the middle."""
-    box = picture[125:165, 600:1000].astype(int)
+    """The hud's line of a room's call back: a dark box with yellow words, under the game's own lines at the top of the
+    screen, in the middle (CalledBackNotice.TOP, at the 1600x1200 window.s scale)."""
+    box = picture[118:172, 640:960].astype(int)
     yellow = (box[:, :, 0] > 200) & (box[:, :, 1] > 160) & (box[:, :, 2] < 120)
     return bool(yellow.mean() > 0.01)
 

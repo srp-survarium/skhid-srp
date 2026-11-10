@@ -640,10 +640,23 @@ class Run:
                     self.note(f"{game.account} sample failed: {error}")
 
     def __enter__(self) -> "Run":
+        self.close_updaters()  # one left by a run that was killed
         self.timeline_lock, self.sampling_over = threading.Lock(), threading.Event()
         self.note(f"===== run begins")
         threading.Thread(target=self._sample, daemon=True).start()
         return self
+
+    def close_updaters(self) -> None:
+        """The updaters of this run's game folder are closed: a Save replay starts one (the game's own, for the file),
+        and one that could not finish leaves its window over the game, where the next press would land on it."""
+        folder = str(self.game_dir).replace("'", "''")
+        script = ("Get-CimInstance Win32_Process -Filter \"Name='updater_skhid.exe'\" | "
+                  f"Where-Object {{ $_.ExecutablePath -and $_.ExecutablePath.StartsWith('{folder}', 'OrdinalIgnoreCase') }} | "
+                  "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; $_.ProcessId }")
+        done = subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True, text=True, check=False)
+        closed = done.stdout.split()
+        if closed:
+            print(f"    closed {len(closed)} updater(s) of this game folder", flush=True)
 
     def __exit__(self, *_) -> None:
         self.sampling_over.set()
@@ -653,6 +666,7 @@ class Run:
         mark = self.server.mark()
         for game in self.games:
             game.close()
+        self.close_updaters()
         # A killed game's account keeps its lobby session until the server times it out, and a room with someone sent back
         # to it stays a minute longer; PLAY in the next run would join that room. The run is over when both are gone.
         accounts = {game.account for game in self.games}
