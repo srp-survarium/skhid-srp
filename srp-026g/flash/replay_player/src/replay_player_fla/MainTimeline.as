@@ -89,6 +89,15 @@ package replay_player_fla
       
       public var inDrag:Boolean;
       
+      // The seek keys' steps, in the seek bar's unit (ms): an arrow, A or D
+      // a few seconds, the comma and the full stop one tick of the game.
+      public static const SEEK_KEY_MS:int = 5000;
+      
+      public static const SEEK_TICK_MS:int = 50;
+      
+      // The free view flies with A and D, so there they do not seek.
+      public var freeView:Boolean;
+      
       public function MainTimeline()
       {
          super();
@@ -112,6 +121,7 @@ package replay_player_fla
       public function onFreeViewClicked(e:Event) : void
       {
          this.playersBar.selectedIndex = -1;
+         freeView = true;
          ExternalInterface.call("select_free_view");
       }
       
@@ -127,6 +137,7 @@ package replay_player_fla
          var buttonRenderer:Button = e.target.parent is Button ? e.target.parent as Button : e.target as Button;
          if(buttonRenderer)
          {
+            freeView = false;
             trace("PlayerView",buttonRenderer.data.name,innerButton ? (e.target.name == "btnFirstView" ? 0 : 1) : 0);
             ExternalInterface.call("select_player",uint(buttonRenderer.data.id),uint(innerButton ? (e.target.name == "btnFirstView" ? 0 : 1) : 0));
          }
@@ -189,6 +200,52 @@ package replay_player_fla
       public function onFrameChange(e:Event) : void
       {
          this.slider.value += e.target == this.btn_previous_frame ? -1 : 1;
+      }
+      
+      // The keys that seek, as a video player's (the owner, 2026-11-10): left
+      // and right (and A and D while a player is followed) 5 s back and on,
+      // the comma and the full stop one tick. Through the seek bar, as the
+      // frame buttons go. Not while a text is typed (the speed).
+      public function onSeekKey(e:KeyboardEvent) : void
+      {
+         var step:int = 0;
+         switch(e.keyCode)
+         {
+            case Keyboard.F1:
+            case Keyboard.F3:
+               freeView = false;
+               return;
+            case Keyboard.F2:
+               freeView = true;
+               return;
+            case Keyboard.LEFT:
+               step = -SEEK_KEY_MS;
+               break;
+            case Keyboard.RIGHT:
+               step = SEEK_KEY_MS;
+               break;
+            case Keyboard.A:
+               step = this.freeView ? 0 : -SEEK_KEY_MS;
+               break;
+            case Keyboard.D:
+               step = this.freeView ? 0 : SEEK_KEY_MS;
+               break;
+            case Keyboard.COMMA:
+               step = -SEEK_TICK_MS;
+               break;
+            case Keyboard.PERIOD:
+               step = SEEK_TICK_MS;
+               break;
+         }
+         if(step == 0 || e.target is TextField)
+         {
+            return;
+         }
+         var to:Number = Math.max(this.slider.minimum,Math.min(this.slider.maximum,this.slider.position + step));
+         if(to != this.slider.position)
+         {
+            this.slider.value = to;
+         }
       }
       
       public function onMoveClicked(e:Event) : void
@@ -592,6 +649,7 @@ package replay_player_fla
          this.layout.tiedToStageSize = true;
          addChild(this.layout);
          stage.addEventListener(Event.RESIZE,this.onStageResize);
+         stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onSeekKey);
          this.onStageResize();
          this.btn_play.selected = true;
          this.stepper.addEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
