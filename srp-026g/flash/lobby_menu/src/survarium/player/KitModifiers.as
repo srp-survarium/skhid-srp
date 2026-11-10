@@ -28,9 +28,17 @@ package survarium.player
 
       private var _concentrationRank:int;
 
+      // Resistance's rank (skill 502), bits 0..2 of the packed float 40
+      // (docs/notes/artefact-skills.md, Transport).
+      private var _resistanceRank:int;
+
       public function KitModifiers(values:Array)
       {
          _values = values;
+         // As the exe's artefact Skills::parse: float 40 an exact integer below 2^14, Resistance
+         // (bits 0..2) at most 5 and Keeper's draw (9..11) at most 6, otherwise no artefact skill.
+         var artefact:Object = packed(values[PlayerModifier.ARTEFACT_RANKS],14);
+         if(artefact != null && (int(artefact) & 7) <= 5 && (int(artefact) >> 9 & 7) <= 6) _resistanceRank = int(artefact) & 7;
          // As the exe's medical_skills: float 43 an exact integer below 2^24 and float 45 one below
          // 2^10, each rank field at most its skill's ranks and not both of Unflinching and
          // Concentration, otherwise no medical skill at all.
@@ -111,6 +119,11 @@ package survarium.player
       public function get concentrationRank() : int
       {
          return _concentrationRank;
+      }
+
+      public function get resistanceRank() : int
+      {
+         return _resistanceRank;
       }
    }
 }

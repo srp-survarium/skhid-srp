@@ -201,3 +201,20 @@ What the game's Scaleform did differently from Flash, found building the rooms w
 - A CLIK button keeps its label at its natural height: don't squeeze its `setSize` height (a
   skinned server button: 32).
 - A weakly held closure as a listener may be collected: keep listeners strong.
+
+## The top bar's level badge at level 100 (2026-11-10)
+
+The owner, on a level-100 account: "100lvl is not aligned", "a circle shows over a bit".
+
+- The badge left of the name is `txLevel` (sprite 713, `top_fla.topRankLabel_60`): a ring (shape
+  711, 22 px with its line) and the number, placed in the player panel (sprite 737,
+  `topPanelLeftContainer_56`) at 6, 1; the ring's middle is at 13.5, 14.5 of the panel.
+- At level 100 (`StatusPanel.TOP_RANK_LEVEL`) the game shows `top_rank_icon` instead (sprite 736,
+  a 31 px gold star bitmap), which the timeline places at 0, 0 at scale 0.785 (24.3 px), depth 28:
+  its middle at 12.2, 12.2, so 1.3 px left of and 2.3 px above the ring's. The original only
+  emptied the number, so the ring stayed and showed past the star's right and bottom edges.
+- Now `StatusPanel.set player_level` shows one of the two (the whole `txLevel` is hidden at the
+  top rank) and the panel's constructor puts the icon's middle on the ring's, from their bounds.
+- FFDec does not show the icon's placement: it is a PlaceObject3 (tag 70) whose "has visible"
+  flag has no byte behind it, listed as `TagStub` in an XML dump and missing from an export.
+  Read such a sprite's tags from the file's bytes.
