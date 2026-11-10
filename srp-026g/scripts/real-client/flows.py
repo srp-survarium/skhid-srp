@@ -37,6 +37,9 @@ CARD_WATCH = (1396, 268)  # the first card's Watch button
 CARD_STEP = 82  # the height of a card
 BACK = (288, 28)
 ROOMS_MENU = (1018, 52)
+RANKING_MENU = (1182, 52)
+RANKING_ROW = (638, 492)  # the second row of the Ranking's list
+RANKING_MATCHES = (700, 527)  # "Matches" in its right-click menu, the second entry
 QUEUE_SPECTATE = (1031, 1136)
 SEARCH_BOX = (1290, 195)
 MAGNIFIER = (1480, 194)  # the search box's
@@ -1088,7 +1091,38 @@ def moments(run: Run) -> None:
     a.wait_screen(lobby_clear, "the lobby", 5)
 
 
-FLOWS = {"queue_spectate": queue_spectate, "queue_opted_out": queue_opted_out, "paused": paused,
+def ranking_listed(picture) -> bool:
+    """The Ranking window with rows: light text where its second row's name is."""
+    name = picture[484:500, 596:690].astype(int).sum(axis=2)
+    return bool((name > 450).mean() > 0.05)
+
+
+def ranking_menu_open(picture) -> bool:
+    """A right-click menu under the Ranking's second row: near black, with its entries' light words."""
+    menu = picture[515:660, 645:805].astype(int).sum(axis=2)
+    return bool((menu < 60).mean() > 0.7 and (menu > 400).mean() > 0.01)
+
+
+def ranking_matches(run: Run) -> None:
+    """A Ranking row's right-click menu has Matches: the Watch window on Replays, that player's name searched."""
+    a = sign_in(run, "ReplayTester")
+    a.wait_screen(play_ready, "a lobby that has settled", 20, steady=3)
+    a.click(*RANKING_MENU)
+    a.wait_screen(ranking_listed, "the Ranking with its rows", 8, steady=0.5)
+    a.shot("ranking-1-window")
+    a.right_click(*RANKING_ROW, 10)
+    a.wait_screen(ranking_menu_open, "the row's right-click menu", 3)
+    a.shot("ranking-2-menu")
+    a.click(*RANKING_MATCHES, 10)
+    a.wait_screen(window_open, "the Watch window, from the Ranking's menu", 6)
+    a.wait_screen(card_listed, "the player's matches on the Replays tab", 10)
+    a.shot("ranking-3-matches")
+    say("Matches of the Ranking's menu opened the Watch window on the player's matches")
+    a.click(*CLOSE_WATCH)
+    a.wait_screen(lambda picture: not window_open(picture), "the Watch window closed", 5)
+
+
+FLOWS = {"ranking_matches": ranking_matches, "queue_spectate": queue_spectate, "queue_opted_out": queue_opted_out, "paused": paused,
          "friend_in_countdown": friend_in_countdown, "friend_gives_up": friend_gives_up,
          "windows_close_watch": windows_close_watch, "card_press": card_press, "card_code": card_code, "code_submit": code_submit,
          "unknown_codes": unknown_codes, "moments": moments, "kit": kit_after_replay, "kit_view": kit_view, "live": live, "follow": follow, "save": save, "first_click": first_click, "privacy": privacy}

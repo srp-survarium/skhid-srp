@@ -29,7 +29,8 @@ Watch button wherever a match is mentioned.
   nothing behind them in this game, are hidden (`VictoryScreen.as`); each History row's **Watch** with the number under
   it; a friend's right-click **Spectate** (a friend in a match): the friend's live match watched from
   the friend's place once the live list names it (it waits through a countdown, 60 s at most); the
-  player pop-up's **Matches**: Watch, Replays, that player's name searched.
+  player pop-up's **Matches**, and **Matches** in a player's right-click menu (a Ranking row, a
+  room's member; `LobbyMenu.showPlayerInfoMenu`): Watch, Replays, that player's name searched.
 - **The window.** Tabs **Live** (its count, a red dot) and **Replays**. Chips under them: Live
   Everyone (the default) or Friends (the matches with a friend in them); Replays Mine (the default:
   the asker's own `P1` rows), Friends (`M1` with `f` 1) or Everyone (`M1`). A search box: a match's code

@@ -868,28 +868,28 @@ package
                if(got != want)
                   failures.push("player menu, " + what + ": " + got + ", not " + want);
             };
-            menuFor("a stranger not muted", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
+            menuFor("a stranger not muted", "#st_srp_player_matches|#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
             friends.setPlayers([{id:123,name:"Bob",status:0}]);
             friends.setPlayers([{id:456,name:"Bob"}],false);
-            menuFor("a friend hidden", "#remove_from_friends|#st_srp_hud_mute_mask|#st_srp_hud_unmute|#send_message|#invite_to_squad");
+            menuFor("a friend hidden", "#st_srp_player_matches|#remove_from_friends|#st_srp_hud_mute_mask|#st_srp_hud_unmute|#send_message|#invite_to_squad");
             if(Friends.getFriend("Bob").id != 123 || Friends.getIgnoredPlayer("Bob").id != 456)
                failures.push("the pushed friend and ignore lists' ids");
             friends.setPlayers([{id:uint(456 | 0x80000000),name:"Bob"}],false);
-            menuFor("a friend shown as <muted>", "#remove_from_friends|#st_srp_hud_mute_hide|#st_srp_hud_unmute|#send_message|#invite_to_squad");
+            menuFor("a friend shown as <muted>", "#st_srp_player_matches|#remove_from_friends|#st_srp_hud_mute_hide|#st_srp_hud_unmute|#send_message|#invite_to_squad");
             friends.setPlayers([]);
             friends.setPlayers([],false);
-            menuFor("unmuted, no longer a friend", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
+            menuFor("unmuted, no longer a friend", "#st_srp_player_matches|#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
             Player.commander = false;
             Lobby.showPlayerInfoMenu("Bob",17,0,this);
-            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
+            if(Menu.getInstance().contextList.list.dataProvider.length != 6)
                failures.push("non-commander can invite to squad");
             Player.commander = true;
             Player.isSquadFull = true;
             Lobby.showPlayerInfoMenu("Bob",17,0,this);
-            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
+            if(Menu.getInstance().contextList.list.dataProvider.length != 6)
                failures.push("full squad can invite another player");
             Lobby.showPlayerInfoMenu("Alice",17,0,this);
-            if(Menu.getInstance().contextList.list.dataProvider.length != 1)
+            if(Menu.getInstance().contextList.list.dataProvider.length != 2)
                failures.push("own player menu has social actions");
             Menu.hide();
             Lobby.showPlayerInfoMenu("",17,0,this);

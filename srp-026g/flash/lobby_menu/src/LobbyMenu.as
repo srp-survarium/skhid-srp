@@ -5096,6 +5096,13 @@ package
             {
                askPlayerInfo(nickname,player,how);
             }
+         },{
+            // the player's matches without the pop-up between: Watch, Replays, the name searched
+            name:LocalizationData.getName("st_srp_player_matches"),
+            click_function:function(e:* = null):void
+            {
+               WatchWindow.openPlayer(nickname);
+            }
          }];
          if(nickname != PlayerInfo.nickname)
          {
