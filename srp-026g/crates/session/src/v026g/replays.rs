@@ -24,8 +24,8 @@
 //! them all.
 //!
 //! Settings (environment, read once at start, [`ReplaySettings::from_env`]):
-//! `SRP_REPLAY_DIR` and `SRP_GAME_MODES_DIR` (both needed; replays are off,
-//! status `off`, without them or without `SRP_RECORD_DIR`),
+//! `SRP_REPLAY_DIR` (replays are off, status `off`, without it or without
+//! `SRP_RECORD_DIR`),
 //! `SRP_REPLAY_MAX_RECORDING_MB` (default [`DEFAULT_MAX_RECORDING_MB`]) and
 //! `SRP_REPLAY_MAX_MB` (default [`DEFAULT_MAX_REPLAY_MB`]).
 
@@ -221,7 +221,7 @@ impl Status {
     }
 }
 
-/// `SRP_REPLAY_DIR`, `SRP_GAME_MODES_DIR` and the recordings' folder.
+/// `SRP_REPLAY_DIR` and the recordings' folder.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReplaySettings {
     /// Where the `.sur` files and their sidecars are made. Only files named
@@ -230,9 +230,6 @@ pub struct ReplaySettings {
     pub replay_dir: PathBuf,
     /// `SRP_RECORD_DIR`: the match recordings.
     pub record_dir: PathBuf,
-    /// The game's `gameplay/game_modes/*.options` files (game data, kept
-    /// out of the repository).
-    pub modes_dir: PathBuf,
     /// A recording larger than this is not converted.
     pub max_recording_bytes: u64,
     /// The replays (`.sur` and sidecars) over this many bytes together:
@@ -278,10 +275,6 @@ impl ReplaySettings {
             log::warn!("Replays: SRP_REPLAY_DIR is set but recordings are off; replays are off");
             return None;
         };
-        let Some(modes_dir) = var("SRP_GAME_MODES_DIR") else {
-            log::warn!("Replays: SRP_GAME_MODES_DIR is not set; replays are off");
-            return None;
-        };
         let megabytes = |name: &str, default: u64| match var(name) {
             None => default,
             Some(value) => value
@@ -296,7 +289,6 @@ impl ReplaySettings {
         let settings = Self {
             replay_dir: replay_dir.into(),
             record_dir: record_dir.into(),
-            modes_dir: modes_dir.into(),
             max_recording_bytes: megabytes("SRP_REPLAY_MAX_RECORDING_MB", DEFAULT_MAX_RECORDING_MB)
                 << 20,
             max_replay_bytes: megabytes("SRP_REPLAY_MAX_MB", DEFAULT_MAX_REPLAY_MB) << 20,
@@ -547,9 +539,6 @@ struct Ask {
 /// Why a conversion failed ([`Replays::job_done`]): when it is tried again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Failure {
-    /// The mode's `.options` file is missing or unreadable: the operator
-    /// may add it, so it is tried again after [`FAILED_FOR`].
-    ModeFile,
     /// Reading or writing failed (a full disk): tried again after
     /// [`FAILED_FOR`], twice as long each time it fails again, up to
     /// [`FAILED_FOR_AT_MOST`].
@@ -1221,7 +1210,6 @@ impl Replays {
         };
         let times = inner.failed.get(&match_id).map_or(0, |failed| failed.times);
         let (until, times) = match failure {
-            Failure::ModeFile => (Some(now + FAILED_FOR), 0),
             Failure::Disk => {
                 let wait = FAILED_FOR
                     .saturating_mul(1 << times.min(16))
@@ -1266,7 +1254,6 @@ mod tests {
         ReplaySettings {
             replay_dir: root.join("replays"),
             record_dir: root.join("recordings"),
-            modes_dir: root.join("modes"),
             max_recording_bytes: 1 << 20,
             max_replay_bytes: 1 << 20,
         }
@@ -1366,8 +1353,7 @@ mod tests {
             ReplaySettings {
                 replay_dir: replay,
                 record_dir: record,
-                modes_dir: root.join("modes"),
-                max_recording_bytes: 1,
+                    max_recording_bytes: 1,
                 max_replay_bytes: 1,
             }
             .checked()
@@ -1887,20 +1873,7 @@ mod tests {
         fail(1, Failure::Lasting, at);
         at += 100 * FAILED_FOR_AT_MOST;
         assert_eq!(ask(1, at), (Status::Failed, false));
-        // The mode's file: again after ten minutes, each time.
-        kept(&replays, 2);
-        at += ASK_EVERY;
-        assert_eq!(ask(2, at), (Status::Preparing, true));
-        for _ in 0..3 {
-            fail(2, Failure::ModeFile, at);
-            at += FAILED_FOR - ASK_EVERY;
-            assert_eq!(ask(2, at), (Status::Failed, false));
-            at += ASK_EVERY;
-            assert_eq!(ask(2, at), (Status::Preparing, true));
-        }
         // Disk: ten minutes, then twenty, forty, ... four hours at most.
-        assert_eq!(replays.next_job(), Some(2));
-        replays.job_done(2, Ok(()), at);
         kept(&replays, 3);
         at += ASK_EVERY;
         assert_eq!(ask(3, at), (Status::Preparing, true));

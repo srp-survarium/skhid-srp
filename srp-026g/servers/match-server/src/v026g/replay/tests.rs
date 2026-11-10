@@ -41,17 +41,14 @@ fn temp(name: &str) -> PathBuf {
 }
 
 fn settings(root: &Path) -> ReplaySettings {
-    let settings = ReplaySettings {
+    ReplaySettings {
         replay_dir: root.join("replays"),
         record_dir: root.join("recordings"),
-        modes_dir: root.join("modes"),
         max_recording_bytes: 1 << 20,
         max_replay_bytes: 1 << 30,
     }
     .checked()
-    .unwrap();
-    fs::create_dir_all(&settings.modes_dir).unwrap();
-    settings
+    .unwrap()
 }
 
 fn profile(name: &str, team: u8) -> MatchProfile {
@@ -190,7 +187,6 @@ fn a_kept_recording_becomes_a_replay_and_its_sidecar() {
     let replay_dir = settings.replay_dir.to_string_lossy().into_owned();
     let record_dir = settings.record_dir.to_string_lossy().into_owned();
     let config = write_recording(&recording, &[TOKEN, ADDRESS, &replay_dir, &record_dir]);
-    fs::write(settings.modes_dir.join(&config), b"the mode's config").unwrap();
 
     let sidecar = make(&settings, MATCH).unwrap();
     let sur_path = settings.replay_dir.join("1f07c8fb.sur");
@@ -222,7 +218,7 @@ fn a_kept_recording_becomes_a_replay_and_its_sidecar() {
     // session, the token, the address or the server's folders, in the file
     // or in what the game unpacks of it.
     let chunks = decoded(&file);
-    assert!(holds(&chunks[4], b"the mode's config"));
+    assert!(holds(&chunks[4], sur_convert::config(&config).unwrap()));
     for place in [&file[..], &chunks.concat()] {
         assert!(!holds(place, &SESSION.to_le_bytes()));
         for secret in [
@@ -240,18 +236,13 @@ fn a_kept_recording_becomes_a_replay_and_its_sidecar() {
 }
 
 #[test]
-fn a_recording_over_the_cap_or_without_its_config_is_not_converted() {
+fn a_recording_over_the_cap_or_not_kept_is_not_converted() {
     let root = temp("refused");
     let mut settings = settings(&root);
     let recording = settings
         .record_dir
         .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
-    let config = write_recording(&recording, &[]);
-    let error = make(&settings, MATCH).unwrap_err();
-    assert!(error.why.contains("config"), "{error:?}");
-    // The operator may add the mode's file: tried again.
-    assert_eq!(error.failure, Failure::ModeFile);
-    fs::write(settings.modes_dir.join(&config), b"config").unwrap();
+    write_recording(&recording, &[]);
     settings.max_recording_bytes = 100;
     let error = make(&settings, MATCH).unwrap_err();
     assert!(error.why.contains("bytes"), "{error:?}");
@@ -272,7 +263,7 @@ fn a_recording_over_the_cap_or_without_its_config_is_not_converted() {
 }
 
 #[test]
-fn the_mode_file_is_checked_before_the_recording_is_unpacked_whole() {
+fn a_recording_that_does_not_unpack_fails_for_good() {
     let root = temp("header-first");
     let settings = settings(&root);
     let recording = settings
@@ -295,13 +286,7 @@ fn the_mode_file_is_checked_before_the_recording_is_unpacked_whole() {
         sur_convert::config_name(std::slice::from_ref(&header)),
         Some(config.clone())
     );
-    // No mode file: said before the bad block is reached.
-    assert_eq!(
-        make(&settings, MATCH).unwrap_err().failure,
-        Failure::ModeFile
-    );
-    // With it, the bad block: the recording's own failure, for good.
-    fs::write(settings.modes_dir.join(&config), b"config").unwrap();
+    // The bad block: the recording's own failure, for good.
     let error = make(&settings, MATCH).unwrap_err();
     assert_eq!(error.failure, Failure::Lasting, "{error:?}");
     assert!(error.why.contains("unpack"), "{error:?}");
@@ -427,8 +412,7 @@ fn the_thread_converts_what_is_queued_and_the_desk_hears_of_it() {
     let recording = settings
         .record_dir
         .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
-    let config = write_recording(&recording, &[]);
-    fs::write(settings.modes_dir.join(&config), b"config").unwrap();
+    write_recording(&recording, &[]);
     let replays = Arc::new(Replays::new(Some(settings.clone()), 6));
     let thread = start(replays.clone()).unwrap().unwrap();
     // Kept: nothing is made until someone asks.

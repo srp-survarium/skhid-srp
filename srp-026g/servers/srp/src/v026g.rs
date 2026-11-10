@@ -394,7 +394,7 @@ pub struct Options {
     /// names of the accounts that are test bots (`srp-bot`). Empty, the
     /// default: nothing about bots is on.
     pub bots: Vec<String>,
-    /// "Watch replay" (`SRP_REPLAY_DIR`, `SRP_GAME_MODES_DIR`; `None`:
+    /// "Watch replay" (`SRP_REPLAY_DIR`; `None`:
     /// off): the folders the match server converts recordings into, the
     /// lobby gives tokens for and the web page serves from.
     pub replays: Option<ReplaySettings>,
@@ -556,7 +556,7 @@ impl Stack {
         match matches::replay::start(replays.clone()) {
             Some(Ok(thread)) => threads.push(thread),
             Some(Err(error)) => log::error!("Replays: the conversion thread failed: {error}"),
-            None => log::info!("Replays are off (SRP_REPLAY_DIR, SRP_GAME_MODES_DIR)"),
+            None => log::info!("Replays are off (SRP_REPLAY_DIR)"),
         }
         {
             let (registry, store, accounts, results, inbox, stop, replays) = (

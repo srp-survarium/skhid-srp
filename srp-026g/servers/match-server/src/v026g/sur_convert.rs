@@ -216,6 +216,12 @@ pub fn config_name(records: &[Record]) -> Option<String> {
     maps::map_mode(id).map(|row| row.config.to_string())
 }
 
+/// The mode config `name` ([`config_name`]) of the game data: the file the
+/// map's row was made of (`maps::derive`), so a known map has it.
+pub fn config(name: &str) -> Option<&'static [u8]> {
+    survarium::v026g::game_data::shared().file(&format!("{}{name}", maps::GAME_MODES_DIR))
+}
+
 fn header(records: &[Record]) -> Option<serde_json::Value> {
     records
         .iter()
