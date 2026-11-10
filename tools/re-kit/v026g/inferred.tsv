@@ -3443,3 +3443,4 @@ va	status	ref_021d	name
 0x007bd6a0	inferred-high	0x005f9af0	Scaleform::GFx::AS3::VM::ExecuteCode
 0x007c2180	inferred-high	0x005fdf70	Scaleform::GFx::AS3::Value::Convert2String
 0x007ca880	inferred-high	0x006065b0	Scaleform::GFx::AS3::Object::FindDynamicSlot
+0x0023c0c0	inferred-medium		survarium::game_world_ui::set_player_icon_color

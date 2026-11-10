@@ -1,7 +1,7 @@
-# Patch 135: a replay's minimap shows the enemies too (README "A replay's
-# map shows every player"). The sites are sites_026g.tsv's; the logic is
-# replay_map.rs. The two options reads are patches 65, 83, 86 and 88's
-# sites too: order 4 on both.
+# Patch 135: a replay shows the enemies too (README "A replay shows every
+# player"). The sites are sites_026g.tsv's; the logic is replay_map.rs. The
+# two options reads are patches 65, 83, 86 and 88's sites too: order 4 on
+# both.
 name = "replay_map"
 patch = 135
 
@@ -17,7 +17,17 @@ site = "replay.options_read"
 handler = "on_replay_options"
 order = 4
 
-# update_minimap_players' spotted test of an enemy.
+# update_minimap_players' spotted test of an enemy: its dot.
 [[hook]]
 site = "minimap.enemy_spotted"
 handler = "on_enemy"
+
+# render_name's spotted test of an enemy: its marker and, with Alt, its name.
+[[hook]]
+site = "player_names.enemy_spotted"
+handler = "on_name"
+
+# initialize_match as it sends the icons movie its enemy list.
+[[hook]]
+site = "player_icons.enemy_ids"
+handler = "on_enemy_ids"

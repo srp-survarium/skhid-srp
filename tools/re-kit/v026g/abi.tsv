@@ -2461,3 +2461,4 @@ va	name	source	ret_cleanup	result
 0x00106d90	ptmalloc3::free_starter	manual	0	
 0x00106fc0	pt3free	manual	0	
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	manual	0	EAX the memory (pt3malloc 0x1C6B4), 0 when the allocator is closed ([0x1F1D61B])
+0x0023c0c0	survarium::game_world_ui::set_player_icon_color	manual	12	none: the hud row of the place ([ESP+4] + 0x380 + place x 24) takes the colour, its dirty bit 4 (+389h) set only on a change; the icons movie gets it as props.rgb (name and icon)

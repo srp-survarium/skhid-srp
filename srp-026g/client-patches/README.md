@@ -144,7 +144,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
-| `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `check_replay_map_026g.py` | Patch 135: a replay's minimap and Tab map show every enemy, spotted or not (`../docs/notes/replay-map.md`): one lohook at update_minimap_players' spotted test (0x239505), and the two options reads' chains to know a replay; its check runs the game's team and spotted tests in both exes (needs Unicorn) |
+| `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `src/vostok/ui.rs` (`GameWorldUi::at_enemy_ids`), `check_replay_map_026g.py` | Patch 135: a replay shows every enemy, spotted or not (`../docs/notes/replay-map.md`): its dot (update_minimap_players' spotted test, 0x239505), its marker and red name with Alt (render_name's, 0x1F2B50), the icons movie told `root.srp_show_enemies` before initialize_match's enemy list (0x235709); the two options reads' chains to know a replay; its check runs the three sites in both exes (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -5109,16 +5109,33 @@ prints each arena's use, holes and top call sites by live and peak bytes (named 
 address-space budget. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
 
-## A replay's map shows every player (patch 135, unreleased)
+## A replay shows every player (patch 135, unreleased)
 
-Watching a replay, the minimap and the Tab map showed the watched player's team and only the enemies
-that team had spotted, as in the match. A replay is watched after the match, so its map shows every
-enemy as a red dot (the hud movie's own `player_red`). `update_minimap_players` (0x239420) lists a place's
-player when it is in the world, alive, and on the local player's team or spotted (+348h above 0); in a
-replay the local player is the one the camera is on. The Rust patch replay_map keeps what the game
-shows: a replay from its chunk 1's options read (`replay.options_read`, 0x1F0971), a live match from the
-0xE4's (`static_info.options_read`, 0x27B92D); at the spotted test (0x239505, `cmp dword [eax+348h],esi`)
-a replay goes on to the listing (0x23951B), a live match to the game's test. A live game and a live
-spectator see the enemies as before. Free view (no player followed) shows no dots, as before. Nothing a
-match computes. Checked with `check_replay_map_026g.py` (Unicorn: a teammate, an enemy spotted or not,
-in a live match and a replay, the original beside) and the patch crate's tests. Not run in a game.
+Watching a replay, the minimap and the Tab map showed the followed player's team and only the
+enemies that team had spotted, and over the heads only that team's markers and names: as in the
+match. A replay is watched after the match, so it shows every enemy: its dot, red, and over its head
+the marker teammates have, red, with its name in red while left Alt is held
+(`../docs/notes/replay-map.md`). In a replay the local player is the one the camera is on.
+
+- `update_minimap_players` (0x239420) lists a place's dot when its player is in the world, alive,
+  and on the local team or spotted (+348h above 0); at the spotted test (0x239505,
+  `cmp dword [eax+348h],esi`) a replay goes on to the listing (0x23951B).
+- `render_name` (0x1F2AD0) places a player's marker on the same rule (0x1F2B3D..0x1F2B62) and, while
+  left Alt is held, shows its name (0x1F2DCD), coloured by `set_player_icon_color` (0x23C0C0): an
+  enemy 0xFF0000 (0x1F300F). At its spotted test (0x1F2B50, `cmp dword [esi+348h],0`) a replay goes
+  on (0x1F2B5D).
+- The player icons movie never shows an enemy's marker (`HUDIconLayer.canShow`, the list
+  `initialize_match` sends as `root.set_enemy_icon_ids`). Before that send (0x235709, ESI the ui;
+  the late join's `lists_hook` is on the bytes after it, 0x23572B), before any marker of the
+  match, the movie is told `root.srp_show_enemies(replay)`; while true it shows enemies' markers,
+  whatever list it is given (the list is sent again at 0x236915).
+- The hud movie's Tab map names an enemy (`PlayerRed`) in red, in every match (Alt, patch 82).
+
+The Rust patch replay_map keeps what the game shows: a replay from its chunk 1's options read
+(`replay.options_read`, 0x1F0971), a live match from the 0xE4's (`static_info.options_read`,
+0x27B92D), each before the match's world and its `initialize_match`. A live game and a live
+spectator see the enemies as before. Nothing a match computes. Checked with
+`check_replay_map_026g.py` (Unicorn: each site in the original and the patched exe, a teammate and
+an enemy spotted or not, no local player, a live match and a replay, the icons movie told or absent),
+the patch crate's tests, and the movies' Ruffle harnesses (`ReplayEnemiesHarness.as`,
+`TabMapNamesHarness.as`). Not run in a game.

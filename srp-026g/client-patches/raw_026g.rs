@@ -22074,4 +22074,19 @@ pub mod site {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(ProfileFrame)
         }
     }
+
+    /// player_icons.enemy_ids (0x23572b): game_world_ui::initialize_match (0x234880) right after its root.set_enemy_icon_ids Invoke to the player icons movie (0x235726; the icons movie [[ui+10h]+108h]+4), before any marker of the match is sent: mov ecx,[esp+98h]; ESI the ui
+    pub mod player_icons_enemy_ids {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::game_world_ui (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn ui(machine: &impl Machine) -> Option<GameWorldUi> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameWorldUi)
+        }
+    }
 }
