@@ -404,8 +404,9 @@ fn the_second_screen_comes_out() {
         (alice.full.quest_money, alice.full.quest_reputation),
         (0, 0)
     );
-    // SHOT2's money total, 9784, was these 10707 and its premium's 5353 less
-    // the 6276 its autobuy and repair spent; srp spends nothing.
+    // The screen's money total, 9784, is these 10707 and its premium's 5353
+    // less the 6276 its autobuy and repair spent: the client takes them off
+    // itself.
     assert_eq!(
         (
             alice.reward.money,
@@ -2163,7 +2164,7 @@ fn a_kit_change_before_play_is_a_life_more_for_the_supplies_used() {
 }
 
 #[test]
-fn the_supplies_used_are_taken_and_nothing_is_bought_back() {
+fn the_supplies_used_are_taken_and_autobuy_puts_them_right() {
     use survarium::v026g::match_msgs::players::{ItemLeft, Supplies};
     let dictionary = Dictionary::shared();
     let rounds = dictionary.item_named("ammo_7.62x25").unwrap().dict_id;
@@ -2203,8 +2204,8 @@ fn the_supplies_used_are_taken_and_nothing_is_bought_back() {
         (alice.kits[0].slots[8].unwrap().item_id, kits)
     };
 
-    // The stacks shrink, and the silver is the match's pay alone: no medkit
-    // is bought back, though she could pay for them and buy them.
+    // Autobuy, always on: the medkits are bought back (the pistol's ammo is
+    // free), and the screen is told. (Too little silver: `autobuy`'s tests.)
     let store = accounts(&players);
     let (ammo, kits) = prepare(&store);
     let report = Results::new()
@@ -2212,21 +2213,31 @@ fn the_supplies_used_are_taken_and_nothing_is_bought_back() {
         .unwrap();
     let reward = &report.players[0].reward;
     assert_eq!(reward.supplies_used, [(rounds, 20), (medkit, 2)]);
+    let price = survarium::v026g::prices::price(medkit).unwrap().cost;
+    assert_eq!(reward.spent.autobuy_consumables, [(2 * price, medkit)]);
+    assert!(reward.spent.autobuy_ammo.is_empty());
     let alice = account(&store, 10);
-    assert_eq!(alice.item(kits).unwrap().condition_or_stack, 3);
-    assert_eq!(alice.generic_money, 10_000 + reward.money);
-    // The starting pistol's ammo, which the game prices at nothing, comes
-    // back by the clip.
+    assert_eq!(alice.item(kits).unwrap().condition_or_stack, 5);
+    // The free ammo comes back by the clip.
     assert!(alice.item(ammo).unwrap().condition_or_stack >= 50);
     // Bob's block is not known and he fired nothing: nothing is taken.
     assert!(report.players[1].reward.supplies_used.is_empty());
-    // The inventory goes first, its spent lists empty.
+
+    // The pushes: the inventory first, with the lists the client reads.
     let push = report
         .lobby_push(10, &alice, NOW, Some(1))
         .unwrap()
         .unwrap();
-    let read = Client::signed_in().receive_all(&push).unwrap();
-    assert!(matches!(read[0], Decoded::Inventory { .. }));
+    let mut client = Client::signed_in();
+    let read = client.receive_all(&push).unwrap();
+    let Decoded::Inventory { spent, .. } = &read[0] else {
+        panic!("the inventory goes first");
+    };
+    assert_eq!(*spent, reward.spent);
+    // For a client that signed in after the match: the inventory again,
+    // before the screen.
+    let again = report.spent_inventory(10, &alice).unwrap().unwrap();
+    assert_eq!(again, push[0]);
 }
 
 #[test]

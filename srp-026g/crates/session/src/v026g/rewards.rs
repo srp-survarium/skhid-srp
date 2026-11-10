@@ -83,7 +83,7 @@
 //! - **A room with a PIN's match** ([`MatchResult::private`]; the
 //!   owner's of 2026-10-20): pays nothing to anyone in it, late joiners
 //!   too: no experience, silver, reputation, quest, daily bonus, drop or
-//!   rating, and takes nothing (no supplies used). Its screen opens with the match's numbers and
+//!   rating, and takes nothing (no supplies used, no autobuy after it). Its screen opens with the match's numbers and
 //!   nothing paid, and takes no drop card.
 //! - **No wear** (the owner's choice of 2026-10-13, and no repair since
 //!   2026-11-08): a match wears no item.
@@ -97,8 +97,11 @@
 //!   player that finished the match: [`Results::use_drop_card`]
 //!   (`docs/notes/drop_cards.md`).
 //! - **Ammo and consumables used** are taken off the stacks as far as
-//!   the last trusted snapshot proves them used, and nothing is bought
-//!   back: [`super::supplies`].
+//!   the last trusted snapshot proves them used, and autobuy (always on,
+//!   no setting) buys them back as far as the silver goes:
+//!   [`super::autobuy`]. The screen's money total is net of what they
+//!   spent: the client takes it off itself, from the lists the inventory
+//!   push carries (`VictoryScreen.updateMoney`); the rows here are gross.
 //! - **A level reached** is told with important message 14
 //!   ([`super::notices`]).
 //!
@@ -427,8 +430,11 @@ pub struct Reward {
     /// experience and reputation were paid once more ([`super::bonus`]).
     pub daily_bonus: bool,
     /// `(dict id, units)` of ammo and other stacks the match is known to
-    /// have used ([`super::supplies`]).
+    /// have used ([`super::autobuy`]).
     pub supplies_used: Vec<(u16, u32)>,
+    /// What autobuy spent after the match: the lists the
+    /// results screen shows.
+    pub spent: lobby::SpentMoney,
 }
 
 /// One player of a [`MatchReport`].
@@ -511,6 +517,19 @@ impl MatchReport {
         ))
     }
 
+    /// `89` with the money autobuy spent for the account's
+    /// player after the match, for the results screen's lists; `None` when
+    /// nothing was spent. Send it before the screen (`97`): a client that
+    /// signed in after the match has its inventory without the lists.
+    pub fn spent_inventory(
+        &self,
+        account_id: u32,
+        account: &Account,
+    ) -> Option<Result<ServerMessage, WireError>> {
+        let spent = &self.player(account_id)?.reward.spent;
+        (*spent != lobby::SpentMoney::default()).then(|| wire::inventory_with_spent(account, spent))
+    }
+
     /// The notices of the account's player.
     pub fn notices_for(&self, account_id: u32) -> &[Notice] {
         self.player(account_id)
@@ -536,6 +555,10 @@ impl MatchReport {
         let screen = self.screen_for(account_id)?;
         Some((|| -> Result<Vec<ServerMessage>, WireError> {
             let mut push = wire::after_change(account)?;
+            // The inventory carries what autobuy spent.
+            if let Some(spent) = self.spent_inventory(account_id, account) {
+                push[0] = spent?;
+            }
             push.push(wire::level_and_skills(account)?);
             push.push(wire::reputations(account)?);
             push.push(wire::quests(account, now));
@@ -1815,7 +1838,7 @@ impl<'a> Shared<'a> {
         full.play_seconds[main] = clamp_u16(player.time_in_match_ms / 1000);
         // A room with a PIN's match pays nothing and takes nothing: no
         // experience, silver, reputation, quest, daily bonus, drop or
-        // rating, and no supplies used after it (the
+        // rating, and no supplies used or autobuy after it (the
         // owner's of 2026-10-20). Its screen shows the match with nothing
         // paid.
         if self.result.private {
@@ -1830,7 +1853,7 @@ impl<'a> Shared<'a> {
             full.elo_after = account.rating;
         }
 
-        // What the match used of the account's stacks (`supplies`), counted
+        // What the match used of the account's stacks (`autobuy`), counted
         // before its pay or drop adds to one.
         if super::premium::settings().ammo_use {
             let events = self.events(player);
@@ -1840,7 +1863,7 @@ impl<'a> Shared<'a> {
             let respawns =
                 total(&events, event::DEATH).saturating_add(u32::from(player.kit_changes));
             reward.supplies_used =
-                super::supplies::used(account, player.supplies.as_ref(), &shots, respawns);
+                super::autobuy::used(account, player.supplies.as_ref(), &shots, respawns);
         }
         // The score's lines. A match against the server's bots pays a share
         // of the silver and the experience (`SRP_PVB_PAY`): of every cell,
@@ -2004,8 +2027,9 @@ impl<'a> Shared<'a> {
                 reward.drop = Some(dropped);
             }
         }
-        // The supplies used are taken off the stacks.
-        super::supplies::settle(account, &reward.supplies_used);
+        // The supplies used are taken, and autobuy buys
+        // them back, paid from what it has now (the match's pay included).
+        reward.spent = super::autobuy::settle(account, &reward.supplies_used).spent;
         account.sync_kits();
         (reward, full, notices)
     }

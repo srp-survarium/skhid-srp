@@ -45,7 +45,10 @@ package survarium.player
       {
          var value:String = _stamina.percentText;
          var heading:Object = {heading:LocalizationData.getName("st_srp_regeneration_stamina") + ": " + value,headingValue:value,headingStyle:_stamina.style};
-         return _health.rows(HEALTH_ICON).concat([heading],_stamina.rows(STAMINA_ICON));
+         // One array a concat: the game's Scaleform takes each further argument as one element.
+         var result:Array = _health.rows(HEALTH_ICON);
+         result.push(heading);
+         return result.concat(_stamina.rows(STAMINA_ICON));
       }
    }
 }

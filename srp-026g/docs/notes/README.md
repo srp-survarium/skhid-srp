@@ -24,7 +24,7 @@ given), LIKELY or GUESS.
 | [lobby_requests.md](lobby_requests.md) | Every client→server lobby request and the reply it expects |
 | [social.md](social.md) | Chat channels, friends, squads, clans, online stats |
 | [squads.md](squads.md) | Squads of two (the owner, 2026-10-31): Play and Join take the mate along into one room and team, or the queue together; invites stop at two; the "ready" the game's Play gating reads; each pair marked in the rooms' lists |
-| [premium.md](premium.md) | Premium time, the shop's offers and bundles, premium items (silver since 2026-11-08), the daily bonus, the tutorial, a nickname change, the supplies a match uses (autobuy and auto-repair removed), the level notice; their settings |
+| [premium.md](premium.md) | Premium time, the shop's offers and bundles, premium items (silver since 2026-11-08), the daily bonus, the tutorial, a nickname change, autobuy (always on, no box), the level notice; their settings |
 | [silver-only.md](silver-only.md) | Silver only (the owner, 2026-11-08): no gold; gold prices, chances and income at 100 silver a gold; the balances converted once |
 | [results.md](results.md) | Match results screen, player details, drops, daily bonus, craft tables |
 | [drop_cards.md](drop_cards.md) | Drop cards: one per player of a match, own matches only, finished (the owner, 2026-10-20; the server refusal ships, the greyed button does not), the original screen's rule, what `allow_drop_card` is, the logging of sales and exchanges |

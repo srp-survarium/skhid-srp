@@ -59,7 +59,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     reputation, quest progress, daily bonus, drop (silver's dict 214 too), rating or balance
     rating; its results screen takes no drop card (refused and logged: "private match"). It
     takes nothing either (srp's choice: nothing paid, nothing charged): no wear, no ammo or
-    consumables used. The results screen still opens with
+    consumables used, no autobuy or auto-repair after it. The results screen still opens with
     the match's numbers (winner, rows, scores) and nothing paid. Its map still counts as
     played (feeds nothing now). The lobby knows it when it makes the match (a PIN is the
     room's for its whole life) and tells the match server (`MatchSetup::private`); the result

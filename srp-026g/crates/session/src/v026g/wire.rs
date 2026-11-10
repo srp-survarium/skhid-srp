@@ -124,6 +124,16 @@ pub fn inventory(account: &Account) -> Result<ServerMessage, WireError> {
     lobby::inventory(&items)
 }
 
+/// `89` with what the server spent for the account after a match
+/// ([`super::autobuy`]): the results screen lists it.
+pub fn inventory_with_spent(
+    account: &Account,
+    spent: &lobby::SpentMoney,
+) -> Result<ServerMessage, WireError> {
+    let items: Vec<ItemDescr> = account.inventory.iter().map(item_descr).collect();
+    lobby::inventory_with_spent(&items, spent)
+}
+
 /// `87`: the account. Send [`inventory`] before it.
 pub fn own_account(account: &Account) -> Result<ServerMessage, WireError> {
     let (level, start, next) = account.level_progress();
@@ -392,7 +402,7 @@ mod tests {
         expected.extend_from_slice(&[
             1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,   // the kits' revisions
             1, 0, 0, 0,                             // the active kit
-            0,                                      // the kit window's boxes: none
+            1,                                      // autobuy: always on
             0,                                      // level
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
         ]);

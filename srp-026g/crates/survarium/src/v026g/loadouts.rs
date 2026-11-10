@@ -34,7 +34,7 @@
 //! kit wears what it always did, the TT-33 and a clip in weapon slot 1, and
 //! the Mosin, a clip for it and the PPSh-41 lie in the inventory for the
 //! player to put on. A kit with one kind of ammo is also the one whose
-//! ammo use the match counters prove (`session::v026g::supplies`). The free
+//! ammo use the match counters prove (`session::v026g::autobuy`). The free
 //! ammo is one clip each; more of it costs nothing
 //! (`session::v026g::rules`).
 

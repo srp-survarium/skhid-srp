@@ -312,6 +312,12 @@ pub mod limits {
     pub const KITS: usize = 3;
     /// The account's item table: 69 = 3 kits of 23 slots.
     pub const ACCOUNT_ITEMS: usize = 69;
+    /// The three lists that end the inventory (0x89): the client's stack
+    /// buffers (LIKELY 24, 18 and 27 rows, from the frame offsets at
+    /// 0x2704BD..0x27052D); one row more is the fatal "buffer overflow".
+    pub const SPENT_AUTOBUY_AMMO: usize = 24;
+    pub const SPENT_AUTOBUY_CONSUMABLES: usize = 18;
+    pub const SPENT_REPAIR: usize = 27;
     /// Slots of a kit (`profile_slot_id` 0..=22).
     pub const KIT_SLOTS: usize = 23;
     /// Modifications and upgrades of an item (fatal asserts past them).

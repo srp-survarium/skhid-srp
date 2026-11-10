@@ -204,18 +204,6 @@ package
          var bonuses:MovieClip = total.section_2;
          var sums:MovieClip = total.section_3;
          trace("NOPREM " + what + ": bonuses y " + bonuses.y + ", quests " + bonuses.scoreQuests.y + ", items " + bonuses.scoreEquipment.y + ", daily " + bonuses.scoreDaily.y + " " + bonuses.scoreDaily.visible + ", premium " + (bonuses.scorePremium ? bonuses.scorePremium.y + " " + shown(bonuses.scorePremium) : "none") + "; sums y " + sums.y + "; totals " + sums.scoreTotal.money.text + " / " + sums.scoreTotal.exp.text + " / " + sums.scoreTotal.rep.text);
-         // No money is spent after a match (no autobuy, no repair): none of its rows, the total first.
-         for each(var spent:String in ["scoreWasted","wastedAmmo","wastedItems","wastedRepair"])
-         {
-            if(shown(sums[spent]))
-            {
-               failures.push(what + ": the money spent row " + spent + " is shown");
-            }
-            if(sums[spent].y < sums.scoreTotal.y - 1)
-            {
-               failures.push(what + ": the total is under the hidden row " + spent + " (" + sums.scoreTotal.y + ", " + sums[spent].y + ")");
-            }
-         }
          var button:DisplayObject = results.premium_button;
          if(button != null && shown(button))
          {

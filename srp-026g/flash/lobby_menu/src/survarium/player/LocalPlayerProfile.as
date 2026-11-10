@@ -55,7 +55,8 @@ package survarium.player
       public var glassSprite:MovieClip;
       
       // The Autobuy and auto-repair boxes: both gone (no wear since
-      // 2026-10-23, no automatic purchases since 2026-11-10: the owner).
+      // 2026-10-23; autobuy always on, with no setting, since 2026-11-10:
+      // the owner).
       // The original movie's graphics still place them at the start of
       // the weight's row, so their fields stay and init hides them; the
       // regeneration's box has their place (WeightIndicator).

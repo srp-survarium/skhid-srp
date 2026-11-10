@@ -98,6 +98,7 @@ fn the_account_needs_its_items_in_the_inventory_first() {
         client.receive(&inventory(&items).unwrap()),
         Ok(Decoded::Inventory {
             items: items.clone(),
+            spent: SpentMoney::default(),
         })
     );
     assert_eq!(client.receive(&own), Ok(Decoded::Account(account(items))));
@@ -107,7 +108,7 @@ fn the_account_needs_its_items_in_the_inventory_first() {
 fn raw_accounts_the_client_would_misread() {
     let mut client = Client::signed_in();
     client.receive(&inventory(&[pistol(1)]).unwrap()).unwrap();
-    let tail = "01000000 01000000 00 01 00000000 00000000 01000000";
+    let tail = "01000000 01000000 01 01 00000000 00000000 01000000";
     let kit = |mask: &str, slots: &str| {
         format!("00 01000000 00 {mask} {slots} 0000000000000000 0000000000000000")
     };

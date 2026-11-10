@@ -1617,6 +1617,10 @@ package
          var reportData:Object = e;
          this.show_victory_screen();
          this.victory_screen.setData(reportData);
+         if((reportData) && (reportData.statistics_money))
+         {
+            this.victory_screen.setSpendMoneyDetailed(reportData.statistics_money.autobuy_money_ammo_arr,reportData.statistics_money.autobuy_money_consulables_arr);
+         }
       }
       
       public function show_loading_wheels(value:Boolean = true) : void
@@ -1713,12 +1717,20 @@ package
          this.victory_screen.setBonus(mathId,bonus);
       }
       
-      // The exe's call with the three lists that end the inventory (0x26EF40): the money spent after a
-      // match on ammunition, special equipment and repair. Always empty: srp spends none (no repair
-      // since 2026-11-08, no autobuy since 2026-11-10: the owner), and the results screen has no rows
-      // for it (VictoryScreen.hideSpentRows).
+      // `repair`, the exe's third list, is always empty: srp has no repair (the owner, 2026-11-08).
       public function fill_victory_screen_spend_money_detailed(autobuy_ammo:Array, autobuy_consulables:Array, repair:Array) : void
       {
+         this.victory_screen.setSpendMoneyDetailed(autobuy_ammo,autobuy_consulables);
+         this.updateReport(this.victory_screen.getData());
+         this.set_log_list(this._reports);
+      }
+      
+      // `repair` is always 0: srp has no repair.
+      public function fill_victory_screen_spend_money(autobuy:int, repair:int) : void
+      {
+         this.victory_screen.setSpendMoney(autobuy);
+         this.updateReport(this.victory_screen.getData());
+         this.set_log_list(this._reports);
       }
       
       private function hideTop() : void
@@ -2475,7 +2487,8 @@ package
       }
       
       // The exe's call (0x227760) with the account's byte for the kit window's Autobuy and
-      // auto-repair boxes: the lobby has neither (the owner, 2026-11-10), and the server sends 0.
+      // auto-repair boxes. The lobby has neither: autobuy is always on (the owner, 2026-11-10),
+      // and there is no repair.
       public function set_autobuy(value:uint) : void
       {
       }

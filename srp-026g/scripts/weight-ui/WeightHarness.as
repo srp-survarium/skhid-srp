@@ -242,6 +242,7 @@ package {
    require(x.title=="Health regeneration: 130%" && x.titleValue=="130%" && x.titleStyle=="green","the heading: "+x.title);
    var rows:Array=x.rows();
    require(rows.length==6,"two health rows, the stamina heading, three stamina rows: "+rows.length);
+   for each(var entry:Object in rows)require(!(entry is Array) && (entry.heading!=undefined || entry.label!=undefined),"every entry a heading or a named row");
    for each(var want:Array in [[0,"Duty suit <green>+15%</green>"],[1,"Rations <green>+15%</green>"],[3,"Freedom boots <green>+8%</green>"],[4,"Worn trousers <red>-10%</red>"],[5,"Breath <green>+12%</green>"]])
     require(said(rows[want[0]])==want[1],"regeneration row "+want[0]+": "+said(rows[want[0]])+" (want "+want[1]+")");
    require(rows[2].heading=="Stamina regeneration: 110%" && rows[2].headingValue=="110%" && rows[2].headingStyle=="green","the second section: "+rows[2].heading);

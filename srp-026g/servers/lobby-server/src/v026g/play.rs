@@ -1419,10 +1419,17 @@ impl Core<'_> {
             return;
         }
         let push = if after_sign_in {
-            unseen
-                .report
-                .screen_for(who.account_id)
-                .map(|screen| Ok(vec![screen?]))
+            // The inventory once more if autobuy spent anything: the
+            // screen lists it from there.
+            let account = who.account.locked();
+            unseen.report.screen_for(who.account_id).map(|screen| {
+                let mut push = Vec::new();
+                if let Some(spent) = unseen.report.spent_inventory(who.account_id, &account) {
+                    push.push(spent?);
+                }
+                push.push(screen?);
+                Ok(push)
+            })
         } else {
             // With no account locked: the ranking locks each in turn.
             let place = self

@@ -53,7 +53,7 @@ pub struct Settings {
     /// price). Default: [`DEFAULT_RENAME_COST`].
     pub rename_cost: u32,
     /// `SRP_AMMO_USE=off`: a match takes no ammo off the account
-    /// ([`super::supplies`]).
+    /// ([`super::autobuy`]).
     pub ammo_use: bool,
 }
 

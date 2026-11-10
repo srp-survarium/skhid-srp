@@ -443,9 +443,10 @@ pub fn own_account(account: &OwnAccount) -> Result<ServerMessage, WireError> {
     writer
         .u32(account.active_kit)
         // The kit window's boxes, autobuy (bit 0) and auto-repair (bit 1),
-        // which the client hands to `root.set_autobuy` (0x227760; PROVEN):
-        // srp has neither.
-        .u8(0)
+        // which the client stores and hands to `root.set_autobuy` (0x227760;
+        // PROVEN; nothing else in the exe reads it). Autobuy is always on
+        // and srp has no repair: 1. The lobby shows neither box.
+        .u8(AUTOBUY_ON)
         .u8(account.level)
         .u32(account.exp_total)
         .u32(account.exp_level_start)
@@ -462,18 +463,68 @@ pub fn squad_member_account(body: &AccountBody, revision: u32) -> Result<ServerM
     Ok(writer.done(ServerId::SquadMemberAccount))
 }
 
-/// `89`: everything the account owns (`lobby.md` §2.9). The client reads
-/// `u32 n`, n items, then three lists of `u8 count`, count × {`u32 silver`,
-/// `u16 dict_id`} (PROVEN: 0x270534 → 0x26EF40): the money the server
-/// spent for the player after a match, on ammunition, special equipment
-/// and repair. srp spends none (no autobuy, no repair): `00 00 00`.
+/// What the server paid from the player's money after a match, the tail
+/// of `89` (`lobby.md` §2.9; client 0x26EF40): three lists of `(silver,
+/// dict id)`, shown on the results screen as "Ammunition", "Special
+/// equipment" and "Repair cost" (`VictoryScreen.setSpendMoneyDetailed`).
+/// All empty unless the server really took that money; the repair list
+/// always is (srp has no repair).
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SpentMoney {
+    pub autobuy_ammo: Vec<(u32, u16)>,
+    pub autobuy_consumables: Vec<(u32, u16)>,
+}
+
+/// One list of [`SpentMoney`]: what it is, its rows, and the most the
+/// client's buffer holds.
+pub type SpentList<'a> = (&'static str, &'a [(u32, u16)], usize);
+
+impl SpentMoney {
+    /// The lists in the order the client reads them, each with the size of
+    /// the client's buffer for it.
+    pub fn lists(&self) -> [SpentList<'_>; 3] {
+        [
+            (
+                "autobuy ammo rows",
+                &self.autobuy_ammo,
+                limits::SPENT_AUTOBUY_AMMO,
+            ),
+            (
+                "autobuy consumable rows",
+                &self.autobuy_consumables,
+                limits::SPENT_AUTOBUY_CONSUMABLES,
+            ),
+            ("repair rows", &[], limits::SPENT_REPAIR),
+        ]
+    }
+}
+
+/// `89`: everything the account owns, with nothing spent after a match
+/// (`lobby.md` §2.9). The message ends with the three empty lists of
+/// [`SpentMoney`]: `00 00 00`.
 pub fn inventory(items: &[ItemDescr]) -> Result<ServerMessage, WireError> {
+    inventory_with_spent(items, &SpentMoney::default())
+}
+
+/// `89` with the money the server spent for the player after a match: the
+/// client reads `u32 n`, n items, then three times `u8 count`, count ×
+/// {`u32 silver`, `u16 dict_id`} (PROVEN: 0x270534 → 0x26EF40).
+pub fn inventory_with_spent(
+    items: &[ItemDescr],
+    spent: &SpentMoney,
+) -> Result<ServerMessage, WireError> {
     let mut writer = Writer::new();
     writer.u32(items.len() as u32);
     for item in items {
         write_item(&mut writer, item, DescrMode::Lobby)?;
     }
-    writer.u8(0).u8(0).u8(0);
+    for (what, rows, most) in spent.lists() {
+        at_most(what, rows.len(), most)?;
+        writer.u8(rows.len() as u8);
+        for &(value, dict_id) in rows {
+            writer.u32(value).u16(dict_id);
+        }
+    }
     Ok(writer.done(ServerId::Inventory))
 }
 
@@ -1280,6 +1331,10 @@ pub fn permitted_shop_event(event: u8) -> Result<ServerMessage, WireError> {
 }
 
 // ---- 83 49: kits and the account (`process_profiles_action`) ----
+
+/// The lobby's number for the kit window's boxes in `87`: bit 0 autobuy,
+/// always on; bit 1, the stock auto-repair, 0 (srp has no repair).
+pub(crate) const AUTOBUY_ON: u8 = 1;
 
 /// `83 49 02`: the active kit. The client stores the id and selects the kit
 /// with it.

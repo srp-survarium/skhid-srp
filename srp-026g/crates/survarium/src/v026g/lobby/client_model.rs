@@ -34,7 +34,7 @@ use super::super::skills::MODIFIERS;
 use super::push::{
     AccountBody, Bought, ClientState, Crafted, FULL_CONDITION, ItemDescr, Kit, KitSlot,
     Modification, NameRefusal, OwnAccount, QuestRecord, ServicePrices, ShopRecord,
-    ShopRecordItem, Upgrade,
+    ShopRecordItem, SpentMoney, Upgrade,
 };
 use super::requests::id as client_id;
 use super::results::{
@@ -221,6 +221,9 @@ pub enum Decoded {
     },
     Inventory {
         items: Vec<ItemDescr>,
+        /// The money spent after a match: the three lists that end the
+        /// message.
+        spent: SpentMoney,
     },
     Prices(Vec<PriceItem>),
     Money {
@@ -1511,9 +1514,10 @@ impl Client {
                     revisions.push(r.u32()?);
                 }
                 let active_kit = r.u32()?;
-                // The kit window's boxes (`root.set_autobuy`): srp has neither.
-                if r.u8()? != 0 {
-                    return Err(r.bad("a kit window box ticked: srp has none"));
+                // The kit window's boxes (`root.set_autobuy`): autobuy always
+                // on, no repair.
+                if r.u8()? != super::push::AUTOBUY_ON {
+                    return Err(r.bad("the autobuy byte is not 1: autobuy is always on"));
                 }
                 let account = OwnAccount {
                     body,
@@ -1557,14 +1561,30 @@ impl Client {
                 for _ in 0..count {
                     items.push(self.read_real_item(r)?);
                 }
-                // 0x26EF40: three lists of {u32, u16}, the money spent after
-                // a match: srp spends none.
-                for _ in 0..3 {
-                    if r.u8()? != 0 {
-                        return Err(r.bad("a spent-money row: srp spends none"));
+                // 0x26EF40: three lists of {u32, u16}, each into a stack
+                // buffer; a count past the buffer is a fatal assert.
+                let mut spent = SpentMoney::default();
+                // The repair list: srp writes it empty (it has no repair).
+                let mut repair = Vec::new();
+                let limits = spent.lists().map(|(_, _, most)| most);
+                for (list, most) in [
+                    &mut spent.autobuy_ammo,
+                    &mut spent.autobuy_consumables,
+                    &mut repair,
+                ]
+                .into_iter()
+                .zip(limits)
+                {
+                    let count = usize::from(r.u8()?);
+                    if count > most {
+                        return Err(r.bad("more spent-money rows than the client's buffer"));
+                    }
+                    for _ in 0..count {
+                        let value = r.u32()?;
+                        list.push((value, r.u16()?));
                     }
                 }
-                Decoded::Inventory { items }
+                Decoded::Inventory { items, spent }
             }
             ServerId::Prices => {
                 let count = usize::from(r.u16()?);

@@ -1940,7 +1940,7 @@ live player before the start: a game with this patch and one without part
 there, so the release that brings it asks for its own revision
 (`SRP_MIN_PATCH_REVISION`). The match server counts such choices for the
 results (`PlayerResult::kit_changes`, a life more each for what the match is
-taken to have used of a player's stacks, `session::v026g::supplies`), and its
+taken to have used of a player's stacks, `session::v026g::autobuy`), and its
 own bots pick a kit only once play has begun. Replays recorded before it in
 which a live player chose a kit before the start play differently in a game
 with it: the change is the `next` row of

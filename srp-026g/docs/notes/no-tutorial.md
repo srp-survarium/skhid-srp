@@ -72,7 +72,8 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
     the AK-12 and the Saiga-12 weight -15 % (2064, the weapons' strongest weight row),
     recoil -10 % (2084) and aim time -10 % (2074; "+10% aiming speed"); the
     Keeper of the Sun pieces come with experience +20 % (1240) and reputation +50 % (1280),
-    so only armour +8 is added. Preset 1's respirator 1183 and gloves 1133.
+    so only armour +8 is added. Preset 1's respirator 1183 and gloves 1133;
+  - autobuy on (`premium.md` §3).
 - **The kits' levels** (`match_making_level`, the highest item's): preset 1's 7, 5 and 4;
   preset 2's 15 (the AK-12) and 14 (the Keeper set and the container).
 - **srp refuses to start**, and `srp-check-game-data` refuses the release's data

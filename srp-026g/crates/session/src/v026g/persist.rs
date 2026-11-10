@@ -941,8 +941,8 @@ fn write_account(
             account.rating,
             account.rating_before,
             account.active_kit,
-            // The autobuy column: kept in the schema and unused (autobuy
-            // removed 2026-11-10); a new row needs a value, and a saved
+            // The autobuy column: kept in the schema and unused (autobuy is
+            // always on since 2026-11-10); a new row needs a value, and a saved
             // account keeps what it had.
             0,
             account.next_item_id,

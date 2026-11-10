@@ -1,4 +1,4 @@
-# 0.26g: premium, the shop's offers, daily bonus, tutorial, nickname, supplies used
+# 0.26g: premium, the shop's offers, daily bonus, tutorial, nickname, autobuy
 
 > **Since 2026-11-09 there is no premium account** (the owner: "let's do the same with premium" as
 > with repair, "it should be on by default", "no premium state anywhere should exist", "essentially
@@ -36,7 +36,7 @@
 
 Version scope: client **0.26g build 2777**. Read from the exe (VAs of that build), the decompiled `lobby_menu.swf` (class names given) and the game's data, 2026-10-12. Nothing here was tried against a running client. Tags: **PROVEN** (read at the place named), **LIKELY**, **GUESS**, **[srp]** = srp's own choice where the client does not say.
 
-Code: `crates/survarium/src/v026g/{shop_offers,awards}.rs`, `crates/session/src/v026g/{premium,bonus,tutorial,names,supplies,notices,extras}.rs`, `servers/lobby-server/src/v026g/shop.rs`.
+Code: `crates/survarium/src/v026g/{shop_offers,awards}.rs`, `crates/session/src/v026g/{premium,bonus,tutorial,names,autobuy,notices,extras}.rs`, `servers/lobby-server/src/v026g/shop.rs`.
 
 ## 1. The shop record of 0x95 (corrects lobby.md §2.18)
 
@@ -92,19 +92,21 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 - When the original server sent `A8` / `A9` is not known. **[srp]**: only when the operator sets `SRP_PREMIUM_DISCOUNT` (percent, 0..90, default 0): `A9` after the sign-in of an account without premium, `A8` with the results of a match whose premium half was not paid, standing for `SRP_PREMIUM_OFFER_SECONDS` (3600).
 - The one-day voucher's time was its config's `ttl_in_hours: 24` (the voucher is gone, silver-only.md).
 
-## 3. The two boxes: autobuy and auto-repair, both removed (corrects lobby.md §2.7, lobby_requests.md `49 01`)
+## 3. Autobuy: always on, no setting (corrects lobby.md §2.7, lobby_requests.md `49 01`)
 
-The stock kit window had two boxes, and `49 01 <u8>` carried their state: **0 neither, 1 autobuy, 2 auto-repair, 3 both** (PROVEN in the stock UI). The same number is the byte after the active kit in `87` and the byte of `83 49 01`, which the client hands to `root.set_autobuy` (0x227760).
+The owner, 2026-11-10: "internally autobuy is always on". The stock kit window had two boxes, and `49 01 <u8>` carried their state: **0 neither, 1 autobuy, 2 auto-repair, 3 both** (PROVEN in the stock UI). The same number is the byte after the active kit in `87` and the byte of `83 49 01`, which the client stores (lc+0x1EA974) and hands to `root.set_autobuy` (0x227760); nothing else in the exe reads it (its only references are the two stores, 0x2702CB and 0x275CC7).
 
-- **Auto-repair is gone** (the owner, 2026-10-23: wear is gone; no repair at all since 2026-11-08).
-- **Autobuy is gone** (the owner, 2026-11-10: "remove autobuy"). Nothing is bought for a player after a match.
-  - **The lobby:** no box. The original movie's graphics still place both, so `LocalPlayerProfile.init` hides them (their fields stay for the placed instances); the Regeneration box has their place ([regeneration-box.md](regeneration-box.md)). `LobbyMenu.set_autobuy` stays as the exe's call and does nothing. The ammo window no longer carries the box's state (`auto_buy` on a move, which the exe never read: it has no such string), and the lists of the autobuy's refills (`fill_auto_buy_items`, `fill_victory_screen_spend_money`, neither called by the exe) are out.
-  - **The exe** is unchanged: `autobuy_changed` (0x288CD0) has no caller in the movie now.
-  - **The server:** no `49 01` request (`ClientMessage::SetAutobuy` is out: the one supported lobby cannot send it), no `83 49 01`, the byte of `87` always 0, the three spent lists of `89` always empty. `Account::autobuy` is out.
-  - **Stored data:** the column `g26_accounts.autobuy` stays in the schema with what each account had; it is neither read nor updated, and a new account's row gets 0 (as `premium_money`, `g26_extras.auto_repair`).
-- **What a match used is still taken** (`session::v026g::supplies`, was `autobuy`): the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo. `SRP_AMMO_USE=off` takes nothing. The player buys ammunition and consumables back in the shop or the ammo window ("Add ammunition").
-- **Kept of autobuy: the free refill.** A stack the game prices at nothing (the starting pistol's ammo) is refilled for nothing after a match, in whole clips, now for every account (before: for an account with the box ticked, the default). It spends no silver, and without it a new player's first gun would run dry with no hint why.
-- **The results screen** has no rows for money spent ("Spent", "Ammunition", "Special equipment", "Repair cost": `VictoryScreen.hideSpentRows`); its money total is the rows, quests and bonuses.
+- **Auto-repair is gone** (the owner, 2026-10-23: wear is gone; no repair at all since 2026-11-08). The results screen's "Repair cost" row stays hidden.
+- **Autobuy has no box and no setting**; it works for every account.
+  - **After a match** (`session::v026g::autobuy`): what the match used is taken off the stacks (the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo; `SRP_AMMO_USE=off` takes nothing) and bought back in whole steps of the shop (a clip of ammo, one of anything else) at the shop's price, from the silver the account has then, the match's pay included.
+  - **Too little silver:** it buys the whole steps the silver pays for, item by item in the order they were used, and the rest stays used up (the stack shrinks; a stack at 0 leaves the stash and its slot). With no silver nothing is bought. No debt, no notice beyond the results screen's rows.
+  - **What the account may not buy** (an item of a seller whose level it lacks) is not bought.
+  - **For nothing:** a stack the game prices at nothing (the starting pistol's ammo) is refilled without silver.
+  - **The results screen** lists the silver spent ("Spent", "Ammunition", "Special equipment"), from the three lists that end `89` (the third, repairs, always empty); its money total is net of them.
+- **The lobby:** the box is gone from the character panel. The original movie's graphics still place it and the auto-repair box, so `LocalPlayerProfile.init` hides both (their fields stay for the placed instances); the Regeneration box has their place ([regeneration-box.md](regeneration-box.md)). `LobbyMenu.set_autobuy` stays as the exe's call and does nothing. The ammo window no longer sets `auto_buy` on its moves and `fill_auto_buy_items` is out: the exe has neither string, so it never read the one or called the other, and ticked or not the lobby behaved the same but for the box.
+- **The exe** is unchanged; `autobuy_changed` (0x288CD0, the sender of `49 01`) has no caller in the movie now, so the request is never sent.
+- **The server:** `87` carries 1 (autobuy on, no repair), as it did for an account with the box ticked. No `49 01` (`ClientMessage::SetAutobuy` is out; such a request would be logged as unread, as any unknown one) and no `83 49 01`. `Account::autobuy` is out.
+- **Stored data:** the column `g26_accounts.autobuy` stays in the schema with what each account had; it is neither read nor updated, and a new account's row gets 0 (as `premium_money`, `g26_extras.auto_repair`). An account that had unticked the box is bought for again.
 
 ## 4. The daily bonus (`99`, adds to results.md §4.1)
 
