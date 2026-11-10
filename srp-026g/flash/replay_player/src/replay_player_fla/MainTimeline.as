@@ -139,7 +139,13 @@ package replay_player_fla
          {
             freeView = false;
             trace("PlayerView",buttonRenderer.data.name,innerButton ? (e.target.name == "btnFirstView" ? 0 : 1) : 0);
-            ExternalInterface.call("select_player",uint(buttonRenderer.data.id),uint(innerButton ? (e.target.name == "btnFirstView" ? 0 : 1) : 0));
+            // Every place the player had: the game follows the one that is in
+            // the match now and does nothing for the others.
+            var view:uint = innerButton ? (e.target.name == "btnFirstView" ? 0 : 1) : 0;
+            for each(var place:uint in buttonRenderer.data.ids)
+            {
+               ExternalInterface.call("select_player",place,view);
+            }
          }
          if(innerButton)
          {
@@ -454,7 +460,23 @@ package replay_player_fla
             this.freeViewButton.label = "no_players_list";
             return;
          }
-         var players:Array = value;
+         // The game gives a row for every roster place, and a player who left
+         // and came back has a place for each time (the owner, 2026-11-10:
+         // "why player list duplicated many players", "only one of those two is
+         // clickable"): one row a player of a team, with all its places.
+         var players:Array = [];
+         var rows:Object = {};
+         for each(var player:Object in value)
+         {
+            var key:String = player.team + "/" + player.name;
+            if(rows[key] == undefined)
+            {
+               rows[key] = player;
+               player.ids = [];
+               players.push(player);
+            }
+            rows[key].ids.push(uint(player.id));
+         }
          players.sortOn("team");
          this.playersBar.height = 25 * players.length + 2;
          this.playersBar.dataProvider = new DataProvider(players);
