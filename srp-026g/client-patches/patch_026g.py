@@ -595,13 +595,15 @@ Patches:
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
   Rust patch bake_cache (the arena's blocks patches.code, .data and
   .state; seven lohooks): game::game deletes user_data/streamed_textures
-  only when its stamp file names another revision (0x1E944E), and puts its
+  only when its stamp file names another bake format or other game data
+  (a fingerprint of the patches' files a bake reads) (0x1E944E), and puts its
   whole DDS files back into the baker's list (CRC 0, the first load's taken
   at 0x131C90); game::exit's delete is gone (0x1EC832); translate_query's
   look-up (0x12D4C5) lets a query whose path is under way wait, and the
   texture made (0x12F194 a bake, 0x12DDB9 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
-  0xF0D00); the CRC-32 step (0x42050) goes eight bytes a step. Textures
+  0xF0D00); the CRC-32 step (0x42050) goes 64 bytes a step (PCLMULQDQ)
+  or eight bytes a step. Textures
   only;
 - a weapon's upgrades in at most three upgrade records, the weapon kit
   (patch 68, with the late join; docs/notes/weapon-kit.md): the Rust patch
@@ -2535,6 +2537,15 @@ INSTALLS = {
     0x59F8E: (JUMP, "create_sound_voice 0x59E70 after the constructor: sound_voices_built frees a voice with no "
                     "source and returns 0 by 0x59F9A, else replays push edi / add esi,2B0h and goes on at 0x59F95",
               None, None),
+    # patch 134 (the Rust patch constant_upload's four code hooks, constant_upload_026g.asm)
+    0x11B5A0: (ENTRY, "shader_constant_buffer::set_memory: constant_upload_set_memory, the whole function "
+                      "(ret 4)", None, None),
+    0x3DDFA1: (JUMP, "shader_constant_buffer's constructor before malloc_impl: constant_upload_alloc asks "
+                     "2 x size + 16, back at the call 0x3DDFA7", None, None),
+    0x3DDFAC: (JUMP, "the constructor before memset: constant_upload_zero zeros the whole block, back at "
+                     "0x3DDFB2", None, None),
+    0x3DDFD0: (ENTRY, "shader_constant_buffer::update: constant_upload_update, its `ret` when nothing is to "
+                      "upload, else the original's body at 0x3DDFDD", None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
@@ -2726,7 +2737,7 @@ WORLD_SECTIONS_HOOKS = (
 INSTALLS[0x3246C0] = (JUMP, "game_state_history_item::construct's last store: the six world sections' buffers "
                             "get the multithreaded allocator and a block each; back at 0x3246C6", None, None)
 
-# Patch 134 (the Rust patch animation_math, client_patch.md section 3.80): the
+# Patch 136 (the Rust patch animation_math, client_patch.md section 3.80): the
 # animation's sines, cosines and atan2 (calls of vostok::math's x87 functions
 # whose results are stored as floats at once) and its knot search.
 for _va, _what in ((0xED30F, "sin x"), (0xED31F, "cos x"), (0xED32F, "sin y"), (0xED33F, "cos y"),
@@ -2922,7 +2933,7 @@ ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execut
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
 # The most the arena may take: a block of a runaway size (a state array, a
 # table) stops the link instead of growing the image. Raise it on purpose.
-ARENA_LIMIT = 0x100000
+ARENA_LIMIT = 0x180000                          # 0x100000 until patch 121 took the arena past it
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (

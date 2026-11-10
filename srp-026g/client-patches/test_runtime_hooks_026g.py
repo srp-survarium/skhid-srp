@@ -117,6 +117,28 @@ fn all_run_in_order_but_skip_stops_the_chain() {
             result = subprocess.run([str(root / 'test')], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_only_tests_the_register_before_saving_anything(self):
+        sites = {'test.site': {**site(0x2000, 'lohook'), 'holds': 'index=ESI:u32 list=EDI:survarium::modifier_list'}}
+        def hooks(only, patches=None):
+            patches = patches or [{'name': 'fixture', 'patch': 0,
+                                   'hook': [{'site': 'test.site', 'handler': 'run', 'only': only}]}]
+            return H.hooks(patches, [], sites, lambda va, n: b'\x90' * n)
+        h, = hooks({'index': 'SPRING_LISTS'})
+        asm, rs = H.asm_text([h]), H.rs_text([h])
+        self.assertLess(asm.index('bt dword [fixture_run_only], esi'), asm.index('fxsave [esp]'))
+        self.assertLess(asm.index('cmp esi, 256'), asm.index('bt dword'))
+        self.assertIn('jmp fixture_run_replay', asm)
+        self.assertIn('pub static fixture_run_only: Only = Only::of(&crate::fixture::SPRING_LISTS);', rs)
+        self.assertNotIn('_only', H.asm_text(hooks(None)) + H.rs_text(hooks(None)))
+        for bad in ({'list': 'SET'}, {'missing': 'SET'}, {'index': 'set'}, {'index': 'A', 'list': 'B'}, 'index'):
+            with self.subTest(bad=bad), self.assertRaises(H.Bad):
+                hooks(bad)
+        shared = [{'name': name, 'patch': i, 'hook': [{'site': 'test.site', 'handler': 'run', 'order': i,
+                                                       **({'only': {'index': 'SET'}} if i == 0 else {})}]}
+                  for i, name in enumerate(('first', 'second'))]
+        with self.assertRaisesRegex(H.Bad, 'cannot share'):
+            hooks(None, shared)
+
     def test_void_native_conventions_generate_unit_original_and_zero_shim_result(self):
         f = {**function(), 'ret': 'void', 'result': None, 'vostok': {'args': [], 'result': None}}
         h = H.convention_hook({'name': 'fixture', 'patch': 0}, {'site': 'test.site', 'handler': 'clear'},

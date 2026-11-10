@@ -243,9 +243,9 @@ def state(world, time=4500):
 
 
 # The smallest tree a client decodes (world-frame's animation_validate): T = 11,
-# no node (its 11 header bits), no times, the first matrix's 12 floats, not
-# indexed: 432 bits, 54 bytes.
-ANIMATION = bytes.fromhex("000b0000000c") + bytes(48)
+# no node (its 11 header bits), one time (the duration the native always pops,
+# 0x3A9A64), the first matrix's 12 floats, not indexed: 465 bits, 59 bytes.
+ANIMATION = bytes.fromhex("000b0000080000000006") + bytes(49)
 def sections(time=4500):
     # Twenty current zero-event PlayerStatistics (40 bytes each), then tail.
     statistics = bytes(40*20) + struct.pack('<HHBBBI',0,0,0,0,2,0)

@@ -9,9 +9,13 @@
 //! ```
 //!
 //! kernel32 writes it, through the exe's imports (`raw`); a test never
-//! calls it.
+//! calls it. The game's threads all log (hooks run on the main, logic and
+//! resource threads): a line goes out whole, one at a time ([`WRITING`]),
+//! so two lines never race for the file's end.
 
-use super::{GameCell, Thread};
+use core::sync::atomic::{AtomicU32, Ordering};
+
+use super::{Lock, Thread};
 use crate::raw;
 
 /// A part of a line.
@@ -23,8 +27,8 @@ pub enum Piece<'a> {
     Dec(u32),
 }
 
-/// The longest line; a longer one is cut.
-const MAX: usize = 200;
+/// The longest line; a longer one is cut (a bake's name alone is up to 260).
+const MAX: usize = 512;
 
 struct Line {
     bytes: [u8; MAX],
@@ -67,11 +71,6 @@ impl Line {
     }
 }
 
-/// The line `srp: <pieces>` and a line break, as text.
-fn text(pieces: &[Piece]) -> Line {
-    text_of(&[pieces])
-}
-
 /// The line `srp: ` and each part's pieces, and a line break, as text.
 fn text_of(parts: &[&[Piece]]) -> Line {
     let mut line = Line { bytes: [0; MAX], len: 0 };
@@ -85,7 +84,12 @@ fn text_of(parts: &[&[Piece]]) -> Line {
 
 /// Appends a line to `srp_patches.log`.
 pub fn line(pieces: &[Piece]) {
-    let line = text(pieces);
+    parts(&[pieces]);
+}
+
+/// Appends a line of parts (each some pieces) to `srp_patches.log`.
+pub fn parts(parts: &[&[Piece]]) {
+    let line = text_of(parts);
     write(&line.bytes[..line.len]);
 }
 
@@ -121,25 +125,81 @@ impl Refusals {
     }
 }
 
-static REFUSALS: GameCell<Refusals> = GameCell::new(Refusals::Quiet);
+/// Lines of one kind under [`Refusals`]' limit: at most one a second, each
+/// counting the ones since the last that were not logged.
+pub struct Limited {
+    state: Lock<Refusals>,
+    /// What the count after a line names ("refused", "postponed").
+    what: &'static str,
+}
 
-/// A refusal's line to `srp_patches.log`, under [`Refusals`]' limit.
-pub fn refusal(thread: &Thread, pieces: &[Piece]) {
-    let now = super::files::tick_count();
-    let (next, logged) = REFUSALS.get(thread).refuse(now);
-    REFUSALS.set(thread, next);
-    if let Some(unlogged) = logged {
-        let more: &[Piece] = if unlogged == 0 {
-            &[]
-        } else {
-            &[Piece::Text("; "), Piece::Dec(unlogged), Piece::Text(" more refused since the last line")]
-        };
-        let line = text_of(&[pieces, more]);
-        write(&line.bytes[..line.len]);
+impl Limited {
+    pub const fn new(what: &'static str) -> Limited {
+        Limited { state: Lock::new(Refusals::Quiet), what }
+    }
+
+    /// The line, unless one went out less than a second ago.
+    pub fn line(&self, thread: &Thread, pieces: &[Piece]) {
+        self.parts(thread, &[pieces]);
+    }
+
+    /// A line of parts (each some pieces), unless one went out less than a
+    /// second ago.
+    pub fn parts(&self, thread: &Thread, parts: &[&[Piece]]) {
+        let now = super::files::tick_count();
+        let logged = self.state.with(thread, |state| {
+            let (next, logged) = state.refuse(now);
+            *state = next;
+            logged
+        });
+        if let Some(unlogged) = logged {
+            let more: &[Piece] = if unlogged == 0 {
+                &[]
+            } else {
+                &[Piece::Text("; "), Piece::Dec(unlogged), Piece::Text(" more "), Piece::Text(self.what),
+                  Piece::Text(" since the last line")]
+            };
+            let mut all: [&[Piece]; 8] = [&[]; 8];
+            let n = parts.len().min(all.len() - 1);
+            all[..n].copy_from_slice(&parts[..n]);
+            all[n] = more;
+            let line = text_of(&all[..=n]);
+            write(&line.bytes[..line.len]);
+        }
     }
 }
 
+/// The patches' refusals (a packet, a world, an effect the game was given).
+static REFUSALS: Limited = Limited::new("refused");
+
+/// A refusal's line to `srp_patches.log`, under [`Refusals`]' limit.
+pub fn refusal(thread: &Thread, pieces: &[Piece]) {
+    REFUSALS.line(thread, pieces);
+}
+
+/// The thread writing a line (its id), 0 when none is. Not a [`Lock`]: the
+/// panic handler logs too, and a panic inside a write (on the thread that
+/// holds it) must still get its line out, not panic again.
+static WRITING: AtomicU32 = AtomicU32::new(0);
+
+/// `bytes` appended to the log, the only write at that moment.
 fn write(bytes: &[u8]) {
+    let me = super::sync::thread_id();
+    let mut owner = WRITING.compare_exchange(0, me, Ordering::Acquire, Ordering::Relaxed);
+    while let Err(holder) = owner {
+        if holder == me {
+            // the panic handler, inside this thread's own write
+            return append(bytes);
+        }
+        core::hint::spin_loop();
+        owner = WRITING.compare_exchange(0, me, Ordering::Acquire, Ordering::Relaxed);
+    }
+    append(bytes);
+    WRITING.store(0, Ordering::Release);
+}
+
+/// `bytes` appended to `srp_patches.log`: opened, one WriteFile, closed.
+fn append(bytes: &[u8]) {
     use core::ffi::c_void;
     const FILE_APPEND_DATA: u32 = 4;
     const SHARE_READ_WRITE: u32 = 3;
@@ -174,9 +234,10 @@ mod tests {
 
     #[test]
     fn a_line_of_pieces() {
+        let text = |pieces: &[Piece]| text_of(&[pieces]);
         let line = text(&[Piece::Text("at "), Piece::Hex(0xA42D000), Piece::Text(" line "), Piece::Dec(1204)]);
         assert_eq!(&line.bytes[..line.len], b"srp: at 0x0a42d000 line 1204\r\n");
-        let long = text(&[Piece::Text(&"x".repeat(500))]);
+        let long = text(&[Piece::Text(&"x".repeat(1000))]);
         assert_eq!(long.len, MAX);
         assert_eq!(&long.bytes[MAX - 2..], b"\r\n");
         assert_eq!(&text(&[Piece::Dec(0)]).bytes[5..6], b"0");

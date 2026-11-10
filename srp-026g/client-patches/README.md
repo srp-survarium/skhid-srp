@@ -143,8 +143,10 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
 | `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
-| `rust/patches/src/animation_math.rs`, `src/animation_math.toml`, `src/vostok/trig.rs`, `animation_math_026g.asm`, `check_animation_math_026g.py` | Patch 134: the animation's sines, cosines and atan2 (nine calls of the x87's fsin, fcos, fpatan whose results are stored as floats at once) computed with SSE2 doubles where the float is provably the x87's, the game's own function otherwise; time_channel::domain's knot search without a `div` per try. The same floats; the check runs the game's functions in both exes (needs Unicorn), the crate's ignored test every float against the CPU's x87 (`../docs/notes/client_patch.md` section 3.80) |
+| `rust/patches/src/animation_math.rs`, `src/animation_math.toml`, `src/vostok/trig.rs`, `animation_math_026g.asm`, `check_animation_math_026g.py` | Patch 136: the animation's sines, cosines and atan2 (nine calls of the x87's fsin, fcos, fpatan whose results are stored as floats at once) computed with SSE2 doubles where the float is provably the x87's, the game's own function otherwise; time_channel::domain's knot search without a `div` per try. The same floats; the check runs the game's functions in both exes (needs Unicorn), the crate's ignored test every float against the CPU's x87 (`../docs/notes/client_patch.md` section 3.80) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
+| `rust/patches/src/texture_streaming.rs`, `src/texture_streaming.toml`, `src/vostok/streaming.rs`, `check_texture_streaming_026g.py` | Patch 137: texture streaming's per-frame bookkeeping in Rust, the same values: scene::update_streaming_data (every streaming record from its proxy, the three proxy classes' virtuals read once by their vtable, one square root a surface) and resource_manager::get_texture_video_memory_size (the registry's texture memory without the "$user$" names, searched 16 bytes at a time); two lohooks, each the whole function; its check runs both functions on made-up scenes and registries in both exes, every byte the same, and counts their instructions (needs Unicorn; `../docs/notes/client_patch.md` section 3.79) |
+| `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -172,6 +174,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
 | `rust/patches/src/bake_cache.rs`, `src/bake_cache.toml`, `src/vostok/baker.rs`, `src/vostok/files.rs`, `src/vostok/crc32.rs`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again: seven `lohook`s (`sites_026g.tsv` bake.* and crc32.step); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
+| `rust/patches/src/bake_async.rs`, `src/bake_async.toml`, `src/vostok/bake_gpu.rs`, `check_bake_async_026g.py` | Patch 121: the camouflage/decal bake does not wait for the GPU: level 0 a GPU copy of the target, the compressed levels copied to stagings and flushed, at most 8 bakes on the GPU (with all 8 taken, the oldest completed on the spot for the next), polled each dispatch with the no-wait map, the DDS allocated only then, and process_compression's own tail run, on a 6 ms budget a frame; nothing is put off or asked again; the save owns the MT DDS (no copy), at most 64 saves and 128 MB not written yet; nine `lohook`s (`sites_026g.tsv` bake.issue, bake.resume, bake.save, bake.free, save.freed, compress_mip.readback, resources.dispatched, engine.tick, game.exit_start); its check runs them in Unicorn on a made-up D3D11 context |
 | `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -3616,9 +3619,14 @@ same items for every new account) makes each newcomer cost three times the same 
 and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
 - `game::game` before its delete (`lea eax,[esp+470h] / call 0x1E8DA0`, the lohook at 0x1E944E,
   `on_game_start`; it goes on past the call, 0x1E945A). The folder is
-  deleted only when its stamp `srp_baked_textures.txt` is missing or names another revision; then
-  it is made again and stamped. Otherwise each whole DDS in it (DXT1 or DXT5, the file as long as
-  its header says) goes back into the baker's list with CRC 0, at most 512 files and 512 MB; the
+  deleted only when its stamp `srp_baked_textures.txt` is missing or names another bake format
+  (`BAKE_FORMAT`) or other game data: a fingerprint of the files of `resources.db`'s patches that a
+  bake reads (models, material instances, textures, shaders, camouflage and decal items), from each
+  patch's file table (`bake_cache/inputs.rs`); then it is made again and stamped. So a release keeps
+  it unless its patch has such a file. Revision 54's stamp counts as format 1's. Otherwise each
+  whole DDS in it (DXT1 or DXT5, the file as long as
+  its header says) goes back into the baker's list with CRC 0, at most 512 files and 896 MB (512 MB until 2026-11-09: half a 20-player
+  folder was deleted at every start); the
   rest are deleted. `game::exit`'s delete (0x1EC832) is a 5-byte nop (`BAKE_CACHE_KEEP`).
 - check_loaded_baked_texture's CRC compare (0x131C90, `on_check_crc`): a record of CRC 0
   takes the CRC of the bytes loaded, so a kept file is used; then stock rules apply.
@@ -3646,10 +3654,11 @@ and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
 - The game's CRC-32 step (0x42050: a byte a step through the table 0x1C210 makes, polynomial
   04C11DB7h reflected), which every bake runs over its whole DDS (process_compression 0x12F340) and
   every load over the file read (0x3C0FF0), 1.4 to 5.6 MB each (its start 0x42050, `on_crc_step`;
-  its exit the function's own `ret 4` at 0x4207E): the same value eight bytes a step (slice by 8,
-  tables from EDB88320h, made at build time), the registers as the
+  its exit the function's own `ret 4` at 0x4207E): the same value, 64 bytes a step folded with
+  PCLMULQDQ where the processor has it (CPUID), else eight bytes a step (slice by 8, tables from
+  EDB88320h, made at build time); the registers as the
   original leaves them. Measured on the owner's game, the CRC was most of a bake burst's stall
-  (16:37:47, 0.4 s); here 3.25 instructions a byte against 11.
+  (16:37:47, 0.4 s); here 0.48 instructions a byte folded, 3.25 sliced, against 11.
 - The stamp is written only when no `.dds` is left after the delete (one held open by another game
   is not deleted): otherwise the next start deletes the folder again.
 
@@ -3661,9 +3670,13 @@ into them (each span branch-free: main's lohooks replay it).
 their sites and exits, the nop, no relocation or branch inside). `check_bake_cache_026g.py`
 (Unicorn) runs every
 site from the game's code on the game's own static baker:
-- the folder: kept and back in the list, a file cut short and the files past 512 deleted;
-  deleted and stamped for another revision, no stamp, or no folder; the original deletes it every
-  time;
+- the folder, with made-up patches of the game data (their file tables): kept and back in the
+  list, a file cut short and the files past 512 deleted; kept by a release whose patch has only
+  item stats, deleted and stamped anew for a patch with a texture, a decal item or one that cannot
+  be read, another format, a stamp of other bytes, no stamp, or no folder; revision 54's stamp kept
+  and stamped again (deleted with a texture in patch 55), revision 53's deleted; no `resources.db`:
+  deleted, not stamped; the fingerprint the same as the check's own (Python) of the tables; the
+  original deletes it every time;
 - the game's own check_loaded: a kept file's first load is used and takes the CRC read;
 - the look-up: the original bakes twice; the build makes a second and third query wait, and lets
   another path, another type and a 17th query go on;
@@ -3673,9 +3686,100 @@ site from the game's code on the game's own static baker:
 - a held texture: a respawn's query gets it at once with no look-up; past 256 MB the least used
   goes;
 - a folder whose delete leaves a file: not stamped;
-- the CRC-32 step against the original on 24 buffers of 0 to 10 MB from unaligned starts with
-  random CRCs: the CRC and every register the same; 3.25 instructions a byte against 11;
+- the CRC-32 step against the original on 32 buffers of 0 to 10 MB from unaligned starts with
+  random CRCs, on a processor without PCLMULQDQ (Penryn) and one with it (Westmere): the CRC and
+  every register the same; 3.25 and 0.48 instructions a byte against 11;
 - any other query's finish goes straight through.
+**Not run:** a game.
+
+### 121. The camouflage/decal bake does not wait for the GPU
+
+A player's report (2026-11-05): with `streamed_textures` emptied, every player joining a room or
+a match makes a hitch while their items bake. Stock, a bake reads its 2048x2048 target back
+(blocking), uploads those 16 MB again as the compressor's level 0, and reads each of its 10
+compressed levels back, blocking each time (`client_patch.md` 3.57, "The bake's GPU round
+trips"). The rules: `../docs/notes/baked-textures.md`, "Bakes off the GPU's clock".
+
+The first version (2026-11-05..07: 8 in flight, 8 queued, past them the stock bake, 2 finished a
+dispatch) gave nothing in a match load (2026-11-08: 19 bots in live players' gear, ~800 bakes in
+9-12 s): frames over 100 ms 7.2 s against main's 7.7 s, the longest ~1.3 s in both. 474 of the
+768 bakes found no place and took the stock bake, which then waited behind the GPU work. The
+second (2026-11-08) put a bake with no place off before its draw and made its query again
+(finish_query's requery) once one was free; in the same load those requeries piled up and the game
+died with "out of memory in arena 'resources helper allocator'" (2026-11-09).
+The third (c00b9fe6c, the design below without its drain) completed no bake in a pass between bursts:
+the bakes' thread is not the one that ticks frames and dispatches only while its callbacks come,
+so a burst's last bakes stayed on the GPU until the next burst, up to ~65 s (2026-11-09).
+
+**The patch** (the Rust patch `bake_async`, `rust/patches/src/bake_async.rs` and `.toml`, over
+`vostok::bake_gpu`; nine lohooks of `sites_026g.tsv`):
+- `bake.issue` 0x12EEA7: a place on the GPU, one of 8. With all 8 taken, the oldest bake is
+  completed first, on the spot (read back, waiting only when the GPU has not done it, and its tail
+  run), and the new bake takes its place: no bake waits for a place, is put off, or is asked for
+  again. Level 0 a GPU copy of the target (copy2D into a DEFAULT texture), the compressor's levels
+  drawn and copied to stagings (`compress_mip.readback` 0x11F754 keeps each staging, no map, no
+  copy: the cursor counts places), the last copy flushed (ID3D11DeviceContext::Flush, as
+  compress_mip flushes before each copy), the job's frame read once, process_compression left by
+  its epilogue 0x12F561, its query not finished. No DDS memory is held. A bake whose compressor does
+  not fit its DDS, or whose level 0 finds no texture, fails its query (logged, never tried again).
+  The stock bake only after game::exit, for another thread's bake while the places are one
+  thread's (logged), or for a frame this does not read (logged).
+- `resources.dispatched` 0x1024FA, each dispatch: a pass on the places' thread (one completion at a
+  time). The oldest bakes whose last staging maps with the no-wait byte get their DDS (mt_allocate
+  then), are read back into it, and process_compression is called again: `bake.resume` 0x12EC57
+  jumps to its tail 0x12F00B: the texture made from the DDS, its slot, patch 70's sharing, the
+  resource, the save, the CRC, the record, finish and the "camouflage/decal cook" line.
+  `bake.save` 0x12F2D8 gives the save a descriptor of the game's that owns that DDS (no copy);
+  with no memory for one, EAX 0 (no save, logged; the game's make_save_descriptor would write
+  through 0). At most 64 saves, 128 MB, wait to be written (`save.freed` 0x10A050, the descriptor's
+  destructor, takes each off; 2026-11-09: MT at 99.3% after 458 bakes in 11 s, a crash); past
+  either, the texture is used and not saved, its DDS freed at once (logged). `bake.free` 0x12F3F7
+  keeps the DDS from the render allocator's free. Done bakes
+  complete while the frame's 6 ms last (one at least; a bake completed for its place counts too);
+  the rest in the next frames, oldest first. A bake the GPU has had 1 s is read back waiting
+  (logged); one whose levels cannot be mapped, or that finds no MT memory for its DDS, fails its
+  query (logged). That is on the thread that ticks frames. A thread that ticks none (or any,
+  before the first frame) may not dispatch again for minutes: its pass completes all its bakes
+  before the dispatch ends, waiting where the GPU has not done them (logged, a line a second, with
+  both threads; the frame thread's dispatches log whose the bakes are).
+- `engine.tick` 0x13CA0 (engine_world::tick's start, once a frame): a new frame's budget, and
+  its thread the one that ticks frames. A frame with no tick for 100 ms (apc's wait loops dispatch
+  without one) counts as ended.
+- `game.exit_start` 0x1EC730 (game::exit's start, before every branch): every bake on the GPU
+  completed waiting, on its thread (now, or at its next pass); later bakes are the stock ones.
+- Types: the job and its stagings are one value (`Issued`), completed once (`complete(self)`); the
+  job's query is finished exactly once (by the tail, or failed when the job is dropped); the size is
+  stored once, in the job. Every value holding the engine's references or the immediate context's
+  work is neither `Send` nor `Sync`: the shared state keeps it in a `vostok::ThreadBound`, which only
+  its own thread reaches (dropped on another, it is leaked untouched). `compress` refuses unless no
+  capture is under way, a completion unless none is. One transition for a bake on the GPU (`step`),
+  one for a completion's tail (`Resuming::on`); the places change only through the table's methods.
+- `engine_026g.py`'s call kind `com` calls ID3D11DeviceContext::Unmap and Flush.
+- `vostok::log` writes a line at a time (the hooks log from several threads; lines came out cut
+  and mixed in the 2026-11-08 run), up to 512 bytes.
+
+Textures only; games with and without it play together. No base relocation under a site, no
+branch into one (scanned in the original: rel8/rel32 jumps and calls).
+
+**Checked:** `check_bake_async_026g.py` (Unicorn) runs process_compression from its entry, the
+compressor's functions, map2D, the dispatch's end, engine_world::tick's start, game::exit from its
+start, finish_query and the tail for real on a made-up D3D11 context: the original maps 1 + the
+levels, blocking; the build issues with no Map and no MT memory (backend::reset once before
+make_mips, a Flush after the last copy), polls busy with one no-wait Map, then allocates the DDS,
+reads the levels into it, makes the texture from it, fills the slot and patch 70's waiter's,
+finishes both, the save descriptor owning that DDS; late after 1 s; the device lost, no MT memory,
+no save descriptor; a DDS too small and no level 0 (failed, no stock bake, not tried again); 8 on
+the GPU, a 9th completing the oldest first on the spot (read back waiting, patch 70's waiter given
+its texture) and issued in its place, a 10th completing the done oldest without waiting, the rest
+at a dispatch, oldest first; another thread's bake the stock one while the places are this
+thread's, then issued on its own thread once they are free; the bakes of a thread that ticks no
+frames untouched by the frame thread's dispatch (logged) and all completed at its own dispatch's
+end, waiting for the ones the GPU had not done (this case fails on c00b9fe6c); 64 saves not written
+yet, then the 65th bake used and not saved, its DDS freed (fails on 712dc41e5), and a place freed
+by the game's ~save_descriptor for the next; one completion a frame past the
+budget, the frame ended after 100 ms with no tick; a done bake behind a busy one; game::exit
+through 0x1051E0's failing branch (every bake on the GPU completed), then the stock bake.
+`cargo test` covers the transitions, the places in the DDS and the thread-bound values.
 **Not run:** a game.
 
 ## Not ported, not done
@@ -5109,7 +5213,79 @@ prints each arena's use, holes and top call sites by live and peak bytes (named 
 address-space budget. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
 
-## The animation's math, faster and the same (patch 134, unreleased)
+## Texture streaming's bookkeeping in Rust (patch 137, unreleased)
+
+Two functions the render thread runs every frame took about 8 % of it in the profiles of the owner's live
+revision-54 game: scene::update_streaming_data rewrites the record of every object drawn with a streamable
+texture from the object's proxy through four virtual calls (the texel factor with three x87 square roots),
+and resource_manager::get_texture_video_memory_size sums the registry's texture memory for the renderer's
+statistics, searching every texture's name for "$user$" a byte at a time. The more textures our content
+loads, the more both cost.
+
+**The patch** (`texture_streaming`, Rust, two lohooks, each the whole function, leaving by its `ret`;
+`vostok::streaming`). The records are walked in the game's order; each proxy is read once by its vtable
+(the exe's three classes: a model surface, a decal, a grass patch) and the record made by the classes'
+methods ported, one square root for a surface. The registry is walked as the game's map iterator walks
+it, each name searched 16 bytes at a time (SSE2). Every value written is the game's bit for bit, the x87's
+NaN rules included. Nothing a match computes.
+
+Checked with `check_texture_streaming_026g.py` (Unicorn: both functions on made-up scenes and registries
+in both exes, every byte the same) and the patch crate's tests (the search against strstr, the x87 model
+against this CPU's x87). In a match's size: update_streaming_data 74 % of the instructions and 56 to 75 %
+of the cycles, get_texture_video_memory_size 48 % of the instructions and 34 to 68 % of the cycles
+(`../docs/notes/client_patch.md` section 3.79): about 2 to 4 % of the render thread. Not run in a game.
+## Shader constants: a faster copy, no upload of unchanged bytes (patch 134, unreleased)
+
+The perf profile of a live rev54 game (the owner's, shooting) had shader_constant_buffer::set_memory
+(0x11B5A0) at 11.65 % of the main thread, the most of any function (5.2 % without shooting), and
+d3d11.dll (DXVK) at 7.7 %. Before each draw the backend's constant tables copy every bound constant
+into their buffers' shadows (constants_handler::assign 0x3D6300/0x3D6640/0x3D6830, a bone palette
+from skeleton_render_model_instance::set_constants 0x15A520, 70 call sites), then update
+(0x3DDFD0, from update_buffers 0x3D63F0) maps every buffer whose m_changed (+64h) is set with
+WRITE_DISCARD, copies its whole shadow (+58h, +5Ch bytes) and unmaps it. Two costs:
+
+- set_memory copies one byte at a time with a compare (about 10 instructions a byte: 11081 for a
+  1 KiB bone palette);
+- it sets m_changed always (0.10b's source set it only when a byte differed: `m_changed |= diff >
+  0`; 0.26g compiles to `mov byte [ebp+64h],1`), so every bound buffer is uploaded before every
+  draw, also when its bytes are the ones on the GPU (a skinned surface's palette, the same for its
+  depth pass, its colour pass and each shadow cascade; the frame's view constants).
+
+The patch (`constant_upload_026g.asm`, four `code` hooks of the Rust patch constant_upload):
+
+- set_memory, the whole function: the same copy 16 bytes at a time (SSE2, unaligned), the original's
+  loop for a tail under 16; the registers left as the original leaves them (EAX = ECX the end, DL
+  the XOR of the first differing byte pair or 0, EDX's upper bytes, EBX, ESI, EDI, EBP; XMM0 and
+  XMM1, which it uses, saved and restored), m_changed set as before. The 67 copies of set_memory
+  the compiler inlined elsewhere are left as they are.
+- the constructor (0x3DDFA1, 0x3DDFAC): the shadow's block is 2 x size + 16 bytes, all zeros: the
+  shadow, the upload's state (a dword: 0 never uploaded, 1 uploaded) and 12 bytes, then a copy of
+  the shadow as last uploaded. Both ways a buffer is made (resource_manager 0x3BFEEC, a temporary
+  on the stack, and 0x3BFFCF) go through it, and no other code stores a malloc_impl block at
+  +58h (0x3DDFB3 is the only one); the destructor frees the block as before.
+- update's start: with m_changed set it compares the shadow with the copy, copying it as it goes;
+  when the buffer was uploaded before and no byte differs it clears m_changed, as the upload does,
+  and returns; else the original's Map, copy and Unmap (0x3DDFDD). The test is of the bytes, not
+  of m_changed, so a shadow written by an inlined copy is uploaded as before.
+
+The GPU's bytes are the original's at every draw: a buffer is a dynamic one (usage 2, CPU write)
+and update is the only code that writes it (every Map of the exe read: 0x3DDFFA is the only one of
+a constant buffer; a dynamic buffer takes no UpdateSubresource); skipping a WRITE_DISCARD whose
+bytes are the ones mapped last leaves the same bytes bound. Not equivalent only for a source that
+overlaps the shadow less than 16 bytes ahead (the copy goes 16 at a time); no caller passes one
+(the sources are the constants' own values).
+
+Measured in `check_constant_upload_026g.py` (instructions in Unicorn): set_memory 593 -> 97 for
+64 bytes, 1801 -> 202 for 192, 11081 -> 924 for 1 KiB, 33935 -> 2661 for 4 KiB; a made-up run of
+150 draws over four buffers (a view matrix a frame, a world matrix each draw, a bone palette new
+half the draws, material constants rarely new) 2.14 M -> 0.48 M instructions and 600 -> 268 Maps.
+In the game: set_memory's 11.65 % is expected to fall to about 1 %; the Maps saved (and DXVK's work
+for each, on the main thread and its CS thread) depend on the scene and are not measured yet.
+
+Nothing a match computes (rendering only). Checked: `check_constant_upload_026g.py`, the self-test's
+test_writes, test_call_shapes, test_rust_hooks and test_rust_code on the default build. **Not run in
+a game.**
+## The animation's math, faster and the same (patch 136, unreleased)
 
 The simulation thread spent about 6 % of its time in three x87 instructions (fsin, fcos, fpatan:
 about 100 cycles each) and 3 % in a knot search with a division per try, all of it the animation's:

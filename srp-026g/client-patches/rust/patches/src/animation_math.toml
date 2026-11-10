@@ -1,9 +1,9 @@
-# Patch 134: the animation's math without the x87's slow transcendental
+# Patch 136: the animation's math without the x87's slow transcendental
 # instructions and without a division per knot, each giving what the game's
 # own code gives (animation_math.rs, animation_math_026g.asm). Only the
 # decisions: the sites and the handlers.
 name = "animation_math"
-patch = 134
+patch = 136
 
 # quaternion::quaternion(float3 angles) 0xED2E0: sin and cos of each half
 # angle (mix_rotations and the mixer, for every bone of every animation)

@@ -172,6 +172,20 @@ engine_get_tick_count	0x870090	-	unsigned int engine_get_tick_count(void)	import
 engine_find_first_file_a	0x870238	-	void *engine_find_first_file_a(const char *pattern, void *data)	import	
 engine_find_next_file_a	0x87023c	-	unsigned int engine_find_next_file_a(void *find, void *data)	import	
 engine_find_close	0x870228	-	unsigned int engine_find_close(void *find)	import	
+engine_map2d	0x3d0f80	ESI:receiver ESP+4:pitch ESP+8:option	void *engine_map2d(struct res_texture *texture, unsigned int *pitch, unsigned int no_wait)	thunk
+engine_copy2d	0x3c0e00	EAX:width EDX:height ESP+4:destination ESP+8:source	void engine_copy2d(unsigned int width, unsigned int height, struct res_texture *destination, struct res_texture *source)	thunk
+engine_create_texture2d	0x3bea70	EAX:width ESP+4:manager ESP+8:name ESP+12:height ESP+16:initial ESP+20:format ESP+24:usage ESP+28:mip ESP+32:bind	struct res_texture *engine_create_texture2d(unsigned int width, struct resource_manager *manager, const char *name, unsigned int height, const void *initial, unsigned int format, unsigned int usage, unsigned int mips, unsigned int bind)	thunk
+engine_block_mip_count	0x11f280	EAX:wide ECX:high	unsigned int engine_block_mip_count(unsigned int blocks_wide, unsigned int blocks_high)	thunk
+engine_dxt_data_size	0x11f2f0	ECX:levels EDX:width ESP+4:height ESP+8:format	unsigned int engine_dxt_data_size(unsigned int levels, unsigned int width, unsigned int height, unsigned int format)	thunk
+engine_write_dds_header	0x11f350	EAX:output ECX:format ESP+4:width ESP+8:height ESP+12:linear ESP+16:normal ESP+20:count	void engine_write_dds_header(unsigned char *output, unsigned int format, unsigned int width, unsigned int height, unsigned int linear_size, unsigned int normal, unsigned int levels)	thunk
+engine_make_mips	0x11f8b0	ECX:width EDX:height ESP+4:renderer ESP+8:levels ESP+12:count	void engine_make_mips(unsigned int width, unsigned int height, struct system_renderer *renderer, struct res_texture **levels, unsigned int count)	thunk
+engine_compress_mip	0x11f590	ESP+4:renderer ESP+8:levels ESP+12:cursor ESP+16:wide ESP+20:high ESP+24:level ESP+28:format ESP+32:normal	void engine_compress_mip(struct system_renderer *renderer, struct res_texture **levels, struct dds_cursor *cursor, unsigned int wide, unsigned int high, unsigned int level, unsigned int format, unsigned int normal)	stdcall
+engine_process_compression	0x12ec40	EAX:width ESP+4:cook ESP+8:query ESP+12:result_struct ESP+16:size ESP+20:slots ESP+24:parameters ESP+28:pair ESP+32:value ESP+36:decal_texture_type ESP+40:float	void engine_process_compression(const unsigned int *extent, struct camouflage_decal_texture_type_baker_cook *cook, struct query_result_for_cook *query, const void *targets, unsigned int size, struct render_surface_instance *surface, const struct bake_parameters_copy *parameters, const struct bake_pair *pair, unsigned int value, unsigned int kind, float draw_ms)	thunk
+engine_mt_allocate	0x01c6a0	ESI:size ESP+4:allocator	unsigned char *engine_mt_allocate(unsigned int size, struct pthreads3_allocator *allocator)	thunk
+engine_mt_free_memory	0x01c410	ESP+4:memory	void engine_mt_free_memory(unsigned char *memory)	cdecl
+engine_allocate_save_descriptor	0x109f30	ESP+4:physical ESP+8:virtual	struct save_descriptor *engine_allocate_save_descriptor(const struct buffer_string *physical, const struct buffer_string *virtual_path)	cdecl
+engine_context_unmap	ID3D11DeviceContext+0x3c	-	void engine_context_unmap(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource)	com
+engine_context_flush	ID3D11DeviceContext+0x1bc	-	void engine_context_flush(struct immediate_context *context)	com
 engine_ray_callback	0x075b40	EAX:this ESI:from EDX:to ESP+4:group ESP+8:mask ESP+12:requester	void engine_ray_callback(struct closest_ray_result_callback *callback, const float *from, const float *to, unsigned int group, unsigned int mask, struct bullet *requester)	thunk	
 engine_ray_needs_collision	0x075bd0	ECX:this ESP+4:proxy	unsigned char engine_ray_needs_collision(struct closest_ray_result_callback *callback, struct bt_broadphase_proxy *proxy)	thunk	
 engine_ray_test_single	0x0a02d0	ESP+4:rayFromTrans ESP+8:rayToTrans ESP+12:object ESP+16:shape ESP+20:transform ESP+24:callback	void engine_ray_test_single(struct bt_transform *from, struct bt_transform *to, struct bt_collision_object *object, struct bt_collision_shape *shape, struct bt_transform *transform, struct closest_ray_result_callback *callback)	cdecl	
@@ -180,6 +194,7 @@ engine_activate_keyboard_layout	0xaeff20	-	unsigned int engine_activate_keyboard
 engine_get_window_long_a	0xaefe8c	-	unsigned int engine_get_window_long_a(void *window, unsigned int index)	import	
 engine_set_window_long_a	0xaeff44	-	unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)	import	
 engine_get_module_handle_a	0x87003c	-	void *engine_get_module_handle_a(const char *name)	import	
+engine_backend_reset	0x11b740	EDI:receiver	void engine_backend_reset(struct backend *backend)	thunk	
 engine_match_packet_begin	survarium::match_client+0x18	ECX:client ESP+4:id	struct match_packet *engine_match_packet_begin(struct match_options_holder *client, unsigned int id)	virtual
 engine_match_packet_send	survarium::match_client+0x1c	ECX:client ESP+4:packet	void engine_match_packet_send(struct match_options_holder *client, struct match_packet *packet)	virtual
 engine_append_packet_bytes	0x7ac10	ESP+4:buffer_writer ESP+8:source_bytes EDI:byte_count	void engine_append_packet_bytes(struct buffer_writer *buffer_writer, const unsigned char *source_bytes, unsigned int byte_count)	thunk

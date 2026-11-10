@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 134 (the Rust patch `animation_math` and animation_math_026g.asm)
+"""Run patch 136 (the Rust patch `animation_math` and animation_math_026g.asm)
 in the default build and the original exe, on the same inputs, and require
 the same results.
 

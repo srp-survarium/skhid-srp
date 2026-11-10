@@ -1,7 +1,7 @@
 //! The engine's `vostok::math::sin`, `cos` and `atan2` (0x38FF0, 0x39000,
 //! 0x79C40: `fld`, then the x87's `fsin`, `fcos` or `fpatan`, the result in
 //! ST0) as a caller that stores the result as a float gets it, computed with
-//! SSE2 doubles where that float is provably the same (patch 134,
+//! SSE2 doubles where that float is provably the same (patch 136,
 //! `animation_math`).
 //!
 //! The x87 instructions take about 100 cycles each (25 ns on a Ryzen 5900X;

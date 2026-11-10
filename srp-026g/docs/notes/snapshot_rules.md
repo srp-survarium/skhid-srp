@@ -384,6 +384,7 @@ desyncs the client's cursor from the framing.
 Tree part, from the bit right after the 16-bit `T` field, in read order:
 
 ```
+(no bits)          duration   pop 1 time, always, before the nodes (0x3A9A64)
 read(6)            nodes      node count 0..63
 read(1) + 1        matrices   1 or 2
 popcount(read(4))  channels   0..4   (0x317D40 is popcount; 0x3A8A00 builds a
@@ -407,7 +408,7 @@ per node (anim_build_node 0x3A9250): exprs expression trees, each
     anim_read_expression 0x3A90C0 (RECURSIVE):
         read(2) = op
         channel pick (0 / 1 / 2 bits)
-        op 0: pop 2 floats           leaf
+        op 0: pop 2 floats, 1 time   leaf (the time at 0x3A9116)
         op 1: pop 1 float            leaf
         op 2: pop 1 time, 2 child expressions
         op 3: pop 1 time, 2 child expressions
@@ -453,7 +454,9 @@ U<=1023 -- are self-bounded and are not in this list.)
 `animation_len` (crate `world-frame`) covers the length only. `animation_validate`
 beside it seals 1-6: it decodes the tree as above (the base tracks in two
 passes over the nodes, not one), requires it to end exactly at `T`, the pops
-to stay within the table counts, and every floats-table value to be finite,
+to stay within the table counts (the duration time and each op-0 time counted:
+until 2026-11-10 it missed both, F4 of the packet-fuzz campaign, and accepted
+streams the client read below its times buffer), and every floats-table value to be finite,
 and `Frame::parse` refuses the block otherwise (`Refusal::Animation`). Proven on the kept worlds: all 177,672
 animated blocks of the 20,668 worlds in `private/live-worlds-*` pass, none near
 the expression-node cap (which is above the 32768 a `T` <= 65535 tree can

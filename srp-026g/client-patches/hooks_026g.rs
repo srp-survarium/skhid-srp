@@ -21,7 +21,7 @@ pub extern "C" fn hook_animation_id_log_on_id_missing(frame: &mut Frame) -> u32 
     }
 }
 
-// ---- animation_math (patch 134) ----
+// ---- animation_math (patch 136) ----
 
 /// engine_sin (0x38ff0), as the call hook at 0xed30f wraps it.
 pub struct OrigSin;
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn hook_animation_math_on_sin_x(a0: f32) -> f32 {
     crate::animation_math::on_sin_x(&orig, angle)
 }
 
-// ---- animation_math (patch 134) ----
+// ---- animation_math (patch 136) ----
 
 /// engine_cos (0x39000), as the call hook at 0xed31f wraps it.
 pub struct OrigCos;
@@ -73,7 +73,7 @@ pub unsafe extern "C" fn hook_animation_math_on_cos_x(a0: f32) -> f32 {
     crate::animation_math::on_cos_x(&orig, angle)
 }
 
-// ---- animation_math (patch 134) ----
+// ---- animation_math (patch 136) ----
 
 /// The entry `animation_math_on_sin_y` (0xed32f, quaternion::quaternion(float3 angles) 0xED2E0: sin of half the y angle, stored as a float (fstp dword [esp+4])) calls this with
 /// engine_sin's 1 arguments, typed by its row (the `raw` layer's).
@@ -87,7 +87,7 @@ pub unsafe extern "C" fn hook_animation_math_on_sin_y(a0: f32) -> f32 {
     crate::animation_math::on_sin_y(&orig, angle)
 }
 
-// ---- animation_math (patch 134) ----
+// ---- animation_math (patch 136) ----
 
 /// The entry `animation_math_on_cos_y` (0xed33f, quaternion::quaternion(float3 angles) 0xED2E0: cos of half the y angle, stored as a float (fstp dword [esp+8])) calls this with
 /// engine_cos's 1 arguments, typed by its row (the `raw` layer's).
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn hook_animation_math_on_cos_y(a0: f32) -> f32 {
     crate::animation_math::on_cos_y(&orig, angle)
 }
 
-// ---- animation_math (patch 134) ----
+// ---- animation_math (patch 136) ----
 
 /// The entry `animation_math_on_sin_z` (0xed34f, quaternion::quaternion(float3 angles) 0xED2E0: sin of half the z angle, stored as a float (fstp dword [esp+14h])) calls this with
 /// engine_sin's 1 arguments, typed by its row (the `raw` layer's).
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn hook_animation_math_on_sin_z(a0: f32) -> f32 {
     crate::animation_math::on_sin_z(&orig, angle)
 }
 
-// ---- animation_math (patch 134) ----
+// ---- animation_math (patch 136) ----
 
 /// The entry `animation_math_on_cos_z` (0xed35f, quaternion::quaternion(float3 angles) 0xED2E0: cos of half the z angle, stored as a float (fstp dword [esp+18h] after one movss)) calls this with
 /// engine_cos's 1 arguments, typed by its row (the `raw` layer's).
@@ -129,7 +129,7 @@ pub unsafe extern "C" fn hook_animation_math_on_cos_z(a0: f32) -> f32 {
     crate::animation_math::on_cos_z(&orig, angle)
 }
 
-// ---- animation_math (patch 134) ----
+// ---- animation_math (patch 136) ----
 
 /// The entry `animation_math_on_axis_sin` (0x742a5, quaternion::quaternion(axis, angle) 0x74290: sin of half the angle, stored as a float (fstp dword [esp+8])) calls this with
 /// engine_sin's 1 arguments, typed by its row (the `raw` layer's).
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn hook_animation_math_on_axis_sin(a0: f32) -> f32 {
     crate::animation_math::on_axis_sin(&orig, angle)
 }
 
-// ---- animation_math (patch 134) ----
+// ---- animation_math (patch 136) ----
 
 /// The entry `animation_math_on_axis_cos` (0x742b5, quaternion::quaternion(axis, angle) 0x74290: cos of half the angle, stored as the w float (fstp dword [esi+0Ch])) calls this with
 /// engine_cos's 1 arguments, typed by its row (the `raw` layer's).
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn hook_animation_math_on_axis_cos(a0: f32) -> f32 {
     crate::animation_math::on_axis_cos(&orig, angle)
 }
 
-// ---- animation_math (patch 134) ----
+// ---- animation_math (patch 136) ----
 
 /// engine_atan2 (0x79c40), as the call hook at 0x743b2 wraps it.
 pub struct OrigAtan2;
@@ -716,6 +716,12 @@ pub extern "C" fn hook_artefact_skills_on_spring_reload(frame: &mut Frame) -> u3
 
 // ---- artefact_skills (patch 109) ----
 
+/// The values of `index` (ESI) the entry `artefact_skills_on_shared_modifier` calls its handler for
+/// (`only`): crate::artefact_skills::SPRING_LISTS; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static artefact_skills_on_shared_modifier_only: Only = Only::of(&crate::artefact_skills::SPRING_LISTS);
+
 /// The entry `artefact_skills_on_shared_modifier` (0x2d5ae6, apply_modifier after it reads the kit's own float (movss xmm0,[eax+esi*4] at 0x2D5AE1): XMM0 that float, to which the list's nodes are added (0x2D5B33) before the index's rule (additive by 0x927E08, else max(0, 1 + k x S)); replayed: lea ecx,[esi+esi*4]; cmp byte [eax+ecx*4+120h],0 (the sorted flag the jne at 0x2D5AFF reads)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_skills_on_shared_modifier(frame: &mut Frame) -> u32 {
@@ -730,6 +736,12 @@ pub extern "C" fn hook_artefact_skills_on_shared_modifier(frame: &mut Frame) -> 
 }
 
 // ---- artefact_skills (patch 109) ----
+
+/// The values of `index` (EAX) the entry `artefact_skills_on_shared_modifiers` calls its handler for
+/// (`only`): crate::artefact_skills::SPRING_LISTS; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static artefact_skills_on_shared_modifiers_only: Only = Only::of(&crate::artefact_skills::SPRING_LISTS);
 
 /// The entry `artefact_skills_on_shared_modifiers` (0x2d5c18, apply_modifiers 0x2D5BC0 (a weighted sum of several indices) in its loop, after one index's own float (movss xmm0,[ebx+eax*4] at 0x2D5C13, stored at 0x2D5C2A): XMM0 that float, to which the list's nodes are added (0x2D5C69); replayed: lea eax,[eax+eax*4]; cmp byte [ebx+eax*4+120h],0) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -811,6 +823,12 @@ pub extern "C" fn hook_artefact_skills_on_fire(frame: &mut Frame) -> u32 {
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum ArtefactSkillsOnOwnModifierExit { Summed }
+/// The values of `index` (ESI) the entry `artefact_skills_on_own_modifier` calls its handler for
+/// (`only`): crate::artefact_skills::SPRING_LISTS; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static artefact_skills_on_own_modifier_only: Only = Only::of(&crate::artefact_skills::SPRING_LISTS);
+
 /// The entry `artefact_skills_on_own_modifier` (0x2d5b0c, apply_modifier before it sums its list's nodes (both ways from the sorted flag's test join here; mov eax,[edi+4] / xorps xmm2,xmm2, then the loop 0x2D5B20 adds each node's +0Ch into XMM1 as value + sum): EDI the kit's list of the index ESI; summed is the loop's end (pop edi / test eax,eax / je 0x2D5B33 addss xmm0,xmm1) with EAX 0, XMM1 the sum and XMM2 the 0 the rule compares with) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_skills_on_own_modifier(frame: &mut Frame) -> u32 {
@@ -938,6 +956,161 @@ pub extern "C" fn hook_memory_profile_on_loaded(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::memory_profile::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The named exits of bake_async::on_issue (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnIssueExit { Issued }
+/// The entry `bake_async_on_issue` (0x12eea7, process_compression with the bake's target of the type in [esp+1Ch], before the staging's create (mov esi,[esp+24h] / push 0); issued its epilogue 0x12F561 (releases [esp+10h] and [esp+1Ch], ret 28h)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_issue(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_issue` calls this, from the game's jump at 0x12eea7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_issue(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The named exits of bake_async::on_resume (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnResumeExit { Tail }
+/// The entry `bake_async_on_resume` (0x12ec57, process_compression after its prologue (mov esi,eax / lea eax,[esp+40h]); tail 0x12F00B: the compress timed (ESI the timer [esp+50h]), then the texture made from [esp+18h], shared, saved, recorded, freed if EBX, the query finished, the log (EBP the type, EDI the DDS)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_resume(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_resume` calls this, from the game's jump at 0x12ec57,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_resume(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The named exits of bake_async::on_save (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnSaveExit { Made }
+/// The entry `bake_async_on_save` (0x12f2d8, process_compression before make_save_descriptor (mov byte [esp+5F8h],2Fh; then mov [esp+2Ch],ebx, the bytes' data, EBX the DDS; then call 0x109ED0: ECX the physical path, EAX the virtual, [esp] the bytes; cdecl, add esp,4 after); made past the call, EAX the descriptor (0: none, the query's +0E0h 0 at 0x12F2FA, so finish_translated_query 0x109BD0 saves nothing)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_save` calls this, from the game's jump at 0x12f2d8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The entry `bake_async_on_free` (0x12f3f7, process_compression after the record's push_back (mov ecx,[esp+188h]); EBX the DDS buffer until 0x12F40A, which frees it to the render allocator (0x12F41B) when not 0) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_free(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_free` calls this, from the game's jump at 0x12f3f7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_free(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The named exits of bake_async::on_readback (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnReadbackExit { Kept }
+/// The entry `bake_async_on_readback` (0x11f754, compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_readback(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_readback` calls this, from the game's jump at 0x11f754,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_readback(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The entry `bake_async_on_dispatched` (0x1024fa, resources_manager::dispatch_callbacks' common end (pop edi / pop esi / pop ebx / mov esp,ebp, then pop ebp / ret 4): the thread's callbacks dispatched) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_dispatched(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_dispatched` calls this, from the game's jump at 0x1024fa,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_dispatched(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The entry `bake_async_on_frame` (0x13ca0, engine_world::tick's start (push ebp / mov ebp,esp / and esp,-8; ECX the engine world): the main loop's frame (engine_world::run calls it once a frame), before its dispatch_callbacks (0x13CE0) and the render world's tick ([esi+2C4h] +8, 0x13D31); apc's wait loops call dispatch_callbacks without it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_frame` calls this, from the game's jump at 0x13ca0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The entry `bake_async_on_exit` (0x1ec730, game::exit's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the game): every exit passes here, before the branches that skip its delete of user_data/streamed_textures (0x1EC7AE when 0x1051E0 fails, 0x1EC801 when 0x40F10 does; the delete 0x1EC832 is patch 70's nop)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_exit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_exit` calls this, from the game's jump at 0x1ec730,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_exit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The entry `bake_async_on_save_freed` (0x10a050, save_descriptor::~save_descriptor's start (sub esp,8 / cmp byte [esi+8],0; ESI the descriptor; its one caller ~query_result 0xF1135 with [query+0E0h]): when +8 is set it frees +0 (mt_free 0x106FC0 at 0x10A083), so a save's bytes live until its query is destroyed) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_save_freed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_save_freed` calls this, from the game's jump at 0x10a050,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_save_freed(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3060,7 +3233,12 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
 
 // ---- ragdoll (patch 76) ----
 
-/// The entry `ragdoll_on_cull` (0x24757c, mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)) calls this with the saved machine.
+/// The named exits of ragdoll::on_cull (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum RagdollOnCullExit { Culled }
+/// The entry `ragdoll_on_cull` (0x24757c, mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_cull(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `ragdoll_on_cull` calls this, from the game's jump at 0x24757c,
@@ -3069,7 +3247,7 @@ pub extern "C" fn hook_ragdoll_on_cull(frame: &mut Frame) -> u32 {
     match crate::ragdoll::on_cull(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -3311,6 +3489,46 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::text_input::on_char(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- texture_streaming (patch 137) ----
+
+/// The named exits of texture_streaming::on_update (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TextureStreamingOnUpdateExit { Returned }
+/// The entry `texture_streaming_on_update` (0x155980, scene::update_streaming_data's start (sub esp,18h / push ebx / mov ebx,[eax+12615Ch]), every frame from process_streaming (0x1540DE) while the scene has streamable textures: EAX the scene; returned is its `ret` (0x1559FE)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_streaming_on_update(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_streaming_on_update` calls this, from the game's jump at 0x155980,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_streaming::on_update(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- texture_streaming (patch 137) ----
+
+/// The named exits of texture_streaming::on_texture_memory (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TextureStreamingOnTextureMemoryExit { Returned }
+/// The entry `texture_streaming_on_texture_memory` (0x3be280, resource_manager::get_texture_video_memory_size's start (push ebx / push esi / mov esi,[eax+880A4h]), every frame from renderer::render's statistics (0x13D73E): EAX the resource manager; returned is its `ret` (0x3BE2C7), EAX the sum in bytes) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_streaming_on_texture_memory(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_streaming_on_texture_memory` calls this, from the game's jump at 0x3be280,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_streaming::on_texture_memory(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
