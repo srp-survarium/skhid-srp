@@ -331,7 +331,8 @@ without the objects and kits: most bytes of a state are free values
 ## Native deserialization bounds
 
 Patch 115 ports the FSM, anomaly and artefact guards to generated lohooks, typed
-fields and the current `vostok` boundary. It is independent of runtime message
+fields and the current `vostok` boundary, and bounds a dead selector's death
+animation by its set's own lists (get_death_animations 0x338280's entry). It is independent of runtime message
 and semantic-world enforcement. The checked stock instructions confirm the FSM's
 ESI/EDI and two stack inputs; the re-kit records that stronger ABI evidence.
 
