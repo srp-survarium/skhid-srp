@@ -19,8 +19,9 @@ package {
    loader.load(new URLRequest("lobby_menu.swf"),new LoaderContext(false,new ApplicationDomain()));
   }
   private function require(ok:Boolean,message:String):void {if(!ok)throw new Error(message);}
-  // What the exe gives the movie in `language`: srp's texts (HarnessText, from the dictionaries) and the stock keys the card reads.
-  private function texts(language:String):Object {var t:Object={btn_friends:"Friends",clan_players_level_label:"Level",critical_damages:"Critical damage"};for(var k:String in HarnessText.DATA[language])t[k]=HarnessText.DATA[language][k];return t;}
+  // What the exe gives the movie in `language`: srp's texts (HarnessText, from the dictionaries) and the stock keys the card reads
+  // (equipment_weight names the property a card puts last, ItemCompare.weightLast).
+  private function texts(language:String):Object {var t:Object={btn_friends:"Friends",clan_players_level_label:"Level",critical_damages:"Critical damage"};for(var k:String in HarnessText.DATA[language])t[k]=HarnessText.DATA[language][k];t.equipment_weight=HarnessText.STOCK[language].equipment_weight;return t;}
   private function item(pkp:Boolean):Object {
    var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
    var d:Object=new Data();d.dictId=pkp?2229:3;d.name=pkp?"PKP Pecheneg":"AK-74M";d.isWeapon=true;d.category=16;d.superCategory=2;d.itemLevel=15;d.modifiers=[];d.modifiersDefault=[];d.ammoText="7.62x54";d.properties=[];
@@ -461,12 +462,35 @@ package {
    for each(var p:Array in MEDICINES[name])d.properties.push({prop_id:p[0],prop_value:p[1]});
    return d;
   }
-  // Each line of a medicine's card: "label=value", in the card's order.
-  private function medicineLines(card:Object,d:Object):Array {
-   var out:Array=[];
-   for each(var p:Array in MEDICINES[d.name])out.push(MEDICINE_LABELS[p[0]]+"="+nativeText(card,MEDICINE_LABELS[p[0]]));
+  private function medicineUnit(id:int):String {return id==15?"kg":id==13?"":id==18||id==19?"s":"%";}
+  // The properties a medicine's card has rows of beside `other` (one-pocket-a-type.md, ItemCompare.cardRows):
+  // every one either has, those of the medicine with more of them first (the card's own of two
+  // with as many: neither has a dictionary id here), then the other's own, the weight last.
+  private function medicineRows(d:Object,other:Object):Array {
+   var own:Array=MEDICINES[d.name],theirs:Array=other==null?[]:MEDICINES[other.name],ids:Array=[],p:Array;
+   for each(p in theirs.length>own.length?theirs.concat(own):own.concat(theirs))if(p[0]!=15 && ids.indexOf(p[0])<0)ids.push(p[0]);
+   return ids.concat(15);
+  }
+  // A medicine's card as released beside `other`: "Pocket slots=1" first (one unit of a pocket), then
+  // medicineRows, a property the medicine has none of as 0.
+  private function medicineOwn(d:Object,other:Object):Array {
+   var out:Array=[POCKET+"=1"];
+   for each(var id:int in medicineRows(d,other)){
+    var value:Number=0;
+    for each(var p:Array in MEDICINES[d.name])if(p[0]==id)value=Number(p[1]);
+    out.push(MEDICINE_LABELS[id]+"="+value+medicineUnit(id));
+   }
    return out;
   }
+  // Each line of a medicine's card: "label=value", the pocket units and then medicineRows beside
+  // the item the card is compared with (cardLines is the card's own order).
+  private function medicineLines(card:Object,d:Object):Array {
+   var out:Array=[POCKET+"="+nativeText(card,POCKET)];
+   for each(var id:int in medicineRows(d,card.itemCompare.getSecondaryData()))out.push(MEDICINE_LABELS[id]+"="+nativeText(card,MEDICINE_LABELS[id]));
+   return out;
+  }
+  // The card's first row for an item that goes in a pocket (ItemCompare.pocketDepth).
+  private static const POCKET:String="Pocket slots";
   // Every bar line a card shows: "label=value", in its order.
   private function cardLines(card:Object):Array {
    var out:Array=[];
@@ -500,7 +524,9 @@ package {
    profile.setKitModifiers(kitFloats({}));
    for each(name in names){
     Scene.isAlt=false;d=medicine(name);shows(d,other);released[name]=medicineLines(cards[0],d).join();
-    require(released[name]==MEDICINES[name].map(function(p:Array,...rest):String{return MEDICINE_LABELS[p[0]]+"="+Number(p[1])+(p[0]==15?"kg":p[0]==13?"":p[0]==18||p[0]==19?"s":"%");}).join(),"released "+name+": "+released[name]);
+    require(released[name]==medicineOwn(d,other).join(),"released "+name+": "+released[name]+" (want "+medicineOwn(d,other).join()+")");
+    // Those rows and no other, in that order: the pocket units first, the weight last.
+    require(cardLines(cards[0]).join()==released[name],"the card's rows "+name+": "+cardLines(cards[0]).join()+" (want "+released[name]+")");
     Scene.isAlt=true;shows(d,other);
     require(medicineLines(cards[0],d).join()==released[name],"Alt, no medical skills: "+name+" "+medicineLines(cards[0],d).join());
    }
@@ -635,13 +661,23 @@ package {
    var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
    var d:Object=new Data();d.name=name;d.category=THROWABLES[name][0];d.superCategory=domain.getDefinition("survarium.item.ItemFactory").getCategory(d.category);d.descriptor=100;d.modifiers=[];d.properties=[];
    for each(var p:Array in THROWABLES[name][1])d.properties.push({prop_id:p[0],prop_value:p[1]});
+   // As ItemFactory makes it: the RGD-5's two units from its property 166.
+   d.quickSlotItemSize=domain.getDefinition("survarium.constants.QuickSlotSize").of({item_properties:d.properties});
    return d;
   }
-  // Each bar of a grenade's or a trap's card: "label=value", in the card's order (166, the pocket
-  // units, is no bar).
+  // The properties a grenade's or a trap's card has rows of: its own and none of the compared
+  // item's (one-pocket-a-type.md), the weight last. 166, the pocket units, is no row of its own:
+  // the card's first row says them (ItemCompare.pocketDepth).
+  private function throwableRows(name:String):Array {
+   var ids:Array=[];
+   for each(var p:Array in THROWABLES[name][1])if(THROWABLE_LABELS[p[0]] && p[0]!=15)ids.push(p[0]);
+   return ids.concat(15);
+  }
+  // Each row of a grenade's or a trap's card: "label=value", the pocket units and then throwableRows
+  // (cardLines is the card's own order).
   private function throwableLines(card:Object,d:Object):Array {
-   var out:Array=[];
-   for each(var p:Array in THROWABLES[d.name][1])if(THROWABLE_LABELS[p[0]])out.push(THROWABLE_LABELS[p[0]]+"="+nativeText(card,THROWABLE_LABELS[p[0]]));
+   var out:Array=[POCKET+"="+nativeText(card,POCKET)];
+   for each(var id:int in throwableRows(d.name))out.push(THROWABLE_LABELS[id]+"="+nativeText(card,THROWABLE_LABELS[id]));
    return out;
   }
   private function throwableChecks():void {
@@ -650,10 +686,13 @@ package {
    profile.setKitModifiers(kitFloats({}));
    for each(name in names){
     Scene.isAlt=false;d=throwable(name);shows(d,other);released[name]=throwableLines(cards[0],d).join();
-    var want:Array=[];
-    for each(var p:Array in THROWABLES[name][1])if(THROWABLE_LABELS[p[0]])want.push(THROWABLE_LABELS[p[0]]+"="+Number(p[1])+(THROWABLE_UNITS[p[0]]||""));
-    require(released[name]==want.join(),"released "+name+": "+released[name]);
-    for(var i:int=1;i<=9;i++){var row:Object=cards[0].itemCompare.getChildByName("diff_"+i);require(!row || !row.visible || row.indicator.label!="Pocket slots","no pocket units bar: "+name);}
+    // The pocket units first: the RGD-5's 2, 1 of the smoke grenade and the trap.
+    var want:Array=[POCKET+"="+(name=="rgd5"?2:1)];
+    for each(var id:int in throwableRows(name))for each(var p:Array in THROWABLES[name][1])if(p[0]==id)want.push(THROWABLE_LABELS[id]+"="+Number(p[1])+(THROWABLE_UNITS[id]||""));
+    require(released[name]==want.join(),"released "+name+": "+released[name]+" (want "+want.join()+")");
+    // Those rows and no other, in that order: the weight last, and no row for a stat only the
+    // compared RGD-5 has (the smoke grenade's damage).
+    require(cardLines(cards[0]).join()==released[name],"the card's rows "+name+": "+cardLines(cards[0]).join()+" (want "+released[name]+")");
     Scene.isAlt=true;shows(d,other);
     require(throwableLines(cards[0],d).join()==released[name],"Alt, no skills: "+name+" "+throwableLines(cards[0],d).join());
    }
@@ -813,7 +852,8 @@ package {
     // A medicine card's lines, as static_game_parameters has them (13 has no unit there).
     for each(spec in [[13,"Intoxication",1,""],[17,"Pain protection",1,"%"],[18,"Duration",1,"s"],[19,"Activation",0,"s"],[135,"Healing: arms / legs",1,"%"],[136,"Healing: body / head",1,"%"],[137,"Pain relief",1,"%"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
     for(var id:int=138;id<=162;id++)list.push({prop_id:id,comparable:false});
-    // A grenade's and a trap's (throwable-cards-1); 166 the pocket units (pocket-units-1), no bar.
+    // A grenade's and a trap's (throwable-cards-1); 166 the pocket units (pocket-units-1), not
+    // comparable: no row of the property, the card's first row is ItemCompare's own (pocketDepth).
     for each(spec in [[23,"Explosion radius",1,"m"],[167,"Stamina damage",1,""],[168,"Fuse time",0,"s"],[169,"Throw speed",1,"m/s"],[170,"Defuse time",1,"s"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
     list.push({prop_id:166,prop_name:"Pocket slots",comparable:false});
     // An armour piece's (the stock lines; added, mod_type 1).

@@ -190,8 +190,13 @@ its own rolls (an isolation roll and the skill: `30 -> 60`).
   is bullets inside an anomaly, not isolation.
 - **Checked:** `WeaponDetailsHarness` `isolationChecks` (Ruffle): ranks 0, 1, 5, other skills'
   bits beside it, refused values, the compared card, the colour, the cap, an own roll, a piece
-  without the line, no floats. Not run in a game. (2026-11-10: the harness's `throwableChecks`
-  and `medicineChecks` fail on main since the Pocket slots row; run with those two left out.)
+  without the line, no floats. Not run in a game.
+- **The harness, 2026-11-10:** `throwableChecks` and `medicineChecks` follow the cards of
+  `one-pocket-a-type.md` (Pocket slots first, the weight last, a missing stat as 0). One assertion
+  fails, on the movie: held Alt, a painkiller beside a medkit has 8 rows of its own and two skill
+  lines (Numb Legs with Unflinching or Concentration), and a card has nine rows, so the second
+  skill line is not drawn (`ItemCompare.updateData` stops at the last row; `fitted` leaves no
+  room for the skill lines). Everything else passes.
 
 ## How
 
