@@ -27,6 +27,13 @@ handler = "on_process_start"
 site = "render_output.present"
 handler = "on_present"
 
+# the engine's DirectDraw probe of the video memory, its number read: the
+# DirectDraw object it never releases released, the GPU's own Direct3D driver
+# with it (docs/notes/dxvk-option.md, "The address space (SRP-3)")
+[[hook]]
+site = "video_memory.ddraw_probed"
+handler = "on_ddraw_probed"
+
 [[hook]]
 site = "options.callback"
 handler = "on_options_call"

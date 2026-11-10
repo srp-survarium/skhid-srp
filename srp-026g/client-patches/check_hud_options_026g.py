@@ -44,6 +44,13 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   sees a window DXGI takes, and said; the next Present reads only; a windowed window read only; after
   a DirectX 11 start no style read or set; registers and stack as the original's, which presents with
   the window as it is;
+- the engine's DirectDraw probe of the video memory (GetVideoMemoryViaDirectDraw 0x105DB0 to its `ret`,
+  the site 0x105E8E after GetAvailableVidMem; ddraw.dll's DirectDrawEnumerateExA and DirectDrawCreate,
+  the objects' QueryInterface, GetAvailableVidMem and Release stubbed): after a DirectX 11 start and
+  after a DXVK one, the DirectDraw object it never releases released once, before the probe releases its
+  IDirectDraw7 and lets ddraw.dll go, and said; an object without an IDirectDraw7, and no
+  DirectDrawCreate, as the original's; its answer, the memory it writes, registers and stack as the
+  original's;
 - the Renderer's answer (root.srp_check_option) says the renderer running:
   "1" in a process that loaded DXVK at its start, "0" otherwise; a Vulkan
   option's the value DXVK was given at the start (without DXVK the saved one);
@@ -148,6 +155,16 @@ SELECT = "VK_LOADER_DRIVERS_SELECT"
 MODULE_SLOTS = {"dxgi.dll": 0xAF30CC, "d3d11.dll": 0xAF30D0, "d3d9.dll": 0xAF1194}
 CALLED = 0x6B000000     # a module the helper bound before patch 83 ran
 VK = {"vkCreateInstance": 3, "vkDestroyInstance": 2, "vkEnumeratePhysicalDevices": 3, "vkGetPhysicalDeviceProperties": 2}
+# the engine's DirectDraw probe of the video memory (GetVideoMemoryViaDirectDraw 0x105DB0, EDI its u64 out, its
+# `ret`s) and what it reaches: ddraw.dll (LoadLibraryA), its DirectDrawEnumerateExA and DirectDrawCreate
+# (GetProcAddress), the DirectDraw object's QueryInterface (+0) and Release (+8), IDirectDraw7's Release and
+# GetAvailableVidMem (+5Ch)
+DDRAW_PROBE, DDRAW_PROBE_RETS = 0x105DB0, (0x105EB2, 0x105EC1)
+DDRAW_MODULE, DDRAW_WORK = 0x6C000000, 0x33000000
+DDRAW_OBJECT, DDRAW7, DDRAW_VTABLE, DDRAW7_VTABLE, DDRAW_OUT = (DDRAW_WORK + 0x100 * i for i in range(5))
+DDRAW = {"DirectDrawEnumerateExA": 3, "DirectDrawCreate": 3, "QueryInterface": 3, "Release": 1, "Release7": 1,
+         "GetAvailableVidMem": 4}
+VIDEO_MEMORY = 0x1F000000         # what GetAvailableVidMem answers: 496 MiB
 
 
 def vk_version(major, minor, patch):
@@ -210,7 +227,7 @@ class Run(language.Run):
             return
         self.stubs = {}
         at = hide.IMPORTS + 0x600
-        for name, (slot, pops) in list(SLOTS.items()) + [(n, (None, p)) for n, p in VK.items()]:
+        for name, (slot, pops) in list(SLOTS.items()) + [(n, (None, p)) for n, p in {**VK, **DDRAW}.items()]:
             self.emu.mem_write(at, b"\xC2" + struct.pack("<H", 4 * pops))
             if slot is not None:
                 self.word(slot, at)
@@ -255,6 +272,8 @@ class Run(language.Run):
             self.calls_made.append((name, path))
             if path == "vulkan-1.dll":
                 result = VULKAN if self.vulkan is not None else 0
+            elif path == "ddraw.dll":
+                result = DDRAW_MODULE
             else:
                 result = 0 if path == DXVK_DIR + str(self.fails) else 0x72000000 + 0x10000 * len(self.calls_made)
                 if result:
@@ -266,6 +285,8 @@ class Run(language.Run):
         elif name == "GetProcAddress":
             function = self.text(arg(1)).decode()
             result = self.stubs[function] if arg(0) == VULKAN and function in VK else 0
+            if arg(0) == DDRAW_MODULE and function in self.ddraw_exports:
+                result = self.stubs[function]
         elif name == "FreeLibrary":
             self.calls_made.append((name, arg(0)))
         elif name == "SetEnvironmentVariableA":
@@ -319,7 +340,52 @@ class Run(language.Run):
             self.emu.mem_write(arg(1) + 20, device.encode() + b"\0")
         elif name == "vkDestroyInstance":
             self.calls_made.append((name, arg(0)))
+        elif name == "DirectDrawEnumerateExA":
+            self.calls_made.append((name,))
+            result = 0
+        elif name == "DirectDrawCreate":
+            self.calls_made.append((name,))
+            self.word(arg(1), DDRAW_OBJECT)
+            result = 0
+        elif name == "QueryInterface":
+            assert arg(0) == DDRAW_OBJECT, hex(arg(0))
+            self.calls_made.append((name,))
+            self.word(arg(2), DDRAW7 if self.ddraw7 else 0)
+            result = 0 if self.ddraw7 else 0x80004002            # E_NOINTERFACE
+        elif name == "GetAvailableVidMem":
+            assert arg(0) == DDRAW7, hex(arg(0))
+            self.calls_made.append((name,))
+            self.word(arg(2), VIDEO_MEMORY)
+            result = 0
+        elif name in ("Release", "Release7"):
+            assert arg(0) == (DDRAW_OBJECT if name == "Release" else DDRAW7), (name, hex(arg(0)))
+            self.calls_made.append((name,))
+            result = 0
         emu.reg_write(UC_X86_REG_EAX, result)
+
+    def ddraw_probed(self, exports=("DirectDrawEnumerateExA", "DirectDrawCreate"), ddraw7=True):
+        """The engine's DirectDraw probe from its start to its `ret`, ddraw.dll exporting `exports`, the
+        DirectDraw object answering IDirectDraw7 or not: the registers after, whether ESP is back, the u64 it
+        wrote (EDI's) and the calls in order."""
+        if not getattr(self, "ddraw_mapped", False):
+            self.emu.mem_map(DDRAW_WORK, 0x10000, UC_PROT_ALL)
+            self.ddraw_mapped = True
+        self.emu.mem_write(DDRAW_WORK, bytes(0x1000))
+        self.word(DDRAW_OBJECT, DDRAW_VTABLE)
+        self.word(DDRAW7, DDRAW7_VTABLE)
+        self.word(DDRAW_VTABLE, self.stubs["QueryInterface"])
+        self.word(DDRAW_VTABLE + 8, self.stubs["Release"])
+        self.word(DDRAW7_VTABLE + 8, self.stubs["Release7"])
+        self.word(DDRAW7_VTABLE + 0x5C, self.stubs["GetAvailableVidMem"])
+        self.emu.mem_write(DDRAW_OUT, b"\xAA" * 8)
+        self.ddraw_exports, self.ddraw7, self.calls_made, self.logged = set(exports), ddraw7, [], b""
+        sp = hide.STACK + 0x9000
+        self.word(sp, hide.SENTINEL)
+        regs = {**hide.GAME, UC_X86_REG_EDI: DDRAW_OUT}
+        after, esp = self.run(DDRAW_PROBE, DDRAW_PROBE_RETS, sp, regs)
+        assert self.stopped in DDRAW_PROBE_RETS, hex(self.stopped)
+        out = struct.unpack("<Q", bytes(self.emu.mem_read(DDRAW_OUT, 8)))[0]
+        return after, esp == sp, out, list(self.calls_made)
 
     def process_start(self, **world):
         """allocate_arenas' start to past its first instruction in `world` (windows_world): whether the
@@ -631,6 +697,7 @@ def main():
                + ", after patch 65's Invokes; on into update_player_icons as the game's")
     renderer(original, patched, expect)
     fullscreen_window(original, patched, expect)
+    ddraw_probe(original, patched, expect)
     field_of_view(original, patched, expect)
     print("all cases passed")
 
@@ -861,6 +928,43 @@ def fullscreen_window(original, patched, expect):
     _, _, a_calls = stock.presented(dxvk_fullscreen, vsync=1)
     _, _, b_calls = ours.presented(dxvk_fullscreen, vsync=1)
     expect(a_calls[-1][:3] == b_calls[-1][:3] == ("Present", 1, 0), f"vsync on: Present(1, 0) as the original's")
+
+
+def ddraw_probe(original, patched, expect):
+    """The engine's DirectDraw probe of the video memory (0x105DB0 to its `ret`, the site 0x105E8E after
+    GetAvailableVidMem): the DirectDraw object it made, which it never releases, released there, with either
+    renderer, before the probe releases its IDirectDraw7 and lets ddraw.dll go; its answer, its out value,
+    registers and stack as the original's."""
+    probed = [("LoadLibraryA", "ddraw.dll"), ("DirectDrawEnumerateExA",), ("DirectDrawCreate",), ("QueryInterface",)]
+    free = [("FreeLibrary", DDRAW_MODULE)]
+    read = probed + [("GetAvailableVidMem",)]
+    for what, cfg, world, a_want, b_want in [
+        ("DirectX 11", b"srp_dxvk off\r\n", {}, read + [("Release7",)] + free,
+         read + [("Release",), ("Release7",)] + free),
+        ("Vulkan/DXVK", b"srp_dxvk on\r\n", {}, read + [("Release7",)] + free,
+         read + [("Release",), ("Release7",)] + free),
+        # no IDirectDraw7 (none since DirectX 7): the probe's path past the site, the original's leak kept
+        ("no IDirectDraw7 (QueryInterface fails)", b"srp_dxvk off\r\n", {"ddraw7": False}, probed + free,
+         probed + free),
+        ("no DirectDrawCreate in ddraw.dll", b"srp_dxvk off\r\n", {"exports": ("DirectDrawEnumerateExA",)},
+         probed[:2] + free, probed[:2] + free),
+    ]:
+        stock, ours = Run(original), Run(patched)
+        stock.process_start(user_cfg=cfg, vulkan=(vk_version(1, 4, 303), 2))
+        ours.process_start(user_cfg=cfg, vulkan=(vk_version(1, 4, 303), 2))
+        a_regs, a_back, a_out, a_calls = stock.ddraw_probed(**world)
+        b_regs, b_back, b_out, b_calls = ours.ddraw_probed(**world)
+        # the log's own file aside
+        b_calls = [call for call in b_calls if call[:2] != ("CreateFileA", "srp_patches.log")]
+        released = b_want.count(("Release",)) == 1
+        expect(a_back and b_back and a_regs == b_regs and a_out == b_out and a_calls == a_want,
+               f"DirectDraw probe, {what}: registers, stack and the memory it answers ({a_out:#x}) as the "
+               f"original's ({shown(a_calls)})")
+        expect(b_calls == b_want and (b"DirectDraw object of the engine's probe released, references left 0" in ours.logged)
+               == released and (released or ours.logged == b""),
+               f"DirectDraw probe, {what}: " + ("the DirectDraw object released once, before its IDirectDraw7 and "
+                                                "ddraw.dll, said" if released else "the original's calls, nothing said")
+               + f" ({shown(b_calls)}; {ours.logged})")
 
 
 # uro_fov's console variable (0xAA6510) as its static initializer 0x85ADF0 leaves it in a running game (the

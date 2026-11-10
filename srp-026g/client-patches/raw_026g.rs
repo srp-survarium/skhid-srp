@@ -377,6 +377,17 @@ pub unsafe fn engine_vk_get_physical_device_properties(function: NonNull<c_void>
     unsafe { function(device, properties) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_com_release(void *object)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_com_release(function: NonNull<c_void>, object: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(object) }
+}
+
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_flush_instruction_cache(void *process, const void *address, unsigned int size)
 ///
 /// # Safety
@@ -3593,6 +3604,30 @@ impl UpdatePlayerIconsFrame {
     #[inline(always)]
     pub unsafe fn set_ui(self, value: Option<GameWorldUi>) {
         unsafe { self.0.byte_add(0x4).cast::<Option<GameWorldUi>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::ddraw_probe_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DdrawProbeFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DdrawProbeFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x18 (u32): the DirectDraw object DirectDrawCreate made (an IDirectDraw*; esp+18h, 0 from the probe's start, 0x105DC0, and when ddraw.dll has no DirectDrawCreate)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ddraw(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
     }
 }
 
@@ -19156,6 +19191,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Inventory)
+        }
+    }
+
+    /// video_memory.ddraw_probed (0x105e9a): the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) at its FreeLibrary(ddraw) (push esi / call [870088h]), which each path past ddraw.dll's LoadLibraryA reaches: the DirectDraw object at [esp+18h], which the probe never releases (only its IDirectDraw7, 0x105E98)
+    pub mod video_memory_ddraw_probed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::ddraw_probe_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DdrawProbeFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(DdrawProbeFrame)
         }
     }
 

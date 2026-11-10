@@ -224,6 +224,42 @@ pub fn bind_delayed_import(_: &Thread, import: DelayedImport, module: Module) ->
     true
 }
 
+/// The DirectDraw object the engine's video-memory probe made
+/// (GetVideoMemoryViaDirectDraw 0x105DB0, the DirectX SDK's): the probe
+/// releases only the IDirectDraw7 it asked it for, so the object, and with it
+/// the GPU's own Direct3D driver DirectDrawCreate loaded (NVIDIA's
+/// nvd3dum.dll, AMD's amdxn32.dll), would stay for the life of the process.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProbeDirectDraw(NonNull<c_void>);
+
+impl ProbeDirectDraw {
+    /// At `video_memory.ddraw_probed` (the probe with the memory read, before
+    /// it releases the IDirectDraw7 and lets ddraw.dll go): the object, None
+    /// when DirectDrawCreate made none.
+    pub fn at_probed(ctx: &Context<'_>) -> Option<ProbeDirectDraw> {
+        // SAFETY: the context is this site's: the probe's frame, its slot 0
+        // from the probe's start or the object DirectDrawCreate made, the
+        // probe's alone, on the thread that runs it.
+        let object = unsafe { *raw::site::video_memory_ddraw_probed::frame(ctx)?.ddraw() };
+        NonNull::new(object as usize as *mut c_void).map(ProbeDirectDraw)
+    }
+
+    /// The probe's reference let go (IUnknown::Release): the references its
+    /// IDirectDraw interface has left. The probe reads the slot no more; its
+    /// IDirectDraw7 keeps the object until the probe releases that, which
+    /// frees it, before ddraw.dll is let go.
+    pub fn release(self, _: &Thread) -> u32 {
+        // SAFETY: a COM object DirectDrawCreate made, alive (the probe holds
+        // its one reference): its vtable's third entry is IUnknown::Release
+        // (stdcall, the object its argument).
+        unsafe {
+            let vtable = *self.0.as_ptr().cast::<*const *mut c_void>();
+            let Some(release) = NonNull::new(*vtable.add(2)) else { return 0 };
+            raw::engine_com_release(release, self.0.as_ptr())
+        }
+    }
+}
+
 /// A window's two style words (GWL_STYLE, GWL_EXSTYLE), read together.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WindowStyles {

@@ -44,6 +44,12 @@
 //!   as DXVK's fullscreen and the game's set_size leave it) gets WS_POPUP, so
 //!   the Vulkan swap chain AMD's driver makes through DXGI on it is made
 //!   (docs/notes/dxvk-option.md, "The fullscreen window");
+//! - the engine's DirectDraw probe of the video memory, its number read
+//!   (`video_memory.ddraw_probed`, with either renderer): the DirectDraw
+//!   object it made and never releases is released, so the GPU's own
+//!   Direct3D driver DirectDrawCreate loaded (nvd3dum.dll, amdxn32.dll) does
+//!   not stay mapped for the whole game (docs/notes/dxvk-option.md, "The
+//!   address space (SRP-3)");
 //! - the login screen shown (`login_menu.activated`, after patch 88): the
 //!   renderer works, the marker goes; after a failed DXVK start the setting
 //!   is turned off there (user.cfg has run by then) and saved;
@@ -62,8 +68,8 @@ use core::ffi::CStr;
 
 use crate::vostok::language::ConsoleString;
 use crate::vostok::log::{Piece::*, line};
-use crate::vostok::renderer::{DelayedImport, Gpu, OutputWindow, Vulkan, VulkanVersion, WindowStyles, best_version,
-                               clear_environment, dxvk_pick, environment_set, get_environment, look,
+use crate::vostok::renderer::{DelayedImport, Gpu, OutputWindow, ProbeDirectDraw, Vulkan, VulkanVersion, WindowStyles,
+                               best_version, clear_environment, dxvk_pick, environment_set, get_environment, look,
                               bind_delayed_import, exists_beside_exe, is_loaded, load_beside_exe, set_environment,
                               with_user_cfg};
 use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, SliderSteps, create_file, delete_file, file_exists,
@@ -996,6 +1002,23 @@ pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> {
                Hex(before.extended), Text(") made a popup: style "), Hex(after.style),
                Text(if after.dxgi_takes() { ", DXGI takes it" } else { ", DXGI still refuses it" })]);
     }
+    Flow::Continue
+}
+
+/// The engine's DirectDraw probe of the video memory (0x105DB0, the DirectX
+/// SDK's GetVideoMemoryViaDirectDraw) with its number read, before it
+/// releases the IDirectDraw7 it asked for: it never releases the DirectDraw
+/// object, which keeps the GPU's own Direct3D driver DirectDrawCreate loaded
+/// mapped for the life of the process (NVIDIA's nvd3dum.dll, 43 MiB; AMD's
+/// amdxn32.dll, 35 MiB), with either renderer: neither draws with it. Its
+/// reference is let go here, and said; the probe's release of the
+/// IDirectDraw7 then frees the object, while ddraw.dll is still loaded (its
+/// FreeLibrary next unloads the object's code). An object without an
+/// IDirectDraw7 (none since DirectX 7) leaks as before.
+pub fn on_ddraw_probed(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(ddraw) = ProbeDirectDraw::at_probed(ctx) else { return Flow::Continue };
+    let left = ddraw.release(ctx.thread());
+    line(&[Text("video memory: the DirectDraw object of the engine's probe released, references left "), Dec(left)]);
     Flow::Continue
 }
 

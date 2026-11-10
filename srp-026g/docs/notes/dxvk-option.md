@@ -285,7 +285,7 @@ thread reading it is shown (the start, the login screen and every Present are th
   (`dxvk_buffer.cpp:34`, `assignStorage(allocateStorage())`), reached from `CreateTexture2D` making a texture with CPU
   access its mapped buffer: `DxvkMemoryAllocator::createBufferResource` logs "Memory allocation failed" and answers
   null when no memory can be had, and the constructor reads through it. A 32-bit program filling its address space and
-  then making 4 MiB staging textures (`D:\Code\srp\gameeportsaprobe`, not in the repo) crashes at the same
+  then making 4 MiB staging textures (a test program, not in the repo) crashes at the same
   instruction with the same read, under DXVK on an AMD iGPU and on an RTX alike; Windows' own D3D11 refuses the texture
   instead. The live game on a PC of an RTX 5090 and an enabled Radeon iGPU, Vulkan on: 4073 MiB used 14 s after its
   start, then that crash, half a second after `atmosphere recalculated (... window_resized:true)` as in the report.
@@ -312,9 +312,20 @@ thread reading it is shown (the start, the login screen and every Present are th
 - **No descriptor heap on AMD.** When DXVK's GPU is AMD's, `DXVK_CONFIG` gets `dxvk.enableDescriptorHeap = False`, as
   DXVK decides by itself after 3.1.1 (doitsujin/dxvk 076922bd2, its #5837: DXVK 3 crashed at start on an RX 7900 XTX
   with it). Logged on its own line (`DXVK_CONFIG adds ...`); DXVK's log says `Binding model: Legacy`.
+- **The video-memory probe's DirectDraw object** (with either renderer, `on_ddraw_probed`). The engine's VRAM check
+  (`get_local_video_memory_size` 0x106300, through 0x1060F0, to `GetVideoMemoryViaDirectDraw` 0x105DB0, the DirectX
+  SDK sample's) makes a DirectDraw object and releases only the IDirectDraw7 it asks it for. DirectDrawCreate loads
+  the GPU's own Direct3D driver, and the leaked object keeps it mapped for the whole game, also under DXVK, which never
+  draws with it: an image-load trace of the game's start shows `ddraw.dll`, then `nvd3dum.dll`. The object is now
+  released at 0x105E8E, before the probe releases its IDirectDraw7 and lets ddraw.dll go (after that FreeLibrary the
+  object's code is unmapped); the probe's number is the same. `srp_patches.log`: `video memory: the DirectDraw object
+  of the engine's probe released, references left 0`. Measured at the login screen on an RTX 5090: DirectX 11 3017 ->
+  2964 MiB used, DXVK 3366 -> 3293 MiB, `nvd3dum.dll` (43 MiB) gone from both. On AMD the driver is `amdxn32.dll`,
+  34 to 35 MiB in every player's dump, DXVK and DirectX 11 alike (not measured on AMD here: the Radeon iGPU of the
+  test PC drives no display, and DirectDraw takes the display's GPU).
 
-**What stays:** a PC of one AMD GPU gains nothing from the drivers' limit, and AMD's presentation through D3D12 is
-AMD's. The game peaks near 3.9 GB on DirectX 11 already (the arenas reserved at its start); patches 124 and 129
+**What stays:** a PC of one AMD GPU gains nothing from the drivers' limit, only the probe's driver (about 35
+MiB), and AMD's presentation through D3D12 is AMD's. The game peaks near 3.9 GB on DirectX 11 already (the arenas reserved at its start); patches 124 and 129
 (rev54) reserve more. DXVK on such a PC can still run out: no setting is switched for the player after a crash (no
 fallback that would hide which renderer failed).
 
