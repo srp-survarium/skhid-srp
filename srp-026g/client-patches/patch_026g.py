@@ -2909,7 +2909,7 @@ ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execut
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
 # The most the arena may take: a block of a runaway size (a state array, a
 # table) stops the link instead of growing the image. Raise it on purpose.
-ARENA_LIMIT = 0x100000
+ARENA_LIMIT = 0x180000                          # 0x100000 until patch 121 took the arena past it
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (

@@ -31,11 +31,14 @@ va	status	ref_021d	name
 0x0001b1f0	inferred-medium	0x00016dd6	vostok::engine::engine_world::on_before_editor_tick
 0x0001b320	inferred-medium	0x00016eaa	vostok::engine::engine_world::create_editor_console
 0x0001b380	inferred-medium	0x00016f0d	vostok::engine::engine_world::terminate_on_timeout
+0x0001b7b0	inferred-medium		vostok::timing::timer::elapsed_ticks
 0x0001b810	inferred-medium	0x000171d2	vostok::timing::timer::get_elapsed_msec
 0x0001b9b0	inferred-medium	0x00017293	vostok::fs_new::asynchronous_device_interface::~asynchronous_device_interface
 0x0001bb00	inferred-medium	0x0001739d	boost::detail::function::void_function_obj_invoker0<boost::_bi::bind_t<void,boost::_mfi::mf2<void,vostok::engine::engine_world,enum vostok::apc::threads_enum,vostok::engine::device_ticker const &>,boost::_bi::list3<boost::_bi::value<vostok::engine::engine_world *>,boost::_bi::value<enum vostok::apc::threads_enum>,boost::_bi::value<vostok::engine::device_ticker> > >,void>::invoke
 0x0001be60	inferred-medium	0x0001745f	vostok::engine::engine_world::cooker_thread
+0x0001c410	inferred-medium		vostok::memory::mt_free
 0x0001c450	inferred-medium	0x0001772f	vostok::engine::scaleform_log_output
+0x0001c6a0	inferred-medium		vostok::memory::mt_allocate
 0x0001c6f0	inferred-medium	0x000178a4	vostok::engine::console::`scalar deleting destructor'
 0x0001c870	inferred-medium	0x00017fec	vostok::console_impl::on_activate
 0x0001c930	inferred-medium	0x000179c7	vostok::console_impl::console_impl
@@ -635,6 +638,7 @@ va	status	ref_021d	name
 0x00102370	inferred-medium	0x000c68a6	vostok::resources::resources_manager::dispatch_callbacks
 0x00102510	inferred-medium	0x000c69c8	vostok::resources::resources_manager::dispatch_fs_tasks_callbacks
 0x00102e30	inferred-medium	0x000c6f92	vostok::resources::resources_manager::unregister_cook
+0x00103380	inferred-medium		vostok::resources::resources_manager::cooker_thread_tick
 0x001033d0	inferred-medium	0x000c7210	vostok::buffer_vector<vostok::resources::cook_base *>::push_back
 0x00103ff0	inferred-medium	0x000c7ba6	vostok::journaling::journal::journal
 0x001044f0	inferred-medium	0x000c7fd9	vostok::resources::query_result_for_cook::query_result_for_cook
@@ -648,6 +652,7 @@ va	status	ref_021d	name
 0x001064c0	inferred-medium	0x000c93e0	vostok::resources::game_resources_manager::try_reallocate_queue
 0x001065d0	inferred-medium	0x000c944b	vostok::resources::game_resources_manager::on_resource_freed_callback
 0x00106660	inferred-medium	0x000c94b7	vostok::resources::game_resources_manager::out_of_memory_callback
+0x00106a00	inferred-medium		vostok::timing::timer::elapsed_ms
 0x00106a70	inferred-high	0x000c9752	slwait
 0x00107070	inferred-medium	0x000c9bdb	pt3realloc
 0x001085a0	inferred-medium	0x000cab8c	vostok::resources::query_result::associate_created_resource_with_fat_or_name_registry
@@ -662,6 +667,11 @@ va	status	ref_021d	name
 0x00109a10	inferred-medium	0x000cb990	vostok::resources::query_result::finish_normal_query
 0x00109aa0	inferred-medium	0x000cb9eb	vostok::resources::query_result::set_deleter_object_if_needed
 0x00109bd0	inferred-medium	0x000cbaaa	vostok::resources::query_result::finish_translated_query
+0x00109de0	inferred-medium		vostok::strings::duplicate
+0x00109ed0	inferred-medium		vostok::resources::make_save_descriptor
+0x00109f30	inferred-medium		vostok::resources::allocate_save_descriptor
+0x00109fc0	inferred-medium		vostok::resources::save_descriptor::save_descriptor
+0x0010a050	inferred-medium		vostok::resources::save_descriptor::~save_descriptor
 0x0010a990	inferred-medium	0x000cc1e2	vostok::memory::doug_lea_mt_allocator::`scalar deleting destructor'
 0x0010b560	inferred-medium	0x000cca42	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::core::configs::binary_config_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<vostok::core::configs::binary_config_cook *>,boost::arg<1> > > >::manager
 0x0010b600	inferred-medium	0x000cfb5f	vostok::configs::binary_config::`scalar deleting destructor'
@@ -773,6 +783,12 @@ va	status	ref_021d	name
 0x0011b510	inferred-medium	0x000d7841	vostok::math::color_rgba
 0x0011b5a0	inferred-medium	0x000d78ef	vostok::render::shader_constant_buffer::set_memory
 0x0011ce40	inferred-medium	0x000d8301	vostok::render::clip_2_screen
+0x0011f280	inferred-medium		vostok::render::gpu_dxt_compressor::block_mip_count
+0x0011f2f0	inferred-medium		vostok::render::gpu_dxt_compressor::data_size
+0x0011f350	inferred-medium		vostok::render::gpu_dxt_compressor::write_dds_header
+0x0011f3f0	inferred-medium		vostok::render::gpu_dxt_compressor::compress
+0x0011f590	inferred-medium		vostok::render::gpu_dxt_compressor::compress_mip
+0x0011f8b0	inferred-medium		vostok::render::gpu_dxt_compressor::make_mips
 0x0011fb00	inferred-medium	0x000d9b82	vostok::buffer_vector<unsigned short>::push_back
 0x0011fb80	inferred-medium	0x000d9bf0	stlp_std::priv::_Rb_tree<vostok::render::render_model_instance *,stlp_std::less<vostok::render::render_model_instance *>,stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects>,stlp_std::priv::_Select1st<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,stlp_std::priv::_MapTraitsT<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,vostok::render::std_allocator<stlp_std::pair<vostok::render::render_model_instance *,vostok::render::material_effects> > >::_M_erase
 0x0011fbf0	inferred-medium	0x000d9c7d	vostok::buffer_vector<vostok::render::vertex_colored>::push_back
@@ -832,6 +848,7 @@ va	status	ref_021d	name
 0x0012e510	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded
 0x0012ec40	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::process_compression
 0x001307b0	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::render_decal_occlusion
+0x00131590	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::render_bake
 0x00131b40	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
 0x00131f90	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
 0x00133fb0	inferred-high		vostok::render::camouflage_decal_baker_cook::camouflage_decal_baker_cook
@@ -2902,6 +2919,7 @@ va	status	ref_021d	name
 0x003bb960	inferred-medium	0x002670de	vostok::render::operator<
 0x003bc5e0	inferred-medium	0x002680bf	vostok::render::change_substring
 0x003bc710	inferred-medium	0x002681a5	vostok::render::create_default_texture
+0x003bd030	inferred-medium		vostok::render::resource_manager::create_texture_from_memory
 0x003befd0	inferred-medium		vostok::render::resource_manager::release
 0x003bfd60	inferred-medium		vostok::render::resource_manager::release
 0x003c1110	inferred-medium	0x0026b78a	vostok::buffer_vector<vostok::render::shader_constant_binding>::push_back
@@ -3388,6 +3406,7 @@ va	status	ref_021d	name
 0x002ffc40	inferred-high		survarium::inventory_item::degrade_per_death
 0x002ffc80	inferred-medium		survarium::inventory_item::degrade_per_use
 0x002da790	inferred-medium		survarium::base_player::unload
+0x00103d10	inferred-medium		vostok::resources::resources_manager::push_new_query
 0x00014020	inferred-high	0x00012d86	vostok::engine::engine_world::on_alttab
 0x00018ac0	inferred-high		vostok::engine::engine_world::process_messages
 0x00018b30	inferred-high	0x00015871	vostok::engine::engine_world::run
