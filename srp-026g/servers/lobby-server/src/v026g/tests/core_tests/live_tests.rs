@@ -237,3 +237,38 @@ fn a_full_match_is_busy_and_one_not_begun_is_not_watched() {
         format!("R1;busy;{ticket:08x};0")
     );
 }
+
+/// A room's member who watches a live match meanwhile is called back when its room could play
+/// with it (`room_recalls`): alone in its room it watches on; a second member makes the room's
+/// minimum with it, and its watch ends.
+#[test]
+fn a_member_watching_live_is_called_back_when_its_room_reaches_its_minimum() {
+    let mut world = World::new();
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    let key = create(&mut world, carol, spec(6), None);
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    let session = world.ids[carol].1;
+    world.advance(Duration::from_secs(5));
+    assert!(world.store.matchmaking().watched(session).is_some(), "alone in its room: it watches on");
+    let dave = world.connect("Dave");
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(world.store.matchmaking().watched(session).is_none(), "its room has its minimum with it: called back");
+}
+
+/// One in no room is nobody's to call back, whatever the rooms do.
+#[test]
+fn a_watcher_in_no_room_is_not_called_back() {
+    let mut world = World::new();
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    let session = world.ids[carol].1;
+    let dave = world.connect("Dave");
+    let erin = world.connect("Erin");
+    let key = create(&mut world, dave, spec(6), None);
+    rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(5));
+    assert!(world.store.matchmaking().watched(session).is_some());
+}

@@ -368,6 +368,8 @@ struct Playback {
     request: WatchRequest,
     spectator: Spectator,
     clock: Clock,
+    /// The lobby called its player back (`Watches::recall`): its game is let go.
+    recalled: bool,
     speed: Speed,
     /// The `seq` of the last request taken from its game.
     last_request: Option<u8>,
@@ -401,6 +403,7 @@ impl Playback {
             request,
             spectator,
             clock: Clock::Loading { at: start },
+            recalled: false,
             speed: Speed::Normal,
             last_request: None,
             told: None,
@@ -652,10 +655,12 @@ impl Playback {
             self.clock,
             Clock::Paused { since, .. } if now.saturating_duration_since(since) >= PAUSED_MOST
         );
-        if (at >= self.recording.end || paused_out) && !self.spectator.is_leaving() {
+        if (at >= self.recording.end || paused_out || self.recalled) && !self.spectator.is_leaving() {
             log::info!(
                 "Replay {session_id:#x}: {}",
-                if paused_out {
+                if self.recalled {
+                    "its player's room calls it back"
+                } else if paused_out {
                     "paused too long, its session goes to someone else"
                 } else {
                     "the recording is over"
@@ -991,6 +996,8 @@ impl ReplayWatch {
         let mut datagrams = Vec::new();
         let replays = &self.replays;
         self.playbacks.retain(|_, playback| {
+            // Its player's room wants it back: let go as at the recording's end.
+            playback.recalled = playback.recalled || replays.watches().is_recalled(&playback.request);
             let (out, ended) = playback.poll(now);
             datagrams.extend(out);
             let kept = ended != Some(Ended::Left)

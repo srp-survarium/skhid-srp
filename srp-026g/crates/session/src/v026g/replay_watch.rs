@@ -311,6 +311,9 @@ struct Session {
     stage: Stage,
     /// When it came to its stage.
     since: Instant,
+    /// Its player's room wants it back ([`Watches::recall`]): the match
+    /// server lets its game go as at the recording's end.
+    recalled: bool,
 }
 
 /// The replay sessions (the module's doc). `None` settings: off (no
@@ -414,6 +417,7 @@ impl Watches {
                 request,
                 stage: Stage::Queued,
                 since: now,
+                recalled: false,
             },
         );
         Status::Preparing
@@ -450,6 +454,47 @@ impl Watches {
             .locked()
             .get(&account_id)
             .is_some_and(|session| session.stage.is_open())
+    }
+
+    /// The account's room wants its player back (its match can be made with
+    /// it, or has a place for it): a session whose game is still in the lobby
+    /// is over at once; one whose game was sent or watches is marked, and the
+    /// match server lets the game go ([`Watches::is_recalled`]), which ends
+    /// it. Whether this call changed anything.
+    pub fn recall(&self, account_id: u32) -> bool {
+        let mut sessions = self.sessions.locked();
+        let Some(session) = sessions.get_mut(&account_id) else {
+            return false;
+        };
+        match session.stage {
+            Stage::Queued | Stage::Loading | Stage::Ready { .. } => {
+                let match_id = session.request.match_id;
+                sessions.remove(&account_id);
+                log::info!(
+                    "Replay sessions: account {account_id}'s session of match {match_id:#x} is over: \
+                     its room called it back before its game was sent"
+                );
+                true
+            }
+            Stage::Sent { .. } | Stage::Playing { .. } if !session.recalled => {
+                session.recalled = true;
+                log::info!(
+                    "Replay sessions: account {account_id}'s room calls it back from match {:#x}",
+                    session.request.match_id
+                );
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether the request's session was called back ([`Watches::recall`])
+    /// with its game at the match server or on its way there.
+    pub fn is_recalled(&self, request: &WatchRequest) -> bool {
+        self.sessions
+            .locked()
+            .get(&request.account_id)
+            .is_some_and(|session| session.request == *request && session.recalled)
     }
 
     /// Whether the session's game is on its way to the match server or
@@ -765,6 +810,31 @@ mod tests {
             watches.judge(&unknown, &[ALICE], &[Some(40)], 30),
             Err(WatchRefusal::OldGame)
         );
+    }
+
+    /// Called back by its player's room: over at once while its game is in the lobby; with its
+    /// game sent or watching it is marked, once, for the match server, and its end frees the player.
+    #[test]
+    fn a_session_called_back_ends_in_the_lobby_or_is_marked_for_the_match_server() {
+        let now = Instant::now();
+        let watches = watches(Access::Match, 2);
+        let alice = request(ALICE);
+        assert!(!watches.recall(ALICE), "no session");
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        assert!(watches.recall(ALICE));
+        assert!(!watches.holds(ALICE));
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        assert_eq!(watches.next_job(now), Some(alice));
+        assert!(watches.loaded(&alice, 0, now));
+        watches.sent(ALICE, now);
+        assert!(!watches.is_recalled(&alice));
+        assert!(watches.recall(ALICE));
+        assert!(!watches.recall(ALICE), "told once");
+        assert!(watches.is_recalled(&alice) && watches.holds(ALICE));
+        assert_eq!(watches.connected(alice.session_id, now), Some((alice, 0)));
+        assert!(watches.is_recalled(&alice), "still, with its game at the match server");
+        watches.ended(&alice);
+        assert!(!watches.holds(ALICE) && !watches.is_recalled(&alice));
     }
 
     #[test]

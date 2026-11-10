@@ -386,13 +386,18 @@ impl Core<'_> {
         if self.pool_for_sessions([player.session_id]) != Some(QueuePool::GrowingRoster) {
             return Err(RoomCode::Outdated);
         }
-        // A spectator (Queue and spectate) is in the match it watches with
-        // no place: its room's queue lets it in all the same.
+        // A spectator (Queue and spectate, the Live window's) is in the match
+        // it watches with no place, and a replay's viewer in its session:
+        // its room's queue lets it in all the same, and its room calls it
+        // back (`room_recalls`).
         let watching = self
             .store
             .matchmaking()
             .watched(player.session_id)
-            .is_some();
+            .is_some()
+            || self
+                .replays
+                .is_some_and(|replays| replays.watches().holds(account_id));
         if (!watching && (player.in_match.is_some() || player.connect.is_some()))
             || player.queued_since.is_some()
             || self
@@ -2103,6 +2108,122 @@ impl Core<'_> {
         })
     }
 
+    /// Whether the room has a use for a member right now: its vote runs, or
+    /// its match being played takes a member now (`late_hold`) or will in a
+    /// moment (another is on its way in, a game loads). A member is not left
+    /// to watch something else then (`room_recalls`), nor started on it
+    /// ([`Self::room_keeps`]).
+    fn room_takes_now(&self, room: &model::Room, now: Instant) -> bool {
+        match room.stage {
+            Stage::Waiting => false,
+            Stage::Vote { .. } => true,
+            Stage::InMatch { match_id, .. } => self.matches.get(&match_id).is_some_and(|running| {
+                matches!(
+                    self.late_hold(match_id, running, usize::from(room.spec.size), now),
+                    Ok(()) | Err(Some(JoinHold::Joining | JoinHold::Loading))
+                )
+            }),
+        }
+    }
+
+    /// Whether the account's room has a use for it right now
+    /// ([`Self::room_takes_now`]): a watch it asks for then would be called
+    /// back at once, so it is not begun (`replay`: `busy`).
+    pub(super) fn room_keeps(&self, account_id: u32, now: Instant) -> bool {
+        !self.maintenance_is_near()
+            && self
+                .rooms
+                .of(account_id)
+                .is_some_and(|room| self.room_takes_now(room, now))
+    }
+
+    /// A member who watches something else meanwhile (a live match from the
+    /// Live window, a replay) is called back when its room has a use for it
+    /// (the owner's of 2026-11-10: "once minimal players are found ... I
+    /// should gracefully automatically leave [the] game I'm spectating"):
+    ///
+    /// - a room waiting for players: once those who can play now and those
+    ///   watching who could make its minimum together, so the vote begins
+    ///   when they are back;
+    /// - a room in its vote: at once;
+    /// - a room whose match is played: when that match takes a member now
+    ///   (`late_hold`), or will in a moment (another is on its way in).
+    ///
+    /// A private room waiting is its owner's to start, and calls nobody. The
+    /// live watch is stopped (`Matchmaking::stop_watching`: the match server
+    /// lets its game go) and a replay's session called back
+    /// (`Watches::recall`); the game comes back to the lobby by itself, and
+    /// its room takes it as any member (the vote, a late join). Queue and
+    /// spectate's own watch is not this pass's (`room_watchers`).
+    fn room_recalls(&mut self, now: Instant) {
+        if self.maintenance_is_near() {
+            return;
+        }
+        enum Away {
+            Live(u32),
+            Replay,
+        }
+        let matchmaking = self.store.matchmaking();
+        let away_of = |account_id: u32| -> Option<Away> {
+            if self
+                .replays
+                .is_some_and(|replays| replays.watches().holds(account_id))
+            {
+                return Some(Away::Replay);
+            }
+            let player = self.player(*self.by_account.get(&account_id)?)?;
+            let watcher = matchmaking.watched(player.session_id)?;
+            matches!(watcher.kind, session::WatchKind::Live { .. }).then_some(Away::Live(player.session_id))
+        };
+        let mut called: Vec<(u32, u32, Away)> = Vec::new();
+        for room in self.rooms.all() {
+            let away: Vec<(u32, Away)> = room
+                .members
+                .iter()
+                .filter_map(|&member| Some((member, away_of(member)?)))
+                .collect();
+            if away.is_empty() {
+                continue;
+            }
+            let wanted = match room.stage {
+                Stage::Waiting => {
+                    room.is_open() && {
+                        let ready = room
+                            .members
+                            .iter()
+                            .filter(|&&member| self.room_ready(member).is_some())
+                            .count();
+                        let could = away
+                            .iter()
+                            .filter(|(member, _)| self.member_fit(*member) == Fit::Yes)
+                            .count();
+                        ready + could >= room.needs()
+                    }
+                }
+                Stage::Vote { .. } | Stage::InMatch { .. } => self.room_takes_now(room, now),
+            };
+            if wanted {
+                called.extend(away.into_iter().map(|(member, away)| (room.key, member, away)));
+            }
+        }
+        for (key, account_id, away) in called {
+            let (told, what) = match away {
+                Away::Replay => (
+                    self.replays
+                        .is_some_and(|replays| replays.watches().recall(account_id)),
+                    "the replay",
+                ),
+                Away::Live(session_id) => (matchmaking.stop_watching(session_id).is_some(), "the live match"),
+            };
+            if told {
+                log::info!(
+                    "{}: called back to room {key} from {what} it watched",
+                    self.name_of(account_id).unwrap_or_default()
+                );
+            }
+        }
+    }
+
     /// The rooms' pass of the lobby's tick: matches whose countdown is
     /// over start, and members free in the lobby while their room's match
     /// is played go into it.
@@ -2137,6 +2258,7 @@ impl Core<'_> {
         }
         self.room_admit_queues(now);
         self.room_scale_queues(now);
+        self.room_recalls(now);
         // A maintenance is near: no room plays another match. A room not
         // playing ends now; one playing plays its match out and ends with it
         // (`room_match_over`), the owner's of 2026-10-17.

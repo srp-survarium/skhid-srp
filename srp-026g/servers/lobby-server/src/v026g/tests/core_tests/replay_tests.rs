@@ -104,14 +104,11 @@ fn poll_in_room(world: &mut World, index: usize) -> String {
     r1(&world.take(index))
 }
 
-/// A replay session: `preparing` while the match server reads the
-/// recording, then the game is sent to it as a spectator is (to the match
-/// server, under the recorded match, no team) and the polls say `watching`
-/// and where it starts. Its player is in none of its room's matches until
-/// the session is over; nothing of the queue or the matches is touched.
+/// A replay session asked by a member whose room can play with it: the room's vote begins and
+/// calls it back (`room_recalls`); its game was not sent yet, so its session is over at once, and
+/// it plays its room's match. A watch asked during the vote is not begun (`busy`).
 #[test]
-fn a_replay_session_sends_the_game_to_watch_and_holds_its_room_until_it_ends() {
-    use session::v026g::replay_watch::WatchFrom;
+fn a_replay_session_of_a_member_ends_when_its_room_can_play() {
     use super::rooms_tests::{create, rows, spec};
     use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
     let desk = sessions();
@@ -124,6 +121,35 @@ fn a_replay_session_sends_the_game_to_watch_and_holds_its_room_until_it_ends() {
     for index in [bob, carol] {
         rows(&mut world, index, ROOM_JOIN_BASE + key, 1);
     }
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let (account, _) = world.ids[carol];
+    let watches = desk.watches();
+    assert!(watches.holds(account));
+    world.advance(Duration::from_secs(1));
+    assert!(!watches.holds(account), "its room's vote began: called back");
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;busy;1f07c8fb;0", "not during the vote");
+    world.advance(ROOM_TO_MATCH);
+    for (index, name) in [(alice, "Alice"), (bob, "Bob"), (carol, "Carol")] {
+        assert!(sent_to_match(&world.take(index)).is_some(), "{name} plays");
+    }
+}
+
+/// A member alone in its room (below the room's minimum) watches a replay to its end: `preparing`
+/// while the match server reads the recording, then the game is sent to it as a spectator is (to
+/// the match server, under the recorded match, no team) and the polls say `watching` and where it
+/// starts; nothing of the queue or the matches is touched.
+#[test]
+fn a_replay_session_sends_the_game_to_watch_and_frees_its_player_at_its_end() {
+    use session::v026g::replay_watch::WatchFrom;
+    use super::rooms_tests::{create, spec};
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let key = create(&mut world, carol, spec(6), None);
     assert_eq!(
         ask_to_watch(&mut world, carol, 75, Some(3)),
         "R1;preparing;1f07c8fb;2"
@@ -145,11 +171,6 @@ fn a_replay_session_sends_the_game_to_watch_and_holds_its_room_until_it_ends() {
         }
     );
     assert_eq!(poll_in_room(&mut world, carol), "R1;preparing;1f07c8fb;1");
-    // The room's match starts without her.
-    world.advance(ROOM_TO_MATCH);
-    assert!(sent_to_match(&world.take(alice)).is_some(), "Alice plays");
-    assert!(sent_to_match(&world.take(bob)).is_some(), "Bob plays");
-    assert_eq!(sent_to_match(&world.take(carol)), None);
     // Read: her game is sent.
     assert!(watches.loaded(&request, 74_500, world.now));
     world.advance(Duration::from_secs(1));
@@ -163,26 +184,18 @@ fn a_replay_session_sends_the_game_to_watch_and_holds_its_room_until_it_ends() {
         poll_in_room(&mut world, carol),
         "R1;watching;1f07c8fb;74500"
     );
-    // Not put into her room's match late meanwhile, nor told it is over.
+    // Alone in her room: nothing calls her back.
     world.advance(Duration::from_secs(20));
-    let decoded = world.take(carol);
-    assert_eq!(sent_to_match(&decoded), None);
-    assert!(
-        !decoded
-            .iter()
-            .any(|message| matches!(message, Decoded::ClientState { .. })),
-        "{decoded:?}"
-    );
-    // Over: free again; the queue never had her.
+    assert!(!watches.is_recalled(&request));
+    // A second member: the room could play with her, and calls her back; the match server lets
+    // her game go, which ends the session.
+    let dave = player(&mut world, "Dave", current());
+    super::rooms_tests::rows(&mut world, dave, survarium::v026g::lobby::rooms::ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(watches.is_recalled(&request), "called back from the replay");
     watches.ended(&request);
     assert!(!watches.holds(account));
     assert!(world.store.matchmaking().watched(session).is_none());
-    assert!(world.host.made.locked().iter().all(|(_, setup)| {
-        setup
-            .players
-            .iter()
-            .all(|player| player.account_id != account)
-    }));
 }
 
 /// A game can quit as it connects to its replay, and says so: its session is over at once, so

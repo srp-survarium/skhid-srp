@@ -47,7 +47,11 @@ use super::core::{Core, Who};
 impl Core<'_> {
     /// `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match_id>`: the
     /// asker wants to watch that match's replay in this game. Its player
-    /// must be free in the lobby (in no match, not queued).
+    /// must be free in the lobby (in no match, not queued), and its room, if
+    /// it is in one, must have no use for it right now (its vote, a place in
+    /// its match: `rooms`' `room_keeps`); a member of a room that waits for
+    /// players, or one in a room's queue, may watch, and is called back when
+    /// its room can play (`room_recalls`).
     pub(super) fn replay_watch(
         &mut self,
         who: &Who,
@@ -57,7 +61,7 @@ impl Core<'_> {
     ) {
         let free = self.player(who.addr).is_some_and(|player| {
             player.in_match.is_none() && player.connect.is_none() && player.queued_since.is_none()
-        });
+        }) && !self.room_keeps(who.account_id, now);
         // Past the limit of lookups of unknown matches: `busy`, before
         // anything says whether this match exists or is being played.
         let limited = self
