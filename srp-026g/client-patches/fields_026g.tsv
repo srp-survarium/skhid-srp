@@ -126,6 +126,17 @@ scaleform::gfx_value	text	0x8	ptr<u8>	an unmanaged string's text, a C string
 scaleform::gfx_value	managed	0x8	ptr<scaleform::gfx_string_node>	a managed string's (40h) node (0x1FF611)
 scaleform::gfx_value	size	0x18	size	24 bytes (Scaleform::GFx::Value): the callback's arguments are an array of them
 scaleform::gfx_string_node	text	0x0	ptr<u8>	the managed string's text, a C string (0x1FF611: the value's pointer read again)
+scaleform::image	global_heap	0xAF30E0	obj<scaleform::heap_slot>	Scaleform::Memory::pGlobalHeap's slot (0x504787 sets it to the heap RootMH::CreateHeap 0x532490 made for System::Init 0x5057F0; 0 before the UI starts); patch 127
+scaleform::heap_slot	heap	0x0	ptr<scaleform::memory_heap>	the global heap, every other heap's ancestor
+scaleform::memory_heap	next	0x8	ptr<scaleform::memory_heap>	ListNode pNext: the next child of its parent, the parent's children_end after the last (MemoryHeapMH::CreateHeap 0x504C15: mov [esi+8],eax, the parent +40h)
+scaleform::memory_heap	flags	0x1C	u32	Info.Desc.Flags (the HeapDesc's 8 words are copied to +1Ch, 0x53250C); 1000h a debug heap, which the totals leave out (0x504C42)
+scaleform::memory_heap	name	0x40	ptr<u8>	Info.pName: its name, a C string kept in the heap's own block at +11Ch (0x532521..0x532527): "Global", MovieData "<file>", MovieDef "<file>", MovieView "<file>"
+scaleform::memory_heap	children_end	0x40	obj<scaleform::memory_heap>	where its children's list ends: the list's root (pPrev +44h, pNext +48h) as a heap (0x504C57..0x504C6B: lea eax,[esi-4] of the heap +44h)
+scaleform::memory_heap	first_child	0x48	ptr<scaleform::memory_heap>	its first child heap, children_end when it has none (GetTotalFootprint 0x504C54: mov edi,[esi+48h])
+scaleform::memory_heap	engine	0x68	ptr<scaleform::heap_engine>	MemoryHeapMH::pEngine: its allocation engine, in the heap's own block at +70h (0x532541)
+scaleform::memory_heap	size	0x70	size	MemoryHeapMH's bytes: its engine is made right after it in the same block (RootMH::CreateHeap 0x5324D7: lea ecx,[ebp+70h])
+scaleform::heap_engine	footprint	0x98	u32	the bytes the heap holds of the system allocator (GetTotalFootprint 0x504C30, vtable +54h: [[heap+68h]+98h] and each child's)
+scaleform::heap_engine	used	0x9C	u32	the bytes of them in use (GetTotalUsedSpace 0x504C90, vtable +5Ch: [[heap+68h]+9Ch])
 vostok::console_commands::cc_string	size	0x48	size	a cc_string console variable's object (cc_string::cc_string 0xEC860)
 survarium::lobby_query_frame	scene	-0x68	obj<vostok::resources::request>	lobby_menu::query_resources' request of the lobby's project: {"lobby_scene/day", class 40h} written at 0x21E5A2/0x21E5A9, the fourth of its eight
 survarium::lobby_query_frame	scene_data	-0x34	obj<vostok::resources::user_data_slot>	its user data pointer: the variant of the lobby menu as the project's base_game_scene (0x21E569)
@@ -997,6 +1008,13 @@ vostok::memory::base_allocator	vtable	0x0	u32	the allocator's vtable: its kind (
 vostok::memory::base_allocator	mspace	0x14	ptr<vostok::memory::mspace>	a doug_lea_allocator's m_arena: the mspace create_mspace_with_base 0x101280 made at the arena's start (initialize_impl 0xE4F70; total_size 0xE51F0 and allocated_size 0xE52C0 hand it to internal_mallinfo 0xFF200)
 vostok::memory::base_allocator	managed_free	0x28	u32	a managed_allocator's free bytes (allocated_size 0xE0E50: [ecx+30h] - [ecx+28h]; 0.10b resources_managed_allocator.h total_size() - get_free_size())
 vostok::memory::base_allocator	managed_total	0x30	u32	a managed_allocator's bytes (total_size 0xE0E40)
+vostok::memory::base_allocator	managed_arena	0x2C	ptr<vostok::memory::managed_node>	a managed_allocator's m_arena: its first node, past its defragmenter's temporary arena (its managed_allocator_base is at +14h: m_first_free +14h, m_granularity +24h (0x21E520C, allocate_managed_resource 0xFB640), m_free_size +28h, m_arena +2Ch, m_arena_size +30h; 0.10b managed_allocator_base.h); the nodes tile [m_arena, m_arena + m_arena_size); patch 127
+vostok::memory::managed_node	owner	0x0	ptr<vostok::memory::managed_node_owner>	m_owner: an allocated node's owner, the managed_node_owner inside its managed_resource (allocate_managed_resource 0xFB6C7: mov [edi],eax, the resource +D0h); 0 for a free node and for one not owned yet (0.10b managed_node.h, 34h bytes: allocate 0x10A245 adds 34h)
+vostok::memory::managed_node	next	0x4	ptr<vostok::memory::managed_node>	m_next: the node after it in the arena, at its own address + its bytes (allocate_in_node, 0.10b managed_allocator_base.cpp; 0x10A2CD); 0 for the last
+vostok::memory::managed_node	bytes	0x28	u32	m_size: the node's bytes, its 34h head with them, a multiple of the granularity (0x10A276 compares two free nodes' +28h; 0x10A2D0)
+vostok::memory::managed_node	kind	0x30	u8	m_type: 0 allocated, 1 free (0x10A2DA: cmp byte [esi+30h],1; 0x10A2FB writes 1 to the free tail)
+vostok::memory::managed_node	size	0x34	size	a node's head: 34h bytes before its resource's data (allocate 0x10A245: add ecx,34h; allocate_managed_resource 0xFB64C: lea esi,[ebx+34h])
+vostok::memory::managed_node_owner	class_id	-0x4C	u32	its managed_resource's class id: the owner is the resource's +D0h (its constructor 0x10A590 writes the owner's vtable 0x9E9F40 there), resource_base's class id its +84h (resource_base's constructor 0xF70F0: mov [esi+84h],ecx, the class managed_resource's constructor got in EAX); the resource is F0h bytes of the resources helper allocator (0xFB696)
 vostok::memory::image	doug_lea_vtable	0x9E68DC	u32	doug_lea_allocator's vtable (slots: +8h total_size 0xE51A0, +0Ch allocated_size 0xE5270; engine_world's constructor writes it at 0x136EC..0x1380C; shared strings, cook, resources helper in the image)
 vostok::memory::image	managed_vtable	0x9E602C	u32	managed_allocator's vtable (+8h total_size 0xE0E40, +0Ch allocated_size 0xE0E50; its constructor 0xE0E71; the resources (managed) allocator at 0x21E51E8, which allocate_region registers at 0xE1220, its initializer 0xFCF4A)
 vostok::memory::image	pthreads_vtable	0x9E6000	u32	the multithreaded allocator's vtable ("global multithreaded", 0xA8001C: +8h total_size 0xEB5F0 the region's size, +0Ch allocated_size 0xEB630 walks ptmalloc3's arenas from 0x1BFAC90 with 0xFF200)
@@ -1029,6 +1047,8 @@ vostok::memory::image	pt_realloc_heap_return	0x10710A	u8	pt3realloc's (0x107070)
 vostok::memory::image	mt_realloc_return	0xEB4F8	u8	mt_allocator's realloc (0xEB470, ESI the memory) return from pt3realloc (call 0xEB4F3), and from pt3malloc when pt3realloc's no memory jumps there (0x107099)
 vostok::memory::image	mt_call_realloc_return	0xEB5A5	u8	mt_allocator::call_realloc's (0xEB590) return from its realloc 0xEB470 (call 0xEB5A0)
 vostok::memory::image	mt_malloc_impl_return	0x1C6B9	u8	mt_allocator's malloc_impl (0x1C6A0; ESI the bytes, [esp+4] the allocator, 0xA8001C) return from pt3malloc (call 0x1C6B4)
+vostok::memory::image	scaleform_malloc_return	0x1C409	u8	Scaleform's malloc (0x1C3E0, cdecl: [esp+4] the bytes; xrSysAllocMalloc's allocation function, 0x2AE573 stores it at 0x22613B8) return from mt_allocator's malloc_impl (call 0x1C404)
+vostok::memory::image	scaleform_alloc_return	0x2AE481	u8	survarium::scaleform_engine::xrSysAllocMalloc::Alloc's (0x2AE470, its vtable 0xA0D538 +0Ch; Scaleform's heaps take every block of theirs from it) return from its allocation function (call ecx 0x2AE47F: 0x1C3E0)
 vostok::memory::image	allocate_region_return	0x13BF5	u8	engine_world's constructor's return from allocate_region (call 0x13BF0, its one caller): the frame of memory.arenas_ready is the start's, while only the main thread runs
 vostok::memory::game_call	return_address	0x0	u32	where a call of the game returns: the word at its callee's entry ESP
 vostok::memory::game_call	malloc_impl_call	0x18	obj<vostok::memory::game_call>	at mspace_malloc's entry from malloc_impl (return malloc_impl_heap_return): malloc_impl's own call, 18h up (sub esp,8 / push ebx / push edi / push edi, 0xE4F90..0xE4FAA)
@@ -1042,6 +1062,8 @@ vostok::memory::game_call	pt_realloc_call	0x1C	obj<vostok::memory::game_call>	at
 vostok::memory::game_call	mt_realloc_call	0x14	obj<vostok::memory::game_call>	at pt3realloc's (or pt3malloc's) entry from mt_allocator's realloc (return mt_realloc_return): its own call, 14h up (push ecx / push ebx / push edi / push esi, 0xEB470..0xEB4F2)
 vostok::memory::game_call	mt_call_realloc_call	0x14	obj<vostok::memory::game_call>	at mt_allocator's realloc's entry from call_realloc (return mt_call_realloc_return): call_realloc's own call, 14h up (push esi / push eax / push edx / push ecx, 0xEB598..0xEB59F)
 vostok::memory::game_call	mt_malloc_impl_call	0xC	obj<vostok::memory::game_call>	at pt3malloc's entry from mt_allocator's malloc_impl (return mt_malloc_impl_return): its own call, 0Ch up (sub esp,8, 0x1C6A0)
+vostok::memory::game_call	scaleform_malloc_call	0x10	obj<vostok::memory::game_call>	at mt_allocator's malloc_impl's entry from Scaleform's malloc (return scaleform_malloc_return): its own call, 10h up (push esi / push edi / push eax, 0x1C3E0..0x1C403)
+vostok::memory::game_call	scaleform_alloc_call	0xC	obj<vostok::memory::game_call>	at Scaleform's malloc's entry from xrSysAllocMalloc::Alloc (return scaleform_alloc_return): its own call, 0Ch up (push esi / push eax, 0x2AE477..0x2AE47E)
 vostok::memory::allocate_region_frame	return_address	0x4	u32	allocate_region's frame by its EBP (push ebp / mov ebp,esp, 0xE1120): its return address, allocate_region_return when engine_world's constructor called it
 vostok::memory::profile_frame	call	0x4	ptr<vostok::memory::game_call>	memory_profile.allocated's and .freeing's first argument (by the site ESP, the return address at +0): the ESP the game's call of mspace_malloc, mspace_realloc or mspace_free left, its return address there
 vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_malloc or mspace_realloc gave (0 for none), or the memory given back to mspace_free or mspace_realloc

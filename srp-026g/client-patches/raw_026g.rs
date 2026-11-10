@@ -4255,6 +4255,220 @@ impl GfxStringNode {
     }
 }
 
+/// A scaleform::heap_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeapSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HeapSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<scaleform::memory_heap>): the global heap, every other heap's ancestor
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn heap(self) -> Option<MemoryHeap> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MemoryHeap>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<scaleform::memory_heap>): the global heap, every other heap's ancestor
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_heap(self, value: Option<MemoryHeap>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MemoryHeap>>().write_volatile(value) }
+    }
+}
+
+/// A scaleform::memory_heap (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MemoryHeap(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MemoryHeap {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<scaleform::memory_heap>): ListNode pNext: the next child of its parent, the parent's children_end after the last (MemoryHeapMH::CreateHeap 0x504C15: mov [esi+8],eax, the parent +40h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<MemoryHeap> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<MemoryHeap>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<scaleform::memory_heap>): ListNode pNext: the next child of its parent, the parent's children_end after the last (MemoryHeapMH::CreateHeap 0x504C15: mov [esi+8],eax, the parent +40h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<MemoryHeap>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<MemoryHeap>>().write_volatile(value) }
+    }
+
+    /// +0x1c (u32): Info.Desc.Flags (the HeapDesc's 8 words are copied to +1Ch, 0x53250C); 1000h a debug heap, which the totals leave out (0x504C42)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn flags(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x40 (ptr<u8>): Info.pName: its name, a C string kept in the heap's own block at +11Ch (0x532521..0x532527): "Global", MovieData "<file>", MovieDef "<file>", MovieView "<file>"
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x40).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x40 (ptr<u8>): Info.pName: its name, a C string kept in the heap's own block at +11Ch (0x532521..0x532527): "Global", MovieData "<file>", MovieDef "<file>", MovieView "<file>"
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x40).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x40 (obj<scaleform::memory_heap>): where its children's list ends: the list's root (pPrev +44h, pNext +48h) as a heap (0x504C57..0x504C6B: lea eax,[esi-4] of the heap +44h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn children_end(self) -> MemoryHeap {
+        MemoryHeap(unsafe { self.0.byte_add(0x40) })
+    }
+
+    /// +0x48 (ptr<scaleform::memory_heap>): its first child heap, children_end when it has none (GetTotalFootprint 0x504C54: mov edi,[esi+48h])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first_child(self) -> Option<MemoryHeap> {
+        unsafe { self.0.byte_add(0x48).cast::<Option<MemoryHeap>>().read_volatile() }
+    }
+
+    /// +0x48 (ptr<scaleform::memory_heap>): its first child heap, children_end when it has none (GetTotalFootprint 0x504C54: mov edi,[esi+48h])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first_child(self, value: Option<MemoryHeap>) {
+        unsafe { self.0.byte_add(0x48).cast::<Option<MemoryHeap>>().write_volatile(value) }
+    }
+
+    /// +0x68 (ptr<scaleform::heap_engine>): MemoryHeapMH::pEngine: its allocation engine, in the heap's own block at +70h (0x532541)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn engine(self) -> Option<HeapEngine> {
+        unsafe { self.0.byte_add(0x68).cast::<Option<HeapEngine>>().read_volatile() }
+    }
+
+    /// +0x68 (ptr<scaleform::heap_engine>): MemoryHeapMH::pEngine: its allocation engine, in the heap's own block at +70h (0x532541)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_engine(self, value: Option<HeapEngine>) {
+        unsafe { self.0.byte_add(0x68).cast::<Option<HeapEngine>>().write_volatile(value) }
+    }
+
+    /// 0x70 bytes: MemoryHeapMH's bytes: its engine is made right after it in the same block (RootMH::CreateHeap 0x5324D7: lea ecx,[ebp+70h])
+    pub const SIZE: usize = 0x70;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for scaleform::memory_heaps (0x70 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct MemoryHeapStorage([u8; 0x70]);
+
+#[allow(dead_code)]
+impl MemoryHeapStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x70])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> MemoryHeap {
+        MemoryHeap(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<MemoryHeap> {
+        (!rooms.is_empty()).then(|| MemoryHeap(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A scaleform::heap_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeapEngine(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HeapEngine {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x98 (u32): the bytes the heap holds of the system allocator (GetTotalFootprint 0x504C30, vtable +54h: [[heap+68h]+98h] and each child's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn footprint(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x98).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x9c (u32): the bytes of them in use (GetTotalUsedSpace 0x504C90, vtable +5Ch: [[heap+68h]+9Ch])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn used(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x9c).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::console_commands::cc_string (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -18900,6 +19114,160 @@ impl BaseAllocator {
     pub unsafe fn managed_total(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x30).cast::<u32>().as_ptr() }
     }
+
+    /// +0x2c (ptr<vostok::memory::managed_node>): a managed_allocator's m_arena: its first node, past its defragmenter's temporary arena (its managed_allocator_base is at +14h: m_first_free +14h, m_granularity +24h (0x21E520C, allocate_managed_resource 0xFB640), m_free_size +28h, m_arena +2Ch, m_arena_size +30h; 0.10b managed_allocator_base.h); the nodes tile [m_arena, m_arena + m_arena_size); patch 127
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn managed_arena(self) -> Option<ManagedNode> {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<ManagedNode>>().read_volatile() }
+    }
+
+    /// +0x2c (ptr<vostok::memory::managed_node>): a managed_allocator's m_arena: its first node, past its defragmenter's temporary arena (its managed_allocator_base is at +14h: m_first_free +14h, m_granularity +24h (0x21E520C, allocate_managed_resource 0xFB640), m_free_size +28h, m_arena +2Ch, m_arena_size +30h; 0.10b managed_allocator_base.h); the nodes tile [m_arena, m_arena + m_arena_size); patch 127
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_managed_arena(self, value: Option<ManagedNode>) {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<ManagedNode>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::memory::managed_node (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ManagedNode(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ManagedNode {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::memory::managed_node_owner>): m_owner: an allocated node's owner, the managed_node_owner inside its managed_resource (allocate_managed_resource 0xFB6C7: mov [edi],eax, the resource +D0h); 0 for a free node and for one not owned yet (0.10b managed_node.h, 34h bytes: allocate 0x10A245 adds 34h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn owner(self) -> Option<ManagedNodeOwner> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedNodeOwner>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::memory::managed_node_owner>): m_owner: an allocated node's owner, the managed_node_owner inside its managed_resource (allocate_managed_resource 0xFB6C7: mov [edi],eax, the resource +D0h); 0 for a free node and for one not owned yet (0.10b managed_node.h, 34h bytes: allocate 0x10A245 adds 34h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_owner(self, value: Option<ManagedNodeOwner>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedNodeOwner>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::memory::managed_node>): m_next: the node after it in the arena, at its own address + its bytes (allocate_in_node, 0.10b managed_allocator_base.cpp; 0x10A2CD); 0 for the last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<ManagedNode> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ManagedNode>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::memory::managed_node>): m_next: the node after it in the arena, at its own address + its bytes (allocate_in_node, 0.10b managed_allocator_base.cpp; 0x10A2CD); 0 for the last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<ManagedNode>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ManagedNode>>().write_volatile(value) }
+    }
+
+    /// +0x28 (u32): m_size: the node's bytes, its 34h head with them, a multiple of the granularity (0x10A276 compares two free nodes' +28h; 0x10A2D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bytes(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x30 (u8): m_type: 0 allocated, 1 free (0x10A2DA: cmp byte [esi+30h],1; 0x10A2FB writes 1 to the free tail)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kind(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x30).cast::<u8>().as_ptr() }
+    }
+
+    /// 0x34 bytes: a node's head: 34h bytes before its resource's data (allocate 0x10A245: add ecx,34h; allocate_managed_resource 0xFB64C: lea esi,[ebx+34h])
+    pub const SIZE: usize = 0x34;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::memory::managed_nodes (0x34 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ManagedNodeStorage([u8; 0x34]);
+
+#[allow(dead_code)]
+impl ManagedNodeStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x34])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ManagedNode {
+        ManagedNode(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ManagedNode> {
+        (!rooms.is_empty()).then(|| ManagedNode(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::memory::managed_node_owner (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ManagedNodeOwner(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ManagedNodeOwner {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x4c (u32): its managed_resource's class id: the owner is the resource's +D0h (its constructor 0x10A590 writes the owner's vtable 0x9E9F40 there), resource_base's class id its +84h (resource_base's constructor 0xF70F0: mov [esi+84h],ecx, the class managed_resource's constructor got in EAX); the resource is F0h bytes of the resources helper allocator (0xFB696)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn class_id(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x4c).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::memory::mt_region (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -19217,6 +19585,24 @@ impl GameCall {
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
     pub unsafe fn mt_malloc_impl_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0xc) })
+    }
+
+    /// +0x10 (obj<vostok::memory::game_call>): at mt_allocator's malloc_impl's entry from Scaleform's malloc (return scaleform_malloc_return): its own call, 10h up (push esi / push edi / push eax, 0x1C3E0..0x1C403)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scaleform_malloc_call(self) -> GameCall {
+        GameCall(unsafe { self.0.byte_add(0x10) })
+    }
+
+    /// +0xc (obj<vostok::memory::game_call>): at Scaleform's malloc's entry from xrSysAllocMalloc::Alloc (return scaleform_alloc_return): its own call, 0Ch up (push esi / push eax, 0x2AE477..0x2AE47E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scaleform_alloc_call(self) -> GameCall {
         GameCall(unsafe { self.0.byte_add(0xc) })
     }
 }
@@ -20168,6 +20554,13 @@ pub mod image {
         BufferString(unsafe { NonNull::new_unchecked(0x21e75e0 as *mut c_void) })
     }
 
+    /// 0xaf30e0 (obj<scaleform::heap_slot>, scaleform::image): Scaleform::Memory::pGlobalHeap's slot (0x504787 sets it to the heap RootMH::CreateHeap 0x532490 made for System::Init 0x5057F0; 0 before the UI starts); patch 127
+    #[inline(always)]
+    pub fn global_heap() -> HeapSlot {
+        // SAFETY: an image VA, not 0.
+        HeapSlot(unsafe { NonNull::new_unchecked(0xaf30e0 as *mut c_void) })
+    }
+
     /// 0xa029b4 (obj<survarium::render_visual_methods>, survarium::image): render_visual native vtable including RTTI at -4
     #[inline(always)]
     pub fn visual_methods() -> RenderVisualMethods {
@@ -20473,6 +20866,12 @@ pub mod image {
 
     /// 0x1c6b9 (u8, vostok::memory::image): mt_allocator's malloc_impl (0x1C6A0; ESI the bytes, [esp+4] the allocator, 0xA8001C) return from pt3malloc (call 0x1C6B4)
     pub const MT_MALLOC_IMPL_RETURN: u32 = 0x1c6b9;
+
+    /// 0x1c409 (u8, vostok::memory::image): Scaleform's malloc (0x1C3E0, cdecl: [esp+4] the bytes; xrSysAllocMalloc's allocation function, 0x2AE573 stores it at 0x22613B8) return from mt_allocator's malloc_impl (call 0x1C404)
+    pub const SCALEFORM_MALLOC_RETURN: u32 = 0x1c409;
+
+    /// 0x2ae481 (u8, vostok::memory::image): survarium::scaleform_engine::xrSysAllocMalloc::Alloc's (0x2AE470, its vtable 0xA0D538 +0Ch; Scaleform's heaps take every block of theirs from it) return from its allocation function (call ecx 0x2AE47F: 0x1C3E0)
+    pub const SCALEFORM_ALLOC_RETURN: u32 = 0x2ae481;
 
     /// 0x13bf5 (u8, vostok::memory::image): engine_world's constructor's return from allocate_region (call 0x13BF0, its one caller): the frame of memory.arenas_ready is the start's, while only the main thread runs
     pub const ALLOCATE_REGION_RETURN: u32 = 0x13bf5;

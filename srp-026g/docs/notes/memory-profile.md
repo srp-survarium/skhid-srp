@@ -49,6 +49,11 @@ Each snapshot has:
 - each arena's tracked blocks: live bytes and blocks, the peak, all asked since the
   start, the blocks the table had no room for, frees of blocks not tracked;
 - each call site of each arena: live bytes and blocks, its own peak, all it asked;
+- the resources (managed) allocator's nodes, summed by their resources' class: nodes
+  and bytes a class, and its free nodes by size (below, "The two owners read from the
+  game's lists");
+- Scaleform's heaps (the Flash UI) from its global heap down: each one's name, the
+  bytes it holds and the bytes of them in use;
 - the address space region by region (`VirtualQuery`: base, size, state, protection,
   type, reservation).
 
@@ -132,6 +137,8 @@ known wrapper, its frame is unwound by the offsets `fields_026g.tsv` gives
 | pt3malloc 0x106EF0 | mspace_malloc | 0x106F70 |
 | pt3realloc 0x107070 | mspace_realloc | 0x10710A |
 | mt_allocator's malloc_impl 0x1C6A0 | pt3malloc | 0x1C6B9 |
+| Scaleform's malloc 0x1C3E0 (xrSysAllocMalloc's allocation function) | mt_allocator's malloc_impl | 0x1C409 |
+| xrSysAllocMalloc::Alloc 0x2AE470 (every block of Scaleform's heaps) | 0x1C3E0, by its pointer | 0x2AE481 |
 | mt_allocator::call_malloc 0xEB530 | pt3malloc | 0xEB550 |
 | mt_allocator's realloc 0xEB470 | pt3realloc (or pt3malloc by its tail jump) | 0xEB4F8 |
 | mt_allocator::call_realloc 0xEB590 | 0xEB470 | 0xEB5A5 |
@@ -169,8 +176,36 @@ time it is asked, and CreateFileA): not at the start, where it would be the
 engine's first call of it. A snapshot holds the lock while it walks the heaps and
 writes: the game's other threads wait for it at their next allocation.
 
-**What it does not see**: the managed resources allocator (its own allocator, no
-dlmalloc; its arena's count is in the report), the process heap and the stack
+**The two owners read from the game's lists.** Two large owners have no call site
+worth the name, so a snapshot reads them where the game keeps them (2026-11-10: the
+owner's profile had 339 MiB in the managed arena with no site at all, and 292 MiB of
+the multithreaded arena under one, Scaleform's malloc). Nothing of the game is
+called and none of its locks taken; a read goes only where an arena is committed and
+readable, and a list that does not fit (another thread changing it) is told as
+`torn` for that snapshot:
+
+- **The managed arena** has its own allocator, no dlmalloc, and its defragmenter
+  moves blocks, so a block's address names nothing. Its nodes tile the arena from
+  `m_arena` (the allocator's +2Ch; 34h a head: owner +0, next +4, bytes +28h, free
+  +30h; 0.10b `managed_node.h`, the same in 0.26g: `managed_allocator_base::allocate`
+  0x10A240). An allocated node's owner is the `managed_node_owner` inside its
+  `managed_resource` (+D0h), whose class id is the resource's +84h
+  (`resource_base`'s constructor 0xF70F0). The lines: `managed <arena> class <id>
+  <nodes> <bytes>`, `unowned` for nodes with no owner yet, and the arena's `holes`.
+  The class is a number (`resources::class_id_enum`); 0.26g's names for them are not
+  in the re-kit yet.
+- **Scaleform** takes every block from `xrSysAllocMalloc` and gives it to one of its
+  heaps, which have names: `Global`, and for each movie `MovieData "<file>"`,
+  `MovieDef "<file>"`, `MovieView "<file>"`. The walk starts at
+  `Memory::pGlobalHeap` (0xAF30E0) and follows each heap's children (first +48h,
+  next +8h, the list's end the parent +40h); a heap's name is its +40h, its bytes
+  its engine's (+68h) +98h held and +9Ch in use (`MemoryHeapMH::GetTotalFootprint`
+  0x504C30, `GetTotalUsedSpace` 0x504C90). The lines: `scaleform <depth> <flags>
+  <held> <in use> <name>`, a parent before its children. Its blocks' sites are now
+  the callers of `Alloc` inside Scaleform (a page for small objects, or one large
+  block), which tell less than the heaps do.
+
+**What it does not see**: the process heap and the stack
 allocators; ptmalloc3's memalign (its blocks' frees are counted as unseen); a
 reallocation that fails keeps its old block, which the profile forgets (a full
 fixed arena ends the game anyway). The heap walk is patch 126's: a heap another
@@ -207,6 +242,10 @@ thread changes under it is told as unknown for that snapshot.
   the snapshot before the game's own body goes on, and the analyzer reads it: the
   heap's use as its walk finds it, its holes, each site's live bytes as the
   chunks say (malloc_impl's caller, a reallocation's caller; none of
-  mspace_realloc's own), the bytes asked, the regions.
+  mspace_realloc's own), the bytes asked, the regions. The two owners: a block
+  taken as Scaleform takes one (the stack the game's own frames, each one's own tail
+  run down to `Alloc`'s caller, which is the site); a managed arena of six nodes
+  summed by class with its free nodes as holes, and `torn` alone when a node says
+  more bytes than are left; five Scaleform heaps under the global heap's slot, by name.
 - `cargo test -p patches memory_profile` (the tables, the text, the setting) and
   `cargo test -p srp-validate` (the heap walk's free blocks).
