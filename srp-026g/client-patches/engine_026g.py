@@ -680,7 +680,9 @@ def rust_functions(fs, tags=()):
         names = ", ".join(f"{'r#' if name in RUST_KEYWORDS else ''}{name}" for _, name in f["params"])
         lines += ["", f"/// {describe(f)}: {f['prototype']}", "///", "/// # Safety",
                   "/// `function` is that function (a GetProcAddress result of its name).",
-                  "#[allow(dead_code)]", "#[inline(always)]",
+                  # the arguments are the Windows function's own (CreateFileW has seven), and the function
+                  "#[allow(dead_code, clippy::too_many_arguments)]" if len(f["params"]) >= 7 else "#[allow(dead_code)]",
+                  "#[inline(always)]",
                   f"pub unsafe fn {f['symbol']}(function: NonNull<c_void>{', ' if params else ''}{params}){ret} {{",
                   f'    let function = unsafe {{ core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn({types}){ret}>(function.as_ptr()) }};',
                   f"    unsafe {{ function({names}) }}", "}"]

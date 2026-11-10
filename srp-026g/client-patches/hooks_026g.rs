@@ -962,6 +962,21 @@ pub extern "C" fn hook_memory_profile_on_loaded(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- module_report (patch 125) ----
+
+/// The entry `module_report_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_module_report_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `module_report_on_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::module_report::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_async (patch 121) ----
 
 /// The named exits of bake_async::on_issue (the order the shim's Flow code
@@ -2048,6 +2063,21 @@ pub extern "C" fn hook_hud_options_on_present(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- module_report (patch 125) ----
+
+/// The entry `module_report_on_present` (0x3cf8ff, res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_module_report_on_present(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `module_report_on_present` calls this, from the game's jump at 0x3cf8ff,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::module_report::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_options (patch 83) ----
 
 /// The entry `hud_options_on_ddraw_probed` (0x105e8e, the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases) calls this with the saved machine.
@@ -3044,6 +3074,21 @@ pub extern "C" fn hook_memory_report_on_close(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- module_report (patch 125) ----
+
+/// The entry `module_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_module_report_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `module_report_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::module_report::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- packet_recovery (patch 97) ----
 
 /// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
@@ -3106,6 +3151,36 @@ pub extern "C" fn hook_message_check_on_message(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- module_report (patch 125) ----
+
+/// The entry `module_report_on_thread` (module_watch.thread, patch 125's TLS callback (module_watch_026g.asm module_watch_tls, the one callback of the exe's TLS directory): Windows calls it, the loader's lock held, on the main thread before the exe's entry point (reason 1) and on every thread the process gets before that thread's own start (reason 2); stdcall (the module, the reason, reserved), our code pushes the address of module_watch_dll before its call and returns with ret 0Ch) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_module_report_on_thread(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `module_report_on_thread` calls this, from our own code's call (module_watch.thread),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::module_report::on_thread(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- module_report (patch 125) ----
+
+/// The entry `module_report_on_dll` (module_watch.dll, patch 125's DLL notification (module_watch_026g.asm module_watch_dll, handed to ntdll's LdrRegisterDllNotification): the loader calls it, its lock held, after it mapped a DLL (reason 1) and before it unmaps one (2); stdcall (the reason, the LDR_DLL_NOTIFICATION_DATA, our context), our code returns with ret 0Ch) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_module_report_on_dll(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `module_report_on_dll` calls this, from our own code's call (module_watch.dll),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::module_report::on_dll(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
     }
 }
 
@@ -4126,6 +4201,8 @@ pub extern "C" fn hook_packet_recovery_on_loaded_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_memory_profile_on_loaded(frame);
     if flow != 0 { return flow; }
+    let flow = hook_module_report_on_loaded(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -4216,6 +4293,15 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_present_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_hud_options_on_present(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_module_report_on_present(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_language_on_options_call_chain(frame: &mut Frame) -> u32 {
     let flow = hook_language_on_options_call(frame);
     if flow != 0 { return flow; }
@@ -4267,6 +4353,8 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_memory_report_on_close_chain(frame: &mut Frame) -> u32 {
     let flow = hook_memory_report_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_module_report_on_close(frame);
     if flow != 0 { return flow; }
     let flow = hook_packet_recovery_on_close(frame);
     if flow != 0 { return flow; }

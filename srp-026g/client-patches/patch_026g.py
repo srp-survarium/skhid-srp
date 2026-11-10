@@ -588,6 +588,16 @@ Patches:
   lobby 31 in the handshake, and while the level loads waits for
   on_match_ready's end (0x27AEBF) to close it; on_project_loaded's abort
   (0x1F8AF3) lets an open match's load go on. Nothing a match computes;
+- the game tells the match server what runs inside it besides
+  Windows' own (patch 125, module_report; README "The game tells what
+  is inside it", docs/notes/module-report.md): with a match connection's
+  first world and at its close, each module's file name, folder kind, link
+  time, image size and checksum (kernel32's Toolhelp walk), each executable
+  allocation that is no listed module (VirtualQuery), the DLLs loaded
+  since the process's start (a watch from the exe's TLS callback,
+  module_watch_026g.asm) and the other processes' always-on-top windows
+  over the game's, on patch 126's report channel (srp_validate::modules);
+  the server only logs them. Nothing a match computes;
 - the game tells the match server how much memory it has left (patch 126,
   memory_report; docs/notes/memory-report.md, client_patch.md section
   3.76): when a match connection's first world is in (world_load.loaded)
@@ -2905,6 +2915,18 @@ def audit_installs(data, writes, installs=None):
             sys.exit(f"{va:#x}: declared {ABI} without the bytes it pops and why")
 
 
+# Patch 125's watch (module_report, module_watch_026g.asm): the exe's TLS
+# directory (0xA365A8) names a callback list of our own. The original's
+# AddressOfCallBacks (+0Ch) is 0x884AA4, a list that is its terminator alone
+# (the exe has no TLS callback); ours is module_watch_callbacks (the block
+# module_watch.data): module_watch_tls, then 0. The loader calls it on the
+# main thread before the entry point and on every later thread (stdcall, 3
+# arguments: `ret 0Ch`), and it is where the patch starts and registers
+# ntdll's DLL notification (module_watch_dll, the same shape). The field
+# already has its base relocation (the exe is never rebased).
+MODULE_WATCH_TLS_SLOT = (0xA365B4, struct.pack("<I", 0x884AA4), "module_watch_callbacks")
+
+
 # The Rust lohooks (hooks_026g.py): each a jmp to its generated entry,
 # which goes on past the span or replays it.
 for _va, _owner, _what in hooks_026g.lohook_sites():
@@ -2972,6 +2994,9 @@ ARENA = (
     ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
     # patch 98: the history item's six world sections on the heap
     ArenaBlock("world_sections.code", "code", 0x1000, ("world_sections_026g.asm",)),
+    # patch 125: the TLS callback and the DLL notification Windows calls, and the TLS directory's callback list
+    ArenaBlock("module_watch.code", "code", 0x10, ("module_watch_026g.asm",)),
+    ArenaBlock("module_watch.data", "data", 0x10, ("module_watch_026g.asm",)),
 )
 
 
@@ -4039,6 +4064,11 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
                 slot, old, symbol = MATCH_KEYS_POLL_SLOT
                 patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
+                slot, old, symbol = MODULE_WATCH_TLS_SLOT
+                callbacks = linked.symbols.get(symbol)
+                if callbacks is None or not any(lo <= callbacks < hi for lo, hi in arena_data_ranges()):
+                    sys.exit(f".srpx: {symbol!r} is no symbol of a data block of the arena")
+                patch_section_value(data, slot, old, struct.pack("<I", callbacks))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
