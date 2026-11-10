@@ -388,6 +388,17 @@ pub unsafe fn engine_com_release(function: NonNull<c_void>, object: *mut c_void)
     unsafe { function(object) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_enum_process_modules(void *process, void **modules, unsigned int size, unsigned int *needed)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_enum_process_modules(function: NonNull<c_void>, process: *mut c_void, modules: *mut *mut c_void, size: u32, needed: *mut u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut *mut c_void, u32, *mut u32) -> u32>(function.as_ptr()) };
+    unsafe { function(process, modules, size, needed) }
+}
+
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_flush_instruction_cache(void *process, const void *address, unsigned int size)
 ///
 /// # Safety
@@ -19194,7 +19205,7 @@ pub mod site {
         }
     }
 
-    /// video_memory.ddraw_probed (0x105e9a): the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) at its FreeLibrary(ddraw) (push esi / call [870088h]), which each path past ddraw.dll's LoadLibraryA reaches: the DirectDraw object at [esp+18h], which the probe never releases (only its IDirectDraw7, 0x105E98)
+    /// video_memory.ddraw_probed (0x105e8e): the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases
     pub mod video_memory_ddraw_probed {
         #[allow(unused_imports)]
         use super::*;

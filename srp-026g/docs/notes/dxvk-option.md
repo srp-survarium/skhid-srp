@@ -147,12 +147,12 @@ window keeping its size.
   static 64 KiB buffer; its first `srp_dxvk` line.
 - One state and one transition (`Renderer`, `step` in `hud_options.rs`):
   - DirectX 11 picked, or a file of `dxvk\` missing: Windows' own Direct3D; a marker left goes.
-  - Vulkan/DXVK picked, all five there, no marker: `dxvk.pending` written first, then the Vulkan
+  - Vulkan/DXVK picked, the four it loads there (not d3d8: below), no marker: `dxvk.pending` written first, then the Vulkan
     look: vulkan-1.dll loaded, an instance made, the devices' `apiVersion` read (the CPU's not
     counted), the instance destroyed, the DLL let go. A device of 1.4 or later: `DXVK_CONFIG` set
     from the Vulkan options (above), then DXVK's DLLs loaded by their full paths, dxgi, d3d11,
-    d3d10core, d3d9, d3d8 (each one's imports by name are of
-    those before it), never let go; one that fails stops the loads, logged, and the marker covers
+    d3d10core, d3d9 (each one's imports by name are of those before it), never let go; not
+    d3d8.dll, which is shipped but which the game never imports (1.6 MiB of address space); one that fails stops the loads, logged, and the marker covers
     a crash. As each loads, the game's delayed import of its name (dxgi, d3d11, d3d9) is bound to
     it: its module slot (`survarium::image` `dxgi_module`, `d3d11_module`, `d3d9_module`) holds
     the DLL, and `__delayLoadHelper2` (0xE48E0) loads nothing for a slot already set (below).
@@ -312,6 +312,34 @@ thread reading it is shown (the start, the login screen and every Present are th
 - **No descriptor heap on AMD.** When DXVK's GPU is AMD's, `DXVK_CONFIG` gets `dxvk.enableDescriptorHeap = False`, as
   DXVK decides by itself after 3.1.1 (doitsujin/dxvk 076922bd2, its #5837: DXVK 3 crashed at start on an RX 7900 XTX
   with it). Logged on its own line (`DXVK_CONFIG adds ...`); DXVK's log says `Binding model: Legacy`.
+- **A vendor without a driver has no say** (review of #1596). A look whose glob matches no driver makes no instance
+  (`VK_ERROR_INCOMPATIBLE_DRIVER`: the real loader leaves lavapipe's manifest out too), and only the looks that made
+  one are compared: on a PC without NVIDIA's drivers (an RX alone, an Intel iGPU with a Radeon) AMD's look decides.
+  Before the fix the comparison read the empty slot of NVIDIA's failed look, and such a PC loaded every driver.
+- **The other vendors' layers off.** A driver manifest can declare an implicit layer in the same DLL: AMD's
+  `VK_LAYER_AMD_switchable_graphics` (in `amdvlk32.dll`), NVIDIA's `VK_LAYER_NV_optimus` and `VK_LAYER_NV_present` (in
+  `nvoglv32.dll`). The loader loads implicit layers whatever drivers `VK_LOADER_DRIVERS_SELECT` (or `VK_DRIVER_FILES`)
+  lets it take, so the driver filter left AMD's 85 MiB DLL mapped beside an RTX. Each vendor's look, and DXVK's
+  instance after, has the other vendors' layers turned off by their manifests' own switches
+  (`DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1`, `DISABLE_LAYER_NV_OPTIMUS_1`, `DISABLE_LAYER_NV_PRESENT_1` = 1), so the
+  look sees what DXVK will; a switch the player set is kept. Measured with the loader's own log, unelevated, RTX 5090
+  and Radeon iGPU: `nv*` alone maps `amdvlk32.dll` 85 MiB, with AMD's switch nothing of AMD's; `amd*` alone maps
+  `nvoglv32.dll` 25 MiB, with NVIDIA's two switches nothing of NVIDIA's. Elevated, the loader ignores both (every
+  driver loads anyway, as before). `srp_patches.log`: `dxvk: other vendors' Vulkan layers off: ...`.
+- **One driver of DXVK's GPU** (`one_driver`). One player's AMD PC mapped two AMD Vulkan drivers, 32.0.21045
+  (`u0204589.inf`, 85 MiB) and 32.0.32015 (`amdvlk.inf`, 93 MiB), both of the same RX: both manifests match `amd*`,
+  and the loader (1.4.350 there) keeps both drivers (it drops a second layer of the same name, and a registry-key
+  driver whose manifest's name it has already, not a second driver package). When the winning vendor's look lists
+  DXVK's GPU more than once, the manifests beside each driver DLL its instance loaded (`K32EnumProcessModules`, a DLL
+  exporting `vk_icdNegotiateLoaderICDInterfaceVersion`; `FindFirstFileA` `*.json` in its folder) are tried one by one
+  alone (`VK_DRIVER_FILES`, the glob deleted); the first that gives the GPU exactly as DXVK picked it (its driver
+  version: the driver DXVK uses now) is kept, with every vendor's layers off (the loader keeps one of two same-named
+  layers, which may be in the other driver's DLL), after a last look with exactly that must give DXVK the same GPU.
+  Anything less certain leaves the glob and the layers as they were and says why: a manifest that gives the GPU twice
+  (two such GPUs, or an elevated game where the loader ignores `VK_DRIVER_FILES`), no manifest that gives it alone, a
+  last look that does not. A player's own `VK_DRIVER_FILES` or `VK_ICD_FILENAMES` is kept like their
+  `VK_LOADER_DRIVERS_SELECT` (every driver they allow looked at). `srp_patches.log`: `dxvk: DXVK's GPU has 2 drivers:
+  <manifest> only (VK_DRIVER_FILES), its layers off`, or `..., all kept (<why>)`.
 - **The video-memory probe's DirectDraw object** (with either renderer, `on_ddraw_probed`). The engine's VRAM check
   (`get_local_video_memory_size` 0x106300, through 0x1060F0, to `GetVideoMemoryViaDirectDraw` 0x105DB0, the DirectX
   SDK sample's) makes a DirectDraw object and releases only the IDirectDraw7 it asks it for. DirectDrawCreate loads

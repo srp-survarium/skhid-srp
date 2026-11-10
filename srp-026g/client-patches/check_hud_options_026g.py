@@ -23,13 +23,20 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
 - the process's start (memory::platform::allocate_arenas 0xE9580 to past its
   first instruction, `mov eax,11A8h`), kernel32's and shell32's imports and
   the four Vulkan functions stubbed (`Run.kernel`): user.cfg read from
-  SHGetFolderPathA(CSIDL_PERSONAL)\\survarium, the five dxvk\\ files looked
-  for by full path, the marker; Vulkan/DXVK picked with all five, no marker
+  SHGetFolderPathA(CSIDL_PERSONAL)\\survarium, the four dxvk\\ files it loads
+  looked for by full path, the marker; Vulkan/DXVK picked with all four, no marker
   and a 1.4 device: the marker written first, vulkan-1.dll loaded, an
-  instance made and destroyed, the DLL let go, DXVK_CONFIG set from user.cfg's
+  instance made and destroyed, the DLL let go, each vendor's drivers alone
+  (VK_LOADER_DRIVERS_SELECT; a vendor without a driver makes no instance and
+  has no say) with the other vendors' implicit layers off (their
+  DISABLE_LAYER_* switches; the player's own kept), the manifests beside the
+  driver DLLs its instance loaded found (K32EnumProcessModules,
+  FindFirstFileA); DXVK's GPU given by two drivers: each manifest tried alone
+  (VK_DRIVER_FILES), the one giving DXVK's GPU kept with every layer off after
+  a last look, else all as before and said (`one_driver`); DXVK_CONFIG set from user.cfg's
   Vulkan options (SetEnvironmentVariableA; the defaults: the dedicated GPU
   alone; every one changed: each said) and logged, then dxgi, d3d11, d3d10core,
-  d3d9, d3d8 loaded by full path, the game's delayed dxgi, d3d11 and d3d9
+  d3d9 loaded by full path (not d3d8: the game imports no Direct3D 8), the game's delayed dxgi, d3d11 and d3d9
   bound to them (their module slots), also with Windows' dxgi.dll loaded
   already, said (one that fails stops the loads, nothing let go, the marker
   kept); a 1.3 device or no vulkan-1.dll, DirectX 11 picked,
@@ -139,17 +146,43 @@ DOCUMENTS = b"C:\\Users\\p\\Documents"
 EXE_PATH = b"C:\\Game\\game\\binaries\\x86\\survarium_skhid.exe"
 USER_CFG = "C:\\Users\\p\\Documents\\survarium\\user.cfg"
 DXVK_DIR = "C:\\Game\\game\\binaries\\x86\\dxvk\\"
-DXVK = ("dxgi.dll", "d3d11.dll", "d3d10core.dll", "d3d9.dll", "d3d8.dll")   # the load order
+DXVK = ("dxgi.dll", "d3d11.dll", "d3d10core.dll", "d3d9.dll")   # the load order (d3d8.dll shipped, never loaded)
 VULKAN, INSTANCE, DEVICES = 0x71000000, 0x73000000, 0x74000000
 # kernel32's and shell32's import slots patch 83 calls at the process's start and the login screen
 SLOTS = {"CreateFileA": (0x870048, 7), "ReadFile": (0x870064, 5), "WriteFile": (0x870108, 5), "CloseHandle": (0x870040, 1),
          "DeleteFileA": (0x87021C, 1), "LoadLibraryA": (0x870080, 1), "GetProcAddress": (0x870084, 2),
          "FreeLibrary": (0x870088, 1), "GetModuleFileNameA": (0x87014C, 3), "SHGetFolderPathA": (0xAEFE7C, 5),
          "GetModuleHandleA": (0x87003C, 1), "SetEnvironmentVariableA": (0x87029C, 2),
-         "GetEnvironmentVariableA": (0x8701B4, 3)}
+         "GetEnvironmentVariableA": (0x8701B4, 3), "FindFirstFileA": (0x870238, 2), "FindNextFileA": (0x87023C, 2),
+         "FindClose": (0x870228, 1)}
+# kernel32's functions patch 83 finds by GetProcAddress
+KERNEL_DYNAMIC = {"K32EnumProcessModules": 4}
+KERNEL32, EXE_MODULE, DRIVER_MODULES, NEGOTIATE = 0x76000000, 0x400000, 0x77000000, 0x77FF0000
 # PCI vendors, and the file name of each one's 32-bit Vulkan driver manifest (VK_LOADER_DRIVERS_SELECT matches those)
 NVIDIA, AMD, INTEL, LAVAPIPE = 0x10DE, 0x1002, 0x8086, 0x10005
 MANIFESTS = {NVIDIA: "nv-vk32.json", AMD: "amd-vulkan32.json", INTEL: "igvk32.json"}
+# each vendor's driver folder (its DLL drv32.dll, its manifest MANIFESTS', and a 64-bit one no 32-bit loader takes)
+FOLDERS = {NVIDIA: "C:\\DS\\nv\\", AMD: "C:\\DS\\amd\\", INTEL: "C:\\DS\\igvk\\"}
+DRIVER_FILES = "VK_DRIVER_FILES"
+
+
+def manifest_of(gpu):
+    """A GPU's driver's manifest, full path: its own (a 5th field) or its vendor's."""
+    return gpu[4] if len(gpu) > 4 else FOLDERS[gpu[0]] + MANIFESTS[gpu[0]]
+
+
+def driver_of(gpu):
+    """A GPU's driverVersion: its own (a 6th field) or 1."""
+    return gpu[5] if len(gpu) > 5 else 1
+
+
+def folder_of(path):
+    return path[:path.rindex("\\") + 1]
+
+
+# the vendors' implicit layers' off switches, in patch 83's order (each layer is in its vendor's driver DLL)
+LAYER_SWITCHES = ((AMD, "DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1"), (NVIDIA, "DISABLE_LAYER_NV_OPTIMUS_1"),
+                  (NVIDIA, "DISABLE_LAYER_NV_PRESENT_1"))
 SELECT = "VK_LOADER_DRIVERS_SELECT"
 # the game's delayed imports' module slots (__delayLoadHelper2 0xE48E0 loads nothing for one set), DXVK's DLL of each
 MODULE_SLOTS = {"dxgi.dll": 0xAF30CC, "d3d11.dll": 0xAF30D0, "d3d9.dll": 0xAF1194}
@@ -209,16 +242,20 @@ class Run(language.Run):
         self.mallocs += 1
 
     def windows_world(self, user_cfg=None, present=DXVK, marker=False, vulkan=None, fails=None, windows_dxgi=False,
-                      called=None, gpus=None, env=None, ignores=False):
+                      called=None, gpus=None, env=None, ignores=False, ignores_files=None, hidden=(), last_fails=False):
         """What the stubs answer: user.cfg's text (None: no file), the dxvk\\ files there, a marker left,
         an NVIDIA device's (apiVersion, type) (None: no vulkan-1.dll) or the GPUs, each (vendor, apiVersion, type,
-        name), a DLL whose load fails, whether Windows' dxgi.dll is loaded already (the Vulkan loader's), a delayed
-        import the game called already (its slot set), the process's environment,
-        whether the loader ignores VK_LOADER_DRIVERS_SELECT (as in an elevated process)."""
+        name[, its driver's manifest, its driverVersion]), a DLL whose load fails, whether Windows' dxgi.dll is
+        loaded already (the Vulkan loader's), a delayed import the game called already (its slot set), the
+        process's environment, whether the loader ignores VK_LOADER_DRIVERS_SELECT (as in an elevated process)
+        and VK_DRIVER_FILES (as SELECT, unless given), manifests FindFirstFileA does not list, whether an instance
+        of one driver with every layer off fails (the last look)."""
         if gpus is None and vulkan is not None:
             gpus = [(NVIDIA, vulkan[0], vulkan[1], "NVIDIA GeForce RTX 4080")]
         self.user_cfg, self.present, self.marker, self.vulkan, self.fails = user_cfg, set(present), marker, gpus, fails
         self.env, self.ignores, self.visible = dict(env or {}), ignores, []
+        self.ignores_files = ignores if ignores_files is None else ignores_files
+        self.hidden, self.last_fails, self.instance, self.finds = set(hidden), last_fails, False, {}
         self.windows_dxgi, self.modules = windows_dxgi, {}
         for name, slot in MODULE_SLOTS.items():
             self.word(slot, CALLED if name == called else 0)
@@ -227,7 +264,7 @@ class Run(language.Run):
             return
         self.stubs = {}
         at = hide.IMPORTS + 0x600
-        for name, (slot, pops) in list(SLOTS.items()) + [(n, (None, p)) for n, p in {**VK, **DDRAW}.items()]:
+        for name, (slot, pops) in list(SLOTS.items()) + [(n, (None, p)) for n, p in {**VK, **DDRAW, **KERNEL_DYNAMIC}.items()]:
             self.emu.mem_write(at, b"\xC2" + struct.pack("<H", 4 * pops))
             if slot is not None:
                 self.word(slot, at)
@@ -281,12 +318,49 @@ class Run(language.Run):
         elif name == "GetModuleHandleA":
             path = self.text(arg(0)).decode()
             self.calls_made.append((name, path))
-            result = 0x6A000000 if path == "dxgi.dll" and self.windows_dxgi else 0
+            result = 0x6A000000 if path == "dxgi.dll" and self.windows_dxgi else KERNEL32 if path == "kernel32.dll" else 0
         elif name == "GetProcAddress":
             function = self.text(arg(1)).decode()
             result = self.stubs[function] if arg(0) == VULKAN and function in VK else 0
             if arg(0) == DDRAW_MODULE and function in self.ddraw_exports:
                 result = self.stubs[function]
+            if arg(0) == KERNEL32 and function in KERNEL_DYNAMIC:
+                result = self.stubs[function]
+            # a Vulkan driver's DLL exports the loader's negotiation
+            if arg(0) in self.driver_modules() and function == "vk_icdNegotiateLoaderICDInterfaceVersion":
+                result = NEGOTIATE
+        elif name == "K32EnumProcessModules":
+            # (process: GetCurrentProcess's -1, modules, their room in bytes, the bytes all need)
+            assert arg(0) == 0xFFFFFFFF, hex(arg(0))
+            self.calls_made.append((name,))
+            loaded = [EXE_MODULE, KERNEL32] + ([VULKAN] if self.instance else []) + self.loaded_drivers()
+            for i, module in enumerate(loaded[:arg(2) // 4]):
+                self.word(arg(1) + 4 * i, module)
+            self.word(arg(3), 4 * len(loaded))
+            result = 1
+        elif name == "FindFirstFileA":
+            pattern = self.text(arg(0)).decode()
+            self.calls_made.append((name, pattern))
+            assert pattern.endswith("*.json"), pattern
+            folder = pattern[:-len("*.json")]
+            names = [m[len(folder):] for m in dict.fromkeys(manifest_of(g) for g in self.vulkan or [])
+                     if folder_of(m) == folder and m not in self.hidden]
+            names = names + [MANIFESTS.get(next((v for v, f in FOLDERS.items() if f == folder), 0), "x.json")
+                             .replace("32", "64")]
+            handle = 0x5F000000 + len(self.finds)
+            self.finds[handle] = [names, 1]
+            self.found(arg(1), names[0])
+            result = handle
+        elif name == "FindNextFileA":
+            names, at = self.finds[arg(0)]
+            if at < len(names):
+                self.found(arg(1), names[at])
+                self.finds[arg(0)][1] += 1
+                result = 1
+            else:
+                result = 0
+        elif name == "FindClose":
+            assert arg(0) in self.finds, hex(arg(0))
         elif name == "FreeLibrary":
             self.calls_made.append((name, arg(0)))
         elif name == "SetEnvironmentVariableA":
@@ -309,37 +383,54 @@ class Run(language.Run):
                 emu.mem_write(arg(1), value + b"\0")
             result = len(value) if len(value) < arg(2) else len(value) + 1
         elif name == "GetModuleFileNameA":
-            emu.mem_write(arg(1), EXE_PATH + b"\0")
-            result = len(EXE_PATH)
+            folders = {module: folder for folder, module in self.folder_handles().items()}
+            path = (folders[arg(0)] + "drv32.dll").encode() if arg(0) in folders else EXE_PATH
+            emu.mem_write(arg(1), path + b"\0")
+            result = len(path)
         elif name == "SHGetFolderPathA":
             assert arg(1) == 5, arg(1)                 # CSIDL_PERSONAL
             emu.mem_write(arg(4), DOCUMENTS + b"\0")
             result = 0
         elif name == "vkCreateInstance":
             self.calls_made.append((name,))
-            self.word(arg(2), INSTANCE)
-            result = 0
-        elif name == "vkEnumeratePhysicalDevices":
-            assert arg(0) == INSTANCE
-            # the CPU's lavapipe first (1.4.354, never DXVK's), then the GPUs whose drivers the loader took: those
-            # whose manifest VK_LOADER_DRIVERS_SELECT's glob matches (its one form here, `prefix*`), all when it is
-            # not set or the loader ignores it
+            # the drivers the loader takes: VK_DRIVER_FILES' manifest alone when it is set, else those whose
+            # manifest's name VK_LOADER_DRIVERS_SELECT's glob matches (its one form here, `prefix*`), else all and
+            # the CPU's lavapipe first (1.4.354, never DXVK's; a GPU vendor's glob leaves its manifest out); no
+            # instance without a driver
+            files = None if self.ignores_files else self.env.get(DRIVER_FILES)
             glob = None if self.ignores else self.env.get(SELECT)
-            taken = lambda gpu: glob is None or MANIFESTS[gpu[0]].startswith(glob.rstrip("*"))
-            self.visible = [(LAVAPIPE, vk_version(1, 4, 354), 4, "llvmpipe")] + [g for g in self.vulkan if taken(g)]
+            named = lambda gpu: manifest_of(gpu)[len(folder_of(manifest_of(gpu))):]
+            taken = lambda gpu: ((files is None or manifest_of(gpu) == files)
+                                 and (glob is None or named(gpu).startswith(glob.rstrip("*"))))
+            cpu = [(LAVAPIPE, vk_version(1, 4, 354), 4, "llvmpipe")] if files is None and glob is None else []
+            self.visible = cpu + [g for g in self.vulkan if taken(g)]
+            last = files is not None and self.env.get("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1") == "1"
+            if not self.visible or (self.last_fails and last):
+                result = 0xFFFFFFF7                          # VK_ERROR_INCOMPATIBLE_DRIVER
+            else:
+                self.word(arg(2), INSTANCE)
+                self.instance = True
+                result = 0
+        elif name == "vkEnumeratePhysicalDevices":
+            assert arg(0) == INSTANCE and self.instance
+            # the instance's devices (vkCreateInstance's drivers)
             room = self.read(arg(1))
             for i in range(min(room, len(self.visible))):
                 self.word(arg(2) + 4 * i, DEVICES + i)
             self.word(arg(1), min(room, len(self.visible)))
             result = 0
         elif name == "vkGetPhysicalDeviceProperties":
-            vendor, api, kind, device = self.visible[arg(0) - DEVICES]
+            gpu = self.visible[arg(0) - DEVICES]
+            vendor, api, kind, device = gpu[:4]
             self.word(arg(1), api)
+            self.word(arg(1) + 4, driver_of(gpu))
             self.word(arg(1) + 8, vendor)
+            self.word(arg(1) + 12, sum(device.encode()) & 0xFFFF)       # deviceID: one per name here
             self.word(arg(1) + 16, kind)
             self.emu.mem_write(arg(1) + 20, device.encode() + b"\0")
         elif name == "vkDestroyInstance":
             self.calls_made.append((name, arg(0)))
+            self.instance = False
         elif name == "DirectDrawEnumerateExA":
             self.calls_made.append((name,))
             result = 0
@@ -362,6 +453,27 @@ class Run(language.Run):
             self.calls_made.append((name,))
             result = 0
         emu.reg_write(UC_X86_REG_EAX, result)
+
+    def folder_handles(self):
+        """Each driver folder's DLL's module handle, by the folders' names."""
+        folders = sorted({folder_of(manifest_of(g)) for g in self.vulkan or []})
+        return {folder: DRIVER_MODULES + 0x10000 * i for i, folder in enumerate(folders)}
+
+    def driver_modules(self):
+        return set(self.folder_handles().values())
+
+    def loaded_drivers(self):
+        """The driver DLLs the instance loaded, in their handles' order (none without an instance)."""
+        if not self.instance:
+            return []
+        handles = self.folder_handles()
+        return sorted({handles[folder_of(manifest_of(g))] for g in self.visible if g[0] != LAVAPIPE})
+
+    def found(self, data, name):
+        """A WIN32_FIND_DATAA of a file `name`: dwFileAttributes FILE_ATTRIBUTE_ARCHIVE, cFileName at 44."""
+        self.emu.mem_write(data, bytes(320))
+        self.word(data, 0x20)
+        self.emu.mem_write(data + 44, name.encode() + b"\0")
 
     def ddraw_probed(self, exports=("DirectDrawEnumerateExA", "DirectDrawCreate"), ddraw7=True):
         """The engine's DirectDraw probe from its start to its `ret`, ddraw.dll exporting `exports`, the
@@ -697,6 +809,7 @@ def main():
                + ", after patch 65's Invokes; on into update_player_icons as the game's")
     renderer(original, patched, expect)
     fullscreen_window(original, patched, expect)
+    one_driver(patched, expect)
     ddraw_probe(original, patched, expect)
     field_of_view(original, patched, expect)
     print("all cases passed")
@@ -718,12 +831,26 @@ def renderer(original, patched, expect):
     log = [("CreateFileA", "srp_patches.log", 4)]
     # the look: the player's DXVK_FILTER_DEVICE_NAME and loader variables read, then one vendor's drivers at a time
     reads = [("GetEnvironmentVariableA", "DXVK_FILTER_DEVICE_NAME"), ("GetEnvironmentVariableA", SELECT),
-             ("GetEnvironmentVariableA", "VK_LOADER_DRIVERS_DISABLE")]
+             ("GetEnvironmentVariableA", "VK_LOADER_DRIVERS_DISABLE"), ("GetEnvironmentVariableA", DRIVER_FILES),
+             ("GetEnvironmentVariableA", "VK_ICD_FILENAMES")]
     one_look = [("LoadLibraryA", "vulkan-1.dll"), ("vkCreateInstance",), ("vkDestroyInstance", INSTANCE),
                 ("FreeLibrary", VULKAN)]
-    alone = lambda glob: [("SetEnvironmentVariableA", SELECT, glob)] + one_look
-    kept = lambda glob: [("SetEnvironmentVariableA", SELECT, glob)] + log
-    cleared = [("SetEnvironmentVariableA", SELECT, None)]
+    # a vendor's look: while its instance lives, the manifests beside each driver DLL it loaded looked for
+    scanned = lambda *folders: (one_look[:2] + [("GetModuleHandleA", "kernel32.dll"), ("K32EnumProcessModules",)]
+                                + [("FindFirstFileA", folder + "*.json") for folder in folders] + one_look[2:])
+    # a vendor without a driver here: the loader makes no instance, the loader let go
+    no_instance = [("LoadLibraryA", "vulkan-1.dll"), ("vkCreateInstance",), ("FreeLibrary", VULKAN)]
+    # the player's layer switches read once; each look, and DXVK after, with the other vendors' layers off
+    layer_reads = [("GetEnvironmentVariableA", variable) for _, variable in LAYER_SWITCHES]
+    layers = lambda vendor, players=(): [("SetEnvironmentVariableA", variable,
+                                          "1" if vendor is not None and vendor != of else None)
+                                         for of, variable in LAYER_SWITCHES if variable not in players]
+    vendor_of = {"nv*": NVIDIA, "amd*": AMD, "igvk*": INTEL}
+    alone = lambda glob, look=None: ([("SetEnvironmentVariableA", SELECT, glob)] + layers(vendor_of[glob])
+                                     + (look or scanned(FOLDERS[vendor_of[glob]])))
+    kept = lambda glob: [("SetEnvironmentVariableA", SELECT, glob)] + layers(vendor_of[glob]) + log + log
+    cleared = [("SetEnvironmentVariableA", SELECT, None)] + layers(None)
+    reads = reads + layer_reads
     nvidia = mark + reads + alone("nv*") + kept("nv*")
     # DXVK's options before its DLLs: user.cfg without their lines prefers the dedicated GPU alone
     config = [("SetEnvironmentVariableA", "DXVK_CONFIG", "dxvk.hideIntegratedGraphics = True")] + log
@@ -736,27 +863,43 @@ def renderer(original, patched, expect):
     cases = [
         # (what, the world, the calls wanted, the marker after, the log's words)
         ("Vulkan picked, dxvk\\ whole, an NVIDIA Vulkan 1.4 device: the marker first, NVIDIA's drivers alone looked "
-         "at (all let go) and kept, DXVK's five by their full paths in their order", dict(user_cfg=on, vulkan=good),
+         "at (all let go) and kept, AMD's layer off, DXVK's four by their full paths in their order (no d3d8)",
+         dict(user_cfg=on, vulkan=good),
          opened + files + marker + nvidia + config + loads + log, True,
          b'dxvk: Vulkan drivers: "nv*" only (VK_LOADER_DRIVERS_SELECT), DXVK\'s GPU NVIDIA GeForce RTX 4080'),
         ("Vulkan picked with every Vulkan option changed: DXVK_CONFIG says them, before the loads",
          dict(user_cfg=every, vulkan=good), opened + files + marker + nvidia + every_config + loads + log, True,
          b'dxvk: DXVK_CONFIG "dxvk.maxFrameRate = 144; dxvk.latencySleep = True; dxvk.tearFree = True; '
          b'dxvk.hud = fps,frametimes,gpuload,compiler,memory"'),
-        ("an RTX beside a Radeon iGPU: NVIDIA's look finds its discrete GPU, AMD's drivers are never looked at",
+        ("an RTX beside a Radeon iGPU: NVIDIA's look finds its discrete GPU, AMD's drivers are never looked at, "
+         "AMD's layer (its 85 MiB driver DLL) off and said",
          dict(user_cfg=on, gpus=[radeon_igpu, rtx]), opened + files + marker + nvidia + config + loads + log, True,
-         b'"nv*" only'),
-        ("an RX alone: NVIDIA's look finds none, AMD's the RX; DXVK_CONFIG adds no descriptor heap, said on its line",
+         b"other vendors' Vulkan layers off: DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1 (AMD's)"),
+        ("the player's own DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1: kept as it is, nothing more set or said",
+         dict(user_cfg=on, gpus=[radeon_igpu, rtx], env={"DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1": "0"}),
+         opened + files + marker + mark + reads
+         + [("SetEnvironmentVariableA", SELECT, "nv*")] + layers(NVIDIA, LAYER_SWITCHES[0][1:]) + scanned(FOLDERS[NVIDIA])
+         + [("SetEnvironmentVariableA", SELECT, "nv*")] + layers(NVIDIA, LAYER_SWITCHES[0][1:]) + log
+         + config + loads + log, True, b'"nv*" only'),
+        ("an RX alone (no NVIDIA driver: NVIDIA's look makes no instance and has no say), AMD's the RX, NVIDIA's "
+         "layers off; DXVK_CONFIG adds no descriptor heap, said on its line",
          dict(user_cfg=on, gpus=[rx]),
-         opened + files + marker + mark + reads + alone("nv*") + alone("amd*") + kept("amd*") + amd_config + loads + log,
+         opened + files + marker + mark + reads + alone("nv*", no_instance) + alone("amd*") + kept("amd*") + amd_config
+         + loads + log,
          True, b'DXVK_CONFIG adds "dxvk.enableDescriptorHeap = False": DXVK\'s GPU is AMD\'s, AMD Radeon RX 7800 XT'),
+        ("an RX alone: the drivers' limit is AMD's, said with why (no NVIDIA driver is no reason for every driver)",
+         dict(user_cfg=on, gpus=[rx]),
+         opened + files + marker + mark + reads + alone("nv*", no_instance) + alone("amd*") + kept("amd*") + amd_config
+         + loads + log, True, b'"amd*" only (VK_LOADER_DRIVERS_SELECT), DXVK\'s GPU AMD Radeon RX 7800 XT'),
         ("a Radeon iGPU alone: no vendor's discrete GPU, the first integrated one, AMD's",
          dict(user_cfg=on, gpus=[radeon_igpu]),
-         opened + files + marker + mark + reads + alone("nv*") + alone("amd*") + alone("igvk*") + kept("amd*")
-         + amd_config + loads + log, True, b'"amd*" only'),
+         opened + files + marker + mark + reads + alone("nv*", no_instance) + alone("amd*") + alone("igvk*", no_instance)
+         + kept("amd*") + amd_config + loads + log, True, b'"amd*" only'),
         ("an elevated game (the loader ignores the variable: NVIDIA's look sees AMD's GPU too): the variable deleted, "
-         "every driver looked at, as before", dict(user_cfg=on, gpus=[radeon_igpu, rtx], ignores=True),
-         opened + files + marker + mark + reads + alone("nv*") + cleared + one_look + log + config + loads + log, True,
+         "the layers as the player has them, every driver looked at, as before",
+         dict(user_cfg=on, gpus=[radeon_igpu, rtx], ignores=True),
+         opened + files + marker + mark + reads + alone("nv*", scanned(FOLDERS[AMD], FOLDERS[NVIDIA])) + cleared
+         + one_look + log + config + loads + log, True,
          b"Vulkan drivers: all (the loader ignores VK_LOADER_DRIVERS_SELECT here"),
         ("the player's own VK_LOADER_DRIVERS_SELECT: kept, every driver it takes looked at",
          dict(user_cfg=on, vulkan=good, env={SELECT: "nv-vk32.json"}),
@@ -768,11 +911,11 @@ def renderer(original, patched, expect):
          b"another dxgi.dll is loaded already"),
         ("Vulkan picked, the best device 1.3: each vendor's look finds nothing DXVK takes, then every driver; no DLL "
          "loaded, the variable deleted, the marker taken away", dict(user_cfg=on, vulkan=old),
-         opened + files + marker + mark + reads + alone("nv*") + alone("amd*") + alone("igvk*") + cleared + one_look
-         + log + log + unmark, False, b"no Vulkan 1.4 device"),
+         opened + files + marker + mark + reads + alone("nv*") + alone("amd*", no_instance)
+         + alone("igvk*", no_instance) + cleared + one_look + log + log + unmark, False, b"no Vulkan 1.4 device"),
         ("Vulkan picked, no vulkan-1.dll: the variable deleted, the same", dict(user_cfg=on),
-         opened + files + marker + mark + reads + [("SetEnvironmentVariableA", SELECT, "nv*"), ("LoadLibraryA", "vulkan-1.dll")]
-         + cleared + log + unmark, False, b"no Vulkan 1.4 device"),
+         opened + files + marker + mark + reads + [("SetEnvironmentVariableA", SELECT, "nv*")] + layers(NVIDIA)
+         + [("LoadLibraryA", "vulkan-1.dll")] + cleared + log + unmark, False, b"no Vulkan 1.4 device"),
         ("DirectX 11 picked: no look, nothing loaded, no DXVK_CONFIG", dict(user_cfg=off + every[len(on):], vulkan=good),
          opened + files + marker + unmark, False, b""),
         ("no user.cfg: DirectX 11", dict(vulkan=good), opened + files + marker + unmark, False, b""),
@@ -846,6 +989,58 @@ def shown(calls):
     """The calls with their numbers in hex."""
     hexed = lambda v: tuple(map(hexed, v)) if isinstance(v, tuple) else hex(v) if isinstance(v, int) else v
     return [hexed(call) for call in calls]
+
+
+def one_driver(patched, expect):
+    """DXVK's GPU given by two drivers of its vendor (a player's AMD 32.0.21045 and 32.0.32015, both mapped):
+    the one whose manifest alone gives the GPU DXVK picks (its driver version) the loader's only driver
+    (VK_DRIVER_FILES), the glob deleted, AMD's layer off too, after a last look that gives DXVK the same GPU;
+    anything less certain leaves the vendor's glob and its layer as they were, and says why."""
+    on = b"srp_dxvk on\r\n"
+    api = vk_version(1, 4, 315)
+    # DXVK takes the first discrete device: the package's driver (0x8002), whose folder sorts after the store's,
+    # so the store's manifest (another driver version) and its 64-bit one are tried first
+    package = "C:\\DS\\zz\\amd-vulkan32.json"
+    rx_package = (AMD, api, 2, "AMD Radeon RX 7800 XT", package, 0x8002)
+    rx_store = (AMD, api, 2, "AMD Radeon RX 7800 XT", FOLDERS[AMD] + MANIFESTS[AMD], 0x8001)
+    amd_layer = "DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1"
+    for what, world, files, glob, layer, words in [
+        ("two drivers of the RX: the package's (DXVK's) alone, the glob deleted, AMD's layer off, said",
+         dict(gpus=[rx_package, rx_store]), package, None, "1",
+         b"dxvk: DXVK's GPU has 2 drivers: C:\\DS\\zz\\amd-vulkan32.json only (VK_DRIVER_FILES), its layers off"),
+        ("the loader ignores VK_DRIVER_FILES (one manifest gives both): as before, said",
+         dict(gpus=[rx_package, rx_store], ignores_files=True), None, "amd*", None,
+         b"DXVK's GPU has 2 drivers, all kept (one manifest gives it twice"),
+        ("two RX of one driver: one manifest gives both, as before",
+         dict(gpus=[rx_store, rx_store]), None, "amd*", None, b"all kept (one manifest gives it twice"),
+        ("DXVK's driver's manifest not found beside its DLL: as before, said",
+         dict(gpus=[rx_package, rx_store], hidden=[package]), None, "amd*", None,
+         b"all kept (no driver's manifest alone gives it)"),
+        ("the last look with one driver fails: as before, said",
+         dict(gpus=[rx_package, rx_store], last_fails=True), None, "amd*", None,
+         b"all kept (the last look with one gave DXVK another GPU)"),
+        ("one RX, one driver: nothing more", dict(gpus=[rx_store]), None, "amd*", None, b'"amd*" only'),
+        ("the player's own VK_DRIVER_FILES: kept, every driver it takes looked at",
+         dict(gpus=[rx_package, rx_store], env={DRIVER_FILES: package}), package, None, None,
+         b"the player's own VK_DRIVER_FILES or VK_ICD_FILENAMES kept"),
+    ]:
+        r = Run(patched)
+        kept_regs, calls = r.process_start(user_cfg=on, **world)
+        loaded = all(r.modules.get(name) for name in ("dxgi.dll", "d3d11.dll", "d3d9.dll"))
+        state = (r.env.get(DRIVER_FILES), r.env.get(SELECT), r.env.get(amd_layer))
+        expect(kept_regs and r.mallocs == 0 and loaded and r.marker and state == (files, glob, layer)
+               and words in r.logged and (files == package or b"its layers off" not in r.logged),
+               f"one driver of DXVK's GPU, {what}: DXVK loaded, VK_DRIVER_FILES {files}, VK_LOADER_DRIVERS_SELECT "
+               f"{glob}, AMD's layer switch {layer}"
+               + ("" if state == (files, glob, layer) else f": {state}")
+               + ("" if words in r.logged else f": log {r.logged[-500:]}"))
+    # the trials: each manifest beside a driver DLL of AMD's look alone, the store's first (another driver
+    # version), its 64-bit one (no 32-bit driver: no instance), then the package's; a last look with it
+    r = Run(patched)
+    r.process_start(user_cfg=on, gpus=[rx_package, rx_store])
+    tried = [call[2] for call in r.calls_made if call[:2] == ("SetEnvironmentVariableA", DRIVER_FILES)]
+    expect(tried == [FOLDERS[AMD] + "amd-vulkan32.json", FOLDERS[AMD] + "amd-vulkan64.json", package, package],
+           f"one driver of DXVK's GPU: the manifests tried in the DLLs' order, the right one set again last ({tried})")
 
 
 def fullscreen_window(original, patched, expect):

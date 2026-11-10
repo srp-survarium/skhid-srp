@@ -30,7 +30,7 @@
 //!   memory set-up, before the VRAM check's Direct3DCreate9 0xE9C3F and the
 //!   render device; every Direct3D DLL is a delayed import, so none has run
 //!   yet): the renderer is chosen ([`step`]). With Vulkan/DXVK picked in
-//!   user.cfg, the five DLLs in `dxvk\`, no marker left and a Vulkan 1.4
+//!   user.cfg, the four DLLs it loads in `dxvk\`, no marker left and a Vulkan 1.4
 //!   device, DXVK's DLLs are loaded from `dxvk\` by their full paths, after
 //!   the marker `dxvk.pending` is written and `DXVK_CONFIG` set from the
 //!   Vulkan options user.cfg has ([`VulkanOptions`]), and the game's delayed d3d9, dxgi
@@ -70,6 +70,7 @@ use crate::vostok::language::ConsoleString;
 use crate::vostok::log::{Piece::*, line};
 use crate::vostok::renderer::{DelayedImport, Gpu, OutputWindow, ProbeDirectDraw, Vulkan, VulkanVersion, WindowStyles,
                                best_version, clear_environment, dxvk_pick, environment_set, get_environment, look,
+                               look_drivers, Gpus, Manifests,
                               bind_delayed_import, exists_beside_exe, is_loaded, load_beside_exe, set_environment,
                               with_user_cfg};
 use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, SliderSteps, create_file, delete_file, file_exists,
@@ -542,7 +543,11 @@ static DXVK_GPU: Lock<Option<Gpu>> = Lock::new(None);
 /// such variable (an elevated process, where it ignores it) or no vendor's
 /// drivers found a GPU, the variable is deleted and every driver looked at,
 /// as before. A player's own `VK_LOADER_DRIVERS_SELECT` or `_DISABLE` is
-/// kept. The best version found is the look's answer (Vulkan 1.4 or not).
+/// kept. A vendor whose look makes no instance (no driver of its here) has no
+/// say. Each look, and DXVK's instance after, has the other vendors' implicit
+/// layers turned off ([`LAYER_SWITCHES`]): those load their vendor's driver
+/// DLL whatever drivers the loader takes. The best version found is the
+/// look's answer (Vulkan 1.4 or not).
 fn look_for_dxvk(thread: &Thread) -> Vulkan {
     let filter = DeviceFilter::of_environment(thread);
     let everything = |thread: &Thread, why: &str| {
@@ -555,48 +560,223 @@ fn look_for_dxvk(thread: &Thread) -> Vulkan {
     if environment_set(thread, c"VK_LOADER_DRIVERS_SELECT") || environment_set(thread, c"VK_LOADER_DRIVERS_DISABLE") {
         return everything(thread, "the player's own VK_LOADER_DRIVERS_SELECT or _DISABLE kept");
     }
+    if environment_set(thread, c"VK_DRIVER_FILES") || environment_set(thread, c"VK_ICD_FILENAMES") {
+        return everything(thread, "the player's own VK_DRIVER_FILES or VK_ICD_FILENAMES kept");
+    }
+    let players = LayerSwitches::of_environment(thread);
+    // the looks that found something, in the vendors' order (a vendor without drivers here has none), with how
+    // many of their devices are their pick's GPU and the manifests of the drivers they loaded
     let mut looks = [VendorLook { vendor: 0, pick: None }; VENDORS.len()];
+    let mut found: [Option<(u32, Manifests)>; VENDORS.len()] = [None, None, None];
     let mut best: Option<VulkanVersion> = None;
     let mut done = 0;
-    for (slot, vendor) in looks.iter_mut().zip(VENDORS) {
+    for vendor in VENDORS {
         let Some(drivers) = drivers_of(vendor) else { continue };
         if !set_environment(thread, c"VK_LOADER_DRIVERS_SELECT", drivers) {
             clear_environment(thread, c"VK_LOADER_DRIVERS_SELECT");
             return everything(thread, "VK_LOADER_DRIVERS_SELECT not set");
         }
-        let gpus = match look(thread) {
+        // the look sees what DXVK's instance would: the other vendors' layers off
+        players.only(thread, Some(vendor));
+        let mut manifests = Manifests::default();
+        let gpus = match look_drivers(thread, &mut manifests) {
             Ok(gpus) => gpus,
             // no loader: none for any vendor
             Err(Vulkan::NoLoader) => {
                 clear_environment(thread, c"VK_LOADER_DRIVERS_SELECT");
+                players.only(thread, None);
                 return Vulkan::NoLoader;
             }
+            // no driver of this vendor here (the loader makes no instance without one)
             Err(_) => continue,
         };
         // another vendor's GPU (a CPU driver's device is none): the loader takes no such variable here
         if gpus.list.iter().flatten().any(|gpu| gpu.kind != PHYSICAL_DEVICE_TYPE_CPU && gpu.vendor != vendor) {
             clear_environment(thread, c"VK_LOADER_DRIVERS_SELECT");
+            players.only(thread, None);
             return everything(thread, "the loader ignores VK_LOADER_DRIVERS_SELECT here: an elevated game?");
         }
         if let Vulkan::Device(version) = best_version(&gpus) {
             best = best.max(Some(version));
         }
-        *slot = VendorLook { vendor, pick: dxvk_pick(&gpus, VULKAN_NEEDED, filter.bytes()) };
+        let pick = dxvk_pick(&gpus, VULKAN_NEEDED, filter.bytes());
+        looks[done] = VendorLook { vendor, pick };
+        found[done] = Some((pick.map_or(0, |pick| copies_of(&gpus, &pick)), manifests));
         done += 1;
-        if slot.pick.is_some_and(|gpu| gpu.kind == 2) {
+        if pick.is_some_and(|gpu| gpu.kind == 2) {
             break;
         }
     }
-    let Some(gpu) = pick_across(&looks[..done.max(1)]) else {
+    let Some(gpu) = pick_across(&looks[..done]) else {
         clear_environment(thread, c"VK_LOADER_DRIVERS_SELECT");
+        players.only(thread, None);
         return everything(thread, "no vendor's drivers alone found a GPU DXVK would take");
     };
     let drivers = drivers_of(gpu.vendor).unwrap_or(c"*");
     set_environment(thread, c"VK_LOADER_DRIVERS_SELECT", drivers);
+    let off = players.only(thread, Some(gpu.vendor));
     DXVK_GPU.with(thread, |kept| *kept = Some(gpu));
     line(&[Text("dxvk: Vulkan drivers: \""), Text(drivers.to_str().unwrap_or("?")),
            Text("\" only (VK_LOADER_DRIVERS_SELECT), DXVK's GPU "), Text(gpu.name())]);
+    if !off.is_empty() {
+        line(&[Text("dxvk: other vendors' Vulkan layers off: "), Text(off.names())]);
+    }
+    let winner = looks[..done].iter().position(|look| look.pick == Some(gpu));
+    if let Some(&(copies, ref manifests)) = winner.and_then(|i| found[i].as_ref()) {
+        one_driver(thread, OneDriver { gpu, copies, manifests, players, drivers, filter: filter.bytes() });
+    }
     best.map_or(Vulkan::NoDevice, Vulkan::Device)
+}
+
+/// How many of `gpus` are `gpu`'s GPU, whatever driver gives each.
+fn copies_of(gpus: &Gpus, gpu: &Gpu) -> u32 {
+    gpus.list.iter().flatten().filter(|other| other.same_gpu(gpu)).count() as u32
+}
+
+/// What [`one_driver`] works from: DXVK's GPU, its vendor's look (how many
+/// of its devices are that GPU, the manifests of the drivers it loaded), the
+/// player's layer switches, the vendor's drivers' glob,
+/// `DXVK_FILTER_DEVICE_NAME`.
+struct OneDriver<'a> {
+    gpu: Gpu,
+    copies: u32,
+    manifests: &'a Manifests,
+    players: LayerSwitches,
+    drivers: &'static CStr,
+    filter: &'a [u8],
+}
+
+/// DXVK's GPU given by more than one driver of its vendor (two driver
+/// packages: a player's AMD 32.0.21045 and 32.0.32015, 85 and 93 MiB, both
+/// mapped): the vendor's glob takes both, so the one whose manifest alone
+/// gives DXVK's GPU as the look saw it (its driver version: the driver DXVK
+/// takes now) is the loader's only driver (`VK_DRIVER_FILES`, the glob
+/// deleted), and the vendor's own layers go off too (the loader keeps one of
+/// two same-named layers, which may be in the other driver's DLL). A last look
+/// with exactly that must give DXVK the same GPU, else all is as before.
+/// Nothing when the loader ignores `VK_DRIVER_FILES` (an elevated game: one
+/// manifest gives every copy) or no manifest alone gives the GPU.
+fn one_driver(thread: &Thread, of: OneDriver<'_>) {
+    let OneDriver { gpu, copies: drivers_of_gpu, manifests, players, drivers, filter } = of;
+    if drivers_of_gpu < 2 {
+        return;
+    }
+    let copies = |list: &Gpus| copies_of(list, &gpu);
+    let as_before = |thread: &Thread, why: &str| {
+        clear_environment(thread, c"VK_DRIVER_FILES");
+        set_environment(thread, c"VK_LOADER_DRIVERS_SELECT", drivers);
+        players.only(thread, Some(gpu.vendor));
+        line(&[Text("dxvk: DXVK's GPU has "), Dec(drivers_of_gpu), Text(" drivers, all kept ("), Text(why), Text(")")]);
+    };
+    clear_environment(thread, c"VK_LOADER_DRIVERS_SELECT");
+    let mut chosen = None;
+    for manifest in manifests.list.iter().flatten() {
+        if !set_environment(thread, c"VK_DRIVER_FILES", manifest.c()) {
+            break;
+        }
+        let Ok(alone) = look(thread) else { continue };
+        // one driver gives it twice: two such GPUs, or the loader took every driver (it ignores the variable in
+        // an elevated process)
+        if copies(&alone) > 1 {
+            return as_before(thread, "one manifest gives it twice: two such GPUs, or an elevated game");
+        }
+        if alone.list.iter().flatten().any(|other| *other == gpu) {
+            chosen = Some(manifest);
+            break;
+        }
+    }
+    let Some(manifest) = chosen else {
+        return as_before(thread, "no driver's manifest alone gives it");
+    };
+    set_environment(thread, c"VK_DRIVER_FILES", manifest.c());
+    players.all_off(thread);
+    let last = look(thread);
+    let same = last.as_ref().is_ok_and(|last| copies(last) == 1 && dxvk_pick(last, VULKAN_NEEDED, filter) == Some(gpu));
+    if !same {
+        return as_before(thread, "the last look with one gave DXVK another GPU");
+    }
+    line(&[Text("dxvk: DXVK's GPU has "), Dec(drivers_of_gpu), Text(" drivers: "), Text(manifest.as_str()),
+           Text(" only (VK_DRIVER_FILES), its layers off")]);
+}
+
+/// The implicit Vulkan layers a GPU vendor's driver manifest declares, each
+/// in that vendor's driver DLL, and the variable that turns it off (its
+/// manifest's `disable_environment`). The loader loads them whatever drivers
+/// it is told to take: AMD's `amdvlk32.dll` (85 MiB) for
+/// `VK_LAYER_AMD_switchable_graphics` beside an RTX DXVK runs on, NVIDIA's
+/// `nvoglv32.dll` (25 MiB) for `VK_LAYER_NV_optimus` and `_present` beside a
+/// Radeon. Like the drivers' filter, the loader ignores them in an elevated
+/// process.
+const LAYER_SWITCHES: [(u32, &CStr); 3] = [
+    (VENDOR_AMD, c"DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1"),
+    (VENDOR_NVIDIA, c"DISABLE_LAYER_NV_OPTIMUS_1"),
+    (VENDOR_NVIDIA, c"DISABLE_LAYER_NV_PRESENT_1"),
+];
+
+/// Which of [`LAYER_SWITCHES`] the player had set before the start's look:
+/// those are kept as they are.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LayerSwitches {
+    players: [bool; LAYER_SWITCHES.len()],
+}
+
+/// The switches set by [`LayerSwitches::only`], for its log line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LayersOff([bool; LAYER_SWITCHES.len()]);
+
+impl LayersOff {
+    fn is_empty(self) -> bool {
+        !self.0.contains(&true)
+    }
+
+    /// The switches set, by name, for the log line.
+    fn names(self) -> &'static str {
+        match self.0 {
+            [true, false, false] => "DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1 (AMD's)",
+            [false, true, true] => "DISABLE_LAYER_NV_OPTIMUS_1, DISABLE_LAYER_NV_PRESENT_1 (NVIDIA's)",
+            [false, true, false] => "DISABLE_LAYER_NV_OPTIMUS_1 (NVIDIA's)",
+            [false, false, true] => "DISABLE_LAYER_NV_PRESENT_1 (NVIDIA's)",
+            _ => "AMD's and NVIDIA's",
+        }
+    }
+}
+
+impl LayerSwitches {
+    fn of_environment(thread: &Thread) -> LayerSwitches {
+        LayerSwitches { players: LAYER_SWITCHES.map(|(_, variable)| environment_set(thread, variable)) }
+    }
+
+    /// Every vendor's layers but `vendor`'s turned off (None: none, as the
+    /// player had them); the player's own switches untouched. The ones set.
+    fn only(self, thread: &Thread, vendor: Option<u32>) -> LayersOff {
+        self.switch(thread, |of| layer_off(vendor, of))
+    }
+
+    /// Every vendor's layers turned off, the player's own switches untouched.
+    fn all_off(self, thread: &Thread) -> LayersOff {
+        self.switch(thread, |_| true)
+    }
+
+    fn switch(self, thread: &Thread, off_for: impl Fn(u32) -> bool) -> LayersOff {
+        let mut off = [false; LAYER_SWITCHES.len()];
+        for (i, &(of, variable)) in LAYER_SWITCHES.iter().enumerate() {
+            if self.players[i] {
+                continue;
+            }
+            if off_for(of) {
+                off[i] = set_environment(thread, variable, c"1");
+            } else {
+                clear_environment(thread, variable);
+            }
+        }
+        LayersOff(off)
+    }
+}
+
+/// Whether a layer of `of`'s is turned off when DXVK's GPU is `vendor`'s:
+/// another vendor's, never with no vendor chosen.
+pub fn layer_off(vendor: Option<u32>, of: u32) -> bool {
+    vendor.is_some_and(|vendor| vendor != of)
 }
 
 /// The marker of a start with DXVK that has not shown its login screen yet,
@@ -608,15 +788,16 @@ pub struct DxvkDll {
     pub serves: Option<DelayedImport>,
 }
 
-/// DXVK's DLLs (`make_client_026g.py`'s `DXVK_DLLS`, `winetricks dxvk`'s set),
-/// in their load order: each one's imports by name are of those before it
-/// (d3d11 imports dxgi, d3d10core d3d11, d3d8 d3d9).
-pub const DXVK_DLLS: [DxvkDll; 5] = [
+/// DXVK's DLLs the start loads, of the five `make_client_026g.py` ships
+/// (`DXVK_DLLS`, `winetricks dxvk`'s set), in their load order: each one's
+/// imports by name are of those before it (d3d11 imports dxgi, d3d10core
+/// d3d11). Not d3d8.dll: the game imports no Direct3D 8, and DXVK's took 1.6
+/// MiB of address space for nothing.
+pub const DXVK_DLLS: [DxvkDll; 4] = [
     DxvkDll { file: c"dxvk\\dxgi.dll", serves: Some(DelayedImport::Dxgi) },
     DxvkDll { file: c"dxvk\\d3d11.dll", serves: Some(DelayedImport::D3d11) },
     DxvkDll { file: c"dxvk\\d3d10core.dll", serves: None },
     DxvkDll { file: c"dxvk\\d3d9.dll", serves: Some(DelayedImport::D3d9) },
-    DxvkDll { file: c"dxvk\\d3d8.dll", serves: None },
 ];
 /// What DXVK 3 needs of a device.
 const VULKAN_NEEDED: VulkanVersion = VulkanVersion::new(1, 4, 0);
@@ -759,9 +940,9 @@ fn drive(thread: &Thread, event: Event) {
                 match load_dxvk(thread) {
                     Ok(()) => line(&[Text("dxvk: DXVK loaded from dxvk\\, the game's d3d9, dxgi and d3d11 bound to it")]),
                     Err(Unloaded(i)) => line(&[Text("dxvk: loading DXVK stopped at DLL "), Dec(i as u32),
-                                               Text(" of dxgi, d3d11, d3d10core, d3d9, d3d8 (from 0)")]),
+                                               Text(" of dxgi, d3d11, d3d10core, d3d9 (from 0)")]),
                     Err(Called(i)) => line(&[Text("dxvk: the game had called DLL "), Dec(i as u32),
-                                             Text(" of dxgi, d3d11, d3d10core, d3d9, d3d8 (from 0) already: not bound")]),
+                                             Text(" of dxgi, d3d11, d3d10core, d3d9 (from 0) already: not bound")]),
                 }
             }
             Action::TurnOff => {
@@ -1162,7 +1343,8 @@ mod tests {
             dedicated_gpu: true,
             overlay: Overlay::Full,
         };
-        let gpu = |vendor| Some(Gpu { vendor, kind: 2, version: Some(VULKAN_NEEDED), name: [0; crate::vostok::renderer::GPU_NAME] });
+        let gpu = |vendor| Some(Gpu { vendor, device: 0, driver: 0, kind: 2, version: Some(VULKAN_NEEDED),
+                                      name: [0; crate::vostok::renderer::GPU_NAME] });
         let mut config = all.config();
         let players = config.as_str().len();
         assert!(config.for_gpu(gpu(VENDOR_AMD)));
@@ -1181,14 +1363,18 @@ mod tests {
 
     #[test]
     fn the_vendors_looks_give_dxvk_s_choice() {
-        let gpu = |vendor, kind| Some(Gpu { vendor, kind, version: Some(VULKAN_NEEDED), name: [0; crate::vostok::renderer::GPU_NAME] });
+        let gpu = |vendor, kind| Some(Gpu { vendor, device: 0, driver: 0, kind, version: Some(VULKAN_NEEDED),
+                                            name: [0; crate::vostok::renderer::GPU_NAME] });
         let look = |vendor, pick| VendorLook { vendor, pick };
         // an AMD iGPU beside an RTX: NVIDIA's look alone, a discrete GPU, the end
         let rtx = look(VENDOR_NVIDIA, gpu(VENDOR_NVIDIA, 2));
         assert_eq!(pick_across(&[rtx]).map(|g| g.vendor), Some(VENDOR_NVIDIA));
-        // an Intel iGPU beside an RX: NVIDIA's found none, AMD's a discrete one
-        let none = look(VENDOR_NVIDIA, None);
+        // an Intel iGPU beside an RX, no NVIDIA driver: NVIDIA's look made no instance and has no slot, AMD's
+        // found a discrete one
         let rx = look(VENDOR_AMD, gpu(VENDOR_AMD, 2));
+        assert_eq!(pick_across(&[rx]).map(|g| g.vendor), Some(VENDOR_AMD));
+        // NVIDIA's drivers with no device DXVK takes (a Vulkan 1.3 GPU): a slot without a pick
+        let none = look(VENDOR_NVIDIA, None);
         assert_eq!(pick_across(&[none, rx]).map(|g| g.vendor), Some(VENDOR_AMD));
         // integrated GPUs alone: the first vendor's
         let amd_igpu = look(VENDOR_AMD, gpu(VENDOR_AMD, 1));
@@ -1197,6 +1383,17 @@ mod tests {
         // a discrete GPU after an integrated one is still DXVK's
         assert_eq!(pick_across(&[amd_igpu, look(VENDOR_INTEL, gpu(VENDOR_INTEL, 2))]).map(|g| g.vendor), Some(VENDOR_INTEL));
         assert_eq!(pick_across(&[none]), None);
+        assert_eq!(pick_across(&[]), None);
+    }
+
+    #[test]
+    fn only_other_vendors_layers_go_off() {
+        // DXVK on an RTX: AMD's layer off, NVIDIA's kept
+        assert!(layer_off(Some(VENDOR_NVIDIA), VENDOR_AMD) && !layer_off(Some(VENDOR_NVIDIA), VENDOR_NVIDIA));
+        // DXVK on a Radeon: NVIDIA's off, AMD's kept
+        assert!(layer_off(Some(VENDOR_AMD), VENDOR_NVIDIA) && !layer_off(Some(VENDOR_AMD), VENDOR_AMD));
+        // every driver looked at: every layer as the player has it
+        assert!(!layer_off(None, VENDOR_AMD) && !layer_off(None, VENDOR_NVIDIA));
     }
 
     #[test]
@@ -1322,11 +1519,11 @@ mod tests {
     }
 
     #[test]
-    fn dxvk_loads_dxgi_first_and_d3d9_before_d3d8() {
-        let at = |name: &str| DXVK_DLLS.iter().position(|dll| dll.file.to_bytes() == name.as_bytes()).unwrap();
-        assert_eq!(at("dxvk\\dxgi.dll"), 0);
+    fn dxvk_loads_dxgi_first_and_no_d3d8() {
+        let at = |name: &str| DXVK_DLLS.iter().position(|dll| dll.file.to_bytes() == name.as_bytes());
+        assert_eq!(at("dxvk\\dxgi.dll"), Some(0));
         assert!(at("dxvk\\dxgi.dll") < at("dxvk\\d3d11.dll") && at("dxvk\\d3d11.dll") < at("dxvk\\d3d10core.dll"));
-        assert!(at("dxvk\\d3d9.dll") < at("dxvk\\d3d8.dll"));
+        assert!(at("dxvk\\d3d9.dll").is_some() && at("dxvk\\d3d8.dll").is_none());
     }
 
     #[test]

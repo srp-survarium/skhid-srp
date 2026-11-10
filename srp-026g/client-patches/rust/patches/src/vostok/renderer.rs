@@ -417,7 +417,20 @@ impl Gpu {
         if let Some(end) = name.iter().position(|&b| b == 0) {
             name[end..].fill(0);
         }
-        Gpu { vendor: room.0[2], kind: room.0[4], version: VulkanVersion::of_packed(room.0[0]), name }
+        Gpu {
+            vendor: room.0[2],
+            device: room.0[3],
+            driver: room.0[1],
+            kind: room.0[4],
+            version: VulkanVersion::of_packed(room.0[0]),
+            name,
+        }
+    }
+
+    /// The same GPU as `other` (its vendor's and device's IDs), whatever
+    /// driver gives it.
+    pub fn same_gpu(&self, other: &Gpu) -> bool {
+        self.vendor == other.vendor && self.device == other.device && self.name == other.name
     }
 }
 
@@ -426,6 +439,11 @@ impl Gpu {
 pub struct Gpu {
     /// The PCI vendor (`vendorID`): 0x1002 AMD, 0x10DE NVIDIA, 0x8086 Intel.
     pub vendor: u32,
+    /// The PCI device (`deviceID`).
+    pub device: u32,
+    /// `driverVersion`, the driver's own packing: two drivers of one GPU
+    /// differ by it.
+    pub driver: u32,
     /// `deviceType`: 1 integrated, 2 discrete, 3 virtual, 4 the CPU.
     pub kind: u32,
     /// `apiVersion`; None for another variant than 0.
@@ -493,7 +511,126 @@ pub fn best_vulkan(thread: &Thread) -> Vulkan {
 
 /// The devices the Vulkan loader gives now (its environment as it is), the
 /// loader let go after; Err the look's failure.
-pub fn look(_: &Thread) -> Result<Gpus, Vulkan> {
+pub fn look(thread: &Thread) -> Result<Gpus, Vulkan> {
+    look_with(thread, None)
+}
+
+/// As [`look`], and the manifests of the Vulkan drivers the instance loaded
+/// into `manifests` (each `.json` beside a DLL of the process that exports
+/// `vk_icdNegotiateLoaderICDInterfaceVersion`, while the instance lives).
+pub fn look_drivers(thread: &Thread, manifests: &mut Manifests) -> Result<Gpus, Vulkan> {
+    look_with(thread, Some(manifests))
+}
+
+/// The longest manifest path kept (MAX_PATH, NUL included): the ANSI calls
+/// that find them give no longer.
+const MANIFEST_ROOM: usize = 260;
+
+/// A Vulkan driver's manifest by its full path, NUL-terminated (what
+/// `VK_DRIVER_FILES` takes).
+#[derive(Clone, Copy)]
+pub struct Manifest {
+    path: [u8; MANIFEST_ROOM],
+    len: usize,
+}
+
+impl Manifest {
+    pub fn c(&self) -> &CStr {
+        CStr::from_bytes_until_nul(&self.path).unwrap_or(c"")
+    }
+
+    pub fn as_str(&self) -> &str {
+        core::str::from_utf8(&self.path[..self.len]).unwrap_or("?")
+    }
+}
+
+/// The manifests a look found, at most 8, in the order found.
+#[derive(Default)]
+pub struct Manifests {
+    pub list: [Option<Manifest>; 8],
+}
+
+impl Manifests {
+    fn add(&mut self, path: &[u8]) {
+        // a NUL inside would cut it short for the loader
+        if path.len() >= MANIFEST_ROOM
+            || path.contains(&0)
+            || self.list.iter().flatten().any(|known| known.path[..known.len].eq_ignore_ascii_case(path))
+        {
+            return;
+        }
+        if let Some(free) = self.list.iter_mut().find(|slot| slot.is_none()) {
+            let mut manifest = Manifest { path: [0; MANIFEST_ROOM], len: path.len() };
+            manifest.path[..path.len()].copy_from_slice(path);
+            *free = Some(manifest);
+        }
+    }
+}
+
+/// WIN32_FIND_DATAA: dwFileAttributes first, cFileName (260 bytes) at 44.
+#[repr(C, align(4))]
+struct FindData([u8; 320]);
+
+/// Into `manifests`, every `.json` in the folder of each Vulkan driver DLL
+/// loaded now (K32EnumProcessModules through kernel32's GetProcAddress; a
+/// driver exports vk_icdNegotiateLoaderICDInterfaceVersion).
+///
+/// # Safety
+/// Called while the loader's instance lives, on the thread that made it.
+unsafe fn driver_manifests(manifests: &mut Manifests) {
+    const FILE_ATTRIBUTE_DIRECTORY: u8 = 0x10;
+    unsafe {
+        let kernel = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
+        let Some(enumerate) = NonNull::new((raw::engine_get_proc_address)(kernel, c"K32EnumProcessModules".as_ptr().cast()))
+        else {
+            return;
+        };
+        let mut modules = [null_mut(); 512];
+        let mut needed = 0u32;
+        // GetCurrentProcess's pseudo-handle, -1
+        let process = usize::MAX as *mut c_void;
+        if raw::engine_enum_process_modules(enumerate, process, modules.as_mut_ptr(), size_of_val(&modules) as u32, &mut needed) == 0 {
+            return;
+        }
+        for &module in &modules[..(needed as usize / size_of::<*mut c_void>()).min(modules.len())] {
+            if (raw::engine_get_proc_address)(module, c"vk_icdNegotiateLoaderICDInterfaceVersion".as_ptr().cast()).is_null() {
+                continue;
+            }
+            let mut folder = Path { bytes: [0; PATH_ROOM], len: 0 };
+            let len = (raw::engine_get_module_file_name_a)(module, folder.bytes.as_mut_ptr(), PATH_ROOM as u32) as usize;
+            let Some(slash) = (len > 0 && len < PATH_ROOM).then(|| folder.bytes[..len].iter().rposition(|&b| b == b'\\')).flatten()
+            else {
+                continue;
+            };
+            folder.len = slash + 1;
+            let mut pattern = Path { bytes: folder.bytes, len: folder.len };
+            if pattern.push(b"*.json").is_none() {
+                continue;
+            }
+            let mut data = FindData([0; 320]);
+            let find = (raw::engine_find_first_file_a)(pattern.c(), (&raw mut data).cast());
+            if find as isize == -1 {
+                continue;
+            }
+            loop {
+                if data.0[0] & FILE_ATTRIBUTE_DIRECTORY == 0 {
+                    let name = &data.0[44..44 + 260];
+                    let name = &name[..name.iter().position(|&b| b == 0).unwrap_or(260)];
+                    let mut path = Path { bytes: folder.bytes, len: folder.len };
+                    if path.push(name).is_some() {
+                        manifests.add(&path.bytes[..path.len]);
+                    }
+                }
+                if (raw::engine_find_next_file_a)(find, (&raw mut data).cast()) == 0 {
+                    break;
+                }
+            }
+            (raw::engine_find_close)(find);
+        }
+    }
+}
+
+fn look_with(_: &Thread, manifests: Option<&mut Manifests>) -> Result<Gpus, Vulkan> {
     // SAFETY: each function is the GetProcAddress result of its own name in
     // the loader, called with vulkan_core.h's structures; every handle made
     // here is destroyed or let go here.
@@ -549,6 +686,9 @@ pub fn look(_: &Thread) -> Result<Gpus, Vulkan> {
                 *slot = Some(Gpu::of_properties(&room));
             }
         }
+        if let Some(manifests) = manifests {
+            driver_manifests(manifests);
+        }
         raw::engine_vk_destroy_instance(destroy, instance, null());
         (raw::engine_free_library)(library);
         Ok(gpus)
@@ -562,7 +702,7 @@ mod tests {
     fn gpu(vendor: u32, kind: u32, minor: u32, name: &str) -> Option<Gpu> {
         let mut bytes = [0; GPU_NAME];
         bytes[..name.len()].copy_from_slice(name.as_bytes());
-        Some(Gpu { vendor, kind, version: Some(VulkanVersion::new(1, minor, 0)), name: bytes })
+        Some(Gpu { vendor, device: 0, driver: 0, kind, version: Some(VulkanVersion::new(1, minor, 0)), name: bytes })
     }
 
     fn gpus(list: &[Option<Gpu>]) -> Gpus {
