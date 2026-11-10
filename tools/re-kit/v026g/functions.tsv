@@ -2258,3 +2258,9 @@ va	status	ref_021d	name
 0x00106d70	verified		ptmalloc3::memalign_starter
 0x00106d90	verified		ptmalloc3::free_starter
 0x00106fc0	verified		pt3free
+0x003a90c0	reviewed		anim_read_expression
+0x003a9250	reviewed		anim_build_node
+0x003a8c10	reviewed		anim_read_node_base_tracks
+0x003a8f40	reviewed		anim_read_node_record
+0x003a8ef0	reviewed		anim_pick_channel_value
+0x003a8d60	reviewed		anim_init_node_matrices
