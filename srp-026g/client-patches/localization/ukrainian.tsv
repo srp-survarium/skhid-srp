@@ -2854,6 +2854,8 @@ st_srp_vulkan_overlay_full	Повний
 st_srp_vulkan_overlay_hint	Показує швидкість гри на екрані.
 st_srp_vulkan_tear_free	Без розривів без V-Sync
 st_srp_vulkan_tear_free_hint	Картинка не рветься при вимкненій вертикальній синхронізації.\n+ Немає рваних смуг при швидкому повороті\n- Затримка трохи більша, ніж просто без VSync
+st_srp_watch_badge_friend	Ваш друг зараз грає
+st_srp_watch_badge_live	Матчі, які можна дивитися наживо
 st_srp_watch_chip_everyone	Усі
 st_srp_watch_chip_friends	Друзі
 st_srp_watch_chip_mine	Мої

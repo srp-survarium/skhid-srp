@@ -1,9 +1,11 @@
 package survarium.controls
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.display.Shape;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
@@ -64,12 +66,19 @@ package survarium.controls
 
       private var _roomsLabelColour:uint;
 
-      // The Watch tab: our eye in place of its art, and the live matches' red count on it.
+      // The Watch tab: our eye in place of its art, and on it the count of the live matches that
+      // can be watched now: red, yellow when a friend plays in one; what it counts said under the
+      // tab while the arrow is on it.
       private var _watchIcon:Shape;
 
       private var _watchBadge:Sprite;
 
-      private var _watchCount:int = -1;
+      private var _watchTip:Sprite;
+
+      // the badge as last drawn: its text and colour
+      private var _watchSaid:String = null;
+
+      private var _watchFriend:Boolean = false;
       
       public function TopMenu()
       {
@@ -467,9 +476,11 @@ package survarium.controls
          this._roomsSyncing = false;
       }
       
-      // Each frame (WatchWindow): the Watch tab's eye, as the rooms' tab has its own icon, and
-      // `live` (the matches being played) on a red badge at its top right, none for 0.
-      public function paintWatchTab(live:int) : void
+      // On each live list (WatchWindow): the Watch tab's eye, as the rooms' tab has its own icon,
+      // and `live` (the live matches that can be watched now) on a badge at its top right, none
+      // for 0: `more` adds a plus (the list is at its most), `friend` (one plays in them) makes
+      // it yellow.
+      public function paintWatchTab(live:int, more:Boolean = false, friend:Boolean = false) : void
       {
          try
          {
@@ -505,7 +516,9 @@ package survarium.controls
                field.defaultTextFormat = new TextFormat(label != null ? label.getTextFormat().font : null,12,0xFFFFFF,true);
                this._watchBadge.addChild(field);
                tab.addChild(this._watchBadge);
-               this._watchCount = -1;
+               this._watchSaid = null;
+               tab.addEventListener(MouseEvent.ROLL_OVER,this.onWatchTabOver);
+               tab.addEventListener(MouseEvent.ROLL_OUT,this.onWatchTabOut);
             }
             art.visible = true;
             var box:Rectangle = art.getBounds(tab);
@@ -517,10 +530,16 @@ package survarium.controls
             art.visible = false;
             this._watchIcon.alpha = art.alpha;
             this._watchIcon.transform.colorTransform = art.transform.colorTransform;
-            if(live != this._watchCount)
+            var said:String = live > 0 ? String(live) + (more ? "+" : "") : "";
+            if(said != this._watchSaid || friend != this._watchFriend)
             {
-               this._watchCount = live;
-               this.drawWatchBadge(live);
+               this._watchSaid = said;
+               this._watchFriend = friend;
+               this.drawWatchBadge();
+               if(this._watchTip != null && this._watchTip.visible)
+               {
+                  this.showWatchTip(tab);
+               }
             }
             this._watchBadge.x = int(this._watchIcon.x + 12);
             this._watchBadge.y = int(this._watchIcon.y - 18);
@@ -530,20 +549,75 @@ package survarium.controls
          }
       }
 
-      private function drawWatchBadge(live:int) : void
+      private function drawWatchBadge() : void
       {
          var field:TextField = this._watchBadge.getChildAt(0) as TextField;
-         this._watchBadge.visible = live > 0;
-         field.text = String(live);
+         this._watchBadge.visible = this._watchSaid != "";
+         // dark digits on yellow, white on red
+         field.textColor = this._watchFriend ? 0x1B1B1B : 0xFFFFFF;
+         field.text = this._watchSaid;
          var w:int = Math.max(18,int(field.textWidth + 10));
          // On the text itself: a TextField has a 2 px gutter on each side, and a narrow digit
          // centred by the field's own box sits off the middle of the circle.
          field.x = Math.round((w - field.textWidth) / 2) - 2;
          field.y = Math.round((18 - field.textHeight) / 2) - 2;
          this._watchBadge.graphics.clear();
-         this._watchBadge.graphics.beginFill(0xC62B22,1);
+         this._watchBadge.graphics.beginFill(this._watchFriend ? RoomsLook.YELLOW : 0xC62B22,1);
          this._watchBadge.graphics.drawRoundRect(0,0,w,18,18,18);
          this._watchBadge.graphics.endFill();
+      }
+
+      private function onWatchTabOver(e:MouseEvent) : void
+      {
+         this.showWatchTip(e.currentTarget as DisplayObject);
+      }
+
+      private function onWatchTabOut(e:MouseEvent) : void
+      {
+         if(this._watchTip != null)
+         {
+            this._watchTip.visible = false;
+         }
+      }
+
+      // What the badge counts, in a small box under the Watch tab; none without a badge.
+      private function showWatchTip(tab:DisplayObject) : void
+      {
+         if(this._watchTip == null)
+         {
+            this._watchTip = new Sprite();
+            this._watchTip.name = "srpWatchTip";
+            this._watchTip.mouseEnabled = false;
+            this._watchTip.mouseChildren = false;
+            var words:TextField = new TextField();
+            var badge:TextField = this._watchBadge.getChildAt(0) as TextField;
+            words.embedFonts = true;
+            words.selectable = false;
+            words.autoSize = TextFieldAutoSize.LEFT;
+            words.defaultTextFormat = new TextFormat(badge.defaultTextFormat.font,13,RoomsLook.LIGHT,true);
+            words.x = 8;
+            words.y = 4;
+            this._watchTip.addChild(words);
+            addChild(this._watchTip);
+         }
+         var field:TextField = this._watchTip.getChildAt(0) as TextField;
+         this._watchTip.visible = this._watchSaid != null && this._watchSaid != "";
+         if(!this._watchTip.visible)
+         {
+            return;
+         }
+         field.text = LocalizationData.getName(this._watchFriend ? "st_srp_watch_badge_friend" : "st_srp_watch_badge_live");
+         var w:int = int(field.textWidth + 20);
+         var h:int = int(field.textHeight + 12);
+         this._watchTip.graphics.clear();
+         this._watchTip.graphics.lineStyle(1,0x3A4248);
+         this._watchTip.graphics.beginFill(0x0C0E10,0.95);
+         this._watchTip.graphics.drawRect(0,0,w,h);
+         this._watchTip.graphics.endFill();
+         var box:Rectangle = tab.getBounds(this);
+         this._watchTip.x = int(box.x + (box.width - w) / 2);
+         this._watchTip.y = int(box.bottom + 4);
+         setChildIndex(this._watchTip,numChildren - 1);
       }
 
       // The Watch window opened or closed: its tab follows, as the rooms' does (selectRoomsTab).

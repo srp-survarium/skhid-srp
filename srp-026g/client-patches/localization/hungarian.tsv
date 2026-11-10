@@ -2854,6 +2854,8 @@ st_srp_vulkan_overlay_full	Teljes
 st_srp_vulkan_overlay_hint	Kiírja a képernyőre a játék sebességét.
 st_srp_vulkan_tear_free	Szakadásmentes V-Sync nélkül
 st_srp_vulkan_tear_free_hint	Egészben tartja a képet, ha a függőleges szinkron ki van kapcsolva.\n+ Nincsenek szakadt vonalak gyors forduláskor\n- Kicsit több késés, mint sima kikapcsolt VSync esetén
+st_srp_watch_badge_friend	Egy barátod most játszik
+st_srp_watch_badge_live	Élőben nézhető meccsek
 st_srp_watch_chip_everyone	Mindenki
 st_srp_watch_chip_friends	Barátok
 st_srp_watch_chip_mine	Saját

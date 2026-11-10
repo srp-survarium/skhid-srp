@@ -2854,6 +2854,8 @@ st_srp_vulkan_overlay_full	Potpun
 st_srp_vulkan_overlay_hint	Prikazuje brzinu igre na ekranu.
 st_srp_vulkan_tear_free	Bez cepanja slike bez V-Sync
 st_srp_vulkan_tear_free_hint	Slika ostaje cela kada je vertikalna sinhronizacija isključena.\n+ Bez pocepanih linija pri brzom okretanju\n- Malo veće kašnjenje nego samo isključen VSync
+st_srp_watch_badge_friend	Tvoj prijatelj sada igra
+st_srp_watch_badge_live	Mečevi koje možeš da gledaš uživo
 st_srp_watch_chip_everyone	Svi
 st_srp_watch_chip_friends	Prijatelji
 st_srp_watch_chip_mine	Moji

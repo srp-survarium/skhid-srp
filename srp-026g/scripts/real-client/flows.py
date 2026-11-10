@@ -309,6 +309,10 @@ def live(run: Run) -> None:
     a.expect_server(r"play begins", 40)
     begun = time.time()
     a.focus()
+    # the badge counts what can be watched now, yellow for a friend's match; its list is asked every 30 s
+    a.wait_screen(badge_yellow, "the live badge, yellow for a friend's match", 45)
+    a.move(*WATCH_MENU)
+    a.wait_screen(badge_tip_shown, "the badge's tip under the Watch tab", 3)
     a.shot("live-1-lobby-badge")
     a.click(*WATCH_MENU)
     a.wait_screen(window_open, "the Watch window")
@@ -564,9 +568,24 @@ def watch_open(picture) -> bool:
 
 
 def badge_shown(picture) -> bool:
-    """The red live badge on the Watch menu."""
+    """The live badge on the Watch menu: red, or yellow with a friend in a match that can be watched."""
     area = picture[14:30, 1110:1127].astype(int)
-    return ((area[:, :, 0] > 170) & (area[:, :, 1] < 80)).mean() > 0.3
+    red = (area[:, :, 0] > 170) & (area[:, :, 1] < 80)
+    return bool((red | friend_yellow(area)).mean() > 0.3)
+
+
+def friend_yellow(area):
+    return (area[:, :, 0] > 200) & (area[:, :, 1] > 160) & (area[:, :, 2] < 120)
+
+
+def badge_yellow(picture) -> bool:
+    return bool(friend_yellow(picture[14:30, 1110:1127].astype(int)).mean() > 0.3)
+
+
+def badge_tip_shown(picture) -> bool:
+    """The box under the Watch tab that says what the badge counts: near black, with light words in it."""
+    box = picture[78:100, 1040:1160].astype(int).sum(axis=2)
+    return bool((box < 60).mean() > 0.5 and (box > 500).mean() > 0.02)
 
 
 def absent(run: Run, pattern: str, seconds: float, mark: int, what: str) -> None:

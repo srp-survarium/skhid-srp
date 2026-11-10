@@ -2854,6 +2854,8 @@ st_srp_vulkan_overlay_full	Täysi
 st_srp_vulkan_overlay_hint	Näyttää pelin nopeuden ruudulla.
 st_srp_vulkan_tear_free	Repeilytön ilman V-Synciä
 st_srp_vulkan_tear_free_hint	Pitää kuvan ehjänä, kun pystytahdistus on pois päältä.\n+ Ei repeäviä viivoja nopeissa käännöksissä\n- Hieman enemmän viivettä kuin pelkkä VSync pois
+st_srp_watch_badge_friend	Kaverisi pelaa nyt
+st_srp_watch_badge_live	Suorana katsottavat ottelut
 st_srp_watch_chip_everyone	Kaikki
 st_srp_watch_chip_friends	Kaverit
 st_srp_watch_chip_mine	Omat

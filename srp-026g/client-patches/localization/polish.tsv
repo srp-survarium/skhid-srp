@@ -2854,6 +2854,8 @@ st_srp_vulkan_overlay_full	Pełna
 st_srp_vulkan_overlay_hint	Pokazuje na ekranie, jak szybko działa gra.
 st_srp_vulkan_tear_free	Bez rozrywania bez V-Sync
 st_srp_vulkan_tear_free_hint	Obraz się nie rwie, gdy synchronizacja pionowa jest wyłączona.\n+ Brak rozdartych linii przy szybkim obrocie\n- Nieco większe opóźnienie niż samo wyłączenie VSync
+st_srp_watch_badge_friend	Twój znajomy teraz gra
+st_srp_watch_badge_live	Rozgrywki, które możesz oglądać na żywo
 st_srp_watch_chip_everyone	Wszyscy
 st_srp_watch_chip_friends	Znajomi
 st_srp_watch_chip_mine	Moje

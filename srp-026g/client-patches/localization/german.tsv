@@ -2854,6 +2854,8 @@ st_srp_vulkan_overlay_full	Vollständig
 st_srp_vulkan_overlay_hint	Zeigt die Geschwindigkeit des Spiels am Bildschirm.
 st_srp_vulkan_tear_free	Kein Tearing ohne VSync
 st_srp_vulkan_tear_free_hint	Hält das Bild ganz, wenn die vertikale Synchronisierung aus ist.\n+ Keine Risse beim schnellen Drehen\n- Etwas mehr Eingabeverzögerung als nur VSync aus
+st_srp_watch_badge_friend	Ein Freund spielt gerade
+st_srp_watch_badge_live	Matches, die du live ansehen kannst
 st_srp_watch_chip_everyone	Alle
 st_srp_watch_chip_friends	Freunde
 st_srp_watch_chip_mine	Meine

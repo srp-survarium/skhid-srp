@@ -394,7 +394,26 @@ package survarium.watch
          return this._search != null ? PLAYER : this._replaysChip;
       }
 
-      // The matches being played, as last listed (the top menu's badge).
+      // The top menu's badge: the listed matches that can be watched now (a card's Watch would be
+      // lit: in play, with a spectator's place, open to spectators), whether the list is at its
+      // most (more may be played than it names), and whether a friend plays in one of them.
+      private function paintBadge() : void
+      {
+         var rows:Array = this.rowsOf(LIVE);
+         var may:int = 0;
+         var friend:Boolean = false;
+         for each(var row:Object in rows)
+         {
+            if(reasonOf(row) == null)
+            {
+               may++;
+               friend = friend || row.friends.length > 0;
+            }
+         }
+         topMenu.paintWatchTab(may,rows.length >= LIVE_COUNT,friend);
+      }
+
+      // The matches being played, as last listed (the Live tab's count).
       private function get liveCount() : int
       {
          return this.rowsOf(LIVE).length;
@@ -699,7 +718,7 @@ package survarium.watch
             // the top menu's badge: on each live list (TopMenu.paintWatchTab)
             if(topMenu != null)
             {
-               topMenu.paintWatchTab(this.liveCount);
+               this.paintBadge();
             }
             this.findSpectated();
          }
