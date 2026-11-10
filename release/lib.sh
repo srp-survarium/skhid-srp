@@ -460,7 +460,7 @@ revision_at() {
 # Asks before a write: shows where and the command; anything but y or yes is
 # no. Reads the terminal (else stdin, as `yes | ...` would give).
 # SKHID_RELEASE_GO_AHEAD=1 (release/release.sh sets it for the scripts it
-# runs, after its own y/N) shows the command and goes ahead.
+# runs: its one question is the go) shows the command and goes ahead.
 confirm() {
     local where=$1 command=$2
     if [[ ${SKHID_RELEASE_GO_AHEAD:-} == 1 ]]; then

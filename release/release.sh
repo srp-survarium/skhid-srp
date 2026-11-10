@@ -108,10 +108,11 @@
 #      result (a failed check stops the release). A failure here stops
 #      before the go: the staged files removed, the image tag put back,
 #      nothing planned (a stop also kills the self-test still running);
-#   3. waits for the go: the owner's word that players may feel the release
-#      from now on (y at its prompt, n stops; or touch the go file it names
-#      under ~/.cache/skhid-release/; --yes does not give it;
-#      SKHID_RELEASE_GO=1 gives it beforehand). Nothing is planned before it;
+#   3. shows what changes, then waits for the go: the owner's word that
+#      players may feel the release from now on, and the only question (y at
+#      its prompt, n stops; or touch the go file it names under
+#      ~/.cache/skhid-release/; --yes --i-know gives it with the command).
+#      Nothing is planned before it, nothing is asked after it;
 #   4. at once after the go, plans the maintenance on the admin page, POSTed
 #      from the jump host (its address is in the SRP_ADMIN_IPS of the
 #      target; the token and the page's path go to curl on stdin), and sees
@@ -130,14 +131,12 @@
 #      down and $SKHID_SITE/api/stats says "matches":0 (waiting up to
 #      --match-wait more); sooner, once "matches":0 has held 30 s while
 #      Play is locked (polled every quarter of a minute while it waits for
-#      the planned time): shows what changes, y/N (or touch the swap file
-#      it names beside the go file; no answer in
-#      $SKHID_SWAP_ANSWER_MINUTES, default 10: no), then the swap of
+#      the planned time): shows what changes once more, then the swap of
 #      release/deploy. With --no-maintenance: once "matches":0 (waiting up
-#      to --match-wait from the go), y/N, and "matches":0 once
+#      to --match-wait from the go), and "matches":0 once
 #      more right before the stop (else it waits again, within the same
 #      limit). With --now: right after the go, no notice, no wait for
-#      "matches":0, y/N; right before the stop it says how many matches run,
+#      "matches":0; right before the stop it says how many matches run,
 #      which the stop ends without results (the log keeps the number).
 #      The swap: srp26 stopped; srp.db, the old ZIP and server data (hard
 #      links), their sha256, the image ID, the setting (and the source) kept
@@ -197,7 +196,7 @@
 #   --now               no maintenance, no notice, no wait: after the go,
 #                       swapped at once, even with matches
 #                       running (they end without results; the log says how
-#                       many); still the go, the y/N and the rollback.
+#                       many); still the go and the rollback.
 #                       --no-maintenance with it is the same; not with
 #                       --minutes
 #   --match-wait <min>  how long to wait for "matches":0, then stop (nothing
@@ -226,8 +225,8 @@
 #                       and written in the tag and the record's commit
 #   --dry-run           runs the read-only checks of step 1, prints every
 #                       other command; plans no maintenance, writes nothing
-#   --yes --i-know      answer the y/N before the swap yes (both flags or
-#                       neither); never the go
+#   --yes --i-know      the go is given by this command: nothing is asked
+#                       (both flags or neither)
 #
 # Settings: release.env (.claude/skills/skhid-release/release.env.example).
 . "$(dirname "$0")/lib.sh"
@@ -267,7 +266,7 @@ while (($#)); do
     *) die "unknown argument $1 (--help)" ;;
     esac
 done
-((yes == i_know)) || die "--yes goes with --i-know (both or neither): without a terminal to ask, this restarts the live server"
+((yes == i_know)) || die "--yes goes with --i-know (both or neither): they give the go, and this restarts the live server"
 [[ $server_code =~ ^(auto|yes|no)$ ]] || die "--server-code is auto, yes or no"
 # Absolute, for the steps that run elsewhere (build-site in a worktree).
 if [[ -n $resources && -e $resources ]]; then resources=$(realpath -s -- "$resources"); fi
@@ -311,8 +310,6 @@ else
     match_wait=${SKHID_MATCH_WAIT_MINUTES:-15}
     [[ $match_wait =~ ^[0-9]{1,5}$ ]] || die "SKHID_MATCH_WAIT_MINUTES: a whole number"
 fi
-answer_wait=${SKHID_SWAP_ANSWER_MINUTES:-10}
-[[ $answer_wait =~ ^[1-9][0-9]*$ ]] || die "SKHID_SWAP_ANSWER_MINUTES: a whole number from 1"
 # What the image is built of at <commit> (the sources of its Dockerfile's
 # COPY lines, but --from=), the Dockerfile and the compose file: one path of
 # srp-026g a line, those it has.
@@ -523,19 +520,19 @@ maintenance_minutes() {
 
 # After the staging (nothing players see): nothing players feel happens
 # without the go, the owner's word that players may feel the release from
-# now on; the maintenance is planned at once after it. y at this prompt (n
-# stops), or the go file (touch it from anywhere: another shell, the
-# release skill). Without a terminal (--yes) only the file.
-# SKHID_RELEASE_GO=1 gives it beforehand (release/test.sh). Ctrl-C stops:
-# nothing was planned; the staged files go, the lock is freed.
+# now on; the maintenance is planned at once after it, and nothing is asked
+# after it. y at this prompt (n stops), or the go file (touch it from
+# anywhere: another shell, the release skill); without a terminal only the
+# file. --yes --i-know gives it with the command. Ctrl-C stops: nothing was
+# planned; the staged files go, the lock is freed.
 GO_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release
 wait_for_go() {
     local go="$GO_DIR/go-$REL" answer tty=0
-    if [[ ${SKHID_RELEASE_GO:-} == 1 ]]; then say "go: given beforehand (SKHID_RELEASE_GO=1)"; return; fi
+    if ((yes)); then say "go: given by this command (--yes --i-know)"; return; fi
     mkdir -p "$GO_DIR" && rm -f "$go"
     progress "3. waiting for the go (staged; players see nothing until it is given; then at once: $1)"
     say "Go: answer y here, or run: touch $go"
-    if ((!yes)) && { exec 3</dev/tty; } 2>/dev/null; then tty=1; printf "Go? [y/n] " >&2; fi
+    if { exec 3</dev/tty; } 2>/dev/null; then tty=1; printf "Go? [y/n] " >&2; fi
     while :; do
         if [[ -e $go ]]; then rm -f "$go"; say "go: $go"; break; fi
         if ((tty)); then
@@ -553,33 +550,32 @@ wait_for_go() {
     if ((tty)); then exec 3<&-; fi
 }
 
-# The y/N before the swap: y or yes at the terminal (else on stdin, as
-# `yes |` gives; anything else is no), or the swap file, touched as the go
-# file is. The file is removed as the wait starts: an earlier one is no
-# answer. No answer in <seconds> is a no.
-swap_answer() {
-    local swap="$GO_DIR/swap-$REL" answer deadline input=1
-    deadline=$(($(date +%s) + $1))
-    mkdir -p "$GO_DIR" && rm -f "$swap"
-    say "Swap: answer y here, or run: touch $swap"
-    if ! { exec 3</dev/tty; } 2>/dev/null; then exec 3<&0; fi
-    printf "Go ahead? [y/N] " >&2
-    while (($(date +%s) < deadline)); do
-        if [[ -e $swap ]]; then rm -f "$swap"; printf '\n' >&2; say "swap: $swap"; exec 3<&-; return 0; fi
-        if ((input)); then
-            if read -r -t 2 answer <&3; then
-                exec 3<&-
-                if [[ $answer == y || $answer == yes ]]; then return 0; fi
-                return 1
-            elif (($? <= 128)); then
-                input=0 # stdin ended: the file only
-            fi
-        else
-            sleep 2 & wait $!
-        fi
-    done
-    exec 3<&-
-    return 1
+# What the swap changes: shown before the go (everything is staged by then)
+# and once more at the swap, where the log keeps it.
+say_changes() {
+    say
+    say "On the $TARGET host now:"
+    on_target "cd $D && ls -l download/$ZIP_NAME download/$DATA_NAME 2>&1; sha256sum download/$ZIP_NAME download/$DATA_NAME 2>&1; true" | sed 's/^/  /'
+    say "It becomes:"
+    say "  download/$ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA (revision $live_rev -> $rev)"
+    say "  download/$DATA_NAME: sha256 $DATA_SHA"
+    say "  .env: SRP_MIN_PATCH_REVISION $OLD_MIN -> $rev"
+    if ((${#BD_TODO[@]})); then
+        say "  the bots' data in the volume ($RUN_VOLUME_DIR), ${#BD_TODO[@]} file(s) (the old ones kept in $TARGET_DIR/$REL/old-bot-data):"
+        printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"
+    fi
+    say "  /patches: ${OLD_PATCHES:-(no list)} -> $EXPECTED"
+    if ((build_code)); then say "  the image: main's source, built (the running one, $RUN_IMAGE, is tagged $BEFORE_TAG)"; fi
+    say "  the ZIP's entries, against the live ZIP:"
+    grep -E '^  (CHANGED|ADDED|REMOVED) |^updater_skhid.exe' "$work/build-zip.log" | sed 's/^ */    /' || say "    (no entry changed)"
+    say "Next: srp26 stopped, the old files kept in the release folder, the server data and the ZIP in place, the revision set,"
+    say "srp26 made anew (every lobby link drops; its start copies srp.db to backups/), checked; srp.db's copy kept."
+    say "A failed check rolls it all back."
+    if ((now)); then
+        say "(--now: every match running at the stop ends WITHOUT RESULTS; how many is said right before it)"
+    elif ((no_maint)); then
+        say "(--no-maintenance: \"matches\":0 once more right before the stop; a match begun meanwhile is waited for, within the limit)"
+    fi
 }
 
 # At once after the go (everything is staged before it): the maintenance
@@ -619,7 +615,7 @@ wait_no_match() {
 }
 # --no-maintenance: swap_prepare runs it right before it stops srp26, so the
 # stop follows a "matches":0 as closely as it can (a match may have begun
-# during the y/N).
+# meanwhile).
 match_check_before_stop() {
     if ((DRY_RUN)); then
         say "[dry run] GET $TARGET_SITE/api/stats: \"matches\":0 once more right before the stop (else wait for it, within the same limit)"
@@ -1745,7 +1741,7 @@ fi
 # 3. The go, then at once 4. the maintenance.
 if ((DRY_RUN)); then
     ((no_selftest)) || say "[dry run]    then the self-test's result (a failed check stops here, before the go)"
-    say "[dry run] 3. then wait for the go (y at the prompt, or touch $GO_DIR/go-$REL; --yes does not give it). Then at once: $after_go"
+    say "[dry run] 3. then wait for the go (y at the prompt, or touch $GO_DIR/go-$REL; --yes --i-know gives it). Nothing is asked after it. Then at once: $after_go"
     if ((!no_maint)); then
         maintenance_minutes
         say "[dry run] 4. right after the go: plan the maintenance in $MAINT_MINUTES min (now: $MAINT_WHY), from the jump host:"
@@ -1757,16 +1753,17 @@ if ((DRY_RUN)); then
         say "[dry run] 4. no maintenance planned (--no-maintenance: the admin page is never asked)"
     fi
 else
+    say_changes
     say
     if ((now)); then
-        say "Next, at the go, with NO maintenance and NO notice (--now): the swap at once, after one more y/N:"
-        say "running matches end WITHOUT RESULTS."
+        say "Next, at the go, with NO maintenance and NO notice (--now): the swap at once:"
+        say "running matches end WITHOUT RESULTS. Nothing is asked after the go."
     elif ((no_maint)); then
         say "Next, at the go, with no maintenance: the swap as soon as $TARGET_SITE/api/stats says \"matches\":0"
-        say "(up to $match_wait min), after one more y/N."
+        say "(up to $match_wait min). Nothing is asked after the go."
     else
         say "Next, at the go: the maintenance planned on $TARGET_SITE at once, $(if [[ -n $minutes ]]; then printf 'in %s min (--minutes)' "$minutes"; else printf 'to start 30 s after the last running match ends'; fi): Play locks;"
-        say "the swap at its end, once no match runs (sooner once none has run for 30 s), after one more y/N. From the plan on, a stop cancels it."
+        say "the swap at its end, once no match runs (sooner once none has run for 30 s). Nothing is asked after the go; from the plan on, a stop cancels it."
     fi
     wait_for_go "$after_go"
     go_given=1
@@ -1782,13 +1779,13 @@ fi
 # 5. The swap, at the planned time at the latest, once no match runs
 # (--no-maintenance: no planned time; --now: at once).
 if ((DRY_RUN && now)); then
-    say "[dry run] 5. at the go: the swap at once, NO wait for matches (--now: the running ones end without results), y/N (no answer in $answer_wait min: no) and:"
+    say "[dry run] 5. at the go: the swap at once, NO wait for matches (--now: the running ones end without results):"
     SWAP_BEFORE_STOP=count_ended_matches
 elif ((DRY_RUN && no_maint)); then
-    say "[dry run] 5. at the go: wait for \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min), then y/N (no answer in $answer_wait min: no) and:"
+    say "[dry run] 5. at the go: wait for \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min), then:"
     SWAP_BEFORE_STOP=match_check_before_stop
 elif ((DRY_RUN)); then
-    say "[dry run] 5. at the planned time: the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more); sooner, polling $TARGET_SITE/api/stats while it waits: once \"matches\":0 has held $LAST_MATCH_MARGIN s while Play is locked (the countdown's last 30 min), the swap at once; then y/N (no answer in $answer_wait min: no) and:"
+    say "[dry run] 5. at the planned time: the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more); sooner, polling $TARGET_SITE/api/stats while it waits: once \"matches\":0 has held $LAST_MATCH_MARGIN s while Play is locked (the countdown's last 30 min), the swap at once; then:"
 elif ((now)); then
     progress "5. --now: the swap at once, NO wait for matches, NO notice was given"
 elif ((no_maint)); then
@@ -1838,36 +1835,7 @@ if ((!DRY_RUN)); then
         progress "5. no match is running"
     fi
 
-    # What changes.
-    say
-    say "On the $TARGET host now:"
-    on_target "cd $D && ls -l download/$ZIP_NAME download/$DATA_NAME 2>&1; sha256sum download/$ZIP_NAME download/$DATA_NAME 2>&1; true" | sed 's/^/  /'
-    say "It becomes:"
-    say "  download/$ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA (revision $live_rev -> $rev)"
-    say "  download/$DATA_NAME: sha256 $DATA_SHA"
-    say "  .env: SRP_MIN_PATCH_REVISION $OLD_MIN -> $rev"
-    if ((${#BD_TODO[@]})); then
-        say "  the bots' data in the volume ($RUN_VOLUME_DIR), ${#BD_TODO[@]} file(s) (the old ones kept in $TARGET_DIR/$REL/old-bot-data):"
-        printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"
-    fi
-    say "  /patches: ${OLD_PATCHES:-(no list)} -> $EXPECTED"
-    if ((build_code)); then say "  the image: main's source, built (the running one, $RUN_IMAGE, is tagged $BEFORE_TAG)"; fi
-    say "  the ZIP's entries, against the live ZIP:"
-    grep -E '^  (CHANGED|ADDED|REMOVED) |^updater_skhid.exe' "$work/build-zip.log" | sed 's/^ */    /' || say "    (no entry changed)"
-    say "Next: srp26 stopped, the old files kept in the release folder, the server data and the ZIP in place, the revision set,"
-    say "srp26 made anew (every lobby link drops; its start copies srp.db to backups/), checked; srp.db's copy kept."
-    say "A failed check rolls it all back."
-    if ((now)); then
-        say "(--now: every match running at the stop ends WITHOUT RESULTS; how many is said right before it)"
-    elif ((no_maint)); then
-        say "(--no-maintenance: \"matches\":0 once more right before the stop; a match begun meanwhile is waited for, within the limit)"
-    fi
-    if ((yes)); then
-        say "(--yes --i-know: going ahead)"
-    else
-        say "(no answer in $answer_wait min is a no)"
-        swap_answer "$((answer_wait * MINUTE))" || die "stopped: not confirmed (nothing was swapped)"
-    fi
+    say_changes
     if ((now)); then
         SWAP_BEFORE_STOP=count_ended_matches
     elif ((no_maint)); then

@@ -142,8 +142,8 @@ Show the owner each dry run's output (every read-only check runs; every
 other command is printed; nothing is planned or written). Then the same
 without `--dry-run`: after its preflight it prepares and stages
 everything (nothing players see), then waits for **the go**, and the
-go is the owner's to give (below); before the swap it asks one y/N
-(`--yes --i-know` answers it, never the go).
+go is the owner's to give (below). The go is its only question: nothing
+is asked after it.
 
 ## What is offered: release/patches.tsv
 
@@ -407,19 +407,16 @@ The order, as it runs:
    go with nothing players feel: report it to the owner; building on the host
    instead (`docker compose build srp26` over the folder's `src.tar`, unpacked) only on the
    owner's word.
-3. **The go.** Once staged it stops and waits: y at its prompt (n stops),
-   or `touch` the go file it prints
-   (`~/.cache/skhid-release/go-<release folder>`); `--yes` does not give
-   it. **The go is the owner's**: it is their word that players may feel
-   the release from now on, and the maintenance is planned the moment it
-   is given. Ask the owner, and give it only when they say so
-   (`SKHID_RELEASE_GO=1` gives it beforehand, for the tests). Nothing is
-   planned before it; a Ctrl-C there removes the staged files and frees
-   the lock. The y/N before the swap (5.) has a file of its own, named
-   alike (`~/.cache/skhid-release/swap-<release folder>`, its exact path
-   printed with the question): `touch` it to answer y without a terminal.
-   It is removed as that question is asked, so an earlier one is no
-   answer.
+3. **The go.** Once staged it shows what changes ("On the live host
+   now / It becomes"), stops and waits: y at its prompt (n stops), or
+   `touch` the go file it prints
+   (`~/.cache/skhid-release/go-<release folder>`). **The go is the
+   owner's**: it is their word that players may feel the release from now
+   on, and the maintenance is planned the moment it is given. Ask the
+   owner, and give it only when they say so. It is the only question:
+   nothing is asked after it, so from the go on the release runs to its
+   end (or to a stop: a failed check, Ctrl-C). Nothing is planned before
+   it; a Ctrl-C there removes the staged files and frees the lock.
 4. **The maintenance, at once after the go**: a POST to the admin page
    (`tab=maint`, `minutes`) from the jump host, whose address must be in
    the target's `SRP_ADMIN_IPS` (behind Caddy with
@@ -447,10 +444,8 @@ The order, as it runs:
    counts a match's whole time limit, and matches often end sooner (by their rules, or
    their players leaving). Else, at the planned time, once the launcher page says the
    server is down and `/api/stats` says `"matches":0` (it waits up to `--match-wait`,
-   default `$SKHID_MATCH_WAIT_MINUTES`, else 15, more): it shows what changes,
-   **y/N** (or its swap file, step 3; no answer in
-   `$SKHID_SWAP_ANSWER_MINUTES`, default 10, is a
-   no), then: notes srp's newest backup of srp.db, stops srp26, keeps the
+   default `$SKHID_MATCH_WAIT_MINUTES`, else 15, more): it shows what changes
+   once more (asking nothing), then: notes srp's newest backup of srp.db, stops srp26, keeps the
    old files in the folder, puts the folder's rollback in, puts the server
    data **and the ZIP** in place (hard links renamed over the old files:
    atomic; the ZIP goes in while srp26 is stopped, never after its start:
@@ -537,10 +532,11 @@ is as it was. A published patch: after the go it stays with its row
 and the file too when this run uploaded it (step 2). A stop in the swap before anything moved starts srp26
 again as it was.
 
-`--yes --i-know` (both or neither) answers the y/N before the swap; only
-for a run the owner watches anyway. It never gives the go.
+`--yes --i-know` (both or neither) gives the go with the command: nothing
+is asked at all, and the maintenance is planned as soon as all is staged.
+Only when the owner gave the go for that very command.
 
-Every wait (the go, the y/N, the wait for the planned time, for
+Every wait (the go, the wait for the planned time, for
 `"matches":0`) answers Ctrl-C within a second or two: its sleeps are
 `sleep & wait`, which a trap interrupts.
 
@@ -552,10 +548,9 @@ never asked (the preflight doesn't check it, nor `SRP_ADMIN_*` and
 `SRP_WEB_TRUST_PROXY`). Everything is staged before the go as in the
 default; after the go it waits for `"matches":0` on `$TARGET_SITE/api/stats`
 (`--match-wait`, default 120 min here; past it, a clean stop: nothing
-swapped, the staged files removed, state `stopped`), shows what changes and
-asks the y/N (no answer in `$SKHID_SWAP_ANSWER_MINUTES` is a no). Right
-before it stops srp26 it asks `/api/stats` once more: a match begun during
-the question is waited for (within the same limit), and the stop follows a
+swapped, the staged files removed, state `stopped`) and shows what changes.
+Right before it stops srp26 it asks `/api/stats` once more: a match begun
+meanwhile is waited for (within the same limit), and the stop follows a
 `"matches":0` by one ssh. The swap, the checks and the rollback are the same.
 
 What players see: those in a running match lose nothing (the swap waits for
@@ -571,8 +566,8 @@ Staged before the go as in the default; after the go it swaps at once, **matches
 or not**: they end without results. Right before it stops srp26 it says
 how many matches run (`--now: <n> match(es) running: the stop ends them
 now, WITHOUT RESULTS`), and its last lines say how many it ended; both are
-in the folder's release.log. It still needs the go, still asks the y/N
-before the swap, and still rolls back by itself when the new srp doesn't
+in the folder's release.log. It still needs the go, and still rolls back
+by itself when the new srp doesn't
 come up. `--now --no-maintenance` is the same thing (accepted, with a
 note); `--now --minutes` is refused; `--match-wait` is ignored. Use it only
 when the owner asks for it: every player in a match loses that match.
@@ -611,7 +606,7 @@ preflight: look at its `release.log`, finish or roll it back, then write
   launcher countdown (none with `--no-maintenance` or `--now`); then `5.
   waiting for the planned time` and the swap.
 - The ZIP's entries against the current ZIP (build-zip's list, shown again
-  at the y/N before the swap and in `changed.txt`): `survarium_skhid.exe`,
+  before the go, at the swap and in `changed.txt`): `survarium_skhid.exe`,
   `updater_skhid.exe` and `bugtrap.dll` always differ (the revision: the
   exe's byte, the other two's version resource, built with
   `SKHID_REVISION=<n>`; players get the new updater at their next launcher
