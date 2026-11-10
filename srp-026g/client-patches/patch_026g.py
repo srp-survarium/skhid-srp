@@ -565,6 +565,13 @@ Patches:
   keeps what srp's login server sends after a ban's code
   (crates/ban-reason), and set_status (0x21F217) writes the ban's text anew
   from it. Nothing a match computes;
+- the sign-in's password goes through srp's own cipher where the game's
+  protocol had TLS (patch 139, the Rust patch sign_in_cipher;
+  docs/notes/sign-in-cipher.md): OpenSSL's SSL_connect (0x4D4C63), SSL_read
+  (0x4D4CA3), SSL_write (0x4D4D73) and SSL_get_error (0x4D6E33), which only
+  the login client's stream calls, are answered by crates/sign-in-cipher
+  over the SSL's BIOs, a sign-in's cipher beginning at the user name's
+  answer (0x380504). Nothing a match computes;
 - a character controller's step never leaves its position non-finite
   (patch 118, the Rust patch controller_position; docs/notes/client_patch.md
   section 3.71): at player_step's epilogue (0x7C7D7) a position (+0B0h) with
@@ -4320,8 +4327,11 @@ def artefacts_backs(linked):
     backs = []
     for at in entries:
         start = at + 5 + struct.unpack_from("<i", code, at + 1)[0]
+        # In the game's image: an E9h among another instruction's bytes (a
+        # call's displacement into another block) is no jump back.
         target = next((va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] for i in range(start, len(code) - 4)
-                       if code[i] == 0xE9 and va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
+                       if code[i] == 0xE9
+                       and IMAGE_BASE <= va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
                       None)
         backs.append(target)
     return backs

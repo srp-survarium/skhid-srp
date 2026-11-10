@@ -41,6 +41,7 @@ services:
       # name, served at /<SRP_ADMIN_PATH>), for these addresses only. On the
       # host itself Docker shows the bridge gateway, not 127.0.0.1; behind a
       # proxy set SRP_WEB_TRUST_PROXY=on and your own public IP here.
+      - SRP_SIGN_IN_KEY=${SRP_SIGN_IN_KEY:?set SRP_SIGN_IN_KEY to the login server's secret key of the sign-in cipher (docs/notes/sign-in-cipher.md)}
       - SRP_ADMIN_TOKEN=${SRP_ADMIN_TOKEN:-}
       - SRP_ADMIN_PATH=${SRP_ADMIN_PATH:-}
       - SRP_ADMIN_IPS=${SRP_ADMIN_IPS:-127.0.0.1}

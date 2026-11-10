@@ -313,6 +313,14 @@ unsafe extern "cdecl" {
     pub fn engine_cos(angle: f32) -> f32;
     /// 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly
     pub fn engine_atan2(y: f32, x: f32) -> f32;
+    /// 0x44c630 BIO_read: bio ESP+4, room ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+    pub fn engine_bio_read(bio: *mut c_void, room: *mut u8, length: u32) -> u32;
+    /// 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+    pub fn engine_bio_write(bio: *mut c_void, bytes: *const u8, length: u32) -> u32;
+    /// 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
+    pub fn engine_err_put_error(library: u32, function: u32, reason: u32, file: *const u8, line: u32);
+    /// 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
+    pub fn engine_rand_bytes(room: *mut u8, length: u32) -> u32;
 }
 
 #[allow(dead_code)]

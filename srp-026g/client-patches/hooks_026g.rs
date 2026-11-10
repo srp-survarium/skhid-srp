@@ -3401,6 +3401,101 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
     }
 }
 
+// ---- sign_in_cipher (patch 139) ----
+
+/// The entry `sign_in_cipher_on_begin` (0x380504, on_user_name_answer_received (0x380340) for the answer 0Bh, the user name taken (mov ecx,[ebp+8] / sub esp,30h, past the jne at 0x380502): before it starts the stream's handshake (0x38B840), once a sign-in) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sign_in_cipher_on_begin(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sign_in_cipher_on_begin` calls this, from the game's jump at 0x380504,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sign_in_cipher::on_begin(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- sign_in_cipher (patch 139) ----
+
+/// The named exits of sign_in_cipher::on_connect (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SignInCipherOnConnectExit { Done }
+/// The entry `sign_in_cipher_on_connect` (0x4d4c63, SSL_connect (0x4D4C60) after its prologue (mov eax,[ebp+8] / cmp dword [eax+20h],0): EBP+8 the SSL; done is its pop ebp / ret, EAX the result) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sign_in_cipher_on_connect(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sign_in_cipher_on_connect` calls this, from the game's jump at 0x4d4c63,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sign_in_cipher::on_connect(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sign_in_cipher (patch 139) ----
+
+/// The named exits of sign_in_cipher::on_read (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SignInCipherOnReadExit { Done }
+/// The entry `sign_in_cipher_on_read` (0x4d4ca3, SSL_read (0x4D4CA0) after its prologue (the same two instructions): EBP+8 the SSL, +0Ch the room, +10h its length; done is its pop ebp / ret, EAX the result) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sign_in_cipher_on_read(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sign_in_cipher_on_read` calls this, from the game's jump at 0x4d4ca3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sign_in_cipher::on_read(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sign_in_cipher (patch 139) ----
+
+/// The named exits of sign_in_cipher::on_write (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SignInCipherOnWriteExit { Done }
+/// The entry `sign_in_cipher_on_write` (0x4d4d73, SSL_write (0x4D4D70) after its prologue (the same two instructions): EBP+8 the SSL, +0Ch the bytes, +10h their length; done is its pop ebp / ret, EAX the result) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sign_in_cipher_on_write(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sign_in_cipher_on_write` calls this, from the game's jump at 0x4d4d73,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sign_in_cipher::on_write(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- sign_in_cipher (patch 139) ----
+
+/// The named exits of sign_in_cipher::on_get_error (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SignInCipherOnGetErrorExit { Done }
+/// The entry `sign_in_cipher_on_get_error` (0x4d6e33, SSL_get_error (0x4D6E30) after its prologue (mov eax,0Ch, before __chkstk): done is its mov esp,ebp / pop ebp / ret, EAX the result) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sign_in_cipher_on_get_error(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sign_in_cipher_on_get_error` calls this, from the game's jump at 0x4d6e33,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sign_in_cipher::on_get_error(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- sound_voices (patch 96) ----
 
 /// The entry `sound_voices_on_voice_made` (0x5cab0, calculate_hdr_audio_frame after create_sound_voice for an audible propagator above the gain floor with no voice (mov [esi+4],eax; test eax,eax): the sound thread, ESI the propagator, EAX its new voice or 0 (the world's 64 all taken), EBP the frame) calls this with the saved machine.

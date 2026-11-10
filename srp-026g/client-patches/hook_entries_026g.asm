@@ -6231,6 +6231,213 @@ scaleform_capture_on_queue_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x34
     jmp 0x5ed1e6
 
+; 0x380504 on_user_name_answer_received (0x380340) for the answer 0Bh, the user name taken (mov ecx,[ebp+8] / sub esp,30h, past the jne at 0x380502): before it starts the stream's handshake (0x38B840), once a sign-in: lohook -> sign_in_cipher_on_begin
+global sign_in_cipher_on_begin
+extern hook_sign_in_cipher_on_begin
+sign_in_cipher_on_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_begin
+    mov edx, sign_in_cipher_on_begin_replay
+    cmp eax, 0
+    je sign_in_cipher_on_begin_go
+    mov edx, 0x38050a
+    cmp eax, 1
+    je sign_in_cipher_on_begin_go
+    ud2
+sign_in_cipher_on_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_begin_replay:
+    db 0x8b, 0x4d, 0x08, 0x83, 0xec, 0x30
+    jmp 0x38050a
+
+; 0x4d4c63 SSL_connect (0x4D4C60) after its prologue (mov eax,[ebp+8] / cmp dword [eax+20h],0): EBP+8 the SSL; done is its pop ebp / ret, EAX the result: lohook -> sign_in_cipher_on_connect
+global sign_in_cipher_on_connect
+extern hook_sign_in_cipher_on_connect
+sign_in_cipher_on_connect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_connect
+    mov edx, sign_in_cipher_on_connect_replay
+    cmp eax, 0
+    je sign_in_cipher_on_connect_go
+    mov edx, 0x4d4c6a
+    cmp eax, 1
+    je sign_in_cipher_on_connect_go
+    mov edx, 0x4d4c8a
+    cmp eax, 2
+    je sign_in_cipher_on_connect_go
+    ud2
+sign_in_cipher_on_connect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_connect_replay:
+    db 0x8b, 0x45, 0x08, 0x83, 0x78, 0x20, 0x00
+    jmp 0x4d4c6a
+
+; 0x4d4ca3 SSL_read (0x4D4CA0) after its prologue (the same two instructions): EBP+8 the SSL, +0Ch the room, +10h its length; done is its pop ebp / ret, EAX the result: lohook -> sign_in_cipher_on_read
+global sign_in_cipher_on_read
+extern hook_sign_in_cipher_on_read
+sign_in_cipher_on_read:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_read
+    mov edx, sign_in_cipher_on_read_replay
+    cmp eax, 0
+    je sign_in_cipher_on_read_go
+    mov edx, 0x4d4caa
+    cmp eax, 1
+    je sign_in_cipher_on_read_go
+    mov edx, 0x4d4d02
+    cmp eax, 2
+    je sign_in_cipher_on_read_go
+    ud2
+sign_in_cipher_on_read_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_read_replay:
+    db 0x8b, 0x45, 0x08, 0x83, 0x78, 0x20, 0x00
+    jmp 0x4d4caa
+
+; 0x4d4d73 SSL_write (0x4D4D70) after its prologue (the same two instructions): EBP+8 the SSL, +0Ch the bytes, +10h their length; done is its pop ebp / ret, EAX the result: lohook -> sign_in_cipher_on_write
+global sign_in_cipher_on_write
+extern hook_sign_in_cipher_on_write
+sign_in_cipher_on_write:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_write
+    mov edx, sign_in_cipher_on_write_replay
+    cmp eax, 0
+    je sign_in_cipher_on_write_go
+    mov edx, 0x4d4d7a
+    cmp eax, 1
+    je sign_in_cipher_on_write_go
+    mov edx, 0x4d4df1
+    cmp eax, 2
+    je sign_in_cipher_on_write_go
+    ud2
+sign_in_cipher_on_write_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_write_replay:
+    db 0x8b, 0x45, 0x08, 0x83, 0x78, 0x20, 0x00
+    jmp 0x4d4d7a
+
+; 0x4d6e33 SSL_get_error (0x4D6E30) after its prologue (mov eax,0Ch, before __chkstk): done is its mov esp,ebp / pop ebp / ret, EAX the result: lohook -> sign_in_cipher_on_get_error
+global sign_in_cipher_on_get_error
+extern hook_sign_in_cipher_on_get_error
+sign_in_cipher_on_get_error:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_get_error
+    mov edx, sign_in_cipher_on_get_error_replay
+    cmp eax, 0
+    je sign_in_cipher_on_get_error_go
+    mov edx, 0x4d6e38
+    cmp eax, 1
+    je sign_in_cipher_on_get_error_go
+    mov edx, 0x4d7042
+    cmp eax, 2
+    je sign_in_cipher_on_get_error_go
+    ud2
+sign_in_cipher_on_get_error_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_get_error_replay:
+    db 0xb8, 0x0c, 0x00, 0x00, 0x00
+    jmp 0x4d6e38
+
 ; 0x5cab0 calculate_hdr_audio_frame after create_sound_voice for an audible propagator above the gain floor with no voice (mov [esi+4],eax; test eax,eax): the sound thread, ESI the propagator, EAX its new voice or 0 (the world's 64 all taken), EBP the frame: lohook -> sound_voices_on_voice_made
 global sound_voices_on_voice_made
 extern hook_sound_voices_on_voice_made

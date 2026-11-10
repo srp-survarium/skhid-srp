@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import fcntl
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -18,6 +19,10 @@ import sys
 import time
 import uuid
 
+# The login server's secret key of the sign-in cipher (docs/notes/sign-in-cipher.md): no file
+# of the repository. A local server is given it as SRP_SIGN_IN_KEY unless its configuration
+# or this environment sets that already.
+SIGN_IN_KEY = Path.home() / ".config/skhid/sign_in_cipher.key"
 DEFAULT_CONFIG = Path(__file__).resolve().parents[3] / "private/local-clients/config.json"
 # The world corpus (srp-026g/docs/notes/packet-validation.md, "The world corpus"): the local
 # server records every match into local/<the configuration's folder>/ there, so tools/check's
@@ -88,6 +93,9 @@ class Config:
     # window never captures the mouse; fullscreen at the monitor's own
     # resolution does (owner, 2026-11-05), so the owner's tests use it.
     fullscreen: bool = False
+    # "host:port" of a login server that is not this machine's (start --clients-only);
+    # None: the local one on ports[0].
+    remote_login: str | None = None
 
     @classmethod
     def read(cls, path: Path) -> Config:
@@ -113,6 +121,10 @@ class Config:
         fullscreen = data.get("fullscreen", False)
         if type(fullscreen) is not bool:
             raise ValueError("fullscreen must be true or false")
+        remote_login = data.get("remote_login")
+        if remote_login is not None and (type(remote_login) is not str
+                                         or not re.fullmatch(r"[A-Za-z0-9.-]+:\d{1,5}", remote_login)):
+            raise ValueError("remote_login must be host:port or null")
         server = data.get("server")
         for values in [client_env, server.get("env", {}) if server else {}]:
             if not isinstance(values, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in values.items()):
@@ -126,7 +138,14 @@ class Config:
             raise ValueError("prefix template and managed runtime must not contain one another")
         return cls(path, identity, runtime, resolve(data["game_dir"]), resolve(data["wine"]),
                    resolve(data["wineserver"]), template, accounts, ports, "x".join(dimensions), client_env, server,
-                   virtual_desktop, localization, fullscreen)
+                   virtual_desktop, localization, fullscreen, remote_login)
+
+    @property
+    def login(self) -> tuple[str, int]:
+        if self.remote_login is None:
+            return "127.0.0.1", self.ports[0]
+        host, port = self.remote_login.rsplit(":", 1)
+        return host, int(port)
 
     def prefix(self, index: int) -> Path:
         return self.runtime / f"client-{index + 1}"
@@ -134,7 +153,7 @@ class Config:
     def client_command(self, index: int) -> list[str]:
         account = self.accounts[index]
         game = [account.executable, f"-account_name={account.name}", f"-account_password={account.password}",
-                f"-server=127.0.0.1:{self.ports[0]}",
+                f"-server={self.login[0]}:{self.login[1]}",
                 "-minimum_resources_memory_size=768", "-splash_screen"]
         if self.localization:
             game.insert(3, f"-localization={self.localization}")
@@ -237,7 +256,9 @@ def preflight(config: Config, with_server: bool) -> None:
     if with_server:
         if config.server is None:
             raise ValueError("configure a server or use --clients-only")
-        required += [config.server["binary"], config.server["working_dir"] / "certs/survarium_login_server.crt"]
+        required += [config.server["binary"]]
+        if "SRP_SIGN_IN_KEY" not in config.server.get("env", {}) and "SRP_SIGN_IN_KEY" not in os.environ:
+            required += [SIGN_IN_KEY]
     for path in required:
         if not path.is_file():
             raise ValueError(f"missing required file: {path}")
@@ -335,6 +356,8 @@ def start(config: Config, state: dict, count: int, clients_only: bool) -> None:
         if not clients_only:
             server = config.server
             env = {**os.environ, **recording_env(config), **server.get("env", {})}
+            if "SRP_SIGN_IN_KEY" not in env:
+                env["SRP_SIGN_IN_KEY"] = SIGN_IN_KEY.read_text().strip()
             # Fixed loopback settings win over inherited shell/config values.
             env.update(SRP_DATA_DIR=str(config.path.parent / "data"), SRP_DB="on", SRP_REGISTRATION="open",
                        SRP_REGISTRATIONS_PER_DAY="100", SRP_TUTORIAL="on", SRP_LOG_FILES="off",
@@ -359,7 +382,7 @@ def start(config: Config, state: dict, count: int, clients_only: bool) -> None:
                         raise RuntimeError("server did not open its login port; see runtime/server.log")
                     time.sleep(.1)
         else:
-            with socket.create_connection(("127.0.0.1", config.ports[0]), timeout=2):
+            with socket.create_connection(config.login, timeout=5):
                 pass
         for index in range(count):
             # Record prefix ownership before spawning so partial starts can be stopped.
@@ -377,7 +400,7 @@ def start(config: Config, state: dict, count: int, clients_only: bool) -> None:
     except BaseException:
         stop(config, state)
         raise
-    print(f"Local login: 127.0.0.1:{config.ports[0]}; logs: {config.runtime}")
+    print(f"Login: {config.login[0]}:{config.login[1]}; logs: {config.runtime}")
 
 
 def initialize(args) -> None:

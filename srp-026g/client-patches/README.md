@@ -137,6 +137,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
 | `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MenuChange`, `CursorMovie`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); five lohooks, at initialize_match's start, show_cursor's show and hide and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
+| `rust/patches/src/sign_in_cipher.rs`, `src/sign_in_cipher.toml`, `src/vostok/openssl.rs`, `../crates/sign-in-cipher`, `check_sign_in_cipher_026g.py` | Patch 139: the sign-in's password goes through srp's own cipher where the game's protocol had TLS; five lohooks, the user name's answer and OpenSSL's SSL_connect, SSL_read, SSL_write and SSL_get_error after their prologue; its check runs a sign-in through the patched exe against Python's `cryptography` (needs it and Unicorn) |
 | `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper gets a dormant artefact of the match's kind from the map's hidden pool at the match's start, into its first empty container, once a match: register_artefacts 0x31B8E0, the player's tick 0x2DAAD3); their checks run the game's code for each (needs Unicorn) |
 | `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
@@ -5312,3 +5313,31 @@ game's x87 functions return it) and engine rows called directly with an ST0 resu
 Every float the game computes is the same: nothing a match computes changes, no row in
 `simulation_changes.tsv`. Checked with `check_animation_math_026g.py` (Unicorn: the game's own
 functions in both exes, 0 of 62000 cases differ) and the crate's tests. Not run in a game.
+
+## The sign-in's password through srp's own cipher (patch 139, unreleased)
+
+`../docs/notes/sign-in-cipher.md` says what is sent and why. The game's sign-in code stays as it is:
+after the server's "user name valid" byte it starts its stream's handshake, writes the password
+message and reads the answer through OpenSSL, and the patch answers OpenSSL's calls.
+
+**The patch** (the Rust patch `sign_in_cipher`, five lohooks, `sites_026g.tsv`):
+
+- `sign_in.cipher_begin` (0x380504, on_user_name_answer_received for the answer 0Bh, before the
+  handshake's start 0x38B840): a sign-in's cipher begins, whatever an abandoned one left.
+- `openssl.connect`, `openssl.read`, `openssl.write` (SSL_connect 0x4D4C60, SSL_read 0x4D4CA0,
+  SSL_write 0x4D4D70, after `push ebp / mov ebp,esp`; the exit is the function's own
+  `pop ebp / ret`): answered by `sign_in_cipher::game`'s machine over the SSL's BIOs (BIO_read
+  0x44C630, BIO_write 0x44C740): the hello and the wait for the server's, a sealed record, the
+  opened record. Only asio's engine (do_connect 0x38B6D0, do_read 0x37FAB0, do_write 0x37FAE0)
+  and OpenSSL's unused bio_ssl.c call them.
+- `openssl.get_error` (SSL_get_error 0x4D6E30): what the last call left: 0 done, 2 more of the
+  server's bytes wanted (engine::perform 0x37F940 reads the socket and calls again), 1 failed. A
+  failure queues an error (ERR_put_error 0x44A270): perform takes ERR_get_error's code for it, and
+  a code of 0 would be a success to boost.
+
+The game's one-time key comes from OpenSSL's generator (ssleay_rand_bytes 0x46B6E0), as the TLS
+handshake's secrets did. The server's side is `../servers/login-server/src/sealed.rs`; a game
+without the patch and a server with it (or the reverse) cannot sign in, which the release's minimum
+patch revision keeps from happening. Nothing a match computes. Checked with `cargo test` and clippy
+(patches, sign-in-cipher, login-server, srp) and `check_sign_in_cipher_026g.py`. Played 2026-11-10: two
+games under Wine signed in to a server on another machine and played a match; no Windows game yet.

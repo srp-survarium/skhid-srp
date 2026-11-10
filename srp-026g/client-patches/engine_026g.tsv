@@ -219,3 +219,7 @@ engine_finish_key_binding	0x2015a0	EDI:options	void engine_finish_key_binding(st
 engine_sin	0x038ff0	ESP+4:angle	float engine_sin(float angle)	cdecl	angle: f32 -> f32
 engine_cos	0x039000	ESP+4:angle	float engine_cos(float angle)	cdecl	angle: f32 -> f32
 engine_atan2	0x079c40	ESP+4:y ESP+8:x	float engine_atan2(float y, float x)	cdecl	y: f32, x: f32 -> f32
+engine_bio_read	0x44c630	ESP+4:bio ESP+8:room ESP+12:length	unsigned int engine_bio_read(struct bio *bio, unsigned char *room, unsigned int length)	cdecl	
+engine_bio_write	0x44c740	ESP+4:bio ESP+8:bytes ESP+12:length	unsigned int engine_bio_write(struct bio *bio, const unsigned char *bytes, unsigned int length)	cdecl	
+engine_err_put_error	0x44a270	ESP+4:library ESP+8:function ESP+12:reason ESP+16:file ESP+20:line	void engine_err_put_error(unsigned int library, unsigned int function, unsigned int reason, const char *file, unsigned int line)	cdecl	
+engine_rand_bytes	0x46b6e0	ESP+4:room ESP+8:length	unsigned int engine_rand_bytes(unsigned char *room, unsigned int length)	cdecl	

@@ -1441,8 +1441,12 @@ va	status	ref_021d	name
 0x00379f20	reviewed	0x00239f4d	vostok::network::match_client::on_disconnect
 0x0037a0e0	reviewed	0x0023a01b	vostok::network::match_client::new_packet
 0x0037a140	reviewed	0x0023a05e	vostok::network::match_client::stats
+0x0037f940	reviewed		boost::asio::ssl::detail::engine::perform
+0x0037fab0	reviewed		boost::asio::ssl::detail::engine::do_read
+0x0037fae0	reviewed		boost::asio::ssl::detail::engine::do_write
 0x003860f0	reviewed	0x002420f9	vostok::network::match_client_impl::clone_packet
 0x003861d0	reviewed	0x00242192	vostok::network::match_client_impl::disconnect
+0x0038b6d0	reviewed		boost::asio::ssl::detail::engine::do_connect
 0x0038c970	reviewed	0x0024663d	vostok::ai::fsm::append_transition
 0x0038ca20	reviewed	0x002466ca	vostok::ai::fsm::tick
 0x0038caf0	reviewed	0x0024677b	vostok::ai::fsm::pop_state
@@ -1790,6 +1794,19 @@ va	status	ref_021d	name
 0x0044635d	verified	0x002b2710	IsRootUNCName
 0x00446d42	verified	0x002e997b	strtok_s
 0x00447290	verified	0x002ea080	_aullrem
+0x0044a270	verified		ERR_put_error
+0x0044a4e0	verified		ERR_get_error
+0x0044c630	verified		BIO_read
+0x0044c740	verified		BIO_write
+0x0044cc80	verified		BIO_ctrl_pending
+0x0046b6e0	verified		ssleay_rand_bytes
+0x004d42d0	verified		SSL_new
+0x004d4c30	verified		SSL_accept
+0x004d4c60	verified		SSL_connect
+0x004d4ca0	verified		SSL_read
+0x004d4d10	verified		SSL_peek
+0x004d4d70	verified		SSL_write
+0x004d6e30	verified		SSL_get_error
 0x00771fa0	observed		Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet
 0x00824910	verified	0x00664190	strncpy
 0x00824c68	verified	0x006642b4	feof

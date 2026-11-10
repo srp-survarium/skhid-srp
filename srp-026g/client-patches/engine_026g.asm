@@ -215,6 +215,10 @@ global engine_finish_key_binding
 global engine_sin
 global engine_cos
 global engine_atan2
+global engine_bio_read
+global engine_bio_write
+global engine_err_put_error
+global engine_rand_bytes
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -296,6 +300,10 @@ engine_discard_playing_order equ 0x2717e0   ; 0x2717e0 survarium::lobby_client::
 engine_sin equ 0x38ff0   ; 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly
 engine_cos equ 0x39000   ; 0x39000 vostok::math::cos: angle ESP+4; pops 0; ST0; cdecl, called directly
 engine_atan2 equ 0x79c40   ; 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly
+engine_bio_read equ 0x44c630   ; 0x44c630 BIO_read: bio ESP+4, room ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+engine_bio_write equ 0x44c740   ; 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+engine_err_put_error equ 0x44a270   ; 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
+engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
