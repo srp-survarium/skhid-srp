@@ -63,6 +63,7 @@ pub mod renderer;
 pub mod gun_cook;
 pub mod pickup;
 pub mod use_scan;
+pub mod streaming;
 pub mod ray_test;
 mod rt;
 pub mod sound;
@@ -71,6 +72,7 @@ pub mod voices;
 pub mod settings;
 mod sync;
 pub mod trace;
+pub mod trig;
 pub mod types;
 mod upgrades;
 pub mod world;
@@ -86,7 +88,7 @@ mod generated {
     #[allow(unused_imports)]
     use super::context::{Context, Flow, Frame};
     #[allow(unused_imports)]
-    use super::hook::{Handle, Out, Thread};
+    use super::hook::{Handle, Only, Out, Thread};
     #[allow(unused_imports)]
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]

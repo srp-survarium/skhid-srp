@@ -2481,6 +2481,25 @@ va	name	source	ret_cleanup	result
 0x00106d90	ptmalloc3::free_starter	manual	0	
 0x00106fc0	pt3free	manual	0	
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	manual	0	EAX the memory (pt3malloc 0x1C6B4), 0 when the allocator is closed ([0x1F1D61B])
+0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: 16 bytes copied from [[ECX+0Ch]+10h] (the surface instance's sphere: centre, radius)
+0x001c8b80	vostok::render::render_surface_texture_instance_proxy::last_render_time	manual	0	ST0: [[ECX+0Ch]+48h]
+0x001c8b90	vostok::render::render_surface_texture_instance_proxy::texel_factor	manual	0	ST0: [[[ECX+0Ch]+38h]+4Ch] x the largest length (math::sqrt 0x38960 each) of the first three rows of the matrix at [[ECX+0Ch]+50h]: the second against the third by fcomip, the first against that by comiss
+0x001c8cb0	vostok::render::render_surface_texture_instance_proxy (vtable +14h)	manual	0	byte [[ECX+0Ch]+4Ch] = 0
+0x001c8d40	vostok::render::grass_patch_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: centre (0, 0, 0), radius [0xA2D8A0] (3000.0)
+0x001c8d20	vostok::render::grass_patch_texture_instance_proxy::last_render_time	manual	0	ST0: 0.0 (fldz); the decal proxy's too
+0x001c8d30	vostok::render::grass_patch_texture_instance_proxy::texel_factor	manual	0	ST0: 1.0 (fld1)
+0x001c8e00	vostok::render::decal_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: the centre of the box at [[ECX+0Ch]+74h] (min, max: (max + min) x 0.5) and its distance to the min (math::sqrt 0x38960)
+0x001c8d80	vostok::render::decal_texture_instance_proxy::texel_factor	manual	0	ST0: max((max.x - min.x) x 0.5, (max.z - min.z) x 0.5) x 0.5 of the box at [[ECX+0Ch]+74h]
+0x00153d90	vostok::render::streaming_texture_instance (constructor)	manual	0	EAX = EDI the record: proxy ESI, next 0, owner [ESI+4], then its bound_sphere, last_render_time and texel_factor (gather_streamable_textures 0x1552B7)
+0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	manual	4	EAX = ECX: the end of the bytes written; DL the XOR of the first differing byte pair (0 none); m_changed (+64h) set always
 0x003a90c0	anim_read_expression	thiscall	0	recursive pre-order expression reader (ECX=this); 2-bit op via jump table 0x3A9240: op0 (0x3A90D8) pops 2 floats from the floats buffer [this+0x1014] AND 1 time from the times buffer [this+8] (0x3A9116); op1 pops 1 float; ops 2/3 pop 1 time and recurse into two children (unbounded)
 0x003a99c0	anim_state_deserialize	manual	4	this=EAX; reader object in ECX {+4 = stream byte-cursor ptr}; entry ESP+4 = output descriptor {+0 write cursor, +4 remaining space}; inline 0x1000 buffers at this+0x10 (times) and this+0x101c (floats); pops one times entry unconditionally at 0x3A9A64 before the node passes; ret 0x4
 0x003a9900	decode_data	manual	4	this=EAX, one stack arg = reader {+4 = stream ptr}; reads 16-bit tree length T, decodes the times (0x3A9580) and floats (decode_floats 0x3A98C0, its body decode_floats_impl 0x3A9720) tables into the two inline buffers, restores the bit cursor to just past T, advances reader.+4 by bytes consumed
+0x00038ff0	vostok::math::sin	manual	0	ST0: fsin of the float argument (x87, 80-bit; every caller stores it as a float)
+0x00039000	vostok::math::cos	manual	0	ST0: fcos of the float argument (x87, 80-bit)
+0x00079c40	vostok::math::atan2	manual	0	ST0: fpatan of (entry ESP+4, entry ESP+8): atan2(y, x), the angle of (x, y) (x87, 80-bit)
+0x000ed2e0	vostok::math::quaternion::quaternion	manual	12	the quaternion (x, y, z, w floats) written at ESI from the Euler angles; sin/cos of half of each angle (0x38FF0, 0x39000), each stored as a float
+0x00074290	vostok::math::quaternion::quaternion	manual	4	EAX = ESI, the quaternion from an axis and an angle: w = cos(angle/2), xyz = axis * sin(angle/2)
+0x00074300	vostok::math::quaternion::get_axis_and_angle	manual	4	AL 1 with the axis at EDI and the angle (2 atan2(|xyz|, w), 0x79C40) at entry ESP+4; AL 0, axis (0, 0, 1) and angle 0 when |xyz| <= 1e-7
+0x003b3180	vostok::animation::evaluate_frame	manual	0	each of the channels cubic-evaluated at the time into EAX[i]: domain 0x3B3340, then ((c3 dt + c2) dt + c1) dt + c0
+0x003b3340	vostok::animation::time_channel::domain	manual	4	EAX the domain j (knots[j] <= t <= knots[j+1], t clamped to the knots, searched from *current mod count), also stored at the current; ECX the knot count, EDX j

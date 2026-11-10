@@ -4,7 +4,7 @@
 //! world as the game has it at that moment; nothing kept.
 use super::{
     Context, Reg, Thread,
-    medical::{OwnedPlayer, Player, kit_modifiers, name_equal},
+    medical::{Player, kit_modifiers, name_equal},
     types::{GameTime, Place, Tick},
 };
 use crate::{
@@ -226,19 +226,50 @@ pub fn spring_reload(ctx: &Context<'_>) {
 /// The places a world has at most (core_active_player refuses past its places' vector).
 const PLACES: u8 = 20;
 
-/// A world's active roster, one reference held on each player for the hook.
+/// A world's places as core_active_player (0x2D0AB0) reads them: the places' vector and the bit of
+/// each place in the world.
+#[derive(Clone, Copy)]
+struct Places {
+    first: raw::CorePlace,
+    count: usize,
+    active: u32,
+}
+
+/// A world's active roster: the players core_active_player gives, read where they lie and
+/// borrowed for the hook. The aura is read at every modifier getter's call, so it takes no
+/// reference (core_active_player adds one, and its release is an atomic each): the hook runs no
+/// game code, so no player it reads is released while it runs.
+#[derive(Clone, Copy)]
 struct Roster<'t> {
-    players: [Option<OwnedPlayer<'t>>; PLACES as usize],
+    thread: &'t Thread,
+    /// None without a world core (a lobby's player).
+    places: Option<Places>,
 }
 
 impl<'t> Roster<'t> {
     fn of(thread: &'t Thread, core: Option<raw::CoreWorld>) -> Self {
-        Self { players: core::array::from_fn(|place| Player::in_core(thread, core, place as u8)) }
+        // SAFETY: a live world core's places vector and the bits of its places in the world.
+        let places = core.and_then(|core| unsafe {
+            let (first, end) = (core.places()?, core.places_end()?);
+            Some(Places { first, count: end.index_from(first)?, active: *core.active_places() })
+        });
+        Self { thread, places }
     }
 
-    /// Its players in place order.
-    fn iter(&self) -> impl Iterator<Item = Player<'t>> + '_ {
-        self.players.iter().flatten().map(OwnedPlayer::get)
+    /// Its players in place order, each as core_active_player gives the place's (places 0..20 as
+    /// the roster asked them one by one): none past the places' vector, for a place not in the
+    /// world (its bit clear: a departed one), or without a player of its kit.
+    fn iter(self) -> impl Iterator<Item = Player<'t>> {
+        let (first, count, active) = self.places.map_or((None, 0, 0), |places| (Some(places.first), places.count, places.active));
+        (0..count.min(usize::from(PLACES))).filter(move |&place| active & (1 << place) != 0).filter_map(move |place| {
+            // SAFETY: a place below the vector's end: its kit and that kit's player, the array
+            // core_active_player indexes by it.
+            let at = unsafe {
+                let entry = first?.at(place);
+                entry.kits().at(usize::from(*entry.kit())).player()?
+            };
+            Some(Player::new(self.thread, at))
+        })
     }
 }
 
@@ -274,6 +305,11 @@ impl Shared {
         }
     }
 
+    /// Whether it still takes a copy.
+    fn open(&self) -> bool {
+        self.room.open()
+    }
+
     fn iter(&self) -> impl Iterator<Item = raw::Artefact> + '_ {
         self.copies.iter().flatten().copied()
     }
@@ -285,21 +321,33 @@ impl Shared {
 /// ([`own`]) in container order, as many of each phase as the recipient's room after its own
 /// copies of the kind that count (passives and actives alike: 4 less them). A dead recipient
 /// gets none.
-fn shared(roster: &Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Shared) {
+///
+/// Read at every getter's call, so it stops as soon as the rest cannot change it: with no room
+/// left (4 own copies), at a carrier without the skills (before its distance), and once both
+/// rooms are full.
+fn shared(roster: Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Shared) {
+    let none = Shared::new(Room::NONE);
     if !recipient.active() {
-        let none = Shared::new(Room::NONE);
         return (none, none);
     }
     let counted = own(recipient.get(), kind).filter(|own| own.counts).count();
     let (mut passives, mut actives) = (Shared::new(Room::after(counted)), Shared::new(Room::after(counted)));
+    let ally = recipient.allies();
     for carrier in roster.iter() {
-        if !carrier.active() || !carrier.ally(recipient) {
+        if !passives.open() && !actives.open() {
+            break;
+        }
+        if !carrier.active() || !ally(carrier) {
             continue;
         }
         let skills = skills(carrier.get());
+        let (passive_reach, active_reach) = (skills.reach(Phase::Passive), skills.reach(Phase::Active));
+        if passive_reach.is_none() && active_reach.is_none() {
+            continue;
+        }
         let distance = carrier.distance_squared(recipient);
-        let reaches = |phase| skills.reach(phase).is_some_and(|reach| distance <= reach);
-        let (passive, active) = (reaches(Phase::Passive), reaches(Phase::Active));
+        let reaches = |reach: Option<f32>| reach.is_some_and(|reach| distance <= reach);
+        let (passive, active) = (reaches(passive_reach), reaches(active_reach));
         if !passive && !active {
             continue;
         }
@@ -330,7 +378,7 @@ impl super::world::Player<'_> {
         };
         Copies::of(|kind| {
             let own = own(self.this, kind).filter(|own| own.counts && kind.gives(Phase::Passive, own.copy.state)).count();
-            let (passives, _) = shared(&roster, recipient, kind);
+            let (passives, _) = shared(roster, recipient, kind);
             (own, passives.iter().count())
         })
     }
@@ -378,6 +426,7 @@ struct LeftOut {
 impl LeftOut {
     /// None when every own Spring of `player` counts.
     fn of(player: raw::Player) -> Option<Self> {
+        own(player, Kind::Spring).find(|own| !own.counts)?;
         let mut springs = [None; CONTAINERS];
         let uncounted = own(player, Kind::Spring).filter(|own| !own.counts).map(|own| spring_phase_nodes(own.copy.at));
         for (slot, nodes) in springs.iter_mut().zip(uncounted) {
@@ -453,7 +502,7 @@ pub fn own_modifiers(ctx: &mut Context<'_>) -> bool {
 fn shared_springs(thread: &Thread, modifiers: raw::PlayerParamsModifiersContainer, index: u32) -> Option<f32> {
     let roster = Roster::of(thread, Some(match_core()?));
     let recipient = roster.iter().find(|player| kit_modifiers(player.get()) == Some(modifiers))?;
-    let (passives, actives) = shared(&roster, recipient, Kind::Spring);
+    let (passives, actives) = shared(roster, recipient, Kind::Spring);
     let passive = passives.iter().fold(0.0, |sum, spring| sum + spring_nodes(spring, Phase::Passive, index));
     Some(actives.iter().fold(passive, |sum, spring| sum + spring_nodes(spring, Phase::Active, index)))
 }
@@ -581,7 +630,7 @@ pub fn shared_protection(ctx: &mut Context<'_>) {
             return;
         };
         let roster = Roster::of(ctx.thread(), recipient.world_core());
-        let (passives, actives) = shared(&roster, Player::new(ctx.thread(), recipient), Kind::Onyx);
+        let (passives, actives) = shared(roster, Player::new(ctx.thread(), recipient), Kind::Onyx);
         let (kind, part) = (*hit.kind(), pool.name() as *const u8);
         let own_active = active_onyx(recipient);
         let protections = passives
@@ -641,7 +690,7 @@ pub fn shared_regeneration(ctx: &mut Context<'_>) {
             return;
         };
         let roster = Roster::of(ctx.thread(), recipient.world_core());
-        let (passives, _) = shared(&roster, Player::new(ctx.thread(), recipient), Kind::Lifebone);
+        let (passives, _) = shared(roster, Player::new(ctx.thread(), recipient), Kind::Lifebone);
         let part = pool.name() as *const u8;
         let mut tick = None;
         for record in passives.iter().filter_map(|lifebone| lifebone_regeneration(lifebone, part)) {

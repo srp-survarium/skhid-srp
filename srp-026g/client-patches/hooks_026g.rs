@@ -21,6 +21,169 @@ pub extern "C" fn hook_animation_id_log_on_id_missing(frame: &mut Frame) -> u32 
     }
 }
 
+// ---- animation_math (patch 136) ----
+
+/// engine_sin (0x38ff0), as the call hook at 0xed30f wraps it.
+pub struct OrigSin;
+
+impl OrigSin {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, angle: f32) -> f32 {
+        // SAFETY: engine_sin at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_sin(angle) }
+    }
+}
+
+/// The entry `animation_math_on_sin_x` (0xed30f, quaternion::quaternion(float3 angles) 0xED2E0: sin of half the x angle, stored as a float (fstp dword [esp+0Ch])) calls this with
+/// engine_sin's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `animation_math_on_sin_x`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_animation_math_on_sin_x(a0: f32) -> f32 {
+    let angle = a0;
+    let orig = OrigSin;
+    crate::animation_math::on_sin_x(&orig, angle)
+}
+
+// ---- animation_math (patch 136) ----
+
+/// engine_cos (0x39000), as the call hook at 0xed31f wraps it.
+pub struct OrigCos;
+
+impl OrigCos {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, angle: f32) -> f32 {
+        // SAFETY: engine_cos at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_cos(angle) }
+    }
+}
+
+/// The entry `animation_math_on_cos_x` (0xed31f, quaternion::quaternion(float3 angles) 0xED2E0: cos of half the x angle, stored as a float (fstp dword [esp+10h])) calls this with
+/// engine_cos's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `animation_math_on_cos_x`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_animation_math_on_cos_x(a0: f32) -> f32 {
+    let angle = a0;
+    let orig = OrigCos;
+    crate::animation_math::on_cos_x(&orig, angle)
+}
+
+// ---- animation_math (patch 136) ----
+
+/// The entry `animation_math_on_sin_y` (0xed32f, quaternion::quaternion(float3 angles) 0xED2E0: sin of half the y angle, stored as a float (fstp dword [esp+4])) calls this with
+/// engine_sin's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `animation_math_on_sin_y`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_animation_math_on_sin_y(a0: f32) -> f32 {
+    let angle = a0;
+    let orig = OrigSin;
+    crate::animation_math::on_sin_y(&orig, angle)
+}
+
+// ---- animation_math (patch 136) ----
+
+/// The entry `animation_math_on_cos_y` (0xed33f, quaternion::quaternion(float3 angles) 0xED2E0: cos of half the y angle, stored as a float (fstp dword [esp+8])) calls this with
+/// engine_cos's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `animation_math_on_cos_y`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_animation_math_on_cos_y(a0: f32) -> f32 {
+    let angle = a0;
+    let orig = OrigCos;
+    crate::animation_math::on_cos_y(&orig, angle)
+}
+
+// ---- animation_math (patch 136) ----
+
+/// The entry `animation_math_on_sin_z` (0xed34f, quaternion::quaternion(float3 angles) 0xED2E0: sin of half the z angle, stored as a float (fstp dword [esp+14h])) calls this with
+/// engine_sin's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `animation_math_on_sin_z`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_animation_math_on_sin_z(a0: f32) -> f32 {
+    let angle = a0;
+    let orig = OrigSin;
+    crate::animation_math::on_sin_z(&orig, angle)
+}
+
+// ---- animation_math (patch 136) ----
+
+/// The entry `animation_math_on_cos_z` (0xed35f, quaternion::quaternion(float3 angles) 0xED2E0: cos of half the z angle, stored as a float (fstp dword [esp+18h] after one movss)) calls this with
+/// engine_cos's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `animation_math_on_cos_z`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_animation_math_on_cos_z(a0: f32) -> f32 {
+    let angle = a0;
+    let orig = OrigCos;
+    crate::animation_math::on_cos_z(&orig, angle)
+}
+
+// ---- animation_math (patch 136) ----
+
+/// The entry `animation_math_on_axis_sin` (0x742a5, quaternion::quaternion(axis, angle) 0x74290: sin of half the angle, stored as a float (fstp dword [esp+8])) calls this with
+/// engine_sin's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `animation_math_on_axis_sin`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_animation_math_on_axis_sin(a0: f32) -> f32 {
+    let angle = a0;
+    let orig = OrigSin;
+    crate::animation_math::on_axis_sin(&orig, angle)
+}
+
+// ---- animation_math (patch 136) ----
+
+/// The entry `animation_math_on_axis_cos` (0x742b5, quaternion::quaternion(axis, angle) 0x74290: cos of half the angle, stored as the w float (fstp dword [esi+0Ch])) calls this with
+/// engine_cos's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `animation_math_on_axis_cos`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_animation_math_on_axis_cos(a0: f32) -> f32 {
+    let angle = a0;
+    let orig = OrigCos;
+    crate::animation_math::on_axis_cos(&orig, angle)
+}
+
+// ---- animation_math (patch 136) ----
+
+/// engine_atan2 (0x79c40), as the call hook at 0x743b2 wraps it.
+pub struct OrigAtan2;
+
+impl OrigAtan2 {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, y: f32, x: f32) -> f32 {
+        // SAFETY: engine_atan2 at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_atan2(y, x) }
+    }
+}
+
+/// The entry `animation_math_on_angle_atan2` (0x743b2, quaternion::get_axis_and_angle 0x74300: atan2(|xyz|, w), doubled in ST0 (fadd st0,st0: exact) and stored as a float (fstp dword [ebx])) calls this with
+/// engine_atan2's 2 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `animation_math_on_angle_atan2`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_animation_math_on_angle_atan2(a0: f32, a1: f32) -> f32 {
+    let y = a0;
+    let x = a1;
+    let orig = OrigAtan2;
+    crate::animation_math::on_angle_atan2(&orig, y, x)
+}
+
 // ---- artefact_carry (patch 78) ----
 
 /// The entry `artefact_carry_on_weapon_hide` (0x243fa0, weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal) calls this with the saved machine.
@@ -553,6 +716,12 @@ pub extern "C" fn hook_artefact_skills_on_spring_reload(frame: &mut Frame) -> u3
 
 // ---- artefact_skills (patch 109) ----
 
+/// The values of `index` (ESI) the entry `artefact_skills_on_shared_modifier` calls its handler for
+/// (`only`): crate::artefact_skills::SPRING_LISTS; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static artefact_skills_on_shared_modifier_only: Only = Only::of(&crate::artefact_skills::SPRING_LISTS);
+
 /// The entry `artefact_skills_on_shared_modifier` (0x2d5ae6, apply_modifier after it reads the kit's own float (movss xmm0,[eax+esi*4] at 0x2D5AE1): XMM0 that float, to which the list's nodes are added (0x2D5B33) before the index's rule (additive by 0x927E08, else max(0, 1 + k x S)); replayed: lea ecx,[esi+esi*4]; cmp byte [eax+ecx*4+120h],0 (the sorted flag the jne at 0x2D5AFF reads)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_skills_on_shared_modifier(frame: &mut Frame) -> u32 {
@@ -567,6 +736,12 @@ pub extern "C" fn hook_artefact_skills_on_shared_modifier(frame: &mut Frame) -> 
 }
 
 // ---- artefact_skills (patch 109) ----
+
+/// The values of `index` (EAX) the entry `artefact_skills_on_shared_modifiers` calls its handler for
+/// (`only`): crate::artefact_skills::SPRING_LISTS; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static artefact_skills_on_shared_modifiers_only: Only = Only::of(&crate::artefact_skills::SPRING_LISTS);
 
 /// The entry `artefact_skills_on_shared_modifiers` (0x2d5c18, apply_modifiers 0x2D5BC0 (a weighted sum of several indices) in its loop, after one index's own float (movss xmm0,[ebx+eax*4] at 0x2D5C13, stored at 0x2D5C2A): XMM0 that float, to which the list's nodes are added (0x2D5C69); replayed: lea eax,[eax+eax*4]; cmp byte [ebx+eax*4+120h],0) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -648,6 +823,12 @@ pub extern "C" fn hook_artefact_skills_on_fire(frame: &mut Frame) -> u32 {
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum ArtefactSkillsOnOwnModifierExit { Summed }
+/// The values of `index` (ESI) the entry `artefact_skills_on_own_modifier` calls its handler for
+/// (`only`): crate::artefact_skills::SPRING_LISTS; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static artefact_skills_on_own_modifier_only: Only = Only::of(&crate::artefact_skills::SPRING_LISTS);
+
 /// The entry `artefact_skills_on_own_modifier` (0x2d5b0c, apply_modifier before it sums its list's nodes (both ways from the sorted flag's test join here; mov eax,[edi+4] / xorps xmm2,xmm2, then the loop 0x2D5B20 adds each node's +0Ch into XMM1 as value + sum): EDI the kit's list of the index ESI; summed is the loop's end (pop edi / test eax,eax / je 0x2D5B33 addss xmm0,xmm1) with EAX 0, XMM1 the sum and XMM2 the 0 the rule compares with) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_skills_on_own_modifier(frame: &mut Frame) -> u32 {
@@ -1861,6 +2042,21 @@ pub extern "C" fn hook_hud_options_on_present(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hud_options::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_ddraw_probed` (0x105e8e, the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_ddraw_probed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_ddraw_probed` calls this, from the game's jump at 0x105e8e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_ddraw_probed(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3308,6 +3504,46 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::text_input::on_char(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- texture_streaming (patch 137) ----
+
+/// The named exits of texture_streaming::on_update (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TextureStreamingOnUpdateExit { Returned }
+/// The entry `texture_streaming_on_update` (0x155980, scene::update_streaming_data's start (sub esp,18h / push ebx / mov ebx,[eax+12615Ch]), every frame from process_streaming (0x1540DE) while the scene has streamable textures: EAX the scene; returned is its `ret` (0x1559FE)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_streaming_on_update(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_streaming_on_update` calls this, from the game's jump at 0x155980,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_streaming::on_update(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- texture_streaming (patch 137) ----
+
+/// The named exits of texture_streaming::on_texture_memory (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TextureStreamingOnTextureMemoryExit { Returned }
+/// The entry `texture_streaming_on_texture_memory` (0x3be280, resource_manager::get_texture_video_memory_size's start (push ebx / push esi / mov esi,[eax+880A4h]), every frame from renderer::render's statistics (0x13D73E): EAX the resource manager; returned is its `ret` (0x3BE2C7), EAX the sum in bytes) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_streaming_on_texture_memory(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_streaming_on_texture_memory` calls this, from the game's jump at 0x3be280,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_streaming::on_texture_memory(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,

@@ -2537,6 +2537,15 @@ INSTALLS = {
     0x59F8E: (JUMP, "create_sound_voice 0x59E70 after the constructor: sound_voices_built frees a voice with no "
                     "source and returns 0 by 0x59F9A, else replays push edi / add esi,2B0h and goes on at 0x59F95",
               None, None),
+    # patch 134 (the Rust patch constant_upload's four code hooks, constant_upload_026g.asm)
+    0x11B5A0: (ENTRY, "shader_constant_buffer::set_memory: constant_upload_set_memory, the whole function "
+                      "(ret 4)", None, None),
+    0x3DDFA1: (JUMP, "shader_constant_buffer's constructor before malloc_impl: constant_upload_alloc asks "
+                     "2 x size + 16, back at the call 0x3DDFA7", None, None),
+    0x3DDFAC: (JUMP, "the constructor before memset: constant_upload_zero zeros the whole block, back at "
+                     "0x3DDFB2", None, None),
+    0x3DDFD0: (ENTRY, "shader_constant_buffer::update: constant_upload_update, its `ret` when nothing is to "
+                      "upload, else the original's body at 0x3DDFDD", None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
@@ -2727,6 +2736,19 @@ WORLD_SECTIONS_HOOKS = (
 )
 INSTALLS[0x3246C0] = (JUMP, "game_state_history_item::construct's last store: the six world sections' buffers "
                             "get the multithreaded allocator and a block each; back at 0x3246C6", None, None)
+
+# Patch 136 (the Rust patch animation_math, client_patch.md section 3.80): the
+# animation's sines, cosines and atan2 (calls of vostok::math's x87 functions
+# whose results are stored as floats at once) and its knot search.
+for _va, _what in ((0xED30F, "sin x"), (0xED31F, "cos x"), (0xED32F, "sin y"), (0xED33F, "cos y"),
+                   (0xED34F, "sin z"), (0xED35F, "cos z")):
+    INSTALLS[_va] = (CALLEE, f"quaternion::quaternion(float3 angles)'s {_what}: animation_math (Rust `call` hook)",
+                     None, None)
+INSTALLS[0x742A5] = (CALLEE, "quaternion::quaternion(axis, angle)'s sin: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x742B5] = (CALLEE, "quaternion::quaternion(axis, angle)'s cos: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x743B2] = (CALLEE, "get_axis_and_angle's atan2: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
+                             "per step", None, None)
 
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}

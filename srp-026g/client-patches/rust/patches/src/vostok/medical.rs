@@ -70,7 +70,12 @@ impl<'t> Player<'t> {
         unsafe { Some(*self.at.profile()?.team()) }
     }
     pub(super) fn ally(self, other: Self) -> bool {
-        self.at != other.at && matches!(self.team(), Some(0 | 1)) && self.team() == other.team()
+        self.allies()(other)
+    }
+    /// [`ally`](Self::ally) of this player, its team read once: the test of a whole roster.
+    pub(super) fn allies(self) -> impl Fn(Self) -> bool {
+        let team = self.team().filter(|team| matches!(team, 0 | 1));
+        move |other| team.is_some() && self.at != other.at && other.team() == team
     }
     pub(super) fn active(self) -> bool {
         // The core lookup already checked the synchronized active roster.
