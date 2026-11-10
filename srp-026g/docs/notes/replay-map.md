@@ -19,9 +19,12 @@ just dots, also names if I press alt"; "yes in red for enemies".
   every marker shows, red, both teams (before, the movie hid the first followed player's enemies).
 - **Live matches:** unchanged. A player sees an enemy's dot only while it is spotted, and never its
   marker or name over its head. A live spectator (rooms' Queue and spectate, live watching) sees
-  the same as in the match. Only a replay's own options read turns the rule on, and each live
-  match's options read turns it off.
-- **How:** exe patch 135 (Rust `replay_map`): lohooks at the two spotted tests,
+  the same as in the match.
+- **Never switchable in a match** (owner 2026-11-10: "make sure this code cannot be run from normal
+  matches easily"): no flag, setting, key, console command or state of the patch's turns it on.
+  Each time, the hook asks the game's network client what it is (its class): only a `.sur`
+  replay's is the replay client. Making a live game's client claim that ends its match.
+- **How:** exe patch 135 (Rust `replay_map`, `vostok::world::Playback`): lohooks at the two spotted tests,
   `update_minimap_players` (0x239505) and `render_name` (0x1F2B50); and before `initialize_match`
   sends the icons movie its enemy list (0x235709), the movie told `root.srp_show_enemies`. The
   player icons movie (`HUDIconLayer.enemiesShown`) then shows enemies' markers. The hud movie's

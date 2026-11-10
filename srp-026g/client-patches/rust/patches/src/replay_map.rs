@@ -15,74 +15,49 @@
 //!   spotted one;
 //! - as initialize_match sends the enemy list (0x235709, just before), before
 //!   any marker of the match, the icons movie is told `root.srp_show_enemies`
-//!   (true in a replay, false in a live match): its enemies' markers show,
+//!   (true in a replay, false in a match): its enemies' markers show,
 //!   whatever enemy list it is given.
 //!
-//! A live match, and a live game's spectator, see the enemies as the game
-//! shows them. What is watched is set by the match's options read: a
-//! replay's chunk 1 (`replay.options_read`) or a live match's 0xE4
-//! (`static_info.options_read`), each before the match's world and its
-//! initialize_match. The interface only: nothing a match computes.
+//! **A match never gets this.** There is no state of ours that says "a
+//! replay": each hook asks the game's own network client what it is, by its
+//! class (`vostok::world::Playback`: the replay_network_client's vtable, which
+//! only a `.sur` replay's client has). A live match, and a live game's
+//! spectator, are played by the network_client, and the hooks then leave the
+//! game's tests as they are. Making a live game take this path means making
+//! its network client another class, which ends its match; it is no easier
+//! than changing the game's own test. The interface only: nothing a match
+//! computes.
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::{
-    Context, Flow, GameCell, GameWorldUi, NoExit, ReplayMapOnEnemyExit, ReplayMapOnNameExit, Thread,
-};
+use crate::vostok::world::{GameWorld, Playback};
+use crate::vostok::{Context, Flow, GameWorldUi, NoExit, ReplayMapOnEnemyExit, ReplayMapOnNameExit};
 
-/// What the game shows: a live match or a replay. A byte, 0 or 1:
-/// check_replay_map_026g.py writes it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
-enum Watching {
-    /// A match played or spectated live (and before any match).
-    Live,
-    /// A `.sur` replay.
-    Replay,
-}
-
-impl Watching {
-    /// An enemy the game would show only while spotted: shown whatever.
-    fn shows_every_enemy(self) -> bool {
-        self == Watching::Replay
-    }
-}
-
-static WATCHING: GameCell<Watching> = GameCell::new(Watching::Live);
-
-fn watching(ctx: &Context<'_>) -> Watching {
-    WATCHING.get(ctx.thread())
-}
-
-fn watch(thread: &Thread, watching: Watching) -> Flow<NoExit> {
-    WATCHING.set(thread, watching);
-    Flow::Continue
-}
-
-/// process_static_match_info after its deserialize (0x27B92D).
-pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    watch(ctx.thread(), Watching::Live)
-}
-
-/// A replay's chunk 1 after its deserialize (0x1F0971).
-pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    watch(ctx.thread(), Watching::Replay)
+/// An enemy the game would show only while spotted: shown whatever, in a replay.
+fn shows_every_enemy(playback: Option<Playback>) -> bool {
+    playback == Some(Playback::Replay)
 }
 
 /// update_minimap_players at an enemy's spotted test (0x239505).
 pub fn on_enemy(ctx: &mut Context<'_>) -> Flow<ReplayMapOnEnemyExit> {
-    if watching(ctx).shows_every_enemy() { Flow::Exit(ReplayMapOnEnemyExit::Shown) } else { Flow::Continue }
+    if shows_every_enemy(GameWorld::at_minimap_enemy(ctx).map(|world| world.playback())) {
+        return Flow::Exit(ReplayMapOnEnemyExit::Shown);
+    }
+    Flow::Continue
 }
 
 /// render_name at an enemy's spotted test (0x1F2B50).
 pub fn on_name(ctx: &mut Context<'_>) -> Flow<ReplayMapOnNameExit> {
-    if watching(ctx).shows_every_enemy() { Flow::Exit(ReplayMapOnNameExit::Shown) } else { Flow::Continue }
+    if shows_every_enemy(GameWorld::at_name_enemy(ctx).map(|world| world.playback())) {
+        return Flow::Exit(ReplayMapOnNameExit::Shown);
+    }
+    Flow::Continue
 }
 
 /// initialize_match as it sends the icons movie its enemy list (0x235709,
 /// just before): the movie told whether to show them, before any marker.
 pub fn on_enemy_ids(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let shown = watching(ctx).shows_every_enemy();
+    let shown = shows_every_enemy(GameWorld::at_enemy_ids(ctx).map(|world| world.playback()));
     if let Some(movie) = GameWorldUi::at_enemy_ids(ctx).and_then(|ui| ui.icons_movie()) {
         movie.invoke_bool(c"root.srp_show_enemies", shown);
     }
@@ -94,12 +69,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_live_match_leaves_the_enemies_to_the_game() {
-        assert!(!Watching::Live.shows_every_enemy());
-    }
-
-    #[test]
-    fn a_replay_shows_every_enemy() {
-        assert!(Watching::Replay.shows_every_enemy());
+    fn only_a_replay_shows_every_enemy() {
+        assert!(shows_every_enemy(Some(Playback::Replay)));
+        assert!(!shows_every_enemy(Some(Playback::Match)));
+        assert!(!shows_every_enemy(None));
     }
 }

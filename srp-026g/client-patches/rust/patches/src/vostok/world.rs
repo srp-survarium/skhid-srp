@@ -66,6 +66,44 @@ impl<'t> GameWorld<'t> {
         let this = unsafe { self.this.game()?.network_client() }?;
         Some(NetworkClient { this, thread: self.thread })
     }
+
+    /// The world of the player at `minimap.enemy_spotted` (update_minimap_players' spotted test).
+    pub fn at_minimap_enemy(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: a place's player in the world and alive, which
+        // keeps its game world (+F474h), on the game's thread.
+        let this = unsafe { raw::site::minimap_enemy_spotted::player(ctx)?.game_world() }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The world of the player at `player_names.enemy_spotted` (render_name's spotted test).
+    pub fn at_name_enemy(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: as at_minimap_enemy: render_name's player, in the world.
+        let this = unsafe { raw::site::player_names_enemy_spotted::player(ctx)?.game_world() }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The hud's world at `player_icons.enemy_ids` (initialize_match).
+    pub fn at_enemy_ids(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: initialize_match's ui in ESI and its world (+18h), alive while it runs.
+        let this = unsafe { raw::site::player_icons_enemy_ids::ui(ctx)?.world() }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// What its game plays (a world with no client: a match).
+    pub fn playback(&self) -> Playback {
+        self.network_client().map_or(Playback::Match, |client| client.playback())
+    }
+}
+
+/// What the game plays, from its network client's class (its vtable), read at each ask: there is
+/// no flag of ours to set. A live match's client (and a live spectator's) is the network_client;
+/// a `.sur` replay's the replay_network_client, which no live match has.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Playback {
+    /// A match played or spectated live.
+    Match,
+    /// A `.sur` replay.
+    Replay,
 }
 
 /// The network client: the match's places and the local player.
@@ -78,6 +116,15 @@ impl<'t> NetworkClient<'t> {
     /// The client a site's typed register holds, on its hook's thread.
     pub(in crate::vostok) fn of(this: raw::NetworkClient, thread: &'t Thread) -> NetworkClient<'t> {
         NetworkClient { this, thread }
+    }
+
+    /// What it plays: its class (vtable +0), the one field both kinds of client share.
+    pub fn playback(&self) -> Playback {
+        // SAFETY: the client, alive for the hook; its vtable is its first word.
+        match unsafe { read(self.this.vtable()) } {
+            raw::image::REPLAY_CLIENT_VTABLE => Playback::Replay,
+            _ => Playback::Match,
+        }
     }
 
     /// The match's places' count (0 without match options).

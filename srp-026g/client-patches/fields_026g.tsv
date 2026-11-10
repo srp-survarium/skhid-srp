@@ -996,3 +996,5 @@ vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_mal
 vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
 vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
 vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
+survarium::network_client	vtable	0x0	u32	its class: 0x9FFB14 a live match's network_client (its ctor writes it at 0x219E7C), REPLAY_CLIENT_VTABLE a .sur replay's replay_network_client (0x218A7C); every other field of this kind is the live client's
+survarium::image	replay_client_vtable	0x9FF344	u32	replay_network_client's vtable (its ctor 0x218A40 writes it at 0x218A7C, its destructor at 0x218BC3; slot +54h is_this_place_mine, patch 24): the game's network client (+53ACh) while a .sur replay plays

@@ -5,10 +5,12 @@ shows every player", docs/notes/replay-map.md).
     python check_replay_map_026g.py <original survarium.exe>
 
 Its three sites run in the original and the patched exe on made-up objects.
-The patch's state (replay_map's WATCHING, patches.state) is written as the
-options reads leave it: 0 a live match (and before any), 1 a replay. The
-local player is on team 1; the other player on team 1 (a teammate) or 2 (an
-enemy), spotted (+348h 5) or not (0).
+What the game plays is its network client's class, as the patch reads it:
+the player's (or the ui's) game world +9Ch the game, +53ACh its client, whose
+vtable is the network_client's (0x9FFB14, a live match), the
+replay_network_client's (0x9FF344, a replay), or there is no client (0). The
+patch keeps no state of its own. The local player is on team 1; the other
+player on team 1 (a teammate) or 2 (an enemy), spotted (+348h 5) or not (0).
 
 - update_minimap_players' tests (0x2394EB, the team test, to where they part:
   the dot listed 0x23951B or dropped 0x23950D);
@@ -17,13 +19,14 @@ enemy), spotted (+348h 5) or not (0).
   (local team 2) every player going on;
 
   the original: a teammate goes on, an enemy only while spotted; the patched
-  exe the same in a live match, every enemy in a replay; each with every
+  exe the same in a live match and with no client, every enemy in a replay;
+  each with every
   register (ESP too) the original's where it stops (the original's ja
   between the two changes none);
 - initialize_match before its root.set_enemy_icon_ids (0x235709, ESI the ui)
   to past the replayed `mov ecx,[esi+10h] / mov edx,[ecx+108h]` (0x235712):
   the icons movie ([[ui+10h]+108h]+4) told root.srp_show_enemies(false) in a
-  live match, (true) in a replay; no icons movie (its holder's movie 0),
+  live match and with no client, (true) in a replay; no icons movie (its holder's movie 0),
   nothing told; the registers and the stack at and above ESP the original's
   (Scaleform's Invoke 0x511600 a stub that records).
 """
@@ -37,8 +40,7 @@ from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EBX, U
 import patch_026g as base
 
 THREAD_SLOT = 0x870118                    # GetCurrentThreadId's import
-STATE = "10replay_map8WATCHING"           # the static's mangled name holds this
-LIVE, REPLAY = 0, 1
+LIVE_CLIENT, REPLAY_CLIENT, NO_CLIENT = 0x9FFB14, 0x9FF344, None   # network_client's, replay_network_client's
 TEAMMATE, ENEMY, NO_TEAM = 1, 2, 2
 
 DOTS, DOT_LISTED, DOT_DROPPED = 0x2394EB, 0x23951B, 0x23950D
@@ -48,9 +50,9 @@ INVOKE = 0x511600                         # GFx::Movie::Invoke: thiscall (name, 
 GFX_BOOL = 2
 
 DATA = 0x30000000
-LOCAL, PLAYER, LOCAL_TEAM, PLAYER_TEAM, THREAD, UI, HOLDER, MOVIE_UI = (DATA + 0x10000 * i for i in range(8))
-ICONS_MOVIE = DATA + 0x90000
-DATA_SIZE = 0xA0000
+LOCAL, PLAYER, LOCAL_TEAM, PLAYER_TEAM, THREAD, UI, HOLDER, MOVIE_UI, ICONS_MOVIE, WORLD, GAME_OBJ, CLIENT = (
+    DATA + 0x10000 * i for i in range(12))
+DATA_SIZE = 0xC0000
 STACK = 0x21000000
 GAME = {UC_X86_REG_EBX: 0x0B0B0B0B, UC_X86_REG_ECX: 0x0C0C0C0C, UC_X86_REG_EDX: 0x0D0D0D0D,
         UC_X86_REG_EBP: 0x0019FF00, UC_X86_REG_ESI: 0, UC_X86_REG_EDI: 0x0E0E0E0E}
@@ -92,8 +94,15 @@ class Game:
         emu.reg_write(UC_X86_REG_ESP, sp + 4 + 16)
         emu.reg_write(UC_X86_REG_EIP, self.read(sp))
 
-    def players(self, team, spotted):
+    def players(self, team, spotted, client):
         self.emu.mem_write(DATA, bytes(DATA_SIZE))
+        for player in (LOCAL, PLAYER):
+            self.word(player + 0xF474, WORLD)
+        self.word(UI + 0x18, WORLD)
+        self.word(WORLD + 0x9C, GAME_OBJ)
+        if client is not None:
+            self.word(GAME_OBJ + 0x53AC, CLIENT)
+            self.word(CLIENT, client)
         self.emu.mem_write(THREAD, bytes.fromhex("b801000000c3"))     # GetCurrentThreadId: mov eax,1 / ret
         self.word(THREAD_SLOT, THREAD)
         self.word(LOCAL + 0x6B8, LOCAL_TEAM)
@@ -116,16 +125,16 @@ class Game:
         return (self.stopped, {reg: self.emu.reg_read(reg) for reg in REGS},
                 bytes(self.emu.mem_read(sp, 0x100)), self.told)
 
-    def dot(self, team, spotted):
-        self.players(team, spotted)
+    def dot(self, team, spotted, client):
+        self.players(team, spotted, client)
         return self.run(DOTS, (DOT_LISTED, DOT_DROPPED), {UC_X86_REG_EAX: PLAYER, UC_X86_REG_EDI: LOCAL})
 
-    def name(self, team, spotted, local_team=TEAMMATE):
-        self.players(team, spotted)
+    def name(self, team, spotted, client, local_team=TEAMMATE):
+        self.players(team, spotted, client)
         return self.run(NAMES, (NAME_ON, NAME_HIDDEN), {UC_X86_REG_ESI: PLAYER, UC_X86_REG_ECX: local_team})
 
-    def ids(self, movie):
-        self.players(TEAMMATE, 0)
+    def ids(self, movie, client):
+        self.players(TEAMMATE, 0, client)
         self.word(UI + 0x10, HOLDER)
         self.word(HOLDER + 0x108, MOVIE_UI)
         self.word(MOVIE_UI + 4, ICONS_MOVIE if movie else 0)
@@ -138,8 +147,6 @@ def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
-    state = [va for name, va, block, _ in base.arena().every if STATE in name and block == "patches.state"]
-    assert len(state) == 1, state
     stock, patched = Game(original), Game(bytes(built))
     failed = 0
 
@@ -151,28 +158,29 @@ def main():
     players = (("a teammate", TEAMMATE, 0), ("a teammate, spotted", TEAMMATE, 5),
                ("an enemy, not spotted", ENEMY, 0), ("an enemy, spotted", ENEMY, 5))
     stock_goes = (True, True, False, True)
-    for watching, match in ((LIVE, "a live match"), (REPLAY, "a replay")):
-        patched.emu.mem_write(state[0], bytes([watching]))
+    for client, match in ((LIVE_CLIENT, "a live match"), (NO_CLIENT, "no network client"),
+                          (REPLAY_CLIENT, "a replay")):
+        replay = client == REPLAY_CLIENT
         for (who, team, spotted), stock_on in zip(players, stock_goes):
-            goes = stock_on or watching == REPLAY
+            goes = stock_on or replay
             for what, run, on, off in (("its dot", Game.dot, DOT_LISTED, DOT_DROPPED),
                                        ("its marker and name", Game.name, NAME_ON, NAME_HIDDEN)):
-                a = run(stock, team, spotted)
-                b = run(patched, team, spotted)
+                a = run(stock, team, spotted, client)
+                b = run(patched, team, spotted, client)
                 report(a[0] == (on if stock_on else off) and b[0] == (on if goes else off) and a[1] == b[1],
                        f"{match}, {who}: {what} {'shown' if goes else 'hidden'}; the registers the original's")
-        a = stock.name(ENEMY, 0, NO_TEAM)
-        b = patched.name(ENEMY, 0, NO_TEAM)
+        a = stock.name(ENEMY, 0, client, NO_TEAM)
+        b = patched.name(ENEMY, 0, client, NO_TEAM)
         report(a[0] == b[0] == NAME_ON and a[1] == b[1] and b[3] == [],
                f"{match}, no local player: an enemy's marker and name shown, as the original")
 
         for movie in (True, False):
-            a = stock.ids(movie)
-            b = patched.ids(movie)
-            want = [(ICONS_MOVIE, "root.srp_show_enemies", (watching,))] if movie else []
+            a = stock.ids(movie, client)
+            b = patched.ids(movie, client)
+            want = [(ICONS_MOVIE, "root.srp_show_enemies", (int(replay),))] if movie else []
             report(a[0] == b[0] == IDS_PAST and a[1] == b[1] and a[2] == b[2] and a[3] == [] and b[3] == want,
                    f"{match}, initialize_match's enemy list: "
-                   + (f"the icons movie told srp_show_enemies({bool(watching)})" if movie else "no icons movie, nothing told")
+                   + (f"the icons movie told srp_show_enemies({replay})" if movie else "no icons movie, nothing told")
                    + "; the replayed movs, the registers and the stack the original's")
 
     if failed:

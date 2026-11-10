@@ -1,21 +1,9 @@
 # Patch 135: a replay shows the enemies too (README "A replay shows every
-# player"). The sites are sites_026g.tsv's; the logic is replay_map.rs. The
-# two options reads are patches 65, 83, 86 and 88's sites too: order 4 on
-# both.
+# player"). The sites are sites_026g.tsv's; the logic is replay_map.rs. Each
+# hook asks the game's network client whether it plays a replay (its class);
+# there is no state of ours to set.
 name = "replay_map"
 patch = 135
-
-# A live match's options read: a match, enemies as the game shows them.
-[[hook]]
-site = "static_info.options_read"
-handler = "on_static_info"
-order = 4
-
-# A replay's chunk 1: a replay, every enemy shown.
-[[hook]]
-site = "replay.options_read"
-handler = "on_replay_options"
-order = 4
 
 # update_minimap_players' spotted test of an enemy: its dot.
 [[hook]]
