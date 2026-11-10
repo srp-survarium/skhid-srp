@@ -1328,6 +1328,7 @@ va	status	ref_021d	name
 0x0023c2e0	inferred-high	0x001840e5	survarium::game_world_ui::remove_effect
 0x0023c340	inferred-high	0x0018412b	survarium::game_world_ui::set_stamina
 0x0023c930	inferred-medium	0x00184300	survarium::game_world_ui::set_quests_progress
+0x0023d070	inferred-medium		survarium::game_world_ui::update_game_stats
 0x0023db80	inferred-medium	0x0017e3a3	survarium::base_game_scene::`scalar deleting destructor'
 0x0023dba0	inferred-medium	0x0017e3bf	survarium::base_game_scene::~base_game_scene
 0x0023ddb0	inferred-medium	0x0017e5ad	survarium::base_game_scene::on_deactivate
