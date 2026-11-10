@@ -514,8 +514,7 @@ impl Gather {
                     if let Ok(prepare) = late_join::Prepare::decode(&whole, dictionary) {
                         let first = self.prepared.entry(prepare.proposal.place).or_insert(clock);
                         *first = (*first).min(clock);
-                    } else if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary)
-                    {
+                    } else if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary) {
                         let roster = parsed.players.len() as u8;
                         place.roster = roster;
                         self.options
