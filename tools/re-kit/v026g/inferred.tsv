@@ -3423,3 +3423,42 @@ va	status	ref_021d	name
 0x0010f8c0	inferred-high		vostok::memory::mt_region::take
 0x0010f980	inferred-high		vostok::memory::mt_region::give
 0x0001c6a0	inferred-high		vostok::memory::mt_allocator::malloc_impl
+0x00038960	inferred-medium		vostok::math::sqrt
+0x00038ff0	inferred-medium		vostok::math::sin
+0x00039000	inferred-medium		vostok::math::cos
+0x0003a890	inferred-medium	0x0002b197	vostok::collision::loose_oct_tree::for_each_iterate<void (__cdecl*)(vostok::collision::object const *)>
+0x0003c7e0	inferred-high	0x0002c870	vostok::collision::colliders::cuboid_object::query
+0x00079c40	inferred-medium		vostok::math::atan2
+0x0008d680	inferred-high	0x0005da03	btConvexShape::localGetSupportVertexWithoutMarginNonVirtual
+0x000951e0	inferred-medium	0x00063998	btAxisSweep3Internal<unsigned short>::sortMinDown
+0x000952f0	inferred-medium	0x00063a7a	btAxisSweep3Internal<unsigned short>::sortMinUp
+0x000b6710	inferred-high	0x000a0d1f	btSimulationIslandManager::updateActivationState
+0x000c2ff0	inferred-medium	0x00094d9b	btQuantizedBvh::walkStacklessQuantizedTreeAgainstRay
+0x000d1280	inferred-medium	0x000a53bb	btVoronoiSimplexSolver::updateClosestVectorAndPoints
+0x000d1ed0	inferred-high	0x000a5ca5	btVoronoiSimplexSolver::closestPtPointTriangle
+0x000d6cd0	inferred-medium	0x000a689f	btGjkPairDetector::getClosestPointsNonVirtual
+0x000ed2e0	inferred-high	0x000b67d6	vostok::math::quaternion::quaternion
+0x000eea10	inferred-medium	0x000b7e87	vostok::math::mul4x4
+0x000f1fd0	inferred-high	0x000bb117	vostok::math::aabb::modify
+0x000f2bc0	inferred-high	0x000bbb88	vostok::math::cuboid::test_inexact
+0x001073b0	inferred-high	0x000c9e94	vostok::math::aabb_plane::test
+0x0014e800	inferred-high	0x000f2533	vostok::math::normalize_safe
+0x001c8b90	inferred-medium	0x0013d36a	vostok::render::render_surface_texture_instance_proxy::texel_factor
+0x003b1450	inferred-high	0x0025f8ff	vostok::animation::mixing::n_ary_tree_time_scale_calculator::visit
+0x003b1c10	inferred-medium	0x0025ff46	mix_rotations
+0x003b2050	inferred-medium	0x0026022f	vostok::animation::bone_matrices_computer::computed_local_bone_transform
+0x003b3180	inferred-medium	0x00260e7f	vostok::animation::evaluate_frame
+0x003b3340	inferred-medium		vostok::animation::time_channel::domain
+0x00405490	inferred-high	0x00295a60	stlp_std::priv::_Rb_global<bool>::_M_increment
+0x00422380	inferred-high	0x002b0c30	strstr
+0x00511ca0	inferred-high	0x00378440	Scaleform::GFx::MovieImpl::AdvanceFrame
+0x00583280	inferred-high	0x003e4c90	Scaleform::GFx::Sprite::CheckAdvanceStatus
+0x00585140	inferred-high	0x003e6a90	Scaleform::GFx::Sprite::AdvanceFrame
+0x006db040	inferred-high	0x005203b0	Scaleform::GFx::AS3::RefCountBaseGC<328>::ReleaseInternal
+0x0070c030	inferred-high	0x00550900	Scaleform::GFx::AS3::Slots::GetSlotInfo
+0x0078d900	inferred-high	0x005cd780	Scaleform::GFx::AS3::Value::ReleaseInternal
+0x00793120	inferred-high	0x005d20f0	Scaleform::GFx::AS3::FindFixedSlot
+0x0079ff40	inferred-high	0x005de580	Scaleform::GFx::AS3::FrameCounter::QueueFrameActions
+0x007bd6a0	inferred-high	0x005f9af0	Scaleform::GFx::AS3::VM::ExecuteCode
+0x007c2180	inferred-high	0x005fdf70	Scaleform::GFx::AS3::Value::Convert2String
+0x007ca880	inferred-high	0x006065b0	Scaleform::GFx::AS3::Object::FindDynamicSlot
