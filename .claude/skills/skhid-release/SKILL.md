@@ -138,12 +138,16 @@ release/release.sh --dry-run         [--resources ...]
 release/release.sh                   [--resources ...]
 ```
 
+**Starting release.sh without `--dry-run` IS the release.** It asks
+nothing: no go, no y/N, no flag to confirm. An agent starts it only on the
+owner's word for that release, and runs `--dry-run` first.
+
 Show the owner each dry run's output (every read-only check runs; every
-other command is printed; nothing is planned or written). Then the same
-without `--dry-run`: after its preflight it prepares and stages
-everything (nothing players see), then waits for **the go**, and the
-go is the owner's to give (below). The go is its only question: nothing
-is asked after it.
+other command is printed; nothing is planned or written). Then, on the
+owner's word, the same without `--dry-run`: its preflight, then everything
+prepared and staged and the self-test's result (nothing players see; a
+failure there stops with nothing planned), and only after all of these
+passed the maintenance is planned and the swap follows.
 
 ## What is offered: release/patches.tsv
 
@@ -235,9 +239,9 @@ with its `mapdata/` and `bot-routes/` works as it is).
 
 `release.sh` checks the folder against the list in the preflight (**a missing
 or different file, or `SKHID_BOT_DATA` unset, is a problem: the release stops
-before the go**), compares each file with the volume's own (a read), prints
-what differs in the plan, stages those in the release folder before the
-go (sha256 checked there) and, at the swap, with srp26 stopped, copies
+before the plan**), compares each file with the volume's own (a read), prints
+what differs in the plan, stages those in the release folder in step 2
+(sha256 checked there) and, at the swap, with srp26 stopped, copies
 them into the volume (the owner and mode of `srp.db`; an atomic rename; the old
 ones kept in the folder as `old-bot-data/`, `bot-data.log` says `replaced` or
 `created`). A failed check rolls them back with the rest (`rollback.sh`: the
@@ -279,7 +283,7 @@ release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
                    [--minutes <n> | --no-maintenance] [--now]
                    [--match-wait <minutes>] [--label <word>] [--ref <branch>]
                    [--no-bot-data] [--worlds <folder>] [--no-selftest]
-                   [--dry-run] [--yes --i-know]
+                   [--dry-run]
 ```
 
 `--no-selftest` skips the exe patches' self-test (step 2), for a **quick fix
@@ -289,11 +293,10 @@ summary, and written in the tag's message and the record's commit ("Shipped
 WITHOUT the exe patches' self-test"), so it stays visible which release went
 without it.
 
-After the preflight it **prepares and stages everything before the go**,
+After the preflight it **prepares and stages everything before the plan**,
 which players don't see (a patch no list offers yet, the release folder,
 the server's image, built on this machine and loaded on the host, which
-compiles nothing: its one core keeps the running matches); then it waits for the owner's go; at
-the go it plans the maintenance at once, to start **30 seconds after the
+compiles nothing: its one core keeps the running matches); then, every check passed, it plans the maintenance at once, to start **30 seconds after the
 last running match ends**, so Play locks and no new match starts, and at
 its end (or as soon as no match has run for 30 s), swaps it all in at once (the downtime is the
 restart). Players wait only for the matches that run, never for a build.
@@ -336,7 +339,7 @@ The order, as it runs:
    unpacker checked out as `tools/vostok-resources-db` in the main checkout,
    or `$SKHID_DBGRAB`). Nobody rebuilds them by hand before a release. The
    rebuild comes after the other checks and is skipped when one of them
-   failed. A failed rebuild is a problem like any other: the run stops before the go.
+   failed. A failed rebuild is a problem like any other: the run stops before the plan.
    The server's source carries the rebuilt pages, so the server code is
    built (`--server-code no` is refused then, by the dry run too). Last, which server-code
    files differ, which settings
@@ -355,7 +358,7 @@ The order, as it runs:
    the new server checks an upload before it relays it, with the new
    server data (`srp-world-check --data <it> <recordings>`, the match
    server's own `world_validation::check`): one world refused, or none
-   checked, stops the release here, before the go, and prints the
+   checked, stops the release here, before the plan, and prints the
    refusals (section and offset; the refused worlds kept in the run's
    `worlds-refused/`). A refusal is a check, a server data or a game's
    writing that changed: never ship over it. A release that changes what
@@ -370,7 +373,7 @@ The order, as it runs:
    `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
    Python unicorn, its builds on every core, about 5 min, ~0.4 GB; log
    `selftest.log` in the run's work folder), while the rest of this step
-   runs; its result is waited for last, before the go: a failed check stops
+   runs; its result is waited for last, before the plan: a failed check stops
    the release there like any failure of this step (the patch's fix is a
    PR, then a new run; `--no-selftest`: none, see above). It is the release's check of the exe's general rules (no byte
    changed undeclared, no relocation or branch into a rewritten byte, every
@@ -387,7 +390,7 @@ The order, as it runs:
    the new one `srp-026g:latest` (the running container is not touched).
    Then the self-test's result (`waiting for the exe patches' self-test`).
    The local builds run at nice 10. A failure here (a stop too: it kills
-   the self-test still running) stops before the go: the staged files removed, the
+   the self-test still running) stops before the plan: the staged files removed, the
    image tag put back, nothing planned, and the new patch's row taken out
    of the list again (no server offered it). The file goes from the
    patches server too when this run uploaded it, so the revision can be
@@ -397,27 +400,23 @@ The order, as it runs:
    **The first release with server code after #1395 proves the image path**
    (owner, 2026-11-06: merged untested on a server, "we will test during
    release"). Until one has, no server has ever loaded an image built here.
-   In that release, before the go, check and tell the owner: step 2 printed
+   In that release, before the plan, check and tell the owner: step 2 printed
    `Loaded image: srp-026g:latest`; on the live host
    `docker image inspect -f '{{.Id}} {{.Created}}' srp-026g:latest` is a new
    ID, created minutes ago, and `srp-026g:before-rev<rev>-<stamp>` names
    the running one; after the swap, srp26 runs the new ID (the release's own
    checks) and logs its game data line. Write the outcome into the release
    record. If the build here or the load fails, the release stops before the
-   go with nothing players feel: report it to the owner; building on the host
+   plan with nothing players feel: report it to the owner; building on the host
    instead (`docker compose build srp26` over the folder's `src.tar`, unpacked) only on the
    owner's word.
-3. **The go.** Once staged it shows what changes ("On the live host
-   now / It becomes"), stops and waits: y at its prompt (n stops), or
-   `touch` the go file it prints
-   (`~/.cache/skhid-release/go-<release folder>`). **The go is the
-   owner's**: it is their word that players may feel the release from now
-   on, and the maintenance is planned the moment it is given. Ask the
-   owner, and give it only when they say so. It is the only question:
-   nothing is asked after it, so from the go on the release runs to its
-   end (or to a stop: a failed check, Ctrl-C). Nothing is planned before
-   it; a Ctrl-C there removes the staged files and frees the lock.
-4. **The maintenance, at once after the go**: a POST to the admin page
+3. **What changes.** Once staged it shows what changes ("On the live host
+   now / It becomes") and goes on at once: it asks nothing, here or later
+   (the owner's word was the start of the run). The maintenance is planned
+   only now, after the preflight, the staging and the self-test's result
+   all passed; from here the release runs to its end (or to a stop: a
+   failed check, Ctrl-C).
+4. **The maintenance, at once**: a POST to the admin page
    (`tab=maint`, `minutes`) from the jump host, whose address must be in
    the target's `SRP_ADMIN_IPS` (behind Caddy with
    `SRP_WEB_TRUST_PROXY=on`). The admin path and token are read from the
@@ -435,7 +434,7 @@ The order, as it runs:
      page's matches + 1 (30 s, rounded up), when the page gives one for
      every running match (≤ 9 min: 10); else a whole match and 30 s, 16.
      The log says which.
-   - `--minutes <n>`: `<n>`, planned at the same point (right after the go).
+   - `--minutes <n>`: `<n>`, planned at the same point (right after the staging).
    - `--no-maintenance` or `--now`: nothing is planned (below).
 5. **The swap, at the planned time at the latest**: while it waits for it, it reads
    `/api/stats` every quarter of a minute, and once `"matches":0` has held 30 s (the
@@ -523,20 +522,16 @@ names`, `srp: SRP_MIN_PATCH_REVISION is …`, `srp: cannot load the 0.26g
 accounts: … lacks …` — and runs the folder's rollback at once, then checks
 srp26 is up and `/patches` is as before.
 
-A **stop after the lock and before the swap** (a failure, a no, Ctrl-C,
+A **stop after the lock and before the swap** (a failure, Ctrl-C,
 during the build too) cancels the maintenance when it was planned (only
-after the go), removes the staged files (the folder stays, state
+after step 2 passed), removes the staged files (the folder stays, state
 `stopped`, with its release.log) and puts the image tag back: the server
-is as it was. A published patch: after the go it stays with its row
-(the next run goes without `--resources`); before the go its row goes,
+is as it was. A published patch: after the staging it stays with its row
+(the next run goes without `--resources`); before the plan its row goes,
 and the file too when this run uploaded it (step 2). A stop in the swap before anything moved starts srp26
 again as it was.
 
-`--yes --i-know` (both or neither) gives the go with the command: nothing
-is asked at all, and the maintenance is planned as soon as all is staged.
-Only when the owner gave the go for that very command.
-
-Every wait (the go, the wait for the planned time, for
+Every wait (the wait for the planned time, for
 `"matches":0`) answers Ctrl-C within a second or two: its sleeps are
 `sleep & wait`, which a trap interrupts.
 
@@ -545,8 +540,8 @@ Every wait (the go, the wait for the planned time, for
 When the owner doesn't want a countdown (a small fix, few players on),
 `--no-maintenance` skips it: no maintenance is planned and the admin page is
 never asked (the preflight doesn't check it, nor `SRP_ADMIN_*` and
-`SRP_WEB_TRUST_PROXY`). Everything is staged before the go as in the
-default; after the go it waits for `"matches":0` on `$TARGET_SITE/api/stats`
+`SRP_WEB_TRUST_PROXY`). Everything is staged before the plan as in the
+default; after the staging it waits for `"matches":0` on `$TARGET_SITE/api/stats`
 (`--match-wait`, default 120 min here; past it, a clean stop: nothing
 swapped, the staged files removed, state `stopped`) and shows what changes.
 Right before it stops srp26 it asks `/api/stats` once more: a match begun
@@ -556,17 +551,17 @@ meanwhile is waited for (within the same limit), and the stop follows a
 What players see: those in a running match lose nothing (the swap waits for
 `matches:0`); those in the lobby get a ~30 s "server sync" while srp26 is
 made anew and reconnect by themselves; the launcher shows no countdown.
-The progress lines show the time since the go instead of the time to
+The progress lines show the time since the staging instead of the time to
 the planned end. `--minutes` and `--no-maintenance` are refused together.
 
 ### Right now: --now
 
 `--now` means now: **no maintenance is planned and no notice given**.
-Staged before the go as in the default; after the go it swaps at once, **matches running
+Staged before the plan as in the default; after the staging it swaps at once, **matches running
 or not**: they end without results. Right before it stops srp26 it says
 how many matches run (`--now: <n> match(es) running: the stop ends them
 now, WITHOUT RESULTS`), and its last lines say how many it ended; both are
-in the folder's release.log. It still needs the go, and still rolls back
+in the folder's release.log. It still rolls back
 by itself when the new srp doesn't
 come up. `--now --no-maintenance` is the same thing (accepted, with a
 note); `--now --minutes` is refused; `--match-wait` is ignored. Use it only
@@ -598,15 +593,15 @@ preflight: look at its `release.log`, finish or roll it back, then write
 ### What to watch
 
 - The preflight: every line `ok`.
-- Before the go: the builds and the staging (`2. ...`), the self-test
+- Before the plan: the builds and the staging (`2. ...`), the self-test
   beside them, its result last (`the exe patches' self-test: all checks
-  passed`), then `3. waiting for the go`.
-- After the go: the plan's line at once, with its minutes and where they
+  passed`), then what changes and `3. all staged, every check passed`.
+- After the staging: the plan's line at once, with its minutes and where they
   come from (`/api/stats`, the launcher page, or a whole match), and the
   launcher countdown (none with `--no-maintenance` or `--now`); then `5.
   waiting for the planned time` and the swap.
 - The ZIP's entries against the current ZIP (build-zip's list, shown again
-  before the go, at the swap and in `changed.txt`): `survarium_skhid.exe`,
+  before the plan, at the swap and in `changed.txt`): `survarium_skhid.exe`,
   `updater_skhid.exe` and `bugtrap.dll` always differ (the revision: the
   exe's byte, the other two's version resource, built with
   `SKHID_REVISION=<n>`; players get the new updater at their next launcher
