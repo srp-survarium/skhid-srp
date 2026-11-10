@@ -167,8 +167,9 @@ pub fn on_sound_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let silent = SILENT.load(Ordering::Acquire);
     if SILENCED.load(Ordering::Relaxed) != silent
         && let Some(tick) = SoundTick::at(ctx)
+        && tick.master_volume(if silent { Volume::SILENT } else { Volume::FULL })
     {
-        tick.master_volume(if silent { Volume::SILENT } else { Volume::FULL });
+        // only what was set: a world with no voice yet is asked again
         SILENCED.store(silent, Ordering::Relaxed);
     }
     Flow::Continue

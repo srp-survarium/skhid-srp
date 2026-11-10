@@ -228,15 +228,16 @@ impl<'t> SoundTick<'t> {
     /// (IXAudio2Voice::SetVolume, at once). The game never sets it (it is
     /// XAudio2's 1.0), reads no setting for it and saves none, so
     /// [`Volume::FULL`] puts back exactly what was. Under patch 100 the voice
-    /// is its proxy, which sets a rebuilt device's voice to the same.
-    pub fn master_volume(&self, volume: Volume) {
+    /// is its proxy, which sets a rebuilt device's voice to the same. False
+    /// when the world has no mastering voice (nothing was set).
+    pub fn master_volume(&self, volume: Volume) -> bool {
         // SAFETY: on the sound thread, which makes, rebuilds and destroys
         // the mastering voice (initialize_xaudio 0x59080, patch 100's rebuild
         // before this site): alive here when the world has one.
         unsafe {
-            if let Some(master) = self.world.master() {
-                raw::engine_voice_set_volume(Some(master), volume.get(), 0);
-            }
+            let Some(master) = self.world.master() else { return false };
+            raw::engine_voice_set_volume(Some(master), volume.get(), 0);
+            true
         }
     }
 }
