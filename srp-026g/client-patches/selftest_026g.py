@@ -988,7 +988,15 @@ def test_rust_hooks(original, image, before):
     for h in hooks_026g.hooks(exe=hooks_026g.original_reader(original)):
         if h["kind"] == "lohook":
             entry = linked.symbols[h["entry"]]
-            texts = [text for _, _, text in ndisasm(image.read(entry, 0x60), entry)]
+            texts = [text for _, _, text in ndisasm(image.read(entry, 0x80), entry)]
+            if h.get("only"):
+                # `only`: the register tested against its bit set, nothing saved, before the prologue
+                _, reg, _ = h["only"]
+                only = linked.symbols[h["entry"] + "_only"]
+                head, texts = texts[:8], texts[8:]
+                if (head[0] != "pushf" or head[1] != f"cmp {reg},0x100" or head[3] != f"bt [dword {only:#x}],{reg}"
+                        or [head[5], head[7]] != ["popf", "popf"] or not head[6].startswith("jmp ")):
+                    bad.append(f"{h['site_name']}: {h['entry']} does not test {reg} against {h['entry']}_only first")
             if texts[:5] != prologue or f"call {linked.symbols[h['shim']]:#x}" not in texts:
                 bad.append(f"{h['site_name']}: {h['entry']} is no lohook entry calling {h['shim']}")
     on_demand = [h for h in hooks_026g.hooks(exe=hooks_026g.original_reader(original)) if h.get("on_demand")]

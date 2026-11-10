@@ -15,7 +15,8 @@
 //!   and returns a [`Flow`]; state shared between hooks is a [`GameCell`].
 //!
 //! - state shared between hooks on several of the game's threads (the
-//!   draws, the bullets) is a [`Lock`]; the ragdoll's world ([`world`]), the
+//!   draws, the bullets) is a [`Lock`], a value only its own thread may
+//!   touch a [`ThreadBound`] in it; the ragdoll's world ([`world`]), the
 //!   draw's sites ([`draw`]), the camera's ([`camera`]), a bullet's ray
 //!   ([`bullet`]), the machine's clock ([`clock`]) and the opt-in
 //!   diagnostics ([`trace`]) are patch 76's.
@@ -85,7 +86,7 @@ mod generated {
     #[allow(unused_imports)]
     use super::context::{Context, Flow, Frame};
     #[allow(unused_imports)]
-    use super::hook::{Handle, Out, Thread};
+    use super::hook::{Handle, Only, Out, Thread};
     #[allow(unused_imports)]
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
@@ -100,7 +101,7 @@ mod generated {
 }
 
 pub use cell::GameCell;
-pub use sync::{Lock, YieldingLock};
+pub use sync::{Lock, ThreadBound, ThreadId, YieldingLock};
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{CallbackEntry, Handle, InstallRefused, OnDemand, Out, Regs, Thread};
@@ -139,6 +140,7 @@ pub mod artefact_skills;
 pub mod keeper;
 pub mod effect;
 pub mod animation_id;
+pub mod bake_gpu;
 pub mod deserialize;
 pub mod effect_presenter;
 
