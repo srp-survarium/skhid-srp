@@ -145,6 +145,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
 | `rust/patches/src/animation_math.rs`, `src/animation_math.toml`, `src/vostok/trig.rs`, `animation_math_026g.asm`, `check_animation_math_026g.py` | Patch 136: the animation's sines, cosines and atan2 (nine calls of the x87's fsin, fcos, fpatan whose results are stored as floats at once) computed with SSE2 doubles where the float is provably the x87's, the game's own function otherwise; time_channel::domain's knot search without a `div` per try. The same floats; the check runs the game's functions in both exes (needs Unicorn), the crate's ignored test every float against the CPU's x87 (`../docs/notes/client_patch.md` section 3.80) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
+| `rust/patches/src/particle_census.rs`, `src/particle_census.toml`, `src/vostok/particle.rs`, `src/vostok/simulation.rs`, `check_particle_census_026g.py` | Patch 138: a census of live particles by effect name, and of the simulation's re-runs, for the owner and for workers' local tests, never players: on with `SKHID_PARTICLE_CENSUS=1` in the game's environment. Off, the exe keeps the game's bytes at its six sites (installed on demand, written at the start only when on). On, it reads only and writes a report to `srp_patches.log` every 10 s: mean particle system instances, emitter instances and live particles (those of instances the game hid apart), the world's particle count against its cap, the top names by particles and by instances made a second, and one line of the simulation (steps and step parts, rollbacks and the grid steps they re-ran, live bullets, bullet rays); its check runs the six sites on made-up objects in both exes and reads the report (needs Unicorn; `../docs/notes/client_patch.md` "Particle census") |
 | `rust/patches/src/texture_streaming.rs`, `src/texture_streaming.toml`, `src/vostok/streaming.rs`, `check_texture_streaming_026g.py` | Patch 137: texture streaming's per-frame bookkeeping in Rust, the same values: scene::update_streaming_data (every streaming record from its proxy, the three proxy classes' virtuals read once by their vtable, one square root a surface) and resource_manager::get_texture_video_memory_size (the registry's texture memory without the "$user$" names, searched 16 bytes at a time); two lohooks, each the whole function; its check runs both functions on made-up scenes and registries in both exes, every byte the same, and counts their instructions (needs Unicorn; `../docs/notes/client_patch.md` section 3.79) |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
@@ -5212,6 +5213,47 @@ waiters yield after a few spins (`vostok::YieldingLock`). `../scripts/memory-pro
 prints each arena's use, holes and top call sites by live and peak bytes (named from the re-kit) and the
 address-space budget. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
+
+## The particle census (patch 138, unreleased)
+
+The owner's profile gives particles about a tenth of the main thread, nearly all of it per live particle,
+with no call stacks: it cannot tell artefact glows from muzzle flashes, impacts, smoke and weather. Patch
+138 counts live particles by effect name in a real match. It is the owner's tool, and a worker's when a
+local test needs it; players never set its switch: `SKHID_PARTICLE_CENSUS=1` (or `on`) in the game's
+environment, read once at the process's start (the owner: `SKHID_PARTICLE_CENSUS=1 ./Skhid-local.sh
+launcher`; Windows: `set` it before `Skhid.bat`; run.py passes its own environment on to its clients, so
+it is on there only when run.py is started with it). The output is in `srp_patches.log`, in the game's
+folder next to the exe (`game/binaries/x86`).
+
+**Off** (every player's game): the exe keeps the game's bytes at the six sites; what runs is one more
+handler of `memory.arenas_ready`, once at the start, reading the variable. **On**: the six jumps are
+written there (`vostok::particle::start`, checked to run in allocate_region's frame, once, while only the
+main thread runs; a refusal writes nothing and logs why). From then on it only reads:
+
+- **Names and creations.** At `particle_system_instance_cook::on_materials_loaded` (0x3627F0), the cook's
+  last step for every new particle system instance, the instance's template is named by the path its
+  query asked for, and the name counts one instance made and its emitter instances (one material query
+  each). The cook never reuses an instance, so every effect cooked anew shows here.
+- **Samples.** At `particle_world::tick` (0x35AE10), about once a second, the world's ticked instances
+  are counted by name: instances, their current lod's emitter instances, those emitters' live particles;
+  and the same again for instances whose `m_visible` is 0. That flag is the game's own (set through
+  `update_particle_system_instance`), not culling: a hidden instance is not drawn but still ticks, and
+  what is off screen is not hidden.
+- **The report**, every 10 s, as lines `srp: particle census: ...`: the totals (means over the window's
+  samples; `world particles N peak P of 50000` is the world's own count against its cap; `made` is
+  instances and emitter instances cooked a second), the 12 names holding the most particles, then the 5
+  names made most often. `?` is instances whose template has no name (256 names are kept). One world is
+  counted at a time; another world's ticks meanwhile are skipped and counted in the totals line.
+- **The simulation's line** (`srp: particle census: simulation in ...`), counted on the simulation's
+  thread into atomics: the steps `atomic_tick` (0x2D1E20) played, split into grid steps (the step ends on
+  a multiple of 50 ms) and parts of steps; the rollbacks (`game_world_core::move` loading a kept state
+  older than the simulation, at 0x2D2FF0 or 0x2D357A) with the grid steps played again for them, in all
+  and the most for one; loads of a state not older; the live bullets at each grid tick of
+  `bullet_manager::tick` (mean and most); and the game's bullet ray tests (counted in patch 103's handler
+  of `bullet.ray_traced`, which is the site's first: no second hook there).
+
+Nothing a match computes or draws. Checked with `check_particle_census_026g.py` (Unicorn) and the patch
+crate's tests; not played. Details and the offsets: `../docs/notes/client_patch.md`, "Particle census".
 
 ## Texture streaming's bookkeeping in Rust (patch 137, unreleased)
 

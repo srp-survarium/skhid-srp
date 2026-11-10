@@ -8,7 +8,7 @@
 //! itself walks them there with no lock (particle_world::tick 0x35AE10), and
 //! adds or removes instances on that thread alone.
 //!
-//! The census is dormant: its two sites keep the game's bytes until
+//! The census is dormant: its sites keep the game's bytes until
 //! [`start`] writes their jumps, at the process's start, only when the game
 //! was started with the census on.
 
@@ -198,15 +198,16 @@ pub enum StartRefused {
 }
 
 /// Switches the census on, at memory.arenas_ready alone: writes the jumps
-/// of `particle_census.toml`'s two hooks installed on demand
-/// (particle_world::tick's start, on_materials_loaded's start), every
-/// site's bytes checked and every page made writable first. A refusal
-/// leaves the game as it was.
+/// of `particle_census.toml`'s hooks installed on demand
+/// (particle_world::tick's start, on_materials_loaded's start, and the
+/// simulation's four sites of `vostok::simulation`), every site's bytes
+/// checked and every page made writable first. A refusal leaves the game as
+/// it was.
 ///
 /// Its precondition is checked, not trusted
 /// ([`at_start`](super::memory_profile::at_start)): there only the main
-/// thread runs the game's code, and no particle world or cook exists yet,
-/// so no thread runs the sites' code while they are written.
+/// thread runs the game's code, and no particle world, cook or match
+/// exists yet, so no thread runs the sites' code while they are written.
 pub fn start(ctx: &Context<'_>) -> Result<(), StartRefused> {
     if !super::memory_profile::at_start(ctx) || STARTED.swap(true, Ordering::AcqRel) {
         return Err(StartRefused::NotTheStart);

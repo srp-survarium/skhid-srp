@@ -3291,6 +3291,66 @@ pub extern "C" fn hook_particle_census_on_created(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- particle_census (patch 138) ----
+
+/// The entry `particle_census_on_atomic_tick` (0x2d1e20, game_world_core::atomic_tick's start (push ecx / mov eax,51EB851Fh; EDI the step's end time in ms, [esp+4] the core, [esp+8] the step's ms, ret 8; its one caller tick_events 0x2D22E2), once for each step or part of a step the simulation plays, a re-run after a rollback included: patch 138 counts the steps here; installed on demand) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_census_on_atomic_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_census_on_atomic_tick` calls this, from the game's jump at 0x2d1e20,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_census::on_atomic_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- particle_census (patch 138) ----
+
+/// The entry `particle_census_on_reload` (0x2d2fe9, game_world_core::move before its first load of a kept state (push 8 / push esi / push ebx / mov [ebp-0Ch],edx; the call of deserialize 0x2D2770 at 0x2D2FF0): EBX the core, its time (+18FC0h) still where the simulation stood, ESI the history item it goes back to; patch 138 counts the rollback here; installed on demand) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_census_on_reload(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_census_on_reload` calls this, from the game's jump at 0x2d2fe9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_census::on_reload(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- particle_census (patch 138) ----
+
+/// The entry `particle_census_on_reload_late` (0x2d3568, game_world_core::move before its second load of a kept state (mov ecx,[esi+0C0BB0h]; then cmp ecx,[ebx+18FC0h] / je 0x2D357F over the call of deserialize at 0x2D357A): EBX the core, ESI the history item, loaded only when its time is not the core's; patch 138 counts it; installed on demand) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_census_on_reload_late(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_census_on_reload_late` calls this, from the game's jump at 0x2d3568,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_census::on_reload_late(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- particle_census (patch 138) ----
+
+/// The entry `particle_census_on_bullets` (0x321d40, bullet_manager::tick past its grid test (cmp byte [ebp+10h],0 / je 0x321F95 at 0x321D1C: the third argument is atomic_tick's now % 50 == 0 flag), with its bullets' vector read (mov [esp+2Ch],ecx / sar ebx,2; ESI the manager): once a grid tick; patch 138 counts the live bullets here; installed on demand) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_census_on_bullets(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_census_on_bullets` calls this, from the game's jump at 0x321d40,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_census::on_bullets(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The named exits of ragdoll::on_cull (the order the shim's Flow code
@@ -4306,9 +4366,13 @@ pub fn memory_profile_on_demand() -> [super::hook::OnDemand; 6] {
 unsafe extern "C" {
     fn particle_census_on_tick();
     fn particle_census_on_created();
+    fn particle_census_on_atomic_tick();
+    fn particle_census_on_reload();
+    fn particle_census_on_reload_late();
+    fn particle_census_on_bullets();
 }
 /// particle_census's sites that keep the game's bytes until it installs them.
-pub fn particle_census_on_demand() -> [super::hook::OnDemand; 2] {
+pub fn particle_census_on_demand() -> [super::hook::OnDemand; 6] {
     [
         // particle.world_tick: particle_world::tick's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the world, ret 8), 
         // SAFETY: the site's span as the original exe has it; particle_census_on_tick is the
@@ -4318,6 +4382,22 @@ pub fn particle_census_on_demand() -> [super::hook::OnDemand; 2] {
         // SAFETY: the site's span as the original exe has it; particle_census_on_created is the
         // generated or linked entry for it, alive as long as the executable.
         unsafe { super::hook::OnDemand::new(0x3627f0, &[0x83, 0xec, 0x14, 0x53, 0x8b, 0x5c, 0x24, 0x1c], particle_census_on_created as *const () as usize as u32) },
+        // simulation.atomic_tick: game_world_core::atomic_tick's start (push ecx / mov eax,51EB851Fh; EDI the step's end time in ms, [
+        // SAFETY: the site's span as the original exe has it; particle_census_on_atomic_tick is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x2d1e20, &[0x51, 0xb8, 0x1f, 0x85, 0xeb, 0x51], particle_census_on_atomic_tick as *const () as usize as u32) },
+        // simulation.reload: game_world_core::move before its first load of a kept state (push 8 / push esi / push ebx / mov [ebp
+        // SAFETY: the site's span as the original exe has it; particle_census_on_reload is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x2d2fe9, &[0x6a, 0x08, 0x56, 0x53, 0x89, 0x55, 0xf4], particle_census_on_reload as *const () as usize as u32) },
+        // simulation.reload_late: game_world_core::move before its second load of a kept state (mov ecx,[esi+0C0BB0h]; then cmp ecx,[e
+        // SAFETY: the site's span as the original exe has it; particle_census_on_reload_late is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x2d3568, &[0x8b, 0x8e, 0xb0, 0x0b, 0x0c, 0x00], particle_census_on_reload_late as *const () as usize as u32) },
+        // simulation.bullets: bullet_manager::tick past its grid test (cmp byte [ebp+10h],0 / je 0x321F95 at 0x321D1C: the third a
+        // SAFETY: the site's span as the original exe has it; particle_census_on_bullets is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x321d40, &[0x89, 0x4c, 0x24, 0x2c, 0xc1, 0xfb, 0x02], particle_census_on_bullets as *const () as usize as u32) },
     ]
 }
 

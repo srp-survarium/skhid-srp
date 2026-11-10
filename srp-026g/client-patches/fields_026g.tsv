@@ -1098,3 +1098,6 @@ vostok::particle::materials_loaded_frame	instance	0x8	ptr<vostok::particle::part
 vostok::resources::queries_result	parent	0x20	ptr<vostok::resources::query_result_for_cook>	get_parent_query (on_materials_loaded 0x3628DD: the instance's own query, which gets the new instance)
 vostok::resources::query_result_for_cook	requested	0xF8	ptr<u8>	the requested path, a C string (particle_system_instance_cook::translate_query 0x362210: used when resolved is 0)
 vostok::resources::query_result_for_cook	resolved	0xFC	ptr<u8>	the path preferred over requested when not 0 (translate_query 0x362206)
+survarium::history_item	time	0xC0BB0	u32	the kept state's simulation time, ms (game_world_core::move 0x2D2FD7 goes back to it; 0x2D3568 compares it with the core's time before loading the state)
+survarium::bullet_manager	bullets	0x8	u32	its live bullets' vector's begin, a pointer a bullet (bullet_manager::tick 0x321D32..0x321D44: (end - begin) / 4 bullets)
+survarium::bullet_manager	bullets_end	0xC	u32	the vector's end

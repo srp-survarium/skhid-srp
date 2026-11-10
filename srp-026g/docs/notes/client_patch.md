@@ -3383,3 +3383,56 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
   no engine allocation; the login screen's turn-off), `check_music_026g.py` (the login screen's
   chain), `../scripts/dxvk-loader/run.sh` (the loader under Wine). **Not run** on Windows or in a
   game.
+
+### Particle census (patch 138, unreleased)
+
+What it is for, its switch (`SKHID_PARTICLE_CENSUS=1`) and its report: `client-patches/README.md`, "The
+particle census". Here: where it is in the exe. The 0.10b particle sources were the map; every offset
+below was read from the 0.26g code named with it.
+
+- **The world** (`particle_world`, its constructor 0x35A520): the ticked instances' list's first at
+  +19Ch (cleared 0x35A584; `tick` 0x35AEF9 walks it by each instance's +2D4h), `m_num_particles` +1ACh
+  and `m_max_particles` +1B0h (50000 at 0x35A59C; `allocate_particle` 0x35A6A0 compares the two; `tick`
+  0x35AE88 scales the emitters' budget by the cap).
+- **An instance** (`particle_system_instance_impl`, 310h bytes: the allocation at 0x3622DE; 2C0h in
+  0.10b): `m_lods` at +108h, ten of 20h (the destructor's ten releases from +228h down, 0x35D038;
+  `set_visible` 0x35D20B steps +114h by 20h); a lod's `m_template` at +0, its emitter list's first at
+  +0Ch (`calc_num_max_particles` 0x35D269 reads `[lod * 20h + 114h]`); `m_next` +2D4h, `m_current_lod`
+  +2DCh, `m_old_lod` +2E0h, `m_num_lods` +2E4h, `m_child_played` +2F7h, `m_paused` +302h (0x35D250),
+  `m_visible` +303h, `m_ticked` +304h (`tick` 0x35AF2B).
+- **An emitter instance**: `m_next` +1ECh, `m_num_live_particles` +1F0h
+  (`remove_overflowing_particles` 0x35E900: +1F0h with +20Ch against +210h), its own `m_visible` +22Fh,
+  `m_render_instance` +1D4h, `m_data_type_action` +1D8h, `m_emitter` +1E8h
+  (`get_render_emitter_instances` 0x35B430..0x35B451).
+- **Templates are shared, instances are not.** `on_sub_resources_loaded` (0x362280) takes the one
+  `particle_system` its query gave (`[results+12Ch]`) and stores it in every lod of the new instance
+  (0x3623E1); the instance itself is allocated there for every query (the cook is `reuse_false`). So a
+  name is keyed by the template's address: a row of the census is every instance of one effect.
+- **The name.** `translate_query` (0x3621C0) asks for the particle system by the instance query's own
+  path: `[query+0FCh]`, or `[query+0F8h]` when that is 0 (0x362206..0x362210).
+  `on_materials_loaded` (0x3627F0; `ret 10h`) gets the material queries' results at `[esp+4]` and the
+  new instance at `[esp+8]`; the results' parent query (+20h, 0x3628DD) is that instance query, and
+  their count (+38h) is the emitter instances made (one material request each).
+- **`m_visible` is the game's flag, not culling.** Written by the constructor (1, 0x35CF28) and by
+  `particle_system_instance_impl::set_visible` (0x35D200, 0x35D23D) only, whose one caller is
+  `particle_world::set_visible` (0x35B9D0), reached through `render::engine::world::
+  update_particle_system_instance` (0x118E10; its game callers `weapon::update_pfx_transform`
+  0x2445CD, `object_particle_visual::tick` 0x292E70 and the game effect presenter's 0x2AC353). Read
+  only by the two `get_render_emitter_instances` (0x35B40A, 0x35B604): a hidden instance is not handed
+  to the renderer, and `tick` does not look at it.
+- **The simulation's sites.** `atomic_tick` 0x2D1E20: EDI the step's end time, its grid flag
+  `now % 50 == 0` computed at 0x2D1E21..0x2D1E36 and handed to every tick list (0x2D1E50..0x2D1E5C);
+  `bullet_manager::tick` 0x321D10 gets it as its third argument and leaves at once without it
+  (0x321D1C), then reads its bullets' vector (+8, +0Ch; four bytes a bullet, 0x321D3B..0x321D44).
+  `game_world_core::move` 0x2D2E40 loads a kept state with `deserialize` 0x2D2770 at 0x2D2FF0 (always
+  on that path) and at 0x2D357A (only when the item's time `[item+0C0BB0h]` is not the core's
+  +18FC0h, 0x2D3568..0x2D3574); before either call the core's time is still where the simulation
+  stood, so `(core time - item time) / 50`, rounded up, is the grid steps played again.
+- **The sites:** six lohooks installed on demand: `particle.world_tick` 0x35AE10 (6 bytes),
+  `particle.materials_loaded` 0x3627F0 (8), `simulation.atomic_tick` 0x2D1E20 (6), `simulation.reload`
+  0x2D2FE9 (7), `simulation.reload_late` 0x2D3568 (6), `simulation.bullets` 0x321D40 (7): each span
+  branch-free, none a branch target inside.
+- **Checked:** `check_particle_census_026g.py` (both exes: the sites' bytes, the off start, the
+  refusals, the six jumps, each span's registers, flags and stack, the made-up objects unwritten, the
+  report's lines), `check_memory_profile_026g.py` (the start's chain, which patch 127 shares) and the
+  patch crate's tests. The bullet ray count is not run in Unicorn. **Not run** in a game.

@@ -2573,6 +2573,24 @@ impl BulletManager {
     pub unsafe fn set_physics(self, value: Option<BulletPhysicsWorld>) {
         unsafe { self.0.byte_add(0x98).cast::<Option<BulletPhysicsWorld>>().write_volatile(value) }
     }
+
+    /// +0x8 (u32): its live bullets' vector's begin, a pointer a bullet (bullet_manager::tick 0x321D32..0x321D44: (end - begin) / 4 bullets)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bullets(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (u32): the vector's end
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bullets_end(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::game_material (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -20213,6 +20231,30 @@ impl QueryResultForCook {
     }
 }
 
+/// A survarium::history_item (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HistoryItem(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HistoryItem {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc0bb0 (u32): the kept state's simulation time, ms (game_world_core::move 0x2D2FD7 goes back to it; 0x2D3568 compares it with the core's time before loading the state)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc0bb0).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -24307,6 +24349,84 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MaterialsLoadedFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MaterialsLoadedFrame)
+        }
+    }
+
+    /// simulation.atomic_tick (0x2d1e20): game_world_core::atomic_tick's start (push ecx / mov eax,51EB851Fh; EDI the step's end time in ms, [esp+4] the core, [esp+8] the step's ms, ret 8; its one caller tick_events 0x2D22E2), once for each step or part of a step the simulation plays, a re-run after a rollback included: patch 138 counts the steps here; installed on demand
+    pub mod simulation_atomic_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn now(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
+        }
+    }
+
+    /// simulation.reload (0x2d2fe9): game_world_core::move before its first load of a kept state (push 8 / push esi / push ebx / mov [ebp-0Ch],edx; the call of deserialize 0x2D2770 at 0x2D2FF0): EBX the core, its time (+18FC0h) still where the simulation stood, ESI the history item it goes back to; patch 138 counts the rollback here; installed on demand
+    pub mod simulation_reload {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(CoreWorld)
+        }
+
+        /// ESI: a survarium::history_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<HistoryItem> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HistoryItem)
+        }
+    }
+
+    /// simulation.reload_late (0x2d3568): game_world_core::move before its second load of a kept state (mov ecx,[esi+0C0BB0h]; then cmp ecx,[ebx+18FC0h] / je 0x2D357F over the call of deserialize at 0x2D357A): EBX the core, ESI the history item, loaded only when its time is not the core's; patch 138 counts it; installed on demand
+    pub mod simulation_reload_late {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(CoreWorld)
+        }
+
+        /// ESI: a survarium::history_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<HistoryItem> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HistoryItem)
+        }
+    }
+
+    /// simulation.bullets (0x321d40): bullet_manager::tick past its grid test (cmp byte [ebp+10h],0 / je 0x321F95 at 0x321D1C: the third argument is atomic_tick's now % 50 == 0 flag), with its bullets' vector read (mov [esp+2Ch],ecx / sar ebx,2; ESI the manager): once a grid tick; patch 138 counts the live bullets here; installed on demand
+    pub mod simulation_bullets {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::bullet_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<BulletManager> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BulletManager)
         }
     }
 }

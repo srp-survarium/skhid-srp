@@ -18,6 +18,13 @@
 //!   particles, then the names made most often ([`Report`]). Counts are
 //!   means over the window's samples, creations a rate per second.
 //!
+//! The same report has one more line, the simulation since the last report
+//! ([`Simulation`]): the steps game_world_core::atomic_tick played (grid
+//! steps and parts of steps, re-runs included), the rollbacks (a kept state
+//! older than the simulation loaded over it, and the grid steps played again
+//! for it), the live bullets at each grid tick, and the bullet rays traced.
+//! They are counted on the simulation thread into atomics the report takes.
+//!
 //! The names live in a fixed table ([`NAMES`]); an instance whose template
 //! was never named (made before the table had room, or its name pushed out)
 //! counts as `?`. One world is counted at a time ([`Window`]): another
@@ -28,7 +35,9 @@ use crate::vostok::files::tick_count;
 use crate::vostok::log::{parts, Piece, Piece::*};
 use crate::vostok::memory_profile::environment;
 use crate::vostok::particle::{self, Created, Instance, Shown, StartRefused, TemplateId, World, WorldId};
+use crate::vostok::simulation::{live_bullets, Load, Step};
 use crate::vostok::{Context, Flow, InstallRefused, Lock, NoExit};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering::Relaxed};
 
 /// The variable that switches the census on.
 const VARIABLE: &[u8] = b"SKHID_PARTICLE_CENSUS\0";
@@ -414,6 +423,123 @@ impl Who {
     }
 }
 
+/// What the simulation did since the last report: counted on the thread
+/// that simulates, taken by the one that reports.
+struct Simulation {
+    grid_steps: AtomicU32,
+    part_steps: AtomicU32,
+    /// Loads of a state older than the simulation, the grid steps played
+    /// again for them, and the most for one.
+    rollbacks: AtomicU32,
+    rerun: AtomicU32,
+    rerun_most: AtomicU32,
+    /// Loads of a state not older.
+    other_loads: AtomicU32,
+    /// Grid ticks of a bullet manager, the live bullets summed over them,
+    /// and the most at one.
+    bullet_ticks: AtomicU32,
+    bullets: AtomicU32,
+    bullets_most: AtomicU32,
+    /// The game's bullet ray tests (check_collision's).
+    rays: AtomicU32,
+}
+
+/// [`Simulation`], taken.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Simulated {
+    grid_steps: u32,
+    part_steps: u32,
+    rollbacks: u32,
+    rerun: u32,
+    rerun_most: u32,
+    other_loads: u32,
+    bullet_ticks: u32,
+    bullets: u32,
+    bullets_most: u32,
+    rays: u32,
+}
+
+impl Simulation {
+    const fn new() -> Simulation {
+        Simulation {
+            grid_steps: AtomicU32::new(0),
+            part_steps: AtomicU32::new(0),
+            rollbacks: AtomicU32::new(0),
+            rerun: AtomicU32::new(0),
+            rerun_most: AtomicU32::new(0),
+            other_loads: AtomicU32::new(0),
+            bullet_ticks: AtomicU32::new(0),
+            bullets: AtomicU32::new(0),
+            bullets_most: AtomicU32::new(0),
+            rays: AtomicU32::new(0),
+        }
+    }
+
+    fn step(&self, step: Step) {
+        match step {
+            Step::Grid => &self.grid_steps,
+            Step::Part => &self.part_steps,
+        }
+        .fetch_add(1, Relaxed);
+    }
+
+    fn load(&self, load: Load) {
+        match load {
+            Load::Back { grid_steps } => {
+                self.rollbacks.fetch_add(1, Relaxed);
+                self.rerun.fetch_add(grid_steps, Relaxed);
+                self.rerun_most.fetch_max(grid_steps, Relaxed);
+            }
+            Load::Other => {
+                self.other_loads.fetch_add(1, Relaxed);
+            }
+        }
+    }
+
+    fn bullets(&self, live: u32) {
+        self.bullet_ticks.fetch_add(1, Relaxed);
+        self.bullets.fetch_add(live, Relaxed);
+        self.bullets_most.fetch_max(live, Relaxed);
+    }
+
+    /// The counts since the last take, each started again from 0.
+    fn take(&self) -> Simulated {
+        let take = |count: &AtomicU32| count.swap(0, Relaxed);
+        Simulated {
+            grid_steps: take(&self.grid_steps),
+            part_steps: take(&self.part_steps),
+            rollbacks: take(&self.rollbacks),
+            rerun: take(&self.rerun),
+            rerun_most: take(&self.rerun_most),
+            other_loads: take(&self.other_loads),
+            bullet_ticks: take(&self.bullet_ticks),
+            bullets: take(&self.bullets),
+            bullets_most: take(&self.bullets_most),
+            rays: take(&self.rays),
+        }
+    }
+}
+
+impl Simulated {
+    /// One line, after a report of `ms`.
+    fn write(&self, ms: u32) {
+        let bullets = self.bullets.saturating_mul(10) / self.bullet_ticks.max(1);
+        parts(&[
+            &[Text("particle census: simulation in ")], &tenths(ms / 100),
+            &[Text(" s: steps "), Dec(self.grid_steps.saturating_add(self.part_steps)), Text(" (grid "), Dec(self.grid_steps)],
+            &[Text(", parts "), Dec(self.part_steps), Text("); rollbacks "), Dec(self.rollbacks), Text(" re-ran "), Dec(self.rerun)],
+            &[Text(" grid steps (max "), Dec(self.rerun_most), Text("); other loads "), Dec(self.other_loads), Text("; bullets ")],
+            &tenths(bullets),
+            &[Text(" max "), Dec(self.bullets_most), Text(" over "), Dec(self.bullet_ticks), Text(" grid ticks; rays "), Dec(self.rays)],
+        ]);
+    }
+}
+
+static SIMULATION: Simulation = Simulation::new();
+/// The census is on: its hooks are written (what [`bullet_ray`], reached
+/// from another patch's hook, tests).
+static ON: AtomicBool = AtomicBool::new(false);
+
 /// The game's threads reach it: a world's tick on the thread that ticks it,
 /// the cook's last step on the thread its query ends on.
 static CENSUS: Lock<Census> = Lock::new(Census::new());
@@ -424,7 +550,10 @@ pub fn on_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
         return Flow::Continue;
     }
     match particle::start(ctx) {
-        Ok(()) => parts(&[&[Text("particle census on: a report every 10 s of a particle world's ticks")]]),
+        Ok(()) => {
+            ON.store(true, Relaxed);
+            parts(&[&[Text("particle census on: a report every 10 s of a particle world's ticks")]]);
+        }
         Err(StartRefused::NotTheStart) => parts(&[&[Text("particle census: not at the start; off, nothing written")]]),
         Err(StartRefused::Site(InstallRefused::Changed { site })) => {
             parts(&[&[Text("particle census: the particle code's bytes are not the game's at "), Hex(site), Text("; off, nothing written")]])
@@ -445,8 +574,41 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     });
     if let Some(report) = report {
         report.write();
+        SIMULATION.take().write(report.ms);
     }
     Flow::Continue
+}
+
+pub fn on_atomic_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    SIMULATION.step(Step::at_site(ctx));
+    Flow::Continue
+}
+
+pub fn on_reload(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    SIMULATION.load(Load::at_reload(ctx));
+    Flow::Continue
+}
+
+pub fn on_reload_late(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(load) = Load::at_reload_late(ctx) {
+        SIMULATION.load(load);
+    }
+    Flow::Continue
+}
+
+pub fn on_bullets(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(live) = live_bullets(ctx) {
+        SIMULATION.bullets(live);
+    }
+    Flow::Continue
+}
+
+/// The game traced a bullet's ray (bullet.ray_traced, from patch 103's
+/// handler: the site's first): counted only while the census is on.
+pub fn bullet_ray() {
+    if ON.load(Relaxed) {
+        SIMULATION.rays.fetch_add(1, Relaxed);
+    }
 }
 
 pub fn on_created(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -587,6 +749,20 @@ mod tests {
         assert_eq!(census.window.map(|window| window.world), Some(WorldId::at(0x5000)));
         assert_eq!(tick(&mut census, 13_000, 0x6000, &world), None);
         assert_eq!(census.window.map(|window| (window.world, window.samples)), Some((WorldId::at(0x6000), 1)));
+    }
+
+    #[test]
+    fn the_simulation_counts_are_taken_once() {
+        let simulation = Simulation::new();
+        [Step::Grid, Step::Part, Step::Grid].into_iter().for_each(|step| simulation.step(step));
+        [Load::Back { grid_steps: 2 }, Load::Back { grid_steps: 3 }, Load::Other].into_iter().for_each(|load| simulation.load(load));
+        [5, 2].into_iter().for_each(|live| simulation.bullets(live));
+        let taken = simulation.take();
+        assert_eq!((taken.grid_steps, taken.part_steps), (2, 1));
+        assert_eq!((taken.rollbacks, taken.rerun, taken.rerun_most, taken.other_loads), (2, 5, 3, 1));
+        assert_eq!((taken.bullet_ticks, taken.bullets, taken.bullets_most, taken.rays), (2, 7, 5, 0));
+        let again = simulation.take();
+        assert_eq!((again.grid_steps, again.rollbacks, again.rerun_most, again.bullets), (0, 0, 0, 0));
     }
 
     #[test]

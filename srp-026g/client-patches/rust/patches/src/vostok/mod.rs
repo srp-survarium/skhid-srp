@@ -57,6 +57,7 @@ pub mod melee;
 pub mod memory;
 pub mod memory_profile;
 pub mod particle;
+pub mod simulation;
 mod options;
 pub mod parse;
 pub mod resources;

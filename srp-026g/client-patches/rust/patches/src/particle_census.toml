@@ -26,3 +26,31 @@ install = "on_demand"
 site = "particle.materials_loaded"
 handler = "on_created"
 install = "on_demand"
+
+# The simulation's re-runs, in the same report (one more line), counted on
+# the simulation's thread into atomics. Bullet rays are counted in patch
+# 103's handler of bullet.ray_traced (subtick_hits uses this patch): no
+# second hook there.
+
+# atomic_tick's start: a step or a part of one, re-runs included
+[[hook]]
+site = "simulation.atomic_tick"
+handler = "on_atomic_tick"
+install = "on_demand"
+
+# move's two loads of a kept state: a rollback and the grid steps it re-runs
+[[hook]]
+site = "simulation.reload"
+handler = "on_reload"
+install = "on_demand"
+
+[[hook]]
+site = "simulation.reload_late"
+handler = "on_reload_late"
+install = "on_demand"
+
+# bullet_manager::tick on a grid tick: the live bullets
+[[hook]]
+site = "simulation.bullets"
+handler = "on_bullets"
+install = "on_demand"
