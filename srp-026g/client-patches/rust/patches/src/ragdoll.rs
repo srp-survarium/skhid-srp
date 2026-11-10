@@ -72,6 +72,8 @@ const _: () = assert!(LEVEL_GROUP <= 0xFFFF && LEVEL_MASK <= 0xFFFF);
 /// The level's rays a frame, for all ragdolls (a ray is a few microseconds).
 /// (two an end of a moving body: under it and beside it.)
 const RAYS_A_FRAME: u32 = 320;
+/// The level's rays a frame for the dropped batteries (four a falling one).
+const BATTERY_RAYS: u32 = 64;
 const UP: Vec3 = Vec3::Y;
 /// The living hits kept between a frame's bullets and its step.
 const LIVING_HITS: usize = 32;
@@ -599,6 +601,8 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, batteries: Option
     let unseen = batteries.map_or([None; BATTERIES as usize], |b| b.loose.map(|l| l.and_then(|l| l.body)));
     let mut level = GameLevel { world: physics, rays: RAYS_A_FRAME, unseen };
     state.corpses.step(&frame, &mut level);
+    // the batteries' own rays: a battery whose rays the corpses spent would fall through the floor
+    level.rays = BATTERY_RAYS;
     crate::battery_drop::step(thread, dt, batteries, &state.corpses, &mut level);
     let own = match local {
         Some((place, player)) if !player.alive() => {

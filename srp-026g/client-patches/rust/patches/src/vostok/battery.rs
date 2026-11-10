@@ -21,6 +21,12 @@ use crate::raw;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BatteryId(u32);
 
+impl BatteryId {
+    pub(in crate::vostok) fn of(item: raw::VictoryItem) -> BatteryId {
+        BatteryId(item.address())
+    }
+}
+
 /// A battery lying loose in the world, as the simulation has it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Loose {
@@ -50,7 +56,7 @@ unsafe fn loose(item: raw::VictoryItem) -> Option<Loose> {
         let mut transform = [0f32; 16];
         raw::engine_usable_transform(Some(item.usable()), transform.as_mut_ptr());
         let finite = transform.iter().all(|f| f.is_finite());
-        finite.then_some(Loose { id: BatteryId(item.address()), body: item.body().map(|b| BodyId(b.address())), transform })
+        finite.then_some(Loose { id: BatteryId::of(item), body: item.body().map(|b| BodyId(b.address())), transform })
     }
 }
 

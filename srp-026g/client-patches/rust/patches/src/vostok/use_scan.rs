@@ -250,4 +250,14 @@ impl Usable<'_> {
             Some([matrix[12], matrix[13], matrix[14]])
         }
     }
+
+    /// The client's battery it is the usable object of, None for anything else.
+    pub fn battery(&self) -> Option<super::battery::BatteryId> {
+        // SAFETY: a live usable object's vtable; only the client battery's
+        // usable has that one, and is 14h into its battery.
+        unsafe {
+            (read(self.this.vtable()) == raw::image::VICTORY_ITEM_USABLE_VTABLE)
+                .then(|| super::battery::BatteryId::of(self.this.victory_item()))
+        }
+    }
 }

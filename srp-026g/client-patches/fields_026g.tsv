@@ -1122,3 +1122,4 @@ survarium::usable_user	eye_offset	0xC	f32	three f32: the eye from the player's p
 survarium::usable_user	point	0x18	f32	three f32: the point the use began at (apply_new_input 0x2D897E: the scan's hit), which use_tick holds the eye within 2 m of
 survarium::battery_model_frame	first	0x1C	obj<vostok::float4x4>	loose_model_callback's lower get_transform copy, at the two draw sites' [ESP+1Ch]
 survarium::battery_model_frame	second	0x5C	obj<vostok::float4x4>	its upper copy, [ESP+5Ch]
+survarium::usable_object	victory_item	-0x14	obj<survarium::victory_item>	the battery it is the usable_object of (get_transform's thunk 0x246ED0: sub ecx,14h): only for one whose vtable is VICTORY_ITEM_USABLE_VTABLE, which the reader checks first

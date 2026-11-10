@@ -37,8 +37,12 @@ const SHAPE: DroppedShape =
 /// The half sizes of the box Use meets, about the same centre.
 const USE_BOX: [f32; 3] = [0.30, 0.12, 0.16];
 /// The walker collision a look at a battery must not cross (ray_test's
-/// group and mask: the foot IK's level).
+/// group and mask: the foot IK's level), up to this short of the battery, m:
+/// the walker mesh lies some centimetres off the ground the battery rests on
+/// (Rudnya: 10 cm at the 90th percentile), and a battery one sees must never
+/// be refused for it.
 const WALL: (u32, u32) = (0x24, 0x02);
+const WALL_SHORT: f32 = 0.3;
 
 /// A loose battery as this client draws it.
 #[derive(Clone, Copy)]
@@ -148,7 +152,7 @@ enum Aim {
     /// The drawn battery looked at, which the player may take.
     Take(weapon_pickup::Battery),
     /// The game's own scan would take a battery where the simulation has
-    /// it, and none is drawn there: Use takes nothing.
+    /// it, one drawn elsewhere: Use takes nothing.
     Unseen,
 }
 
@@ -186,15 +190,20 @@ fn aim_of(viewer: &Player<'_>, thread: &Thread) -> Aim {
                 return None;
             }
             let distance = met(model, eye_at, direction, reach)?;
-            let walled = distance > 0.01
-                && viewer.physics_world().is_some_and(|w| w.ray_test(eye, forward, distance, WALL.0, WALL.1).is_some());
+            let clear = distance - WALL_SHORT;
+            let walled = clear > 0.0
+                && viewer.physics_world().is_some_and(|w| w.ray_test(eye, forward, clear, WALL.0, WALL.1).is_some());
             (!walled).then_some((distance, battery))
         })
         .reduce(|a, b| if a.0 <= b.0 { a } else { b });
     match nearest {
         Some((_, battery)) => Aim::Take(battery),
         None => match crate::use_scan::detect(viewer) {
-            Some(Found::Usable(spot)) if spot.object.battery_centre().is_some() => Aim::Unseen,
+            Some(Found::Usable(spot))
+                if spot.object.battery().is_some_and(|id| falls.iter().flatten().any(|&(drawn, _)| drawn == id)) =>
+            {
+                Aim::Unseen
+            }
             _ => Aim::Elsewhere,
         },
     }

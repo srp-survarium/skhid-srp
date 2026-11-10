@@ -17692,6 +17692,15 @@ impl UsableObject {
     pub unsafe fn users(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
     }
+
+    /// -0x14 (obj<survarium::victory_item>): the battery it is the usable_object of (get_transform's thunk 0x246ED0: sub ecx,14h): only for one whose vtable is VICTORY_ITEM_USABLE_VTABLE, which the reader checks first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn victory_item(self) -> VictoryItem {
+        VictoryItem(unsafe { self.0.byte_sub(0x14) })
+    }
 }
 
 /// A survarium::usable_distance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
