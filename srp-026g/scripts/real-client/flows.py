@@ -1005,6 +1005,13 @@ def called_back_line(picture) -> bool:
     return bool(yellow.mean() > 0.01)
 
 
+def room_notice(picture) -> bool:
+    """The room's "Your room is ready": a dark box with a gold edge and light words, under the window's title, in the middle."""
+    box = picture[150:215, 600:1000].astype(int)
+    gold = (box[:, :, 0] > 170) & (box[:, :, 1] > 120) & (box[:, :, 1] < 200) & (box[:, :, 2] < 120)
+    return bool(gold.sum() >= 60)
+
+
 def called_back(run: Run) -> None:
     """A player alone in its room watches a replay; a second player comes, the room can play, and the first is
     brought back from the replay to its room, which shows itself; the room's match is then made with both."""
@@ -1026,7 +1033,8 @@ def called_back(run: Run) -> None:
     a.wait_screen(called_back_line, "the line that says so over the replay, with its seconds", 4)
     a.shot("called-back-1b-countdown")
     a.expect_server(r"let go, back to its player's room", 10, mark)
-    a.wait_screen(window_open, "the room, back from the replay", 40, steady=1)
+    a.wait_screen(lambda picture: window_open(picture) and not watch_open(picture) and room_notice(picture),
+                  "its room, not the Watch window, with its notice, back from the replay", 40, steady=0.5)
     a.shot("called-back-2-room")
     say("brought back to its room")
     made = a.expect_server(r"Match 0x[0-9a-f]+ made: map \d+ \([^,]+, mode \d+\)", 120, mark)

@@ -114,7 +114,10 @@ but with nice non-disruptive ux/ui".
 - **Not begun then:** a watch asked while the asker's room would call back at once is answered
   `busy` (`room_keeps`).
 - **In the game** (`WatchWindow.back`, `RoomsWindow.holdWatchReturn`): back from a watch in a
-  room or a queue, the next room state decides: a room in its vote or its match shows itself, with
+  room or a queue, the next room state decides: a room that called back says so once, with its
+  state (the room code 18, `RoomCode::CalledBack`, kept until the game asks: a room that waited
+  for players is still waiting at that moment, its vote begins with the one who is back), and it,
+  or any room in its vote or its match, shows itself, with
   one line over it for 7 s, "Your room is ready" (`st_srp_rooms_called_back`; no press taken,
   nothing moved); a room still waiting, or no room, gives the Watch window back as it was.
 - **Said first, in what is watched** (the owner's of 2026-11-10: "match found nice ui/ux

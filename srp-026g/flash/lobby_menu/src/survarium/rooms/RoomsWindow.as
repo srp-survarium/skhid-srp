@@ -1155,13 +1155,19 @@ package survarium.rooms
                 // here, said once; our own word (a PIN not of 4 digits) stays
                 // while we stay.
                 RoomsLook.markSquads(_room.members, squads);
-                // Back from a watch: the room with a use for us (its vote, its match) shows
-                // itself, with a quiet notice; one still waiting gives the Watch window back.
-                if (_watchReturn != null)
+                var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
+                // Back from a watch: the room that called us back (srp says so, once: a room that
+                // waited for players is still waiting then, its vote begins with us), or one with a
+                // use for us anyway (its vote, its match), shows itself, with a quiet notice; one
+                // still waiting gives the Watch window back.
+                var calledBack:Boolean = roomCode == RoomCode.CALLED_BACK;
+                if (calledBack)
+                    roomCode = RoomCode.NONE;
+                if (calledBack || _watchReturn != null)
                 {
                     var back:Object = _watchReturn;
                     _watchReturn = null;
-                    if (_room.phase != RoomPhase.WAITING)
+                    if (calledBack || _room.phase != RoomPhase.WAITING)
                     {
                         _view = "room";
                         _roomSig = "";
@@ -1172,7 +1178,6 @@ package survarium.rooms
                     else
                         back.resume();
                 }
-                var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
                 if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
                     roomCode = _code;
                 var codeChanged:Boolean = roomCode != _code;

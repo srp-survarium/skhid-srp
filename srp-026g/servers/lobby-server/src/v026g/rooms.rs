@@ -1556,6 +1556,10 @@ impl Core<'_> {
         // A code said once: why the last request or Play left it outside.
         let kept = self.room_codes.remove(&who.account_id);
         let code = match (code, kept) {
+            // A call back is the room's own word, said with the room.
+            (RoomCode::None, Some(RoomCode::CalledBack)) => {
+                if view.is_some() { RoomCode::CalledBack } else { RoomCode::None }
+            }
             (RoomCode::None, Some(kept)) if view.is_none() => kept,
             (code, _) => code,
         };
@@ -2218,6 +2222,8 @@ impl Core<'_> {
                 Away::Live(session_id) => (matchmaking.recall_watcher(session_id), "the live match"),
             };
             if told {
+                // Said with the room's state when its game is back (`send_room_state`).
+                self.room_codes.insert(account_id, RoomCode::CalledBack);
                 log::info!(
                     "{}: called back to room {key} from {what} it watched",
                     self.name_of(account_id).unwrap_or_default()

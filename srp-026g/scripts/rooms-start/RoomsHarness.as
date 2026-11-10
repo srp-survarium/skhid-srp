@@ -948,6 +948,19 @@ package
             if(note == null || !note.visible || words == null || words.text.length == 0 || words.textWidth + 28 > note.width
                || note.parent.getChildIndex(note) != note.parent.numChildren - 1)
                failures.push("watch return: no notice over the voting room: " + (words != null ? words.text : null));
+            // srp's own word (the room's code 18, once): a room still waiting shows itself too
+            tell(["S1;N;0;0;0"]);
+            tellRoom(7,false,false,0,null,0,[]);
+            me.show(false);
+            me.holdWatchReturn(resume);
+            var names:Array = [["S1","R",7,15,15,10,30,0,754,0,5,5,7,0,63,2,18].join(";"),"C;0;61;2;1","C;1;62;1;0","C;2;63;0;0","L;0"];
+            var rows:Array = [];
+            for(var r:int = 0; r < names.length; r++)
+               rows.push({"place":STATE + r, "nickname":names[r]});
+            Win.take(rows);
+            note = named(win,"srpRoomsCalledBack") as DisplayObjectContainer;
+            if(resumed != 1 || !me.shown || note == null || !note.visible)
+               failures.push("watch return: a waiting room that called us back did not show itself with its notice (" + resumed + ", shown " + me.shown + ")");
             tell(["S1;N;0;0;0"]);
             if(me.holdWatchReturn(resume))
                failures.push("watch return: held in no room");

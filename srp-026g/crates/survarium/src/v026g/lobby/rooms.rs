@@ -596,6 +596,10 @@ pub enum RoomCode {
     /// own: its commander's Play, Join or Queue takes it (the owner's of
     /// 2026-10-31, `squads.md`). The movie greys those by the same rule.
     SquadLeader = 17,
+    /// No refusal: the member's room called it back from what it watched
+    /// (a live match, a replay). Said once, with the room, when its game is
+    /// back: the movie shows the room and says so.
+    CalledBack = 18,
 }
 
 /// A room in [`room_list`].
