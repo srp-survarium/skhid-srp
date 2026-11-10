@@ -38,6 +38,12 @@ CARD_STEP = 82  # the height of a card
 BACK = (288, 28)
 ROOMS_MENU = (1018, 52)
 RANKING_MENU = (1182, 52)
+ROOMS_PRIVATE = (803, 1136)  # "Private room" under an empty Rooms list
+ROOMS_RIGHT_BUTTON = (917, 1136)  # the Rooms window's right footer button: Create, Join, the owner's Start
+CREATE_PIN = (274, 229)  # the form's PIN box
+ROOM_ROW = (300, 276)  # the first room of the list
+JOIN_PIN = (1328, 598)  # the PIN box of the room chosen in the list
+ROOM_PIN = "4321"
 RANKING_ROW = (638, 492)  # the second row of the Ranking's list
 RANKING_MATCHES = (700, 527)  # "Matches" in its right-click menu, the second entry
 QUEUE_SPECTATE = (1031, 1136)
@@ -1058,6 +1064,99 @@ def mine(run: Run) -> None:
     a.wait_screen(lobby_clear, "the lobby", 5)
 
 
+def copied_code(game: Game, at: tuple[int, int], what: str) -> str:
+    """The match code under `at`, selected by a press and copied with Ctrl+C; "" when nothing was copied."""
+    saved = get_clipboard()
+    try:
+        set_clipboard("nothing-yet")
+        game.click(*at, 10)
+        time.sleep(0.4)
+        game.key_chord("ctrl", "c")
+        time.sleep(0.6)
+        copied = get_clipboard()
+    finally:
+        set_clipboard(saved or " ")
+    code = copied if re.fullmatch(r"#[0-9a-f]{8}", copied) else ""
+    say(f"{what}: {code or 'no code copied'}")
+    return code
+
+
+def private_room(run: Run) -> None:
+    """A room with a PIN, from its making to its match in the lists: the owner makes it and starts it, a second player
+    comes in with the PIN, both play and leave; the match pays nothing (the server says so), is the first of the
+    owner's Mine list, by the code its results screen showed, and is not on Everyone."""
+    a, b = sign_in(run, "ReplayTester"), sign_in(run, "SecondTester")
+    a.wait_screen(play_ready, "a lobby that has settled", 20, steady=3)
+    mark = run.server.mark()
+    a.click(*ROOMS_MENU)
+    a.wait_screen(window_open, "the Rooms window")
+    a.click(*ROOMS_PRIVATE, 10)
+    a.wait_screen(lambda picture: not rooms_list_empty(picture), "the private room's form", 5)
+    a.click(*CREATE_PIN, 10)
+    time.sleep(0.3)
+    a.type(ROOM_PIN)
+    time.sleep(0.4)
+    a.click(*ROOMS_RIGHT_BUTTON, 10)
+    a.expect_server(r"ReplayTester: made room \d+: private \(PIN\)", 10, mark)
+    a.wait_screen(in_room, "the owner in its room", 6)
+    say("made a room with a PIN")
+    b.click(*ROOMS_MENU)
+    b.wait_screen(window_open, "the Rooms window")
+    b.wait_screen(room_row_listed, "the room in the list", 8)
+    b.click(*ROOM_ROW, 10)
+    time.sleep(0.5)
+    b.click(*JOIN_PIN, 10)
+    time.sleep(0.3)
+    b.type(ROOM_PIN)
+    time.sleep(0.4)
+    b.click(*ROOMS_RIGHT_BUTTON, 10)
+    b.wait_screen(in_room, "the guest in the room", 8)
+    say("the second player came in with the PIN")
+    a.shot("private-1-room-of-two")
+    time.sleep(1)
+    a.click(*ROOMS_RIGHT_BUTTON, 10)  # Start, the owner's
+    made = a.expect_server(r"Match 0x[0-9a-f]+ made: map \d+ \([^,]+, mode \d+\)", 60, mark)
+    say(made)
+    a.expect_server(r"ReplayTester goes to match", 15, mark)
+    end_match(run, a, b)
+    a.expect_server(r"Match 0x[0-9a-f]+: private room, no rewards", 20, mark)
+    a.wait_screen(results_open, "the results screen", 25, steady=1)
+    a.shot("private-2-results")
+    code = copied_code(a, RESULTS_CODE, "the results screen's code")
+    if not code:
+        raise a.fail("the private match's results screen gave no code")
+    a.click(*RESULTS_CLOSE, 6)
+    time.sleep(1.5)
+    open_replays(a)
+    a.wait_screen(card_listed, "a card on the Replays tab, Mine", 10)
+    time.sleep(1)
+    a.shot("private-3-mine")
+    first = copied_code(a, CARD_CODE, "the first card of Mine")
+    if first != code:
+        raise a.fail(f"the private match {code} is not the first of the player's own list: {first or 'no code'}")
+    a.click(*REPLAYS_EVERYONE)
+    time.sleep(3)  # the list has had its answer
+    a.shot("private-4-everyone")
+    public = copied_code(a, CARD_CODE, "the first card of Everyone")
+    if public == code:
+        raise a.fail(f"the private match {code} is on Everyone")
+    say("the private match is the first of Mine and not on Everyone")
+    a.click(*CLOSE_WATCH)
+    a.wait_screen(lobby_clear, "the lobby", 5)
+
+
+def rooms_list_empty(picture) -> bool:
+    """The Rooms list's own title band's line "Rooms: n" at its left: light text there (the form has its NAME label, dim)."""
+    words = picture[184:204, 112:200].astype(int).sum(axis=2)
+    return bool((words > 600).mean() > 0.04)
+
+
+def room_row_listed(picture) -> bool:
+    """A room in the Rooms list: light text in its first row."""
+    row = picture[264:288, 120:300].astype(int).sum(axis=2)
+    return bool((row > 600).mean() > 0.03)
+
+
 def ranking_listed(picture) -> bool:
     """The Ranking window with rows: light text where its second row's name is."""
     name = picture[484:500, 596:690].astype(int).sum(axis=2)
@@ -1089,7 +1188,7 @@ def ranking_matches(run: Run) -> None:
     a.wait_screen(lambda picture: not window_open(picture), "the Watch window closed", 5)
 
 
-FLOWS = {"called_back": called_back, "mine": mine, "ranking_matches": ranking_matches, "loose_search": loose_search, "queue_spectate": queue_spectate, "paused": paused,
+FLOWS = {"private_room": private_room, "called_back": called_back, "mine": mine, "ranking_matches": ranking_matches, "loose_search": loose_search, "queue_spectate": queue_spectate, "paused": paused,
          "friend_in_countdown": friend_in_countdown,
          "windows_close_watch": windows_close_watch, "card_press": card_press, "card_code": card_code, "code_submit": code_submit,
          "unknown_codes": unknown_codes, "moments": moments, "kit": kit_after_replay, "kit_view": kit_view, "live": live, "follow": follow, "save": save, "first_click": first_click}
