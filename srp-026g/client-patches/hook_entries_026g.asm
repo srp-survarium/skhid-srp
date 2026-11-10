@@ -3670,6 +3670,45 @@ hud_options_on_present_replay:
     db 0x8b, 0xb6, 0xcc, 0x00, 0x00, 0x00
     jmp 0x3cf905
 
+; 0x105e8e the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases: lohook -> hud_options_on_ddraw_probed
+global hud_options_on_ddraw_probed
+extern hook_hud_options_on_ddraw_probed
+hud_options_on_ddraw_probed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_ddraw_probed
+    mov edx, hud_options_on_ddraw_probed_replay
+    cmp eax, 0
+    je hud_options_on_ddraw_probed_go
+    mov edx, 0x105e94
+    cmp eax, 1
+    je hud_options_on_ddraw_probed_go
+    ud2
+hud_options_on_ddraw_probed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_ddraw_probed_replay:
+    db 0x8b, 0x44, 0x24, 0x14, 0x8b, 0x10
+    jmp 0x105e94
+
 ; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
 global language_on_options_call
 extern hook_language_on_options_call_chain

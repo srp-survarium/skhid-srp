@@ -96,6 +96,7 @@ survarium::static_info_frame	reader	-0x2C	obj<vostok::buffer_reader>	process_sta
 survarium::replay_options_frame	options	0x40	ptr<survarium::match_options>	a replay's chunk 1 reader's first argument, the options (by the site's ESP at 0x1F0971; 0x1F095C)
 survarium::replay_options_frame	reader	0x14	obj<vostok::buffer_reader>	its local reader {begin, cursor, size} (esp+14h; made at 0x1F094C..0x1F0958)
 survarium::update_player_icons_frame	ui	0x4	ptr<survarium::game_world_ui>	update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)
+vostok::ddraw_probe_frame	ddraw	0x18	u32	the DirectDraw object DirectDrawCreate made (an IDirectDraw*; esp+18h, 0 from the probe's start, 0x105DC0, and when ddraw.dll has no DirectDrawCreate)
 scaleform::avm_text_field	as3_collectible	-0x20	u32	collectible AS3 object pointer; low bit is its GC tag
 scaleform::avm_text_field	as3_raw	-0x1C	u32	raw AS3 object pointer, preferred when nonzero
 survarium::image	medkit_vtable	0xA1C79C	u32	medkit's primary vtable, written by ctor 0x33CAE6 (all medical consumables)
