@@ -5986,3 +5986,6 @@ va	name	location	role	basis
 0x0010a590	vostok::resources::managed_resource::managed_resource	entry ESP+4	its bytes (kept at +5Ch)	observed
 0x00504c30	Scaleform::MemoryHeapMH::GetTotalFootprint	ECX	the heap	observed
 0x00504c90	Scaleform::MemoryHeapMH::GetTotalUsedSpace	ECX	the heap	observed
+0x003007e0	survarium::victory_item_core::use_initialize	ECX	usable battery subobject	observed
+0x003007e0	survarium::victory_item_core::use_initialize	entry ESP+4	user data	observed
+0x003007e0	survarium::victory_item_core::use_initialize	entry ESP+8	time	observed

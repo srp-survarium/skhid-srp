@@ -277,6 +277,8 @@ unsafe extern "C" {
     pub fn engine_usable_transform(usable: Option<UsableObject>, matrix: *mut f32);
     /// 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
     pub fn engine_finish_key_binding(options: Option<GameOptions>);
+    /// COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+    pub fn engine_voice_set_volume(voice: Option<MasteringVoice>, volume: f32, operation_set: u32) -> u32;
 }
 
 #[allow(dead_code)]
@@ -375,6 +377,8 @@ unsafe extern "thiscall" {
     pub fn engine_key_name(keyboard: Option<Keyboard>, key: u32, name: *mut u8, size: u32) -> u8;
     /// 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
     pub fn engine_mt_free(allocator: Option<Pthreads3Allocator>, block: *mut c_void, function: *const u8, file: *const u8, line: u32);
+    /// 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_battery_use(usable: Option<UsableObject>, user: Option<UsableUser>, time: u32);
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -2217,6 +2221,15 @@ impl Item {
     #[inline(always)]
     pub unsafe fn active_object(self) -> Item {
         Item(unsafe { self.0.byte_sub(0x10) })
+    }
+
+    /// +0x0 (obj<survarium::victory_item>): itself as a battery: only when its vtable is VICTORY_ITEM_VTABLE (0xA042AC), which the reader checks first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn victory_item(self) -> VictoryItem {
+        VictoryItem(unsafe { self.0.byte_add(0x0) })
     }
 }
 
@@ -10188,6 +10201,24 @@ impl SoundWorld {
     pub unsafe fn set_logic_user(self, value: Option<WorldUser>) {
         unsafe { self.0.byte_add(0xb0).cast::<Option<WorldUser>>().write_volatile(value) }
     }
+
+    /// +0xc4 (ptr<xaudio2::mastering_voice>): its IXAudio2MasteringVoice (initialize_xaudio 0x59080: CreateMasteringVoice writes it, 0x596B8). The game calls only GetVoiceDetails (0x5DA1D) and DestroyVoice (0x599ED) on it, never SetVolume: its volume is XAudio2's 1.0. Under patch 100 it is the proxy, which keeps a volume set across a device change
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn master(self) -> Option<MasteringVoice> {
+        unsafe { self.0.byte_add(0xc4).cast::<Option<MasteringVoice>>().read_volatile() }
+    }
+
+    /// +0xc4 (ptr<xaudio2::mastering_voice>): its IXAudio2MasteringVoice (initialize_xaudio 0x59080: CreateMasteringVoice writes it, 0x596B8). The game calls only GetVoiceDetails (0x5DA1D) and DestroyVoice (0x599ED) on it, never SetVolume: its volume is XAudio2's 1.0. Under patch 100 it is the proxy, which keeps a volume set across a device change
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_master(self, value: Option<MasteringVoice>) {
+        unsafe { self.0.byte_add(0xc4).cast::<Option<MasteringVoice>>().write_volatile(value) }
+    }
 }
 
 /// A vostok::sound::sound_scene (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -17166,6 +17197,33 @@ impl UsableUser {
     pub unsafe fn set_player(self, value: Option<Player>) {
         unsafe { self.0.byte_add(0x0).cast::<Option<Player>>().write_volatile(value) }
     }
+
+    /// +0x4 (u32): the usable object in use, 0 while none (use_initialize 0x300808; apply_new_input asks only then, 0x2D88B1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (f32): three f32: the eye from the player's place at the press (apply_new_input 0x2D896D), which use_tick 0x300830 adds to the place now
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_offset(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x18 (f32): three f32: the point the use began at (apply_new_input 0x2D897E: the scan's hit), which use_tick holds the eye within 2 m of
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn point(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x18).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::detect_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -17624,6 +17682,15 @@ impl UsableObject {
     #[inline(always)]
     pub unsafe fn vtable(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x28 (u32): how many players are using it (use_initialize 0x3007ED increments; use_finalize 0x2F85B0 unlinks one, 0x2F8641): the engine refuses no second user
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn users(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
     }
 }
 
@@ -20375,6 +20442,117 @@ impl Bio {
     }
 }
 
+/// A survarium::victory_item (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VictoryItem(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl VictoryItem {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<survarium::player>): its carrier, 0 while none (get_transform 0x300A2C; set_user 0x300B00)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn user(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::player>): its carrier, 0 while none (get_transform 0x300A2C; set_user 0x300B00)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_user(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x14 (obj<survarium::usable_object>): its usable_object (vtable 0xA0437C; get_transform's thunk 0x246ED0: sub ecx,14h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn usable(self) -> UsableObject {
+        UsableObject(unsafe { self.0.byte_add(0x14) })
+    }
+
+    /// +0x1a8 (u32): the container it is in, 0 while in none (get_transform 0x300A5D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn container(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1a8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x2a8 (ptr<vostok::physics::hit_object>): its bt_dynamic_rigid_body (the constructor 0x300470, for its life), in the physics world while physical: what a ray that meets the battery's body answers (ray_test 0x75FFD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn body(self) -> Option<HitObject> {
+        unsafe { self.0.byte_add(0x2a8).cast::<Option<HitObject>>().read_volatile() }
+    }
+
+    /// +0x2a8 (ptr<vostok::physics::hit_object>): its bt_dynamic_rigid_body (the constructor 0x300470, for its life), in the physics world while physical: what a ray that meets the battery's body answers (ray_test 0x75FFD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_body(self, value: Option<HitObject>) {
+        unsafe { self.0.byte_add(0x2a8).cast::<Option<HitObject>>().write_volatile(value) }
+    }
+
+    /// +0x2c8 (u8): in the world as a body: set by insert (0x300950), cleared by remove (0x3006F7); loose_model_callback draws it only then
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physical(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2c8).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::battery_model_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BatteryModelFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BatteryModelFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1c (obj<vostok::float4x4>): loose_model_callback's lower get_transform copy, at the two draw sites' [ESP+1Ch]
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> Float4x4 {
+        Float4x4(unsafe { self.0.byte_add(0x1c) })
+    }
+
+    /// +0x5c (obj<vostok::float4x4>): its upper copy, [ESP+5Ch]
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn second(self) -> Float4x4 {
+        Float4x4(unsafe { self.0.byte_add(0x5c) })
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -20668,6 +20846,21 @@ pub struct Backend(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl Backend {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A xaudio2::mastering_voice (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MasteringVoice(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MasteringVoice {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -24497,6 +24690,54 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<SslCallFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(SslCallFrame)
+        }
+    }
+
+    /// battery.draw_primary (0x24681d): victory_item::loose_model_callback 0x2467B0 (every game_world::tick, the game's thread) before its first model's update_model 0x22280 (push eax / mov eax,[esp+1Ch]): EDI the battery, a physical one (+2C8h), its two get_transform copies on the stack at [ESP+1Ch] and [ESP+5Ch], which update_model copies and nothing else reads
+    pub mod battery_draw_primary {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::victory_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<VictoryItem> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(VictoryItem)
+        }
+
+        /// the site's ESP: a survarium::battery_model_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BatteryModelFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BatteryModelFrame)
+        }
+    }
+
+    /// battery.draw_secondary (0x24687b): loose_model_callback before its second model's update_model (push eax / push edi / lea eax,[ebp+108h]): ESI the battery, the two copies asked again, at the same [ESP+1Ch] and [ESP+5Ch]
+    pub mod battery_draw_secondary {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::victory_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<VictoryItem> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(VictoryItem)
+        }
+
+        /// the site's ESP: a survarium::battery_model_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BatteryModelFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BatteryModelFrame)
         }
     }
 }

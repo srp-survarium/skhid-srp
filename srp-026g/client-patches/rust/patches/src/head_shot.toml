@@ -1,0 +1,25 @@
+# Patch 76's head shot of a corpse (docs/notes/ragdoll.md): only the
+# decisions, which sites and the handlers. The sites are sites_026g.tsv's; the
+# logic is head_shot.rs. The shot is patch 76's step's (ragdoll.rs), the
+# notice's input and its apply point are artefact_carry's input_builder.end
+# and carry.filter, whose handlers call head_shot::on_input_end / on_filter.
+name = "head_shot"
+patch = 76
+
+# every frame of a match: the hud movie's black view (after patches 65 and 83)
+[[hook]]
+site = "player_icons.update_start"
+handler = "on_update_icons"
+order = 3
+
+# the sound thread's tick: every sound off while dark (after patch 88's music)
+[[hook]]
+site = "sound_world.tick"
+handler = "on_sound_tick"
+order = 1
+
+# the game unloads its match: the dark ends (after patches 88 and 81)
+[[hook]]
+site = "game.clear_resources"
+handler = "on_unload"
+order = 3

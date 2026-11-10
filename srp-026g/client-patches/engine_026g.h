@@ -66,6 +66,7 @@ struct lobby_camera;
 struct lobby_character;
 struct lobby_client;
 struct lobby_menu;
+struct mastering_voice;
 struct match_options;
 struct match_options_holder;
 struct match_packet;
@@ -768,5 +769,11 @@ void __attribute__((cdecl)) engine_err_put_error(unsigned int library, unsigned 
 
 /* 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly */
 unsigned int __attribute__((cdecl)) engine_rand_bytes(unsigned char *room, unsigned int length);
+
+/* COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX */
+unsigned int engine_voice_set_volume(struct mastering_voice *voice, float volume, unsigned int operation_set);
+
+/* 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_battery_use(struct usable_object *usable, struct usable_user *user, unsigned int time);
 
 #endif

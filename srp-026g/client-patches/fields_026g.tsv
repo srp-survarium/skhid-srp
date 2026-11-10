@@ -1109,3 +1109,16 @@ openssl::ssl_call_frame	length	0x10	u32	their length (EBP+10h; asio's do_read 0x
 openssl::ssl	rbio	0xC	ptr<openssl::bio>	the BIO the SSL reads the peer's bytes from (SSL_get_rbio): asio's engine sets its half of a BIO pair, into whose other half it puts what the socket read (engine::put_input)
 openssl::ssl	wbio	0x10	ptr<openssl::bio>	the BIO the SSL writes to (the same half): asio's engine takes the bytes from the other half and sends them (engine::get_output)
 openssl::bio	flags	0x14	u32	the BIO's flags (BIO_FLAGS_READ 1, SHOULD_RETRY 8: BIO_read of an empty pair sets both)
+vostok::sound::sound_world	master	0xC4	ptr<xaudio2::mastering_voice>	its IXAudio2MasteringVoice (initialize_xaudio 0x59080: CreateMasteringVoice writes it, 0x596B8). The game calls only GetVoiceDetails (0x5DA1D) and DestroyVoice (0x599ED) on it, never SetVolume: its volume is XAudio2's 1.0. Under patch 100 it is the proxy, which keeps a volume set across a device change
+survarium::item	victory_item	0x0	obj<survarium::victory_item>	itself as a battery: only when its vtable is VICTORY_ITEM_VTABLE (0xA042AC), which the reader checks first
+survarium::victory_item	user	0x8	ptr<survarium::player>	its carrier, 0 while none (get_transform 0x300A2C; set_user 0x300B00)
+survarium::victory_item	usable	0x14	obj<survarium::usable_object>	its usable_object (vtable 0xA0437C; get_transform's thunk 0x246ED0: sub ecx,14h)
+survarium::victory_item	container	0x1A8	u32	the container it is in, 0 while in none (get_transform 0x300A5D)
+survarium::victory_item	body	0x2A8	ptr<vostok::physics::hit_object>	its bt_dynamic_rigid_body (the constructor 0x300470, for its life), in the physics world while physical: what a ray that meets the battery's body answers (ray_test 0x75FFD)
+survarium::victory_item	physical	0x2C8	u8	in the world as a body: set by insert (0x300950), cleared by remove (0x3006F7); loose_model_callback draws it only then
+survarium::usable_object	users	0x28	u32	how many players are using it (use_initialize 0x3007ED increments; use_finalize 0x2F85B0 unlinks one, 0x2F8641): the engine refuses no second user
+survarium::usable_user	object	0x4	u32	the usable object in use, 0 while none (use_initialize 0x300808; apply_new_input asks only then, 0x2D88B1)
+survarium::usable_user	eye_offset	0xC	f32	three f32: the eye from the player's place at the press (apply_new_input 0x2D896D), which use_tick 0x300830 adds to the place now
+survarium::usable_user	point	0x18	f32	three f32: the point the use began at (apply_new_input 0x2D897E: the scan's hit), which use_tick holds the eye within 2 m of
+survarium::battery_model_frame	first	0x1C	obj<vostok::float4x4>	loose_model_callback's lower get_transform copy, at the two draw sites' [ESP+1Ch]
+survarium::battery_model_frame	second	0x5C	obj<vostok::float4x4>	its upper copy, [ESP+5Ch]

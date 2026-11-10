@@ -271,6 +271,8 @@ unsafe extern "C" {
     pub fn engine_usable_transform(usable: *mut c_void, matrix: *mut f32);
     /// 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
     pub fn engine_finish_key_binding(options: *mut c_void);
+    /// COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+    pub fn engine_voice_set_volume(voice: *mut c_void, volume: f32, operation_set: u32) -> u32;
 }
 
 #[allow(dead_code)]
@@ -369,6 +371,8 @@ unsafe extern "thiscall" {
     pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
     /// 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
     pub fn engine_mt_free(allocator: *mut c_void, block: *mut c_void, function: *const u8, file: *const u8, line: u32);
+    /// 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_battery_use(usable: *mut c_void, user: *mut c_void, time: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

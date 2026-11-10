@@ -109,12 +109,30 @@ impl Ms {
     }
 }
 
-/// The 20 six-bit patterns with two or more bits set, in increasing order:
-/// place n's pickup command carries the nth.
-const PATTERNS: [u8; PLACES as usize] = {
-    let mut out = [0u8; PLACES as usize];
+/// The batteries a match has at most (the rule's items; the statistics keep
+/// ten records).
+pub const BATTERIES: u8 = 10;
+
+/// A battery of the match, by its index in the rule's items, 0..9.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Battery(u8);
+
+impl Battery {
+    pub const fn new(index: u8) -> Option<Battery> {
+        if index < BATTERIES { Some(Battery(index)) } else { None }
+    }
+
+    pub const fn get(self) -> u8 {
+        self.0
+    }
+}
+
+/// The six-bit patterns with two or more bits set, in increasing order (57
+/// of them): a command's pattern is the one at its ordinal.
+const PATTERNS: [u8; 57] = {
+    let mut out = [0u8; 57];
     let (mut n, mut value) = (0usize, 0u8);
-    while n < PLACES as usize {
+    while n < out.len() {
         if value.count_ones() >= 2 {
             out[n] = value;
             n += 1;
@@ -124,37 +142,93 @@ const PATTERNS: [u8; PLACES as usize] = {
     out
 };
 
-/// The place an input's action mask asks to take the gun of, if any: the
-/// marker with one of the 20 patterns. A single quick bit is patch 78's
-/// carry command; any other pattern (two inputs OR-merged into one node)
-/// asks for nothing.
-pub fn command(actions: u32) -> Option<Place> {
-    if actions & CHORD == 0 {
-        return None;
+/// What an input's action mask asks beside the game's own actions: the
+/// marker with one of the patterns. A single quick bit is patch 78's carry
+/// command; a pattern past the last ordinal (two inputs OR-merged into one
+/// node) asks for nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Command {
+    /// Take the gun of this place's drop (ordinals 0..19).
+    Gun(Place),
+    /// Take this battery, which the sender saw where its own client draws
+    /// it (ordinals 20..29).
+    Battery(Battery),
+    /// The sender's bullet met the head of this place's corpse as the
+    /// sender's client draws it (ordinals 30..49). The simulation reads
+    /// nothing of it.
+    HeadShot(Place),
+}
+
+impl Command {
+    const fn ordinal(self) -> usize {
+        match self {
+            Command::Gun(place) => place.0 as usize,
+            Command::Battery(battery) => PLACES as usize + battery.0 as usize,
+            Command::HeadShot(place) => (PLACES + BATTERIES) as usize + place.0 as usize,
+        }
     }
-    let quick = ((actions & QUICK) >> 14) as u8;
-    PATTERNS.iter().position(|&p| p == quick).map(|n| Place(n as u8))
+
+    pub fn of(actions: u32) -> Option<Command> {
+        if actions & CHORD == 0 {
+            return None;
+        }
+        let quick = ((actions & QUICK) >> 14) as u8;
+        let ordinal = PATTERNS.iter().position(|&p| p == quick)? as u8;
+        match ordinal {
+            n if n < PLACES => Some(Command::Gun(Place(n))),
+            n if n < PLACES + BATTERIES => Some(Command::Battery(Battery(n - PLACES))),
+            n => Place::new(n - PLACES - BATTERIES).map(Command::HeadShot),
+        }
+    }
+
+    /// The input builder's mask asking this: the marker and the pattern in
+    /// place of the press's quick bits. A pickup also consumes Use.
+    pub fn encode(self, actions: u32) -> u32 {
+        let consumed = match self {
+            Command::Gun(_) | Command::Battery(_) => QUICK | USE,
+            Command::HeadShot(_) => QUICK,
+        };
+        (actions & !consumed) | CHORD | (u32::from(PATTERNS[self.ordinal()]) << 14)
+    }
+
+    /// The server's check, which the client applies before it sends: a
+    /// command names a place of the match, the sender's own too (its own
+    /// drop: the owner, 2026-11-05). A battery is one of the ten by its type.
+    pub fn allowed(self, places: u8) -> bool {
+        match self {
+            Command::Gun(place) | Command::HeadShot(place) => place.0 < places,
+            Command::Battery(_) => true,
+        }
+    }
+}
+
+const _: () = assert!((PLACES + BATTERIES + PLACES) as usize <= PATTERNS.len());
+
+/// The place an input's action mask asks to take the gun of, if any.
+pub fn command(actions: u32) -> Option<Place> {
+    match Command::of(actions)? {
+        Command::Gun(place) => Some(place),
+        Command::Battery(_) | Command::HeadShot(_) => None,
+    }
 }
 
 /// The input builder's mask asking for `target`'s gun: the marker and its
 /// pattern; Use and the quick bits of the press are consumed.
 pub fn encode(actions: u32, target: Place) -> u32 {
-    (actions & !(QUICK | USE)) | CHORD | (u32::from(PATTERNS[usize::from(target.0)]) << 14)
+    Command::Gun(target).encode(actions)
 }
 
-/// The server's check, which the client applies before it sends: a pickup
-/// names a place of the match, the sender's own too (its own drop: the
-/// owner, 2026-11-05).
+/// The server's check of a pickup, which the client applies before it sends.
 pub fn allowed(target: Place, places: u8) -> bool {
-    target.0 < places
+    Command::Gun(target).allowed(places)
 }
 
-/// Whether the server relays an input with these actions: no
-/// pickup, or an [`allowed`] one. The server drops any other as it drops an
-/// input with an impossible rotation (its owner told to drop it too), and the
-/// client never makes one.
+/// Whether the server relays an input with these actions: no command, or an
+/// allowed one ([`Command::allowed`]). The server drops any other as it drops
+/// an input with an impossible rotation (its owner told to drop it too), and
+/// the client never makes one.
 pub fn sane(actions: u32, places: u8) -> bool {
-    command(actions).is_none_or(|target| allowed(target, places))
+    Command::of(actions).is_none_or(|command| command.allowed(places))
 }
 
 /// A player's own drop: the gun it held at its death (the owner,
@@ -701,7 +775,37 @@ mod tests {
         }
         assert_eq!(command(QUICK & 0x3 << 14), None, "no marker");
         assert_eq!(command(CHORD), None);
-        assert_eq!(command(CHORD | QUICK), None, "past the 20 patterns");
+        assert_eq!(command(CHORD | QUICK), None, "past the patterns");
+    }
+
+    #[test]
+    fn every_command_round_trips_apart_from_the_others_and_from_carry() {
+        let places = (0..PLACES).map(|p| Place::new(p).unwrap());
+        let all = places
+            .clone()
+            .map(Command::Gun)
+            .chain((0..BATTERIES).map(|b| Command::Battery(Battery::new(b).unwrap())))
+            .chain(places.map(Command::HeadShot));
+        let mut seen = std::collections::HashSet::new();
+        for command in all {
+            let pressed = USE | 0x4000 | 0x21;
+            let mask = command.encode(pressed);
+            assert_eq!(Command::of(mask), Some(command));
+            assert!(seen.insert(mask & QUICK), "{command:?} shares a pattern");
+            assert!((mask & QUICK).count_ones() >= 2, "{command:?} is a carry command");
+            assert_eq!(mask & 0x21, 0x21);
+            // a pickup consumes Use; a head shot leaves the press its Use
+            assert_eq!(mask & USE != 0, matches!(command, Command::HeadShot(_)), "{command:?}");
+            assert_eq!(super::command(mask).is_some(), matches!(command, Command::Gun(_)));
+        }
+        assert_eq!(seen.len(), 50);
+        assert_eq!(Battery::new(BATTERIES), None);
+        let far = Command::HeadShot(Place::new(12).unwrap());
+        assert!(far.allowed(13) && !far.allowed(12));
+        assert!(!sane(far.encode(0), 12) && sane(far.encode(0), 20));
+        assert!(sane(Command::Battery(Battery::new(9).unwrap()).encode(USE), 2));
+        // the seven patterns left ask for nothing
+        assert_eq!(Command::of(CHORD | QUICK), None);
     }
 
     #[test]
@@ -902,5 +1006,62 @@ mod tests {
         let ammo_70 = AmmoBags::parse(50, 1).unwrap();
         assert_eq!(ammo_70.bags(100), 2);
         assert_eq!(crate_refill(ammo_70.bags(100), ak, 0, (13, false)), Refill { bags: 2, total: 60, target: 47 });
+    }
+}
+
+/// The reach of a battery's pickup command ([`Command::Battery`]).
+///
+/// The sender's client draws a dropped battery by its own solver (patch
+/// 76: it lies on corpses and never falls under a floor), so it takes the
+/// battery it sees, and every world plays the command against the battery
+/// the simulation has. Two rules keep the two together, each a plain
+/// distance across (level; the height is free: the simulation's battery can
+/// lie under a floor the drawn one rests on):
+///
+/// - the drawing client keeps its battery within [`TETHER`] of the
+///   simulation's (a drawn one that strays starts again from it);
+/// - every world refuses a command whose player is not within [`REACH`] of
+///   the simulation's battery: the game's own 2 m of use, the battery's half
+///   length, the eye's lean from the feet, and the tether.
+pub mod battery_reach {
+    /// m, across.
+    pub const TETHER: f32 = 1.5;
+    /// m, across, from the player's place.
+    pub const REACH: f32 = 4.5;
+
+    fn across(a: [f32; 3], b: [f32; 3]) -> f32 {
+        let (x, z) = (a[0] - b[0], a[2] - b[2]);
+        x * x + z * z
+    }
+
+    /// Whether a battery drawn at `drawn` is still the simulation's at
+    /// `simulated` (a NaN is not).
+    pub fn tethered(drawn: [f32; 3], simulated: [f32; 3]) -> bool {
+        across(drawn, simulated) <= TETHER * TETHER
+    }
+
+    /// Whether a player at `place` may take the simulation's battery at
+    /// `simulated` by a command (a NaN may not).
+    pub fn within(place: [f32; 3], simulated: [f32; 3]) -> bool {
+        across(place, simulated) <= REACH * REACH
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn a_tethered_battery_seen_within_the_games_reach_is_within_the_commands() {
+            // the eye 2 m from the near end of a battery drawn at the
+            // tether's end, the feet half a metre behind the eye
+            let simulated = [10.0, -30.0, 5.0];
+            let drawn = [10.0 + TETHER, 0.0, 5.0];
+            assert!(tethered(drawn, simulated));
+            assert!(!tethered([10.0 + TETHER + 0.01, 0.0, 5.0], simulated));
+            let feet = [drawn[0] + 0.3 + 2.0 + 0.5, 0.0, 5.0];
+            assert!(within(feet, simulated), "any height");
+            assert!(!within([10.0 + REACH + 0.01, -30.0, 5.0], simulated));
+            assert!(!within([f32::NAN, 0.0, 0.0], simulated) && !tethered(drawn, [0.0, 0.0, f32::NAN]));
+        }
     }
 }

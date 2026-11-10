@@ -219,6 +219,8 @@ global engine_bio_read
 global engine_bio_write
 global engine_err_put_error
 global engine_rand_bytes
+global engine_voice_set_volume
+global engine_battery_use
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -304,6 +306,7 @@ engine_bio_read equ 0x44c630   ; 0x44c630 BIO_read: bio ESP+4, room ESP+8, lengt
 engine_bio_write equ 0x44c740   ; 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
 engine_err_put_error equ 0x44a270   ; 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
 engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
+engine_battery_use equ 0x3007e0   ; 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -2539,6 +2542,25 @@ engine_finish_key_binding:
     push edi
     mov edi, [esp + 20]   ; options
     call 0x2015a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_voice_set_volume:
+    ; COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; operation_set -> 12
+    push dword [esp + 28]   ; volume -> 8
+    push dword [esp + 28]   ; voice -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x30]
     pop edi
     pop esi
     pop ebx

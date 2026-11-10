@@ -71,6 +71,8 @@ pub mod drug_interrupt;
 pub mod footsteps;
 
 pub mod weapon_pickup;
+pub mod head_shot;
+pub mod battery_drop;
 
 pub mod medical_skills;
 pub mod artefact_skills;

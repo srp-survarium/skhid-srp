@@ -64,6 +64,7 @@ pub mod renderer;
 pub mod gun_cook;
 pub mod pickup;
 pub mod use_scan;
+pub mod battery;
 pub mod streaming;
 pub mod ray_test;
 mod rt;
