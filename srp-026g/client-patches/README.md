@@ -3616,9 +3616,14 @@ same items for every new account) makes each newcomer cost three times the same 
 and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
 - `game::game` before its delete (`lea eax,[esp+470h] / call 0x1E8DA0`, the lohook at 0x1E944E,
   `on_game_start`; it goes on past the call, 0x1E945A). The folder is
-  deleted only when its stamp `srp_baked_textures.txt` is missing or names another revision; then
-  it is made again and stamped. Otherwise each whole DDS in it (DXT1 or DXT5, the file as long as
-  its header says) goes back into the baker's list with CRC 0, at most 512 files and 512 MB; the
+  deleted only when its stamp `srp_baked_textures.txt` is missing or names another bake format
+  (`BAKE_FORMAT`) or other game data: a fingerprint of the files of `resources.db`'s patches that a
+  bake reads (models, material instances, textures, shaders, camouflage and decal items), from each
+  patch's file table (`bake_cache/inputs.rs`); then it is made again and stamped. So a release keeps
+  it unless its patch has such a file. Revision 54's stamp counts as format 1's. Otherwise each
+  whole DDS in it (DXT1 or DXT5, the file as long as
+  its header says) goes back into the baker's list with CRC 0, at most 512 files and 896 MB (512 MB until 2026-11-09: half a 20-player
+  folder was deleted at every start); the
   rest are deleted. `game::exit`'s delete (0x1EC832) is a 5-byte nop (`BAKE_CACHE_KEEP`).
 - check_loaded_baked_texture's CRC compare (0x131C90, `on_check_crc`): a record of CRC 0
   takes the CRC of the bytes loaded, so a kept file is used; then stock rules apply.
@@ -3646,10 +3651,11 @@ and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
 - The game's CRC-32 step (0x42050: a byte a step through the table 0x1C210 makes, polynomial
   04C11DB7h reflected), which every bake runs over its whole DDS (process_compression 0x12F340) and
   every load over the file read (0x3C0FF0), 1.4 to 5.6 MB each (its start 0x42050, `on_crc_step`;
-  its exit the function's own `ret 4` at 0x4207E): the same value eight bytes a step (slice by 8,
-  tables from EDB88320h, made at build time), the registers as the
+  its exit the function's own `ret 4` at 0x4207E): the same value, 64 bytes a step folded with
+  PCLMULQDQ where the processor has it (CPUID), else eight bytes a step (slice by 8, tables from
+  EDB88320h, made at build time); the registers as the
   original leaves them. Measured on the owner's game, the CRC was most of a bake burst's stall
-  (16:37:47, 0.4 s); here 3.25 instructions a byte against 11.
+  (16:37:47, 0.4 s); here 0.48 instructions a byte folded, 3.25 sliced, against 11.
 - The stamp is written only when no `.dds` is left after the delete (one held open by another game
   is not deleted): otherwise the next start deletes the folder again.
 
@@ -3661,9 +3667,13 @@ into them (each span branch-free: main's lohooks replay it).
 their sites and exits, the nop, no relocation or branch inside). `check_bake_cache_026g.py`
 (Unicorn) runs every
 site from the game's code on the game's own static baker:
-- the folder: kept and back in the list, a file cut short and the files past 512 deleted;
-  deleted and stamped for another revision, no stamp, or no folder; the original deletes it every
-  time;
+- the folder, with made-up patches of the game data (their file tables): kept and back in the
+  list, a file cut short and the files past 512 deleted; kept by a release whose patch has only
+  item stats, deleted and stamped anew for a patch with a texture, a decal item or one that cannot
+  be read, another format, a stamp of other bytes, no stamp, or no folder; revision 54's stamp kept
+  and stamped again (deleted with a texture in patch 55), revision 53's deleted; no `resources.db`:
+  deleted, not stamped; the fingerprint the same as the check's own (Python) of the tables; the
+  original deletes it every time;
 - the game's own check_loaded: a kept file's first load is used and takes the CRC read;
 - the look-up: the original bakes twice; the build makes a second and third query wait, and lets
   another path, another type and a 17th query go on;
@@ -3673,8 +3683,9 @@ site from the game's code on the game's own static baker:
 - a held texture: a respawn's query gets it at once with no look-up; past 256 MB the least used
   goes;
 - a folder whose delete leaves a file: not stamped;
-- the CRC-32 step against the original on 24 buffers of 0 to 10 MB from unaligned starts with
-  random CRCs: the CRC and every register the same; 3.25 instructions a byte against 11;
+- the CRC-32 step against the original on 32 buffers of 0 to 10 MB from unaligned starts with
+  random CRCs, on a processor without PCLMULQDQ (Penryn) and one with it (Westmere): the CRC and
+  every register the same; 3.25 and 0.48 instructions a byte against 11;
 - any other query's finish goes straight through.
 **Not run:** a game.
 

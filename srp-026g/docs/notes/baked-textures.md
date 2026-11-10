@@ -32,11 +32,36 @@ fixes them; the RE is in `client_patch.md` section 3.57.
 
 ## The rules (patch 70)
 
-- The folder is kept from game to game. It is deleted (the stock delete) only when its stamp
-  `srp_baked_textures.txt` names another exe revision, or when it has no stamp. Every release starts
-  with an empty folder, so content that changes a camouflage cannot leave stale bakes.
+- The folder is kept from game to game, and from release to release. It is deleted (the stock delete)
+  only when its stamp `srp_baked_textures.txt` ("Skhid baked textures, format F, inputs H") names
+  another bake format or other game data, or when it has no stamp:
+  - **The format** (`BAKE_FORMAT`, 1) is what the bake code makes. A change of that code that makes
+    other bytes bumps it (every player bakes once more). The test `the_bake_code_is_this_format`
+    fails at any change of the files it names (patch 121's bake, `vostok::baker`, the weapons'
+    camouflage and decals) until its hash is set again, so each such change is weighed. An exe patch
+    of the baker's own code needs the same.
+  - **The game data** (`inputs`, 16 hex digits) is a fingerprint of what a bake reads that its file
+    name does not say. The name says what differs from item to item (the model and surface, the
+    camouflage, the decals' values); the rest is the same for every bake of one game data: the
+    models, material instances, textures, shaders and the camouflage and decal items
+    (`gameplay/items/upgrades`). `resources.db` never changes; each `resources.db.patch_<n>` is
+    released once and never changed. So at the start every patch's file table is read (not its
+    files) and the fingerprint folds, for each patch with a file in those folders, its number and
+    those files (path, size and the table's CRC). A patch of Flash movies, item stats, maps or sounds
+    leaves it as it was. Of the patches 24 to 54, 14 changed it (27, 28, 30, 31, 38-41, 43-45, 49,
+    51, 54) and 17 releases would have kept the folder.
+  - A table this walk does not follow (anything `resources-db` refuses, a hard link) is hashed whole,
+    and a patch that cannot be read counts as one: either only deletes the folder too often. With no
+    `resources.db` where the game mounts it from (`..\..\` of its working folder) nothing is known:
+    deleted and not stamped.
+  - Revision 54's stamp ("Skhid baked textures, revision 54", before formats) is format 1's: its
+    folder is kept and stamped again when no patch past 54 has a file in those folders.
+  - `srp_patches.log` gets a line at the start: kept or deleted, and the stamp.
 - At the start, every whole DDS file in the folder goes back into the baker's list. A file cut short
-  is deleted. So are the files past 512 or past 512 MB (half of the stock 1 GiB limit; stock trimming
+  is deleted. So are the files past 512 or past 896 MB (the stock 1 GiB limit less 128 MB for the
+  game's own bakes before stock trimming starts; until 2026-11-09 half of it, 512 MB, which deleted
+  half of a 20-player match's folder, 0.9-1 GB in ~500 files, at every start: the next game baked ~400
+  textures again, fps-measure `r54-warm`, 398 bakes against the cold run's 831; stock trimming
   goes on as before).
 - A kept file's record has CRC 0. Its first load is used and takes the CRC it read; after that, stock
   rules apply.
@@ -52,9 +77,15 @@ fixes them; the RE is in `client_patch.md` section 3.57.
   15:40:43, 15:40:57 and 15:43:59: one player's armour was read from disk again at each respawn. At most
   256 textures and 256 MB of their files are held; the least recently used is let go first. A baked
   texture is held from its first load.
-- The CRC-32 the game runs over every baked or loaded file (0x42050, a byte a step) is the same value
-  computed eight bytes a step: about a third of the instructions. On the owner's game it was most of a
-  bake burst's stall (16:37:47, 0.4 s).
+- The CRC-32 the game runs over every baked or loaded file (0x42050, a byte a step; also the texture
+  streamer's check of an archive mip, texture_mip_cook::on_dds_body_ready 0x3DD4A0, when the mip's
+  descriptor asks for it, +13Dh) is the same value computed faster. On the owner's game it was most
+  of a bake burst's stall (16:37:47, 0.4 s), and still 20-35 ms of render-thread CPU at a time in the
+  2026-11-09 profile with the sliced step. Where the processor has carry-less multiplies (PCLMULQDQ:
+  Intel since 2010, AMD since 2011; CPUID asked once) 64 bytes a step are folded (Intel's 2009 method,
+  the constants of crc32fast): 0.48 instructions a byte in Unicorn against 3.25 sliced and 11 stock;
+  12.5 GB/s against 2.3 sliced and 0.5 stock on a Ryzen 5900X (i686 build). Without them, and below
+  128 bytes, eight bytes a step through tables as before.
 - Textures only: nothing a match computes changes. Games with and without the patch play together.
 
 ## Bakes off the GPU's clock (patch 121)
@@ -166,6 +197,15 @@ asynchronous, the cost is the GPU work the game waited for.
 - Textures only: nothing a match computes changes. Games with and without the patch play together.
 
 ## Not done
+
+- The held textures' cap (256 textures, 256 MB) is not lowered. In the bake-stress loads (20 players)
+  a match loads 146-201 distinct textures from the folder, 290-410 MB: 256 MB already holds about 60 %
+  of them, 64 MB 3-4 players' kits. A respawn not held reads its kit again (~40 ms for 12 textures on
+  the owner's game, a third of it the CRC, now about a sixth of that). On native Windows a held D3D11
+  texture is video memory, not the game's address space, so what a lower cap frees there is not
+  known. To measure before changing it: the address space and the memory report (patch 126) after
+  several matches at 256 and at 64 MB, and the respawn reloads ("new id" lines after the match's
+  first minute) at each.
 
 - A first load of a kept file is still on the main thread: a joiner's kit read from the folder took
   ~40 ms for 12 textures (15:11:27). Spreading them over frames, or moving them behind the loading
